@@ -2,19 +2,21 @@
 # Handoff
 
 - roadmap_item: Spike: confirm luv builds and passes its tests against Lua 5.5 on Linux, macOS, Windows (resolves OQ-1).
-- status: in-progress
-- lock_until: 2026-10-11T18:44:40Z
-- last_update: 2026-10-11T17:14:40Z
+- status: waiting-ci
+- lock_until: 2026-10-11T18:45:55Z
+- last_update: 2026-10-11T17:15:55Z
 
 ## Done
 
-- Claimed the item (branch + draft PR).
+- Claimed the item (draft PR #4).
+- Linux: luv 1.53.0-0 builds vs Lua 5.5.1, 167/167 tests pass.
+- Added .github/workflows/spike-oq1.yml and docs/spikes/OQ-1.md (Linux filled in).
 
 ## Next steps
 
-1. Build luv against /opt/lua-5.5 under spikes/OQ-1/ and run its tests (Linux).
-2. Add a spike workflow to run the same on macOS and Windows via CI.
-3. Write report docs/spikes/OQ-1.md with a recommendation for the owner.
+1. Read spike-oq1 CI results for macOS/Windows on PR #4; fix workflow or record luv failures.
+2. Fill the table in docs/spikes/OQ-1.md, finalise recommendation.
+3. Delete spike workflow + HANDOFF.md, tick roadmap item, mark PR ready, comment for owner.
 
 ## Decisions taken (and where they are recorded)
 
