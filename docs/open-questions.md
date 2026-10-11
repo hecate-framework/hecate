@@ -8,7 +8,6 @@ When resolved, record the outcome (ADR or specification update) and move the ent
 
 | ID | Type | Question | Blocks |
 |---|---|---|---|
-| OQ-1 | research | Does luv build and pass its test suite on Lua 5.5 on all three platforms? If not: contribute upstream, maintain a fork, or write a dedicated binding? | `reactor` |
 | OQ-2 | research | Exact LuaRocks capabilities on Lua 5.5: project-local trees, `--pin` lockfiles, rockspec generation, Windows support. Can `hecate.lock` be a superset of `luarocks.lock`? | `cli` |
 | OQ-3 | research | LuaLS and StyLua support for Lua 5.5 syntax. Fallback if unsupported (ban the construct temporarily, patch upstream)? | Phase 0 tooling |
 | OQ-4 | spike → owner decision | TLS: bind OpenSSL 3 directly (own binding) or adopt an existing binding (luaossl, lua-openssl) if it supports 5.5? Is mbedTLS an option for static builds? | `net` |
@@ -25,6 +24,7 @@ When resolved, record the outcome (ADR or specification update) and move the ent
 
 | ID | Outcome |
 |---|---|
+| OQ-1 | luv is used unmodified, in system-Lua mode (1.53.0-0 or later): it builds and passes its full test suite on Lua 5.5.1 on Linux, macOS and Windows, with no fork and no dedicated binding. Report: [docs/spikes/OQ-1.md](spikes/OQ-1.md) (2026-10-11). |
 | OQ-10 (part) | GitHub organisation `hecate-framework`; provisional website domain `hecate.theandre.dev`; contact `theandre.bourry@ik.me` (2026-10-11). |
 | OQ-10 | luarocks.org: a dedicated account `hecate-framework` publishes all rocks (to be created by the owner; API key stored as `LUAROCKS_API_KEY`); the owner's personal account is kept as a backup maintainer if co-maintainers are supported. Rock-name availability is checked when the account is created (2026-10-11). |
 | — | Documentation theme: original Hecate theme for the website and user projects; no reuse of the Tailwind UI-licensed Lua Web Docs theme (ADR 0012, 2026-10-11). |
