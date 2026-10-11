@@ -24,8 +24,9 @@ jobs:
           file(GLOB SRC src/*.c)
           list(REMOVE_ITEM SRC ${CMAKE_SOURCE_DIR}/src/lua.c ${CMAKE_SOURCE_DIR}/src/luac.c)
           add_library(lua5 SHARED ${SRC})
-          target_compile_definitions(lua5 PRIVATE LUA_BUILD_AS_DLL)
-          if(UNIX)
+          if(WIN32)
+            target_compile_definitions(lua5 PRIVATE LUA_BUILD_AS_DLL)
+          else()
             target_compile_definitions(lua5 PRIVATE LUA_USE_POSIX LUA_USE_DLOPEN)
             target_link_libraries(lua5 m ${CMAKE_DL_LIBS})
           endif()
@@ -55,5 +56,6 @@ jobs:
           export DYLD_LIBRARY_PATH="$GITHUB_WORKSPACE/lua-install/lib"
           so="$(find ../luv-build -name 'luv.so' -o -name 'luv.dll' | head -1)"
           dir="$(cd "$(dirname "$so")" && pwd)"
+          if command -v cygpath >/dev/null; then dir="$(cygpath -m "$dir")"; fi
           export LUA_CPATH="$dir/?.so;$dir/?.dll"
           lua tests/run.lua
