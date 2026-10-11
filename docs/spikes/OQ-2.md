@@ -24,7 +24,7 @@ make_manifest` (two versions of a pure-Lua rock, `dep-a` 1.0 and 1.1).
 | Lua 5.5 recognised | Yes: `luarocks config lua_version` is `5.5`; `lua >= 5.4` dependencies are satisfied by the VM (`5.5-1 provided by VM`). |
 | Project-local tree | Yes: `luarocks init --lua-versions=5.5 <name> <version>` creates `.luarocks/config-5.5.lua`, `lua_modules/`, and `./luarocks` and `./lua` wrappers. |
 | Install into the tree | Yes: `./luarocks install --deps-only <rockspec>` installs into `lua_modules/` only. |
-| Lockfile write | Yes: `./luarocks build --pin --only-deps <rockspec>` writes `luarocks.lock` (`dependencies = { [name] = "version" }`). The pseudo-rock `lua = "5.5-1"` is recorded too. |
+| Lockfile write | Only after the dependencies are installed: `./luarocks build --pin --only-deps <rockspec>` writes `luarocks.lock` (`dependencies = { [name] = "version" }`, plus the pseudo-rock `lua = "5.5-1"`). On a fresh tree it fails (`Could not satisfy dependency lua 5.5-1: ... provided by VM`, exit 1, no lockfile; seen on Ubuntu CI with `inspect` and locally). Workaround: `install --deps-only` first, then pin. |
 | Lockfile read | Yes: with `luarocks.lock` present, a fresh tree gets `dep-a 1.0-1`; without it, `dep-a 1.1-1` (the newest). |
 | Remote manifests | `luarocks.org` manifests are reachable (HTTP 200); `--only-server` with a 5.5 manifest works. Rocks published for 5.5 are scarce, so many need `--check-lua-versions`/`--lua-version` care. |
 

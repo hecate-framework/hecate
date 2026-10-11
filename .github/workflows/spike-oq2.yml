@@ -78,7 +78,10 @@ jobs:
           echo 'return require("inspect")' > spk.lua
           cat .luarocks/config-5.5.lua
           LR="luarocks --lua-dir $GITHUB_WORKSPACE/lua-install --tree lua_modules"
-          echo "::group::pin"
+          echo "::group::fresh install (no lock)"
+          $LR install --deps-only spk-1.0-1.rockspec
+          echo "::endgroup::"
+          echo "::group::pin (after install; pinning a fresh tree fails, see OQ-2 report)"
           $LR build --pin --only-deps spk-1.0-1.rockspec || echo "exit=$?"
           cat luarocks.lock
           echo "::endgroup::"

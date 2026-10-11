@@ -6,10 +6,13 @@
 - last_update: 2026-10-11T17:36:24Z
 
 ## Done
+
 Linux experiments and report docs/spikes/OQ-2.md.
 
 ## Next steps
+
 1. Read spike-oq2 CI results (3 platforms), fold them into docs/spikes/OQ-2.md, delete .github/workflows/spike-oq2.yml and HANDOFF.md, tick the roadmap item.
 
 ## Doubts and questions for the owner
-GitHub archive downloads return 403 in cloud sessions.
+
+Allowlist for codeload.github.com added by the owner; not yet effective in the cloud session.
