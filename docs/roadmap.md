@@ -14,7 +14,7 @@ Sessions run in Claude Code cloud sessions (Linux). The first deliverable is the
 minimal `ci.yml` matrix (ubuntu, macos, windows) so that spikes and scripts can be
 verified on macOS and Windows through pull requests.
 
-- [ ] Spike: confirm luv builds and passes its tests against Lua 5.5 on Linux, macOS,
+- [x] Spike: confirm luv builds and passes its tests against Lua 5.5 on Linux, macOS,
       Windows (resolves OQ-1).
 - [ ] Spike: confirm LuaRocks 3.x supports Lua 5.5 with project-local trees and
       lockfiles; document the exact commands (OQ-2).
