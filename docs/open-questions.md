@@ -8,7 +8,7 @@ When resolved, record the outcome (ADR or specification update) and move the ent
 
 | ID | Type | Question | Blocks |
 |---|---|---|---|
-| OQ-3 | spike done → owner decision | LuaLS and StyLua support for Lua 5.5 syntax. Report: [docs/spikes/OQ-3.md](spikes/OQ-3.md): LuaLS supports it fully; StyLua 2.6.0 does not parse `global`, named varargs or prefix attributes. Recommendation: adopt LuaLS, ban those constructs in source until StyLua supports them. | Phase 0 tooling |
+| OQ-3 | spike done → owner decision | LuaLS and StyLua support for Lua 5.5 syntax. Report: [docs/spikes/OQ-3.md](spikes/OQ-3.md): LuaLS supports it fully; StyLua 2.6.0 does not parse `global`, named varargs or prefix attributes. Recommendation: adopt LuaLS now; formatter deferred (none, or EmmyLuaCodeStyle as stopgap); ban those constructs in source until StyLua supports them. | Phase 0 tooling |
 | OQ-4 | spike → owner decision | TLS: bind OpenSSL 3 directly (own binding) or adopt an existing binding (luaossl, lua-openssl) if it supports 5.5? Is mbedTLS an option for static builds? | `net` |
 | OQ-5 | spike → owner decision | JSON codec: own C codec, binding to yyjson (MIT), or lua-cjson? Criteria: speed, correctness (RFC 8259), integer/float fidelity, streaming. | `json` |
 | OQ-6 | spike → owner decision | HTTP/1.1 parser: bind llhttp (MIT) or write a parser in Lua? Default assumption: llhttp. | `http` |

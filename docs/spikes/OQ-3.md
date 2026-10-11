@@ -45,11 +45,33 @@ Other LuaLS observations on a sample using all constructs:
 - The bundled Lua 5.5 meta files, when scanned as part of a workspace, produce
   `duplicate-doc-field` noise; keep `metapath` outside the workspace.
 
+## Interim formatter: EmmyLuaCodeStyle
+
+LuaLS has no formatting command-line option; its formatter is the bundled
+EmmyLuaCodeStyle (`3rd/EmmyLuaCodeStyle`, C++). Its standalone `CodeFormat` executable
+was built with CMake (`nlohmann_json` submodule only) and run as
+`CodeFormat format -f file.lua -d -o out.lua`.
+
+| Construct | EmmyLuaCodeStyle `CodeFormat` |
+|---|---|
+| plain code, `for` loops, `local x <const>`, `local x <close>` | formats |
+| named varargs `...t` | formats (accepted leniently) |
+| `global x = 1`, `global x` | accepted but **misparsed** as an expression: spacing left untouched (`global   x`), no error |
+| `global function f() end`, `local <const> x` (prefix form) | **syntax error**, file not formatted |
+
+So it covers the subset allowed in the recommendation below, but it silently does not
+format `global` declarations. It is less opinionated than StyLua and is maintained
+separately from LuaLS, so it is a stopgap, not a replacement.
+
 ## Recommendation
 
 1. **LuaLS**: adopt it as type checker and linter for Lua 5.5 as is. Pin a release or
    commit, and run it through a `tools/` task (`--check`, JSON output).
-2. **StyLua**: it cannot parse `global`, `...name` or prefix attributes, and a file it
+2. **Formatter**: the owner may choose between (a) no formatter until StyLua supports
+   Lua 5.5, with the style enforced by review and LuaLS, or (b) EmmyLuaCodeStyle as an
+   interim formatter for the allowed subset (see above). Either way StyLua is not
+   needed now and is re-evaluated on each release. The ban below applies to both.
+   **StyLua**: it cannot parse `global`, `...name` or prefix attributes, and a file it
    cannot parse is not formatted at all. Until upstream adds Lua 5.5, **ban those
    constructs in committed source** (ADR 0001 already lists mechanical lowerings:
    `local args = table.pack(...)`; strictness via LuaLS and the test-time `_ENV`
