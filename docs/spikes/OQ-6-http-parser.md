@@ -11,8 +11,8 @@ theirs.
   built with GCC `-O2` as a Lua 5.5.1 module together with the three llhttp C files.
 - A throwaway pure-Lua parser (about 60 lines: request line, headers, Content-Length and
   chunked bodies, smuggling checks) as the "Lua parser" candidate.
-- A 12-case corpus of valid and malformed requests, and a micro-benchmark: 200 000 parses
-  of a 7-header GET, single thread.
+- A 12-case corpus of valid and malformed requests, and a micro-benchmark: 11 runs of 100 000 parses
+  of a 7-header GET, single thread, reporting the median.
 
 Code lives in `spikes/OQ-6/` (git-ignored). Not yet run on macOS and Windows: the
 llhttp sources are portable ANSI C with no platform code, but this is unverified until CI.
@@ -29,12 +29,14 @@ llhttp sources are portable ANSI C with no platform code, but this is unverified
 | bare LF line endings | reject | reported as "incomplete" (the connection would wait) |
 | NUL byte in a header value | reject | **accepted** |
 
+Median of 11 runs of 100 000 parses each (mean, min and max in brackets):
+
 | Parser | per request | requests/s |
 |---|---|---|
-| llhttp binding | 2.4 µs | 410 000 |
-| pure Lua | 9.1 µs | 109 000 |
+| llhttp binding | 2.35 µs (mean 2.37, min 2.35, max 2.44) | 425 000 |
+| pure Lua | 9.41 µs (mean 9.43, min 9.13, max 9.74) | 106 000 |
 
-- The binding is about 3.8 times faster, and it already builds a Lua table, so the C
+- The binding is about 4 times faster, and it already builds a Lua table, so the C
   parser cost itself is small. The Lua parser misses rejections that llhttp makes for
   free; each one (NUL, bare LF, invalid characters in values, request-target forms,
   trailers, upgrade, pipelining) would be a hand-written rule with its own tests, in a

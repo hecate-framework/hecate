@@ -16,6 +16,8 @@
 - Owner unblocked the llhttp clone (`git clone --depth 1 --branch release https://github.com/nodejs/llhttp spikes/OQ-6/llhttp`).
 - OQ-6 spike done: docs/spikes/OQ-6-http-parser.md (binding + Lua parser, corpus, benchmark).
 
+- Owner asked for repeated benchmark runs with median as reference: spike benchmarks redone (11 runs), convention added to automation.md (benchmarks.yml row).
+
 ## Next steps
 
 - OQ-5 spike done (decode only): docs/spikes/OQ-5-json-codec.md.
