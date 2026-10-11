@@ -85,9 +85,12 @@ jobs:
           $LR build --pin --only-deps spk-1.0-1.rockspec || echo "exit=$?"
           cat luarocks.lock
           echo "::endgroup::"
+          # Workaround: drop the `lua` pseudo-rock from the lock, then reinstall must exit 0.
+          sed -i.bak '/lua = "5.5-1"/d' luarocks.lock
+          cat luarocks.lock
           rm -rf lua_modules/lib/luarocks lua_modules/share/lua
           echo "::group::reinstall from lock"
-          $LR build --only-deps spk-1.0-1.rockspec || echo "exit=$?"
+          $LR build --only-deps spk-1.0-1.rockspec
           $LR list --porcelain
           echo "::endgroup::"
           export LUA_PATH="lua_modules/share/lua/5.5/?.lua;;"
@@ -98,5 +101,6 @@ jobs:
         run: |
           export LD_LIBRARY_PATH="$GITHUB_WORKSPACE/lua-install/lib"
           export DYLD_LIBRARY_PATH="$GITHUB_WORKSPACE/lua-install/lib"
-          cd proj
-          luarocks --lua-dir "$GITHUB_WORKSPACE/lua-install" --tree lua_modules install luafilesystem
+          luarocks --lua-dir "$GITHUB_WORKSPACE/lua-install" --tree proj/lua_modules install luafilesystem
+          export LUA_CPATH="proj/lua_modules/lib/lua/5.5/?.so;proj/lua_modules/lib/lua/5.5/?.dll;;"
+          lua -e 'print(require("lfs").currentdir())' 
