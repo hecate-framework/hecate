@@ -13,7 +13,7 @@
 
 ## Done (update)
 
-- Owner unblocked the llhttp clone (git clone --depth 1 --branch release https://github.com/nodejs/llhttp spikes/OQ-6/llhttp).
+- Owner unblocked the llhttp clone (`git clone --depth 1 --branch release https://github.com/nodejs/llhttp spikes/OQ-6/llhttp`).
 - OQ-6 spike done: docs/spikes/OQ-6-http-parser.md (binding + Lua parser, corpus, benchmark).
 
 ## Next steps
