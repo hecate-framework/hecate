@@ -59,6 +59,8 @@ jobs:
         shell: bash
         run: |
           rustc --version
+          # macOS: Lua symbols are resolved when the module is loaded by the lua executable.
+          if [ "$RUNNER_OS" = macOS ]; then export RUSTFLAGS="-C link-arg=-undefined -C link-arg=dynamic_lookup"; fi
           for crate in rust-tls rust-json; do
             cargo build --release --manifest-path spike-ci/$crate/Cargo.toml
           done
