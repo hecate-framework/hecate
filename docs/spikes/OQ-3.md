@@ -70,7 +70,7 @@ separately from LuaLS, so it is a stopgap, not a replacement.
 2. **Formatter**: the owner may choose between (a) no formatter until StyLua supports
    Lua 5.5, with the style enforced by review and LuaLS, or (b) EmmyLuaCodeStyle as an
    interim formatter for the allowed subset (see above). Either way StyLua is not
-   needed now and is re-evaluated on each release. The ban below applies to both.
+   needed now and is re-evaluated on each release. With (b) the ban below is still needed for `global` declarations and prefix attributes.
    **StyLua**: it cannot parse `global`, `...name` or prefix attributes, and a file it
    cannot parse is not formatted at all. Until upstream adds Lua 5.5, **ban those
    constructs in committed source** (ADR 0001 already lists mechanical lowerings:
@@ -79,7 +79,8 @@ separately from LuaLS, so it is a stopgap, not a replacement.
    with a lint task (a grep on `^%s*global%s`, `%.%.%.%a`, `local%s*<`).
 3. Re-test StyLua on each release; once it parses 5.5, lift the ban for the constructs
    ADR 0001 allows. Optional: open an upstream issue/PR (needs the owner's go-ahead).
-4. Alternative formatters were not evaluated; the ban in (2) is the conservative option.
+4. If option (a) is chosen, the construct ban is no longer needed for formatting and
+   can be dropped; LuaLS parses all of them. Other formatters were not evaluated.
 
 ## Remaining risks
 
