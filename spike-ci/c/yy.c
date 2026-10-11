@@ -1,4 +1,9 @@
 /* Throwaway OQ-5 binding: yyjson decode to Lua values. Integers stay integers, floats floats. */
+#ifdef _WIN32
+#define HECATE_EXPORT __declspec(dllexport)
+#else
+#define HECATE_EXPORT
+#endif
 #include <lua.h>
 #include <lauxlib.h>
 #include "yyjson.h"
@@ -27,4 +32,4 @@ static int l_decode(lua_State *L) {
   if (!d) { lua_pushnil(L); lua_pushfstring(L, "%s at %d", err.msg, (int)err.pos); return 2; }
   luaL_checkstack(L, 200, "nesting"); push(L, yyjson_doc_get_root(d)); yyjson_doc_free(d); return 1;
 }
-int luaopen_yy(lua_State *L) { lua_pushcfunction(L, l_decode); return 1; }
+HECATE_EXPORT int luaopen_yy(lua_State *L) { lua_pushcfunction(L, l_decode); return 1; }

@@ -1,6 +1,11 @@
 /* Throwaway OQ-6 binding: parse one HTTP/1.1 request buffer into a Lua table. */
 #include <string.h>
 #include <stdlib.h>
+#ifdef _WIN32
+#define HECATE_EXPORT __declspec(dllexport)
+#else
+#define HECATE_EXPORT
+#endif
 #include <lua.h>
 #include <lauxlib.h>
 #include "llhttp.h"
@@ -67,4 +72,4 @@ static int l_parse(lua_State *L) {
   if (e == HPE_OK) { lua_pushnil(L); lua_pushliteral(L, "incomplete"); return 2; }
   lua_pushnil(L); lua_pushstring(L, llhttp_errno_name(e)); return 2;
 }
-int luaopen_llhttp_lua(lua_State *L) { lua_pushcfunction(L, l_parse); return 1; }
+HECATE_EXPORT int luaopen_llhttp_lua(lua_State *L) { lua_pushcfunction(L, l_parse); return 1; }
