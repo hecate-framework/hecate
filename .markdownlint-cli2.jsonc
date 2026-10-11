@@ -1,0 +1,12 @@
+{
+  "config": {
+    "default": true,
+    "MD013": false,           // line length: prose is wrapped by hand, tables are long
+    "MD024": { "siblings_only": true },
+    "MD033": false,           // inline HTML allowed (comments, theme components)
+    "MD041": false,           // some files start without a heading (placeholders)
+    "MD014": false,           // shell transcripts mix commands with and without output
+    "MD060": false            // table pipe alignment (generated tables)
+  },
+  "ignores": ["**/node_modules/**", "website/**/reference/**", ".claude/**"]
+}

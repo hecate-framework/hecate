@@ -1,0 +1,35 @@
+# Project-local LuaRocks trees and toolchains
+lua_modules/
+.hecate/
+.luarocks/
+
+# Build artefacts
+*.o
+*.obj
+*.so
+*.dll
+*.dylib
+*.a
+*.lib
+*.rock
+build/
+dist/
+
+# Test and coverage output
+luacov.*.out
+coverage/
+reports/
+
+# Website
+website/node_modules/
+website/dist/
+
+# Editors and OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Throwaway spike code (reports live in docs/spikes/)
+spikes/
