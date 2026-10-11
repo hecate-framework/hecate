@@ -1,0 +1,34 @@
+# Hecate
+
+> Hecate is a modular, contract-first web API framework for Lua 5.5, with its own
+> asynchronous runtime (libuv via luv), HTTP stack, schemas, OpenAPI 3.1 generation,
+> test framework, documentation generator, database drivers, ORM and CLI. Status:
+> specification stage, no implementation yet.
+
+## Start here
+
+- [README](README.md): overview, components, Lua compatibility
+- [CLAUDE.md](CLAUDE.md): rules and workflow for AI agents
+- [Vision](docs/vision.md): goals, non-goals, principles
+- [Developer experience](docs/developer-experience.md): target user experience with examples
+- [Glossary](docs/glossary.md): mandatory academic vocabulary
+- [Roadmap](docs/roadmap.md): phases and exit criteria
+- [Open questions](docs/open-questions.md): undecided points
+
+## Architecture
+
+- [Overview](docs/architecture/overview.md): layers, dependencies, request lifecycle, boot
+- [Object model](docs/architecture/object-model.md): classes, traits, interfaces, errors
+- [Concurrency](docs/architecture/concurrency.md): reactor, coroutines, structured concurrency
+- [HTTP and routing](docs/architecture/http-and-routing.md): server, router, kernel, filters
+- [Schemas and contracts](docs/architecture/schemas-and-contracts.md): refinement types, OpenAPI
+- [Data access](docs/architecture/data-access.md): SQL interfaces, drivers, query builder, ORM
+- [Testing](docs/architecture/testing.md), [Documentation](docs/architecture/documentation.md)
+- [CLI and packaging](docs/architecture/cli-and-packaging.md), [Versioning and distribution](docs/architecture/versioning-and-distribution.md)
+- [Coding standards](docs/architecture/coding-standards.md), [Automation](docs/architecture/automation.md), [AI-assisted development](docs/architecture/ai-assisted-development.md)
+- [Decision records](docs/adr/README.md)
+- Repositories: this monorepo is the source; per-package repositories are read-only mirrors (ADR 0017)
+
+## Packages
+
+- [Package catalogue](packages/README.md): every package with layer, phase and summary
