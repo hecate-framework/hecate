@@ -18,7 +18,7 @@
 
 - Owner asked for repeated benchmark runs with median as reference: spike benchmarks redone (11 runs), convention added to automation.md (benchmarks.yml row).
 
-- Owner decisions: OQ-6 llhttp (ADR 0019 Proposed), OQ-5 yyjson decoder + Lua encoder (ADR 0020 Proposed); OQ-4 still open: Rust (mlua+rustls) prototyped, waiting for owner.
+- Owner decisions: OQ-6 llhttp (ADR 0019 Proposed), OQ-5 yyjson decoder + Lua encoder (ADR 0020 Proposed); OQ-4 decided: rustls via mlua (ADR 0021 Proposed); OQ-5 encoder: serde_json via mlua (ADR 0020 updated). Remaining before ticking the roadmap item: the three-platform build of each candidate is unverified (spike said so).
 
 ## Next steps
 

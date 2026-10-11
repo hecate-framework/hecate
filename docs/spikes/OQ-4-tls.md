@@ -1,6 +1,6 @@
 # Spike OQ-4: TLS library and binding
 
-Status: **partial (Linux only, time-boxed); Rust option added after the owner's question**. No recommendation is final; the owner decides.
+Status: **partial (Linux only, time-boxed)**; decided by the owner: rustls through mlua (ADR 0021). No recommendation is final; the owner decides.
 
 ## Method
 
