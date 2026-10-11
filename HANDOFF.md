@@ -18,7 +18,8 @@
 
 ## Next steps
 
-- NOW: spike OQ-5 (JSON), then OQ-4 (TLS). The denial below is resolved.
+- OQ-5 spike done (decode only): docs/spikes/OQ-5-json-codec.md.
+- NOW: spike OQ-4 (TLS). The denial below is resolved.
 
 0. Resolve the denial above (one command per call, no cd chains).
 1. Spike OQ-6 (llhttp vs Lua parser), then OQ-5, then OQ-4; one report each in docs/spikes/.
