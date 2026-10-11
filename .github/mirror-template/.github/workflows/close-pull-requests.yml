@@ -1,0 +1,19 @@
+name: close-pull-requests
+
+on:
+  pull_request_target:
+    types: [opened]
+
+permissions:
+  pull-requests: write
+
+jobs:
+  close:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: superbrothers/close-pull-request@v3
+        with:
+          comment: >
+            Thank you for your contribution! This repository is a read-only mirror of
+            `packages/{{package}}` in https://github.com/{{org}}/hecate.
+            Please open your pull request there.

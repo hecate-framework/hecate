@@ -13,7 +13,10 @@
       "Bash(git push origin claude/*:*)",
       "Bash(gh pr:*)",
       "Bash(gh run:*)",
-      "Bash(gh issue:*)"
+      "Bash(gh issue:*)",
+      "Bash(git clone:*)",
+      "Bash(ctest:*)",
+      "Bash(mkdir:*)"
     ],
     "deny": [
       "Bash(git push --force:*)",
