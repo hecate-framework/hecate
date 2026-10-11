@@ -33,6 +33,16 @@ binding crashed on a 5000-deep array without it. Since the encoder's speed is bo
 `mlua`'s table access, improvements in `mlua` are inherited by upgrading it. An own C codec
 remains a possible later optimisation, not a priority.
 
+**One public API.** The two native libraries are an implementation detail of `hecate.json`:
+users call a single `json.decode(text, options?)` / `json.encode(value, options?)` pair and
+see one module, one set of options (nesting limit, markers), one error hierarchy
+(`hecate.core` errors) and one value model (`null` marker, integer/float, array/object
+markers). There is no codec object per backend and no backend name in the signatures. The
+binding crates stay internal modules (for example `hecate.json.native`) that are not part of
+the public API; a backend can be replaced (own C codec, a faster `mlua`) without any change
+for callers. Both directions must agree on the value model: what `decode` returns, `encode`
+accepts and reproduces (round-trip property tests).
+
 ## Consequences
 
 - A C dependency (yyjson) and a binding to maintain, as for llhttp (ADR 0019).
@@ -43,5 +53,6 @@ remains a possible later optimisation, not a priority.
 
 ## Verification
 
-Test corpus for RFC 8259 conformance, integer/float fidelity, depth limit and
+Round-trip property tests (`decode(encode(v)) == v`, which also pin the shared markers
+between the two backends); test corpus for RFC 8259 conformance, integer/float fidelity, depth limit and
 invalid UTF-8; fuzzing of the binding (`fuzz` task); `native-code-reviewer` review.

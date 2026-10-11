@@ -20,6 +20,8 @@
 
 - Owner decisions: OQ-6 llhttp (ADR 0019 Proposed), OQ-5 yyjson decoder + Lua encoder (ADR 0020 Proposed); OQ-4 decided: rustls via mlua (ADR 0021 Proposed); OQ-5 encoder: serde_json via mlua (ADR 0020 updated). Remaining before ticking the roadmap item: the three-platform build of each candidate is unverified (spike said so).
 
+- Throwaway CI: .github/workflows/spike-oq456.yml + spike-ci/ (delete both with the spike). ADR 0020 now states the single public JSON API requirement.
+
 ## Next steps
 
 - OQ-5 spike done (decode only): docs/spikes/OQ-5-json-codec.md.
