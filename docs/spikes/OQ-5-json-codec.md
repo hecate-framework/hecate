@@ -105,3 +105,51 @@ Array/object marker behaviour differs (lunajson and cjson encode an empty table 
 rxi and dkjson as `[]`); `hecate.json` needs its own explicit markers anyway. The encoder is
 the place to optimise later (own C encoder, or specialised Lua code paths for known
 schemas), since `hecate.schema` knows the shape of responses in advance.
+
+## Addendum: Rust JSON libraries through `mlua` (owner question)
+
+Throwaway module `spikes/OQ-5/rust-json/` (mlua 0.12.2 with `lua55` and `serialize`,
+serde_json 1, sonic-rs 0.5, simd-json 0.17, release build with LTO), Lua 5.5.1, Linux,
+median of 11 runs (same documents as above).
+
+Decoding goes through serde into Lua values (`lua.to_value`), so it builds a Rust value
+first and then a Lua table:
+
+| Decoder | MB/s | Notes |
+|---|---|---|
+| yyjson binding (direct to Lua) | 130.4 | rejects every malformed case |
+| lua-cjson | 60.8 | |
+| sonic-rs via serde bridge | 30.5 | |
+| simd-json via serde bridge | 24.6 | accepts a lone surrogate (string of length 1) |
+| serde_json via serde bridge | 23.4 | |
+| lunajson | 12.7 | |
+
+All three Rust decoders keep integers exact, reject NaN, `01`, `1e400`, trailing commas,
+raw invalid UTF-8 and trailing garbage; all reject nesting at 1000 levels (serde_json's
+default limit is 128) without crashing. The double conversion makes them 4 to 5 times
+slower than yyjson. A decoder writing Lua values directly would be faster, but it is
+code of our own.
+
+Encoding straight from Lua tables is possible (mlua implements `Serialize` for Lua
+values, and a hand-written walk is about 40 lines):
+
+| Encoder | MB/s |
+|---|---|
+| lua-cjson (C, raw Lua C API) | 98.7 |
+| Rust, hand-written table walk | 54.2 |
+| Rust, serde bridge (serde_json) | 52.9 |
+| lunajson (pure Lua) | 15.1 |
+
+The Rust encoders are 3.5 times faster than lunajson, which is the pure-Lua encoder
+chosen in ADR 0020. They stay at half the speed of lua-cjson because `mlua`'s safe API
+pays per-element access costs; an `unsafe` direct use of the Lua C API in Rust would close
+part of that gap but gives up the memory-safety argument. The hand-written walk was no
+faster than the serde bridge, so the access cost, not the serialisation, dominates. Behaviour
+differences to settle in a real implementation: floats with a zero fraction (`1.0`) come out
+as `1` from the hand-written walk and `1.0` from serde_json; empty tables encode as `{}`.
+
+Consequences for the decision: a Rust encoder would be roughly 3.5 times faster than the
+Lua encoder of ADR 0020, at the price of the Rust toolchain being a build requirement,
+which is the same question as for TLS (OQ-4). If the owner accepts Rust as a build-time
+tool for TLS, using it for the encoder as well adds no new cost category. Decoding should
+stay on yyjson.
