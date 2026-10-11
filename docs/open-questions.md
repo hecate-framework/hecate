@@ -8,7 +8,6 @@ When resolved, record the outcome (ADR or specification update) and move the ent
 
 | ID | Type | Question | Blocks |
 |---|---|---|---|
-| OQ-3 | research | LuaLS and StyLua support for Lua 5.5 syntax. Fallback if unsupported (ban the construct temporarily, patch upstream)? | Phase 0 tooling |
 | OQ-4 | spike → owner decision | TLS: bind OpenSSL 3 directly (own binding) or adopt an existing binding (luaossl, lua-openssl) if it supports 5.5? Is mbedTLS an option for static builds? | `net` |
 | OQ-5 | spike → owner decision | JSON codec: own C codec, binding to yyjson (MIT), or lua-cjson? Criteria: speed, correctness (RFC 8259), integer/float fidelity, streaming. | `json` |
 | OQ-6 | spike → owner decision | HTTP/1.1 parser: bind llhttp (MIT) or write a parser in Lua? Default assumption: llhttp. | `http` |
@@ -25,6 +24,7 @@ When resolved, record the outcome (ADR or specification update) and move the ent
 |---|---|
 | OQ-1 | luv is used unmodified, in system-Lua mode (1.53.0-0 or later): it builds and passes its full test suite on Lua 5.5.1 on Linux, macOS and Windows, with no fork and no dedicated binding. Report: [docs/spikes/OQ-1.md](spikes/OQ-1.md) (2026-10-11). |
 | OQ-2 | LuaRocks 3.13+ with project-local trees is the dependency engine of `hecate.cli` on Lua 5.5 (verified on Linux, macOS and Windows). `hecate.lock` is a separate Hecate-owned file that keeps `luarocks.lock` as its exact-version source; the `luarocks.lock` format is not changed. The CLI applies the wrapper rules of [cli-and-packaging.md](architecture/cli-and-packaging.md#luarocks-integration). Report: [docs/spikes/OQ-2.md](spikes/OQ-2.md) (2026-10-11). |
+| OQ-3 | LuaLS is the type checker and linter on Lua 5.5 (full support for `global`, named varargs and prefix attributes). StyLua 2.6.0 does not parse those constructs yet, so the formatter is a project choice: none, StyLua once it supports 5.5, or EmmyLuaCodeStyle as a stopgap with a warning about its limitations ([cli-and-packaging.md](architecture/cli-and-packaging.md#formatter-choice-proposed-oq-3)). StyLua is re-tested on each release. Report: [docs/spikes/OQ-3.md](spikes/OQ-3.md) (2026-10-11). |
 | OQ-10 (part) | GitHub organisation `hecate-framework`; provisional website domain `hecate.theandre.dev`; contact `theandre.bourry@ik.me` (2026-10-11). |
 | OQ-10 | luarocks.org: a dedicated account `hecate-framework` publishes all rocks (to be created by the owner; API key stored as `LUAROCKS_API_KEY`); the owner's personal account is kept as a backup maintainer if co-maintainers are supported. Rock-name availability is checked when the account is created (2026-10-11). |
 | — | Documentation theme: original Hecate theme for the website and user projects; no reuse of the Tailwind UI-licensed Lua Web Docs theme (ADR 0012, 2026-10-11). |
