@@ -1,8 +1,8 @@
 # 0019 — HTTP/1.1 parsing with llhttp
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-10-11
-- **Deciders:** project owner (agreed with the spike recommendation in the pull request discussion; formal acceptance pending)
+- **Deciders:** project owner (accepted by the project owner, 2026-10-11)
 - **Packages:** http
 - **Related:** [OQ-6](../open-questions.md), [spike report](../spikes/OQ-6-http-parser.md), [http-and-routing.md](../architecture/http-and-routing.md), ADR 0001
 

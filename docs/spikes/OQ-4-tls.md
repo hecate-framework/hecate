@@ -85,11 +85,19 @@ Revised recommendation: **rustls through `mlua`** is the better fit than a hand-
 binding, if the owner accepts Rust as a build-time tool for native modules (scope:
 `net` TLS only, with the toolchain pinned in the bootstrap). Fallback: own C binding.
 
-## Not done, to finish before deciding
+## Status of the open items after the decision (ADR 0021)
 
-- Build lua-openssl with a correct checkout (`git submodule update --init`) and a manual
-  Lua 5.5 configuration; try an in-process handshake over memory BIOs.
-- Prototype the own binding's handshake over a BIO pair and measure.
-- macOS and Windows: OpenSSL availability and linking (vcpkg, Homebrew); static linking
-  for the self-contained executable (OQ-13).
-- mbedTLS build and a size comparison.
+The owner chose `rustls` through `mlua`, so the items that compared other candidates are
+closed without being done: building lua-openssl, prototyping an own OpenSSL binding over
+BIO pairs, and the mbedTLS build and size comparison.
+
+macOS and Windows build of the chosen stack: done (three-platform check above).
+
+Carried over to the `net` implementation, to be settled there and not before:
+
+- ALPN, SNI, client certificates, session resumption, and the certificate-verification
+  defaults (platform trust store versus bundled roots).
+- Crypto provider: `ring` (used here) or `aws-lc-rs`.
+- Static linking of the Rust module into the self-contained executable (OQ-13, still open).
+- Performance under load of the TLS path on the reactor.
+- A LuaRocks `rust-mlua` build, prebuilt binaries, `cargo-deny` and `cargo audit` in CI.

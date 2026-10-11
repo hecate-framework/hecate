@@ -1,8 +1,8 @@
 # 0020 — JSON: yyjson decoder, serde_json encoder
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-10-11
-- **Deciders:** project owner (agreed with the spike results in the pull request discussion; formal acceptance pending)
+- **Deciders:** project owner (accepted by the project owner, 2026-10-11)
 - **Packages:** json
 - **Related:** [ADR 0021](0021-rust-native-modules.md), [OQ-5](../open-questions.md), [spike report](../spikes/OQ-5-json-codec.md), ADR 0001
 

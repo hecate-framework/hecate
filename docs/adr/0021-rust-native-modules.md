@@ -1,8 +1,8 @@
 # 0021 — Rust as a build-time tool for native modules (TLS, JSON encoding)
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-10-11
-- **Deciders:** project owner (agreed in the pull request discussion; formal acceptance pending)
+- **Deciders:** project owner (accepted by the project owner, 2026-10-11)
 - **Packages:** net, json (and the bootstrap, CI and release tooling)
 - **Related:** [OQ-4](../open-questions.md), [OQ-5](../open-questions.md), [TLS spike](../spikes/OQ-4-tls.md), [JSON spike](../spikes/OQ-5-json-codec.md), ADR 0001, ADR 0020, ADR 0017
 
