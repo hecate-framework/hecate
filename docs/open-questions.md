@@ -8,7 +8,7 @@ When resolved, record the outcome (ADR or specification update) and move the ent
 
 | ID | Type | Question | Blocks |
 |---|---|---|---|
-| OQ-2 | research | Exact LuaRocks capabilities on Lua 5.5: project-local trees, `--pin` lockfiles, rockspec generation, Windows support. Can `hecate.lock` be a superset of `luarocks.lock`? | `cli`; report: [spikes/OQ-2](spikes/OQ-2.md) (partial; macOS and Windows pending). |
+| OQ-2 | research | Exact LuaRocks capabilities on Lua 5.5: project-local trees, `--pin` lockfiles, rockspec generation, Windows support. Can `hecate.lock` be a superset of `luarocks.lock`? | `cli`; report: [spikes/OQ-2](spikes/OQ-2.md) (complete, three platforms; owner decision pending). |
 | OQ-3 | research | LuaLS and StyLua support for Lua 5.5 syntax. Fallback if unsupported (ban the construct temporarily, patch upstream)? | Phase 0 tooling |
 | OQ-4 | spike → owner decision | TLS: bind OpenSSL 3 directly (own binding) or adopt an existing binding (luaossl, lua-openssl) if it supports 5.5? Is mbedTLS an option for static builds? | `net` |
 | OQ-5 | spike → owner decision | JSON codec: own C codec, binding to yyjson (MIT), or lua-cjson? Criteria: speed, correctness (RFC 8259), integer/float fidelity, streaming. | `json` |
