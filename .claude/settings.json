@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(lua:*)",
+      "Bash(luarocks:*)",
+      "Bash(lua-language-server:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(make:*)",
+      "Bash(cmake:*)",
+      "Bash(docker compose:*)",
+      "Bash(git push origin claude/*:*)",
+      "Bash(gh pr:*)",
+      "Bash(gh run:*)",
+      "Bash(gh issue:*)"
+    ],
+    "deny": [
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)",
+      "Bash(git push origin main:*)",
+      "Bash(git push origin HEAD:main:*)",
+      "Bash(git tag:*)",
+      "Bash(luarocks upload:*)",
+      "Bash(docker push:*)",
+      "Bash(gh release:*)"
+    ]
+  }
+}

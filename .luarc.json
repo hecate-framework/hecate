@@ -1,0 +1,13 @@
+{
+  "$schema": "https://raw.githubusercontent.com/LuaLS/vscode-lua/master/setting/schema.json",
+  "runtime.version": "Lua 5.5",
+  "runtime.path": ["?.lua", "?/init.lua"],
+  "workspace.checkThirdParty": false,
+  "workspace.ignoreDir": [".hecate", "lua_modules", "website", "spikes"],
+  "diagnostics.globals": [],
+  "diagnostics.severity": {
+    "undefined-global": "Error",
+    "lowercase-global": "Error"
+  },
+  "hint.enable": true
+}
