@@ -25,7 +25,7 @@ verified on macOS and Windows through pull requests.
       build on Lua 5.5 on three platforms, benchmarks, licences, maintenance. Each
       report ends with a recommendation **submitted to the owner**; no implementation
       depending on them starts before the owner decides.
-- [ ] Replace `tools/cloud/setup.sh` with the pinned bootstrap; update the cloud
+- [x] Replace `tools/cloud/setup.sh` with the pinned bootstrap; update the cloud
       environment accordingly.
 - [ ] Contributor bootstrap: a script that builds Lua 5.5 + LuaRocks into
       `.hecate/toolchain/` for working on this repository (temporary until the CLI
