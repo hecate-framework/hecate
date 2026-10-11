@@ -59,6 +59,11 @@ jobs:
         shell: bash
         run: |
           rustc --version
+          # mlua-sys (module mode on Windows) links lua55.lib: tell it where the import library is.
+          libdir="$PWD/lua-install/lib"; incdir="$PWD/lua-install/include"
+          if command -v cygpath >/dev/null; then libdir="$(cygpath -w "$libdir")"; incdir="$(cygpath -w "$incdir")"; fi
+          export LUA_LIB="$libdir" LUA_INC="$incdir"
+          ls "$PWD/lua-install/lib"
           # macOS: Lua symbols are resolved when the module is loaded by the lua executable.
           if [ "$RUNNER_OS" = macOS ]; then export RUSTFLAGS="-C link-arg=-undefined -C link-arg=dynamic_lookup"; fi
           for crate in rust-tls rust-json; do
