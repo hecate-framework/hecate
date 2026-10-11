@@ -9,7 +9,7 @@ When resolved, record the outcome (ADR or specification update) and move the ent
 | ID | Type | Question | Blocks |
 |---|---|---|---|
 | OQ-3 | research | LuaLS and StyLua support for Lua 5.5 syntax. Fallback if unsupported (ban the construct temporarily, patch upstream)? | Phase 0 tooling |
-| OQ-4 | spike → owner decision | TLS: bind OpenSSL 3 directly (own binding) or adopt an existing binding (luaossl, lua-openssl) if it supports 5.5? Is mbedTLS an option for static builds? | `net` |
+| OQ-4 | spike → owner decision | TLS: bind OpenSSL 3 directly (own binding) or adopt an existing binding (luaossl, lua-openssl) if it supports 5.5? Is mbedTLS an option for static builds? Partial spike report: [docs/spikes/OQ-4-tls.md](spikes/OQ-4-tls.md) (provisional: own binding over memory BIOs; awaiting owner decision). | `net` |
 | OQ-5 | spike → owner decision | JSON codec: own C codec, binding to yyjson (MIT), or lua-cjson? Criteria: speed, correctness (RFC 8259), integer/float fidelity, streaming. Spike report: [docs/spikes/OQ-5-json-codec.md](spikes/OQ-5-json-codec.md) (decode side; recommends against lua-cjson, yyjson or an own codec to choose; awaiting owner decision). | `json` |
 | OQ-6 | spike → owner decision | HTTP/1.1 parser: bind llhttp (MIT) or write a parser in Lua? Default assumption: llhttp. Spike report: [docs/spikes/OQ-6-http-parser.md](spikes/OQ-6-http-parser.md) (recommends llhttp; awaiting owner decision). | `http` |
 | OQ-7 | decision | Publishing Lua 5.4 artefacts: same rock names with a lowered build, or suffixed rocks (`hecate-core-lua54`)? Depends on how LuaRocks selects versions by `lua` dependency. | Phase 6 |
