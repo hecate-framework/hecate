@@ -1,7 +1,7 @@
 # Spike OQ-3: LuaLS and StyLua on Lua 5.5 syntax
 
-Status: **complete (Linux only, tooling check)**. Recommendation **submitted to the
-owner**; nothing below is decided.
+Status: **complete (Linux only, tooling check)**. The owner adopted the recommendation
+on 2026-10-11, keeping the formatter as a project choice.
 
 ## Question
 
