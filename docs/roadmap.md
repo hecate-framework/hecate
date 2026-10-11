@@ -18,7 +18,7 @@ verified on macOS and Windows through pull requests.
       Windows (resolves OQ-1).
 - [x] Spike: confirm LuaRocks 3.x supports Lua 5.5 with project-local trees and
       lockfiles; document the exact commands (OQ-2).
-- [ ] Spike: assess LuaLS and StyLua support for Lua 5.5 syntax (`global`, named
+- [x] Spike: assess LuaLS and StyLua support for Lua 5.5 syntax (`global`, named
       varargs) (OQ-3).
 - [ ] Spikes OQ-4 (TLS: OpenSSL 3, mbedTLS, luaossl, lua-openssl), OQ-5 (JSON: yyjson
       binding, lua-cjson, own codec) and OQ-6 (HTTP/1.1 parser: llhttp, Lua parser):
