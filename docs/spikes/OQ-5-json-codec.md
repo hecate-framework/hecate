@@ -7,6 +7,8 @@ owner; the decision is theirs.
 
 - yyjson 0.13.0 (MIT) with a throwaway C decoding binding (about 40 lines) that maps JSON
   integers to Lua integers, other numbers to floats, `null` to a light userdata `NULL`.
+- lunajson 1.2 line (`grafi-tt/lunajson`, MIT, last commit 2026-02-21), a pure-Lua codec,
+  run unmodified on Lua 5.5.1: the only candidate with no C code.
 - lua-cjson, `mpx/lua-cjson` master (MIT; last commit April 2024), built unmodified against
   Lua 5.5.1 with GCC `-O2`. `openresty/lua-cjson` was cloned but not evaluated.
 - 20 decoding cases (RFC 8259 conformance, number fidelity, malformed input) and a decode
@@ -31,7 +33,15 @@ Windows builds; streaming.
 | `-0` | float -0.0 | integer 0 (sign lost) |
 | lone surrogate, trailing comma, trailing garbage, empty input | rejected | rejected |
 | raw invalid UTF-8 inside a string | **accepted** | rejected |
-| depth 1000 array | accepted (depth limit 1000 by default) | accepted, **no depth limit**: the binding must add one (recursion) |
+| depth 1000 array | accepted (depth limit 1000 by default) | accepted |
+| depth 5000 array | rejected (limit 1000) | **my binding crashes** (`corrupted double-linked list`, process abort): its recursion has no depth limit; yyjson itself has none, so the binding must impose one |
+
+lunajson (pure Lua) on the same cases: integers are exact (`42` and 2^53+1 and int64 max
+all stay Lua integers, like yyjson); `01`, `NaN`, trailing comma, lone surrogate, trailing
+garbage and empty input are rejected; `1e400` gives **inf** and raw invalid UTF-8 inside a
+string is **accepted** (same two gaps as lua-cjson); `-0` gives float -0.0; nesting over
+1000 levels is rejected with an error. It is the most faithful of the three to integer
+fidelity without any C code, but it is the slowest by a wide margin.
 
 Encoding with lua-cjson: `1.0` encodes as `1`, and the decoded `[]` and `{}` both
 re-encode as `{}`, so the explicit array/object markers required by the json README are not
@@ -41,11 +51,19 @@ Decode throughput, median of 11 runs of 1 000 decodes (min to max in brackets):
 
 | Decode throughput | MB/s |
 |---|---|
-| lua-cjson | 57.6 (56.6 to 57.8) |
-| yyjson binding | 117.0 (114.4 to 119.7) |
+| lunajson (pure Lua) | 12.7 (12.3 to 13.0) |
+| lua-cjson | 58.3 (57.4 to 59.9) |
+| yyjson binding | 125.2 (122.0 to 129.6) |
+
+(Second series of 11 runs, taken when lunajson was added; the first series gave 57.6 and
+117.0 MB/s for lua-cjson and yyjson, so runs on this VM agree within about 7 %.)
 
 lua-cjson encode: 108 MB/s.
 
+- lunajson is about 10 times slower than yyjson and 4.6 times slower than lua-cjson. For a
+  JSON API framework where decoding sits on the request path, that is probably too slow
+  for the default codec, but it is a credible fallback for platforms without a C compiler
+  and a useful correctness reference.
 - lua-cjson fails two stated criteria outright: integer/float fidelity (everything is a
   float, integers above 2^53 are corrupted) and RFC 8259 strictness (NaN, leading zeros,
   invalid UTF-8). Fixing this means patching a library with a slow release cadence.
@@ -57,7 +75,7 @@ lua-cjson encode: 108 MB/s.
 
 ## Recommendation
 
-Do not adopt lua-cjson. Choose between (a) yyjson for decoding plus an own encoder, and
+Do not adopt lua-cjson. lunajson is correct on integers but too slow as the default codec. Choose between (a) yyjson for decoding plus an own encoder, and
 (b) an own C codec for both. On the evidence here, (a) is the cheaper route to a correct
 decoder; (b) removes a third-party dependency but must reproduce yyjson's strictness and
 speed. A follow-up spike item, if the owner wants (b), would be to write the decoder and
