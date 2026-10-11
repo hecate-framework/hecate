@@ -1,7 +1,7 @@
 # Spike OQ-2: LuaRocks on Lua 5.5
 
-Status: **complete**. Verified on Linux, macOS and Windows. Recommendation submitted to
-the owner.
+Status: **complete**. Verified on Linux, macOS and Windows. The owner adopted the
+recommendations on 2026-10-11.
 
 ## Question
 
@@ -70,7 +70,6 @@ Additional caveats:
    intended, and judge success by the installed set rather than the exit code alone.
 4. The contributor bootstrap must configure `LUA_LIBDIR` and the library name on
    Windows (roadmap: contributor bootstrap).
-5. Owner decision needed on 2.
 
 ## Remaining risks
 

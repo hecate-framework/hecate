@@ -86,6 +86,24 @@ version, source URL, checksum (SHA-256), dependency edges, and whether it is a
 development dependency; plus the Lua version, LuaRocks version and platform-independent
 flag for native rocks.
 
+## LuaRocks integration
+
+Verified in [spike OQ-2](../spikes/OQ-2.md) with LuaRocks 3.13 on Lua 5.5. The CLI
+wraps LuaRocks as follows:
+
+- `luarocks.lock` stays the machine-read source of exact versions; `hecate.lock` adds
+  checksums, sources and toolchain data. The `luarocks.lock` format is never changed.
+- Install first, pin afterwards: `install --deps-only`, then `build --pin --only-deps`
+  (pinning a fresh tree fails).
+- Remove the `lua` pseudo-rock entry from the generated `luarocks.lock`; otherwise
+  reinstalling from the lock prints an error and exits with status 1.
+- Run every LuaRocks command with an explicit `--tree` and outside any directory holding
+  a `luarocks.lock`, unless pinning is intended: a lock in the working directory applies
+  to all commands.
+- Judge success by the installed set, not by the exit status alone.
+- On Windows the toolchain configures `LUA_LIBDIR` and the import library name, so that
+  native rocks build.
+
 ## Environment layout
 
 ```text
