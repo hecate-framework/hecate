@@ -18,6 +18,8 @@
 
 - Owner asked for repeated benchmark runs with median as reference: spike benchmarks redone (11 runs), convention added to automation.md (benchmarks.yml row).
 
+- Owner decisions: OQ-6 llhttp (ADR 0019 Proposed), OQ-5 yyjson decoder + Lua encoder (ADR 0020 Proposed); OQ-4 still open: Rust (mlua+rustls) prototyped, waiting for owner.
+
 ## Next steps
 
 - OQ-5 spike done (decode only): docs/spikes/OQ-5-json-codec.md.

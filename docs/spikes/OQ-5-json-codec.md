@@ -87,3 +87,21 @@ compare it on this corpus. Either way, `hecate.json` needs a depth limit, an exp
 - yyjson maintenance and API stability (0.x version number); vendoring policy.
 - Streaming (a README requirement) is not covered by any of the candidates here.
 - Windows and macOS builds unverified.
+
+## Addendum: encoder candidates (owner decision: yyjson decodes, a Lua library encodes)
+
+Pure-Lua encoders on a 15 kB document, median of 11 runs of 200 encodes (lua-cjson, C,
+for reference):
+
+| Encoder | MB/s |
+|---|---|
+| lunajson | 14.5 |
+| rxi/json.lua | 9.4 |
+| dkjson | 8.8 |
+| lua-cjson (C) | 98.9 |
+
+lunajson is the fastest pure-Lua candidate tested, about 7 times slower than a C encoder.
+Array/object marker behaviour differs (lunajson and cjson encode an empty table as `{}`,
+rxi and dkjson as `[]`); `hecate.json` needs its own explicit markers anyway. The encoder is
+the place to optimise later (own C encoder, or specialised Lua code paths for known
+schemas), since `hecate.schema` knows the shape of responses in advance.

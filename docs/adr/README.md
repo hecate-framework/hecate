@@ -30,3 +30,5 @@ Use [`template.md`](template.md) or the `/new-adr` command.
 | [0016](0016-ai-assisted-development.md) | AI-assisted development with Claude Code agents | Accepted |
 | [0017](0017-monorepo-with-read-only-mirrors.md) | Monorepo for development, read-only mirror per package | Accepted |
 | [0018](0018-error-signalling.md) | Error signalling: raise error objects, `nil` for expected absence | Accepted |
+| [0019](0019-http-parser-llhttp.md) | HTTP/1.1 parsing with llhttp | Proposed |
+| [0020](0020-json-yyjson-decoder-lua-encoder.md) | JSON: yyjson decoder, encoder in Lua | Proposed |
