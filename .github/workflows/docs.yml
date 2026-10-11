@@ -1,0 +1,31 @@
+name: docs
+
+on:
+  pull_request:
+    paths: ["**/*.md", ".markdownlint-cli2.jsonc", "lychee.toml", ".github/workflows/docs.yml"]
+  push:
+    branches: [main]
+    paths: ["**/*.md"]
+
+permissions:
+  contents: read
+
+jobs:
+  markdownlint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: DavidAnson/markdownlint-cli2-action@v16
+        with:
+          globs: "**/*.md"
+
+  links:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: lycheeverse/lychee-action@v2
+        with:
+          # Internal links only on pull requests; external links are checked nightly
+          # once nightly.yml exists (see docs/architecture/automation.md).
+          args: --offline --no-progress --include-fragments "./**/*.md"
+          fail: true

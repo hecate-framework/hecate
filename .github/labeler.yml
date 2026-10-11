@@ -1,0 +1,162 @@
+# Path-based labels applied by pr-hygiene.yml (actions/labeler v5 format).
+
+"package:core":
+  - changed-files:
+      - any-glob-to-any-file: "packages/core/**"
+
+"package:reactor":
+  - changed-files:
+      - any-glob-to-any-file: "packages/reactor/**"
+
+"package:net":
+  - changed-files:
+      - any-glob-to-any-file: "packages/net/**"
+
+"package:json":
+  - changed-files:
+      - any-glob-to-any-file: "packages/json/**"
+
+"package:log":
+  - changed-files:
+      - any-glob-to-any-file: "packages/log/**"
+
+"package:http":
+  - changed-files:
+      - any-glob-to-any-file: "packages/http/**"
+
+"package:schema":
+  - changed-files:
+      - any-glob-to-any-file: "packages/schema/**"
+
+"package:router":
+  - changed-files:
+      - any-glob-to-any-file: "packages/router/**"
+
+"package:container":
+  - changed-files:
+      - any-glob-to-any-file: "packages/container/**"
+
+"package:config":
+  - changed-files:
+      - any-glob-to-any-file: "packages/config/**"
+
+"package:kernel":
+  - changed-files:
+      - any-glob-to-any-file: "packages/kernel/**"
+
+"package:openapi":
+  - changed-files:
+      - any-glob-to-any-file: "packages/openapi/**"
+
+"package:test":
+  - changed-files:
+      - any-glob-to-any-file: "packages/test/**"
+
+"package:doc":
+  - changed-files:
+      - any-glob-to-any-file: "packages/doc/**"
+
+"package:cli":
+  - changed-files:
+      - any-glob-to-any-file: "packages/cli/**"
+
+"package:sql":
+  - changed-files:
+      - any-glob-to-any-file: "packages/sql/**"
+
+"package:query":
+  - changed-files:
+      - any-glob-to-any-file: "packages/query/**"
+
+"package:postgresql":
+  - changed-files:
+      - any-glob-to-any-file: "packages/postgresql/**"
+
+"package:mysql":
+  - changed-files:
+      - any-glob-to-any-file: "packages/mysql/**"
+
+"package:sqlite":
+  - changed-files:
+      - any-glob-to-any-file: "packages/sqlite/**"
+
+"package:redis":
+  - changed-files:
+      - any-glob-to-any-file: "packages/redis/**"
+
+"package:migration":
+  - changed-files:
+      - any-glob-to-any-file: "packages/migration/**"
+
+"package:orm":
+  - changed-files:
+      - any-glob-to-any-file: "packages/orm/**"
+
+"package:security":
+  - changed-files:
+      - any-glob-to-any-file: "packages/security/**"
+
+"package:mongodb":
+  - changed-files:
+      - any-glob-to-any-file: "packages/mongodb/**"
+
+"package:sqlserver":
+  - changed-files:
+      - any-glob-to-any-file: "packages/sqlserver/**"
+
+"package:template":
+  - changed-files:
+      - any-glob-to-any-file: "packages/template/**"
+
+"package:websocket":
+  - changed-files:
+      - any-glob-to-any-file: "packages/websocket/**"
+
+"package:hecate":
+  - changed-files:
+      - any-glob-to-any-file: "packages/hecate/**"
+
+"area:docs":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "docs/**"
+          - "*.md"
+
+"area:website":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "website/**"
+
+"area:ci":
+  - changed-files:
+      - any-glob-to-any-file:
+          - ".github/**"
+          - "tools/**"
+
+"area:agents":
+  - changed-files:
+      - any-glob-to-any-file:
+          - ".claude/**"
+          - "CLAUDE.md"
+          - "AGENTS.md"
+          - "packages/*/CLAUDE.md"
+
+"area:docker":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "docker/**"
+
+"area:benchmarks":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "benchmarks/**"
+
+"adr":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "docs/adr/**"
+
+"translation:fr":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "website/fr/**"

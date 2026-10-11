@@ -35,6 +35,14 @@ at all times. Specification: `docs/architecture/ai-assisted-development.md#relay
   doubts, commands to re-run), refresh `lock_until`, commit and push. Never keep more
   than one step of unpushed work.
 - Spikes end with a report and a recommendation; never decide in the owner's place.
+- Build and run third-party code only inside the repository, under
+  `spikes/<OQ-id>/` (git-ignored), never in `/tmp`. One command per call, no
+  `cd … &&` chains, so the repository's permission rules apply. For example:
+  `git clone --recursive https://github.com/luvit/luv spikes/OQ-1/luv`, then
+  `cmake -S spikes/OQ-1/luv -B spikes/OQ-1/build -DLUA_INCLUDE_DIR=/opt/lua-5.5/include`,
+  then `cmake --build spikes/OQ-1/build`.
+- If a command is denied, do not retry variants: record the exact command and the
+  denial in `HANDOFF.md`, push, and stop.
 
 ## 4. Finish
 
