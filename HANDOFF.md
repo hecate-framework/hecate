@@ -2,8 +2,8 @@
 # Handoff
 
 - roadmap_item: Spikes OQ-4 (TLS), OQ-5 (JSON), OQ-6 (HTTP/1.1 parser)
-- status: waiting-owner            <!-- in-progress | waiting-ci | waiting-owner -->
-- lock_until: 2026-10-11T20:11:53Z
+- status: in-progress              <!-- in-progress | waiting-ci | waiting-owner -->
+- lock_until: 2026-10-11T23:30:00Z
 - last_update: 2026-10-11T18:42:22Z
 
 ## Done
@@ -11,7 +11,14 @@
 - Claimed the item; draft PR #7 opened (labels relay, area:docs).
 - Cloned llhttp into spikes/OQ-6/llhttp (shallow).
 
+## Done (update)
+
+- Owner unblocked the llhttp clone (git clone --depth 1 --branch release https://github.com/nodejs/llhttp spikes/OQ-6/llhttp).
+- OQ-6 spike done: docs/spikes/OQ-6-http-parser.md (binding + Lua parser, corpus, benchmark).
+
 ## Next steps
+
+- NOW: spike OQ-5 (JSON), then OQ-4 (TLS). The denial below is resolved.
 
 0. Resolve the denial above (one command per call, no cd chains).
 1. Spike OQ-6 (llhttp vs Lua parser), then OQ-5, then OQ-4; one report each in docs/spikes/.
