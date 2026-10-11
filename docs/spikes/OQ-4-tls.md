@@ -32,6 +32,8 @@ Observations:
 - Licences: all candidates MIT/Apache-style compatible (OpenSSL 3 is Apache-2.0); not a
   discriminator.
 
+Three-platform check (throwaway workflow `spike-oq456`, PR #7, run 4, Lua 5.5.1 built from the official tarball): the llhttp and yyjson C modules, and the `mlua` modules (rustls handshake and round trip, serde_json, sonic-rs, simd-json), build and pass a smoke test on **Linux, macOS (arm64) and Windows (MSVC)**. Needed fixes, now known for the real build: macOS Rust cdylib modules need `-C link-arg=-undefined -C link-arg=dynamic_lookup`; Windows needs the Lua import library named and located for `mlua-sys` (`LUA_LIB_NAME=lua55`, `LUA_LIB`, `LUA_INC`) and explicit `__declspec(dllexport)` on `luaopen_*` in C modules.
+
 ## Recommendation
 
 Provisional: write a small own binding to OpenSSL 3 using memory BIOs (about the size of

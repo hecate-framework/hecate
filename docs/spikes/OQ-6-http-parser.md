@@ -1,6 +1,6 @@
 # Spike OQ-6: HTTP/1.1 parser (llhttp or Lua)
 
-Status: **complete (Linux only)**. Recommendation submitted to the owner; the decision is
+Status: **complete (Linux; macOS and Windows build checked, see below)**. Recommendation submitted to the owner; the decision is
 theirs.
 
 ## Method
@@ -51,6 +51,8 @@ Median of 11 runs of 100 000 parses each (mean, min and max in brackets):
 - Pitfall found while writing the binding: `luaL_Buffer` must not be interleaved, so the
   binding accumulates fields in C buffers and creates Lua strings once complete.
 
+Three-platform check (throwaway workflow `spike-oq456`, PR #7, run 4, Lua 5.5.1 built from the official tarball): the llhttp and yyjson C modules, and the `mlua` modules (rustls handshake and round trip, serde_json, sonic-rs, simd-json), build and pass a smoke test on **Linux, macOS (arm64) and Windows (MSVC)**. Needed fixes, now known for the real build: macOS Rust cdylib modules need `-C link-arg=-undefined -C link-arg=dynamic_lookup`; Windows needs the Lua import library named and located for `mlua-sys` (`LUA_LIB_NAME=lua55`, `LUA_LIB`, `LUA_INC`) and explicit `__declspec(dllexport)` on `luaopen_*` in C modules.
+
 ## Recommendation
 
 Bind llhttp (the default assumption of OQ-6), vendoring the generated C from its
@@ -60,7 +62,7 @@ Adding it still requires the owner's decision and an ADR (new dependency).
 
 ## Remaining risks
 
-- macOS and Windows (MSVC) builds unverified; expected to be trivial.
+- Windows needs `__declspec(dllexport)` on `luaopen_*` (see the three-platform check).
 - Vendoring policy for generated C (the release branch is not a source repository).
 - Incremental binding with zero-copy fields is not prototyped; a hot-path benchmark is
   needed when `hecate.http` is built.

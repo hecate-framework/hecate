@@ -1,6 +1,6 @@
 # Spike OQ-5: JSON codec
 
-Status: **partial, decode side only (Linux only)**. Recommendation submitted to the
+Status: **partial, decode side only (Linux; macOS and Windows build checked, see below)**. Recommendation submitted to the
 owner; the decision is theirs.
 
 ## Method
@@ -73,6 +73,8 @@ lua-cjson encode: 108 MB/s.
   the Lua value directly into a buffer (own code), so yyjson buys the decoder, while the
   encoder remains ours either way.
 
+Three-platform check (throwaway workflow `spike-oq456`, PR #7, run 4, Lua 5.5.1 built from the official tarball): the llhttp and yyjson C modules, and the `mlua` modules (rustls handshake and round trip, serde_json, sonic-rs, simd-json), build and pass a smoke test on **Linux, macOS (arm64) and Windows (MSVC)**. Needed fixes, now known for the real build: macOS Rust cdylib modules need `-C link-arg=-undefined -C link-arg=dynamic_lookup`; Windows needs the Lua import library named and located for `mlua-sys` (`LUA_LIB_NAME=lua55`, `LUA_LIB`, `LUA_INC`) and explicit `__declspec(dllexport)` on `luaopen_*` in C modules.
+
 ## Recommendation
 
 Do not adopt lua-cjson. lunajson is correct on integers but too slow as the default codec. Choose between (a) yyjson for decoding plus an own encoder, and
@@ -86,7 +88,7 @@ compare it on this corpus. Either way, `hecate.json` needs a depth limit, an exp
 
 - yyjson maintenance and API stability (0.x version number); vendoring policy.
 - Streaming (a README requirement) is not covered by any of the candidates here.
-- Windows and macOS builds unverified.
+- The real build must apply the macOS and Windows fixes listed in the three-platform check.
 
 ## Addendum: encoder candidates (owner decision: yyjson decodes, a Lua library encodes)
 
