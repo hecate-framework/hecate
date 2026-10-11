@@ -12,3 +12,4 @@ Each release heading states the supported Lua version.
 ### Added
 
 - Specification workspace: vision, architecture, decision records, roadmap.
+- Spike reports OQ-4, OQ-5, OQ-6 and ADRs 0019 (llhttp), 0020 (yyjson decoder, serde_json encoder), 0021 (Rust as a build-time tool for native modules; rustls).

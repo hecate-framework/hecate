@@ -96,7 +96,7 @@ Status column: `now` = workflow exists today, `P0` = to write in Phase 0, `P1+` 
 | `ci.yml` | PR, push to main | `affected` → matrix {ubuntu, macos, windows} × affected packages: bootstrap (cached), format-check, lint, typecheck, check-*, unit tests, coverage upload | P0 |
 | `native.yml` | PR touching `csrc/`, nightly | GCC/Clang/MSVC builds, sanitizers, short fuzzing (PR), long fuzzing (nightly) | P1 |
 | `integration.yml` | PR touching data/net packages, nightly | service containers: PostgreSQL, MySQL, MariaDB, Redis, Valkey, later MongoDB, SQL Server — two most recent major versions each | P4 |
-| `benchmarks.yml` | push to main, PR labelled `performance` | GitHub-hosted runner, `bench --compare main` with interleaved A/B runs on the same runner (relative comparison only, OQ-14), PR comment with deltas and significance, history published as indicative | P1 |
+| `benchmarks.yml` | push to main, PR labelled `performance` | GitHub-hosted runner, `bench --compare main` with interleaved A/B runs on the same runner (relative comparison only, OQ-14), repeated runs (at least 11), the **median** is the reference value (mean, min and max reported alongside, since shared runners are noisy), PR comment with deltas and significance, history published as indicative | P1 |
 | `website.yml` | PR (build only), push to main (deploy) | gen-reference, site build (`hecate doc`, or the interim generator chosen after OQ-11), link check, translation status, deploy to GitHub Pages | P2 |
 | `docker.yml` | changes in `docker/`, weekly, release | multi-arch builds (buildx), Trivy scan, push on release | P3 |
 | `cli-e2e.yml` | PR touching `cli`, nightly | `cli-e2e` on 3 platforms with the built executable | P3 |

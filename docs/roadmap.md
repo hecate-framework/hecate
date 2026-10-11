@@ -20,7 +20,7 @@ verified on macOS and Windows through pull requests.
       lockfiles; document the exact commands (OQ-2).
 - [x] Spike: assess LuaLS and StyLua support for Lua 5.5 syntax (`global`, named
       varargs) (OQ-3).
-- [ ] Spikes OQ-4 (TLS: OpenSSL 3, mbedTLS, luaossl, lua-openssl), OQ-5 (JSON: yyjson
+- [x] Spikes OQ-4 (TLS: OpenSSL 3, mbedTLS, luaossl, lua-openssl), OQ-5 (JSON: yyjson
       binding, lua-cjson, own codec) and OQ-6 (HTTP/1.1 parser: llhttp, Lua parser):
       build on Lua 5.5 on three platforms, benchmarks, licences, maintenance. Each
       report ends with a recommendation **submitted to the owner**; no implementation

@@ -30,3 +30,6 @@ Use [`template.md`](template.md) or the `/new-adr` command.
 | [0016](0016-ai-assisted-development.md) | AI-assisted development with Claude Code agents | Accepted |
 | [0017](0017-monorepo-with-read-only-mirrors.md) | Monorepo for development, read-only mirror per package | Accepted |
 | [0018](0018-error-signalling.md) | Error signalling: raise error objects, `nil` for expected absence | Accepted |
+| [0019](0019-http-parser-llhttp.md) | HTTP/1.1 parsing with llhttp | Accepted |
+| [0020](0020-json-yyjson-decoder-serde-encoder.md) | JSON: yyjson decoder, serde_json encoder | Accepted |
+| [0021](0021-rust-native-modules.md) | Rust as a build-time tool for native modules (TLS, JSON encoding) | Accepted |
