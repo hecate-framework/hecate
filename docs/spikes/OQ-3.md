@@ -82,6 +82,10 @@ separately from LuaLS, so it is a stopgap, not a replacement.
 4. If option (a) is chosen, the construct ban is no longer needed for formatting and
    can be dropped; LuaLS parses all of them. Other formatters were not evaluated.
 
+The limitations of EmmyLuaCodeStyle are surfaced to project authors as a warning when
+they select it: see
+[cli-and-packaging.md](../architecture/cli-and-packaging.md#formatter-choice-proposed-oq-3).
+
 ## Remaining risks
 
 - StyLua binaries cannot be downloaded in cloud sessions; CI and the bootstrap must

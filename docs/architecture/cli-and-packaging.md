@@ -104,6 +104,32 @@ wraps LuaRocks as follows:
 - On Windows the toolchain configures `LUA_LIBDIR` and the import library name, so that
   native rocks build.
 
+## Formatter choice (proposed, OQ-3)
+
+`hecate format` runs the formatter selected in `hecate.project.lua`; the choice is the
+project's, not the framework's. Status of the candidates on Lua 5.5
+([spike OQ-3](../spikes/OQ-3.md)):
+
+| Formatter | Status |
+|---|---|
+| none | allowed; LuaLS still checks every Lua 5.5 construct |
+| StyLua | cannot parse `global`, named varargs or prefix attributes yet; supported once upstream adds Lua 5.5 |
+| EmmyLuaCodeStyle | stopgap, with the limitations below |
+
+**Warning shown by `hecate format` and `hecate new` when EmmyLuaCodeStyle is selected,
+and repeated in the website guide:**
+
+- `global` declarations are **silently not formatted**: `global x = 1` is misparsed as an
+  expression and left untouched, with no error.
+- `global function f() end` and the prefix attribute `local <const> x` are syntax errors:
+  the whole file is skipped (the command reports it and exits non-zero).
+- Named varargs (`...name`) and the suffix attribute forms (`local x <const>`) format
+  correctly.
+- It is less opinionated than StyLua: expect different layout, and reformatting when
+  switching formatter.
+- Until the formatter supports them, avoid `global` declarations and prefix attributes
+  in files it formats; `hecate check` (LuaLS) is unaffected.
+
 ## Environment layout
 
 ```text
