@@ -16,7 +16,7 @@ verified on macOS and Windows through pull requests.
 
 - [x] Spike: confirm luv builds and passes its tests against Lua 5.5 on Linux, macOS,
       Windows (resolves OQ-1).
-- [ ] Spike: confirm LuaRocks 3.x supports Lua 5.5 with project-local trees and
+- [x] Spike: confirm LuaRocks 3.x supports Lua 5.5 with project-local trees and
       lockfiles; document the exact commands (OQ-2).
 - [ ] Spike: assess LuaLS and StyLua support for Lua 5.5 syntax (`global`, named
       varargs) (OQ-3).
