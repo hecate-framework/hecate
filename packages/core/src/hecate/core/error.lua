@@ -58,7 +58,9 @@ end
 --- Renders the error and its chain of causes, one per line.
 ---@return string
 function Error:__tostring()
-  local lines, current = {}, self
+  ---@type any
+  local current = self
+  local lines = {}
   for depth = 1, MAX_CHAIN do
     local line
     if type(current) == "table" and introspection.is_instance_of(current, Error) then
@@ -78,8 +80,8 @@ class_module.finalise(Error)
 --- Declares a finalised subclass of `Error` with a stable code.
 ---@param name string
 ---@param code string  stable identifier, for example "hecate.http.HeaderTooLarge"
----@param parent? table  defaults to `Error`
----@return table
+---@param parent? any  defaults to `Error`
+---@return any
 local function error_class(name, code, parent)
   local subclass = class_module.class(name, parent or Error)
   subclass.code = code

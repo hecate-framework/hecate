@@ -39,11 +39,12 @@ function introspection.is_enumeration(value)
 end
 
 --- Returns true when the class has been finalised.
----@param class table
+---@param class any
 ---@return boolean
 function introspection.is_finalised(class)
   local record = registry.classes[class]
   if record == nil then raise.argument("is_finalised expects a class") end
+  ---@cast record -?
   return record.finalised
 end
 
@@ -74,11 +75,12 @@ function introspection.name(value)
 end
 
 --- Returns the superclass of a class, or nil for a root class.
----@param class table
----@return table?
+---@param class any
+---@return any?
 function introspection.superclass(class)
   local record = registry.classes[class]
   if record == nil then raise.argument("superclass expects a class") end
+  ---@cast record -?
   return record.parent
 end
 
@@ -89,28 +91,30 @@ local function copy_list(list)
 end
 
 --- Returns the traits composed directly into a class, in declaration order (a copy).
----@param class table
+---@param class any
 ---@return table[]
 function introspection.traits(class)
   local record = registry.classes[class]
   if record == nil then raise.argument("traits expects a class") end
+  ---@cast record -?
   local list = {}
   for i, entry in ipairs(record.uses) do list[i] = trait_module.normalise("class", entry) end
   return list
 end
 
 --- Returns the interfaces a class declares directly, in declaration order (a copy).
----@param class table
+---@param class any
 ---@return table[]
 function introspection.interfaces(class)
   local record = registry.classes[class]
   if record == nil then raise.argument("interfaces expects a class") end
+  ---@cast record -?
   return copy_list(record.interfaces)
 end
 
 --- Returns true when `value` is an instance of `class` or of one of its subclasses.
 ---@param value any
----@param class table
+---@param class any
 ---@return boolean
 function introspection.is_instance_of(value, class)
   local current = introspection.class_of(value)
@@ -125,7 +129,7 @@ end
 --- composes a trait, directly, through a superclass, or through composed traits and
 --- extended interfaces.
 ---@param subject any  a class or an instance
----@param abstraction table  an interface or a trait
+---@param abstraction any  an interface or a trait
 ---@return boolean
 function introspection.implements(subject, abstraction)
   local is_interface = registry.interfaces[abstraction] ~= nil
@@ -150,12 +154,13 @@ function introspection.implements(subject, abstraction)
 end
 
 --- Returns where a member of a finalised class comes from ("class A", "trait T"), or nil.
----@param class table
+---@param class any
 ---@param member string
 ---@return string?
 function introspection.origin(class, member)
   local record = registry.classes[class]
   if record == nil then raise.argument("origin expects a class") end
+  ---@cast record -?
   return record.origins[member]
 end
 

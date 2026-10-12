@@ -59,7 +59,7 @@ end
 
 --- Declares a class. The class must be finalised with `finalise` before use.
 ---@param name string
----@param parent? table  superclass (finalised before this class is finalised)
+---@param parent? any  superclass (finalised before this class is finalised)
 ---@param options? hecate.core.ClassOptions
 ---@return table class
 local function class(name, parent, options)
@@ -121,15 +121,18 @@ end
 --- flattens inherited and composed members into the class table. All problems are
 --- reported in one ConformanceError, and the class is left untouched on failure.
 --- Finalising a finalised class is a no-op.
----@param target table
----@return table target
+---@param target any
+---@return any target
 local function finalise(target)
   local record = classes[target]
   if record == nil then raise.argument("finalise expects a class created with core.class") end
+  ---@cast record -?
   if record.finalised then return target end
-  local parent, parent_record = record.parent, nil
+  local parent = record.parent
+  ---@type table
+  local parent_record = {}
   if parent then
-    parent_record = classes[parent]
+    parent_record = classes[parent] --[[@as table]]
     if not parent_record.finalised then
       raise.conformance(
         ("%s cannot be finalised before its superclass %s; finalise the superclass first"):format(

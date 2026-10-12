@@ -79,7 +79,10 @@ function T:test_parent_must_be_a_class()
 end
 
 function T:test_name_must_be_a_string()
-  local err = self:assert_error(function() core.class(42) end)
+  local err = self:assert_error(function()
+    ---@diagnostic disable-next-line: param-type-mismatch
+    core.class(42)
+  end)
   self:assert_equal("hecate.core.ArgumentError", err.code)
 end
 

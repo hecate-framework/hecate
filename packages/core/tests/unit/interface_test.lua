@@ -83,7 +83,10 @@ function T:test_interface_is_frozen_and_not_instantiable()
 end
 
 function T:test_interface_method_names_must_be_strings()
-  local err = self:assert_error(function() core.interface("I", { 1 }) end)
+  local err = self:assert_error(function()
+    ---@diagnostic disable-next-line: assign-type-mismatch
+    core.interface("I", { 1 })
+  end)
   self:assert_equal("hecate.core.ArgumentError", err.code)
 end
 

@@ -11,6 +11,16 @@ local errors = require("hecate.core.error")
 local compat = require("hecate.core.compat")
 
 ---@class hecate.core
+---@field Error hecate.core.Error
+---@field ConfigurationError hecate.core.Error
+---@field ConformanceError hecate.core.Error
+---@field ArgumentError hecate.core.Error
+---@field CancellationError hecate.core.Error
+---@field DeadlineExceeded hecate.core.Error
+---@field NetworkError hecate.core.Error
+---@field ProtocolError hecate.core.Error
+---@field ValidationError hecate.core.Error
+---@field DatabaseError hecate.core.DatabaseError
 local core = {
   class = class_module.class,
   finalise = class_module.finalise,
@@ -31,7 +41,7 @@ local core = {
   is_instance_of = introspection.is_instance_of,
   implements = introspection.implements,
   origin = introspection.origin,
-  Error = errors.Error,
+  Error = errors.Error --[[@as hecate.core.Error]],
   error_class = errors.error_class,
   set_debug_mode = errors.set_debug_mode,
   is_debug_mode = errors.is_debug_mode,

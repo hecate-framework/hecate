@@ -94,7 +94,7 @@ function T:test_traceback_captured_only_in_debug_mode()
   self:assert_nil(core.Error("x").traceback)
   core.set_debug_mode(true)
   self:assert_true(core.is_debug_mode())
-  local tb = core.Error("x").traceback
+  local tb = core.Error("x").traceback or ""
   self:assert_equal("string", type(tb))
   self:assert_true(tb:find("stack traceback", 1, true) ~= nil)
 end
@@ -104,7 +104,7 @@ function T:test_raised_error_object_is_caught_intact()
   local ok, caught = pcall(error, e)
   self:assert_false(ok)
   self:assert_true(caught == e)
-  self:assert_equal("port", caught.context.field)
+  self:assert_equal("port", caught and caught.context and caught.context.field)
 end
 
 return T

@@ -171,7 +171,10 @@ function T:test_origin_of_members()
 end
 
 function T:test_trait_methods_must_be_functions()
-  local err = self:assert_error(function() core.trait("Bad", { x = 1 }) end)
+  local err = self:assert_error(function()
+    ---@diagnostic disable-next-line: assign-type-mismatch
+    core.trait("Bad", { x = 1 })
+  end)
   self:assert_equal("hecate.core.ArgumentError", err.code)
 end
 
