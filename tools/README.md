@@ -20,7 +20,7 @@ tools/
   tasks/                one file per task (format.lua, lint.lua, check_boundaries.lua, ...)
   lib/                  shared helpers (rockspec parsing, git diff, dependency graph, reports)
   harness/              bootstrap test harness (ADR 0008), removed after Phase 3
-  hooks/                git hooks and their installer
+  hooks/                git hooks (install.lua installer; pre-commit.lua, commit-msg.lua bodies)
   services/compose.yaml database servers for local integration tests
 ```
 

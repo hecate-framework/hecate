@@ -41,7 +41,7 @@ verified on macOS and Windows through pull requests.
       check-rockspecs, check-package-structure, check-adr-index, check-changelog,
       check-links, test, affected, matrix, new-package, gen-catalogue,
       gen-dependency-graph, gen-llms-txt).
-- [ ] Git hooks (`tools/hooks`).
+- [x] Git hooks (`tools/hooks`).
 - [ ] Workflow `ci.yml` (affected packages × three platforms) calling only `tools/` tasks.
 - [ ] Repository settings: branch protection, labels, secrets (automation.md §3).
 - [ ] Settle the global-declaration idiom and formatter choice; update
@@ -149,6 +149,24 @@ Exit: `examples/crud` works unchanged on PostgreSQL, MySQL, MariaDB and SQLite.
 
 - [ ] Source lowering tool 5.5 → 5.4 ([ADR 0001](adr/0001-lua-5.5-as-sole-target.md)).
 - [ ] CI matrix extended to 5.4; publication strategy for 5.4 artefacts (OQ-7).
+
+## Phase 7 — Code review and quality pass
+
+- [ ] Review all code, including `tools/`, for readability and quality: naming, function and
+      module size, duplication, dead code, comment accuracy, consistency with
+      [coding-standards.md](architecture/coding-standards.md) and the glossary.
+- [ ] Use the SonarLint / SonarSource rule set as the quality reference (cognitive
+      complexity, duplicated blocks, dead code, unused variables and parameters, empty
+      or commented-out code, overly long functions and parameter lists). Adopting any
+      Sonar tool or Lua analyser in CI is a new dependency and needs an ADR first;
+      until then, apply the rules by review and, where cheap, as `lint` task rules.
+- [ ] Simplify without changing behaviour: refactors are covered by the existing tests,
+      and benchmarks confirm no hot-path regression.
+- [ ] Re-run all reviewer agents (`/review-package`) on every package and record the
+      findings fixed or deferred.
+
+Exit: every package reviewed, findings resolved or tracked in `docs/open-questions.md`,
+CI green on the three platforms.
 
 ## Continuous
 
