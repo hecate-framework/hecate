@@ -152,7 +152,7 @@ Exit: `examples/crud` works unchanged on PostgreSQL, MySQL, MariaDB and SQLite.
 
 ## Phase 7 — Code review and quality pass
 
-- [ ] Review every package's code for readability and quality: naming, function and
+- [ ] Review all code, including `tools/`, for readability and quality: naming, function and
       module size, duplication, dead code, comment accuracy, consistency with
       [coding-standards.md](architecture/coding-standards.md) and the glossary.
 - [ ] Simplify without changing behaviour: refactors are covered by the existing tests,
