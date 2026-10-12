@@ -63,7 +63,7 @@ Status column: `done` = implemented in `tools/`, `now` = workflow exists today, 
 
 | Task | Output | Status |
 |---|---|---|
-| `new-package <name> --layer L` | package skeleton + CLAUDE.md + agent + catalogue entry | P0 |
+| `new-package <name> --layer L` | package skeleton + CLAUDE.md + agent + catalogue entry | done |
 | `gen-catalogue` | `packages/README.md` table from rockspecs and READMEs | done |
 | `gen-dependency-graph` | Mermaid graph in overview.md (between markers) | done |
 | `gen-reference` | Markdown reference from LuaLS JSON export into `website/en/reference/` | P2 |
