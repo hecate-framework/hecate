@@ -1,13 +1,22 @@
 {
   "$schema": "https://raw.githubusercontent.com/LuaLS/vscode-lua/master/setting/schema.json",
-  "runtime.version": "Lua 5.5",
-  "runtime.path": ["?.lua", "?/init.lua"],
-  "workspace.checkThirdParty": false,
-  "workspace.ignoreDir": [".hecate", "lua_modules", "website", "spikes"],
-  "diagnostics.globals": [],
-  "diagnostics.severity": {
-    "undefined-global": "Error",
-    "lowercase-global": "Error"
+  "runtime": {
+    "version": "Lua 5.5",
+    "path": ["?.lua", "?/init.lua", "packages/*/src/?.lua", "packages/*/src/?/init.lua"]
   },
-  "hint.enable": true
+  "workspace": {
+    "library": [],
+    "ignoreDir": [".hecate", "spikes", "website", "node_modules"],
+    "checkThirdParty": false
+  },
+  "diagnostics": {
+    "globals": [],
+    "severity": {
+      "undefined-global": "Error",
+      "lowercase-global": "Error"
+    }
+  },
+  "type": {
+    "weakNilCheck": false
+  }
 }

@@ -12,7 +12,7 @@ Until the CLI exists, tasks run with `lua tools/run.lua <task> [args]` (after
 
 ## 1. Script catalogue (`tools/`)
 
-Status column: `now` = workflow exists today, `P0` = to write in Phase 0, `P1+` = later.
+Status column: `done` = implemented in `tools/`, `now` = workflow exists today, `P0` = to write in Phase 0, `P1+` = later.
 
 ### Bootstrap
 
@@ -27,16 +27,16 @@ Status column: `now` = workflow exists today, `P0` = to write in Phase 0, `P1+` 
 
 | Task | Checks | Status |
 |---|---|---|
-| `format` / `format-check` | formatter on Lua sources (and `clang-format` on C) | P0 |
-| `lint` | linter rules from coding-standards.md | P0 |
-| `typecheck` | `lua-language-server --check` with the repository `.luarc.json`, zero diagnostics | P0 |
+| `format` / `format-check` | formatter on Lua sources (and `clang-format` on C) | done |
+| `lint` | linter rules from coding-standards.md | done |
+| `typecheck` | `lua-language-server --check` with the repository `.luarc.json`, zero diagnostics | done |
 | `check-lua-constructs` | only the 5.5 constructs allowed by ADR 0001 | P0 |
 | `check-boundaries` | layer rules (overview.md): requires match declared rockspec dependencies, no upward or cyclic dependency, `luv` only in `reactor`, raw `setmetatable` only in `core` or justified | P0 |
 | `check-glossary` | deny-list of discouraged identifiers in `packages/**/src` (from glossary "Instead of" columns) | P0 |
 | `check-annotations` | every exported symbol has LuaLS annotations; functions that suspend carry `---@async`; functions returning `nil` for absence declare a nullable return (ADR 0018) | P1 |
-| `check-versions` | all rockspecs and `VERSION` agree (ADR 0005); `lua >= 5.5, < 5.6` everywhere | P0 |
-| `check-rockspecs` | rockspec lint (`luarocks lint`), fields, licenses, sources | P0 |
-| `check-package-structure` | every `packages/<name>` has README.md, CLAUDE.md, rockspec, `tests/`, and an agent in `.claude/agents/pkg-<name>.md` | P0 |
+| `check-versions` | all rockspecs and `VERSION` agree (ADR 0005); `lua >= 5.5, < 5.6` everywhere | done |
+| `check-rockspecs` | rockspec lint (`luarocks lint`), fields, licenses, sources | done |
+| `check-package-structure` | every `packages/<name>` has README.md, CLAUDE.md, rockspec, `tests/`, and an agent in `.claude/agents/pkg-<name>.md` | done |
 | `check-adr-index` | `docs/adr/README.md` lists every ADR with its actual status | P0 |
 | `check-changelog` | pull requests touching `packages/` add an `[Unreleased]` entry | P0 |
 | `check-docs-examples` | every code sample included in the website exists and runs | P2 |
@@ -48,7 +48,7 @@ Status column: `now` = workflow exists today, `P0` = to write in Phase 0, `P1+` 
 
 | Task | Purpose | Status |
 |---|---|---|
-| `test [packages] [--integration] [--tag t]` | run tests (bootstrap harness, then `hecate.test`) | P0 |
+| `test [packages] [--integration] [--tag t]` | run tests (bootstrap harness, then `hecate.test`) | done |
 | `coverage` | LCOV report, per-package thresholds (core/reactor/router/schema ≥ 90 %) | P1 |
 | `affected [--base ref]` | packages affected by a diff, following reverse dependencies; used to shrink CI | P0 |
 | `matrix` | emits the CI matrix (platforms × packages × services) as JSON | P0 |

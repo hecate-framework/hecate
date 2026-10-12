@@ -30,7 +30,7 @@ verified on macOS and Windows through pull requests.
 - [x] Contributor bootstrap: a script that builds Lua 5.5 + LuaRocks into
       `.hecate/toolchain/` for working on this repository (temporary until the CLI
       exists).
-- [ ] Monorepo tooling: per-package rockspecs, a root task runner, formatter, linter,
+- [x] Monorepo tooling: per-package rockspecs, a root task runner, formatter, linter,
       LuaLS configuration (`.luarc.json`), test runner bootstrap (temporary harness
       until `hecate.test` exists, see ADR 0008).
 - [ ] CI: GitHub Actions matrix `{ubuntu, macos, windows} × Lua 5.5`, C toolchains,
