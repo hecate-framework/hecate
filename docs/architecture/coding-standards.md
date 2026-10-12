@@ -14,9 +14,10 @@ review agents.
   global <const> type, pairs, ipairs, error, setmetatable, string, table, math
   ```
 
-  The Phase 0 spike (OQ-3) confirms the exact idiom with Lua 5.5.1, LuaLS and the
-  formatter, then updates this paragraph. Writing to a global is never allowed in
-  library code.
+  Confirmed with Lua 5.5.1 (OQ-3): after this declaration, reading any other free name
+  is a compile-time error (`variable 'x' not declared`). LuaLS understands the
+  construct; the repository has no formatter, so none needs to parse it. Writing to a
+  global is never allowed in library code.
 - Standard library functions used on hot paths are aliased to locals at the top of the
   chunk (`local type, pairs = type, pairs`).
 
