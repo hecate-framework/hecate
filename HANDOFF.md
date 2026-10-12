@@ -3,17 +3,17 @@
 
 - roadmap_item: `tools/run.lua` task runner and the Phase 0 tasks of the catalogue in automation.md
 - status: in-progress
-- lock_until: 2026-10-12T14:20:06Z
-- last_update: 2026-10-12T12:50:06Z
+- lock_until: 2026-10-12T14:20:31Z
+- last_update: 2026-10-12T12:50:31Z
 
 ## Done
 
-- Done tasks: check-adr-index, check-links, check-changelog, check-boundaries, check-glossary, check-lua-constructs (plus earlier: format, lint, typecheck, test, check-versions, check-rockspecs, check-package-structure).
+- Done tasks: check-adr-index, check-links, check-changelog, check-boundaries, check-glossary, check-lua-constructs, affected, matrix (plus earlier: format, lint, typecheck, test, check-versions, check-rockspecs, check-package-structure).
 
 ## Next steps
 
 1. (check-* tasks all done)
-2. affected, matrix
+2. (done)
 3. new-package, gen-catalogue, gen-dependency-graph, gen-llms-txt
 4. (hooks, workflow, settings, CLAUDE.md commands are separate roadmap items)
 

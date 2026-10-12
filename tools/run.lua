@@ -1,7 +1,8 @@
 -- Task runner: lua tools/run.lua <task> [args] [--json]
 -- Tasks live in tools/tasks/<name>.lua (file name uses underscores; the task name uses
 -- hyphens) and export { description = string, run = function(args) -> report }.
--- A report is { ok = boolean, problems = { string... } }.
+-- A report is { ok = boolean, problems = { string... }, data = any?, output = string? }:
+-- `data` is included in --json output, `output` is printed as text.
 -- Exit codes: 0 success, 1 task failure, 2 usage error.
 
 local script = arg[0]:gsub("\\", "/")
@@ -64,9 +65,10 @@ end
 
 local report = task.run({ root = root, args = args })
 if json then
-  print(util.json({ task = name, ok = report.ok, problems = report.problems }))
+  print(util.json({ task = name, ok = report.ok, problems = report.problems, data = report.data }))
 else
   for _, p in ipairs(report.problems) do io.stderr:write(p, "\n") end
+  if report.output then print(report.output) end
   print(("%s: %s"):format(name, report.ok and "ok" or ("%d problem(s)"):format(#report.problems)))
 end
 os.exit(report.ok and 0 or 1)

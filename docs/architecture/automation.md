@@ -50,8 +50,8 @@ Status column: `done` = implemented in `tools/`, `now` = workflow exists today, 
 |---|---|---|
 | `test [packages] [--integration] [--tag t]` | run tests (bootstrap harness, then `hecate.test`) | done |
 | `coverage` | LCOV report, per-package thresholds (core/reactor/router/schema ≥ 90 %) | P1 |
-| `affected [--base ref]` | packages affected by a diff, following reverse dependencies; used to shrink CI | P0 |
-| `matrix` | emits the CI matrix (platforms × packages × services) as JSON | P0 |
+| `affected [--base ref]` | packages affected by a diff, following reverse dependencies; used to shrink CI | done |
+| `matrix` | emits the CI matrix (platforms × packages × services) as JSON | done |
 | `services up\|down\|status` | start database servers locally via `tools/services/compose.yaml` (same versions as CI) | P4 |
 | `bench [scenario] [--compare ref]` | run benchmarks, compare with a baseline, fail above threshold | P1 |
 | `fuzz <target> [--seconds n]` | libFuzzer targets for C parsers and codecs | P1 |
