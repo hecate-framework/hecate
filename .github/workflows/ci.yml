@@ -54,11 +54,32 @@ jobs:
             Add-Content -Path $env:GITHUB_ENV -Value "LUAROCKS_CONFIG=$(Join-Path $tc 'luarocks-config.lua')"
           }
 
+      - name: Install LuaLS
+        shell: bash
+        env:
+          LUALS_VERSION: 3.19.1
+        run: |
+          case "$RUNNER_OS-$RUNNER_ARCH" in
+            Linux-X64) asset=linux-x64.tar.gz; sha=e9235d2d72ef55bc41cf8c99cda2ed64777682024b4bb81f5dea425060c5cbb8 ;;
+            macOS-ARM64) asset=darwin-arm64.tar.gz; sha=0bc077f4447f076b4c92c14e9fd303f5b569eda2ec74b4dca2b55f75fae2e90c ;;
+            Windows-X64) asset=win32-x64.zip; sha=fdb9a59108cf62517813c97fa5549b0e16d1ef0688306bac728b08434db7e4cd ;;
+            *) echo "no pinned LuaLS for $RUNNER_OS-$RUNNER_ARCH" >&2; exit 1 ;;
+          esac
+          file="lua-language-server-$LUALS_VERSION-$asset"
+          curl -fsSL -o "$RUNNER_TEMP/$file" "https://github.com/LuaLS/lua-language-server/releases/download/$LUALS_VERSION/$file"
+          echo "$sha  $RUNNER_TEMP/$file" | (sha256sum -c - 2>/dev/null || shasum -a 256 -c -)
+          mkdir -p "$RUNNER_TEMP/luals"
+          case "$file" in
+            *.zip) unzip -q "$RUNNER_TEMP/$file" -d "$RUNNER_TEMP/luals" ;;
+            *) tar -xzf "$RUNNER_TEMP/$file" -C "$RUNNER_TEMP/luals" ;;
+          esac
+          echo "$RUNNER_TEMP/luals/bin" >> "$GITHUB_PATH"
+
       - name: Check
         shell: bash
         run: |
           set -e
-          for task in check-versions check-rockspecs check-package-structure lint test; do
+          for task in check-versions check-rockspecs check-package-structure lint typecheck test; do
             echo "::group::$task"
             lua tools/run.lua "$task"
             echo "::endgroup::"

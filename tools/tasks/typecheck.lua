@@ -12,7 +12,7 @@ return {
     end
     local out, ok = util.capture(("lua-language-server --check %s --configpath %s --checklevel=Warning 2>&1")
       :format(util.quote(ctx.root), util.quote(ctx.root .. "/.luarc.json")))
-    if ok and out:find("0 problems", 1, true) then return { ok = true, problems = {} } end
+    if ok and (out:find("0 problems", 1, true) or out:find("no problems found", 1, true)) then return { ok = true, problems = {} } end
     return { ok = false, problems = { out } }
   end,
 }
