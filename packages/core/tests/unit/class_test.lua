@@ -199,4 +199,73 @@ function T:test_index_and_name_are_not_copied_from_parent()
   self:assert_equal("Derived", rawget(Derived, "__name"))
 end
 
+-- members provided by an index fallback ----------------------------------------
+
+local function fallback_class(name, parent, options)
+  local C = core.class(name, parent, options)
+  C.__index = function(_, key) return "fb:" .. key end
+  return C
+end
+
+function T:test_declared_fallback_members_satisfy_an_interface()
+  local I = core.interface("I", { "compare" })
+  local A = fallback_class("A", nil, { implements = { I }, fallback_provides = { "compare" } })
+  core.finalise(A)
+  self:assert_true(core.implements(A, I))
+  self:assert_nil(rawget(A, "compare"))
+  self:assert_equal("fb:compare", A().compare)
+end
+
+function T:test_declared_fallback_members_satisfy_trait_requires()
+  local Tr = core.trait("Tr", {}, { requires = { "step" } })
+  local A = fallback_class("A", nil, { traits = { Tr }, fallback_provides = { "step" } })
+  core.finalise(A)
+  self:assert_nil(rawget(A, "step"))
+end
+
+function T:test_unlisted_missing_members_still_fail()
+  local I = core.interface("I", { "compare", "hash" })
+  local A = fallback_class("A", nil, { implements = { I }, fallback_provides = { "compare" } })
+  local err = self:assert_error(function() core.finalise(A) end)
+  self:assert_equal("hecate.core.ConformanceError", err.code)
+  self:assert_true(err.message:find("hash", 1, true) ~= nil)
+  self:assert_equal(1, #err.context.missing)
+end
+
+function T:test_fallback_declaration_without_fallback_is_an_error()
+  local A = core.class("A", nil, { fallback_provides = { "compare" } })
+  local err = self:assert_error(function() core.finalise(A) end)
+  self:assert_equal("hecate.core.ConformanceError", err.code)
+  self:assert_true(err.message:find("compare", 1, true) ~= nil)
+  self:assert_true(err.message:find("A", 1, true) ~= nil)
+end
+
+function T:test_fallback_declaration_is_inherited()
+  local I = core.interface("I", { "compare" })
+  local Base = fallback_class("Base", nil, { fallback_provides = { "compare" } })
+  core.finalise(Base)
+  local Derived = core.class("Derived", Base, { implements = { I } })
+  core.finalise(Derived)
+  self:assert_true(core.implements(Derived, I))
+  local Own = core.class("Own", Base, { implements = { I } })
+  Own.__index = function() return 1 end
+  core.finalise(Own)
+end
+
+function T:test_subclass_may_declare_names_behind_inherited_fallback()
+  local I = core.interface("I", { "extra" })
+  local Base = fallback_class("Base")
+  core.finalise(Base)
+  local Derived = core.class("Derived", Base, { implements = { I }, fallback_provides = { "extra" } })
+  core.finalise(Derived)
+end
+
+function T:test_fallback_provides_must_be_a_list_of_names()
+  local err = self:assert_error(function()
+    ---@diagnostic disable-next-line: assign-type-mismatch
+    core.class("A", nil, { fallback_provides = { 1 } })
+  end)
+  self:assert_equal("hecate.core.ArgumentError", err.code)
+end
+
 return T

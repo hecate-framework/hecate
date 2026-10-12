@@ -60,7 +60,7 @@ core.finalise(Money)
 
 | Name | Description |
 |---|---|
-| `class(name, parent?, options?)` | Declares a class; options `traits`, `implements`. Instantiate with `Class(...)` after finalisation (calls `init`). |
+| `class(name, parent?, options?)` | Declares a class; options `traits`, `implements`, `fallback_provides` (names an `__index` fallback provides; they satisfy conformance checks). Instantiate with `Class(...)` after finalisation (calls `init`). |
 | `finalise(class)` | Resolves traits and interfaces, flattens members into the class table; one `ConformanceError` lists every problem. Idempotent. |
 | `trait(name, methods, options?)` | Declares a trait; options `traits` (composition), `requires`. A trait entry of a class may be `{ trait, exclude = {...}, alias = { old = "new" } }`. |
 | `interface(name, methods, options?)` | Declares an interface; option `extends`. |

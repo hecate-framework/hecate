@@ -50,6 +50,12 @@ function Money:compare(other) ... end
 core.finalise(Money)        -- conformance and conflict checks; flattening
 ```
 
+A class-level `__index` is a fallback consulted after the flattened lookup (and inherited).
+Members it is known to provide are declared in the class options,
+`fallback_provides = { "compare" }`: an explicit list of names that counts as provided for
+interface conformance and trait `requires`, is never copied into the class, and is an
+error at finalisation when no fallback stands behind it.
+
 The exact spelling (`core.class("Money", Parent, options)` versus a declarative table)
 is settled in ADR 0007 during implementation. Whatever is chosen must be identical
 across all packages.

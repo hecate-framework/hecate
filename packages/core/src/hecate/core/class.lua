@@ -24,6 +24,9 @@ local NOT_INHERITED = { __index = true, __name = true }
 ---@class hecate.core.ClassOptions
 ---@field traits? (table|hecate.core.TraitUse)[]  traits composed into the class
 ---@field implements? table[]  interfaces checked at finalisation
+---@field fallback_provides? string[]  names a class-level `__index` fallback is known to provide;
+---  they count as provided by conformance checks (interfaces, trait `requires`), are not
+---  copied into the class table, and are inherited. Requires a fallback, own or inherited.
 
 local function describe(class)
   return "class " .. classes[class].name
@@ -75,6 +78,13 @@ local function class(name, parent, options)
       raise.argument(("class %s: implements expects interfaces created with core.interface"):format(name))
     end
   end
+  local fallback_provides = {}
+  for _, member in ipairs(options.fallback_provides or {}) do
+    if type(member) ~= "string" then
+      raise.argument(("class %s: fallback_provides expects member names, got %s"):format(name, type(member)))
+    end
+    fallback_provides[#fallback_provides + 1] = member
+  end
   local metatable = {} -- hecate: raw-metatable class metatable
   for key, fn in pairs(class_metatable_methods) do metatable[key] = fn end
   local declared = {}
@@ -92,9 +102,11 @@ local function class(name, parent, options)
     uses = uses,
     interfaces = options.implements or {},
     metatable = metatable,
+    fallback_provides = fallback_provides,
     finalised = false,
     origins = {},
     own = {},
+    fallback_names = {},
     -- A subclass of a value class stays a value class.
     freeze = parent and classes[parent].freeze or nil,
     prepare = parent and classes[parent].prepare or nil,
@@ -151,7 +163,19 @@ local function finalise(target)
     end
   end
 
+  -- The fallback and the names it provides are inherited like the fallback itself.
+  fallback = fallback or (parent and parent_record.fallback) or nil
+  local fallback_names = {}
+  if parent then
+    for member in pairs(parent_record.fallback_names) do fallback_names[member] = true end
+  end
+  for _, member in ipairs(record.fallback_provides) do fallback_names[member] = true end
+
   local problems = {}
+  if #record.fallback_provides > 0 and fallback == nil then
+    problems[#problems + 1] = ("%s declares fallback_provides (%s) but has no class-level __index fallback"):format(
+      describe(target), table.concat(record.fallback_provides, ", "))
+  end
   local contributions, conflicts, composition_problems = trait_module.compose(own, record.uses, describe(target))
   for _, message in ipairs(composition_problems) do problems[#problems + 1] = message end
   for _, c in ipairs(conflicts) do
@@ -162,6 +186,7 @@ local function finalise(target)
   -- Conformance is checked against the members the finalised class will have.
   local function provides(member)
     if type(own[member]) == "function" or contributions[member] ~= nil then return true end
+    if fallback_names[member] then return true end
     return parent ~= nil and type(rawget(parent, member)) == "function"
   end
   local missing = {}
@@ -206,11 +231,11 @@ local function finalise(target)
         record.origins[key] = parent_record.origins[key] or ("class " .. parent_record.name)
       end
     end
-    fallback = fallback or parent_record.fallback
   end
   rawset(target, "__index", target)
   if record.prepare then record.prepare(target, record) end
   record.fallback = fallback
+  record.fallback_names = fallback_names
   if fallback ~= nil then record.metatable.__index = fallback end
   record.finalised = true
   return target

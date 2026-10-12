@@ -35,9 +35,16 @@ function C:init(...) end        -- constructor; super call: core.superclass(C).i
 core.finalise(C)                -- required before `C(...)`
 ```
 
+A class-level `__index` (function or table) is a fallback consulted after the flattened
+lookup and inherited by subclasses. Names it is known to provide are declared with
+`fallback_provides = { "name", ... }` in the class options: they satisfy interface and
+trait `requires` checks, are not copied into the class, and declaring them without any
+fallback is a `ConformanceError`. (`fallback_provides` rather than a bare `fallback`
+because the option lists names, not the fallback itself.)
+
 Traits: `core.trait(name, methods, { traits =, requires = })`; interfaces:
 `core.interface(name, names, { extends = })`; value classes and enumerations:
-`core.value_class(...)`, `core.enumeration(name, names)`. Open points: OQ-19 to OQ-21.
+`core.value_class(...)`, `core.enumeration(name, names)`. Open point: OQ-21.
 
 - One mental model across framework and applications.
 - `kernel` (controllers), `orm` (entities), `test` (test cases), `container`
