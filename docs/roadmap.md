@@ -33,8 +33,8 @@ verified on macOS and Windows through pull requests.
 - [x] Monorepo tooling: per-package rockspecs, a root task runner, formatter, linter,
       LuaLS configuration (`.luarc.json`), test runner bootstrap (temporary harness
       until `hecate.test` exists, see ADR 0008).
-- [ ] CI: GitHub Actions matrix `{ubuntu, macos, windows} × Lua 5.5`, C toolchains,
-      sanitizers on Linux.
+- [x] CI: GitHub Actions matrix `{ubuntu, macos, windows} × Lua 5.5`, C toolchains
+      (sanitizers on Linux move to the Phase 1 `native.yml` item: no native code yet).
 - [ ] `tools/run.lua` task runner and the Phase 0 tasks of the catalogue in
       [automation.md](architecture/automation.md) (format, lint, typecheck,
       check-lua-constructs, check-boundaries, check-glossary, check-versions,
