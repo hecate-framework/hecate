@@ -22,7 +22,7 @@ model. No package may define its own class mechanism.
    finalisation (methods are flattened into the class table; no chained lookups on the
    hot path).
 8. LuaLS-friendly: the declaration pattern must let LuaLS infer types with
-   `---@class Name : Parent` annotations.
+   `---@class Name : Superclass` annotations.
 
 ## Proposed surface (illustrative)
 
@@ -50,7 +50,17 @@ function Money:compare(other) ... end
 core.finalise(Money)        -- conformance and conflict checks; flattening
 ```
 
-The exact spelling (`core.class("Money", Parent, options)` versus a declarative table)
+A class-level `__index` is a fallback consulted after the flattened lookup (and inherited).
+Members it is known to provide are declared in the class options,
+`fallback_provides = { "compare" }`: an explicit list of names that counts as provided for
+interface conformance and trait `requires`, is never copied into the class, and is an
+error at finalisation when no fallback stands behind it.
+
+An inherited requirement (an interface of a superclass, a trait `requires` met by the
+superclass) is satisfied only by a real function on the superclass class table (checked
+with `rawget`), never by a fallback, unless the name is declared with `fallback_provides`.
+
+The exact spelling (`core.class("Money", Superclass, options)` versus a declarative table)
 is settled in ADR 0007 during implementation. Whatever is chosen must be identical
 across all packages.
 
@@ -67,6 +77,8 @@ Lua has no access control. Convention:
 `core.value_class` produces classes whose instances are frozen after construction
 (writes raise an error) and compared structurally by `__eq`. Freezing must not cost
 anything on reads.
+A subclass of a value class stays a value class: freezing and the structural `__eq`
+are inherited, even when the subclass is declared with `core.class`.
 
 ## Errors
 
@@ -74,10 +86,12 @@ A single hierarchy rooted at `hecate.core.Error`:
 
 - fields: `message`, `cause` (another error, for chaining), `context` (table),
   `traceback` (captured when created in debug mode);
-- subclasses per domain: `ConfigurationError`, `ConformanceError`, `CancellationError`,
-  `DeadlineExceeded`, `NetworkError`, `ProtocolError`, `ValidationError`,
+- subclasses per domain: `ConfigurationError`, `ConformanceError`, `ArgumentError`
+  (misuse of an API), `CancellationError`,
+  `DeadlineExceededError`, `NetworkError`, `ProtocolError`, `ValidationError`,
   `DatabaseError` (with SQLSTATE when available), etc.;
-- `__tostring` renders the chain;
+- `message` defaults to the class name when none is given;
+- `__tostring` renders the cause chain;
 - errors that cross the HTTP boundary map to problem details (RFC 9457) through an
   explicit mapping in the kernel, never by exposing internal messages by default.
 

@@ -11,6 +11,7 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- `hecate.core` (Phase 1): `class`, `trait`, `interface`, `finalise` (single inheritance, flat trait composition with exclusion and aliasing, conformance checked at finalisation, inherited metamethods including `__close`), introspection (`name`, `superclass`, `traits`, `interfaces`, `is_instance_of`, `implements`, `origin`), the `Error` hierarchy with cause chaining, stable codes and optional tracebacks, `enumeration`, `value_class` and `hecate.core.compat`. The `fallback_provides` class option declares the members an `__index` fallback provides. Design questions OQ-19 to OQ-21 are resolved. Glossary: finalisation, conformance, superclass, enumeration, cause chain; the term "parent" is replaced by "superclass" throughout.
 - Monorepo tooling: task runner `tools/run.lua` (`check-package-structure`, `check-versions`, `check-rockspecs`, `gen-rockspecs`, `lint`, `typecheck`, `test`, `format`/`format-check` as no-ops), bootstrap test harness `tools/harness/` (ADR 0008), `.luarc.json`, per-package `scm-1` rockspecs and `tests/` skeletons.
 - `check-adr-index`, `check-links`, `check-changelog`, `check-boundaries`, `check-glossary` and `check-lua-constructs` tasks; `affected` and `matrix` tasks (`--json` carries the data); `gen-catalogue`, `gen-dependency-graph` and `gen-llms-txt` (package list; `--check` verifies); `new-package`.
 - CI workflow `ci.yml`: Ubuntu, macOS and Windows with Lua 5.5, cached toolchain bootstrap, pinned LuaLS, C toolchain check, and the Phase 0 quality tasks.

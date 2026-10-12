@@ -42,7 +42,7 @@ Plus, for every change: unit tests for public behaviour, LuaLS annotations on pu
 
 - `__index` functions on hot paths are forbidden after finalisation
 - `__gc` order is not guaranteed; never rely on it for correctness
-- LuaLS must infer `---@class Name : Parent` from the chosen declaration spelling
+- LuaLS must infer `---@class Name : Superclass` from the chosen declaration spelling
 
 ## Standards
 
