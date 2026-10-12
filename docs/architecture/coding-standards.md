@@ -83,11 +83,11 @@ Decided in [ADR 0018](../adr/0018-error-signalling.md).
 
 ## Formatting and linting
 
-- Formatter: StyLua if it supports 5.5 (OQ-3), configuration in `stylua.toml`
-  (2-space indentation, 100 columns, double quotes). Otherwise a formatter is written
-  in `tools/` (Phase 0 decision recorded here). StyLua does not parse `global`, named
-  varargs or prefix attributes yet; the formatter is a project choice with documented
-  limitations ([cli-and-packaging.md](cli-and-packaging.md#formatter-choice-proposed-oq-3)).
+- Formatter: none for the Hecate repository until a formatter fully supports Lua 5.5
+  (`global`, named varargs, prefix attributes); one is adopted then (owner decision,
+  OQ-3, 2026-10-12). Style is kept by review and the linter: 2-space indentation,
+  100 columns, double quotes. User projects choose their own formatter
+  ([cli-and-packaging.md](cli-and-packaging.md#formatter-choice-proposed-oq-3)).
 - Linter: luacheck if compatible, else the `tools/lint` rule set. Mandatory rules:
   no free names, no unused variables, no shadowing of upvalues, no `_`-member access
   from outside the class, `check-boundaries` rules.
