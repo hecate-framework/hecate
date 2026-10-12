@@ -2,9 +2,9 @@
 # Handoff
 
 - roadmap_item: `tools/run.lua` task runner and the Phase 0 tasks of the catalogue in automation.md
-- status: in-progress
-- lock_until: 2026-10-12T14:22:33Z
-- last_update: 2026-10-12T12:52:33Z
+- status: waiting-owner
+- lock_until: 2026-10-12T12:52:50Z
+- last_update: 2026-10-12T12:52:50Z
 
 ## Done
 
@@ -14,7 +14,7 @@
 
 1. (check-* tasks all done)
 2. (done)
-3. (done) Remaining Phase 0 task-catalogue gap: none. Update the roadmap line, mark PR ready
+3. All catalogue tasks are implemented. To finish: after PR #12 (ci.yml) is merged, merge main into this branch, confirm green on ubuntu/macos/windows, then delete this file, tick the roadmap line and mark the PR ready.
 4. (hooks, workflow, settings, CLAUDE.md commands are separate roadmap items)
 
 ## Decisions taken (and where they are recorded)
