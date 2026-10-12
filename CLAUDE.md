@@ -110,11 +110,18 @@ Tooling does not exist yet; it is built in Phase 0 as Lua tasks run by
 `lua tools/run.lua <task>` (catalogue: `docs/architecture/automation.md`). Fill this
 section as soon as each command is available:
 
-- Format: _TBD (Phase 0)_
-- Lint: _TBD (Phase 0)_
-- Type check (LuaLS): _TBD (Phase 0)_
-- Test all packages: _TBD (Phase 0)_
-- Test one package: _TBD (Phase 0)_
+Run `lua tools/run.lua --list` for the full catalogue.
+
+- Format: none (the repository has no formatter until one supports Lua 5.5, OQ-3);
+  `lua tools/run.lua format-check` succeeds as a no-op.
+- Lint: `lua tools/run.lua lint`
+- Type check (LuaLS): `lua tools/run.lua typecheck` (needs `lua-language-server`)
+- Other gates: `check-lua-constructs`, `check-boundaries`, `check-glossary`,
+  `check-versions`, `check-rockspecs`, `check-package-structure`, `check-adr-index`,
+  `check-changelog`, `check-links`
+- Test all packages: `lua tools/run.lua test`
+- Test one package: `lua tools/run.lua test <package>` (tools: `test tools`)
+- Affected packages: `lua tools/run.lua affected --base origin/main`
 - Benchmarks: _TBD (Phase 1)_
 
 ## Repository map

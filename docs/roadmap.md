@@ -44,9 +44,9 @@ verified on macOS and Windows through pull requests.
 - [x] Git hooks (`tools/hooks`).
 - [x] Workflow `ci.yml` (affected packages × three platforms) calling only `tools/` tasks.
 - [ ] Repository settings: branch protection, labels, secrets (automation.md §3).
-- [ ] Settle the global-declaration idiom and formatter choice; update
+- [x] Settle the global-declaration idiom and formatter choice; update
       coding-standards.md (OQ-3).
-- [ ] Fill the "Commands" section of `CLAUDE.md`.
+- [x] Fill the "Commands" section of `CLAUDE.md`.
 
 Exit: CI is green on all three platforms with a trivial test in every package skeleton.
 
