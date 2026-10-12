@@ -46,8 +46,13 @@ jobs:
         run: tools/bootstrap/bootstrap.ps1
 
       - name: Add toolchain to PATH
-        shell: bash
-        run: echo "$PWD/.hecate/toolchain/bin" >> "$GITHUB_PATH"
+        shell: pwsh
+        run: |
+          $tc = Join-Path $env:GITHUB_WORKSPACE '.hecate/toolchain'
+          Add-Content -Path $env:GITHUB_PATH -Value (Join-Path $tc 'bin')
+          if ($env:RUNNER_OS -eq 'Windows') {
+            Add-Content -Path $env:GITHUB_ENV -Value "LUAROCKS_CONFIG=$(Join-Path $tc 'luarocks-config.lua')"
+          }
 
       - name: Check
         shell: bash
