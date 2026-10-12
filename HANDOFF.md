@@ -3,8 +3,8 @@
 
 - roadmap_item: Monorepo tooling: per-package rockspecs, a root task runner, formatter, linter, LuaLS configuration (`.luarc.json`), test runner bootstrap (temporary harness until `hecate.test` exists, see ADR 0008).
 - status: in-progress
-- lock_until: 2026-10-12T12:50:40Z
-- last_update: 2026-10-12T11:20:40Z
+- lock_until: 2026-10-12T12:50:58Z
+- last_update: 2026-10-12T11:20:58Z
 
 ## Done
 
@@ -12,10 +12,10 @@
 
 ## Next steps
 
-1. check-rockspecs and check-versions tasks (VERSION vs rockspecs; luarocks lint).
-2. tools/tests fixtures for run.lua; update tools/README.md and automation.md status column.
+1. tools/tests fixtures for run.lua; update tools/README.md and automation.md status column.
 3. .luarc.json + typecheck task; lint task; format task (OQ-3: owner choice pending, record only).
 4. Temporary test harness tools/harness (ADR 0008) and `test` task.
+- Step 4: tasks check-versions (scm-1 rockspecs: lua range + package name; VERSION release-version check to add at release time) and check-rockspecs (luarocks lint + dependency names). Both pass.
 
 ## Decisions taken (and where they are recorded)
 
