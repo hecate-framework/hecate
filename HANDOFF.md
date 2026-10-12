@@ -3,8 +3,8 @@
 
 - roadmap_item: `tools/run.lua` task runner and the Phase 0 tasks of the catalogue in automation.md
 - status: in-progress
-- lock_until: 2026-10-12T17:11:58Z
-- last_update: 2026-10-12T15:41:58Z
+- lock_until: 2026-10-12T19:41:51Z
+- last_update: 2026-10-12T18:11:51Z
 
 ## Done
 
@@ -14,7 +14,7 @@
 
 1. (check-* tasks all done)
 2. (done)
-3. PR #12 merged; main merged into this branch (CHANGELOG conflict resolved). Remaining: confirm CI green on three platforms, then delete this file, tick the roadmap line and mark the PR ready.
+3. PR #12 merged; main merged in. CI typecheck (LuaLS 3.19.1) failed on catalogue.lua/catalogue_test.lua; fixed (unused local, nil narrowing with assert). Remaining: confirm CI green on three platforms, then delete this file, tick the roadmap line and mark the PR ready.
 4. (hooks, workflow, settings, CLAUDE.md commands are separate roadmap items)
 
 ## Decisions taken (and where they are recorded)

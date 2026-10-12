@@ -49,7 +49,6 @@ end
 ---@return string
 function M.replace_table(text, table_text)
   local first, last
-  local pos = 1
   for line_start, line in text:gmatch("()([^\n]*)\n?") do
     if line:match("^|") then
       first = first or line_start
@@ -57,7 +56,6 @@ function M.replace_table(text, table_text)
     elseif first then
       break
     end
-    pos = line_start
     if line_start > #text then break end
   end
   if not first then return text end
