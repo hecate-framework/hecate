@@ -13,4 +13,4 @@ Create the package: $ARGUMENTS
 3. Create `.claude/agents/pkg-<name>.md` following an existing package agent.
 4. Add the package to `packages/README.md`, `docs/architecture/overview.md` (graph),
    `docs/roadmap.md`, the README components table and `llms.txt`.
-5. Once `tools/run.lua new-package` exists, use it instead and verify its output.
+5. Prefer `lua tools/run.lua new-package <name> --layer "<label>" --phase <n> --summary "<text>" [--deps a,b]` (scaffolds files, agent, catalogue, graph and `llms.txt`) and verify its output.

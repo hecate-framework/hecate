@@ -30,18 +30,18 @@ Status column: `done` = implemented in `tools/`, `now` = workflow exists today, 
 | `format` / `format-check` | formatter on Lua sources (and `clang-format` on C) | done |
 | `lint` | linter rules from coding-standards.md | done |
 | `typecheck` | `lua-language-server --check` with the repository `.luarc.json`, zero diagnostics | done |
-| `check-lua-constructs` | only the 5.5 constructs allowed by ADR 0001 | P0 |
-| `check-boundaries` | layer rules (overview.md): requires match declared rockspec dependencies, no upward or cyclic dependency, `luv` only in `reactor`, raw `setmetatable` only in `core` or justified | P0 |
-| `check-glossary` | deny-list of discouraged identifiers in `packages/**/src` (from glossary "Instead of" columns) | P0 |
+| `check-lua-constructs` | only the 5.5 constructs allowed by ADR 0001 | done |
+| `check-boundaries` | layer rules (overview.md): requires match declared rockspec dependencies, no upward or cyclic dependency, `luv` only in `reactor`, raw `setmetatable` only in `core` or justified | done |
+| `check-glossary` | deny-list of discouraged identifiers in `packages/**/src` (from glossary "Instead of" columns) | done |
 | `check-annotations` | every exported symbol has LuaLS annotations; functions that suspend carry `---@async`; functions returning `nil` for absence declare a nullable return (ADR 0018) | P1 |
 | `check-versions` | all rockspecs and `VERSION` agree (ADR 0005); `lua >= 5.5, < 5.6` everywhere | done |
 | `check-rockspecs` | rockspec lint (`luarocks lint`), fields, licenses, sources | done |
 | `check-package-structure` | every `packages/<name>` has README.md, CLAUDE.md, rockspec, `tests/`, and an agent in `.claude/agents/pkg-<name>.md` | done |
-| `check-adr-index` | `docs/adr/README.md` lists every ADR with its actual status | P0 |
-| `check-changelog` | pull requests touching `packages/` add an `[Unreleased]` entry | P0 |
+| `check-adr-index` | `docs/adr/README.md` lists every ADR with its actual status | done |
+| `check-changelog` | pull requests touching `packages/` add an `[Unreleased]` entry | done |
 | `check-docs-examples` | every code sample included in the website exists and runs | P2 |
 | `check-translations` | missing/stale translations (front matter `source_revision`) | P3 |
-| `check-links` | internal Markdown links and anchors | P0 |
+| `check-links` | internal Markdown links and anchors | done |
 | `check-licenses` | third-party code and rocks have compatible licenses; `THIRD_PARTY_NOTICES` up to date | P1 |
 
 ### Tests and measurements
@@ -50,8 +50,8 @@ Status column: `done` = implemented in `tools/`, `now` = workflow exists today, 
 |---|---|---|
 | `test [packages] [--integration] [--tag t]` | run tests (bootstrap harness, then `hecate.test`) | done |
 | `coverage` | LCOV report, per-package thresholds (core/reactor/router/schema ≥ 90 %) | P1 |
-| `affected [--base ref]` | packages affected by a diff, following reverse dependencies; used to shrink CI | P0 |
-| `matrix` | emits the CI matrix (platforms × packages × services) as JSON | P0 |
+| `affected [--base ref]` | packages affected by a diff, following reverse dependencies; used to shrink CI | done |
+| `matrix` | emits the CI matrix (platforms × packages × services) as JSON | done |
 | `services up\|down\|status` | start database servers locally via `tools/services/compose.yaml` (same versions as CI) | P4 |
 | `bench [scenario] [--compare ref]` | run benchmarks, compare with a baseline, fail above threshold | P1 |
 | `fuzz <target> [--seconds n]` | libFuzzer targets for C parsers and codecs | P1 |
@@ -63,11 +63,11 @@ Status column: `done` = implemented in `tools/`, `now` = workflow exists today, 
 
 | Task | Output | Status |
 |---|---|---|
-| `new-package <name> --layer L` | package skeleton + CLAUDE.md + agent + catalogue entry | P0 |
-| `gen-catalogue` | `packages/README.md` table from rockspecs and READMEs | P0 |
-| `gen-dependency-graph` | Mermaid graph in overview.md (between markers) | P0 |
+| `new-package <name> --layer L` | package skeleton + CLAUDE.md + agent + catalogue entry | done |
+| `gen-catalogue` | `packages/README.md` table from rockspecs and READMEs | done |
+| `gen-dependency-graph` | Mermaid graph in overview.md (between markers) | done |
 | `gen-reference` | Markdown reference from LuaLS JSON export into `website/en/reference/` | P2 |
-| `gen-llms-txt` | `llms.txt` and `website/public/llms.txt`, `llms-full.txt` | P0 |
+| `gen-llms-txt` | `llms.txt` and `website/public/llms.txt`, `llms-full.txt` | done (root `llms.txt` package list; website copies in P3) |
 | `gen-error-codes` | error code reference page from error classes | P2 |
 | `gen-config-reference` | configuration keys reference from config schemas | P2 |
 | `gen-meta` | LuaLS `---@meta` files from schemas (also exposed to users via the CLI) | P2 |
