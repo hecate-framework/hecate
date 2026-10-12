@@ -39,7 +39,6 @@ Traits: `core.trait(name, methods, { traits =, requires = })`; interfaces:
 `core.interface(name, names, { extends = })`; value classes and enumerations:
 `core.value_class(...)`, `core.enumeration(name, names)`. Open points: OQ-19 to OQ-21.
 
-
 - One mental model across framework and applications.
 - `kernel` (controllers), `orm` (entities), `test` (test cases), `container`
   (services) build on it.

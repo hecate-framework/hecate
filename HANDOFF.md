@@ -2,9 +2,9 @@
 # Handoff
 
 - roadmap_item: `core`: object model (classes, traits, interfaces, conformance), error hierarchy, enumerations, compatibility shims
-- status: in-progress            <!-- in-progress | waiting-ci | waiting-owner -->
-- lock_until: 2026-10-12T20:54:15Z
-- last_update: 2026-10-12T19:24:15Z
+- status: waiting-ci            <!-- in-progress | waiting-ci | waiting-owner -->
+- lock_until: 2026-10-12T20:54:45Z
+- last_update: 2026-10-12T19:24:45Z
 
 ## Done
 
@@ -30,3 +30,8 @@
 
 ```sh
 ```
+
+## Relay status (update)
+
+- Implementation pushed; fixed markdownlint blank line in ADR 0007. Waiting for CI on three platforms.
+- Remaining before ready-for-review: run `/review-package core` (reviewers), `typecheck` when LuaLS exists, tick roadmap, delete HANDOFF.md, comment for owner review (OQ-19..21, ADR 0007 spelling freeze).
