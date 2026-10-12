@@ -6,56 +6,68 @@ Packages are organised in layers. **A package may depend only on packages of str
 lower layers** (or, for the data and tooling groups, on the layers listed). Cycles are
 forbidden and checked in CI.
 
+<!-- gen-dependency-graph:begin -->
 ```mermaid
 flowchart TB
   subgraph L0[Layer 0 — Foundation]
     core
   end
   subgraph L1[Layer 1 — Runtime]
-    reactor --> core
-    net --> reactor
     json --> core
+    log --> json
     log --> reactor
+    net --> reactor
+    reactor --> core
   end
   subgraph L2[Layer 2 — Protocol]
+    http --> log
     http --> net
-    http --> json
-    schema --> json
     router --> core
+    schema --> json
+    websocket --> http
   end
   subgraph L3[Layer 3 — Framework]
-    container --> core
     config --> schema
-    openapi --> schema
-    openapi --> router
+    container --> core
+    kernel --> config
+    kernel --> container
     kernel --> http
     kernel --> router
-    kernel --> schema
-    kernel --> container
-    kernel --> config
-    kernel --> log
+    openapi --> router
+    openapi --> schema
+    security --> kernel
+    template --> kernel
   end
   subgraph D[Data]
-    sql --> net
-    sql --> log
-    query --> sql
-    postgresql --> sql
-    mysql --> sql
-    sqlite --> sql
-    redis --> net
     migration --> query
+    mongodb --> net
+    mysql --> sql
     orm --> query
     orm --> schema
+    postgresql --> sql
+    query --> sql
+    redis --> net
+    sql --> log
+    sql --> net
+    sqlite --> sql
+    sqlserver --> sql
   end
   subgraph T[Tooling]
+    cli --> doc
+    cli --> migration
+    cli --> test
+    doc --> openapi
     test --> kernel
     test --> openapi
-    doc --> openapi
-    cli --> kernel
+  end
+  subgraph M[Meta]
+    hecate --> kernel
+    hecate --> openapi
   end
 ```
+<!-- gen-dependency-graph:end -->
 
-Edges show the main direct dependencies; transitive ones are omitted. Each package's
+The graph is generated from the rockspecs by `gen-dependency-graph`; edges implied by other edges are omitted. Each package's
 README lists its exact dependencies.
 
 ## Naming
