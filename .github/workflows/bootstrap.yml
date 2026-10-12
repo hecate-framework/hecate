@@ -1,0 +1,51 @@
+name: bootstrap
+
+# Verifies the pinned toolchain bootstrap on the three platforms. To be folded into
+# ci.yml when the Phase 0 CI item lands.
+on:
+  pull_request:
+    paths:
+      - 'tools/bootstrap/**'
+      - '.github/workflows/bootstrap.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'tools/bootstrap/**'
+
+permissions:
+  contents: read
+
+jobs:
+  unix:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Lua and LuaRocks
+        run: tools/bootstrap/bootstrap.sh --prefix "$RUNNER_TEMP/lua"
+      - name: Smoke test
+        run: |
+          "$RUNNER_TEMP/lua/bin/lua" -e 'assert(_VERSION == "Lua 5.5")'
+          "$RUNNER_TEMP/lua/bin/luarocks" config lua_version | grep -x 5.5
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ilammy/msvc-dev-cmd@v1
+      - name: Install Lua and LuaRocks
+        shell: pwsh
+        run: tools/bootstrap/bootstrap.ps1 -Prefix "$env:RUNNER_TEMP\lua"
+      - name: Smoke test
+        shell: pwsh
+        run: |
+          $env:LUAROCKS_CONFIG = "$env:RUNNER_TEMP\lua\luarocks-config.lua"
+          & "$env:RUNNER_TEMP\lua\bin\lua.exe" -e 'assert(_VERSION == "Lua 5.5")'
+          $v = & "$env:RUNNER_TEMP\lua\bin\luarocks.exe" config lua_version
+          if ($v -ne '5.5') { throw "unexpected lua_version: $v" }
+          # C rocks need the import library (spike OQ-2)
+          & "$env:RUNNER_TEMP\lua\bin\luarocks.exe" --tree "$env:RUNNER_TEMP\tree" install luafilesystem
+          if ($LASTEXITCODE -ne 0) { throw 'C rock build failed' }
