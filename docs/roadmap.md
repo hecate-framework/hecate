@@ -42,7 +42,7 @@ verified on macOS and Windows through pull requests.
       check-links, test, affected, matrix, new-package, gen-catalogue,
       gen-dependency-graph, gen-llms-txt).
 - [ ] Git hooks (`tools/hooks`).
-- [ ] Workflow `ci.yml` (affected packages × three platforms) calling only `tools/` tasks.
+- [x] Workflow `ci.yml` (affected packages × three platforms) calling only `tools/` tasks.
 - [ ] Repository settings: branch protection, labels, secrets (automation.md §3).
 - [ ] Settle the global-declaration idiom and formatter choice; update
       coding-standards.md (OQ-3).

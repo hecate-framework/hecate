@@ -13,9 +13,33 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # Interim: runs every check on every platform. `affected` and `matrix` tasks will
-  # shrink it (docs/architecture/automation.md §2).
+  # Computes the packages affected by the diff (reverse dependencies included) with the
+  # `affected` task, so the per-platform job only lints and tests what changed.
+  plan:
+    name: plan
+    runs-on: ubuntu-latest
+    outputs:
+      packages: ${{ steps.affected.outputs.packages }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Affected packages
+        id: affected
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
+            base="origin/$GITHUB_BASE_REF"
+          else
+            base="${{ github.event.before }}"
+            git cat-file -e "$base^{commit}" 2>/dev/null || base="HEAD~1"
+          fi
+          packages=$(lua tools/run.lua affected --base "$base" | tr '\n' ' ' | sed 's/ *$//' || true)
+          echo "affected: ${packages:-none}"
+          echo "packages=$packages" >> "$GITHUB_OUTPUT"
+
   ci:
+    needs: plan
     name: ci (${{ matrix.os }}, Lua 5.5)
     runs-on: ${{ matrix.os }}
     strategy:
@@ -86,10 +110,18 @@ jobs:
 
       - name: Check
         shell: bash
+        env:
+          PACKAGES: ${{ needs.plan.outputs.packages }}
         run: |
           set -e
-          for task in check-versions check-rockspecs check-package-structure lint typecheck test; do
+          for task in check-versions check-rockspecs check-package-structure typecheck; do
             echo "::group::$task"
             lua tools/run.lua "$task"
             echo "::endgroup::"
           done
+          echo "::group::lint"
+          lua tools/run.lua lint $PACKAGES
+          echo "::endgroup::"
+          echo "::group::test"
+          lua tools/run.lua test tools $PACKAGES
+          echo "::endgroup::"
