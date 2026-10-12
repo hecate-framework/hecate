@@ -3,7 +3,7 @@
 
 - roadmap_item: `core`: object model (classes, traits, interfaces, conformance), error hierarchy, enumerations, compatibility shims
 - status: in-progress            <!-- in-progress | waiting-ci | waiting-owner -->
-- lock_until: YYYY-MM-DDTHH:MM:SSZ
+- lock_until: 2026-10-12T20:46:52Z
 - last_update: 2026-10-12T19:16:47Z
 
 ## Done
