@@ -12,7 +12,7 @@ Each release heading states the supported Lua version.
 ### Added
 
 - Monorepo tooling: task runner `tools/run.lua` (`check-package-structure`, `check-versions`, `check-rockspecs`, `gen-rockspecs`, `lint`, `typecheck`, `test`, `format`/`format-check` as no-ops), bootstrap test harness `tools/harness/` (ADR 0008), `.luarc.json`, per-package `scm-1` rockspecs and `tests/` skeletons.
-- `check-adr-index`, `check-links`, `check-changelog`, `check-boundaries`, `check-glossary` and `check-lua-constructs` tasks; `affected` and `matrix` tasks (`--json` carries the data); `gen-catalogue` and `gen-dependency-graph` (`--check` verifies).
+- `check-adr-index`, `check-links`, `check-changelog`, `check-boundaries`, `check-glossary` and `check-lua-constructs` tasks; `affected` and `matrix` tasks (`--json` carries the data); `gen-catalogue`, `gen-dependency-graph` and `gen-llms-txt` (package list; `--check` verifies).
 - OQ-3 decision: the repository uses no formatter until one fully supports Lua 5.5.
 - Specification workspace: vision, architecture, decision records, roadmap.
 - Spike reports OQ-4, OQ-5, OQ-6 and ADRs 0019 (llhttp), 0020 (yyjson decoder, serde_json encoder), 0021 (Rust as a build-time tool for native modules; rustls).

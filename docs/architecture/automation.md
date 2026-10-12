@@ -67,7 +67,7 @@ Status column: `done` = implemented in `tools/`, `now` = workflow exists today, 
 | `gen-catalogue` | `packages/README.md` table from rockspecs and READMEs | done |
 | `gen-dependency-graph` | Mermaid graph in overview.md (between markers) | done |
 | `gen-reference` | Markdown reference from LuaLS JSON export into `website/en/reference/` | P2 |
-| `gen-llms-txt` | `llms.txt` and `website/public/llms.txt`, `llms-full.txt` | P0 |
+| `gen-llms-txt` | `llms.txt` and `website/public/llms.txt`, `llms-full.txt` | done (root `llms.txt` package list; website copies in P3) |
 | `gen-error-codes` | error code reference page from error classes | P2 |
 | `gen-config-reference` | configuration keys reference from config schemas | P2 |
 | `gen-meta` | LuaLS `---@meta` files from schemas (also exposed to users via the CLI) | P2 |

@@ -15,10 +15,9 @@ function M.parse_readme(text)
   return { summary = summary, layer = layer, phase = phase, status = status:match("^%a[%a ]*%a"):gsub(" —.*$", ""), rock = rock }
 end
 
---- Renders the table (header included) for packages sorted by phase, layer and name.
+--- Sorts packages by phase, layer and name (in place).
 ---@param pkgs { name: string, meta: table }[]
----@return string
-function M.render(pkgs)
+function M.sort(pkgs)
   table.sort(pkgs, function(a, b)
     local pa, pb = tonumber(a.meta.phase) or 99, tonumber(b.meta.phase) or 99
     if pa ~= pb then return pa < pb end
@@ -26,6 +25,13 @@ function M.render(pkgs)
     if ra ~= rb then return ra < rb end
     return a.name < b.name
   end)
+end
+
+--- Renders the table (header included) for packages sorted by phase, layer and name.
+---@param pkgs { name: string, meta: table }[]
+---@return string
+function M.render(pkgs)
+  M.sort(pkgs)
   local rows = {
     "| Package | Rock | Layer | Phase | Status | Summary |",
     "|---|---|---|---|---|---|",
