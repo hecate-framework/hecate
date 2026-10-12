@@ -155,6 +155,11 @@ Exit: `examples/crud` works unchanged on PostgreSQL, MySQL, MariaDB and SQLite.
 - [ ] Review all code, including `tools/`, for readability and quality: naming, function and
       module size, duplication, dead code, comment accuracy, consistency with
       [coding-standards.md](architecture/coding-standards.md) and the glossary.
+- [ ] Use the SonarLint / SonarSource rule set as the quality reference (cognitive
+      complexity, duplicated blocks, dead code, unused variables and parameters, empty
+      or commented-out code, overly long functions and parameter lists). Adopting any
+      Sonar tool or Lua analyser in CI is a new dependency and needs an ADR first;
+      until then, apply the rules by review and, where cheap, as `lint` task rules.
 - [ ] Simplify without changing behaviour: refactors are covered by the existing tests,
       and benchmarks confirm no hot-path regression.
 - [ ] Re-run all reviewer agents (`/review-package`) on every package and record the
