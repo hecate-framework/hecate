@@ -9,13 +9,15 @@
 ## Done
 
 - Claimed the item (branch, draft PR). Issue #9 (relay blocked on PR #8) is obsolete: PR #8 and #10 are merged.
+- Step 2: `tools/run.lua` (`--list`, `--help`, `--json`, exit 0/1/2), `tools/lib/util.lua`, task `check-package-structure`.
+- Step 3: task `gen-rockspecs`; 29 rockspecs (builtin, empty modules; dependencies from the README "Depends on" row) and `tests/.gitkeep`. The meta-rock is named `hecate` (`hecate-scm-1.rockspec`). CHANGELOG entry added.
+- Step 4: tasks `check-versions` (lua range and package name; the VERSION check is added at release time) and `check-rockspecs` (`luarocks lint` and dependency names). All pass.
 
 ## Next steps
 
-1. tools/tests fixtures for run.lua; update tools/README.md and automation.md status column.
-3. .luarc.json + typecheck task; lint task; format task (OQ-3: owner choice pending, record only).
-4. Temporary test harness tools/harness (ADR 0008) and `test` task.
-- Step 4: tasks check-versions (scm-1 rockspecs: lua range + package name; VERSION release-version check to add at release time) and check-rockspecs (luarocks lint + dependency names). Both pass.
+1. `tools/tests` fixtures for `run.lua`; update `tools/README.md` and the automation.md status column.
+2. `.luarc.json`, `typecheck` task, `lint` task, `format` task (OQ-3: owner choice pending, record only).
+3. Temporary test harness `tools/harness` (ADR 0008) and `test` task.
 
 ## Decisions taken (and where they are recorded)
 
