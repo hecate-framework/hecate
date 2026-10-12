@@ -9,11 +9,7 @@ return {
     local selected = #ctx.args > 0 and ctx.args or util.list_dir(ctx.root .. "/packages")
     for _, name in ipairs(selected) do
       local src = ctx.root .. "/packages/" .. name .. "/src"
-      local cmd = util.is_windows() and ('dir /s /b "%s\\*.lua" 2>nul'):format(src:gsub("/", "\\"))
-        or ('find "%s" -name "*.lua" 2>/dev/null'):format(src)
-      local out = util.capture(cmd)
-      for line in out:gmatch("[^\r\n]+") do
-        local file = line:gsub("\\", "/")
+      for _, file in ipairs(util.walk(src, ".lua")) do
         for _, p in ipairs(lint.check_file(file, file:sub(#ctx.root + 2))) do problems[#problems + 1] = p end
       end
     end

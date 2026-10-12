@@ -2,15 +2,7 @@
 -- under the bootstrap harness. The name `tools` selects tools/tests.
 local util = require("lib.util")
 
-local function files_in(dir)
-  local cmd = util.is_windows() and ('dir /s /b "%s\\*_test.lua" 2>nul'):format(dir:gsub("/", "\\"))
-    or ('find "%s" -name "*_test.lua" 2>/dev/null'):format(dir)
-  local out = util.capture(cmd)
-  local files = {}
-  for f in out:gmatch("[^\r\n]+") do files[#files + 1] = (f:gsub("\\", "/")) end
-  table.sort(files)
-  return files
-end
+local function files_in(dir) return util.walk(dir, "_test.lua") end
 
 return {
   description = "run unit tests of packages (and `tools`) under the bootstrap harness",
@@ -23,7 +15,8 @@ return {
       local srcs = { base .. "/src", ctx.root .. "/tools" }
       for _, file in ipairs(files_in(base .. "/tests")) do
         total = total + 1
-        local out, ok = util.capture(('lua "%s" "%s" "%s" "%s" 2>&1'):format(runner, file, srcs[1], srcs[2]))
+        local out, ok = util.capture(("%s %s %s %s %s 2>&1"):format(util.quote(util.interpreter()), util.quote(runner),
+          util.quote(file), util.quote(srcs[1]), util.quote(srcs[2])))
         if not ok then problems[#problems + 1] = file:sub(#ctx.root + 2) .. "\n" .. out end
       end
     end

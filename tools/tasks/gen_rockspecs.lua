@@ -23,7 +23,7 @@ return {
     for _, name in ipairs(util.list_dir(pkgs)) do
       local readme = pkgs .. "/" .. name .. "/README.md"
       if util.exists(readme) then
-        local text = read(readme)
+        local text = read(readme):gsub("\r\n", "\n")
         local summary = text:match("\n> ([^\n]+)")
         local row = text:match("\n| Depends on | ([^\n]*) |")
         if not summary or not row then
@@ -58,7 +58,7 @@ build = {
 ]]):format(rock, rock, (summary:gsub('"', '\\"')), table.concat(deps, ",\n  "))
           write(pkgs .. "/" .. name .. "/" .. rock .. "-scm-1.rockspec", spec)
           if not util.exists(pkgs .. "/" .. name .. "/tests") then
-            os.execute(('mkdir -p "%s/%s/tests"'):format(pkgs, name))
+            util.mkdir(pkgs .. "/" .. name .. "/tests")
             write(pkgs .. "/" .. name .. "/tests/.gitkeep", "")
           end
         end

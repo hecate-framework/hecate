@@ -2,15 +2,7 @@ local test = require("harness.test")
 local lint = require("lib.lint")
 local T = test.Case("LintTest")
 
-local function check(source)
-  local path = os.tmpname()
-  local f = assert(io.open(path, "wb"))
-  f:write(source)
-  f:close()
-  local problems = lint.check_file(path, "fixture")
-  os.remove(path)
-  return problems
-end
+local function check(source) return lint.check_source(source, "fixture") end
 
 function T:test_clean_chunk() self:assert_equal(0, #check("global <const> print\nprint(1)\n")) end
 function T:test_missing_global_declaration() self:assert_equal(1, #check("local a = 1\n")) end

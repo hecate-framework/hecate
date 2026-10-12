@@ -23,7 +23,7 @@ return {
       local path = ("%s/%s/%s-scm-1.rockspec"):format(pkgs, name, rock)
       local text = read(path)
       if text then
-        local out, ok = util.capture(('luarocks lint "%s" 2>&1'):format(path))
+        local out, ok = util.capture(("luarocks lint %s 2>&1"):format(util.quote(path)))
         if not ok then problems[#problems + 1] = ("%s: luarocks lint: %s"):format(rock, out) end
         for dep in text:gmatch('"(hecate[%w-]*)"') do
           if not known[dep] then problems[#problems + 1] = ("%s: unknown dependency %s"):format(rock, dep) end
