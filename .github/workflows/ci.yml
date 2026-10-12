@@ -37,7 +37,7 @@ jobs:
         run: tools/bootstrap/bootstrap.sh --prefix .hecate/toolchain
 
       - name: MSVC environment (Windows)
-        if: steps.toolchain.outputs.cache-hit != 'true' && runner.os == 'Windows'
+        if: runner.os == 'Windows'
         uses: ilammy/msvc-dev-cmd@v1
 
       - name: Bootstrap (Windows)
@@ -53,6 +53,15 @@ jobs:
           if ($env:RUNNER_OS -eq 'Windows') {
             Add-Content -Path $env:GITHUB_ENV -Value "LUAROCKS_CONFIG=$(Join-Path $tc 'luarocks-config.lua')"
           }
+
+      - name: C toolchain
+        if: runner.os != 'Windows'
+        run: cc --version | head -1 && cmake --version | head -1
+
+      - name: C toolchain (Windows)
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: cl 2>&1 | findstr /C:"Version" && cmake --version
 
       - name: Install LuaLS
         shell: bash
