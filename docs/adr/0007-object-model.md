@@ -57,7 +57,7 @@ Owner decisions recorded during review of the pull request:
 
 Traits: `core.trait(name, methods, { traits =, requires = })`; interfaces:
 `core.interface(name, names, { extends = })`; value classes and enumerations:
-`core.value_class(...)`, `core.enumeration(name, names)`. Open point: OQ-21.
+`core.value_class(...)`, `core.enumeration(name, names)`. Resolved questions: OQ-19 to OQ-21.
 
 - One mental model across framework and applications.
 - `kernel` (controllers), `orm` (entities), `test` (test cases), `container`
