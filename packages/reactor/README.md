@@ -23,7 +23,7 @@
 - scheduler resuming coroutines on libuv completions
 - `fork`, `join`, `select`, `deadline`, `sleep`, `scope`, `detach`, `offload`
 - `Future`, `Channel`, `Semaphore`, `Mutex`, `Monitor`, `Condition`
-- cooperative cancellation (`CancellationError`) and `DeadlineExceeded`
+- cooperative cancellation (`CancellationError`) and `DeadlineExceededError`
 - timers, signals, child processes, pipes, file-system operations as suspending calls
 - worker process management primitives used by the kernel (OQ-8)
 - virtual clock for tests

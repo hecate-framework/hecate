@@ -75,7 +75,7 @@ A single hierarchy rooted at `hecate.core.Error`:
 - fields: `message`, `cause` (another error, for chaining), `context` (table),
   `traceback` (captured when created in debug mode);
 - subclasses per domain: `ConfigurationError`, `ConformanceError`, `CancellationError`,
-  `DeadlineExceeded`, `NetworkError`, `ProtocolError`, `ValidationError`,
+  `DeadlineExceededError`, `NetworkError`, `ProtocolError`, `ValidationError`,
   `DatabaseError` (with SQLSTATE when available), etc.;
 - `__tostring` renders the chain;
 - errors that cross the HTTP boundary map to problem details (RFC 9457) through an

@@ -98,8 +98,8 @@ errors.ConformanceError = error_class("ConformanceError", "hecate.core.Conforman
 errors.ArgumentError = error_class("ArgumentError", "hecate.core.ArgumentError")
 ---@class hecate.core.CancellationError : hecate.core.Error
 errors.CancellationError = error_class("CancellationError", "hecate.core.CancellationError")
----@class hecate.core.DeadlineExceeded : hecate.core.Error
-errors.DeadlineExceeded = error_class("DeadlineExceeded", "hecate.core.DeadlineExceeded")
+---@class hecate.core.DeadlineExceededError : hecate.core.Error
+errors.DeadlineExceededError = error_class("DeadlineExceededError", "hecate.core.DeadlineExceededError")
 ---@class hecate.core.NetworkError : hecate.core.Error
 errors.NetworkError = error_class("NetworkError", "hecate.core.NetworkError")
 ---@class hecate.core.ProtocolError : hecate.core.Error

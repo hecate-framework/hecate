@@ -23,7 +23,7 @@ All primitives live in `hecate.reactor`. Names follow [the glossary](../glossary
 | `fork(fn, ...) → Future` | Start `fn` in a new coroutine in the current scope. |
 | `join(f1, f2, ...) → v1, v2, ...` | Wait for all futures; if one fails, cancel the others in the same `join` and raise the first error. |
 | `select(f1, f2, ...) → index, value` | Wait for the first future to complete; cancel the others. |
-| `deadline(seconds_or_instant, fn, ...)` | Run `fn`; raise `DeadlineExceeded` and cancel it if it does not finish in time. Accepts a relative duration or an absolute instant. |
+| `deadline(seconds_or_instant, fn, ...)` | Run `fn`; raise `DeadlineExceededError` and cancel it if it does not finish in time. Accepts a relative duration or an absolute instant. |
 | `sleep(seconds)` | Suspend the current coroutine. |
 | `scope(fn)` | Open a structured-concurrency scope: returns only when every computation forked inside has completed or been cancelled. |
 | `Future` | `:value()` (suspends until ready), `:cancel()`, `:done()`, `:state()`. |
