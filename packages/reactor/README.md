@@ -8,7 +8,7 @@
 | Rock | `hecate-reactor` |
 | Layer | 1 — Runtime |
 | Roadmap phase | 1 |
-| Status | specified — no code yet |
+| Status | in progress — scheduler, `Future`, `fork`/`join`/`select`/`sleep`/`scope`/`deadline`, cancellation and virtual clock implemented; channels, synchronisation primitives, `detach`, `offload`, signals, processes and file system pending |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |
 | Depends on | [`core`](../core) |
 | Used by | `cli`, `hecate`, `http`, `kernel`, `log`, `mongodb`, `mysql`, `net`, `orm`, `postgresql`, `redis`, `sql`, `sqlite`, `sqlserver`, `test`, `websocket` |
@@ -41,13 +41,31 @@
 
 ## Public API
 
-*To be filled during implementation: list every exported class and function with a one-line
-description, linking to the generated reference.*
+Implemented (step 1). Every function marked *suspends* is `---@async` and raises
+`NonYieldableContextError` outside a managed coroutine or inside a non-yieldable C boundary.
+
+| Name | Description |
+|---|---|
+| `reactor.run(fn, ...)` | Runs `fn` on a new real-clock reactor until it and everything it forked have finished. |
+| `reactor.Reactor({ clock = "real"\|"virtual", start = 0 })` | The scheduler; `:run(fn, ...)`, `:now()`, `:live_tasks()`. The virtual clock jumps to the next timer when nothing is ready (deterministic tests). |
+| `reactor.fork(fn, ...)` | Managed coroutines only (raises otherwise). Starts `fn` in the current scope, returns a `Future`. |
+| `reactor.join(f1, ...)` | *suspends*. Values in argument order; the first failure cancels the others and is raised. |
+| `reactor.select(f1, ...)` | *suspends*. Returns `index, value` of the first future to finish; cancels the others. |
+| `reactor.sleep(seconds)` | *suspends*. `0` yields to the other ready coroutines. |
+| `reactor.scope(fn)` | *suspends*. Runs `fn(scope)`; returns only after every child has completed or been cancelled; raises the first failure. |
+| `reactor.deadline(seconds_or_instant, fn, ...)` | *suspends*. Cancels `fn` and raises `DeadlineExceededError` when late. |
+| `reactor.now()`, `reactor.at(seconds)` | Reading of the running clock; absolute `Instant` for `deadline` (OQ-22). |
+| `Future` | `:value()` (*suspends*), `:cancel()`, `:done()`, `:state()` (`pending`, `completed`, `failed`, `cancelled`). |
+| `Scope` | `:fork(fn, ...)`, `:cancel()`, `:is_cancelled()`, `:live()`. |
+
+Cancellation is cooperative and level-triggered: it is raised as a `CancellationError` at
+every suspension point of a cancelled scope (OQ-23); a failing child cancels its siblings and the
+scope raises the first failure (OQ-24). Requires `luv` (tests need it on `LUA_CPATH`).
 
 ## Layout (once implemented)
 
 ```text
-src/hecate/reactor/init.lua   public entry point
+src/hecate/reactor/init.lua   public entry point (reactor, future, scope, instant, primitives)
 tests/unit/  tests/integration/  tests/fixtures/
 examples/    benchmarks/
 csrc/        native sources

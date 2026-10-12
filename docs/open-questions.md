@@ -14,6 +14,9 @@ When resolved, record the outcome (ADR or specification update) and move the ent
 | OQ-13 | research | Standalone CLI executable: embed Lua 5.5 + CLI modules + native modules into one binary per platform (e.g. luastatic-like approach); code-signing on macOS and Windows. | `cli` |
 | OQ-17 | research | Split tool for mirrors: `splitsh-lite` (used by Symfony), `git subtree split`, or `git filter-repo`. Criteria: determinism, speed on large histories, Windows irrelevant (CI only), maintenance status. | `split.yml` |
 | OQ-18 | spike → owner decision | ORM pattern (ADR 0011): prototype the same small domain (two entities, one association, a transaction) with Data Mapper + Unit of Work and with Active Record, in Lua 5.5 on PostgreSQL. Criteria: readability of user code, testability, performance (allocations, queries issued), fit with the object model and transparent concurrency. | `orm` |
+| OQ-22 | decision | `reactor`, `deadline`: how is an absolute instant passed? Implemented conservatively: a number is a relative duration in seconds, `reactor.at(seconds)` builds a `hecate.reactor.Instant` on the reactor clock (monotonic, origin at `Reactor:run`). A wall-clock instant needs a time type in `core`; to be decided. | `reactor` |
+| OQ-23 | decision | `reactor`, cancellation is level-triggered (every suspension point inside a cancelled scope raises again), so cleanup code in a `<close>` handler or `finally`-style block cannot suspend (for example to flush a buffer) while its scope is cancelled. A shielded region (`reactor.shield(fn)`, as in Trio/AnyIO) is the usual answer; not implemented. | `reactor` |
+| OQ-24 | decision | `reactor`, rule 2 of structured concurrency is implemented strictly: any failure of a child, even one observed through `Future:value()` inside `pcall`, cancels the siblings and is raised by the scope. A way to opt a child out (for supervised work) is not defined; `detach` is the specified escape. | `reactor` |
 
 ## Resolved
 
