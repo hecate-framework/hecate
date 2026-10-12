@@ -10,10 +10,15 @@ set -euo pipefail
 apt-get update -qq
 apt-get install -y -qq libreadline-dev libssl-dev unzip >/dev/null || true
 
-# Pinned versions and SHA-256 checksums live in tools/bootstrap/bootstrap.sh. This
-# script is pasted into the environment, so it fetches the bootstrap from the repository.
-curl -fsSL https://raw.githubusercontent.com/hecate-framework/hecate/main/tools/bootstrap/bootstrap.sh \
+# This script is pasted into the environment, so it cannot know its own commit. It pins
+# the bootstrap it was written for by commit and SHA-256: the same bootstrap behaviour
+# every time, whatever happens on main. When tools/bootstrap/ changes, update both
+# values below (and re-paste this script into the environment).
+BOOTSTRAP_REF=6f70123dfc30a27930253656ec30a47f52714f7a
+BOOTSTRAP_SHA256=39e10e2877ccd36354e8c75e0d0454fa6a3dc96edf69736b240402bdee68c307
+curl -fsSL "https://raw.githubusercontent.com/hecate-framework/hecate/${BOOTSTRAP_REF}/tools/bootstrap/bootstrap.sh" \
   -o /tmp/hecate-bootstrap.sh
+echo "${BOOTSTRAP_SHA256}  /tmp/hecate-bootstrap.sh" | sha256sum -c -
 bash /tmp/hecate-bootstrap.sh --prefix /opt/lua-5.5 --link /usr/local/bin
 
 # Optional: luv (libuv binding). Its Lua 5.5 support is what spike OQ-1 verifies, so a
