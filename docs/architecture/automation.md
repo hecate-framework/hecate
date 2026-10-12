@@ -30,7 +30,7 @@ Status column: `done` = implemented in `tools/`, `now` = workflow exists today, 
 | `format` / `format-check` | formatter on Lua sources (and `clang-format` on C) | done |
 | `lint` | linter rules from coding-standards.md | done |
 | `typecheck` | `lua-language-server --check` with the repository `.luarc.json`, zero diagnostics | done |
-| `check-lua-constructs` | only the 5.5 constructs allowed by ADR 0001 | P0 |
+| `check-lua-constructs` | only the 5.5 constructs allowed by ADR 0001 | done |
 | `check-boundaries` | layer rules (overview.md): requires match declared rockspec dependencies, no upward or cyclic dependency, `luv` only in `reactor`, raw `setmetatable` only in `core` or justified | done |
 | `check-glossary` | deny-list of discouraged identifiers in `packages/**/src` (from glossary "Instead of" columns) | done |
 | `check-annotations` | every exported symbol has LuaLS annotations; functions that suspend carry `---@async`; functions returning `nil` for absence declare a nullable return (ADR 0018) | P1 |
