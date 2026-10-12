@@ -56,6 +56,7 @@ try {
   $config = @"
 rocks_trees = { "$p/rocks" }
 lua_interpreter = "lua.exe"
+lua_version = "5.5"
 variables = {
   LUA_DIR = "$p",
   LUA_INCDIR = "$p/include",
