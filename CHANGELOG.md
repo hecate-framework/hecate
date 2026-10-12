@@ -15,6 +15,7 @@ Each release heading states the supported Lua version.
 - `check-adr-index`, `check-links`, `check-changelog`, `check-boundaries`, `check-glossary` and `check-lua-constructs` tasks; `affected` and `matrix` tasks (`--json` carries the data); `gen-catalogue`, `gen-dependency-graph` and `gen-llms-txt` (package list; `--check` verifies); `new-package`.
 - CI workflow `ci.yml`: Ubuntu, macOS and Windows with Lua 5.5, cached toolchain bootstrap, pinned LuaLS, C toolchain check, and the Phase 0 quality tasks.
 - Git hooks: `lua tools/hooks/install.lua` installs `pre-commit` (lint of staged package sources) and `commit-msg` (Conventional Commits) shims; `lib/commitmsg.lua` holds the validation.
+- `ci.yml` plans with the `affected` task: lint and tests run only for packages affected by the diff (reverse dependencies included).
 - OQ-3 decision: the repository uses no formatter until one fully supports Lua 5.5.
 - Specification workspace: vision, architecture, decision records, roadmap.
 - Spike reports OQ-4, OQ-5, OQ-6 and ADRs 0019 (llhttp), 0020 (yyjson decoder, serde_json encoder), 0021 (Rust as a build-time tool for native modules; rustls).

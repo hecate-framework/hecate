@@ -8,7 +8,7 @@ function T:test_rank()
   self:assert_equal(nil, b.rank("???"))
 end
 function T:test_rockspec_deps()
-  local deps = b.rockspec_deps('dependencies = {\n  "lua >= 5.5",\n  "hecate-core",\n}\nbuild = {}')
+  local deps = b.rockspec_deps('\ndependencies = {\n  "lua >= 5.5",\n  "hecate-core",\n}\nbuild = {}')
   self:assert_equal(1, #deps)
   self:assert_equal("core", deps[1])
 end
