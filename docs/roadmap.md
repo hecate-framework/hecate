@@ -41,7 +41,7 @@ verified on macOS and Windows through pull requests.
       check-rockspecs, check-package-structure, check-adr-index, check-changelog,
       check-links, test, affected, matrix, new-package, gen-catalogue,
       gen-dependency-graph, gen-llms-txt).
-- [ ] Git hooks (`tools/hooks`).
+- [x] Git hooks (`tools/hooks`).
 - [ ] Workflow `ci.yml` (affected packages × three platforms) calling only `tools/` tasks.
 - [ ] Repository settings: branch protection, labels, secrets (automation.md §3).
 - [ ] Settle the global-declaration idiom and formatter choice; update
