@@ -281,6 +281,7 @@ function Reactor:_create_task(scope, fn, args)
   future._task = task
   self._tasks[task.co] = task
   self._live = self._live + 1
+  ---@diagnostic disable-next-line: invisible  -- the scheduler is the friend of `Scope`
   if scope then scope:_adopt(task) end
   push_ready(self, task)
   return future
@@ -340,7 +341,7 @@ end
 
 --- Runs `fn(...)` as the main coroutine, inside a root scope, and drives the reactor until
 --- it and everything it forked have finished. Returns the results of `fn`, or raises its error.
----@param fn fun(...): any ...
+---@param fn fun(...): ...
 ---@param ... any
 ---@return any ...
 function Reactor:run(fn, ...)

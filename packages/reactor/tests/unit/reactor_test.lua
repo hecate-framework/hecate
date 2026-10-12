@@ -87,6 +87,7 @@ function T:test_a_reactor_is_usable_again_after_a_failed_run()
 end
 
 function T:test_invalid_clock_is_rejected()
+  ---@diagnostic disable-next-line: assign-type-mismatch  -- intentionally invalid
   local err = self:assert_error(function() reactor.Reactor({ clock = "wall" }) end)
   self:assert_true(core.is_instance_of(err, core.ArgumentError))
 end

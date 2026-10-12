@@ -40,7 +40,7 @@ function Future:value()
     end)
   end
   if self._state == "completed" then
-    local results = self._results
+    local results = self._results --[[@as table]]
     return table.unpack(results, 1, results.n)
   end
   error(self._error, 0)

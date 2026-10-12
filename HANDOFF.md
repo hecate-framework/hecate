@@ -3,20 +3,21 @@
 
 - roadmap_item: `reactor`: reactor over luv, scheduler, futures, `fork`/`join`/`select`, deadlines, scopes and cancellation, channels, semaphores, mutexes, monitors, timers, thread-pool offloading, signals
 - status: in-progress
-- lock_until: 2026-10-12T22:51:47Z
-- last_update: 2026-10-12T21:21:47Z
+- lock_until: 2026-10-12T23:11:51Z
+- last_update: 2026-10-12T21:41:51Z
 
 ## Done
 
 - Claimed the item (previous item `core` merged in #17).
 - Step 1: `Reactor` (real clock over luv + virtual clock), `Future`, `Scope`, `Instant`, `fork`, `join`, `select`, `sleep`, `scope`, `deadline`, cooperative level-triggered cancellation running `<close>` handlers, deadlock detection, non-yieldable detection. `NonYieldableContextError` added to `hecate.core`. `tools/tasks/test.lua` now puts all package `src` dirs on the path. Tests in `packages/reactor/tests/unit`.
+- Step 2: fixed the 21 LuaLS diagnostics (variadic return annotations `fun(...): ...`, `Context` fields, targeted suppressions only in tests passing invalid values). CI now installs luv into `.hecate/rocks` (cached); `tools/harness/run_file.lua` adds `.hecate/rocks` and `spikes/rocks` to package.path/cpath. LuaLS 3.19.1 installed locally in `spikes/luals`.
 
 ## Next steps
 
 1. Step 2: `Channel` (capacity 0 rendezvous, usable in `select`), `Semaphore`, `Mutex` (`<close>`-able permits), `Monitor`, `Condition`.
 2. Step 3: `detach`, timers/handles API, signals, processes, file-system operations as suspending calls; leak-detection of libuv handles for these.
 3. Step 4: `offload` design (spec before implementation), worker primitives (OQ-8), benchmarks, website reference, tick roadmap item, delete this file.
-4. CI: `ci.yml` must provide luv (`luarocks install luv`) and `LUA_CPATH` for `test reactor` on the three platforms; typecheck (LuaLS) was not available locally and has not been run on the new code.
+4. Confirm CI is green on the three platforms (luv install step and LuaLS were verified only on Linux).
 
 ## Decisions taken (and where they are recorded)
 

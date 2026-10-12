@@ -32,7 +32,7 @@ function Scope:init(owner, parent)
 end
 
 --- Starts `fn(...)` in a new coroutine that belongs to this scope.
----@param fn fun(...): any ...
+---@param fn fun(...): ...
 ---@param ... any
 ---@return hecate.reactor.Future
 function Scope:fork(fn, ...)

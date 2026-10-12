@@ -115,8 +115,10 @@ end
 
 function T:test_join_and_select_validate_arguments()
   support.run_virtual(function()
+    ---@diagnostic disable-next-line: param-type-mismatch  -- intentionally invalid
     self:assert_true(core.is_instance_of(self:assert_error(function() reactor.join(1) end), core.ArgumentError))
     self:assert_true(core.is_instance_of(self:assert_error(function() reactor.select() end), core.ArgumentError))
+    ---@diagnostic disable-next-line: param-type-mismatch  -- intentionally invalid
     self:assert_true(core.is_instance_of(self:assert_error(function() reactor.fork(1) end), core.ArgumentError))
   end)
 end
@@ -218,7 +220,10 @@ end
 
 function T:test_deadline_rejects_invalid_arguments()
   support.run_virtual(function()
+    ---@diagnostic disable-next-line: param-type-mismatch  -- intentionally invalid
     self:assert_true(core.is_instance_of(self:assert_error(function() reactor.deadline("1", print) end), core.ArgumentError))
+    ---@diagnostic disable-next-line: param-type-mismatch  -- intentionally invalid
+    ---@diagnostic disable-next-line: param-type-mismatch  -- intentionally invalid
     self:assert_true(core.is_instance_of(self:assert_error(function() reactor.deadline(1, nil) end), core.ArgumentError))
   end)
 end
