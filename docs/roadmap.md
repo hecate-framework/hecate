@@ -35,7 +35,7 @@ verified on macOS and Windows through pull requests.
       until `hecate.test` exists, see ADR 0008).
 - [x] CI: GitHub Actions matrix `{ubuntu, macos, windows} × Lua 5.5`, C toolchains
       (sanitizers on Linux move to the Phase 1 `native.yml` item: no native code yet).
-- [ ] `tools/run.lua` task runner and the Phase 0 tasks of the catalogue in
+- [x] `tools/run.lua` task runner and the Phase 0 tasks of the catalogue in
       [automation.md](architecture/automation.md) (format, lint, typecheck,
       check-lua-constructs, check-boundaries, check-glossary, check-versions,
       check-rockspecs, check-package-structure, check-adr-index, check-changelog,
