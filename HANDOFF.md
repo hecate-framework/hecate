@@ -1,7 +1,7 @@
 # Handoff
 
 - roadmap_item: Workflow `ci.yml` (affected packages × three platforms) calling only `tools/` tasks.
-- status: waiting-ci
+- status: waiting-ci   (pushed fix for pre-existing tools test failures exposed by running `test tools`)
 - lock_until: 2026-10-12T20:12:04Z
 - last_update: 2026-10-12T18:42:04Z
 
