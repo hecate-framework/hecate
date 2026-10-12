@@ -31,6 +31,13 @@ function introspection.is_interface(value)
   return type(value) == "table" and registry.interfaces[value] ~= nil
 end
 
+--- Returns true when `value` is an enumeration created with `core.enumeration`.
+---@param value any
+---@return boolean
+function introspection.is_enumeration(value)
+  return type(value) == "table" and registry.enumerations[value] ~= nil
+end
+
 --- Returns true when the class has been finalised.
 ---@param class table
 ---@return boolean

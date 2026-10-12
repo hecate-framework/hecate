@@ -95,6 +95,9 @@ local function class(name, parent, options)
     finalised = false,
     origins = {},
     own = {},
+    -- A subclass of a value class stays a value class.
+    freeze = parent and classes[parent].freeze or nil,
+    prepare = parent and classes[parent].prepare or nil,
   }
   return declared
 end

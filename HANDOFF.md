@@ -3,18 +3,22 @@
 
 - roadmap_item: `core`: object model (classes, traits, interfaces, conformance), error hierarchy, enumerations, compatibility shims
 - status: in-progress            <!-- in-progress | waiting-ci | waiting-owner -->
-- lock_until: 2026-10-12T20:52:09Z
-- last_update: 2026-10-12T19:22:09Z
+- lock_until: 2026-10-12T20:54:15Z
+- last_update: 2026-10-12T19:24:15Z
 
 ## Done
 
 - Claimed the item (Phase 0 complete, PR #16 merged).
-- Step 1 done: compat, class/trait/interface/finalise, introspection, Error hierarchy with tests (packages/core/tests/unit).
+- Step 1: compat, class/trait/interface/finalise, introspection, Error hierarchy, tests.
+- Step 2: enumeration, value_class, no-globals test, dispatch benchmark, rockspec modules.
+- Step 3: README Public API/status, CHANGELOG, ADR 0007 final spelling section, OQ-19..21.
+- All tests (8 files) and the checks (lint, boundaries, glossary, rockspecs, package-structure, changelog, links) pass.
 
 ## Next steps
 
-1. Step 2: enumeration and value_class (tests first; add both to the rockspec modules).
-2. Step 3: README Public API/status, CHANGELOG, ADR 0007 final spelling, open questions, micro-benchmark, website page if structure exists.
+1. Run reviewers (/review-package core, api-reviewer, terminology-reviewer) and fix findings.
+2. typecheck needs lua-language-server (not run here); examples/ snippets and website page (reference is generated, not hand-written) remain.
+3. Owner: do not tick roadmap yet; review OQ-19..21 and freeze spelling in ADR 0007.
 
 ## Decisions taken (and where they are recorded)
 

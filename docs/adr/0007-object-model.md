@@ -26,7 +26,19 @@ Scope confirmed by the owner (2026-10-11): the **complete** model from the first
 implementation, traits included; the alternatives (adopting an existing class library,
 or conventions on plain metatables) were rejected.
 
-## Consequences
+### Final spelling (Phase 1 implementation, for owner review and freeze)
+
+```lua
+local C = core.class("Name", Parent, { traits = { T, { U, exclude = {"m"}, alias = { n = "n2" } } },
+                                       implements = { I } })
+function C:init(...) end        -- constructor; super call: core.superclass(C).init(self, ...)
+core.finalise(C)                -- required before `C(...)`
+```
+
+Traits: `core.trait(name, methods, { traits =, requires = })`; interfaces:
+`core.interface(name, names, { extends = })`; value classes and enumerations:
+`core.value_class(...)`, `core.enumeration(name, names)`. Open points: OQ-19 to OQ-21.
+
 
 - One mental model across framework and applications.
 - `kernel` (controllers), `orm` (entities), `test` (test cases), `container`
