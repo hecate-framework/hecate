@@ -150,6 +150,19 @@ Exit: `examples/crud` works unchanged on PostgreSQL, MySQL, MariaDB and SQLite.
 - [ ] Source lowering tool 5.5 → 5.4 ([ADR 0001](adr/0001-lua-5.5-as-sole-target.md)).
 - [ ] CI matrix extended to 5.4; publication strategy for 5.4 artefacts (OQ-7).
 
+## Phase 7 — Code review and quality pass
+
+- [ ] Review every package's code for readability and quality: naming, function and
+      module size, duplication, dead code, comment accuracy, consistency with
+      [coding-standards.md](architecture/coding-standards.md) and the glossary.
+- [ ] Simplify without changing behaviour: refactors are covered by the existing tests,
+      and benchmarks confirm no hot-path regression.
+- [ ] Re-run all reviewer agents (`/review-package`) on every package and record the
+      findings fixed or deferred.
+
+Exit: every package reviewed, findings resolved or tracked in `docs/open-questions.md`,
+CI green on the three platforms.
+
 ## Continuous
 
 - Website: French translation kept in sync; further locales by contribution.
