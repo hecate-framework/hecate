@@ -1,9 +1,9 @@
 # Handoff
 
 - roadmap_item: CI: GitHub Actions matrix {ubuntu, macos, windows} × Lua 5.5, C toolchains, sanitizers on Linux.
-- status: in-progress
+- status: waiting-owner
 - lock_until: 2026-10-12T13:11:48Z
-- last_update: 2026-10-12T12:20:37Z
+- last_update: 2026-10-12T12:25:11Z
 
 ## Done
 
@@ -12,8 +12,7 @@
 
 ## Next steps
 
-1. Watch CI run with the new LuaLS install + typecheck step (pinned 3.19.1, SHA-256 in ci.yml);
-   fix per-platform failures (Windows PATH/zip layout are the likely ones).
+1. DONE: CI green on 3 platforms with LuaLS typecheck (head 859c93f).
 2. Format: OQ-3 resolved (no repository formatter), so `format-check` is not added to CI.
 3. C toolchain and Linux sanitizer jobs once packages have csrc/ (Phase 1); then tick the item.
 
