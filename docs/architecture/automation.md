@@ -37,7 +37,7 @@ Status column: `done` = implemented in `tools/`, `now` = workflow exists today, 
 | `check-versions` | all rockspecs and `VERSION` agree (ADR 0005); `lua >= 5.5, < 5.6` everywhere | done |
 | `check-rockspecs` | rockspec lint (`luarocks lint`), fields, licenses, sources | done |
 | `check-package-structure` | every `packages/<name>` has README.md, CLAUDE.md, rockspec, `tests/`, and an agent in `.claude/agents/pkg-<name>.md` | done |
-| `check-adr-index` | `docs/adr/README.md` lists every ADR with its actual status | P0 |
+| `check-adr-index` | `docs/adr/README.md` lists every ADR with its actual status | done |
 | `check-changelog` | pull requests touching `packages/` add an `[Unreleased]` entry | P0 |
 | `check-docs-examples` | every code sample included in the website exists and runs | P2 |
 | `check-translations` | missing/stale translations (front matter `source_revision`) | P3 |
