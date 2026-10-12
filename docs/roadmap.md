@@ -52,7 +52,7 @@ Exit: CI is green on all three platforms with a trivial test in every package sk
 
 ## Phase 1 — Core and runtime
 
-- [ ] `core`: object model (classes, traits, interfaces, conformance), error hierarchy,
+- [x] `core`: object model (classes, traits, interfaces, conformance), error hierarchy,
       enumerations, compatibility shims ([object-model.md](architecture/object-model.md)).
 - [ ] `reactor`: reactor over luv, scheduler, futures, `fork`/`join`/`select`,
       deadlines, scopes and cancellation, channels, semaphores, mutexes, monitors,
