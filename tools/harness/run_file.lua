@@ -1,0 +1,17 @@
+-- Runs one *_test.lua file and prints TAP lines. Usage: lua run_file.lua <file> <src-path>...
+local harness_dir = arg[0]:gsub("\\", "/"):match("^(.*)/[^/]*$") or "."
+package.path = harness_dir .. "/?.lua;" .. package.path
+local test = require("test")
+local file = arg[1]
+for i = 2, #arg do package.path = arg[i] .. "/?.lua;" .. arg[i] .. "/?/init.lua;" .. package.path end
+local class = assert(loadfile(file))()
+local failed = 0
+for i, r in ipairs(test.run_case(class)) do
+  if r.ok then print(("ok %d - %s"):format(i, r.name))
+  else
+    failed = failed + 1
+    print(("not ok %d - %s"):format(i, r.name))
+    print("  # " .. tostring(r.message):gsub("\n", "\n  # "))
+  end
+end
+os.exit(failed == 0 and 0 or 1)

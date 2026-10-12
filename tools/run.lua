@@ -52,7 +52,7 @@ local name = table.remove(args, 1)
 local task, err = load_task(name)
 if not task then
   io.stderr:write(("unknown task '%s'\n"):format(name))
-  if err and not tostring(err):find("module 'tasks%.") then io.stderr:write(tostring(err), "\n") end
+  if err and not tostring(err):find("^module 'tasks%.[%w_]+' not found") then io.stderr:write(tostring(err), "\n") end
   usage(io.stderr)
   os.exit(2)
 end

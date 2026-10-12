@@ -3,8 +3,10 @@
 Scripts that build, check, test, generate and release Hecate. Specification and
 catalogue: [docs/architecture/automation.md](../docs/architecture/automation.md).
 
-No script exists yet; they are written during Phase 0 (and later phases as listed in the
-catalogue).
+Implemented so far: `run.lua`, `harness/`, and the tasks `check-package-structure`,
+`check-versions`, `check-rockspecs`, `gen-rockspecs`, `lint`, `typecheck` (needs
+`lua-language-server` on `PATH`), `test [packages|tools]`, `format` and `format-check`
+(no-ops, see OQ-3). Run `lua tools/run.lua --list`. Tests of the tools: `lua tools/run.lua test tools`.
 
 ## Planned layout
 
