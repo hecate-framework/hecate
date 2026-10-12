@@ -38,10 +38,10 @@ Status column: `done` = implemented in `tools/`, `now` = workflow exists today, 
 | `check-rockspecs` | rockspec lint (`luarocks lint`), fields, licenses, sources | done |
 | `check-package-structure` | every `packages/<name>` has README.md, CLAUDE.md, rockspec, `tests/`, and an agent in `.claude/agents/pkg-<name>.md` | done |
 | `check-adr-index` | `docs/adr/README.md` lists every ADR with its actual status | done |
-| `check-changelog` | pull requests touching `packages/` add an `[Unreleased]` entry | P0 |
+| `check-changelog` | pull requests touching `packages/` add an `[Unreleased]` entry | done |
 | `check-docs-examples` | every code sample included in the website exists and runs | P2 |
 | `check-translations` | missing/stale translations (front matter `source_revision`) | P3 |
-| `check-links` | internal Markdown links and anchors | P0 |
+| `check-links` | internal Markdown links and anchors | done |
 | `check-licenses` | third-party code and rocks have compatible licenses; `THIRD_PARTY_NOTICES` up to date | P1 |
 
 ### Tests and measurements
