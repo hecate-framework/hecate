@@ -3,8 +3,8 @@
 
 - roadmap_item: Monorepo tooling: per-package rockspecs, a root task runner, formatter, linter, LuaLS configuration (`.luarc.json`), test runner bootstrap (temporary harness until `hecate.test` exists, see ADR 0008).
 - status: in-progress
-- lock_until: 2026-10-12T12:44:45Z
-- last_update: 2026-10-12T11:14:45Z
+- lock_until: 2026-10-12T12:50:40Z
+- last_update: 2026-10-12T11:20:40Z
 
 ## Done
 
@@ -12,17 +12,16 @@
 
 ## Next steps
 
-0. Add tools/tests fixtures for run.lua; update tools/README.md and automation.md status; CHANGELOG [Unreleased].
-3. Per-package rockspecs generated from package READMEs; check-rockspecs and check-package-structure tasks.
-4. .luarc.json, lint/typecheck/format tasks (formatter per OQ-3: needs owner choice, record in open-questions).
-5. Temporary test harness (tools/harness) per ADR 0008.
-
-- Step 2: tools/run.lua (--list, --help, --json, exit 0/1/2), tools/lib/util.lua, task check-package-structure (reports 58 expected problems: every package lacks rockspec + tests/).
+1. check-rockspecs and check-versions tasks (VERSION vs rockspecs; luarocks lint).
+2. tools/tests fixtures for run.lua; update tools/README.md and automation.md status column.
+3. .luarc.json + typecheck task; lint task; format task (OQ-3: owner choice pending, record only).
+4. Temporary test harness tools/harness (ADR 0008) and `test` task.
 
 ## Decisions taken (and where they are recorded)
 
 ## Doubts and questions for the owner
 
+- Meta-rock `hecate` source url points at the monorepo URL (no mirror named `hecate`); native packages have empty `modules` until their C code exists.
 - Branch: the session was assigned claude/sweet-feynman-765b90, but relay.md requires claude/relay-<slug>; relay.md followed.
 
 ## Commands to re-run

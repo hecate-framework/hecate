@@ -13,7 +13,7 @@ return {
         local required = {
           dir .. "/README.md",
           dir .. "/CLAUDE.md",
-          dir .. "/hecate-" .. name .. "-scm-1.rockspec",
+          dir .. "/" .. (name == "hecate" and "hecate" or "hecate-" .. name) .. "-scm-1.rockspec",
           dir .. "/tests",
           ctx.root .. "/.claude/agents/pkg-" .. name .. ".md",
         }

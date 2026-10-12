@@ -11,6 +11,7 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- Task runner `tools/run.lua` with tasks `check-package-structure` and `gen-rockspecs`; per-package `scm-1` rockspecs and `tests/` skeletons (monorepo tooling, in progress).
 - Specification workspace: vision, architecture, decision records, roadmap.
 - Spike reports OQ-4, OQ-5, OQ-6 and ADRs 0019 (llhttp), 0020 (yyjson decoder, serde_json encoder), 0021 (Rust as a build-time tool for native modules; rustls).
 - `tools/bootstrap/bootstrap.sh` and `bootstrap.ps1`: pinned Lua 5.5.1 and LuaRocks 3.13.0 bootstrap with SHA-256 verification for Linux, macOS and Windows (x64 and arm64); `tools/cloud/setup.sh` pins the bootstrap by commit and checksum.
