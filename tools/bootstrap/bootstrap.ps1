@@ -4,11 +4,17 @@
   SHA-256 verification. Windows counterpart of bootstrap.sh.
 .PARAMETER Prefix
   Install location (default: .hecate\toolchain under the repository root).
+.PARAMETER Arch
+  Target architecture: x64 or arm64 (default: the host's). The MSVC environment must
+  target the same architecture. LuaRocks ships no arm64 build, so its x64 executables
+  run under Windows' emulation on arm64; Lua itself is built natively.
 .NOTES
   Requires a Visual Studio C++ toolchain and CMake in PATH, in a developer shell
   (or after ilammy/msvc-dev-cmd in GitHub Actions).
 #>
 param(
+  [ValidateSet('x64', 'arm64')]
+  [string]$Arch = $(if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') { 'arm64' } else { 'x64' }),
   [string]$Prefix = (Join-Path (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) '.hecate\toolchain')
 )
 $ErrorActionPreference = 'Stop'
@@ -41,7 +47,8 @@ try {
   $cmakeDir = Join-Path $PSScriptRoot 'lua-cmake'
   $build = Join-Path $work 'build'
 
-  cmake -S $cmakeDir -B $build "-DLUA_SRC=$work\lua-$LuaVersion\src" "-DLUA_ABI=$LuaAbi"
+  $cmakeArch = if ($Arch -eq 'arm64') { 'ARM64' } else { 'x64' }
+  cmake -S $cmakeDir -B $build -A $cmakeArch "-DLUA_SRC=$work\lua-$LuaVersion\src" "-DLUA_ABI=$LuaAbi"
   if ($LASTEXITCODE -ne 0) { throw 'cmake configure failed' }
   cmake --build $build --config Release
   if ($LASTEXITCODE -ne 0) { throw 'cmake build failed' }

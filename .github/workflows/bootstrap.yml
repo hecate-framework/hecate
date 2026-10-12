@@ -32,13 +32,21 @@ jobs:
           "$RUNNER_TEMP/lua/bin/luarocks" config lua_version | grep -x 5.5
 
   windows:
-    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: windows-latest, arch: x64 }
+          - { os: windows-11-arm, arch: arm64 }
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: ${{ matrix.arch }}
       - name: Install Lua and LuaRocks
         shell: pwsh
-        run: tools/bootstrap/bootstrap.ps1 -Prefix "$env:RUNNER_TEMP\lua"
+        run: tools/bootstrap/bootstrap.ps1 -Arch ${{ matrix.arch }} -Prefix "$env:RUNNER_TEMP\lua"
       - name: Smoke test
         shell: pwsh
         run: |
