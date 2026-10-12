@@ -60,17 +60,17 @@ core.finalise(Money)
 
 | Name | Description |
 |---|---|
-| `class(name, parent?, options?)` | Declares a class; options `traits`, `implements`, `fallback_provides` (names an `__index` fallback provides; they satisfy conformance checks). Instantiate with `Class(...)` after finalisation (calls `init`). |
+| `class(name, superclass?, options?)` | Declares a class; options `traits`, `implements`, `fallback_provides` (names an `__index` fallback provides; they satisfy conformance checks). Instantiate with `Class(...)` after finalisation (calls `init`). |
 | `finalise(class)` | Resolves traits and interfaces, flattens members into the class table; one `ConformanceError` lists every problem. Idempotent. |
 | `trait(name, methods, options?)` | Declares a trait; options `traits` (composition), `requires`. A trait entry of a class may be `{ trait, exclude = {...}, alias = { old = "new" } }`. |
 | `interface(name, methods, options?)` | Declares an interface; option `extends`. |
-| `value_class(name, parent?, options?)` | Like `class`; instances are frozen after `init`, compared structurally by `__eq`. |
+| `value_class(name, superclass?, options?)` | Like `class`; instances are frozen after `init`, compared structurally by `__eq`. |
 | `enumeration(name, names)` | Closed set of values (`Status.active`, `:values()`, `:names()`, `:contains(v)`, `:find(name)`, `:size()`). |
 | `name`, `superclass`, `traits`, `interfaces`, `class_of`, `origin` | Introspection. |
 | `is_instance_of(value, class)`, `implements(subject, interface_or_trait)` | Type tests. |
 | `is_class`, `is_trait`, `is_interface`, `is_enumeration`, `is_finalised` | Kind predicates. |
 | `Error` and `ConfigurationError`, `ConformanceError`, `ArgumentError`, `CancellationError`, `DeadlineExceededError`, `NetworkError`, `ProtocolError`, `ValidationError`, `DatabaseError` | Error hierarchy: `Error("message")` or `Error { message =, cause =, context =, code = }`; fields `message`, `code`, `cause`, `context`, `traceback`; `root_cause()`; `__tostring` renders the chain. |
-| `error_class(name, code, parent?)` | Declares a finalised error subclass with a stable code. |
+| `error_class(name, code, superclass?)` | Declares a finalised error subclass with a stable code. |
 | `set_debug_mode(enabled)`, `is_debug_mode()` | Traceback capture on error creation. |
 | `compat.table_create(narray?, nhash?)`, `compat.lua_version` | Lua-version shims. |
 

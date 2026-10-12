@@ -2,7 +2,7 @@
 -- finalisation, inherited metamethods (ADR 0007, object-model.md).
 --
 -- Declaration spelling (frozen by ADR 0007):
---   local Money = core.class("Money", Parent, { traits = {...}, implements = {...} })
+--   local Money = core.class("Money", Superclass, { traits = {...}, implements = {...} })
 --   function Money:init(amount) ... end
 --   core.finalise(Money)
 --
@@ -62,14 +62,14 @@ end
 
 --- Declares a class. The class must be finalised with `finalise` before use.
 ---@param name string
----@param parent? any  superclass (finalised before this class is finalised)
+---@param superclass? any  superclass (finalised before this class is finalised)
 ---@param options? hecate.core.ClassOptions
 ---@return table class
-local function class(name, parent, options)
+local function class(name, superclass, options)
   if type(name) ~= "string" or name == "" then
     raise.argument("class name must be a non-empty string, got " .. tostring(name))
   end
-  if parent ~= nil and classes[parent] == nil then
+  if superclass ~= nil and classes[superclass] == nil then
     raise.argument(("class %s: superclass must be a class created with core.class"):format(name))
   end
   options = options or {}
@@ -98,7 +98,7 @@ local function class(name, parent, options)
   end
   classes[declared] = {
     name = name,
-    parent = parent,
+    superclass = superclass,
     uses = uses,
     interfaces = options.implements or {},
     metatable = metatable,
@@ -108,8 +108,8 @@ local function class(name, parent, options)
     own = {},
     fallback_names = {},
     -- A subclass of a value class stays a value class.
-    freeze = parent and classes[parent].freeze or nil,
-    prepare = parent and classes[parent].prepare or nil,
+    freeze = superclass and classes[superclass].freeze or nil,
+    prepare = superclass and classes[superclass].prepare or nil,
   }
   return declared
 end
@@ -140,16 +140,16 @@ local function finalise(target)
   if record == nil then raise.argument("finalise expects a class created with core.class") end
   ---@cast record -?
   if record.finalised then return target end
-  local parent = record.parent
+  local superclass = record.superclass
   ---@type table
-  local parent_record = {}
-  if parent then
-    parent_record = classes[parent] --[[@as table]]
-    if not parent_record.finalised then
+  local superclass_record = {}
+  if superclass then
+    superclass_record = classes[superclass] --[[@as table]]
+    if not superclass_record.finalised then
       raise.conformance(
         ("%s cannot be finalised before its superclass %s; finalise the superclass first"):format(
-          describe(target), describe(parent)),
-        { class = record.name, superclass = parent_record.name })
+          describe(target), describe(superclass)),
+        { class = record.name, superclass = superclass_record.name })
     end
   end
 
@@ -164,10 +164,10 @@ local function finalise(target)
   end
 
   -- The fallback and the names it provides are inherited like the fallback itself.
-  fallback = fallback or (parent and parent_record.fallback) or nil
+  fallback = fallback or (superclass and superclass_record.fallback) or nil
   local fallback_names = {}
-  if parent then
-    for member in pairs(parent_record.fallback_names) do fallback_names[member] = true end
+  if superclass then
+    for member in pairs(superclass_record.fallback_names) do fallback_names[member] = true end
   end
   for _, member in ipairs(record.fallback_provides) do fallback_names[member] = true end
 
@@ -187,7 +187,7 @@ local function finalise(target)
   local function provides(member)
     if type(own[member]) == "function" or contributions[member] ~= nil then return true end
     if fallback_names[member] then return true end
-    return parent ~= nil and type(rawget(parent, member)) == "function"
+    return superclass ~= nil and type(rawget(superclass, member)) == "function"
   end
   local missing = {}
   local seen = {}
@@ -224,11 +224,11 @@ local function finalise(target)
     rawset(target, member, item.fn)
     record.origins[member] = item.origin
   end
-  if parent then
-    for key, value in next, parent do
+  if superclass then
+    for key, value in next, superclass do
       if not NOT_INHERITED[key] and rawget(target, key) == nil then
         rawset(target, key, value)
-        record.origins[key] = parent_record.origins[key] or ("class " .. parent_record.name)
+        record.origins[key] = superclass_record.origins[key] or ("class " .. superclass_record.name)
       end
     end
   end

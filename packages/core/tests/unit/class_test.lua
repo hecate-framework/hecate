@@ -64,7 +64,7 @@ function T:test_subclass_overrides_and_calls_super()
   self:assert_equal("derived+base1", d:describe())
 end
 
-function T:test_parent_must_be_finalised_first()
+function T:test_superclass_must_be_finalised_first()
   local Base = core.class("Base")
   local Derived = core.class("Derived", Base)
   local err = self:assert_error(function() core.finalise(Derived) end)
@@ -73,7 +73,7 @@ function T:test_parent_must_be_finalised_first()
   self:assert_true(err.message:find("Derived", 1, true) ~= nil)
 end
 
-function T:test_parent_must_be_a_class()
+function T:test_superclass_must_be_a_class()
   local err = self:assert_error(function() core.class("X", {}) end)
   self:assert_equal("hecate.core.ArgumentError", err.code)
 end
@@ -190,7 +190,7 @@ function T:test_close_runs_when_scope_is_left_by_error()
   self:assert_true(closed)
 end
 
-function T:test_index_and_name_are_not_copied_from_parent()
+function T:test_index_and_name_are_not_copied_from_superclass()
   local Base = core.class("Base")
   core.finalise(Base)
   local Derived = core.class("Derived", Base)
@@ -201,8 +201,8 @@ end
 
 -- members provided by an index fallback ----------------------------------------
 
-local function fallback_class(name, parent, options)
-  local C = core.class(name, parent, options)
+local function fallback_class(name, superclass, options)
+  local C = core.class(name, superclass, options)
   C.__index = function(_, key) return "fb:" .. key end
   return C
 end

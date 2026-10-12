@@ -80,10 +80,10 @@ class_module.finalise(Error)
 --- Declares a finalised subclass of `Error` with a stable code.
 ---@param name string
 ---@param code string  stable identifier, for example "hecate.http.HeaderTooLarge"
----@param parent? any  defaults to `Error`
+---@param superclass? any  defaults to `Error`
 ---@return any
-local function error_class(name, code, parent)
-  local subclass = class_module.class(name, parent or Error)
+local function error_class(name, code, superclass)
+  local subclass = class_module.class(name, superclass or Error)
   subclass.code = code
   return class_module.finalise(subclass)
 end

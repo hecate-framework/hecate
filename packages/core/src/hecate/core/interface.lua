@@ -39,11 +39,11 @@ local function interface(name, methods, options)
     end
     add(method, name)
   end
-  for _, parent in ipairs(options and options.extends or {}) do
-    local parent_record = registry.interfaces[parent]
-    if not parent_record then raise.argument("interface " .. name .. ": extends expects interfaces") end
-    record.extends[#record.extends + 1] = parent
-    for _, method in ipairs(parent_record.order) do add(method, parent_record.required[method]) end
+  for _, extended in ipairs(options and options.extends or {}) do
+    local extended_record = registry.interfaces[extended]
+    if not extended_record then raise.argument("interface " .. name .. ": extends expects interfaces") end
+    record.extends[#record.extends + 1] = extended
+    for _, method in ipairs(extended_record.order) do add(method, extended_record.required[method]) end
   end
   local handle = setmetatable({}, interface_metatable) -- hecate: raw-metatable opaque handle
   registry.interfaces[handle] = record
@@ -56,8 +56,8 @@ end
 ---@return boolean
 local function conforms_to(candidate, target)
   if rawequal(candidate, target) then return true end
-  for _, parent in ipairs(registry.interfaces[candidate].extends) do
-    if conforms_to(parent, target) then return true end
+  for _, extended in ipairs(registry.interfaces[candidate].extends) do
+    if conforms_to(extended, target) then return true end
   end
   return false
 end

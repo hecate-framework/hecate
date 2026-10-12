@@ -78,15 +78,15 @@ end
 
 --- Declares a value class. Same signature as `core.class`; the class must be finalised.
 ---@param name string
----@param parent? table  a value class
+---@param superclass? table  a value class
 ---@param options? hecate.core.ClassOptions
 ---@return table class
-local function value_class(name, parent, options)
-  if parent ~= nil and classes[parent] ~= nil and classes[parent].freeze == nil then
+local function value_class(name, superclass, options)
+  if superclass ~= nil and classes[superclass] ~= nil and classes[superclass].freeze == nil then
     raise.argument(("value class %s: superclass %s is not a value class"):format(
-      tostring(name), classes[parent].name))
+      tostring(name), classes[superclass].name))
   end
-  local declared = class_module.class(name, parent, options)
+  local declared = class_module.class(name, superclass, options)
   local record = classes[declared]
   record.freeze = freeze
   record.prepare = prepare

@@ -20,7 +20,7 @@
 
 ## Responsibilities
 
-- `Application` (composition root), feature modules, `Controller` base class, `routes` modules
+- `Application` (composition root), feature modules, `Controller` superclass, `routes` modules
 - boot sequence with full validation (overview.md)
 - filters around actions; request scope; container scope per request
 - coercion/validation of inputs, serialisation of results, response validation in development/test

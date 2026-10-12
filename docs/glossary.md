@@ -43,6 +43,11 @@ for public APIs, documentation and internal code.
 | class | Template for objects with shared behaviour | — | — |
 | trait | Reusable set of methods composed into a class with explicit conflict resolution | Schärli, Ducasse, Nierstrasz, Black (2003) | mixin (unless linearised mixins are meant), concern |
 | interface | Set of required method signatures, checked for conformance | — | protocol (acceptable), contract (reserved for API contracts) |
+| finalisation | Step that resolves trait composition and interface conformance, then flattens members into the class table | Schärli et al. (2003) | build, seal, compile |
+| conformance | A class provides every method an interface requires | — | compliance |
+| superclass | Class from which a class inherits (single inheritance) | — | parent class, base class |
+| enumeration | Closed named set of values | — | enum |
+| cause chain | Errors linked by `cause`, rendered by `__tostring` | — | — |
 | inversion of control | The framework calls user code | Fowler (2004) | — |
 | container | Object that resolves and constructs dependencies | Fowler (2004) | service locator (an anti-pattern, not a synonym) |
 | chain of responsibility | Ordered handlers around an action | Gamma et al. (1994) | middleware stack |

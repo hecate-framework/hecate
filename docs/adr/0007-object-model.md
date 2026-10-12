@@ -29,7 +29,7 @@ or conventions on plain metatables) were rejected.
 ### Final spelling (Phase 1 implementation, for owner review and freeze)
 
 ```lua
-local C = core.class("Name", Parent, { traits = { T, { U, exclude = {"m"}, alias = { n = "n2" } } },
+local C = core.class("Name", Superclass, { traits = { T, { U, exclude = {"m"}, alias = { n = "n2" } } },
                                        implements = { I } })
 function C:init(...) end        -- constructor; super call: core.superclass(C).init(self, ...)
 core.finalise(C)                -- required before `C(...)`

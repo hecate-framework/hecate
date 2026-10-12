@@ -81,7 +81,7 @@ function introspection.superclass(class)
   local record = registry.classes[class]
   if record == nil then raise.argument("superclass expects a class") end
   ---@cast record -?
-  return record.parent
+  return record.superclass
 end
 
 local function copy_list(list)
@@ -120,7 +120,7 @@ function introspection.is_instance_of(value, class)
   local current = introspection.class_of(value)
   while current ~= nil do
     if rawequal(current, class) then return true end
-    current = registry.classes[current].parent
+    current = registry.classes[current].superclass
   end
   return false
 end
@@ -148,7 +148,7 @@ function introspection.implements(subject, abstraction)
         if trait_module.composes(trait_module.normalise("class", entry), abstraction) then return true end
       end
     end
-    current = record.parent
+    current = record.superclass
   end
   return false
 end
