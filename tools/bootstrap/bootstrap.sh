@@ -24,6 +24,10 @@ while [ $# -gt 0 ]; do
   esac
 done
 
+# Relative prefixes are resolved against the caller's directory: the build runs elsewhere.
+mkdir -p "$PREFIX"
+PREFIX="$(cd "$PREFIX" && pwd)"
+
 case "$(uname -s)" in
   Linux) PLATFORM=linux ;;
   Darwin) PLATFORM=macosx ;;

@@ -27,7 +27,7 @@ verified on macOS and Windows through pull requests.
       depending on them starts before the owner decides.
 - [x] Replace `tools/cloud/setup.sh` with the pinned bootstrap; update the cloud
       environment accordingly.
-- [ ] Contributor bootstrap: a script that builds Lua 5.5 + LuaRocks into
+- [x] Contributor bootstrap: a script that builds Lua 5.5 + LuaRocks into
       `.hecate/toolchain/` for working on this repository (temporary until the CLI
       exists).
 - [ ] Monorepo tooling: per-package rockspecs, a root task runner, formatter, linter,
