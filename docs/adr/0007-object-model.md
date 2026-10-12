@@ -42,6 +42,19 @@ trait `requires` checks, are not copied into the class, and declaring them witho
 fallback is a `ConformanceError`. (`fallback_provides` rather than a bare `fallback`
 because the option lists names, not the fallback itself.)
 
+Owner decisions recorded during review of the pull request:
+
+- The superclass stays the second positional argument of `core.class`, `core.value_class`
+  and `core.error_class`; `nil` is passed when a class has options but no superclass
+  (`core.class("Money", nil, { traits = { T } })`). Moving it into the options table was
+  considered and rejected.
+- The finalisation check on `fallback_provides` is kept: declaring names without any
+  `__index` fallback, own or inherited, is a `ConformanceError`. Whether the fallback
+  really answers the declared names cannot be verified without calling it and is left to
+  the author, as with a cast.
+- "Superclass" is the only term for the class a class inherits from (glossary); the word
+  "parent" is not used for classes.
+
 Traits: `core.trait(name, methods, { traits =, requires = })`; interfaces:
 `core.interface(name, names, { extends = })`; value classes and enumerations:
 `core.value_class(...)`, `core.enumeration(name, names)`. Open point: OQ-21.
