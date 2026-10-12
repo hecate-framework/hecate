@@ -1,0 +1,60 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Interim: runs every check on every platform. `affected` and `matrix` tasks will
+  # shrink it (docs/architecture/automation.md §2).
+  ci:
+    name: ci (${{ matrix.os }}, Lua 5.5)
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache toolchain
+        id: toolchain
+        uses: actions/cache@v4
+        with:
+          path: .hecate/toolchain
+          key: toolchain-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('tools/bootstrap/**') }}
+
+      - name: Bootstrap (Linux, macOS)
+        if: steps.toolchain.outputs.cache-hit != 'true' && runner.os != 'Windows'
+        run: tools/bootstrap/bootstrap.sh --prefix .hecate/toolchain
+
+      - name: MSVC environment (Windows)
+        if: steps.toolchain.outputs.cache-hit != 'true' && runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Bootstrap (Windows)
+        if: steps.toolchain.outputs.cache-hit != 'true' && runner.os == 'Windows'
+        shell: pwsh
+        run: tools/bootstrap/bootstrap.ps1
+
+      - name: Add toolchain to PATH
+        shell: bash
+        run: echo "$PWD/.hecate/toolchain/bin" >> "$GITHUB_PATH"
+
+      - name: Check
+        shell: bash
+        run: |
+          set -e
+          for task in check-versions check-rockspecs check-package-structure lint test; do
+            echo "::group::$task"
+            lua tools/run.lua "$task"
+            echo "::endgroup::"
+          done
