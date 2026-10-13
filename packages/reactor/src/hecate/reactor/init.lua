@@ -6,6 +6,7 @@ global <const> require
 local core = require("hecate.core")
 local Reactor = require("hecate.reactor.reactor")
 local primitives = require("hecate.reactor.primitives")
+local uv_call = require("hecate.reactor.internal.uv_call")
 
 ---@class hecate.reactor
 ---@field Reactor hecate.reactor.Reactor
@@ -19,6 +20,8 @@ local primitives = require("hecate.reactor.primitives")
 ---@field Monitor hecate.reactor.Monitor
 ---@field Condition hecate.reactor.Condition
 ---@field Permit hecate.reactor.Permit
+---@field IoError hecate.core.Error
+---@field fs hecate.reactor.fs
 local reactor = {
   Reactor = Reactor,
   Future = require("hecate.reactor.future"),
@@ -31,6 +34,11 @@ local reactor = {
   Monitor = require("hecate.reactor.monitor"),
   Condition = require("hecate.reactor.condition"),
   Permit = require("hecate.reactor.permit"),
+  IoError = uv_call.IoError,
+  fs = require("hecate.reactor.fs"),
+  wait_signal = require("hecate.reactor.signal").wait_signal,
+  run_process = require("hecate.reactor.process").run,
+  detach = primitives.detach,
   fork = primitives.fork,
   join = primitives.join,
   select = primitives.select,

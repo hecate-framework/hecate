@@ -109,7 +109,7 @@ function Scope:_child_done(task, state, err)
   last.slot = task.slot
   children[#children] = nil
   task.slot = nil
-  if state == "failed" and not self._failed then
+  if state == "failed" and not task.detached and not self._failed then
     self._failed, self._failure = true, err
     self:cancel(core.CancellationError({
       message = "a sibling computation failed", cause = err, context = { source = self },

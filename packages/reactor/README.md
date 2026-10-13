@@ -8,7 +8,7 @@
 | Rock | `hecate-reactor` |
 | Layer | 1 — Runtime |
 | Roadmap phase | 1 |
-| Status | in progress — scheduler, `Future`, `fork`/`join`/`select`/`sleep`/`scope`/`deadline`, cancellation and virtual clock, `Channel`, `Semaphore`, `Mutex`, `Monitor` and `Condition` implemented; `detach`, `offload`, signals, processes and file system pending |
+| Status | in progress — scheduler, `Future`, `fork`/`join`/`select`/`sleep`/`scope`/`deadline`, cancellation and virtual clock, `Channel`, `Semaphore`, `Mutex`, `Monitor` and `Condition` implemented; `detach`, signals, processes and file system implemented; `offload` and worker primitives pending |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |
 | Depends on | [`core`](../core) |
 | Used by | `cli`, `hecate`, `http`, `kernel`, `log`, `mongodb`, `mysql`, `net`, `orm`, `postgresql`, `redis`, `sql`, `sqlite`, `sqlserver`, `test`, `websocket` |
@@ -41,7 +41,7 @@
 
 ## Public API
 
-Implemented (steps 1 and 2). Every function marked *suspends* is `---@async` and raises
+Implemented (steps 1 to 4). Every function marked *suspends* is `---@async` and raises
 `NonYieldableContextError` outside a managed coroutine or inside a non-yieldable C boundary.
 
 | Name | Description |
@@ -55,6 +55,10 @@ Implemented (steps 1 and 2). Every function marked *suspends* is `---@async` and
 | `reactor.scope(fn)` | *suspends*. Runs `fn(scope)`; returns only after every child has completed or been cancelled; raises the first failure. |
 | `reactor.deadline(seconds_or_instant, fn, ...)` | *suspends*. Cancels `fn` and raises `DeadlineExceededError` when late. |
 | `reactor.now()`, `reactor.at(seconds)` | Reading of the running clock; absolute `Instant` for `deadline` (OQ-22). |
+| `reactor.detach(fn, ...)` | *suspends*. Starts `fn` in the application scope; its failure is seen only through its future (OQ-26). |
+| `reactor.fs` | *suspend*: `read_file(path)`, `write_file(path, data)`, `stat(path)` (nil if absent), `remove`, `mkdir`, `rmdir`, `list(path)`. Real clock only; failures raise `reactor.IoError` (`context.errno`). |
+| `reactor.wait_signal(name, ...)` | *suspends*. Returns the name of the first signal delivered (`"sigint"`, `"sigterm"`, ...). |
+| `reactor.run_process(program, args)` | *suspends*. Runs a program, returns `{ code, signal, stdout, stderr }`; the child is killed on cancellation. |
 | `Future` | `:value()` (*suspends*), `:cancel()`, `:done()`, `:state()` (`pending`, `completed`, `failed`, `cancelled`). |
 | `Scope` | `:fork(fn, ...)`, `:cancel()`, `:is_cancelled()`, `:live()`. |
 | `reactor.Channel(capacity)` | `:send(v)`, `:receive()` (*suspend*), `:close()`, `:is_closed()`, `:length()`, `:capacity()`; capacity 0 is a rendezvous channel. Receivers drain the buffer of a closed channel, then `ClosedChannelError` is raised; sends on a closed channel raise it too. `:receive_op()` and `:send_op(v)` build operations for `select`. |

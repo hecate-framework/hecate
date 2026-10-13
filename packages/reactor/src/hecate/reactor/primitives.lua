@@ -105,6 +105,27 @@ function M.fork(fn, ...)
   return task.reactor:_create_task(task.scope, fn, table.pack(...))
 end
 
+--- Starts `fn(...)` in the application scope (the root scope of the running reactor), so it
+--- may outlive the scope of the caller. Its failure is observable only through its future
+--- and does not cancel the application scope (concurrency.md, rule 2; OQ-26).
+---@async
+---@param fn fun(...): ...
+---@param ... any
+---@return hecate.reactor.Future
+function M.detach(fn, ...)
+  if type(fn) ~= "function" then
+    error(core.ArgumentError(("detach expects a function, got %s"):format(type(fn))), 2)
+  end
+  local task = context.current_task("detach")
+  local root = task.reactor._root
+  if root == nil or root._closed then
+    error(core.Error("the application scope is not running"), 2)
+  end
+  local future = task.reactor:_create_task(root, fn, table.pack(...))
+  future._task.detached = true
+  return future
+end
+
 --- Suspends the running coroutine for `seconds` of the reactor clock.
 ---@async
 ---@param seconds number  finite and not negative; 0 yields to the other ready coroutines

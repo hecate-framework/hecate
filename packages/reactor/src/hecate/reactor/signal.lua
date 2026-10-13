@@ -1,0 +1,46 @@
+-- Signals as a suspending call over libuv signal handles (concurrency.md, "Signals and
+-- shutdown"). The handle exists only while a task waits and is closed when it resumes.
+global <const> type, error, require, pcall, tostring
+
+local core = require("hecate.core")
+local uv = require("luv")
+local uv_call = require("hecate.reactor.internal.uv_call")
+local context = require("hecate.reactor.internal.context")
+
+local M = {}
+
+--- Suspends until one of the named signals is delivered; returns its name. Names are libuv
+--- names such as "sigint", "sigterm" and "sighup"; Windows delivers only the console ones.
+---@async
+---@param ... string
+---@return string name
+function M.wait_signal(...)
+  local names = { ... }
+  if #names == 0 then error(core.ArgumentError("wait_signal expects at least one signal name"), 2) end
+  for i = 1, #names do
+    if type(names[i]) ~= "string" then
+      error(core.ArgumentError("signal names must be strings"), 2)
+    end
+  end
+  uv_call.begin("wait_signal")
+  local handles = {}
+  local ok, name = pcall(context.suspend, function(wake)
+    for i = 1, #names do
+      local handle = uv.new_signal()
+      handles[#handles + 1] = handle
+      local started, err = handle:start(names[i], function(received) wake(received) end)
+      if not started then
+        for j = 1, #handles do handles[j]:close() end
+        handles = {}
+        uv_call.fail("wait_signal", tostring(err))
+      end
+    end
+    return function()
+      for i = 1, #handles do if not handles[i]:is_closing() then handles[i]:close() end end
+    end
+  end)
+  if not ok then error(name, 0) end
+  return name
+end
+
+return M

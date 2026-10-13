@@ -43,6 +43,7 @@ function Reactor:init(options)
   self._tasks = {}
   self._live = 0
   self._uv_timer = nil
+  self._root = nil
 end
 
 --- Returns the reading of the reactor clock, in seconds.
@@ -358,10 +359,14 @@ function Reactor:run(fn, ...)
     self._uv_timer = uv.new_timer()
   end
   local main = self:_create_task(nil, function()
-    return context.scope_run(function() return fn(table.unpack(args, 1, args.n)) end)
+    return context.scope_run(function(scope)
+      self._root = scope
+      return fn(table.unpack(args, 1, args.n))
+    end)
   end, { n = 0 })
   local ok, failure = pcall(loop, self, main)
   context.reactor = nil
+  self._root = nil
   if self._uv_timer then
     self._uv_timer:close()
     self._uv_timer = nil
@@ -381,6 +386,10 @@ function Reactor:run(fn, ...)
   end
   error(main._error, 0)
 end
+
+--- Returns whether this reactor runs on the real clock (libuv I/O requires it).
+---@return boolean
+function Reactor:is_real() return not self._virtual end
 
 --- Returns the number of open (not closing) libuv handles, for leak detection in tests.
 ---@return integer
