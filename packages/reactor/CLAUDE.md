@@ -5,7 +5,7 @@ package-specific context. Specialist agent: `pkg-reactor`.
 
 ## Purpose
 
-The reactor over libuv (luv): coroutine scheduler, futures, structured concurrency, synchronisation primitives, timers, signals, processes, file system and thread-pool offloading.
+The reactor over libuv (luv): coroutine scheduler, futures, structured concurrency, synchronisation primitives, timers, signals, processes, file system.
 
 ## Read before changing anything
 

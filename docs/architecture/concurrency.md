@@ -29,7 +29,7 @@ All primitives live in `hecate.reactor`. Names follow [the glossary](../glossary
 | `Future` | `:value()` (suspends until ready), `:cancel()`, `:done()`, `:state()`. |
 | `Channel(capacity)` | `:send(v)`, `:receive()`, `:close()`; capacity 0 is a rendezvous channel. Usable in `select`. |
 | `Semaphore(n)`, `Mutex()`, `Monitor()`, `Condition` | Classical synchronisation. `Mutex` and `Semaphore` permits are `<close>`-able. |
-| `offload(fn, ...)` | Run a pure function on the libuv thread pool (no access to Lua state other than its arguments; see "Blocking work"). |
+| `offload(fn, ...)` | (Phase 2, not yet implemented; OQ-27.) Run a pure function on the libuv thread pool (no access to Lua state other than its arguments; see "Blocking work"). |
 
 ## Structured concurrency
 

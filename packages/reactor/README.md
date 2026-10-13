@@ -1,6 +1,6 @@
 # `hecate-reactor`
 
-> The reactor over libuv (luv): coroutine scheduler, futures, structured concurrency, synchronisation primitives, timers, signals, processes, file system and thread-pool offloading.
+> The reactor over libuv (luv): coroutine scheduler, futures, structured concurrency, synchronisation primitives, timers, signals, processes, file system.
 
 | | |
 |---|---|
@@ -21,17 +21,17 @@
 ## Responsibilities
 
 - scheduler resuming coroutines on libuv completions
-- `fork`, `join`, `select`, `deadline`, `sleep`, `scope`, `detach`, `offload`
+- `fork`, `join`, `select`, `deadline`, `sleep`, `scope`, `detach`
 - `Future`, `Channel`, `Semaphore`, `Mutex`, `Monitor`, `Condition`
 - cooperative cancellation (`CancellationError`) and `DeadlineExceededError`
 - timers, signals, child processes, pipes, file-system operations as suspending calls
-- worker process management primitives used by the kernel (OQ-8)
 - virtual clock for tests
 
 ## Non-goals
 
 - network protocols (see `net`)
 - OS threads running Lua code
+- `offload` and worker process primitives (OQ-8): Phase 2 follow-up (OQ-27)
 
 ## Standards and references
 
