@@ -8,5 +8,5 @@
     "MD014": false,           // shell transcripts mix commands with and without output
     "MD060": false            // table pipe alignment (generated tables)
   },
-  "ignores": ["**/node_modules/**", "website/**/reference/**", ".claude/**"]
+  "ignores": ["**/node_modules/**", "website/**/reference/**", ".claude/**", "packages/*/tests/fixtures/**"]
 }
