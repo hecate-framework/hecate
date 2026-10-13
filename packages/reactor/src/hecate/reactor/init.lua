@@ -6,6 +6,7 @@ global <const> require
 local core = require("hecate.core")
 local Reactor = require("hecate.reactor.reactor")
 local primitives = require("hecate.reactor.primitives")
+local tcp = require("hecate.reactor.tcp")
 local uv_call = require("hecate.reactor.internal.uv_call")
 
 ---@class hecate.reactor
@@ -22,6 +23,8 @@ local uv_call = require("hecate.reactor.internal.uv_call")
 ---@field Permit hecate.reactor.Permit
 ---@field IoError hecate.core.Error
 ---@field fs hecate.reactor.fs
+---@field TcpStream hecate.reactor.TcpStream
+---@field TcpListener hecate.reactor.TcpListener
 local reactor = {
   Reactor = Reactor,
   Future = require("hecate.reactor.future"),
@@ -36,6 +39,10 @@ local reactor = {
   Permit = require("hecate.reactor.permit"),
   IoError = uv_call.IoError,
   fs = require("hecate.reactor.fs"),
+  TcpStream = tcp.TcpStream,
+  TcpListener = tcp.TcpListener,
+  tcp_connect = tcp.connect,
+  tcp_listen = tcp.listen,
   wait_signal = require("hecate.reactor.signal").wait_signal,
   run_process = require("hecate.reactor.process").run,
   detach = primitives.detach,

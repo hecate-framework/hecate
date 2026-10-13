@@ -43,6 +43,7 @@ function Reactor:init(options)
   self._tasks = {}
   self._live = 0
   self._uv_timer = nil
+  self._sigpipe_guard = nil
   self._root = nil
 end
 
@@ -357,6 +358,16 @@ function Reactor:run(fn, ...)
   if not self._virtual then
     self._origin = uv.hrtime() / 1e9
     self._uv_timer = uv.new_timer()
+    -- A write to a connection the peer has closed must fail with EPIPE, not kill the process:
+    -- libuv leaves SIGPIPE at its default action, so a handler is installed for the run. The
+    -- handle is unreferenced (it never keeps the loop alive) and does not exist on Windows.
+    local guard = uv.new_signal()
+    if guard:start("sigpipe", function() end) then
+      guard:unref()
+      self._sigpipe_guard = guard
+    else
+      guard:close()
+    end
   end
   local main = self:_create_task(nil, function()
     return context.scope_run(function(scope)
@@ -370,7 +381,11 @@ function Reactor:run(fn, ...)
   if self._uv_timer then
     self._uv_timer:close()
     self._uv_timer = nil
-    uv.run("nowait") -- lets libuv finish closing the handle
+    if self._sigpipe_guard then
+      self._sigpipe_guard:close()
+      self._sigpipe_guard = nil
+    end
+    uv.run("nowait") -- lets libuv finish closing the handles
   end
   if not ok then
     -- Abandon what is left: closing a suspended coroutine runs its `<close>` handlers.

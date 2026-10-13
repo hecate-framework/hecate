@@ -8,7 +8,7 @@
 | Rock | `hecate-net` |
 | Layer | 1 — Runtime |
 | Roadmap phase | 1 |
-| Status | in progress — `BufferedReader`, `BufferedWriter` and `Stream` implemented; TCP blocked on OQ-28 (transport primitives in `reactor`); UDP, DNS, Unix sockets and TLS pending |
+| Status | in progress — `BufferedReader`, `BufferedWriter` and `Stream` implemented; TCP transport primitives now in `reactor` (OQ-28 resolved), `TcpStream`/`TcpListener` in `net` next; UDP, DNS, Unix sockets and TLS pending |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |
 | Depends on | [`core`](../core), [`reactor`](../reactor) |
 | Used by | `hecate`, `http`, `mongodb`, `mysql`, `postgresql`, `redis`, `sql`, `sqlserver`, `websocket` |
@@ -54,7 +54,7 @@ Implemented (step 1). Functions marked *suspends* are `---@async` and raise
 | `writer:buffered()`, `writer:close()` | Unflushed bytes; discards them without sending (idempotent, `<close>`-able): flush first. |
 | `net.EndOfStreamError` | A `NetworkError`: the stream ended inside a read; `context.buffered` bytes stay in the reader. |
 
-Not yet available: `TcpStream`, `TcpListener` (OQ-28), `UdpSocket`, DNS, Unix sockets, TLS.
+Not yet available: `TcpStream`, `TcpListener` (to be built on `reactor.tcp_connect` / `tcp_listen`), `UdpSocket`, DNS, Unix sockets, TLS.
 Design choices of the buffered layer: OQ-29.
 
 ## Layout (once implemented)

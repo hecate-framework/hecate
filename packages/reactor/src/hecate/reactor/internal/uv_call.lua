@@ -13,7 +13,8 @@ local M = { IoError = IoError }
 ---@param operation string
 ---@param message string
 function M.fail(operation, message)
-  local name = message:match("^(%u[%u%d_]*):")
+  -- Request errors read "ENOENT: no such file or directory"; stream callbacks deliver the bare name.
+  local name = message:match("^(%u[%u%d_]*):") or message:match("^(%u[%u%d_]*)$")
   error(IoError({
     message = operation .. ": " .. message,
     context = { operation = operation, errno = name },
