@@ -1,5 +1,4 @@
 ---
-title: Glossary
 description: The vocabulary of hecate, taken from the academic literature, and the terms it replaces.
 hecate: "0.x"
 lua: "5.5"
@@ -8,6 +7,8 @@ order: 1
 
 <!-- Public version of docs/glossary.md, adapted for the website (the name is never
      capitalised, links point to the repository). Keep it in step with the source. -->
+
+# Glossary
 
 hecate names things after the academic literature rather than after the idioms of other
 languages ([ADR 0004](https://github.com/hecate-framework/hecate/blob/main/docs/adr/0004-academic-vocabulary.md)). This glossary is **mandatory**

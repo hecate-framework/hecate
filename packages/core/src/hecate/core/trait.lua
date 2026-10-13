@@ -6,6 +6,12 @@ global <const> type, tostring, pairs, ipairs, setmetatable, rawequal, table, req
 local registry = require("hecate.core.internal.registry")
 local raise = require("hecate.core.internal.raise")
 
+-- Documented on `hecate.core` (module class completed here so that the LuaLS export lists the
+-- function; coding-standards.md, "Annotations for the reference").
+
+---@class hecate.core
+local M = {}
+
 local trait_metatable = { -- hecate: raw-metatable opaque handle
   __tostring = function(self) return "trait " .. registry.traits[self].name end,
   __newindex = function(self)
@@ -16,6 +22,7 @@ local trait_metatable = { -- hecate: raw-metatable opaque handle
   end,
 }
 
+--- A trait composed into a class, with the members it excludes or renames.
 ---@class hecate.core.TraitUse
 ---@field [1] table  the trait
 ---@field exclude? string[]  names removed from the trait (Schärli et al. 2003, exclusion)
@@ -88,16 +95,20 @@ local function compose(own, uses, owner)
   return contributions, conflicts, problems
 end
 
+--- Options of `core.trait`.
 ---@class hecate.core.TraitOptions
 ---@field traits? (table|hecate.core.TraitUse)[]  traits composed into this one
 ---@field requires? string[]  methods the composing class must provide
 
 --- Declares a trait. Composition of other traits is resolved at declaration time.
----@param name string
----@param methods table<string, function>
----@param options? hecate.core.TraitOptions
----@return table
-local function trait(name, methods, options)
+---
+--- Raises `hecate.core.ArgumentError` if `name` is not a string or `methods` is not a table,
+--- and `hecate.core.ConformanceError` if the composed traits conflict.
+---@param name string  trait name, used in messages
+---@param methods table<string, function>  the methods the trait provides
+---@param options? hecate.core.TraitOptions  composed traits and required methods
+---@return table trait  the new trait
+function M.trait(name, methods, options)
   if type(name) ~= "string" then raise.argument("trait name must be a string, got " .. type(name)) end
   if type(methods) ~= "table" then raise.argument("trait " .. name .. ": methods must be a table") end
   options = options or {}
@@ -154,4 +165,4 @@ local function composes(candidate, target)
   return false
 end
 
-return { trait = trait, compose = compose, normalise = normalise, composes = composes }
+return { trait = M.trait, compose = compose, normalise = normalise, composes = composes }

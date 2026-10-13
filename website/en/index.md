@@ -1,11 +1,12 @@
 ---
-title: hecate
 description: A modular, contract-first web API framework for Lua 5.5.
 hecate: "0.x"
 lua: "5.5"
 layout: home
 actions: ["Read the glossary | reference/glossary | primary", "Source code | https://github.com/hecate-framework/hecate"]
 ---
+
+# hecate
 
 hecate is a complete ecosystem for building HTTP APIs in Lua: an asynchronous runtime, an
 HTTP server, a router, schemas and validation, automatic OpenAPI contracts, a test

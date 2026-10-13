@@ -6,9 +6,16 @@ local raise = require("hecate.core.internal.raise")
 local class_module = require("hecate.core.class")
 local value_module = require("hecate.core.value_class")
 
+-- Documented on `hecate.core` (module class completed here so that the LuaLS export lists the
+-- function; coding-standards.md, "Annotations for the reference").
+
+---@class hecate.core
+local M = {}
+
 -- Names of the operations of an enumeration; a value cannot take one of them.
 local RESERVED = { values = true, names = true, contains = true, find = true, size = true, __name = true }
 
+--- A value of an enumeration: a name and an ordinal.
 ---@class hecate.core.EnumerationValue
 ---@field name string
 ---@field ordinal integer  position in the declaration, from 1
@@ -29,10 +36,12 @@ class_module.finalise(EnumerationValue)
 
 --- Declares an enumeration: a closed set of values with membership tests.
 --- Values are read as fields (`Status.active`); the enumeration itself is immutable.
----@param name string
+---
+--- Raises `hecate.core.ArgumentError` if `name` is not a non-empty string or `names` is empty.
+---@param name string  enumeration name, used in messages
 ---@param names string[]  value names, in declaration order
----@return table enumeration
-local function enumeration(name, names)
+---@return table enumeration  the new enumeration
+function M.enumeration(name, names)
   if type(name) ~= "string" or name == "" then
     raise.argument("enumeration name must be a non-empty string, got " .. tostring(name))
   end
@@ -109,4 +118,4 @@ local function enumeration(name, names)
   return proxy
 end
 
-return { enumeration = enumeration, EnumerationValue = EnumerationValue }
+return { enumeration = M.enumeration, EnumerationValue = EnumerationValue }

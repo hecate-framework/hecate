@@ -18,9 +18,16 @@ local interface_module = require("hecate.core.interface")
 
 local classes = registry.classes
 
+-- Documented on `hecate.core` (module class completed here so that the LuaLS export lists the
+-- functions; coding-standards.md, "Annotations for the reference").
+
+---@class hecate.core
+local M = {}
+
 -- Keys of a class table that are per class and therefore never copied from a superclass.
 local NOT_INHERITED = { __index = true, __name = true }
 
+--- Options of `core.class` and `core.value_class`.
 ---@class hecate.core.ClassOptions
 ---@field traits? (table|hecate.core.TraitUse)[]  traits composed into the class
 ---@field implements? table[]  interfaces checked at finalisation
@@ -61,11 +68,13 @@ function class_metatable_methods.__newindex(class, key, value)
 end
 
 --- Declares a class. The class must be finalised with `finalise` before use.
----@param name string
+---
+--- Raises `hecate.core.ArgumentError` if `name` is not a non-empty string.
+---@param name string  class name, used in messages and by `core.name`
 ---@param superclass? any  superclass (finalised before this class is finalised)
----@param options? hecate.core.ClassOptions
----@return table class
-local function class(name, superclass, options)
+---@param options? hecate.core.ClassOptions  traits, interfaces and fallback of the class
+---@return table class  the new, not yet finalised class
+function M.class(name, superclass, options)
   if type(name) ~= "string" or name == "" then
     raise.argument("class name must be a non-empty string, got " .. tostring(name))
   end
@@ -133,9 +142,12 @@ end
 --- flattens inherited and composed members into the class table. All problems are
 --- reported in one ConformanceError, and the class is left untouched on failure.
 --- Finalising a finalised class is a no-op.
----@param target any
----@return any target
-local function finalise(target)
+---
+--- Raises `hecate.core.ArgumentError` if `target` was not created with `core.class`, and
+--- `hecate.core.ConformanceError` if composition or conformance fails.
+---@param target any  a class created with `core.class`
+---@return any target  the same class, finalised
+function M.finalise(target)
   local record = classes[target]
   if record == nil then raise.argument("finalise expects a class created with core.class") end
   ---@cast record -?
@@ -241,4 +253,4 @@ local function finalise(target)
   return target
 end
 
-return { class = class, finalise = finalise, NOT_INHERITED = NOT_INHERITED }
+return { class = M.class, finalise = M.finalise, NOT_INHERITED = NOT_INHERITED }

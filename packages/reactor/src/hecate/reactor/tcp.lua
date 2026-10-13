@@ -22,14 +22,17 @@ local DEFAULT_KEEPALIVE = false
 local DEFAULT_KEEPALIVE_DELAY = 60 -- seconds before the first probe, when keep-alive is on
 local DEFAULT_BACKLOG = 128
 
+--- Options of a TCP connection.
 ---@class hecate.reactor.TcpOptions
 ---@field nodelay? boolean  disable Nagle's algorithm; default true
 ---@field keepalive? boolean  enable TCP keep-alive probes; default false
 ---@field keepalive_delay? number  seconds of idleness before the first probe, default 60
 
+--- Options of a TCP listener: those of a connection plus the backlog.
 ---@class hecate.reactor.TcpListenOptions: hecate.reactor.TcpOptions
 ---@field backlog? integer  length of the queue of pending connections, default 128
 
+--- The address of a socket: IP address, port and family.
 ---@class hecate.reactor.SocketAddress
 ---@field ip string  numeric address
 ---@field port integer
@@ -118,6 +121,7 @@ local function address_of(handle, operation)
   return { ip = address.ip, port = address.port, family = address.family }
 end
 
+--- A connected TCP stream; its operations suspend until the data moves.
 ---@class hecate.reactor.TcpStream
 ---@overload fun(handle: table, options?: table): hecate.reactor.TcpStream
 local TcpStream = core.class("TcpStream")
@@ -298,6 +302,7 @@ end
 
 core.finalise(TcpStream)
 
+--- A listening TCP socket that accepts streams.
 ---@class hecate.reactor.TcpListener
 ---@overload fun(handle: table, options: table): hecate.reactor.TcpListener
 local TcpListener = core.class("TcpListener")
@@ -383,15 +388,24 @@ core.finalise(TcpListener)
 
 local M = { TcpStream = TcpStream, TcpListener = TcpListener }
 
+-- Documented on `hecate.reactor` (module class completed here so that the LuaLS export lists the
+-- functions; coding-standards.md, "Annotations for the reference").
+
+---@class hecate.reactor
+local api = {}
+
 --- Connects to a numeric address. Name resolution is not part of this call (a host name
 --- raises `TransportError` `EINVAL`). Bound it with `reactor.deadline`; cancellation abandons the
 --- attempt and closes its handle. Options: see `hecate.reactor.TcpOptions`.
+---
+--- Raises `hecate.reactor.TransportError` when the connection fails or `host` is not a numeric
+--- address, and `hecate.core.ArgumentError` for a malformed port or option.
 ---@async
 ---@param host string  numeric IPv4 or IPv6 address
----@param port integer
----@param options? hecate.reactor.TcpOptions
----@return hecate.reactor.TcpStream
-function M.connect(host, port, options)
+---@param port integer  TCP port
+---@param options? hecate.reactor.TcpOptions  `nodelay`, `keepalive` and `keepalive_delay`
+---@return hecate.reactor.TcpStream stream  the connected stream
+function api.tcp_connect(host, port, options)
   check_endpoint("tcp_connect", host, port)
   options = check_options("tcp_connect", options)
   uv_call.begin("tcp_connect")
@@ -425,11 +439,14 @@ end
 
 --- Binds and listens on a numeric address (port 0 picks a free port; see `local_address`).
 --- Does not suspend. Accepted streams get the listener's `nodelay` and `keepalive` options.
+---
+--- Raises `hecate.reactor.TransportError` when binding or listening fails, and
+--- `hecate.core.ArgumentError` for a malformed host, port or option.
 ---@param host string  numeric IPv4 or IPv6 address
----@param port integer
----@param options? hecate.reactor.TcpListenOptions
----@return hecate.reactor.TcpListener
-function M.listen(host, port, options)
+---@param port integer  TCP port; 0 picks a free port
+---@param options? hecate.reactor.TcpListenOptions  stream options and `backlog`
+---@return hecate.reactor.TcpListener listener  the listening socket
+function api.tcp_listen(host, port, options)
   check_endpoint("tcp_listen", host, port)
   options = check_options("tcp_listen", options)
   uv_call.begin("tcp_listen")
@@ -456,5 +473,8 @@ function M.listen(host, port, options)
   end
   return listener
 end
+
+M.tcp_connect = api.tcp_connect
+M.tcp_listen = api.tcp_listen
 
 return M

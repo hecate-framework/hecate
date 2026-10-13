@@ -2,6 +2,7 @@
   "config": {
     "default": true,
     "MD013": false,           // line length: prose is wrapped by hand, tables are long
+    "MD025": { "front_matter_title": "" },  // a front matter title is a label override; the body # is the title (OQ-35)
     "MD024": { "siblings_only": true },
     "MD033": false,           // inline HTML allowed (comments, theme components)
     "MD041": false,           // some files start without a heading (placeholders)

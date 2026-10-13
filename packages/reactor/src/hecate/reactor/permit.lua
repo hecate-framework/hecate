@@ -6,6 +6,7 @@ global <const> require
 
 local core = require("hecate.core")
 
+--- The right to hold a share of a synchronisation primitive (a semaphore unit, a mutex or a monitor), released when it is closed.
 ---@class hecate.reactor.Permit
 ---@overload fun(release: fun()): hecate.reactor.Permit
 local Permit = core.class("Permit")

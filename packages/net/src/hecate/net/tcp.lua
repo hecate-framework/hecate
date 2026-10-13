@@ -7,6 +7,10 @@ local reactor = require("hecate.reactor")
 local TcpStream = require("hecate.net.tcp_stream")
 local TcpListener = require("hecate.net.tcp_listener")
 
+-- Documented on `hecate.net` (module class completed here so that the LuaLS export lists the
+-- functions; coding-standards.md, "Annotations for the reference").
+
+---@class hecate.net
 local M = {}
 
 --- Splits the `family` option (net-level) from the transport options (reactor-level).
@@ -31,15 +35,18 @@ local function split_options(name, host, options)
 end
 
 --- Connects to `host:port`. A host name is resolved first and its addresses are tried in the
---- resolver's order until one connects (no parallel attempts, OQ-32); when all fail, the
---- last `TransportError` is raised. Options: `nodelay` (default true), `keepalive` (default false),
---- `keepalive_delay`, `family` (`"inet"` or `"inet6"`). There is no timeout option: bound the
---- whole call, resolution included, with `reactor.deadline(seconds, net.connect, host, port)`.
+--- resolver's order until one connects (no parallel attempts, OQ-32). Options: `nodelay` (default
+--- true), `keepalive` (default false), `keepalive_delay`, `family` (`"inet"` or `"inet6"`). There is
+--- no timeout option: bound the whole call, resolution included, with
+--- `reactor.deadline(seconds, net.connect, host, port)`.
+---
+--- Raises `hecate.reactor.TransportError` (the last one) when no address connects, and
+--- `hecate.core.ArgumentError` for a malformed host, port or option.
 ---@async
 ---@param host string  host name or numeric address
----@param port integer
----@param options? hecate.reactor.TcpOptions | { family?: "inet"|"inet6" }
----@return hecate.net.TcpStream
+---@param port integer  TCP port
+---@param options? hecate.reactor.TcpOptions | { family?: "inet"|"inet6" }  transport options and address family
+---@return hecate.net.TcpStream stream  the connected stream
 function M.connect(host, port, options)
   local transport, family = split_options("connect", host, options)
   local addresses = reactor.resolve(host, { family = family })
@@ -57,11 +64,14 @@ end
 --- Binds and listens on `host:port` (port 0 picks a free port, see `TcpListener:local_address`).
 --- A host name is resolved and its first address is used. Suspends only for the resolution.
 --- Options: those of `connect` plus `backlog` (default 128).
+---
+--- Raises `hecate.reactor.TransportError` when the name does not resolve or binding or listening
+--- fails, and `hecate.core.ArgumentError` for a malformed host, port or option.
 ---@async
 ---@param host string  host name or numeric address
----@param port integer
----@param options? hecate.reactor.TcpListenOptions | { family?: "inet"|"inet6" }
----@return hecate.net.TcpListener
+---@param port integer  TCP port; 0 picks a free port
+---@param options? hecate.reactor.TcpListenOptions | { family?: "inet"|"inet6" }  transport options, backlog and address family
+---@return hecate.net.TcpListener listener  the listening socket
 function M.listen(host, port, options)
   local transport, family = split_options("listen", host, options)
   local addresses = reactor.resolve(host, { family = family })

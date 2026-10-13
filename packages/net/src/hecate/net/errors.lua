@@ -4,6 +4,7 @@ global <const> require
 
 local core = require("hecate.core")
 
+--- Raised when a stream ends in the middle of a read that needed more bytes.
 ---@class hecate.net.EndOfStreamError : hecate.core.NetworkError
 ---@field context { wanted?: integer, buffered: integer }  `buffered`: bytes kept in the reader
 local EndOfStreamError = core.error_class("EndOfStreamError", "hecate.net.EndOfStreamError", core.NetworkError)

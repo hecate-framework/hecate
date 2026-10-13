@@ -4,6 +4,8 @@ global <const> require
 
 local tcp = require("hecate.net.tcp")
 
+--- Streams over the reactor: the `Stream` interface, TCP streams and listeners, and buffered
+--- readers and writers.
 ---@class hecate.net
 ---@field BufferedReader hecate.net.BufferedReader
 ---@field BufferedWriter hecate.net.BufferedWriter
@@ -11,8 +13,6 @@ local tcp = require("hecate.net.tcp")
 ---@field EndOfStreamError hecate.core.NetworkError
 ---@field TcpStream hecate.net.TcpStream
 ---@field TcpListener hecate.net.TcpListener
----@field connect fun(host: string, port: integer, options?: table): hecate.net.TcpStream
----@field listen fun(host: string, port: integer, options?: table): hecate.net.TcpListener
 local net = {
   BufferedReader = require("hecate.net.buffered_reader"),
   BufferedWriter = require("hecate.net.buffered_writer"),
@@ -22,8 +22,11 @@ local net = {
   TcpStream = require("hecate.net.tcp_stream"),
   ---@diagnostic disable-next-line: assign-type-mismatch  -- class constructor exported as its class
   TcpListener = require("hecate.net.tcp_listener"),
-  connect = tcp.connect,
-  listen = tcp.listen,
 }
+
+-- Assigned, not in the constructor, so that the LuaLS export lists the documented functions of
+-- tcp.lua (coding-standards.md, "Annotations for the reference").
+net.connect = tcp.connect
+net.listen = tcp.listen
 
 return net

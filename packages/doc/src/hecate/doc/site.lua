@@ -200,6 +200,7 @@ local function build_page(self, locale, id)
     id = id,
     url = page_url(self, locale, id),
     title = title,
+    heading = rendered.title or title,
     description = type(meta.description) == "string" and meta.description or nil,
     meta = meta,
     html = rendered.html,
@@ -362,6 +363,7 @@ local function render_page(self, page)
   local context = context_for(self, page.locale, page)
   local config = self.config
   context.title = page.title
+  context.heading = page.heading
   context.description = page.description or context.description
   context.layout = page.layout
   context.html = page.html

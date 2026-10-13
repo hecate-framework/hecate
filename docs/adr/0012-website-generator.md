@@ -44,6 +44,8 @@ hypothesis:
 - Route 2: `hecate.doc` is our own static site generator, written in Lua 5.5, with no
   third-party dependency (Markdown renderer, search index and theme scripts are written in
   the package; a dependency that seems needed is recorded as an open question, not added).
+  *Superseded the same day by decision 4 below: dependencies are wanted where they save
+  time.*
 - The owner finds Starlight's look unattractive and prefers VitePress-like presentation:
   top navigation bar with logo, section links, search box, locale switch, theme toggle and
   GitHub link; left sidebar; right-hand "On this page" outline; previous/next cards at the
@@ -58,6 +60,36 @@ hypothesis:
   listed in `THIRD_PARTY_NOTICES`.
 
 First slice: `packages/doc` (see its README); choices left open are OQ-33 to OQ-38.
+
+### Owner decisions on the OQ-11 questions, 2026-10-13
+
+Given by the project owner in chat; **this ADR keeps its status** (only the owner promotes
+ADRs). The seven answers below close the questions of the OQ-11 report. Where they differ
+from the direction above, they prevail: in particular, "no third-party dependency" is
+replaced by decision 4.
+
+1. **Route (a):** `hecate.doc` generates everything (framework site and user projects).
+   Nothing is planned on top of `hecate.template` for it: not in the near future.
+2. **Timeline:** the earlier the documentation ships, the better. A minimal `hecate.doc`
+   and the reference generator are pulled forward from Phase 3 (roadmap updated). A
+   dependency of `doc` on `json` and `reactor` is accepted.
+3. **Visual identity:** everything comes from the brand kit (`brand/` of the organisation
+   `.github` repository); agents may read it.
+4. **Third-party dependencies:** do not code from scratch where a Lua, C or Rust dependency
+   saves time. Wanted: complete GitHub Flavoured Markdown; syntax highlighting for many
+   languages through a dependency (no own lexers); OpenAPI reference rendering with no new
+   JavaScript development tool (a Lua, C or Rust dependency if one exists, otherwise own
+   rendering of the OpenAPI document into static pages). Each dependency still needs an
+   ADR: see the spike [OQ-39](../spikes/OQ-39-doc-dependencies.md) and ADR 0022.
+5. **WebAssembly:** as much as possible, provided the site stays deployable as static
+   GitHub Pages files.
+6. **Content conventions (agent's choice, recorded in
+   [documentation.md](../architecture/documentation.md), OQ-35):** the page title is the
+   single `#` heading of the body; front matter `title` is an optional override for
+   navigation and `<title>`; code samples are included from tested files from the start.
+7. **Reference generation:** every module table is annotated as a `---@class`, so the
+   LuaLS export contains its functions; no annotation parser is written; parameters and
+   returns are described with the standard `---@param name type description`.
 
 ## Licence finding (2026-10-11)
 

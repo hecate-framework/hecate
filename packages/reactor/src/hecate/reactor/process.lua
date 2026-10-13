@@ -6,8 +6,13 @@ local uv = require("luv")
 local uv_call = require("hecate.reactor.internal.uv_call")
 local context = require("hecate.reactor.internal.context")
 
+-- Documented on `hecate.reactor` (module class completed here so that the LuaLS export lists the
+-- function; coding-standards.md, "Annotations for the reference").
+
+---@class hecate.reactor
 local M = {}
 
+--- The outcome of a child process: exit status, terminating signal and captured output.
 ---@class hecate.reactor.ProcessResult
 ---@field code integer  exit status
 ---@field signal integer  terminating signal, 0 if none
@@ -16,11 +21,14 @@ local M = {}
 
 --- Runs a program to completion, capturing its output. The child is killed if the caller
 --- is cancelled. `args` excludes the program name.
+---
+--- Raises `hecate.core.ArgumentError` if `program` is not a string, and
+--- `hecate.reactor.IoError` if the program cannot be started.
 ---@async
----@param program string
----@param args? string[]
----@return hecate.reactor.ProcessResult
-function M.run(program, args)
+---@param program string  the program to run
+---@param args? string[]  its arguments, without the program name
+---@return hecate.reactor.ProcessResult result  the exit status and the captured output
+function M.run_process(program, args)
   if type(program) ~= "string" then
     error(core.ArgumentError(("run expects a program name, got %s"):format(type(program))), 2)
   end

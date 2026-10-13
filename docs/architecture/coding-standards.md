@@ -82,6 +82,49 @@ Decided in [ADR 0018](../adr/0018-error-signalling.md).
   documented suspension matches behaviour (see testing.md).
 - First line of a doc comment: one sentence in the indicative mood ("Returns ...").
 
+### Annotations for the reference
+
+The reference pages are generated from the LuaLS export (`lua-language-server --doc=<dir>
+--doc_out_path=<output directory>`, JSON; owner decision of 2026-10-13: no annotation parser of
+our own). Measured with LuaLS 3.19.1; the pitfalls below are why the convention exists.
+
+1. **Every module table is a class.** The table a module returns carries `---@class
+   hecate.<package>` (or `hecate.<package>.<submodule>`), with a `---` description above it.
+   Functions on a plain, unannotated module table are absent from the export.
+2. **Define a public function as `function M.name(...)` or `M.name = function(...)`** on the
+   table of that class. A `local function` re-exported in a table constructor or by assignment
+   loses its documentation (the export keeps a bare entry without parameters).
+3. **Do not list functions in the table constructor** of the module (`local m = { f = x.f }`):
+   LuaLS leaves constructor entries out of the export, and an entry hides a documented
+   definition of the same name. Assign them afterwards (`m.f = x.f`).
+4. **A module can be completed from several files.** `---@class hecate.reactor` may appear on the
+   local table of `primitives.lua`, `dns.lua`, and so on: LuaLS merges classes of the same name,
+   so `function M.sleep` there is documented as `hecate.reactor.sleep`. The description of the
+   class comes from the `---` lines above one declaration; separate any `--` comment from a
+   `---@class` line by a blank line, or it becomes the description. The public name must equal the
+   name in the file (`reactor.sleep = primitives.sleep`); a function exported under another name
+   is documented by a `---@field name fun(...): ...  description` line on the module class.
+5. **Parameters and returns** use `---@param name type  description` and
+   `---@return type name  description` (one line each; a continuation line is appended to the
+   description of the whole function, so avoid it). The description survives in the export; a
+   return without a name or a description is listed with `-`. For a `---@field`, only the first line
+   of the description survives.
+6. **First paragraph: one sentence of summary.** The paragraph is the page summary. Further
+   paragraphs, separated by a `---` line, are details. A paragraph that starts with `Raises` feeds
+   "Errors raised" (name error classes by their full name, ``hecate.core.ArgumentError``); a
+   paragraph that starts with `Since` gives "Compatibility" the version that introduced the symbol
+   (default: the version of the package). `---@see symbol` feeds "See also".
+7. **`---@async` marks every function that can suspend.** It is exported (`async: true`) and shown
+   as "May suspend". Unknown tags (`---@error`, `---@throws`, `---@since`, `---@version`) are
+   dropped by LuaLS: do not rely on them.
+8. **Private members** start with `_` or live in `hecate.<package>.internal.*`; the generator
+   leaves both out.
+9. **Examples** are tested files `packages/<package>/examples/<symbol>.lua` (for example
+   `hecate.reactor.sleep.lua`); the generator includes the file in the page, and a test of the
+   package runs it.
+
+Generated pages: `lua tools/run.lua gen-reference` (needs `lua-language-server`).
+
 ## Formatting and linting
 
 - Formatter: none for the Hecate repository until a formatter fully supports Lua 5.5

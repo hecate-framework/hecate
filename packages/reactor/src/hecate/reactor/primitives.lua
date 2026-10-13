@@ -10,6 +10,10 @@ local Scope = require("hecate.reactor.scope")
 local Instant = require("hecate.reactor.instant")
 local ChannelOperation = require("hecate.reactor.channel_operation")
 
+-- Documented on `hecate.reactor` (module class completed here so that the LuaLS export lists the
+-- functions; coding-standards.md, "Annotations for the reference").
+
+---@class hecate.reactor
 local M = {}
 
 ---@param name string
@@ -81,10 +85,14 @@ local function scope_run(fn, deadline_at)
 end
 context.scope_run = scope_run
 
---- Opens a structured-concurrency scope. See `hecate.reactor.Scope`.
+--- Opens a structured-concurrency scope, runs `fn(scope)` in it and returns what `fn` returns
+--- once every computation forked inside has completed or been cancelled. See `hecate.reactor.Scope`.
+---
+--- Raises `hecate.core.ArgumentError` if `fn` is not a function, the first failure of a forked
+--- computation or of `fn`, and `hecate.core.NonYieldableContextError` outside a managed coroutine.
 ---@async
----@param fn fun(scope: hecate.reactor.Scope): ...
----@return any ...
+---@param fn fun(scope: hecate.reactor.Scope): ...  the body of the scope
+---@return any ...  the results of `fn`
 function M.scope(fn)
   if type(fn) ~= "function" then
     error(core.ArgumentError(("scope expects a function, got %s"):format(type(fn))), 2)
@@ -93,10 +101,13 @@ function M.scope(fn)
 end
 
 --- Starts `fn(...)` in a new coroutine of the current scope and returns its future.
+---
+--- Raises `hecate.core.ArgumentError` if `fn` is not a function and
+--- `hecate.core.NonYieldableContextError` outside a managed coroutine.
 ---@async
----@param fn fun(...): ...
----@param ... any
----@return hecate.reactor.Future
+---@param fn fun(...): ...  the computation to run
+---@param ... any  the arguments passed to `fn`
+---@return hecate.reactor.Future future  the future of the computation
 function M.fork(fn, ...)
   if type(fn) ~= "function" then
     error(core.ArgumentError(("fork expects a function, got %s"):format(type(fn))), 2)
@@ -108,10 +119,14 @@ end
 --- Starts `fn(...)` in the application scope (the root scope of the running reactor), so it
 --- may outlive the scope of the caller. Its failure is observable only through its future
 --- and does not cancel the application scope (concurrency.md, rule 2; OQ-26).
+---
+--- Raises `hecate.core.ArgumentError` if `fn` is not a function, `hecate.core.Error` if the
+--- application scope is not running, and `hecate.core.NonYieldableContextError` outside a
+--- managed coroutine.
 ---@async
----@param fn fun(...): ...
----@param ... any
----@return hecate.reactor.Future
+---@param fn fun(...): ...  the computation to run
+---@param ... any  the arguments passed to `fn`
+---@return hecate.reactor.Future future  the future of the computation
 function M.detach(fn, ...)
   if type(fn) ~= "function" then
     error(core.ArgumentError(("detach expects a function, got %s"):format(type(fn))), 2)
@@ -127,6 +142,11 @@ function M.detach(fn, ...)
 end
 
 --- Suspends the running coroutine for `seconds` of the reactor clock.
+---
+--- Raises `hecate.core.ArgumentError` if `seconds` is not a finite number greater than or equal
+--- to 0, `hecate.core.NonYieldableContextError` outside a managed coroutine, and
+--- `hecate.core.CancellationError` or `hecate.core.DeadlineExceededError` if the enclosing scope is
+--- cancelled or its deadline expires while suspended.
 ---@async
 ---@param seconds number  finite and not negative; 0 yields to the other ready coroutines
 function M.sleep(seconds)
@@ -158,9 +178,12 @@ local function cancel_pending(futures)
 end
 
 --- Waits for every future; if one fails, cancels the others and raises the first error.
+---
+--- Raises `hecate.core.ArgumentError` if an argument is not a future, the error of the first
+--- failed future, and `hecate.core.NonYieldableContextError` outside a managed coroutine.
 ---@async
----@param ... hecate.reactor.Future
----@return any ... the first value of each future, in argument order
+---@param ... hecate.reactor.Future  the futures to wait for
+---@return any ...  the first value of each future, in argument order
 function M.join(...)
   context.current_task("join")
   local futures = table.pack(...)
@@ -222,10 +245,14 @@ end
 --- raised if the channel is closed). When several items are ready, the first in argument
 --- order wins (OQ-25); a channel operation takes effect only if it is the one selected,
 --- so no value is ever taken or sent by a losing operation.
+---
+--- Raises `hecate.core.ArgumentError` for no item or an item that is neither a future nor a
+--- channel operation, `hecate.core.ClosedChannelError` for a closed channel, the error of a failed
+--- future, and `hecate.core.NonYieldableContextError` outside a managed coroutine.
 ---@async
----@param ... hecate.reactor.Future|hecate.reactor.ChannelOperation
----@return integer index
----@return any value
+---@param ... hecate.reactor.Future|hecate.reactor.ChannelOperation  the items to wait for
+---@return integer index  the position of the selected item
+---@return any value  its value
 function M.select(...)
   context.current_task("select")
   local items = table.pack(...)
@@ -262,11 +289,15 @@ end
 
 --- Runs `fn(...)`; cancels it and raises `DeadlineExceededError` if it does not finish
 --- in time. `limit` is a relative duration in seconds, or a `hecate.reactor.Instant`.
+---
+--- Raises `hecate.core.DeadlineExceededError` when the limit expires, `hecate.core.ArgumentError`
+--- if `limit` is neither seconds nor an instant or `fn` is not a function, and
+--- `hecate.core.NonYieldableContextError` outside a managed coroutine.
 ---@async
----@param limit number|hecate.reactor.Instant
----@param fn fun(...): ...
----@param ... any
----@return any ...
+---@param limit number|hecate.reactor.Instant  a duration in seconds, or an absolute instant
+---@param fn fun(...): ...  the computation to bound
+---@param ... any  the arguments passed to `fn`
+---@return any ...  the results of `fn`
 function M.deadline(limit, fn, ...)
   if type(fn) ~= "function" then
     error(core.ArgumentError(("deadline expects a function, got %s"):format(type(fn))), 2)
@@ -286,7 +317,9 @@ function M.deadline(limit, fn, ...)
 end
 
 --- Returns the reading of the running reactor's clock, in seconds.
----@return number
+---
+--- Raises `hecate.core.Error` if no reactor is running.
+---@return number seconds  the clock reading
 function M.now()
   if context.reactor == nil then error(core.Error("no reactor is running"), 2) end
   return context.reactor:now()

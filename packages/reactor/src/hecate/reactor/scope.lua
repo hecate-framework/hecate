@@ -9,6 +9,7 @@ global <const> type, error, table, require
 local core = require("hecate.core")
 local context = require("hecate.reactor.internal.context")
 
+--- A structured-concurrency scope: it owns the computations forked in it and does not finish before they do.
 ---@class hecate.reactor.Scope
 ---@field parent? hecate.reactor.Scope  the scope that was innermost when this one opened
 ---@overload fun(owner: table, parent?: hecate.reactor.Scope): hecate.reactor.Scope

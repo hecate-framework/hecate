@@ -9,6 +9,7 @@ local reactor = require("hecate.reactor")
 
 local DEFAULT_CAPACITY = 8 * 1024
 
+--- Writes a stream through a buffer; a failed flush poisons the writer so that no partial write goes unnoticed.
 ---@class hecate.net.BufferedWriter
 ---@overload fun(stream: hecate.net.Stream, options?: { capacity?: integer }): hecate.net.BufferedWriter
 local BufferedWriter = core.class("BufferedWriter")

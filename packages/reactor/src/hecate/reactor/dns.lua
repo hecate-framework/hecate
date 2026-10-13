@@ -9,22 +9,30 @@ local uv = require("luv")
 local uv_call = require("hecate.reactor.internal.uv_call")
 local context = require("hecate.reactor.internal.context")
 
+--- Options of `reactor.resolve`.
 ---@class hecate.reactor.ResolveOptions
 ---@field family? "inet"|"inet6"  restrict the answer to one address family; default both
 
+--- A numeric address returned by `reactor.resolve`.
 ---@class hecate.reactor.ResolvedAddress
 ---@field ip string  numeric address
 ---@field family string  "inet" or "inet6"
 
+-- Documented on `hecate.reactor` (module class completed here so that the LuaLS export lists the
+-- function; coding-standards.md, "Annotations for the reference").
+
+---@class hecate.reactor
 local M = {}
 
 --- Resolves `host` to numeric addresses, in the order the system resolver prefers. A numeric
---- address resolves to itself. Raises `TransportError` (`context.errno`, for example `EAI_NONAME`)
---- when the name does not resolve. Bound it with `reactor.deadline`.
+--- address resolves to itself. Bound it with `reactor.deadline`.
+---
+--- Raises `hecate.reactor.TransportError` (`context.errno`, for example `EAI_NONAME`) when the name
+--- does not resolve, and `hecate.core.ArgumentError` for a malformed host or option.
 ---@async
----@param host string
----@param options? hecate.reactor.ResolveOptions
----@return hecate.reactor.ResolvedAddress[]
+---@param host string  a host name or a numeric address
+---@param options? hecate.reactor.ResolveOptions  `family` restricts the answer to one address family
+---@return hecate.reactor.ResolvedAddress[] addresses  the distinct addresses, in resolver order
 function M.resolve(host, options)
   if type(host) ~= "string" or host == "" then
     error(core.ArgumentError(("resolve expects a host name, got %s"):format(tostring(host))), 2)

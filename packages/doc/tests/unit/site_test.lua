@@ -204,6 +204,19 @@ function T:test_files_next_to_pages_are_copied_with_fallback_to_the_default_loca
   self:assert_true(fs:read("o/fr/index.html"):find('src="/fr/img/d.svg"', 1, true) ~= nil)
 end
 
+function T:test_the_body_heading_is_the_h1_and_front_matter_title_overrides_the_label_only()
+  -- OQ-35 (owner decision 2026-10-13): the body's single `#` heading is the page title;
+  -- front matter `title` only overrides the navigation and `<title>` label.
+  local files = {
+    ["en/b.md"] = page("Short label", "# The long heading\n\nbody"),
+  }
+  local fs = build(files, { locales = { { code = "en", label = "English" } } })
+  local html = fs:read("o/en/b/index.html")
+  self:assert_true(html:find("<title>Short label | hecate</title>", 1, true) ~= nil)
+  self:assert_true(html:find('<h1 class="page-title">The long heading</h1>', 1, true) ~= nil)
+  self:assert_equal(1, select(2, html:gsub("<h1", "")), "exactly one h1")
+end
+
 function T:test_the_title_comes_from_front_matter_then_a_leading_heading()
   local files = {
     ["en/a.md"] = "# From heading\n\nbody",

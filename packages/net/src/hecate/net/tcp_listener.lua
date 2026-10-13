@@ -4,6 +4,7 @@ global <const> require
 local core = require("hecate.core")
 local TcpStream = require("hecate.net.tcp_stream")
 
+--- A listening TCP socket that accepts `TcpStream`s.
 ---@class hecate.net.TcpListener
 ---@overload fun(inner: hecate.reactor.TcpListener): hecate.net.TcpListener
 local TcpListener = core.class("TcpListener")

@@ -6,6 +6,7 @@ global <const> require
 local core = require("hecate.core")
 local Semaphore = require("hecate.reactor.semaphore")
 
+--- A mutual exclusion lock for tasks of one reactor.
 ---@class hecate.reactor.Mutex
 ---@overload fun(): hecate.reactor.Mutex
 local Mutex = core.class("Mutex")

@@ -283,6 +283,7 @@ function T:test_arguments_and_options_are_validated()
     function() net.connect("", 80) end,
     function() net.connect(LOOPBACK, 70000) end,
     function() net.connect(LOOPBACK, 80, { nodelays = true }) end,
+    ---@diagnostic disable-next-line: assign-type-mismatch  -- an invalid family is the point of the test
     function() net.connect(LOOPBACK, 80, { family = "ipx" }) end,
     function() net.listen(LOOPBACK, 0, "x") end,
     function() net.listen(LOOPBACK, 0, { backlog = 0 }) end,

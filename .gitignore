@@ -23,6 +23,11 @@ reports/
 # Website
 website/node_modules/
 website/dist/
+# Generated code reference (tools/run.lua gen-reference; the website workflow generates it).
+# One line per documented package: website/en/reference also holds hand-written pages.
+website/en/reference/core/
+website/en/reference/reactor/
+website/en/reference/net/
 
 # Editors and OS
 .vscode/

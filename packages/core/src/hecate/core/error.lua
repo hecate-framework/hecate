@@ -9,6 +9,7 @@ local MAX_CHAIN = 32
 
 local debug_mode = false
 
+--- The root of the error hierarchy: failures raise instances of its subclasses, each with a stable `code`, a `message`, an optional `cause` and structured `context` (ADR 0018).
 ---@class hecate.core.Error
 ---@field message string  human-readable description; never exposed over HTTP by default
 ---@field code string  stable identifier, for example "hecate.http.HeaderTooLarge"
@@ -18,6 +19,7 @@ local debug_mode = false
 ---@overload fun(fields: hecate.core.ErrorFields|string, extra?: hecate.core.ErrorFields): hecate.core.Error
 local Error = class_module.class("Error")
 
+--- The fields an error is created from.
 ---@class hecate.core.ErrorFields
 ---@field message? string
 ---@field code? string  overrides the class code
@@ -77,45 +79,64 @@ end
 
 class_module.finalise(Error)
 
+-- The functions of this table are documented on `hecate.core` (module class completed here so
+-- that the LuaLS export lists them; coding-standards.md, "Annotations for the reference").
+
+---@class hecate.core
+---@diagnostic disable-next-line: assign-type-mismatch  -- class constructor exported as its class
+local errors = { Error = Error }
+
 --- Declares a finalised subclass of `Error` with a stable code.
----@param name string
+---@param name string  class name
 ---@param code string  stable identifier, for example "hecate.http.HeaderTooLarge"
 ---@param superclass? any  defaults to `Error`
----@return any
-local function error_class(name, code, superclass)
+---@return any class  the new error class
+function errors.error_class(name, code, superclass)
   local subclass = class_module.class(name, superclass or Error)
   subclass.code = code
   return class_module.finalise(subclass)
 end
 
-local errors = { Error = Error, error_class = error_class }
+local error_class = errors.error_class
 
+--- Raised when a configuration is invalid.
 ---@class hecate.core.ConfigurationError : hecate.core.Error
 errors.ConfigurationError = error_class("ConfigurationError", "hecate.core.ConfigurationError")
+--- Raised when a class, trait or interface declaration is inconsistent, or a finalised class or an immutable value is modified.
 ---@class hecate.core.ConformanceError : hecate.core.Error
 errors.ConformanceError = error_class("ConformanceError", "hecate.core.ConformanceError")
+--- Raised when a function is called with an invalid argument (a programmer error).
 ---@class hecate.core.ArgumentError : hecate.core.Error
 errors.ArgumentError = error_class("ArgumentError", "hecate.core.ArgumentError")
+--- Raised in a computation that was cancelled, at its next suspension point.
 ---@class hecate.core.CancellationError : hecate.core.Error
 errors.CancellationError = error_class("CancellationError", "hecate.core.CancellationError")
+--- Raised when a deadline expires before the computation it bounds finishes.
 ---@class hecate.core.DeadlineExceededError : hecate.core.Error
 errors.DeadlineExceededError = error_class("DeadlineExceededError", "hecate.core.DeadlineExceededError")
+--- Raised when a suspending function is called outside a coroutine managed by the reactor.
 ---@class hecate.core.NonYieldableContextError : hecate.core.Error
 errors.NonYieldableContextError = error_class("NonYieldableContextError", "hecate.core.NonYieldableContextError")
+--- Raised when a channel is used after it was closed, or closed while a task waited on it.
 ---@class hecate.core.ClosedChannelError : hecate.core.Error
 errors.ClosedChannelError = error_class("ClosedChannelError", "hecate.core.ClosedChannelError")
+--- The failures of a network transport, such as a refused or reset connection.
 ---@class hecate.core.NetworkError : hecate.core.Error
 errors.NetworkError = error_class("NetworkError", "hecate.core.NetworkError")
+--- Raised when a peer breaks the protocol that is being spoken.
 ---@class hecate.core.ProtocolError : hecate.core.Error
 errors.ProtocolError = error_class("ProtocolError", "hecate.core.ProtocolError")
+--- Raised when a value is rejected by validation.
 ---@class hecate.core.ValidationError : hecate.core.Error
 errors.ValidationError = error_class("ValidationError", "hecate.core.ValidationError")
 
+--- The failures reported by a database, with the SQLSTATE when the server provides one.
 ---@class hecate.core.DatabaseError : hecate.core.Error
 ---@field sqlstate? string  SQLSTATE class and subclass (five characters) when available
 local DatabaseError = class_module.class("DatabaseError", Error)
 DatabaseError.code = "hecate.core.DatabaseError"
 
+--- The fields a database error is created from.
 ---@class hecate.core.DatabaseErrorFields : hecate.core.ErrorFields
 ---@field sqlstate? string
 
@@ -130,11 +151,11 @@ end
 errors.DatabaseError = class_module.finalise(DatabaseError)
 
 --- Turns capture of tracebacks on error creation on or off (debug mode).
----@param enabled boolean
+---@param enabled boolean  `true` captures a traceback in every new error
 function errors.set_debug_mode(enabled) debug_mode = enabled == true end
 
 --- Returns whether tracebacks are captured on error creation.
----@return boolean
+---@return boolean enabled  `true` when debug mode is on
 function errors.is_debug_mode() return debug_mode end
 
 return errors

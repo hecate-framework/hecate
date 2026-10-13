@@ -16,10 +16,12 @@ local Future = require("hecate.reactor.future")
 local YIELD = {} -- value yielded by managed coroutines to the scheduler
 local CANCELLED = {} -- value a cancelled suspension is resumed with
 
+--- Options of a reactor.
 ---@class hecate.reactor.ReactorOptions
 ---@field clock? "real"|"virtual"  default "real"
 ---@field start? number  initial reading of a virtual clock, default 0
 
+--- The scheduler: runs a main computation and everything it forks over libuv, on a real or a virtual clock.
 ---@class hecate.reactor.Reactor
 ---@overload fun(options?: hecate.reactor.ReactorOptions): hecate.reactor.Reactor
 local Reactor = core.class("Reactor")

@@ -5,6 +5,12 @@ global <const> type, ipairs, setmetatable, rawequal, tostring, require
 local registry = require("hecate.core.internal.registry")
 local raise = require("hecate.core.internal.raise")
 
+-- Documented on `hecate.core` (module class completed here so that the LuaLS export lists the
+-- function; coding-standards.md, "Annotations for the reference").
+
+---@class hecate.core
+local M = {}
+
 local interface_metatable = { -- hecate: raw-metatable opaque handle
   __tostring = function(self) return "interface " .. registry.interfaces[self].name end,
   __newindex = function(self)
@@ -15,15 +21,18 @@ local interface_metatable = { -- hecate: raw-metatable opaque handle
   end,
 }
 
---- Declares an interface.
+--- Options of `core.interface`.
 ---@class hecate.core.InterfaceOptions
 ---@field extends? table[]  interfaces whose requirements are inherited
 
----@param name string
+--- Declares an interface: a set of method names a class must provide to implement it.
+---
+--- Raises `hecate.core.ArgumentError` if `name` is not a string or `methods` is not a list of names.
+---@param name string  interface name, used in messages
 ---@param methods string[]  names of the required methods
----@param options? hecate.core.InterfaceOptions
----@return table
-local function interface(name, methods, options)
+---@param options? hecate.core.InterfaceOptions  extended interfaces
+---@return table interface  the new interface
+function M.interface(name, methods, options)
   if type(name) ~= "string" then raise.argument("interface name must be a string, got " .. type(name)) end
   if type(methods) ~= "table" then raise.argument("interface " .. name .. ": methods must be a list of names") end
   local record = { name = name, required = {}, order = {}, extends = {} }
@@ -62,4 +71,4 @@ local function conforms_to(candidate, target)
   return false
 end
 
-return { interface = interface, conforms_to = conforms_to }
+return { interface = M.interface, conforms_to = conforms_to }

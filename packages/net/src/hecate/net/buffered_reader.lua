@@ -11,6 +11,7 @@ local errors = require("hecate.net.errors")
 local CHUNK = 16 * 1024
 local DEFAULT_LIMIT = 64 * 1024
 
+--- Reads a stream with a buffer; a call returns a complete result or raises, never a part of it.
 ---@class hecate.net.BufferedReader
 ---@overload fun(stream: hecate.net.Stream, options?: { limit?: integer }): hecate.net.BufferedReader
 local BufferedReader = core.class("BufferedReader")

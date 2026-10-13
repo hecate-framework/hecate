@@ -41,6 +41,7 @@ local M = {}
 ---@field locale_links hecate.doc.LocaleLink[]
 ---@field strings table<string, any>
 ---@field title string
+---@field heading? string  text of the `<h1>`; defaults to `title`
 ---@field description? string
 ---@field layout "doc"|"home"
 ---@field html string  rendered body
@@ -313,7 +314,7 @@ function M.page(context)
   add("<main id=\"content\" tabindex=\"-1\">")
   if is_home then
     add("<section class=\"hero\">")
-    add(("<h1 class=\"hero-title\">%s</h1>"):format(escape(context.title)))
+    add(("<h1 class=\"hero-title\">%s</h1>"):format(escape(context.heading or context.title)))
     if context.description and context.description ~= "" then
       add(("<p class=\"hero-tagline\">%s</p>"):format(escape(context.description)))
     end
@@ -333,7 +334,7 @@ function M.page(context)
   end
   add(("<div lang=\"%s\">"):format(escape(context.content_lang)))
   if not is_home then
-    add(("<h1 class=\"page-title\">%s</h1>"):format(escape(context.title)))
+    add(("<h1 class=\"page-title\">%s</h1>"):format(escape(context.heading or context.title)))
     if context.hecate_version or context.lua_version then
       add(("<p class=\"page-meta\">%s</p>"):format(escape(s.written_for:format(context.hecate_version or "?",
         context.lua_version or "?"))))

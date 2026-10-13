@@ -7,7 +7,8 @@ local core = require("hecate.core")
 ---@field locale string  locale the page is built for
 ---@field id string  path without extension, relative to the locale root ("guide/concurrency")
 ---@field url string  URL path, including the base path ("/en/guide/concurrency/")
----@field title string
+---@field title string  navigation and `<title>` label: front matter `title`, else the heading
+---@field heading string  text of the page's `<h1>`: the body's `#` heading, else `title` (OQ-35)
 ---@field description? string
 ---@field meta table<string, any>  front matter
 ---@field html string  rendered body (without the leading title heading)

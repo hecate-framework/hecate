@@ -3,8 +3,8 @@
 
 - roadmap_item: `net`: TCP/UDP streams, DNS, buffered readers/writers, TLS (after OQ-4).
 - status: in-progress            <!-- in-progress | waiting-ci | waiting-owner -->
-- lock_until: 2026-10-13T23:30:07Z
-- last_update: 2026-10-13T23:30:07Z
+- lock_until: 2026-10-13T23:55:05Z
+- last_update: 2026-10-13T23:55:05Z
 
 ## Done
 
@@ -19,9 +19,11 @@
 - Step 3: net TcpStream/TcpListener/connect/listen, reactor.resolve; TCP/DNS failures raise reactor.TransportError (a NetworkError, owner decision OQ-32 (5)).
 - Side track (owner direction 2026-10-13: OQ-11 route 2): first slice of hecate.doc (Markdown renderer, brand theme, search, build of website/en), OQ-33..38. Website skeleton item NOT ticked yet.
 
+- Side track: owner answered the OQ-11 questions (route a, GFM via dependencies, wasm). Recorded in ADR 0012 / OQ-33..38; spike OQ-39 + proposed ADR 0022 (comrak via mlua, syntect, Pagefind, own OpenAPI, wasm Lua); reference generator from the LuaLS export (OQ-40), `---@class` convention in coding-standards.md; body H1 is the page title.
+
 ## Next steps
 
-1. net: UDP, pipes/Unix sockets, TLS (ADR 0021), net-level resolver API. Doc: LuaLS reference generation, website.yml deploy (GitHub Pages), OQ-34/35 questions, macOS/Windows check of SystemFileSystem.
+1. net: UDP, pipes/Unix sockets, TLS (ADR 0021), net-level resolver API. Doc: owner decision on ADR 0022 (native code in doc), website.yml deploy (GitHub Pages) with gen-reference --require, class-method param docs, OQ-34/35 questions, macOS/Windows check of SystemFileSystem.
 
 ## Decisions taken (and where they are recorded)
 

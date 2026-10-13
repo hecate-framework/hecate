@@ -7,6 +7,7 @@ local Stream = require("hecate.net.stream")
 local BufferedReader = require("hecate.net.buffered_reader")
 local BufferedWriter = require("hecate.net.buffered_writer")
 
+--- A connected TCP stream with buffered readers and writers.
 ---@class hecate.net.TcpStream: hecate.net.Stream
 ---@overload fun(inner: hecate.reactor.TcpStream): hecate.net.TcpStream
 local TcpStream = core.class("TcpStream", nil, { implements = { Stream } })
