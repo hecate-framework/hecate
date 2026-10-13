@@ -8,7 +8,7 @@
 | Rock | `hecate-net` |
 | Layer | 1 — Runtime |
 | Roadmap phase | 1 |
-| Status | specified — no code yet |
+| Status | in progress — `BufferedReader`, `BufferedWriter` and `Stream` implemented; TCP blocked on OQ-28 (transport primitives in `reactor`); UDP, DNS, Unix sockets and TLS pending |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |
 | Depends on | [`core`](../core), [`reactor`](../reactor) |
 | Used by | `hecate`, `http`, `mongodb`, `mysql`, `postgresql`, `redis`, `sql`, `sqlserver`, `websocket` |
@@ -37,8 +37,25 @@
 
 ## Public API
 
-*To be filled during implementation: list every exported class and function with a one-line
-description, linking to the generated reference.*
+Implemented (step 1). Functions marked *suspends* are `---@async` and raise
+`NonYieldableContextError` outside a managed coroutine.
+
+| Name | Description |
+|---|---|
+| `net.Stream` | Interface of a transport: `read(max)` (*suspends*; nil at end of stream), `write(data)` (*suspends*; accepts all of `data` or raises), `close()` (idempotent). |
+| `net.BufferedReader(stream, { limit })` | Reader over a stream; does not own it. `limit` bounds a line or record (default 65536 bytes). |
+| `reader:read_line(limit)` | *suspends*. One line without its line feed (and the carriage return before it); nil at end of stream. |
+| `reader:read_until(delimiter, limit)` | *suspends*. Bytes before `delimiter`, which is consumed; nil at end of stream. `ProtocolError` beyond the limit. |
+| `reader:read_exact(count)` | *suspends*. Exactly `count` bytes, or `EndOfStreamError`. |
+| `reader:read_some(max)` | *suspends*. Buffered bytes, or the next chunk; nil at end of stream. |
+| `reader:buffered()`, `reader:close()` | Bytes received but not consumed; discards them (idempotent, `<close>`-able). |
+| `net.BufferedWriter(stream, { capacity })` | Writer over a stream; does not own it. Flushes at `capacity` bytes (default 8192). |
+| `writer:write(data)`, `writer:flush()` | *suspend* when they flush. A failed flush poisons the writer: later calls raise the same error. |
+| `writer:buffered()`, `writer:close()` | Unflushed bytes; discards them without sending (idempotent, `<close>`-able): flush first. |
+| `net.EndOfStreamError` | A `NetworkError`: the stream ended inside a read; `context.buffered` bytes stay in the reader. |
+
+Not yet available: `TcpStream`, `TcpListener` (OQ-28), `UdpSocket`, DNS, Unix sockets, TLS.
+Design choices of the buffered layer: OQ-29.
 
 ## Layout (once implemented)
 
