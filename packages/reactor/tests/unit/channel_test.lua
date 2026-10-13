@@ -365,7 +365,10 @@ end
 
 function T:test_select_rejects_other_values()
   support.run_virtual(function()
-    local err = self:assert_error(function() reactor.select(reactor.Channel()) end)
+    local err = self:assert_error(function()
+      ---@diagnostic disable-next-line: param-type-mismatch
+      reactor.select(reactor.Channel())
+    end)
     self:assert_true(core.is_instance_of(err, core.ArgumentError))
   end)
 end

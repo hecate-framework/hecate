@@ -37,12 +37,14 @@ end
 function Condition:wait()
   local task = require_inside(self, "Condition:wait")
   local monitor, waiters = self._monitor, self._waiters
+  ---@diagnostic disable-next-line: invisible
   monitor:_leave()
   local waiter
   local ok, err = pcall(context.suspend, function(wake)
     waiter = waiters:push({ wake = wake })
     return function() waiters:remove(waiter) end
   end)
+  ---@diagnostic disable-next-line: invisible
   monitor:_reenter(task)
   if not ok then error(err, 0) end
 end
