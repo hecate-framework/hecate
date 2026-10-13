@@ -39,9 +39,28 @@ The full site map is in [`website/OUTLINE.md`](../../website/OUTLINE.md).
 
 ## Theme
 
-One original Hecate theme for the website and for user projects (ADR 0012): MDN-like
-qualities, MIT-licensed, light and dark modes, WCAG 2.2 AA. No code or assets from
-Lua Web Docs (Tailwind UI licence).
+One original Hecate theme for the website and for user projects (ADR 0012): MIT-licensed,
+light and dark modes, WCAG 2.2 AA. No code or assets from Lua Web Docs (Tailwind UI
+licence).
+
+Owner direction of 2026-10-13 (ADR 0012 stays Proposed): `hecate.doc` is our own Lua 5.5
+generator with a VitePress-like presentation and strict respect of the Hecate brand kit
+(`tokens.json`, logo lockups, STIX Two / Fira Sans / Fira Code, nearly square corners, no
+gradients or glows, the name never capitalised, earth as the single accent). Page chrome:
+
+- top bar: logo, section links, search, locale switch, theme toggle, repository link,
+  menu button on small screens;
+- left sidebar (computed from the page tree or configured per section) and a right-hand
+  "On this page" outline;
+- previous/next cards, edit-this-page link, last-updated date, "written for hecate x.y and
+  Lua 5.5" line;
+- callout containers (`note`, `tip`, `warning`, `danger`), code blocks with a language label
+  and a copy button, tables, task lists;
+- search: one JSON index per locale, queried by about 150 lines of vanilla JavaScript.
+
+Implementation and conventions: [`packages/doc`](../../packages/doc/README.md); open
+choices OQ-33 to OQ-38. Build: `lua packages/doc/bin/build.lua website --strict` (bootstrap
+runner until `hecate doc build`).
 
 ## Reference page template (MDN-like)
 

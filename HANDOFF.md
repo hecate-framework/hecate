@@ -3,8 +3,8 @@
 
 - roadmap_item: `net`: TCP/UDP streams, DNS, buffered readers/writers, TLS (after OQ-4).
 - status: in-progress            <!-- in-progress | waiting-ci | waiting-owner -->
-- lock_until: 2026-10-13T22:42:54Z
-- last_update: 2026-10-13T22:42:54Z
+- lock_until: 2026-10-13T23:30:07Z
+- last_update: 2026-10-13T23:30:07Z
 
 ## Done
 
@@ -16,9 +16,12 @@
 
 - Step 3: net TcpStream/TcpListener/connect/listen, reactor.resolve (dns.lua), tests, OQ-32.
 
+- Step 3: net TcpStream/TcpListener/connect/listen, reactor.resolve; TCP/DNS failures raise reactor.TransportError (a NetworkError, owner decision OQ-32 (5)).
+- Side track (owner direction 2026-10-13: OQ-11 route 2): first slice of hecate.doc (Markdown renderer, brand theme, search, build of website/en), OQ-33..38. Website skeleton item NOT ticked yet.
+
 ## Next steps
 
-1. OQ-28 resolved by owner (option a). Next: reactor UDP, pipes (DNS done in step 3), then TLS (ADR 0021). Review OQ-30/OQ-31 (SIGPIPE guard).
+1. net: UDP, pipes/Unix sockets, TLS (ADR 0021), net-level resolver API. Doc: LuaLS reference generation, website.yml deploy (GitHub Pages), OQ-34/35 questions, macOS/Windows check of SystemFileSystem.
 
 ## Decisions taken (and where they are recorded)
 

@@ -35,6 +35,30 @@ case option 1 with a theme reproducing the same presentation.
   readability only (see "Licence finding" below).
 - The same generator and theme serve the framework website and user projects.
 
+### Owner direction, 2026-10-13: route 2, VitePress-like features, Hecate brand kit
+
+Given by the project owner in chat; the OQ-11 report is still formally pending and **this
+ADR keeps its status** (only the owner promotes ADRs). Until then it is the working
+hypothesis:
+
+- Route 2: `hecate.doc` is our own static site generator, written in Lua 5.5, with no
+  third-party dependency (Markdown renderer, search index and theme scripts are written in
+  the package; a dependency that seems needed is recorded as an open question, not added).
+- The owner finds Starlight's look unattractive and prefers VitePress-like presentation:
+  top navigation bar with logo, section links, search box, locale switch, theme toggle and
+  GitHub link; left sidebar; right-hand "On this page" outline; previous/next cards at the
+  bottom of pages; edit-this-page link; last updated; callout containers (note, tip,
+  warning, danger); code blocks with a copy button and a language label; responsive mobile
+  menu.
+- The theme is original (no Tailwind UI code, no Lua Web Docs code) and strictly follows the
+  Hecate brand kit: logo lockups and the compact mark for the favicon, light and dark
+  tokens, STIX Two / Fira Sans / Fira Code, nearly square corners, no gradients or glows,
+  the name never capitalised, earth (verdigris) as the single accent, WCAG 2.2 AA,
+  keyboard navigation. Third-party material it vendors (fonts, brand files, one icon) is
+  listed in `THIRD_PARTY_NOTICES`.
+
+First slice: `packages/doc` (see its README); choices left open are OQ-33 to OQ-38.
+
 ## Licence finding (2026-10-11)
 
 The owner wished to reproduce the exact theme of Lua Web Docs. That project is

@@ -7,15 +7,23 @@ the source (`en/`); translations mirror it (`fr/` first). Specification:
 [docs/architecture/documentation.md](../docs/architecture/documentation.md).
 Site map: [OUTLINE.md](OUTLINE.md).
 
-Nothing is built yet: the skeleton is a Phase 3 roadmap item (pages can be drafted
-earlier as Markdown).
+The site is built by `hecate.doc` (first slice implemented; see
+[packages/doc/README.md](../packages/doc/README.md)):
+
+```sh
+lua packages/doc/bin/build.lua website --strict    # output: website/dist (git-ignored)
+```
+
+Conventions of the pages (front matter, callouts, links between pages as `.md` files,
+`README.md` files are not published): [packages/doc/README.md](../packages/doc/README.md).
+The glossary page is a hand-adapted public copy of `docs/glossary.md`: keep it in step.
 
 ## Planned layout
 
 ```text
 website/
-  site.lua                  site configuration for hecate.doc: locales, navigation, search
-  public/llms.txt           generated
+  site.lua                  site configuration for hecate.doc: locales, navigation, edit link
+  public/llms.txt           generated (not yet)
   en/                       English source
     tutorials/ how-to/ reference/ explanation/ community/
     reference/              generated (never edited by hand)

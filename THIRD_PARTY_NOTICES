@@ -1,0 +1,59 @@
+THIRD-PARTY NOTICES
+===================
+
+Material that is not original Hecate work and is shipped in this repository. ADR 0012
+requires every vendored font, brand file or tooling item of the documentation theme to be
+recorded here. Hecate itself is MIT licensed (LICENSE).
+
+The documentation theme of `hecate.doc` (packages/doc/src/hecate/doc/theme/) is original
+work. It contains no code or asset of Lua Web Docs or of Tailwind UI.
+
+
+1. Fonts of the documentation theme
+-----------------------------------
+
+Location: packages/doc/src/hecate/doc/theme/assets/fonts/
+Licence: SIL Open Font License, Version 1.1 (text next to each font: OFL-*.txt).
+Obtained from: the npm packages @fontsource/stix-two-text, @fontsource/fira-sans and
+@fontsource/fira-code, version 5.3.0 (Fontsource, MIT; the files are the Latin subsets of the
+Google Fonts distribution of each family, in WOFF2). Unmodified by Hecate.
+
+- STIX Two Text (400 and 600, normal and italic)
+  Copyright 2001-2021 The STIX Fonts Project Authors (https://github.com/stipub/stixfonts)
+- Fira Sans (400, 500, 600)
+  Copyright as stated in its licence file, which reads "Google Inc." (distribution of the
+  family by Google Fonts)
+- Fira Code (400, 600)
+  Copyright 2014-2020 The Fira Code Project Authors (https://github.com/tonsky/FiraCode)
+
+The three licence files name no Reserved Font Name. Open question OQ-34 asks the owner to
+confirm that redistributing the subsetted files under their original names is acceptable.
+
+
+2. Hecate brand kit
+-------------------
+
+Location: packages/doc/src/hecate/doc/theme/assets/brand/ (logo lockups, compact mark,
+adaptive favicon, trivium pattern) and packages/doc/tests/fixtures/brand-tokens.json
+(a copy of tokens.json, used by the theme tests).
+Licence: MIT, Copyright (c) 2026 hecate-framework (text in brand/LICENSE).
+Obtained from: https://github.com/hecate-framework/.github, directory brand/, commit
+9cc8ca1. First-party material of the same organisation, copied rather than referenced.
+The favicon is the adaptive snippet published in the brand kit README. The brand kit
+forbids recolouring, rotating or capitalising the marks.
+
+
+3. Icon: GitHub mark
+--------------------
+
+Location: packages/doc/src/hecate/doc/theme/layout.lua (path data of the header icon).
+Source: Octicons "mark-github", https://github.com/primer/octicons
+Licence: MIT, Copyright (c) GitHub, Inc. (see the licence file of the Octicons repository).
+Used for the link to the project repository; GitHub's logo usage guidelines also apply.
+
+
+4. Not third-party
+------------------
+
+The other icons of the theme (search, sun, moon, menu, close, globe, chevron, pencil,
+callout symbols) are simple geometric drawings made for Hecate.

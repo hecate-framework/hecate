@@ -1,0 +1,257 @@
+{
+  "name": "Hecate",
+  "version": 2,
+  "color": {
+    "themes": [
+      {
+        "id": "light",
+        "name": "Light"
+      },
+      {
+        "id": "dark",
+        "name": "Dark"
+      }
+    ],
+    "tokens": [
+      {
+        "name": "surface-100",
+        "value": {
+          "light": "#F5F4EE",
+          "dark": "#0F1430"
+        },
+        "usage": "Page background: paper by day, night by night. Text tokens are checked against it."
+      },
+      {
+        "name": "surface-200",
+        "value": {
+          "light": "#ECEAE1",
+          "dark": "#161C3D"
+        },
+        "usage": "Sidebars, code blocks, table headers."
+      },
+      {
+        "name": "surface-300",
+        "value": {
+          "light": "#FFFFFF",
+          "dark": "#1E2550"
+        },
+        "usage": "Raised surfaces: cards, popovers, inputs."
+      },
+      {
+        "name": "border",
+        "value": {
+          "light": "#D9D5C8",
+          "dark": "#2C3460"
+        },
+        "usage": "Decorative hairlines and rules only (1.3:1 / 1.5:1); never the only boundary of a control."
+      },
+      {
+        "name": "border-strong",
+        "value": {
+          "light": "#7C7F8E",
+          "dark": "#6C7499"
+        },
+        "usage": "Control borders and focus rings: at least 3.2:1 on every surface."
+      },
+      {
+        "name": "ink",
+        "value": {
+          "light": "#1B1B22",
+          "dark": "#F5F4EE"
+        },
+        "usage": "Body text, headings, the wordmark. 15.5:1 / 16.4:1 on surface-100."
+      },
+      {
+        "name": "ink-muted",
+        "value": {
+          "light": "#55566A",
+          "dark": "#AEB3CC"
+        },
+        "usage": "Secondary text: captions, metadata, taglines. 6.5:1 / 8.7:1."
+      },
+      {
+        "name": "moon",
+        "value": {
+          "light": "#1C2766",
+          "dark": "#C9CFE6"
+        },
+        "usage": "Brand colour, close to Lua's navy: the moon of the mark, navigation, headings accents, large brand fields. 12.4:1 / 11.7:1."
+      },
+      {
+        "name": "moonlight",
+        "value": {
+          "light": "#C9CFE6",
+          "dark": "#F5F4EE"
+        },
+        "usage": "The lit crescent of the moon and soft brand tints. Decorative: never text."
+      },
+      {
+        "name": "earth",
+        "value": {
+          "light": "#2F6F64",
+          "dark": "#5FB0A1"
+        },
+        "usage": "Verdigris accent, the earth of the mark: links, primary actions, active states. Usable as text at any size: 5.3:1 / 7.1:1."
+      },
+      {
+        "name": "on-earth",
+        "value": {
+          "light": "#FFFFFF",
+          "dark": "#0F1430"
+        },
+        "usage": "Text and icons on an earth fill: 5.9:1 / 7.1:1."
+      },
+      {
+        "name": "success",
+        "value": {
+          "light": "#3B6B2A",
+          "dark": "#8FCB7E"
+        },
+        "usage": "Passing tests, valid contracts. 5.7:1 / 9.5:1. Always with a label or icon, since it sits near earth in hue."
+      },
+      {
+        "name": "danger",
+        "value": {
+          "light": "#9B2C2C",
+          "dark": "#F09A9A"
+        },
+        "usage": "Errors, breaking changes, failed checks. 6.8:1 / 8.4:1."
+      }
+    ]
+  },
+  "type": {
+    "fonts": [],
+    "families": {
+      "serif": "\"STIX Two Text\", \"STIX Two\", Cambria, Georgia, serif",
+      "sans": "\"Fira Sans\", system-ui, -apple-system, \"Segoe UI\", sans-serif",
+      "mono": "\"Fira Code\", \"Fira Mono\", ui-monospace, Consolas, monospace"
+    },
+    "groups": [
+      {
+        "name": "Titles",
+        "family": "serif",
+        "styles": [
+          {
+            "name": "display",
+            "fontSize": "56px",
+            "lineHeight": "62px",
+            "fontWeight": 400,
+            "letterSpacing": "3px",
+            "usage": "Hero titles and the wordmark, set in all small caps (font-variant-caps: all-small-caps)."
+          },
+          {
+            "name": "heading-1",
+            "fontSize": "34px",
+            "lineHeight": "42px",
+            "fontWeight": 600,
+            "usage": "Page titles, numbered like sections of a paper (3.2 Refinement types)."
+          },
+          {
+            "name": "heading-2",
+            "fontSize": "25px",
+            "lineHeight": "32px",
+            "fontWeight": 600,
+            "usage": "Section titles."
+          }
+        ]
+      },
+      {
+        "name": "Text",
+        "family": "serif",
+        "styles": [
+          {
+            "name": "body",
+            "fontSize": "18px",
+            "lineHeight": "28px",
+            "fontWeight": 400,
+            "usage": "Running text of guides and reference pages; italics for defined terms."
+          },
+          {
+            "name": "body-small",
+            "fontSize": "15px",
+            "lineHeight": "24px",
+            "fontWeight": 400,
+            "usage": "Footnotes, captions, theorem-like notes."
+          }
+        ]
+      },
+      {
+        "name": "Interface",
+        "family": "sans",
+        "styles": [
+          {
+            "name": "ui",
+            "fontSize": "14px",
+            "lineHeight": "20px",
+            "fontWeight": 400,
+            "usage": "Navigation, buttons, tabs, tables of parameters."
+          },
+          {
+            "name": "label",
+            "fontSize": "12px",
+            "lineHeight": "16px",
+            "fontWeight": 500,
+            "letterSpacing": "0.6px",
+            "usage": "Overlines, badges, versions."
+          }
+        ]
+      },
+      {
+        "name": "Code",
+        "family": "mono",
+        "styles": [
+          {
+            "name": "code",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": 400,
+            "usage": "Code blocks and inline code."
+          }
+        ]
+      }
+    ]
+  },
+  "spacing": {
+    "tokens": [
+      {
+        "name": "space-1",
+        "value": "4px",
+        "usage": "Icon gaps, inline padding of badges."
+      },
+      {
+        "name": "space-2",
+        "value": "8px",
+        "usage": "Gaps inside controls."
+      },
+      {
+        "name": "space-4",
+        "value": "16px",
+        "usage": "Card padding, paragraph spacing."
+      },
+      {
+        "name": "space-6",
+        "value": "24px",
+        "usage": "Gaps between blocks."
+      },
+      {
+        "name": "space-12",
+        "value": "48px",
+        "usage": "Section spacing, hero padding."
+      }
+    ]
+  },
+  "radius": {
+    "tokens": [
+      {
+        "name": "radius-sm",
+        "value": "2px",
+        "usage": "Inline code, badges, inputs: almost square, like print."
+      },
+      {
+        "name": "radius-md",
+        "value": "4px",
+        "usage": "Buttons, cards, code blocks."
+      }
+    ]
+  }
+}
