@@ -102,6 +102,8 @@ errors.CancellationError = error_class("CancellationError", "hecate.core.Cancell
 errors.DeadlineExceededError = error_class("DeadlineExceededError", "hecate.core.DeadlineExceededError")
 ---@class hecate.core.NonYieldableContextError : hecate.core.Error
 errors.NonYieldableContextError = error_class("NonYieldableContextError", "hecate.core.NonYieldableContextError")
+---@class hecate.core.ClosedChannelError : hecate.core.Error
+errors.ClosedChannelError = error_class("ClosedChannelError", "hecate.core.ClosedChannelError")
 ---@class hecate.core.NetworkError : hecate.core.Error
 errors.NetworkError = error_class("NetworkError", "hecate.core.NetworkError")
 ---@class hecate.core.ProtocolError : hecate.core.Error

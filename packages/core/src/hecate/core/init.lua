@@ -18,6 +18,7 @@ local compat = require("hecate.core.compat")
 ---@field CancellationError hecate.core.Error
 ---@field DeadlineExceededError hecate.core.Error
 ---@field NonYieldableContextError hecate.core.Error
+---@field ClosedChannelError hecate.core.Error
 ---@field NetworkError hecate.core.Error
 ---@field ProtocolError hecate.core.Error
 ---@field ValidationError hecate.core.Error
@@ -51,7 +52,7 @@ local core = {
 
 for _, name in ipairs({
   "ConfigurationError", "ConformanceError", "ArgumentError", "CancellationError",
-  "DeadlineExceededError", "NonYieldableContextError", "NetworkError", "ProtocolError", "ValidationError", "DatabaseError",
+  "DeadlineExceededError", "NonYieldableContextError", "ClosedChannelError", "NetworkError", "ProtocolError", "ValidationError", "DatabaseError",
 }) do
   core[name] = errors[name]
 end

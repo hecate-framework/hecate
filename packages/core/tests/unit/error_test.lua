@@ -36,7 +36,7 @@ end
 function T:test_hierarchy()
   for _, name in ipairs({
     "ConfigurationError", "ConformanceError", "ArgumentError", "CancellationError",
-    "DeadlineExceededError", "NonYieldableContextError", "NetworkError", "ProtocolError", "ValidationError", "DatabaseError",
+    "DeadlineExceededError", "NonYieldableContextError", "ClosedChannelError", "NetworkError", "ProtocolError", "ValidationError", "DatabaseError",
   }) do
     local class = core[name]
     self:assert_true(core.superclass(class) == core.Error, name)

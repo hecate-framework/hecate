@@ -8,6 +8,7 @@ local context = require("hecate.reactor.internal.context")
 local Future = require("hecate.reactor.future")
 local Scope = require("hecate.reactor.scope")
 local Instant = require("hecate.reactor.instant")
+local ChannelOperation = require("hecate.reactor.channel_operation")
 
 local M = {}
 
@@ -16,6 +17,13 @@ local M = {}
 local function require_future(name, value)
   if not core.is_instance_of(value, Future) then
     error(core.ArgumentError(("%s expects futures, got %s"):format(name, type(value))), 3)
+  end
+end
+
+---@param value any
+local function require_selectable(value)
+  if not core.is_instance_of(value, Future) and not core.is_instance_of(value, ChannelOperation) then
+    error(core.ArgumentError(("select expects futures or channel operations, got %s"):format(type(value))), 3)
   end
 end
 
@@ -155,27 +163,79 @@ function M.join(...)
   return table.unpack(values, 1, futures.n)
 end
 
---- Waits for the first future to complete, cancels the others and returns its index and
---- first value; raises its error if it failed or was cancelled.
+local HANDOFF = {} -- first value a channel hand-off resumes `select` with
+
+--- Cancels the futures among the items of a `select`.
+local function cancel_futures(items)
+  for i = 1, items.n do
+    if core.is_instance_of(items[i], Future) then items[i]:cancel() end
+  end
+end
+
+--- Registers `wake` on every item of a `select`; returns the function withdrawing them.
+local function watch_items(items, wake)
+  local withdrawals = {}
+  for i = 1, items.n do
+    local item = items[i]
+    if core.is_instance_of(item, Future) then
+      if item._state == "pending" then
+        local watcher = item:_watch(wake)
+        withdrawals[#withdrawals + 1] = function() watcher.active = false end
+      end
+    else
+      ---@diagnostic disable-next-line: invisible  -- friend class
+      withdrawals[#withdrawals + 1] = item:_enqueue(function(status, value)
+        return wake(HANDOFF, i, status, value)
+      end)
+    end
+  end
+  return function()
+    for i = 1, #withdrawals do withdrawals[i]() end
+  end
+end
+
+--- Waits for the first item to be ready, cancels the futures among the others and returns
+--- its index and value. An item is a future (its first value; its error is raised if it
+--- failed or was cancelled) or a channel operation (`Channel:receive_op()`: the received
+--- value; `Channel:send_op(v)`: nil once the value is handed over; `ClosedChannelError` is
+--- raised if the channel is closed). When several items are ready, the first in argument
+--- order wins (OQ-25); a channel operation takes effect only if it is the one selected,
+--- so no value is ever taken or sent by a losing operation.
 ---@async
----@param ... hecate.reactor.Future
+---@param ... hecate.reactor.Future|hecate.reactor.ChannelOperation
 ---@return integer index
 ---@return any value
 function M.select(...)
   context.current_task("select")
-  local futures = table.pack(...)
-  if futures.n == 0 then error(core.ArgumentError("select expects at least one future"), 2) end
-  for i = 1, futures.n do require_future("select", futures[i]) end
+  local items = table.pack(...)
+  if items.n == 0 then error(core.ArgumentError("select expects at least one future"), 2) end
+  for i = 1, items.n do require_selectable(items[i]) end
   while true do
-    for i = 1, futures.n do
-      local future = futures[i]
-      if future._state ~= "pending" then
-        cancel_pending(futures)
-        if future._state == "completed" then return i, future._results[1] end
-        error(future._error, 0)
+    for i = 1, items.n do
+      local item = items[i]
+      if core.is_instance_of(item, Future) then
+        if item._state ~= "pending" then
+          cancel_futures(items)
+          if item._state == "completed" then return i, item._results[1] end
+          error(item._error, 0)
+        end
+      else
+        ---@diagnostic disable-next-line: invisible  -- friend class
+        local completed, value = item:_try()
+        if completed then
+          cancel_futures(items)
+          return i, value
+        end
       end
     end
-    context.suspend(function(wake) return watch_all(futures, wake) end)
+    local tag, index, status, value = context.suspend(function(wake) return watch_items(items, wake) end)
+    if tag == HANDOFF then
+      cancel_futures(items)
+      if status == false then error(core.ClosedChannelError({
+        message = "the channel is closed", context = { channel = items[index].channel },
+      }), 0) end
+      return index, value
+    end
   end
 end
 

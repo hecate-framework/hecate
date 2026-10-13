@@ -3,20 +3,21 @@
 
 - roadmap_item: `reactor`: reactor over luv, scheduler, futures, `fork`/`join`/`select`, deadlines, scopes and cancellation, channels, semaphores, mutexes, monitors, timers, thread-pool offloading, signals
 - status: in-progress
-- lock_until: 2026-10-12T23:11:51Z
-- last_update: 2026-10-12T21:41:51Z
+- lock_until: 2026-10-13T05:17:26Z
+- last_update: 2026-10-13T03:47:26Z
 
 ## Done
 
 - Claimed the item (previous item `core` merged in #17).
 - Step 1: `Reactor` (real clock over luv + virtual clock), `Future`, `Scope`, `Instant`, `fork`, `join`, `select`, `sleep`, `scope`, `deadline`, cooperative level-triggered cancellation running `<close>` handlers, deadlock detection, non-yieldable detection. `NonYieldableContextError` added to `hecate.core`. `tools/tasks/test.lua` now puts all package `src` dirs on the path. Tests in `packages/reactor/tests/unit`.
 - Step 2: fixed the 21 LuaLS diagnostics (variadic return annotations `fun(...): ...`, `Context` fields, targeted suppressions only in tests passing invalid values). CI now installs luv into `.hecate/rocks` (cached); `tools/harness/run_file.lua` adds `.hecate/rocks` and `spikes/rocks` to package.path/cpath. LuaLS 3.19.1 installed locally in `spikes/luals`.
+- Step 3 (sync primitives): `Channel` (rendezvous, `select`-able via `send_op`/`receive_op`), `Semaphore`, `Mutex`, `Monitor`, `Condition`, `Permit`; `ClosedChannelError` in core; OQ-25 records six conservative choices. Tests/lint/boundaries/glossary/changelog pass locally; LuaLS typecheck NOT run (not installed in this container; `spikes/luals` is gone).
 
 ## Next steps
 
-1. Step 2: `Channel` (capacity 0 rendezvous, usable in `select`), `Semaphore`, `Mutex` (`<close>`-able permits), `Monitor`, `Condition`.
-2. Step 3: `detach`, timers/handles API, signals, processes, file-system operations as suspending calls; leak-detection of libuv handles for these.
-3. Step 4: `offload` design (spec before implementation), worker primitives (OQ-8), benchmarks, website reference, tick roadmap item, delete this file.
+1. Run `lua tools/run.lua typecheck` where LuaLS is available (CI) and fix diagnostics on the new files.
+2. Step 4: `detach`, timers/handles API, signals, processes, file-system operations as suspending calls; leak-detection of libuv handles for these.
+3. Step 5: `offload` design (spec before implementation), worker primitives (OQ-8), benchmarks, website reference, tick roadmap item, delete this file.
 4. Confirm CI is green on the three platforms (luv install step and LuaLS were verified only on Linux).
 
 ## Decisions taken (and where they are recorded)
@@ -33,6 +34,7 @@
 ## Commands to re-run
 
 ```sh
+# luv: luarocks --tree spikes/rocks install luv
 eval "$(luarocks --tree spikes/rocks path | grep -E '^export LUA_(PATH|CPATH)')"
 lua tools/run.lua test reactor core
 lua tools/run.lua lint
