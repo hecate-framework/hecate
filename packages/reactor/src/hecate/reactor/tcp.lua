@@ -112,7 +112,8 @@ end
 ---@param operation string
 ---@return hecate.reactor.SocketAddress
 local function address_of(handle, operation)
-  local address, err = operation == "peer_address" and handle:getpeername() or handle:getsockname()
+  local address, err
+  if operation == "peer_address" then address, err = handle:getpeername() else address, err = handle:getsockname() end
   if not address then uv_call.fail(operation, tostring(err)) end
   return { ip = address.ip, port = address.port, family = address.family }
 end

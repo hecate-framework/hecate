@@ -25,6 +25,7 @@ local uv_call = require("hecate.reactor.internal.uv_call")
 ---@field fs hecate.reactor.fs
 ---@field TcpStream hecate.reactor.TcpStream
 ---@field TcpListener hecate.reactor.TcpListener
+---@field resolve fun(host: string, options?: hecate.reactor.ResolveOptions): hecate.reactor.ResolvedAddress[]
 local reactor = {
   Reactor = Reactor,
   Future = require("hecate.reactor.future"),
@@ -39,10 +40,13 @@ local reactor = {
   Permit = require("hecate.reactor.permit"),
   IoError = uv_call.IoError,
   fs = require("hecate.reactor.fs"),
+  ---@diagnostic disable-next-line: assign-type-mismatch  -- class constructor exported as its class
   TcpStream = tcp.TcpStream,
+  ---@diagnostic disable-next-line: assign-type-mismatch  -- class constructor exported as its class
   TcpListener = tcp.TcpListener,
   tcp_connect = tcp.connect,
   tcp_listen = tcp.listen,
+  resolve = require("hecate.reactor.dns").resolve,
   wait_signal = require("hecate.reactor.signal").wait_signal,
   run_process = require("hecate.reactor.process").run,
   detach = primitives.detach,

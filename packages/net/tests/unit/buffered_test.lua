@@ -1,3 +1,4 @@
+---@diagnostic disable: param-type-mismatch  -- the tests pass invalid arguments on purpose
 local test = require("harness.test")
 local core = require("hecate.core")
 local reactor = require("hecate.reactor")
@@ -68,6 +69,7 @@ function T:test_partial_read_never_leaks_on_end_of_stream()
     self:assert_false(ok)
     self:assert_true(core.is_instance_of(err, net.EndOfStreamError))
     self:assert_true(core.is_instance_of(err, core.NetworkError))
+    ---@diagnostic disable-next-line: undefined-field
     self:assert_equal(3, err.context.buffered)
     -- The bytes are still there for a smaller read.
     self:assert_equal("abc", reader:read_exact(3))

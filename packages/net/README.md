@@ -8,7 +8,7 @@
 | Rock | `hecate-net` |
 | Layer | 1 — Runtime |
 | Roadmap phase | 1 |
-| Status | in progress — `BufferedReader`, `BufferedWriter` and `Stream` implemented; TCP transport primitives now in `reactor` (OQ-28 resolved), `TcpStream`/`TcpListener` in `net` next; UDP, DNS, Unix sockets and TLS pending |
+| Status | in progress — `BufferedReader`, `BufferedWriter`, `Stream`, `TcpStream`, `TcpListener`, `connect` and `listen` implemented (names resolved through `reactor.resolve`, OQ-32); UDP, Unix sockets and TLS pending |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |
 | Depends on | [`core`](../core), [`reactor`](../reactor) |
 | Used by | `hecate`, `http`, `mongodb`, `mysql`, `postgresql`, `redis`, `sql`, `sqlserver`, `websocket` |
@@ -22,7 +22,7 @@
 
 - `TcpListener`, `TcpStream`, `UdpSocket`, Unix domain sockets / Windows named pipes
 - `BufferedReader` (read line, read exact, read until) and `BufferedWriter`
-- DNS resolution through libuv
+- DNS resolution through libuv (`reactor.resolve`; a `net` resolver API is pending)
 - TLS client and server (SNI, ALPN, certificate verification, mutual TLS)
 - back-pressure and per-operation deadlines
 
@@ -54,8 +54,29 @@ Implemented (step 1). Functions marked *suspends* are `---@async` and raise
 | `writer:buffered()`, `writer:close()` | Unflushed bytes; discards them without sending (idempotent, `<close>`-able): flush first. |
 | `net.EndOfStreamError` | A `NetworkError`: the stream ended inside a read; `context.buffered` bytes stay in the reader. |
 
-Not yet available: `TcpStream`, `TcpListener` (to be built on `reactor.tcp_connect` / `tcp_listen`), `UdpSocket`, DNS, Unix sockets, TLS.
-Design choices of the buffered layer: OQ-29.
+Implemented (step 3). TCP over `reactor.tcp_connect` / `tcp_listen` / `resolve`; `net` never requires `luv`.
+
+| Name | Description |
+|---|---|
+| `net.connect(host, port, options?)` | *suspends*. Resolves `host` (name or numeric address), tries its addresses in order, returns a `TcpStream`; raises the last `IoError` when all fail. Options: `nodelay` (default `true`), `keepalive` (default `false`), `keepalive_delay` (seconds, default 60), `family` (`"inet"`/`"inet6"`). |
+| `net.listen(host, port, options?)` | *suspends* (resolution only). Binds the first resolved address (port 0 picks a free port); returns a `TcpListener`. Options as above plus `backlog` (default 128). |
+| `net.TcpStream` | Implements `Stream`: `read(max?)` (*suspends*; nil at end of stream; cancelling loses nothing), `write(data)` (*suspends*; back-pressure; a cancelled write closes the stream), `close()` (idempotent; `<close>`-able). Also `shutdown()` (*suspends*; half-close, stays readable), `is_closed()`, `peer_address()`, `local_address()` (`{ ip, port, family }`), `set_nodelay(bool)`, `set_keepalive(bool, delay?)`, `reader(options?)` and `writer(options?)` (a `BufferedReader` / `BufferedWriter` over the stream, which they do not own). |
+| `net.TcpListener` | `accept()` (*suspends*; returns a `TcpStream`; cancelling keeps the listener and queued connections), `close()`, `is_closed()`, `local_address()`; `<close>`-able. |
+
+Failures raise `reactor.IoError` (`context.errno`: libuv name such as `ECONNREFUSED`, `EPIPE`, `EBADF` after close, `ECANCELED` when closed while waiting); mapping to `NetworkError` is OQ-32 (5).
+
+Per-operation deadlines use the reactor, there is no timeout argument:
+
+```lua
+local stream <close> = reactor.deadline(5, net.connect, "example.org", 80) -- resolution + connect
+local reader = stream:reader()
+local ok, err = pcall(reactor.deadline, 2, function() return reader:read_line() end)
+-- On DeadlineExceededError the read was withdrawn: the stream and the reader are intact.
+-- A write cancelled by a deadline closes the stream (bytes sent are unknown, OQ-30).
+```
+
+Not yet available: `UdpSocket`, a `net` resolver API, Unix sockets, TLS.
+Design choices of the buffered layer: OQ-29; of TCP and resolution: OQ-30, OQ-32.
 
 ## Layout (once implemented)
 
