@@ -88,11 +88,11 @@ local function check_endpoint(name, host, port)
   end
 end
 
---- Raises the `IoError` of a handle that is closed (or was closed while a task waited).
+--- Raises the `TransportError` of a handle that is closed (or was closed while a task waited).
 ---@param operation string
 ---@param message string
 local function fail_closed(operation, message)
-  uv_call.fail(operation, message)
+  uv_call.fail_transport(operation, message)
 end
 
 ---@param handle table
@@ -103,9 +103,9 @@ local function apply_options(handle, options)
   local keepalive = options.keepalive
   if keepalive == nil then keepalive = DEFAULT_KEEPALIVE end
   local ok, err = handle:nodelay(nodelay)
-  if not ok then uv_call.fail("nodelay", tostring(err)) end
+  if not ok then uv_call.fail_transport("nodelay", tostring(err)) end
   ok, err = handle:keepalive(keepalive, options.keepalive_delay or DEFAULT_KEEPALIVE_DELAY)
-  if not ok then uv_call.fail("keepalive", tostring(err)) end
+  if not ok then uv_call.fail_transport("keepalive", tostring(err)) end
 end
 
 ---@param handle table
@@ -114,7 +114,7 @@ end
 local function address_of(handle, operation)
   local address, err
   if operation == "peer_address" then address, err = handle:getpeername() else address, err = handle:getsockname() end
-  if not address then uv_call.fail(operation, tostring(err)) end
+  if not address then uv_call.fail_transport(operation, tostring(err)) end
   return { ip = address.ip, port = address.port, family = address.family }
 end
 
@@ -166,7 +166,7 @@ function TcpStream:_await(operation, start)
     if not state.done then self:close() end
     error(failure, 0)
   end
-  if state.err then uv_call.fail(operation, state.err) end
+  if state.err then uv_call.fail_transport(operation, state.err) end
 end
 
 --- Reads at most `max` bytes (default: whatever the next receive delivers). Returns nil at
@@ -222,7 +222,7 @@ function TcpStream:read(max)
     self._inbox = nil
     return data
   end
-  if self._failure ~= nil then uv_call.fail("read", self._failure) end
+  if self._failure ~= nil then uv_call.fail_transport("read", self._failure) end
   return nil
 end
 
@@ -248,7 +248,7 @@ function TcpStream:shutdown()
 end
 
 --- Closes the stream. Idempotent, never suspends; tasks waiting on it are woken with an
---- `IoError` (`ECANCELED`). Pending writes are abandoned.
+--- `TransportError` (`ECANCELED`). Pending writes are abandoned.
 function TcpStream:close()
   if self._closed then return end
   self._closed = true
@@ -284,7 +284,7 @@ end
 function TcpStream:set_nodelay(enabled)
   require_open(self, "set_nodelay")
   local ok, err = self._handle:nodelay(enabled)
-  if not ok then uv_call.fail("set_nodelay", tostring(err)) end
+  if not ok then uv_call.fail_transport("set_nodelay", tostring(err)) end
 end
 
 --- Enables or disables keep-alive probes; `delay` is the idle time in seconds before the first.
@@ -293,7 +293,7 @@ end
 function TcpStream:set_keepalive(enabled, delay)
   require_open(self, "set_keepalive")
   local ok, err = self._handle:keepalive(enabled, delay or DEFAULT_KEEPALIVE_DELAY)
-  if not ok then uv_call.fail("set_keepalive", tostring(err)) end
+  if not ok then uv_call.fail_transport("set_keepalive", tostring(err)) end
 end
 
 core.finalise(TcpStream)
@@ -337,13 +337,13 @@ function TcpListener:accept()
   if self._incoming == 0 then
     local failure = self._failure
     self._failure = nil
-    uv_call.fail("accept", failure --[[@as string]])
+    uv_call.fail_transport("accept", failure --[[@as string]])
   end
   local client = uv.new_tcp()
   local accepted, err = self._handle:accept(client)
   if not accepted then
     client:close()
-    uv_call.fail("accept", tostring(err))
+    uv_call.fail_transport("accept", tostring(err))
   end
   self._incoming = self._incoming - 1
   local applied, apply_failure = pcall(apply_options, client, self._options)
@@ -355,7 +355,7 @@ function TcpListener:accept()
 end
 
 --- Stops listening. Idempotent, never suspends; a task waiting in `accept` is woken with an
---- `IoError` (`ECANCELED`). Connections already accepted are unaffected.
+--- `TransportError` (`ECANCELED`). Connections already accepted are unaffected.
 function TcpListener:close()
   if self._closed then return end
   self._closed = true
@@ -384,7 +384,7 @@ core.finalise(TcpListener)
 local M = { TcpStream = TcpStream, TcpListener = TcpListener }
 
 --- Connects to a numeric address. Name resolution is not part of this call (a host name
---- raises `IoError` `EINVAL`). Bound it with `reactor.deadline`; cancellation abandons the
+--- raises `TransportError` `EINVAL`). Bound it with `reactor.deadline`; cancellation abandons the
 --- attempt and closes its handle. Options: see `hecate.reactor.TcpOptions`.
 ---@async
 ---@param host string  numeric IPv4 or IPv6 address
@@ -413,7 +413,7 @@ function M.connect(host, port, options)
   end
   if state.err then
     handle:close()
-    uv_call.fail("connect " .. host .. ":" .. port, state.err)
+    uv_call.fail_transport("connect " .. host .. ":" .. port, state.err)
   end
   local applied, apply_failure = pcall(apply_options, handle, options)
   if not applied then
@@ -437,7 +437,7 @@ function M.listen(host, port, options)
   local bound, bind_err = protected(handle.bind, handle, host, port)
   if not bound then
     handle:close()
-    uv_call.fail("bind " .. host .. ":" .. port, tostring(bind_err))
+    uv_call.fail_transport("bind " .. host .. ":" .. port, tostring(bind_err))
   end
   local listener = TcpListener(handle, options)
   local listening, listen_err = handle:listen(options.backlog or DEFAULT_BACKLOG, function(e)
@@ -452,7 +452,7 @@ function M.listen(host, port, options)
   end)
   if not listening then
     listener:close()
-    uv_call.fail("listen " .. host .. ":" .. port, tostring(listen_err))
+    uv_call.fail_transport("listen " .. host .. ":" .. port, tostring(listen_err))
   end
   return listener
 end

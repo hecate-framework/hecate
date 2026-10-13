@@ -21,7 +21,9 @@ end
 
 local function errno_of(self, fn)
   local err = self:assert_error(fn)
-  self:assert_true(core.is_instance_of(err, reactor.IoError), tostring(err))
+  self:assert_true(core.is_instance_of(err, reactor.TransportError), tostring(err))
+  self:assert_true(core.is_instance_of(err, core.NetworkError), tostring(err))
+  self:assert_false(core.is_instance_of(err, reactor.IoError), tostring(err))
   return err.context.errno, err
 end
 
@@ -232,7 +234,8 @@ function T:test_a_failed_flush_poisons_the_writer_over_a_tcp_stream()
     local _, first = pcall(function()
       for _ = 1, 50 do writer:write(string.rep("x", 65536)); reactor.sleep(0) end
     end)
-    self:assert_true(core.is_instance_of(first, reactor.IoError))
+    self:assert_true(core.is_instance_of(first, reactor.TransportError))
+    self:assert_true(core.is_instance_of(first, core.NetworkError))
     local second = self:assert_error(function() writer:write("y") end)
     self:assert_true(first == second) -- the same failure, no bytes after a gap
   end)

@@ -22,6 +22,7 @@ local uv_call = require("hecate.reactor.internal.uv_call")
 ---@field Condition hecate.reactor.Condition
 ---@field Permit hecate.reactor.Permit
 ---@field IoError hecate.core.Error
+---@field TransportError hecate.core.NetworkError
 ---@field fs hecate.reactor.fs
 ---@field TcpStream hecate.reactor.TcpStream
 ---@field TcpListener hecate.reactor.TcpListener
@@ -39,6 +40,7 @@ local reactor = {
   Condition = require("hecate.reactor.condition"),
   Permit = require("hecate.reactor.permit"),
   IoError = uv_call.IoError,
+  TransportError = uv_call.TransportError,
   fs = require("hecate.reactor.fs"),
   ---@diagnostic disable-next-line: assign-type-mismatch  -- class constructor exported as its class
   TcpStream = tcp.TcpStream,

@@ -58,12 +58,12 @@ Implemented (step 3). TCP over `reactor.tcp_connect` / `tcp_listen` / `resolve`;
 
 | Name | Description |
 |---|---|
-| `net.connect(host, port, options?)` | *suspends*. Resolves `host` (name or numeric address), tries its addresses in order, returns a `TcpStream`; raises the last `IoError` when all fail. Options: `nodelay` (default `true`), `keepalive` (default `false`), `keepalive_delay` (seconds, default 60), `family` (`"inet"`/`"inet6"`). |
+| `net.connect(host, port, options?)` | *suspends*. Resolves `host` (name or numeric address), tries its addresses in order, returns a `TcpStream`; raises the last `reactor.TransportError` when all fail. Options: `nodelay` (default `true`), `keepalive` (default `false`), `keepalive_delay` (seconds, default 60), `family` (`"inet"`/`"inet6"`). |
 | `net.listen(host, port, options?)` | *suspends* (resolution only). Binds the first resolved address (port 0 picks a free port); returns a `TcpListener`. Options as above plus `backlog` (default 128). |
 | `net.TcpStream` | Implements `Stream`: `read(max?)` (*suspends*; nil at end of stream; cancelling loses nothing), `write(data)` (*suspends*; back-pressure; a cancelled write closes the stream), `close()` (idempotent; `<close>`-able). Also `shutdown()` (*suspends*; half-close, stays readable), `is_closed()`, `peer_address()`, `local_address()` (`{ ip, port, family }`), `set_nodelay(bool)`, `set_keepalive(bool, delay?)`, `reader(options?)` and `writer(options?)` (a `BufferedReader` / `BufferedWriter` over the stream, which they do not own). |
 | `net.TcpListener` | `accept()` (*suspends*; returns a `TcpStream`; cancelling keeps the listener and queued connections), `close()`, `is_closed()`, `local_address()`; `<close>`-able. |
 
-Failures raise `reactor.IoError` (`context.errno`: libuv name such as `ECONNREFUSED`, `EPIPE`, `EBADF` after close, `ECANCELED` when closed while waiting); mapping to `NetworkError` is OQ-32 (5).
+Failures raise `reactor.TransportError`, a `core.NetworkError` that net lets propagate unchanged (`context.errno`: libuv name such as `ECONNREFUSED`, `EPIPE`, `EBADF` after close, `ECANCELED` when closed while waiting); `IoError` is not raised by net (OQ-32 (5)).
 
 Per-operation deadlines use the reactor, there is no timeout argument:
 

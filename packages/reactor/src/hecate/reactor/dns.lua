@@ -19,7 +19,7 @@ local context = require("hecate.reactor.internal.context")
 local M = {}
 
 --- Resolves `host` to numeric addresses, in the order the system resolver prefers. A numeric
---- address resolves to itself. Raises `IoError` (`context.errno`, for example `EAI_NONAME`)
+--- address resolves to itself. Raises `TransportError` (`context.errno`, for example `EAI_NONAME`)
 --- when the name does not resolve. Bound it with `reactor.deadline`.
 ---@async
 ---@param host string
@@ -57,7 +57,7 @@ function M.resolve(host, options)
     end
   end)
   if not ok then error(failure, 0) end
-  if state.err then uv_call.fail("resolve " .. host, state.err) end
+  if state.err then uv_call.fail_transport("resolve " .. host, state.err) end
   local addresses, seen = {}, {}
   for _, entry in ipairs(state.result or {}) do
     local key = entry.addr
@@ -66,7 +66,7 @@ function M.resolve(host, options)
       addresses[#addresses + 1] = { ip = entry.addr, family = entry.family }
     end
   end
-  if #addresses == 0 then uv_call.fail("resolve " .. host, "EAI_NONAME: no address") end
+  if #addresses == 0 then uv_call.fail_transport("resolve " .. host, "EAI_NONAME: no address") end
   return addresses
 end
 

@@ -25,7 +25,7 @@ function TcpListener:accept()
 end
 
 --- Stops listening. Idempotent, never suspends; a task waiting in `accept` fails with
---- `IoError` (`ECANCELED`). Accepted streams are unaffected.
+--- `TransportError` (`ECANCELED`). Accepted streams are unaffected.
 function TcpListener:close() self._inner:close() end
 
 --- Closes at the end of a `<close>` scope.

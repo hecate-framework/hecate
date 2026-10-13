@@ -32,7 +32,7 @@ end
 
 --- Connects to `host:port`. A host name is resolved first and its addresses are tried in the
 --- resolver's order until one connects (no parallel attempts, OQ-32); when all fail, the
---- last `IoError` is raised. Options: `nodelay` (default true), `keepalive` (default false),
+--- last `TransportError` is raised. Options: `nodelay` (default true), `keepalive` (default false),
 --- `keepalive_delay`, `family` (`"inet"` or `"inet6"`). There is no timeout option: bound the
 --- whole call, resolution included, with `reactor.deadline(seconds, net.connect, host, port)`.
 ---@async
@@ -48,7 +48,7 @@ function M.connect(host, port, options)
     local ok, result = pcall(reactor.tcp_connect, addresses[i].ip, port, transport)
     if ok then return TcpStream(result) end
     -- Only a failed attempt moves on to the next address; cancellation and misuse propagate.
-    if not core.is_instance_of(result, reactor.IoError) then error(result, 0) end
+    if not core.is_instance_of(result, reactor.TransportError) then error(result, 0) end
     last = result
   end
   error(last, 0)

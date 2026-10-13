@@ -19,7 +19,9 @@ end
 
 local function errno_of(self, fn)
   local err = self:assert_error(fn)
-  self:assert_true(core.is_instance_of(err, reactor.IoError), tostring(err))
+  self:assert_true(core.is_instance_of(err, reactor.TransportError), tostring(err))
+  self:assert_true(core.is_instance_of(err, core.NetworkError), tostring(err))
+  self:assert_false(core.is_instance_of(err, reactor.IoError), tostring(err))
   return err.context.errno, err
 end
 

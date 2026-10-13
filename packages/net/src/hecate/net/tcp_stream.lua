@@ -1,5 +1,5 @@
 -- TcpStream: a `Stream` over a reactor TCP connection. It wraps `reactor.TcpStream`, so this
--- package never touches libuv (OQ-28). Failures surface as `reactor.IoError` (OQ-32).
+-- package never touches libuv (OQ-28). Failures surface as `reactor.TransportError` (OQ-32).
 global <const> require
 
 local core = require("hecate.core")
@@ -44,7 +44,7 @@ function TcpStream:shutdown()
   return self._inner:shutdown()
 end
 
---- Closes the stream. Idempotent, never suspends; tasks waiting on it fail with `IoError`
+--- Closes the stream. Idempotent, never suspends; tasks waiting on it fail with `TransportError`
 --- (`ECANCELED`). Unflushed or pending bytes are abandoned.
 function TcpStream:close()
   self._inner:close()

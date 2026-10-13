@@ -21,11 +21,13 @@ function T:test_localhost_resolves_to_loopback_addresses()
   for _, entry in ipairs(v4) do self:assert_equal("inet", entry.family) end
 end
 
-function T:test_an_unknown_name_raises_io_error()
+function T:test_an_unknown_name_raises_a_network_error()
   local err = self:assert_error(function()
     reactor.run(function() reactor.resolve("no-such-host.invalid") end)
   end)
-  self:assert_true(core.is_instance_of(err, reactor.IoError), tostring(err))
+  self:assert_true(core.is_instance_of(err, reactor.TransportError), tostring(err))
+  self:assert_true(core.is_instance_of(err, core.NetworkError), tostring(err))
+  self:assert_false(core.is_instance_of(err, reactor.IoError), tostring(err))
   self:assert_equal("resolve", err.context.operation:match("^resolve"))
 end
 
