@@ -6,17 +6,30 @@ global <const> require
 local core = require("hecate.core")
 local Reactor = require("hecate.reactor.reactor")
 local primitives = require("hecate.reactor.primitives")
+local sync = require("hecate.reactor.sync")
 
 ---@class hecate.reactor
 ---@field Reactor hecate.reactor.Reactor
 ---@field Future hecate.reactor.Future
 ---@field Scope hecate.reactor.Scope
 ---@field Instant hecate.reactor.Instant
+---@field Channel hecate.reactor.Channel
+---@field Semaphore hecate.reactor.Semaphore
+---@field Mutex hecate.reactor.Mutex
+---@field Monitor hecate.reactor.Monitor
+---@field Condition hecate.reactor.Condition
+---@field Permit hecate.reactor.Permit
 local reactor = {
   Reactor = Reactor,
   Future = require("hecate.reactor.future"),
   Scope = require("hecate.reactor.scope"),
   Instant = require("hecate.reactor.instant"),
+  Channel = sync.Channel,
+  Semaphore = sync.Semaphore,
+  Mutex = sync.Mutex,
+  Monitor = sync.Monitor,
+  Condition = sync.Condition,
+  Permit = sync.Permit,
   fork = primitives.fork,
   join = primitives.join,
   select = primitives.select,
