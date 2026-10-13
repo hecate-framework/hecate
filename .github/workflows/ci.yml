@@ -108,6 +108,20 @@ jobs:
           esac
           echo "$RUNNER_TEMP/luals/bin" >> "$GITHUB_PATH"
 
+      - name: Cache rocks
+        id: rocks
+        uses: actions/cache@v4
+        with:
+          path: .hecate/rocks
+          key: rocks-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('tools/bootstrap/**', '.github/workflows/ci.yml') }}
+
+      # Native rocks (luv) for the reactor tests; `tools/harness/run_file.lua` puts
+      # `.hecate/rocks` on package.path and package.cpath, so no further environment is needed.
+      - name: Install luv
+        if: steps.rocks.outputs.cache-hit != 'true'
+        shell: bash
+        run: luarocks --tree .hecate/rocks install luv
+
       - name: Check
         shell: bash
         env:

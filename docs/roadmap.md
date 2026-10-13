@@ -54,9 +54,14 @@ Exit: CI is green on all three platforms with a trivial test in every package sk
 
 - [x] `core`: object model (classes, traits, interfaces, conformance), error hierarchy,
       enumerations, compatibility shims ([object-model.md](architecture/object-model.md)).
-- [ ] `reactor`: reactor over luv, scheduler, futures, `fork`/`join`/`select`,
+- [x] `reactor`: reactor over luv, scheduler, futures, `fork`/`join`/`select`,
       deadlines, scopes and cancellation, channels, semaphores, mutexes, monitors,
-      timers, thread-pool offloading, signals ([concurrency.md](architecture/concurrency.md)).
+      timers, signals ([concurrency.md](architecture/concurrency.md)).
+- [ ] Website skeleton in `website/en` with the Hecate visual identity (`brand/` of the
+      organisation `.github` repository): layout, navigation, theme, first reference pages
+      (`core`, `reactor`). Owner priority: docs ship before the first usable framework
+      version. Needs the OQ-11 generator decision; reference docs owed by `core` and
+      `reactor` land here.
 - [ ] `net`: TCP/UDP streams, DNS, buffered readers/writers, TLS (after OQ-4).
 - [ ] `json`: codec (after OQ-5).
 - [ ] `log`: structured logging, RFC 5424 severities, per-scope context.
@@ -85,6 +90,10 @@ Exit: `examples/hello` runs on three platforms with N workers; invalid input yie
 RFC 9457 problem details; graceful shutdown drains in-flight requests.
 
 ## Phase 2 — additional spike
+
+- [ ] `reactor` follow-up: specify then implement `offload` (Lua functions on the libuv
+      thread pool) and the worker-process primitives (OQ-8), split from the Phase 1
+      item (OQ-27); needed by `kernel` for multi-process workers.
 
 - [ ] Spike OQ-11 (documentation tooling: site generator and code-reference renderer),
       report with rendered samples submitted to the owner before the website skeleton.

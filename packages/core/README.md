@@ -69,7 +69,7 @@ core.finalise(Money)
 | `name`, `superclass`, `traits`, `interfaces`, `class_of`, `origin` | Introspection. |
 | `is_instance_of(value, class)`, `implements(subject, interface_or_trait)` | Type tests. |
 | `is_class`, `is_trait`, `is_interface`, `is_enumeration`, `is_finalised` | Kind predicates. |
-| `Error` and `ConfigurationError`, `ConformanceError`, `ArgumentError`, `CancellationError`, `DeadlineExceededError`, `NetworkError`, `ProtocolError`, `ValidationError`, `DatabaseError` | Error hierarchy: `Error("message")` or `Error { message =, cause =, context =, code = }`; fields `message`, `code`, `cause`, `context`, `traceback`; `root_cause()`; `__tostring` renders the chain. |
+| `Error` and `ConfigurationError`, `ConformanceError`, `ArgumentError`, `CancellationError`, `DeadlineExceededError`, `NonYieldableContextError`, `ClosedChannelError`, `NetworkError`, `ProtocolError`, `ValidationError`, `DatabaseError` | Error hierarchy: `Error("message")` or `Error { message =, cause =, context =, code = }`; fields `message`, `code`, `cause`, `context`, `traceback`; `root_cause()`; `__tostring` renders the chain. |
 | `error_class(name, code, superclass?)` | Declares a finalised error subclass with a stable code. |
 | `set_debug_mode(enabled)`, `is_debug_mode()` | Traceback capture on error creation. |
 | `compat.table_create(narray?, nhash?)`, `compat.lua_version` | Lua-version shims. |
