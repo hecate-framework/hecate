@@ -28,6 +28,7 @@ function T:test_fs_round_trip_and_stat()
   local content = reactor.run(function()
     reactor.fs.write_file(path, "héllo")
     local info = reactor.fs.stat(path)
+    ---@cast info -nil
     self:assert_equal("file", info.type)
     local data = reactor.fs.read_file(path)
     reactor.fs.remove(path)
