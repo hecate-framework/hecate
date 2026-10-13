@@ -3,8 +3,8 @@
 
 - roadmap_item: `reactor`: reactor over luv, scheduler, futures, `fork`/`join`/`select`, deadlines, scopes and cancellation, channels, semaphores, mutexes, monitors, timers, thread-pool offloading, signals
 - status: in-progress
-- lock_until: 2026-10-13T08:30:00Z
-- last_update: 2026-10-13T07:00:00Z
+- lock_until: 2026-10-13T09:00:00Z
+- last_update: 2026-10-13T09:50:00Z
 
 ## Done
 
@@ -15,10 +15,12 @@
 
 - Step 4: `detach`, `fs`, `wait_signal`, `run_process`, `IoError` with tests (`io_test.lua`); OQ-26. Tests, lint, boundaries, glossary, changelog pass locally; LuaLS still not run here. The earlier CI run (step 3) was green on three platforms.
 
+- Step 5 (partial): tests, lint, boundaries, glossary pass locally (luv installed in `spikes/rocks`). `offload` NOT implemented: concurrency.md defers it and the package scope excludes Lua threads; recorded as OQ-27 (needs owner decision). Roadmap item left unticked.
+
 ## Next steps
 
 1. Check CI on this push (typecheck of the new files, Windows signal/process tests) and fix.
-2. Step 5: `offload` design (spec before implementation), worker primitives (OQ-8), benchmarks, website reference, tick roadmap item, delete this file.
+2. Owner resolves OQ-27 (split offload/workers to Phase 2?). Then: website reference for the reactor, tick the roadmap item, delete this file, mark ready.
 3. Confirm CI is green on the three platforms (luv install step and LuaLS were verified only on Linux).
 
 ## Decisions taken (and where they are recorded)
