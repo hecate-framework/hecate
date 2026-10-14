@@ -30,6 +30,8 @@
 
 - Step 7: ci.yml builds the Rust native module (Linux/macOS via build-native, Windows with LUA_LIB_NAME=lua55/LUA_LIB/LUA_INC) when net is affected and asserts the artifact exists. Verified locally on Linux only; macOS/Windows verified by CI. Still missing: cargo cache is keyed on Cargo.lock only, cargo-deny/audit not added.
 
+- Step 8: found that the ci.yml `plan` job had no `lua` (command not found, hidden by `|| true`), so PACKAGES was always empty and CI only ran tools tests: every earlier green run verified no package. Fixed by bootstrapping the toolchain in `plan` and removing `|| true`. Next CI run is the first real one for net/reactor/core; expect possible genuine failures (native build, Windows).
+
 ## Next steps
 
 1. net: TLS (ADR 0021; needs Rust/mlua/rustls build, cargo is available), net-level resolver API. Doc: owner decision on ADR 0022 (native code in doc), website.yml deploy (GitHub Pages) with gen-reference --require, class-method param docs, OQ-34/35 questions, macOS/Windows check of SystemFileSystem.

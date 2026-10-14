@@ -25,16 +25,33 @@ jobs:
         with:
           fetch-depth: 0
 
+      # `affected` is a Lua 5.5 task, so the plan job needs the pinned toolchain too (the
+      # runner has no `lua`); a failure here must fail the job, never yield an empty plan.
+      - name: Cache toolchain
+        id: toolchain
+        uses: actions/cache@v4
+        with:
+          path: .hecate/toolchain
+          key: toolchain-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('tools/bootstrap/**') }}
+
+      - name: Bootstrap
+        if: steps.toolchain.outputs.cache-hit != 'true'
+        run: tools/bootstrap/bootstrap.sh --prefix .hecate/toolchain
+
+      - name: Add toolchain to PATH
+        run: echo "$GITHUB_WORKSPACE/.hecate/toolchain/bin" >> "$GITHUB_PATH"
+
       - name: Affected packages
         id: affected
         run: |
+          set -eo pipefail
           if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
             base="origin/$GITHUB_BASE_REF"
           else
             base="${{ github.event.before }}"
             git cat-file -e "$base^{commit}" 2>/dev/null || base="HEAD~1"
           fi
-          packages=$(lua tools/run.lua affected --base "$base" | tr '\n' ' ' | sed 's/ *$//' || true)
+          packages=$(lua tools/run.lua affected --base "$base" | tr '\n' ' ' | sed 's/ *$//')
           echo "affected: ${packages:-none}"
           echo "packages=$packages" >> "$GITHUB_OUTPUT"
 
