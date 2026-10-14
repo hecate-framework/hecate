@@ -3,8 +3,8 @@
 
 - roadmap_item: `net`: TCP/UDP streams, DNS, buffered readers/writers, TLS (after OQ-4).
 - status: in-progress            <!-- in-progress | waiting-ci | waiting-owner -->
-- lock_until: 2026-10-14T10:25:00Z
-- last_update: 2026-10-14T10:23:00Z
+- lock_until: 2026-10-14T14:15:00Z
+- last_update: 2026-10-14T12:45:00Z
 
 ## Done
 
@@ -35,6 +35,8 @@
 - Step 9 (CI, Windows): fixed the SIGPIPE guard (luv raises on Windows), added .gitattributes (LF; CRLF checkout broke the examples and doc golden tests), made wait_signal close its handle when luv raises, platform-tolerant errno / payload size in two TCP tests. macOS test races fixed. Windows fixes unverified until CI runs; remaining Windows differences (ECANCELED on reset peers, back-pressure size) are guesses.
 
 - CI is green on the three platforms at 5a32d4a with real per-package tests and the native TLS build. Not yet done: /review-package pass, cargo-deny/audit in CI, net-level resolver API, website reference pages, roadmap tick.
+
+- Run 2026-10-14T12:4x: resumed (CI green, lock expired). Step 10: net.resolve added (net/dns.lua, test, README, CHANGELOG). Remaining: /review-package, cargo-deny/audit in CI, roadmap tick.
 
 ## Next steps
 

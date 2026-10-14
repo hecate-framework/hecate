@@ -28,4 +28,12 @@ function T:test_bind_udp_validates_arguments()
   end)
 end
 
+function T:test_resolve_numeric_and_invalid()
+  reactor.run(function()
+    local addresses = net.resolve("127.0.0.1", { family = "inet" })
+    self:assert_equal("127.0.0.1", addresses[1].ip)
+    self:assert_true(core.is_instance_of(self:assert_error(function() net.resolve("") end), core.ArgumentError))
+  end)
+end
+
 return T

@@ -22,7 +22,7 @@
 
 - `TcpListener`, `TcpStream`, `UdpSocket`, Unix domain sockets / Windows named pipes
 - `BufferedReader` (read line, read exact, read until) and `BufferedWriter`
-- DNS resolution through libuv (`reactor.resolve`; a `net` resolver API is pending)
+- DNS resolution through libuv (`reactor.resolve`, exposed as `net.resolve`)
 - TLS client and server (SNI, ALPN, certificate verification, mutual TLS)
 - back-pressure and per-operation deadlines
 
@@ -79,7 +79,7 @@ Unix-domain sockets (named pipes on Windows): `net.listen_pipe(path)` and `net.c
 
 Datagrams: `net.bind_udp(host, port)` returns a `UdpSocket` (`send_to`, `receive_from`).
 
-Not yet available: a `net` resolver API.
+`net.resolve(host, options?)` *suspends*: numeric addresses in resolver order (`options.family`: `"inet"` or `"inet6"`); same errors as `reactor.resolve`.
 Design choices of the buffered layer: OQ-29; of TCP and resolution: OQ-30, OQ-32.
 
 ## TLS

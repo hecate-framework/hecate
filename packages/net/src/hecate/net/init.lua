@@ -6,6 +6,7 @@ local tcp = require("hecate.net.tcp")
 local udp = require("hecate.net.udp")
 local pipe = require("hecate.net.pipe")
 local tls = require("hecate.net.tls")
+local dns = require("hecate.net.dns")
 
 --- Streams over the reactor: the `Stream` interface, TCP streams and listeners, and buffered
 --- readers and writers.
@@ -45,6 +46,7 @@ local net = {
 
 -- Assigned, not in the constructor, so that the LuaLS export lists the documented functions of
 -- tcp.lua (coding-standards.md, "Annotations for the reference").
+net.resolve = dns.resolve
 net.connect = tcp.connect
 net.listen = tcp.listen
 net.bind_udp = udp.bind_udp
