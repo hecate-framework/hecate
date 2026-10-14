@@ -51,11 +51,7 @@ function T:test_a_fresh_export_of_the_fixture_package_equals_the_checked_in_expo
     -- the documented package only (the reference renderer ignores the rest).
     local kept = {}
     for _, entry in ipairs(json.decode(text)) do
-      local own = entry.type == "luals.config"
-      for _, definition in ipairs(entry.defines or {}) do
-        if (definition.file or ""):gsub("\\", "/"):find("^hecate/") then own = true end
-      end
-      if own then kept[#kept + 1] = entry end
+      if entry.type == "luals.config" or (entry.name or ""):find("^hecate%.") then kept[#kept + 1] = entry end
     end
     return json.encode(kept)
   end
