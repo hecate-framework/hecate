@@ -60,7 +60,7 @@ Exit: CI is green on all three platforms with a trivial test in every package sk
 - [ ] Website skeleton in `website/en` with the Hecate visual identity (`brand/` of the
       organisation `.github` repository): layout, navigation, theme, first reference pages
       (`core`, `reactor`). Owner priority: docs ship before the first usable framework
-      version. Needs the OQ-11 generator decision; reference docs owed by `core` and
+      version. OQ-11 is resolved (ADR 0012); reference docs owed by `core` and
       `reactor` land here.
 - [ ] `net`: TCP/UDP streams, DNS, buffered readers/writers, TLS (after OQ-4).
 - [ ] `json`: codec (after OQ-5).
