@@ -6,6 +6,7 @@ local core = require("hecate.core")
 local context = require("hecate.reactor.internal.context")
 local Waitq = require("hecate.reactor.internal.waitq")
 
+--- A condition variable: tasks wait on it inside a monitor until another task signals.
 ---@class hecate.reactor.Condition
 ---@overload fun(monitor: hecate.reactor.Monitor): hecate.reactor.Condition
 local Condition = core.class("Condition")

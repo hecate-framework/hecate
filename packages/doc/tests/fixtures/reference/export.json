@@ -1,0 +1,1050 @@
+[
+    {
+        "DOC": "<DOC>",
+        "defines": [],
+        "fields": [],
+        "name": "LuaLS",
+        "type": "luals.config"
+    },
+    {
+        "defines": [
+            {
+                "async": false,
+                "deprecated": false,
+                "desc": " A small demonstration package: counters and a suspending wait.",
+                "file": "hecate/demo/init.lua",
+                "finish": [
+                    8,
+                    21
+                ],
+                "rawdesc": " A small demonstration package: counters and a suspending wait.",
+                "start": [
+                    8,
+                    10
+                ],
+                "type": "doc.class",
+                "view": "hecate.demo",
+                "visible": "public"
+            },
+            {
+                "async": false,
+                "deprecated": false,
+                "desc": " A small demonstration package: counters and a suspending wait.",
+                "file": "hecate/demo/waiting.lua",
+                "finish": [
+                    6,
+                    21
+                ],
+                "rawdesc": " A small demonstration package: counters and a suspending wait.",
+                "start": [
+                    6,
+                    10
+                ],
+                "type": "doc.class",
+                "view": "hecate.demo",
+                "visible": "public"
+            }
+        ],
+        "desc": " A small demonstration package: counters and a suspending wait.",
+        "fields": [
+            {
+                "async": false,
+                "deprecated": false,
+                "desc": "counts up",
+                "extends": {
+                    "desc": " A counter that counts up by a fixed step.",
+                    "finish": [
+                        9,
+                        37
+                    ],
+                    "rawdesc": " A counter that counts up by a fixed step.",
+                    "start": [
+                        9,
+                        18
+                    ],
+                    "type": "doc.type",
+                    "types": [
+                        {
+                            "desc": " A counter that counts up by a fixed step.",
+                            "finish": [
+                                9,
+                                37
+                            ],
+                            "rawdesc": " A counter that counts up by a fixed step.",
+                            "start": [
+                                9,
+                                18
+                            ],
+                            "type": "doc.type.name",
+                            "view": "hecate.demo.Counter"
+                        }
+                    ],
+                    "view": "hecate.demo.Counter"
+                },
+                "file": "hecate/demo/init.lua",
+                "finish": [
+                    9,
+                    37
+                ],
+                "name": "Counter",
+                "rawdesc": "counts up",
+                "start": [
+                    9,
+                    10
+                ],
+                "type": "doc.field",
+                "view": "hecate.demo.Counter",
+                "visible": "public"
+            },
+            {
+                "async": false,
+                "deprecated": false,
+                "desc": "raised by counters",
+                "extends": {
+                    "desc": " Raised by counters and by `demo.add` on misuse.",
+                    "finish": [
+                        10,
+                        47
+                    ],
+                    "rawdesc": " Raised by counters and by `demo.add` on misuse.",
+                    "start": [
+                        10,
+                        23
+                    ],
+                    "type": "doc.type",
+                    "types": [
+                        {
+                            "desc": " Raised by counters and by `demo.add` on misuse.",
+                            "finish": [
+                                10,
+                                47
+                            ],
+                            "rawdesc": " Raised by counters and by `demo.add` on misuse.",
+                            "start": [
+                                10,
+                                23
+                            ],
+                            "type": "doc.type.name",
+                            "view": "hecate.demo.CounterError"
+                        }
+                    ],
+                    "view": "hecate.demo.CounterError"
+                },
+                "file": "hecate/demo/init.lua",
+                "finish": [
+                    10,
+                    47
+                ],
+                "name": "CounterError",
+                "rawdesc": "raised by counters",
+                "start": [
+                    10,
+                    10
+                ],
+                "type": "doc.field",
+                "view": "hecate.demo.CounterError",
+                "visible": "public"
+            },
+            {
+                "async": false,
+                "deprecated": false,
+                "desc": " Adds two integers.\n\n The sum wraps around like any Lua integer.\n\n Raises `hecate.demo.CounterError` when `a` or `b` is not an integer.\n\n Since 0.2.\n\n@*param* `a` — the first addend\n\n@*param* `b` — the second addend\n\n@*return* `sum` — the sum of the addends\n\nSee: [hecate.demo.wait](file://<DOC>/hecate/demo/init.lua#20#0)",
+                "extends": {
+                    "args": [
+                        {
+                            "desc": "the first addend",
+                            "finish": [
+                                32,
+                                19
+                            ],
+                            "name": "a",
+                            "rawdesc": "the first addend",
+                            "start": [
+                                32,
+                                18
+                            ],
+                            "type": "local",
+                            "view": "integer"
+                        },
+                        {
+                            "desc": "the second addend",
+                            "finish": [
+                                32,
+                                22
+                            ],
+                            "name": "b",
+                            "rawdesc": "the second addend",
+                            "start": [
+                                32,
+                                21
+                            ],
+                            "type": "local",
+                            "view": "integer"
+                        }
+                    ],
+                    "desc": " Adds two integers.\n\n The sum wraps around like any Lua integer.\n\n Raises `hecate.demo.CounterError` when `a` or `b` is not an integer.\n\n Since 0.2.\n\n@*param* `a` — the first addend\n\n@*param* `b` — the second addend\n\n@*return* `sum` — the sum of the addends\n\nSee: [hecate.demo.wait](file://<DOC>/hecate/demo/init.lua#20#0)",
+                    "finish": [
+                        34,
+                        3
+                    ],
+                    "rawdesc": " Adds two integers.\n\n The sum wraps around like any Lua integer.\n\n Raises `hecate.demo.CounterError` when `a` or `b` is not an integer.\n\n Since 0.2.\nSee: [hecate.demo.wait](file://<DOC>/hecate/demo/init.lua#20#0)",
+                    "returns": [
+                        {
+                            "desc": "the sum of the addends",
+                            "name": "sum",
+                            "rawdesc": "the sum of the addends",
+                            "type": "function.return",
+                            "view": "integer"
+                        }
+                    ],
+                    "start": [
+                        32,
+                        0
+                    ],
+                    "type": "function",
+                    "view": "function hecate.demo.add(a: integer, b: integer)\n  -> sum: integer"
+                },
+                "file": "hecate/demo/init.lua",
+                "finish": [
+                    32,
+                    17
+                ],
+                "name": "add",
+                "rawdesc": " Adds two integers.\n\n The sum wraps around like any Lua integer.\n\n Raises `hecate.demo.CounterError` when `a` or `b` is not an integer.\n\n Since 0.2.\nSee: [hecate.demo.wait](file://<DOC>/hecate/demo/init.lua#20#0)",
+                "start": [
+                    32,
+                    9
+                ],
+                "type": "setfield",
+                "view": "function",
+                "visible": "public"
+            },
+            {
+                "async": false,
+                "deprecated": false,
+                "desc": "largest value a counter can reach",
+                "extends": {
+                    "finish": [
+                        11,
+                        23
+                    ],
+                    "start": [
+                        11,
+                        16
+                    ],
+                    "type": "doc.type",
+                    "types": [
+                        {
+                            "finish": [
+                                11,
+                                23
+                            ],
+                            "start": [
+                                11,
+                                16
+                            ],
+                            "type": "doc.type.name",
+                            "view": "integer"
+                        }
+                    ],
+                    "view": "integer"
+                },
+                "file": "hecate/demo/init.lua",
+                "finish": [
+                    11,
+                    23
+                ],
+                "name": "limit",
+                "rawdesc": "largest value a counter can reach",
+                "start": [
+                    11,
+                    10
+                ],
+                "type": "doc.field",
+                "view": "integer",
+                "visible": "public"
+            },
+            {
+                "async": false,
+                "deprecated": false,
+                "desc": " Returns the name of the package.",
+                "extends": {
+                    "args": [],
+                    "desc": " Returns the name of the package.",
+                    "finish": [
+                        40,
+                        3
+                    ],
+                    "rawdesc": " Returns the name of the package.",
+                    "returns": [
+                        {
+                            "name": "name",
+                            "type": "function.return",
+                            "view": "string"
+                        }
+                    ],
+                    "start": [
+                        38,
+                        0
+                    ],
+                    "type": "function",
+                    "view": "function hecate.demo.name()\n  -> name: string"
+                },
+                "file": "hecate/demo/init.lua",
+                "finish": [
+                    38,
+                    18
+                ],
+                "name": "name",
+                "rawdesc": " Returns the name of the package.",
+                "start": [
+                    38,
+                    9
+                ],
+                "type": "setfield",
+                "view": "function",
+                "visible": "public"
+            },
+            {
+                "async": false,
+                "deprecated": false,
+                "extends": {
+                    "args": [
+                        {
+                            "finish": [
+                                43,
+                                32
+                            ],
+                            "name": "value",
+                            "start": [
+                                43,
+                                27
+                            ],
+                            "type": "local",
+                            "view": "any"
+                        }
+                    ],
+                    "finish": [
+                        43,
+                        50
+                    ],
+                    "returns": [
+                        {
+                            "type": "function.return",
+                            "view": "unknown"
+                        }
+                    ],
+                    "start": [
+                        43,
+                        0
+                    ],
+                    "type": "function",
+                    "view": "function hecate.demo.undocumented(value: any)\n  -> unknown"
+                },
+                "file": "hecate/demo/init.lua",
+                "finish": [
+                    43,
+                    26
+                ],
+                "name": "undocumented",
+                "start": [
+                    43,
+                    9
+                ],
+                "type": "setfield",
+                "view": "function",
+                "visible": "public"
+            },
+            {
+                "async": true,
+                "deprecated": false,
+                "extends": {
+                    "finish": [
+                        19,
+                        24
+                    ],
+                    "start": [
+                        19,
+                        12
+                    ],
+                    "type": "getfield",
+                    "view": "unknown"
+                },
+                "file": "hecate/demo/init.lua",
+                "finish": [
+                    19,
+                    9
+                ],
+                "name": "wait",
+                "start": [
+                    19,
+                    0
+                ],
+                "type": "setfield",
+                "view": "function",
+                "visible": "public"
+            },
+            {
+                "async": true,
+                "deprecated": false,
+                "desc": " Suspends the running coroutine for `seconds`, then returns how long it waited.\n\n Raises `hecate.demo.CounterError` if `seconds` is negative, and `hecate.core.CancellationError`\n if the enclosing scope is cancelled.\n\n Implements RFC 2119, section 1, for no good reason.\n\n@*param* `seconds` — how long to wait; `0` yields\n\n@*param* `options` — behaviour switches\n\n@*return* `waited` — the time waited, in seconds",
+                "extends": {
+                    "args": [
+                        {
+                            "desc": "how long to wait; `0` yields",
+                            "finish": [
+                                19,
+                                29
+                            ],
+                            "name": "seconds",
+                            "rawdesc": "how long to wait; `0` yields",
+                            "start": [
+                                19,
+                                22
+                            ],
+                            "type": "local",
+                            "view": "number"
+                        },
+                        {
+                            "desc": "behaviour switches",
+                            "finish": [
+                                19,
+                                38
+                            ],
+                            "name": "options",
+                            "rawdesc": "behaviour switches",
+                            "start": [
+                                19,
+                                31
+                            ],
+                            "type": "local",
+                            "view": "{ quiet: boolean }?"
+                        }
+                    ],
+                    "desc": " Suspends the running coroutine for `seconds`, then returns how long it waited.\n\n Raises `hecate.demo.CounterError` if `seconds` is negative, and `hecate.core.CancellationError`\n if the enclosing scope is cancelled.\n\n Implements RFC 2119, section 1, for no good reason.\n\n@*param* `seconds` — how long to wait; `0` yields\n\n@*param* `options` — behaviour switches\n\n@*return* `waited` — the time waited, in seconds",
+                    "finish": [
+                        21,
+                        3
+                    ],
+                    "rawdesc": " Suspends the running coroutine for `seconds`, then returns how long it waited.\n\n Raises `hecate.demo.CounterError` if `seconds` is negative, and `hecate.core.CancellationError`\n if the enclosing scope is cancelled.\n\n Implements RFC 2119, section 1, for no good reason.",
+                    "returns": [
+                        {
+                            "desc": "the time waited, in seconds",
+                            "name": "waited",
+                            "rawdesc": "the time waited, in seconds",
+                            "type": "function.return",
+                            "view": "number"
+                        }
+                    ],
+                    "start": [
+                        19,
+                        0
+                    ],
+                    "type": "function",
+                    "view": "(async) function hecate.demo.wait(seconds: number, options?: { quiet: boolean })\n  -> waited: number"
+                },
+                "file": "hecate/demo/waiting.lua",
+                "finish": [
+                    19,
+                    21
+                ],
+                "name": "wait",
+                "rawdesc": " Suspends the running coroutine for `seconds`, then returns how long it waited.\n\n Raises `hecate.demo.CounterError` if `seconds` is negative, and `hecate.core.CancellationError`\n if the enclosing scope is cancelled.\n\n Implements RFC 2119, section 1, for no good reason.",
+                "start": [
+                    19,
+                    9
+                ],
+                "type": "setfield",
+                "view": "function",
+                "visible": "public"
+            }
+        ],
+        "name": "hecate.demo",
+        "rawdesc": " A small demonstration package: counters and a suspending wait.",
+        "type": "type",
+        "view": "hecate.demo"
+    },
+    {
+        "defines": [
+            {
+                "async": false,
+                "deprecated": false,
+                "desc": " A counter that counts up by a fixed step.",
+                "file": "hecate/demo/counter.lua",
+                "finish": [
+                    16,
+                    29
+                ],
+                "rawdesc": " A counter that counts up by a fixed step.",
+                "start": [
+                    16,
+                    10
+                ],
+                "type": "doc.class",
+                "view": "hecate.demo.Counter",
+                "visible": "public"
+            }
+        ],
+        "desc": " A counter that counts up by a fixed step.",
+        "fields": [
+            {
+                "async": false,
+                "deprecated": false,
+                "extends": {
+                    "args": [
+                        {
+                            "desc": " A counter that counts up by a fixed step.",
+                            "finish": [
+                                53,
+                                8
+                            ],
+                            "name": "self",
+                            "rawdesc": " A counter that counts up by a fixed step.",
+                            "start": [
+                                53,
+                                8
+                            ],
+                            "type": "self",
+                            "view": "hecate.demo.Counter"
+                        }
+                    ],
+                    "finish": [
+                        53,
+                        30
+                    ],
+                    "start": [
+                        53,
+                        0
+                    ],
+                    "type": "function",
+                    "view": "(method) hecate.demo.Counter:_hidden()"
+                },
+                "file": "hecate/demo/counter.lua",
+                "finish": [
+                    53,
+                    24
+                ],
+                "name": "_hidden",
+                "start": [
+                    53,
+                    9
+                ],
+                "type": "setmethod",
+                "view": "function",
+                "visible": "public"
+            },
+            {
+                "async": false,
+                "deprecated": false,
+                "desc": "private bookkeeping",
+                "extends": {
+                    "finish": [
+                        18,
+                        25
+                    ],
+                    "start": [
+                        18,
+                        18
+                    ],
+                    "type": "doc.type",
+                    "types": [
+                        {
+                            "finish": [
+                                18,
+                                25
+                            ],
+                            "start": [
+                                18,
+                                18
+                            ],
+                            "type": "doc.type.name",
+                            "view": "integer"
+                        }
+                    ],
+                    "view": "integer"
+                },
+                "file": "hecate/demo/counter.lua",
+                "finish": [
+                    18,
+                    25
+                ],
+                "name": "_secret",
+                "rawdesc": "private bookkeeping",
+                "start": [
+                    18,
+                    10
+                ],
+                "type": "doc.field",
+                "view": "integer",
+                "visible": "public"
+            },
+            {
+                "async": false,
+                "deprecated": false,
+                "desc": " Creates a counter.\n\n Raises `hecate.demo.CounterError` if `options.step` is not an integer.\n\n@*param* `options` — step and start value",
+                "extends": {
+                    "args": [
+                        {
+                            "desc": " A counter that counts up by a fixed step.",
+                            "finish": [
+                                27,
+                                8
+                            ],
+                            "name": "self",
+                            "rawdesc": " A counter that counts up by a fixed step.",
+                            "start": [
+                                27,
+                                8
+                            ],
+                            "type": "self",
+                            "view": "hecate.demo.Counter"
+                        },
+                        {
+                            "desc": "step and start value",
+                            "finish": [
+                                27,
+                                29
+                            ],
+                            "name": "options",
+                            "rawdesc": "step and start value",
+                            "start": [
+                                27,
+                                22
+                            ],
+                            "type": "local",
+                            "view": "(hecate.demo.CounterOptions)?"
+                        }
+                    ],
+                    "desc": " Creates a counter.\n\n Raises `hecate.demo.CounterError` if `options.step` is not an integer.\n\n@*param* `options` — step and start value",
+                    "finish": [
+                        30,
+                        3
+                    ],
+                    "rawdesc": " Creates a counter.\n\n Raises `hecate.demo.CounterError` if `options.step` is not an integer.",
+                    "start": [
+                        27,
+                        0
+                    ],
+                    "type": "function",
+                    "view": "(method) hecate.demo.Counter:init(options?: hecate.demo.CounterOptions)"
+                },
+                "file": "hecate/demo/counter.lua",
+                "finish": [
+                    27,
+                    21
+                ],
+                "name": "init",
+                "rawdesc": " Creates a counter.\n\n Raises `hecate.demo.CounterError` if `options.step` is not an integer.",
+                "start": [
+                    27,
+                    9
+                ],
+                "type": "setmethod",
+                "view": "function",
+                "visible": "public"
+            },
+            {
+                "async": false,
+                "deprecated": false,
+                "desc": " Returns the value, or `nil` when the counter was reset.\n\n@*return* `value` — the value, or `nil` after a reset",
+                "extends": {
+                    "args": [
+                        {
+                            "desc": " A counter that counts up by a fixed step.",
+                            "finish": [
+                                41,
+                                8
+                            ],
+                            "name": "self",
+                            "rawdesc": " A counter that counts up by a fixed step.",
+                            "start": [
+                                41,
+                                8
+                            ],
+                            "type": "self",
+                            "view": "hecate.demo.Counter"
+                        }
+                    ],
+                    "desc": " Returns the value, or `nil` when the counter was reset.\n\n@*return* `value` — the value, or `nil` after a reset",
+                    "finish": [
+                        43,
+                        3
+                    ],
+                    "rawdesc": " Returns the value, or `nil` when the counter was reset.",
+                    "returns": [
+                        {
+                            "desc": "the value, or `nil` after a reset",
+                            "name": "value",
+                            "rawdesc": "the value, or `nil` after a reset",
+                            "type": "function.return",
+                            "view": "integer?"
+                        }
+                    ],
+                    "start": [
+                        41,
+                        0
+                    ],
+                    "type": "function",
+                    "view": "(method) hecate.demo.Counter:peek()\n  -> value: integer?"
+                },
+                "file": "hecate/demo/counter.lua",
+                "finish": [
+                    41,
+                    21
+                ],
+                "name": "peek",
+                "rawdesc": " Returns the value, or `nil` when the counter was reset.",
+                "start": [
+                    41,
+                    9
+                ],
+                "type": "setmethod",
+                "view": "function",
+                "visible": "public"
+            },
+            {
+                "async": false,
+                "deprecated": false,
+                "desc": " Advances the counter by its step and returns the new value.\n\n@*return* `value` — the value after the tick",
+                "extends": {
+                    "args": [
+                        {
+                            "desc": " A counter that counts up by a fixed step.",
+                            "finish": [
+                                34,
+                                8
+                            ],
+                            "name": "self",
+                            "rawdesc": " A counter that counts up by a fixed step.",
+                            "start": [
+                                34,
+                                8
+                            ],
+                            "type": "self",
+                            "view": "hecate.demo.Counter"
+                        }
+                    ],
+                    "desc": " Advances the counter by its step and returns the new value.\n\n@*return* `value` — the value after the tick",
+                    "finish": [
+                        37,
+                        3
+                    ],
+                    "rawdesc": " Advances the counter by its step and returns the new value.",
+                    "returns": [
+                        {
+                            "desc": "the value after the tick",
+                            "name": "value",
+                            "rawdesc": "the value after the tick",
+                            "type": "function.return",
+                            "view": "integer"
+                        }
+                    ],
+                    "start": [
+                        34,
+                        0
+                    ],
+                    "type": "function",
+                    "view": "(method) hecate.demo.Counter:tick()\n  -> value: integer"
+                },
+                "file": "hecate/demo/counter.lua",
+                "finish": [
+                    34,
+                    21
+                ],
+                "name": "tick",
+                "rawdesc": " Advances the counter by its step and returns the new value.",
+                "start": [
+                    34,
+                    9
+                ],
+                "type": "setmethod",
+                "view": "function",
+                "visible": "public"
+            },
+            {
+                "async": false,
+                "deprecated": false,
+                "desc": "the current value",
+                "extends": {
+                    "finish": [
+                        17,
+                        23
+                    ],
+                    "start": [
+                        17,
+                        16
+                    ],
+                    "type": "doc.type",
+                    "types": [
+                        {
+                            "finish": [
+                                17,
+                                23
+                            ],
+                            "start": [
+                                17,
+                                16
+                            ],
+                            "type": "doc.type.name",
+                            "view": "integer"
+                        }
+                    ],
+                    "view": "integer"
+                },
+                "file": "hecate/demo/counter.lua",
+                "finish": [
+                    17,
+                    23
+                ],
+                "name": "value",
+                "rawdesc": "the current value",
+                "start": [
+                    17,
+                    10
+                ],
+                "type": "doc.field",
+                "view": "integer",
+                "visible": "public"
+            },
+            {
+                "async": true,
+                "deprecated": false,
+                "desc": " Waits until the counter reaches `target`.\n\n@*param* `target` — the value to reach\n\n@*return* `value` — the value when the wait ends",
+                "extends": {
+                    "args": [
+                        {
+                            "desc": " A counter that counts up by a fixed step.",
+                            "finish": [
+                                49,
+                                8
+                            ],
+                            "name": "self",
+                            "rawdesc": " A counter that counts up by a fixed step.",
+                            "start": [
+                                49,
+                                8
+                            ],
+                            "type": "self",
+                            "view": "hecate.demo.Counter"
+                        },
+                        {
+                            "desc": "the value to reach",
+                            "finish": [
+                                49,
+                                32
+                            ],
+                            "name": "target",
+                            "rawdesc": "the value to reach",
+                            "start": [
+                                49,
+                                26
+                            ],
+                            "type": "local",
+                            "view": "integer"
+                        }
+                    ],
+                    "desc": " Waits until the counter reaches `target`.\n\n@*param* `target` — the value to reach\n\n@*return* `value` — the value when the wait ends",
+                    "finish": [
+                        51,
+                        3
+                    ],
+                    "rawdesc": " Waits until the counter reaches `target`.",
+                    "returns": [
+                        {
+                            "desc": "the value when the wait ends",
+                            "name": "value",
+                            "rawdesc": "the value when the wait ends",
+                            "type": "function.return",
+                            "view": "integer"
+                        }
+                    ],
+                    "start": [
+                        49,
+                        0
+                    ],
+                    "type": "function",
+                    "view": "(async) (method) hecate.demo.Counter:wait_for(target: integer)\n  -> value: integer"
+                },
+                "file": "hecate/demo/counter.lua",
+                "finish": [
+                    49,
+                    25
+                ],
+                "name": "wait_for",
+                "rawdesc": " Waits until the counter reaches `target`.",
+                "start": [
+                    49,
+                    9
+                ],
+                "type": "setmethod",
+                "view": "function",
+                "visible": "public"
+            }
+        ],
+        "name": "hecate.demo.Counter",
+        "rawdesc": " A counter that counts up by a fixed step.",
+        "type": "type",
+        "view": "hecate.demo.Counter"
+    },
+    {
+        "defines": [
+            {
+                "async": false,
+                "deprecated": false,
+                "desc": " Raised by counters and by `demo.add` on misuse.",
+                "extends": [
+                    {
+                        "finish": [
+                            7,
+                            54
+                        ],
+                        "start": [
+                            7,
+                            37
+                        ],
+                        "type": "doc.extends.name",
+                        "view": "hecate.core.Error"
+                    }
+                ],
+                "file": "hecate/demo/counter.lua",
+                "finish": [
+                    7,
+                    54
+                ],
+                "rawdesc": " Raised by counters and by `demo.add` on misuse.",
+                "start": [
+                    7,
+                    10
+                ],
+                "type": "doc.class",
+                "view": "hecate.demo.CounterError",
+                "visible": "public"
+            }
+        ],
+        "desc": " Raised by counters and by `demo.add` on misuse.",
+        "fields": [],
+        "name": "hecate.demo.CounterError",
+        "rawdesc": " Raised by counters and by `demo.add` on misuse.",
+        "type": "type",
+        "view": "hecate.demo.CounterError"
+    },
+    {
+        "defines": [
+            {
+                "async": false,
+                "deprecated": false,
+                "desc": " Options of a counter.",
+                "file": "hecate/demo/counter.lua",
+                "finish": [
+                    11,
+                    36
+                ],
+                "rawdesc": " Options of a counter.",
+                "start": [
+                    11,
+                    10
+                ],
+                "type": "doc.class",
+                "view": "hecate.demo.CounterOptions",
+                "visible": "public"
+            }
+        ],
+        "desc": " Options of a counter.",
+        "fields": [
+            {
+                "async": false,
+                "deprecated": false,
+                "desc": "initial value, default 0",
+                "extends": {
+                    "finish": [
+                        13,
+                        24
+                    ],
+                    "start": [
+                        13,
+                        17
+                    ],
+                    "type": "doc.type",
+                    "types": [
+                        {
+                            "finish": [
+                                13,
+                                24
+                            ],
+                            "start": [
+                                13,
+                                17
+                            ],
+                            "type": "doc.type.name",
+                            "view": "integer"
+                        }
+                    ],
+                    "view": "integer?"
+                },
+                "file": "hecate/demo/counter.lua",
+                "finish": [
+                    13,
+                    24
+                ],
+                "name": "start",
+                "rawdesc": "initial value, default 0",
+                "start": [
+                    13,
+                    10
+                ],
+                "type": "doc.field",
+                "view": "integer?",
+                "visible": "public"
+            },
+            {
+                "async": false,
+                "deprecated": false,
+                "desc": "increment of one tick, default 1",
+                "extends": {
+                    "finish": [
+                        12,
+                        23
+                    ],
+                    "start": [
+                        12,
+                        16
+                    ],
+                    "type": "doc.type",
+                    "types": [
+                        {
+                            "finish": [
+                                12,
+                                23
+                            ],
+                            "start": [
+                                12,
+                                16
+                            ],
+                            "type": "doc.type.name",
+                            "view": "integer"
+                        }
+                    ],
+                    "view": "integer?"
+                },
+                "file": "hecate/demo/counter.lua",
+                "finish": [
+                    12,
+                    23
+                ],
+                "name": "step",
+                "rawdesc": "increment of one tick, default 1",
+                "start": [
+                    12,
+                    10
+                ],
+                "type": "doc.field",
+                "view": "integer?",
+                "visible": "public"
+            }
+        ],
+        "name": "hecate.demo.CounterOptions",
+        "rawdesc": " Options of a counter.",
+        "type": "type",
+        "view": "hecate.demo.CounterOptions"
+    }
+]

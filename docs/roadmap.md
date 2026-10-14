@@ -60,10 +60,20 @@ Exit: CI is green on all three platforms with a trivial test in every package sk
 - [ ] Website skeleton in `website/en` with the Hecate visual identity (`brand/` of the
       organisation `.github` repository): layout, navigation, theme, first reference pages
       (`core`, `reactor`). Owner priority: docs ship before the first usable framework
-      version. Needs the OQ-11 generator decision; reference docs owed by `core` and
+      version. OQ-11 is resolved (ADR 0012); reference docs owed by `core` and
       `reactor` land here.
 - [ ] `net`: TCP/UDP streams, DNS, buffered readers/writers, TLS (after OQ-4).
 - [ ] `json`: codec (after OQ-5).
+- [ ] `doc` (minimal) and the reference generator, **pulled forward from Phase 3** (owner
+      decision of 2026-10-13, ADR 0012, OQ-11; proposed position, to be confirmed by the
+      owner): site build from Markdown and the LuaLS export (`---@class` on every module
+      table, `---@param name type description`), generated reference pages for `core` and
+      `reactor`, the website built by it in CI. Depends on `json` (the export) and on
+      `reactor` (file system, OQ-33), both accepted as dependencies of `doc`; the
+      third-party dependencies of ADR 0022 (Proposed, spike OQ-39) are settled first.
+      Replaces the "website skeleton" item above as the way the site is built; OpenAPI
+      reference, versioned documentation, runnable examples and `hecate doc build` for user
+      projects stay in Phase 3.
 - [ ] `log`: structured logging, RFC 5424 severities, per-scope context.
 - [ ] Benchmarks harness and first scenario (TCP echo); `benchmarks.yml`.
 - [ ] Workflows `native.yml`, `security.yml`, `nightly.yml`; tasks `sanitize`, `fuzz`,
@@ -103,7 +113,8 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
 - [ ] `openapi`: OpenAPI 3.1 assembly, served endpoint, export, contract diff.
 - [ ] `test`: test framework, runner, in-process client, fixtures, contract conformance,
       reporters (TAP, JUnit XML), coverage.
-- [ ] `doc`: project documentation generator (code reference + API reference).
+- [ ] `doc`: project documentation generator for user projects (OpenAPI reference,
+      `hecate doc build`); the minimal generator and the code reference moved to Phase 1.
 - [ ] `cli` v1: self-contained executable, `new`, `install`, `add`, `remove`, `update`,
       `serve [--watch]`, `test`, `doc`, `contract`, `toolchain`, `doctor`, `version`.
 - [ ] Docker images (runtime and build variants, amd64 + arm64).

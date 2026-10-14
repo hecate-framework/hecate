@@ -21,6 +21,7 @@ local function raise_closed(channel)
   error(core.ClosedChannelError({ message = "the channel is closed", context = { channel = channel } }), 0)
 end
 
+--- A channel between coroutines: a rendezvous when its capacity is 0, a FIFO buffer otherwise (Hoare 1978, section 2).
 ---@class hecate.reactor.Channel
 ---@overload fun(capacity?: integer): hecate.reactor.Channel
 local Channel = core.class("Channel")

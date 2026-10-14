@@ -6,8 +6,13 @@ global <const> require
 local core = require("hecate.core")
 local Reactor = require("hecate.reactor.reactor")
 local primitives = require("hecate.reactor.primitives")
+local tcp = require("hecate.reactor.tcp")
+local pipe = require("hecate.reactor.pipe")
+local udp = require("hecate.reactor.udp")
 local uv_call = require("hecate.reactor.internal.uv_call")
 
+--- The reactor over libuv: scheduler, futures, structured concurrency, channels, timers,
+--- signals, processes, file system and transport primitives.
 ---@class hecate.reactor
 ---@field Reactor hecate.reactor.Reactor
 ---@field Future hecate.reactor.Future
@@ -21,7 +26,11 @@ local uv_call = require("hecate.reactor.internal.uv_call")
 ---@field Condition hecate.reactor.Condition
 ---@field Permit hecate.reactor.Permit
 ---@field IoError hecate.core.Error
+---@field TransportError hecate.core.NetworkError
 ---@field fs hecate.reactor.fs
+---@field TcpStream hecate.reactor.TcpStream
+---@field TcpListener hecate.reactor.TcpListener
+---@field UdpSocket hecate.reactor.UdpSocket
 local reactor = {
   Reactor = Reactor,
   Future = require("hecate.reactor.future"),
@@ -35,34 +44,61 @@ local reactor = {
   Condition = require("hecate.reactor.condition"),
   Permit = require("hecate.reactor.permit"),
   IoError = uv_call.IoError,
+  TransportError = uv_call.TransportError,
   fs = require("hecate.reactor.fs"),
-  wait_signal = require("hecate.reactor.signal").wait_signal,
-  run_process = require("hecate.reactor.process").run,
-  detach = primitives.detach,
-  fork = primitives.fork,
-  join = primitives.join,
-  select = primitives.select,
-  sleep = primitives.sleep,
-  scope = primitives.scope,
-  deadline = primitives.deadline,
-  now = primitives.now,
+  ---@diagnostic disable-next-line: assign-type-mismatch  -- class constructor exported as its class
+  TcpStream = tcp.TcpStream,
+  ---@diagnostic disable-next-line: assign-type-mismatch  -- class constructor exported as its class
+  TcpListener = tcp.TcpListener,
+  ---@diagnostic disable-next-line: assign-type-mismatch  -- class constructor exported as its class
+  UdpSocket = udp.UdpSocket,
+  ---@diagnostic disable-next-line: assign-type-mismatch  -- class constructor exported as its class
+  PipeStream = pipe.PipeStream,
+  ---@diagnostic disable-next-line: assign-type-mismatch  -- class constructor exported as its class
+  PipeListener = pipe.PipeListener,
 }
 
+-- The functions are assigned one by one, not in the table constructor: LuaLS leaves
+-- constructor entries out of the documentation export, and an entry hides the documented
+-- definition of the same name (coding-standards.md, "Annotations for the reference").
+reactor.tcp_connect = tcp.tcp_connect
+reactor.tcp_listen = tcp.tcp_listen
+reactor.pipe_connect = pipe.pipe_connect
+reactor.pipe_listen = pipe.pipe_listen
+reactor.udp_bind = udp.udp_bind
+reactor.run_process = require("hecate.reactor.process").run_process
+reactor.resolve = require("hecate.reactor.dns").resolve
+reactor.wait_signal = require("hecate.reactor.signal").wait_signal
+reactor.detach = primitives.detach
+reactor.fork = primitives.fork
+reactor.join = primitives.join
+reactor.select = primitives.select
+reactor.sleep = primitives.sleep
+reactor.scope = primitives.scope
+reactor.deadline = primitives.deadline
+reactor.now = primitives.now
+
 --- Runs `fn(...)` on a new reactor until it and everything it forked have finished.
----@param fn fun(...): ...
----@param ... any
----@return any ...
+--- Returns the results of `fn`.
+---
+--- Raises the error of `fn`, or the first failure of a computation it forked.
+---@param fn fun(...): ...  the main computation
+---@param ... any  the arguments passed to `fn`
+---@return any ...  the results of `fn`
 function reactor.run(fn, ...)
   return Reactor():run(fn, ...)
 end
 
 --- Returns the absolute instant `seconds` on the reactor clock, for `deadline`.
----@param seconds number
----@return hecate.reactor.Instant
+---@param seconds number  a reading of the reactor clock
+---@return hecate.reactor.Instant instant  the instant at that reading
 function reactor.at(seconds)
   return reactor.Instant(seconds)
 end
 
+--- Returns whether `value` is a `hecate.reactor.Future`.
+---@param value any  the value to test
+---@return boolean result  `true` for a future
 reactor.is_future = function(value) return core.is_instance_of(value, reactor.Future) end
 
 return reactor

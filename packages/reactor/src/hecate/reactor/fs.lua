@@ -8,6 +8,7 @@ local uv_call = require("hecate.reactor.internal.uv_call")
 
 local CHUNK = 64 * 1024
 
+--- File-system operations that suspend instead of blocking the reactor.
 ---@class hecate.reactor.fs
 local fs = {}
 

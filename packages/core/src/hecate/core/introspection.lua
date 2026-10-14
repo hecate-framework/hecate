@@ -7,40 +7,45 @@ local raise = require("hecate.core.internal.raise")
 local interface_module = require("hecate.core.interface")
 local trait_module = require("hecate.core.trait")
 
----@class hecate.core.introspection
+-- Documented on `hecate.core` (module class completed here so that the LuaLS export lists the
+-- functions; coding-standards.md, "Annotations for the reference").
+
+---@class hecate.core
 local introspection = {}
 
 --- Returns true when `value` is a class created with `core.class`.
----@param value any
----@return boolean
+---@param value any  the value to test
+---@return boolean result  `true` for a class
 function introspection.is_class(value)
   return type(value) == "table" and registry.classes[value] ~= nil
 end
 
 --- Returns true when `value` is a trait created with `core.trait`.
----@param value any
----@return boolean
+---@param value any  the value to test
+---@return boolean result  `true` for a trait
 function introspection.is_trait(value)
   return type(value) == "table" and registry.traits[value] ~= nil
 end
 
 --- Returns true when `value` is an interface created with `core.interface`.
----@param value any
----@return boolean
+---@param value any  the value to test
+---@return boolean result  `true` for an interface
 function introspection.is_interface(value)
   return type(value) == "table" and registry.interfaces[value] ~= nil
 end
 
 --- Returns true when `value` is an enumeration created with `core.enumeration`.
----@param value any
----@return boolean
+---@param value any  the value to test
+---@return boolean result  `true` for an enumeration
 function introspection.is_enumeration(value)
   return type(value) == "table" and registry.enumerations[value] ~= nil
 end
 
 --- Returns true when the class has been finalised.
----@param class any
----@return boolean
+---
+--- Raises `hecate.core.ArgumentError` if `class` is not a class.
+---@param class any  a class created with `core.class`
+---@return boolean result  `true` once `core.finalise` has run on the class
 function introspection.is_finalised(class)
   local record = registry.classes[class]
   if record == nil then raise.argument("is_finalised expects a class") end
@@ -49,8 +54,8 @@ function introspection.is_finalised(class)
 end
 
 --- Returns the class of an object, or nil when `value` is not an instance of a class.
----@param value any
----@return table?
+---@param value any  the object
+---@return table? class  the class, or `nil` when `value` is not an instance
 function introspection.class_of(value)
   if type(value) ~= "table" then return nil end
   local metatable = getmetatable(value)
@@ -60,8 +65,10 @@ function introspection.class_of(value)
 end
 
 --- Returns the name of a class, trait, interface or enumeration, or of an instance's class.
----@param value any
----@return string
+---
+--- Raises `hecate.core.ArgumentError` for any other value.
+---@param value any  a class, trait, interface, enumeration or instance
+---@return string name  the declared name
 function introspection.name(value)
   if type(value) == "table" then
     local record = registry.classes[value] or registry.traits[value] or registry.interfaces[value]
@@ -75,8 +82,10 @@ function introspection.name(value)
 end
 
 --- Returns the superclass of a class, or nil for a root class.
----@param class any
----@return any?
+---
+--- Raises `hecate.core.ArgumentError` if `class` is not a class.
+---@param class any  a class created with `core.class`
+---@return any? superclass  the superclass, or `nil` for a root class
 function introspection.superclass(class)
   local record = registry.classes[class]
   if record == nil then raise.argument("superclass expects a class") end
@@ -91,8 +100,10 @@ local function copy_list(list)
 end
 
 --- Returns the traits composed directly into a class, in declaration order (a copy).
----@param class any
----@return table[]
+---
+--- Raises `hecate.core.ArgumentError` if `class` is not a class.
+---@param class any  a class created with `core.class`
+---@return table[] traits  the traits, a new list
 function introspection.traits(class)
   local record = registry.classes[class]
   if record == nil then raise.argument("traits expects a class") end
@@ -103,8 +114,10 @@ function introspection.traits(class)
 end
 
 --- Returns the interfaces a class declares directly, in declaration order (a copy).
----@param class any
----@return table[]
+---
+--- Raises `hecate.core.ArgumentError` if `class` is not a class.
+---@param class any  a class created with `core.class`
+---@return table[] interfaces  the interfaces, a new list
 function introspection.interfaces(class)
   local record = registry.classes[class]
   if record == nil then raise.argument("interfaces expects a class") end
@@ -113,9 +126,9 @@ function introspection.interfaces(class)
 end
 
 --- Returns true when `value` is an instance of `class` or of one of its subclasses.
----@param value any
----@param class any
----@return boolean
+---@param value any  the object to test
+---@param class any  a class created with `core.class`
+---@return boolean result  `true` for an instance of `class` or of a subclass
 function introspection.is_instance_of(value, class)
   local current = introspection.class_of(value)
   while current ~= nil do
@@ -128,9 +141,11 @@ end
 --- Returns true when a class (or the class of an instance) conforms to an interface or
 --- composes a trait, directly, through a superclass, or through composed traits and
 --- extended interfaces.
+---
+--- Raises `hecate.core.ArgumentError` if `abstraction` is neither an interface nor a trait.
 ---@param subject any  a class or an instance
 ---@param abstraction any  an interface or a trait
----@return boolean
+---@return boolean result  `true` when `subject` implements or composes `abstraction`
 function introspection.implements(subject, abstraction)
   local is_interface = registry.interfaces[abstraction] ~= nil
   if not is_interface and registry.traits[abstraction] == nil then
@@ -154,9 +169,11 @@ function introspection.implements(subject, abstraction)
 end
 
 --- Returns where a member of a finalised class comes from ("class A", "trait T"), or nil.
----@param class any
----@param member string
----@return string?
+---
+--- Raises `hecate.core.ArgumentError` if `class` is not a class.
+---@param class any  a finalised class
+---@param member string  the member name
+---@return string? origin  the origin, or `nil` when the class has no such member
 function introspection.origin(class, member)
   local record = registry.classes[class]
   if record == nil then raise.argument("origin expects a class") end
