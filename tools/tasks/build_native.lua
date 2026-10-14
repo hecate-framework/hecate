@@ -3,8 +3,8 @@
 -- harness and the bootstrap look for native modules. Needs a Rust toolchain.
 --
 -- Windows: mlua-sys needs the Lua 5.5 import library; set LUA_LIB_NAME (for example lua55),
--- LUA_LIB and LUA_INC before running (TLS spike OQ-4). macOS flags are in
--- packages/net/native/.cargo/config.toml.
+-- LUA_LIB and LUA_INC before running (TLS spike OQ-4). macOS link flags are
+-- set by this task (and mirrored in packages/net/native/.cargo/config.toml).
 local util = require("lib.util")
 
 -- package -> { crate directory, cargo library name, installed module path (without extension) }
@@ -21,11 +21,14 @@ return {
     local crate = ("%s/packages/%s/%s"):format(ctx.root, name, m.dir)
     local _, have_cargo = util.capture("cargo --version")
     if not have_cargo then return { ok = false, problems = { "cargo not found: install a Rust toolchain" } } end
-    local out, ok = util.capture(("cargo build --release --locked --manifest-path %s 2>&1"):format(
-      util.quote(crate .. "/Cargo.toml")))
-    if not ok then return { ok = false, problems = { "cargo build failed:\n" .. out } } end
     local windows, macos = util.is_windows(), false
     if not windows then macos = util.capture("uname -s") == "Darwin" end
+    -- Cargo reads `.cargo/config.toml` from the working directory, not from the manifest's,
+    -- so the macOS link flags are passed through the environment as well.
+    local env = macos and "RUSTFLAGS='-C link-arg=-undefined -C link-arg=dynamic_lookup' " or ""
+    local out, ok = util.capture(("%scargo build --release --locked --manifest-path %s 2>&1"):format(
+      env, util.quote(crate .. "/Cargo.toml")))
+    if not ok then return { ok = false, problems = { "cargo build failed:\n" .. out } } end
     local built = ("%s/target/release/%s%s.%s"):format(crate, windows and "" or "lib", m.lib,
       windows and "dll" or macos and "dylib" or "so")
     local version = _VERSION:match("%d+%.%d+")
