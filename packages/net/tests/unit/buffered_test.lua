@@ -128,6 +128,16 @@ function T:test_read_some_returns_buffered_bytes_first()
   end)
 end
 
+function T:test_read_limits_are_validated()
+  run(function()
+    local reader = net.BufferedReader(fake_stream({ "abc\n" }))
+    for _, bad in ipairs({ 0, -1, 1.5, "x" }) do
+      self:assert_true(core.is_instance_of(self:assert_error(function() reader:read_line(bad) end), core.ArgumentError))
+      self:assert_true(core.is_instance_of(self:assert_error(function() reader:read_some(bad) end), core.ArgumentError))
+    end
+  end)
+end
+
 function T:test_reads_are_serialised_between_coroutines()
   local got = {}
   run(function()
@@ -151,7 +161,9 @@ function T:test_reader_close_is_idempotent_leaves_the_stream_open_and_works_with
     self:assert_false(stream.closed)
     local reader = net.BufferedReader(stream)
     reader:close(); reader:close()
-    self:assert_nil(reader:read_some())
+    -- A closed reader is an error, never a clean end of stream.
+    self:assert_true(core.is_instance_of(self:assert_error(function() reader:read_some() end), core.Error))
+    self:assert_true(core.is_instance_of(self:assert_error(function() reader:read_line() end), core.Error))
   end)
 end
 
@@ -199,8 +211,11 @@ function T:test_failed_flush_poisons_the_writer_so_no_partial_write_leaks()
     writer:write("abc")
     self:assert_equal(boom, self:assert_error(function() writer:flush() end))
     stream.write_failure = nil
-    self:assert_equal(boom, self:assert_error(function() writer:write("def") end))
-    self:assert_equal(boom, self:assert_error(function() writer:flush() end))
+    local later = self:assert_error(function() writer:write("def") end)
+    self:assert_true(core.is_instance_of(later, core.NetworkError))
+    self:assert_true(later ~= boom) -- a fresh error: the original may be a cancellation
+    self:assert_equal(boom, later.cause)
+    self:assert_true(core.is_instance_of(self:assert_error(function() writer:flush() end), core.NetworkError))
     self:assert_equal(0, #stream.sent)
   end)
 end

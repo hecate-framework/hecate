@@ -35,7 +35,7 @@ function UdpSocket:receive_from()
   return self._inner:receive_from()
 end
 
---- Closes the socket. Idempotent, never suspends; a task waiting on it fails with
+--- Closes the socket. Idempotent, never suspends; a coroutine waiting on it fails with
 --- `TransportError` (`ECANCELED`).
 function UdpSocket:close() self._inner:close() end
 

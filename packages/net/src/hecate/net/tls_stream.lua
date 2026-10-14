@@ -51,11 +51,21 @@ local function tls_error(message)
   return TlsError(text)
 end
 
+--- Calls a native session method, converting a failure into `TlsError`.
+---@param session hecate.net.TlsSession
+---@param method string
+---@return any, any
+local function call(session, method, ...)
+  local ok, a, b = pcall(session[method], session, ...)
+  if not ok then error(tls_error(a), 0) end
+  return a, b
+end
+
 --- Sends the ciphertext the session has queued (handshake flights, alerts, records).
 ---@async
 ---@private
 function TlsStream:_flush()
-  local out = self._session:drain()
+  local out = call(self._session, "drain")
   if out ~= "" then self._inner:write(out) end
 end
 
@@ -74,7 +84,13 @@ function TlsStream:_feed(data)
       error(tls_error(consumed), 0)
     end
     if consumed == 0 then
-      -- The session holds plaintext it wants read first.
+      -- The session holds plaintext it wants read first. During the handshake nothing can be
+      -- read, so waiting would spin without suspending.
+      if self._session:is_handshaking() then
+        self._inner:close()
+        self._closed = true
+        error(TlsError("the TLS session made no progress during the handshake"), 0)
+      end
       self._pending = data
       return
     end
@@ -122,7 +138,7 @@ end
 ---@return string?
 function TlsStream:read(max)
   while true do
-    local data, state = self._session:read(max)
+    local data, state = call(self._session, "read", max)
     if data ~= nil then return data end
     if state == "closed" then
       pcall(self._flush, self)
@@ -143,7 +159,7 @@ end
 function TlsStream:write(data)
   while data ~= "" do
     -- The session bounds its send buffer: take what fits, send it, repeat (back-pressure).
-    local accepted = self._session:write(data)
+    local accepted = call(self._session, "write", data)
     data = data:sub(accepted + 1)
     self:_flush()
   end
@@ -153,7 +169,7 @@ end
 --- `BufferedWriter` first (RFC 8446 section 6.1).
 ---@async
 function TlsStream:shutdown()
-  self._session:send_close_notify()
+  call(self._session, "send_close_notify")
   self:_flush()
   local inner = self._inner --[[@as table]]
   if inner.shutdown then inner:shutdown() end
@@ -170,7 +186,7 @@ end
 function TlsStream:__close() self:close() end
 
 ---@return boolean
-function TlsStream:is_closed() return self._closed end
+function TlsStream:is_closed() return self._closed or self._inner:is_closed() end
 
 --- The negotiated application protocol (ALPN, RFC 7301), or nil.
 ---@return string?

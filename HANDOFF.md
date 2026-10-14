@@ -3,8 +3,8 @@
 
 - roadmap_item: `net`: TCP/UDP streams, DNS, buffered readers/writers, TLS (after OQ-4).
 - status: in-progress            <!-- in-progress | waiting-ci | waiting-owner -->
-- lock_until: 2026-10-14T14:15:00Z
-- last_update: 2026-10-14T12:45:00Z
+- lock_until: 2026-10-14T20:15:00Z
+- last_update: 2026-10-14T18:45:00Z
 
 ## Done
 
@@ -38,9 +38,22 @@
 
 - Run 2026-10-14T12:4x: resumed (CI green, lock expired). Step 10: net.resolve added (net/dns.lua, test, README, CHANGELOG). Remaining: /review-package, cargo-deny/audit in CI, roadmap tick.
 
+- Run 2026-10-14T18:4x: resumed (CI green at adadd5d, lock expired), pushed to the session branch `claude/sweet-feynman-ebc1nh`. /review-package net done (7 reviewers, no blockers). Fixed: TlsError wrapping of native calls, TlsStream:is_closed, handshake no-progress, closed BufferedReader raises, limit/max validation, poisoned writer raises fresh NetworkError(cause), HECATE_REQUIRE_NATIVE in CI, stale docs, "task" wording. Roadmap NOT ticked: review backlog below.
+
+## Review backlog (net), by severity
+
+Medium:
+- cargo-deny/audit: no `deny.toml`, no CI job, no dependabot cargo entry (ADR 0021 requires it); Proposed ADR for the transitive crate tree and trust store (OQ-41 (1)).
+- Limits: `TlsStream:read(max)` allocation unbounded in native `lib.rs:113`; `BufferedReader:read_exact` unbounded and O(n^2) concatenation; no default handshake deadline for `tls.connect`/`tls.accept` (document or add).
+- API: `Stream` interface should list `__close`, `shutdown`, `is_closed`, `reader`, `writer` (shared trait instead of 3 copies); `net.connect` hides earlier address failures; `listen("localhost")` binds first address only, `bind_udp` has no `options`/`family`, `send_to` numeric only; improve `connect_tls` ca_pem message; wrap native error text with stable message and context; validate TLS config type; BufferedReader/Writer unknown options.
+- Tests: TLS failure paths lack handle-leak assertions and server-side outcomes; missing expired/self-signed/IP-SAN/non-TLS peer/handshake stall cases; real sleeps for synchronisation (flaky risk on macOS/Windows); racy reset test; no write back-pressure/cancel test; close during pending read/write; fixture expiry (100 years, fine) ; property test for chunking.
+- Cross-platform: macOS link flags via inline RUSTFLAGS (use build.rs), Windows build asserts (`lua55.lib`, `rustup default stable`, pin target), `cp`/`copy` quoting in build_native.lua, cargo cache key without rustc version/rust-toolchain.toml, AF_UNIX path length on macOS (use uv.os_tmpdir, add pid), `localhost` in UDP/reactor tests, keepalive EINVAL/ENOTCONN race at accept.
+- TLS 1.2 enabled: record the decision in OQ-41 or restrict to 1.3.
+Low: DNS host length/result cap, zeroize key temporaries, session ticket/0-RTT explicitness, README gaps (UdpSocket methods, "Layout" heading), EndOfStreamError message detail, glossary entries for `record`/`stream`/`back-pressure`, rockspec cannot ship TLS (OQ-41 (7)).
+
 ## Next steps
 
-1. net: TLS (ADR 0021; needs Rust/mlua/rustls build, cargo is available), net-level resolver API. Doc: owner decision on ADR 0022 (native code in doc), website.yml deploy (GitHub Pages) with gen-reference --require, class-method param docs, OQ-34/35 questions, macOS/Windows check of SystemFileSystem.
+1. net: work through the review backlog (cargo-deny first), then tick the roadmap item and mark the PR ready. Doc: owner decision on ADR 0022 (native code in doc), website.yml deploy (GitHub Pages) with gen-reference --require, class-method param docs, OQ-34/35 questions, macOS/Windows check of SystemFileSystem.
 
 ## Decisions taken (and where they are recorded)
 

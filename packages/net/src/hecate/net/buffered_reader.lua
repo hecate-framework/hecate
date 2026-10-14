@@ -33,6 +33,7 @@ function BufferedReader:init(stream, options)
   self._limit = limit
   self._buffer = ""
   self._eof = false
+  self._closed = false
   self._lock = reactor.Mutex() -- one reader at a time: two consumers would split a record
 end
 
@@ -40,6 +41,7 @@ end
 ---@async
 ---@return boolean
 function BufferedReader:_fill()
+  if self._closed then error(core.Error("the reader is closed"), 0) end
   if self._eof then return false end
   while true do
     local chunk = self._stream:read(CHUNK)
@@ -76,6 +78,9 @@ end
 function BufferedReader:read_until(delimiter, limit)
   if type(delimiter) ~= "string" or delimiter == "" then
     error(core.ArgumentError("read_until expects a non-empty delimiter string"), 2)
+  end
+  if limit ~= nil and (math.type(limit) ~= "integer" or limit < 1) then
+    error(core.ArgumentError(("invalid limit %s: expected a positive integer"):format(tostring(limit))), 2)
   end
   limit = limit or self._limit
   local lock <close> = self._lock:lock()
@@ -138,7 +143,11 @@ end
 ---@param max? integer  at most this many bytes
 ---@return string?
 function BufferedReader:read_some(max)
+  if max ~= nil and (math.type(max) ~= "integer" or max < 1) then
+    error(core.ArgumentError(("invalid max %s: expected a positive integer"):format(tostring(max))), 2)
+  end
   local lock <close> = self._lock:lock()
+  if self._closed then error(core.Error("the reader is closed"), 0) end
   if #self._buffer == 0 and not self:_fill() then return nil end
   local count = max and math.min(max, #self._buffer) or #self._buffer
   local data = self._buffer:sub(1, count)
@@ -149,7 +158,7 @@ end
 --- Discards the buffered bytes. Does not close the stream. Idempotent.
 function BufferedReader:close()
   self._buffer = ""
-  self._eof = true
+  self._closed = true
 end
 
 --- Closing the reader (`local reader <close> = ...`) calls `close`.

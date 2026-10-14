@@ -8,6 +8,10 @@ local T = test.Case("NetTlsTest")
 local available, reason = net.tls.available()
 if not available then
   function T:test_skipped_native_module_not_built()
+    -- CI sets HECATE_REQUIRE_NATIVE so a broken native build cannot pass as a skip.
+    if os.getenv("HECATE_REQUIRE_NATIVE") == "1" then
+      self:fail("the TLS native module is required but not available: " .. tostring(reason))
+    end
     print("# SKIP hecate.net TLS tests: " .. tostring(reason))
   end
   return T
@@ -23,7 +27,7 @@ end
 
 local CA, SERVER_CERT, SERVER_KEY = fixture("ca.pem"), fixture("server.pem"), fixture("server.key")
 
---- Runs `serve(stream)` on one accepted connection, in a forked task.
+--- Runs `serve(stream)` on one accepted connection, in a forked coroutine.
 local function serve_once(listener, config, serve)
   local outcome = {}
   reactor.fork(function()

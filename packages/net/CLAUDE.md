@@ -10,7 +10,7 @@ TCP/UDP streams, DNS resolution, buffered readers/writers and TLS, all suspendin
 ## Read before changing anything
 
 - Specification: `docs/architecture/concurrency.md`
-- Decisions: `docs/adr/0002-libuv-via-luv.md`, `docs/adr/0003-transparent-structured-concurrency.md`
+- Decisions: `docs/adr/0002-libuv-via-luv.md`, `docs/adr/0003-transparent-structured-concurrency.md`, `docs/adr/0021-rust-native-modules.md`
 - Glossary: `docs/glossary.md` · Coding standards: `docs/architecture/coding-standards.md`
 - This package's `README.md` (scope, dependencies, status)
 
@@ -18,7 +18,7 @@ TCP/UDP streams, DNS resolution, buffered readers/writers and TLS, all suspendin
 
 - Allowed dependencies: `hecate.core`, `hecate.reactor`.
   Anything else requires an ADR; `check-boundaries` fails otherwise.
-- Native code: TLS library binding (OQ-4).
+- Native code: Rust crate `native/` (rustls through mlua, ADR 0021).
 - Out of scope: application protocols (HTTP lives in `http`).
 - If your task needs a change in another package, stop and describe the needed change
   instead of making it (unless the task explicitly spans packages).

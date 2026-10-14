@@ -14,7 +14,7 @@
 | Used by | `hecate`, `http`, `mongodb`, `mysql`, `postgresql`, `redis`, `sql`, `sqlserver`, `websocket` |
 | Native code | Rust crate `native/` (rustls through mlua, [ADR 0021](../../docs/adr/0021-rust-native-modules.md)) |
 | Specification | [concurrency.md](../../docs/architecture/concurrency.md) |
-| Decisions | [ADR 0002](../../docs/adr/0002-libuv-via-luv.md), [ADR 0003](../../docs/adr/0003-transparent-structured-concurrency.md) |
+| Decisions | [ADR 0002](../../docs/adr/0002-libuv-via-luv.md), [ADR 0003](../../docs/adr/0003-transparent-structured-concurrency.md), [ADR 0021](../../docs/adr/0021-rust-native-modules.md) |
 | Agent | [`pkg-net`](../../.claude/agents/pkg-net.md) |
 | Repository | read-only mirror `hecate-framework/hecate-net`, generated from this directory (ADR 0017) |
 
