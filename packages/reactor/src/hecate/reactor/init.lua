@@ -7,6 +7,7 @@ local core = require("hecate.core")
 local Reactor = require("hecate.reactor.reactor")
 local primitives = require("hecate.reactor.primitives")
 local tcp = require("hecate.reactor.tcp")
+local udp = require("hecate.reactor.udp")
 local uv_call = require("hecate.reactor.internal.uv_call")
 
 --- The reactor over libuv: scheduler, futures, structured concurrency, channels, timers,
@@ -28,6 +29,7 @@ local uv_call = require("hecate.reactor.internal.uv_call")
 ---@field fs hecate.reactor.fs
 ---@field TcpStream hecate.reactor.TcpStream
 ---@field TcpListener hecate.reactor.TcpListener
+---@field UdpSocket hecate.reactor.UdpSocket
 local reactor = {
   Reactor = Reactor,
   Future = require("hecate.reactor.future"),
@@ -47,6 +49,8 @@ local reactor = {
   TcpStream = tcp.TcpStream,
   ---@diagnostic disable-next-line: assign-type-mismatch  -- class constructor exported as its class
   TcpListener = tcp.TcpListener,
+  ---@diagnostic disable-next-line: assign-type-mismatch  -- class constructor exported as its class
+  UdpSocket = udp.UdpSocket,
 }
 
 -- The functions are assigned one by one, not in the table constructor: LuaLS leaves
@@ -54,6 +58,7 @@ local reactor = {
 -- definition of the same name (coding-standards.md, "Annotations for the reference").
 reactor.tcp_connect = tcp.tcp_connect
 reactor.tcp_listen = tcp.tcp_listen
+reactor.udp_bind = udp.udp_bind
 reactor.run_process = require("hecate.reactor.process").run_process
 reactor.resolve = require("hecate.reactor.dns").resolve
 reactor.wait_signal = require("hecate.reactor.signal").wait_signal

@@ -8,7 +8,7 @@
 | Rock | `hecate-net` |
 | Layer | 1 — Runtime |
 | Roadmap phase | 1 |
-| Status | in progress — `BufferedReader`, `BufferedWriter`, `Stream`, `TcpStream`, `TcpListener`, `connect` and `listen` implemented (names resolved through `reactor.resolve`, OQ-32); UDP, Unix sockets and TLS pending |
+| Status | in progress — `BufferedReader`, `BufferedWriter`, `Stream`, `TcpStream`, `TcpListener`, `connect`, `listen`, `UdpSocket` and `bind_udp` implemented (names resolved through `reactor.resolve`, OQ-32); Unix sockets and TLS pending |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |
 | Depends on | [`core`](../core), [`reactor`](../reactor) |
 | Used by | `hecate`, `http`, `mongodb`, `mysql`, `postgresql`, `redis`, `sql`, `sqlserver`, `websocket` |
@@ -75,7 +75,9 @@ local ok, err = pcall(reactor.deadline, 2, function() return reader:read_line() 
 -- A write cancelled by a deadline closes the stream (bytes sent are unknown, OQ-30).
 ```
 
-Not yet available: `UdpSocket`, a `net` resolver API, Unix sockets, TLS.
+Datagrams: `net.bind_udp(host, port)` returns a `UdpSocket` (`send_to`, `receive_from`).
+
+Not yet available: a `net` resolver API, Unix sockets, TLS.
 Design choices of the buffered layer: OQ-29; of TCP and resolution: OQ-30, OQ-32.
 
 ## Layout (once implemented)
