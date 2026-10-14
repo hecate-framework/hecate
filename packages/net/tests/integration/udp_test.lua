@@ -9,7 +9,8 @@ function T:test_bind_udp_resolves_and_round_trips()
   local before = reactor.Reactor.open_handles()
   local result = reactor.run(function()
     local server <close> = net.bind_udp("localhost", 0)
-    local client <close> = net.bind_udp("127.0.0.1", 0)
+    -- "localhost" may resolve to ::1 or 127.0.0.1: the client must use the server's family.
+    local client <close> = net.bind_udp(server:local_address().ip, 0)
     local port = server:local_address().port
     client:send_to("hello", server:local_address().ip, port)
     local data, from = server:receive_from()
