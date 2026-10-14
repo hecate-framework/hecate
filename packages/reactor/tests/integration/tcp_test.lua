@@ -285,6 +285,8 @@ function T:test_options_have_documented_defaults_and_validate()
     local client <close> = reactor.tcp_connect(LOOPBACK, port, { nodelay = false, keepalive = true, keepalive_delay = 30 })
     client:set_nodelay(true)
     client:set_keepalive(false)
+    -- Wait for the peer to accept and close, so the listener is not closed mid-accept.
+    self:assert_nil(client:read())
   end, { backlog = 16, nodelay = true, keepalive = true })
   local err = self:assert_error(function()
     reactor.run(function() reactor.tcp_connect(LOOPBACK, 1, { nodelays = true }) end)
