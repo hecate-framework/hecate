@@ -78,7 +78,9 @@ end
 function T:test_wait_signal_is_cancellable_and_closes_its_handle()
   local before = reactor.Reactor.open_handles()
   reactor.run(function()
-    local ok = pcall(reactor.deadline, 0.02, reactor.wait_signal, "sigusr2")
+    -- Windows delivers only the console signals.
+    local name = package.config:sub(1, 1) == "\\" and "sigint" or "sigusr2"
+    local ok = pcall(reactor.deadline, 0.02, reactor.wait_signal, name)
     self:assert_false(ok)
   end)
   self:assert_equal(before, reactor.Reactor.open_handles())

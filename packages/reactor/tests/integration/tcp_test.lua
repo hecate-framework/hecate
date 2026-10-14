@@ -254,7 +254,9 @@ function T:test_write_applies_back_pressure_and_cancelled_write_closes_the_strea
       reactor.sleep(0.3) -- never reads: the peer's buffers fill up
     end)
     local client = reactor.tcp_connect(LOOPBACK, port)
-    local big = string.rep("x", 32 * 1024 * 1024)
+    -- Windows loopback buffers far more before a write has to wait.
+    local windows = package.config:sub(1, 1) == "\\"
+    local big = string.rep("x", (windows and 256 or 32) * 1024 * 1024)
     local started = reactor.now()
     local ok, err = pcall(reactor.deadline, 0.05, function() client:write(big) end)
     self:assert_false(ok)
@@ -275,7 +277,9 @@ function T:test_write_to_a_reset_peer_raises_io_error()
     local errno = errno_of(self, function()
       for _ = 1, 50 do client:write(string.rep("x", 65536)); reactor.sleep(0) end
     end)
-    self:assert_true(errno == "EPIPE" or errno == "ECONNRESET", tostring(errno))
+    -- Windows reports the aborted connection as ECONNABORTED or ECANCELED.
+    self:assert_true(errno == "EPIPE" or errno == "ECONNRESET" or errno == "ECONNABORTED"
+      or errno == "ECANCELED", tostring(errno))
   end)
 end
 

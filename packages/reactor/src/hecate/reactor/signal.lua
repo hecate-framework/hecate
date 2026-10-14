@@ -35,7 +35,9 @@ function M.wait_signal(...)
     for i = 1, #names do
       local handle = uv.new_signal()
       handles[#handles + 1] = handle
-      local started, err = handle:start(names[i], function(received) wake(received) end)
+      -- luv raises (instead of returning nil) for a name the platform does not know.
+      local called, started, err = pcall(handle.start, handle, names[i], function(received) wake(received) end)
+      if not called then started, err = nil, started end
       if not started then
         for j = 1, #handles do handles[j]:close() end
         handles = {}

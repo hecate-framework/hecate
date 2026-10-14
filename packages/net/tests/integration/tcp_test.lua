@@ -221,7 +221,9 @@ function T:test_a_reset_peer_raises_io_error_and_never_a_partial_result()
       for _ = 1, 50 do writer:write(string.rep("x", 65536)); reactor.sleep(0) end
       writer:flush()
     end)
-    self:assert_true(errno == "EPIPE" or errno == "ECONNRESET", tostring(errno))
+    -- Windows reports the aborted connection as ECONNABORTED or ECANCELED.
+    self:assert_true(errno == "EPIPE" or errno == "ECONNRESET" or errno == "ECONNABORTED"
+      or errno == "ECANCELED", tostring(errno))
   end)
 end
 
