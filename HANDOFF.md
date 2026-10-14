@@ -3,8 +3,8 @@
 
 - roadmap_item: `net`: TCP/UDP streams, DNS, buffered readers/writers, TLS (after OQ-4).
 - status: in-progress            <!-- in-progress | waiting-ci | waiting-owner -->
-- lock_until: 2026-10-14T14:15:00Z
-- last_update: 2026-10-14T12:45:00Z
+- lock_until: 2026-10-14T21:50:00Z
+- last_update: 2026-10-14T21:45:00Z
 
 ## Done
 
@@ -38,7 +38,11 @@
 
 - Run 2026-10-14T12:4x: resumed (CI green, lock expired). Step 10: net.resolve added (net/dns.lua, test, README, CHANGELOG). Remaining: /review-package, cargo-deny/audit in CI, roadmap tick.
 
+- Run 2026-10-14T21:4x: resumed; CI green on adadd5d (3 platforms). The session imposed branch claude/sweet-feynman-ucrp15 (PR #19 head is claude/sweet-feynman-benzkb); no code change this run, only this note. cargo-deny/audit left undone: needs a new CI action (supply-chain choice, pin by SHA) and a licence policy, which I cannot verify locally.
+
 ## Next steps
+
+0. Owner: decide cargo-deny/audit action + licence allowlist; then run /review-package net, tick the roadmap item, mark PR #19 ready.
 
 1. net: TLS (ADR 0021; needs Rust/mlua/rustls build, cargo is available), net-level resolver API. Doc: owner decision on ADR 0022 (native code in doc), website.yml deploy (GitHub Pages) with gen-reference --require, class-method param docs, OQ-34/35 questions, macOS/Windows check of SystemFileSystem.
 
