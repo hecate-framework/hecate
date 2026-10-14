@@ -122,6 +122,37 @@ jobs:
         shell: bash
         run: luarocks --tree .hecate/rocks install luv
 
+      # Rust native module of `net` (TLS over rustls, ADR 0021). Only built when `net` or a
+      # dependent package is affected; the TLS tests skip silently when it is missing, so the
+      # build is asserted explicitly.
+      - name: Cache native build
+        if: contains(format(' {0} ', needs.plan.outputs.packages), ' net ')
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            packages/net/native/target
+          key: native-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('packages/net/native/Cargo.lock') }}
+
+      - name: Build native modules (Linux, macOS)
+        if: runner.os != 'Windows' && contains(format(' {0} ', needs.plan.outputs.packages), ' net ')
+        run: |
+          rustup toolchain install stable --profile minimal
+          lua tools/run.lua build-native net
+          test -f .hecate/rocks/lib/lua/5.5/hecate/net/tls_native.so
+
+      - name: Build native modules (Windows)
+        if: runner.os == 'Windows' && contains(format(' {0} ', needs.plan.outputs.packages), ' net ')
+        shell: pwsh
+        run: |
+          rustup toolchain install stable --profile minimal
+          $tc = (Join-Path $env:GITHUB_WORKSPACE '.hecate/toolchain') -replace '\\', '/'
+          $env:LUA_LIB_NAME = 'lua55'
+          $env:LUA_LIB = "$tc/lib"
+          $env:LUA_INC = "$tc/include"
+          lua tools/run.lua build-native net
+          if (-not (Test-Path .hecate/rocks/lib/lua/5.5/hecate/net/tls_native.dll)) { throw 'tls_native.dll missing' }
+
       - name: Check
         shell: bash
         env:
