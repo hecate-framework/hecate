@@ -3,8 +3,8 @@
 
 - roadmap_item: `net`: TCP/UDP streams, DNS, buffered readers/writers, TLS (after OQ-4).
 - status: in-progress            <!-- in-progress | waiting-ci | waiting-owner -->
-- lock_until: 2026-10-14T05:20:00Z
-- last_update: 2026-10-14T03:50:00Z
+- lock_until: 2026-10-14T08:11:24Z
+- last_update: 2026-10-14T06:41:24Z
 
 ## Done
 
@@ -22,6 +22,8 @@
 - Side track: owner answered the OQ-11 questions (route a, GFM via dependencies, wasm). Recorded in ADR 0012 / OQ-33..38; spike OQ-39 + proposed ADR 0022 (comrak via mlua, syntect, Pagefind, own OpenAPI, wasm Lua); reference generator from the LuaLS export (OQ-40), `---@class` convention in coding-standards.md; body H1 is the page title.
 - Step 4: UDP (reactor.udp_bind/UdpSocket, net.bind_udp/UdpSocket), loopback tests pass locally (luv installed with `luarocks --tree .hecate/rocks install luv`).
 - Step 5: pipes/Unix sockets (reactor.pipe_connect/pipe_listen, net.connect_pipe/listen_pipe), tests, docs. Windows named-pipe behaviour verified only by CI.
+
+- Run 2026-10-14T06:4x: resumed (CI was green on 3 platforms, lock expired). Starting step 6: TLS native module.
 
 ## Next steps
 
