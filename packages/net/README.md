@@ -8,7 +8,7 @@
 | Rock | `hecate-net` |
 | Layer | 1 — Runtime |
 | Roadmap phase | 1 |
-| Status | in progress — `BufferedReader`, `BufferedWriter`, `Stream`, `TcpStream`, `TcpListener`, `connect`, `listen`, `UdpSocket` and `bind_udp` implemented (names resolved through `reactor.resolve`, OQ-32); Unix sockets and TLS pending |
+| Status | in progress — `BufferedReader`, `BufferedWriter`, `Stream`, `TcpStream`, `TcpListener`, `connect`, `listen`, `UdpSocket`, `bind_udp`, `PipeStream`, `PipeListener`, `connect_pipe` and `listen_pipe` implemented (names resolved through `reactor.resolve`, OQ-32); TLS pending |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |
 | Depends on | [`core`](../core), [`reactor`](../reactor) |
 | Used by | `hecate`, `http`, `mongodb`, `mysql`, `postgresql`, `redis`, `sql`, `sqlserver`, `websocket` |
@@ -74,6 +74,8 @@ local ok, err = pcall(reactor.deadline, 2, function() return reader:read_line() 
 -- On DeadlineExceededError the read was withdrawn: the stream and the reader are intact.
 -- A write cancelled by a deadline closes the stream (bytes sent are unknown, OQ-30).
 ```
+
+Unix-domain sockets (named pipes on Windows): `net.listen_pipe(path)` and `net.connect_pipe(path)` give `PipeListener`/`PipeStream`, with the same stream and buffered API as TCP.
 
 Datagrams: `net.bind_udp(host, port)` returns a `UdpSocket` (`send_to`, `receive_from`).
 

@@ -24,7 +24,7 @@
 - `fork`, `join`, `select`, `deadline`, `sleep`, `scope`, `detach`
 - `Future`, `Channel`, `Semaphore`, `Mutex`, `Monitor`, `Condition`
 - cooperative cancellation (`CancellationError`) and `DeadlineExceededError`
-- timers, signals, child processes, pipes, file-system operations and TCP transport (connect, listen, accept, read, write, shutdown) as suspending calls; UDP and pipes follow
+- timers, signals, child processes, pipes, file-system operations and TCP transport (connect, listen, accept, read, write, shutdown) as suspending calls; UDP and pipes (`pipe_connect`, `pipe_listen`) are implemented
 - virtual clock for tests
 
 ## Non-goals

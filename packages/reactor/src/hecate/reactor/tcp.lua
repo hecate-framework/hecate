@@ -344,18 +344,32 @@ function TcpListener:accept()
     self._failure = nil
     uv_call.fail_transport("accept", failure --[[@as string]])
   end
-  local client = uv.new_tcp()
+  local client = self:_new_handle()
   local accepted, err = self._handle:accept(client)
   if not accepted then
     client:close()
     uv_call.fail_transport("accept", tostring(err))
   end
   self._incoming = self._incoming - 1
-  local applied, apply_failure = pcall(apply_options, client, self._options)
-  if not applied then
+  local wrapped, wrap_failure = pcall(self._wrap, self, client)
+  if not wrapped then
     client:close()
-    error(apply_failure, 0)
+    error(wrap_failure, 0)
   end
+  return wrap_failure
+end
+
+--- Creates the libuv handle of an accepted connection (overridden by pipe listeners).
+---@return table
+---@private
+function TcpListener:_new_handle() return uv.new_tcp() end
+
+--- Wraps an accepted handle in a stream (overridden by pipe listeners).
+---@param client table
+---@return hecate.reactor.TcpStream
+---@private
+function TcpListener:_wrap(client)
+  apply_options(client, self._options)
   return TcpStream(client, self._options)
 end
 
@@ -386,7 +400,7 @@ end
 
 core.finalise(TcpListener)
 
-local M = { TcpStream = TcpStream, TcpListener = TcpListener }
+local M = { TcpStream = TcpStream, TcpListener = TcpListener, fail_closed = fail_closed }
 
 -- Documented on `hecate.reactor` (module class completed here so that the LuaLS export lists the
 -- functions; coding-standards.md, "Annotations for the reference").
