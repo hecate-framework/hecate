@@ -8,11 +8,11 @@
 | Rock | `hecate-net` |
 | Layer | 1 — Runtime |
 | Roadmap phase | 1 |
-| Status | in progress — `BufferedReader`, `BufferedWriter`, `Stream`, `TcpStream`, `TcpListener`, `connect`, `listen`, `UdpSocket`, `bind_udp`, `PipeStream`, `PipeListener`, `connect_pipe` and `listen_pipe` implemented (names resolved through `reactor.resolve`, OQ-32); TLS pending |
+| Status | in progress — `BufferedReader`, `BufferedWriter`, `Stream`, `TcpStream`, `TcpListener`, `connect`, `listen`, `UdpSocket`, `bind_udp`, `PipeStream`, `PipeListener`, `connect_pipe` and `listen_pipe` implemented (names resolved through `reactor.resolve`, OQ-32); TLS implemented over rustls (client and server, SNI, ALPN, mutual TLS; trust store: OQ-41), needs the native module (`lua tools/run.lua build-native`) |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |
 | Depends on | [`core`](../core), [`reactor`](../reactor) |
 | Used by | `hecate`, `http`, `mongodb`, `mysql`, `postgresql`, `redis`, `sql`, `sqlserver`, `websocket` |
-| Native code | TLS library binding (OQ-4) |
+| Native code | Rust crate `native/` (rustls through mlua, [ADR 0021](../../docs/adr/0021-rust-native-modules.md)) |
 | Specification | [concurrency.md](../../docs/architecture/concurrency.md) |
 | Decisions | [ADR 0002](../../docs/adr/0002-libuv-via-luv.md), [ADR 0003](../../docs/adr/0003-transparent-structured-concurrency.md) |
 | Agent | [`pkg-net`](../../.claude/agents/pkg-net.md) |
@@ -79,8 +79,28 @@ Unix-domain sockets (named pipes on Windows): `net.listen_pipe(path)` and `net.c
 
 Datagrams: `net.bind_udp(host, port)` returns a `UdpSocket` (`send_to`, `receive_from`).
 
-Not yet available: a `net` resolver API, Unix sockets, TLS.
+Not yet available: a `net` resolver API.
 Design choices of the buffered layer: OQ-29; of TCP and resolution: OQ-30, OQ-32.
+
+## TLS
+
+Implemented (step 6; ADR 0021, choices in OQ-41). `rustls` runs sans-IO inside a native module
+(`hecate.net.tls_native`); `TlsStream` moves bytes between it and an inner `Stream`, so all
+suspension stays in the reactor. Build the module with a Rust toolchain:
+`lua tools/run.lua build-native` (installs into `.hecate/rocks`; macOS link flags are in
+`native/.cargo/config.toml`; on Windows set `LUA_LIB_NAME`, `LUA_LIB` and `LUA_INC` first).
+Without it, `net.tls.available()` is false and TLS calls raise `TlsError`.
+
+Certificate verification is on and cannot be turned off (RFC 8446 section 4.4.2, RFC 6125).
+There is no built-in trust store yet: pass the trust anchors as `ca_pem`.
+
+| Name | Description |
+|---|---|
+| `net.connect_tls(host, port, options)` | *suspends*. `net.connect` then a TLS handshake. Options: those of `connect` plus `ca_pem` (required unless `tls_config`), `alpn`, `cert_pem` and `key_pem` (mutual TLS), `server_name` (default `host`: SNI and identity), `tls_config`. |
+| `net.tls.client_config(options)`, `net.tls.server_config(options)` | Reusable configurations (`ca_pem`, `alpn`, `cert_pem`, `key_pem`; server: `cert_pem`, `key_pem`, `alpn`, `client_ca_pem` to require client certificates). |
+| `net.tls.connect(stream, server_name, config)`, `net.tls.accept(stream, config)` | *suspend*. Handshake over an existing stream, which the result owns. |
+| `net.TlsStream` | Implements `Stream`; `handshake()`, `shutdown()` (sends `close_notify`, *suspends*), `alpn()`, `server_name()`, `version()`, `peer_certificate()`, `reader()`, `writer()`, `is_closed()`. `read` returns nil after the peer's `close_notify` and raises `TlsError` when the transport ends without it. `close()` cannot send `close_notify`: call `shutdown()` first. |
+| `net.TlsError` | A `NetworkError`: failed handshake or verification, protocol failure, truncation, module not built. |
 
 ## Layout (once implemented)
 
@@ -88,5 +108,5 @@ Design choices of the buffered layer: OQ-29; of TCP and resolution: OQ-30, OQ-32
 src/hecate/net/init.lua   public entry point
 tests/unit/  tests/integration/  tests/fixtures/
 examples/    benchmarks/
-csrc/        native sources
+native/      Rust crate of the TLS module (Cargo.lock committed)
 ```

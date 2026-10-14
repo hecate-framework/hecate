@@ -1,0 +1,20 @@
+[package]
+name = "hecate-net-tls"
+version = "0.0.0"
+edition = "2021"
+license = "MIT"
+publish = false
+description = "TLS sessions for hecate.net: rustls (sans-IO) bound to Lua 5.5 through mlua (ADR 0021)"
+
+[lib]
+name = "hecate_net_tls_native"
+crate-type = ["cdylib"]
+
+[dependencies]
+mlua = { version = "0.12", features = ["lua55", "module"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12", "logging"] }
+
+[profile.release]
+opt-level = 3
+lto = true
+strip = true

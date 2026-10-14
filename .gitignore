@@ -13,6 +13,7 @@ lua_modules/
 *.lib
 *.rock
 build/
+target/
 dist/
 
 # Test and coverage output

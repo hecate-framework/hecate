@@ -25,6 +25,9 @@
 
 - Run 2026-10-14T06:4x: resumed (CI was green on 3 platforms, lock expired). Starting step 6: TLS native module.
 
+- Step 6: TLS (rustls via mlua): packages/net/native crate, net.tls/TlsStream/connect_tls, tests (tests/integration/tls_test.lua, fixtures), `build-native` task, OQ-41. Not committed by the subagent.
+- CI work needed (workflows not edited): install a Rust toolchain, run `lua tools/run.lua build-native` before `test net` on the three platforms (Windows: LUA_LIB_NAME=lua55, LUA_LIB, LUA_INC; macOS flags are in native/.cargo/config.toml), cache `packages/net/native/target`, add cargo-deny/audit; the TLS tests skip silently when the module is missing, so CI should assert that it is built. LuaRocks `rust-mlua` build type unverified (OQ-41 (7)).
+
 ## Next steps
 
 1. net: TLS (ADR 0021; needs Rust/mlua/rustls build, cargo is available), net-level resolver API. Doc: owner decision on ADR 0022 (native code in doc), website.yml deploy (GitHub Pages) with gen-reference --require, class-method param docs, OQ-34/35 questions, macOS/Windows check of SystemFileSystem.
