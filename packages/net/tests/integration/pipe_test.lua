@@ -28,6 +28,8 @@ function T:test_buffered_lines_over_a_pipe()
     local reader = client:reader()
     local first = reader:read_line()
     local second = reader:read_line()
+    -- Wait for the end of stream: macOS reports ENOTCONN when the peer shuts down after we closed.
+    self:assert_nil(reader:read_line())
     return first .. "|" .. second
   end)
   self:assert_equal("hello|world", line)

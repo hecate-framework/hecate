@@ -299,6 +299,8 @@ function T:test_options_reach_the_transport()
     local client <close> = net.connect(LOOPBACK, port, { nodelay = false, keepalive = true, keepalive_delay = 30 })
     client:set_nodelay(true)
     client:set_keepalive(false)
+    -- Wait for the peer to accept and close, so the listener is not closed mid-accept.
+    self:assert_nil(client:read())
   end, { backlog = 16, keepalive = true })
 end
 
