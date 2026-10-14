@@ -362,9 +362,11 @@ function Reactor:run(fn, ...)
     self._uv_timer = uv.new_timer()
     -- A write to a connection the peer has closed must fail with EPIPE, not kill the process:
     -- libuv leaves SIGPIPE at its default action, so a handler is installed for the run. The
-    -- handle is unreferenced (it never keeps the loop alive) and does not exist on Windows.
+    -- handle is unreferenced (it never keeps the loop alive). Windows has no SIGPIPE and luv
+    -- raises "Invalid Signal name" there, so the call is protected.
     local guard = uv.new_signal()
-    if guard:start("sigpipe", function() end) then
+    local started, armed = pcall(guard.start, guard, "sigpipe", function() end)
+    if started and armed then
       guard:unref()
       self._sigpipe_guard = guard
     else
