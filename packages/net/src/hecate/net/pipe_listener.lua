@@ -18,7 +18,10 @@ function PipeListener:init(inner) self._inner = inner end
 --- connections.
 ---@async
 ---@return hecate.net.PipeStream
-function PipeListener:accept() return PipeStream(self._inner:accept()) end
+function PipeListener:accept()
+  ---@diagnostic disable-next-line: param-type-mismatch  -- the reactor listener wraps its clients in PipeStreams
+  return PipeStream(self._inner:accept())
+end
 
 --- Stops listening. Idempotent, never suspends. Accepted streams are unaffected.
 function PipeListener:close() self._inner:close() end

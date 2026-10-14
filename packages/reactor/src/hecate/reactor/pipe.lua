@@ -63,6 +63,7 @@ local PipeListener = core.class("PipeListener", tcp.TcpListener)
 ---@param path string
 ---@private
 function PipeListener:init(handle, options, path)
+  ---@diagnostic disable-next-line: invisible  -- base class initialiser
   tcp.TcpListener.init(self, handle, options)
   self._path = path
 end
