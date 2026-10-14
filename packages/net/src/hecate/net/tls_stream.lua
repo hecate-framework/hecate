@@ -9,8 +9,25 @@ local BufferedReader = require("hecate.net.buffered_reader")
 local BufferedWriter = require("hecate.net.buffered_writer")
 local TlsError = require("hecate.net.errors").TlsError
 
+--- The native sans-IO TLS session (rustls through mlua); see `packages/net/native`.
+---@class hecate.net.TlsSession
+---@field feed fun(self: hecate.net.TlsSession, data: string): integer
+---@field feed_eof fun(self: hecate.net.TlsSession)
+---@field drain fun(self: hecate.net.TlsSession): string?
+---@field read fun(self: hecate.net.TlsSession, max: integer): string?, string?
+---@field write fun(self: hecate.net.TlsSession, data: string): integer
+---@field is_handshaking fun(self: hecate.net.TlsSession): boolean
+---@field wants_read fun(self: hecate.net.TlsSession): boolean
+---@field wants_write fun(self: hecate.net.TlsSession): boolean
+---@field send_close_notify fun(self: hecate.net.TlsSession)
+---@field alpn fun(self: hecate.net.TlsSession): string?
+---@field server_name fun(self: hecate.net.TlsSession): string?
+---@field version fun(self: hecate.net.TlsSession): string?
+---@field peer_certificate fun(self: hecate.net.TlsSession): string?
+
 --- A TLS connection over an inner stream, which it owns.
 ---@class hecate.net.TlsStream: hecate.net.Stream
+---@field private _session hecate.net.TlsSession
 ---@overload fun(inner: hecate.net.Stream, session: userdata): hecate.net.TlsStream
 local TlsStream = core.class("TlsStream", nil, { implements = { Stream } })
 
@@ -21,7 +38,7 @@ local TlsStream = core.class("TlsStream", nil, { implements = { Stream } })
 ---@private
 function TlsStream:init(inner, session)
   self._inner = inner
-  self._session = session
+  self._session = session --[[@as hecate.net.TlsSession]]
   self._pending = nil -- received ciphertext not yet accepted by the session
   self._closed = false
 end
@@ -138,7 +155,8 @@ end
 function TlsStream:shutdown()
   self._session:send_close_notify()
   self:_flush()
-  if self._inner.shutdown then self._inner:shutdown() end
+  local inner = self._inner --[[@as table]]
+  if inner.shutdown then inner:shutdown() end
 end
 
 --- Closes the inner stream. Idempotent, never suspends. It cannot send `close_notify` (that

@@ -117,7 +117,10 @@ end
 
 function T:test_connect_tls_requires_trust_anchors_and_ignores_no_switch()
   reactor.run(function()
-    local err = self:assert_error(function() net.connect_tls("127.0.0.1", 1, {}) end)
+    local err = self:assert_error(function()
+      ---@diagnostic disable-next-line: missing-fields
+      net.connect_tls("127.0.0.1", 1, {})
+    end)
     self:assert_true(require("hecate.core").is_instance_of(err, require("hecate.core").ArgumentError), tostring(err))
     -- There is no option that disables verification: an unknown key is a transport option.
     self:assert_equal("function", type(net.tls.client_config))
