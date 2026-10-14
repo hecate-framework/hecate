@@ -47,7 +47,17 @@ function T:test_a_fresh_export_of_the_fixture_package_equals_the_checked_in_expo
   local function normalise(text)
     text = text:gsub('file://[^)"]*', "file://<DOC>")
     text = text:gsub('"DOC":%s*"[^"]*"', '"DOC": "<DOC>"')
-    return json.encode(json.decode(text))
+    -- On Windows LuaLS also exports the built-in library definitions; the pinned export is
+    -- the documented package only (the reference renderer ignores the rest).
+    local kept = {}
+    for _, entry in ipairs(json.decode(text)) do
+      local own = entry.type == "luals.config"
+      for _, definition in ipairs(entry.defines or {}) do
+        if (definition.file or ""):gsub("\\", "/"):find("^hecate/") then own = true end
+      end
+      if own then kept[#kept + 1] = entry end
+    end
+    return json.encode(kept)
   end
   self:assert_equal(normalise(fs:read(fixtures .. "/export.json")), normalise(fresh))
 end
