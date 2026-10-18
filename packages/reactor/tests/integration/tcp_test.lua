@@ -350,12 +350,14 @@ function T:test_options_have_documented_defaults_and_validate()
     local release = reactor.Channel(1)
     reactor.fork(function() local peer <close> = listener:accept(); release:receive() end)
     local client <close> = reactor.tcp_connect(LOOPBACK, port)
+    ---@diagnostic disable: param-type-mismatch  -- the point is to pass wrong types
     for _, call in ipairs({
       function() client:set_keepalive(true, 0) end,
       function() client:set_keepalive(true, 2.5) end,
       function() client:set_keepalive("yes") end,
       function() client:set_nodelay(1) end,
     }) do
+      ---@diagnostic enable: param-type-mismatch
       self:assert_true(core.is_instance_of(self:assert_error(call), core.ArgumentError))
     end
     client:set_keepalive(true, 5)
@@ -507,7 +509,8 @@ function T:test_a_reset_connection_ends_the_read_with_an_error_or_a_clean_end()
       self:assert_nil(result)
     else
       self:assert_true(core.is_instance_of(result, reactor.TransportError), tostring(result))
-      local errno = result.context.errno
+      ---@cast result table
+      local errno = result.context and result.context.errno
       self:assert_true(errno == "ECONNRESET" or errno == "EPIPE" or errno == "ECONNABORTED", tostring(errno))
     end
   end)
@@ -542,9 +545,9 @@ end
 
 function T:test_a_large_transfer_arrives_intact_through_small_and_unbounded_reads()
   local size = 3 * 1024 * 1024
-  local payload = {}
-  for index = 1, 64 do payload[index] = string.char(index):rep(size // 64) end
-  payload = table.concat(payload)
+  local pieces = {}
+  for index = 1, 64 do pieces[index] = string.char(index):rep(size // 64) end
+  local payload = table.concat(pieces)
   for _, max in ipairs({ 1000, 65536, 0 }) do
     with_listener(self, function(listener, port)
       local writer = reactor.fork(function()

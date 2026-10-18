@@ -139,6 +139,7 @@ function T:test_options_are_validated()
       local err = self:assert_error(function() reactor.pipe_listen(pipe_path(), options) end)
       self:assert_true(core.is_instance_of(err, core.ArgumentError), tostring(err))
     end
+    ---@diagnostic disable-next-line: param-type-mismatch  -- the point is to pass a wrong type
     local err = self:assert_error(function() reactor.pipe_listen(pipe_path(), "x") end)
     self:assert_true(core.is_instance_of(err, core.ArgumentError))
   end)

@@ -53,14 +53,15 @@ reactor.run(function()
   elseif mode == "connect" then
     -- Hands a connected stream over to the parent, then waits until the parent has taken it:
     -- on Windows the sender must keep its handle until the receiver acknowledged.
-    local stream = reactor.tcp_connect("127.0.0.1", tonumber(arg[2]))
+    local stream = reactor.tcp_connect("127.0.0.1", assert(tonumber(arg[2])))
     peer:send("connected", stream)
     peer:receive()
   elseif mode == "delayed" then
     -- Receives only after a delay: the hand-overs queue up in the operating system meanwhile.
     reactor.sleep(0.3)
-    for _ = 1, tonumber(arg[2]) do
+    for _ = 1, assert(tonumber(arg[2])) do
       local message, stream = peer:receive()
+      assert(message and stream, "no message with a stream")
       stream:write(message)
       stream:close()
     end
