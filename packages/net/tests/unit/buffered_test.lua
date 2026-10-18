@@ -153,7 +153,7 @@ function T:test_reader_close_is_idempotent_leaves_the_stream_open_and_works_with
     reader:close(); reader:close()
     self:assert_true(reader:is_closed())
     -- A read after close is an error, not a clean end of stream.
-    self:assert_true(core.is_instance_of(self:assert_error(function() reader:read_some() end), core.Error))
+    self:assert_true(core.is_instance_of(self:assert_error(function() reader:read_some() end), reactor.TransportError))
   end)
 end
 
@@ -253,7 +253,7 @@ function T:test_close_discards_unflushed_bytes_and_keeps_the_stream_open()
     self:assert_false(stream.closed)
     local writer = net.BufferedWriter(stream)
     writer:close(); writer:close()
-    self:assert_error(function() writer:write("x") end)
+    self:assert_true(core.is_instance_of(self:assert_error(function() writer:write("x") end), reactor.TransportError))
   end)
 end
 
@@ -378,4 +378,167 @@ function T:test_read_some_returns_every_byte_once_in_order()
     end
   end)
 end
+-- Owner decision: a closed reader or writer raises what a closed TcpStream raises, a
+-- `reactor.TransportError` with errno EBADF, and `context.operation` names the method.
+function T:test_closed_readers_and_writers_raise_a_transport_error_with_ebadf_and_a_stable_operation()
+  run(function()
+    local reader = net.BufferedReader(fake_stream({ "abc\n" }))
+    reader:close()
+    local writer = net.BufferedWriter(fake_stream({}))
+    writer:close()
+    local cases = {
+      { "read_line", function() reader:read_line() end },
+      { "read_until", function() reader:read_until("\n") end },
+      { "read_exact", function() reader:read_exact(1) end },
+      { "read_some", function() reader:read_some() end },
+      { "write", function() writer:write("x") end },
+      { "flush", function() writer:flush() end },
+    }
+    for _, case in ipairs(cases) do
+      local err = self:assert_error(case[2])
+      self:assert_true(core.is_instance_of(err, reactor.TransportError), case[1] .. ": " .. tostring(err))
+      self:assert_true(core.is_instance_of(err, core.NetworkError), case[1])
+      self:assert_equal("EBADF", err.context.errno, case[1])
+      self:assert_equal(case[1], err.context.operation)
+    end
+  end)
+end
+
+function T:test_reader_and_writer_options_are_checked()
+  run(function()
+    local stream = fake_stream({})
+    local function refused(fn, pattern)
+      local err = self:assert_error(fn)
+      self:assert_true(core.is_instance_of(err, core.ArgumentError), tostring(err))
+      if pattern then self:assert_true(tostring(err):find(pattern, 1, true) ~= nil, tostring(err)) end
+    end
+    refused(function() net.BufferedReader(stream, "x") end, "options table")
+    refused(function() net.BufferedReader(stream, { limits = 5 }) end, "unknown option limits")
+    refused(function() net.BufferedReader(stream, { limit = false }) end, "invalid limit")
+    refused(function() net.BufferedWriter(stream, 8) end, "options table")
+    refused(function() net.BufferedWriter(stream, { capacit = 5 }) end, "unknown option capacit")
+    refused(function() net.BufferedWriter(stream, { capacity = false }) end, "invalid capacity")
+    refused(function() net.BufferedWriter(stream, { capacity = 0 }) end, "invalid capacity")
+    net.BufferedReader(stream, {})
+    net.BufferedWriter(stream, {})
+  end)
+end
+
+-- A delimiter found after many chunks: the search resumes in the new chunk plus the tail, so a
+-- delimiter straddling any number of one-byte chunks, or none, is found where it is.
+function T:test_read_until_finds_delimiters_across_one_byte_chunks_and_after_consumed_bytes()
+  run(function()
+    local payload = "ab--cd----e--"
+    local chunks = {}
+    for k = 1, #payload do chunks[k] = payload:sub(k, k) end
+    local reader = net.BufferedReader(fake_stream(chunks))
+    self:assert_equal("ab", reader:read_until("--"))
+    self:assert_equal("cd", reader:read_until("--"))
+    self:assert_equal("", reader:read_until("--"))
+    self:assert_equal("e", reader:read_until("--"))
+    self:assert_nil(reader:read_until("--"))
+    -- A tail shorter than the delimiter must not reach into bytes that were already consumed.
+    local second = net.BufferedReader(fake_stream({ "xxabc-", "-yy" }))
+    self:assert_equal("xx", second:read_exact(2))
+    self:assert_equal("abc", second:read_until("--"))
+    self:assert_equal("yy", second:read_some())
+  end)
+end
+
+function T:test_a_large_record_in_many_chunks_is_read_whole()
+  run(function()
+    local record = string.rep("0123456789abcdef", 16 * 1024) -- 256 KiB
+    local chunks = {}
+    for pos = 1, #record, 1000 do chunks[#chunks + 1] = record:sub(pos, pos + 999) end
+    chunks[#chunks + 1] = "\r\nnext"
+    local reader = net.BufferedReader(fake_stream(chunks), { limit = #record })
+    self:assert_true(reader:read_line() == record)
+    self:assert_equal(4, reader:buffered())
+  end)
+end
+
+function T:test_a_cancelled_read_until_resumes_from_what_it_received()
+  run(function()
+    local stream = fake_stream({})
+    local script = { "par", "tial-", "-end", "-" }
+    local index = 0
+    function stream:read()
+      index = index + 1
+      if index == 3 then reactor.sleep(10) end -- parked here when the deadline cancels the read
+      return script[index > 3 and index - 1 or index]
+    end
+    local reader = net.BufferedReader(stream)
+    local ok, err = pcall(reactor.deadline, 0.01, reader.read_until, reader, "--")
+    self:assert_false(ok)
+    self:assert_true(core.is_instance_of(err, core.DeadlineExceededError))
+    self:assert_equal(8, reader:buffered()) -- "partial-"
+    -- The delimiter straddles the cancelled chunk boundary and the next one.
+    self:assert_equal("partial", reader:read_until("--"))
+  end)
+end
+
+-- A payload of at least `capacity` bytes, with nothing buffered, is written as it is: the very
+-- string, in one call, no copy through the buffer (bytes and order are the invariant).
+function T:test_a_large_write_goes_straight_to_the_stream_when_nothing_is_buffered()
+  run(function()
+    local stream = fake_stream({})
+    local writer = net.BufferedWriter(stream, { capacity = 8 })
+    local payload = "0123456789"
+    writer:write(payload)
+    self:assert_equal(1, #stream.sent)
+    self:assert_true(rawequal(payload, stream.sent[1]))
+    self:assert_equal(0, writer:buffered())
+    -- With bytes already buffered the order is kept: they go out first, with the payload.
+    writer:write("ab")
+    writer:write(payload)
+    self:assert_equal("0123456789ab0123456789", table.concat(stream.sent))
+    self:assert_equal(0, writer:buffered())
+  end)
+end
+
+function T:test_a_failed_direct_write_poisons_the_writer()
+  run(function()
+    local stream = fake_stream({})
+    stream.write_failure = core.NetworkError("reset")
+    local writer = net.BufferedWriter(stream, { capacity = 4 })
+    local first = self:assert_error(function() writer:write("0123456789") end)
+    self:assert_equal(stream.write_failure, first)
+    stream.write_failure = nil
+    local second = self:assert_error(function() writer:write("x") end)
+    self:assert_true(second.cause == first)
+    self:assert_equal(0, #stream.sent)
+  end)
+end
+
+function T:test_a_cancelled_direct_write_poisons_the_writer_and_keeps_later_writes_ordered()
+  run(function()
+    local stream = fake_stream({})
+    function stream:write(data) reactor.sleep(10) self.sent[#self.sent + 1] = data end
+    local writer = net.BufferedWriter(stream, { capacity = 4 })
+    local ok, err = pcall(reactor.deadline, 0.01, writer.write, writer, "0123456789")
+    self:assert_false(ok)
+    self:assert_true(core.is_instance_of(err, core.DeadlineExceededError))
+    local later = self:assert_error(function() writer:write("x") end)
+    self:assert_true(core.is_instance_of(later, core.NetworkError))
+    self:assert_true(later.cause == err)
+  end)
+end
+
+function T:test_concurrent_direct_and_buffered_writes_keep_byte_order()
+  run(function()
+    local stream = fake_stream({})
+    function stream:write(data)
+      reactor.sleep(0.005)
+      self.sent[#self.sent + 1] = data
+    end
+    local writer = net.BufferedWriter(stream, { capacity = 4 })
+    reactor.scope(function(scope)
+      scope:fork(function() writer:write("0123456789") end) -- direct: holds the lock while it writes
+      scope:fork(function() writer:write("ab") end) -- buffered behind it
+    end)
+    writer:flush()
+    self:assert_equal("0123456789ab", table.concat(stream.sent))
+  end)
+end
+
 return T

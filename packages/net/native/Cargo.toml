@@ -8,7 +8,7 @@ description = "TLS sessions for hecate.net: rustls (sans-IO) bound to Lua 5.5 th
 
 [lib]
 name = "hecate_net_tls_native"
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 mlua = { version = "0.12", features = ["lua55", "module"] }

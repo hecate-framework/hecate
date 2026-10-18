@@ -2,11 +2,14 @@
 -- leaks. `Stream:write` accepts all of its data or raises; when a flush fails, the number
 -- of bytes the peer received is unknown, so the writer is poisoned: every later call raises
 -- the same failure rather than sending bytes after a gap.
-global <const> type, error, require, math, table, tostring, pcall
+global <const> type, error, require, math, table, tostring, pcall, pairs
 
 local core = require("hecate.core")
 local reactor = require("hecate.reactor")
 
+-- Kept at 8 KiB: it is the size at which small writes (a protocol's header lines) are coalesced.
+-- A TLS record carries up to 16 KiB of plaintext, so a 16 KiB capacity would fill a record per
+-- flush over a `TlsStream`; not measured here, pass `{ capacity = 16384 }` to try it.
 local DEFAULT_CAPACITY = 8 * 1024
 
 --- Writes a stream through a buffer; a failed flush poisons the writer so that no partial write goes unnoticed.
@@ -15,14 +18,24 @@ local DEFAULT_CAPACITY = 8 * 1024
 local BufferedWriter = core.class("BufferedWriter")
 
 --- Creates a writer over `stream`; the buffer is flushed when it reaches `capacity` bytes
---- (default 8192). The writer does not own the stream.
+--- (default 8192). A payload of at least `capacity` bytes written while nothing is buffered goes
+--- to the stream directly, without a copy. The writer does not own the stream.
 ---@param stream hecate.net.Stream
 ---@param options? { capacity?: integer }
 function BufferedWriter:init(stream, options)
   if type(stream) ~= "table" or type(stream.write) ~= "function" then
     error(core.ArgumentError("BufferedWriter expects a stream with a write method"), 3)
   end
-  local capacity = options and options.capacity or DEFAULT_CAPACITY
+  if options ~= nil and type(options) ~= "table" then
+    error(core.ArgumentError(("BufferedWriter expects an options table, got %s"):format(type(options))), 3)
+  end
+  for key in pairs(options or {}) do
+    if key ~= "capacity" then
+      error(core.ArgumentError(("BufferedWriter: unknown option %s (options: capacity)"):format(tostring(key))), 3)
+    end
+  end
+  local capacity = options and options.capacity
+  if capacity == nil then capacity = DEFAULT_CAPACITY end
   if math.type(capacity) ~= "integer" or capacity < 1 then
     error(core.ArgumentError(("invalid capacity %s: expected a positive integer"):format(tostring(capacity))), 3)
   end
@@ -34,45 +47,72 @@ function BufferedWriter:init(stream, options)
   self._lock = reactor.Mutex() -- keeps flushes, hence bytes, in order
 end
 
----@return table?
-function BufferedWriter:_check()
+--- Raises the earlier failure (as a fresh error) when the writer is poisoned, and the
+--- `TransportError` (`EBADF`, as a closed `TcpStream` does) when it is closed.
+---@param operation string  the public method, the stable `context.operation` of the closed error
+---@private
+function BufferedWriter:_check(operation)
   if self._failure then
     -- A fresh error: the stored failure may be a cancellation this caller is not subject to.
     error(core.NetworkError({ message = "the writer failed earlier and is poisoned", cause = self._failure }), 0)
   end
-  if self._closed then error(core.Error("the writer is closed"), 0) end
+  if self._closed then
+    error(reactor.TransportError({
+      message = operation .. ": EBADF: the writer is closed",
+      context = { operation = operation, errno = "EBADF" },
+    }), 0)
+  end
 end
 
 --- Returns the number of bytes accepted but not yet flushed.
 ---@return integer
 function BufferedWriter:buffered() return self._size end
 
---- Sends the buffered bytes; returns when the stream has accepted all of them (back-pressure).
+--- Hands `data` to the stream; the caller holds the lock. A failure, a cancellation included,
+--- poisons the writer: how much was sent is unknown (OQ-28).
 ---@async
-function BufferedWriter:flush()
-  self:_check()
-  local lock <close> = self._lock:lock()
-  self:_check()
-  if self._size == 0 then return end
-  local data = table.concat(self._parts)
-  self._parts, self._size = {}, 0
+---@param data string
+---@private
+function BufferedWriter:_send(data)
   local ok, err = pcall(self._stream.write, self._stream, data)
   if not ok then
-    -- Cancelled or failed mid-write: how much was sent is unknown (OQ-28).
     self._failure = err
     error(err, 0)
   end
 end
 
+--- Sends the buffered bytes; returns when the stream has accepted all of them (back-pressure).
+---@async
+function BufferedWriter:flush()
+  self:_check("flush")
+  local lock <close> = self._lock:lock()
+  self:_check("flush")
+  if self._size == 0 then return end
+  local data = table.concat(self._parts)
+  self._parts, self._size = {}, 0
+  self:_send(data)
+end
+
 --- Appends `data`, flushing first when the buffer reaches its capacity. May suspend only
---- when it flushes.
+--- when it flushes. A payload of at least `capacity` bytes, written while nothing is buffered and
+--- no flush is running, goes straight to the stream: the same ordering and failure rules, one copy
+--- less.
 ---@async
 ---@param data string
 function BufferedWriter:write(data)
   if type(data) ~= "string" then
     error(core.ArgumentError(("write expects a string, got %s"):format(type(data))), 2)
   end
-  self:_check()
+  self:_check("write")
+  if self._size == 0 and #data >= self._capacity then
+    local lock = self._lock:try_lock()
+    if lock then
+      local ok, err = pcall(self._send, self, data)
+      lock:release()
+      if not ok then error(err, 0) end
+      return
+    end
+  end
   self._parts[#self._parts + 1] = data
   self._size = self._size + #data
   if self._size >= self._capacity then self:flush() end
