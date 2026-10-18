@@ -1,6 +1,6 @@
 -- Option validation of hecate.net.tls: allow-lists, types and messages. Validation happens in Lua
 -- before the native module is touched, so these tests need no native build.
----@diagnostic disable: param-type-mismatch  -- the tests pass invalid arguments on purpose
+---@diagnostic disable: param-type-mismatch, assign-type-mismatch  -- the tests pass invalid arguments on purpose
 local test = require("harness.test")
 local core = require("hecate.core")
 local net = require("hecate.net")
@@ -100,7 +100,7 @@ function T:test_alpn_is_validated_in_lua()
       contains(self, message, "alpn")
     end
   end
-  argument_error(self, function() net.tls.server_config({ cert_pem = PEM, key_pem = KEY, alpn = "h2" --[[@as string[] ]] }) end)
+  argument_error(self, function() net.tls.server_config({ cert_pem = PEM, key_pem = KEY, alpn = "h2" }) end)
 end
 
 function T:test_pem_options_must_be_strings()
