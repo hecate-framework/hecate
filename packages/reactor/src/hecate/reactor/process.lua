@@ -1,11 +1,36 @@
 -- Child processes as a suspending call over libuv (concurrency.md; reactor README).
-global <const> type, error, require, table, pcall, tostring, pairs, ipairs
+global <const> type, error, require, table, pcall, tostring, pairs, ipairs, package
 
 local core = require("hecate.core")
 local uv = require("luv")
 local uv_call = require("hecate.reactor.internal.uv_call")
 local context = require("hecate.reactor.internal.context")
 local ipc = require("hecate.reactor.ipc")
+local environment_of = require("hecate.reactor.internal.environment")
+
+local IS_WINDOWS = package.config:sub(1, 1) == "\\"
+
+--- The environment of a child as `NAME=value` entries: the inherited one plus `added`, without the
+--- marker of this process's own message pipe (a child must not believe it owns that pipe: only
+--- `ipc = true` sets it, through `added`). Windows names compare without regard to case.
+---@param added table<string, string>
+---@return string[]
+local function environment(added)
+  local marker = ipc.child_marker()
+  return environment_of.merge(uv.os_environ(), added, IS_WINDOWS, marker)
+end
+
+--- A child that is not meant to reach this process's own message pipe would inherit its
+--- descriptor (fd 3, Unix). The returned pipe takes that place in the child's descriptors; the
+--- caller closes it once the child started, which leaves the child an end that reads as closed.
+---@param stdio table  the `stdio` option, completed here
+---@return table? guard  to close after the spawn, nil when not needed
+local function guard_descriptor(stdio)
+  if stdio[4] ~= nil or not ipc.holds_descriptor() then return nil end
+  local guard = uv.new_pipe(false)
+  stdio[4] = guard
+  return guard
+end
 
 -- Documented on `hecate.reactor` (module class completed here so that the LuaLS export lists the
 -- function; coding-standards.md, "Annotations for the reference").
@@ -15,13 +40,15 @@ local M = {}
 
 --- The outcome of a child process: exit status, terminating signal and captured output.
 ---@class hecate.reactor.ProcessResult
----@field code integer  exit status
----@field signal integer  terminating signal, 0 if none
+---@field code integer  exit status; on Windows 1 for a child ended by `kill`
+---@field signal integer  terminating signal, 0 if none (always 0 on Windows: detect a crash by `code` there)
 ---@field stdout string
 ---@field stderr string
 
---- Runs a program to completion, capturing its output. The child is killed if the caller
---- is cancelled. `args` excludes the program name.
+--- Runs a program to completion, capturing its output. The child is terminated (SIGKILL; on
+--- Windows `TerminateProcess`) if the caller is cancelled: cancellation is the way to stop it, not
+--- `Process:kill`. `args` excludes the program name. The child inherits the environment of this
+--- process, without the marker of its own message pipe, and does not inherit that pipe.
 ---
 --- Raises `hecate.core.ArgumentError` if `program` is not a string, and
 --- `hecate.reactor.IoError` if the program cannot be started.
@@ -56,12 +83,15 @@ function M.run_process(program, args)
       end
     end)
   end
-  local spawned, pid = uv["spawn"](program, { args = args or {}, stdio = { nil, out, err } },
+  local stdio = { nil, out, err }
+  local guard = guard_descriptor(stdio)
+  local spawned, pid = uv["spawn"](program, { args = args or {}, env = environment({}), stdio = stdio },
     function(code, signal)
       exit_code, exit_signal = code, signal
       if process and not process:is_closing() then process:close() end
       done()
     end)
+  if guard then guard:close() end
   if not spawned then
     out:close(); err:close()
     uv_call.fail("start " .. program, tostring(pid))
@@ -86,7 +116,7 @@ end
 --- A long-lived child process started by `reactor.spawn`.
 ---@class hecate.reactor.Process
 ---@field pid integer  operating-system process identifier
----@field ipc? hecate.reactor.Peer  the channel to the child, when started with `ipc = true`
+---@field ipc? hecate.reactor.Peer  the message pipe to the child, when started with `ipc = true`
 ---@overload fun(handle: table, pid: integer, peer?: hecate.reactor.Peer): hecate.reactor.Process
 local Process = core.class("Process")
 
@@ -116,6 +146,9 @@ end
 
 --- Suspends until the child exits. Several coroutines may wait. Cancelling a wait leaves the
 --- child running. Returns at once for a child that already exited.
+---
+--- On Windows a child ended by `kill` reports `code` 1 and `signal` 0: there, a crash or a kill is
+--- recognised by `code` alone; `signal` is only meaningful on Unix.
 ---@async
 ---@return { code: integer, signal: integer } status  exit status and terminating signal (0 if none)
 function Process:wait()
@@ -134,16 +167,26 @@ function Process:wait()
   return { code = self._result.code, signal = self._result.signal }
 end
 
---- Sends a signal to the child (default `"sigterm"`; `"sigkill"` cannot be caught). On Windows
---- every signal ends the process, with no chance to clean up. Does nothing for a child that
---- already exited. Does not suspend.
+--- Sends a signal to the child (default `"sigterm"`; `"sigkill"` cannot be caught). Does nothing for
+--- a child that already exited, and treats a child that vanished meanwhile (`ESRCH`) as success.
+--- Does not suspend. This is a signal operation, not the cancellation mechanism: cancelling the
+--- coroutine that waits (`reactor.scope`, `reactor.deadline`) leaves the child running.
 ---
---- Raises `hecate.reactor.IoError` when the signal cannot be delivered.
----@param signal? string|integer  signal name or number
+--- Windows supports only `SIGTERM`, `SIGKILL`, `SIGINT` and `0` (does the process exist?); the
+--- first three end the process at once, with no chance to clean up, and any other signal fails
+--- with `ENOSYS`.
+---
+--- Raises `hecate.reactor.IoError` when the signal is not valid or cannot be delivered.
+---@param signal? string|integer  signal name (`"sigterm"`) or number, default `"sigterm"`
 function Process:kill(signal)
   if self._result ~= nil or self._handle:is_closing() then return end
-  local ok, err = self._handle:kill(signal or "sigterm")
-  if not ok then uv_call.fail("kill", tostring(err)) end
+  -- luv raises a Lua error for an unknown signal name: report it like libuv's EINVAL.
+  local called, ok, err = pcall(self._handle.kill, self._handle, signal or "sigterm")
+  if not called then uv_call.fail("kill", "EINVAL: invalid signal (" .. tostring(ok) .. ")") end
+  if not ok then
+    if tostring(err):match("^ESRCH") then return end
+    uv_call.fail("kill", tostring(err))
+  end
 end
 
 --- Returns whether the child is still running.
@@ -156,7 +199,7 @@ core.finalise(Process)
 ---@class hecate.reactor.SpawnOptions
 ---@field env? table<string, string>  variables added to the inherited environment
 ---@field cwd? string  working directory of the child
----@field ipc? boolean  open a message channel to the child (`Process.ipc`; `hecate.reactor.ipc.parent()` in the child)
+---@field ipc? boolean  open a message pipe to the child (`Process.ipc`; `hecate.reactor.ipc.parent()` in the child)
 ---@field stdout? "inherit"|"ignore"  default "inherit"
 ---@field stderr? "inherit"|"ignore"  default "inherit"
 
@@ -195,24 +238,23 @@ local function check_start_options(options)
   return options
 end
 
---- The environment of the child as `NAME=value` entries: the inherited one plus `added`.
----@param added table<string, string>
----@return string[]
-local function environment(added)
-  local merged = uv.os_environ()
-  for name, value in pairs(added) do merged[name] = value end
-  local list = {}
-  for name, value in pairs(merged) do list[#list + 1] = name .. "=" .. value end
-  table.sort(list)
-  return list
-end
-
 --- Starts a program and returns at once: a long-lived child, unlike `run_process`, which runs one
 --- to completion. The standard output and error are inherited by default. With `ipc = true` the
---- child gets a message channel (`process.ipc`; the child reaches it with
---- `hecate.reactor.ipc.parent()`). The caller owns the child: it must `wait` for it or `kill` it,
---- and close `process.ipc` when done (messages the child sent before exiting stay readable until then).
---- A running child keeps the reactor alive. `args` excludes the program name.
+--- child gets a message pipe (`process.ipc`; the child reaches it with
+--- `hecate.reactor.ipc.parent()`); only that child holds it: a process it starts in turn neither
+--- inherits the pipe nor the environment marker (also when started through `run_process`).
+--- The caller owns the child: it must `wait` for it or `kill` it, and close `process.ipc` when done
+--- (messages the child sent before exiting stay readable until then). A running child keeps the
+--- libuv loop alive, so waiting for it with no other work pending is not a deadlock; `reactor.run`
+--- returns when its main coroutine ends, whether or not a child still runs. `args` excludes the
+--- program name.
+---
+--- The child inherits the environment with `env` added (names are case-insensitive on Windows).
+--- Windows: a program is looked up like libuv does (the working directory first, then `PATH`; a
+--- relative `program` therefore depends on `cwd`), a `.cmd` or `.bat` script is not found without
+--- its extension and cannot be started this way (run `cmd.exe /c script`), and `"inherit"` needs
+--- valid standard output and error in this process (a service without them gets a failure from
+--- the operating system: pass `"ignore"`).
 ---
 --- Raises `hecate.core.ArgumentError` for a malformed argument or option and
 --- `hecate.reactor.IoError` if the program cannot be started.
@@ -230,33 +272,37 @@ function M.spawn(program, args, options) -- glossary-ok: starts an operating-sys
   options = check_start_options(options)
   uv_call.begin("spawn")
   local added = options.env or {}
-  local channel
+  local ipc_pipe
   if options.ipc then
-    channel = uv.new_pipe(true)
+    ipc_pipe = uv.new_pipe(true)
     local name, value = ipc.child_marker()
     added = { [name] = value }
     for key, entry in pairs(options.env or {}) do added[key] = entry end
   end
+  -- luv takes the number of entries from the largest integer key and maps an absent entry to
+  -- "ignore" and an integer to "inherit that descriptor". The table is built key by key: a
+  -- constructor with nil holes would depend on the border of the table.
+  local stdio = {}
+  if options.stdout ~= "ignore" then stdio[2] = 1 end
+  if options.stderr ~= "ignore" then stdio[3] = 2 end
+  stdio[4] = ipc_pipe
+  local guard = guard_descriptor(stdio)
   local state = {}
   local spawned, pid = uv["spawn"](program, {
     args = args or {},
     env = environment(added),
     cwd = options.cwd,
-    stdio = {
-      nil,
-      options.stdout == "ignore" and nil or 1,
-      options.stderr == "ignore" and nil or 2,
-      channel,
-    },
+    stdio = stdio,
   }, function(code, signal)
     ---@diagnostic disable-next-line: invisible  -- same class, reached through the callback state
     if state.process then state.process:_exited(code, signal) end
   end)
+  if guard then guard:close() end
   if not spawned then
-    if channel then channel:close() end
+    if ipc_pipe then ipc_pipe:close() end
     uv_call.fail("start " .. program, tostring(pid))
   end
-  local process = Process(spawned, pid --[[@as integer]], channel and ipc.Peer(channel) or nil)
+  local process = Process(spawned, pid --[[@as integer]], ipc_pipe and ipc.Peer(ipc_pipe) or nil)
   state.process = process
   return process
 end

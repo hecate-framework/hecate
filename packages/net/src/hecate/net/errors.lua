@@ -1,6 +1,6 @@
 -- Error classes of hecate.net. The roots (`NetworkError`, `ProtocolError`) live in `core`
 -- (OQ-19); this package subclasses only for conditions callers handle differently.
-global <const> require, tostring, ipairs
+global <const> require, tostring, ipairs, type, getmetatable
 
 local core = require("hecate.core")
 
@@ -13,12 +13,13 @@ local EndOfStreamError = core.error_class("EndOfStreamError", "hecate.net.EndOfS
 --- a protocol violation, an alert from the peer, a transport that ended without `close_notify`
 --- (a truncation, RFC 8446 section 6.1), or a native TLS module that is not built.
 ---
---- `context.reason` tells the kinds apart without parsing the message: `untrusted_issuer`,
---- `name_mismatch`, `expired`, `not_yet_valid`, `revoked`, `alpn_mismatch`, `truncated`,
---- `transport_ended`, `stalled` or `native_missing`. It is absent when the failure is not one of
---- these (the operating system's verifier on macOS and Windows reports many failures as text only).
+--- `context.reason` (`hecate.net.TlsFailureReason`) tells the kinds apart without parsing the message:
+--- `untrusted_issuer`, `name_mismatch`, `expired`, `not_yet_valid`, `revoked`, `alpn_mismatch`,
+--- `truncated`, `transport_ended`, `stalled` or `native_missing`. It is absent when the failure is
+--- not one of these (the operating system's verifier on macOS and Windows reports many failures
+--- as text only).
 ---@class hecate.net.TlsError : hecate.core.NetworkError
----@field context { reason?: string }
+---@field context { reason?: hecate.net.TlsFailureReason }
 local TlsError = core.error_class("TlsError", "hecate.net.TlsError", core.NetworkError)
 
 -- How rustls words certificate failures (checked against rustls 0.23.46), in the order tried.
@@ -31,12 +32,23 @@ local REASONS = {
   { "NoApplicationProtocol", "alpn_mismatch" },
 }
 
---- Builds a `TlsError` from a message, with `context.reason` given or recognised in the text.
----@param text string
----@param reason? string
+-- The `kind` of a native failure (`{ kind = ..., message = ... }`, derived from the rustls error
+-- variant rather than its text) that is already a `context.reason`; any other kind is ignored.
+local KINDS = {}
+for _, entry in ipairs(REASONS) do KINDS[entry[2]] = true end
+for _, reason in ipairs({ "truncated", "transport_ended", "stalled", "native_missing" }) do KINDS[reason] = true end
+
+--- Builds a `TlsError` from a message, with `context.reason` given, taken from the `kind` of a
+--- native failure table, or recognised in the text (the fallback).
+---@param text string|{ kind?: string, message?: string }
+---@param reason? hecate.net.TlsFailureReason
 ---@return hecate.net.TlsError
 local function tls_failure(text, reason)
-  text = tostring(text)
+  if type(text) == "table" and getmetatable(text) == nil then
+    if reason == nil and KINDS[text.kind] then reason = text.kind end
+    text = text.message
+  end
+  text = tostring(text):gsub("\nstack traceback:.*$", "")
   if reason == nil then
     for _, entry in ipairs(REASONS) do
       if text:find(entry[1], 1, true) then reason = entry[2] break end

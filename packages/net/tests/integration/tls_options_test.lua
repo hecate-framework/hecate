@@ -28,6 +28,7 @@ end
 local CA, SERVER_CERT, SERVER_KEY = fixture("ca.pem"), fixture("server.pem"), fixture("server.key")
 
 local function run(self, fn)
+  net.tls._clear_default_configs() -- the cache is process-wide: start each test cold
   local before = reactor.Reactor.open_handles()
   reactor.run(fn)
   self:assert_equal(before, reactor.Reactor.open_handles())

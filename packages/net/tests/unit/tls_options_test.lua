@@ -133,14 +133,15 @@ function T:test_connect_tls_validates_host_and_port()
 end
 
 function T:test_handshake_deadline_must_be_a_positive_number()
+  local stream = { read = function() end, write = function() end, close = function() end }
   for _, value in ipairs({ 0, -1, "5", true, math.huge, 0 / 0 }) do
     local message = argument_error(self, ENTRY_POINTS.connect_tls({ handshake_deadline = value }))
     contains(self, message, "handshake_deadline")
     -- tls.connect and tls.accept take the same option (a userdata stands in for the configuration).
-    message = argument_error(self, function() net.tls.connect({}, "localhost", io.stdout, { handshake_deadline = value }) end)
+    message = argument_error(self, function() net.tls.connect(stream, "localhost", io.stdout, { handshake_deadline = value }) end)
     contains(self, message, "handshake_deadline")
   end
-  contains(self, argument_error(self, function() net.tls.accept({}, io.stdout, { handshake_deadline = 0 }) end), "handshake_deadline")
+  contains(self, argument_error(self, function() net.tls.accept(stream, io.stdout, { handshake_deadline = 0 }) end), "handshake_deadline")
 end
 
 function T:test_tls_connect_and_accept_reject_unknown_options_and_non_streams()
