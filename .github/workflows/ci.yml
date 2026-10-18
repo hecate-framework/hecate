@@ -149,12 +149,12 @@ jobs:
           path: |
             ~/.cargo/registry
             packages/net/native/target
-          key: native-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('packages/net/native/Cargo.lock') }}
+          key: native-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('packages/net/native/Cargo.lock', 'packages/net/native/rust-toolchain.toml') }}
 
       - name: Build native modules (Linux, macOS)
         if: runner.os != 'Windows' && contains(format(' {0} ', needs.plan.outputs.packages), ' net ')
         run: |
-          rustup toolchain install stable --profile minimal
+          (cd packages/net/native && rustup toolchain install)
           lua tools/run.lua build-native net
           test -f .hecate/rocks/lib/lua/5.5/hecate/net/tls_native.so
 
@@ -162,7 +162,9 @@ jobs:
         if: runner.os == 'Windows' && contains(format(' {0} ', needs.plan.outputs.packages), ' net ')
         shell: pwsh
         run: |
-          rustup toolchain install stable --profile minimal
+          Push-Location packages/net/native
+          rustup toolchain install
+          Pop-Location
           $tc = (Join-Path $env:GITHUB_WORKSPACE '.hecate/toolchain') -replace '\\', '/'
           $env:LUA_LIB_NAME = 'lua55'
           $env:LUA_LIB = "$tc/lib"
@@ -170,10 +172,19 @@ jobs:
           lua tools/run.lua build-native net
           if (-not (Test-Path .hecate/rocks/lib/lua/5.5/hecate/net/tls_native.dll)) { throw 'tls_native.dll missing' }
 
+      - name: Lint the native module (Linux)
+        if: runner.os == 'Linux' && contains(format(' {0} ', needs.plan.outputs.packages), ' net ')
+        working-directory: packages/net/native
+        run: |
+          cargo fmt --check
+          cargo clippy --locked --all-targets
+
       - name: Check
         shell: bash
         env:
           PACKAGES: ${{ needs.plan.outputs.packages }}
+          # The TLS tests fail, instead of skipping, when the native module is missing.
+          HECATE_REQUIRE_TLS: ${{ contains(format(' {0} ', needs.plan.outputs.packages), ' net ') && '1' || '' }}
         run: |
           set -e
           for task in check-versions check-rockspecs check-package-structure typecheck; do

@@ -45,7 +45,7 @@ function TcpStream:shutdown()
   return self._inner:shutdown()
 end
 
---- Closes the stream. Idempotent, never suspends; tasks waiting on it fail with `TransportError`
+--- Closes the stream. Idempotent, never suspends; coroutines waiting on it fail with `TransportError`
 --- (`ECANCELED`). Unflushed or pending bytes are abandoned.
 function TcpStream:close()
   self._inner:close()

@@ -2,7 +2,7 @@
 -- "Structured concurrency"; Sustrik 2016; Smith 2018).
 --   1. A scope does not complete before all of its children have completed.
 --   2. A failing child cancels its siblings; the first failure is raised by the scope.
---   4. Cancellation is cooperative and level-triggered: every suspension point of a task
+--   4. Cancellation is cooperative and level-triggered: every suspension point of a coroutine
 --      inside a cancelled scope raises the scope's CancellationError.
 global <const> type, error, table, require
 
@@ -15,7 +15,7 @@ local context = require("hecate.reactor.internal.context")
 ---@overload fun(owner: table, parent?: hecate.reactor.Scope): hecate.reactor.Scope
 local Scope = core.class("Scope")
 
---- Initialises a scope owned by the task that opens it.
+--- Initialises a scope owned by the coroutine that opens it.
 ---@param owner table  internal task
 ---@param parent? hecate.reactor.Scope
 function Scope:init(owner, parent)

@@ -1,14 +1,14 @@
 -- TCP transport as suspending calls over libuv stream handles (concurrency.md, "Model":
 -- transparent I/O; ADR 0002: luv is wrapped once, here). Callbacks only record a result and
--- wake the task; the scheduler resumes it (reactor/CLAUDE.md, known pitfalls).
+-- wake the coroutine; the scheduler resumes it (reactor/CLAUDE.md, known pitfalls).
 --
 -- Cancellation rules (reactor/CLAUDE.md invariant: cancellation runs `<close>` handlers):
 --   * `read` and `accept` leave the handle intact: data or connections that arrive after the
---     task was withdrawn are kept for the next call, never dropped.
+--     coroutine was withdrawn are kept for the next call, never dropped.
 --   * `write`, `shutdown` and `tcp_connect` cannot be withdrawn from libuv. When one is
 --     cancelled before it completed, the handle is closed (libuv then cancels the request),
 --     because the number of bytes sent is unknown; a cancelled connect never leaks its handle.
---   * `close` is idempotent, never suspends, and wakes every task waiting on the handle.
+--   * `close` is idempotent, never suspends, and wakes every coroutine waiting on the handle.
 global <const> type, error, require, pcall, tostring, math, pairs, table
 
 local core = require("hecate.core")
@@ -91,7 +91,7 @@ local function check_endpoint(name, host, port)
   end
 end
 
---- Raises the `TransportError` of a handle that is closed (or was closed while a task waited).
+--- Raises the `TransportError` of a handle that is closed (or was closed while a coroutine waited).
 ---@param operation string
 ---@param message string
 local function fail_closed(operation, message)
@@ -175,7 +175,7 @@ end
 
 --- Reads at most `max` bytes (default: whatever the next receive delivers). Returns nil at
 --- end of stream (the peer shut down its side); never returns an empty string. Cancelling a
---- suspended read keeps the stream open and loses no data. One task reads at a time.
+--- suspended read keeps the stream open and loses no data. One coroutine reads at a time.
 ---@async
 ---@param max? integer
 ---@return string?
@@ -251,7 +251,7 @@ function TcpStream:shutdown()
   self:_await("shutdown", function(callback) return self._handle:shutdown(callback) end)
 end
 
---- Closes the stream. Idempotent, never suspends; tasks waiting on it are woken with an
+--- Closes the stream. Idempotent, never suspends; coroutines waiting on it are woken with an
 --- `TransportError` (`ECANCELED`). Pending writes are abandoned.
 function TcpStream:close()
   if self._closed then return end
@@ -373,7 +373,7 @@ function TcpListener:_wrap(client)
   return TcpStream(client, self._options)
 end
 
---- Stops listening. Idempotent, never suspends; a task waiting in `accept` is woken with an
+--- Stops listening. Idempotent, never suspends; a coroutine waiting in `accept` is woken with an
 --- `TransportError` (`ECANCELED`). Connections already accepted are unaffected.
 function TcpListener:close()
   if self._closed then return end

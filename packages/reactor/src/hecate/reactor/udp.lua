@@ -2,7 +2,7 @@
 -- ADR 0002: luv is wrapped once, here). Same cancellation rules as `tcp.lua`: `receive_from`
 -- leaves the socket intact (a datagram that arrives later stays in the kernel queue for the next
 -- call); a `send_to` cancelled before it completed closes the socket; `close` is idempotent,
--- never suspends and wakes the task waiting on the socket.
+-- never suspends and wakes the coroutine waiting on the socket.
 global <const> type, error, require, pcall, tostring, math
 
 local core = require("hecate.core")
@@ -87,7 +87,7 @@ end
 
 --- Suspends until a datagram arrives; returns its payload and the sender's address. An empty
 --- datagram is returned as an empty string. Cancelling keeps the socket open and loses nothing.
---- One task receives at a time.
+--- One coroutine receives at a time.
 ---@async
 ---@return string data
 ---@return hecate.reactor.SocketAddress from
@@ -125,7 +125,7 @@ function UdpSocket:receive_from()
   return state.data, { ip = address.ip, port = address.port, family = address.family }
 end
 
---- Closes the socket. Idempotent, never suspends; a task waiting on it is woken with a
+--- Closes the socket. Idempotent, never suspends; a coroutine waiting on it is woken with a
 --- `TransportError` (`ECANCELED`).
 function UdpSocket:close()
   if self._closed then return end

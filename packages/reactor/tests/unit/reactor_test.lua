@@ -53,7 +53,7 @@ function T:test_no_libuv_handle_and_no_coroutine_leaks()
       pcall(reactor.deadline, 0.005, reactor.sleep, 1)
     end)
   end)
-  self:assert_equal(0, instance:live_tasks())
+  self:assert_equal(0, instance:live_coroutines())
   self:assert_equal(before, reactor.Reactor.open_handles())
 end
 
@@ -71,7 +71,7 @@ function T:test_deadlock_is_reported_and_close_handlers_run()
   self:assert_true(core.is_instance_of(err, core.Error))
   self:assert_true(err.message:find("deadlock") ~= nil)
   self:assert_true(closed)
-  self:assert_equal(0, instance:live_tasks())
+  self:assert_equal(0, instance:live_coroutines())
 end
 
 function T:test_nested_run_is_rejected()

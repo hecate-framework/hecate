@@ -1,10 +1,10 @@
 -- Reactor: the scheduler over libuv (Schmidt, "Reactor", 1995). One reactor runs on one
--- thread; every unit of work is a coroutine ("task") resumed by the scheduler only, never
+-- thread; every unit of work is a coroutine ("coroutine") resumed by the scheduler only, never
 -- from inside a libuv callback (reactor/CLAUDE.md, known pitfalls). Completions and
--- timers merely mark tasks ready; `Reactor:run` resumes them in FIFO order.
+-- timers merely mark coroutines ready; `Reactor:run` resumes them in FIFO order.
 --
 -- Two clocks: "real" (libuv monotonic time, blocking in `uv.run`) and "virtual"
--- (deterministic, time jumps to the next timer when no task is ready;
+-- (deterministic, time jumps to the next timer when no coroutine is ready;
 -- concurrency.md, "Testing requirements").
 global <const> type, error, table, coroutine, math, pairs, pcall, require, tostring
 
@@ -58,7 +58,7 @@ end
 
 --- Returns the number of coroutines that have not finished.
 ---@return integer
-function Reactor:live_tasks() return self._live end
+function Reactor:live_coroutines() return self._live end
 
 -- Timers: a binary heap ordered by (when, sequence); cancelled entries are dropped lazily.
 
@@ -160,7 +160,7 @@ local function wake_task(task, id, ...)
   return true
 end
 
---- Returns the cancellation pending for a task: its own, or that of any enclosing scope.
+--- Returns the cancellation pending for a coroutine: its own, or that of any enclosing scope.
 local function pending_cancel(task)
   if task.cancel_error ~= nil then return task.cancel_error end
   local scope = task.scope
@@ -182,7 +182,7 @@ function context.cancel_task(task, err)
   context.notify_cancel(task)
 end
 
---- Returns the task of the running coroutine, or raises `NonYieldableContextError`.
+--- Returns the coroutine of the running coroutine, or raises `NonYieldableContextError`.
 local function current_task(operation)
   local reactor = context.reactor
   local co = coroutine.running()
@@ -203,8 +203,8 @@ local function current_task(operation)
   return task
 end
 
---- Suspends the running task until the `wake` function handed to `register` is called.
---- `register` returns an optional `undo` function, always called after the task resumes.
+--- Suspends the running coroutine until the `wake` function handed to `register` is called.
+--- `register` returns an optional `undo` function, always called after the coroutine resumes.
 --- A cancellable suspension raises the pending `CancellationError` instead of returning.
 ---@param register? fun(wake: fun(...): boolean): (fun()?)
 ---@param uncancellable? boolean

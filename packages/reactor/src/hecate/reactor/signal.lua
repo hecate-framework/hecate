@@ -1,5 +1,5 @@
 -- Signals as a suspending call over libuv signal handles (concurrency.md, "Signals and
--- shutdown"). The handle exists only while a task waits and is closed when it resumes.
+-- shutdown"). The handle exists only while a coroutine waits and is closed when it resumes.
 global <const> type, error, require, pcall, tostring
 
 local core = require("hecate.core")

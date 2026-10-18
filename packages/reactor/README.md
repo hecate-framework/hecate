@@ -47,7 +47,7 @@ Implemented (steps 1 to 4, then TCP transport). Every function marked *suspends*
 | Name | Description |
 |---|---|
 | `reactor.run(fn, ...)` | Runs `fn` on a new real-clock reactor until it and everything it forked have finished. |
-| `reactor.Reactor({ clock = "real"\|"virtual", start = 0 })` | The scheduler; `:run(fn, ...)`, `:now()`, `:live_tasks()`. The virtual clock jumps to the next timer when nothing is ready (deterministic tests). |
+| `reactor.Reactor({ clock = "real"\|"virtual", start = 0 })` | The scheduler; `:run(fn, ...)`, `:now()`, `:live_coroutines()`. The virtual clock jumps to the next timer when nothing is ready (deterministic tests). |
 | `reactor.fork(fn, ...)` | Managed coroutines only (raises otherwise). Starts `fn` in the current scope, returns a `Future`. |
 | `reactor.join(f1, ...)` | *suspends*. Values in argument order; the first failure cancels the others and is raised. |
 | `reactor.select(f1, ...)` | *suspends*. Returns `index, value` of the first future to finish; cancels the others. |

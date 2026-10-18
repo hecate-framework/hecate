@@ -147,15 +147,15 @@ end
 function T:test_close_runs_when_the_scope_is_cancelled()
   with_listener(self, function(listener, port)
     local stream
-    local task = reactor.fork(function()
+    local future = reactor.fork(function()
       local client <close> = net.connect(LOOPBACK, port)
       stream = client
       client:read() -- the server never writes
     end)
     reactor.fork(function() local peer <close> = listener:accept(); reactor.sleep(0.2) end)
     reactor.sleep(0.03)
-    task:cancel()
-    self:assert_error(function() task:value() end)
+    future:cancel()
+    self:assert_error(function() future:value() end)
     self:assert_true(stream:is_closed())
   end)
 end

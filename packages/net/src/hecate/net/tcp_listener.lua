@@ -25,7 +25,7 @@ function TcpListener:accept()
   return TcpStream(self._inner:accept())
 end
 
---- Stops listening. Idempotent, never suspends; a task waiting in `accept` fails with
+--- Stops listening. Idempotent, never suspends; a coroutine waiting in `accept` fails with
 --- `TransportError` (`ECANCELED`). Accepted streams are unaffected.
 function TcpListener:close() self._inner:close() end
 
