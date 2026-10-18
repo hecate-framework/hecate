@@ -46,7 +46,7 @@ Implemented (step 1). Functions marked *suspends* are `---@async` and raise
 | `net.BufferedReader(stream, { limit })` | Reader over a stream; does not own it. `limit` bounds a line or record (default 65536 bytes). |
 | `reader:read_line(limit)` | *suspends*. One line without its line feed (and the carriage return before it); nil at end of stream. |
 | `reader:read_until(delimiter, limit)` | *suspends*. Bytes before `delimiter`, which is consumed; nil at end of stream. `ProtocolError` beyond the limit. |
-| `reader:read_exact(count)` | *suspends*. Exactly `count` bytes, or `EndOfStreamError`. |
+| `reader:read_exact(count, limit?)` | *suspends*. Exactly `count` bytes, or `EndOfStreamError`. With `limit`, a larger `count` raises `ProtocolError` before anything is read: pass it when `count` comes from a peer. |
 | `reader:read_some(max)` | *suspends*. Buffered bytes, or the next chunk; nil at end of stream. |
 | `reader:buffered()`, `reader:close()` | Bytes received but not consumed; discards them (idempotent, `<close>`-able). |
 | `net.BufferedWriter(stream, { capacity })` | Writer over a stream; does not own it. Flushes at `capacity` bytes (default 8192). |
@@ -100,7 +100,7 @@ The server certificate is verified against the operating system's trust store (`
 | `net.tls.client_config(options)`, `net.tls.server_config(options)` | Reusable configurations (`ca_pem`, `system_roots`, `alpn`, `cert_pem`, `key_pem`; server: `cert_pem`, `key_pem`, `alpn`, `client_ca_pem` to require client certificates). |
 | `net.tls.connect(stream, server_name, config)`, `net.tls.accept(stream, config)` | *suspend*. Handshake over an existing stream, which the result owns. |
 | `net.TlsStream` | Implements `Stream`; `handshake()`, `shutdown()` (sends `close_notify`, *suspends*), `alpn()`, `server_name()`, `version()`, `peer_certificate()`, `reader()`, `writer()`, `is_closed()`. `read` returns nil after the peer's `close_notify` and raises `TlsError` when the transport ends without it. `close()` cannot send `close_notify`: call `shutdown()` first. |
-| `net.TlsError` | A `NetworkError`: failed handshake or verification, protocol failure, truncation, module not built. |
+| `net.TlsError` | A `NetworkError`: failed handshake or verification, protocol failure, truncation, module not built. `context.reason` names the kind when it is recognised (`untrusted_issuer`, `name_mismatch`, `expired`, `not_yet_valid`, `revoked`, `alpn_mismatch`, `truncated`, `transport_ended`, `stalled`, `native_missing`); the operating system's verifiers on macOS and Windows report many failures as text only. |
 
 ## Layout (once implemented)
 

@@ -4,7 +4,8 @@
 global <const> require, pcall, type, error, pairs, ipairs, tostring
 
 local core = require("hecate.core")
-local TlsError = require("hecate.net.errors").TlsError
+local errors = require("hecate.net.errors")
+local TlsError = errors.TlsError
 local TlsStream = require("hecate.net.tls_stream")
 local tcp = require("hecate.net.tcp")
 
@@ -39,14 +40,14 @@ function M.available()
 end
 
 local function require_native()
-  if not loaded then error(TlsError(BUILD_HINT), 0) end
+  if not loaded then error(errors.tls_failure(BUILD_HINT, "native_missing"), 0) end
 end
 
 --- Converts a native failure into a `TlsError` without its Lua stack traceback.
 ---@param failure any
 ---@return hecate.net.TlsError
 local function native_error(failure)
-  return TlsError((tostring(failure):gsub("\nstack traceback:.*$", "")))
+  return errors.tls_failure((tostring(failure):gsub("\nstack traceback:.*$", "")))
 end
 
 --- Validates an options table.
@@ -208,6 +209,7 @@ function M.connect_tls(host, port, options)
     error(TlsError({
       message = (failure.message or tostring(failure)) .. " (the issuer is not in the system trust store: install"
         .. " the system CA certificates, for example the ca-certificates package, or pass ca_pem)",
+      context = { reason = "untrusted_issuer" },
       cause = failure,
     }), 0)
   end

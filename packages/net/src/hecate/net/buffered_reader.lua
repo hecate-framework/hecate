@@ -144,7 +144,9 @@ function BufferedReader:read_until(delimiter, limit)
       return record
     end
     local size = self:_size()
-    if size > limit then break end
+    -- A delimiter of length d can still start at offset `limit` (a record of `limit` bytes) until the
+    -- buffer holds limit + d bytes without one; a partial delimiter at the end is not yet an error.
+    if size >= limit + #delimiter then break end
     -- The delimiter may straddle two chunks: resume the search where it could start.
     from = math.max(0, size - #delimiter + 1)
     if not self:_fill() then

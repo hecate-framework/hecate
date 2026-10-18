@@ -280,4 +280,102 @@ function T:test_write_rejects_non_strings()
   end)
 end
 
+-- Regression (found by the property test below): a record exactly at the limit, followed by a
+-- multi-byte delimiter whose first byte arrives before the rest, is not too long.
+function T:test_a_record_at_the_limit_with_a_split_multi_byte_delimiter_is_accepted()
+  run(function()
+    local reader = net.BufferedReader(fake_stream({ "abcdefg\r", "\nrest" }), { limit = 7 })
+    self:assert_equal("abcdefg", reader:read_until("\r\n"))
+    -- One byte more is too long, wherever the chunks end.
+    local longer = net.BufferedReader(fake_stream({ "abcdefgh\r", "\n" }), { limit = 7 })
+    self:assert_true(core.is_instance_of(self:assert_error(function() longer:read_until("\r\n") end), core.ProtocolError))
+    local whole = net.BufferedReader(fake_stream({ "abcdefgh\r\n" }), { limit = 7 })
+    self:assert_true(core.is_instance_of(self:assert_error(function() whole:read_until("\r\n") end), core.ProtocolError))
+  end)
+end
+
+--- Splits `payload` into chunks of random sizes (at least one byte each).
+local function split(payload, random)
+  local chunks, pos = {}, 1
+  while pos <= #payload do
+    local size = random(1, 9)
+    chunks[#chunks + 1] = payload:sub(pos, pos + size - 1)
+    pos = pos + size
+  end
+  return chunks
+end
+
+--- Runs `ops` on a reader and returns a printable trace: a result, or the error kind (an end of
+--- stream with the bytes it kept, a protocol error that stops the run).
+local function trace(self, chunks, ops, limit)
+  local reader = net.BufferedReader(fake_stream(chunks), { limit = limit })
+  local out = {}
+  for _, op in ipairs(ops) do
+    local ok, result = pcall(function()
+      if op.kind == "line" then return reader:read_line() end
+      if op.kind == "until" then return reader:read_until(op.delimiter) end
+      return reader:read_exact(op.count)
+    end)
+    if ok then
+      out[#out + 1] = result == nil and "nil" or ("%q"):format(result)
+    elseif core.is_instance_of(result, net.EndOfStreamError) then
+      out[#out + 1] = "end:" .. tostring(result.context.buffered)
+    elseif core.is_instance_of(result, core.ProtocolError) then
+      out[#out + 1] = "protocol"
+      break -- what stays buffered after this depends on how the bytes arrived
+    else
+      self:fail(tostring(result))
+    end
+  end
+  return table.concat(out, ",")
+end
+
+-- Property: however the received bytes are split into chunks, a sequence of line, delimiter and
+-- exact-length reads gives the same results, errors included, as when they arrive at once.
+function T:test_results_do_not_depend_on_how_the_bytes_are_chunked()
+  local random = math.random
+  math.randomseed(20261018)
+  local alphabet = { "a", "b", "\r", "\n", "-", "\n", "x" }
+  local delimiters = { "\n", "\r\n", "--" }
+  run(function()
+    for _ = 1, 250 do
+      local bytes = {}
+      for k = 1, random(0, 120) do bytes[k] = alphabet[random(#alphabet)] end
+      local payload = table.concat(bytes)
+      local ops = {}
+      for k = 1, random(1, 12) do
+        local roll = random(3)
+        if roll == 1 then ops[k] = { kind = "line" }
+        elseif roll == 2 then ops[k] = { kind = "until", delimiter = delimiters[random(#delimiters)] }
+        else ops[k] = { kind = "exact", count = random(0, 20) } end
+      end
+      local limit = random(1, 3) == 1 and random(2, 12) or nil
+      local whole = trace(self, { payload }, ops, limit)
+      if payload == "" then whole = trace(self, {}, ops, limit) end
+      local pieces = trace(self, split(payload, random), ops, limit)
+      self:assert_equal(whole, pieces, ("payload %q"):format(payload))
+    end
+  end)
+end
+
+-- Property: `read_some` over any chunking returns every byte once, in order.
+function T:test_read_some_returns_every_byte_once_in_order()
+  local random = math.random
+  math.randomseed(20261019)
+  run(function()
+    for _ = 1, 100 do
+      local bytes = {}
+      for k = 1, random(0, 200) do bytes[k] = string.char(random(0, 255)) end
+      local payload = table.concat(bytes)
+      local reader = net.BufferedReader(fake_stream(split(payload, random)))
+      local got = {}
+      while true do
+        local part = reader:read_some(random(1, 7))
+        if part == nil then break end
+        got[#got + 1] = part
+      end
+      self:assert_true(table.concat(got) == payload, "bytes lost, duplicated or reordered")
+    end
+  end)
+end
 return T

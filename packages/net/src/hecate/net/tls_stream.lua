@@ -8,7 +8,7 @@ local reactor = require("hecate.reactor")
 local Stream = require("hecate.net.stream")
 local BufferedReader = require("hecate.net.buffered_reader")
 local BufferedWriter = require("hecate.net.buffered_writer")
-local TlsError = require("hecate.net.errors").TlsError
+local errors = require("hecate.net.errors")
 
 --- The native sans-IO TLS session (rustls through mlua); see `packages/net/native`.
 ---@class hecate.net.TlsSession
@@ -49,8 +49,7 @@ end
 ---@param message any
 ---@return hecate.net.TlsError
 local function tls_error(message)
-  local text = tostring(message):gsub("\nstack traceback:.*$", "")
-  return TlsError(text)
+  return errors.tls_failure((tostring(message):gsub("\nstack traceback:.*$", "")))
 end
 
 --- Calls a native session method, converting a failure into `TlsError`.
@@ -118,7 +117,7 @@ function TlsStream:_receive()
       -- Nothing consumed and nothing readable: the session cannot make progress.
       self._inner:close()
       self._closed = true
-      error(TlsError("the TLS session made no progress"), 0)
+      error(errors.tls_failure("the TLS session made no progress", "stalled"), 0)
     end
     return
   end
@@ -142,7 +141,7 @@ function TlsStream:handshake()
     if self:_receive() == "eof" then
       self._inner:close()
       self._closed = true
-      error(TlsError("the transport ended during the TLS handshake"), 0)
+      error(errors.tls_failure("the transport ended during the TLS handshake", "transport_ended"), 0)
     end
   end
 end
@@ -166,7 +165,7 @@ function TlsStream:read(max)
       return nil
     end
     if state == "eof" then
-      error(TlsError("the transport ended without a TLS close_notify (truncated stream)"), 0)
+      error(errors.tls_failure("the transport ended without a TLS close_notify (truncated stream)", "truncated"), 0)
     end
     self:_flush() -- key updates, alerts or tickets the session queued
     if self:_receive() == "eof" and self._session:wants_write() then self:_flush() end
@@ -184,7 +183,7 @@ function TlsStream:write(data)
     local accepted = call(self._session, "write", data)
     data = data:sub(accepted + 1)
     if not self:_flush() and accepted == 0 then
-      error(TlsError("the TLS session accepts no more data (closed or stalled)"), 0)
+      error(errors.tls_failure("the TLS session accepts no more data (closed or stalled)", "stalled"), 0)
     end
   end
 end

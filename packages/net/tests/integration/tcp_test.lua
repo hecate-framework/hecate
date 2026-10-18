@@ -368,4 +368,27 @@ function T:test_a_malformed_port_is_refused_before_any_resolution()
   end)
 end
 
+-- A slow peer: one byte per write, with a yield between writes, so the reader receives the
+-- stream in the smallest pieces the transport can deliver (a CRLF is split across two reads).
+function T:test_a_peer_writing_one_byte_at_a_time_is_reassembled()
+  with_listener(self, function(listener, port)
+    local message = "hello\r\nworld\r\n\r\nlast"
+    local server = reactor.fork(function()
+      local peer <close> = listener:accept()
+      for k = 1, #message do
+        peer:write(message:sub(k, k))
+        reactor.sleep(0)
+      end
+      peer:shutdown()
+    end)
+    local client <close> = net.connect(LOOPBACK, port, { nodelay = true })
+    local reader = client:reader()
+    self:assert_equal("hello", reader:read_line())
+    self:assert_equal("world", reader:read_line())
+    self:assert_equal("", reader:read_line())
+    self:assert_equal("last", reader:read_exact(4))
+    self:assert_nil(reader:read_line())
+    server:value()
+  end)
+end
 return T

@@ -89,4 +89,7 @@ end
 --- Closing the writer (`local writer <close> = ...`) calls `close`.
 function BufferedWriter:__close() self:close() end
 
+---@return boolean
+function BufferedWriter:is_closed() return self._closed end
+
 return core.finalise(BufferedWriter)

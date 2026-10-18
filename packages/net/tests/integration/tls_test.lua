@@ -27,6 +27,14 @@ end
 
 local CA, SERVER_CERT, SERVER_KEY = fixture("ca.pem"), fixture("server.pem"), fixture("server.key")
 
+--- Runs `fn` on a reactor and checks that no libuv handle is left open afterwards, failure paths
+--- (rejected handshakes, cancelled connects) included.
+local function run(self, fn)
+  local before = reactor.Reactor.open_handles()
+  reactor.run(fn)
+  self:assert_equal(before, reactor.Reactor.open_handles())
+end
+
 --- Runs `serve(stream)` on one accepted connection, in a forked coroutine.
 local function serve_once(listener, config, serve)
   local outcome = {}
@@ -49,7 +57,7 @@ end
 
 function T:test_echo_with_sni_alpn_and_buffered_lines()
   local before = reactor.Reactor.open_handles()
-  reactor.run(function()
+  run(self, function()
     local listener <close> = net.listen("127.0.0.1", 0)
     local port = listener:local_address().port
     local seen = {}
@@ -77,7 +85,7 @@ function T:test_echo_with_sni_alpn_and_buffered_lines()
 end
 
 function T:test_large_payload_round_trip()
-  reactor.run(function()
+  run(self, function()
     local listener <close> = net.listen("127.0.0.1", 0)
     local port = listener:local_address().port
     local payload = ("0123456789abcdef"):rep(40000) -- 640 KB: many records, back-pressure
@@ -96,7 +104,7 @@ function T:test_large_payload_round_trip()
 end
 
 function T:test_untrusted_certificate_is_rejected_by_default()
-  reactor.run(function()
+  run(self, function()
     local listener <close> = net.listen("127.0.0.1", 0)
     local port = listener:local_address().port
     serve_once(listener, net.tls.server_config(server_options()), function() end)
@@ -108,7 +116,7 @@ function T:test_untrusted_certificate_is_rejected_by_default()
 end
 
 function T:test_name_mismatch_is_rejected()
-  reactor.run(function()
+  run(self, function()
     local listener <close> = net.listen("127.0.0.1", 0)
     local port = listener:local_address().port
     serve_once(listener, net.tls.server_config(server_options()), function() end)
@@ -116,11 +124,12 @@ function T:test_name_mismatch_is_rejected()
       net.connect_tls("127.0.0.1", port, { system_roots = false, ca_pem = CA, server_name = "wrong.example" })
     end)
     self:assert_true(require("hecate.core").is_instance_of(err, net.TlsError), tostring(err))
+    self:assert_equal("name_mismatch", err.context.reason)
   end)
 end
 
 function T:test_without_system_roots_the_given_anchors_are_required()
-  reactor.run(function()
+  run(self, function()
     local core = require("hecate.core")
     local err = self:assert_error(function()
       net.connect_tls("127.0.0.1", 1, { system_roots = false })
@@ -133,8 +142,19 @@ function T:test_without_system_roots_the_given_anchors_are_required()
   end)
 end
 
+--- True on Linux, where the system verifier is webpki and its failures carry the names `reason`
+--- recognises; the operating system's verifiers elsewhere report many failures as plain text.
+local function on_linux()
+  if package.config:sub(1, 1) == "\\" then return false end
+  local pipe = io.popen("uname -s 2>/dev/null")
+  if not pipe then return false end
+  local name = pipe:read("l")
+  pipe:close()
+  return name == "Linux"
+end
+
 function T:test_the_system_store_rejects_the_test_ca_and_says_how_to_trust_it()
-  reactor.run(function()
+  run(self, function()
     local core = require("hecate.core")
     local listener <close> = net.listen("127.0.0.1", 0)
     local port = listener:local_address().port
@@ -142,6 +162,10 @@ function T:test_the_system_store_rejects_the_test_ca_and_says_how_to_trust_it()
     -- No option: the operating system's store does not know the fixture CA.
     local err = self:assert_error(function() net.connect_tls("127.0.0.1", port, { server_name = "localhost" }) end)
     self:assert_true(core.is_instance_of(err, net.TlsError), tostring(err))
+    if on_linux() then
+      self:assert_equal("untrusted_issuer", err.context.reason)
+      self:assert_true(tostring(err):find("system trust store", 1, true) ~= nil, tostring(err)) -- says how to fix it
+    end
     outcome.future:value()
   end)
 end
@@ -159,7 +183,7 @@ local function on_macos()
 end
 
 function T:test_ca_pem_adds_anchors_to_the_system_store()
-  reactor.run(function()
+  run(self, function()
     local listener <close> = net.listen("127.0.0.1", 0)
     local port = listener:local_address().port
     local outcome = serve_once(listener, net.tls.server_config(server_options()), function(tls)
@@ -190,7 +214,7 @@ function T:test_a_public_server_is_trusted_out_of_the_box()
     print("# SKIP public server test: set HECATE_NETWORK_TESTS=1")
     return
   end
-  reactor.run(function()
+  run(self, function()
     local client <close> = reactor.deadline(30, net.connect_tls, "github.com", 443)
     client:write("HEAD / HTTP/1.1\r\nHost: github.com\r\nConnection: close\r\n\r\n")
     local status = client:reader():read_line()
@@ -199,7 +223,7 @@ function T:test_a_public_server_is_trusted_out_of_the_box()
 end
 
 function T:test_no_option_disables_verification()
-  reactor.run(function()
+  run(self, function()
     local core = require("hecate.core")
     -- Keys that would disable verification elsewhere are not options: they are rejected.
     local err = self:assert_error(function()
@@ -210,7 +234,7 @@ function T:test_no_option_disables_verification()
 end
 
 function T:test_connect_tls_rejects_inconsistent_options()
-  reactor.run(function()
+  run(self, function()
     local core = require("hecate.core")
     local config = net.tls.client_config({ system_roots = false, ca_pem = CA })
     local function rejected(options)
@@ -224,7 +248,7 @@ function T:test_connect_tls_rejects_inconsistent_options()
 end
 
 function T:test_tls_connect_and_accept_validate_the_configuration()
-  reactor.run(function()
+  run(self, function()
     local core = require("hecate.core")
     local listener <close> = net.listen("127.0.0.1", 0)
     local port = listener:local_address().port
@@ -238,7 +262,7 @@ function T:test_tls_connect_and_accept_validate_the_configuration()
 end
 
 function T:test_truncation_without_close_notify_is_an_error()
-  reactor.run(function()
+  run(self, function()
     local listener <close> = net.listen("127.0.0.1", 0)
     local port = listener:local_address().port
     serve_once(listener, net.tls.server_config(server_options()), function(tls)
@@ -252,7 +276,7 @@ function T:test_truncation_without_close_notify_is_an_error()
 end
 
 function T:test_mutual_tls_requires_a_trusted_client_certificate()
-  reactor.run(function()
+  run(self, function()
     local listener <close> = net.listen("127.0.0.1", 0)
     local port = listener:local_address().port
     local config = net.tls.server_config(server_options({ client_ca_pem = CA }))
@@ -271,7 +295,7 @@ function T:test_mutual_tls_requires_a_trusted_client_certificate()
 end
 
 function T:test_mutual_tls_rejects_a_client_without_a_certificate()
-  reactor.run(function()
+  run(self, function()
     local core = require("hecate.core")
     local listener <close> = net.listen("127.0.0.1", 0)
     local port = listener:local_address().port
@@ -293,8 +317,76 @@ function T:test_mutual_tls_rejects_a_client_without_a_certificate()
   end)
 end
 
+function T:test_the_server_identity_can_be_an_ip_address()
+  run(self, function()
+    local listener <close> = net.listen("127.0.0.1", 0)
+    local port = listener:local_address().port
+    local outcome = serve_once(listener, net.tls.server_config(server_options()), function(tls)
+      tls:write("ok")
+      tls:shutdown()
+    end)
+    -- No server_name: the host, an address, is the identity and the certificate has it as an IP SAN.
+    local client <close> = net.connect_tls("127.0.0.1", port, { system_roots = false, ca_pem = CA })
+    self:assert_equal("ok", client:read())
+    outcome.future:value()
+  end)
+end
+
+function T:test_an_expired_certificate_is_rejected()
+  run(self, function()
+    local core = require("hecate.core")
+    local listener <close> = net.listen("127.0.0.1", 0)
+    local port = listener:local_address().port
+    local config = net.tls.server_config({ cert_pem = fixture("expired.pem"), key_pem = fixture("expired.key") })
+    local outcome = serve_once(listener, config, function() end)
+    local err = self:assert_error(function()
+      net.connect_tls("127.0.0.1", port, { system_roots = false, ca_pem = fixture("expired_ca.pem"), server_name = "localhost" })
+    end)
+    self:assert_true(core.is_instance_of(err, net.TlsError), tostring(err))
+    self:assert_true(tostring(err):lower():find("expired", 1, true) ~= nil, tostring(err))
+    self:assert_equal("expired", err.context.reason) -- the closed-trust path is the same everywhere
+    outcome.future:value()
+  end)
+end
+
+function T:test_an_alpn_mismatch_fails_the_handshake()
+  run(self, function()
+    local core = require("hecate.core")
+    local listener <close> = net.listen("127.0.0.1", 0)
+    local port = listener:local_address().port
+    local outcome = serve_once(listener, net.tls.server_config(server_options({ alpn = { "h2" } })), function() end)
+    local err = self:assert_error(function()
+      net.connect_tls("127.0.0.1", port, { system_roots = false, ca_pem = CA, server_name = "localhost", alpn = { "http/1.1" } })
+    end)
+    -- The server's alert, or (where the connection is reset first) the reset.
+    self:assert_true(core.is_instance_of(err, net.TlsError) or core.is_instance_of(err, core.NetworkError), tostring(err))
+    if core.is_instance_of(err, net.TlsError) then self:assert_equal("alpn_mismatch", err.context.reason) end
+    outcome.future:value()
+    self:assert_false(outcome.ok)
+  end)
+end
+
+function T:test_cancelling_a_stalled_handshake_releases_everything()
+  run(self, function()
+    local core = require("hecate.core")
+    local listener <close> = net.listen("127.0.0.1", 0)
+    local port = listener:local_address().port
+    local release = reactor.Channel(1)
+    -- A peer that accepts the connection and never speaks TLS.
+    reactor.fork(function()
+      local raw <close> = listener:accept()
+      release:receive()
+    end)
+    local ok, err = pcall(reactor.deadline, 0.2, net.connect_tls, "127.0.0.1", port,
+      { system_roots = false, ca_pem = CA, server_name = "localhost" })
+    self:assert_false(ok)
+    self:assert_true(core.is_instance_of(err, core.DeadlineExceededError), tostring(err))
+    release:send(true)
+  end)
+end
+
 function T:test_deadline_cancelling_a_read_keeps_the_stream()
-  reactor.run(function()
+  run(self, function()
     local listener <close> = net.listen("127.0.0.1", 0)
     local port = listener:local_address().port
     local release = reactor.Channel(1)
@@ -314,7 +406,7 @@ function T:test_deadline_cancelling_a_read_keeps_the_stream()
 end
 
 function T:test_streams_are_closable()
-  reactor.run(function()
+  run(self, function()
     local listener <close> = net.listen("127.0.0.1", 0)
     local port = listener:local_address().port
     serve_once(listener, net.tls.server_config(server_options()), function(tls) tls:read() end)

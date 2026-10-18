@@ -4,3 +4,12 @@
 *.ico binary
 *.woff2 binary
 *.wasm binary
+*.pem text eol=lf
+*.key text eol=lf
+*.der binary
+*.p12 binary
+*.zip binary
+*.gz binary
+*.so binary
+*.dll binary
+*.dylib binary
