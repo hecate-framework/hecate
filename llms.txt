@@ -29,6 +29,14 @@
 - [Decision records](docs/adr/README.md)
 - Repositories: this monorepo is the source; per-package repositories are read-only mirrors (ADR 0017)
 
+## Website how-to guides
+
+- [Connect and serve over TCP](website/en/how-to/net-tcp.md): net.connect, net.listen, buffered readers and writers
+- [TLS client and server](website/en/how-to/net-tls.md): system trust store, ca_pem, tls.accept, failure reasons
+- [Deadlines and cancellation on streams](website/en/how-to/net-deadlines.md): what a cancelled operation leaves behind
+- [UDP and local pipes](website/en/how-to/net-udp-and-pipes.md): bind_udp, listen_pipe, connect_pipe
+- [Child processes and connection passing](website/en/how-to/child-processes.md): reactor.spawn, reactor.ipc, reuseport
+
 ## Packages
 
 - [Package catalogue](packages/README.md): every package with layer, phase and summary

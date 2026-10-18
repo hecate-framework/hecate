@@ -24,6 +24,7 @@ Status markers: (P2) … (P5) = roadmap phase in which the page must exist.
 - Configuration per environment, secrets (P2)
 - Concurrency: fork/join, select, deadlines, channels, protecting shared state (P2)
 - Background work and offloading CPU-bound tasks (P2)
+- Networking and processes (written, P2): [connect and serve over TCP](en/how-to/net-tcp.md), [TLS client and server](en/how-to/net-tls.md), [deadlines and cancellation on streams](en/how-to/net-deadlines.md), [UDP and local pipes](en/how-to/net-udp-and-pipes.md), [child processes, message pipes, passing connections, reuseport](en/how-to/child-processes.md)
 - Logging and request context (P2)
 - Contracts: exporting, linting, diffing in CI (P3)
 - Documentation of a project with `hecate doc` (P3)
