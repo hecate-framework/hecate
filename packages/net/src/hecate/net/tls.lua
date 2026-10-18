@@ -282,7 +282,7 @@ end
 ---@async
 ---@param stream hecate.net.Stream
 ---@param server_name string
----@param config hecate.net.TlsClientConfig  from `client_config`
+---@param config hecate.net.TlsClientConfig|userdata  from `client_config`
 ---@param options? hecate.net.TlsHandshakeOptions
 ---@return hecate.net.TlsStream
 function M.connect(stream, server_name, config, options)
@@ -312,7 +312,7 @@ end
 --- (default 10); on expiry `hecate.core.DeadlineExceededError` is raised.
 ---@async
 ---@param stream hecate.net.Stream
----@param config hecate.net.TlsServerConfig  from `server_config`
+---@param config hecate.net.TlsServerConfig|userdata  from `server_config`
 ---@param options? hecate.net.TlsHandshakeOptions
 ---@return hecate.net.TlsStream
 function M.accept(stream, config, options)

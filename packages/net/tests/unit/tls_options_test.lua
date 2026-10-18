@@ -100,7 +100,7 @@ function T:test_alpn_is_validated_in_lua()
       contains(self, message, "alpn")
     end
   end
-  argument_error(self, function() net.tls.server_config({ cert_pem = PEM, key_pem = KEY, alpn = "h2" }) end)
+  argument_error(self, function() net.tls.server_config({ cert_pem = PEM, key_pem = KEY, alpn = "h2" --[[@as string[] ]] }) end)
 end
 
 function T:test_pem_options_must_be_strings()

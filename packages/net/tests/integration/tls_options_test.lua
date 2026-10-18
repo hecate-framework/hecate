@@ -28,6 +28,7 @@ end
 local CA, SERVER_CERT, SERVER_KEY = fixture("ca.pem"), fixture("server.pem"), fixture("server.key")
 
 local function run(self, fn)
+  ---@diagnostic disable-next-line: invisible
   net.tls._clear_default_configs() -- the cache is process-wide: start each test cold
   local before = reactor.Reactor.open_handles()
   reactor.run(fn)
@@ -117,7 +118,7 @@ end
 function T:test_a_bad_transport_option_is_rejected_before_the_configuration_is_built()
   run(self, function()
     local calls = count_native("client_config", function()
-      local err = self:assert_error(function() net.connect_tls("127.0.0.1", 1, { nodelay = "yes" }) end)
+      local err = self:assert_error(function() net.connect_tls("127.0.0.1", 1, { nodelay = "yes" --[[@as boolean]] }) end)
       self:assert_true(core.is_instance_of(err, core.ArgumentError), tostring(err))
       err = self:assert_error(function() net.connect_tls("127.0.0.1", 1, { verify = false }) end)
       self:assert_true(core.is_instance_of(err, core.ArgumentError), tostring(err))
@@ -191,12 +192,13 @@ function T:test_an_untrusted_issuer_carries_the_reason_and_a_platform_neutral_hi
     local ok, err = pcall(net.connect_tls, "127.0.0.1", port, { server_name = "localhost" })
     self:assert_false(ok)
     self:assert_true(core.is_instance_of(err, net.TlsError), tostring(err))
+    ---@cast err hecate.net.TlsError
     if err.context.reason == "untrusted_issuer" then
       local text = tostring(err)
       self:assert_true(text:find("system trust store", 1, true) ~= nil, text)
       self:assert_true(text:find("ca_pem", 1, true) ~= nil, text)
       self:assert_true(text:find("macOS", 1, true) ~= nil, text) -- platform-neutral wording
-      self:assert_true(core.is_instance_of(err.cause, net.TlsError))
+      self:assert_true(core.is_instance_of(err--[[@as table]].cause, net.TlsError))
     end
     served:value()
   end)
