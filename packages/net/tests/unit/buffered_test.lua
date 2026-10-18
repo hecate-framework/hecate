@@ -166,6 +166,8 @@ function T:test_read_exact_limit_and_per_call_limit_validation()
     for _, bad in ipairs({ 0, -1, 1.5, "x" }) do
       self:assert_true(core.is_instance_of(
         self:assert_error(function() reader:read_until("\n", bad) end), core.ArgumentError))
+      self:assert_true(core.is_instance_of(
+        self:assert_error(function() reader:read_some(bad) end), core.ArgumentError))
     end
   end)
 end
@@ -231,8 +233,11 @@ function T:test_failed_flush_poisons_the_writer_so_no_partial_write_leaks()
     writer:write("abc")
     self:assert_equal(boom, self:assert_error(function() writer:flush() end))
     stream.write_failure = nil
-    self:assert_equal(boom, self:assert_error(function() writer:write("def") end))
-    self:assert_equal(boom, self:assert_error(function() writer:flush() end))
+    local later = self:assert_error(function() writer:write("def") end)
+    self:assert_true(core.is_instance_of(later, core.NetworkError))
+    self:assert_true(later ~= boom) -- a fresh error: the original may be a cancellation
+    self:assert_equal(boom, later.cause)
+    self:assert_true(core.is_instance_of(self:assert_error(function() writer:flush() end), core.NetworkError))
     self:assert_equal(0, #stream.sent)
   end)
 end

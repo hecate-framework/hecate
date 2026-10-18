@@ -53,6 +53,16 @@ local function tls_error(message)
   return TlsError(text)
 end
 
+--- Calls a native session method, converting a failure into `TlsError`.
+---@param session hecate.net.TlsSession
+---@param method string
+---@return any, any
+local function call(session, method, ...)
+  local ok, a, b = pcall(session[method], session, ...)
+  if not ok then error(tls_error(a), 0) end
+  return a, b
+end
+
 --- Sends the ciphertext the session has queued (handshake flights, alerts, records). Draining
 --- and writing happen under a mutex: the inner write may suspend, and a concurrent reader
 --- (alerts, key updates) and writer must not reorder TLS records on the wire.
@@ -61,7 +71,7 @@ end
 ---@private
 function TlsStream:_flush()
   local lock <close> = self._send:lock()
-  local out = self._session:drain()
+  local out = call(self._session, "drain")
   if out == "" then return false end
   self._inner:write(out)
   return true
@@ -149,7 +159,7 @@ function TlsStream:read(max)
   end
   self:_check()
   while true do
-    local data, state = self._session:read(max)
+    local data, state = call(self._session, "read", max)
     if data ~= nil then return data end
     if state == "closed" then
       pcall(self._flush, self)
@@ -171,7 +181,7 @@ function TlsStream:write(data)
   self:_check()
   while data ~= "" do
     -- The session bounds its send buffer: take what fits, send it, repeat (back-pressure).
-    local accepted = self._session:write(data)
+    local accepted = call(self._session, "write", data)
     data = data:sub(accepted + 1)
     if not self:_flush() and accepted == 0 then
       error(TlsError("the TLS session accepts no more data (closed or stalled)"), 0)
@@ -184,7 +194,7 @@ end
 ---@async
 function TlsStream:shutdown()
   self:_check()
-  self._session:send_close_notify()
+  call(self._session, "send_close_notify")
   self:_flush()
   local inner = self._inner --[[@as table]]
   if inner.shutdown then inner:shutdown() end

@@ -249,7 +249,8 @@ function T:test_a_failed_flush_poisons_the_writer_over_a_tcp_stream()
     self:assert_true(core.is_instance_of(first, reactor.TransportError))
     self:assert_true(core.is_instance_of(first, core.NetworkError))
     local second = self:assert_error(function() writer:write("y") end)
-    self:assert_true(first == second) -- the same failure, no bytes after a gap
+    self:assert_true(core.is_instance_of(second, core.NetworkError)) -- poisoned: no bytes after a gap
+    self:assert_true(second.cause == first)
   end)
 end
 

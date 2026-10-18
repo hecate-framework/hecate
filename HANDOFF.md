@@ -44,6 +44,8 @@
 
 - Same run, later steps: early port validation, never-empty `net.resolve`, Unix socket path limit (OQ-42), typecheck fixes (CI run 82 failed on 3 LuaLS warnings; LuaLS 3.19.1 is installed in the git-ignored `spikes/luals`, run `PATH=$PWD/spikes/luals/bin:$PATH lua tools/run.lua typecheck`), `net` tests de-flaked (channels and joins instead of sleeps, tcp_test.lua and tls_test.lua), new tests (mutual TLS rejection, inconsistent options, port validation, path length).
 
+- Merged `claude/sweet-feynman-ebc1nh` into this branch (2026-10-18). That branch, pushed by the relay run of 2026-10-14T18:4x, carried a full /review-package net (7 reviewers) and fixes that never reached this PR (the session had imposed another branch). Kept from it: `call()` wrapper so every native session failure is a `TlsError`, a poisoned `BufferedWriter` raises a fresh `NetworkError` with the original as `cause` (a stored cancellation must not be re-raised at another caller), `read_some(max)` validation, the architecture overview TLS row. Superseded by this branch's versions: stall detection, `is_closed`, closed reader, `HECATE_REQUIRE_NATIVE` (now `HECATE_REQUIRE_TLS`, set only when `net` is affected). Its extra backlog, still open: a shared `Stream` trait instead of three copies of `__close`/`shutdown`/`is_closed`/`reader`/`writer`; `net.connect` hides the earlier address failures; `listen("localhost")` binds the first address only; DNS host length and result cap; dependabot entry for cargo; README gaps (UdpSocket methods).
+
 ## Next steps
 
 1. Check the CI run of the head commit on the three platforms (unverified there: `rustup toolchain install` in the crate directory with rust-toolchain.toml, the clippy/fmt step, `HECATE_REQUIRE_TLS`). Fix failures before anything else.

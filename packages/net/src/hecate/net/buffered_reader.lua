@@ -206,6 +206,9 @@ end
 ---@param max? integer  at most this many bytes
 ---@return string?
 function BufferedReader:read_some(max)
+  if max ~= nil and (math.type(max) ~= "integer" or max < 1) then
+    error(core.ArgumentError(("invalid max %s: expected a positive integer"):format(tostring(max))), 2)
+  end
   self:_check()
   local lock <close> = self._lock:lock()
   self:_check()
