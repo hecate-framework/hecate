@@ -1,5 +1,5 @@
--- Bridges libuv request callbacks to suspending calls. The callback only wakes the task;
--- the task is resumed by the scheduler (reactor/CLAUDE.md, known pitfalls).
+-- Bridges libuv request callbacks to suspending calls. The callback only wakes the coroutine;
+-- the coroutine is resumed by the scheduler (reactor/CLAUDE.md, known pitfalls).
 global <const> type, error, require, select, table
 
 local core = require("hecate.core")
@@ -36,7 +36,7 @@ function M.fail_transport(operation, message)
   M.fail(operation, message, TransportError)
 end
 
---- Requires a running real-clock reactor and returns its task.
+--- Requires a running real-clock reactor and returns its internal task record.
 ---@param operation string
 ---@return table task
 function M.begin(operation)
@@ -57,7 +57,7 @@ function M.request(operation, start)
   M.begin(operation)
   local err, results
   local function pack(...) return { n = select("#", ...), ... } end
-  -- Uncancellable: a started request cannot be withdrawn, so the task waits for its
+  -- Uncancellable: a started request cannot be withdrawn, so the coroutine waits for its
   -- completion (file-system requests are short).
   context.suspend(function(wake)
     start(function(e, ...)

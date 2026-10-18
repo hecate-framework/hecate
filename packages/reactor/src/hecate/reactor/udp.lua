@@ -94,7 +94,7 @@ end
 function UdpSocket:receive_from()
   uv_call.begin("receive_from")
   require_open(self, "receive_from")
-  if self._receiving then error(core.Error("receive_from: another task is already receiving"), 2) end
+  if self._receiving then error(core.Error("receive_from: another coroutine is already receiving"), 2) end
   local state = {}
   self._receiving = true
   local ok, failure = pcall(context.suspend, function(wake)

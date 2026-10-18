@@ -63,7 +63,7 @@ function T:test_echo_with_sni_alpn_and_buffered_lines()
     local seen = {}
     local outcome = serve_once(listener, net.tls.server_config(server_options({ alpn = { "h2", "http/1.1" } })),
       function(tls)
-        seen.sni, seen.alpn = tls:server_name(), tls:alpn()
+        seen.sni, seen.alpn = tls:requested_server_name(), tls:alpn()
         local reader = tls:reader()
         local line = reader:read_line()
         tls:write("echo:" .. line .. "\n")
@@ -182,27 +182,81 @@ local function on_macos()
   return name == "Darwin"
 end
 
+--- Makes a throwaway CA and a server certificate for localhost valid for 30 days with the openssl
+--- command, for platforms whose system verifier refuses the 100-year fixtures. Returns
+--- `{ ca, cert, key }` (PEM strings), or nil and why not. Files go to a temporary prefix and are
+--- removed.
+local function generate_short_lived_pki()
+  local prefix = os.tmpname()
+  os.remove(prefix)
+  local function sh(command)
+    local ok = os.execute(command .. " >/dev/null 2>&1")
+    return ok == true or ok == 0
+  end
+  local function write(path, text)
+    local file = assert(io.open(path, "wb"))
+    file:write(text)
+    file:close()
+  end
+  local function read(path)
+    local file = io.open(path, "rb")
+    if not file then return nil end
+    local text = file:read("a")
+    file:close()
+    return text
+  end
+  local files = { "ca.key", "ca.pem", "ca.cnf", "srv.key", "srv.csr", "srv.pem", "srv.cnf", "ca.srl" }
+  local function cleanup() for _, name in ipairs(files) do os.remove(prefix .. "." .. name) end end
+  local function path(name) return prefix .. "." .. name end
+  write(path("ca.cnf"), "[req]\ndistinguished_name=dn\nprompt=no\n[dn]\nCN=Hecate Short Lived CA\n"
+    .. "[ext]\nbasicConstraints=critical,CA:TRUE\nkeyUsage=critical,keyCertSign\n")
+  write(path("srv.cnf"), "basicConstraints=CA:FALSE\nextendedKeyUsage=serverAuth\nsubjectAltName=DNS:localhost,IP:127.0.0.1\n")
+  local steps = {
+    ("openssl ecparam -name prime256v1 -genkey -noout -out '%s'"):format(path("ca.key")),
+    ("openssl req -x509 -new -key '%s' -config '%s' -extensions ext -days 30 -out '%s'"):format(path("ca.key"), path("ca.cnf"), path("ca.pem")),
+    ("openssl ecparam -name prime256v1 -genkey -noout -out '%s'"):format(path("srv.key")),
+    ("openssl req -new -key '%s' -subj /CN=localhost -out '%s'"):format(path("srv.key"), path("srv.csr")),
+    ("openssl x509 -req -in '%s' -CA '%s' -CAkey '%s' -CAcreateserial -days 30 -extfile '%s' -out '%s'")
+      :format(path("srv.csr"), path("ca.pem"), path("ca.key"), path("srv.cnf"), path("srv.pem")),
+  }
+  for _, step in ipairs(steps) do
+    if not sh(step) then
+      cleanup()
+      return nil, "the openssl command failed or is missing: " .. step:match("^openssl %S+ %S+")
+    end
+  end
+  local pki = { ca = read(path("ca.pem")), cert = read(path("srv.pem")), key = read(path("srv.key")) }
+  cleanup()
+  if not (pki.ca and pki.cert and pki.key) then return nil, "openssl produced no certificate" end
+  return pki
+end
+
 function T:test_ca_pem_adds_anchors_to_the_system_store()
+  local cert, key, ca = SERVER_CERT, SERVER_KEY, CA
+  -- macOS applies Apple's 398-day limit to every server certificate, a caller's anchor included, so
+  -- the 100-year fixture cannot prove the anchor there: a short-lived chain is generated instead
+  -- (HECATE_TLS_GENERATED_PKI=1 does the same on any other Unix, to exercise the generator).
+  if on_macos() or os.getenv("HECATE_TLS_GENERATED_PKI") == "1" then
+    local pki, why = generate_short_lived_pki()
+    if not pki then
+      if on_macos() then
+        print("# SKIP ca_pem anchor proof on macOS: " .. tostring(why))
+        return
+      end
+      self:fail("cannot generate the short-lived chain: " .. tostring(why))
+    end
+    cert, key, ca = pki.cert, pki.key, pki.ca
+    print("# ca_pem proof uses a generated short-lived chain")
+  end
   run(self, function()
     local listener <close> = net.listen("127.0.0.1", 0)
     local port = listener:local_address().port
-    local outcome = serve_once(listener, net.tls.server_config(server_options()), function(tls)
+    local outcome = serve_once(listener, net.tls.server_config({ cert_pem = cert, key_pem = key }), function(tls)
       tls:write("ok")
       tls:shutdown()
     end)
-    local ok, result = pcall(function()
-      local client <close> = net.connect_tls("127.0.0.1", port, { ca_pem = CA, server_name = "localhost" })
-      return client:read()
-    end)
-    if on_macos() then
-      -- Either the CA is accepted, or Apple's validity policy refuses the 100-year certificate.
-      if not ok then
-        self:assert_true(tostring(result):find("not standards compliant", 1, true) ~= nil, tostring(result))
-      end
-    else
-      self:assert_true(ok, tostring(result))
-      self:assert_equal("ok", result)
-    end
+    local client <close> = net.connect_tls("127.0.0.1", port, { ca_pem = ca, server_name = "localhost" })
+    self:assert_equal("ok", client:read())
     outcome.future:value()
   end)
 end
@@ -415,9 +469,16 @@ function T:test_streams_are_closable()
     client:close()
     client:close()
     self:assert_true(client:is_closed())
-    local err = self:assert_error(function() client:write("x") end)
-    self:assert_true(require("hecate.core").is_instance_of(err, require("hecate.core").Error), tostring(err))
-    err = self:assert_error(function() client:read(0) end)
+    -- The same error as a closed TcpStream: TransportError, errno EBADF, a stable operation.
+    for _, operation in ipairs({ "read", "write", "shutdown" }) do
+      local err = self:assert_error(function()
+        if operation == "write" then client:write("x") elseif operation == "read" then client:read() else client:shutdown() end
+      end)
+      self:assert_true(require("hecate.core").is_instance_of(err, reactor.TransportError), tostring(err))
+      self:assert_equal("EBADF", err.context.errno)
+      self:assert_equal(operation, err.context.operation)
+    end
+    local err = self:assert_error(function() client:read(0) end)
     self:assert_true(require("hecate.core").is_instance_of(err, require("hecate.core").ArgumentError), tostring(err))
   end)
 end

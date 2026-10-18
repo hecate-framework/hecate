@@ -17,6 +17,26 @@ local function with_listener(self, fn, options)
   return result
 end
 
+--- Polls `condition` (bounded, no fixed delay) until it holds: used to wait for a coroutine to park.
+local function wait_until(self, condition, what)
+  for _ = 1, 5000 do
+    if condition() then return end
+    reactor.sleep(0.001)
+  end
+  self:fail("timed out waiting for " .. what)
+end
+
+--- A loopback port nobody listens on: binds an ephemeral port and closes the listener at once.
+--- Another process may take the port before the test connects: callers retry once on success.
+local function closed_port()
+  return reactor.run(function()
+    local listener = reactor.tcp_listen(LOOPBACK, 0)
+    local port = listener:local_address().port
+    listener:close()
+    return port
+  end)
+end
+
 local function errno_of(self, fn)
   local err = self:assert_error(fn)
   self:assert_true(core.is_instance_of(err, reactor.TransportError), tostring(err))
@@ -47,11 +67,12 @@ end
 
 function T:test_read_returns_nil_at_end_of_stream_and_honours_max()
   with_listener(self, function(listener, port)
+    local done = reactor.Channel(1)
     reactor.fork(function()
       local peer <close> = listener:accept()
       peer:write("abcdef")
       peer:shutdown()
-      reactor.sleep(0.05) -- keeps the peer open: the end of stream comes from the half-close
+      done:receive() -- keeps the peer open: the end of stream comes from the half-close
     end)
     local client <close> = reactor.tcp_connect(LOOPBACK, port)
     local got = {}
@@ -63,6 +84,7 @@ function T:test_read_returns_nil_at_end_of_stream_and_honours_max()
     end
     self:assert_equal("abcdef", table.concat(got))
     self:assert_nil(client:read()) -- stays at end of stream
+    done:send(true)
   end)
 end
 
@@ -111,40 +133,42 @@ function T:test_close_by_the_peer_ends_the_stream_and_close_wakes_a_pending_read
   with_listener(self, function(listener, port)
     reactor.fork(function()
       local peer = listener:accept()
-      reactor.sleep(0.02)
       peer:close()
     end)
     local client <close> = reactor.tcp_connect(LOOPBACK, port)
     self:assert_nil(client:read())
   end)
   with_listener(self, function(listener, port)
+    local release = reactor.Channel(1)
     reactor.fork(function()
       local peer <close> = listener:accept()
-      reactor.sleep(0.2)
+      release:receive()
     end)
     local client = reactor.tcp_connect(LOOPBACK, port)
     local closer = reactor.fork(function()
-      for _ = 1, 5 do reactor.sleep(0) end -- let the read park first
+      wait_until(self, function() return client._reading end, "the read to park") ---@diagnostic disable-line: invisible
       client:close()
     end)
     local errno = errno_of(self, function() client:read() end)
     self:assert_equal("ECANCELED", errno)
     closer:value()
+    release:send(true)
   end)
 end
 
-function T:test_connect_refused_raises_io_error_with_errno()
+function T:test_connect_refused_raises_transport_error_with_errno()
   local before = reactor.Reactor.open_handles()
-  -- Binds then closes a listener to learn a port nobody listens on.
-  local port = reactor.run(function()
-    local listener = reactor.tcp_listen(LOOPBACK, 0)
-    local p = listener:local_address().port
-    listener:close()
-    return p
-  end)
-  local errno, err = errno_of(self, function()
-    reactor.run(function() reactor.tcp_connect(LOOPBACK, port) end)
-  end)
+  local errno, err
+  for _ = 1, 2 do -- the port may have been taken in between: one retry on an unexpected success
+    local port = closed_port()
+    local ok, failure = pcall(reactor.run, function() reactor.tcp_connect(LOOPBACK, port) end)
+    if not ok then
+      self:assert_true(core.is_instance_of(failure, reactor.TransportError), tostring(failure))
+      errno, err = failure.context.errno, failure
+      break
+    end
+  end
+  self:assert_not_nil(err, "the connection to a closed port succeeded twice")
   self:assert_equal("ECONNREFUSED", errno)
   self:assert_equal("connect", err.context.operation:match("^connect"))
   self:assert_equal(before, reactor.Reactor.open_handles())
@@ -190,7 +214,7 @@ function T:test_cancelled_accept_keeps_the_listener_and_queued_connections()
     self:assert_true(core.is_instance_of(err, core.DeadlineExceededError))
     -- The listener still works, and a connection that arrived with nobody accepting is kept.
     local client <close> = reactor.tcp_connect(LOOPBACK, port)
-    reactor.sleep(0.02)
+    wait_until(self, function() return listener._incoming > 0 end, "the connection to be queued") ---@diagnostic disable-line: invisible
     local peer <close> = listener:accept()
     client:write("late")
     self:assert_equal("late", peer:read())
@@ -203,7 +227,7 @@ function T:test_closing_the_listener_wakes_a_pending_accept()
       local ok, err = pcall(listener.accept, listener)
       return ok, err
     end)
-    for _ = 1, 5 do reactor.sleep(0) end -- let the acceptor park in `accept`
+    wait_until(self, function() return listener._accepting end, "the acceptor to park") ---@diagnostic disable-line: invisible
     listener:close()
     local ok, err = acceptor:value()
     self:assert_false(ok)
@@ -296,11 +320,14 @@ end
 
 function T:test_options_have_documented_defaults_and_validate()
   with_listener(self, function(listener, port)
-    reactor.fork(function() local peer <close> = listener:accept(); reactor.sleep(0.02) end)
+    local release = reactor.Channel(1)
+    reactor.fork(function() local peer <close> = listener:accept(); release:receive() end)
     local client <close> = reactor.tcp_connect(LOOPBACK, port, { nodelay = false, keepalive = true, keepalive_delay = 30 })
     client:set_nodelay(true)
     client:set_keepalive(false)
-    -- Wait for the peer to accept and close, so the listener is not closed mid-accept.
+    -- The peer closes only now (some systems refuse socket options on a reset connection); the end
+    -- of stream shows that it accepted, so the listener is not closed mid-accept.
+    release:send(true)
     self:assert_nil(client:read())
   end, { backlog = 16, nodelay = true, keepalive = true })
   local err = self:assert_error(function()
@@ -311,6 +338,30 @@ function T:test_options_have_documented_defaults_and_validate()
     reactor.run(function() reactor.tcp_connect(LOOPBACK, 70000) end)
   end)
   self:assert_true(core.is_instance_of(err, core.ArgumentError))
+  -- keepalive_delay is a positive integer number of seconds (libuv takes an unsigned integer)
+  for _, delay in ipairs({ 0, -1, 1.5, "30", true }) do
+    err = self:assert_error(function()
+      reactor.run(function() reactor.tcp_connect(LOOPBACK, 1, { keepalive_delay = delay }) end)
+    end)
+    self:assert_true(core.is_instance_of(err, core.ArgumentError), tostring(delay))
+    self:assert_true(tostring(err):find("keepalive_delay", 1, true) ~= nil, tostring(err))
+  end
+  with_listener(self, function(listener, port)
+    local release = reactor.Channel(1)
+    reactor.fork(function() local peer <close> = listener:accept(); release:receive() end)
+    local client <close> = reactor.tcp_connect(LOOPBACK, port)
+    for _, call in ipairs({
+      function() client:set_keepalive(true, 0) end,
+      function() client:set_keepalive(true, 2.5) end,
+      function() client:set_keepalive("yes") end,
+      function() client:set_nodelay(1) end,
+    }) do
+      self:assert_true(core.is_instance_of(self:assert_error(call), core.ArgumentError))
+    end
+    client:set_keepalive(true, 5)
+    release:send(true)
+    self:assert_nil(client:read())
+  end)
 end
 
 function T:test_concurrent_streams()
@@ -345,12 +396,15 @@ end
 
 function T:test_a_second_concurrent_read_is_refused()
   with_listener(self, function(listener, port)
-    reactor.fork(function() local peer <close> = listener:accept(); reactor.sleep(0.1) end)
+    local release = reactor.Channel(1)
+    reactor.fork(function() local peer <close> = listener:accept(); release:receive() end)
     local client <close> = reactor.tcp_connect(LOOPBACK, port)
     local first = reactor.fork(function() return client:read() end)
-    for _ = 1, 5 do reactor.sleep(0) end -- let the first read park
-    self:assert_error(function() client:read() end)
+    wait_until(self, function() return client._reading end, "the first read to park") ---@diagnostic disable-line: invisible
+    local err = self:assert_error(function() client:read() end)
+    self:assert_true(tostring(err):find("another coroutine is already reading", 1, true) ~= nil, tostring(err))
     first:cancel()
+    release:send(true)
   end)
 end
 
