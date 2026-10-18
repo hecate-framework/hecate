@@ -343,4 +343,18 @@ function T:test_operations_require_a_managed_coroutine()
   self:assert_true(core.is_instance_of(err, core.NonYieldableContextError))
 end
 
+function T:test_a_malformed_port_is_refused_before_any_resolution()
+  reactor.run(function()
+    local core = require("hecate.core")
+    for _, port in ipairs({ -1, 65536, 1.5, "80" }) do
+      local err = self:assert_error(function() net.connect("no-such-host.invalid", port) end)
+      self:assert_true(core.is_instance_of(err, core.ArgumentError), tostring(err))
+      err = self:assert_error(function() net.listen("127.0.0.1", port) end)
+      self:assert_true(core.is_instance_of(err, core.ArgumentError), tostring(err))
+      err = self:assert_error(function() net.bind_udp("127.0.0.1", port) end)
+      self:assert_true(core.is_instance_of(err, core.ArgumentError), tostring(err))
+    end
+  end)
+end
+
 return T

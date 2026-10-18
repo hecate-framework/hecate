@@ -1,7 +1,7 @@
 -- Pipe transport: Unix-domain sockets (named pipes on Windows) over libuv pipe handles. It
 -- reuses the stream and listener machinery of `tcp.lua`; only the handle kind, the addresses and
 -- the absence of TCP options differ (OQ-28: luv is wrapped once, in the reactor).
-global <const> type, error, require, pcall, tostring, pairs, math
+global <const> type, error, require, pcall, tostring, pairs, math, package
 
 local core = require("hecate.core")
 local uv = require("luv")
@@ -16,6 +16,15 @@ local DEFAULT_BACKLOG = 128
 local function check_path(name, path)
   if type(path) ~= "string" or path == "" then
     error(core.ArgumentError(("%s expects a path string, got %s"):format(name, tostring(path))), 3)
+  end
+  -- `sun_path` holds 104 bytes on macOS and 108 on Linux, the terminating NUL included; a longer
+  -- path would otherwise fail with an obscure ENAMETOOLONG or EINVAL.
+  if package.config:sub(1, 1) ~= "\\" then
+    local limit = (uv.os_uname().sysname == "Darwin" and 104 or 108) - 1
+    if #path > limit then
+      error(core.ArgumentError(("%s: the socket path is %d bytes, the limit on this platform is %d"):format(
+        name, #path, limit)), 3)
+    end
   end
 end
 

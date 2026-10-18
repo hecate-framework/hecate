@@ -1,10 +1,11 @@
 -- `net.bind_udp`: a host name is resolved with `reactor.resolve`, then the numeric address goes
 -- to the reactor transport (OQ-28, OQ-32).
-global <const> require, type, error, tostring
+global <const> require, type, error, tostring, math
 
 local core = require("hecate.core")
 local reactor = require("hecate.reactor")
 local UdpSocket = require("hecate.net.udp_socket")
+local dns = require("hecate.net.dns")
 
 -- Documented on `hecate.net` (module class completed here so that the LuaLS export lists the
 -- functions; coding-standards.md, "Annotations for the reference").
@@ -25,7 +26,10 @@ function M.bind_udp(host, port)
   if type(host) ~= "string" or host == "" then
     error(core.ArgumentError(("bind_udp expects a host name or address, got %s"):format(tostring(host))), 2)
   end
-  local addresses = reactor.resolve(host)
+  if math.type(port) ~= "integer" or port < 0 or port > 65535 then
+    error(core.ArgumentError(("bind_udp expects a port in 0..65535, got %s"):format(tostring(port))), 2)
+  end
+  local addresses = dns.resolve(host)
   return UdpSocket(reactor.udp_bind(addresses[1].ip, port))
 end
 

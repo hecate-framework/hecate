@@ -6,7 +6,7 @@ local T = test.Case("NetPipeTest")
 local counter = 0
 local function pipe_path()
   counter = counter + 1
-  local name = ("hecate-net-pipe-%d-%d"):format(os.time(), counter)
+  local name = ("hn%x-%d"):format(os.time(), counter)
   if package.config:sub(1, 1) == "\\" then return "\\\\.\\pipe\\" .. name end
   return (os.getenv("TMPDIR") or "/tmp") .. "/" .. name .. ".sock"
 end

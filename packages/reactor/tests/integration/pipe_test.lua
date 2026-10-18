@@ -7,7 +7,7 @@ local T = test.Case("PipeTest")
 local counter = 0
 local function pipe_path()
   counter = counter + 1
-  local name = ("hecate-pipe-test-%d-%d"):format(os.time(), counter)
+  local name = ("hp%x-%d"):format(os.time(), counter)
   if package.config:sub(1, 1) == "\\" then return "\\\\.\\pipe\\" .. name end
   local dir = os.getenv("TMPDIR") or "/tmp"
   return dir .. "/" .. name .. ".sock"
@@ -69,6 +69,17 @@ function T:test_malformed_arguments_are_rejected()
     self:assert_true(core.is_instance_of(err, core.ArgumentError))
     err = self:assert_error(function() reactor.pipe_listen(pipe_path(), { nope = 1 }) end)
     self:assert_true(core.is_instance_of(err, core.ArgumentError))
+  end)
+end
+
+function T:test_a_unix_socket_path_longer_than_the_platform_limit_is_refused()
+  if package.config:sub(1, 1) == "\\" then return end -- named pipes have no such limit
+  reactor.run(function()
+    local path = "/tmp/" .. ("x"):rep(200)
+    local err = self:assert_error(function() reactor.pipe_listen(path) end)
+    self:assert_true(core.is_instance_of(err, core.ArgumentError), tostring(err))
+    err = self:assert_error(function() reactor.pipe_connect(path) end)
+    self:assert_true(core.is_instance_of(err, core.ArgumentError), tostring(err))
   end)
 end
 

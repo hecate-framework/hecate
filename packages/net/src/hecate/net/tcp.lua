@@ -1,11 +1,12 @@
 -- `net.connect` and `net.listen`: host names are resolved with `reactor.resolve`, then the
 -- numeric address goes to the reactor transport (OQ-28, OQ-30, OQ-32).
-global <const> require, type, error, pairs, tostring, pcall, table
+global <const> require, type, error, pairs, tostring, pcall, table, math
 
 local core = require("hecate.core")
 local reactor = require("hecate.reactor")
 local TcpStream = require("hecate.net.tcp_stream")
 local TcpListener = require("hecate.net.tcp_listener")
+local dns = require("hecate.net.dns")
 
 -- Documented on `hecate.net` (module class completed here so that the LuaLS export lists the
 -- functions; coding-standards.md, "Annotations for the reference").
@@ -34,6 +35,15 @@ local function split_options(name, host, options)
   return transport, options.family
 end
 
+--- Validates a port before any resolution is paid for.
+---@param name string
+---@param port any
+local function check_port(name, port)
+  if math.type(port) ~= "integer" or port < 0 or port > 65535 then
+    error(core.ArgumentError(("%s expects a port in 0..65535, got %s"):format(name, tostring(port))), 3)
+  end
+end
+
 --- Connects to `host:port`. A host name is resolved first and its addresses are tried in the
 --- resolver's order until one connects (no parallel attempts, OQ-32). Options: `nodelay` (default
 --- true), `keepalive` (default false), `keepalive_delay`, `family` (`"inet"` or `"inet6"`). There is
@@ -49,7 +59,8 @@ end
 ---@return hecate.net.TcpStream stream  the connected stream
 function M.connect(host, port, options)
   local transport, family = split_options("connect", host, options)
-  local addresses = reactor.resolve(host, { family = family })
+  check_port("connect", port)
+  local addresses = dns.resolve(host, { family = family })
   local last
   for i = 1, #addresses do
     local ok, result = pcall(reactor.tcp_connect, addresses[i].ip, port, transport)
@@ -74,7 +85,8 @@ end
 ---@return hecate.net.TcpListener listener  the listening socket
 function M.listen(host, port, options)
   local transport, family = split_options("listen", host, options)
-  local addresses = reactor.resolve(host, { family = family })
+  check_port("listen", port)
+  local addresses = dns.resolve(host, { family = family })
   return TcpListener(reactor.tcp_listen(addresses[1].ip, port, transport))
 end
 

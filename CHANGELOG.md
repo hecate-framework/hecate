@@ -12,6 +12,7 @@ Each release heading states the supported Lua version.
 ### Fixed
 
 - `hecate.net` review fixes (TLS and buffered reader): `TlsStream` serialises drain and write under a mutex (records can no longer be reordered by a concurrent reader and writer), `is_closed` follows a cancelled write, a stalled session raises instead of spinning, `read` validates `max` and the native `read` clamps it to 16 KiB; `connect_tls` and `tls.connect`/`accept` validate arguments before connecting, reject inconsistent options (`tls_config` with `ca_pem`, `cert_pem` without `key_pem`) and name the missing `ca_pem` (OQ-41); `BufferedReader` validates the per-call limit, accepts a `limit` on `read_exact`, joins chunks once per read (linear instead of quadratic) and raises on a read after `close`; the native crate forbids `unsafe`, denies warnings and clippy, and drops the rustls `logging` feature (the `log` crate leaves `Cargo.lock`).
+- `hecate.net`, `hecate.reactor`: `net.resolve` never returns an empty list (it raises `TransportError`), `connect`, `listen` and `bind_udp` validate the port before resolving, `pipe_listen` and `pipe_connect` raise `ArgumentError` for a Unix socket path longer than the platform limit, `Reactor:live_tasks` is renamed `live_coroutines` (glossary), glossary entries stream, back-pressure and half-close.
 
 ### Added
 
