@@ -104,9 +104,11 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
 
 - [ ] `reactor` follow-up: specify then implement `offload` (Lua functions on the libuv
       thread pool), split from the Phase 1 item (OQ-27).
-- [ ] `reactor`: the multi-process primitives of [ADR 0023](adr/0023-multi-process-serving.md)
+- [x] `reactor`: the multi-process primitives of [ADR 0023](adr/0023-multi-process-serving.md)
       (`spawn`, `ipc` with handle passing, TCP `reuseport`, OQ-8, OQ-43); needed by `kernel`
-      for multi-process workers. Spike OQ-8 delivered.
+      for multi-process workers. Spike OQ-8 delivered. `reuseport` needs luv with TCP
+      `reuseport` (OQ-43): `reactor.supports_reuseport()` reports it and `auto` stays `round_robin`
+      until then.
 
 - [ ] Spike OQ-11 (documentation tooling: site generator and code-reference renderer),
       report with rendered samples submitted to the owner before the website skeleton.

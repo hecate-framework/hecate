@@ -31,6 +31,7 @@ local DEFAULT_BACKLOG = 128
 --- Options of a TCP listener: those of a connection plus the backlog.
 ---@class hecate.reactor.TcpListenOptions: hecate.reactor.TcpOptions
 ---@field backlog? integer  length of the queue of pending connections, default 128
+---@field reuseport? boolean  let several sockets (in several processes) listen on the same port, the kernel balancing the connections; see `reactor.supports_reuseport`
 
 --- The address of a socket: IP address, port and family.
 ---@class hecate.reactor.SocketAddress
@@ -49,7 +50,7 @@ local function protected(fn, ...)
   return result, err
 end
 
-local KNOWN = { nodelay = true, keepalive = true, keepalive_delay = true, backlog = true }
+local KNOWN = { nodelay = true, keepalive = true, keepalive_delay = true, backlog = true, reuseport = true }
 
 ---@param name string
 ---@param options any
@@ -75,6 +76,9 @@ local function check_options(name, options)
   end
   if options.backlog ~= nil and (math.type(options.backlog) ~= "integer" or options.backlog < 1) then
     error(core.ArgumentError(name .. ": option backlog must be a positive integer"), 3)
+  end
+  if options.reuseport ~= nil and type(options.reuseport) ~= "boolean" then
+    error(core.ArgumentError(name .. ": option reuseport must be a boolean"), 3)
   end
   return options
 end
@@ -454,6 +458,10 @@ end
 --- Binds and listens on a numeric address (port 0 picks a free port; see `local_address`).
 --- Does not suspend. Accepted streams get the listener's `nodelay` and `keepalive` options.
 ---
+--- With `reuseport = true` several sockets, in several processes, listen on the same port and the
+--- kernel balances the connections among them (Linux); without luv support (OQ-43) the call raises
+--- `TransportError` `ENOTSUP` instead of silently binding a socket that fails later.
+---
 --- Raises `hecate.reactor.TransportError` when binding or listening fails, and
 --- `hecate.core.ArgumentError` for a malformed host, port or option.
 ---@param host string  numeric IPv4 or IPv6 address
@@ -465,7 +473,12 @@ function api.tcp_listen(host, port, options)
   options = check_options("tcp_listen", options)
   uv_call.begin("tcp_listen")
   local handle = uv.new_tcp()
-  local bound, bind_err = protected(handle.bind, handle, host, port)
+  if options.reuseport and not api.supports_reuseport() then
+    handle:close()
+    uv_call.fail_transport("bind " .. host .. ":" .. port,
+      "ENOTSUP: reuseport is not available (platform or luv without TCP reuseport; see reactor.supports_reuseport)")
+  end
+  local bound, bind_err = protected(handle.bind, handle, host, port, options.reuseport and { reuseport = true } or nil)
   if not bound then
     handle:close()
     uv_call.fail_transport("bind " .. host .. ":" .. port, tostring(bind_err))
@@ -488,6 +501,31 @@ function api.tcp_listen(host, port, options)
   return listener
 end
 
+local reuseport_supported
+
+--- Returns whether this platform and this luv let several TCP sockets listen on one port
+--- (`reuseport = true`). The first call probes with two loopback sockets and caches the answer.
+--- It says nothing about balance: macOS accepts the flag and gives every connection to one
+--- socket, which is why the listening strategy lives above (ADR 0023). Does not suspend.
+---@return boolean supported  whether `tcp_listen` accepts `reuseport = true`
+function api.supports_reuseport()
+  if reuseport_supported ~= nil then return reuseport_supported end
+  local first, second = uv.new_tcp(), uv.new_tcp()
+  local flags = { reuseport = true }
+  local supported = false
+  if protected(first.bind, first, "127.0.0.1", 0, flags) then
+    local address = first:getsockname()
+    if address and protected(second.bind, second, "127.0.0.1", address.port, flags)
+        and first:listen(1, function() end) and second:listen(1, function() end) then
+      supported = true
+    end
+  end
+  first:close(); second:close()
+  reuseport_supported = supported
+  return supported
+end
+
+M.supports_reuseport = api.supports_reuseport
 M.tcp_connect = api.tcp_connect
 M.tcp_listen = api.tcp_listen
 

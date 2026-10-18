@@ -8,7 +8,7 @@
 | Rock | `hecate-reactor` |
 | Layer | 1 — Runtime |
 | Roadmap phase | 1 |
-| Status | in progress — scheduler, `Future`, `fork`/`join`/`select`/`sleep`/`scope`/`deadline`, cancellation and virtual clock, `Channel`, `Semaphore`, `Mutex`, `Monitor` and `Condition` implemented; `detach`, signals, processes, file system, TCP, UDP and pipe transport and `resolve` implemented; `offload` and worker primitives pending |
+| Status | in progress — scheduler, `Future`, `fork`/`join`/`select`/`sleep`/`scope`/`deadline`, cancellation and virtual clock, `Channel`, `Semaphore`, `Mutex`, `Monitor` and `Condition` implemented; `detach`, signals, processes, file system, TCP, UDP and pipe transport and `resolve` implemented; `spawn`, `ipc` (framed messages with handle passing) and TCP `reuseport` implemented (ADR 0023); `offload` pending |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |
 | Depends on | [`core`](../core) |
 | Used by | `cli`, `hecate`, `http`, `kernel`, `log`, `mongodb`, `mysql`, `net`, `orm`, `postgresql`, `redis`, `sql`, `sqlite`, `sqlserver`, `test`, `websocket` |
@@ -59,6 +59,9 @@ Implemented (steps 1 to 4, then TCP transport). Every function marked *suspends*
 | `reactor.fs` | *suspend*: `read_file(path)`, `write_file(path, data)`, `stat(path)` (nil if absent), `remove`, `mkdir`, `rmdir`, `list(path)`. Real clock only; failures raise `reactor.IoError` (`context.errno`). |
 | `reactor.wait_signal(name, ...)` | *suspends*. Returns the name of the first signal delivered (`"sigint"`, `"sigterm"`, ...). |
 | `reactor.run_process(program, args)` | *suspends*. Runs a program, returns `{ code, signal, stdout, stderr }`; the child is killed on cancellation. |
+| `reactor.spawn(program, args?, options?)` | Starts a long-lived child and returns a `Process` at once (`.pid`, `.ipc`, `:wait()` *suspends*, `:kill(signal?)`, `:is_running()`). Options: `env` (added to the inherited environment), `cwd`, `ipc` (message channel), `stdout`/`stderr` (`"inherit"` default or `"ignore"`). The caller waits for or kills the child and closes `process.ipc`. |
+| `reactor.ipc` | Framed message channel between parent and child (ADR 0023). `process.ipc` is the parent's `Peer`, `reactor.ipc.parent()` the child's (nil when started without `ipc`). `Peer:send(message, stream?)` (*suspends*) sends a string of at most 16 MiB and optionally hands a `TcpStream` over (closed in the sender afterwards); `Peer:receive()` (*suspends*) returns `message, stream?`, nil when the other end closed; `:close()`, `:is_closed()`. Messages are strings: serialising them is the caller's concern. |
+| `reactor.supports_reuseport()` | Whether `tcp_listen(..., { reuseport = true })` works here (probed once). Needs luv with TCP `reuseport` (OQ-43); otherwise `tcp_listen` raises `TransportError` `ENOTSUP` rather than ignoring the option. Says nothing about balance: macOS accepts the flag and does not balance. |
 | `reactor.resolve(host, options?)` | *suspends*. Resolves a host name or numeric address to `{ ip, family }` entries in the resolver's order (option `family`: `"inet"` or `"inet6"`). Failure raises `TransportError` (`errno` such as `EAI_NONAME`); cancellation releases the caller at once and discards the late result (OQ-32). |
 | `reactor.tcp_connect(host, port, options?)` | *suspends*. Connects to a numeric address (no name resolution, OQ-30); returns a `TcpStream`. Bound it with `deadline`; cancellation abandons the attempt and closes its handle. Options: `nodelay` (default `true`), `keepalive` (default `false`), `keepalive_delay` (seconds, default 60). |
 | `reactor.tcp_listen(host, port, options?)` | Binds and listens (port 0 picks a free port); returns a `TcpListener`. Options as above plus `backlog` (default 128); accepted streams inherit `nodelay` and `keepalive`. |

@@ -33,6 +33,9 @@ local uv_call = require("hecate.reactor.internal.uv_call")
 ---@field UdpSocket hecate.reactor.UdpSocket
 ---@field PipeStream hecate.reactor.PipeStream
 ---@field PipeListener hecate.reactor.PipeListener
+---@field Process hecate.reactor.Process
+---@field Peer hecate.reactor.Peer
+---@field ipc hecate.reactor.ipc
 local reactor = {
   Reactor = Reactor,
   Future = require("hecate.reactor.future"),
@@ -58,6 +61,11 @@ local reactor = {
   PipeStream = pipe.PipeStream,
   ---@diagnostic disable-next-line: assign-type-mismatch  -- class constructor exported as its class
   PipeListener = pipe.PipeListener,
+  ---@diagnostic disable-next-line: assign-type-mismatch  -- class constructor exported as its class
+  Process = require("hecate.reactor.process").Process,
+  ---@diagnostic disable-next-line: assign-type-mismatch  -- class constructor exported as its class
+  Peer = require("hecate.reactor.ipc").Peer,
+  ipc = require("hecate.reactor.ipc"),
 }
 
 -- The functions are assigned one by one, not in the table constructor: LuaLS leaves
@@ -68,7 +76,10 @@ reactor.tcp_listen = tcp.tcp_listen
 reactor.pipe_connect = pipe.pipe_connect
 reactor.pipe_listen = pipe.pipe_listen
 reactor.udp_bind = udp.udp_bind
-reactor.run_process = require("hecate.reactor.process").run_process
+local process = require("hecate.reactor.process")
+reactor.run_process = process.run_process
+reactor.spawn = process.spawn -- glossary-ok: operating-system process (ADR 0023)
+reactor.supports_reuseport = tcp.supports_reuseport
 reactor.resolve = require("hecate.reactor.dns").resolve
 reactor.wait_signal = require("hecate.reactor.signal").wait_signal
 reactor.detach = primitives.detach
