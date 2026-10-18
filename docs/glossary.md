@@ -34,6 +34,7 @@ for public APIs, documentation and internal code.
 | half-close | Ending one direction of a connection while the other stays usable (`shutdown`) | RFC 9293, section 3.6 | — |
 | primary | The process that starts, supervises and, for some strategies, feeds the workers | Buschmann et al., *Pattern-Oriented Software Architecture* vol. 1 (1996), Master-Slave pattern | master, parent (for the operating-system relation, "parent process" is accepted) |
 | worker | A process with its own reactor that serves requests; workers share nothing | Buschmann et al. (1996), Master-Slave pattern | slave, child process (for the operating-system relation) |
+| message pipe | A framed connection between two processes that carries string messages and, optionally, a stream handle (`reactor.ipc`) | POSIX `pipe(2)`; ADR 0023 | channel (reserved for communication between coroutines) |
 | listening strategy | How the workers obtain connections: `reuseport` or `round_robin` ([ADR 0023](adr/0023-multi-process-serving.md)) | — | cluster mode |
 | cancellation | Cooperative request to stop a computation | — | abort, kill |
 | scope | Structured-concurrency region owning forked computations | Sústrik (2016); Smith, *nursery* (2018) | task group, nursery |
