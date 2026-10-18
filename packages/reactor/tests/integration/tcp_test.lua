@@ -430,7 +430,9 @@ end
 --- restores the method.
 local function with_failing_nodelay(count, failure, fn)
   local uv = require("luv")
-  local methods = getmetatable(uv.new_tcp()).__index
+  local probe = uv.new_tcp()
+  local methods = getmetatable(probe).__index
+  probe:close()
   local original = methods.nodelay
   local remaining = count
   methods.nodelay = function(handle, enabled)

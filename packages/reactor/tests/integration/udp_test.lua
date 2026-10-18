@@ -39,7 +39,11 @@ function T:test_receive_suspends_until_a_datagram_arrives()
     local port = server:local_address().port
     reactor.fork(function()
       local client <close> = reactor.udp_bind(LOOPBACK, 0)
-      reactor.sleep(0.02)
+      -- Send only once the receiver is parked (bounded poll, no fixed delay).
+      for _ = 1, 5000 do
+        if server._receiving then break end ---@diagnostic disable-line: invisible
+        reactor.sleep(0.001)
+      end
       client:send_to(LOOPBACK, port, "late")
     end)
     return (server:receive_from())
@@ -65,7 +69,11 @@ function T:test_close_wakes_a_waiting_receiver_with_transport_error()
   local err = run(self, function()
     local server = reactor.udp_bind(LOOPBACK, 0)
     local waiter = reactor.fork(function() return pcall(server.receive_from, server) end)
-    for _ = 1, 5 do reactor.sleep(0) end -- let the receiver park
+    for _ = 1, 5000 do -- let the receiver park (bounded poll)
+      if server._receiving then break end ---@diagnostic disable-line: invisible
+      reactor.sleep(0.001)
+    end
+    self:assert_true(server._receiving, "the receiver parked") ---@diagnostic disable-line: invisible
     server:close()
     server:close() -- idempotent
     local ok, e = waiter:value()

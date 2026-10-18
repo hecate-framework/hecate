@@ -1,7 +1,7 @@
 -- Pipe transport: Unix-domain sockets (named pipes on Windows) over libuv pipe handles. It
 -- reuses the stream and listener machinery of `tcp.lua`; only the handle kind, the addresses and
 -- the absence of TCP options differ (OQ-28: luv is wrapped once, in the reactor).
-global <const> type, error, require, pcall, tostring, pairs, math, package
+global <const> type, error, require, pcall, tostring, tonumber, pairs, math, package
 
 local core = require("hecate.core")
 local uv = require("luv")
@@ -10,23 +10,38 @@ local context = require("hecate.reactor.internal.context")
 local tcp = require("hecate.reactor.tcp")
 
 local DEFAULT_BACKLOG = 128
+local IS_WINDOWS = package.config:sub(1, 1) == "\\"
+--- Longest name after `\\.\pipe\` that Windows accepts for a named pipe.
+local WINDOWS_NAME_LIMIT = 256
 
 ---@param name string
 ---@param path any
-local function check_path(name, path)
+---@param windows? boolean  validate for Windows (default: the running platform; tests pass it)
+local function check_path(name, path, windows)
+  if windows == nil then windows = IS_WINDOWS end
   if type(path) ~= "string" or path == "" then
     error(core.ArgumentError(("%s expects a path string, got %s"):format(name, tostring(path))), 3)
   end
+  if windows then
+    local pipe_name = path:match("^\\\\[.?]\\pipe\\(.*)$") or path
+    if #pipe_name > WINDOWS_NAME_LIMIT then
+      error(core.ArgumentError(("%s: the pipe name is %d characters, the limit on Windows is %d"):format(
+        name, #pipe_name, WINDOWS_NAME_LIMIT)), 3)
+    end
+    return
+  end
   -- `sun_path` holds 104 bytes on macOS and 108 on Linux, the terminating NUL included; a longer
   -- path would otherwise fail with an obscure ENAMETOOLONG or EINVAL.
-  if package.config:sub(1, 1) ~= "\\" then
-    local limit = (uv.os_uname().sysname == "Darwin" and 104 or 108) - 1
-    if #path > limit then
-      error(core.ArgumentError(("%s: the socket path is %d bytes, the limit on this platform is %d"):format(
-        name, #path, limit)), 3)
-    end
+  local limit = (uv.os_uname().sysname == "Darwin" and 104 or 108) - 1
+  if #path > limit then
+    error(core.ArgumentError(("%s: the socket path is %d bytes, the limit on this platform is %d"):format(
+      name, #path, limit)), 3)
   end
 end
+
+--- Who may connect to a listening pipe (`mode` option). `"owner"` restricts the socket file to its
+--- owner (permissions 0600); the others open it to every user, with the given access.
+local MODES = { owner = true, readable = "r", writable = "w", readwrite = "rw" }
 
 ---@param name string
 ---@param options any
@@ -37,10 +52,15 @@ local function check_options(name, options)
     error(core.ArgumentError(("%s expects an options table, got %s"):format(name, type(options))), 3)
   end
   for key in pairs(options) do
-    if key ~= "backlog" then error(core.ArgumentError(("%s: unknown option %s"):format(name, tostring(key))), 3) end
+    if key ~= "backlog" and key ~= "mode" then
+      error(core.ArgumentError(("%s: unknown option %s"):format(name, tostring(key))), 3)
+    end
   end
   if options.backlog ~= nil and (math.type(options.backlog) ~= "integer" or options.backlog < 1) then
     error(core.ArgumentError(name .. ": option backlog must be a positive integer"), 3)
+  end
+  if options.mode ~= nil and MODES[options.mode] == nil then
+    error(core.ArgumentError(name .. ": option mode must be \"owner\", \"readable\", \"writable\" or \"readwrite\""), 3)
   end
   return options
 end
@@ -92,7 +112,12 @@ function PipeListener:path() return self._path end
 
 core.finalise(PipeListener)
 
-local M = { PipeStream = PipeStream, PipeListener = PipeListener }
+--- Options of `pipe_listen`.
+---@class hecate.reactor.PipeListenOptions
+---@field backlog? integer  length of the queue of pending connections, default 128 (ignored on Windows)
+---@field mode? "owner"|"readable"|"writable"|"readwrite"  who may connect, default "owner" (ignored on Windows)
+
+local M = { PipeStream = PipeStream, PipeListener = PipeListener, _check_path = check_path }
 
 ---@class hecate.reactor
 local api = {}
@@ -127,12 +152,17 @@ function api.pipe_connect(path)
   return PipeStream(handle)
 end
 
---- Binds and listens on a Unix-domain socket path. Does not suspend. The path must not exist.
+--- Binds and listens on a Unix-domain socket path. Does not suspend. The path must not exist
+--- (`EADDRINUSE` otherwise). Option `mode` says who may connect: `"owner"` (default) restricts the
+--- socket file to its owner, `"readable"`, `"writable"` and `"readwrite"` open it to every user
+--- with that access (libuv `chmod`). `mode` has no effect on Windows, where the default security
+--- of the named pipe applies; `backlog` is ignored there too. On Windows the pipe name after
+--- `\\.\pipe\` is limited to 256 characters.
 ---
 --- Raises `hecate.reactor.TransportError` when binding or listening fails and
 --- `hecate.core.ArgumentError` for a malformed path or option.
 ---@param path string  socket path
----@param options? { backlog?: integer }  length of the queue of pending connections, default 128
+---@param options? hecate.reactor.PipeListenOptions
 ---@return hecate.reactor.PipeListener listener  the listening pipe
 function api.pipe_listen(path, options)
   check_path("pipe_listen", path)
@@ -143,6 +173,19 @@ function api.pipe_listen(path, options)
   if not bound then
     handle:close()
     uv_call.fail_transport("bind " .. path, tostring(bind_err))
+  end
+  if not IS_WINDOWS and path:sub(1, 1) ~= "\0" then -- an abstract socket has no file to protect
+    local mode = options.mode or "owner"
+    local changed, chmod_err
+    if mode == "owner" then
+      changed, chmod_err = uv.fs_chmod(path, tonumber("600", 8))
+    else
+      changed, chmod_err = handle:chmod(MODES[mode])
+    end
+    if not changed then
+      handle:close()
+      uv_call.fail_transport("chmod " .. path, tostring(chmod_err))
+    end
   end
   local listener = PipeListener(handle, options, path)
   local listening, listen_err = handle:listen(options.backlog or DEFAULT_BACKLOG, function(e)

@@ -68,10 +68,23 @@ end
 
 function T:test_wait_signal_returns_the_name()
   if uv.os_uname().sysname:match("Windows") then return end
+  -- The signal is sent again until the waiter returned, so the test does not depend on the waiter
+  -- having installed its handler first; the guard keeps an early signal from ending the process.
+  local guard = uv.new_signal()
+  guard:start("sigusr1", function() end)
   local name = reactor.run(function()
-    reactor.fork(function() reactor.sleep(0.02); uv.kill(uv.os_getpid(), "sigusr1") end)
-    return reactor.wait_signal("sigusr1")
+    local done = false
+    reactor.fork(function()
+      while not done do
+        uv.kill(uv.os_getpid(), "sigusr1")
+        reactor.sleep(0.005)
+      end
+    end)
+    local received = reactor.wait_signal("sigusr1")
+    done = true
+    return received
   end)
+  guard:close()
   self:assert_equal("sigusr1", name)
 end
 
