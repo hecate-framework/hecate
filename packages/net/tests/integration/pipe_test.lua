@@ -1,4 +1,4 @@
----@diagnostic disable: param-type-mismatch  -- the tests pass invalid arguments on purpose
+---@diagnostic disable: param-type-mismatch, assign-type-mismatch  -- the tests pass invalid arguments on purpose
 local test = require("harness.test")
 local core = require("hecate.core")
 local reactor = require("hecate.reactor")
@@ -90,6 +90,7 @@ function T:test_a_malformed_path_or_option_raises_an_argument_error()
       function() net.listen_pipe(pipe_path(), { backlog = 0 }) end,
       function() net.listen_pipe(pipe_path(), { backlog = 1.5 }) end,
       function() net.listen_pipe(pipe_path(), { backlogs = 8 }) end,
+      function() net.listen_pipe(pipe_path(), { mode = "everyone" }) end,
       function() net.connect_pipe(42) end,
       function() net.connect_pipe("") end,
     }
@@ -100,13 +101,28 @@ function T:test_a_malformed_path_or_option_raises_an_argument_error()
   end)
 end
 
-function T:test_a_backlog_is_accepted()
-  local path = pipe_path()
+function T:test_a_backlog_and_a_mode_are_accepted()
+  for _, options in ipairs({ { backlog = 4 }, { mode = "owner" }, { backlog = 4, mode = "readwrite" } }) do
+    local path = pipe_path()
+    reactor.run(function()
+      local listener <close> = net.listen_pipe(path, options)
+      self:assert_equal(path, listener:path())
+      reactor.fork(function() local peer <close> = listener:accept(); peer:read() end)
+      local client <close> = net.connect_pipe(path)
+      self:assert_false(client:is_closed())
+    end)
+    remove(path)
+  end
+end
+
+function T:test_an_overlong_path_raises_an_argument_error()
   reactor.run(function()
-    local listener <close> = net.listen_pipe(path, { backlog = 4 })
-    self:assert_equal(path, listener:path())
+    local long = IS_WINDOWS and ("\\\\.\\pipe\\" .. string.rep("x", 300)) or ("/tmp/" .. string.rep("x", 300))
+    for _, call in ipairs({ function() net.listen_pipe(long) end, function() net.connect_pipe(long) end }) do
+      local err = self:assert_error(call)
+      self:assert_true(core.is_instance_of(err, core.ArgumentError), tostring(err))
+    end
   end)
-  remove(path)
 end
 
 function T:test_a_cancelled_accept_keeps_the_listener_and_the_queued_connections()

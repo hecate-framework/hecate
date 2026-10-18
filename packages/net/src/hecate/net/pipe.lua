@@ -23,12 +23,16 @@ function M.connect_pipe(path)
   return PipeStream(reactor.pipe_connect(path))
 end
 
---- Binds and listens on a Unix-domain socket path, which must not exist. Does not suspend.
+--- Binds and listens on a Unix-domain socket path, which must not exist. Does not suspend. Options:
+--- `backlog` (length of the queue of pending connections, default 128, ignored on Windows) and `mode`
+--- (who may connect: `"owner"`, the default, `"readable"`, `"writable"` or `"readwrite"`; no effect on
+--- Windows). A Windows pipe name is limited to 256 characters, a Unix socket path to the platform's
+--- `sun_path` (104 bytes on macOS, 108 on Linux): a longer one raises `ArgumentError`.
 ---
 --- Raises `hecate.reactor.TransportError` when binding or listening fails and
 --- `hecate.core.ArgumentError` for a malformed path or option.
 ---@param path string  socket path
----@param options? { backlog?: integer }  length of the queue of pending connections, default 128
+---@param options? hecate.reactor.PipeListenOptions  `backlog` and `mode`
 ---@return hecate.net.PipeListener listener  the listening pipe
 function M.listen_pipe(path, options)
   return PipeListener(reactor.pipe_listen(path, options))
