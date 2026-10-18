@@ -425,4 +425,160 @@ function T:test_transport_on_a_virtual_clock_is_refused()
   self:assert_true(core.is_instance_of(err, core.Error))
 end
 
+--- Makes the next `count` calls of `nodelay` on any TCP handle fail with `failure` (libuv answers
+--- like this for a socket whose peer already reset the connection on BSD and macOS), runs `fn`, and
+--- restores the method.
+local function with_failing_nodelay(count, failure, fn)
+  local uv = require("luv")
+  local methods = getmetatable(uv.new_tcp()).__index
+  local original = methods.nodelay
+  local remaining = count
+  methods.nodelay = function(handle, enabled)
+    if remaining > 0 then
+      remaining = remaining - 1
+      return nil, failure
+    end
+    return original(handle, enabled)
+  end
+  local ok, err = pcall(fn, function(value) remaining = value end)
+  methods.nodelay = original
+  if not ok then error(err, 0) end
+end
+
+function T:test_a_connection_whose_options_cannot_be_applied_is_dropped_and_accept_goes_on()
+  for _, failure in ipairs({
+    "ECONNRESET: connection reset by peer", "EINVAL: invalid argument", "ENOTCONN: socket is not connected",
+  }) do
+    with_listener(self, function(listener, port)
+      with_failing_nodelay(0, failure, function(arm)
+        local first = reactor.tcp_connect(LOOPBACK, port)
+        local second = reactor.tcp_connect(LOOPBACK, port)
+        wait_until(self, function() return listener._incoming == 2 end, "both connections to be queued") ---@diagnostic disable-line: invisible
+        arm(1) -- the options of the first accepted connection fail
+        local accepted <close> = listener:accept()
+        -- The first connection was closed by the listener, the second one is served.
+        local ok, data = pcall(first.read, first)
+        self:assert_true(not ok or data == nil, failure)
+        second:write("through")
+        self:assert_equal("through", accepted:read())
+        first:close()
+        second:close()
+      end)
+    end)
+  end
+end
+
+function T:test_any_other_failure_to_apply_options_is_raised_and_the_listener_survives()
+  with_listener(self, function(listener, port)
+    with_failing_nodelay(0, "EPERM: operation not permitted", function(arm)
+      local first = reactor.tcp_connect(LOOPBACK, port)
+      wait_until(self, function() return listener._incoming == 1 end, "the connection to be queued") ---@diagnostic disable-line: invisible
+      arm(1)
+      local errno = errno_of(self, function() listener:accept() end)
+      self:assert_equal("EPERM", errno)
+      self:assert_false(listener:is_closed())
+      local second = reactor.tcp_connect(LOOPBACK, port)
+      local accepted <close> = listener:accept()
+      second:write("ok")
+      self:assert_equal("ok", accepted:read())
+      first:close()
+      second:close()
+    end)
+  end)
+end
+
+function T:test_a_reset_connection_ends_the_read_with_an_error_or_a_clean_end()
+  with_listener(self, function(listener, port)
+    local client <close> = reactor.tcp_connect(LOOPBACK, port)
+    local peer = listener:accept()
+    peer:write("pending")
+    self:assert_equal("pending", client:read())
+    -- Close the server side with a reset (RST instead of FIN).
+    local reset = reactor.Channel(1)
+    peer._handle:close_reset(function() reset:send(true) end) ---@diagnostic disable-line: invisible
+    peer._closed = true ---@diagnostic disable-line: invisible
+    reset:receive()
+    local ok, result = pcall(client.read, client)
+    if ok then
+      -- Some platforms report a reset as a plain end of stream.
+      self:assert_nil(result)
+    else
+      self:assert_true(core.is_instance_of(result, reactor.TransportError), tostring(result))
+      local errno = result.context.errno
+      self:assert_true(errno == "ECONNRESET" or errno == "EPIPE" or errno == "ECONNABORTED", tostring(errno))
+    end
+  end)
+end
+
+function T:test_data_that_arrives_between_reads_is_kept_in_order_and_max_slices_it()
+  with_listener(self, function(listener, port)
+    local sent = reactor.Channel(1)
+    local release = reactor.Channel(1)
+    reactor.fork(function()
+      local peer <close> = listener:accept()
+      for index = 1, 50 do peer:write(("%03d"):format(index)) end
+      sent:send(true)
+      release:receive()
+    end)
+    local client <close> = reactor.tcp_connect(LOOPBACK, port)
+    self:assert_equal("001", client:read(3)) -- the first read starts the read-ahead
+    sent:receive()
+    local parts, total = {}, 3
+    while total < 150 do
+      local chunk = client:read(7) -- never splits or reorders what arrived while nobody read
+      self:assert_true(#chunk >= 1 and #chunk <= 7)
+      parts[#parts + 1] = chunk
+      total = total + #chunk
+    end
+    local expected = {}
+    for index = 2, 50 do expected[#expected + 1] = ("%03d"):format(index) end
+    self:assert_equal(table.concat(expected), table.concat(parts))
+    release:send(true)
+  end)
+end
+
+function T:test_a_large_transfer_arrives_intact_through_small_and_unbounded_reads()
+  local size = 3 * 1024 * 1024
+  local payload = {}
+  for index = 1, 64 do payload[index] = string.char(index):rep(size // 64) end
+  payload = table.concat(payload)
+  for _, max in ipairs({ 1000, 65536, 0 }) do
+    with_listener(self, function(listener, port)
+      local writer = reactor.fork(function()
+        local peer <close> = listener:accept()
+        peer:write(payload)
+        peer:shutdown()
+        peer:read() -- until the reader is done
+      end)
+      local client <close> = reactor.tcp_connect(LOOPBACK, port)
+      local parts = {}
+      while true do
+        local chunk = client:read(max > 0 and max or nil)
+        if chunk == nil then break end
+        parts[#parts + 1] = chunk
+      end
+      self:assert_true(table.concat(parts) == payload, "payload corrupted with max " .. max)
+      client:close()
+      writer:value()
+    end)
+  end
+end
+
+function T:test_the_end_of_stream_that_arrives_with_unread_data_is_seen_after_the_data()
+  with_listener(self, function(listener, port)
+    local closed = reactor.Channel(1)
+    reactor.fork(function()
+      local peer = listener:accept()
+      peer:write("tail")
+      peer:close()
+      closed:send(true)
+    end)
+    local client <close> = reactor.tcp_connect(LOOPBACK, port)
+    self:assert_equal("t", client:read(1))
+    closed:receive()
+    self:assert_equal("ail", client:read())
+    self:assert_nil(client:read())
+  end)
+end
+
 return T
