@@ -17,7 +17,7 @@ local errors = require("hecate.net.errors")
 ---@field BufferedWriter hecate.net.BufferedWriter
 ---@field Stream hecate.net.Stream  interface a transport implements
 ---@field EndOfStreamError hecate.net.EndOfStreamError
----@field TransportError hecate.reactor.TransportError  the failure of a transport operation; the same class as `reactor.TransportError`
+---@field TransportError hecate.core.NetworkError  the failure of a transport operation; the same class as `reactor.TransportError`
 ---@field TcpStream hecate.net.TcpStream
 ---@field TcpListener hecate.net.TcpListener
 ---@field UdpSocket hecate.net.UdpSocket

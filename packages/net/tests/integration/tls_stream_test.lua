@@ -512,9 +512,9 @@ function T:test_records_survive_any_chunking_of_the_transport()
   local seed = tonumber(os.getenv("HECATE_TEST_SEED")) or os.time()
   for _, k in ipairs({ 1, 2, 5, 17, 1024 }) do
     local random = generator(seed + k)
-    local payload = {}
-    for i = 1, 6000 do payload[i] = string.char(random(256) - 1) end
-    payload = table.concat(payload)
+    local bytes = {}
+    for i = 1, 6000 do bytes[i] = string.char(random(256) - 1) end
+    local payload = table.concat(bytes)
     local label = ("chunk size %d, seed %d (set HECATE_TEST_SEED to replay)"):format(k, seed)
     run(self, function()
       local listener <close> = net.listen("127.0.0.1", 0)
@@ -689,16 +689,15 @@ function T:test_the_end_of_the_transport_waits_for_plaintext_above_the_buffer_li
   local client, server = native_pair()
   -- One full record followed by small ones: a single feed ends up with more plaintext than rustls
   -- buffers; recording the end of the transport then must not fail (it used to).
-  local lengths, payload, wire = { 16384 }, {}, {}
+  local lengths, pieces, flights = { 16384 }, {}, {}
   for _ = 1, 10 do lengths[#lengths + 1] = 100 end
   for i, length in ipairs(lengths) do
     local piece = string.char(64 + i):rep(length)
-    payload[#payload + 1] = piece
+    pieces[#pieces + 1] = piece
     self:assert_equal(length, server:write(piece))
-    wire[#wire + 1] = server:drain()
+    flights[#flights + 1] = server:drain()
   end
-  payload = table.concat(payload)
-  wire = table.concat(wire)
+  local payload, wire = table.concat(pieces), table.concat(flights)
   local at = 1
   while client:wants_read() and at <= #wire do at = at + client:feed(wire:sub(at)) end
   client:feed_eof()

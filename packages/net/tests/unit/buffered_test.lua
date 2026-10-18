@@ -1,4 +1,4 @@
----@diagnostic disable: param-type-mismatch  -- the tests pass invalid arguments on purpose
+---@diagnostic disable: param-type-mismatch, assign-type-mismatch  -- the tests pass invalid arguments on purpose
 local test = require("harness.test")
 local core = require("hecate.core")
 local reactor = require("hecate.reactor")

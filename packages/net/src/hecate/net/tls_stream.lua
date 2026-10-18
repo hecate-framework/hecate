@@ -375,7 +375,7 @@ function TlsStream:version() return self._session:version() end
 function TlsStream:peer_certificate() return self._session:peer_certificate() end
 
 --- The peer's address, from the inner stream (the stream must have one, as `TcpStream` does).
----@return { host: string, port: integer, family: string }
+---@return hecate.reactor.SocketAddress
 function TlsStream:peer_address()
   local inner = self._inner --[[@as table]]
   if type(inner.peer_address) ~= "function" then error(core.Error("the inner stream has no peer address"), 2) end
@@ -383,7 +383,7 @@ function TlsStream:peer_address()
 end
 
 --- The local address, from the inner stream (the stream must have one, as `TcpStream` does).
----@return { host: string, port: integer, family: string }
+---@return hecate.reactor.SocketAddress
 function TlsStream:local_address()
   local inner = self._inner --[[@as table]]
   if type(inner.local_address) ~= "function" then error(core.Error("the inner stream has no local address"), 2) end

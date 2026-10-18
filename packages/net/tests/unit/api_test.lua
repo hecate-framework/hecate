@@ -1,4 +1,4 @@
----@diagnostic disable: param-type-mismatch  -- the tests pass invalid arguments on purpose
+---@diagnostic disable: param-type-mismatch, assign-type-mismatch  -- the tests pass invalid arguments on purpose
 -- Public surface of `hecate.net` that needs no I/O: exports, the `<close>` protocol of every
 -- stream class, and argument checks that must fire before anything is resolved or connected.
 local test = require("harness.test")

@@ -1,4 +1,4 @@
----@diagnostic disable: param-type-mismatch  -- the tests pass invalid arguments on purpose
+---@diagnostic disable: param-type-mismatch, assign-type-mismatch  -- the tests pass invalid arguments on purpose
 local test = require("harness.test")
 local core = require("hecate.core")
 local reactor = require("hecate.reactor")
@@ -693,7 +693,7 @@ function T:test_a_reset_peer_on_the_read_side_ends_the_stream_or_raises_but_neve
       self:assert_nil(result, "a reset must not deliver data")
     else
       self:assert_true(core.is_instance_of(result, reactor.TransportError), tostring(result))
-      local errno = result.context.errno
+      local errno = (result --[[@as hecate.core.Error]]).context.errno
       self:assert_true(errno == "ECONNRESET" or errno == "EPIPE" or errno == "ECONNABORTED", tostring(errno))
     end
     client:close()

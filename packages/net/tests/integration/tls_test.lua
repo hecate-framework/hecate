@@ -186,6 +186,8 @@ end
 --- command, for platforms whose system verifier refuses the 100-year fixtures. Returns
 --- `{ ca, cert, key }` (PEM strings), or nil and why not. Files go to a temporary prefix and are
 --- removed.
+---@return { ca: string, cert: string, key: string }?
+---@return string? why
 local function generate_short_lived_pki()
   local prefix = os.tmpname()
   os.remove(prefix)
@@ -225,10 +227,10 @@ local function generate_short_lived_pki()
       return nil, "the openssl command failed or is missing: " .. step:match("^openssl %S+ %S+")
     end
   end
-  local pki = { ca = read(path("ca.pem")), cert = read(path("srv.pem")), key = read(path("srv.key")) }
+  local ca, cert, key = read(path("ca.pem")), read(path("srv.pem")), read(path("srv.key"))
   cleanup()
-  if not (pki.ca and pki.cert and pki.key) then return nil, "openssl produced no certificate" end
-  return pki
+  if not (ca and cert and key) then return nil, "openssl produced no certificate" end
+  return { ca = ca, cert = cert, key = key }
 end
 
 function T:test_ca_pem_adds_anchors_to_the_system_store()
@@ -245,6 +247,7 @@ function T:test_ca_pem_adds_anchors_to_the_system_store()
       end
       self:fail("cannot generate the short-lived chain: " .. tostring(why))
     end
+    assert(pki)
     cert, key, ca = pki.cert, pki.key, pki.ca
     print("# ca_pem proof uses a generated short-lived chain")
   end
