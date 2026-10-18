@@ -3,8 +3,8 @@
 
 - roadmap_item: `net`: TCP/UDP streams, DNS, buffered readers/writers, TLS (after OQ-4).
 - status: in-progress            <!-- in-progress | waiting-ci | waiting-owner -->
-- lock_until: 2026-10-18T10:55:34Z
-- last_update: 2026-10-18T09:25:34Z
+- lock_until: 2026-10-18T14:43:00Z
+- last_update: 2026-10-18T13:13:00Z
 
 ## Done
 
@@ -48,11 +48,13 @@
 
 - OQ-8 (owner request 2026-10-18, multi-process by design, Linux never compromised): spike on three platforms (docs/spikes/OQ-8-multi-process.md, script and luv patch in docs/spikes/OQ-8/), Proposed ADR 0023 (two strategies: `reuseport` on Linux, `round_robin` elsewhere; the shared listening socket balanced nowhere and was dropped), OQ-43 (TCP `SO_REUSEPORT` from Lua: luv sets it for UDP only), glossary primary/worker/listening strategy, concurrency.md "Workers", roadmap item for the `reactor` primitives. This is a design deliverable on this PR; no `spawn`/`ipc` code yet (roadmap, after the owner promotes ADR 0023). A localised luv checkout and build live in the git-ignored `spikes/OQ-8` and `spikes/luals`.
 
+- 2026-10-18, later: ADR 0023/0024 Accepted, OQ-8/41/44 resolved, rustls 0.23.46, fair OQ-8 measurement (`reuseport` is an optimisation: OQ-43 not urgent), net-review decision-free tests and fixes: property tests of the reader found and fixed a real bug (`read_until` limit with a split multi-byte delimiter), `TlsError` `context.reason`, expired/ALPN/IP SAN/stalled handshake tests, handle-leak check around every TLS test, slow-peer test, fixtures for the expired certificate.
+
 ## Next steps
 
-1. Check the CI run of the head commit on the three platforms (unverified there: `rustup toolchain install` in the crate directory with rust-toolchain.toml, the clippy/fmt step, `HECATE_REQUIRE_TLS`). Fix failures before anything else.
-2. Still open from the review: the same de-flaking in the reactor tests (reactor/tests/integration/tcp_test.lua lines ~220, 261, 342; udp_test.lua ~54, 68), more tests (slow peer with 1-byte writes, property tests of the buffered reader with a fake stream, real RST, TLS handshake cancellation, handle-leak check in every TLS test, expired certificate, IP SAN, ALPN mismatch), API gaps (TlsError `reason`, opaque TlsClientConfig/TlsServerConfig classes, `bind_udp` options and `family`, `send_to` argument order, `listen_tls`, `shutdown` on `Stream`, `is_closed` on the other buffered classes), `.gitattributes` (*.pem LF), cargo-deny/audit (security.yml, a Phase 1 item, ADR 0021), website reference pages for `net`.
-3. Owner decisions pending: OQ-41 (system trust store: ADR for `rustls-platform-verifier`), OQ-39/ADR 0022, "task" stays out of the glossary (prose now says coroutine).
+1. Check CI on the head commit (three platforms); fix before anything else.
+2. Net-review findings still open and needing the owner: argument order of `UdpSocket:send_to` (data first today, `connect` takes host first), a one-call server-side TLS form (`listen_tls`) versus the documented two-step `tls.accept(listener:accept(), config)`, TLS error subclasses instead of `context.reason`. Decision-free and not done: `bind_udp` options/`family`, `net.connect` keeps only the last address failure (attach the attempts), shared `Stream` trait instead of three copies, native crate unit tests (in-memory client and server), cargo-fuzz targets, tighten the Windows errno tolerance per platform, README gaps (UdpSocket methods).
+3. Other items: de-flake the reactor tests (reactor/tests/integration/tcp_test.lua ~220, 261, 342; udp_test.lua ~54, 68); `security.yml` with cargo-deny and cargo audit (owner choices: licence allowlist, action pinning, see the notes in the conversation: `ring` needs a clarification, `webpki-root-certs` is in `Cargo.lock` only for a target we do not build, restrict `targets` to the three triples); website reference pages for `net`; the `reactor` primitives of ADR 0023 (`spawn`, `ipc`, handle passing).
 4. Then /review-package net again, tick the roadmap item, delete this file, mark PR #19 ready.
 
 ## Decisions taken (and where they are recorded)
