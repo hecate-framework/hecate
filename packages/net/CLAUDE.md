@@ -30,7 +30,7 @@ TCP/UDP streams, DNS resolution, buffered readers/writers and TLS, all suspendin
 
 - every stream is `<close>`-able
 - partial reads/writes never leak to callers of buffered APIs
-- TLS verification is on and cannot be disabled (OQ-41); trust anchors are passed as `ca_pem`
+- TLS verification is on and cannot be disabled (OQ-41); the system store is trusted by default, `ca_pem` adds anchors (ADR 0024)
 
 ## Test strategy
 
@@ -45,7 +45,7 @@ Plus, for every change: unit tests for public behaviour, LuaLS annotations on pu
 
 - Windows socket error codes differ
 - Nagle and keep-alive defaults
-- certificate stores differ per platform: no system store yet, `ca_pem` is required (OQ-41)
+- certificate stores differ per platform: the default path goes through the operating system's verifier (ADR 0024), hermetic tests use `system_roots = false`
 - the TLS tests fail, not skip, when `HECATE_REQUIRE_TLS=1` and the native module is missing
 - use futures and joins, not `reactor.sleep`, to order events in tests
 

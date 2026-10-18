@@ -4,7 +4,9 @@
 //! socket. Nothing here is `unsafe`; the Lua boundary is `mlua`.
 //!
 //! Certificate verification is always on (RFC 8446 section 4.4.2; service identity RFC 6125,
-//! implemented by rustls-webpki). There is no option to disable it.
+//! implemented by rustls-webpki). There is no option to disable it. A client trusts the
+//! operating system's store through `rustls-platform-verifier` (ADR 0024), optionally with extra
+//! trust anchors of the caller, or only the caller's anchors.
 
 use std::io::{Read, Write};
 use std::sync::Arc;
@@ -15,6 +17,7 @@ use rustls::pki_types::{CertificateDer, PrivateKeyDer, ServerName};
 use rustls::{
     ClientConfig, ClientConnection, Connection, RootCertStore, ServerConfig, ServerConnection,
 };
+use rustls_platform_verifier::Verifier;
 
 fn tls_error<E: std::fmt::Display>(what: &str, e: E) -> LuaError {
     LuaError::runtime(format!("{what}: {e}"))
@@ -199,16 +202,39 @@ impl LuaUserData for Session {
     }
 }
 
-/// client_config{ ca_pem, alpn?, cert_pem?, key_pem? }. `ca_pem` is the trust anchors; there is
-/// no built-in trust store and no way to turn verification off (see OQ-41).
+/// client_config{ ca_pem?, system_roots?, alpn?, cert_pem?, key_pem? }. By default the server
+/// certificate is verified by the operating system (`rustls-platform-verifier`), and `ca_pem`
+/// adds trust anchors to the system ones. With `system_roots = false` only `ca_pem` is trusted.
+/// There is no way to turn verification off (ADR 0024).
 fn client_config(_: &Lua, options: LuaTable) -> LuaResult<Config> {
-    let ca = opt_bytes(&options, "ca_pem")?
-        .ok_or_else(|| LuaError::runtime("client_config: ca_pem is required"))?;
-    let builder =
-        ClientConfig::builder_with_provider(Arc::new(rustls::crypto::ring::default_provider()))
-            .with_safe_default_protocol_versions()
-            .map_err(|e| tls_error("client_config", e))?
-            .with_root_certificates(roots(&ca, "client_config ca_pem")?);
+    let extra = match opt_bytes(&options, "ca_pem")? {
+        Some(ca) => Some(certificates(&ca, "client_config ca_pem")?),
+        None => None,
+    };
+    let system_roots = options.get::<Option<bool>>("system_roots")?.unwrap_or(true);
+    let provider = Arc::new(rustls::crypto::ring::default_provider());
+    let builder = ClientConfig::builder_with_provider(provider.clone())
+        .with_safe_default_protocol_versions()
+        .map_err(|e| tls_error("client_config", e))?;
+    let builder = if system_roots {
+        let verifier = Verifier::new_with_extra_roots(extra.unwrap_or_default(), provider)
+            .map_err(|e| tls_error("client_config system trust store", e))?;
+        // The only custom verifier installed is the platform one: nothing here skips verification.
+        builder
+            .dangerous()
+            .with_custom_certificate_verifier(Arc::new(verifier))
+    } else {
+        let extra = extra.ok_or_else(|| {
+            LuaError::runtime("client_config: ca_pem is required when system_roots is false")
+        })?;
+        let mut store = RootCertStore::empty();
+        for cert in extra {
+            store
+                .add(cert)
+                .map_err(|e| tls_error("client_config ca_pem", e))?;
+        }
+        builder.with_root_certificates(store)
+    };
     let mut config = match (
         opt_bytes(&options, "cert_pem")?,
         opt_bytes(&options, "key_pem")?,

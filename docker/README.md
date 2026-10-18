@@ -17,6 +17,7 @@ Requirements:
 - Reproducible: Lua and LuaRocks downloaded with pinned versions and verified checksums.
 - Small: runtime image without compilers; multi-stage builds in the generated
   Dockerfile (`hecate docker init`).
+- Out-of-the-box TLS: the runtime and build images install the system CA certificates, because the default trust store of `net` is the operating system's ([ADR 0024](../docs/adr/0024-tls-trust-store.md)); a release check fails otherwise.
 - Secure: non-root user, Trivy scan in CI, weekly rebuild.
 - Labelled: OCI labels including `org.hecate.lua-version`.
 

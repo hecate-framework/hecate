@@ -12,6 +12,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 mlua = { version = "0.12", features = ["lua55", "module"] }
+rustls-platform-verifier = "0.6"
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
 
 [profile.release]

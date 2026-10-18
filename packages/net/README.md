@@ -92,12 +92,12 @@ suspension stays in the reactor. Build the module with a Rust toolchain:
 Without it, `net.tls.available()` is false and TLS calls raise `TlsError`.
 
 Certificate verification is on and cannot be turned off (RFC 8446 section 4.4.2, RFC 6125).
-There is no built-in trust store yet: pass the trust anchors as `ca_pem`.
+The server certificate is verified against the operating system's trust store (`rustls-platform-verifier`, [ADR 0024](../../docs/adr/0024-tls-trust-store.md)), so a public server works with no option; `ca_pem` adds trust anchors for a private CA, and `system_roots = false` trusts only `ca_pem`. Verification cannot be disabled.
 
 | Name | Description |
 |---|---|
-| `net.connect_tls(host, port, options)` | *suspends*. `net.connect` then a TLS handshake. Options: those of `connect` plus `ca_pem` (required unless `tls_config`), `alpn`, `cert_pem` and `key_pem` (mutual TLS), `server_name` (default `host`: SNI and identity), `tls_config`. |
-| `net.tls.client_config(options)`, `net.tls.server_config(options)` | Reusable configurations (`ca_pem`, `alpn`, `cert_pem`, `key_pem`; server: `cert_pem`, `key_pem`, `alpn`, `client_ca_pem` to require client certificates). |
+| `net.connect_tls(host, port, options)` | *suspends*. `net.connect` then a TLS handshake. Options: those of `connect` plus `ca_pem` (added to the system store), `system_roots`, `alpn`, `cert_pem` and `key_pem` (mutual TLS), `server_name` (default `host`: SNI and identity), `tls_config`. |
+| `net.tls.client_config(options)`, `net.tls.server_config(options)` | Reusable configurations (`ca_pem`, `system_roots`, `alpn`, `cert_pem`, `key_pem`; server: `cert_pem`, `key_pem`, `alpn`, `client_ca_pem` to require client certificates). |
 | `net.tls.connect(stream, server_name, config)`, `net.tls.accept(stream, config)` | *suspend*. Handshake over an existing stream, which the result owns. |
 | `net.TlsStream` | Implements `Stream`; `handshake()`, `shutdown()` (sends `close_notify`, *suspends*), `alpn()`, `server_name()`, `version()`, `peer_certificate()`, `reader()`, `writer()`, `is_closed()`. `read` returns nil after the peer's `close_notify` and raises `TlsError` when the transport ends without it. `close()` cannot send `close_notify`: call `shutdown()` first. |
 | `net.TlsError` | A `NetworkError`: failed handshake or verification, protocol failure, truncation, module not built. |

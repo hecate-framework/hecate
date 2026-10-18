@@ -184,6 +184,7 @@ jobs:
         env:
           PACKAGES: ${{ needs.plan.outputs.packages }}
           # The TLS tests fail, instead of skipping, when the native module is missing.
+          HECATE_NETWORK_TESTS: "1"
           HECATE_REQUIRE_TLS: ${{ contains(format(' {0} ', needs.plan.outputs.packages), ' net ') && '1' || '' }}
         run: |
           set -e

@@ -17,7 +17,8 @@ local M = {}
 
 --- Options of `tls.client_config`.
 ---@class hecate.net.TlsClientOptions
----@field ca_pem string  PEM trust anchors the server certificate must chain to
+---@field ca_pem? string  PEM trust anchors added to the system trust store (the only ones with `system_roots = false`)
+---@field system_roots? boolean  trust the operating system's store (default true); false trusts only `ca_pem`
 ---@field alpn? string[]  application protocols to offer, in preference order
 ---@field cert_pem? string  client certificate chain (mutual TLS), with `key_pem`
 ---@field key_pem? string  client private key (PKCS#8, PKCS#1 or SEC1 PEM)
@@ -58,12 +59,31 @@ local function check(name, options, required)
   end
 end
 
---- Builds a client configuration (reusable across connections). Raises `ArgumentError` for a
---- missing or malformed option and `TlsError` when a PEM cannot be parsed.
----@param options hecate.net.TlsClientOptions
+--- Validates the trust options shared by `client_config` and `connect_tls`.
+---@param name string
+---@param options table
+local function check_trust(name, options)
+  if options.ca_pem ~= nil and type(options.ca_pem) ~= "string" then
+    error(core.ArgumentError(("%s: option ca_pem must be a PEM string"):format(name)), 3)
+  end
+  if options.system_roots ~= nil and type(options.system_roots) ~= "boolean" then
+    error(core.ArgumentError(("%s: option system_roots must be a boolean"):format(name)), 3)
+  end
+  if options.system_roots == false and options.ca_pem == nil then
+    error(core.ArgumentError(("%s: option ca_pem is required when system_roots is false (nothing else would be trusted)"):format(name)), 3)
+  end
+end
+
+--- Builds a client configuration (reusable across connections). The server certificate is
+--- verified against the operating system's trust store, plus `ca_pem` when given; verification
+--- cannot be disabled (ADR 0024). Raises `ArgumentError` for a malformed option and `TlsError` when
+--- a PEM cannot be parsed or the system trust store cannot be loaded.
+---@param options? hecate.net.TlsClientOptions
 ---@return userdata config
 function M.client_config(options)
-  check("client_config", options, { "ca_pem" })
+  options = options or {}
+  check("client_config", options, {})
+  check_trust("client_config", options)
   require_native()
   local ok, config = pcall(native.client_config, options)
   if not ok then error(native_error(config), 0) end
@@ -136,34 +156,35 @@ function M.accept(stream, config)
   return tls
 end
 
-local TLS_KEYS = { ca_pem = true, alpn = true, cert_pem = true, key_pem = true, server_name = true, tls_config = true }
+local TLS_KEYS = { ca_pem = true, system_roots = true, alpn = true, cert_pem = true, key_pem = true, server_name = true, tls_config = true }
 
---- Connects to `host:port` over TCP, then runs a TLS client handshake. Options: those of
---- `net.connect` plus `ca_pem` (required unless `tls_config` is given), `alpn`, `cert_pem` and
---- `key_pem` (mutual TLS), `server_name` (default `host`: SNI and certificate identity) and
---- `tls_config` (a prebuilt `tls.client_config`). Certificate verification cannot be disabled.
+--- Connects to `host:port` over TCP, then runs a TLS client handshake. With no option the server
+--- certificate is verified against the operating system's trust store. Options: those of
+--- `net.connect` plus `ca_pem` (trust anchors added to the system store, for a private CA),
+--- `system_roots` (false trusts only `ca_pem`), `alpn`, `cert_pem` and `key_pem` (mutual TLS),
+--- `server_name` (default `host`: SNI and certificate identity) and `tls_config` (a prebuilt
+--- `tls.client_config`). Certificate verification cannot be disabled.
 ---
 --- Raises `hecate.net.TlsError` for a failed handshake or verification, `reactor.TransportError`
 --- for a TCP failure, `hecate.core.ArgumentError` for a malformed option.
 ---@async
 ---@param host string
 ---@param port integer
----@param options hecate.net.TlsClientOptions | table
+---@param options? hecate.net.TlsClientOptions | table
 ---@return hecate.net.TlsStream stream
 function M.connect_tls(host, port, options)
+  options = options or {}
   if type(options) ~= "table" then
-    error(core.ArgumentError("connect_tls expects an options table with ca_pem or tls_config"), 2)
+    error(core.ArgumentError("connect_tls expects an options table"), 2)
   end
   local config = options.tls_config
   if config ~= nil then
-    if options.ca_pem ~= nil or options.cert_pem ~= nil or options.key_pem ~= nil or options.alpn ~= nil then
-      error(core.ArgumentError("connect_tls: tls_config cannot be combined with ca_pem, cert_pem, key_pem or alpn"), 2)
+    if options.ca_pem ~= nil or options.system_roots ~= nil or options.cert_pem ~= nil or options.key_pem ~= nil
+      or options.alpn ~= nil then
+      error(core.ArgumentError("connect_tls: tls_config cannot be combined with ca_pem, system_roots, cert_pem, key_pem or alpn"), 2)
     end
-  elseif type(options.ca_pem) ~= "string" then
-    error(core.ArgumentError(
-      "connect_tls: option ca_pem is required (PEM trust anchors, for example the content of a CA bundle file); "
-        .. "there is no system trust store yet and verification cannot be disabled (OQ-41). "
-        .. "Pass ca_pem, or a prebuilt tls_config"), 2)
+  else
+    check_trust("connect_tls", options)
   end
   if (options.cert_pem == nil) ~= (options.key_pem == nil) then
     error(core.ArgumentError("connect_tls: cert_pem and key_pem must be given together"), 2)
@@ -178,7 +199,19 @@ function M.connect_tls(host, port, options)
     if not TLS_KEYS[key] then transport[key] = value end
   end
   local stream = tcp.connect(host, port, transport)
-  return M.connect(stream, options.server_name or host, config)
+  local ok, result = pcall(M.connect, stream, options.server_name or host, config)
+  if ok then return result end
+  local failure = result --[[@as hecate.core.Error]]
+  -- An unknown issuer is the usual failure of a system trust store that lacks the server's CA.
+  if core.is_instance_of(failure, TlsError) and tostring(failure):find("UnknownIssuer", 1, true)
+    and options.tls_config == nil and options.system_roots ~= false then
+    error(TlsError({
+      message = (failure.message or tostring(failure)) .. " (the issuer is not in the system trust store: install"
+        .. " the system CA certificates, for example the ca-certificates package, or pass ca_pem)",
+      cause = failure,
+    }), 0)
+  end
+  error(result, 0)
 end
 
 return M

@@ -35,3 +35,4 @@ Use [`template.md`](template.md) or the `/new-adr` command.
 | [0021](0021-rust-native-modules.md) | Rust as a build-time tool for native modules (TLS, JSON encoding) | Accepted |
 | [0022](0022-doc-dependencies.md) | Documentation generator: third-party dependencies and WebAssembly assets | Proposed |
 | [0023](0023-multi-process-serving.md) | Multi-process serving: share-nothing workers behind a listening-strategy abstraction | Proposed |
+| [0024](0024-tls-trust-store.md) | TLS trust store: the operating system's verifier by default | Proposed |
