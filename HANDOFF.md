@@ -3,8 +3,8 @@
 
 - roadmap_item: `net`: TCP/UDP streams, DNS, buffered readers/writers, TLS (after OQ-4).
 - status: in-progress            <!-- in-progress | waiting-ci | waiting-owner -->
-- lock_until: 2026-10-18T10:51:23Z
-- last_update: 2026-10-18T09:21:23Z
+- lock_until: 2026-10-18T10:55:34Z
+- last_update: 2026-10-18T09:25:34Z
 
 ## Done
 
@@ -42,11 +42,14 @@
 
 - Run 2026-10-18 (owner: fix the /review-package net findings, OQ-11 resolved, glossary entries stream/back-pressure/half-close approved, prose "task" -> "coroutine" and `live_tasks` -> `live_coroutines`, native module ships inside the rock): OQ-11 moved to Resolved; TLS wrapper fixes (record order mutex, is_closed, stall detection, argument validation, early-error ownership), native `read` clamp, BufferedReader (limit validation, `read_exact` limit, linear chunks, read after close raises), Rust lints and no `logging` feature, pinned toolchain (rust-toolchain.toml), `HECATE_REQUIRE_TLS`, clippy/fmt in CI; docs drift (OQ-28 row, OQ-42, OQ-30 mark, net CLAUDE.md, reactor README/init.lua, concurrency.md "Transport"); rock binaries spike (docs/spikes/OQ-41-rock-binaries.md, ADR 0021, OQ-41 (7), roadmap).
 
+- Same run, later steps: early port validation, never-empty `net.resolve`, Unix socket path limit (OQ-42), typecheck fixes (CI run 82 failed on 3 LuaLS warnings; LuaLS 3.19.1 is installed in the git-ignored `spikes/luals`, run `PATH=$PWD/spikes/luals/bin:$PATH lua tools/run.lua typecheck`), `net` tests de-flaked (channels and joins instead of sleeps, tcp_test.lua and tls_test.lua), new tests (mutual TLS rejection, inconsistent options, port validation, path length).
+
 ## Next steps
 
-1. Check the CI run of the last push (the toolchain pin `rustup toolchain install` in the crate directory and the new clippy step are unverified on CI).
-2. Review findings still open: test flakiness (replace sleeps/short deadlines by futures: net tcp_test 70/85/150-158/187-200/218/234, tls_test 67/89/158/173, reactor tcp/udp tests), missing tests (slow peer, property tests of the buffered reader, real RST, TLS handshake cancellation, handle-leak checks in all TLS tests, expired cert/IP SAN/mTLS rejection), API gaps (TlsError reason, opaque config classes, bind_udp options/family, send_to order, listen_tls, shutdown on Stream), unix socket path length ArgumentError, zero-address guards in tcp.lua/udp.lua, port validation before resolve, `.gitattributes` (*.pem LF), cargo-deny/audit (security.yml, Phase 1 item), website reference pages for net.
-3. Then /review-package net again, tick the roadmap item, delete this file, mark PR #19 ready.
+1. Check the CI run of the head commit on the three platforms (unverified there: `rustup toolchain install` in the crate directory with rust-toolchain.toml, the clippy/fmt step, `HECATE_REQUIRE_TLS`). Fix failures before anything else.
+2. Still open from the review: the same de-flaking in the reactor tests (reactor/tests/integration/tcp_test.lua lines ~220, 261, 342; udp_test.lua ~54, 68), more tests (slow peer with 1-byte writes, property tests of the buffered reader with a fake stream, real RST, TLS handshake cancellation, handle-leak check in every TLS test, expired certificate, IP SAN, ALPN mismatch), API gaps (TlsError `reason`, opaque TlsClientConfig/TlsServerConfig classes, `bind_udp` options and `family`, `send_to` argument order, `listen_tls`, `shutdown` on `Stream`, `is_closed` on the other buffered classes), `.gitattributes` (*.pem LF), cargo-deny/audit (security.yml, a Phase 1 item, ADR 0021), website reference pages for `net`.
+3. Owner decisions pending: OQ-41 (system trust store: ADR for `rustls-platform-verifier`), OQ-39/ADR 0022, "task" stays out of the glossary (prose now says coroutine).
+4. Then /review-package net again, tick the roadmap item, delete this file, mark PR #19 ready.
 
 ## Decisions taken (and where they are recorded)
 
