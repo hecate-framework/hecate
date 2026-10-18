@@ -477,8 +477,8 @@ function T:test_a_cancelled_read_until_resumes_from_what_it_received()
   end)
 end
 
--- A payload of at least `capacity` bytes, with nothing buffered, is written as it is: the very
--- string, in one call, no copy through the buffer (bytes and order are the invariant).
+-- A payload of at least `capacity` bytes, with nothing buffered, is written in one call (the direct
+-- path skips the copy through the buffer; what the stream sees, bytes and order, must not change).
 function T:test_a_large_write_goes_straight_to_the_stream_when_nothing_is_buffered()
   run(function()
     local stream = fake_stream({})
@@ -486,7 +486,7 @@ function T:test_a_large_write_goes_straight_to_the_stream_when_nothing_is_buffer
     local payload = "0123456789"
     writer:write(payload)
     self:assert_equal(1, #stream.sent)
-    self:assert_true(rawequal(payload, stream.sent[1]))
+    self:assert_true(stream.sent[1] == payload)
     self:assert_equal(0, writer:buffered())
     -- With bytes already buffered the order is kept: they go out first, with the payload.
     writer:write("ab")

@@ -73,18 +73,6 @@ local function check_port(name, port)
   end
 end
 
---- Validates the arguments of `net.connect` without resolving anything; `hecate.net.tls` calls it
---- so that a malformed transport option is refused before a TLS configuration is built.
----@param name string  the public function the caller used, for messages
----@param host any
----@param port any
----@param options any  transport options (no TLS keys)
----@private
-function M._check_connect(name, host, port, options)
-  split_options(name, host, options, CONNECT_OPTIONS)
-  check_port(name, port)
-end
-
 ---@param host string
 ---@param port integer
 ---@return string

@@ -14,7 +14,7 @@ end
 
 reactor.run(function()
   local peer = reactor.ipc.parent()
-  if mode == "no_channel" then
+  if mode == "no_pipe" then
     os.exit(peer == nil and 0 or 9)
   end
   assert(peer, "no message pipe to the parent")
@@ -40,8 +40,8 @@ reactor.run(function()
     peer:send("done")
   elseif mode == "grandchild_env" then
     -- A plain grandchild must neither see the marker nor reach the message pipe (it runs the
-    -- "no_channel" mode of this fixture), also when started through `run_process`.
-    local plain = reactor.spawn(uv.exepath(), { arg[0], "no_channel" })
+    -- "no_pipe" mode of this fixture), also when started through `run_process`.
+    local plain = reactor.spawn(uv.exepath(), { arg[0], "no_pipe" })
     local result = reactor.run_process(uv.exepath(), { "-e", "io.write(os.getenv('HECATE_IPC_FD') or 'unset')" })
     peer:send(("%d %s"):format(plain:wait().code, result.stdout))
   elseif mode == "grandchild_fd" then

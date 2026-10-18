@@ -135,11 +135,11 @@ jobs:
       # Native rocks (luv) for the reactor tests; `tools/harness/run_file.lua` puts
       # `.hecate/rocks` on package.path and package.cpath, so no further environment is needed.
       # Pinned: TCP `reuseport` support (OQ-43) and the process/pipe behaviour the tests assert depend on
-      # the luv (and bundled libuv) version; bump it deliberately. 1.52.1-0 is what the Linux job got.
+      # the luv (and bundled libuv) version; bump it deliberately. 1.53.0-0 is what the Linux job installs today (OQ-1).
       - name: Install luv
         if: steps.rocks.outputs.cache-hit != 'true'
         shell: bash
-        run: luarocks --tree .hecate/rocks install luv 1.52.1-0
+        run: luarocks --tree .hecate/rocks install luv 1.53.0-0
 
       # Rust native module of `net` (TLS over rustls, ADR 0021). Only built when `net` or a
       # dependent package is affected; the TLS tests skip silently when it is missing, so the

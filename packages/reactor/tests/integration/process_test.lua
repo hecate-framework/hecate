@@ -138,7 +138,7 @@ function T:test_argument_validation()
 end
 
 function T:test_a_process_without_a_message_pipe_has_no_parent_peer()
-  local status = run(self, function() return child("no_channel"):wait() end)
+  local status = run(self, function() return child("no_pipe"):wait() end)
   self:assert_equal(0, status.code)
   self:assert_equal(nil, reactor.ipc.parent())
 end
