@@ -23,17 +23,24 @@ on the three platforms, with four workers:
 |---|---|---|---|
 | each worker binds with `SO_REUSEPORT` | evenly: largest to smallest worker 1.09 to 1.13, the fastest | **one worker took every connection** | not available |
 | one listening socket shared by all workers | badly unbalanced (94 to 278) | unbalanced (4.3 to 4.9) | **one worker took every connection** |
-| the primary accepts and passes each connection to the next worker | perfect (1.00), about two thirds of the `SO_REUSEPORT` throughput | perfect (1.00) | perfect (1.00), slower (about 3300 connections per second) |
+| the primary accepts and passes each connection to the next worker | perfect (1.00); same speed for keep-alive and up to about 10 000 new connections per second, a ceiling near 27 000 | perfect (1.00) | perfect (1.00), slower (about 3300 connections per second) |
 
 What follows from the measurements:
 
+- Node's `cluster` module reached the same conclusion: round-robin hand-off is its default everywhere except
+  Windows, because a shared listening handle left over 70% of connections in two of eight processes
+  ([documentation](https://nodejs.org/api/cluster.html)); it keeps the shared handle on Windows, which our
+  Windows measurement shows to be the weak choice.
 - `SO_REUSEPORT` is the right strategy on Linux and only there: the kernel balances, and nothing
   stands between the kernel and the workers.
 - A shared listening socket balances nowhere. The assumption that Windows would distribute
   connections over a shared socket was wrong, so the strategy is dropped.
 - Passing each accepted connection from the primary balances everywhere and works on all three
-  platforms with no native code. It costs throughput, because the primary is in the path, which is
-  acceptable off Linux and is exactly why Linux must not use it.
+  platforms with no native code. The primary is in the path only for the accept: a follow-up
+  measurement with the load generator in its own process found no difference from `SO_REUSEPORT` for
+  keep-alive traffic and for new connections up to about 10 000 per second, and the primary spends
+  about 37 microseconds per new connection (a ceiling near 27 000 per second on the test host). The
+  first table's gap on Linux came from a load generator that shared the primary's core.
 - luv 1.53 exposes `reuseport` for UDP but **not for TCP** (`tcp_bind` knows only `ipv6only`),
   although the bundled libuv has `UV_TCP_REUSEPORT`. A four-line patch (in the report) makes
   `tcp:bind(host, port, { reuseport = true })` work; it behaves like the native module the spike
@@ -42,8 +49,9 @@ What follows from the measurements:
 ## Options considered
 
 1. **One strategy everywhere** (always pass connections from the primary). Consequences: simple,
-   but Linux pays an extra hop and a third of its throughput for nothing. Rejected: it lets the
-   weakest platform set the design.
+   and as fast for keep-alive traffic, but on Linux the primary caps the rate of new connections
+   near 27 000 per second, which `SO_REUSEPORT` does not. Rejected for a high-churn Linux server,
+   kept as the default where `SO_REUSEPORT` does not balance and as the fallback.
 2. **A shared listening socket where `SO_REUSEPORT` does not balance** (macOS, Windows).
    Consequences: no primary in the data path in principle, but measured unbalanced or not
    distributing at all. Rejected.
@@ -110,9 +118,11 @@ What follows from the measurements:
    kernel; a rolling reload therefore starts the replacement worker, waits for its `ready`, then
    stops the old one, and keeps at most one worker out of service at a time. This limit is
    documented, not hidden.
-7. **Prerequisite on Linux: TCP `SO_REUSEPORT` from Lua.** Needed by the `reuseport` strategy and
-   absent from luv 1.53 (OQ-43 lists the options). Until it is settled, `auto` selects
-   `round_robin` on Linux too, so the framework works but is not yet at its intended speed there.
+7. **`SO_REUSEPORT` from Lua is an optimisation, not a prerequisite.** The `reuseport` strategy needs
+   TCP `SO_REUSEPORT`, absent from luv 1.53 (OQ-43). Until it is available `auto` selects
+   `round_robin` on Linux too: the framework is complete, and as fast for keep-alive traffic, with a
+   ceiling of about 27 000 new connections per second per host, which only a server without
+   connection reuse reaches.
 
 Out of scope: threads (`offload`, OQ-27), session affinity (sticky connections, WebSocket
 pinning: a worker cannot hand a live connection to another), and zero-downtime binary upgrades by

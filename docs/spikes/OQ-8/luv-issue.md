@@ -46,6 +46,11 @@ Evidence worth one sentence, not a table: four processes binding one port with t
 evenly spread connections on Linux (largest to smallest 1.05 to 1.13), where one listening socket
 shared by the processes is badly unbalanced (largest to smallest 94 to 278).
 
+Do not oversell it. Handing accepted connections from one process to the others (Node's cluster
+model) works without the flag and was as fast in our fair measurement, except above about 25 000
+new connections per second per host; the flag removes that ceiling and the extra hop. Present it as
+completing the binding of a libuv feature, not as a blocker.
+
 ## What to propose and what to ask
 
 Propose: the flag in the existing `flags` table (the maintainers said they prefer one Lua

@@ -45,6 +45,53 @@ the runner for `reuseport`):
 The first local runs in the cloud session (Ubuntu 24.04, four cores) agree: `reuseport` 1.05 to
 1.13, `shared` 43 to 261, `round_robin` 1.00, and `reuseport_luv` (patched luv) 1.05 to 1.08.
 
+## Follow-up: a fair comparison on Linux (2026-10-18)
+
+The first measurement ran its load generator inside the primary, so the primary and the generator
+shared one core, and it only used one-line connections that close at once. That handicapped the
+strategy in which the primary hands connections off, and it said nothing about keep-alive traffic,
+which is what HTTP servers mostly see. [`OQ-8/bench.lua`](OQ-8/bench.lua) fixes both: the load
+generator is a separate process (2 workers, the primary and the generator on the four cores), and
+it runs two loads for 8 seconds with 64 clients: **churn** (a new connection per request) and
+**keep-alive** (persistent connections, one request after another). One run per cell after a
+warm-up, indicative; the generator (a single Lua process) is the first limit in every cell.
+
+| Load | Strategy | Requests per second | Spread (largest to smallest) | CPU of the primary |
+|---|---|---|---|---|
+| churn | `reuseport` | 10800 to 11200 | 1.00 to 1.02 | none (not in the path) |
+| churn | primary hands off | 10000 to 12200 | 1.00 | 3.0 s of 8 s (37% of a core) |
+| keep-alive | `reuseport` | 73000 to 80400 | 1.06 to 1.17 | none |
+| keep-alive | primary hands off | 73400 to 80300 | 1.01 to 1.03 | 0.0 s (idle) |
+
+- **For keep-alive traffic the two strategies are the same speed**, and the hand-off balances
+  better (1.01 to 1.03 against 1.06 to 1.17 for the kernel's hash), because after the accept the
+  primary is not involved at all.
+- **For churn they are the same speed at this rate too.** The cost of the hand-off is visible only
+  in the primary's CPU: about 37% of a core at 10 000 new connections per second, that is about 37
+  microseconds of primary time per connection. A single primary therefore tops out near 27 000 new
+  connections per second on this hardware; beyond that `reuseport` (each worker accepts) scales and
+  the hand-off does not.
+- The "two thirds of the throughput" of the first table was an artefact of the generator sharing
+  the primary's core. It is withdrawn.
+
+## What Node and luvit do (read on 2026-10-18)
+
+- Node's `cluster` module offers two policies: round-robin, where the primary accepts and hands
+  connections to the workers (`SCHED_RR`), and a shared listening handle (`SCHED_NONE`). Round-robin
+  is the default on every platform except Windows. The documentation gives our own finding as the
+  reason: the shared handle "should, in theory, give the best performance. In practice however,
+  distribution tends to be very unbalanced due to operating system scheduler vagaries. Loads have
+  been observed where over 70% of all connections ended up in just two processes, out of a total
+  of eight." On Windows Node still defaults to the shared handle, "until libuv is able to
+  effectively distribute IOCP handles" ([cluster documentation](https://nodejs.org/api/cluster.html)).
+  Our Windows run agrees with that caveat (every connection to one worker), which is why ADR 0023
+  chooses the hand-off on Windows too.
+- Node added a TCP `SO_REUSEPORT` option on top of libuv's flag in October 2024 (pull request
+  nodejs/node#55408, "net: add UV_TCP_REUSEPORT for tcp", the same week as the UDP one, #55403). The
+  exact shape of the option and its first version were not confirmed here.
+- luvit has no cluster or multi-process server module (its repository has a `bench/http-cluster`
+  benchmark directory and nothing else matching `cluster`, `fork` or `reuseport`).
+
 ## Findings that shape the design
 
 1. **`SO_REUSEPORT` balances on Linux only.** On macOS it gives the whole load to one worker
@@ -58,9 +105,10 @@ The first local runs in the cloud session (Ubuntu 24.04, four cores) agree: `reu
    and needs no native code: libuv handle passing works for an accepted TCP connection
    (`pipe:write2`, `pipe:pending_count`, `pipe:accept`; the IPC pipe is the child's fourth
    standard stream, `stdio = { nil, 1, 2, ipc }` and `pipe:open(3)` in the child). Its cost is
-   throughput, because the primary is in the path: about two thirds of the `reuseport` figure on
-   Linux, and the slowest result on Windows (about 3300 connections per second, where each
-   hand-off duplicates the socket).
+   throughput only for new connections, because the primary is in the path: nothing for keep-alive
+   traffic, about 37 microseconds of primary time per new connection on Linux (see the follow-up),
+   and the slowest result on Windows (about 3300 connections per second in the first measurement,
+   where each hand-off duplicates the socket).
 4. **luv cannot set `SO_REUSEPORT` on a TCP socket.** luv 1.53 reads `reuseport` for UDP only;
    `tcp_bind` reads `ipv6only` and nothing else (checked in `src/tcp.c` of luv master of
    2026-09-30), although the bundled libuv defines `UV_TCP_REUSEPORT`. Passing the flag as an
@@ -76,7 +124,9 @@ The first local runs in the cloud session (Ubuntu 24.04, four cores) agree: `reu
 ADR 0023: share-nothing workers; mechanism in `reactor` (`spawn`, `ipc` with handle passing, TCP
 `reuseport`), policy in `kernel` (supervisor, two listening strategies). `auto` selects
 `reuseport` on Linux and `round_robin` on macOS and Windows, with `round_robin` as the fallback
-everywhere. For Linux speed now, settle OQ-43 (until then `round_robin` serves Linux too).
+everywhere. `reuseport` is an optimisation for a very high rate of new connections (above about
+25 000 per second per host), not a requirement: the framework is complete and as fast for keep-alive
+traffic with `round_robin` alone, so OQ-43 does not block anything.
 
 The temporary CI workflow that produced the macOS and Windows figures is removed; the spike
 script stays here so that the figures can be reproduced (`lua spike.lua <mode> [workers]
