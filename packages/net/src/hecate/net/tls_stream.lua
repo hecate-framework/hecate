@@ -59,11 +59,12 @@ end
 
 --- Converts a native failure into a `TlsError`. The native module prefixes the kind of a failure
 --- it can classify from the rustls error variant (`[untrusted_issuer] tls: ...`); that becomes
---- `context.reason` without parsing the message.
+--- `context.reason` without parsing the message. mlua renders a Rust error as `runtime error: ...`
+--- followed by a traceback: both are removed.
 ---@param message any
 ---@return hecate.net.TlsError
 local function tls_error(message)
-  local text = (tostring(message):gsub("\nstack traceback:.*$", ""))
+  local text = tostring(message):gsub("\nstack traceback:.*$", ""):gsub("^runtime error: ", "")
   local kind, rest = text:match("^%[(%l[%l_]*)%] (.*)$")
   if kind then return errors.tls_failure({ kind = kind, message = rest }) end
   return errors.tls_failure(text)

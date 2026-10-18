@@ -109,6 +109,28 @@ local function spawn(fn)
   return job
 end
 
+--- Decorates a server stream: once `mode` is set, the next write is cut in half and the stream
+--- closed ("truncate"), or one byte of it is flipped ("corrupt").
+local function tamper(inner)
+  local stream = { mode = nil }
+  function stream:read(max) return inner:read(max) end
+  function stream:write(data)
+    if self.mode == "truncate" then
+      inner:write(data:sub(1, math.max(1, #data // 2)))
+      inner:close()
+    elseif self.mode == "corrupt" then
+      local at = #data - 3
+      inner:write(data:sub(1, at - 1) .. string.char(data:byte(at) ~ 0xff) .. data:sub(at + 1))
+    else
+      inner:write(data)
+    end
+  end
+  function stream:shutdown() return inner:shutdown() end
+  function stream:close() inner:close() end
+  function stream:is_closed() return inner:is_closed() end
+  return stream
+end
+
 function T:test_a_write_cancelled_midway_closes_the_stream()
   run(self, function()
     local listener <close> = net.listen("127.0.0.1", 0)
@@ -252,31 +274,29 @@ function T:test_one_reader_and_one_writer_share_a_stream_with_a_peer_that_reads_
   end)
 end
 
-function T:test_a_read_cancelled_while_answering_close_notify_is_not_swallowed()
+function T:test_a_cancellation_while_sending_an_alert_is_not_turned_into_a_tls_error()
   run(self, function()
     local listener <close> = net.listen("127.0.0.1", 0)
     local outcome = serve(listener, {
-      serve = function(tls)
-        tls:write("bye")
-        tls:shutdown() -- close_notify: the client answers with its own
+      wrap = tamper,
+      serve = function(tls, stream)
+        stream.mode = "corrupt"
+        tls:write("a record the client cannot decrypt")
         read_all(tls)
       end,
     })
     local gate
     local client = dial(listener:local_address().port, function(raw) gate = new_gate(raw) return gate end)
-    self:assert_equal("bye", client:read())
     gate.blocked = true
     local reader = spawn(function() return client:read() end)
-    local parked = reactor.Channel(1)
-    reactor.fork(function() gate.parked:receive() parked:send(true) end)
-    parked:receive() -- the reply to close_notify is being sent and cannot finish
+    gate.parked:receive() -- the record failed to decrypt: its alert is being sent and cannot finish
     reader.future:cancel()
     reader.future:value()
-    -- The cancellation reaches the caller; it is not turned into the end of the stream (nil).
+    -- The cancellation reaches the caller (it used to be swallowed and replaced by a TlsError); the
+    -- stream is closed all the same, because the session failed.
     self:assert_false(reader.ok)
     self:assert_true(core.is_instance_of(reader.value, core.CancellationError), tostring(reader.value))
-    gate.blocked = false
-    client:close()
+    self:assert_true(client:is_closed())
     outcome.future:value()
   end)
 end
@@ -406,21 +426,23 @@ function T:test_addresses_and_the_requested_server_name_are_exposed()
   run(self, function()
     local listener <close> = net.listen("127.0.0.1", 0)
     local port = listener:local_address().port
-    local seen = {}
+    local seen, captured = {}, reactor.Channel(1)
     local outcome = serve(listener, {
       serve = function(tls)
         seen.requested = tls:requested_server_name()
         seen.peer = tls:peer_address()
         seen.here = tls:local_address()
-        tls:read()
+        captured:send(true)
+        pcall(tls.read, tls) -- the client closes without close_notify
       end,
     })
     local client <close> = dial(port)
     self:assert_nil(client:requested_server_name()) -- a client stream has none
     self:assert_equal(port, client:peer_address().port)
-    self:assert_equal("127.0.0.1", client:peer_address().host)
-    self:assert_equal(client:local_address().port, (client:local_address()).port)
+    self:assert_equal("127.0.0.1", client:peer_address().ip)
+    self:assert_equal(client:local_address().port, client:local_address().port)
     client:set_nodelay(true)
+    captured:receive() -- the server looked at its side while the connection was up
     client:close()
     outcome.future:value()
     self:assert_true(outcome.ok, tostring(outcome.value))
@@ -522,28 +544,6 @@ function T:test_records_survive_any_chunking_of_the_transport()
 end
 
 -- Damaged streams --------------------------------------------------------------------------------
-
---- Decorates a server stream: once `mode` is set, the next write is cut in half and the stream
---- closed ("truncate"), or one byte of it is flipped ("corrupt").
-local function tamper(inner)
-  local stream = { mode = nil }
-  function stream:read(max) return inner:read(max) end
-  function stream:write(data)
-    if self.mode == "truncate" then
-      inner:write(data:sub(1, math.max(1, #data // 2)))
-      inner:close()
-    elseif self.mode == "corrupt" then
-      local at = #data - 3
-      inner:write(data:sub(1, at - 1) .. string.char(data:byte(at) ~ 0xff) .. data:sub(at + 1))
-    else
-      inner:write(data)
-    end
-  end
-  function stream:shutdown() return inner:shutdown() end
-  function stream:close() inner:close() end
-  function stream:is_closed() return inner:is_closed() end
-  return stream
-end
 
 function T:test_a_stream_cut_in_the_middle_of_a_record_is_a_tls_error()
   run(self, function()
@@ -770,7 +770,7 @@ function T:test_a_native_failure_carries_its_kind_taken_from_the_error_variant()
     if not ok then break end
   end
   self:assert_false(ok)
-  self:assert_true(tostring(failure):find("^%[untrusted_issuer%] ") ~= nil, tostring(failure))
+  self:assert_true(tostring(failure):find("[untrusted_issuer] ", 1, true) ~= nil, tostring(failure))
 end
 
 return T
