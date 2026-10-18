@@ -114,7 +114,7 @@ function T:test_the_socket_is_restricted_to_its_owner_by_default_and_mode_opens_
   }) do
     with_listener(self, function(_, path)
       local stat = assert(uv.fs_stat(path))
-      self:assert_equal(case.mode, stat.mode & tonumber("777", 8), tostring(case.options and case.options.mode))
+      self:assert_equal(case.mode, stat.mode & tonumber("777", 8), ("mode %o"):format(case.mode))
     end, case.options)
   end
 end

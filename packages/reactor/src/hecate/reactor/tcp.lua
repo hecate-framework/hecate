@@ -427,7 +427,7 @@ function TcpListener:accept()
     local wrapped, result = pcall(self._wrap, self, client)
     if wrapped then return result end
     client:close()
-    local errno = core.is_instance_of(result, uv_call.TransportError) and result.context.errno or nil
+    local errno = core.is_instance_of(result, uv_call.TransportError) and (result --[[@as table]]).context.errno or nil
     if not (errno and DROPPED[errno]) then error(result, 0) end
   end
 end

@@ -69,6 +69,7 @@ end
 
 function T:test_the_option_is_validated()
   reactor.run(function()
+    ---@diagnostic disable-next-line: assign-type-mismatch  -- the point is to pass a wrong type
     local err = self:assert_error(function() reactor.tcp_listen(LOOPBACK, 0, { reuseport = "yes" }) end)
     self:assert_true(core.is_instance_of(err, core.ArgumentError))
   end)

@@ -261,6 +261,7 @@ end
 ---@field Peer hecate.reactor.Peer
 ---@field child_marker fun(): string, string  internal: name and value of the environment entry of a child with a message pipe
 ---@field holds_descriptor fun(): boolean  internal: whether this process holds a message pipe descriptor
+---@diagnostic disable-next-line: assign-type-mismatch  -- class constructor exported as its class
 local ipc = { Peer = Peer, child_marker = child_marker, holds_descriptor = holds_descriptor }
 
 --- The message pipe to the parent process, or `nil` when this process was not started by

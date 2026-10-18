@@ -509,8 +509,7 @@ function T:test_a_reset_connection_ends_the_read_with_an_error_or_a_clean_end()
       self:assert_nil(result)
     else
       self:assert_true(core.is_instance_of(result, reactor.TransportError), tostring(result))
-      ---@cast result table
-      local errno = result.context and result.context.errno
+      local errno = (result --[[@as table]]).context.errno
       self:assert_true(errno == "ECONNRESET" or errno == "EPIPE" or errno == "ECONNABORTED", tostring(errno))
     end
   end)

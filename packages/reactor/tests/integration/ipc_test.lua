@@ -251,6 +251,7 @@ function T:test_peer_options_are_validated()
     local err = self:assert_error(function() reactor.Peer(handle, options) end)
     self:assert_true(core.is_instance_of(err, core.ArgumentError), tostring(err))
   end
+  ---@diagnostic disable-next-line: assign-type-mismatch  -- the point is to pass a wrong type
   local err = self:assert_error(function() reactor.ipc.parent({ max_message = "big" }) end)
   self:assert_true(core.is_instance_of(err, core.ArgumentError), tostring(err))
   self:assert_nil(reactor.ipc.parent({ max_message = 1 })) -- this process has no parent
