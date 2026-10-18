@@ -106,10 +106,10 @@ Proposed in [ADR 0023](../adr/0023-multi-process-serving.md), measured in
   provides the policy: the supervisor and the listening strategies.
 - A **listening strategy** decides where a worker accepts connections from; the code above it
   is identical on every platform. `reuseport` (Linux default): each worker binds the port with
-  `SO_REUSEPORT`, the kernel balances, the primary is not in the data path. `shared_socket`
-  (proposed for Windows): the primary passes one listening socket to every worker through IPC
-  handle passing. `round_robin` (proposed for macOS, and the fallback when a strategy is not
-  supported): the primary accepts and passes each connection to the next worker. Linux is never
+  `SO_REUSEPORT`, the kernel balances, the primary is not in the data path.
+  `round_robin` (macOS and Windows, and the fallback when a strategy is not supported): the
+  primary accepts and passes each connection to the next worker through IPC handle passing. A
+  listening socket shared by all workers was measured and balances on no platform. Linux is never
   constrained by what another platform needs.
 - The primary supervises workers (readiness, restart on crash with exponential backoff and a
   crash-loop limit) over a control channel that exists on every platform and carries `ready`,

@@ -3,73 +3,82 @@
 Owner direction (2026-10-18): Hecate is multi-process by design, through an abstraction that
 serves each platform in the best possible way, and Linux, where most servers will run, is never
 compromised for the sake of another platform. This spike measures the candidate listening
-strategies. The design it supports is the Proposed [ADR 0023](../adr/0023-multi-process-serving.md).
+strategies on the three platforms. The design it supports is the Proposed
+[ADR 0023](../adr/0023-multi-process-serving.md).
 
 ## What was measured
 
 [`OQ-8/spike.lua`](OQ-8/spike.lua) starts a primary and N worker processes (each a separate Lua
 state with its own libuv loop) and opens 4000 connections from the primary, 100 at a time. Every
 accepted connection receives the worker's number, so the load generator can count how many
-connections each worker took. The *spread* is the largest count divided by the smallest: 1.00 is
-perfect.
+connections each worker took. The *spread* is the largest count divided by the smallest over all
+workers, a worker that took nothing included (infinite): 1.00 is perfect.
 
 | Mode | Who accepts |
 |---|---|
 | `reuseport` | each worker binds the port with `SO_REUSEPORT` (descriptor from the small C module [`rp.c`](OQ-8/rp.c), handed to `tcp:open`) |
-| `reuseport_luv` | the same through `tcp:bind(host, port, { reuseport = true })` on a patched luv ([patch](OQ-8/luv-tcp-reuseport.patch)) |
+| `reuseport_luv` | the same through `tcp:bind(host, port, { reuseport = true })` on a patched luv ([patch](OQ-8/luv-tcp-reuseport.patch)); Linux only, run once locally |
 | `shared` | one listening socket, bound by the primary, passed to every worker (libuv IPC handle passing) |
 | `round_robin` | the primary accepts and passes each connection to the next worker |
 
 Limits of the measurement: one load generator that shares the machine (and, for `shared` and
-`round_robin`, the process) with the primary; loopback; short connections that send one line.
-The figures compare strategies with each other, they are not benchmark results (the benchmark
-harness is a Phase 1 item).
+`round_robin`, the process) with the primary; loopback; short connections that send one line;
+four workers on the four-core hosted runners; two runs per mode. The figures compare strategies
+with each other, they are not benchmark results (the benchmark harness is a Phase 1 item).
 
-## Linux (cloud session, Ubuntu 24.04, 4 cores, 4 workers)
+## Results
 
-| Strategy | Connections per worker | Spread | Connections per second |
-|---|---|---|---|
-| `reuseport` (C module) | 1896 / 2138 / 1981 / 1985 (8000) | 1.13 | 9700 to 11600 |
-| `reuseport_luv` (patched luv) | 1902 / 2017 / 2042 / 2039 (8000) | 1.07 | 7900 to 11300 |
-| `shared` | 65 / 173 / 706 / 7056 (8000) | 108 | 7300 |
-| `round_robin` | 2000 / 2000 / 2000 / 2000 (8000) | 1.00 | 7900 |
+GitHub-hosted runners, four workers, 4000 connections, two runs each (the C module was built on
+the runner for `reuseport`):
 
-Repeated runs gave the same picture (`reuseport` 1.05 to 1.13, `shared` 50 to 260 depending on the
-run, `round_robin` always 1.00).
+| Platform | Strategy | Connections per worker | Workers used | Spread | Connections per second |
+|---|---|---|---|---|---|
+| Linux | `reuseport` | 944 / 1020 / 1009 / 1027 and 983 / 953 / 1025 / 1039 | 4 of 4 | 1.09 | 12700 to 13100 |
+| Linux | `shared` | 25 / 138 / 1345 / 2492 and 3569 / 38 / 81 / 312 | 4 of 4 | 94 to 278 | 10400 to 11200 |
+| Linux | `round_robin` | 1000 each | 4 of 4 | 1.00 | 8600 to 10100 |
+| macOS (arm64) | `reuseport` | 0 / 0 / 0 / 4000 (both runs) | **1 of 4** | infinite | 45000 to 49000 (one worker) |
+| macOS (arm64) | `shared` | 484 / 2075 / 647 / 794 and 441 / 518 / 871 / 2170 | 4 of 4 | 4.3 to 4.9 | 39600 to 41400 |
+| macOS (arm64) | `round_robin` | 1000 each | 4 of 4 | 1.00 | 24200 to 25700 |
+| Windows | `shared` | 0 / 0 / 0 / 4000 (both runs) | **1 of 4** | infinite | 3750 |
+| Windows | `round_robin` | 1000 each | 4 of 4 | 1.00 | 3300 |
 
-- `SO_REUSEPORT` balances and is the fastest: nothing stands between the kernel and the workers.
-- A shared listening socket is not a Linux strategy: the workers wake together and whichever runs
-  first takes the connection, so one worker takes almost everything.
-- `round_robin` balances perfectly and costs throughput, because the primary accepts every
-  connection and sends a message to the worker.
+The first local runs in the cloud session (Ubuntu 24.04, four cores) agree: `reuseport` 1.05 to
+1.13, `shared` 43 to 261, `round_robin` 1.00, and `reuseport_luv` (patched luv) 1.05 to 1.08.
 
 ## Findings that shape the design
 
-1. **luv cannot set `SO_REUSEPORT` on a TCP socket.** luv 1.53 reads `reuseport` for UDP only;
+1. **`SO_REUSEPORT` balances on Linux only.** On macOS it gives the whole load to one worker
+   (the last binder takes the traffic, as the libuv documentation says) and it does not exist on
+   Windows. It is the fastest strategy on Linux because nothing stands between the kernel and the
+   workers.
+2. **A listening socket shared by all workers balances nowhere**: unbalanced on Linux and macOS,
+   and on Windows it did not distribute at all in this setup (every connection to one worker).
+   It is dropped.
+3. **Passing each accepted connection from the primary balances perfectly on all three platforms**
+   and needs no native code: libuv handle passing works for an accepted TCP connection
+   (`pipe:write2`, `pipe:pending_count`, `pipe:accept`; the IPC pipe is the child's fourth
+   standard stream, `stdio = { nil, 1, 2, ipc }` and `pipe:open(3)` in the child). Its cost is
+   throughput, because the primary is in the path: about two thirds of the `reuseport` figure on
+   Linux, and the slowest result on Windows (about 3300 connections per second, where each
+   hand-off duplicates the socket).
+4. **luv cannot set `SO_REUSEPORT` on a TCP socket.** luv 1.53 reads `reuseport` for UDP only;
    `tcp_bind` reads `ipv6only` and nothing else (checked in `src/tcp.c` of luv master of
    2026-09-30), although the bundled libuv defines `UV_TCP_REUSEPORT`. Passing the flag as an
    integer is ignored. Two ways to get it, both verified here: the four-line luv patch
-   ([`luv-tcp-reuseport.patch`](OQ-8/luv-tcp-reuseport.patch), built and run against Lua 5.5), or a
+   ([`luv-tcp-reuseport.patch`](OQ-8/luv-tcp-reuseport.patch), built and run against Lua 5.5) or a
    small native module that creates the socket (`rp.c`). Both gave the same spread. Decision for
    the owner: OQ-43.
-2. **Without `SO_REUSEPORT`, Linux is slower or unbalanced**, so the framework must not make
-   `round_robin` or `shared` the default there.
-3. **Handle passing works for both a listening socket and an accepted connection** in luv
-   (`pipe:write2`, `pipe:pending_count`, `pipe:accept`), so `shared_socket` and `round_robin` need
-   no native code. The IPC pipe is the child's fourth standard stream (`stdio = { nil, 1, 2, ipc }`
-   and `pipe:open(3)` in the child).
-4. libuv documents that `SO_REUSEPORT` does not balance on macOS and the BSDs and does not exist
-   on Windows, so a strategy that does not depend on it is needed there.
-
-## macOS and Windows (GitHub Actions)
-
-The temporary workflow `.github/workflows/spike-oq8.yml` runs the spike on the three platforms
-when `docs/spikes/OQ-8/` changes: `reuseport` (Linux and macOS), `shared` and `round_robin` (all).
-Figures: see the section below once the runs are in.
+5. The first version of the spike hid finding 1: its spread ignored a worker that took nothing and
+   read "1.00" for macOS `reuseport`. The metric now counts every worker.
 
 ## Recommendation
 
 ADR 0023: share-nothing workers; mechanism in `reactor` (`spawn`, `ipc` with handle passing, TCP
-`reuseport`), policy in `kernel` (supervisor, listening strategies). `auto` selects `reuseport` on
-Linux, `round_robin` on macOS and `shared_socket` on Windows (the last two to be confirmed by the
-figures above), with `round_robin` as the fallback everywhere. For Linux speed now, settle OQ-43.
+`reuseport`), policy in `kernel` (supervisor, two listening strategies). `auto` selects
+`reuseport` on Linux and `round_robin` on macOS and Windows, with `round_robin` as the fallback
+everywhere. For Linux speed now, settle OQ-43 (until then `round_robin` serves Linux too).
+
+The temporary CI workflow that produced the macOS and Windows figures is removed; the spike
+script stays here so that the figures can be reproduced (`lua spike.lua <mode> [workers]
+[connections]`, with `luv` installed in `.hecate/rocks` and `rp.c` built next to the script for
+`reuseport`).
