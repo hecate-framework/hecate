@@ -48,7 +48,10 @@ return {
       for _, l in ipairs(links.extract(read(ctx.root .. "/" .. rel) or "")) do
         local target = l.path == "" and rel or normalise((dir ~= "" and dir .. "/" or "") .. l.path:gsub("%%20", " "))
         local at = ("%s:%d"):format(rel, l.line)
-        if not util.exists(ctx.root .. "/" .. target) then
+        local function exists(path) return util.exists(ctx.root .. "/" .. path) end
+        if links.is_ungenerated_reference(target, exists) then
+          -- The code reference is generated and git-ignored: the strict build (--reference) checks these links.
+        elseif not exists(target) then
           problems[#problems + 1] = ("%s: broken link to '%s'"):format(at, l.path)
         elseif l.fragment and target:sub(-3) == ".md" and not util.is_dir(ctx.root .. "/" .. target)
           and not anchors_of(target)[l.fragment:lower()] then

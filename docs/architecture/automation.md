@@ -39,7 +39,7 @@ Status column: `done` = implemented in `tools/`, `now` = workflow exists today, 
 | `check-package-structure` | every `packages/<name>` has README.md, CLAUDE.md, rockspec, `tests/`, and an agent in `.claude/agents/pkg-<name>.md` | done |
 | `check-adr-index` | `docs/adr/README.md` lists every ADR with its actual status | done |
 | `check-changelog` | pull requests touching `packages/` add an `[Unreleased]` entry | done |
-| `check-docs-examples` | every code sample included in the website exists and runs | P2 |
+| `check-docs-examples` | every code block of the website introduced by `<!-- example: <path> -->` is identical to that file and the file exists (the examples run in the tests of their package) | done |
 | `check-translations` | missing/stale translations (front matter `source_revision`) | P3 |
 | `check-links` | internal Markdown links and anchors | done |
 | `check-licenses` | third-party code and rocks have compatible licenses; `THIRD_PARTY_NOTICES` up to date | P1 |

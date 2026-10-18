@@ -1,6 +1,7 @@
 # Site map
 
-Status markers: (P2) … (P5) = roadmap phase in which the page must exist.
+Status markers: (P1) … (P5) = roadmap phase in which the page must exist. A page already
+written is listed with its file in `website/en/`.
 
 ## Home
 
@@ -23,6 +24,11 @@ Status markers: (P2) … (P5) = roadmap phase in which the page must exist.
 - Filters: authentication, CORS, compression, request identifiers (P2)
 - Configuration per environment, secrets (P2)
 - Concurrency: fork/join, select, deadlines, channels, protecting shared state (P2)
+- Connect and serve over TCP: connect, accept loop, reader and writer, half-close, name resolution (P1; `how-to/connect-and-serve-over-tcp.md`)
+- TLS client and server: system trust store, private authority, two-step accept, ALPN, mutual TLS, error reasons (P1; `how-to/tls-client-and-server.md`)
+- Deadlines and cancellation on streams: what each cancelled operation leaves behind (P1; `how-to/deadlines-and-cancellation.md`)
+- UDP, Unix sockets, named pipes and DNS (P1; `how-to/udp-pipes-and-dns.md`)
+- Run child processes and pass connections between processes: `run_process`, `spawn`, the message pipe (P2; `how-to/run-processes-and-pass-connections.md`)
 - Background work and offloading CPU-bound tasks (P2)
 - Logging and request context (P2)
 - Contracts: exporting, linting, diffing in CI (P3)
@@ -38,13 +44,14 @@ Status markers: (P2) … (P5) = roadmap phase in which the page must exist.
 ## Reference (generated unless noted)
 
 - Packages: one section per package, every public symbol (P2→)
+- Landing page of the reference, listing the documented packages and the glossary (P1; `reference/index.md`)
 - CLI: every command and option (P3)
 - Manifest `hecate.project.lua` and lockfile (P3)
 - Configuration keys (P2)
 - Error codes (P2)
 - Schema keywords and formats (P2)
 - Compatibility matrix: Hecate × Lua × platforms (hand-written) (P3)
-- Glossary (hand-written, public version) (P2)
+- Glossary (hand-written, public version, kept in step with `docs/glossary.md`) (P2)
 - Relational algebra ↔ SQL correspondence (hand-written) (P4)
 
 ## Explanation
@@ -52,6 +59,9 @@ Status markers: (P2) … (P5) = roadmap phase in which the page must exist.
 - Architecture and layers (P2)
 - The object model: classes, traits, interfaces (P2)
 - Concurrency model: reactor, coroutines, suspension points, structured concurrency (P2)
+- The transport model: streams, suspension instead of callbacks, back-pressure, half-close, buffering, cancellation rules (P1; `explanation/transport-model.md`)
+- TLS trust and security defaults: the operating system's verifier, what cannot be disabled, revocation and platform caveats (P1; `explanation/tls-trust-and-security.md`)
+- Multi-process serving: share-nothing workers, listening strategies, message pipe, what exists today (P2; `explanation/multi-process-serving.md`)
 - Contract-first design: one declaration, many derivations (P3)
 - Data mapper and unit of work (P4)
 - Performance: what makes Hecate fast, how it is measured (P3)

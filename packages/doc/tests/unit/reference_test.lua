@@ -49,6 +49,24 @@ local function assert_sections_in_order(self, content, path)
   end
 end
 
+function T:test_undocumented_bare_fields_are_skipped_without_renaming_the_members_that_are_kept()
+  -- Regression: a skipped field used to overwrite the name of the member kept before it (or fail
+  -- when it came first), depending on the iteration order of a table: many of them make it certain.
+  local entries = json.decode(export_text)
+  local module
+  for _, entry in ipairs(entries) do
+    if entry.name == "hecate.demo" then module = entry end
+  end
+  self:assert_not_nil(module, "the fixture export has the module hecate.demo")
+  for index = 1, 40 do
+    module.fields[#module.fields + 1] = { name = "bare_" .. index, type = "setfield", visible = "public", rawdesc = "", view = "any" }
+  end
+  local pages = generate({ { name = "demo", export = json.encode(entries) } }).pages
+  self:assert_not_nil(pages["reference/demo/functions/add.md"])
+  for path in pairs(pages) do self:assert_nil(path:find("bare_", 1, true), path) end
+  self:assert_nil(pages["reference/demo/index.md"]:find("bare_", 1, true))
+end
+
 function T:test_the_fixture_package_renders_to_the_golden_pages()
   local result = generate()
   self:assert_equal(0, #result.problems, table.concat(result.problems, "\n"))

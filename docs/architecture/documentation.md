@@ -113,7 +113,10 @@ ADR 0022.
 
 - Every page states the Hecate version it was written for and the Lua version.
 - Every code sample is a tested file under `packages/<name>/examples/` or
-  `examples/`, included by reference, so samples cannot rot.
+  `examples/`, included by reference, so samples cannot rot. The renderer has no include
+  mechanism yet: a page writes `<!-- example: packages/<name>/examples/<file>.lua -->` on a line of
+  its own, then a fenced block holding the exact content of that file, and `check-docs-examples`
+  fails when the block differs or the file is missing. A snippet of a few lines may stay inline.
 - Vocabulary from the glossary; first occurrence of a term links to the glossary.
 - Short sentences, active voice, second person in tutorials and how-tos.
 

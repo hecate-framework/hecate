@@ -239,7 +239,6 @@ local function members_of(entry)
     if member.kind ~= "field" or field.type == "doc.field" or member.documented then
       members[#members + 1] = member
     end
-    members[#members].name = name
   end
   table.sort(members, function(a, b) return a.name < b.name end)
   return members
