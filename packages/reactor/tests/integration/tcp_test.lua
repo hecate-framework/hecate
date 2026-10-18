@@ -461,11 +461,27 @@ function T:test_a_connection_whose_options_cannot_be_applied_is_dropped_and_acce
         wait_until(self, function() return listener._incoming > 0 end, "a connection to be queued") ---@diagnostic disable-line: invisible
         arm(1) -- the options of the first accepted connection fail
         local accepted <close> = listener:accept()
-        -- The first connection was closed by the listener, the second one is served.
-        local ok, data = pcall(first.read, first)
-        self:assert_true(not ok or data == nil, failure)
-        second:write("through")
+        -- Which of the two connections is accepted first is not specified: libuv on Windows hands the
+        -- pending ones out last-in first-out. One connection was closed by the listener and the other
+        -- is served, whichever it is.
+        local clients = { first, second }
+        for _, client in ipairs(clients) do pcall(client.write, client, "through") end
         self:assert_equal("through", accepted:read())
+        local ended, still_open = 0, 0
+        for _, client in ipairs(clients) do
+          local ok, data = pcall(reactor.deadline, 1, client.read, client)
+          if ok and data == nil then
+            ended = ended + 1
+          elseif not ok and core.is_instance_of(data, reactor.TransportError) then
+            ended = ended + 1
+          elseif not ok and core.is_instance_of(data, core.DeadlineExceededError) then
+            still_open = still_open + 1
+          else
+            self:fail(failure .. ": unexpected read result " .. tostring(data))
+          end
+        end
+        self:assert_equal(1, ended, failure .. ": the dropped connection must end")
+        self:assert_equal(1, still_open, failure .. ": the served connection must stay open")
         first:close()
         second:close()
       end)
