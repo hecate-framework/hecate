@@ -39,6 +39,4 @@ function TcpListener:is_closed() return self._inner:is_closed() end
 ---@return hecate.reactor.SocketAddress
 function TcpListener:local_address() return self._inner:local_address() end
 
-core.finalise(TcpListener)
-
-return TcpListener
+return core.finalise(TcpListener)

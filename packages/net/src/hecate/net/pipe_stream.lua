@@ -1,5 +1,5 @@
 -- PipeStream: a `Stream` over a reactor pipe (Unix-domain socket, named pipe on Windows).
-global <const> require
+global <const> require, error, math, tostring
 
 local core = require("hecate.core")
 local Stream = require("hecate.net.stream")
@@ -21,16 +21,21 @@ function PipeStream:init(inner) self._inner = inner end
 ---@async
 ---@param max? integer
 ---@return string?
-function PipeStream:read(max) return self._inner:read(max) end
+function PipeStream:read(max)
+  if max ~= nil and (math.type(max) ~= "integer" or max < 1) then
+    error(core.ArgumentError(("read expects a positive integer, got %s"):format(tostring(max))), 2)
+  end
+  return self._inner:read(max)
+end
 
 --- Writes all of `data` or raises; a write cancelled before it completed closes the stream.
 ---@async
 ---@param data string
-function PipeStream:write(data) return self._inner:write(data) end
+function PipeStream:write(data) self._inner:write(data) end
 
 --- Half-close: tells the peer that no more data will come; the stream stays readable.
 ---@async
-function PipeStream:shutdown() return self._inner:shutdown() end
+function PipeStream:shutdown() self._inner:shutdown() end
 
 --- Closes the stream. Idempotent, never suspends.
 function PipeStream:close() self._inner:close() end
@@ -40,6 +45,10 @@ function PipeStream:__close() self._inner:close() end
 
 ---@return boolean
 function PipeStream:is_closed() return self._inner:is_closed() end
+
+--- The path this stream is connected to (the listener's path on an accepted stream).
+---@return string
+function PipeStream:path() return self._inner:path() end
 
 --- A `BufferedReader` over this stream (which it does not own).
 ---@param options? { limit?: integer }
@@ -51,6 +60,4 @@ function PipeStream:reader(options) return BufferedReader(self, options) end
 ---@return hecate.net.BufferedWriter
 function PipeStream:writer(options) return BufferedWriter(self, options) end
 
-core.finalise(PipeStream)
-
-return PipeStream
+return core.finalise(PipeStream)

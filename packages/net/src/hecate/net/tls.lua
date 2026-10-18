@@ -1,7 +1,11 @@
 -- `net.tls`: configurations, handshakes and `net.connect_tls` over the native rustls module
--- (ADR 0021). Verification is always on: a client configuration needs trust anchors
--- (`ca_pem`), there is no bundled or system store yet and no switch to turn it off (OQ-41).
-global <const> require, pcall, type, error, pairs, ipairs, tostring
+-- (ADR 0021). Verification is always on and cannot be disabled (OQ-41): a client configuration
+-- trusts the operating system's store (ADR 0024) plus the anchors of `ca_pem`, and `system_roots =
+-- false` narrows trust to `ca_pem`. Options are validated here, in Lua, against a per-function
+-- allow-list: an unknown key (a typo, `verify = false`, a server option given to a client) raises
+-- `ArgumentError` instead of being ignored. Revocation checking by the operating system's
+-- verifier (macOS, Windows) may perform blocking I/O on the reactor thread (ADR 0024).
+global <const> require, pcall, type, error, pairs, ipairs, tostring, table, math
 
 local core = require("hecate.core")
 local errors = require("hecate.net.errors")

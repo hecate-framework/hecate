@@ -1,6 +1,6 @@
 -- TcpStream: a `Stream` over a reactor TCP connection. It wraps `reactor.TcpStream`, so this
 -- package never touches libuv (OQ-28). Failures surface as `reactor.TransportError` (OQ-32).
-global <const> require
+global <const> require, error, math, tostring
 
 local core = require("hecate.core")
 local Stream = require("hecate.net.stream")
@@ -27,6 +27,9 @@ end
 ---@param max? integer
 ---@return string?
 function TcpStream:read(max)
+  if max ~= nil and (math.type(max) ~= "integer" or max < 1) then
+    error(core.ArgumentError(("read expects a positive integer, got %s"):format(tostring(max))), 2)
+  end
   return self._inner:read(max)
 end
 
@@ -35,14 +38,14 @@ end
 ---@async
 ---@param data string
 function TcpStream:write(data)
-  return self._inner:write(data)
+  self._inner:write(data)
 end
 
 --- Half-close: tells the peer that no more data will come, once pending writes are flushed;
 --- the stream stays readable. Flush any `BufferedWriter` first.
 ---@async
 function TcpStream:shutdown()
-  return self._inner:shutdown()
+  self._inner:shutdown()
 end
 
 --- Closes the stream. Idempotent, never suspends; coroutines waiting on it fail with `TransportError`
@@ -86,6 +89,4 @@ function TcpStream:reader(options) return BufferedReader(self, options) end
 ---@return hecate.net.BufferedWriter
 function TcpStream:writer(options) return BufferedWriter(self, options) end
 
-core.finalise(TcpStream)
-
-return TcpStream
+return core.finalise(TcpStream)

@@ -36,6 +36,4 @@ function PipeListener:is_closed() return self._inner:is_closed() end
 ---@return string
 function PipeListener:path() return self._inner:path() end
 
-core.finalise(PipeListener)
-
-return PipeListener
+return core.finalise(PipeListener)
