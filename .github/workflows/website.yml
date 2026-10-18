@@ -1,0 +1,121 @@
+name: website
+
+# Builds the public website (hecate.doc, ADR 0012) and publishes it to GitHub Pages
+# (docs/architecture/automation.md). Pull requests only build, so that a broken page or a
+# broken link fails the review; a push to main also deploys.
+#
+# One-time setting (repository owner): Settings > Pages > Build and deployment > Source must be
+# "GitHub Actions". While it is "Deploy from a branch" (the Jekyll build of the raw Markdown), the
+# deploy job below fails with a message saying so, and the branch build keeps running.
+
+on:
+  pull_request:
+    paths:
+      - "website/**"
+      - "packages/*/src/**"
+      - "packages/*/README.md"
+      - "packages/doc/**"
+      - "llms.txt"
+      - ".github/workflows/website.yml"
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Deploys run one at a time and are never cancelled midway; a pull request build has its own group.
+concurrency:
+  group: ${{ github.event_name == 'pull_request' && format('website-pr-{0}', github.ref) || 'pages' }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # "last updated" dates come from the history of each page
+
+      - name: Cache toolchain
+        id: toolchain
+        uses: actions/cache@v6
+        with:
+          path: .hecate/toolchain
+          key: toolchain-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('tools/bootstrap/**') }}
+
+      - name: Bootstrap
+        if: steps.toolchain.outputs.cache-hit != 'true'
+        run: tools/bootstrap/bootstrap.sh --prefix .hecate/toolchain
+
+      - name: Add toolchain to PATH
+        run: echo "$GITHUB_WORKSPACE/.hecate/toolchain/bin" >> "$GITHUB_PATH"
+
+      # The same pinned LuaLS as ci.yml: the reference is generated from its export, and the export
+      # format changes between versions (packages/doc/CLAUDE.md).
+      - name: Install LuaLS
+        env:
+          LUALS_VERSION: 3.19.1
+        run: |
+          file="lua-language-server-$LUALS_VERSION-linux-x64.tar.gz"
+          sha=e9235d2d72ef55bc41cf8c99cda2ed64777682024b4bb81f5dea425060c5cbb8
+          curl -fsSL -o "$RUNNER_TEMP/$file" "https://github.com/LuaLS/lua-language-server/releases/download/$LUALS_VERSION/$file"
+          echo "$sha  $RUNNER_TEMP/$file" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/luals"
+          tar -xzf "$RUNNER_TEMP/$file" -C "$RUNNER_TEMP/luals"
+          echo "$RUNNER_TEMP/luals/bin" >> "$GITHUB_PATH"
+
+      # luv gives the analysis the types the reactor annotations refer to; pinned like ci.yml.
+      - name: Cache rocks
+        id: rocks
+        uses: actions/cache@v6
+        with:
+          path: .hecate/rocks
+          key: website-rocks-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('tools/bootstrap/**') }}
+
+      - name: Install luv
+        if: steps.rocks.outputs.cache-hit != 'true'
+        run: luarocks --tree .hecate/rocks install luv 1.53.0-0
+
+      # Only a deploy knows where the site is served: the origin and the path come from Pages
+      # (a project site lives under /hecate/, a custom domain at the root).
+      - name: Configure Pages
+        id: pages
+        if: github.event_name != 'pull_request'
+        uses: actions/configure-pages@v5
+
+      - name: Build the site
+        env:
+          BASE_PATH: ${{ steps.pages.outputs.base_path }}
+          ORIGIN: ${{ steps.pages.outputs.origin }}
+        run: |
+          args=(website --strict --reference --clean --base "${BASE_PATH}/")
+          if [ -n "$ORIGIN" ]; then args+=(--url "$ORIGIN"); fi
+          lua packages/doc/bin/build.lua "${args[@]}"
+
+      - name: Check that the reference was generated
+        run: |
+          for package in core reactor net; do
+            test -f "website/dist/en/reference/$package/index.html" || { echo "missing reference of $package" >&2; exit 1; }
+          done
+
+      - name: Upload the site
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: website/dist
+
+  deploy:
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

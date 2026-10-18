@@ -81,7 +81,8 @@ lua packages/doc/bin/build.lua website --out /tmp/site --base /hecate/ --clean
 The runner is the bootstrap entry point until `hecate doc build` exists
 ([automation.md](../../docs/architecture/automation.md)). Options: `--config` (default
 `<source>/site.lua`), `--out` (default `<source>/dist`), `--base` (URL path, for GitHub Pages
-project sites), `--clean` (empties the output directory, only if a previous build wrote it),
+project sites), `--url` (the origin, for canonical links and the sitemap, overriding the
+configuration), `--clean` (empties the output directory, only if a previous build wrote it),
 `--strict` (broken links and similar problems fail the build), `--no-git-dates`. Exit codes:
 0 built, 1 failed, 2 usage error. Serve the output with any static server.
 

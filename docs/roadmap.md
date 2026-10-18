@@ -61,8 +61,9 @@ Exit: CI is green on all three platforms with a trivial test in every package sk
       organisation `.github` repository): layout, navigation, theme, first reference pages
       (`core`, `reactor`). Owner priority: docs ship before the first usable framework
       version. OQ-11 is resolved (ADR 0012); reference docs owed by `core` and
-      `reactor` land here. **Next item after the `net` pull request is closed (owner
-      request, 2026-10-18).** `net` and the new `reactor` primitives (`spawn`, `ipc`,
+      `reactor` land here. `website.yml` (build, reference, deploy to Pages) is done:
+      the owner sets Settings > Pages > Source to GitHub Actions once. **Next item after the `net`
+      pull request is closed (owner request, 2026-10-18).** `net` and the new `reactor` primitives (`spawn`, `ipc`,
       `reuseport`) owe: the generated reference (works: `gen-reference` produces their
       pages, not committed), and the hand-written pages with the `docs-writer` agent:
       how-to guides (connecting and serving over TCP, TLS client and server with the

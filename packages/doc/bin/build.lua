@@ -1,6 +1,8 @@
 -- Builds a documentation site with hecate.doc. Usage:
---   lua packages/doc/bin/build.lua [source] [--config file] [--out dir] [--base /path/]
+--   lua packages/doc/bin/build.lua [source] [--config file] [--out dir] [--base /path/] [--url origin]
 --                                  [--clean] [--strict] [--no-git-dates] [--reference] [--root dir] [--packages a,b]
+-- `--base` and `--url` override the configuration (the path the site is served under and its origin,
+-- for canonical links and the sitemap), for example for GitHub Pages: `--base /hecate/ --url https://owner.github.io`.
 -- `source` is the content root (default `website`): one directory per locale, optionally
 -- `public/`. The configuration defaults to `<source>/site.lua`, the output to `<source>/dist`.
 -- This is the bootstrap entry point until `hecate doc build` exists (automation.md); it
@@ -27,7 +29,7 @@ local doc = require("hecate.doc")
 local reference_site = require("hecate.doc.reference_site")
 
 local function usage(stream)
-  stream:write("usage: lua build.lua [source] [--config file] [--out dir] [--base /path/] "
+  stream:write("usage: lua build.lua [source] [--config file] [--out dir] [--base /path/] [--url origin] "
     .. "[--clean] [--strict] [--no-git-dates] [--reference] [--root dir] [--packages a,b]\n")
 end
 
@@ -37,7 +39,8 @@ do
   local i = 1
   while i <= #arg do
     local value = arg[i]
-    if value == "--config" or value == "--out" or value == "--base" or value == "--root" or value == "--packages" then
+    if value == "--config" or value == "--out" or value == "--base" or value == "--url" or value == "--root"
+        or value == "--packages" then
       options[value:sub(3)] = arg[i + 1]
       if not arg[i + 1] then usage(io.stderr) os.exit(2) end
       i = i + 1
@@ -86,6 +89,7 @@ local function run()
   local fs = doc.SystemFileSystem()
   local config = doc.load_config(options.config or (options.source .. "/site.lua"), fs)
   if options.base then config.base = options.base end
+  if options.url then config.url = options.url:gsub("/+$", "") end
   local generated = {}
   if flags.reference then
     local report = reference_site.run({
