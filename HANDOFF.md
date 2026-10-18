@@ -19,12 +19,15 @@
 4. Generated reference pages need lua-language-server (not installed here); core/reactor/net reference check in CI.
 5. French pages with translator-fr; then delete this file, tick the roadmap item, mark ready.
 
+6. Pin third-party actions by SHA in all workflows (owner 2026-10-18, no longer deferred): separate roadmap item/PR.
+
 ## Decisions taken (and where they are recorded)
 
-None.
+Owner chat of 2026-10-18 recorded in OQ-39 and ADR 0022 (A to E).
 
 ## Doubts and questions for the owner
 
+- ADR 0012 and 0022 stay Proposed: only the owner promotes (asked in the PR). OQ-11 is already in the Resolved table.
 - Untested snippets in the guides (see step 3); ADR/example links use blob/main and resolve only after merge.
 
 ## Commands to re-run

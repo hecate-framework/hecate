@@ -69,6 +69,21 @@ candidates on one sample, on Linux.
   lands and are then retired, unless the owner wants a pure-Lua degraded mode for platforms
   without the prebuilt module (two Markdown behaviours to maintain).
 
+Owner decisions, 2026-10-18 (given in chat; **this ADR keeps its status**, only the owner promotes
+ADRs):
+
+- **A, Markdown:** comrak.
+- **B, highlighting:** syntect with two-face syntaxes.
+- **C, search:** Pagefind (the prebuilt binary is accepted as not being a JavaScript development
+  tool).
+- **D, OpenAPI:** the document is JSON or YAML, so serve it through a default route (the served
+  endpoint of `hecate.openapi`) rather than rendering it into pages; stated as a leaning with a
+  question mark, so the static rendering proposed above is not built until the owner confirms.
+- **E, remaining points:** the recommendations of this ADR stand: GFM alerts replace the
+  `::: note` containers, the in-house renderer and highlighters are retired when the native module
+  lands (no degraded mode), `packages/doc` gains native code (its `CLAUDE.md`, README, rockspec
+  and `check-boundaries` change in that item), and the syntax licences are audited before adoption.
+
 ## Consequences
 
 - `packages/doc` gets native code: `packages/doc/CLAUDE.md` ("Native code: none"), the README
