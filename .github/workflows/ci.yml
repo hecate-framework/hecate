@@ -29,7 +29,7 @@ jobs:
       # runner has no `lua`); a failure here must fail the job, never yield an empty plan.
       - name: Cache toolchain
         id: toolchain
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: .hecate/toolchain
           key: toolchain-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('tools/bootstrap/**') }}
@@ -144,7 +144,7 @@ jobs:
       # build is asserted explicitly.
       - name: Cache native build
         if: contains(format(' {0} ', needs.plan.outputs.packages), ' net ')
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             ~/.cargo/registry

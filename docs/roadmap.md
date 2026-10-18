@@ -77,7 +77,8 @@ Exit: CI is green on all three platforms with a trivial test in every package sk
 - [ ] `log`: structured logging, RFC 5424 severities, per-scope context.
 - [ ] Benchmarks harness and first scenario (TCP echo); `benchmarks.yml`.
 - [ ] Workflows `native.yml`, `security.yml`, `nightly.yml`; tasks `sanitize`, `fuzz`,
-      `leaks`, `coverage`, `bench`, `check-licenses`.
+      `leaks`, `coverage`, `bench`, `check-licenses`. (`security.yml` has its Rust dependency
+      checks, `cargo audit` and `cargo deny`; CodeQL, dependency review and Scorecard remain.)
 
 Exit: an echo server handles 10 000 concurrent connections on each platform; structured
 concurrency test suite passes; benchmark baseline recorded.

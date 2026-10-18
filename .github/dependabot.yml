@@ -7,3 +7,12 @@ updates:
     groups:
       actions:
         patterns: ["*"]
+  # Rust crates of the native modules (ADR 0021): new versions and security fixes, one weekly pull
+  # request. The lockfile is committed and CI builds with --locked, so an update is a reviewed change.
+  - package-ecosystem: cargo
+    directory: "/packages/net/native"
+    schedule:
+      interval: weekly
+    groups:
+      rust-crates:
+        patterns: ["*"]
