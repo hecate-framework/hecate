@@ -106,7 +106,8 @@ function PipeListener:_new_handle() return uv.new_pipe(false) end
 ---@private
 function PipeListener:_wrap(client) return PipeStream(client) end
 
---- Path the listener is bound to. The file is not removed on close (libuv unlinks it).
+--- Path the listener is bound to. libuv removes the socket file when the listener closes; a stale file
+--- left by a crashed process is not removed before the bind, so binding it fails.
 ---@return string
 function PipeListener:path() return self._path end
 
