@@ -102,8 +102,10 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
 ## Phase 2 — additional spike
 
 - [ ] `reactor` follow-up: specify then implement `offload` (Lua functions on the libuv
-      thread pool) and the worker-process primitives (OQ-8), split from the Phase 1
-      item (OQ-27); needed by `kernel` for multi-process workers.
+      thread pool), split from the Phase 1 item (OQ-27).
+- [ ] `reactor`: the multi-process primitives of [ADR 0023](adr/0023-multi-process-serving.md)
+      (`spawn`, `ipc` with handle passing, TCP `reuseport`, OQ-8, OQ-43); needed by `kernel`
+      for multi-process workers. Spike OQ-8 delivered.
 
 - [ ] Spike OQ-11 (documentation tooling: site generator and code-reference renderer),
       report with rendered samples submitted to the owner before the website skeleton.
