@@ -107,11 +107,6 @@ or `false` and the reason) is false and TLS calls raise `TlsError` (`context.rea
 Certificate verification is on and cannot be turned off (RFC 8446 section 4.4.2, RFC 6125).
 The server certificate is verified against the operating system's trust store (`rustls-platform-verifier`, [ADR 0024](../../docs/adr/0024-tls-trust-store.md)), so a public server works with no option; `ca_pem` adds trust anchors for a private CA, and `system_roots = false` trusts only `ca_pem`. Unknown or misplaced options (`verify`, `insecure`, `ca_pem` on a server configuration, ...) raise `ArgumentError` naming the kind of configuration the option belongs to. On macOS and Windows the system verifier may do revocation I/O that blocks the reactor for its duration (ADR 0024). A `tls_config` built once with `tls.client_config` can be reused across connections; without it, `connect_tls` builds one per call (cached per `alpn` list when no other TLS option is given).
 
-<!-- TODO(coordinator): TLS rows -->
-<!-- Integrate here the final TLS table from the area A and B reports (handshake_deadline, option allow-lists,
-     TlsStream methods and renames, TlsError reasons from the native error kinds). The rows below are the
-     current text; A and B changes win. -->
-
 | Name | Description |
 |---|---|
 | `net.connect_tls(host, port, options?)` | *suspends*. `net.connect` then a TLS handshake. Every option is optional. Transport: `nodelay`, `keepalive`, `keepalive_delay`, `family` (as `connect`). TLS: `ca_pem` (added to the system store), `system_roots` (false trusts only `ca_pem`), `alpn` (non-empty list of non-empty strings of at most 255 bytes), `cert_pem` and `key_pem` (mutual TLS, together), `server_name` (default `host`: SNI and identity), `tls_config` (a prebuilt configuration, exclusive with the other TLS options), `handshake_deadline` (seconds, default 10: expiry raises the deadline error and closes the stream). |

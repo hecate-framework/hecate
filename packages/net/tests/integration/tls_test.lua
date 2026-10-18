@@ -146,11 +146,7 @@ end
 --- recognises; the operating system's verifiers elsewhere report many failures as plain text.
 local function on_linux()
   if package.config:sub(1, 1) == "\\" then return false end
-  local pipe = io.popen("uname -s 2>/dev/null")
-  if not pipe then return false end
-  local name = pipe:read("l")
-  pipe:close()
-  return name == "Linux"
+  return require("luv").os_uname().sysname == "Linux"
 end
 
 function T:test_the_system_store_rejects_the_test_ca_and_says_how_to_trust_it()
@@ -175,11 +171,7 @@ end
 --- refused there (ADR 0024, "Consequences").
 local function on_macos()
   if package.config:sub(1, 1) == "\\" then return false end
-  local pipe = io.popen("uname -s 2>/dev/null")
-  if not pipe then return false end
-  local name = pipe:read("l")
-  pipe:close()
-  return name == "Darwin"
+  return require("luv").os_uname().sysname == "Darwin"
 end
 
 --- Makes a throwaway CA and a server certificate for localhost valid for 30 days with the openssl
@@ -272,7 +264,16 @@ function T:test_a_public_server_is_trusted_out_of_the_box()
     return
   end
   run(self, function()
-    local client <close> = reactor.deadline(30, net.connect_tls, "github.com", 443)
+    -- One retry: a network blip is not a trust failure, a TlsError is never retried.
+    local ok, client = pcall(reactor.deadline, 30, net.connect_tls, "github.com", 443)
+    if not ok then
+      local core = require("hecate.core")
+      if not core.is_instance_of(client, core.NetworkError) or core.is_instance_of(client, net.TlsError) then
+        error(client, 0)
+      end
+      client = reactor.deadline(30, net.connect_tls, "github.com", 443)
+    end
+    local client <close> = client
     client:write("HEAD / HTTP/1.1\r\nHost: github.com\r\nConnection: close\r\n\r\n")
     local status = client:reader():read_line()
     self:assert_true(status ~= nil and status:find("^HTTP/1%.1 %d%d%d") ~= nil, tostring(status))
