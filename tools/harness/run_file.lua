@@ -17,6 +17,31 @@ do
 end
 local file = arg[1]
 for i = 2, #arg do package.path = arg[i] .. "/?.lua;" .. arg[i] .. "/?/init.lua;" .. package.path end
+
+-- Watchdog: a test that does not finish within HECATE_TEST_TIMEOUT seconds (default 120) fails the
+-- file and names the test, instead of blocking the run until the CI job is cancelled. A luv timer
+-- catches a wait inside the event loop (the usual hang of a transport test); a count hook catches a
+-- loop in Lua. A blocking system call is caught by neither (the job-level timeout of CI covers it).
+do
+  local limit = tonumber(os.getenv("HECATE_TEST_TIMEOUT")) or 120
+  local current, deadline
+  local function expire()
+    io.stdout:write(("not ok - %s\n  # timed out after %s seconds (HECATE_TEST_TIMEOUT)\n"):format(current, limit))
+    io.stdout:flush()
+    os.exit(124)
+  end
+  local has_luv, uv = pcall(require, "luv")
+  local timer = has_luv and uv.new_timer() or nil
+  if timer then timer:unref() end
+  debug.sethook(function() if deadline and os.time() > deadline then expire() end end, "", 1000000)
+  test.on_start = function(name)
+    current, deadline = name, os.time() + limit
+    if timer then
+      timer:stop()
+      timer:start(limit * 1000, 0, expire)
+    end
+  end
+end
 local class = assert(loadfile(file))()
 local failed = 0
 for i, r in ipairs(test.run_case(class)) do

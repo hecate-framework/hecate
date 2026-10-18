@@ -48,7 +48,7 @@ Status column: `done` = implemented in `tools/`, `now` = workflow exists today, 
 
 | Task | Purpose | Status |
 |---|---|---|
-| `test [packages] [--integration] [--tag t]` | run tests (bootstrap harness, then `hecate.test`) | done |
+| `test [packages] [--integration] [--tag t]` | run tests (bootstrap harness, then `hecate.test`); a test that runs longer than `HECATE_TEST_TIMEOUT` seconds (default 120) fails its file and is named; with `CI=true` each file is announced on standard error; the CI job has a 30-minute limit | done |
 | `coverage` | LCOV report, per-package thresholds (core/reactor/router/schema ≥ 90 %) | P1 |
 | `affected [--base ref]` | packages affected by a diff, following reverse dependencies; used to shrink CI | done |
 | `matrix` | emits the CI matrix (platforms × packages × services) as JSON | done |

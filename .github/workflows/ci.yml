@@ -59,6 +59,9 @@ jobs:
     needs: plan
     name: ci (${{ matrix.os }}, Lua 5.5)
     runs-on: ${{ matrix.os }}
+    # A hung test must fail the job within minutes, not after the default six hours. The harness
+    # watchdog (HECATE_TEST_TIMEOUT) names the test; this is the backstop for a blocking call.
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
