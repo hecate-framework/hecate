@@ -14,8 +14,11 @@ local is_windows = package.config:sub(1, 1) == "\\"
 local function absolute(search_path)
   local entries = {}
   for entry in search_path:gmatch("[^;]+") do
-    if not (entry:match("^[/\\]") or entry:match("^%a:") or entry:match("^!")) then entry = uv.cwd() .. "/" .. entry end
-    entries[#entries + 1] = entry
+    local absolute_entry = entry
+    if not (entry:match("^[/\\]") or entry:match("^%a:") or entry:match("^!")) then
+      absolute_entry = uv.cwd() .. "/" .. entry
+    end
+    entries[#entries + 1] = absolute_entry
   end
   return table.concat(entries, ";")
 end

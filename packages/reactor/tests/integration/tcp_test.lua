@@ -453,7 +453,8 @@ function T:test_a_connection_whose_options_cannot_be_applied_is_dropped_and_acce
       with_failing_nodelay(0, failure, function(arm)
         local first = reactor.tcp_connect(LOOPBACK, port)
         local second = reactor.tcp_connect(LOOPBACK, port)
-        wait_until(self, function() return listener._incoming == 2 end, "both connections to be queued") ---@diagnostic disable-line: invisible
+        -- libuv announces one pending connection at a time: wait for the first.
+        wait_until(self, function() return listener._incoming > 0 end, "a connection to be queued") ---@diagnostic disable-line: invisible
         arm(1) -- the options of the first accepted connection fail
         local accepted <close> = listener:accept()
         -- The first connection was closed by the listener, the second one is served.
@@ -494,10 +495,10 @@ function T:test_a_reset_connection_ends_the_read_with_an_error_or_a_clean_end()
     peer:write("pending")
     self:assert_equal("pending", client:read())
     -- Close the server side with a reset (RST instead of FIN).
-    local reset = reactor.Channel(1)
-    peer._handle:close_reset(function() reset:send(true) end) ---@diagnostic disable-line: invisible
+    local reset = false
+    peer._handle:close_reset(function() reset = true end) ---@diagnostic disable-line: invisible
     peer._closed = true ---@diagnostic disable-line: invisible
-    reset:receive()
+    wait_until(self, function() return reset end, "the reset to complete")
     local ok, result = pcall(client.read, client)
     if ok then
       -- Some platforms report a reset as a plain end of stream.

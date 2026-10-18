@@ -161,8 +161,9 @@ function BufferedReader:_read_until(delimiter, limit, operation)
   -- One join of what an earlier (cancelled) call left, then each chunk is searched once, together
   -- with the `width - 1` last bytes searched before it, which a delimiter may straddle. The
   -- chunks are joined a single time, when the delimiter is found: reading a record of n bytes
-  -- costs O(n), where joining after every chunk costs O(n^2 / chunk). Indicative (Lua 5.5, 16 KiB
-  -- chunks, a 4 MiB record): about 120 ms before, 15 ms after.
+  -- costs O(n), where joining after every chunk costs O(n^2 / chunk). Indicative, one machine, Lua 5.5,
+  -- in-memory stream, a 4 MiB record: 298 ms before and 5 ms after with 16 KiB chunks; 15 s before
+  -- and 9 ms after with 1 KiB chunks.
   self:_join()
   local first = self._buffer:find(delimiter, self._pos, true)
   local searched = self:_size() -- unconsumed bytes searched so far

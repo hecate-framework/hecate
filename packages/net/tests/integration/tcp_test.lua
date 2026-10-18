@@ -20,6 +20,30 @@ local function with_listener(self, fn, options)
   return result
 end
 
+--- A loopback port on which nothing listens: bind to learn a free port, then close at once. Another
+--- process could take the port in that window; `refused_connect` retries once with a new port.
+local function closed_port()
+  return reactor.run(function()
+    local listener = net.listen(LOOPBACK, 0)
+    local port = listener:local_address().port
+    listener:close()
+    return port
+  end)
+end
+
+--- Connects to a closed port and returns the failure; retries once if the port was taken meanwhile.
+local function refused_connect(self, options)
+  for attempt = 1, 2 do
+    local port = closed_port()
+    local ok, err = pcall(reactor.run, function()
+      local stream = net.connect(LOOPBACK, port, options)
+      stream:close()
+    end)
+    if not ok then return err, port end
+    if attempt == 2 then self:fail("a closed port accepted a connection twice") end
+  end
+end
+
 local function errno_of(self, fn)
   local err = self:assert_error(fn)
   self:assert_true(core.is_instance_of(err, reactor.TransportError), tostring(err))
@@ -170,8 +194,14 @@ end
 
 function T:test_the_listener_is_closed_by_its_scope_and_wakes_a_pending_accept()
   with_listener(self, function(listener)
-    local acceptor = reactor.fork(function() return pcall(listener.accept, listener) end)
-    for _ = 1, 5 do reactor.sleep(0) end -- let the acceptor park in `accept`
+    local parked = reactor.Channel(1)
+    local acceptor = reactor.fork(function()
+      -- Scheduling is cooperative: `send` does not yield, so the receiver below runs only once this
+      -- coroutine has parked inside `accept`, the next suspension point.
+      parked:send(true)
+      return pcall(listener.accept, listener)
+    end)
+    parked:receive()
     listener:close()
     listener:close()
     self:assert_true(listener:is_closed())
@@ -215,7 +245,7 @@ function T:test_a_deadline_bounds_connect_and_accept()
   end)
 end
 
-function T:test_a_reset_peer_raises_io_error_and_never_a_partial_result()
+function T:test_a_reset_peer_raises_a_transport_error_and_never_a_partial_result()
   with_listener(self, function(listener, port)
     local closed = reactor.Channel(1)
     reactor.fork(function()
@@ -254,29 +284,21 @@ function T:test_a_failed_flush_poisons_the_writer_over_a_tcp_stream()
   end)
 end
 
-function T:test_connect_refused_raises_io_error()
-  local port = reactor.run(function()
-    local listener = net.listen(LOOPBACK, 0)
-    local p = listener:local_address().port
-    listener:close()
-    return p
-  end)
-  local errno = errno_of(self, function()
-    reactor.run(function() net.connect(LOOPBACK, port) end)
-  end)
-  self:assert_equal("ECONNREFUSED", errno)
+function T:test_connect_refused_raises_a_transport_error()
+  local err, port = refused_connect(self)
+  self:assert_true(core.is_instance_of(err, reactor.TransportError), tostring(err))
+  self:assert_false(core.is_instance_of(err, reactor.IoError), tostring(err))
+  self:assert_equal("ECONNREFUSED", err.context.errno)
+  -- The message names the endpoint and the failure, and the original error is kept as the cause.
+  self:assert_equal(("connect to %s:%d failed: ECONNREFUSED connection refused"):format(LOOPBACK, port), err.message)
+  self:assert_equal(LOOPBACK, err.context.host)
+  self:assert_equal(port, err.context.port)
+  self:assert_true(core.is_instance_of(err.cause, reactor.TransportError))
+  self:assert_equal("ECONNREFUSED", err.cause.context.errno)
 end
 
 function T:test_a_failed_connect_reports_every_attempt()
-  local port = reactor.run(function()
-    local listener = net.listen(LOOPBACK, 0)
-    local p = listener:local_address().port
-    listener:close()
-    return p
-  end)
-  local err = self:assert_error(function()
-    reactor.run(function() net.connect(LOOPBACK, port) end)
-  end)
+  local err = refused_connect(self)
   local attempts = err.context.attempts
   self:assert_equal(1, #attempts)
   self:assert_equal(LOOPBACK, attempts[1].address)
@@ -297,7 +319,7 @@ function T:test_connect_and_listen_resolve_host_names()
   self:assert_equal("hi", reply)
 end
 
-function T:test_an_unknown_host_raises_io_error_and_leaks_nothing()
+function T:test_an_unknown_host_raises_a_transport_error_and_leaks_nothing()
   local before = reactor.Reactor.open_handles()
   local _, err = errno_of(self, function()
     reactor.run(function() net.connect("no-such-host.invalid", 80) end)
@@ -322,15 +344,73 @@ function T:test_arguments_and_options_are_validated()
   end
 end
 
+--- Records the calls `nodelay` and `keepalive` receive while `fn` runs. The libuv TCP handle is a
+--- userdata whose methods live in a shared table, so wrapping them there observes every handle the
+--- reactor creates. (Tests may require luv; only `src` is forbidden to, OQ-28.)
+local function spying_on_handles(fn)
+  local uv = require("luv")
+  local methods = getmetatable(uv.new_tcp()).__index
+  local calls = {}
+  local originals = { nodelay = methods.nodelay, keepalive = methods.keepalive }
+  for name, original in pairs(originals) do
+    methods[name] = function(handle, ...)
+      calls[#calls + 1] = { name = name, args = table.pack(...) }
+      return original(handle, ...)
+    end
+  end
+  local ok, err = pcall(fn, calls)
+  for name, original in pairs(originals) do methods[name] = original end
+  if not ok then error(err, 0) end
+  return calls
+end
+
+local function calls_named(calls, name)
+  local found = {}
+  for _, call in ipairs(calls) do
+    if call.name == name then found[#found + 1] = call.args end
+  end
+  return found
+end
+
 function T:test_options_reach_the_transport()
-  with_listener(self, function(listener, port)
-    reactor.fork(function() local peer <close> = listener:accept(); reactor.sleep(0.02) end)
-    local client <close> = net.connect(LOOPBACK, port, { nodelay = false, keepalive = true, keepalive_delay = 30 })
-    client:set_nodelay(true)
-    client:set_keepalive(false)
-    -- Wait for the peer to accept and close, so the listener is not closed mid-accept.
-    self:assert_nil(client:read())
-  end, { backlog = 16, keepalive = true })
+  local calls = spying_on_handles(function()
+    with_listener(self, function(listener, port)
+      reactor.fork(function() local peer <close> = listener:accept(); peer:read() end)
+      local client <close> = net.connect(LOOPBACK, port, { nodelay = false, keepalive = true, keepalive_delay = 30 })
+      client:set_nodelay(true)
+      client:set_keepalive(false)
+    end, { backlog = 16, keepalive = true, keepalive_delay = 45 })
+  end)
+  local nodelay, keepalive = calls_named(calls, "nodelay"), calls_named(calls, "keepalive")
+  self:assert_true(#nodelay >= 3, "nodelay calls: " .. #nodelay)
+  local seen = {}
+  for _, args in ipairs(keepalive) do seen[#seen + 1] = ("%s/%s"):format(tostring(args[1]), tostring(args[2])) end
+  local text = table.concat(seen, " ")
+  -- connect options, the explicit set_keepalive(false), and the listener's options on the accepted socket
+  self:assert_true(text:find("true/30", 1, true) ~= nil, text)
+  self:assert_true(text:find("true/45", 1, true) ~= nil, text)
+  self:assert_true(text:find("false/", 1, true) ~= nil, text)
+  local values = {}
+  for _, args in ipairs(nodelay) do values[#values + 1] = tostring(args[1]) end
+  -- `nodelay = false` of connect (the default of every other socket is true) and the later set_nodelay(true)
+  self:assert_true(table.concat(values, " "):find("false", 1, true) ~= nil, table.concat(values, " "))
+  self:assert_equal("true", values[#values])
+end
+
+function T:test_defaults_are_nodelay_on_keepalive_off_and_a_delay_of_60_seconds()
+  local calls = spying_on_handles(function()
+    with_listener(self, function(listener, port)
+      reactor.fork(function() local peer <close> = listener:accept(); peer:read() end)
+      local client <close> = net.connect(LOOPBACK, port)
+      self:assert_equal(port, client:peer_address().port)
+    end)
+  end)
+  self:assert_true(#calls >= 4) -- two sockets, two calls each
+  for _, args in ipairs(calls_named(calls, "nodelay")) do self:assert_equal(true, args[1]) end
+  for _, args in ipairs(calls_named(calls, "keepalive")) do
+    self:assert_equal(false, args[1])
+    self:assert_equal(60, args[2])
+  end
 end
 
 function T:test_concurrent_connections_do_not_interleave()
