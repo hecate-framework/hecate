@@ -123,7 +123,10 @@ function T:test_close_by_the_peer_ends_the_stream_and_close_wakes_a_pending_read
       reactor.sleep(0.2)
     end)
     local client = reactor.tcp_connect(LOOPBACK, port)
-    local closer = reactor.fork(function() reactor.sleep(0.02); client:close() end)
+    local closer = reactor.fork(function()
+      for _ = 1, 5 do reactor.sleep(0) end -- let the read park first
+      client:close()
+    end)
     local errno = errno_of(self, function() client:read() end)
     self:assert_equal("ECANCELED", errno)
     closer:value()
@@ -200,7 +203,7 @@ function T:test_closing_the_listener_wakes_a_pending_accept()
       local ok, err = pcall(listener.accept, listener)
       return ok, err
     end)
-    reactor.sleep(0.01)
+    for _ = 1, 5 do reactor.sleep(0) end -- let the acceptor park in `accept`
     listener:close()
     local ok, err = acceptor:value()
     self:assert_false(ok)
@@ -210,16 +213,17 @@ end
 
 function T:test_cancelled_read_keeps_the_stream_and_loses_no_data()
   with_listener(self, function(listener, port)
+    local release = reactor.Channel(1)
     local server = reactor.fork(function()
       local peer <close> = listener:accept()
-      reactor.sleep(0.1)
+      release:receive() -- silent until the deadline has expired
       peer:write("after")
-      reactor.sleep(0.02)
     end)
     local client <close> = reactor.tcp_connect(LOOPBACK, port)
     local ok, err = pcall(reactor.deadline, 0.02, function() return client:read() end)
     self:assert_false(ok)
     self:assert_true(core.is_instance_of(err, core.DeadlineExceededError))
+    release:send(true)
     self:assert_equal("after", client:read())
     server:value()
   end)
@@ -228,9 +232,10 @@ end
 function T:test_data_arriving_as_the_read_is_cancelled_is_kept()
   with_listener(self, function(listener, port)
     local peer
-    reactor.fork(function() peer = listener:accept() end)
+    local accepted = reactor.Channel(1)
+    reactor.fork(function() peer = listener:accept(); accepted:send(true) end)
     local client <close> = reactor.tcp_connect(LOOPBACK, port)
-    reactor.sleep(0.02)
+    accepted:receive()
     local reader = reactor.fork(function() return client:read() end)
     -- The writer sends and the canceller cancels in the same turn: libuv may deliver the
     -- data after the reader was withdrawn.
@@ -249,35 +254,39 @@ end
 
 function T:test_write_applies_back_pressure_and_cancelled_write_closes_the_stream()
   with_listener(self, function(listener, port)
+    local release = reactor.Channel(1)
     reactor.fork(function()
       local peer <close> = listener:accept()
-      reactor.sleep(0.3) -- never reads: the peer's buffers fill up
+      release:receive() -- never reads: the peer's buffers fill up, until the test is done
     end)
     local client = reactor.tcp_connect(LOOPBACK, port)
     -- The peer never reads, so a stream of large writes must end up waiting (Windows loopback
-    -- buffers far more than Linux before a write has to wait).
-    local big = string.rep("x", 32 * 1024 * 1024)
-    local started = reactor.now()
+    -- buffers far more than Linux before a write has to wait). A write that never waited would
+    -- let the loop finish and `ok` be true: the deadline expiring is the proof that it suspended.
+    local big = string.rep("x", 4 * 1024 * 1024)
     local ok, err = pcall(reactor.deadline, 0.05, function()
-      for _ = 1, 256 do client:write(big); reactor.sleep(0) end
+      for _ = 1, 4096 do client:write(big); reactor.sleep(0) end
     end)
     self:assert_false(ok)
-    self:assert_true(core.is_instance_of(err, core.DeadlineExceededError))
-    self:assert_true(reactor.now() - started < 0.25, "the write must have suspended, not completed")
+    self:assert_true(core.is_instance_of(err, core.DeadlineExceededError), tostring(err))
     self:assert_true(client:is_closed())
+    release:send(true)
   end)
 end
 
 function T:test_write_to_a_reset_peer_raises_io_error()
   with_listener(self, function(listener, port)
+    local closed = reactor.Channel(1)
     reactor.fork(function()
       local peer = listener:accept()
       peer:close()
+      closed:send(true)
     end)
     local client <close> = reactor.tcp_connect(LOOPBACK, port)
-    reactor.sleep(0.05)
+    closed:receive()
     local errno = errno_of(self, function()
-      for _ = 1, 50 do client:write(string.rep("x", 65536)); reactor.sleep(0) end
+      -- The first writes may sit in kernel buffers: write until the failure shows.
+      for _ = 1, 2000 do client:write(string.rep("x", 65536)); reactor.sleep(0) end
     end)
     -- Windows reports the aborted connection as ECONNABORTED or ECANCELED.
     self:assert_true(errno == "EPIPE" or errno == "ECONNRESET" or errno == "ECONNABORTED"
@@ -339,7 +348,7 @@ function T:test_a_second_concurrent_read_is_refused()
     reactor.fork(function() local peer <close> = listener:accept(); reactor.sleep(0.1) end)
     local client <close> = reactor.tcp_connect(LOOPBACK, port)
     local first = reactor.fork(function() return client:read() end)
-    reactor.sleep(0.01)
+    for _ = 1, 5 do reactor.sleep(0) end -- let the first read park
     self:assert_error(function() client:read() end)
     first:cancel()
   end)

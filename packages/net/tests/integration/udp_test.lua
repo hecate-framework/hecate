@@ -12,7 +12,7 @@ function T:test_bind_udp_resolves_and_round_trips()
     -- "localhost" may resolve to ::1 or 127.0.0.1: the client must use the server's family.
     local client <close> = net.bind_udp(server:local_address().ip, 0)
     local port = server:local_address().port
-    client:send_to("hello", server:local_address().ip, port)
+    client:send_to(server:local_address().ip, port, "hello")
     local data, from = server:receive_from()
     return { data = data, ip = from.ip, closed = server:is_closed() }
   end)
@@ -36,4 +36,14 @@ function T:test_resolve_numeric_and_invalid()
   end)
 end
 
+function T:test_bind_udp_takes_a_family_and_rejects_other_options()
+  reactor.run(function()
+    local socket <close> = net.bind_udp("localhost", 0, { family = "inet" })
+    self:assert_equal("127.0.0.1", socket:local_address().ip)
+    for _, options in ipairs({ { reuseport = true }, 42 }) do
+      local err = self:assert_error(function() net.bind_udp("127.0.0.1", 0, options) end)
+      self:assert_true(core.is_instance_of(err, core.ArgumentError), tostring(err))
+    end
+  end)
+end
 return T

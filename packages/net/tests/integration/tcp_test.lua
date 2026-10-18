@@ -267,6 +267,22 @@ function T:test_connect_refused_raises_io_error()
   self:assert_equal("ECONNREFUSED", errno)
 end
 
+function T:test_a_failed_connect_reports_every_attempt()
+  local port = reactor.run(function()
+    local listener = net.listen(LOOPBACK, 0)
+    local p = listener:local_address().port
+    listener:close()
+    return p
+  end)
+  local err = self:assert_error(function()
+    reactor.run(function() net.connect(LOOPBACK, port) end)
+  end)
+  local attempts = err.context.attempts
+  self:assert_equal(1, #attempts)
+  self:assert_equal(LOOPBACK, attempts[1].address)
+  self:assert_equal(err.context.errno, attempts[1].errno)
+end
+
 function T:test_connect_and_listen_resolve_host_names()
   local reply = reactor.run(function()
     local listener <close> = net.listen("localhost", 0, { family = "inet" })

@@ -57,10 +57,10 @@ end
 --- system. A datagram larger than the path allows raises `TransportError` (`EMSGSIZE`). A send
 --- cancelled before it completed closes the socket.
 ---@async
----@param data string
 ---@param host string  numeric IPv4 or IPv6 address
 ---@param port integer  UDP port, 1..65535
-function UdpSocket:send_to(data, host, port)
+---@param data string
+function UdpSocket:send_to(host, port, data)
   if type(data) ~= "string" then
     error(core.ArgumentError(("send_to expects a string, got %s"):format(type(data))), 2)
   end

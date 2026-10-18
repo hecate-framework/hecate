@@ -77,7 +77,8 @@ local ok, err = pcall(reactor.deadline, 2, function() return reader:read_line() 
 
 Unix-domain sockets (named pipes on Windows): `net.listen_pipe(path)` and `net.connect_pipe(path)` give `PipeListener`/`PipeStream`, with the same stream and buffered API as TCP.
 
-Datagrams: `net.bind_udp(host, port)` returns a `UdpSocket` (`send_to`, `receive_from`).
+Datagrams: `net.bind_udp(host, port, options?)` (`options.family`: `"inet"` or `"inet6"`) returns a `UdpSocket`:
+`send_to(host, port, data)` (*suspends*; the destination first, like `connect`), `receive_from()` (*suspends*; returns the payload and the sender's address; cancelling loses no datagram), `local_address()`, `close()`, `is_closed()`; `<close>`-able.
 
 `net.resolve(host, options?)` *suspends*: numeric addresses in resolver order (`options.family`: `"inet"` or `"inet6"`); same errors as `reactor.resolve`.
 Design choices of the buffered layer: OQ-29; of TCP and resolution: OQ-30, OQ-32.
@@ -97,6 +98,7 @@ The server certificate is verified against the operating system's trust store (`
 | Name | Description |
 |---|---|
 | `net.connect_tls(host, port, options)` | *suspends*. `net.connect` then a TLS handshake. Options: those of `connect` plus `ca_pem` (added to the system store), `system_roots`, `alpn`, `cert_pem` and `key_pem` (mutual TLS), `server_name` (default `host`: SNI and identity), `tls_config`. |
+| `net.tls.accept(stream, config)` | *suspends*. The server side: `tls.accept(listener:accept(), config)` runs the handshake of one accepted connection. This two-step form is the idiom, on purpose: fork the handshake per connection (inside `reactor.deadline`) so that one slow or silent client cannot stall the accept loop. |
 | `net.tls.client_config(options)`, `net.tls.server_config(options)` | Reusable configurations (`ca_pem`, `system_roots`, `alpn`, `cert_pem`, `key_pem`; server: `cert_pem`, `key_pem`, `alpn`, `client_ca_pem` to require client certificates). |
 | `net.tls.connect(stream, server_name, config)`, `net.tls.accept(stream, config)` | *suspend*. Handshake over an existing stream, which the result owns. |
 | `net.TlsStream` | Implements `Stream`; `handshake()`, `shutdown()` (sends `close_notify`, *suspends*), `alpn()`, `server_name()`, `version()`, `peer_certificate()`, `reader()`, `writer()`, `is_closed()`. `read` returns nil after the peer's `close_notify` and raises `TlsError` when the transport ends without it. `close()` cannot send `close_notify`: call `shutdown()` first. |

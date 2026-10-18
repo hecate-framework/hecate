@@ -50,8 +50,9 @@ end
 --- no timeout option: bound the whole call, resolution included, with
 --- `reactor.deadline(seconds, net.connect, host, port)`.
 ---
---- Raises `hecate.reactor.TransportError` (the last one) when no address connects, and
---- `hecate.core.ArgumentError` for a malformed host, port or option.
+--- Raises `hecate.reactor.TransportError` (the last one) when no address connects, with
+--- `context.attempts`, the list of `{ address, errno }` of every attempt (the first failures are
+--- otherwise lost), and `hecate.core.ArgumentError` for a malformed host, port or option.
 ---@async
 ---@param host string  host name or numeric address
 ---@param port integer  TCP port
@@ -61,14 +62,21 @@ function M.connect(host, port, options)
   local transport, family = split_options("connect", host, options)
   check_port("connect", port)
   local addresses = dns.resolve(host, { family = family })
+  ---@type hecate.core.Error?
   local last
+  local attempts = {}
   for i = 1, #addresses do
     local ok, result = pcall(reactor.tcp_connect, addresses[i].ip, port, transport)
     if ok then return TcpStream(result) end
     -- Only a failed attempt moves on to the next address; cancellation and misuse propagate.
     if not core.is_instance_of(result, reactor.TransportError) then error(result, 0) end
-    last = result
+    local failure = result --[[@as hecate.core.Error]]
+    attempts[#attempts + 1] = { address = addresses[i].ip, errno = failure.context and failure.context.errno }
+    last = failure
   end
+  ---@cast last hecate.core.Error
+  if last.context == nil then last.context = {} end
+  last.context.attempts = attempts
   error(last, 0)
 end
 

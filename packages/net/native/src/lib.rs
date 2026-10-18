@@ -331,3 +331,43 @@ fn module(lua: &Lua) -> LuaResult<LuaTable> {
     t.set("server", lua.create_function(server)?)?;
     Ok(t)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const CA: &[u8] = include_bytes!("../../tests/fixtures/ca.pem");
+    const SERVER_CERT: &[u8] = include_bytes!("../../tests/fixtures/server.pem");
+    const SERVER_KEY: &[u8] = include_bytes!("../../tests/fixtures/server.key");
+
+    #[test]
+    fn a_certificate_chain_is_parsed() {
+        assert_eq!(certificates(SERVER_CERT, "test").unwrap().len(), 1);
+    }
+
+    #[test]
+    fn pem_without_a_certificate_is_an_error_that_names_the_option() {
+        let err = certificates(b"not pem at all", "client_config ca_pem").unwrap_err();
+        assert!(err.to_string().contains("client_config ca_pem"), "{err}");
+    }
+
+    #[test]
+    fn a_private_key_is_parsed_from_pem_and_text_without_one_is_refused() {
+        assert!(private_key(SERVER_KEY, "test").is_ok());
+        assert!(private_key(b"not pem at all", "test").is_err());
+        assert!(private_key(b"", "test").is_err());
+    }
+
+    #[test]
+    fn trust_anchors_are_loaded_from_pem() {
+        assert_eq!(roots(CA, "test").unwrap().len(), 1);
+        assert!(roots(b"", "test").is_err());
+    }
+
+    #[test]
+    fn a_read_is_never_larger_than_one_tls_record() {
+        assert_eq!(MAX_READ, 16384);
+        assert_eq!(usize::MAX.clamp(1, MAX_READ), MAX_READ);
+        assert_eq!(0usize.clamp(1, MAX_READ), 1);
+    }
+}

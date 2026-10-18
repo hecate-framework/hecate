@@ -19,11 +19,11 @@ end
 --- Sends one datagram to a numeric address. Raises `TransportError` when it cannot be sent
 --- (for example `EMSGSIZE`). A send cancelled before it completed closes the socket.
 ---@async
----@param data string
 ---@param host string  numeric IPv4 or IPv6 address
 ---@param port integer  UDP port, 1..65535
-function UdpSocket:send_to(data, host, port)
-  return self._inner:send_to(data, host, port)
+---@param data string
+function UdpSocket:send_to(host, port, data)
+  return self._inner:send_to(host, port, data)
 end
 
 --- Suspends until a datagram arrives; returns its payload and the sender's address. Cancelling
