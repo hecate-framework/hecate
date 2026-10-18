@@ -21,14 +21,12 @@ local DEFAULT_NODELAY = true
 local DEFAULT_KEEPALIVE = false
 local DEFAULT_KEEPALIVE_DELAY = 60 -- seconds before the first probe, when keep-alive is on
 local DEFAULT_BACKLOG = 128
---- Bytes the stream reads ahead of its reader before it stops reading from the socket (back-pressure).
-local READ_AHEAD = 64 * 1024
 
 --- Options of a TCP connection.
 ---@class hecate.reactor.TcpOptions
 ---@field nodelay? boolean  disable Nagle's algorithm; default true
 ---@field keepalive? boolean  enable TCP keep-alive probes; default false
----@field keepalive_delay? integer  seconds of idleness before the first probe (a positive integer), default 60
+---@field keepalive_delay? number  seconds of idleness before the first probe, default 60
 
 --- Options of a TCP listener: those of a connection plus the backlog.
 ---@class hecate.reactor.TcpListenOptions: hecate.reactor.TcpOptions
@@ -73,8 +71,8 @@ local function check_options(name, options)
   if options.keepalive ~= nil and type(options.keepalive) ~= "boolean" then
     error(core.ArgumentError(name .. ": option keepalive must be a boolean"), 3)
   end
-  if options.keepalive_delay ~= nil and (math.type(options.keepalive_delay) ~= "integer" or options.keepalive_delay < 1) then
-    error(core.ArgumentError(name .. ": option keepalive_delay must be a positive integer number of seconds"), 3)
+  if options.keepalive_delay ~= nil and (type(options.keepalive_delay) ~= "number" or options.keepalive_delay < 0) then
+    error(core.ArgumentError(name .. ": option keepalive_delay must be a non-negative number of seconds"), 3)
   end
   if options.backlog ~= nil and (math.type(options.backlog) ~= "integer" or options.backlog < 1) then
     error(core.ArgumentError(name .. ": option backlog must be a positive integer"), 3)
@@ -138,57 +136,12 @@ local TcpStream = core.class("TcpStream")
 function TcpStream:init(handle, options)
   self._handle = handle
   self._closed = false
-  self._inbox = nil -- bytes received and not yet returned, from `_offset` on
-  self._offset = 1
+  self._inbox = nil -- bytes received and not yet returned
   self._eof = false
   self._failure = nil -- libuv error string of a failed read
-  self._reading = false -- a coroutine is waiting in `read`
-  self._started = false -- libuv delivers data to `_on_read`
-  self._demanded = false -- `read` was called at least once: reading ahead is allowed
-  self._wake = nil -- wakes the coroutine waiting in `read`
+  self._reading = false
+  self._wake = nil -- wakes the task waiting in `read`
   self._options = options or {}
-  -- One callback for the life of the stream (not one closure per `read`).
-  self._on_read = function(e, data)
-    if e then
-      self._failure = e
-    elseif data == nil then
-      self._eof = true
-    elseif #data > 0 then
-      local inbox = self._inbox
-      if inbox == nil then
-        self._inbox, self._offset = data, 1
-      else
-        self._inbox = inbox:sub(self._offset) .. data
-        self._offset = 1
-      end
-    end
-    -- Back-pressure: stop reading at the end of the stream, on failure, or once enough is buffered.
-    if e or data == nil or (self._inbox ~= nil and #self._inbox - self._offset + 1 >= READ_AHEAD) then
-      self:_stop_reading()
-    end
-    local wake = self._wake
-    self._wake = nil
-    if wake then wake() end
-  end
-end
-
---- Starts delivering data to the stream (idempotent).
----@return boolean? ok
----@return string? err
----@private
-function TcpStream:_start_reading()
-  if self._started then return true end
-  local ok, err = self._handle:read_start(self._on_read)
-  if ok then self._started = true end
-  return ok, err
-end
-
---- Stops delivering data (idempotent); data already received stays in the inbox.
----@private
-function TcpStream:_stop_reading()
-  if not self._started then return end
-  self._started = false
-  if not self._closed then self._handle:read_stop() end
 end
 
 --- Raises when the stream is closed.
@@ -227,10 +180,6 @@ end
 --- Reads at most `max` bytes (default: whatever the next receive delivers). Returns nil at
 --- end of stream (the peer shut down its side); never returns an empty string. Cancelling a
 --- suspended read keeps the stream open and loses no data. One coroutine reads at a time.
----
---- Once a first read was made the stream reads ahead of its reader by up to 64 KiB (it keeps
---- libuv reading between two calls instead of restarting it for every call), then stops reading
---- from the socket until the reader caught up: the kernel buffers apply back-pressure to the peer.
 ---@async
 ---@param max? integer
 ---@return string?
@@ -240,19 +189,33 @@ function TcpStream:read(max)
     error(core.ArgumentError(("read expects a positive integer, got %s"):format(tostring(max))), 2)
   end
   require_open(self, "read")
-  if self._reading then error(core.Error("read: another coroutine is already reading this stream"), 2) end
-  self._demanded = true
+  if self._reading then error(core.Error("read: another task is already reading this stream"), 2) end
   while self._inbox == nil and not self._eof and self._failure == nil do
     self._reading = true
     local ok, failure = pcall(context.suspend, function(wake)
       self._wake = wake
-      local started, err = self:_start_reading()
+      local started, err = self._handle:read_start(function(e, data)
+        self._handle:read_stop()
+        if e then
+          self._failure = e
+        elseif data ~= nil and #data > 0 then
+          self._inbox = data
+        elseif data == nil then
+          self._eof = true
+        end
+        local wake_reader = self._wake
+        self._wake = nil
+        if wake_reader then wake_reader() end
+      end)
       if not started then
         self._failure = tostring(err)
         self._wake = nil
         wake()
       end
-      return function() self._wake = nil end -- data that still arrives is kept in the inbox
+      return function()
+        self._wake = nil
+        if not self._closed then self._handle:read_stop() end
+      end
     end)
     self._reading = false
     if not ok then error(failure, 0) end
@@ -260,22 +223,12 @@ function TcpStream:read(max)
   end
   local data = self._inbox
   if data ~= nil then
-    local offset = self._offset
-    local available = #data - offset + 1
-    local result
-    if max ~= nil and available > max then
-      result = data:sub(offset, offset + max - 1)
-      self._offset = offset + max
-    else
-      result = offset == 1 and data or data:sub(offset)
-      self._inbox, self._offset = nil, 1
+    if max ~= nil and #data > max then
+      self._inbox = data:sub(max + 1)
+      return data:sub(1, max)
     end
-    -- The reader caught up: let libuv read ahead again.
-    if not self._started and not self._eof and self._failure == nil and not self._closed
-        and (self._inbox == nil or #self._inbox - self._offset + 1 < READ_AHEAD) then
-      self:_start_reading()
-    end
-    return result
+    self._inbox = nil
+    return data
   end
   if self._failure ~= nil then uv_call.fail_transport("read", self._failure) end
   return nil
@@ -307,7 +260,6 @@ end
 function TcpStream:close()
   if self._closed then return end
   self._closed = true
-  self._started = false
   local wake = self._wake
   self._wake = nil
   if not self._handle:is_closing() then self._handle:close() end
@@ -339,25 +291,15 @@ end
 ---@param enabled boolean
 function TcpStream:set_nodelay(enabled)
   require_open(self, "set_nodelay")
-  if type(enabled) ~= "boolean" then
-    error(core.ArgumentError(("set_nodelay expects a boolean, got %s"):format(type(enabled))), 2)
-  end
   local ok, err = self._handle:nodelay(enabled)
   if not ok then uv_call.fail_transport("set_nodelay", tostring(err)) end
 end
 
---- Enables or disables keep-alive probes; `delay` is the idle time in seconds before the first
---- (a positive integer).
+--- Enables or disables keep-alive probes; `delay` is the idle time in seconds before the first.
 ---@param enabled boolean
----@param delay? integer  a positive integer, default 60
+---@param delay? number  default 60
 function TcpStream:set_keepalive(enabled, delay)
   require_open(self, "set_keepalive")
-  if type(enabled) ~= "boolean" then
-    error(core.ArgumentError(("set_keepalive expects a boolean, got %s"):format(type(enabled))), 2)
-  end
-  if delay ~= nil and (math.type(delay) ~= "integer" or delay < 1) then
-    error(core.ArgumentError("set_keepalive: delay must be a positive integer number of seconds"), 2)
-  end
   local ok, err = self._handle:keepalive(enabled, delay or DEFAULT_KEEPALIVE_DELAY)
   if not ok then uv_call.fail_transport("set_keepalive", tostring(err)) end
 end
@@ -382,51 +324,43 @@ function TcpListener:init(handle, options)
   self._accepting = false
 end
 
---- Errors that mean the peer of an accepted connection is already gone (it reset the connection
---- before the options were applied; BSD and macOS report it on `setsockopt`): the connection is
---- dropped and `accept` goes on with the next one.
-local DROPPED = { EINVAL = true, ENOTCONN = true, ECONNRESET = true, ECONNABORTED = true }
-
 --- Suspends until a connection arrives and returns it as a `TcpStream`. Cancelling keeps the
 --- listener open; connections that arrive meanwhile stay queued. Connections are taken one
---- per call, so a slow acceptor leaves the rest in the kernel backlog (back-pressure). A
---- connection whose peer already reset it (the options cannot be applied: `EINVAL`, `ENOTCONN`,
---- `ECONNRESET`) is closed and skipped; any other failure is raised.
+--- per call, so a slow acceptor leaves the rest in the kernel backlog (back-pressure).
 ---@async
 ---@return hecate.reactor.TcpStream
 function TcpListener:accept()
   uv_call.begin("accept")
   require_open(self, "accept")
-  if self._accepting then error(core.Error("accept: another coroutine is already accepting"), 2) end
-  while true do
-    while self._incoming == 0 and self._failure == nil do
-      self._accepting = true
-      local ok, failure = pcall(context.suspend, function(wake)
-        self._wake = wake
-        return function() self._wake = nil end
-      end)
-      self._accepting = false
-      if not ok then error(failure, 0) end
-      if self._closed then fail_closed("accept", "ECANCELED: listener closed while accepting") end
-    end
-    if self._incoming == 0 then
-      local failure = self._failure
-      self._failure = nil
-      uv_call.fail_transport("accept", failure --[[@as string]])
-    end
-    local client = self:_new_handle()
-    local accepted, err = self._handle:accept(client)
-    if not accepted then
-      client:close()
-      uv_call.fail_transport("accept", tostring(err))
-    end
-    self._incoming = self._incoming - 1
-    local wrapped, result = pcall(self._wrap, self, client)
-    if wrapped then return result end
-    client:close()
-    local errno = core.is_instance_of(result, uv_call.TransportError) and result.context.errno or nil
-    if not (errno and DROPPED[errno]) then error(result, 0) end
+  if self._accepting then error(core.Error("accept: another task is already accepting"), 2) end
+  while self._incoming == 0 and self._failure == nil do
+    self._accepting = true
+    local ok, failure = pcall(context.suspend, function(wake)
+      self._wake = wake
+      return function() self._wake = nil end
+    end)
+    self._accepting = false
+    if not ok then error(failure, 0) end
+    if self._closed then fail_closed("accept", "ECANCELED: listener closed while accepting") end
   end
+  if self._incoming == 0 then
+    local failure = self._failure
+    self._failure = nil
+    uv_call.fail_transport("accept", failure --[[@as string]])
+  end
+  local client = self:_new_handle()
+  local accepted, err = self._handle:accept(client)
+  if not accepted then
+    client:close()
+    uv_call.fail_transport("accept", tostring(err))
+  end
+  self._incoming = self._incoming - 1
+  local wrapped, wrap_failure = pcall(self._wrap, self, client)
+  if not wrapped then
+    client:close()
+    error(wrap_failure, 0)
+  end
+  return wrap_failure
 end
 
 --- Creates the libuv handle of an accepted connection (overridden by pipe listeners).
@@ -590,9 +524,6 @@ function api.supports_reuseport()
   reuseport_supported = supported
   return supported
 end
-
---- Forgets the probe of `supports_reuseport` (tests only: the answer is cached for good).
-function M.reset_reuseport_probe() reuseport_supported = nil end
 
 M.supports_reuseport = api.supports_reuseport
 M.tcp_connect = api.tcp_connect
