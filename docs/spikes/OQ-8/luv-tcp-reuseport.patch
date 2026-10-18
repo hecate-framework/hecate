@@ -1,14 +1,198 @@
+diff --git a/docs/docs.lua b/docs/docs.lua
+index 4dd35d0..36a0d48 100644
+--- a/docs/docs.lua
++++ b/docs/docs.lua
+@@ -2276,8 +2276,17 @@ local doc = {
+           method_form = 'tcp:bind(host, port, [flags])',
+           desc = [[
+             Bind the handle to an host and port. `host` should be an IP address and
+-            not a domain name. Any `flags` are set with a table with field `ipv6only`
+-            equal to `true` or `false`.
++            not a domain name. Any `flags` are set with a table with fields `ipv6only`
++            and `reuseport` equal to `true` or `false`.
++
++            - `ipv6only`: Disables dual stack mode.
++            - `reuseport`: Indicates if SO_REUSEPORT will be set when binding the handle.
++              This sets the SO_REUSEPORT socket option on supported platforms. Multiple
++              threads or processes that bind the same address and port with this flag
++              "share" the port: incoming connections are distributed across them (load
++              balancing). This flag is available only on Linux 3.9+, DragonFlyBSD 3.6+,
++              FreeBSD 12.0+, Solaris 11.4, and AIX 7.2.5+ for now; on other platforms
++              the call fails with `ENOTSUP`.
+ 
+             When the port is already taken, you can expect to see an `EADDRINUSE` error
+             from either `uv.tcp_bind()`, `uv.listen()` or `uv.tcp_connect()`. That is, a
+@@ -2295,10 +2304,16 @@ local doc = {
+               name = 'flags',
+               type = opt(table({
+                 { 'ipv6only', opt_bool },
++                { 'reuseport', opt_bool },
+               })),
+             },
+           },
+           returns = success_ret,
++          notes = {
++            [[
++              The `reuseport` flag is only supported with Libuv >= 1.49.0.
++            ]],
++          },
+         },
+         {
+           name = 'tcp_getpeername',
+diff --git a/docs/docs.md b/docs/docs.md
+index 66aff74..b1303fd 100644
+--- a/docs/docs.md
++++ b/docs/docs.md
+@@ -1770,10 +1770,20 @@ in multi-process setups.
+ - `port`: `integer`
+ - `flags`: `table` or `nil`
+   - `ipv6only`: `boolean` or `nil`
++  - `reuseport`: `boolean` or `nil`
+ 
+ Bind the handle to an host and port. `host` should be an IP address and
+-not a domain name. Any `flags` are set with a table with field `ipv6only`
+-equal to `true` or `false`.
++not a domain name. Any `flags` are set with a table with fields `ipv6only`
++and `reuseport` equal to `true` or `false`.
++
++- `ipv6only`: Disables dual stack mode.
++- `reuseport`: Indicates if SO_REUSEPORT will be set when binding the handle.
++  This sets the SO_REUSEPORT socket option on supported platforms. Multiple
++  threads or processes that bind the same address and port with this flag
++  "share" the port: incoming connections are distributed across them (load
++  balancing). This flag is available only on Linux 3.9+, DragonFlyBSD 3.6+,
++  FreeBSD 12.0+, Solaris 11.4, and AIX 7.2.5+ for now; on other platforms
++  the call fails with `ENOTSUP`.
+ 
+ When the port is already taken, you can expect to see an `EADDRINUSE` error
+ from either `uv.tcp_bind()`, `uv.listen()` or `uv.tcp_connect()`. That is, a
+@@ -1785,6 +1795,8 @@ later using `uv.tcp_getsockname()`.
+ 
+ **Returns:** `0` or `fail`
+ 
++**Note**: The `reuseport` flag is only supported with Libuv >= 1.49.0.
++
+ ### `uv.tcp_getpeername(tcp)`
+ 
+ > method form `tcp:getpeername()`
+diff --git a/docs/meta.lua b/docs/meta.lua
+index 8af75c9..ee4c68b 100644
+--- a/docs/meta.lua
++++ b/docs/meta.lua
+@@ -2027,8 +2027,17 @@ function uv.tcp_simultaneous_accepts(tcp, enable) end
+ function uv_tcp_t:simultaneous_accepts(enable) end
+ 
+ --- Bind the handle to an host and port. `host` should be an IP address and
+---- not a domain name. Any `flags` are set with a table with field `ipv6only`
+---- equal to `true` or `false`.
++--- not a domain name. Any `flags` are set with a table with fields `ipv6only`
++--- and `reuseport` equal to `true` or `false`.
++---
++--- - `ipv6only`: Disables dual stack mode.
++--- - `reuseport`: Indicates if SO_REUSEPORT will be set when binding the handle.
++---   This sets the SO_REUSEPORT socket option on supported platforms. Multiple
++---   threads or processes that bind the same address and port with this flag
++---   "share" the port: incoming connections are distributed across them (load
++---   balancing). This flag is available only on Linux 3.9+, DragonFlyBSD 3.6+,
++---   FreeBSD 12.0+, Solaris 11.4, and AIX 7.2.5+ for now; on other platforms
++---   the call fails with `ENOTSUP`.
+ ---
+ --- When the port is already taken, you can expect to see an `EADDRINUSE` error
+ --- from either `uv.tcp_bind()`, `uv.listen()` or `uv.tcp_connect()`. That is, a
+@@ -2037,18 +2046,29 @@ function uv_tcp_t:simultaneous_accepts(enable) end
+ ---
+ --- Use a port of `0` to let the OS assign an ephemeral port.  You can look it up
+ --- later using `uv.tcp_getsockname()`.
++--- **Note**:
++--- The `reuseport` flag is only supported with Libuv >= 1.49.0.
+ --- @param tcp uv.uv_tcp_t
+ --- @param host string
+ --- @param port integer
+---- @param flags { ipv6only: boolean? }?
++--- @param flags { ipv6only: boolean?, reuseport: boolean? }?
+ --- @return 0? success
+ --- @return string? err
+ --- @return uv.error_name? err_name
+ function uv.tcp_bind(tcp, host, port, flags) end
+ 
+ --- Bind the handle to an host and port. `host` should be an IP address and
+---- not a domain name. Any `flags` are set with a table with field `ipv6only`
+---- equal to `true` or `false`.
++--- not a domain name. Any `flags` are set with a table with fields `ipv6only`
++--- and `reuseport` equal to `true` or `false`.
++---
++--- - `ipv6only`: Disables dual stack mode.
++--- - `reuseport`: Indicates if SO_REUSEPORT will be set when binding the handle.
++---   This sets the SO_REUSEPORT socket option on supported platforms. Multiple
++---   threads or processes that bind the same address and port with this flag
++---   "share" the port: incoming connections are distributed across them (load
++---   balancing). This flag is available only on Linux 3.9+, DragonFlyBSD 3.6+,
++---   FreeBSD 12.0+, Solaris 11.4, and AIX 7.2.5+ for now; on other platforms
++---   the call fails with `ENOTSUP`.
+ ---
+ --- When the port is already taken, you can expect to see an `EADDRINUSE` error
+ --- from either `uv.tcp_bind()`, `uv.listen()` or `uv.tcp_connect()`. That is, a
+@@ -2057,9 +2077,11 @@ function uv.tcp_bind(tcp, host, port, flags) end
+ ---
+ --- Use a port of `0` to let the OS assign an ephemeral port.  You can look it up
+ --- later using `uv.tcp_getsockname()`.
++--- **Note**:
++--- The `reuseport` flag is only supported with Libuv >= 1.49.0.
+ --- @param host string
+ --- @param port integer
+---- @param flags { ipv6only: boolean? }?
++--- @param flags { ipv6only: boolean?, reuseport: boolean? }?
+ --- @return 0? success
+ --- @return string? err
+ --- @return uv.error_name? err_name
 diff --git a/src/tcp.c b/src/tcp.c
-index 2c2734d..31a815e 100644
+index 2c2734d..f39b672 100644
 --- a/src/tcp.c
 +++ b/src/tcp.c
-@@ -124,6 +124,9 @@ static int luv_tcp_bind(lua_State* L) {
+@@ -124,6 +124,11 @@ static int luv_tcp_bind(lua_State* L) {
      lua_getfield(L, 4, "ipv6only");
      if (lua_toboolean(L, -1)) flags |= UV_TCP_IPV6ONLY;
      lua_pop(L, 1);
++#if LUV_UV_VERSION_GEQ(1, 49, 0)
 +    lua_getfield(L, 4, "reuseport");
 +    if (lua_toboolean(L, -1)) flags |= UV_TCP_REUSEPORT;
 +    lua_pop(L, 1);
++#endif
    }
    ret = uv_tcp_bind(handle, (struct sockaddr*)&addr, flags);
    return luv_result(L, ret);
+diff --git a/tests/test-tcp.lua b/tests/test-tcp.lua
+index dddb74c..60ec201 100644
+--- a/tests/test-tcp.lua
++++ b/tests/test-tcp.lua
+@@ -26,6 +26,30 @@ return require('lib/tap')(function (test)
+     p{client=client,req=req}
+   end)
+ 
++  test("tcp servers can share a port with reuseport", function (print, p, expect, uv)
++    local first = uv.new_tcp()
++    local ok, err = uv.tcp_bind(first, "127.0.0.1", 0, {reuseport = true})
++    if not ok then
++      -- Not supported by the platform or by this libuv (ENOTSUP).
++      p("reuseport unavailable", err)
++      uv.close(first)
++      return
++    end
++    local port = uv.tcp_getsockname(first).port
++    local second = uv.new_tcp()
++    assert(uv.tcp_bind(second, "127.0.0.1", port, {reuseport = true}))
++    assert(uv.listen(first, 128, function () end))
++    assert(uv.listen(second, 128, function () end))
++    -- Without the flag the same port is taken.
++    local third = uv.new_tcp()
++    assert(uv.tcp_bind(third, "127.0.0.1", port))
++    local _, listen_err = uv.listen(third, 128, function () end)
++    assert(listen_err and listen_err:match("EADDRINUSE"), listen_err)
++    uv.close(first)
++    uv.close(second)
++    uv.close(third)
++  end)
++
+   test("basic tcp server and client (ipv6)", function (print, p, expect, uv)
+     local server = uv.new_tcp()
+     local _, err = uv.tcp_bind(server, "::1", 0)
