@@ -184,8 +184,10 @@ function T:test_close_runs_when_the_scope_is_cancelled()
       connected:send(true)
       client:read() -- the server never writes
     end)
-    reactor.fork(function() local peer <close> = listener:accept(); peer:read() end) -- until the client closes
+    local accepted = reactor.Channel(1)
+    reactor.fork(function() local peer <close> = listener:accept(); accepted:send(true); peer:read() end) -- until the client closes
     connected:receive()
+    accepted:receive() -- the listener must not close before the accept completed
     future:cancel()
     self:assert_error(function() future:value() end)
     self:assert_true(stream:is_closed())
@@ -375,10 +377,15 @@ end
 function T:test_options_reach_the_transport()
   local calls = spying_on_handles(function()
     with_listener(self, function(listener, port)
-      reactor.fork(function() local peer <close> = listener:accept(); peer:read() end)
-      local client <close> = net.connect(LOOPBACK, port, { nodelay = false, keepalive = true, keepalive_delay = 30 })
-      client:set_nodelay(true)
-      client:set_keepalive(false)
+      -- The acceptor is joined after the client closed: the listener must not be closed before
+      -- the accept completed (on macOS the scheduling made that race visible).
+      local acceptor = reactor.fork(function() local peer <close> = listener:accept(); peer:read() end)
+      do
+        local client <close> = net.connect(LOOPBACK, port, { nodelay = false, keepalive = true, keepalive_delay = 30 })
+        client:set_nodelay(true)
+        client:set_keepalive(false)
+      end
+      reactor.join(acceptor)
     end, { backlog = 16, keepalive = true, keepalive_delay = 45 })
   end)
   local nodelay, keepalive = calls_named(calls, "nodelay"), calls_named(calls, "keepalive")
@@ -400,9 +407,12 @@ end
 function T:test_defaults_are_nodelay_on_keepalive_off_and_a_delay_of_60_seconds()
   local calls = spying_on_handles(function()
     with_listener(self, function(listener, port)
-      reactor.fork(function() local peer <close> = listener:accept(); peer:read() end)
-      local client <close> = net.connect(LOOPBACK, port)
-      self:assert_equal(port, client:peer_address().port)
+      local acceptor = reactor.fork(function() local peer <close> = listener:accept(); peer:read() end)
+      do
+        local client <close> = net.connect(LOOPBACK, port)
+        self:assert_equal(port, client:peer_address().port)
+      end
+      reactor.join(acceptor)
     end)
   end)
   self:assert_true(#calls >= 4) -- two sockets, two calls each

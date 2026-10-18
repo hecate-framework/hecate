@@ -107,9 +107,11 @@ function T:test_a_backlog_and_a_mode_are_accepted()
     reactor.run(function()
       local listener <close> = net.listen_pipe(path, options)
       self:assert_equal(path, listener:path())
-      reactor.fork(function() local peer <close> = listener:accept(); peer:read() end)
+      local accepted = reactor.Channel(1)
+      reactor.fork(function() local peer <close> = listener:accept(); accepted:send(true); peer:read() end)
       local client <close> = net.connect_pipe(path)
       self:assert_false(client:is_closed())
+      accepted:receive() -- the listener must not close before the accept completed (macOS scheduling)
     end)
     remove(path)
   end
@@ -153,11 +155,13 @@ function T:test_listeners_and_streams_close_idempotently_and_with_a_close_scope(
       local scoped_listener <close> = net.listen_pipe(path)
       listener = scoped_listener
       self:assert_false(listener:is_closed())
-      reactor.fork(function() local peer <close> = listener:accept(); peer:read() end)
+      local accepted = reactor.Channel(1)
+      reactor.fork(function() local peer <close> = listener:accept(); accepted:send(true); peer:read() end)
       local scoped_stream <close> = net.connect_pipe(path)
       stream = scoped_stream
       self:assert_false(stream:is_closed())
       self:assert_equal(path, stream:path())
+      accepted:receive()
     end
     self:assert_true(listener:is_closed())
     self:assert_true(stream:is_closed())
