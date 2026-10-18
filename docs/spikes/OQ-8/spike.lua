@@ -93,17 +93,17 @@ local function start_load()
   local t0 = uv.hrtime()
   local function finish()
     local secs = (uv.hrtime() - t0) / 1e9
-    local ids = {}
-    for k in pairs(tally) do ids[#ids + 1] = k end
-    table.sort(ids)
-    local parts, lo, hi = {}, math.huge, 0
-    for _, k in ipairs(ids) do
-      parts[#parts + 1] = ("w%s=%d"):format(k, tally[k])
-      lo, hi = math.min(lo, tally[k]), math.max(hi, tally[k])
+    -- A worker that took nothing counts: the spread is largest/smallest over all workers.
+    local parts, lo, hi, used = {}, math.huge, 0, 0
+    for i = 1, nworkers do
+      local n = tally[tostring(i)] or 0
+      parts[#parts + 1] = ("w%d=%d"):format(i, n)
+      lo, hi = math.min(lo, n), math.max(hi, n)
+      if n > 0 then used = used + 1 end
     end
-    print(("RESULT %s on %s: %d workers, %d connections in %.2fs (%.0f/s): %s; max/min = %.2f"):format(
+    print(("RESULT %s on %s: %d workers, %d connections in %.2fs (%.0f/s): %s; workers used %d/%d; max/min = %s"):format(
       mode, uv.os_uname().sysname, nworkers, total, secs, total / secs, table.concat(parts, " "),
-      hi / math.max(lo, 1)))
+      used, nworkers, lo > 0 and ("%.2f"):format(hi / lo) or "infinite"))
     for _, w in ipairs(workers) do w:kill("sigkill") end
     os.exit(0)
   end
