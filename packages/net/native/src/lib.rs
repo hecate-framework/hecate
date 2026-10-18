@@ -294,9 +294,7 @@ impl Session {
                     }
                     return Ok(Outcome::WantRead);
                 }
-                Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => {
-                    return Ok(Outcome::Eof)
-                }
+                Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => return Ok(Outcome::Eof),
                 Err(e) => return Err(tls_error("tls read", e)),
             }
         }
@@ -578,19 +576,17 @@ fn new_server_session(cfg: Arc<ServerConfig>) -> LuaResult<Session> {
 /// client(config, server_name) -> Session. `server_name` is both the SNI name and the identity
 /// the certificate must match (RFC 6125); an IP address is matched as an IP address.
 fn client(_: &Lua, (config, server_name): (LuaUserDataRef<Config>, String)) -> LuaResult<Session> {
-    let cfg = config
-        .client
-        .clone()
-        .ok_or_else(|| LuaError::runtime("client: not a client configuration (or it was closed)"))?;
+    let cfg = config.client.clone().ok_or_else(|| {
+        LuaError::runtime("client: not a client configuration (or it was closed)")
+    })?;
     new_client_session(cfg, &server_name)
 }
 
 /// server(config) -> Session.
 fn server(_: &Lua, config: LuaUserDataRef<Config>) -> LuaResult<Session> {
-    let cfg = config
-        .server
-        .clone()
-        .ok_or_else(|| LuaError::runtime("server: not a server configuration (or it was closed)"))?;
+    let cfg = config.server.clone().ok_or_else(|| {
+        LuaError::runtime("server: not a server configuration (or it was closed)")
+    })?;
     new_server_session(cfg)
 }
 
@@ -650,8 +646,8 @@ pub mod fuzzing {
     /// Feeds `data` to a client that trusts no certificate, then optionally the end of the transport.
     pub fn client_feed(data: &[u8], eof: bool) {
         let provider = Arc::new(rustls::crypto::ring::default_provider());
-        let Ok(builder) = ClientConfig::builder_with_provider(provider)
-            .with_safe_default_protocol_versions()
+        let Ok(builder) =
+            ClientConfig::builder_with_provider(provider).with_safe_default_protocol_versions()
         else {
             return;
         };
@@ -737,7 +733,12 @@ mod tests {
 
     /// Moves what `from` queued into `wire`, then feeds `to` at most `step` bytes at a time for as
     /// long as it consumes them.
-    fn transfer(from: &mut Session, to: &mut Session, wire: &mut Vec<u8>, step: usize) -> LuaResult<()> {
+    fn transfer(
+        from: &mut Session,
+        to: &mut Session,
+        wire: &mut Vec<u8>,
+        step: usize,
+    ) -> LuaResult<()> {
         wire.extend(from.drain()?);
         while !wire.is_empty() {
             let end = step.min(wire.len());
@@ -827,7 +828,10 @@ mod tests {
         assert!(check_alpn(vec![vec![b'a'; 255]], "client_config").is_ok());
         for bad in [vec![Vec::new()], vec![vec![b'a'; 256]]] {
             let err = check_alpn(bad, "server_config").unwrap_err().to_string();
-            assert!(err.contains("server_config") && err.contains("alpn"), "{err}");
+            assert!(
+                err.contains("server_config") && err.contains("alpn"),
+                "{err}"
+            );
         }
     }
 
@@ -839,8 +843,7 @@ mod tests {
             client_ca_pem: None,
             alpn: vec![Vec::new()],
         })
-        .err()
-        .expect("an empty protocol name is refused");
+        .expect_err("an empty protocol name is refused");
         assert!(err.to_string().contains("alpn"), "{err}");
     }
 
@@ -919,7 +922,9 @@ mod tests {
             let n = client.feed(rest).unwrap();
             rest = &rest[n..];
         }
-        client.feed_eof().expect("the end of the transport is recorded, not an error");
+        client
+            .feed_eof()
+            .expect("the end of the transport is recorded, not an error");
         let mut got = Vec::new();
         loop {
             got.extend(read_all(&mut client));
@@ -982,7 +987,11 @@ mod tests {
     #[test]
     fn a_failure_without_a_kind_has_no_prefix() {
         let (_, mut server) = pair();
-        let err = message(server.feed(&[0x16, 0x03, 0x01, 0x00, 0x05, 1, 2, 3, 4, 5]).unwrap_err());
+        let err = message(
+            server
+                .feed(&[0x16, 0x03, 0x01, 0x00, 0x05, 1, 2, 3, 4, 5])
+                .unwrap_err(),
+        );
         assert!(err.starts_with("tls: "), "{err}");
     }
 

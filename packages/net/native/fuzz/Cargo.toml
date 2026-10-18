@@ -1,0 +1,39 @@
+[package]
+name = "hecate-net-tls-fuzz"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+hecate-net-tls = { path = ".." }
+
+# Not part of the default build or CI: see README.md in this directory.
+[workspace]
+
+[[bin]]
+name = "feed"
+path = "fuzz_targets/feed.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "feed_eof"
+path = "fuzz_targets/feed_eof.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "certificates"
+path = "fuzz_targets/certificates.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "private_key"
+path = "fuzz_targets/private_key.rs"
+test = false
+doc = false
