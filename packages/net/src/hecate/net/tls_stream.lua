@@ -1,9 +1,10 @@
 -- TlsStream: a `Stream` that encrypts over another `Stream` (ADR 0021). The native session is
 -- sans-IO (`rustls`): this class moves bytes between it and the inner stream, so every
 -- suspension happens in the inner stream and the reactor stays in charge of I/O.
-global <const> require, pcall, tostring, error
+global <const> require, pcall, tostring, error, math, type
 
 local core = require("hecate.core")
+local reactor = require("hecate.reactor")
 local Stream = require("hecate.net.stream")
 local BufferedReader = require("hecate.net.buffered_reader")
 local BufferedWriter = require("hecate.net.buffered_writer")
@@ -41,6 +42,7 @@ function TlsStream:init(inner, session)
   self._session = session --[[@as hecate.net.TlsSession]]
   self._pending = nil -- received ciphertext not yet accepted by the session
   self._closed = false
+  self._send = reactor.Mutex() -- keeps drained ciphertext in order on the inner stream
 end
 
 --- Converts a native failure into a `TlsError`.
@@ -51,12 +53,24 @@ local function tls_error(message)
   return TlsError(text)
 end
 
---- Sends the ciphertext the session has queued (handshake flights, alerts, records).
+--- Sends the ciphertext the session has queued (handshake flights, alerts, records). Draining
+--- and writing happen under a mutex: the inner write may suspend, and a concurrent reader
+--- (alerts, key updates) and writer must not reorder TLS records on the wire.
 ---@async
+---@return boolean sent  whether any ciphertext was written
 ---@private
 function TlsStream:_flush()
+  local lock <close> = self._send:lock()
   local out = self._session:drain()
-  if out ~= "" then self._inner:write(out) end
+  if out == "" then return false end
+  self._inner:write(out)
+  return true
+end
+
+--- Raises when the stream is closed.
+---@private
+function TlsStream:_check()
+  if self:is_closed() then error(core.Error("the TLS stream is closed"), 0) end
 end
 
 --- Hands received ciphertext to the session; keeps what it did not accept for the next call.
@@ -88,7 +102,16 @@ end
 ---@private
 function TlsStream:_receive()
   local pending = self._pending
-  if pending then return self:_feed(pending) end
+  if pending then
+    self:_feed(pending)
+    if self._pending == pending then
+      -- Nothing consumed and nothing readable: the session cannot make progress.
+      self._inner:close()
+      self._closed = true
+      error(TlsError("the TLS session made no progress"), 0)
+    end
+    return
+  end
   local chunk = self._inner:read()
   if chunk == nil then
     local ok, failure = pcall(self._session.feed_eof, self._session)
@@ -121,6 +144,10 @@ end
 ---@param max? integer
 ---@return string?
 function TlsStream:read(max)
+  if max ~= nil and (math.type(max) ~= "integer" or max < 1) then
+    error(core.ArgumentError("TlsStream:read expects a positive integer"), 2)
+  end
+  self:_check()
   while true do
     local data, state = self._session:read(max)
     if data ~= nil then return data end
@@ -141,11 +168,14 @@ end
 ---@async
 ---@param data string
 function TlsStream:write(data)
+  self:_check()
   while data ~= "" do
     -- The session bounds its send buffer: take what fits, send it, repeat (back-pressure).
     local accepted = self._session:write(data)
     data = data:sub(accepted + 1)
-    self:_flush()
+    if not self:_flush() and accepted == 0 then
+      error(TlsError("the TLS session accepts no more data (closed or stalled)"), 0)
+    end
   end
 end
 
@@ -153,6 +183,7 @@ end
 --- `BufferedWriter` first (RFC 8446 section 6.1).
 ---@async
 function TlsStream:shutdown()
+  self:_check()
   self._session:send_close_notify()
   self:_flush()
   local inner = self._inner --[[@as table]]
@@ -169,8 +200,13 @@ end
 --- Closes at the end of a `<close>` scope, including on cancellation.
 function TlsStream:__close() self:close() end
 
+--- True once closed, or when the inner stream was closed under it (a cancelled write).
 ---@return boolean
-function TlsStream:is_closed() return self._closed end
+function TlsStream:is_closed()
+  if self._closed then return true end
+  local inner = self._inner --[[@as table]]
+  return type(inner.is_closed) == "function" and inner:is_closed()
+end
 
 --- The negotiated application protocol (ALPN, RFC 7301), or nil.
 ---@return string?

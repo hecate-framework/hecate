@@ -151,7 +151,39 @@ function T:test_reader_close_is_idempotent_leaves_the_stream_open_and_works_with
     self:assert_false(stream.closed)
     local reader = net.BufferedReader(stream)
     reader:close(); reader:close()
-    self:assert_nil(reader:read_some())
+    self:assert_true(reader:is_closed())
+    -- A read after close is an error, not a clean end of stream.
+    self:assert_true(core.is_instance_of(self:assert_error(function() reader:read_some() end), core.Error))
+  end)
+end
+
+function T:test_read_exact_limit_and_per_call_limit_validation()
+  run(function()
+    local reader = net.BufferedReader(fake_stream({ "abcdef" }))
+    local err = self:assert_error(function() reader:read_exact(1 << 30, 1024) end)
+    self:assert_true(core.is_instance_of(err, core.ProtocolError), tostring(err))
+    self:assert_equal("abc", reader:read_exact(3, 1024)) -- nothing was consumed by the refusal
+    for _, bad in ipairs({ 0, -1, 1.5, "x" }) do
+      self:assert_true(core.is_instance_of(
+        self:assert_error(function() reader:read_until("\n", bad) end), core.ArgumentError))
+    end
+  end)
+end
+
+function T:test_many_chunks_and_small_reads_reassemble()
+  run(function()
+    local chunks, expected = {}, {}
+    for i = 1, 300 do
+      chunks[i] = ("line %d\r\n"):format(i)
+      expected[i] = ("line %d"):format(i)
+    end
+    -- Re-cut the same bytes at odd boundaries, splitting the CRLF pairs.
+    local all = table.concat(chunks)
+    local cut = {}
+    for pos = 1, #all, 7 do cut[#cut + 1] = all:sub(pos, pos + 6) end
+    local reader = net.BufferedReader(fake_stream(cut))
+    for i = 1, 300 do self:assert_equal(expected[i], reader:read_line()) end
+    self:assert_nil(reader:read_line())
   end)
 end
 

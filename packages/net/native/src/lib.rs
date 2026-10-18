@@ -25,7 +25,9 @@ fn certificates(pem: &[u8], what: &str) -> LuaResult<Vec<CertificateDer<'static>
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| tls_error(what, e))?;
     if certs.is_empty() {
-        return Err(LuaError::runtime(format!("{what}: no certificate in the PEM data")));
+        return Err(LuaError::runtime(format!(
+            "{what}: no certificate in the PEM data"
+        )));
     }
     Ok(certs)
 }
@@ -50,7 +52,9 @@ fn alpn_list(table: &LuaTable) -> LuaResult<Vec<Vec<u8>>> {
 }
 
 fn opt_bytes(table: &LuaTable, key: &str) -> LuaResult<Option<Vec<u8>>> {
-    Ok(table.get::<Option<LuaString>>(key)?.map(|s| s.as_bytes().to_vec()))
+    Ok(table
+        .get::<Option<LuaString>>(key)?
+        .map(|s| s.as_bytes().to_vec()))
 }
 
 /// A client or server TLS configuration, shareable between sessions.
@@ -60,6 +64,9 @@ struct Config {
 }
 
 impl LuaUserData for Config {}
+
+/// Largest plaintext chunk `read` returns (one TLS record carries at most 16 KiB).
+const MAX_READ: usize = 16384;
 
 /// One TLS connection state machine.
 struct Session {
@@ -79,12 +86,17 @@ impl LuaUserData for Session {
             // `wants_read` turns false while plaintext waits to be read (rustls bounds it): stop
             // there and let the caller `read`, then feed the rest.
             while !input.is_empty() && this.conn.wants_read() {
-                let n = this.conn.read_tls(&mut input).map_err(|e| tls_error("tls read", e))?;
+                let n = this
+                    .conn
+                    .read_tls(&mut input)
+                    .map_err(|e| tls_error("tls read", e))?;
                 if n == 0 {
                     break;
                 }
                 consumed += n;
-                this.conn.process_new_packets().map_err(|e| tls_error("tls", e))?;
+                this.conn
+                    .process_new_packets()
+                    .map_err(|e| tls_error("tls", e))?;
             }
             Ok(consumed)
         });
@@ -93,8 +105,12 @@ impl LuaUserData for Session {
         // "eof" (a truncation attack cannot pass as a clean end, RFC 8446 section 6.1).
         methods.add_method_mut("feed_eof", |_, this, ()| {
             let mut empty: &[u8] = &[];
-            this.conn.read_tls(&mut empty).map_err(|e| tls_error("tls read", e))?;
-            this.conn.process_new_packets().map_err(|e| tls_error("tls", e))?;
+            this.conn
+                .read_tls(&mut empty)
+                .map_err(|e| tls_error("tls read", e))?;
+            this.conn
+                .process_new_packets()
+                .map_err(|e| tls_error("tls", e))?;
             Ok(())
         });
 
@@ -102,7 +118,9 @@ impl LuaUserData for Session {
         methods.add_method_mut("drain", |lua, this, ()| {
             let mut out = Vec::new();
             while this.conn.wants_write() {
-                this.conn.write_tls(&mut out).map_err(|e| tls_error("tls write", e))?;
+                this.conn
+                    .write_tls(&mut out)
+                    .map_err(|e| tls_error("tls write", e))?;
             }
             lua.create_string(&out)
         });
@@ -111,7 +129,8 @@ impl LuaUserData for Session {
         // buffered yet) or "closed" (the peer sent close_notify, RFC 8446 section 6.1) or
         // "eof" (the transport ended without close_notify: a truncation, not clean).
         methods.add_method_mut("read", |lua, this, max: Option<usize>| {
-            let max = max.unwrap_or(16384).max(1);
+            // Bounded: `max` comes from Lua and must not size an unbounded allocation.
+            let max = max.unwrap_or(MAX_READ).clamp(1, MAX_READ);
             let mut buf = vec![0u8; max];
             match this.conn.reader().read(&mut buf) {
                 Ok(0) => Ok((LuaValue::Nil, Some("closed"))),
@@ -130,11 +149,16 @@ impl LuaUserData for Session {
         // were taken (rustls bounds its send buffer, so call `drain` and write the rest);
         // `drain` yields the ciphertext.
         methods.add_method_mut("write", |_, this, data: LuaString| {
-            this.conn.writer().write(&data.as_bytes()).map_err(|e| tls_error("tls write", e))
+            this.conn
+                .writer()
+                .write(&data.as_bytes())
+                .map_err(|e| tls_error("tls write", e))
         });
 
         // is_handshaking() -> boolean; wants_write() -> boolean.
-        methods.add_method("is_handshaking", |_, this, ()| Ok(this.conn.is_handshaking()));
+        methods.add_method("is_handshaking", |_, this, ()| {
+            Ok(this.conn.is_handshaking())
+        });
         methods.add_method("wants_write", |_, this, ()| Ok(this.conn.wants_write()));
         methods.add_method("wants_read", |_, this, ()| Ok(this.conn.wants_read()));
 
@@ -180,11 +204,15 @@ impl LuaUserData for Session {
 fn client_config(_: &Lua, options: LuaTable) -> LuaResult<Config> {
     let ca = opt_bytes(&options, "ca_pem")?
         .ok_or_else(|| LuaError::runtime("client_config: ca_pem is required"))?;
-    let builder = ClientConfig::builder_with_provider(Arc::new(rustls::crypto::ring::default_provider()))
-        .with_safe_default_protocol_versions()
-        .map_err(|e| tls_error("client_config", e))?
-        .with_root_certificates(roots(&ca, "client_config ca_pem")?);
-    let mut config = match (opt_bytes(&options, "cert_pem")?, opt_bytes(&options, "key_pem")?) {
+    let builder =
+        ClientConfig::builder_with_provider(Arc::new(rustls::crypto::ring::default_provider()))
+            .with_safe_default_protocol_versions()
+            .map_err(|e| tls_error("client_config", e))?
+            .with_root_certificates(roots(&ca, "client_config ca_pem")?);
+    let mut config = match (
+        opt_bytes(&options, "cert_pem")?,
+        opt_bytes(&options, "key_pem")?,
+    ) {
         (Some(cert), Some(key)) => builder
             .with_client_auth_cert(
                 certificates(&cert, "client_config cert_pem")?,
@@ -192,10 +220,17 @@ fn client_config(_: &Lua, options: LuaTable) -> LuaResult<Config> {
             )
             .map_err(|e| tls_error("client_config", e))?,
         (None, None) => builder.with_no_client_auth(),
-        _ => return Err(LuaError::runtime("client_config: cert_pem and key_pem go together")),
+        _ => {
+            return Err(LuaError::runtime(
+                "client_config: cert_pem and key_pem go together",
+            ))
+        }
     };
     config.alpn_protocols = alpn_list(&options)?;
-    Ok(Config { client: Some(Arc::new(config)), server: None })
+    Ok(Config {
+        client: Some(Arc::new(config)),
+        server: None,
+    })
 }
 
 /// server_config{ cert_pem, key_pem, alpn?, client_ca_pem? }. `client_ca_pem` requires and
@@ -205,9 +240,10 @@ fn server_config(_: &Lua, options: LuaTable) -> LuaResult<Config> {
         .ok_or_else(|| LuaError::runtime("server_config: cert_pem is required"))?;
     let key = opt_bytes(&options, "key_pem")?
         .ok_or_else(|| LuaError::runtime("server_config: key_pem is required"))?;
-    let builder = ServerConfig::builder_with_provider(Arc::new(rustls::crypto::ring::default_provider()))
-        .with_safe_default_protocol_versions()
-        .map_err(|e| tls_error("server_config", e))?;
+    let builder =
+        ServerConfig::builder_with_provider(Arc::new(rustls::crypto::ring::default_provider()))
+            .with_safe_default_protocol_versions()
+            .map_err(|e| tls_error("server_config", e))?;
     let builder = match opt_bytes(&options, "client_ca_pem")? {
         Some(ca) => {
             let verifier = rustls::server::WebPkiClientVerifier::builder_with_provider(
@@ -227,7 +263,10 @@ fn server_config(_: &Lua, options: LuaTable) -> LuaResult<Config> {
         )
         .map_err(|e| tls_error("server_config", e))?;
     config.alpn_protocols = alpn_list(&options)?;
-    Ok(Config { client: None, server: Some(Arc::new(config)) })
+    Ok(Config {
+        client: None,
+        server: Some(Arc::new(config)),
+    })
 }
 
 /// client(config, server_name) -> Session. `server_name` is both the SNI name and the identity
@@ -240,7 +279,9 @@ fn client(_: &Lua, (config, server_name): (LuaUserDataRef<Config>, String)) -> L
     let name = ServerName::try_from(server_name.clone())
         .map_err(|e| tls_error(&format!("invalid server name {server_name:?}"), e))?;
     let conn = ClientConnection::new(cfg, name).map_err(|e| tls_error("client", e))?;
-    Ok(Session { conn: Connection::Client(conn) })
+    Ok(Session {
+        conn: Connection::Client(conn),
+    })
 }
 
 /// server(config) -> Session.
@@ -250,7 +291,9 @@ fn server(_: &Lua, config: LuaUserDataRef<Config>) -> LuaResult<Session> {
         .clone()
         .ok_or_else(|| LuaError::runtime("server: not a server configuration"))?;
     let conn = ServerConnection::new(cfg).map_err(|e| tls_error("server", e))?;
-    Ok(Session { conn: Connection::Server(conn) })
+    Ok(Session {
+        conn: Connection::Server(conn),
+    })
 }
 
 #[mlua::lua_module(name = "hecate_net_tls_native")]

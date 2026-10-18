@@ -41,6 +41,13 @@ local function require_native()
   if not loaded then error(TlsError(BUILD_HINT), 0) end
 end
 
+--- Converts a native failure into a `TlsError` without its Lua stack traceback.
+---@param failure any
+---@return hecate.net.TlsError
+local function native_error(failure)
+  return TlsError((tostring(failure):gsub("\nstack traceback:.*$", "")))
+end
+
 --- Validates an options table.
 local function check(name, options, required)
   if type(options) ~= "table" then
@@ -59,7 +66,7 @@ function M.client_config(options)
   check("client_config", options, { "ca_pem" })
   require_native()
   local ok, config = pcall(native.client_config, options)
-  if not ok then error(TlsError((tostring(config):gsub("\nstack traceback:.*$", ""))), 0) end
+  if not ok then error(native_error(config), 0) end
   return config
 end
 
@@ -70,11 +77,12 @@ function M.server_config(options)
   check("server_config", options, { "cert_pem", "key_pem" })
   require_native()
   local ok, config = pcall(native.server_config, options)
-  if not ok then error(TlsError((tostring(config):gsub("\nstack traceback:.*$", ""))), 0) end
+  if not ok then error(native_error(config), 0) end
   return config
 end
 
---- Runs a TLS client handshake over `stream` (which the result owns; it is closed on failure).
+--- Runs a TLS client handshake over `stream` (which the result owns; it is closed when the native
+--- session or the handshake fails, and left to the caller when an argument is malformed).
 --- `server_name` is sent as SNI and the certificate must match it (RFC 6125).
 ---@async
 ---@param stream hecate.net.Stream
@@ -82,14 +90,17 @@ end
 ---@param config userdata  from `client_config`
 ---@return hecate.net.TlsStream
 function M.connect(stream, server_name, config)
-  require_native()
   if type(server_name) ~= "string" or server_name == "" then
     error(core.ArgumentError("tls.connect expects a server name"), 2)
   end
+  if type(config) ~= "userdata" then
+    error(core.ArgumentError("tls.connect expects a configuration from tls.client_config"), 2)
+  end
+  require_native()
   local ok, session = pcall(native.client, config, server_name)
   if not ok then
     stream:close()
-    error(TlsError((tostring(session):gsub("\nstack traceback:.*$", ""))), 0)
+    error(native_error(session), 0)
   end
   local tls = TlsStream(stream, session)
   local done, failure = pcall(tls.handshake, tls)
@@ -100,17 +111,21 @@ function M.connect(stream, server_name, config)
   return tls
 end
 
---- Runs a TLS server handshake over an accepted `stream` (owned by the result, closed on failure).
+--- Runs a TLS server handshake over an accepted `stream` (owned by the result, closed when the
+--- session or the handshake fails, and left to the caller when `config` is malformed).
 ---@async
 ---@param stream hecate.net.Stream
 ---@param config userdata  from `server_config`
 ---@return hecate.net.TlsStream
 function M.accept(stream, config)
+  if type(config) ~= "userdata" then
+    error(core.ArgumentError("tls.accept expects a configuration from tls.server_config"), 2)
+  end
   require_native()
   local ok, session = pcall(native.server, config)
   if not ok then
     stream:close()
-    error(TlsError((tostring(session):gsub("\nstack traceback:.*$", ""))), 0)
+    error(native_error(session), 0)
   end
   local tls = TlsStream(stream, session)
   local done, failure = pcall(tls.handshake, tls)
@@ -139,8 +154,24 @@ function M.connect_tls(host, port, options)
   if type(options) ~= "table" then
     error(core.ArgumentError("connect_tls expects an options table with ca_pem or tls_config"), 2)
   end
-  require_native()
   local config = options.tls_config
+  if config ~= nil then
+    if options.ca_pem ~= nil or options.cert_pem ~= nil or options.key_pem ~= nil or options.alpn ~= nil then
+      error(core.ArgumentError("connect_tls: tls_config cannot be combined with ca_pem, cert_pem, key_pem or alpn"), 2)
+    end
+  elseif type(options.ca_pem) ~= "string" then
+    error(core.ArgumentError(
+      "connect_tls: option ca_pem is required (PEM trust anchors, for example the content of a CA bundle file); "
+        .. "there is no system trust store yet and verification cannot be disabled (OQ-41). "
+        .. "Pass ca_pem, or a prebuilt tls_config"), 2)
+  end
+  if (options.cert_pem == nil) ~= (options.key_pem == nil) then
+    error(core.ArgumentError("connect_tls: cert_pem and key_pem must be given together"), 2)
+  end
+  if options.server_name ~= nil and (type(options.server_name) ~= "string" or options.server_name == "") then
+    error(core.ArgumentError("connect_tls: option server_name must be a non-empty string"), 2)
+  end
+  require_native()
   if config == nil then config = M.client_config(options) end
   local transport = {}
   for key, value in pairs(options) do

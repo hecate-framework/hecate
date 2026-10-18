@@ -115,15 +115,54 @@ function T:test_name_mismatch_is_rejected()
   end)
 end
 
-function T:test_connect_tls_requires_trust_anchors_and_ignores_no_switch()
+function T:test_connect_tls_requires_trust_anchors_and_names_the_option()
   reactor.run(function()
+    local core = require("hecate.core")
     local err = self:assert_error(function()
       ---@diagnostic disable-next-line: missing-fields
       net.connect_tls("127.0.0.1", 1, {})
     end)
-    self:assert_true(require("hecate.core").is_instance_of(err, require("hecate.core").ArgumentError), tostring(err))
-    -- There is no option that disables verification: an unknown key is a transport option.
-    self:assert_equal("function", type(net.tls.client_config))
+    self:assert_true(core.is_instance_of(err, core.ArgumentError), tostring(err))
+    self:assert_true(tostring(err):find("connect_tls: option ca_pem is required", 1, true) ~= nil, tostring(err))
+  end)
+end
+
+function T:test_no_option_disables_verification()
+  reactor.run(function()
+    local core = require("hecate.core")
+    -- Keys that would disable verification elsewhere are not options: they are rejected.
+    local err = self:assert_error(function()
+      net.connect_tls("127.0.0.1", 1, { ca_pem = CA, server_name = "localhost", verify = false })
+    end)
+    self:assert_true(core.is_instance_of(err, core.ArgumentError), tostring(err))
+  end)
+end
+
+function T:test_connect_tls_rejects_inconsistent_options()
+  reactor.run(function()
+    local core = require("hecate.core")
+    local config = net.tls.client_config({ ca_pem = CA })
+    local function rejected(options)
+      local err = self:assert_error(function() net.connect_tls("127.0.0.1", 1, options) end)
+      self:assert_true(core.is_instance_of(err, core.ArgumentError), tostring(err))
+    end
+    rejected({ tls_config = config, ca_pem = CA })
+    rejected({ ca_pem = CA, cert_pem = SERVER_CERT })
+    rejected({ ca_pem = CA, server_name = "" })
+  end)
+end
+
+function T:test_tls_connect_and_accept_validate_the_configuration()
+  reactor.run(function()
+    local core = require("hecate.core")
+    local listener <close> = net.listen("127.0.0.1", 0)
+    local port = listener:local_address().port
+    local raw <close> = net.connect("127.0.0.1", port)
+    local err = self:assert_error(function() net.tls.connect(raw, "localhost", {}) end)
+    self:assert_true(core.is_instance_of(err, core.ArgumentError), tostring(err))
+    self:assert_false(raw:is_closed()) -- the caller keeps the stream on an argument error
+    err = self:assert_error(function() net.tls.accept(raw, {}) end)
+    self:assert_true(core.is_instance_of(err, core.ArgumentError), tostring(err))
   end)
 end
 
@@ -186,6 +225,10 @@ function T:test_streams_are_closable()
     client:close()
     client:close()
     self:assert_true(client:is_closed())
+    local err = self:assert_error(function() client:write("x") end)
+    self:assert_true(require("hecate.core").is_instance_of(err, require("hecate.core").Error), tostring(err))
+    err = self:assert_error(function() client:read(0) end)
+    self:assert_true(require("hecate.core").is_instance_of(err, require("hecate.core").ArgumentError), tostring(err))
   end)
 end
 

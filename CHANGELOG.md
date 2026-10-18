@@ -9,6 +9,10 @@ Each release heading states the supported Lua version.
 
 ## [Unreleased] — Lua 5.5
 
+### Fixed
+
+- `hecate.net` review fixes (TLS and buffered reader): `TlsStream` serialises drain and write under a mutex (records can no longer be reordered by a concurrent reader and writer), `is_closed` follows a cancelled write, a stalled session raises instead of spinning, `read` validates `max` and the native `read` clamps it to 16 KiB; `connect_tls` and `tls.connect`/`accept` validate arguments before connecting, reject inconsistent options (`tls_config` with `ca_pem`, `cert_pem` without `key_pem`) and name the missing `ca_pem` (OQ-41); `BufferedReader` validates the per-call limit, accepts a `limit` on `read_exact`, joins chunks once per read (linear instead of quadratic) and raises on a read after `close`; the native crate forbids `unsafe`, denies warnings and clippy, and drops the rustls `logging` feature (the `log` crate leaves `Cargo.lock`).
+
 ### Added
 
 - `hecate.net` (step 6): TLS over `rustls` (ring provider) bound through `mlua`, used sans-IO (ADR 0021): Rust crate `packages/net/native` (`Cargo.lock` committed), `net.tls` (`client_config`, `server_config`, `connect`, `accept`, `available`), `net.TlsStream` (implements `Stream`; `handshake`, `shutdown`, `alpn`, `server_name`, `version`, `peer_certificate`, `reader()`/`writer()`), `net.connect_tls` and `net.TlsError`. SNI, ALPN, mutual TLS, certificate verification always on (no switch; trust anchors passed as `ca_pem`, OQ-41), truncation without `close_notify` raises. Task `build-native` builds the module into `.hecate/rocks`. Loopback tests against a local test CA skip with a message when the module is not built.
