@@ -2,6 +2,7 @@
 -- (ADR 0001). Library code calls these, never the version-specific function directly.
 global <const> table, _VERSION
 
+--- Shims for library functions that differ between Lua versions (ADR 0001).
 ---@class hecate.core.compat
 ---@field lua_version string  Major.minor version of the running interpreter ("5.5").
 ---@field table_create fun(array_size?: integer, hash_size?: integer): table

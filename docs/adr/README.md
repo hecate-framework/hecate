@@ -33,3 +33,6 @@ Use [`template.md`](template.md) or the `/new-adr` command.
 | [0019](0019-http-parser-llhttp.md) | HTTP/1.1 parsing with llhttp | Accepted |
 | [0020](0020-json-yyjson-decoder-serde-encoder.md) | JSON: yyjson decoder, serde_json encoder | Accepted |
 | [0021](0021-rust-native-modules.md) | Rust as a build-time tool for native modules (TLS, JSON encoding) | Accepted |
+| [0022](0022-doc-dependencies.md) | Documentation generator: third-party dependencies and WebAssembly assets | Proposed |
+| [0023](0023-multi-process-serving.md) | Multi-process serving: share-nothing workers behind a listening-strategy abstraction | Accepted |
+| [0024](0024-tls-trust-store.md) | TLS trust store: the operating system's verifier by default | Accepted |

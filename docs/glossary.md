@@ -25,9 +25,17 @@ for public APIs, documentation and internal code.
 | reactor | Event demultiplexer dispatching I/O readiness/completion to handlers | Schmidt, *Reactor* pattern (1995) | event loop (acceptable in prose) |
 | future | Placeholder for a value produced by a concurrent computation | Baker & Hewitt (1977); Friedman & Wise (1976) | promise, task |
 | fork | Start a concurrent computation, returning a future | Conway (1963) | spawn, go, launch |
+| spawn | Start an operating-system process (`reactor.spawn`); never a coroutine, which is a `fork` | POSIX `posix_spawn`; ADR 0023 | spawn for a coroutine |
 | join | Wait for one or several futures | Conway (1963) | await all, gather, Promise.all |
 | select | Wait for the first of several alternatives to become ready | Hoare, CSP (1978); Dijkstra, guarded commands (1975) | race, any |
 | deadline | Absolute bound on the completion of a computation | — | timeout (a timeout is a relative duration; both may be accepted as arguments) |
+| stream | Ordered sequence of bytes read, written and closed in order, over a file, a connection or another stream | Ritchie, *A Stream Input-Output System* (1984) | socket (for transports that are not sockets), channel (a channel carries values between coroutines) |
+| back-pressure | A producer suspends while its consumer is slower, instead of buffering without bound | *Reactive Streams* specification (2015) | throttling, rate limiting |
+| half-close | Ending one direction of a connection while the other stays usable (`shutdown`) | RFC 9293, section 3.6 | — |
+| primary | The process that starts, supervises and, for some strategies, feeds the workers | Buschmann et al., *Pattern-Oriented Software Architecture* vol. 1 (1996), Master-Slave pattern | master, parent (for the operating-system relation, "parent process" is accepted) |
+| worker | A process with its own reactor that serves requests; workers share nothing | Buschmann et al. (1996), Master-Slave pattern | slave, child process (for the operating-system relation) |
+| message pipe | A framed connection between two processes that carries string messages and, optionally, a stream handle (`reactor.ipc`) | POSIX `pipe(2)`; ADR 0023 | channel (reserved for communication between coroutines) |
+| listening strategy | How the workers obtain connections: `reuseport` or `round_robin` ([ADR 0023](adr/0023-multi-process-serving.md)) | — | cluster mode |
 | cancellation | Cooperative request to stop a computation | — | abort, kill |
 | scope | Structured-concurrency region owning forked computations | Sústrik (2016); Smith, *nursery* (2018) | task group, nursery |
 | channel | Typed communication between coroutines | Hoare, CSP (1978) | queue (when used for communication) |

@@ -9,7 +9,8 @@ function M.slug(heading)
   return s
 end
 
---- Returns the set of anchors defined by the headings of a Markdown text.
+--- Returns the set of anchors defined by the headings of a Markdown text (a trailing `{#id}`
+--- sets the identifier, as in hecate.doc).
 ---@param text string
 ---@return table<string, boolean>
 function M.anchors(text)
@@ -18,7 +19,11 @@ function M.anchors(text)
     if line:match("^%s*```") or line:match("^%s*~~~") then fenced = not fenced
     elseif not fenced then
       local h = line:match("^#+%s+(.-)%s*#*%s*$")
-      if h then
+      local custom = h and h:match("{#([%w_%-%.:]+)}%s*$")
+      if custom then
+        -- `## Title {#id}`: the explicit identifier of hecate.doc (a heading of the generated reference).
+        set[custom] = true
+      elseif h then
         local base = M.slug((h:gsub("%[([^%]]*)%]%([^)]*%)", "%1")))
         local n = seen[base] or 0
         seen[base] = n + 1

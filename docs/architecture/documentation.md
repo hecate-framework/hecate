@@ -39,9 +39,28 @@ The full site map is in [`website/OUTLINE.md`](../../website/OUTLINE.md).
 
 ## Theme
 
-One original Hecate theme for the website and for user projects (ADR 0012): MDN-like
-qualities, MIT-licensed, light and dark modes, WCAG 2.2 AA. No code or assets from
-Lua Web Docs (Tailwind UI licence).
+One original Hecate theme for the website and for user projects (ADR 0012): MIT-licensed,
+light and dark modes, WCAG 2.2 AA. No code or assets from Lua Web Docs (Tailwind UI
+licence).
+
+Owner direction of 2026-10-13 (ADR 0012 stays Proposed): `hecate.doc` is our own Lua 5.5
+generator with a VitePress-like presentation and strict respect of the Hecate brand kit
+(`tokens.json`, logo lockups, STIX Two / Fira Sans / Fira Code, nearly square corners, no
+gradients or glows, the name never capitalised, earth as the single accent). Page chrome:
+
+- top bar: logo, section links, search, locale switch, theme toggle, repository link,
+  menu button on small screens;
+- left sidebar (computed from the page tree or configured per section) and a right-hand
+  "On this page" outline;
+- previous/next cards, edit-this-page link, last-updated date, "written for hecate x.y and
+  Lua 5.5" line;
+- callout containers (`note`, `tip`, `warning`, `danger`), code blocks with a language label
+  and a copy button, tables, task lists;
+- search: one JSON index per locale, queried by about 150 lines of vanilla JavaScript.
+
+Implementation and conventions: [`packages/doc`](../../packages/doc/README.md); open
+choices OQ-33 to OQ-38. Build: `lua packages/doc/bin/build.lua website --strict` (bootstrap
+runner until `hecate doc build`).
 
 ## Reference page template (MDN-like)
 
@@ -58,12 +77,37 @@ reference page for a class or function follows the same sections, in this order:
 8. Compatibility: Hecate version introduced, Lua versions supported.
 9. See also.
 
-## Runnable examples (to evaluate, OQ-11)
+## Runnable examples (WebAssembly, OQ-11 and OQ-39)
 
 Pure-Lua packages (`core`, `schema`, `router`, `query`) could run in the browser if Lua
 5.5 is compiled to WebAssembly, letting readers edit and run examples on the page.
 Anything depending on the reactor (libuv) cannot run in the browser and keeps static,
 tested examples. The OQ-11 spike decides.
+
+## Content conventions (owner decision 2026-10-13, OQ-35)
+
+- **Page title.** The title of a page is the single `#` heading of its body. That keeps the
+  Markdown readable on GitHub and satisfies markdownlint MD025 and MD041. The generator
+  renders that heading as the page's only `<h1>` and does not repeat it.
+- **Front matter `title`** is optional and overrides only the label used in navigation,
+  previous/next cards, search results and the HTML `<title>` (short label, SEO wording). It
+  never replaces the visible heading. Without a body heading, `title` is displayed as the
+  heading; without both, the page id is humanised and a problem is reported.
+- **Code samples** are included from tested files from the start (rule below), never typed
+  into the page.
+- **Reference generation.** Every module table carries a `---@class` annotation so that the
+  `lua-language-server --doc` export contains its functions; `hecate.doc` does not parse
+  annotations itself. Parameters and returns are described in the standard form
+  `---@param name type description` and `---@return type name description`.
+
+## Dependencies of the generator
+
+Owner decision 2026-10-13 ([ADR 0012](../adr/0012-website-generator.md)): Markdown (complete
+GitHub Flavoured Markdown), syntax highlighting and, where one exists, OpenAPI rendering
+come from third-party Lua, C or Rust dependencies rather than from code written in the
+package; the site must remain deployable as static files on GitHub Pages. The candidates
+were measured in the spike [OQ-39](../spikes/OQ-39-doc-dependencies.md); the proposal is
+ADR 0022.
 
 ## Writing rules
 

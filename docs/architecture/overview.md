@@ -88,7 +88,7 @@ performance or system access:
 | Asynchronous I/O | libuv through luv | ADR 0002 |
 | HTTP/1.1 parsing | llhttp | OQ-6 |
 | JSON | C codec | OQ-5 |
-| TLS | OpenSSL 3 (or alternative) | OQ-4 |
+| TLS | rustls through mlua | ADR 0021 |
 | SQLite | SQLite amalgamation | data-access.md |
 | Hashing for auth protocols (SHA-256, HMAC, PBKDF2) | provided by the TLS library binding | OQ-4 |
 

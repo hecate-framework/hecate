@@ -60,14 +60,35 @@ Exit: CI is green on all three platforms with a trivial test in every package sk
 - [ ] Website skeleton in `website/en` with the Hecate visual identity (`brand/` of the
       organisation `.github` repository): layout, navigation, theme, first reference pages
       (`core`, `reactor`). Owner priority: docs ship before the first usable framework
-      version. Needs the OQ-11 generator decision; reference docs owed by `core` and
-      `reactor` land here.
-- [ ] `net`: TCP/UDP streams, DNS, buffered readers/writers, TLS (after OQ-4).
+      version. OQ-11 is resolved (ADR 0012); reference docs owed by `core` and
+      `reactor` land here. `website.yml` (build, reference, deploy to Pages) is done:
+      the owner sets Settings > Pages > Source to GitHub Actions once. **Next item after the `net`
+      pull request is closed (owner request, 2026-10-18).** `net` and the new `reactor` primitives (`spawn`, `ipc`,
+      `reuseport`) owe: the generated reference (works: `gen-reference` produces their
+      pages, not committed), and the hand-written pages with the `docs-writer` agent:
+      how-to guides (connecting and serving over TCP, TLS client and server with the
+      system trust store and `ca_pem`, deadlines and cancellation on streams, UDP and
+      pipes, running child processes and passing connections between processes),
+      explanations (transport model, back-pressure and half-close, TLS trust and the
+      security defaults of ADR 0024, multi-process serving of ADR 0023), entries in
+      `website/OUTLINE.md` and `llms.txt`, then the French pages (`translator-fr`).
+- [x] `net`: TCP/UDP streams, DNS, buffered readers/writers, TLS (after OQ-4). Benchmarks of its hot paths wait for the harness item below.
 - [ ] `json`: codec (after OQ-5).
+- [ ] `doc` (minimal) and the reference generator, **pulled forward from Phase 3** (owner
+      decision of 2026-10-13, ADR 0012, OQ-11; proposed position, to be confirmed by the
+      owner): site build from Markdown and the LuaLS export (`---@class` on every module
+      table, `---@param name type description`), generated reference pages for `core` and
+      `reactor`, the website built by it in CI. Depends on `json` (the export) and on
+      `reactor` (file system, OQ-33), both accepted as dependencies of `doc`; the
+      third-party dependencies of ADR 0022 (Proposed, spike OQ-39) are settled first.
+      Replaces the "website skeleton" item above as the way the site is built; OpenAPI
+      reference, versioned documentation, runnable examples and `hecate doc build` for user
+      projects stay in Phase 3.
 - [ ] `log`: structured logging, RFC 5424 severities, per-scope context.
 - [ ] Benchmarks harness and first scenario (TCP echo); `benchmarks.yml`.
 - [ ] Workflows `native.yml`, `security.yml`, `nightly.yml`; tasks `sanitize`, `fuzz`,
-      `leaks`, `coverage`, `bench`, `check-licenses`.
+      `leaks`, `coverage`, `bench`, `check-licenses`. (`security.yml` has its Rust dependency
+      checks, `cargo audit` and `cargo deny`; CodeQL, dependency review and Scorecard remain.)
 
 Exit: an echo server handles 10 000 concurrent connections on each platform; structured
 concurrency test suite passes; benchmark baseline recorded.
@@ -92,8 +113,12 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
 ## Phase 2 — additional spike
 
 - [ ] `reactor` follow-up: specify then implement `offload` (Lua functions on the libuv
-      thread pool) and the worker-process primitives (OQ-8), split from the Phase 1
-      item (OQ-27); needed by `kernel` for multi-process workers.
+      thread pool), split from the Phase 1 item (OQ-27).
+- [x] `reactor`: the multi-process primitives of [ADR 0023](adr/0023-multi-process-serving.md)
+      (`spawn`, `ipc` with handle passing, TCP `reuseport`, OQ-8, OQ-43); needed by `kernel`
+      for multi-process workers. Spike OQ-8 delivered. `reuseport` needs luv with TCP
+      `reuseport` (OQ-43): `reactor.supports_reuseport()` reports it and `auto` stays `round_robin`
+      until then.
 
 - [ ] Spike OQ-11 (documentation tooling: site generator and code-reference renderer),
       report with rendered samples submitted to the owner before the website skeleton.
@@ -103,7 +128,8 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
 - [ ] `openapi`: OpenAPI 3.1 assembly, served endpoint, export, contract diff.
 - [ ] `test`: test framework, runner, in-process client, fixtures, contract conformance,
       reporters (TAP, JUnit XML), coverage.
-- [ ] `doc`: project documentation generator (code reference + API reference).
+- [ ] `doc`: project documentation generator for user projects (OpenAPI reference,
+      `hecate doc build`); the minimal generator and the code reference moved to Phase 1.
 - [ ] `cli` v1: self-contained executable, `new`, `install`, `add`, `remove`, `update`,
       `serve [--watch]`, `test`, `doc`, `contract`, `toolchain`, `doctor`, `version`.
 - [ ] Docker images (runtime and build variants, amd64 + arm64).
@@ -116,7 +142,8 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
 - [ ] Publish all rocks to luarocks.org (sources from mirrors).
 - [ ] `hecate generate workflow` (ci, contract, docs-pages, release) and its templates;
       regenerate the monorepo's `website.yml` with it.
-- [ ] Release automation: `release.yml`, `docker.yml`, `cli-e2e.yml`, `website.yml`
+- [ ] Release automation: `release.yml` (including one LuaRocks binary rock per platform for
+      the Rust native module of `net`, ADR 0021), `docker.yml`, `cli-e2e.yml`, `website.yml`
       and the `release *` tasks.
 
 Exit: from a clean machine on each platform, `install → hecate new → hecate serve`

@@ -13,6 +13,7 @@ local Condition = require("hecate.reactor.condition")
 local Mutex = require("hecate.reactor.mutex")
 local Permit = require("hecate.reactor.permit")
 
+--- A monitor: mutual exclusion with condition variables (Hoare 1974).
 ---@class hecate.reactor.Monitor
 ---@overload fun(): hecate.reactor.Monitor
 local Monitor = core.class("Monitor")

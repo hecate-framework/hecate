@@ -25,16 +25,33 @@ jobs:
         with:
           fetch-depth: 0
 
+      # `affected` is a Lua 5.5 task, so the plan job needs the pinned toolchain too (the
+      # runner has no `lua`); a failure here must fail the job, never yield an empty plan.
+      - name: Cache toolchain
+        id: toolchain
+        uses: actions/cache@v6
+        with:
+          path: .hecate/toolchain
+          key: toolchain-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('tools/bootstrap/**') }}
+
+      - name: Bootstrap
+        if: steps.toolchain.outputs.cache-hit != 'true'
+        run: tools/bootstrap/bootstrap.sh --prefix .hecate/toolchain
+
+      - name: Add toolchain to PATH
+        run: echo "$GITHUB_WORKSPACE/.hecate/toolchain/bin" >> "$GITHUB_PATH"
+
       - name: Affected packages
         id: affected
         run: |
+          set -eo pipefail
           if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
             base="origin/$GITHUB_BASE_REF"
           else
             base="${{ github.event.before }}"
             git cat-file -e "$base^{commit}" 2>/dev/null || base="HEAD~1"
           fi
-          packages=$(lua tools/run.lua affected --base "$base" | tr '\n' ' ' | sed 's/ *$//' || true)
+          packages=$(lua tools/run.lua affected --base "$base" | tr '\n' ' ' | sed 's/ *$//')
           echo "affected: ${packages:-none}"
           echo "packages=$packages" >> "$GITHUB_OUTPUT"
 
@@ -42,6 +59,9 @@ jobs:
     needs: plan
     name: ci (${{ matrix.os }}, Lua 5.5)
     runs-on: ${{ matrix.os }}
+    # A hung test must fail the job within minutes, not after the default six hours. The harness
+    # watchdog (HECATE_TEST_TIMEOUT) names the test; this is the backstop for a blocking call.
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -117,15 +137,61 @@ jobs:
 
       # Native rocks (luv) for the reactor tests; `tools/harness/run_file.lua` puts
       # `.hecate/rocks` on package.path and package.cpath, so no further environment is needed.
+      # Pinned: TCP `reuseport` support (OQ-43) and the process/pipe behaviour the tests assert depend on
+      # the luv (and bundled libuv) version; bump it deliberately. 1.53.0-0 is what the Linux job installs today (OQ-1).
       - name: Install luv
         if: steps.rocks.outputs.cache-hit != 'true'
         shell: bash
-        run: luarocks --tree .hecate/rocks install luv
+        run: luarocks --tree .hecate/rocks install luv 1.53.0-0
+
+      # Rust native module of `net` (TLS over rustls, ADR 0021). Only built when `net` or a
+      # dependent package is affected; the TLS tests skip silently when it is missing, so the
+      # build is asserted explicitly.
+      - name: Cache native build
+        if: contains(format(' {0} ', needs.plan.outputs.packages), ' net ')
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry
+            packages/net/native/target
+          key: native-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('packages/net/native/Cargo.lock', 'packages/net/native/rust-toolchain.toml') }}
+
+      - name: Build native modules (Linux, macOS)
+        if: runner.os != 'Windows' && contains(format(' {0} ', needs.plan.outputs.packages), ' net ')
+        run: |
+          (cd packages/net/native && rustup toolchain install)
+          lua tools/run.lua build-native net
+          test -f .hecate/rocks/lib/lua/5.5/hecate/net/tls_native.so
+
+      - name: Build native modules (Windows)
+        if: runner.os == 'Windows' && contains(format(' {0} ', needs.plan.outputs.packages), ' net ')
+        shell: pwsh
+        run: |
+          Push-Location packages/net/native
+          rustup toolchain install
+          Pop-Location
+          $tc = (Join-Path $env:GITHUB_WORKSPACE '.hecate/toolchain') -replace '\\', '/'
+          $env:LUA_LIB_NAME = 'lua55'
+          $env:LUA_LIB = "$tc/lib"
+          $env:LUA_INC = "$tc/include"
+          lua tools/run.lua build-native net
+          if (-not (Test-Path .hecate/rocks/lib/lua/5.5/hecate/net/tls_native.dll)) { throw 'tls_native.dll missing' }
+
+      - name: Lint the native module (Linux)
+        if: runner.os == 'Linux' && contains(format(' {0} ', needs.plan.outputs.packages), ' net ')
+        working-directory: packages/net/native
+        run: |
+          cargo fmt --check
+          cargo clippy --locked --all-targets
+          cargo test --locked
 
       - name: Check
         shell: bash
         env:
           PACKAGES: ${{ needs.plan.outputs.packages }}
+          # The TLS tests fail, instead of skipping, when the native module is missing.
+          HECATE_NETWORK_TESTS: "1"
+          HECATE_REQUIRE_TLS: ${{ contains(format(' {0} ', needs.plan.outputs.packages), ' net ') && '1' || '' }}
         run: |
           set -e
           for task in check-versions check-rockspecs check-package-structure typecheck; do

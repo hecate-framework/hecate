@@ -40,6 +40,10 @@ function M.Case(name)
   return class
 end
 
+--- Called with the full name of a test just before it runs (the file runner arms its watchdog here).
+---@type fun(name: string)?
+M.on_start = nil
+
 --- Runs every test_* method of a case, in name order. Returns a list of results
 --- { name, ok, message }.
 ---@param class table
@@ -53,6 +57,7 @@ function M.run_case(class)
   local results = {}
   if class.set_up_case then class:set_up_case() end
   for _, n in ipairs(names) do
+    if M.on_start then M.on_start((class.name or "case") .. "." .. n) end
     local self = setmetatable({}, class)
     local ok, err = pcall(function()
       if self.set_up then self:set_up() end

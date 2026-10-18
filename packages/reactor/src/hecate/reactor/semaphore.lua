@@ -11,6 +11,7 @@ local context = require("hecate.reactor.internal.context")
 local Waitq = require("hecate.reactor.internal.waitq")
 local Permit = require("hecate.reactor.permit")
 
+--- A counting semaphore for coroutines of one reactor.
 ---@class hecate.reactor.Semaphore
 ---@overload fun(units: integer): hecate.reactor.Semaphore
 local Semaphore = core.class("Semaphore")

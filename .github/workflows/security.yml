@@ -1,0 +1,70 @@
+name: security
+
+# Rust dependencies of the native modules (ADR 0021): known vulnerabilities (`cargo audit`) and
+# licences, bans and sources (`cargo deny`, policy in `deny.toml`). The tools are built from source
+# at a pinned version, so no third-party action is involved. CodeQL for the C code, dependency
+# review and OpenSSF Scorecard (docs/architecture/automation.md) join this workflow later, pinned
+# by commit hash.
+on:
+  pull_request:
+    paths:
+      - "packages/*/native/Cargo.toml"
+      - "packages/*/native/Cargo.lock"
+      - "packages/*/native/rust-toolchain.toml"
+      - "deny.toml"
+      - ".github/workflows/security.yml"
+  push:
+    branches: [main]
+    paths:
+      - "packages/*/native/Cargo.toml"
+      - "packages/*/native/Cargo.lock"
+      - "deny.toml"
+      - ".github/workflows/security.yml"
+  schedule:
+    # Advisories are published at any time: a weekly run catches one against an unchanged lockfile.
+    - cron: "23 5 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_AUDIT_VERSION: "0.22.2"
+  CARGO_DENY_VERSION: "0.20.2"
+
+jobs:
+  rust-dependencies:
+    name: rust dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # The toolchain is pinned by rust-toolchain.toml in the crate directory.
+      - name: Rust toolchain
+        working-directory: packages/net/native
+        run: rustup toolchain install
+
+      - name: Cache the tools
+        id: tools
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/bin/cargo-audit
+            ~/.cargo/bin/cargo-deny
+          key: cargo-tools-${{ runner.os }}-audit-${{ env.CARGO_AUDIT_VERSION }}-deny-${{ env.CARGO_DENY_VERSION }}
+
+      - name: Install cargo-audit and cargo-deny
+        if: steps.tools.outputs.cache-hit != 'true'
+        run: |
+          cargo install --locked cargo-audit --version "$CARGO_AUDIT_VERSION"
+          cargo install --locked cargo-deny --version "$CARGO_DENY_VERSION"
+
+      - name: cargo audit
+        working-directory: packages/net/native
+        run: cargo audit
+
+      - name: cargo deny
+        run: cargo deny --manifest-path packages/net/native/Cargo.toml --config deny.toml check

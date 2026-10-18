@@ -43,6 +43,7 @@ function T:test_fs_missing_file_raises_io_error()
     reactor.run(function() reactor.fs.read_file(tmp("absent")) end)
   end)
   self:assert_true(core.is_instance_of(err, reactor.IoError))
+  self:assert_false(core.is_instance_of(err, core.NetworkError)) -- fs and process failures stay IoError
   self:assert_equal("ENOENT", err.context.errno)
 end
 
@@ -67,17 +68,32 @@ end
 
 function T:test_wait_signal_returns_the_name()
   if uv.os_uname().sysname:match("Windows") then return end
+  -- The signal is sent again until the waiter returned, so the test does not depend on the waiter
+  -- having installed its handler first; the guard keeps an early signal from ending the process.
+  local guard = uv.new_signal()
+  guard:start("sigusr1", function() end)
   local name = reactor.run(function()
-    reactor.fork(function() reactor.sleep(0.02); uv.kill(uv.os_getpid(), "sigusr1") end)
-    return reactor.wait_signal("sigusr1")
+    local done = false
+    reactor.fork(function()
+      while not done do
+        uv.kill(uv.os_getpid(), "sigusr1")
+        reactor.sleep(0.005)
+      end
+    end)
+    local received = reactor.wait_signal("sigusr1")
+    done = true
+    return received
   end)
+  guard:close()
   self:assert_equal("sigusr1", name)
 end
 
 function T:test_wait_signal_is_cancellable_and_closes_its_handle()
   local before = reactor.Reactor.open_handles()
   reactor.run(function()
-    local ok = pcall(reactor.deadline, 0.02, reactor.wait_signal, "sigusr2")
+    -- Windows delivers only the console signals.
+    local name = package.config:sub(1, 1) == "\\" and "sigint" or "sigusr2"
+    local ok = pcall(reactor.deadline, 0.02, reactor.wait_signal, name)
     self:assert_false(ok)
   end)
   self:assert_equal(before, reactor.Reactor.open_handles())

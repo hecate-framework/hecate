@@ -7,6 +7,7 @@ local context = require("hecate.reactor.internal.context")
 
 ---@alias hecate.reactor.FutureState "pending"|"completed"|"failed"|"cancelled"
 
+--- The placeholder for the value of a concurrent computation, created by `fork` and settled by the scheduler.
 ---@class hecate.reactor.Future
 ---@overload fun(): hecate.reactor.Future
 local Future = core.class("Future")

@@ -1,0 +1,47 @@
+# cargo-deny policy for the Rust native modules (ADR 0021). Run from the repository root:
+#
+#   cargo deny --manifest-path packages/net/native/Cargo.toml check --config deny.toml
+#
+# security.yml runs it on every change to a Cargo manifest or lockfile, and weekly.
+
+[graph]
+# Only the platforms Hecate builds for: Cargo.lock also lists crates of other targets (for example
+# WebAssembly or Android), whose licences and advisories do not concern us.
+targets = [
+  "x86_64-unknown-linux-gnu",
+  "aarch64-unknown-linux-gnu",
+  "x86_64-apple-darwin",
+  "aarch64-apple-darwin",
+  "x86_64-pc-windows-msvc",
+]
+
+[licenses]
+# Hecate is MIT: only permissive licences are accepted, so that it stays MIT. A dependency under any
+# other licence (a copyleft one included) fails CI and comes to the project owner, who decides.
+allow = [
+  "MIT",
+  "Apache-2.0",
+  "BSD-3-Clause",
+  "ISC",
+  "Unicode-3.0",
+  "Unlicense",
+]
+confidence-threshold = 0.93
+
+[bans]
+# Two versions of one crate are a warning, not a failure: the Windows and macOS bindings bring
+# several versions of their system crates.
+multiple-versions = "warn"
+wildcards = "deny"
+
+[advisories]
+# Known vulnerabilities fail the run. `cargo audit` (security.yml) reads the same database; an
+# advisory that does not apply is listed here with the reason, never silently.
+ignore = []
+yanked = "deny"
+
+[sources]
+# Crates come from crates.io only: no git dependency, no other registry.
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]

@@ -4,6 +4,7 @@ global <const> type, error, tostring, require
 
 local core = require("hecate.core")
 
+--- A point on the reactor clock, in seconds, used as an absolute deadline.
 ---@class hecate.reactor.Instant
 ---@field seconds number  position on the reactor clock, in seconds (see `Reactor:now`)
 ---@overload fun(seconds: number): hecate.reactor.Instant

@@ -21,6 +21,8 @@ return {
       end
       for _, file in ipairs(files_in(base .. "/tests")) do
         total = total + 1
+        -- CI sets CI=true: name the file before running it, so a cancelled run shows where it stopped.
+        if os.getenv("CI") then io.stderr:write("# test ", file:sub(#ctx.root + 2), "\n") end
         local quoted = {}
         for i, dir in ipairs(srcs) do quoted[i] = util.quote(dir) end
         local out, ok = util.capture(("%s %s %s %s 2>&1"):format(util.quote(util.interpreter()), util.quote(runner),

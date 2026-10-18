@@ -16,6 +16,12 @@ local classes = registry.classes
 local frozen_fields = registry.frozen_fields
 local frozen_metatables = registry.frozen_metatables
 
+-- Documented on `hecate.core` (module class completed here so that the LuaLS export lists the
+-- function; coding-standards.md, "Annotations for the reference").
+
+---@class hecate.core
+local M = {}
+
 -- Metamethod keys that are never copied into a per-instance metatable.
 local NOT_COPIED = { __index = true, __newindex = true, __pairs = true }
 
@@ -76,12 +82,15 @@ local function freeze(object, class, record)
   setmetatable(object, metatable) -- hecate: raw-metatable value object
 end
 
---- Declares a value class. Same signature as `core.class`; the class must be finalised.
----@param name string
+--- Declares a value class: instances are immutable and compared by value. Same signature as
+--- `core.class`; the class must be finalised.
+---
+--- Raises `hecate.core.ArgumentError` if `superclass` is not a value class.
+---@param name string  class name, used in messages
 ---@param superclass? table  a value class
----@param options? hecate.core.ClassOptions
----@return table class
-local function value_class(name, superclass, options)
+---@param options? hecate.core.ClassOptions  traits, interfaces and fallback of the class
+---@return table class  the new, not yet finalised value class
+function M.value_class(name, superclass, options)
   if superclass ~= nil and classes[superclass] ~= nil and classes[superclass].freeze == nil then
     raise.argument(("value class %s: superclass %s is not a value class"):format(
       tostring(name), classes[superclass].name))
@@ -93,4 +102,4 @@ local function value_class(name, superclass, options)
   return declared
 end
 
-return { value_class = value_class }
+return { value_class = M.value_class }

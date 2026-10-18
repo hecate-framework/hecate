@@ -48,7 +48,7 @@ Status column: `done` = implemented in `tools/`, `now` = workflow exists today, 
 
 | Task | Purpose | Status |
 |---|---|---|
-| `test [packages] [--integration] [--tag t]` | run tests (bootstrap harness, then `hecate.test`) | done |
+| `test [packages] [--integration] [--tag t]` | run tests (bootstrap harness, then `hecate.test`); a test that runs longer than `HECATE_TEST_TIMEOUT` seconds (default 120) fails its file and is named; with `CI=true` each file is announced on standard error; the CI job has a 30-minute limit | done |
 | `coverage` | LCOV report, per-package thresholds (core/reactor/router/schema ≥ 90 %) | P1 |
 | `affected [--base ref]` | packages affected by a diff, following reverse dependencies; used to shrink CI | done |
 | `matrix` | emits the CI matrix (platforms × packages × services) as JSON | done |
@@ -66,7 +66,7 @@ Status column: `done` = implemented in `tools/`, `now` = workflow exists today, 
 | `new-package <name> --layer L` | package skeleton + CLAUDE.md + agent + catalogue entry | done |
 | `gen-catalogue` | `packages/README.md` table from rockspecs and READMEs | done |
 | `gen-dependency-graph` | Mermaid graph in overview.md (between markers) | done |
-| `gen-reference` | Markdown reference from LuaLS JSON export into `website/en/reference/` | P2 |
+| `gen-reference` | Markdown reference from LuaLS JSON export into `website/en/reference/<package>/` (not committed, git-ignored; skipped with a message without `lua-language-server`, `--require` fails instead; `build.lua --reference` runs the same generator before a site build; OQ-40) | done for `core`, `reactor`, `net` |
 | `gen-llms-txt` | `llms.txt` and `website/public/llms.txt`, `llms-full.txt` | done (root `llms.txt` package list; website copies in P3) |
 | `gen-error-codes` | error code reference page from error classes | P2 |
 | `gen-config-reference` | configuration keys reference from config schemas | P2 |
@@ -97,10 +97,10 @@ Status column: `done` = implemented in `tools/`, `now` = workflow exists today, 
 | `native.yml` | PR touching `csrc/`, nightly | GCC/Clang/MSVC builds, sanitizers, short fuzzing (PR), long fuzzing (nightly) | P1 |
 | `integration.yml` | PR touching data/net packages, nightly | service containers: PostgreSQL, MySQL, MariaDB, Redis, Valkey, later MongoDB, SQL Server — two most recent major versions each | P4 |
 | `benchmarks.yml` | push to main, PR labelled `performance` | GitHub-hosted runner, `bench --compare main` with interleaved A/B runs on the same runner (relative comparison only, OQ-14), repeated runs (at least 11), the **median** is the reference value (mean, min and max reported alongside, since shared runners are noisy), PR comment with deltas and significance, history published as indicative | P1 |
-| `website.yml` | PR (build only), push to main (deploy) | gen-reference, site build (`hecate doc`, or the interim generator chosen after OQ-11), link check, translation status, deploy to GitHub Pages | P2 |
+| `website.yml` | PR (build only), push to main (deploy) | gen-reference, site build (`hecate doc`, or the interim generator chosen after OQ-11), link check, translation status, deploy to GitHub Pages | P2; first version done (pinned LuaLS, `build.lua --reference --strict`, base path and origin from `configure-pages`, deploy from main; link check inside `--strict`; translation status and `hecate doc` pending; needs Settings > Pages > Source = GitHub Actions) |
 | `docker.yml` | changes in `docker/`, weekly, release | multi-arch builds (buildx), Trivy scan, push on release | P3 |
 | `cli-e2e.yml` | PR touching `cli`, nightly | `cli-e2e` on 3 platforms with the built executable | P3 |
-| `security.yml` | PR, weekly | CodeQL (C), dependency review, OpenSSF Scorecard | P1 |
+| `security.yml` | PR touching a Cargo manifest or lockfile, push to main, weekly | `cargo audit` (known vulnerabilities) and `cargo deny` (licences, bans, sources; policy in `deny.toml`) for the Rust crates, with the tools built from source at pinned versions (done); CodeQL (C), dependency review, OpenSSF Scorecard (to come) | P1 |
 | `split.yml` | push to `main`, tag `v*.*.*` | `affected` → `split --push` for affected packages on `main`; all packages on tags (same tag in every mirror) | P3 |
 | `labels.yml` | push to `main` touching `.github/labels.yml` | synchronise repository labels from `.github/labels.yml` | now |
 | `release.yml` | tag `v*.*.*` (jobs that publish run in environment `release`) | `release verify` → wait for `split.yml` tags → rocks (sources from mirrors) → binaries (6 targets) → sign + SBOM → GitHub Release → Docker → Homebrew tap, Scoop bucket, winget → versioned website | P3 |
@@ -113,7 +113,11 @@ Rules:
 - Required checks on `main`: `ci`, `docs`, `pr-hygiene`, and from their phase on,
   `native`, `integration`, `website`.
 - Third-party actions pinned by commit SHA in `release.yml`, `docker.yml` and
-  `security.yml`; Dependabot updates them.
+  `security.yml`; Dependabot updates them. (Owner, 2026-10-18: pinning the existing workflows is
+  deferred; `security.yml` has no third-party action yet.)
+- Licences: the Rust crates must be permissive (`deny.toml`), so that Hecate stays MIT; any other
+  licence fails CI and the project owner decides. Dependabot also watches the Rust crates of the
+  native modules (`.github/dependabot.yml`).
 - Every workflow uploads machine-readable reports (JUnit XML, LCOV, SARIF, benchmark
   JSON) as artefacts.
 

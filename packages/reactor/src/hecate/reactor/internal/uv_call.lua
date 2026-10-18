@@ -1,5 +1,5 @@
--- Bridges libuv request callbacks to suspending calls. The callback only wakes the task;
--- the task is resumed by the scheduler (reactor/CLAUDE.md, known pitfalls).
+-- Bridges libuv request callbacks to suspending calls. The callback only wakes the coroutine;
+-- the coroutine is resumed by the scheduler (reactor/CLAUDE.md, known pitfalls).
 global <const> type, error, require, select, table
 
 local core = require("hecate.core")
@@ -7,20 +7,36 @@ local context = require("hecate.reactor.internal.context")
 
 local IoError = core.error_class("IoError", "hecate.reactor.IoError")
 
-local M = { IoError = IoError }
+-- A failure of TCP or name resolution is a network failure (owner decision on OQ-32 (5)):
+-- it derives from `core.NetworkError` so that `catch` on `NetworkError` sees it. `IoError`
+-- stays for the file system and processes. `core` has no multiple inheritance, so the two
+-- classes are siblings and a transport failure is not an `IoError`.
+local TransportError = core.error_class("TransportError", "hecate.reactor.TransportError", core.NetworkError)
 
---- Raises an `IoError` for a libuv error string such as "ENOENT: no such file or directory".
+local M = { IoError = IoError, TransportError = TransportError }
+
+--- Raises an `IoError` (or an instance of `class`) for a libuv error string such as
+--- "ENOENT: no such file or directory". `context.errno` is the libuv name.
 ---@param operation string
 ---@param message string
-function M.fail(operation, message)
-  local name = message:match("^(%u[%u%d_]*):")
-  error(IoError({
+---@param class? any  defaults to `IoError`
+function M.fail(operation, message, class)
+  -- Request errors read "ENOENT: no such file or directory"; stream callbacks deliver the bare name.
+  local name = message:match("^(%u[%u%d_]*):") or message:match("^(%u[%u%d_]*)$")
+  error((class or IoError)({
     message = operation .. ": " .. message,
     context = { operation = operation, errno = name },
   }), 0)
 end
 
---- Requires a running real-clock reactor and returns its task.
+--- Raises a `TransportError`, the network failure of TCP and name resolution.
+---@param operation string
+---@param message string
+function M.fail_transport(operation, message)
+  M.fail(operation, message, TransportError)
+end
+
+--- Requires a running real-clock reactor and returns its internal task record.
 ---@param operation string
 ---@return table task
 function M.begin(operation)
@@ -41,7 +57,7 @@ function M.request(operation, start)
   M.begin(operation)
   local err, results
   local function pack(...) return { n = select("#", ...), ... } end
-  -- Uncancellable: a started request cannot be withdrawn, so the task waits for its
+  -- Uncancellable: a started request cannot be withdrawn, so the coroutine waits for its
   -- completion (file-system requests are short).
   context.suspend(function(wake)
     start(function(e, ...)

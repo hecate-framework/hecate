@@ -68,6 +68,21 @@ operation there raises `NonYieldableContextError` with an explanatory message.
 The reactor must detect this case (via `coroutine.isyieldable`) rather than letting
 Lua report a generic "attempt to yield across a C-call boundary".
 
+## Transport
+
+`hecate.reactor` wraps libuv's network handles once, so that `net` never requires `luv`
+(ADR 0002, OQ-28): `tcp_connect`, `tcp_listen`, `udp_bind`, `pipe_connect`, `pipe_listen`
+and `resolve` suspend the calling coroutine and return streams, listeners and sockets with
+`read`, `write`, `accept`, `receive_from`, `send_to`, `shutdown` and `close`.
+
+- A failure of the transport raises `TransportError`, a `NetworkError` (with `errno` and
+  `operation` in its context); `IoError` stays for the file system and processes.
+- A cancelled `read`, `accept` or `receive_from` leaves the object usable and loses no data. A
+  cancelled `write`, `send_to`, `shutdown` or `connect` closes it, because how much was sent
+  is unknown. `close` is idempotent, never suspends and wakes every coroutine waiting on it.
+- Operations take no timeout argument: bound them with `deadline`.
+- One coroutine reads, accepts or receives at a time on an object.
+
 ## Blocking work
 
 - File-system operations go through libuv's asynchronous file API (already off-thread).
@@ -80,14 +95,28 @@ Lua report a generic "attempt to yield across a C-call boundary".
 
 ## Workers
 
+Proposed in [ADR 0023](../adr/0023-multi-process-serving.md), measured in
+[the OQ-8 spike](../spikes/OQ-8-multi-process.md).
+
 - `hecate serve --workers N` (default: number of CPU cores) starts one primary process
-  and N worker processes.
-- Linux: workers bind with `SO_REUSEPORT` for kernel-level load balancing.
-- macOS and Windows: the primary owns the listening socket and shares it with workers
-  through libuv IPC handle passing. To be validated (OQ-8).
-- The primary supervises workers (restart on crash with backoff), propagates signals,
-  and coordinates graceful shutdown: stop accepting, drain in-flight requests up to a
-  configurable deadline, then cancel remaining scopes.
+  and N worker processes. A worker is the same program with a worker role: its own Lua state
+  and reactor, nothing shared.
+- `reactor` provides the mechanism: `spawn` (a long-lived child), `ipc` (framed messages
+  between parent and child, with handle passing) and the TCP `reuseport` option. `kernel`
+  provides the policy: the supervisor and the listening strategies.
+- A **listening strategy** decides where a worker accepts connections from; the code above it
+  is identical on every platform. `reuseport` (Linux default): each worker binds the port with
+  `SO_REUSEPORT`, the kernel balances, the primary is not in the data path.
+  `round_robin` (macOS and Windows, and the fallback when a strategy is not supported): the
+  primary accepts and passes each connection to the next worker through IPC handle passing. A
+  listening socket shared by all workers was measured and balances on no platform. Linux is never
+  constrained by what another platform needs.
+- The primary supervises workers (readiness, restart on crash with exponential backoff and a
+  crash-loop limit) over a control channel that exists on every platform and carries `ready`,
+  `stop(deadline)` and `reload`; a worker whose control channel closes drains and exits.
+- Graceful shutdown: stop accepting, drain in-flight requests up to a configurable deadline,
+  then cancel remaining scopes. A rolling reload starts the replacement before stopping the old
+  worker.
 
 ## Signals and shutdown
 
