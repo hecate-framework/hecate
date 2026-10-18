@@ -162,10 +162,10 @@ function T:test_tls_connect_and_accept_validate_the_configuration()
     local listener <close> = net.listen("127.0.0.1", 0)
     local port = listener:local_address().port
     local raw <close> = net.connect("127.0.0.1", port)
-    local err = self:assert_error(function() net.tls.connect(raw, "localhost", {}) end)
+    local err = self:assert_error(function() net.tls.connect(raw, "localhost", {} --[[@as userdata]]) end)
     self:assert_true(core.is_instance_of(err, core.ArgumentError), tostring(err))
     self:assert_false(raw:is_closed()) -- the caller keeps the stream on an argument error
-    err = self:assert_error(function() net.tls.accept(raw, {}) end)
+    err = self:assert_error(function() net.tls.accept(raw, {} --[[@as userdata]]) end)
     self:assert_true(core.is_instance_of(err, core.ArgumentError), tostring(err))
   end)
 end

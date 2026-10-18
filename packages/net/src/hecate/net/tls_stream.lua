@@ -14,7 +14,7 @@ local TlsError = require("hecate.net.errors").TlsError
 ---@class hecate.net.TlsSession
 ---@field feed fun(self: hecate.net.TlsSession, data: string): integer
 ---@field feed_eof fun(self: hecate.net.TlsSession)
----@field drain fun(self: hecate.net.TlsSession): string?
+---@field drain fun(self: hecate.net.TlsSession): string
 ---@field read fun(self: hecate.net.TlsSession, max?: integer): string?, string?
 ---@field write fun(self: hecate.net.TlsSession, data: string): integer
 ---@field is_handshaking fun(self: hecate.net.TlsSession): boolean
