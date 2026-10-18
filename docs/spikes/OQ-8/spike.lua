@@ -145,4 +145,10 @@ elseif mode == "round_robin" then
   end)
 end
 uv.new_timer():start(1000, 0, start_load) -- let the workers start (and bind)
+-- Watchdog: a strategy that does not deliver every connection must not hang the run.
+uv.new_timer():start(60000, 0, function()
+  print(("RESULT %s on %s: TIMEOUT after 60s"):format(mode, uv.os_uname().sysname))
+  for _, w in ipairs(workers) do w:kill("sigkill") end
+  os.exit(1)
+end)
 uv.run()

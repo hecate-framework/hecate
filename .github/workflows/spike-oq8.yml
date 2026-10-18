@@ -76,7 +76,7 @@ jobs:
         run: |
           for mode in reuseport shared round_robin; do
             for run in 1 2; do
-              timeout 120 lua docs/spikes/OQ-8/spike.lua "$mode" 4 4000 2>&1 | tee -a "$GITHUB_STEP_SUMMARY" || true
+              lua docs/spikes/OQ-8/spike.lua "$mode" 4 4000 2>&1 | tee -a "$GITHUB_STEP_SUMMARY" || true
             done
           done
 
