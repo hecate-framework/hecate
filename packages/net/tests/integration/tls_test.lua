@@ -218,7 +218,9 @@ function T:test_mutual_tls_rejects_a_client_without_a_certificate()
       client:read()
     end)
     self:assert_false(ok)
-    self:assert_true(core.is_instance_of(err, net.TlsError), tostring(err))
+    -- The client sees the server's alert as a TlsError, or, when the server closes first (Windows
+    -- resets the connection and drops the alert), the reset as a TransportError.
+    self:assert_true(core.is_instance_of(err, net.TlsError) or core.is_instance_of(err, core.NetworkError), tostring(err))
     outcome.future:value()
     self:assert_false(outcome.ok) -- the server side failed its handshake too
   end)
