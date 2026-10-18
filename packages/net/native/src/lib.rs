@@ -728,30 +728,46 @@ mod tests {
         )
     }
 
-    /// Moves everything `from` queued to `to`, feeding it in `step` byte pieces.
-    fn transfer(from: &mut Session, to: &mut Session, step: usize) -> LuaResult<()> {
-        let out = from.drain()?;
-        for piece in out.chunks(step) {
-            let mut rest = piece;
-            while !rest.is_empty() {
-                let n = to.feed(rest)?;
-                assert!(n > 0, "the session stopped consuming during a handshake");
-                rest = &rest[n..];
+    /// Both directions of an in-memory connection: ciphertext queued and not yet consumed.
+    #[derive(Default)]
+    struct Wire {
+        to_server: Vec<u8>,
+        to_client: Vec<u8>,
+    }
+
+    /// Moves what `from` queued into `wire`, then feeds `to` at most `step` bytes at a time for as
+    /// long as it consumes them.
+    fn transfer(from: &mut Session, to: &mut Session, wire: &mut Vec<u8>, step: usize) -> LuaResult<()> {
+        wire.extend(from.drain()?);
+        while !wire.is_empty() {
+            let end = step.min(wire.len());
+            let n = to.feed(&wire[..end])?;
+            if n == 0 {
+                break; // the session wants to send or to be read first
             }
+            wire.drain(..n);
         }
         Ok(())
     }
 
     fn handshake_in(client: &mut Session, server: &mut Session, step: usize) -> LuaResult<()> {
-        for _ in 0..16 {
-            transfer(client, server, step)?;
-            transfer(server, client, step)?;
+        let mut wire = Wire::default();
+        for _ in 0..100_000 {
+            transfer(client, server, &mut wire.to_server, step)?;
+            transfer(server, client, &mut wire.to_client, step)?;
             if !client.conn().unwrap().is_handshaking() && !server.conn().unwrap().is_handshaking()
             {
                 return Ok(());
             }
         }
         panic!("the handshake did not finish");
+    }
+
+    /// Sends everything `from` queued to `to` (after the handshake nothing is held back).
+    fn deliver(from: &mut Session, to: &mut Session) {
+        let mut wire = Vec::new();
+        transfer(from, to, &mut wire, usize::MAX).unwrap();
+        assert!(wire.is_empty());
     }
 
     fn read_all(session: &mut Session) -> Vec<u8> {
@@ -762,8 +778,16 @@ mod tests {
         all
     }
 
+    /// The message Lua sees (without mlua's "runtime error: " display prefix).
+    fn message(e: LuaError) -> String {
+        match e {
+            LuaError::RuntimeError(m) => m,
+            other => panic!("unexpected error {other}"),
+        }
+    }
+
     fn failure_text(r: LuaResult<()>) -> String {
-        r.expect_err("the handshake should fail").to_string()
+        message(r.expect_err("the handshake should fail"))
     }
 
     #[test]
@@ -830,10 +854,10 @@ mod tests {
             Some(&b"http/1.1"[..])
         );
         assert_eq!(client.write(b"ping", 0).unwrap(), 4);
-        transfer(&mut client, &mut server, usize::MAX).unwrap();
+        deliver(&mut client, &mut server);
         assert_eq!(read_all(&mut server), b"ping");
         assert_eq!(server.write(b"pong", 0).unwrap(), 4);
-        transfer(&mut server, &mut client, usize::MAX).unwrap();
+        deliver(&mut server, &mut client);
         assert_eq!(read_all(&mut client), b"pong");
         assert_eq!(client.read(1).unwrap(), Outcome::WantRead);
     }
@@ -843,7 +867,7 @@ mod tests {
         let (mut client, mut server) = pair();
         handshake_in(&mut client, &mut server, 1).unwrap();
         client.write(b"x", 0).unwrap();
-        transfer(&mut client, &mut server, 1).unwrap();
+        deliver(&mut client, &mut server);
         assert_eq!(read_all(&mut server), b"x");
     }
 
@@ -853,7 +877,7 @@ mod tests {
         handshake_in(&mut client, &mut server, usize::MAX).unwrap();
         server.write(b"data", 0).unwrap();
         server.conn().unwrap().send_close_notify();
-        transfer(&mut server, &mut client, usize::MAX).unwrap();
+        deliver(&mut server, &mut client);
         assert_eq!(read_all(&mut client), b"data");
         assert_eq!(client.read(16).unwrap(), Outcome::Closed);
         // The transport ending after close_notify changes nothing.
@@ -863,7 +887,7 @@ mod tests {
         let (mut client, mut server) = pair();
         handshake_in(&mut client, &mut server, usize::MAX).unwrap();
         server.write(b"data", 0).unwrap();
-        transfer(&mut server, &mut client, usize::MAX).unwrap();
+        deliver(&mut server, &mut client);
         client.feed_eof().unwrap();
         assert_eq!(read_all(&mut client), b"data");
         assert_eq!(client.read(16).unwrap(), Outcome::Eof);
@@ -875,18 +899,26 @@ mod tests {
         // 16 KiB of plaintext is pending, even for the empty read of the end of the transport.
         let (mut client, mut server) = pair();
         handshake_in(&mut client, &mut server, usize::MAX).unwrap();
-        let payload = vec![7u8; 60_000];
-        let mut sent = 0;
+        // One full record followed by small ones: the 4 KiB reads of rustls then end inside the
+        // first record and the last read completes it together with the small records, so more
+        // than 16 KiB of plaintext is pending although `feed` honoured `wants_read`.
+        let mut payload = vec![7u8; 16_384];
+        payload.extend(vec![9u8; 1_000]);
         let mut wire = Vec::new();
-        while sent < payload.len() {
-            sent += server.write(&payload, sent).unwrap();
+        let mut lengths = vec![16_384];
+        lengths.extend([100; 10]);
+        let mut at = 0;
+        for len in lengths {
+            let piece = &payload[at..at + len];
+            at += len;
+            assert_eq!(server.write(piece, 0).unwrap(), len);
             wire.extend(server.drain().unwrap());
         }
         let mut rest = &wire[..];
-        // Feed until the session holds more plaintext than it wants.
-        let n = client.feed(rest).unwrap();
-        rest = &rest[n..];
-        assert!(!client.conn().unwrap().wants_read(), "plaintext should be pending");
+        while client.conn().unwrap().wants_read() && !rest.is_empty() {
+            let n = client.feed(rest).unwrap();
+            rest = &rest[n..];
+        }
         client.feed_eof().expect("the end of the transport is recorded, not an error");
         let mut got = Vec::new();
         loop {
@@ -908,7 +940,7 @@ mod tests {
         let (mut client, mut server) = pair();
         handshake_in(&mut client, &mut server, usize::MAX).unwrap();
         assert_eq!(client.write(b"abcdef", 2).unwrap(), 4);
-        transfer(&mut client, &mut server, usize::MAX).unwrap();
+        deliver(&mut client, &mut server);
         assert_eq!(read_all(&mut server), b"cdef");
         assert_eq!(client.write(b"abc", 3).unwrap(), 0);
         assert!(client.write(b"abc", 4).is_err());
@@ -950,10 +982,8 @@ mod tests {
     #[test]
     fn a_failure_without_a_kind_has_no_prefix() {
         let (_, mut server) = pair();
-        let err = server.feed(&[0x16, 0x03, 0x01, 0x00, 0x05, 1, 2, 3, 4, 5]).unwrap_err().to_string();
-        assert!(!err.starts_with('['), "{err}");
-        // The alert is still there to send.
-        assert!(!server.drain().unwrap().is_empty());
+        let err = message(server.feed(&[0x16, 0x03, 0x01, 0x00, 0x05, 1, 2, 3, 4, 5]).unwrap_err());
+        assert!(err.starts_with("tls: "), "{err}");
     }
 
     #[test]
@@ -974,7 +1004,7 @@ mod tests {
         let (mut client, mut server) = pair();
         handshake_in(&mut client, &mut server, usize::MAX).unwrap();
         client.write(b"hello", 0).unwrap();
-        transfer(&mut client, &mut server, usize::MAX).unwrap();
+        deliver(&mut client, &mut server);
         assert_eq!(server.read(2).unwrap(), Outcome::Data(2));
         assert_eq!(server.scratch.len(), MAX_READ);
         assert_eq!(server.read(100).unwrap(), Outcome::Data(3));

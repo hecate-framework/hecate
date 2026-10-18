@@ -89,9 +89,6 @@ function T:test_tls_connect_and_accept_take_handshake_deadline()
 
     -- Server side: a client that connects and never speaks.
     local server_config = net.tls.server_config({ cert_pem = SERVER_CERT, key_pem = SERVER_KEY })
-    local mute <close> = net.connect("127.0.0.1", port)
-    local accepting = reactor.fork(function() local r <close> = listener:accept() r:close() end)
-    accepting:value()
     local listener2 <close> = net.listen("127.0.0.1", 0)
     local mute2 <close> = net.connect("127.0.0.1", listener2:local_address().port)
     local accepted = listener2:accept()

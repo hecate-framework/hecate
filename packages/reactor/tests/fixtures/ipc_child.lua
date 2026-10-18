@@ -50,11 +50,6 @@ reactor.run(function()
     local long = lua_child("require('luv').sleep(60000)")
     peer:send(tostring(long.pid))
     os.exit(0)
-  elseif mode == "grandchild_ipc_fd" then
-    -- Same, but the message pipe is used first through `run_process` (no `spawn`).
-    peer:send("ready")
-    local long = reactor.run_process(uv.exepath(), { "-e", "io.write('x')" })
-    peer:send(long.stdout)
   elseif mode == "connect" then
     -- Hands a connected stream over to the parent, then waits until the parent has taken it:
     -- on Windows the sender must keep its handle until the receiver acknowledged.
