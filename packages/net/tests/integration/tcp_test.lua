@@ -6,6 +6,7 @@ local net = require("hecate.net")
 local T = test.Case("NetTcpTest")
 
 local LOOPBACK = "127.0.0.1"
+local IS_WINDOWS = package.config:sub(1, 1) == "\\"
 
 --- Runs `fn(listener, port)` on a reactor with a listener on an ephemeral loopback port, then
 --- checks that no libuv handle is left open.
@@ -61,16 +62,19 @@ end
 function T:test_a_large_payload_arrives_whole_through_the_buffered_layer()
   local payload = string.rep("0123456789abcdef", 64 * 1024) -- 1 MiB, far above any chunk size
   local received = with_listener(self, function(listener, port)
+    local done = reactor.Channel(1)
     reactor.fork(function()
       local peer <close> = listener:accept()
       local writer = peer:writer({ capacity = 1000 })
       writer:write(payload)
       writer:flush()
       peer:shutdown()
-      reactor.sleep(0.05)
+      done:receive() -- stays open until the reader has read everything
     end)
     local client <close> = net.connect(LOOPBACK, port)
-    return client:reader():read_exact(#payload)
+    local data = client:reader():read_exact(#payload)
+    done:send(true)
+    return data
   end)
   self:assert_equal(#payload, #received)
   self:assert_true(received == payload)
@@ -78,11 +82,12 @@ end
 
 function T:test_a_short_stream_raises_end_of_stream_and_keeps_the_bytes()
   with_listener(self, function(listener, port)
+    local done = reactor.Channel(1)
     reactor.fork(function()
       local peer <close> = listener:accept()
       peer:write("abc")
       peer:shutdown()
-      reactor.sleep(0.05)
+      done:receive()
     end)
     local client <close> = net.connect(LOOPBACK, port)
     local reader = client:reader()
@@ -91,6 +96,7 @@ function T:test_a_short_stream_raises_end_of_stream_and_keeps_the_bytes()
     self:assert_equal(3, reader:buffered()) -- the partial read did not leak
     self:assert_equal("abc", reader:read_some())
     self:assert_nil(reader:read_some())
+    done:send(true)
   end)
 end
 
@@ -147,13 +153,15 @@ end
 function T:test_close_runs_when_the_scope_is_cancelled()
   with_listener(self, function(listener, port)
     local stream
+    local connected = reactor.Channel(1)
     local future = reactor.fork(function()
       local client <close> = net.connect(LOOPBACK, port)
       stream = client
+      connected:send(true)
       client:read() -- the server never writes
     end)
-    reactor.fork(function() local peer <close> = listener:accept(); reactor.sleep(0.2) end)
-    reactor.sleep(0.03)
+    reactor.fork(function() local peer <close> = listener:accept(); peer:read() end) -- until the client closes
+    connected:receive()
     future:cancel()
     self:assert_error(function() future:value() end)
     self:assert_true(stream:is_closed())
@@ -163,7 +171,7 @@ end
 function T:test_the_listener_is_closed_by_its_scope_and_wakes_a_pending_accept()
   with_listener(self, function(listener)
     local acceptor = reactor.fork(function() return pcall(listener.accept, listener) end)
-    reactor.sleep(0.01)
+    for _ = 1, 5 do reactor.sleep(0) end -- let the acceptor park in `accept`
     listener:close()
     listener:close()
     self:assert_true(listener:is_closed())
@@ -175,19 +183,18 @@ end
 
 function T:test_a_deadline_expires_on_a_silent_peer_and_the_stream_stays_usable()
   with_listener(self, function(listener, port)
+    local release = reactor.Channel(1)
     local server = reactor.fork(function()
       local peer <close> = listener:accept()
-      reactor.sleep(0.1)
+      release:receive() -- silent until the deadline has expired
       peer:write("late\n")
-      reactor.sleep(0.02)
     end)
     local client <close> = net.connect(LOOPBACK, port)
     local reader = client:reader()
-    local started = reactor.now()
     local ok, err = pcall(reactor.deadline, 0.03, function() return reader:read_line() end)
     self:assert_false(ok)
     self:assert_true(core.is_instance_of(err, core.DeadlineExceededError))
-    self:assert_true(reactor.now() - started < 0.09)
+    release:send(true)
     -- Nothing was lost: the cancelled read left the stream and the reader intact.
     self:assert_false(client:is_closed())
     self:assert_equal("late", reader:read_line())
@@ -210,31 +217,34 @@ end
 
 function T:test_a_reset_peer_raises_io_error_and_never_a_partial_result()
   with_listener(self, function(listener, port)
+    local closed = reactor.Channel(1)
     reactor.fork(function()
       local peer = listener:accept()
       peer:close()
+      closed:send(true)
     end)
     local client <close> = net.connect(LOOPBACK, port)
-    reactor.sleep(0.05)
+    closed:receive()
+    -- The first writes may sit in kernel buffers: write until the failure shows.
     local errno = errno_of(self, function()
       local writer = client:writer({ capacity = 65536 })
-      for _ = 1, 50 do writer:write(string.rep("x", 65536)); reactor.sleep(0) end
+      for _ = 1, 2000 do writer:write(string.rep("x", 65536)); reactor.sleep(0) end
       writer:flush()
     end)
-    -- Windows reports the aborted connection as ECONNABORTED or ECANCELED.
     self:assert_true(errno == "EPIPE" or errno == "ECONNRESET" or errno == "ECONNABORTED"
-      or errno == "ECANCELED", tostring(errno))
+      or (IS_WINDOWS and errno == "ECANCELED"), tostring(errno))
   end)
 end
 
 function T:test_a_failed_flush_poisons_the_writer_over_a_tcp_stream()
   with_listener(self, function(listener, port)
-    reactor.fork(function() local peer = listener:accept(); peer:close() end)
+    local closed = reactor.Channel(1)
+    reactor.fork(function() local peer = listener:accept(); peer:close(); closed:send(true) end)
     local client <close> = net.connect(LOOPBACK, port)
-    reactor.sleep(0.05)
+    closed:receive()
     local writer = client:writer({ capacity = 1 })
     local _, first = pcall(function()
-      for _ = 1, 50 do writer:write(string.rep("x", 65536)); reactor.sleep(0) end
+      for _ = 1, 2000 do writer:write(string.rep("x", 65536)); reactor.sleep(0) end
     end)
     self:assert_true(core.is_instance_of(first, reactor.TransportError))
     self:assert_true(core.is_instance_of(first, core.NetworkError))

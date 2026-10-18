@@ -30,7 +30,7 @@ local CA, SERVER_CERT, SERVER_KEY = fixture("ca.pem"), fixture("server.pem"), fi
 --- Runs `serve(stream)` on one accepted connection, in a forked coroutine.
 local function serve_once(listener, config, serve)
   local outcome = {}
-  reactor.fork(function()
+  outcome.future = reactor.fork(function()
     local raw = listener:accept()
     local ok, result = pcall(function()
       local tls <close> = net.tls.accept(raw, config)
@@ -68,7 +68,7 @@ function T:test_echo_with_sni_alpn_and_buffered_lines()
     local reader = client:reader()
     self:assert_equal("echo:hello", reader:read_line())
     self:assert_nil(reader:read_line()) -- close_notify: a clean end
-    reactor.sleep(0.05)
+    outcome.future:value() -- the server finished
     self:assert_true(outcome.ok, tostring(outcome.value))
     self:assert_equal("localhost", seen.sni)
     self:assert_equal("http/1.1", seen.alpn)
@@ -90,7 +90,7 @@ function T:test_large_payload_round_trip()
     reactor.fork(function() client:write(payload) end)
     local reader = client:reader()
     self:assert_true(reader:read_exact(#payload) == payload)
-    reactor.sleep(0.05)
+    outcome.future:value() -- the server finished
     self:assert_true(outcome.ok, tostring(outcome.value))
   end)
 end
@@ -198,8 +198,29 @@ function T:test_mutual_tls_requires_a_trusted_client_certificate()
     })
     client:write("mtls\n")
     self:assert_equal("mtls!", client:read())
-    reactor.sleep(0.05)
+    outcome.future:value() -- the server finished
     self:assert_true(outcome.ok, tostring(outcome.value))
+  end)
+end
+
+function T:test_mutual_tls_rejects_a_client_without_a_certificate()
+  reactor.run(function()
+    local core = require("hecate.core")
+    local listener <close> = net.listen("127.0.0.1", 0)
+    local port = listener:local_address().port
+    local config = net.tls.server_config(server_options({ client_ca_pem = CA }))
+    local outcome = serve_once(listener, config, function(tls) tls:read() end)
+    -- With TLS 1.3 the client finishes its handshake before the server has checked the client
+    -- certificate (RFC 8446 section 4.4), so the rejection may only surface on the first read.
+    local ok, err = pcall(function()
+      local client <close> = net.connect_tls("127.0.0.1", port, { ca_pem = CA, server_name = "localhost" })
+      client:write("hello\n")
+      client:read()
+    end)
+    self:assert_false(ok)
+    self:assert_true(core.is_instance_of(err, net.TlsError), tostring(err))
+    outcome.future:value()
+    self:assert_false(outcome.ok) -- the server side failed its handshake too
   end)
 end
 
@@ -207,15 +228,19 @@ function T:test_deadline_cancelling_a_read_keeps_the_stream()
   reactor.run(function()
     local listener <close> = net.listen("127.0.0.1", 0)
     local port = listener:local_address().port
-    serve_once(listener, net.tls.server_config(server_options()), function(tls)
-      reactor.sleep(0.2)
+    local release = reactor.Channel(1)
+    local outcome = serve_once(listener, net.tls.server_config(server_options()), function(tls)
+      release:receive() -- silent until the deadline has expired
       tls:write("late")
       tls:shutdown()
     end)
     local client <close> = net.connect_tls("127.0.0.1", port, { ca_pem = CA, server_name = "localhost" })
     local ok = pcall(reactor.deadline, 0.05, function() return client:read() end)
     self:assert_false(ok)
+    self:assert_false(client:is_closed())
+    release:send(true)
     self:assert_equal("late", client:read())
+    outcome.future:value()
   end)
 end
 
