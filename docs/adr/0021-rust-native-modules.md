@@ -52,7 +52,11 @@ on Lua 5.5.1 and Linux:
   native-module cache; `release-manager` handles prebuilt artefacts.
 - Cross-platform builds, ALPN/SNI, client certificates and session resumption are still to
   be verified in the `net` implementation.
-- Whether a LuaRocks `rust-mlua` build type suffices for rockspecs is to be verified.
+- The native module ships **inside the rock** as a platform-specific LuaRocks binary rock
+  (owner direction, 2026-10-18; verified on Linux, see [the report](../spikes/OQ-41-rock-binaries.md)):
+  release CI builds and packs one per platform, LuaRocks installs the matching one without
+  Rust, and the source rock builds with `cargo` as the fallback. A LuaRocks `rust-mlua` build
+  type is not needed.
 - `mlua` performance improvements reach Hecate by a version bump.
 
 ## Verification

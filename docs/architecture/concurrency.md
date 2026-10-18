@@ -68,6 +68,21 @@ operation there raises `NonYieldableContextError` with an explanatory message.
 The reactor must detect this case (via `coroutine.isyieldable`) rather than letting
 Lua report a generic "attempt to yield across a C-call boundary".
 
+## Transport
+
+`hecate.reactor` wraps libuv's network handles once, so that `net` never requires `luv`
+(ADR 0002, OQ-28): `tcp_connect`, `tcp_listen`, `udp_bind`, `pipe_connect`, `pipe_listen`
+and `resolve` suspend the calling coroutine and return streams, listeners and sockets with
+`read`, `write`, `accept`, `receive_from`, `send_to`, `shutdown` and `close`.
+
+- A failure of the transport raises `TransportError`, a `NetworkError` (with `errno` and
+  `operation` in its context); `IoError` stays for the file system and processes.
+- A cancelled `read`, `accept` or `receive_from` leaves the object usable and loses no data. A
+  cancelled `write`, `send_to`, `shutdown` or `connect` closes it, because how much was sent
+  is unknown. `close` is idempotent, never suspends and wakes every coroutine waiting on it.
+- Operations take no timeout argument: bound them with `deadline`.
+- One coroutine reads, accepts or receives at a time on an object.
+
 ## Blocking work
 
 - File-system operations go through libuv's asynchronous file API (already off-thread).

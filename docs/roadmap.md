@@ -127,7 +127,8 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
 - [ ] Publish all rocks to luarocks.org (sources from mirrors).
 - [ ] `hecate generate workflow` (ci, contract, docs-pages, release) and its templates;
       regenerate the monorepo's `website.yml` with it.
-- [ ] Release automation: `release.yml`, `docker.yml`, `cli-e2e.yml`, `website.yml`
+- [ ] Release automation: `release.yml` (including one LuaRocks binary rock per platform for
+      the Rust native module of `net`, ADR 0021), `docker.yml`, `cli-e2e.yml`, `website.yml`
       and the `release *` tasks.
 
 Exit: from a clean machine on each platform, `install → hecate new → hecate serve`

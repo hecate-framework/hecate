@@ -31,6 +31,8 @@ local uv_call = require("hecate.reactor.internal.uv_call")
 ---@field TcpStream hecate.reactor.TcpStream
 ---@field TcpListener hecate.reactor.TcpListener
 ---@field UdpSocket hecate.reactor.UdpSocket
+---@field PipeStream hecate.reactor.PipeStream
+---@field PipeListener hecate.reactor.PipeListener
 local reactor = {
   Reactor = Reactor,
   Future = require("hecate.reactor.future"),

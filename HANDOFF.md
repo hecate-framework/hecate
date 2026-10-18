@@ -3,8 +3,8 @@
 
 - roadmap_item: `net`: TCP/UDP streams, DNS, buffered readers/writers, TLS (after OQ-4).
 - status: in-progress            <!-- in-progress | waiting-ci | waiting-owner -->
-- lock_until: 2026-10-14T21:50:00Z
-- last_update: 2026-10-14T21:45:00Z
+- lock_until: 2026-10-18T10:51:23Z
+- last_update: 2026-10-18T09:21:23Z
 
 ## Done
 
@@ -40,11 +40,13 @@
 
 - Run 2026-10-14T21:4x: resumed; CI green on adadd5d (3 platforms). The session imposed branch claude/sweet-feynman-ucrp15 (PR #19 head is claude/sweet-feynman-benzkb); no code change this run, only this note. cargo-deny/audit left undone: needs a new CI action (supply-chain choice, pin by SHA) and a licence policy, which I cannot verify locally.
 
+- Run 2026-10-18 (owner: fix the /review-package net findings, OQ-11 resolved, glossary entries stream/back-pressure/half-close approved, prose "task" -> "coroutine" and `live_tasks` -> `live_coroutines`, native module ships inside the rock): OQ-11 moved to Resolved; TLS wrapper fixes (record order mutex, is_closed, stall detection, argument validation, early-error ownership), native `read` clamp, BufferedReader (limit validation, `read_exact` limit, linear chunks, read after close raises), Rust lints and no `logging` feature, pinned toolchain (rust-toolchain.toml), `HECATE_REQUIRE_TLS`, clippy/fmt in CI; docs drift (OQ-28 row, OQ-42, OQ-30 mark, net CLAUDE.md, reactor README/init.lua, concurrency.md "Transport"); rock binaries spike (docs/spikes/OQ-41-rock-binaries.md, ADR 0021, OQ-41 (7), roadmap).
+
 ## Next steps
 
-0. Owner: decide cargo-deny/audit action + licence allowlist; then run /review-package net, tick the roadmap item, mark PR #19 ready.
-
-1. net: TLS (ADR 0021; needs Rust/mlua/rustls build, cargo is available), net-level resolver API. Doc: owner decision on ADR 0022 (native code in doc), website.yml deploy (GitHub Pages) with gen-reference --require, class-method param docs, OQ-34/35 questions, macOS/Windows check of SystemFileSystem.
+1. Check the CI run of the last push (the toolchain pin `rustup toolchain install` in the crate directory and the new clippy step are unverified on CI).
+2. Review findings still open: test flakiness (replace sleeps/short deadlines by futures: net tcp_test 70/85/150-158/187-200/218/234, tls_test 67/89/158/173, reactor tcp/udp tests), missing tests (slow peer, property tests of the buffered reader, real RST, TLS handshake cancellation, handle-leak checks in all TLS tests, expired cert/IP SAN/mTLS rejection), API gaps (TlsError reason, opaque config classes, bind_udp options/family, send_to order, listen_tls, shutdown on Stream), unix socket path length ArgumentError, zero-address guards in tcp.lua/udp.lua, port validation before resolve, `.gitattributes` (*.pem LF), cargo-deny/audit (security.yml, Phase 1 item), website reference pages for net.
+3. Then /review-package net again, tick the roadmap item, delete this file, mark PR #19 ready.
 
 ## Decisions taken (and where they are recorded)
 

@@ -8,7 +8,7 @@
 | Rock | `hecate-reactor` |
 | Layer | 1 — Runtime |
 | Roadmap phase | 1 |
-| Status | in progress — scheduler, `Future`, `fork`/`join`/`select`/`sleep`/`scope`/`deadline`, cancellation and virtual clock, `Channel`, `Semaphore`, `Mutex`, `Monitor` and `Condition` implemented; `detach`, signals, processes, file system and TCP transport and `resolve` implemented; `offload` and worker primitives pending |
+| Status | in progress — scheduler, `Future`, `fork`/`join`/`select`/`sleep`/`scope`/`deadline`, cancellation and virtual clock, `Channel`, `Semaphore`, `Mutex`, `Monitor` and `Condition` implemented; `detach`, signals, processes, file system, TCP, UDP and pipe transport and `resolve` implemented; `offload` and worker primitives pending |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |
 | Depends on | [`core`](../core) |
 | Used by | `cli`, `hecate`, `http`, `kernel`, `log`, `mongodb`, `mysql`, `net`, `orm`, `postgresql`, `redis`, `sql`, `sqlite`, `sqlserver`, `test`, `websocket` |
@@ -24,7 +24,7 @@
 - `fork`, `join`, `select`, `deadline`, `sleep`, `scope`, `detach`
 - `Future`, `Channel`, `Semaphore`, `Mutex`, `Monitor`, `Condition`
 - cooperative cancellation (`CancellationError`) and `DeadlineExceededError`
-- timers, signals, child processes, pipes, file-system operations and TCP transport (connect, listen, accept, read, write, shutdown) as suspending calls; UDP and pipes (`pipe_connect`, `pipe_listen`) are implemented
+- timers, signals, child processes, pipes, file-system operations and TCP transport (connect, listen, accept, read, write, shutdown) as suspending calls; TCP, UDP (`udp_bind`) and pipes (`pipe_connect`, `pipe_listen`) transport, and name resolution (`resolve`), all as suspending calls
 - virtual clock for tests
 
 ## Non-goals
