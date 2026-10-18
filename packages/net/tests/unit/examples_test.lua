@@ -6,10 +6,17 @@ local T = test.Case("ExamplesTest")
 
 local here = debug.getinfo(1, "S").source:sub(2):gsub("\\", "/")
 local directory = here:match("^(.*)/tests/unit/") .. "/examples"
-local NAMES = { "hecate.net.connect" }
+local NAMES = { "hecate.net.connect", "hecate.net.bind_udp", "hecate.net.connect_tls", "hecate.net.tls.accept" }
+local NEEDS_TLS = { ["hecate.net.connect_tls"] = true, ["hecate.net.tls.accept"] = true }
 
 function T:test_every_example_runs_and_prints_what_it_says()
+  local tls_available = require("hecate.net").tls.available()
   for _, name in ipairs(NAMES) do
+    -- The TLS examples need the native module: skipped, visibly, unless HECATE_REQUIRE_TLS=1 (then a failure).
+    if NEEDS_TLS[name] and not tls_available and os.getenv("HECATE_REQUIRE_TLS") ~= "1" then
+      print("SKIP " .. name .. ": the native TLS module is not built")
+      goto continue
+    end
     local path = ("%s/%s.lua"):format(directory, name)
     local file = assert(io.open(path, "rb"))
     local source = file:read("a")
@@ -25,6 +32,7 @@ function T:test_every_example_runs_and_prints_what_it_says()
     local chunk = assert(load(source, "@" .. path, "t", environment))
     chunk()
     self:assert_equal(expected, table.concat(lines, "\n"), path)
+    ::continue::
   end
 end
 
