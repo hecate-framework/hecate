@@ -22,6 +22,7 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- Website: French translation of the home page, the how-to guides, the explanation pages, the reference index and the glossary (13 pages), with the French terminology decisions in `website/fr/glossary-terms.md` (kept out of the built site).
 - Website: how-to guides (TCP, TLS, deadlines and cancellation, UDP, pipes and DNS, child processes and message pipes), explanation pages (transport model, TLS trust and security defaults, multi-process serving), section landing pages, the public glossary resynchronised with `docs/glossary.md`; `tools`: `check-docs-examples` (website code blocks match their tested example files); `hecate.net` and `hecate.reactor`: ten new tested examples.
 - `hecate.reactor`: the multi-process primitives of ADR 0023: `reactor.spawn` (a long-lived `Process` with `wait`, `kill`, environment, working directory, inherited or ignored output), `reactor.ipc` (a framed message channel between parent and child, `Peer:send(message, stream?)` and `Peer:receive()` with TCP stream hand-over, `ipc.parent()` in the child; messages are strings of at most 16 MiB) and the `reuseport` option of `tcp_listen` with the `reactor.supports_reuseport()` probe (`ENOTSUP` without luv support, OQ-43).
 

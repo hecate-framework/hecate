@@ -15,12 +15,12 @@ raisons d’une recette, lisez la page correspondante de la section
 
 ## Réseau et processus
 
-- [Se connecter et servir en TCP](connect-and-serve-over-tcp.md) : se connecter, accepter des
+- [Se connecter et servir en TCP](connect-and-serve-over-tcp.md) : se connecter, accepter des
   connexions, lire et écrire des lignes, fermer une seule direction, résoudre des noms.
-- [Client et serveur TLS](tls-client-and-server.md) : faire confiance au magasin du système ou à
+- [Client et serveur TLS](tls-client-and-server.md) : faire confiance au magasin du système ou à
   une autorité privée, servir en TLS, exiger des certificats clients, lire les erreurs TLS.
-- [Échéances et annulation sur les flux](deadlines-and-cancellation.md) : borner une connexion,
+- [Échéances et annulation sur les flux](deadlines-and-cancellation.md) : borner une connexion,
   une lecture ou une acceptation, et savoir ce que laisse une opération annulée.
-- [UDP, sockets Unix, tubes nommés et DNS](udp-pipes-and-dns.md) : les transports autres que TCP.
-- [Lancer des processus enfants et se passer des connexions](run-processes-and-pass-connections.md) :
+- [UDP, sockets Unix, tubes nommés et DNS](udp-pipes-and-dns.md) : les transports autres que TCP.
+- [Lancer des processus enfants et se passer des connexions](run-processes-and-pass-connections.md) :
   `run_process`, `spawn`, le tube de messages et le transfert d’une connexion à un enfant.

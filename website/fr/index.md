@@ -9,7 +9,7 @@ actions: ["Guides pratiques | how-to/ | primary", "Explications | explanation/",
 
 # hecate
 
-hecate est un écosystème complet pour construire des API HTTP en Lua : un environnement
+hecate est un écosystème complet pour construire des API HTTP en Lua : un environnement
 d’exécution asynchrone, un serveur HTTP, un routeur, des schémas et la validation, des contrats
 OpenAPI automatiques, un cadre de test, un générateur de documentation, des pilotes de bases de
 données, un mappeur objet-relationnel et un outil en ligne de commande.

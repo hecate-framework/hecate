@@ -25,4 +25,5 @@ return {
   },
   repository = "https://github.com/hecate-framework/hecate",
   edit_link = "https://github.com/hecate-framework/hecate/edit/main/website/{path}",
+  exclude = { "README.md", "glossary-terms.md" }, -- the translators' notes are not pages
 }
