@@ -487,4 +487,246 @@ function T:test_a_peer_writing_one_byte_at_a_time_is_reassembled()
     server:value()
   end)
 end
+-- ---------------------------------------------------------------------------------------------
+-- Option and error ergonomics
+
+function T:test_option_errors_name_the_net_function_and_come_before_any_resolution()
+  reactor.run(function()
+    -- A host that cannot resolve: if resolution came first the error would be a TransportError.
+    local host = "no-such-host.invalid"
+    local cases = {
+      { "connect", function() net.connect(host, 80, { nodelays = true }) end, "connect: unknown option nodelays" },
+      { "connect", function() net.connect(host, 80, { backlog = 5 }) end, "connect: unknown option backlog" },
+      { "connect", function() net.connect(host, 80, { reuseport = true }) end, "connect: unknown option reuseport" },
+      { "connect", function() net.connect(host, 80, { nodelay = "yes" }) end, "connect: option nodelay must be a boolean" },
+      { "connect", function() net.connect(host, 80, { keepalive = 1 }) end, "connect: option keepalive must be a boolean" },
+      { "connect", function() net.connect(host, 80, { keepalive_delay = 1.5 }) end, "connect: option keepalive_delay must be a positive integer" },
+      { "connect", function() net.connect(host, 80, { keepalive_delay = 0 }) end, "connect: option keepalive_delay must be a positive integer" },
+      { "connect", function() net.connect(host, 80, { family = "ipx" }) end, "connect: option family must be" },
+      { "listen", function() net.listen(host, 80, { backlog = 0 }) end, "listen: option backlog must be a positive integer" },
+      { "listen", function() net.listen(host, 80, { backlog = 1.5 }) end, "listen: option backlog must be a positive integer" },
+      { "listen", function() net.listen(host, 80, { reuseport = "yes" }) end, "listen: option reuseport must be a boolean" },
+      { "listen", function() net.listen(host, 80, { reuse_port = true }) end, "listen: unknown option reuse_port" },
+    }
+    for _, case in ipairs(cases) do
+      local err = self:assert_error(case[2])
+      self:assert_true(core.is_instance_of(err, core.ArgumentError), tostring(err))
+      self:assert_true(tostring(err):find(case[3], 1, true) ~= nil, tostring(err))
+    end
+  end)
+end
+
+function T:test_listen_failures_name_the_endpoint_and_keep_the_errno()
+  reactor.run(function()
+    local first <close> = net.listen(LOOPBACK, 0)
+    local port = first:local_address().port
+    local err = self:assert_error(function() net.listen(LOOPBACK, port) end)
+    self:assert_true(core.is_instance_of(err, reactor.TransportError), tostring(err))
+    -- Windows may report a bound address as EACCES instead (exclusive address use); a documented difference.
+    if not (IS_WINDOWS and err.context.errno == "EACCES") then
+      self:assert_equal("EADDRINUSE", err.context.errno)
+      self:assert_equal(("listen on %s:%d failed: EADDRINUSE address already in use"):format(LOOPBACK, port), err.message)
+    end
+    self:assert_true(tostring(err.message):find(("listen on %s:%d failed: "):format(LOOPBACK, port), 1, true) == 1)
+    self:assert_equal(port, err.context.port)
+    self:assert_true(core.is_instance_of(err.cause, reactor.TransportError))
+  end)
+end
+
+function T:test_a_resolution_failure_carries_the_host_name()
+  local before = reactor.Reactor.open_handles()
+  reactor.run(function()
+    for _, call in ipairs({
+      function() net.resolve("no-such-host.invalid") end,
+      function() net.connect("no-such-host.invalid", 80) end,
+      function() net.listen("no-such-host.invalid", 80) end,
+    }) do
+      local err = self:assert_error(call)
+      self:assert_true(core.is_instance_of(err, reactor.TransportError), tostring(err))
+      self:assert_equal("no-such-host.invalid", err.context.host)
+      self:assert_true(tostring(err.message):find("no-such-host.invalid", 1, true) ~= nil, tostring(err))
+    end
+  end)
+  self:assert_equal(before, reactor.Reactor.open_handles())
+end
+
+--- Runs `fn(attempted)` with `reactor.resolve` answering `addresses` and `reactor.tcp_connect`
+--- replaced by `connect(ip, port, options)`, which may delegate to `real`. Restores both after.
+local function stubbing(addresses, connect, fn)
+  local resolve, tcp_connect = reactor.resolve, reactor.tcp_connect
+  local attempted = {}
+  reactor.resolve = function(host)
+    attempted.resolved = host
+    return addresses
+  end
+  reactor.tcp_connect = function(ip, port, options)
+    attempted[#attempted + 1] = ip
+    return connect(ip, port, options, tcp_connect)
+  end
+  local ok, err = pcall(fn, attempted)
+  reactor.resolve, reactor.tcp_connect = resolve, tcp_connect
+  if not ok then error(err, 0) end
+end
+
+local function refused(ip)
+  error(reactor.TransportError({
+    message = ("connect %s: ECONNREFUSED"):format(ip),
+    context = { operation = "connect " .. ip, errno = "ECONNREFUSED" },
+  }), 0)
+end
+
+function T:test_connect_tries_the_next_address_when_the_first_refuses()
+  with_listener(self, function(listener, port)
+    reactor.fork(function() local peer <close> = listener:accept(); peer:write("second") end)
+    stubbing({ { ip = "192.0.2.1", family = "inet" }, { ip = LOOPBACK, family = "inet" } },
+      function(ip, p, options, real)
+        if ip == "192.0.2.1" then refused(ip) end
+        return real(ip, p, options)
+      end,
+      function(attempted)
+        local client <close> = net.connect("multi.example", port)
+        self:assert_equal("multi.example", attempted.resolved)
+        self:assert_equal("192.0.2.1,127.0.0.1", table.concat(attempted, ","))
+        self:assert_equal("second", client:read())
+      end)
+  end)
+end
+
+function T:test_connect_reports_every_attempt_in_order_when_all_refuse()
+  reactor.run(function()
+    stubbing({ { ip = "192.0.2.1", family = "inet" }, { ip = "192.0.2.2", family = "inet" } },
+      function(ip) refused(ip) end,
+      function(attempted)
+        local err = self:assert_error(function() net.connect("multi.example", 5432) end)
+        self:assert_equal(2, #err.context.attempts)
+        self:assert_equal("192.0.2.1", err.context.attempts[1].address)
+        self:assert_equal("192.0.2.2", err.context.attempts[2].address)
+        self:assert_equal("ECONNREFUSED", err.context.attempts[2].errno)
+        self:assert_equal("connect to multi.example:5432 failed: ECONNREFUSED connection refused"
+          .. " (tried 192.0.2.1, 192.0.2.2)", err.message)
+        self:assert_equal("ECONNREFUSED", err.context.errno)
+        self:assert_true(core.is_instance_of(err.cause, reactor.TransportError))
+        self:assert_equal(2, #attempted)
+      end)
+  end)
+end
+
+function T:test_cancellation_stops_connect_instead_of_trying_the_next_address()
+  reactor.run(function()
+    stubbing({ { ip = "192.0.2.1", family = "inet" }, { ip = "192.0.2.2", family = "inet" } },
+      function() reactor.sleep(30) end, -- the first address never answers
+      function(attempted)
+        local ok, err = pcall(reactor.deadline, 0.02, net.connect, "multi.example", 80)
+        self:assert_false(ok)
+        self:assert_true(core.is_instance_of(err, core.DeadlineExceededError), tostring(err))
+        self:assert_equal("192.0.2.1", table.concat(attempted, ","))
+      end)
+    -- A cancellation (not only a deadline) behaves the same.
+    stubbing({ { ip = "192.0.2.1", family = "inet" }, { ip = "192.0.2.2", family = "inet" } },
+      function() reactor.sleep(30) end,
+      function(attempted)
+        local future = reactor.fork(net.connect, "multi.example", 80)
+        reactor.sleep(0)
+        future:cancel()
+        self:assert_error(function() future:value() end)
+        self:assert_equal(1, #attempted)
+      end)
+  end)
+end
+
+function T:test_a_deadline_during_resolution_cancels_without_connecting()
+  local before = reactor.Reactor.open_handles()
+  reactor.run(function()
+    local resolve, tcp_connect = reactor.resolve, reactor.tcp_connect
+    local connected = false
+    reactor.resolve = function() reactor.sleep(30) end
+    reactor.tcp_connect = function() connected = true end
+    local ok, err = pcall(reactor.deadline, 0.02, net.connect, "slow.example", 80)
+    reactor.resolve, reactor.tcp_connect = resolve, tcp_connect
+    self:assert_false(ok)
+    self:assert_true(core.is_instance_of(err, core.DeadlineExceededError), tostring(err))
+    self:assert_false(connected)
+  end)
+  self:assert_equal(before, reactor.Reactor.open_handles())
+end
+
+function T:test_a_cancelled_connect_leaves_no_handle()
+  local before = reactor.Reactor.open_handles()
+  reactor.run(function()
+    local listener <close> = net.listen(LOOPBACK, 0)
+    local port = listener:local_address().port
+    local future = reactor.fork(net.connect, LOOPBACK, port)
+    future:cancel()
+    local ok, result = pcall(future.value, future)
+    if ok then result:close() end -- the connect won the race: a stream, which must close cleanly
+  end)
+  self:assert_equal(before, reactor.Reactor.open_handles())
+end
+
+function T:test_listen_on_a_name_binds_the_first_resolved_address_only()
+  reactor.run(function()
+    local first = net.resolve("localhost")[1]
+    local listener <close> = net.listen("localhost", 0)
+    self:assert_equal(first.ip, listener:local_address().ip)
+    self:assert_equal(first.family, listener:local_address().family)
+  end)
+end
+
+-- The peer resets the connection (a socket closed while it holds unread data answers with RST) while
+-- this side is reading: a clean end of stream or a transport error are both what platforms do, never
+-- data. The accepted set below is the documented one per platform.
+function T:test_a_reset_peer_on_the_read_side_ends_the_stream_or_raises_but_never_returns_data()
+  with_listener(self, function(listener, port)
+    local sent, closed = reactor.Channel(1), reactor.Channel(1)
+    reactor.fork(function()
+      local peer = listener:accept()
+      sent:receive() -- the client's bytes are in this socket's receive queue: closing now resets
+      peer:close()
+      closed:send(true)
+    end)
+    local client <close> = net.connect(LOOPBACK, port)
+    client:write("unread by the peer")
+    sent:send(true)
+    closed:receive()
+    local ok, result = pcall(client.read, client)
+    if ok then
+      self:assert_nil(result, "a reset must not deliver data")
+    else
+      self:assert_true(core.is_instance_of(result, reactor.TransportError), tostring(result))
+      local errno = result.context.errno
+      self:assert_true(errno == "ECONNRESET" or errno == "EPIPE" or errno == "ECONNABORTED", tostring(errno))
+    end
+    client:close()
+    self:assert_true(client:is_closed())
+  end)
+end
+
+-- Back-pressure through the buffered layer: a peer that never reads fills the socket buffers, the
+-- flush suspends, and a deadline cancels it. A write cancelled midway closes the TCP stream (bytes
+-- sent are unknown) and poisons the writer (OQ-28, OQ-30).
+function T:test_a_flush_cancelled_by_back_pressure_poisons_the_writer_and_closes_the_stream()
+  with_listener(self, function(listener, port)
+    local release = reactor.Channel(1)
+    local server = reactor.fork(function()
+      local peer <close> = listener:accept()
+      release:receive() -- never reads
+    end)
+    local client <close> = net.connect(LOOPBACK, port)
+    local writer = client:writer({ capacity = 1 << 20 })
+    local payload = string.rep("x", 1 << 20)
+    local ok, err = pcall(reactor.deadline, 0.1, function()
+      for _ = 1, 256 do writer:write(payload) end -- 256 MiB: far more than the kernel buffers hold
+      writer:flush()
+    end)
+    self:assert_false(ok)
+    self:assert_true(core.is_instance_of(err, core.DeadlineExceededError), tostring(err))
+    self:assert_true(client:is_closed())
+    local later = self:assert_error(function() writer:write("y") end)
+    self:assert_true(core.is_instance_of(later, core.NetworkError))
+    self:assert_not_nil(later.cause)
+    release:send(true)
+    server:value()
+  end)
+end
+
 return T

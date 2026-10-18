@@ -21,7 +21,9 @@ local DEFAULT_NODELAY = true
 local DEFAULT_KEEPALIVE = false
 local DEFAULT_KEEPALIVE_DELAY = 60 -- seconds before the first probe, when keep-alive is on
 local DEFAULT_BACKLOG = 128
---- Bytes the stream reads ahead of its reader before it stops reading from the socket (back-pressure).
+--- Bytes a stream reads ahead of its reader before it stops reading from the socket (back-pressure).
+--- The internal option `read_ahead = false` (message pipes) stops after every chunk: the handles
+--- libuv holds for an IPC pipe then belong to exactly the bytes the reader has seen.
 local READ_AHEAD = 64 * 1024
 
 --- Options of a TCP connection.
@@ -147,6 +149,7 @@ function TcpStream:init(handle, options)
   self._demanded = false -- `read` was called at least once: reading ahead is allowed
   self._wake = nil -- wakes the coroutine waiting in `read`
   self._options = options or {}
+  self._read_ahead = (options and options.read_ahead == false) and 0 or READ_AHEAD
   -- One callback for the life of the stream (not one closure per `read`).
   self._on_read = function(e, data)
     if e then
@@ -163,7 +166,7 @@ function TcpStream:init(handle, options)
       end
     end
     -- Back-pressure: stop reading at the end of the stream, on failure, or once enough is buffered.
-    if e or data == nil or (self._inbox ~= nil and #self._inbox - self._offset + 1 >= READ_AHEAD) then
+    if e or data == nil or (self._inbox ~= nil and #self._inbox - self._offset + 1 >= self._read_ahead) then
       self:_stop_reading()
     end
     local wake = self._wake
@@ -271,8 +274,8 @@ function TcpStream:read(max)
       self._inbox, self._offset = nil, 1
     end
     -- The reader caught up: let libuv read ahead again.
-    if not self._started and not self._eof and self._failure == nil and not self._closed
-        and (self._inbox == nil or #self._inbox - self._offset + 1 < READ_AHEAD) then
+    if self._read_ahead > 0 and not self._started and not self._eof and self._failure == nil and not self._closed
+        and (self._inbox == nil or #self._inbox - self._offset + 1 < self._read_ahead) then
       self:_start_reading()
     end
     return result

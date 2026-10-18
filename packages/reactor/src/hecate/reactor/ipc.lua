@@ -56,7 +56,7 @@ local Peer = core.class("Peer")
 function Peer:init(handle, options, stream)
   options = check_options("Peer", options)
   self._handle = handle
-  self._stream = stream or tcp.TcpStream(handle)
+  self._stream = stream or tcp.TcpStream(handle, { read_ahead = false })
   self._max_message = options.max_message or DEFAULT_MAX_MESSAGE
   -- Bytes received and not yet decoded: `_buf` from `_pos` on, then the chunks of `_extra`, which
   -- are joined into `_buf` only once a whole frame is available (one copy per frame, not per read).
