@@ -146,6 +146,18 @@ function T:test_the_system_store_rejects_the_test_ca_and_says_how_to_trust_it()
   end)
 end
 
+--- True on macOS, whose system verifier applies Apple's limits on the validity of a server
+--- certificate (398 days) even to one issued by a CA the caller added: the 100-year fixture is
+--- refused there (ADR 0024, "Consequences").
+local function on_macos()
+  if package.config:sub(1, 1) == "\\" then return false end
+  local pipe = io.popen("uname -s 2>/dev/null")
+  if not pipe then return false end
+  local name = pipe:read("l")
+  pipe:close()
+  return name == "Darwin"
+end
+
 function T:test_ca_pem_adds_anchors_to_the_system_store()
   reactor.run(function()
     local listener <close> = net.listen("127.0.0.1", 0)
@@ -154,8 +166,19 @@ function T:test_ca_pem_adds_anchors_to_the_system_store()
       tls:write("ok")
       tls:shutdown()
     end)
-    local client <close> = net.connect_tls("127.0.0.1", port, { ca_pem = CA, server_name = "localhost" })
-    self:assert_equal("ok", client:read())
+    local ok, result = pcall(function()
+      local client <close> = net.connect_tls("127.0.0.1", port, { ca_pem = CA, server_name = "localhost" })
+      return client:read()
+    end)
+    if on_macos() then
+      -- Either the CA is accepted, or Apple's validity policy refuses the 100-year certificate.
+      if not ok then
+        self:assert_true(tostring(result):find("not standards compliant", 1, true) ~= nil, tostring(result))
+      end
+    else
+      self:assert_true(ok, tostring(result))
+      self:assert_equal("ok", result)
+    end
     outcome.future:value()
   end)
 end

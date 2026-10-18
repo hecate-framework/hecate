@@ -60,9 +60,13 @@ The crate cost, measured by adding `rustls-platform-verifier` 0.6.2 to the nativ
   and `cargo audit` when `security.yml` lands (ADR 0021).
 - `log` returns to the dependency tree through the verifier (the `logging` feature of rustls
   stays off).
-- Behaviour differs slightly by platform where the operating system decides, for example the
-  maximum validity the system accepts for a server certificate; the hermetic tests therefore use
-  `system_roots = false`, and one test per platform covers the default path.
+- Behaviour differs by platform where the operating system decides. **Measured on macOS (CI):** the
+  system verifier refuses a server certificate valid for more than 398 days ("not standards
+  compliant", status -67901) even when its CA was added with `ca_pem`, so a private CA's
+  long-lived server certificates fail there with the default trust; short-lived certificates, or
+  `system_roots = false` (which uses the platform-independent verifier and none of the operating
+  system's policy), avoid it. The hermetic tests therefore use `system_roots = false`, and one
+  test per platform covers the default path.
 - Tests that need no network stay hermetic. One test reaches a public server with no option and
   runs where `HECATE_NETWORK_TESTS=1` (CI sets it).
 
