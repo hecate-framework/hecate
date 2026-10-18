@@ -25,6 +25,7 @@ for public APIs, documentation and internal code.
 | reactor | Event demultiplexer dispatching I/O readiness/completion to handlers | Schmidt, *Reactor* pattern (1995) | event loop (acceptable in prose) |
 | future | Placeholder for a value produced by a concurrent computation | Baker & Hewitt (1977); Friedman & Wise (1976) | promise, task |
 | fork | Start a concurrent computation, returning a future | Conway (1963) | spawn, go, launch |
+| spawn | Start an operating-system process (`reactor.spawn`); never a coroutine, which is a `fork` | POSIX `posix_spawn`; ADR 0023 | spawn for a coroutine |
 | join | Wait for one or several futures | Conway (1963) | await all, gather, Promise.all |
 | select | Wait for the first of several alternatives to become ready | Hoare, CSP (1978); Dijkstra, guarded commands (1975) | race, any |
 | deadline | Absolute bound on the completion of a computation | — | timeout (a timeout is a relative duration; both may be accepted as arguments) |
