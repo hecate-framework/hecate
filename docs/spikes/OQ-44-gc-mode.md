@@ -2,8 +2,10 @@
 
 Question (owner, 2026-10-18, after a third-party analysis proposing generational mode for
 Hecate): which collector mode and tuning suit a process that serves many short-lived requests
-next to a large long-lived heap (routes, compiled schemas, singletons)? This spike measures it on
-Lua 5.5.1 and corrects the API vocabulary.
+next to a large long-lived heap (routes, compiled schemas, singletons)? The owner's reason for
+generational mode is to limit the cost of the ORM's mapping and change tracking on the rest of
+the request. This spike measures it on Lua 5.5.1, with a generic workload and an ORM-shaped one,
+and corrects the API vocabulary.
 
 ## Facts about Lua 5.5 (checked on the Lua 5.5.1 used by Hecate)
 
@@ -49,7 +51,43 @@ Small long-lived heap (40 000 objects, 100 000 requests):
 | incremental, small steps (stepsize 10) | 9380 | 265 µs | 42 ms | 54 |
 | generational default | 7370 | 78 µs | 75 ms | 248 |
 
-## Findings
+## ORM-shaped workload
+
+The first workload above is generic and does not model the ORM, which the owner pointed out.
+`churn.lua ... orm` adds one that does: each request builds a unit of work with an identity map,
+about 420 entities (orders, customers, items), each with a field table and a snapshot of its
+loaded state for change tracking, associations with back references (cycles), a lazy load across a
+yield, a business step that modifies one entity in ten, a flush that diffs every tracked entity
+against its snapshot and builds change sets, and a response tree: about 3000 tables per request,
+200 requests in flight, 8000 requests, one run per cell (indicative).
+
+| Long-lived heap | Mode | req/s | step p99 | step p99.9 | steps over 5 ms | worst step | peak |
+|---|---|---|---|---|---|---|---|
+| 40 000 objects | incremental default | 350 | 9.7 ms | 24.9 ms | 567 | 106 ms | 141 MB |
+| 40 000 objects | incremental pause 150, stepmul 400 | 432 | 6.7 ms | 17.3 ms | 450 | 58 ms | 205 MB |
+| 40 000 objects | generational default | 356 | 4.2 ms | 54.7 ms | 252 | 242 ms | 141 MB |
+| 40 000 objects | generational minor 50 | 353 | 4.0 ms | 40.8 ms | 225 | 264 ms | 141 MB |
+| 40 000 objects | generational major 300 | 356 | 4.1 ms | 46.7 ms | 238 | 282 ms | 141 MB |
+| 400 000 objects | incremental default | 388 | 8.2 ms | 22.1 ms | 446 | 109 ms | 460 MB |
+| 400 000 objects | incremental pause 150, stepmul 400 | 366 | 9.5 ms | 26.6 ms | 448 | 94 ms | 460 MB |
+| 400 000 objects | generational default | 350 | 2.8 ms | 87.0 ms | 123 | 600 ms | 479 MB |
+| 400 000 objects | generational minor 50 | 357 | 2.7 ms | 89.2 ms | 102 | 793 ms | 479 MB |
+| 400 000 objects | generational major 300 | 352 | 2.8 ms | 91.5 ms | 111 | 626 ms | 479 MB |
+
+For the ORM-shaped load:
+
+- Throughput does not change with the mode.
+- Generational mode does what the owner expects for the typical slow step: the p99 is 2 to 3
+  times lower (4.2 against 9.7 ms, 2.8 against 8.2 ms) and slow steps (over 5 ms) are 2 to 4 times
+  rarer, because the many young entities, snapshots and change sets of a finished request are
+  reclaimed by cheap minor collections and the long-lived data is no longer re-traversed.
+- It has a cost the generic workload hid: its rare major collections stop the whole process for a
+  long time, 240 to 280 ms with a small long-lived heap and 600 to 800 ms with a large one,
+  against about 100 ms for incremental. The p99.9 is worse as well (40 to 90 ms against 17 to 27 ms).
+  The minor and major multipliers do not remove it.
+- Peak memory is the same.
+
+## Findings (generic workload)
 
 1. **Generational mode is not a universal win.** With a large long-lived heap it gave about 25%
    more throughput and a p99 about 2.4 times lower. With a small one it gave a better p99 but
@@ -68,11 +106,17 @@ Small long-lived heap (40 000 objects, 100 000 requests):
    long-latency requests are the ones that inflate memory.
 4. The default of Lua is not Hecate's decision: set the mode explicitly at boot.
 
-## Recommendation
+## Decision and what to measure next
 
-Set the mode explicitly in the worker start-up (`runtime.gc` in the configuration, with the
-mode, and the multipliers for the chosen mode). Until the benchmark harness provides real request
-shapes, start with `generational` for workers, because the regime that matters for a framework
-server (a large old heap of routes, schemas and singletons) is the one where it wins, and record
-the small-heap regression. Revisit when `benchmarks/` has the plaintext and JSON scenarios (Phase
-2 item). Decision for the owner: OQ-44.
+Owner decision (2026-10-18): generational mode to start with, configured from `runtime.gc`, and
+revisited once the benchmark harness exists. The ORM measurement supports the reason (the typical
+request is faster to collect) and adds one thing to watch: the long stop of a major collection.
+
+For the harness (`benchmarks/`, with real request shapes):
+
+- an ORM scenario like the one above, with the unit of work held across database waits;
+- the stall of a major collection per worker, which hits only the connections of that worker (with
+  N workers, about 1/N of the traffic, ADR 0023), and how it grows with the long-lived heap;
+- mitigations to compare: a larger `major` multiplier, a full collection scheduled when a worker
+  is idle, recycling a worker after a number of requests (a rolling restart, ADR 0023), and a
+  smaller long-lived heap per worker.

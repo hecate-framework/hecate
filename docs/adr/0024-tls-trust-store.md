@@ -1,8 +1,8 @@
 # 0024 — TLS trust store: the operating system's verifier by default
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-10-18
-- **Deciders:** project owner (decisions of 2026-10-18 given in chat; to promote)
+- **Deciders:** project owner (decisions of 2026-10-18; accepted the same day on the condition that the tests pass and no security concern remains, both checked below)
 - **Packages:** net (and the Docker images, CI and release tooling)
 - **Related:** [ADR 0021](0021-rust-native-modules.md), OQ-41, [OQ-4 report](../spikes/OQ-4-tls.md)
 
@@ -70,10 +70,31 @@ The crate cost, measured by adding `rustls-platform-verifier` 0.6.2 to the nativ
 - Tests that need no network stay hermetic. One test reaches a public server with no option and
   runs where `HECATE_NETWORK_TESTS=1` (CI sets it).
 
+## Security review (2026-10-18)
+
+- **No path skips verification.** The only custom verifier installed is the platform one; no option
+  accepts every certificate, and `ca_pem` only adds anchors. The server name is checked on all three
+  platforms (the operating system on Windows and macOS, webpki on Linux).
+- **Revocation depends on the platform.** Windows and macOS check OCSP and CRLs through the operating
+  system, which may fetch them over the network *inside the handshake*. In a reactor that call
+  blocks the worker until the responder answers or the system gives up. The URLs come from the
+  certificate authority, not from the server being contacted, so a server cannot point the stall at
+  an address it controls; a slow authority can still delay a handshake. Linux does no revocation
+  checking at all, as with the first implementation. Callers that must not block, or that want no
+  operating-system policy, use `system_roots = false` (webpki only, no I/O).
+- **Trust is wider by default.** The system store contains many authorities, where `ca_pem` alone was
+  narrow. `system_roots = false` gives the narrow set back.
+- **Dependencies.** `cargo audit` of the lockfile found four advisories in rustls 0.23.45 (a
+  Debug output of session secrets, a brotli decompression size, an ECH buffering case, a key
+  exchange downgrade with post-quantum groups). None is reachable here (no ECH, no brotli, the
+  `ring` provider has no post-quantum groups, sessions are never printed), and rustls 0.23.46
+  fixes all four: updated, audit clean. `cargo audit` and `cargo deny` become CI jobs with
+  `security.yml` (ADR 0021).
+
 ## Verification
 
 - CI builds the crate and runs the TLS tests on Linux, macOS and Windows; the public-server test
-  proves the default trust path on all three.
+  proves the default trust path on all three (green on 2026-10-18).
 - A test checks that the default store rejects the test CA with the documented message, and that
   `ca_pem` makes it acceptable.
 - The Docker release checks fail if a runtime image lacks the system certificates.

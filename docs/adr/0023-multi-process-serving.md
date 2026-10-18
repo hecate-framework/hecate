@@ -1,8 +1,8 @@
 # 0023 — Multi-process serving: share-nothing workers behind a listening-strategy abstraction
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-10-18
-- **Deciders:** project owner (to promote)
+- **Deciders:** project owner (agreed 2026-10-18)
 - **Packages:** reactor, kernel, cli (and the benchmarks, CI and Docker tooling)
 - **Related:** [concurrency.md](../architecture/concurrency.md) ("Workers"), [spike OQ-8](../spikes/OQ-8-multi-process.md), ADR 0002, ADR 0003, ADR 0021, OQ-1, OQ-8, OQ-27, OQ-43
 
