@@ -31,7 +31,7 @@ trust store. A public server works as is.
 local stream <close> = net.connect_tls("example.org", 443, { alpn = { "http/1.1" } })
 ```
 
-The host is also the server name: it is sent as SNI, and the certificate must match it (RFC 6125).
+The host is also the server name: it is sent as SNI (Server Name Indication, RFC 6066), and the certificate must match it (RFC 6125).
 Pass `server_name` when you connect to an address but the certificate names a host.
 
 ## Trust a private certificate authority
@@ -112,7 +112,7 @@ The handshake is bounded anyway by `handshake_deadline`, which is 10 seconds by 
 `DeadlineExceededError` is raised.
 :::
 
-The example below negotiates an application protocol with ALPN. The server offers `echo`; the
+The example below negotiates an application protocol with ALPN (Application-Layer Protocol Negotiation, RFC 7301). The server offers `echo`; the
 client asks for it; each side reads the result with `stream:alpn()`.
 
 <!-- example: packages/net/examples/hecate.net.tls.accept.lua -->
@@ -223,7 +223,7 @@ lists.
 
 ## Close a TLS stream
 
-TLS ends cleanly with a `close_notify` alert. `close()` never suspends, so it cannot send one.
+TLS ends cleanly with a `close_notify` alert (RFC 8446, section 6.1). `close()` never suspends, so it cannot send one.
 Call `shutdown()` first, then let `<close>` run:
 
 ```lua

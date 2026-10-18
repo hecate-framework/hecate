@@ -72,10 +72,10 @@ The returned `Process` has:
 - `ipc`, the message pipe, when you asked for one.
 
 ```lua
-local child = reactor.spawn("my-program", { "--port", "8080" }, { stdout = "ignore" })
+local worker = reactor.spawn("my-program", { "--port", "8080" }, { stdout = "ignore" })
 -- ... later
-child:kill()         -- SIGTERM; "sigkill" cannot be caught
-local status = child:wait()
+worker:kill()        -- SIGTERM; "sigkill" cannot be caught
+local status = worker:wait()
 ```
 
 You own the child. Wait for it or kill it, and close `process.ipc` when you are done. `kill` is a
@@ -154,6 +154,8 @@ A malformed frame, or a stream that arrives without its announcement or against 
 raises `EPIPE`. A closed peer raises `EBADF`, or `ECANCELED` for a coroutine that was waiting while
 the peer closed.
 
+The methods of [`Peer`](../reference/reactor/Peer.md) list every error.
+
 ## Hand a connection to a child
 
 `peer:send(message, stream)` passes an open `TcpStream` together with a message. The child's
@@ -212,6 +214,25 @@ while the sender's socket is open. The sender closes it as soon as `send` return
 before the receiver calls `receive`. Have the receiver acknowledge with a message, and do not exit
 the sender before the acknowledgement arrives.
 :::
+
+## Share a port between processes
+
+Several processes can listen on one port with the `reuseport` option of `reactor.tcp_listen` and
+`net.listen`, and the kernel balances the connections. It needs a luv that exposes it for TCP, which
+luv 1.53 does not (OQ-43): the call raises `TransportError` with `ENOTSUP`. Test first, and fall back
+to one process that accepts and hands each connection over, as above.
+
+```lua
+if reactor.supports_reuseport() then
+  listener = reactor.tcp_listen("0.0.0.0", 8080, { reuseport = true }) -- every worker does this
+else
+  -- the primary accepts and passes each connection to a worker with peer:send(message, stream)
+end
+```
+
+Where it is supported, it says nothing about balance: macOS accepts the flag and does not balance.
+Supervision (readiness, restarts, shutdown) is yours to write for now. The design that will provide
+it is in [Multi-process serving](../explanation/multi-process-serving.md).
 
 ## Platform differences
 

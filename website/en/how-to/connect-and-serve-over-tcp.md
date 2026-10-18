@@ -66,10 +66,11 @@ and a buffered writer:
 local reader, writer = stream:reader(), stream:writer()
 ```
 
-- `reader:read_line()` returns one line without its line ending, or `nil` at the end of the
-  stream.
+- `reader:read_line()` returns one line without its line ending. It returns `nil` when the
+  stream ended cleanly before any byte of a new line.
 - `reader:read_until(delimiter)` returns the bytes before a delimiter.
-- `reader:read_exact(count, limit)` returns exactly `count` bytes. Pass `limit` when `count`
+- `reader:read_exact(count, limit)` returns exactly `count` bytes, or raises `EndOfStreamError` when
+  the stream ends first. The bytes received stay in the reader (`context.buffered`). Pass `limit` when `count`
   comes from the peer, so that a hostile peer cannot make you buffer without bound.
 - `writer:write(data)` adds to a buffer. Nothing is guaranteed to leave the process until
   `writer:flush()` returns.
@@ -101,6 +102,13 @@ After `close`, any use raises `reactor.TransportError` with `context.errno` set 
 `net.listen(host, port, options?)` binds an address and returns a `TcpListener`. Port `0` picks
 a free port; `listener:local_address().port` tells you which. The options are those of
 `connect` plus `backlog` (default 128) and `reuseport`.
+
+::: warning `reuseport` is not usable yet
+`reuseport = true` lets several processes listen on one port. It raises `TransportError` with
+`ENOTSUP` today, because luv 1.53 does not expose it for TCP (OQ-43). Check
+`reactor.supports_reuseport()` first. See
+[Multi-process serving](../explanation/multi-process-serving.md#reuseport-does-not-work-yet).
+:::
 
 ::: warning Name your address
 `net.listen("localhost", port)` binds only the first address the resolver lists, which can be

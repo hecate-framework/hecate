@@ -71,7 +71,7 @@ works in a container. The release checks fail if a runtime image lacks them.
 
 Whether a revoked certificate is refused depends on the platform.
 
-- **Windows and macOS:** the operating system checks OCSP and certificate revocation lists, and
+- **Windows and macOS:** the operating system checks revocation, through OCSP (the Online Certificate Status Protocol, RFC 6960) and certificate revocation lists, and
   may fetch them over the network during the handshake. In a reactor that call **blocks the reactor**,
   and with it every coroutine of the process, until the responder answers or the system gives up. The addresses come from the
   certificate authority, not from the server you contact, so a server cannot aim the delay at an
@@ -101,7 +101,7 @@ certificates, or `system_roots = false`, avoid it. The error is the system's own
 ## What is not provided yet
 
 Not done: session resumption settings, OCSP stapling policy, certificate revocation lists,
-selecting a certificate by SNI on the server, certificate details beyond the DER bytes of the peer
+selecting a certificate by SNI (Server Name Indication, RFC 6066) on the server, certificate details beyond the DER bytes of the peer
 certificate, and Android (the platform verifier needs a Java runtime there). The server side of
 `tls.server_config` is unchanged by ADR 0024.
 

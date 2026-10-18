@@ -22,5 +22,3 @@ read the matching page of the [explanation](../explanation/index.md) section.
 - [UDP, Unix sockets, named pipes and DNS](udp-pipes-and-dns.md): the transports other than TCP.
 - [Run child processes and pass connections between processes](run-processes-and-pass-connections.md):
   `run_process`, `spawn`, the message pipe and handing a connection to a child.
-
-More guides arrive with the packages they describe.

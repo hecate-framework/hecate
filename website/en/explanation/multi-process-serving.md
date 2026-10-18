@@ -73,13 +73,15 @@ which works everywhere, and logs a warning with the reason.
 
 The design rests on a measurement on the three platforms, with four workers.
 
-- **`reuseport`** balanced evenly on Linux, and was the fastest. On macOS one worker took every
+- **`reuseport`** balanced evenly on Linux. On macOS one worker took every
   connection. It does not exist on Windows. It is the right choice on Linux and nowhere else.
 - **One listening socket shared by all workers** balanced badly on Linux and macOS, and on Windows
   one worker took every connection. It balances nowhere, so it is not offered.
 - **The primary accepts and hands each connection over** balanced perfectly on all three platforms,
   with no native code. For long-lived connections and up to about 10,000 new connections per
-  second it was as fast as `reuseport`. The primary spends about 37 microseconds per new
+  second it was as fast as `reuseport`. (A first measurement showed a gap on Linux. It came from a load
+  generator that shared the primary's core, and it disappeared when the generator ran in its own
+  process.) The primary spends about 37 microseconds per new
   connection, which puts the ceiling near 27,000 per second on the test host. On Windows the
   hand-over is slower, about 3,300 connections per second.
 
@@ -132,27 +134,11 @@ ignoring the option. Until luv supports it, `auto` will select `round_robin` on 
 framework stays complete, and as fast for connections that are reused.
 
 Where the option is supported, it says nothing about balance: macOS accepts the flag and does not
-balance. Check `supports_reuseport()` before you use it:
+balance.
 
-```lua
-if reactor.supports_reuseport() then
-  -- every worker binds the same port itself
-  listener = reactor.tcp_listen("0.0.0.0", 8080, { reuseport = true })
-else
-  -- the primary accepts and passes each connection to a worker
-end
-```
-
-This is the building block that the `reuseport` strategy will wrap. Without the option, a second
-process that binds the same port fails to bind.
-
-### Building your own workers today
-
-You can already assemble a hand-made version with the primitives. Start workers with
-`reactor.spawn(..., { ipc = true })`, accept in the parent, and pass each connection with
-`peer:send(message, stream)`. The guide
-[Run child processes and pass connections between processes](../how-to/run-processes-and-pass-connections.md)
-shows each step. You must then write the supervision yourself: readiness, restarts and shutdown.
+To assemble a hand-made version with these primitives, follow
+[Run child processes and pass connections between processes](../how-to/run-processes-and-pass-connections.md).
+You then write the supervision yourself.
 
 ## Out of scope
 
