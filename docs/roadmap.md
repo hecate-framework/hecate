@@ -62,7 +62,7 @@ Exit: CI is green on all three platforms with a trivial test in every package sk
       (`core`, `reactor`). Owner priority: docs ship before the first usable framework
       version. OQ-11 is resolved (ADR 0012); reference docs owed by `core` and
       `reactor` land here.
-- [ ] `net`: TCP/UDP streams, DNS, buffered readers/writers, TLS (after OQ-4).
+- [x] `net`: TCP/UDP streams, DNS, buffered readers/writers, TLS (after OQ-4). Benchmarks of its hot paths wait for the harness item below.
 - [ ] `json`: codec (after OQ-5).
 - [ ] `doc` (minimal) and the reference generator, **pulled forward from Phase 3** (owner
       decision of 2026-10-13, ADR 0012, OQ-11; proposed position, to be confirmed by the
