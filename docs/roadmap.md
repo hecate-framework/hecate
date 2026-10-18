@@ -61,7 +61,16 @@ Exit: CI is green on all three platforms with a trivial test in every package sk
       organisation `.github` repository): layout, navigation, theme, first reference pages
       (`core`, `reactor`). Owner priority: docs ship before the first usable framework
       version. OQ-11 is resolved (ADR 0012); reference docs owed by `core` and
-      `reactor` land here.
+      `reactor` land here. **Next item after the `net` pull request is closed (owner
+      request, 2026-10-18).** `net` and the new `reactor` primitives (`spawn`, `ipc`,
+      `reuseport`) owe: the generated reference (works: `gen-reference` produces their
+      pages, not committed), and the hand-written pages with the `docs-writer` agent:
+      how-to guides (connecting and serving over TCP, TLS client and server with the
+      system trust store and `ca_pem`, deadlines and cancellation on streams, UDP and
+      pipes, running child processes and passing connections between processes),
+      explanations (transport model, back-pressure and half-close, TLS trust and the
+      security defaults of ADR 0024, multi-process serving of ADR 0023), entries in
+      `website/OUTLINE.md` and `llms.txt`, then the French pages (`translator-fr`).
 - [x] `net`: TCP/UDP streams, DNS, buffered readers/writers, TLS (after OQ-4). Benchmarks of its hot paths wait for the harness item below.
 - [ ] `json`: codec (after OQ-5).
 - [ ] `doc` (minimal) and the reference generator, **pulled forward from Phase 3** (owner
