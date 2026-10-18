@@ -191,6 +191,16 @@ function T:test_a_field_of_the_module_page_has_no_anchor_to_link_to()
   self:assert_nil(act:find("index.md#", 1, true))
 end
 
+function T:test_a_class_whose_only_field_is_an_undocumented_assignment_is_generated()
+  local export = {
+    { name = "hecate.x.Bare", type = "type", rawdesc = " A class.", defines = { { type = "doc.class" } }, fields = {
+      { name = "value", type = "setfield", extends = { view = "integer" } },
+    } },
+  }
+  local result = generate({ { name = "x", export = export } })
+  self:assert_equal(0, #result.problems)
+end
+
 function T:test_package_order_gives_the_module_pages_their_sidebar_order()
   local pair = generate({ { name = "demo", export = export_text }, { name = "other", export = {} } })
   self:assert_true(pair.pages["reference/demo/index.md"]:find("\norder: 10\n", 1, true) ~= nil)

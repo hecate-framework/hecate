@@ -235,11 +235,11 @@ local function members_of(entry)
   local members = {}
   for name, field in pairs(best) do
     local member = member_of(field)
+    member.name = name
     -- A bare assignment of a value without a description is not documentation.
     if member.kind ~= "field" or field.type == "doc.field" or member.documented then
       members[#members + 1] = member
     end
-    members[#members].name = name
   end
   table.sort(members, function(a, b) return a.name < b.name end)
   return members
