@@ -83,6 +83,8 @@ Exit: CI is green on all three platforms with a trivial test in every package sk
       projects stay in Phase 3.
 - [ ] `log`: structured logging, RFC 5424 severities, per-scope context.
 - [ ] Benchmarks harness and first scenario (TCP echo); `benchmarks.yml`.
+- [ ] Pin every third-party action of the existing workflows by commit SHA (owner request,
+      2026-10-18; [automation.md](architecture/automation.md)); Dependabot keeps them current.
 - [ ] Workflows `native.yml`, `security.yml`, `nightly.yml`; tasks `sanitize`, `fuzz`,
       `leaks`, `coverage`, `bench`, `check-licenses`. (`security.yml` has its Rust dependency
       checks, `cargo audit` and `cargo deny`; CodeQL, dependency review and Scorecard remain.)
