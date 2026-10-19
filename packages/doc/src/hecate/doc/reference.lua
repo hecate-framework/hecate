@@ -120,6 +120,7 @@ end
 ---@field returns hecate.doc.ReferenceParameter[]
 ---@field type? string  type of a field
 ---@field documented boolean
+---@field file? string  source file below the `src` of the package, as reported by LuaLS
 
 --- Classifies the paragraphs of a description.
 local function classify(member, paragraphs, see)
@@ -204,7 +205,7 @@ local function score(field)
 end
 
 local function member_of(field)
-  local member = { name = field.name, async = field.async == true }
+  local member = { name = field.name, async = field.async == true, file = field.file }
   local paragraphs, see = paragraphs_of(field.rawdesc)
   classify(member, paragraphs, see)
   if is_function_field(field) then
@@ -239,7 +240,6 @@ local function members_of(entry)
     if member.kind ~= "field" or field.type == "doc.field" or member.documented then
       members[#members + 1] = member
     end
-    members[#members].name = name
   end
   table.sort(members, function(a, b) return a.name < b.name end)
   return members
@@ -285,6 +285,7 @@ end
 ---@field extends string[]
 ---@field members hecate.doc.ReferenceMember[]
 ---@field path string  page path below the locale root
+---@field file? string  source file below the `src` of the package, as reported by LuaLS
 
 local function build_classes(inputs, root, problems)
   local classes, by_name = {}, {}
@@ -309,6 +310,12 @@ local function build_classes(inputs, root, problems)
         local class = { name = name, package_name = input.name, short = name:match("([^.]+)$"), see = {} }
         classify(class, paragraphs, see)
         class.is_root = name == prefix
+        for _, definition in ipairs(entry.defines or {}) do
+          if definition.type == "doc.class" and type(definition.file) == "string" then
+            class.file = definition.file
+            break
+          end
+        end
         class.extends = extends_of(entry)
         class.members = members_of(entry)
         class.path = class.is_root and ("%s/%s/index.md"):format(root, input.name)
@@ -404,6 +411,11 @@ end
 
 -- Rendering ----------------------------------------------------------------------------
 
+-- Repository path of the source file that holds the documentation comments.
+local function source_of(package_name, file)
+  return file and ("packages/%s/src/%s"):format(package_name, file) or nil
+end
+
 local function page(meta, package_name, heading, body)
   local out = { "---" }
   out[#out + 1] = "title: " .. quote(meta.title)
@@ -412,6 +424,7 @@ local function page(meta, package_name, heading, body)
   out[#out + 1] = 'lua: "5.5"'
   if meta.order then out[#out + 1] = "order: " .. meta.order end
   out[#out + 1] = "generated: true"
+  if meta.source then out[#out + 1] = "source: " .. quote(meta.source) end
   out[#out + 1] = "---"
   out[#out + 1] = ""
   out[#out + 1] = M.GENERATED:format(package_name)
@@ -580,6 +593,7 @@ local function render_function(context, options, class, member)
   local meta = {
     title = member.name,
     description = plain(member.summary ~= "" and member.summary or (symbol .. ".")),
+    source = source_of(class.package_name, member.file or class.file),
   }
   return page(meta, class.package_name, symbol, body)
 end
@@ -796,6 +810,7 @@ local function render_class(context, options, class, classes_of_package, errors_
     title = title,
     description = plain(class.summary ~= "" and class.summary or (class.name .. ".")),
     order = class.is_root and options.order_of and options.order_of[class.package_name] or nil,
+    source = source_of(class.package_name, class.file),
   }
   return page(meta, class.package_name, class.name, body)
 end

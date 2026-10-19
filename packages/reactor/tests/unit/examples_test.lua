@@ -6,7 +6,9 @@ local T = test.Case("ExamplesTest")
 
 local here = debug.getinfo(1, "S").source:sub(2):gsub("\\", "/")
 local directory = here:match("^(.*)/tests/unit/") .. "/examples"
-local NAMES = { "hecate.reactor.sleep" }
+local NAMES = {
+  "hecate.reactor.sleep", "hecate.reactor.run_process", "hecate.reactor.spawn", "hecate.reactor.Peer.send",
+}
 
 function T:test_every_example_runs_and_prints_what_it_says()
   for _, name in ipairs(NAMES) do

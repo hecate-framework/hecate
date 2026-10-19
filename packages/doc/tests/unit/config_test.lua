@@ -40,6 +40,7 @@ function T:test_invalid_values_name_the_field()
   invalid(self, { title = "t", default_locale = "fr", locales = { { code = "en" } } }, "default_locale")
   invalid(self, { title = "t", nav = { { text = "x" } } }, "nav[1]")
   invalid(self, { title = "t", edit_link = "https://x.test/edit" }, "edit_link")
+  invalid(self, { title = "t", source_edit_link = "https://x.test/edit" }, "source_edit_link")
   invalid(self, { title = "t", outline = { 7 } }, "outline")
 end
 

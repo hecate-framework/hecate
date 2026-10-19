@@ -134,10 +134,24 @@ function T:test_building_the_repository_website_has_no_problem()
   if not fs:exists(website .. "/site.lua") then return end
   local out = temporary()
   local report = doc.build({
-    config = doc.load_config(website .. "/site.lua", fs), source = website, out = out, fs = fs, strict = true,
+    config = doc.load_config(website .. "/site.lua", fs), source = website, out = out, fs = fs, strict = false,
   })
   fs:remove_tree(out)
-  self:assert_equal(0, #report.problems)
+  -- The code reference (website/en/reference/<package>/) is generated and not in a clean checkout, so
+  -- the guides' links into it cannot resolve there; `website.yml` builds with --strict after generating
+  -- it. A link into a package whose reference is not generated is not a problem of this test; any
+  -- other problem is, and so is a link into a generated reference that does not resolve.
+  local generated = {}
+  for _, name in ipairs(require("hecate.doc.reference_site").DEFAULT_PACKAGES) do
+    generated[name] = fs:exists(website .. "/en/reference/" .. name .. "/index.md")
+  end
+  local problems = {}
+  for _, problem in ipairs(report.problems) do
+    local target = problem:match("broken link (.+)$")
+    local name = target and (target:match("reference/([%w_]+)/") or target:match("^([%w_]+)/"))
+    if not (name and generated[name] == false) then problems[#problems + 1] = problem end
+  end
+  self:assert_equal(0, #problems, table.concat(problems, "\n"))
   self:assert_true(report.locales.en.pages >= 2)
 end
 

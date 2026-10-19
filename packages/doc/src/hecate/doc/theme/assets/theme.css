@@ -228,6 +228,7 @@ button { font: inherit; color: inherit; }
 .doc-content h1, .doc-content h2, .doc-content h3, .doc-content h4 { position: relative; }
 .header-anchor { position: absolute; left: -1.1em; top: 0; width: 1.1em; text-align: center; font: 400 0.85em/inherit var(--sans); text-decoration: none; opacity: 0; }
 .header-anchor::before { content: "#"; }
+.doc-content h2 > .header-anchor { top: var(--space-6); } /* below the border and padding of the h2 */
 h1:hover > .header-anchor, h2:hover > .header-anchor, h3:hover > .header-anchor, h4:hover > .header-anchor, .header-anchor:focus { opacity: 1; }
 .doc-content p { margin: var(--space-4) 0; }
 .doc-content ul, .doc-content ol { margin: var(--space-4) 0; padding-left: var(--space-6); }

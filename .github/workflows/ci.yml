@@ -194,7 +194,7 @@ jobs:
           HECATE_REQUIRE_TLS: ${{ contains(format(' {0} ', needs.plan.outputs.packages), ' net ') && '1' || '' }}
         run: |
           set -e
-          for task in check-versions check-rockspecs check-package-structure typecheck; do
+          for task in check-versions check-rockspecs check-package-structure check-docs-examples typecheck; do
             echo "::group::$task"
             lua tools/run.lua "$task"
             echo "::endgroup::"

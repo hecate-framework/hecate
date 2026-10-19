@@ -29,6 +29,18 @@
 - [Decision records](docs/adr/README.md)
 - Repositories: this monorepo is the source; per-package repositories are read-only mirrors (ADR 0017)
 
+## Website pages (English source in `website/en/`)
+
+- [Connect and serve over TCP](website/en/how-to/connect-and-serve-over-tcp.md): connect, accept loop, reader and writer, half-close, name resolution
+- [TLS client and server](website/en/how-to/tls-client-and-server.md): system trust store, private authority, two-step accept, mutual TLS, error reasons
+- [Deadlines and cancellation on streams](website/en/how-to/deadlines-and-cancellation.md): what each cancelled operation leaves behind
+- [UDP, Unix sockets, named pipes and DNS](website/en/how-to/udp-pipes-and-dns.md): the transports other than TCP
+- [Run child processes and pass connections between processes](website/en/how-to/run-processes-and-pass-connections.md): `run_process`, `spawn`, the message pipe
+- [The transport model](website/en/explanation/transport-model.md): streams, back-pressure, half-close, buffering, cancellation rules
+- [TLS trust and security defaults](website/en/explanation/tls-trust-and-security.md): the operating system's verifier, what cannot be disabled
+- [Multi-process serving](website/en/explanation/multi-process-serving.md): share-nothing workers, listening strategies, what exists today
+- [Glossary (public copy)](website/en/reference/glossary.md): the vocabulary, kept in step with `docs/glossary.md`
+
 ## Packages
 
 - [Package catalogue](packages/README.md): every package with layer, phase and summary

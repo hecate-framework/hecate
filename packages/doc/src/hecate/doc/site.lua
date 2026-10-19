@@ -391,7 +391,13 @@ local function render_page(self, page)
       if wanted[heading.level] then context.outline[#context.outline + 1] = heading end
     end
   end
-  if config.edit_link then
+  if page.meta.generated then
+    -- A generated page is edited where its documentation comments are: the `source` of its front matter
+    -- is a repository path, not a path below the content root.
+    if config.source_edit_link and type(page.meta.source) == "string" then
+      context.edit_url = (config.source_edit_link:gsub("{path}", function() return page.meta.source end))
+    end
+  elseif config.edit_link then
     context.edit_url = (config.edit_link:gsub("{path}", function() return page.relative_path end))
   end
   local date = page.meta.last_updated

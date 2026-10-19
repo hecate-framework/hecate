@@ -55,4 +55,15 @@ function M.extract(text)
   return links
 end
 
+--- Whether a missing target is a page of the generated code reference that is not generated
+--- here: `website/<locale>/reference/<package>/...` with no `<package>` directory (git-ignored,
+--- produced by `gen-reference`; the strict site build checks these links).
+---@param target string  repository-relative path of the link target
+---@param exists fun(path: string): boolean
+---@return boolean
+function M.is_ungenerated_reference(target, exists)
+  local base = target:match("^(website/[^/]+/reference/[^/]+)/")
+  return base ~= nil and not exists(base)
+end
+
 return M

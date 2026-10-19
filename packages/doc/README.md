@@ -43,12 +43,12 @@
 ## Public API
 
 All names are fields of `require "hecate.doc"`. Direction recorded by the owner on 2026-10-13
-(ADR 0012, still Proposed): `hecate.doc` is our own static site generator with a
+(ADR 0012, Accepted): `hecate.doc` is our own static site generator with a
 VitePress-like presentation and the Hecate brand kit. Same day, the owner asked for
 third-party dependencies wherever they save time (complete GFM, highlighting for many
 languages, no new JavaScript development tool); the first slice below has none, and the
 candidates are measured in [spike OQ-39](../../docs/spikes/OQ-39-doc-dependencies.md) and
-proposed in [ADR 0022](../../docs/adr/0022-doc-dependencies.md).
+decided in [ADR 0022](../../docs/adr/0022-doc-dependencies.md).
 
 | Name | Description |
 |---|---|
@@ -117,10 +117,11 @@ default locale with a visible notice. The page title is the single `#` heading o
 override of the label used in navigation, search and `<title>` (OQ-35). Front matter keys: `title`, `description`, `order`
 (sidebar order), `hecate` and `lua` (the "written for" line), `layout: home` with
 `actions: ["Text | page or URL | primary"]`, `outline: false`, `sidebar: false`,
-`last_updated`, `source_revision`. Callouts: `::: note|tip|warning|danger [title]`. Raw HTML
+`last_updated`, `source_revision`, `source` (generated pages: repository path of the Lua file). Callouts: `::: note|tip|warning|danger [title]`. Raw HTML
 is not supported (shown as text). Conventions: OQ-35. Site configuration (`site.lua`):
 `title`, `description`, `base`, `url`, `default_locale`, `locales`, `nav`, `sidebar`,
-`repository`, `edit_link`, `footer`, `outline`, `strings`, `exclude`; see
+`repository`, `edit_link`, `source_edit_link` (edit link of generated pages, from their `source`),
+`footer`, `outline`, `strings`, `exclude`; see
 `hecate.doc.SiteConfig` and [website/site.lua](../../website/site.lua).
 
 ### Theme

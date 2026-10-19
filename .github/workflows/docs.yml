@@ -27,5 +27,5 @@ jobs:
         with:
           # Internal links only on pull requests; external links are checked nightly
           # once nightly.yml exists (see docs/architecture/automation.md).
-          args: --offline --no-progress --include-fragments "./**/*.md"
+          args: --config lychee.toml --offline --no-progress --include-fragments "./**/*.md"
           fail: true

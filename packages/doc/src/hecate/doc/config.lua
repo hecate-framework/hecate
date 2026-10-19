@@ -32,6 +32,7 @@ local M = {}
 ---@field sidebar? table<string, (string|hecate.doc.SidebarItem)[]>  explicit sidebar per top-level section
 ---@field repository? string  repository URL, shown as the GitHub link
 ---@field edit_link? string  pattern with `{path}` (path of the source file below the content root)
+---@field source_edit_link? string  pattern with `{path}` for generated pages (repository path of the source file in their `source` front matter)
 ---@field footer? hecate.doc.Text
 ---@field outline? integer[]  heading levels listed in "On this page" (default { 2, 3 })
 ---@field strings? table<string, table<string, string>>  overrides of the interface strings per locale
@@ -70,6 +71,7 @@ function M.normalise(raw)
     url = raw.url and (raw.url:gsub("/+$", "")),
     repository = raw.repository,
     edit_link = raw.edit_link,
+    source_edit_link = raw.source_edit_link,
     sidebar = raw.sidebar or {},
     strings = raw.strings or {},
     exclude = raw.exclude or { "README.md" },
@@ -111,6 +113,9 @@ function M.normalise(raw)
   end
   if config.edit_link and not config.edit_link:find("{path}", 1, true) then
     invalid("edit_link", "expected a pattern containing {path}")
+  end
+  if config.source_edit_link and not config.source_edit_link:find("{path}", 1, true) then
+    invalid("source_edit_link", "expected a pattern containing {path}")
   end
   for _, level in ipairs(config.outline) do
     if type(level) ~= "number" or level < 1 or level > 6 then invalid("outline", "expected heading levels 1 to 6") end
