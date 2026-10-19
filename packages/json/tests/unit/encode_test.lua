@@ -200,6 +200,43 @@ function T:test_tables_with_metatables_are_read_raw()
   self:assert_equal('{"a":1}', json.encode(object))
 end
 
+-- RFC 8785 appendix B: IEEE 754 bit patterns and the text the JCS number format gives them.
+local JCS_NUMBERS = {
+  { 0x0000000000000000, "0" }, { 0x8000000000000000, "0" }, { 0x0000000000000001, "5e-324" },
+  { 0x8000000000000001, "-5e-324" }, { 0x7fefffffffffffff, "1.7976931348623157e+308" },
+  { 0xffefffffffffffff, "-1.7976931348623157e+308" }, { 0x4340000000000000, "9007199254740992" },
+  { 0xc340000000000000, "-9007199254740992" }, { 0x4430000000000000, "295147905179352830000" },
+  { 0x44b52d02c7e14af5, "9.999999999999997e+22" }, { 0x44b52d02c7e14af6, "1e+23" },
+  { 0x44b52d02c7e14af7, "1.0000000000000001e+23" }, { 0x444b1ae4d6e2ef4e, "999999999999999700000" },
+  { 0x444b1ae4d6e2ef4f, "999999999999999900000" }, { 0x444b1ae4d6e2ef50, "1e+21" },
+  { 0x3eb0c6f7a0b5ed8c, "9.999999999999997e-7" }, { 0x3eb0c6f7a0b5ed8d, "0.000001" },
+  { 0x41b3de4355555553, "333333333.3333332" }, { 0x41b3de4355555554, "333333333.33333325" },
+  { 0x41b3de4355555555, "333333333.3333333" }, { 0x41b3de4355555556, "333333333.3333334" },
+  { 0x41b3de4355555557, "333333333.33333343" }, { 0xbecbf647612f3696, "-0.0000033333333333333333" },
+  { 0x43143ff3c1cb0959, "1424953923781206.2" },
+}
+
+function T:test_rfc8785_writes_numbers_as_the_rfc_vectors_do()
+  for _, vector in ipairs(JCS_NUMBERS) do
+    local number = string.unpack(">d", string.pack(">I8", vector[1]))
+    self:assert_equal(vector[2], json.encode(number, { canonical = "rfc8785" }), vector[2])
+  end
+end
+
+function T:test_rfc8785_writes_integers_as_doubles_and_sorts_members()
+  self:assert_equal('{"a":1,"b":[1.5,100,0]}', json.encode({ b = { 1.5, 100.0, -0.0 }, a = 1 }, { canonical = "rfc8785" }))
+  self:assert_equal('{"\u{E9}":1,"\u{1F600}":2,"\u{FF5E}":3}',
+    json.encode({ ["\u{FF5E}"] = 3, ["\u{1F600}"] = 2, ["\u{E9}"] = 1 }, { canonical = "rfc8785" }))
+  self:assert_equal("9007199254740992", json.encode(1 << 53, { canonical = "rfc8785" }))
+end
+
+function T:test_rfc8785_rejects_integers_it_would_change()
+  local err = encode_error(self, { n = (1 << 53) + 1 }, { canonical = "rfc8785" })
+  self:assert_equal("integer_out_of_range", err.context.reason)
+  self:assert_equal("/n", err.context.path)
+  self:assert_equal("9007199254740993", json.encode((1 << 53) + 1, { canonical = true }))
+end
+
 function T:test_arguments_are_validated()
   local function bad(options, pattern)
     local err = self:assert_error(function() return json.encode({}, options) end)
@@ -215,6 +252,9 @@ function T:test_arguments_are_validated()
   bad({ indent = 2.5 }, "invalid indent")
   bad({ pretty = false, indent = 2 }, "pretty = false")
   bad({ canonical = 1 }, "invalid canonical")
+  bad({ canonical = "jcs" }, "invalid canonical")
+  bad({ canonical = "rfc8785", pretty = true }, "compact by definition")
+  bad({ canonical = "rfc8785", indent = 2 }, "compact by definition")
   bad({ max_depth = 0 }, "invalid max_depth")
   bad({ max_size = "big" }, "invalid max_size")
 end

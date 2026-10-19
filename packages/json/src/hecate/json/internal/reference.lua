@@ -7,7 +7,9 @@
 --
 -- Backend contract (shared with the native backend, see `hecate.json.internal.backend`):
 --   decode(text, options) -> value | nil, failure     options: { max_depth, max_size }
---   encode(value, options) -> text | nil, failure     options: { max_depth, max_size, indent?, canonical }
+--   encode(value, options) -> text | nil, failure     options: { max_depth, max_size, indent?, canonical, rfc8785 }
+-- `rfc8785` (implies `canonical`, never combined with `indent`) selects RFC 8785 (JCS): every number is
+-- written as an IEEE double in the ECMAScript format, and an integer beyond +-2^53 is a failure.
 -- A `failure` is { reason = <string>, message = <string>, offset = <integer> } for decoding (offset:
 -- bytes before the offending byte) and { reason, message, path = <RFC 6901 pointer> } for encoding.
 -- Options arrive validated and complete; the public module (`hecate.json`) owns validation, the
@@ -328,15 +330,54 @@ local function sort_names(names)
   sort(names, function(a, b) return order[a] < order[b] end)
 end
 
+-- RFC 8785 section 3.2.2.3 (via ECMAScript Number::toString): the shortest digits that read back as the same
+-- double, laid out as digits, a decimal point or an exponent depending on the magnitude. Negative zero is "0".
+local MAX_SAFE = 9007199254740992 -- 2^53
+
+---@param number number  a finite float
+---@return string
+local function es_number(number)
+  if number == 0 then return "0" end
+  local sign = ""
+  if number < 0 then sign, number = "-", -number end
+  local mantissa, exponent
+  for precision = 0, 16 do -- the first precision that reads back is the shortest
+    local text = format("%." .. precision .. "e", number)
+    if tonumber(text) == number or precision == 16 then
+      mantissa, exponent = text:match("^([%d.]+)e([+-]%d+)$")
+      break
+    end
+  end
+  local digits = gsub(mantissa, "%.", "")
+  digits = gsub(digits, "0+$", "")
+  if digits == "" then digits = "0" end
+  local k = #digits
+  local n = tonumber(exponent) + 1 -- value = 0.DIGITS * 10^n
+  local body
+  if k <= n and n <= 21 then
+    body = digits .. rep("0", n - k)
+  elseif 0 < n and n <= 21 then
+    body = sub(digits, 1, n) .. "." .. sub(digits, n + 1)
+  elseif -6 < n and n <= 0 then
+    body = "0." .. rep("0", -n) .. digits
+  else
+    local e = n - 1
+    local tail = (e < 0 and "-" or "+") .. tostring(e < 0 and -e or e)
+    body = (k == 1 and digits or (sub(digits, 1, 1) .. "." .. sub(digits, 2))) .. "e" .. tail
+  end
+  return sign .. body
+end
+
 local function escape_token(token) return (gsub(gsub(token, "~", "~0"), "/", "~1")) end
 
 --- Encodes a value as JSON text.
 ---@param value any
----@param options { max_depth: integer, max_size: integer, indent?: string, canonical: boolean }
+---@param options { max_depth: integer, max_size: integer, indent?: string, canonical: boolean, rfc8785: boolean }
 ---@return string? text
 ---@return { reason: string, message: string, path: string }? failure
 function M.encode(value, options)
   local max_depth, max_size, indent, canonical = options.max_depth, options.max_size, options.indent, options.canonical
+  local rfc8785 = options.rfc8785
   local buffer, count, size = {}, 0, 0
   local trail = {} -- trail[d]: the key (string) or index (integer, 1-based) taken at depth d
 
@@ -381,6 +422,7 @@ function M.encode(value, options)
     if number ~= number or number == huge or number == -huge then
       reject("non_finite_number", ("%s is not a JSON number"):format(tostring(number)), depth)
     end
+    if rfc8785 then emit(es_number(number)) return end
     local text = format("%.15g", number)
     if tonumber(text) ~= number then
       text = format("%.16g", number)
@@ -475,7 +517,17 @@ function M.encode(value, options)
     if kind == "string" then
       emit_string(v, depth)
     elseif kind == "number" then
-      if mtype(v) == "integer" then emit(format("%d", v)) else emit_float(v, depth) end
+      if mtype(v) ~= "integer" then
+        emit_float(v, depth)
+      elseif rfc8785 then
+        if v > MAX_SAFE or v < -MAX_SAFE then
+          reject("integer_out_of_range", ("integer %d is beyond +-2^53: RFC 8785 writes numbers as IEEE doubles, "
+            .. "which would silently change it; write it as a string"):format(v), depth)
+        end
+        emit(es_number(v + 0.0))
+      else
+        emit(format("%d", v))
+      end
     elseif kind == "boolean" then
       emit(v and "true" or "false")
     elseif v == null then

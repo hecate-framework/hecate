@@ -44,7 +44,7 @@ local json = require("hecate.json")
 
 | Name | Description |
 |---|---|
-| `json.encode(value, options?)` | Encodes a Lua value as JSON text that is always valid UTF-8. Options: `pretty`, `indent` (spaces or a string of spaces and tabs), `canonical` (members in RFC 8785 order: UTF-16 code units), `max_depth` (default 1000, at most 10000), `max_size` (default 16 MiB). |
+| `json.encode(value, options?)` | Encodes a Lua value as JSON text that is always valid UTF-8. Options: `pretty`, `indent` (spaces or a string of spaces and tabs), `canonical` (`true`: members in RFC 8785 order, UTF-16 code units; `"rfc8785"`: the full JSON Canonicalization Scheme), `max_depth` (default 1000, at most 10000), `max_size` (default 16 MiB). |
 | `json.decode(text, options?)` | Decodes JSON text (RFC 8259). Options: `max_depth`, `max_size`. |
 | `json.null` | The value of JSON `null` (unique, immutable, never `nil`). |
 | `json.array(t?)`, `json.object(t?)` | Mark a table as a JSON array or object (a new empty table without argument); return the table. |
@@ -66,9 +66,14 @@ Value model (the same for every backend, ADR 0020):
   by Lua: write `json.null` explicitly. The codec exposes `json.is_array` and `json.is_object` next
   to the markers.
 - `canonical = true` orders object members as RFC 8785 section 3.2.3 does (UTF-16 code units).
-  Numbers keep the codec's own fidelity format (integers stay integers, floats keep their point),
-  which differs from the RFC 8785 number format: the text is stable, not yet RFC 8785 compliant
-  (open point in OQ-48).
+  Numbers keep the codec's own fidelity format (integers stay integers, floats keep their point):
+  the text is stable, but it is not RFC 8785 text.
+- `canonical = "rfc8785"` is the full JSON Canonicalization Scheme (RFC 8785), for signing and
+  hashing: compact text (it cannot be combined with `pretty` or `indent`), members in UTF-16 order,
+  and every number written as an IEEE double in the ECMAScript format (`1.0` is `1`, `-0.0` is `0`,
+  `1e21` is `1e+21`). An integer beyond +-2^53 raises `EncodeError` (reason `integer_out_of_range`)
+  instead of being silently rounded, since two different integers would then sign alike. Strings
+  need no extra step: the escaping of the codec is the one the RFC prescribes.
 
 ## Inputs `decode` rejects on purpose
 

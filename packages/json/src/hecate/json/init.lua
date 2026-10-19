@@ -46,7 +46,7 @@ local json = {
 ---@class hecate.json.EncodeOptions
 ---@field pretty? boolean  one member or element per line, indented (default `false`: compact text)
 ---@field indent? integer|string  indentation of a pretty text: a number of spaces or a string of spaces and tabs (implies `pretty`; default 2 spaces)
----@field canonical? boolean  write the members of every object in RFC 8785 order, by UTF-16 code units of their names (default `false`; numbers keep the codec's own format, see OQ-48)
+---@field canonical? boolean|"rfc8785"  `true`: write the members of every object in RFC 8785 order, by UTF-16 code units of their names (numbers keep the codec's own format); `"rfc8785"`: the full JSON Canonicalization Scheme for signing (compact text, every number an IEEE double in the ECMAScript format, an integer beyond +-2^53 raises); default `false`
 ---@field max_depth? integer  deepest nesting accepted, 1 to 10000 (default 1000); also stops cycles
 ---@field max_size? integer  longest text produced, in bytes (default 16 MiB)
 
@@ -160,14 +160,19 @@ end
 function json.encode(value, options)
   options = check_options("encode", options, ENCODE_OPTIONS)
   local canonical = options.canonical
-  if canonical ~= nil and type(canonical) ~= "boolean" then
-    error(ArgumentError(("json.encode: invalid canonical %s: expected a boolean"):format(describe(canonical))), 2)
+  if canonical ~= nil and type(canonical) ~= "boolean" and canonical ~= "rfc8785" then
+    error(ArgumentError(("json.encode: invalid canonical %s: expected a boolean or \"rfc8785\""):format(
+      describe(canonical))), 2)
+  end
+  if canonical == "rfc8785" and (options.pretty or options.indent ~= nil) then
+    error(ArgumentError("json.encode: canonical = \"rfc8785\" is compact by definition: drop pretty and indent"), 2)
   end
   local resolved = {
     max_depth = integer_option("encode", options, "max_depth", DEFAULT_MAX_DEPTH, MAX_DEPTH_CEILING),
     max_size = integer_option("encode", options, "max_size", DEFAULT_MAX_SIZE),
     indent = indent_unit(options),
-    canonical = canonical == true,
+    canonical = canonical == true or canonical == "rfc8785",
+    rfc8785 = canonical == "rfc8785",
   }
   local text, failure = backend.get().encode(value, resolved)
   if failure ~= nil then

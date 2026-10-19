@@ -10,7 +10,7 @@
 
 - Claimed (PR #25). Website item is in PR #24 (owner's), skipped.
 - Step 1 (5ac3128): Lua side. Public API, markers, errors, backend seam (`hecate.json.internal.backend`), pure-Lua reference backend (fallback + test oracle), unit/property tests, README, CHANGELOG, OQ-48. `test json`, lint and the check-* gates pass; `typecheck` not run (no lua-language-server here).
-- Step 2: owner answers to OQ-48 applied (recorded in the OQ-48 entry): holes encode as null, `-0` decodes as integer 0, canonical member order is UTF-16 (RFC 8785), explicit decode rejection messages and a README table, `check-boundaries` exempts `markers.lua`. `test json`, `test tools`, lint, check-boundaries, check-changelog, check-links and check-glossary pass. Still open in OQ-48: canonical numbers versus full RFC 8785.
+- Step 2: owner answers to OQ-48 applied (recorded in the OQ-48 entry): holes encode as null, `-0` decodes as integer 0, canonical member order is UTF-16 (RFC 8785), explicit decode rejection messages and a README table, `check-boundaries` exempts `markers.lua`. `test json`, `test tools`, lint, check-boundaries, check-changelog, check-links and check-glossary pass. Step 3: `canonical = "rfc8785"` in the reference backend (the native serde_json encoder must match it; the RFC vectors are in `encode_test.lua`). OQ-48 moved to Resolved at the owner's request; nothing is open in it.
 
 ## Blocked (resolved)
 
