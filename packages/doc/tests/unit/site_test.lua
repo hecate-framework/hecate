@@ -254,16 +254,26 @@ function T:test_edit_link_last_updated_and_outline_switches()
   self:assert_nil(home:find("<time", 1, true), "a date that cannot be read is left out")
 end
 
-function T:test_generated_pages_have_no_edit_link()
-  local fs = build({
+function T:test_generated_pages_link_to_their_source_file_or_have_no_edit_link()
+  local files = {
     ["en/index.md"] = page("Home"),
-    ["en/gen.md"] = page("Gen", "## S", "generated: true\n"),
-  }, {
+    ["en/gen.md"] = page("Gen", "## S", 'generated: true\nsource: "packages/x/src/hecate/x/init.lua"\n'),
+    ["en/nosource.md"] = page("No source", "## S", "generated: true\n"),
+  }
+  local fs = build(files, {
+    locales = { { code = "en", label = "English" } },
+    edit_link = "https://git.test/edit/main/website/{path}",
+    source_edit_link = "https://git.test/edit/main/{path}",
+  })
+  local gen = fs:read("o/en/gen/index.html")
+  self:assert_true(gen:find('<a class="edit-link" href="https://git.test/edit/main/packages/x/src/hecate/x/init.lua">', 1, true) ~= nil)
+  self:assert_nil(fs:read("o/en/nosource/index.html"):find('class="edit-link"', 1, true))
+  self:assert_true(fs:read("o/en/index.html"):find('website/en/index.md', 1, true) ~= nil, "hand-written pages keep theirs")
+  local without = build(files, {
     locales = { { code = "en", label = "English" } },
     edit_link = "https://git.test/edit/main/website/{path}",
   })
-  self:assert_nil(fs:read("o/en/gen/index.html"):find('class="edit-link"', 1, true))
-  self:assert_true(fs:read("o/en/index.html"):find('class="edit-link"', 1, true) ~= nil)
+  self:assert_nil(without:read("o/en/gen/index.html"):find('class="edit-link"', 1, true), "no source pattern, no link")
 end
 
 function T:test_french_dates_use_french_month_names()

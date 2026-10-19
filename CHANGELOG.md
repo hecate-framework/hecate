@@ -11,7 +11,7 @@ Each release heading states the supported Lua version.
 
 ### Fixed
 
-- `hecate.doc`: the `#` anchor of a heading 2 sits next to its text instead of above it (it ignored the padding of the heading), and generated reference pages no longer show an "Edit this page" link to a source file that does not exist.
+- `hecate.doc`: the `#` anchor of a heading 2 sits next to its text instead of above it (it ignored the padding of the heading), and the "Edit this page" link of a generated reference page opens the Lua file that holds its documentation comments (new front matter `source` and site setting `source_edit_link`) instead of a Markdown file that does not exist in the repository.
 
 - `hecate.net`: `BufferedReader:read_until` no longer raises `ProtocolError` for a record exactly at the limit when a multi-byte delimiter arrives split across reads (found by the new property test); `TlsError` carries `context.reason`; `Stream` declares `shutdown` and `is_closed`, `BufferedWriter` gets `is_closed`; tests added: chunking properties of the reader (random splits against an unsplit baseline), a peer writing one byte at a time, IP SAN identity, an expired certificate, an ALPN mismatch, cancelling a stalled handshake, and a handle-leak check around every TLS test; fixtures for the expired certificate; `.gitattributes` keeps certificates and keys LF.
 

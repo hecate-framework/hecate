@@ -117,10 +117,11 @@ default locale with a visible notice. The page title is the single `#` heading o
 override of the label used in navigation, search and `<title>` (OQ-35). Front matter keys: `title`, `description`, `order`
 (sidebar order), `hecate` and `lua` (the "written for" line), `layout: home` with
 `actions: ["Text | page or URL | primary"]`, `outline: false`, `sidebar: false`,
-`last_updated`, `source_revision`. Callouts: `::: note|tip|warning|danger [title]`. Raw HTML
+`last_updated`, `source_revision`, `source` (generated pages: repository path of the Lua file). Callouts: `::: note|tip|warning|danger [title]`. Raw HTML
 is not supported (shown as text). Conventions: OQ-35. Site configuration (`site.lua`):
 `title`, `description`, `base`, `url`, `default_locale`, `locales`, `nav`, `sidebar`,
-`repository`, `edit_link`, `footer`, `outline`, `strings`, `exclude`; see
+`repository`, `edit_link`, `source_edit_link` (edit link of generated pages, from their `source`),
+`footer`, `outline`, `strings`, `exclude`; see
 `hecate.doc.SiteConfig` and [website/site.lua](../../website/site.lua).
 
 ### Theme
