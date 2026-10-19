@@ -46,7 +46,7 @@ local json = {
 ---@class hecate.json.EncodeOptions
 ---@field pretty? boolean  one member or element per line, indented (default `false`: compact text)
 ---@field indent? integer|string  indentation of a pretty text: a number of spaces or a string of spaces and tabs (implies `pretty`; default 2 spaces)
----@field canonical? boolean  write the members of every object in ascending byte order of their names (default `false`)
+---@field canonical? boolean  write the members of every object in RFC 8785 order, by UTF-16 code units of their names (default `false`; numbers keep the codec's own format, see OQ-48)
 ---@field max_depth? integer  deepest nesting accepted, 1 to 10000 (default 1000); also stops cycles
 ---@field max_size? integer  longest text produced, in bytes (default 16 MiB)
 
@@ -110,7 +110,7 @@ end
 --- Decodes a JSON text (RFC 8259) into a Lua value.
 ---
 --- An integer without fraction or exponent that fits in 64 bits is a Lua integer; any other number is
---- a float (`-0` and numbers beyond the 64-bit range included). `null` is `json.null`. Every array is a
+--- a float (numbers beyond the 64-bit range included); `-0` is the integer 0 while `-0.0` is a float that keeps its sign. `null` is `json.null`. Every array is a
 --- table marked with `json.array` and every object a table marked with `json.object`, so that an empty
 --- `[]` and an empty `{}` stay distinct and `encode` reproduces the text's value model.
 ---
@@ -146,7 +146,8 @@ end
 --- Lua integers are written as integers; floats always carry a decimal point or an exponent, so that
 --- `decode` returns a float again. `json.null` is `null`. A table marked with `json.array` is an
 --- array, one marked with `json.object` an object. An unmarked table is an array when its keys are
---- exactly 1 to n, an object when all its keys are strings, and **an object when it is empty**; any
+--- positive integers (a hole is written as `null`, while the table stays dense: highest index at most twice the
+--- number of entries plus 16), an object when all its keys are strings, and **an object when it is empty**; any
 --- other table raises. Object members are written in no defined order unless `canonical` is set.
 ---
 --- Raises `hecate.json.EncodeError` (with `context.reason` and the JSON Pointer `context.path` of the

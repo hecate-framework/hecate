@@ -71,14 +71,31 @@ function T:test_sequences_are_arrays_and_string_keyed_tables_are_objects()
 end
 
 function T:test_ambiguous_tables_are_rejected()
-  for _, value in ipairs({ { 1, 2, x = 3 }, { [1] = "a", [3] = "c" }, { [0] = "a" }, { [2] = "b" }, { [1.5] = 1 }, { [true] = 1 } }) do
+  for _, value in ipairs({ { 1, 2, x = 3 }, { [0] = "a" }, { [1.5] = 1 }, { [true] = 1 } }) do
     self:assert_equal("ambiguous_table", encode_error(self, value).context.reason)
   end
 end
 
+function T:test_holes_are_written_as_null()
+  self:assert_equal("[1,null,3]", json.encode({ 1, nil, 3 }))
+  self:assert_equal('[null,"b"]', json.encode({ [2] = "b" }))
+  self:assert_equal("[1,null,3]", json.encode(json.array({ 1, nil, 3 })))
+  self:assert_equal('{"a":[1,null,3]}', json.encode({ a = { 1, nil, 3 } }))
+end
+
+function T:test_too_sparse_tables_are_rejected()
+  local sparse = { [1] = 1, [1000000] = 2 }
+  self:assert_equal("ambiguous_table", encode_error(self, sparse).context.reason)
+  self:assert_equal("sparse_array", encode_error(self, json.array(sparse)).context.reason)
+end
+
+function T:test_canonical_order_is_utf16_order()
+  -- U+1F600 is the surrogate pair D83D DE00 in UTF-16, so it sorts before U+FF5E; in UTF-8 byte order it sorts after.
+  local value = { ["\u{1F600}"] = 1, ["\u{FF5E}"] = 2, ["\u{E9}"] = 3 }
+  self:assert_equal('{"\u{E9}":3,"\u{1F600}":1,"\u{FF5E}":2}', json.encode(value, { canonical = true }))
+end
+
 function T:test_marked_tables_are_checked()
-  local sparse = json.array({ 1, nil, 3 })
-  self:assert_equal("sparse_array", encode_error(self, sparse).context.reason)
   self:assert_equal("sparse_array", encode_error(self, json.array({ 1, 2, x = 3 })).context.reason)
   self:assert_equal("ambiguous_table", encode_error(self, json.object({ 1, 2 })).context.reason)
   self:assert_equal("[1,2]", json.encode(json.array({ 1, 2 })))

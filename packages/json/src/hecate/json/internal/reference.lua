@@ -133,12 +133,16 @@ function M.decode(text, options)
           local low = text:match("^\\u(%x%x%x%x)", i)
           local low_code = low and tonumber(low, 16)
           if low_code == nil or low_code < 0xDC00 or low_code > 0xDFFF then
-            fail("lone_surrogate", "lone high surrogate in \\u escape: expected a low surrogate escape next", stop - 1)
+            fail("lone_surrogate", "lone high surrogate escape: a \\uD800-\\uDBFF escape must be followed at once by a "
+              .. "\\uDC00-\\uDFFF escape (RFC 8259 section 8.2); a lone surrogate is not a character and is rejected "
+              .. "(I-JSON, RFC 7493 section 2.1)", stop - 1)
           end
           code = 0x10000 + ((code - 0xD800) << 10) + (low_code - 0xDC00)
           i = i + 6
         elseif code >= 0xDC00 and code <= 0xDFFF then
-          fail("lone_surrogate", "lone low surrogate in \\u escape", stop - 1)
+          fail("lone_surrogate", "lone low surrogate escape: a \\uDC00-\\uDFFF escape must follow a \\uD800-\\uDBFF "
+            .. "escape (RFC 8259 section 8.2); a lone surrogate is not a character and is rejected "
+            .. "(I-JSON, RFC 7493 section 2.1)", stop - 1)
         end
         count = count + 1
         parts[count] = utf8.char(code)
@@ -182,15 +186,14 @@ function M.decode(text, options)
       is_float = true
     end
     local literal = sub(text, pos, p - 1)
-    local value
-    if literal == "-0" then
-      value = -0.0 -- an integer zero has no sign: keep the sign of the text
-    else
-      value = tonumber(literal)
-      if is_float and mtype(value) ~= "float" then value = value + 0.0 end
-      if value == huge or value == -huge then
-        fail("number_out_of_range", ("number %s is out of range for a float"):format(literal), pos - 1)
-      end
+    -- "-0" is an integer literal: it decodes as the integer 0 (an integer has no sign); "-0.0" and
+    -- "-0e0" are floats and keep their sign.
+    local value = tonumber(literal)
+    if is_float and mtype(value) ~= "float" then value = value + 0.0 end
+    if value == huge or value == -huge then
+      fail("number_out_of_range", ("number %s is out of range: it does not fit in a 64-bit float (about 1.8e308 at most); "
+        .. "RFC 8259 allows it but parsers disagree on the result (infinity, error or clamp), so it is rejected"):format(
+        literal), pos - 1)
     end
     return value, p
   end
@@ -236,7 +239,8 @@ function M.decode(text, options)
       local key
       key, pos = parse_string(pos)
       if rawget(result, key) ~= nil then
-        fail("duplicate_key", ("duplicate member name %q"):format(key), key_at - 1)
+        fail("duplicate_key", ("duplicate member name %q: RFC 8259 allows it but parsers disagree on which value wins, "
+          .. "so it is rejected (I-JSON, RFC 7493 section 2.3)"):format(key), key_at - 1)
       end
       pos = skip_space(pos)
       if byte(text, pos) ~= 58 then unexpected(pos, "':'") end
@@ -273,7 +277,8 @@ function M.decode(text, options)
       fail("size_limit", ("input of %d bytes exceeds max_size (%d)"):format(length, options.max_size), 0)
     end
     if sub(text, 1, 3) == "\239\187\191" then
-      fail("byte_order_mark", "the text starts with a byte order mark (RFC 8259 section 8.1)", 0)
+      fail("byte_order_mark", "the text starts with a byte order mark: RFC 8259 section 8.1 lets a parser ignore it but "
+        .. "parsers disagree, so it is rejected; strip the first three bytes (EF BB BF) before decoding", 0)
     end
     local pos = skip_space(1)
     local value
@@ -299,6 +304,30 @@ for code = 0, 31 do
 end
 
 -- RFC 6901 section 3 and 5: "~" is written "~0" and "/" is written "~1" in a reference token.
+-- RFC 8785 section 3.2.3: member names sort by their UTF-16 code units. The byte order of UTF-8 is the
+-- order of code points, which differs only for a character beyond U+FFFF (a surrogate pair, D800-DFFF
+-- in UTF-16) against one in U+E000-U+FFFF. Rewriting each beyond-BMP character as its two surrogates
+-- (CESU-8) makes the byte order equal the UTF-16 order. String comparison with `<` is byte-wise in
+-- the C locale, which Lua keeps unless the host calls os.setlocale.
+local function utf16_order_key(name)
+  return (gsub(name, "[\240-\244][\128-\191][\128-\191][\128-\191]", function(sequence)
+    local code = utf8.codepoint(sequence) - 0x10000
+    return utf8.char(0xD800 + (code >> 10), 0xDC00 + (code & 0x3FF))
+  end))
+end
+
+---@param names string[]
+local function sort_names(names)
+  local astral = false
+  for i = 1, #names do
+    if find(names[i], "[\240-\244]") then astral = true break end
+  end
+  if not astral then sort(names) return end
+  local order = {}
+  for i = 1, #names do order[names[i]] = utf16_order_key(names[i]) end
+  sort(names, function(a, b) return order[a] < order[b] end)
+end
+
 local function escape_token(token) return (gsub(gsub(token, "~", "~0"), "/", "~1")) end
 
 --- Encodes a value as JSON text.
@@ -361,22 +390,32 @@ function M.encode(value, options)
     emit(text)
   end
 
-  -- An unmarked table is an array when its keys are exactly 1..n, an object when all keys are
-  -- strings, and an object when it is empty (the documented rule, see README); anything else is ambiguous.
-  local function classify(t, depth)
-    local keys, string_keys = 0, true
+  -- The length of a table written as an array: its highest index. A hole (an index of 1..n without
+  -- a value) is written as null, since a Lua `nil` stands for the absence of a value; holes are
+  -- accepted while the table stays dense enough (n <= 2 * entries + 16), so that a stray `t[1e9] = x`
+  -- cannot make the encoder write a billion nulls. Returns nil when a key is not a positive index
+  -- or the table is too sparse.
+  local function array_length(t)
+    local entries, highest = 0, 0
     for key in next, t do
-      keys = keys + 1
-      if type(key) ~= "string" then string_keys = false end
+      if mtype(key) ~= "integer" or key < 1 then return nil end
+      entries = entries + 1
+      if key > highest then highest = key end
+    end
+    if highest > 2 * entries + 16 then return nil end
+    return highest
+  end
+
+  -- An unmarked table is an array when its keys are all positive indices (see array_length), an
+  -- object when all keys are strings, and an object when it is empty (the documented rule, see
+  -- README); anything else is ambiguous.
+  local function classify(t, depth)
+    local string_keys = true
+    for key in next, t do
+      if type(key) ~= "string" then string_keys = false break end
     end
     if string_keys then return "object" end
-    local length = rawlen(t)
-    if length == keys then
-      for i = 1, length do
-        if rawget(t, i) == nil then length = -1 break end
-      end
-      if length >= 0 then return "array" end
-    end
+    if array_length(t) then return "array" end
     reject("ambiguous_table",
       "table is neither a sequence nor an object with string keys: mark it with json.array or json.object", depth)
   end
@@ -384,11 +423,11 @@ function M.encode(value, options)
   local emit_value
 
   local function emit_array(t, depth)
-    local length = rawlen(t)
-    local keys = 0
-    for _ in next, t do keys = keys + 1 end
-    if keys ~= length then
-      reject("sparse_array", "array has a hole or a key that is not an index from 1 to its length", depth - 1)
+    local length = array_length(t)
+    if length == nil then
+      reject("sparse_array",
+        "array has a key that is not a positive index, or too many holes (a hole is written as null while the "
+          .. "highest index is at most twice the number of entries plus 16)", depth - 1)
     end
     if length == 0 then emit("[]") return end
     emit("[")
@@ -396,7 +435,8 @@ function M.encode(value, options)
       if i > 1 then emit(",") end
       if indent then emit("\n" .. rep(indent, depth)) end
       trail[depth] = i
-      emit_value(rawget(t, i), depth)
+      local element = rawget(t, i)
+      if element == nil then emit("null") else emit_value(element, depth) end
     end
     if indent then emit("\n" .. rep(indent, depth - 1)) end
     emit("]")
@@ -413,8 +453,7 @@ function M.encode(value, options)
       keys[n] = key
     end
     if n == 0 then emit("{}") return end
-    -- Byte-wise order assumes the C locale, which Lua keeps unless the host calls os.setlocale.
-    if canonical then sort(keys) end
+    if canonical then sort_names(keys) end
     emit("{")
     for i = 1, n do
       local key = keys[i]

@@ -44,7 +44,7 @@ local json = require("hecate.json")
 
 | Name | Description |
 |---|---|
-| `json.encode(value, options?)` | Encodes a Lua value as JSON text that is always valid UTF-8. Options: `pretty`, `indent` (spaces or a string of spaces and tabs), `canonical` (members in byte order), `max_depth` (default 1000, at most 10000), `max_size` (default 16 MiB). |
+| `json.encode(value, options?)` | Encodes a Lua value as JSON text that is always valid UTF-8. Options: `pretty`, `indent` (spaces or a string of spaces and tabs), `canonical` (members in RFC 8785 order: UTF-16 code units), `max_depth` (default 1000, at most 10000), `max_size` (default 16 MiB). |
 | `json.decode(text, options?)` | Decodes JSON text (RFC 8259). Options: `max_depth`, `max_size`. |
 | `json.null` | The value of JSON `null` (unique, immutable, never `nil`). |
 | `json.array(t?)`, `json.object(t?)` | Mark a table as a JSON array or object (a new empty table without argument); return the table. |
@@ -55,13 +55,35 @@ Value model (the same for every backend, ADR 0020):
 
 - A Lua integer is a JSON integer; a float is always written with a decimal point or an
   exponent, so `1.0` stays a float. NaN and the infinities raise `EncodeError`.
-- An integer literal that does not fit in 64 bits decodes as a float; `-0` decodes as `-0.0`.
+- An integer literal that does not fit in 64 bits decodes as a float. `-0` is an integer literal and
+  decodes as the integer `0`; `-0.0` and `-0e0` are floats and keep their sign.
 - `decode` returns every array marked with `json.array` and every object marked with
   `json.object`; an empty `[]` and an empty `{}` therefore round-trip.
-- On encoding, an unmarked table is an array when its keys are exactly 1 to n, an object when
-  all keys are strings, an **object when empty**, and an error otherwise (OQ-48).
-- `decode` rejects invalid UTF-8, lone surrogate escapes, duplicate member names, a byte order
-  mark, trailing content and nesting deeper than `max_depth`.
+- On encoding, an unmarked table is an array when all its keys are positive integers, an object
+  when all keys are strings, an **object when empty**, and an error otherwise (OQ-48). A hole in an
+  array (`{ 1, nil, 3 }`) is written as `null`, so `[1,null,3]`; the table must stay dense (highest
+  index at most twice the number of entries plus 16). A `nil` at the end of a table cannot be seen
+  by Lua: write `json.null` explicitly. The codec exposes `json.is_array` and `json.is_object` next
+  to the markers.
+- `canonical = true` orders object members as RFC 8785 section 3.2.3 does (UTF-16 code units).
+  Numbers keep the codec's own fidelity format (integers stay integers, floats keep their point),
+  which differs from the RFC 8785 number format: the text is stable, not yet RFC 8785 compliant
+  (open point in OQ-48).
+
+## Inputs `decode` rejects on purpose
+
+RFC 8259 leaves these cases open or permits them, and parsers disagree on them. `decode` rejects
+them with a `DecodeError` whose `context.reason` and message say what to fix (I-JSON, RFC 7493, is
+the reference):
+
+| `context.reason` | Input | Why it is rejected | What to do |
+|---|---|---|---|
+| `duplicate_key` | `{"a":1,"a":2}` | Parsers disagree on which value wins (RFC 7493 section 2.3). | Make member names unique at the source. |
+| `lone_surrogate` | `"\ud800"` | A surrogate escape is valid only as half of a pair (RFC 8259 section 8.2, RFC 7493 section 2.1). | Write the character itself or its pair, e.g. `"\ud83d\ude00"`. |
+| `byte_order_mark` | text starting with bytes `EF BB BF` | RFC 8259 section 8.1 lets parsers ignore it, and they differ. | Strip the first three bytes before decoding. |
+| `number_out_of_range` | `1e999` | It does not fit in a 64-bit float; parsers answer infinity, error or clamp. | Send the number as a string, or a value within about 1.8e308. |
+| `invalid_utf8` | a string with bytes that are not UTF-8 | The text must be UTF-8 (RFC 8259 section 8.1). | Re-encode the source as UTF-8. |
+| `depth_limit`, `size_limit` | nesting beyond `max_depth`, text beyond `max_size` | Protection against hostile input. | Raise the option if the input is trusted. |
 
 Errors: `DecodeError.context` has `reason`, `offset` (bytes before the offending byte, from 0),
 `line` and `column` (from 1, in characters); `EncodeError.context` has `reason` and `path` (a JSON

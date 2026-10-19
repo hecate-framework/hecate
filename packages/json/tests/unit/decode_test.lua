@@ -40,11 +40,12 @@ function T:test_integers_beyond_64_bits_become_floats()
   self:assert_equal("float", math.type(json.decode("-12345678901234567890123")))
 end
 
-function T:test_negative_zero_keeps_its_sign()
+function T:test_negative_zero_is_an_integer_but_a_float_zero_keeps_its_sign()
   local value = json.decode("-0")
-  self:assert_equal("float", math.type(value))
-  self:assert_equal("-0.0", tostring(value))
+  self:assert_equal("integer", math.type(value))
+  self:assert_equal(0, value)
   self:assert_equal("-0.0", tostring(json.decode("-0.0")))
+  self:assert_equal("-0.0", tostring(json.decode("-0e0")))
 end
 
 function T:test_malformed_numbers_are_rejected()

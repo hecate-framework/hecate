@@ -3,16 +3,15 @@
 -- objects; identity (`==` on `null`, `rawequal` on metatables) is the contract.
 global <const> setmetatable, error
 
---- Attaches a marker metatable to a table. This is `setmetatable` under another name, on purpose:
---- marking is the one raw use of metatables of the codec (the markers are tags, not objects of the
---- class model, and decoding tags every container, so no constructor can sit in between).
---- `check-boundaries` reserves the literal call to `hecate.core`; the justification is recorded in
---- OQ-48 and this alias is the only place that needs it.
+--- Attaches a marker metatable to a table. Marking is the one raw use of metatables of the codec (the
+--- markers are tags, not objects of the class model, and decoding tags every container, so no
+--- constructor can sit in between): this file is the only one `check-boundaries` lets call
+--- `setmetatable` outside `hecate.core` (OQ-48).
 ---@generic T : table
 ---@param t T
 ---@param marker table
 ---@return T
-local tag = setmetatable
+local function tag(t, marker) return setmetatable(t, marker) end
 
 --- The value of JSON `null`. A unique, immutable table, never `nil`, so that a decoded object keeps
 --- its members whose value is null.
