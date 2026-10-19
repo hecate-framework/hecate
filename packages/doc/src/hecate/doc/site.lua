@@ -391,7 +391,7 @@ local function render_page(self, page)
       if wanted[heading.level] then context.outline[#context.outline + 1] = heading end
     end
   end
-  if config.edit_link then
+  if config.edit_link and not page.meta.generated then -- a generated page has no source file to edit
     context.edit_url = (config.edit_link:gsub("{path}", function() return page.relative_path end))
   end
   local date = page.meta.last_updated

@@ -254,6 +254,18 @@ function T:test_edit_link_last_updated_and_outline_switches()
   self:assert_nil(home:find("<time", 1, true), "a date that cannot be read is left out")
 end
 
+function T:test_generated_pages_have_no_edit_link()
+  local fs = build({
+    ["en/index.md"] = page("Home"),
+    ["en/gen.md"] = page("Gen", "## S", "generated: true\n"),
+  }, {
+    locales = { { code = "en", label = "English" } },
+    edit_link = "https://git.test/edit/main/website/{path}",
+  })
+  self:assert_nil(fs:read("o/en/gen/index.html"):find('class="edit-link"', 1, true))
+  self:assert_true(fs:read("o/en/index.html"):find('class="edit-link"', 1, true) ~= nil)
+end
+
 function T:test_french_dates_use_french_month_names()
   local fs = build({ ["en/index.md"] = page("Home"), ["fr/index.md"] = page("Accueil", "x", "last_updated: 2026-02-03\n") },
     { edit_link = "https://git.test/{path}" })
