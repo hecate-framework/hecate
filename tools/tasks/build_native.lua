@@ -1,6 +1,7 @@
--- build-native [package]: builds the Rust native modules of a package (default: net; ADR 0021)
--- with cargo and installs them in the project-local tree `.hecate/rocks`, where the test
--- harness and the bootstrap look for native modules. Needs a Rust toolchain.
+-- build-native [package]: builds the native modules of a package (default: net) and installs them in
+-- the project-local tree `.hecate/rocks`, where the test harness and the bootstrap look for native
+-- modules. `net` is Rust (ADR 0021, needs a Rust toolchain); `json` is C (ADR 0020: yyjson binding,
+-- needs a C compiler and the Lua headers: LUA_INC, or next to the interpreter, or /usr/include).
 --
 -- Windows: mlua-sys needs the Lua 5.5 import library; set LUA_LIB_NAME (for example lua55),
 -- LUA_LIB and LUA_INC before running (TLS spike OQ-4). macOS link flags are
@@ -12,10 +13,69 @@ local modules = {
   net = { dir = "native", lib = "hecate_net_tls_native", target = "hecate/net/tls_native" },
 }
 
+-- C modules: package -> { sources (relative to the package), installed module path }
+local c_modules = {
+  json = { sources = { "csrc/native.c", "csrc/vendor/yyjson.c" }, target = "hecate/json/native" },
+}
+
+local function lua_include_dir(ctx)
+  local candidates = { os.getenv("LUA_INC"), os.getenv("LUA_INCDIR") }
+  local exe = util.interpreter():gsub("\\", "/")
+  if not exe:find("/", 1, true) and not util.is_windows() then
+    exe = util.capture("command -v " .. util.quote(exe)):gsub("%s+$", "")
+  end
+  local resolved = not util.is_windows() and util.capture("readlink -f " .. util.quote(exe)):gsub("%s+$", "") or ""
+  for _, path in ipairs({ exe, resolved }) do
+    local bin = path:match("^(.*)/[^/]*$")
+    if bin then candidates[#candidates + 1] = bin .. "/../include" end
+  end
+  local version = _VERSION:match("%d+%.%d+")
+  for _, dir in ipairs({ "/usr/local/include", "/usr/include/lua" .. version, "/usr/include" }) do
+    candidates[#candidates + 1] = dir
+  end
+  for _, dir in ipairs(candidates) do
+    if dir ~= "" and util.exists(dir .. "/lua.h") then return dir end
+  end
+  return nil
+end
+
+-- Builds a C module with the system compiler: -Wall -Wextra -Werror on our own sources (coding-standards.md,
+-- "C code"), the vendored sources unchanged and without those flags. Windows builds go through LuaRocks.
+local function build_c(ctx, name, m)
+  if util.is_windows() then
+    return { ok = false, problems = { "build-native for C modules needs a POSIX compiler: on Windows use `luarocks make` in packages/" .. name } }
+  end
+  local include = lua_include_dir(ctx)
+  if not include then return { ok = false, problems = { "lua.h not found: set LUA_INC to the Lua include directory" } } end
+  local cc = os.getenv("CC") or "cc"
+  local macos = util.capture("uname -s") == "Darwin"
+  local version = _VERSION:match("%d+%.%d+")
+  local dest = ("%s/.hecate/rocks/lib/lua/%s/%s.so"):format(ctx.root, version, m.target)
+  util.mkdir(dest:match("^(.*)/[^/]*$"))
+  local objects = {}
+  local package_dir = ("%s/packages/%s"):format(ctx.root, name)
+  local build_dir = ("%s/.hecate/build/%s"):format(ctx.root, name)
+  util.mkdir(build_dir)
+  for index, source in ipairs(m.sources) do
+    local own = not source:find("/vendor/", 1, true)
+    local object = ("%s/%d.o"):format(build_dir, index)
+    local flags = own and "-std=c11 -O2 -Wall -Wextra -Werror" or "-O2 -w"
+    local out, ok = util.capture(("%s -c -fPIC %s -I%s %s -o %s 2>&1"):format(
+      cc, flags, util.quote(include), util.quote(package_dir .. "/" .. source), util.quote(object)))
+    if not ok then return { ok = false, problems = { "compile failed for " .. source .. ":\n" .. out } } end
+    objects[#objects + 1] = util.quote(object)
+  end
+  local link = macos and "-bundle -undefined dynamic_lookup" or "-shared"
+  local out, ok = util.capture(("%s %s -o %s %s -lm 2>&1"):format(cc, link, util.quote(dest), table.concat(objects, " ")))
+  if not ok then return { ok = false, problems = { "link failed:\n" .. out } } end
+  return { ok = true, problems = {}, output = "installed " .. dest }
+end
+
 return {
-  description = "build the Rust native modules of a package (cargo) into .hecate/rocks",
+  description = "build the native modules of a package (cargo or cc) into .hecate/rocks",
   run = function(ctx)
     local name = ctx.args[1] or "net"
+    if c_modules[name] then return build_c(ctx, name, c_modules[name]) end
     local m = modules[name]
     if not m then return { ok = false, problems = { "no native module for package '" .. name .. "'" } } end
     local crate = ("%s/packages/%s/%s"):format(ctx.root, name, m.dir)

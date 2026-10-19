@@ -11,6 +11,8 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- `hecate.json.native`: the native yyjson decoder binding (C11, `packages/json/csrc/native.c`, vendored yyjson 0.10.0), built by `lua tools/run.lua build-native json` or by LuaRocks (`builtin`). It returns the very value model of the reference backend; failures are classified by the reference decoder on the failure path only, so reasons, messages and offsets are identical by construction. `encode` still delegates to the reference backend until the serde_json encoder (ADR 0021). The shared decode, encode and round-trip suites now run against both backends (`tests/suites`), plus a differential test of the two (corpus, seeded mutations and numbers); `backend.use(name)` forces a backend for tests; CI builds the module on Linux and macOS (Windows/MSVC pending).
+
 - `hecate.json`: `canonical = "rfc8785"`, the full JSON Canonicalization Scheme (RFC 8785) for signing, checked against the RFC's number vectors (OQ-48).
 
 - `hecate.json`: arrays with holes encode them as `null`; `decode` rejections (duplicate names, lone surrogates, byte order mark, out-of-range numbers) carry explicit messages and are documented in the package README (OQ-48).

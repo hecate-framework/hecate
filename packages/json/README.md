@@ -8,7 +8,7 @@
 | Rock | `hecate-json` |
 | Layer | 1 — Runtime |
 | Roadmap phase | 1 |
-| Status | first slice: Lua API and pure-Lua reference backend; native backends, streaming decoder, conformance corpus and fuzzing to come |
+| Status | Lua API, pure-Lua reference backend and native yyjson decoder; serde_json encoder, streaming decoder, conformance corpus and fuzzing to come |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |
 | Depends on | [`core`](../core) |
 | Used by | `cli`, `doc`, `hecate`, `http`, `kernel`, `log`, `openapi`, `schema`, `security`, `test` |
@@ -92,9 +92,20 @@ the reference):
 
 Errors: `DecodeError.context` has `reason`, `offset` (bytes before the offending byte, from 0),
 `line` and `column` (from 1, in characters); `EncodeError.context` has `reason` and `path` (a JSON
-Pointer, RFC 6901). Backends: the native module `hecate.json.native` (not built yet) is used when
-present, otherwise the pure-Lua reference backend `hecate.json.internal.reference`, which is also
-the test oracle; callers cannot tell them apart.
+Pointer, RFC 6901). Backends: the native module `hecate.json.native` is used when present,
+otherwise the pure-Lua reference backend `hecate.json.internal.reference`, which is also the test
+oracle; callers cannot tell them apart.
+
+The native module (`csrc/native.c`, vendored yyjson in `csrc/vendor`) decodes with yyjson and builds
+the same values as the reference backend (the `null` value and the array and object metatables of the
+Lua side, kept through `bind`; integers beyond 2^63 - 1 become floats; `-0` is the integer `0`). A valid
+text never leaves C. When yyjson rejects a text, or accepts one the codec rejects on purpose (a
+duplicate member name, nesting beyond `max_depth`, text beyond `max_size`, a byte order mark, a
+number outside the double range, a negative zero), the binding hands the same text to the reference
+decoder, which names the reason, message and offset: the failures are identical by construction, and
+a hostile text costs one extra reference pass. Its `encode` delegates to the reference backend until
+the serde_json encoder (ADR 0021) exists. Build it with `lua tools/run.lua build-native json` (needs a
+C compiler and the Lua headers; `LUA_INC` names the include directory) or with `luarocks make`.
 
 ## Layout (once implemented)
 

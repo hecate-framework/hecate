@@ -5,8 +5,9 @@
 -- `hecate.json.internal.markers`), the same failure reasons, options already validated, failures
 -- returned as `nil, failure` instead of raised. Two backends exist:
 --
---   * `hecate.json.native`: the native module (yyjson decoder, serde_json encoder). Not built yet.
---     When it is loaded, `native.bind(markers)` is called once if it exists, so that the native code
+--   * `hecate.json.native`: the native module (C, built by `lua tools/run.lua build-native json` or by
+--     LuaRocks): yyjson decoder; its encoder delegates to the reference backend until the serde_json
+--     encoder (ADR 0021) exists. When it is loaded, `native.bind(markers)` is called once if it exists, so that the native code
 --     holds the very `null` and metatables of the Lua side (identity is part of the value model).
 --   * `hecate.json.internal.reference`: pure Lua, the fallback and the test oracle.
 --
@@ -44,6 +45,23 @@ function M.get()
     error(native, 0)
   end
   return selected, selected_name
+end
+
+--- Forces a backend (tests: the shared suites run against both). `"native"` raises when the module is
+--- not built; `"reference"` never loads the native module; `nil` forgets the choice, as `reset` does.
+---@param name "native"|"reference"|nil
+function M.use(name)
+  if name == nil then
+    selected, selected_name = nil, nil
+  elseif name == "reference" then
+    selected, selected_name = require("hecate.json.internal.reference"), "reference"
+  elseif name == "native" then
+    local native = require(NATIVE)
+    if type(native.bind) == "function" then native.bind(markers) end
+    selected, selected_name = native, "native"
+  else
+    error(("unknown backend %q"):format(name), 2)
+  end
 end
 
 --- Forgets the selected backend so that the next call selects again (tests, after a native build).

@@ -1,9 +1,17 @@
 -- Behaviour of json.decode: RFC 8259 grammar, numbers (integer/float fidelity), strings, UTF-8,
 -- duplicate names, limits and arguments.
+-- Shared suite: loaded once per backend by tests/unit/decode_<backend>_test.lua with the backend name as
+-- argument (`...`), so that the reference and native backends meet exactly the same assertions.
 local test = require("harness.test")
 local core = require("hecate.core")
 local json = require("hecate.json")
-local T = test.Case("JsonDecodeTest")
+local backend = require("hecate.json.internal.backend")
+local backend_name = ...
+local T = test.Case("JsonDecodeTest[" .. backend_name .. "]")
+
+function T:set_up() backend.use(backend_name) end
+
+function T:tear_down() backend.use(nil) end
 
 local function decode_error(self, text, options)
   local err = self:assert_error(function() return json.decode(text, options) end)

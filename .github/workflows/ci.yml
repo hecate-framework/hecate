@@ -163,6 +163,12 @@ jobs:
           lua tools/run.lua build-native net
           test -f .hecate/rocks/lib/lua/5.5/hecate/net/tls_native.so
 
+      - name: Build the JSON native module (C, POSIX)
+        if: runner.os != 'Windows' && contains(format(' {0} ', needs.plan.outputs.packages), ' json ')
+        run: |
+          lua tools/run.lua build-native json
+          test -f .hecate/rocks/lib/lua/5.5/hecate/json/native.so
+
       - name: Build native modules (Windows)
         if: runner.os == 'Windows' && contains(format(' {0} ', needs.plan.outputs.packages), ' net ')
         shell: pwsh
