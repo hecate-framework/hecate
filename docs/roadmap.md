@@ -72,12 +72,11 @@ Exit: CI is green on all three platforms with a trivial test in every package sk
 - [x] `net`: TCP/UDP streams, DNS, buffered readers/writers, TLS (after OQ-4). Benchmarks of its hot paths wait for the harness item below.
 - [ ] `json`: codec (after OQ-5).
 - [ ] `doc` (minimal) and the reference generator, **pulled forward from Phase 3** (owner
-      decision of 2026-10-13, ADR 0012, OQ-11; proposed position, to be confirmed by the
-      owner): site build from Markdown and the LuaLS export (`---@class` on every module
+      decision of 2026-10-13, ADR 0012, Accepted, OQ-11): site build from Markdown and the LuaLS export (`---@class` on every module
       table, `---@param name type description`), generated reference pages for `core` and
       `reactor`, the website built by it in CI. Depends on `json` (the export) and on
       `reactor` (file system, OQ-33), both accepted as dependencies of `doc`; the
-      third-party dependencies of ADR 0022 (Proposed, spike OQ-39) are settled first.
+      third-party dependencies of ADR 0022 (Accepted) are integrated first.
       Replaces the "website skeleton" item above as the way the site is built; OpenAPI
       reference, versioned documentation, runnable examples and `hecate doc build` for user
       projects stay in Phase 3.
