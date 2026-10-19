@@ -3,13 +3,20 @@
 
 - roadmap_item: `json`: codec (after OQ-5).
 - status: in-progress
-- lock_until: 2026-10-19T11:18:42Z
-- last_update: 2026-10-19T09:48:42Z
+- lock_until: 2026-10-19T11:47:35Z
+- last_update: 2026-10-19T11:47:35Z
 
 ## Done
 
 - Claimed (PR #25). Website item is in PR #24 (owner's), skipped.
 - Step 1 (5ac3128): Lua side. Public API, markers, errors, backend seam (`hecate.json.internal.backend`), pure-Lua reference backend (fallback + test oracle), unit/property tests, README, CHANGELOG, OQ-48. `test json`, lint and the check-* gates pass; `typecheck` not run (no lua-language-server here).
+
+## Blocked
+
+- Resumed after PR #24 merged; merged main into this branch (CHANGELOG conflict resolved, both sides kept; `test json` and `lint` pass).
+- Denied by the permission classifier (reason: untrusted code integration): downloading the pinned yyjson sources into `packages/json/csrc/vendor/`:
+  `for f in yyjson.c yyjson.h; do curl -sSfL https://raw.githubusercontent.com/ibireme/yyjson/0.10.0/src/$f -o packages/json/csrc/vendor/$f; done` (plus its LICENSE).
+  Owner: vendor yyjson 0.10.0 yourself (or allow the command), then step 1 below can proceed. Not retried.
 
 ## Next steps
 
