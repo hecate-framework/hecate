@@ -57,35 +57,33 @@ Exit: CI is green on all three platforms with a trivial test in every package sk
 - [x] `reactor`: reactor over luv, scheduler, futures, `fork`/`join`/`select`,
       deadlines, scopes and cancellation, channels, semaphores, mutexes, monitors,
       timers, signals ([concurrency.md](architecture/concurrency.md)).
-- [ ] Website skeleton in `website/en` with the Hecate visual identity (`brand/` of the
-      organisation `.github` repository): layout, navigation, theme, first reference pages
-      (`core`, `reactor`). Owner priority: docs ship before the first usable framework
-      version. OQ-11 is resolved (ADR 0012); reference docs owed by `core` and
-      `reactor` land here. `website.yml` (build, reference, deploy to Pages) is done:
-      the owner sets Settings > Pages > Source to GitHub Actions once. **Next item after the `net`
-      pull request is closed (owner request, 2026-10-18).** `net` and the new `reactor` primitives (`spawn`, `ipc`,
-      `reuseport`) owe: the generated reference (works: `gen-reference` produces their
-      pages, not committed), and the hand-written pages with the `docs-writer` agent:
-      how-to guides (connecting and serving over TCP, TLS client and server with the
-      system trust store and `ca_pem`, deadlines and cancellation on streams, UDP and
-      pipes, running child processes and passing connections between processes),
-      explanations (transport model, back-pressure and half-close, TLS trust and the
-      security defaults of ADR 0024, multi-process serving of ADR 0023), entries in
-      `website/OUTLINE.md` and `llms.txt`, then the French pages (`translator-fr`).
+- [x] Website skeleton in `website/en` with the Hecate visual identity (`brand/` of the
+      organisation `.github` repository): layout, navigation, theme, reference pages for
+      `core`, `reactor` and `net`. Owner priority: docs ship before the first usable
+      framework version. Delivered: the site builds from `hecate.doc` (generated reference,
+      strict link check), `website.yml` builds it on pull requests and deploys it to GitHub
+      Pages from `main` (Settings > Pages > Source = GitHub Actions), hand-written how-to
+      guides and explanations for `net` and the `reactor` primitives, the public glossary,
+      the French translation of those pages (13 pages; terminology in
+      `website/fr/glossary-terms.md`), and `check-docs-examples` (code blocks equal their
+      tested example files). Still to come, in their own items: tutorials and the other
+      packages' guides as the packages land, the translation status check, `hecate doc` for
+      user projects, and the `doc` item below.
 - [x] `net`: TCP/UDP streams, DNS, buffered readers/writers, TLS (after OQ-4). Benchmarks of its hot paths wait for the harness item below.
 - [ ] `json`: codec (after OQ-5).
 - [ ] `doc` (minimal) and the reference generator, **pulled forward from Phase 3** (owner
-      decision of 2026-10-13, ADR 0012, OQ-11; proposed position, to be confirmed by the
-      owner): site build from Markdown and the LuaLS export (`---@class` on every module
+      decision of 2026-10-13, ADR 0012, Accepted, OQ-11): site build from Markdown and the LuaLS export (`---@class` on every module
       table, `---@param name type description`), generated reference pages for `core` and
       `reactor`, the website built by it in CI. Depends on `json` (the export) and on
       `reactor` (file system, OQ-33), both accepted as dependencies of `doc`; the
-      third-party dependencies of ADR 0022 (Proposed, spike OQ-39) are settled first.
+      third-party dependencies of ADR 0022 (Accepted) are integrated first.
       Replaces the "website skeleton" item above as the way the site is built; OpenAPI
       reference, versioned documentation, runnable examples and `hecate doc build` for user
       projects stay in Phase 3.
 - [ ] `log`: structured logging, RFC 5424 severities, per-scope context.
 - [ ] Benchmarks harness and first scenario (TCP echo); `benchmarks.yml`.
+- [ ] Pin every third-party action of the existing workflows by commit SHA (owner request,
+      2026-10-18; [automation.md](architecture/automation.md)); Dependabot keeps them current.
 - [ ] Workflows `native.yml`, `security.yml`, `nightly.yml`; tasks `sanitize`, `fuzz`,
       `leaks`, `coverage`, `bench`, `check-licenses`. (`security.yml` has its Rust dependency
       checks, `cargo audit` and `cargo deny`; CodeQL, dependency review and Scorecard remain.)

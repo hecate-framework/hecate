@@ -95,7 +95,7 @@ and `resolve` suspend the calling coroutine and return streams, listeners and so
 
 ## Workers
 
-Proposed in [ADR 0023](../adr/0023-multi-process-serving.md), measured in
+Accepted in [ADR 0023](../adr/0023-multi-process-serving.md), measured in
 [the OQ-8 spike](../spikes/OQ-8-multi-process.md).
 
 - `hecate serve --workers N` (default: number of CPU cores) starts one primary process

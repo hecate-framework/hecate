@@ -6,8 +6,15 @@ local T = test.Case("ExamplesTest")
 
 local here = debug.getinfo(1, "S").source:sub(2):gsub("\\", "/")
 local directory = here:match("^(.*)/tests/unit/") .. "/examples"
-local NAMES = { "hecate.net.connect", "hecate.net.bind_udp", "hecate.net.connect_tls", "hecate.net.tls.accept" }
-local NEEDS_TLS = { ["hecate.net.connect_tls"] = true, ["hecate.net.tls.accept"] = true }
+local NAMES = {
+  "hecate.net.connect", "hecate.net.listen", "hecate.net.bind_udp", "hecate.net.resolve", "hecate.net.listen_pipe",
+  "hecate.net.TcpStream.read", "hecate.net.TcpStream.shutdown",
+  "hecate.net.connect_tls", "hecate.net.tls.accept", "hecate.net.tls.server_config", "hecate.net.TlsError",
+}
+local NEEDS_TLS = {
+  ["hecate.net.connect_tls"] = true, ["hecate.net.tls.accept"] = true, ["hecate.net.tls.server_config"] = true,
+  ["hecate.net.TlsError"] = true,
+}
 
 function T:test_every_example_runs_and_prints_what_it_says()
   local tls_available = require("hecate.net").tls.available()

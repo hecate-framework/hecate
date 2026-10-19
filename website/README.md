@@ -1,7 +1,7 @@
 # Website
 
 Public documentation of Hecate. Generator: `hecate.doc` with an MDN-like theme (ADR 0012,
-Proposed, owner preference; spike OQ-11 confirms). Pages are plain Markdown with front
+Accepted). Pages are plain Markdown with front
 matter, independent of the generator. English is
 the source (`en/`); translations mirror it (`fr/` first). Specification:
 [docs/architecture/documentation.md](../docs/architecture/documentation.md).

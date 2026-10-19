@@ -1,8 +1,8 @@
 # 0022 — Documentation generator: third-party dependencies and WebAssembly assets
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-10-13
-- **Deciders:** project owner (to promote)
+- **Deciders:** project owner (accepted by the project owner, 2026-10-19)
 - **Packages:** doc, website, cli (and the bootstrap, CI and release tooling)
 - **Related:** [ADR 0012](0012-website-generator.md) (owner decisions of 2026-10-13), [ADR 0021](0021-rust-native-modules.md), [spike OQ-39](../spikes/OQ-39-doc-dependencies.md), [documentation.md](../architecture/documentation.md), OQ-11, OQ-35 to OQ-39
 
@@ -33,7 +33,7 @@ candidates on one sample, on Linux.
 5. **WebAssembly:** none; Lua 5.5 runtime for runnable examples; comrak (and syntect) in wasm
    for a live preview.
 
-## Decision (proposed)
+## Decision
 
 - **Markdown: comrak**, in one Rust native module of `hecate.doc` bound through `mlua`
   (ADR 0021; same build, shipping and `cargo-deny` rules), configured with the GFM extensions
@@ -54,9 +54,11 @@ candidates on one sample, on Linux.
   being a JavaScript development tool**. The binary is pinned by version and checksum per
   platform and managed like other toolchains (ADR 0010). If not accepted, the own index stays and
   gains an automated test.
-- **OpenAPI: own rendering** from the OpenAPI JSON produced by `hecate.openapi` into static
-  pages, in Lua, with no dependency. `roas` is a candidate for contract validation in CI,
-  outside `hecate.doc`.
+- **OpenAPI: served, not rendered** (owner decision D below, replacing the own static rendering
+  proposed in the spike): the document produced by `hecate.openapi` is served by a default route
+  of the application (the served endpoint of `hecate.openapi`) and exported to a file by its
+  tooling; `hecate.doc` renders no OpenAPI reference for now. `roas` is a candidate for contract
+  validation in CI, outside `hecate.doc`.
 - **WebAssembly:** the website workflow builds a Lua 5.5 runtime with a pinned Emscripten
   (3.1.74 in the spike) from the checksum-pinned Lua tarball, embeds the pure-Lua packages that
   can run (`core` today), and publishes `.wasm` and glue as static files of the Pages
@@ -68,6 +70,32 @@ candidates on one sample, on Linux.
 - **Fallback.** The in-house Markdown renderer and highlighters stay until the native module
   lands and are then retired, unless the owner wants a pure-Lua degraded mode for platforms
   without the prebuilt module (two Markdown behaviours to maintain).
+
+Owner decisions, 2026-10-18 (given in chat), and promotion of this ADR on 2026-10-19:
+
+- **A, Markdown:** comrak.
+- **B, highlighting:** syntect with two-face syntaxes.
+- **C, search:** Pagefind (the prebuilt binary is accepted as not being a JavaScript development
+  tool).
+- **D, OpenAPI:** the document is JSON or YAML, so serve it through a default route (the served
+  endpoint of `hecate.openapi`) rather than rendering it into pages. The owner asked for an
+  assessment; on 2026-10-19 it was judged sound and **confirmed** on these terms. In favour: the
+  served document is always in step with the running code, costs nothing in `doc` (it is already
+  the scope of `openapi`), and is what the tools that matter consume (Swagger UI and Postman
+  imports, client generators, contract tests); rendering it into pages would duplicate a
+  renderer for a format that has its own ecosystem, and the owner's condition (no new JavaScript
+  development tool) rules out the ready-made viewers. Limits, accepted: a raw document is not a
+  human-readable reference, and a documentation site cannot show it without a running server.
+  Consequences: (1) the `openapi` item delivers the served endpoint and the export of the
+  document to a file (roadmap, Phase 3), so that CI and `hecate doc build` can consume it;
+  (2) no OpenAPI rendering is built in `doc`; (3) rendering stays possible later and is
+  reconsidered, with a new decision, when `hecate doc build` for user projects is implemented
+  (Phase 3) if a readable reference without a server is then wanted; (4) the public Hecate
+  website exposes no API of its own and is not concerned.
+- **E, remaining points** (the recommendations stand): the recommendations of this ADR stand: GFM alerts replace the
+  `::: note` containers, the in-house renderer and highlighters are retired when the native module
+  lands (no degraded mode), `packages/doc` gains native code (its `CLAUDE.md`, README, rockspec
+  and `check-boundaries` change in that item), and the syntax licences are audited before adoption.
 
 ## Consequences
 

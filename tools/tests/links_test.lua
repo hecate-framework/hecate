@@ -21,4 +21,12 @@ function T:test_extract_skips_external_and_code()
   self:assert_equal("x.md", l[1].path)
   self:assert_equal("f", l[1].fragment)
 end
+function T:test_a_link_into_a_reference_directory_that_is_not_generated_is_not_broken()
+  local present = { ["website/en/reference/net"] = true }
+  local function exists(path) return present[path] == true end
+  self:assert_true(links.is_ungenerated_reference("website/en/reference/core/index.md", exists))
+  self:assert_false(links.is_ungenerated_reference("website/en/reference/net/Nope.md", exists))
+  self:assert_false(links.is_ungenerated_reference("website/en/reference/glossary.md", exists))
+  self:assert_false(links.is_ungenerated_reference("docs/glossary.md", exists))
+end
 return T
