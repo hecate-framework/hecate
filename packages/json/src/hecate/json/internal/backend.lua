@@ -31,7 +31,7 @@ local selected_name
 ---@return table backend
 ---@return "native"|"reference" name
 function M.get()
-  if selected then return selected, selected_name end
+  if selected then return selected, selected_name --[[@as "native"|"reference"]] end
   local loaded, native = pcall(require, NATIVE)
   if loaded then
     if type(native) ~= "table" or type(native.decode) ~= "function" or type(native.encode) ~= "function" then

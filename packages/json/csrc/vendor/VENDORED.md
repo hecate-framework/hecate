@@ -1,6 +1,6 @@
 # Vendored: yyjson
 
-- Upstream: https://github.com/ibireme/yyjson
+- Upstream: <https://github.com/ibireme/yyjson>
 - Version: 0.10.0 (tag `0.10.0`)
 - License: MIT (see `LICENSE`)
 - Files are unmodified copies of `src/yyjson.c`, `src/yyjson.h` and `LICENSE` at that tag.

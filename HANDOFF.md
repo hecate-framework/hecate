@@ -3,8 +3,8 @@
 
 - roadmap_item: `json`: codec (after OQ-5).
 - status: in-progress
-- lock_until: 2026-10-19T20:43:43Z
-- last_update: 2026-10-19T19:13:43Z
+- lock_until: 2026-10-19T23:12:45Z
+- last_update: 2026-10-19T21:42:45Z
 
 ## Done
 
@@ -13,6 +13,8 @@
 - Step 2: owner answers to OQ-48 applied (recorded in the OQ-48 entry): holes encode as null, `-0` decodes as integer 0, canonical member order is UTF-16 (RFC 8785), explicit decode rejection messages and a README table, `check-boundaries` exempts `markers.lua`. `test json`, `test tools`, lint, check-boundaries, check-changelog, check-links and check-glossary pass. Step 3: `canonical = "rfc8785"` in the reference backend (the native serde_json encoder must match it; the RFC vectors are in `encode_test.lua`). OQ-48 moved to Resolved at the owner's request; nothing is open in it.
 
 - Step 4 (native decoder): `hecate.json.native` in `csrc/native.c` (yyjson 0.10.0), built by `lua tools/run.lua build-native json` (cc, -Wall -Wextra -Werror on our sources; macOS bundle flags; Windows not supported by the task, use LuaRocks/MSVC, unverified) and by the rockspec (`builtin`, verified with `luarocks make`). Failure classification choice: on any failure or divergence (yyjson error, duplicate name, depth, size, BOM, out-of-range float, `-0`/`-0.0`) the binding calls the reference decoder on the same text and returns its answer; so reasons, messages and offsets are identical by construction. Cost: a hostile text pays one extra reference pass; texts containing `-0` or `-0.0` also take the reference path (yyjson cannot tell them apart without RAW mode). `encode` delegates to the reference backend (documented in README/CHANGELOG). Shared suites moved to `tests/suites/{decode,encode,roundtrip}.lua` and are run per backend by `tests/unit/*_{reference,native}_test.lua`; `tests/unit/native_test.lua` is a differential test (corpus, mutations, random numbers, depth 10000, bind, markers). `backend.use(name)` added for tests. CI step added to build the module on Linux/macOS; native tests fail in POSIX CI when it is missing, skip locally and on Windows. ASan/UBSan run of `native_test.lua` was clean (manual). `test json`, `test tools`, lint and the check-* gates pass; `typecheck` not run (no lua-language-server).
+
+- CI fix (resumed run): the 7569411 CI failed on typecheck (8 LuaLS warnings in `backend.lua`, `backend_test.lua`, `markers_test.lua`) and markdownlint (duplicate `### Added` in CHANGELOG, bare URL in VENDORED.md). Fixed with a cast, nil asserts and `---@diagnostic disable-next-line` in tests; markdownlint-cli2 now clean locally. `typecheck` still cannot run here (no lua-language-server): verify in CI.
 
 ## Blocked (resolved)
 
