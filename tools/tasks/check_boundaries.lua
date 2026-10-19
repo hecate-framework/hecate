@@ -1,5 +1,5 @@
 -- check-boundaries: layer rules (overview.md). Requires match rockspec dependencies, no
--- upward or cyclic dependency, `luv` only in reactor, raw `setmetatable` only in core.
+-- upward or cyclic dependency, `luv` only in reactor, raw `setmetatable` only in core (and the files of METATABLE_EXEMPT).
 local util = require("lib.util")
 local b = require("lib.boundaries")
 
@@ -16,6 +16,13 @@ local function code_only(src)
   src = src:gsub("%-%-%[(=*)%[.-%]%1%]", ""):gsub("%-%-[^\n]*", "")
   return src
 end
+
+--- Files outside `core` that may call `setmetatable`, with the reason (OQ-48). A file, not a package, so
+--- the exemption stays as narrow as the need.
+local METATABLE_EXEMPT = {
+  -- JSON markers are metatable tags set on every decoded container, not objects of the class model.
+  ["packages/json/src/hecate/json/internal/markers.lua"] = true,
+}
 
 return {
   description = "package layering: declared dependencies, no upward/cyclic edge, luv and setmetatable confinement",
@@ -59,7 +66,7 @@ return {
         if name ~= "reactor" and src:find("require%s*%(?%s*[\"']luv[\"']") then
           add(rel .. ": luv may only be required by hecate.reactor")
         end
-        if name ~= "core" and src:find("%f[%w_]setmetatable%s*%(") then
+        if name ~= "core" and not METATABLE_EXEMPT[rel] and src:find("%f[%w_]setmetatable%s*%(") then
           add(rel .. ": raw setmetatable is reserved to hecate.core (use the object model)")
         end
       end
