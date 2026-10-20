@@ -44,6 +44,16 @@ Versions: Rust 1.97.0, `mlua` 0.12.2, `serde_json` 1.0.154, Lua 5.5.1.
 - B passes the whole `json` test suite, including the differential tests against the reference encoder (corpus,
   40 000 random floats, random values, `canonical`, indentation, depth and size limits) and the fuzz test (also run for
   40 s). The tests were shown to run against B (a corrupt module in its place fails them).
+- **Three encoders exist, not two.** The *reference encoder* is the pure-Lua one (`packages/json/src/hecate/json/internal/reference.lua`):
+  it is the specification in code, the test oracle and the fallback when no native module is built. A and B are two Rust
+  implementations of the same contract; the tests compare each of them with the reference encoder.
+- **A and B compared directly, byte for byte** (`docs/spikes/OQ-52/ab-differential.lua`): 1 700 000 random values (nesting up
+  to 5 levels and chains of 30, integers including the extremes, floats from random bit patterns, decimals and
+  special values, strings with controls, quotes, accents, emoji and invalid UTF-8, holes, marked and unmarked tables,
+  mixed keys) with random options (indentation, `canonical`, `max_depth`, `max_size`): 1 170 000 values encoded by both,
+  the same text every time; the other values declined by both (`nil`, the reference encoder then answers); no value
+  encoded by only one of them. The chain encode, decode, encode again (in canonical order, since the member order of an
+  unmarked table is that of `pairs`) gave the same text for every one of the 1 170 000 values.
 - **Strings are escaped identically** (checked in `docs/spikes/OQ-52/float-layout.lua`): `"` `\` `\b` `\f` `\n` `\r` `\t`,
   other control characters as `\u00xx` in lower case, everything else, including DEL, accents and emoji, written as is.
 - `serde_json` lets a `Formatter` replace `write_f64`, so the codec's float text is reproducible on it. The argument
@@ -138,4 +148,5 @@ mkdir -p spikes/OQ-52/bridge && cp spikes/OQ-52/target-bridge/release/libbridge.
 lua docs/spikes/OQ-52/bridge-cases.lua
 lua docs/spikes/OQ-52/float-digits.lua 300000
 lua docs/spikes/OQ-52/float-layout.lua
+lua docs/spikes/OQ-52/ab-differential.lua .hecate/rocks/lib/lua/5.5/hecate/json/encoder_native.so spikes/OQ-52/target/release/libhecate_json_encoder_native.so 500000 1
 ```
