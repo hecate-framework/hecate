@@ -3,7 +3,7 @@
 --
 -- One public API: the native backend (yyjson decoder, serde_json encoder, ADR 0020 and 0021) and the
 -- pure-Lua reference backend sit behind `hecate.json.internal.backend`; callers never see which one runs.
-global <const> require, type, getmetatable, rawequal, error, math, string, pairs, tostring
+global <const> require, type, getmetatable, setmetatable, table, rawequal, error, math, string, pairs, tostring
 
 local core = require("hecate.core")
 local errors = require("hecate.json.errors")
@@ -139,6 +139,59 @@ function json.decode(text, options)
     }), 2)
   end
   return value
+end
+
+--- Receives a JSON text in chunks (a request body read from a socket) and decodes it once complete.
+--- The size limit is enforced while chunks arrive, so an oversized body is refused without being
+--- buffered whole (OQ-49: the text is decoded at `finish`, not incrementally).
+---@class hecate.json.Decoder
+---@field private chunks string[]
+---@field private size integer
+---@field private options hecate.json.DecodeOptions
+local Decoder = {}
+Decoder.__index = Decoder
+
+--- Appends a chunk. Raises `hecate.json.DecodeError` (reason `size_limit`) as soon as the total
+--- exceeds `max_size`; the decoder is then unusable.
+---@param chunk string
+---@return hecate.json.Decoder self
+function Decoder:feed(chunk)
+  if type(chunk) ~= "string" then
+    error(ArgumentError(("json.Decoder:feed expects a string, got %s"):format(describe(chunk))), 2)
+  end
+  if self.chunks == nil then error(ArgumentError("json.Decoder: already finished or failed"), 2) end
+  local size = self.size + #chunk
+  if size > self.options.max_size then
+    self.chunks = nil
+    error(errors.DecodeError({
+      message = ("text longer than max_size (%d bytes)"):format(self.options.max_size),
+      context = { reason = "size_limit", offset = self.options.max_size, line = 1, column = 1 },
+    }), 2)
+  end
+  self.size = size
+  self.chunks[#self.chunks + 1] = chunk
+  return self
+end
+
+--- Decodes the text received so far, as `json.decode` does; the decoder cannot be used afterwards.
+---@return any value
+function Decoder:finish()
+  local chunks = self.chunks
+  if chunks == nil then error(ArgumentError("json.Decoder: already finished or failed"), 2) end
+  self.chunks = nil
+  return json.decode(table.concat(chunks), self.options)
+end
+
+--- Creates a decoder fed by chunks, for a text that arrives in pieces.
+---@param options? hecate.json.DecodeOptions
+---@return hecate.json.Decoder
+function json.decoder(options)
+  options = check_options("decoder", options, DECODE_OPTIONS)
+  local resolved = {
+    max_depth = integer_option("decoder", options, "max_depth", DEFAULT_MAX_DEPTH, MAX_DEPTH_CEILING),
+    max_size = integer_option("decoder", options, "max_size", DEFAULT_MAX_SIZE),
+  }
+  return setmetatable({ chunks = {}, size = 0, options = resolved }, Decoder)
 end
 
 --- Encodes a Lua value as JSON text (RFC 8259) that is always valid UTF-8.

@@ -9,6 +9,10 @@ Each release heading states the supported Lua version.
 
 ## [Unreleased] — Lua 5.5
 
+### Added
+
+- `hecate.json`: `json.decoder` receives a text in chunks and enforces `max_size` while feeding (buffered; incremental parsing is OQ-49).
+
 ### Changed
 
 - `hecate.json`: `-0` decodes as the integer `0`; `canonical` orders member names by UTF-16 code units (RFC 8785); `check-boundaries` exempts the JSON markers file from the `setmetatable` rule.

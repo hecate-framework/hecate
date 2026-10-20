@@ -8,7 +8,7 @@
 | Rock | `hecate-json` |
 | Layer | 1 — Runtime |
 | Roadmap phase | 1 |
-| Status | Lua API, pure-Lua reference backend and native yyjson decoder; Rust encoder, streaming decoder, conformance corpus and fuzzing to come |
+| Status | Lua API, pure-Lua reference backend and native yyjson decoder; Rust encoder, incremental parser (OQ-49), conformance corpus and fuzzing to come |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |
 | Depends on | [`core`](../core) |
 | Used by | `cli`, `doc`, `hecate`, `http`, `kernel`, `log`, `openapi`, `schema`, `security`, `test` |
@@ -46,6 +46,7 @@ local json = require("hecate.json")
 |---|---|
 | `json.encode(value, options?)` | Encodes a Lua value as JSON text that is always valid UTF-8. Options: `pretty`, `indent` (spaces or a string of spaces and tabs), `canonical` (`true`: members in RFC 8785 order, UTF-16 code units; `"rfc8785"`: the full JSON Canonicalization Scheme), `max_depth` (default 1000, at most 10000), `max_size` (default 16 MiB). |
 | `json.decode(text, options?)` | Decodes JSON text (RFC 8259). Options: `max_depth`, `max_size`. |
+| `json.decoder(options?)` | A decoder fed by chunks: `:feed(chunk)` (enforces `max_size` as chunks arrive) then `:finish()`, which decodes like `json.decode`. Buffered, not incremental (OQ-49). |
 | `json.null` | The value of JSON `null` (unique, immutable, never `nil`). |
 | `json.array(t?)`, `json.object(t?)` | Mark a table as a JSON array or object (a new empty table without argument); return the table. |
 | `json.is_array(v)`, `json.is_object(v)` | Tell whether a value carries a marker. |
