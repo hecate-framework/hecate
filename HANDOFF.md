@@ -3,8 +3,8 @@
 
 - roadmap_item: `json`: codec (after OQ-5).
 - status: in-progress
-- lock_until: 2026-10-20T14:20:00Z
-- last_update: 2026-10-20T12:50:00Z
+- lock_until: 2026-10-20T17:25:00Z
+- last_update: 2026-10-20T15:55:00Z
 
 ## Done
 
@@ -26,6 +26,7 @@
 - CI fix 4 (resumed run, b0db575 red on typecheck only): the `--[[@as string]]` cast on a literal is not accepted by LuaLS 3.19.1; `decoder_test.lua` now uses `---@diagnostic disable-next-line: param-type-mismatch` like `markers_test.lua`. `test json` and lint pass; verify typecheck and the three platforms in CI.
 - Step 7 (resumed after the owner removed `json.decoder`): JSONTestSuite NOT vendored (owner decision, OQ-51): `lua tools/run.lua fetch-fixtures json` clones it at a pinned commit into `.hecate/fixtures/json/` (git-ignored; the GitHub archive URLs are blocked by the cloud proxy, git works), `tests/external.lua` holds the pin, `tests/JSONTestSuite.manifest` the file names; the suite skips locally and fails in CI when the data is missing; CI step added; `tests/suites/corpus.lua` run per backend by `tests/unit/corpus_{reference,native}_test.lua`. Only the 2 duplicate-name `y_` files differ from the suite's verdict (rejected on purpose, OQ-48). Checked that the suite fails on both backends when the exemption is removed. LuaLS 3.19.1 installed under `spikes/luals` (git-ignored, `PATH=$PWD/spikes/luals/bin:$PATH`): typecheck runs locally now.
 - Step 8: `HECATE_FIXTURES_LATEST=1` makes `fetch-fixtures` take the head of upstream (owner wish: see new edge cases early; PRs stay on the pin; for the future `nightly.yml`; upstream's last commit is the pin, 2024-11-22). Differential fuzz test `tests/unit/fuzz_test.lua` (mutations of seeds and corpus files; native decoder and Rust encoder vs reference; round trip): 4000 fixed iterations by default; 3 runs of 15 to 60 s (about 2.9 M texts per minute) found no disagreement. The libFuzzer/`fuzz` and `sanitize` tasks stay in the Phase 1 infrastructure item.
+- Step 9 (resumed, CI green at 2b1be6a): tested examples `packages/json/examples/*` + `examples_test.lua`, how-to page `website/en/how-to/encode-and-decode-json.md`. `test json`, lint, check-docs-examples, check-links, check-changelog pass. Generated reference page (`gen-reference`) and French translation not done; benchmarks not done.
 
 ## Blocked (resolved)
 
@@ -38,7 +39,7 @@
 2. (done, see Step 5.) Open: Windows build of both native modules in CI; the encoder in the rockspec/binary rocks; benchmark encoder vs reference (the ADR quotes 53 vs 15 MB/s).
 3. (done) OQ-49 resolved by the owner on 2026-10-20: no incremental parser, and `json.decoder` (buffered `:feed`/`:finish`) was removed.
 4. (corpus and Lua-level fuzzing done, Steps 7 and 8: `tests/suites/corpus.lua`, data fetched by `fetch-fixtures json`, both backends; fuzzing open.)
-5. Benchmarks, website reference page, examples for the doc generator.
+5. Benchmarks (`packages/json/benchmarks`), `gen-reference` for json (needs LuaLS) and fr translation, then verify CI and finish.
 
 ## Decisions taken (and where they are recorded)
 
