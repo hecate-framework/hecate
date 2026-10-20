@@ -209,7 +209,7 @@ function T:test_nesting_up_to_max_depth_is_accepted_and_one_more_is_rejected()
   self:assert_equal("depth_limit", decode_error(self, string.rep('{"a":', 6) .. "1" .. string.rep("}", 6), { max_depth = 5 }).context.reason)
   -- a hostile text far deeper than the default must fail cleanly, not exhaust the stack
   self:assert_equal("depth_limit", decode_error(self, string.rep("[", 200000)).context.reason)
-  self:assert_not_nil(json.decode(nested(10000), { max_depth = 10000 }))
+  self:assert_not_nil(json.decode(nested(1000), { max_depth = 1000 }))
 end
 
 function T:test_max_size_limits_the_input()
@@ -230,7 +230,7 @@ function T:test_arguments_are_validated()
   bad("1", { max_dept = 3 }, 'unknown option "max_dept"')
   bad("1", { max_depth = 0 }, "invalid max_depth")
   bad("1", { max_depth = 1.5 }, "invalid max_depth")
-  bad("1", { max_depth = 10001 }, "invalid max_depth")
+  bad("1", { max_depth = 1001 }, "invalid max_depth")
   bad("1", { max_size = -1 }, "invalid max_size")
   bad("1", { pretty = true }, 'unknown option "pretty"')
 end

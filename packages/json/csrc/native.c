@@ -30,8 +30,8 @@
 #define STATE_METATABLE "hecate.json.native.state"
 
 /* The deepest nesting the converter recurses into, whatever max_depth says: the C stack is finite (1 MiB for the main
- * thread of a Windows process, 80 to 150 bytes a level), so a deeper text is left to the reference decoder, which does
- * not recurse on the C stack. 1000 is the default max_depth. */
+ * thread of a Windows process, 80 to 150 bytes a level). It equals the highest max_depth the public module accepts
+ * (1000, for decode and encode alike); a caller of this module that passes more is answered by the reference decoder. */
 #define HARD_DEPTH_CEILING 1000
 
 /* The registry references held by this module (one state per Lua state; freed by __gc). */

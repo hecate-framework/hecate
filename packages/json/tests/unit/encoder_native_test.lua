@@ -126,7 +126,7 @@ function T:test_a_value_beyond_the_native_depth_is_declined_and_still_encodes_th
   local deep = {}
   local node = deep
   for _ = 1, 999 do node[1] = {}; node = node[1] end
-  local options = with({ max_depth = 10000 })
+  local options = with({ max_depth = 1000 })
   self:assert_nil(encoder.encode(deep, options))
   local text = reference.encode(deep, options)
   self:assert_equal(2000, #text)

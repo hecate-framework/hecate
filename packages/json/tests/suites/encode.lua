@@ -274,6 +274,7 @@ function T:test_arguments_are_validated()
   bad({ canonical = "rfc8785", pretty = true }, "compact by definition")
   bad({ canonical = "rfc8785", indent = 2 }, "compact by definition")
   bad({ max_depth = 0 }, "invalid max_depth")
+  bad({ max_depth = 1001 }, "invalid max_depth")
   bad({ max_size = "big" }, "invalid max_size")
 end
 

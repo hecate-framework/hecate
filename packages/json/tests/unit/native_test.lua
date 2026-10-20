@@ -92,7 +92,7 @@ end
 
 function T:test_a_deep_text_is_decoded_up_to_the_depth_ceiling_and_rejected_beyond()
   if self.skipped then return end
-  local deep = 10000
+  local deep = 1000
   local text = ("["):rep(deep) .. ("]"):rep(deep)
   local options = { max_depth = deep, max_size = #text }
   local value = native.decode(text, options)
@@ -103,7 +103,7 @@ function T:test_a_deep_text_is_decoded_up_to_the_depth_ceiling_and_rejected_beyo
   self:assert_equal("depth_limit", failure.reason)
   self:assert_equal(deep - 1, failure.offset)
   local beyond = ("["):rep(deep + 2000) .. ("]"):rep(deep + 2000)
-  agree(self, beyond, { max_depth = deep + 5000, max_size = #beyond })
+  agree(self, beyond, { max_depth = deep + 5000, max_size = #beyond }) -- beyond the public ceiling: the native module still answers like the reference
   agree(self, ("["):rep(100000), { max_depth = 1000, max_size = 200000 })
 end
 

@@ -17,8 +17,9 @@ local tag = markers.tag
 
 --- Default nesting limit: arrays and objects nested deeper than this are rejected (OQ-48).
 local DEFAULT_MAX_DEPTH = 1000
---- The highest `max_depth` accepted: deeper recursion could exhaust the Lua stack (OQ-48).
-local MAX_DEPTH_CEILING = 10000
+--- The highest `max_depth` accepted, by `decode` and `encode` alike: deeper recursion could exhaust the C or the Lua
+--- stack (OQ-48, OQ-54). A deeper text or value is an error (`depth_limit`), not a crash.
+local MAX_DEPTH_CEILING = 1000
 --- Default size limit in bytes of the text read by `decode` and of the text written by `encode` (OQ-48).
 local DEFAULT_MAX_SIZE = 16 * 1024 * 1024
 --- Indentation used by `pretty = true`.
@@ -39,7 +40,7 @@ local json = {
 
 --- Options of `json.decode`.
 ---@class hecate.json.DecodeOptions
----@field max_depth? integer  deepest nesting of arrays and objects accepted, 1 to 10000 (default 1000)
+---@field max_depth? integer  deepest nesting of arrays and objects accepted, 1 to 1000 (default 1000, as for `encode`)
 ---@field max_size? integer  longest text accepted, in bytes (default 16 MiB)
 
 --- Options of `json.encode`.
@@ -47,7 +48,7 @@ local json = {
 ---@field pretty? boolean  one member or element per line, indented (default `false`: compact text)
 ---@field indent? integer|string  indentation of a pretty text: a number of spaces or a string of spaces and tabs (implies `pretty`; default 2 spaces)
 ---@field canonical? boolean|"rfc8785"  `true`: write the members of every object in RFC 8785 order, by UTF-16 code units of their names (numbers keep the codec's own format); `"rfc8785"`: the full JSON Canonicalization Scheme for signing (compact text, every number an IEEE double in the ECMAScript format, an integer beyond +-2^53 raises); default `false`
----@field max_depth? integer  deepest nesting accepted, 1 to 10000 (default 1000); also stops cycles
+---@field max_depth? integer  deepest nesting accepted, 1 to 1000 (default 1000, as for `decode`); also stops cycles
 ---@field max_size? integer  longest text produced, in bytes (default 16 MiB)
 
 local DECODE_OPTIONS = { max_depth = true, max_size = true }
