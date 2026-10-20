@@ -331,7 +331,11 @@ end
 -- the C locale, which Lua keeps unless the host calls os.setlocale.
 local function utf16_order_key(name)
   return (gsub(name, "[\240-\244][\128-\191][\128-\191][\128-\191]", function(sequence)
-    local code = utf8.codepoint(sequence) - 0x10000
+    -- An overlong form or a value beyond U+10FFFF matches the pattern but is not UTF-8: leave it, the encoder
+    -- rejects the member name with `invalid_utf8` when it writes it.
+    local ok, point = pcall(utf8.codepoint, sequence)
+    if not ok then return sequence end
+    local code = point - 0x10000
     return utf8.char(0xD800 + (code >> 10), 0xDC00 + (code & 0x3FF))
   end))
 end

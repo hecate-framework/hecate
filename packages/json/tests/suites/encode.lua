@@ -97,6 +97,16 @@ function T:test_too_sparse_tables_are_rejected()
   self:assert_equal("sparse_array", encode_error(self, json.array(sparse)).context.reason)
 end
 
+function T:test_canonical_rejects_an_invalid_utf8_member_name_like_the_plain_encoder()
+  -- an overlong sequence and a value beyond U+10FFFF look like a four-byte character to the sorting
+  for _, name in ipairs({ "\xf4\x90\x80\x80", "\xf0\x80\x80\x80", "\xff" }) do
+    for _, options in ipairs({ {}, { canonical = true } }) do
+      local err = encode_error(self, { [name] = 1, ["\u{1F600}"] = 2, a = 3 }, options)
+      self:assert_equal("invalid_utf8", err.context.reason)
+    end
+  end
+end
+
 function T:test_canonical_order_is_utf16_order()
   -- U+1F600 is the surrogate pair D83D DE00 in UTF-16, so it sorts before U+FF5E; in UTF-8 byte order it sorts after.
   local value = { ["\u{1F600}"] = 1, ["\u{FF5E}"] = 2, ["\u{E9}"] = 3 }

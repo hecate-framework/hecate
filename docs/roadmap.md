@@ -91,7 +91,7 @@ Exit: CI is green on all three platforms with a trivial test in every package sk
 - [ ] Pin every third-party action of the existing workflows by commit SHA (owner request,
       2026-10-18; [automation.md](architecture/automation.md)); Dependabot keeps them current.
 - [ ] Workflows `native.yml`, `security.yml`, `nightly.yml`; tasks `sanitize`, `fuzz`,
-      `leaks`, `coverage`, `bench`, `check-licenses`. (`security.yml` has its Rust dependency
+      `leaks`, `coverage`, `bench`, `check-licenses`. The native code of `json` (`csrc/native.c`, `native/`) needs its ASan and UBSan build and its libFuzzer targets there (coding-standards.md; today a differential fuzz test in Lua only, native review of the `json` pull request). (`security.yml` has its Rust dependency
       checks, `cargo audit` and `cargo deny`; CodeQL, dependency review and Scorecard remain.)
 
 Exit: an echo server handles 10 000 concurrent connections on each platform; structured

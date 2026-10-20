@@ -113,7 +113,7 @@ reference encoder's: the same escaping, member and array rules, markers, `indent
 (UTF-16 code units) and float format (the fewest of 15 to 17 digits). It never reports a failure: for
 a value it cannot or must not write (ambiguous table, limit reached, NaN, invalid UTF-8, unsupported
 type), for `canonical = "rfc8785"` and for nesting beyond 200 levels (it recurses on the native stack)
-it returns `nil` and the reference encoder answers, so reasons, messages and paths exist once. When
+it returns `nil` and the reference encoder answers, so reasons, messages and paths exist once. The work of the encoder is bounded by the size of the output (`max_size`), not by the size of the value: a value that shares substructure is written in full, and a failure, or a table of more than about a million members, costs two passes (OQ-54). When
 the module is absent the reference encoder writes everything. It is not part of the rockspec yet
 (binary rocks, ADR 0021).
 

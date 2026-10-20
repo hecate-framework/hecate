@@ -29,8 +29,10 @@
 #define MARKERS_MODULE "hecate.json.internal.markers"
 #define STATE_METATABLE "hecate.json.native.state"
 
-/* The deepest nesting the converter recurses into, whatever max_depth says (the C stack is finite). */
-#define HARD_DEPTH_CEILING 10000
+/* The deepest nesting the converter recurses into, whatever max_depth says: the C stack is finite (1 MiB for the main
+ * thread of a Windows process, 80 to 150 bytes a level), so a deeper text is left to the reference decoder, which does
+ * not recurse on the C stack. 1000 is the default max_depth. */
+#define HARD_DEPTH_CEILING 1000
 
 /* The registry references held by this module (one state per Lua state; freed by __gc). */
 typedef struct {
