@@ -5,7 +5,10 @@ global <const> _VERSION, package, os, string, print, require, pcall, tostring, t
 package.path = "packages/json/src/?.lua;packages/json/src/?/init.lua;packages/core/src/?.lua;"
   .. "packages/core/src/?/init.lua;" .. package.path
 local version = _VERSION:match("%d+%.%d+")
-package.cpath = ".hecate/rocks/lib/lua/" .. version .. "/?.so;" .. package.cpath
+-- As the test harness: the project tree, then the spike tree (spikes/rocks, git-ignored), which wins.
+for _, tree in ipairs({ ".hecate/rocks", "spikes/rocks" }) do
+  package.cpath = tree .. "/lib/lua/" .. version .. "/?.so;" .. package.cpath
+end
 
 local json = require("hecate.json")
 local backend = require("hecate.json.internal.backend")

@@ -162,7 +162,7 @@ return {
         return { ok = false, problems = { "name the benchmarks to run (or 'all'); --list shows them" } }
       end
       chosen = menu(all)
-      if not chosen or #chosen == 0 then return { ok = true, problems = {} } end
+      if not chosen or #chosen == 0 then return { ok = true, problems = {}, output = "nothing was run" } end
     end
     if #chosen == 0 then return { ok = false, problems = { "no benchmark found" } } end
 
@@ -176,7 +176,9 @@ return {
           return { ok = false, problems = { "the host is not quiet; fix it, or pass --yes to measure anyway" } }
         end
         io.stderr:write("Continue anyway? [y/N] ")
-        if not (io.read("l") or ""):match("^[yY]") then return { ok = true, problems = {} } end
+        if not (io.read("l") or ""):match("^[yY]") then
+          return { ok = true, problems = {}, output = "nothing was run (answer y, or pass --yes, to measure on a host that is not quiet)" }
+        end
       end
     end
 
