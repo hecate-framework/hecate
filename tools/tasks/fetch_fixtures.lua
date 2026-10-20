@@ -7,6 +7,12 @@
 -- (for scheduled runs that watch for new cases; a pull request must stay on the pin).
 local util = require("lib.util")
 
+-- `util.quote` turns "/" into "\\" on Windows (it quotes paths); a URL must keep its slashes.
+local function quote_url(url)
+  if util.is_windows() then return '"' .. url:gsub('"', '""') .. '"' end
+  return "'" .. url:gsub("'", "'\\''") .. "'"
+end
+
 local function git(dir, args)
   return util.capture(("git -C %s %s 2>&1"):format(util.quote(dir), args))
 end
@@ -29,7 +35,7 @@ return {
       local latest = os.getenv("HECATE_FIXTURES_LATEST") == "1"
       local head = git(dir, "rev-parse HEAD")
       if latest or head ~= entry.commit then
-        local out, ok = git(dir, ("fetch -q --depth 1 %s %s"):format(util.quote(entry.repository), latest and "HEAD" or entry.commit))
+        local out, ok = git(dir, ("fetch -q --depth 1 %s %s"):format(quote_url(entry.repository), latest and "HEAD" or entry.commit))
         if ok then out, ok = git(dir, "checkout -q -f FETCH_HEAD") end
         if not ok then problems[#problems + 1] = ("%s: cannot fetch %s at %s: %s"):format(entry.name, entry.repository, entry.commit, out) end
       end
