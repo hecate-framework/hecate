@@ -38,7 +38,7 @@ end
 
 function T:test_arguments_are_checked()
   self:assert_error(function() json.decoder({ bogus = 1 }) end)
-  self:assert_error(function() json.decoder():feed(1) end)
+  self:assert_error(function() json.decoder():feed(1 --[[@as string]]) end)
 end
 
 return T

@@ -3,8 +3,8 @@
 
 - roadmap_item: `json`: codec (after OQ-5).
 - status: in-progress
-- lock_until: 2026-10-20T08:30:00Z
-- last_update: 2026-10-20T07:00:00Z
+- lock_until: 2026-10-20T11:30:00Z
+- last_update: 2026-10-20T10:00:00Z
 
 ## Done
 
@@ -21,6 +21,8 @@
 - Step 5 (Rust encoder): `packages/json/native` (mlua only; no serde_json: the reference number format is `%.15g`..`%.17g`, which serde's shortest-digits output does not reproduce, so floats are formatted by hand from Rust's exact `{:.Ne}` and checked on 40000 random doubles). Module `hecate.json.encoder_native`, loaded by `backend.lua` (`with_encoder`) next to the native decoder; it returns nil for failures, `rfc8785` and nesting > 200 (native stack), and the reference encoder answers. `build-native json` now builds C then Rust. Tests: `tests/unit/encoder_native_test.lua` (differential), `backend_test.lua` (hides the encoder, tests composition). CI: rustup + cache + `cargo fmt`/`clippy` for json, `security.yml` audits/denies it. `test json`, `test tools`, lint, clippy, check-* pass locally; `cargo deny` and `typecheck` not run here. Windows: the encoder is not built there (as the C decoder).
 
 - Step 6 (resumed after lock expiry; CI was green on the three platforms at c09c198): `json.decoder` (`:feed`, `:finish`), buffered, tests in `tests/unit/decoder_test.lua`, OQ-49 for the real incremental parser. `test json` and lint pass.
+
+- CI fix 3 (resumed run, 43eb9e3 was red on all platforms): typecheck cast in `decoder_test.lua:41`; markdownlint (OQ-49 row was in the Resolved table, duplicate `### Added` in CHANGELOG). `test json`, lint, check-changelog, markdownlint-cli2 pass locally; verify typecheck in CI.
 
 ## Blocked (resolved)
 
