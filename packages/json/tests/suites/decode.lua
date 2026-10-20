@@ -173,6 +173,24 @@ function T:test_duplicate_member_names_are_rejected()
   self:assert_equal("duplicate_key", decode_error(self, '{"a\\u0062":1,"ab":2}').context.reason)
 end
 
+function T:test_an_error_message_never_echoes_more_than_a_short_excerpt_of_the_input()
+  -- a hostile text must not grow the message nor forge a line of a log
+  local long = decode_error(self, '{"' .. string.rep("k", 100000) .. '":1,"' .. string.rep("k", 100000) .. '":2}')
+  self:assert_equal("duplicate_key", long.context.reason)
+  self:assert_true(#long.message < 400, "message length " .. #long.message)
+  self:assert_true(long.message:find("(cut)", 1, true) ~= nil)
+  local forged = decode_error(self, [[{"x\nERROR forged\n":1,"x\nERROR forged\n":2}]])
+  self:assert_equal("duplicate_key", forged.context.reason)
+  self:assert_nil(forged.message:find("\n", 1, true), "raw line feed in the message")
+  self:assert_true(forged.message:find("\\x0a", 1, true) ~= nil, forged.message)
+  local number = decode_error(self, "[1" .. string.rep("0", 100000) .. "]")
+  self:assert_equal("number_out_of_range", number.context.reason)
+  self:assert_true(#number.message < 400, "message length " .. #number.message)
+  -- a cut never splits a UTF-8 sequence
+  local accents = decode_error(self, '{"' .. string.rep("é", 100) .. '":1,"' .. string.rep("é", 100) .. '":2}')
+  self:assert_true(utf8.len((accents.message:match('"(.-)"'))) ~= nil)
+end
+
 function T:test_whitespace_is_only_the_four_characters_of_rfc_8259()
   self:assert_equal(1, json.decode(" \t\r\n1 \t\r\n"))
   for _, space in ipairs({ "\f", "\v", "\194\160", "\226\128\168" }) do

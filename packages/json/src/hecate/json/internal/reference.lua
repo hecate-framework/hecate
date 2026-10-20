@@ -70,6 +70,24 @@ local function describe(text, pos)
   return format("byte 0x%02x", c)
 end
 
+-- Text that comes from the input and is echoed in a message (a member name, a number literal): at most
+-- EXCERPT_LIMIT bytes, cut on a character boundary, with every control character, quote and backslash escaped, so
+-- that a hostile text can neither grow the message nor forge a line of a log (no raw line feed).
+local EXCERPT_LIMIT = 40
+
+local function excerpt(text)
+  local cut = #text > EXCERPT_LIMIT
+  if cut then
+    local stop = EXCERPT_LIMIT
+    while stop > 0 and byte(text, stop + 1) and byte(text, stop + 1) >= 0x80 and byte(text, stop + 1) < 0xC0 do
+      stop = stop - 1 -- do not cut inside a UTF-8 sequence
+    end
+    text = sub(text, 1, stop)
+  end
+  local shown = gsub(text, '[%c"\\\127]', function(c) return format("\\x%02x", byte(c)) end)
+  return '"' .. shown .. '"' .. (cut and " (cut)" or "")
+end
+
 --- Decodes a JSON text.
 ---@param text string
 ---@param options { max_depth: integer, max_size: integer }
@@ -195,7 +213,7 @@ function M.decode(text, options)
     if value == huge or value == -huge then
       fail("number_out_of_range", ("number %s is out of range: it does not fit in a 64-bit float (about 1.8e308 at most); "
         .. "RFC 8259 allows it but parsers disagree on the result (infinity, error or clamp), so it is rejected"):format(
-        literal), pos - 1)
+        excerpt(literal)), pos - 1)
     end
     return value, p
   end
@@ -241,8 +259,8 @@ function M.decode(text, options)
       local key
       key, pos = parse_string(pos)
       if rawget(result, key) ~= nil then
-        fail("duplicate_key", ("duplicate member name %q: RFC 8259 allows it but parsers disagree on which value wins, "
-          .. "so it is rejected (I-JSON, RFC 7493 section 2.3)"):format(key), key_at - 1)
+        fail("duplicate_key", ("duplicate member name %s: RFC 8259 allows it but parsers disagree on which value wins, "
+          .. "so it is rejected (I-JSON, RFC 7493 section 2.3)"):format(excerpt(key)), key_at - 1)
       end
       pos = skip_space(pos)
       if byte(text, pos) ~= 58 then unexpected(pos, "':'") end

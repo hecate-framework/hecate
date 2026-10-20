@@ -89,7 +89,7 @@ the reference):
 | `invalid_utf8` | a string with bytes that are not UTF-8 | The text must be UTF-8 (RFC 8259 section 8.1). | Re-encode the source as UTF-8. |
 | `depth_limit`, `size_limit` | nesting beyond `max_depth`, text beyond `max_size` | Protection against hostile input. | Raise the option if the input is trusted. |
 
-Errors: `DecodeError.context` has `reason`, `offset` (bytes before the offending byte, from 0),
+The error message echoes at most 40 bytes of the input (a member name or a number literal), cut on a character boundary, with control characters, quotes and backslashes escaped. Errors: `DecodeError.context` has `reason`, `offset` (bytes before the offending byte, from 0),
 `line` and `column` (from 1, in characters); `EncodeError.context` has `reason` and `path` (a JSON
 Pointer, RFC 6901). Backends: the native module `hecate.json.native` is used when present,
 otherwise the pure-Lua reference backend `hecate.json.internal.reference`, which is also the test
@@ -102,7 +102,7 @@ text never leaves C. When yyjson rejects a text, or accepts one the codec reject
 duplicate member name, nesting beyond `max_depth`, text beyond `max_size`, a byte order mark, a
 number outside the double range, a negative zero), the binding hands the same text to the reference
 decoder, which names the reason, message and offset: the failures are identical by construction, and
-a hostile text costs one extra reference pass. Build it with `lua tools/run.lua build-native json`
+a hostile text costs one extra reference pass (measured: 7 s for a 16 MiB array with a trailing comma, against 1.3 s when valid; OQ-54). Build it with `lua tools/run.lua build-native json`
 (needs a C compiler and the Lua headers; `LUA_INC` names the include directory) or with
 `luarocks make`.
 
