@@ -13,4 +13,3 @@
 *.so binary
 *.dll binary
 *.dylib binary
-packages/json/tests/fixtures/JSONTestSuite/* -text

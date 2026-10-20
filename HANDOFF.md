@@ -24,7 +24,7 @@
 
 - CI fix 3 (resumed run, 43eb9e3 was red on all platforms): typecheck cast in `decoder_test.lua:41`; markdownlint (OQ-49 row was in the Resolved table, duplicate `### Added` in CHANGELOG). `test json`, lint, check-changelog, markdownlint-cli2 pass locally; verify typecheck in CI.
 - CI fix 4 (resumed run, b0db575 red on typecheck only): the `--[[@as string]]` cast on a literal is not accepted by LuaLS 3.19.1; `decoder_test.lua` now uses `---@diagnostic disable-next-line: param-type-mismatch` like `markers_test.lua`. `test json` and lint pass; verify typecheck and the three platforms in CI.
-- Step 7 (resumed after the owner removed `json.decoder`): JSONTestSuite vendored as test data (MIT, LICENSE kept, `-text` in `.gitattributes`); `tests/suites/corpus.lua` run per backend by `tests/unit/corpus_{reference,native}_test.lua`. Only the 2 duplicate-name `y_` files differ from the suite's verdict (rejected on purpose, OQ-48). Checked that the suite fails on both backends when the exemption is removed. LuaLS 3.19.1 installed under `spikes/luals` (git-ignored, `PATH=$PWD/spikes/luals/bin:$PATH`): typecheck runs locally now.
+- Step 7 (resumed after the owner removed `json.decoder`): JSONTestSuite NOT vendored (owner decision, OQ-51): `lua tools/run.lua fetch-fixtures json` clones it at a pinned commit into `.hecate/fixtures/json/` (git-ignored; the GitHub archive URLs are blocked by the cloud proxy, git works), `tests/external.lua` holds the pin, `tests/JSONTestSuite.manifest` the file names; the suite skips locally and fails in CI when the data is missing; CI step added; `tests/suites/corpus.lua` run per backend by `tests/unit/corpus_{reference,native}_test.lua`. Only the 2 duplicate-name `y_` files differ from the suite's verdict (rejected on purpose, OQ-48). Checked that the suite fails on both backends when the exemption is removed. LuaLS 3.19.1 installed under `spikes/luals` (git-ignored, `PATH=$PWD/spikes/luals/bin:$PATH`): typecheck runs locally now.
 
 ## Blocked (resolved)
 
@@ -36,7 +36,7 @@
 1. (done, see Step 4.) Open follow-ups: Windows/MSVC build of the native module in CI (`build-native json` is POSIX only); an `sanitize` task entry for json.
 2. (done, see Step 5.) Open: Windows build of both native modules in CI; the encoder in the rockspec/binary rocks; benchmark encoder vs reference (the ADR quotes 53 vs 15 MB/s).
 3. (done) OQ-49 resolved by the owner on 2026-10-20: no incremental parser, and `json.decoder` (buffered `:feed`/`:finish`) was removed.
-4. (corpus done, Step 7: `tests/fixtures/JSONTestSuite`, `tests/suites/corpus.lua`, both backends; fuzzing open.)
+4. (corpus done, Step 7: `tests/suites/corpus.lua`, data fetched by `fetch-fixtures json`, both backends; fuzzing open.)
 5. Benchmarks, website reference page, examples for the doc generator.
 
 ## Decisions taken (and where they are recorded)

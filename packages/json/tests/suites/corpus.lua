@@ -1,4 +1,4 @@
--- JSONTestSuite (https://github.com/nst/JSONTestSuite, MIT; tests/fixtures/JSONTestSuite): every `y_` file must
+-- JSONTestSuite (https://github.com/nst/JSONTestSuite, MIT; downloaded by `fetch-fixtures json`): every `y_` file must
 -- decode, every `n_` file must be rejected with a DecodeError, and an `i_` file (implementation-defined) must
 -- either decode or raise a DecodeError, never anything else. Documented rejections of valid texts
 -- (OQ-48) are listed in STRICTER.
@@ -12,13 +12,20 @@ local backend_name = ...
 local T = test.Case("JsonCorpusTest[" .. backend_name .. "]")
 
 local here = debug.getinfo(1, "S").source:match("^@(.*)[/\\][^/\\]*$") or "."
-local dir = here .. "/../fixtures/JSONTestSuite/"
+local dir = here .. "/../../../../.hecate/fixtures/json/JSONTestSuite/test_parsing/"
+local manifest = here .. "/../JSONTestSuite.manifest"
 
 -- Valid texts that `decode` rejects on purpose.
 local STRICTER = {
   ["y_object_duplicated_key.json"] = "duplicate member name",
   ["y_object_duplicated_key_and_value.json"] = "duplicate member name",
 }
+
+local function available()
+  local file = io.open(dir .. "y_structure_lonely_true.json", "rb")
+  if file then file:close() end
+  return file ~= nil
+end
 
 function T:set_up() backend.use(backend_name) end
 
@@ -33,15 +40,26 @@ end
 
 local function names()
   local list = {}
-  for name in io.lines(dir .. "MANIFEST.txt") do list[#list + 1] = name end
+  for name in io.lines(manifest) do list[#list + 1] = name end
   return list
 end
 
-function T:test_the_corpus_is_present()
-  self:assert_true(#names() >= 300, "the JSONTestSuite fixtures are missing")
+-- Locally the corpus is optional (no network, no download yet); in CI a missing corpus is a failure.
+local function present(self)
+  if available() then return true end
+  if os.getenv("CI") then self:fail("the JSONTestSuite corpus is missing (lua tools/run.lua fetch-fixtures json)") end
+  io.stderr:write("# skipped: the JSONTestSuite corpus is missing (lua tools/run.lua fetch-fixtures json)\n")
+  return false
+end
+
+function T:test_the_manifest_lists_the_corpus()
+  self:assert_true(#names() >= 300)
+  if not present(self) then return end
+  for _, name in ipairs(names()) do self:assert_equal(true, read(name) ~= nil, name) end
 end
 
 function T:test_every_text_gets_the_expected_verdict()
+  if not present(self) then return end
   for _, name in ipairs(names()) do
     local kind = name:sub(1, 2)
     local ok, result = pcall(json.decode, read(name))

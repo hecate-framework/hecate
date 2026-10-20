@@ -172,6 +172,11 @@ jobs:
           test -f .hecate/rocks/lib/lua/5.5/hecate/json/native.so
           test -f .hecate/rocks/lib/lua/5.5/hecate/json/encoder_native.so
 
+      - name: Download the JSON test corpus
+        if: contains(format(' {0} ', needs.plan.outputs.packages), ' json ')
+        shell: bash
+        run: lua tools/run.lua fetch-fixtures json
+
       - name: Lint the JSON encoder (Linux)
         if: runner.os == 'Linux' && contains(format(' {0} ', needs.plan.outputs.packages), ' json ')
         working-directory: packages/json/native
