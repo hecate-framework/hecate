@@ -9,6 +9,9 @@
 --     LuaRocks): yyjson decoder; its encoder delegates to the reference backend until the serde_json
 --     encoder (ADR 0021) exists. When it is loaded, `native.bind(markers)` is called once if it exists, so that the native code
 --     holds the very `null` and metatables of the Lua side (identity is part of the value model).
+--     The Rust encoder (`hecate.json.encoder_native`, ADR 0021) is optional and loaded with it: it returns
+--     `nil` for everything it does not encode itself (failures, `rfc8785`), and the reference encoder then
+--     answers, so the failure reasons exist once.
 --   * `hecate.json.internal.reference`: pure Lua, the fallback and the test oracle.
 --
 -- The native module is looked up on first use, never at `require` time (coding-standards.md, "Modules").
@@ -19,6 +22,7 @@ global <const> require, pcall, type, error
 local markers = require("hecate.json.internal.markers")
 
 local NATIVE = "hecate.json.native"
+local ENCODER = "hecate.json.encoder_native"
 
 local M = {}
 
@@ -26,6 +30,33 @@ local M = {}
 local selected
 ---@type "native"|"reference"|nil
 local selected_name
+
+--- Wraps the native backend with the Rust encoder when that module is built. A module that is present
+--- but fails to load raises, as for the native decoder.
+---@param native table
+---@return table backend
+local function with_encoder(native)
+  local loaded, encoder = pcall(require, ENCODER)
+  if not loaded then
+    if type(encoder) == "string" and encoder:find(("module '%s' not found"):format(ENCODER), 1, true) then
+      return native
+    end
+    error(encoder, 0)
+  end
+  encoder.bind(markers)
+  local reference = require("hecate.json.internal.reference")
+  local encode = encoder.encode
+  return {
+    decode = native.decode,
+    encode = function(value, options)
+      if not options.rfc8785 then
+        local text = encode(value, options)
+        if text ~= nil then return text end
+      end
+      return reference.encode(value, options)
+    end,
+  }
+end
 
 --- Returns the active backend, selecting it on first use.
 ---@return table backend
@@ -38,7 +69,7 @@ function M.get()
       error(("%s does not provide decode and encode"):format(NATIVE), 0)
     end
     if type(native.bind) == "function" then native.bind(markers) end
-    selected, selected_name = native, "native"
+    selected, selected_name = with_encoder(native), "native"
   elseif type(native) == "string" and native:find(("module '%s' not found"):format(NATIVE), 1, true) then
     selected, selected_name = require("hecate.json.internal.reference"), "reference"
   else
@@ -58,7 +89,7 @@ function M.use(name)
   elseif name == "native" then
     local native = require(NATIVE)
     if type(native.bind) == "function" then native.bind(markers) end
-    selected, selected_name = native, "native"
+    selected, selected_name = with_encoder(native), "native"
   else
     error(("unknown backend %q"):format(name), 2)
   end

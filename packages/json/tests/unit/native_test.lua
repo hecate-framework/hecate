@@ -204,7 +204,7 @@ function T:test_the_seam_selects_the_native_backend_when_it_is_built()
   local selected, name = backend.get()
   backend.use(nil)
   self:assert_equal("native", name)
-  self:assert_true(selected == native)
+  self:assert_true(selected.decode == native.decode)
 end
 
 return T

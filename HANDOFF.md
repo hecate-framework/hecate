@@ -3,8 +3,8 @@
 
 - roadmap_item: `json`: codec (after OQ-5).
 - status: in-progress
-- lock_until: 2026-10-20T02:00:00Z
-- last_update: 2026-10-20T00:30:00Z
+- lock_until: 2026-10-20T05:30:00Z
+- last_update: 2026-10-20T04:00:00Z
 
 ## Done
 
@@ -18,6 +18,8 @@
 
 - CI fix 2 (resumed run): Windows failed because the shared-suite loaders located their directory with a `/`-only pattern (`tools\\..` sources use backslashes); now `[/\\]`. `test json` and lint pass locally; verify Windows in CI.
 
+- Step 5 (Rust encoder): `packages/json/native` (mlua only; no serde_json: the reference number format is `%.15g`..`%.17g`, which serde's shortest-digits output does not reproduce, so floats are formatted by hand from Rust's exact `{:.Ne}` and checked on 40000 random doubles). Module `hecate.json.encoder_native`, loaded by `backend.lua` (`with_encoder`) next to the native decoder; it returns nil for failures, `rfc8785` and nesting > 200 (native stack), and the reference encoder answers. `build-native json` now builds C then Rust. Tests: `tests/unit/encoder_native_test.lua` (differential), `backend_test.lua` (hides the encoder, tests composition). CI: rustup + cache + `cargo fmt`/`clippy` for json, `security.yml` audits/denies it. `test json`, `test tools`, lint, clippy, check-* pass locally; `cargo deny` and `typecheck` not run here. Windows: the encoder is not built there (as the C decoder).
+
 ## Blocked (resolved)
 
 - Resumed after PR #24 merged; merged main into this branch (CHANGELOG conflict resolved, both sides kept; `test json` and `lint` pass).
@@ -26,7 +28,7 @@
 ## Next steps
 
 1. (done, see Step 4.) Open follow-ups: Windows/MSVC build of the native module in CI (`build-native json` is POSIX only); an `sanitize` task entry for json.
-2. serde_json encoder via mlua (ADR 0021) in `packages/json/native`, matching float formatting and markers.
+2. (done, see Step 5.) Open: Windows build of both native modules in CI; the encoder in the rockspec/binary rocks; benchmark encoder vs reference (the ADR quotes 53 vs 15 MB/s).
 3. Streaming/incremental decoder.
 4. JSONTestSuite corpus in tests/fixtures, run on both backends; fuzzing.
 5. Benchmarks, website reference page, examples for the doc generator.

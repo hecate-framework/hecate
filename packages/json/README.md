@@ -8,11 +8,11 @@
 | Rock | `hecate-json` |
 | Layer | 1 — Runtime |
 | Roadmap phase | 1 |
-| Status | Lua API, pure-Lua reference backend and native yyjson decoder; serde_json encoder, streaming decoder, conformance corpus and fuzzing to come |
+| Status | Lua API, pure-Lua reference backend and native yyjson decoder; Rust encoder, streaming decoder, conformance corpus and fuzzing to come |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |
 | Depends on | [`core`](../core) |
 | Used by | `cli`, `doc`, `hecate`, `http`, `kernel`, `log`, `openapi`, `schema`, `security`, `test` |
-| Native code | C codec (OQ-5) |
+| Native code | C decoder (yyjson), Rust encoder (OQ-5, ADR 0021) |
 | Specification | [schemas-and-contracts.md](../../docs/architecture/schemas-and-contracts.md) |
 | Decisions | — |
 | Agent | [`pkg-json`](../../.claude/agents/pkg-json.md) |
@@ -103,9 +103,20 @@ text never leaves C. When yyjson rejects a text, or accepts one the codec reject
 duplicate member name, nesting beyond `max_depth`, text beyond `max_size`, a byte order mark, a
 number outside the double range, a negative zero), the binding hands the same text to the reference
 decoder, which names the reason, message and offset: the failures are identical by construction, and
-a hostile text costs one extra reference pass. Its `encode` delegates to the reference backend until
-the serde_json encoder (ADR 0021) exists. Build it with `lua tools/run.lua build-native json` (needs a
-C compiler and the Lua headers; `LUA_INC` names the include directory) or with `luarocks make`.
+a hostile text costs one extra reference pass. Build it with `lua tools/run.lua build-native json`
+(needs a C compiler and the Lua headers; `LUA_INC` names the include directory) or with
+`luarocks make`.
+
+The encoder is a second, optional native module, `hecate.json.encoder_native` (Rust through `mlua`,
+`native/`, ADR 0021; `build-native json` builds it too when `cargo` exists, the Rust toolchain is
+pinned in `native/rust-toolchain.toml`). It walks the Lua value itself and writes the same text as the
+reference encoder: the same escaping, member and array rules, markers, `indent`, `canonical` order
+(UTF-16 code units) and float format (the fewest of 15 to 17 digits). It never reports a failure: for
+a value it cannot or must not write (ambiguous table, limit reached, NaN, invalid UTF-8, unsupported
+type), for `canonical = "rfc8785"` and for nesting beyond 200 levels (it recurses on the native stack)
+it returns `nil` and the reference encoder answers, so reasons, messages and paths exist once. When
+the module is absent the reference encoder writes everything. It is not part of the rockspec yet
+(binary rocks, ADR 0021).
 
 ## Layout (once implemented)
 

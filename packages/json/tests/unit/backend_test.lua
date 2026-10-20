@@ -8,16 +8,28 @@ local markers = require("hecate.json.internal.markers")
 local T = test.Case("JsonBackendTest")
 
 local NATIVE = "hecate.json.native"
+local ENCODER = "hecate.json.encoder_native"
+
+-- The Rust encoder is hidden, as if not built, unless a test installs its own.
+local function hide_encoder()
+  package.loaded[ENCODER] = nil
+  package.preload[ENCODER] = function() error(("module '%s' not found"):format(ENCODER), 0) end
+end
 
 function T:set_up()
   self.preload = package.preload[NATIVE]
   self.loaded = package.loaded[NATIVE]
+  self.encoder_preload = package.preload[ENCODER]
+  self.encoder_loaded = package.loaded[ENCODER]
+  hide_encoder()
   backend.reset()
 end
 
 function T:tear_down()
   package.preload[NATIVE] = self.preload
   package.loaded[NATIVE] = self.loaded
+  package.preload[ENCODER] = self.encoder_preload
+  package.loaded[ENCODER] = self.encoder_loaded
   backend.reset()
 end
 
@@ -59,6 +71,35 @@ function T:test_a_native_module_is_preferred_bound_to_the_markers_and_used_by_th
   self:assert_equal("  ", calls.encode.indent)
   self:assert_true(calls.encode.canonical)
   self:assert_equal("native", select(2, backend.get()))
+end
+
+function T:test_the_rust_encoder_answers_and_the_reference_encoder_takes_what_it_declines()
+  local calls = {}
+  package.loaded[NATIVE] = nil
+  package.preload[NATIVE] = function()
+    return { decode = function() return "decoded" end, encode = function() return "native encode" end }
+  end
+  package.loaded[ENCODER] = nil
+  package.preload[ENCODER] = function()
+    return {
+      bind = function(bound) calls.bound = bound end,
+      encode = function(value) if value == 1 then return "rust" end end,
+    }
+  end
+  self:assert_equal("rust", json.encode(1))
+  self:assert_equal("[2]", json.encode({ 2 }), "declined: the reference encoder answers")
+  self:assert_equal("2", json.encode(2, { canonical = "rfc8785" }), "rfc8785 never reaches the Rust encoder")
+  self:assert_equal("decoded", json.decode("x"))
+  self:assert_true(calls.bound.null == json.null)
+end
+
+function T:test_a_rust_encoder_that_fails_to_load_is_not_hidden()
+  package.loaded[NATIVE] = nil
+  package.preload[NATIVE] = function() return { decode = function() end, encode = function() end } end
+  package.loaded[ENCODER] = nil
+  package.preload[ENCODER] = function() error("boom", 0) end
+  local err = self:assert_error(function() backend.get() end)
+  self:assert_true(tostring(err):find("boom", 1, true) ~= nil)
 end
 
 function T:test_native_failures_become_the_same_errors_with_computed_positions()
