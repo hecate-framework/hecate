@@ -34,7 +34,7 @@
 
 1. (done, see Step 4.) Open follow-ups: Windows/MSVC build of the native module in CI (`build-native json` is POSIX only); an `sanitize` task entry for json.
 2. (done, see Step 5.) Open: Windows build of both native modules in CI; the encoder in the rockspec/binary rocks; benchmark encoder vs reference (the ADR quotes 53 vs 15 MB/s).
-3. (buffered version done, Step 6.) True incremental parser waits on OQ-49.
+3. (done) OQ-49 resolved by the owner on 2026-10-20: no incremental parser; the buffered `json.decoder` stays.
 4. JSONTestSuite corpus in tests/fixtures, run on both backends; fuzzing.
 5. Benchmarks, website reference page, examples for the doc generator.
 

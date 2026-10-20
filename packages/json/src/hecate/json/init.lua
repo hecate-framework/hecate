@@ -143,7 +143,7 @@ end
 
 --- Receives a JSON text in chunks (a request body read from a socket) and decodes it once complete.
 --- The size limit is enforced while chunks arrive, so an oversized body is refused without being
---- buffered whole (OQ-49: the text is decoded at `finish`, not incrementally).
+--- buffered whole (OQ-49: no incremental parser is planned; the text is decoded at `finish`).
 ---@class hecate.json.Decoder
 ---@field private chunks string[]
 ---@field private size integer
