@@ -16,5 +16,6 @@ documented package.
   signals, processes, file system, TCP, UDP, pipes and name resolution.
 - [`hecate.net`](net/index.md): streams, TCP, UDP, pipes, name resolution, TLS and the buffered
   layer.
+- [`hecate.json`](json/index.md): encoding, decoding, markers and errors.
 
 The [glossary](glossary.md) defines the vocabulary used everywhere.

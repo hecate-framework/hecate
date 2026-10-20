@@ -66,3 +66,5 @@ print(("%s %s %d %d"):format(ok, err.context.reason, err.context.line, err.conte
 
 The table of reasons and what to do about each is in the
 [package README](https://github.com/hecate-framework/hecate/blob/main/packages/json/README.md).
+
+Reference: [`hecate.json`](../reference/json/index.md), [`DecodeError`](../reference/json/DecodeError.md).

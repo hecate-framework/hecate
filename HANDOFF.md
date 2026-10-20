@@ -40,7 +40,7 @@
 2. (done, see Step 5.) Open: Windows build of both native modules in CI; the encoder in the rockspec/binary rocks; benchmark encoder vs reference (the ADR quotes 53 vs 15 MB/s).
 3. (done) OQ-49 resolved by the owner on 2026-10-20: no incremental parser, and `json.decoder` (buffered `:feed`/`:finish`) was removed.
 4. (corpus and Lua-level fuzzing done, Steps 7 and 8: `tests/suites/corpus.lua`, data fetched by `fetch-fixtures json`, both backends; fuzzing open.)
-5. Benchmarks (`packages/json/benchmarks`), `gen-reference` for json (needs LuaLS) and fr translation, then verify CI and finish.
+5. Benchmarks (`packages/json/benchmarks`), then verify CI and finish. Reference pages for json are generated (default packages); fr translation is Phase 3 (`check-translations`).
 
 ## Decisions taken (and where they are recorded)
 
