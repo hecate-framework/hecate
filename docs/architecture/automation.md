@@ -54,7 +54,7 @@ Status column: `done` = implemented in `tools/`, `now` = workflow exists today, 
 | `affected [--base ref]` | packages affected by a diff, following reverse dependencies; used to shrink CI | done |
 | `matrix` | emits the CI matrix (platforms × packages × services) as JSON | done |
 | `services up\|down\|status` | start database servers locally via `tools/services/compose.yaml` (same versions as CI) | P4 |
-| `bench [scenario] [--compare ref]` | run benchmarks, compare with a baseline, fail above threshold | P1 |
+| `bench [scenario] [--compare ref]` | run benchmarks, compare with a baseline, fail above threshold | P1 (partly done: `bench [name...] [--list] [--runs=N] [--pin=CPUS] [--out=DIR]` browses and runs the `packages/*/benchmarks/*.lua` files on a Linux host, with host reports and a summary of the runs; `--compare` and the scenarios wait for the harness) |
 | `fuzz <target> [--seconds n]` | libFuzzer targets for C parsers and codecs | P1 |
 | `sanitize` | build native modules with ASan/UBSan and run their tests | P1 |
 | `leaks` | run reactor-heavy suites with coroutine/handle leak detection | P1 |

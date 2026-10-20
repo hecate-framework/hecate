@@ -70,7 +70,7 @@ Exit: CI is green on all three platforms with a trivial test in every package sk
       packages' guides as the packages land, the translation status check, `hecate doc` for
       user projects, and the `doc` item below.
 - [x] `net`: TCP/UDP streams, DNS, buffered readers/writers, TLS (after OQ-4). Benchmarks of its hot paths wait for the harness item below.
-- [x] `json`: codec (after OQ-5). Benchmarks of its hot paths (encoder against the reference, ADR 0020 figures) wait for the harness item below, as for `net`. Windows/MSVC build of the native modules and their inclusion in the binary rocks are follow-ups.
+- [x] `json`: codec (after OQ-5). The micro-benchmark `packages/json/benchmarks/codec.lua` runs with `lua tools/run.lua bench json`; its numbers are measured and published by the owner on dedicated hardware (benchmarks/README.md), and the network scenarios wait for the harness item below. Windows/MSVC build of the native modules and their inclusion in the binary rocks are follow-ups.
 - [ ] `doc` (minimal) and the reference generator, **pulled forward from Phase 3** (owner
       decision of 2026-10-13, ADR 0012, Accepted, OQ-11): site build from Markdown and the LuaLS export (`---@class` on every module
       table, `---@param name type description`), generated reference pages for `core` and

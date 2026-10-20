@@ -42,10 +42,27 @@ Performance is a product requirement (vision.md). Benchmarks run in CI
 ## Running on your own hardware
 
 Goal: absolute numbers that mean something, together with a description of the machine that
-produced them. The harness (`lua tools/run.lua bench`) lands with the Phase 1 harness item; until
-then the micro-benchmarks run directly, for example
-`lua packages/core/benchmarks/dispatch.lua` from the repository root. The procedure below does not
-change when the harness arrives: replace the benchmark command.
+produced them. The `bench` task browses and runs every benchmark file of the repository
+(`packages/<package>/benchmarks/<name>.lua`) on a Linux host; the comparison with a baseline and the
+network scenarios come with the Phase 1 harness item.
+
+```sh
+lua tools/run.lua bench --list                      # what exists
+lua tools/run.lua bench                             # on a terminal: a menu (1,3-4 / a = all / q)
+lua tools/run.lua bench all --runs=5 --pin=2,3      # everything, 5 rounds, on CPUs 2 and 3
+lua tools/run.lua bench json core/dispatch --yes    # a package, or one benchmark; --yes: measure
+                                                    # even if the host checks warn
+```
+
+Each round runs every selected benchmark once (so that drift is spread, not concentrated on one
+benchmark). The task warns before starting when the host is not quiet (governor, turbo, SMT, swap,
+load, graphical session; `--strict` makes that an error), writes `host-before.md` and
+`host-after.md` (`host-report.sh`), the raw output of every run, and `summary.md` with the minimum,
+median, maximum and max/min spread of every measure, in `benchmarks/results/<host>-<date>/`.
+A benchmark is a Lua file, run from the repository root, whose first line is a comment describing it
+and which prints measurement lines of the form `<label> <value> <unit>` (for example
+`decode records native 312.4 MB/s`); other lines are kept in the raw output only. The steps below
+(quiet machine, pinning, several runs) are what `bench` expects you to have done.
 
 ### Ubuntu 24.04 (reference platform)
 

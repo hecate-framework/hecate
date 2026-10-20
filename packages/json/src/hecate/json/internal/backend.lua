@@ -6,8 +6,8 @@
 -- returned as `nil, failure` instead of raised. Two backends exist:
 --
 --   * `hecate.json.native`: the native module (C, built by `lua tools/run.lua build-native json` or by
---     LuaRocks): yyjson decoder; its encoder delegates to the reference backend until the serde_json
---     encoder (ADR 0021) exists. When it is loaded, `native.bind(markers)` is called once if it exists, so that the native code
+--     LuaRocks): yyjson decoder; its own `encode` delegates to the reference backend, the Rust
+--     encoder below replaces it. When it is loaded, `native.bind(markers)` is called once if it exists, so that the native code
 --     holds the very `null` and metatables of the Lua side (identity is part of the value model).
 --     The Rust encoder (`hecate.json.encoder_native`, ADR 0021) is optional and loaded with it: it returns
 --     `nil` for everything it does not encode itself (failures, `rfc8785`), and the reference encoder then
