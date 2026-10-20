@@ -2,5 +2,5 @@
 local json = require("hecate.json")
 
 local ok, err = pcall(json.decode, '{"a":1,"a":2}')
-print(ok, err.context.reason, err.context.line, err.context.column)
--- Prints: false	duplicate_key	1	8
+print(("%s %s %d %d"):format(ok, err.context.reason, err.context.line, err.context.column))
+-- Prints: false duplicate_key 1 8

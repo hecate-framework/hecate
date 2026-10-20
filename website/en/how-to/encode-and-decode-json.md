@@ -23,8 +23,8 @@ back to the same text.
 local json = require("hecate.json")
 
 local value = json.decode('{"count":3,"ratio":0.5,"items":[]}')
-print(math.type(value.count), math.type(value.ratio), json.is_array(value.items), json.encode(value.items))
--- Prints: integer	float	true	[]
+print(("%s %s %s %s"):format(math.type(value.count), math.type(value.ratio), json.is_array(value.items), json.encode(value.items)))
+-- Prints: integer float true []
 ```
 
 `max_depth` and `max_size` bound hostile input. Raise them only for trusted text.
@@ -60,8 +60,8 @@ member names, lone surrogates, a byte order mark and numbers outside the double 
 local json = require("hecate.json")
 
 local ok, err = pcall(json.decode, '{"a":1,"a":2}')
-print(ok, err.context.reason, err.context.line, err.context.column)
--- Prints: false	duplicate_key	1	8
+print(("%s %s %d %d"):format(ok, err.context.reason, err.context.line, err.context.column))
+-- Prints: false duplicate_key 1 8
 ```
 
 The table of reasons and what to do about each is in the
