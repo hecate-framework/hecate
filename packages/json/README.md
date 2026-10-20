@@ -106,10 +106,10 @@ a hostile text costs one extra reference pass. Build it with `lua tools/run.lua 
 (needs a C compiler and the Lua headers; `LUA_INC` names the include directory) or with
 `luarocks make`.
 
-The encoder is a second, optional native module, `hecate.json.encoder_native` (Rust through `mlua`,
-`native/`, ADR 0021; `build-native json` builds it too when `cargo` exists, the Rust toolchain is
-pinned in `native/rust-toolchain.toml`). It walks the Lua value itself and writes the same text as the
-reference encoder: the same escaping, member and array rules, markers, `indent`, `canonical` order
+The encoder is a second, optional native module, `hecate.json.encoder_native` (Rust through `mlua`
+and `serde_json`, `native/`, ADR 0020 and ADR 0021; `build-native json` builds it too when `cargo` exists, the Rust toolchain is
+pinned in `native/rust-toolchain.toml`). It walks the Lua value itself and `serde_json` writes the text, which is the same as the
+reference encoder's: the same escaping, member and array rules, markers, `indent`, `canonical` order
 (UTF-16 code units) and float format (the fewest of 15 to 17 digits). It never reports a failure: for
 a value it cannot or must not write (ambiguous table, limit reached, NaN, invalid UTF-8, unsupported
 type), for `canonical = "rfc8785"` and for nesting beyond 200 levels (it recurses on the native stack)

@@ -70,7 +70,8 @@ Exit: CI is green on all three platforms with a trivial test in every package sk
       packages' guides as the packages land, the translation status check, `hecate doc` for
       user projects, and the `doc` item below.
 - [x] `net`: TCP/UDP streams, DNS, buffered readers/writers, TLS (after OQ-4). Benchmarks of its hot paths wait for the harness item below.
-- [x] `json`: codec (after OQ-5). The micro-benchmark `packages/json/benchmarks/codec.lua` runs with `lua tools/run.lua bench json`; its numbers are measured and published by the owner on dedicated hardware (benchmarks/README.md), and the network scenarios wait for the harness item below. Windows/MSVC build of the native modules and their inclusion in the binary rocks are follow-ups.
+- [ ] `json`: codec (after OQ-5). Done: Lua API, pure-Lua backend, yyjson decoder (C), `serde_json` encoder (Rust, OQ-52), corpus and fuzz tests, `bench json`, examples and how-to; Linux and macOS in CI. Left before the item is ticked: the Windows build of both native modules in CI (as the TLS module of `net`) and tests running on them; the native modules in the rockspec and the binary rocks come with release automation (Phase 3). The network benchmark scenarios wait for the harness item below; the micro-benchmark `packages/json/benchmarks/codec.lua` runs with `lua tools/run.lua bench json` and its numbers are measured and published by the owner on dedicated hardware (benchmarks/README.md).
+- [ ] `json` follow-up: remove the pure-Lua backend once it has no use (OQ-53): decode and encode failures produced by the native modules, the oracle replaced by fixtures, native modules required at run time everywhere (Windows build and binary rocks first).
 - [ ] `doc` (minimal) and the reference generator, **pulled forward from Phase 3** (owner
       decision of 2026-10-13, ADR 0012, Accepted, OQ-11): site build from Markdown and the LuaLS export (`---@class` on every module
       table, `---@param name type description`), generated reference pages for `core` and
@@ -146,7 +147,7 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
 - [ ] `hecate generate workflow` (ci, contract, docs-pages, release) and its templates;
       regenerate the monorepo's `website.yml` with it.
 - [ ] Release automation: `release.yml` (including one LuaRocks binary rock per platform for
-      the Rust native module of `net`, ADR 0021), `docker.yml`, `cli-e2e.yml`, `website.yml`
+      the native modules of `net` and `json`, ADR 0021), `docker.yml`, `cli-e2e.yml`, `website.yml`
       and the `release *` tasks.
 
 Exit: from a clean machine on each platform, `install → hecate new → hecate serve`

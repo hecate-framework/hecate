@@ -9,7 +9,7 @@
 --     LuaRocks): yyjson decoder; its own `encode` delegates to the reference backend, the Rust
 --     encoder below replaces it. When it is loaded, `native.bind(markers)` is called once if it exists, so that the native code
 --     holds the very `null` and metatables of the Lua side (identity is part of the value model).
---     The Rust encoder (`hecate.json.encoder_native`, ADR 0021) is optional and loaded with it: it returns
+--     The Rust encoder (`hecate.json.encoder_native`, `serde_json` through `mlua`, ADR 0021) is optional and loaded with it: it returns
 --     `nil` for everything it does not encode itself (failures, `rfc8785`), and the reference encoder then
 --     answers, so the failure reasons exist once.
 --   * `hecate.json.internal.reference`: pure Lua, the fallback and the test oracle.

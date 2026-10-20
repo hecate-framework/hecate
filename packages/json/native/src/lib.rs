@@ -1,4 +1,4 @@
-//! JSON encoder for `hecate.json` (ADR 0021).
+//! JSON encoder for `hecate.json` (ADR 0020, ADR 0021: `serde_json` through `mlua`).
 //!
 //! `encode(value, options)` walks a Lua value and returns the JSON text, following the contract of
 //! `hecate.json.internal.reference` (the value model, the number format, the escaping). It never
@@ -7,21 +7,22 @@
 //! asks the reference encoder, which produces the failure with its reason, message and path. So
 //! the failure vocabulary exists once. `rfc8785` output is left to the reference encoder as well.
 //!
+//! What `serde_json` writes: string escapes, integers, punctuation and indentation (`CompactFormatter`,
+//! `PrettyFormatter`). What stays ours, because it is the value model of the codec and not JSON syntax: the
+//! walk of the Lua value (markers, array or object, holes, key order, limits), and the float text
+//! (`Formatter::write_f64`: the fewest of 15 to 17 significant digits that read back, laid out as `%g`, with a
+//! point or an exponent always present). The choice is recorded in OQ-52 and the spike report.
+//!
 //! Nothing here is `unsafe`; the Lua boundary is `mlua`.
 
-use std::fmt::Write as _;
+use std::io::{self, Write};
 
 use mlua::prelude::*;
+use serde::ser::{Error as _, Serialize, SerializeMap, SerializeSeq, Serializer};
+use serde_json::ser::{CompactFormatter, Formatter, PrettyFormatter};
 
 const MARKERS_KEY: &str = "hecate.json.encoder_native.markers";
-
-/// A table with more entries than this ratio allows is not written as an array (the reference
-/// rule: highest index at most twice the number of entries plus 16).
 const HOLE_SLACK: i64 = 16;
-
-/// Deeper values are left to the reference encoder: this encoder recurses on the native stack, which
-/// is small on some platforms (1 MiB for the main thread of a Windows process), while `max_depth` may
-/// be 10000.
 const MAX_NATIVE_DEPTH: usize = 200;
 
 struct Markers {
@@ -37,39 +38,63 @@ struct Options {
     canonical: bool,
 }
 
-/// The reason an encoder gives up; the reference encoder reports it.
-struct Unsupported;
-
-struct Encoder<'a> {
-    out: String,
-    markers: &'a Markers,
-    options: &'a Options,
+/// `Write` that fails once more than `limit` bytes were written (the `max_size` option).
+struct Limited {
+    out: Vec<u8>,
+    limit: usize,
 }
 
-fn load_markers(lua: &Lua) -> LuaResult<Markers> {
-    let table: LuaTable = lua.named_registry_value(MARKERS_KEY)?;
-    Ok(Markers {
-        null: table.get("null")?,
-        array: table.get("array_metatable")?,
-        object: table.get("object_metatable")?,
-    })
-}
-
-/// The fewest of 15, 16 and 17 significant digits that read back as the same double (what
-/// `%.15g`, `%.16g` and `%.17g` choose in the reference encoder), laid out as `%g` does, with a
-/// decimal point or an exponent always present (a float must decode as a float again). Rust rounds
-/// the exact binary value correctly, like the C library, so the digits agree.
-fn write_float(out: &mut String, number: f64) -> Result<(), Unsupported> {
-    if !number.is_finite() {
-        return Err(Unsupported);
+impl Write for Limited {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        if self.out.len() + buf.len() > self.limit {
+            return Err(io::Error::other("max_size"));
+        }
+        self.out.extend_from_slice(buf);
+        Ok(buf.len())
     }
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+/// Float layout of the codec on top of any serde_json formatter.
+struct Floats<F: Formatter>(F);
+
+macro_rules! delegate {
+    ($($name:ident($($arg:ident: $ty:ty),*);)*) => {$(
+        fn $name<W: ?Sized + Write>(&mut self, w: &mut W, $($arg: $ty),*) -> io::Result<()> {
+            self.0.$name(w, $($arg),*)
+        }
+    )*};
+}
+
+impl<F: Formatter> Formatter for Floats<F> {
+    fn write_f64<W: ?Sized + Write>(&mut self, w: &mut W, number: f64) -> io::Result<()> {
+        write_float(w, number)
+    }
+    delegate! {
+        begin_array(); end_array(); begin_object(); end_object();
+        begin_array_value(first: bool); end_array_value();
+        begin_object_key(first: bool); end_object_key();
+        begin_object_value(); end_object_value();
+    }
+    fn write_i64<W: ?Sized + Write>(&mut self, w: &mut W, v: i64) -> io::Result<()> {
+        self.0.write_i64(w, v)
+    }
+    fn write_string_fragment<W: ?Sized + Write>(&mut self, w: &mut W, f: &str) -> io::Result<()> {
+        self.0.write_string_fragment(w, f)
+    }
+}
+
+fn write_float<W: ?Sized + Write>(w: &mut W, number: f64) -> io::Result<()> {
+    let mut out = String::new();
     if number == 0.0 {
         out.push_str(if number.is_sign_negative() {
             "-0.0"
         } else {
             "0.0"
         });
-        return Ok(());
+        return w.write_all(out.as_bytes());
     }
     let mut scientific = String::new();
     for precision in 15..=17usize {
@@ -81,11 +106,11 @@ fn write_float(out: &mut String, number: f64) -> Result<(), Unsupported> {
             break;
         }
     }
-    let (mantissa, exponent) = scientific.split_once('e').ok_or(Unsupported)?;
-    let exponent: i32 = exponent.parse().map_err(|_| Unsupported)?;
-    let precision = mantissa.len() as i32 - 1; // digits and the point: the precision of %g
+    let (mantissa, exponent) = scientific.split_once('e').unwrap_or((&scientific, "0"));
+    let exponent: i32 = exponent.parse().unwrap_or(0);
+    let precision = mantissa.len() as i32 - 1;
     let mut digits: String = mantissa.chars().filter(|c| *c != '.').collect();
-    digits.truncate(digits.trim_end_matches('0').len().max(1)); // %g drops trailing zeros
+    digits.truncate(digits.trim_end_matches('0').len().max(1));
     if number < 0.0 {
         out.push('-');
     }
@@ -95,12 +120,11 @@ fn write_float(out: &mut String, number: f64) -> Result<(), Unsupported> {
             out.push('.');
             out.push_str(&digits[1..]);
         }
-        let _ = write!(
-            out,
+        out.push_str(&format!(
             "e{}{:02}",
             if exponent < 0 { '-' } else { '+' },
             exponent.abs()
-        );
+        ));
     } else if exponent >= 0 {
         let integral = exponent as usize + 1;
         if digits.len() <= integral {
@@ -117,90 +141,45 @@ fn write_float(out: &mut String, number: f64) -> Result<(), Unsupported> {
         out.extend(std::iter::repeat_n('0', (-exponent - 1) as usize));
         out.push_str(&digits);
     }
-    Ok(())
+    w.write_all(out.as_bytes())
 }
 
-/// RFC 8259 section 7: quotation mark, reverse solidus and the control characters are escaped.
-fn write_string(out: &mut String, text: &str) {
-    out.push('"');
-    let mut start = 0;
-    for (index, byte) in text.bytes().enumerate() {
-        let escape = match byte {
-            b'"' => "\\\"",
-            b'\\' => "\\\\",
-            0x08 => "\\b",
-            0x0c => "\\f",
-            b'\n' => "\\n",
-            b'\r' => "\\r",
-            b'\t' => "\\t",
-            0..=0x1f => "",
-            _ => continue,
-        };
-        out.push_str(&text[start..index]);
-        if escape.is_empty() {
-            let _ = write!(out, "\\u{byte:04x}");
-        } else {
-            out.push_str(escape);
-        }
-        start = index + 1;
-    }
-    out.push_str(&text[start..]);
-    out.push('"');
+/// A Lua value seen as a `Serialize`: the walk that carries the value model of the codec.
+struct Node<'a> {
+    value: &'a LuaValue,
+    level: usize,
+    markers: &'a Markers,
+    options: &'a Options,
 }
 
-impl Encoder<'_> {
-    fn check_size(&self) -> Result<(), Unsupported> {
-        if self.out.len() > self.options.max_size {
-            Err(Unsupported)
-        } else {
-            Ok(())
+impl Serialize for Node<'_> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let unsupported = || S::Error::custom("unsupported");
+        match self.value {
+            LuaValue::String(s) => {
+                let bytes = s.as_bytes();
+                serializer.serialize_str(std::str::from_utf8(&bytes).map_err(|_| unsupported())?)
+            }
+            LuaValue::Integer(i) => serializer.serialize_i64(*i),
+            LuaValue::Number(n) if n.is_finite() => serializer.serialize_f64(*n),
+            LuaValue::Boolean(b) => serializer.serialize_bool(*b),
+            LuaValue::Table(t) if *t == self.markers.null => serializer.serialize_unit(),
+            LuaValue::Table(t) => self.table(t, serializer),
+            _ => Err(unsupported()),
         }
     }
+}
 
-    fn newline(&mut self, depth: usize) {
-        if let Some(indent) = &self.options.indent {
-            self.out.push('\n');
-            for _ in 0..depth {
-                self.out.push_str(indent);
-            }
-        }
-    }
-
-    fn string(&mut self, text: &LuaString) -> Result<(), Unsupported> {
-        let bytes = text.as_bytes();
-        let text = std::str::from_utf8(&bytes).map_err(|_| Unsupported)?;
-        write_string(&mut self.out, text);
-        self.check_size()
-    }
-
-    fn value(&mut self, value: &LuaValue, depth: usize) -> Result<(), Unsupported> {
-        match value {
-            LuaValue::String(s) => self.string(s)?,
-            LuaValue::Integer(i) => {
-                let _ = write!(self.out, "{i}");
-            }
-            LuaValue::Number(n) => write_float(&mut self.out, *n)?,
-            LuaValue::Boolean(b) => self.out.push_str(if *b { "true" } else { "false" }),
-            LuaValue::Table(t) => {
-                if *t == self.markers.null {
-                    self.out.push_str("null");
-                } else {
-                    self.table(t, depth + 1)?;
-                }
-            }
-            _ => return Err(Unsupported),
-        }
-        self.check_size()
-    }
-
-    /// `level` is the nesting level of the container being written.
-    fn table(&mut self, table: &LuaTable, level: usize) -> Result<(), Unsupported> {
+impl Node<'_> {
+    fn table<S: Serializer>(&self, table: &LuaTable, serializer: S) -> Result<S::Ok, S::Error> {
+        let unsupported = || S::Error::custom("unsupported");
+        let level = self.level + 1;
         if level > self.options.max_depth || level > MAX_NATIVE_DEPTH {
-            return Err(Unsupported);
+            return Err(unsupported());
         }
         let mut entries: Vec<(LuaValue, LuaValue)> = Vec::new();
         for pair in table.pairs::<LuaValue, LuaValue>() {
-            entries.push(pair.map_err(|_| Unsupported)?);
+            entries.push(pair.map_err(|_| unsupported())?);
         }
         let metatable = table.metatable();
         let marked_array = metatable.as_ref().is_some_and(|m| *m == self.markers.array);
@@ -210,113 +189,73 @@ impl Encoder<'_> {
         let all_strings = entries
             .iter()
             .all(|(k, _)| matches!(k, LuaValue::String(_)));
+        let inner = Node { level, ..*self };
         if marked_array || (!marked_object && !all_strings) {
-            self.array(&entries, level)
+            let mut highest: i64 = 0;
+            for (key, _) in &entries {
+                match key {
+                    LuaValue::Integer(i) if *i >= 1 => highest = highest.max(*i),
+                    _ => return Err(unsupported()),
+                }
+            }
+            if highest > 2 * entries.len() as i64 + HOLE_SLACK {
+                return Err(unsupported());
+            }
+            let mut slots: Vec<Option<&LuaValue>> = vec![None; highest as usize];
+            for (key, value) in &entries {
+                if let LuaValue::Integer(i) = key {
+                    slots[*i as usize - 1] = Some(value);
+                }
+            }
+            let mut seq = serializer.serialize_seq(Some(slots.len()))?;
+            for slot in slots {
+                match slot {
+                    Some(value) => seq.serialize_element(&inner.child_of(value))?,
+                    None => seq.serialize_element(&())?,
+                }
+            }
+            seq.end()
         } else {
-            self.object(entries, level)
-        }
-    }
-
-    fn array(&mut self, entries: &[(LuaValue, LuaValue)], level: usize) -> Result<(), Unsupported> {
-        let mut highest: i64 = 0;
-        for (key, _) in entries {
-            match key {
-                LuaValue::Integer(i) if *i >= 1 => highest = highest.max(*i),
-                _ => return Err(Unsupported),
+            let mut members: Vec<(String, &LuaValue)> = Vec::with_capacity(entries.len());
+            for (key, value) in &entries {
+                match key {
+                    LuaValue::String(name) => {
+                        let bytes = name.as_bytes();
+                        let name = std::str::from_utf8(&bytes).map_err(|_| unsupported())?;
+                        members.push((name.to_owned(), value));
+                    }
+                    _ => return Err(unsupported()),
+                }
             }
-        }
-        if highest > 2 * entries.len() as i64 + HOLE_SLACK {
-            return Err(Unsupported);
-        }
-        if highest == 0 {
-            self.out.push_str("[]");
-            return Ok(());
-        }
-        let mut slots: Vec<Option<&LuaValue>> = vec![None; highest as usize];
-        for (key, value) in entries {
-            if let LuaValue::Integer(i) = key {
-                slots[*i as usize - 1] = Some(value);
+            if self.options.canonical {
+                members.sort_by(|a, b| a.0.encode_utf16().cmp(b.0.encode_utf16()));
             }
-        }
-        self.out.push('[');
-        for (index, slot) in slots.iter().enumerate() {
-            if index > 0 {
-                self.out.push(',');
-            }
-            self.newline(level);
-            match slot {
-                Some(value) => self.value(value, level)?,
-                None => self.out.push_str("null"),
-            }
-        }
-        self.newline(level - 1);
-        self.out.push(']');
-        Ok(())
-    }
-
-    fn object(
-        &mut self,
-        entries: Vec<(LuaValue, LuaValue)>,
-        level: usize,
-    ) -> Result<(), Unsupported> {
-        if entries.is_empty() {
-            self.out.push_str("{}");
-            return Ok(());
-        }
-        let mut members: Vec<(LuaString, LuaValue)> = Vec::with_capacity(entries.len());
-        for (key, value) in entries {
-            match key {
-                LuaValue::String(name) => members.push((name, value)),
-                _ => return Err(Unsupported),
-            }
-        }
-        if self.options.canonical {
-            // RFC 8785 section 3.2.3: member names sort by their UTF-16 code units.
-            let mut named: Vec<(String, LuaValue)> = Vec::with_capacity(members.len());
+            let mut map = serializer.serialize_map(Some(members.len()))?;
             for (name, value) in members {
-                let bytes = name.as_bytes();
-                let name = std::str::from_utf8(&bytes)
-                    .map_err(|_| Unsupported)?
-                    .to_owned();
-                named.push((name, value));
+                map.serialize_entry(&name, &inner.child_of(value))?;
             }
-            named.sort_by(|a, b| a.0.encode_utf16().cmp(b.0.encode_utf16()));
-            self.out.push('{');
-            for (index, (name, value)) in named.iter().enumerate() {
-                self.member(index, name, value, level)?;
-            }
-        } else {
-            self.out.push('{');
-            for (index, (name, value)) in members.iter().enumerate() {
-                let bytes = name.as_bytes();
-                let name = std::str::from_utf8(&bytes).map_err(|_| Unsupported)?;
-                self.member(index, name, value, level)?;
-            }
+            map.end()
         }
-        self.newline(level - 1);
-        self.out.push('}');
-        Ok(())
     }
 
-    fn member(
-        &mut self,
-        index: usize,
-        name: &str,
-        value: &LuaValue,
-        level: usize,
-    ) -> Result<(), Unsupported> {
-        if index > 0 {
-            self.out.push(',');
+    /// A node for a value one level below `self`'s container (`self.level` is already the container's).
+    fn child_of<'b>(&'b self, value: &'b LuaValue) -> Node<'b> {
+        Node {
+            value,
+            level: self.level,
+            markers: self.markers,
+            options: self.options,
         }
-        self.newline(level);
-        write_string(&mut self.out, name);
-        self.out.push_str(if self.options.indent.is_some() {
-            ": "
-        } else {
-            ":"
-        });
-        self.value(value, level)
     }
+}
+
+fn load_markers(lua: &Lua) -> LuaResult<Markers> {
+    let table: LuaTable = lua.named_registry_value(MARKERS_KEY)?;
+    Ok(Markers {
+        null: table.get("null")?,
+        array: table.get("array_metatable")?,
+        object: table.get("object_metatable")?,
+    })
 }
 
 fn read_options(options: &LuaTable) -> LuaResult<Options> {
@@ -331,23 +270,40 @@ fn read_options(options: &LuaTable) -> LuaResult<Options> {
     })
 }
 
-/// `encode(value, options) -> text | nil`: `nil` means "ask the reference encoder".
+fn run<F: Formatter>(formatter: F, node: &Node, limit: usize) -> Option<Vec<u8>> {
+    let mut writer = Limited {
+        out: Vec::new(),
+        limit,
+    };
+    let mut serializer = serde_json::Serializer::with_formatter(&mut writer, Floats(formatter));
+    node.serialize(&mut serializer).ok()?;
+    Some(writer.out)
+}
+
 fn encode(lua: &Lua, (value, options): (LuaValue, LuaTable)) -> LuaResult<Option<LuaString>> {
     let markers = load_markers(lua)?;
     let options = read_options(&options)?;
-    let mut encoder = Encoder {
-        out: String::new(),
+    // The top-level value is at depth 0: its container is level 1.
+    let node = Node {
+        value: &value,
+        level: 0,
         markers: &markers,
         options: &options,
     };
-    // `value` is the top-level value, at depth 0.
-    match encoder.value(&value, 0) {
-        Ok(()) => Ok(Some(lua.create_string(&encoder.out)?)),
-        Err(Unsupported) => Ok(None),
+    let bytes = match &options.indent {
+        Some(indent) => run(
+            PrettyFormatter::with_indent(indent.as_bytes()),
+            &node,
+            options.max_size,
+        ),
+        None => run(CompactFormatter, &node, options.max_size),
+    };
+    match bytes {
+        Some(bytes) => Ok(Some(lua.create_string(&bytes)?)),
+        None => Ok(None),
     }
 }
 
-/// `bind(markers)`: the `null` sentinel and the two metatables of the Lua side, kept by identity.
 fn bind(lua: &Lua, markers: LuaTable) -> LuaResult<()> {
     for field in ["null", "array_metatable", "object_metatable"] {
         if !matches!(markers.get::<LuaValue>(field)?, LuaValue::Table(_)) {
