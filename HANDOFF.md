@@ -3,8 +3,8 @@
 
 - roadmap_item: `json`: codec (after OQ-5).
 - status: in-progress
-- lock_until: 2026-10-20T11:30:00Z
-- last_update: 2026-10-20T10:00:00Z
+- lock_until: 2026-10-20T14:20:00Z
+- last_update: 2026-10-20T12:50:00Z
 
 ## Done
 
@@ -23,6 +23,7 @@
 - Step 6 (resumed after lock expiry; CI was green on the three platforms at c09c198): `json.decoder` (`:feed`, `:finish`), buffered, tests in `tests/unit/decoder_test.lua`, OQ-49 for the real incremental parser. `test json` and lint pass.
 
 - CI fix 3 (resumed run, 43eb9e3 was red on all platforms): typecheck cast in `decoder_test.lua:41`; markdownlint (OQ-49 row was in the Resolved table, duplicate `### Added` in CHANGELOG). `test json`, lint, check-changelog, markdownlint-cli2 pass locally; verify typecheck in CI.
+- CI fix 4 (resumed run, b0db575 red on typecheck only): the `--[[@as string]]` cast on a literal is not accepted by LuaLS 3.19.1; `decoder_test.lua` now uses `---@diagnostic disable-next-line: param-type-mismatch` like `markers_test.lua`. `test json` and lint pass; verify typecheck and the three platforms in CI.
 
 ## Blocked (resolved)
 
