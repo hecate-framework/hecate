@@ -3,8 +3,8 @@
 
 - roadmap_item: `json`: codec (after OQ-5).
 - status: in-progress
-- lock_until: 2026-10-19T23:12:45Z
-- last_update: 2026-10-19T21:42:45Z
+- lock_until: 2026-10-20T02:00:00Z
+- last_update: 2026-10-20T00:30:00Z
 
 ## Done
 
@@ -15,6 +15,8 @@
 - Step 4 (native decoder): `hecate.json.native` in `csrc/native.c` (yyjson 0.10.0), built by `lua tools/run.lua build-native json` (cc, -Wall -Wextra -Werror on our sources; macOS bundle flags; Windows not supported by the task, use LuaRocks/MSVC, unverified) and by the rockspec (`builtin`, verified with `luarocks make`). Failure classification choice: on any failure or divergence (yyjson error, duplicate name, depth, size, BOM, out-of-range float, `-0`/`-0.0`) the binding calls the reference decoder on the same text and returns its answer; so reasons, messages and offsets are identical by construction. Cost: a hostile text pays one extra reference pass; texts containing `-0` or `-0.0` also take the reference path (yyjson cannot tell them apart without RAW mode). `encode` delegates to the reference backend (documented in README/CHANGELOG). Shared suites moved to `tests/suites/{decode,encode,roundtrip}.lua` and are run per backend by `tests/unit/*_{reference,native}_test.lua`; `tests/unit/native_test.lua` is a differential test (corpus, mutations, random numbers, depth 10000, bind, markers). `backend.use(name)` added for tests. CI step added to build the module on Linux/macOS; native tests fail in POSIX CI when it is missing, skip locally and on Windows. ASan/UBSan run of `native_test.lua` was clean (manual). `test json`, `test tools`, lint and the check-* gates pass; `typecheck` not run (no lua-language-server).
 
 - CI fix (resumed run): the 7569411 CI failed on typecheck (8 LuaLS warnings in `backend.lua`, `backend_test.lua`, `markers_test.lua`) and markdownlint (duplicate `### Added` in CHANGELOG, bare URL in VENDORED.md). Fixed with a cast, nil asserts and `---@diagnostic disable-next-line` in tests; markdownlint-cli2 now clean locally. `typecheck` still cannot run here (no lua-language-server): verify in CI.
+
+- CI fix 2 (resumed run): Windows failed because the shared-suite loaders located their directory with a `/`-only pattern (`tools\\..` sources use backslashes); now `[/\\]`. `test json` and lint pass locally; verify Windows in CI.
 
 ## Blocked (resolved)
 

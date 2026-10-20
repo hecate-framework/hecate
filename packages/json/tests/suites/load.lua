@@ -2,7 +2,7 @@
 -- json`); where it is not, the suite reports one skipped case, except in CI (CI=true) on POSIX, where a missing
 -- native module is a failure: a pipeline must never go green without having exercised it.
 local test = require("harness.test")
-local here = debug.getinfo(1, "S").source:match("^@(.*)/[^/]*$") or "."
+local here = debug.getinfo(1, "S").source:match("^@(.*)[/\\][^/\\]*$") or "."
 
 local M = {}
 
