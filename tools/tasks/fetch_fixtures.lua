@@ -3,6 +3,8 @@
 -- which is git-ignored. Each entry is { name, repository, commit, path }: the data is fetched with git at that
 -- exact commit (the commit hash pins the content) and the suite reads `<name>/<path>`. Without network access
 -- the task fails and the suites that need the data skip locally (they fail in CI).
+-- With HECATE_FIXTURES_LATEST=1 it fetches the head of the default branch instead of the pinned commit
+-- (for scheduled runs that watch for new cases; a pull request must stay on the pin).
 local util = require("lib.util")
 
 local function git(dir, args)
@@ -24,9 +26,10 @@ return {
         local out, ok = git(dir, "init -q")
         if not ok then problems[#problems + 1] = entry.name .. ": git init failed: " .. out end
       end
+      local latest = os.getenv("HECATE_FIXTURES_LATEST") == "1"
       local head = git(dir, "rev-parse HEAD")
-      if head ~= entry.commit then
-        local out, ok = git(dir, ("fetch -q --depth 1 %s %s"):format(util.quote(entry.repository), entry.commit))
+      if latest or head ~= entry.commit then
+        local out, ok = git(dir, ("fetch -q --depth 1 %s %s"):format(util.quote(entry.repository), latest and "HEAD" or entry.commit))
         if ok then out, ok = git(dir, "checkout -q -f FETCH_HEAD") end
         if not ok then problems[#problems + 1] = ("%s: cannot fetch %s at %s: %s"):format(entry.name, entry.repository, entry.commit, out) end
       end

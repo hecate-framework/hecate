@@ -8,7 +8,7 @@
 | Rock | `hecate-json` |
 | Layer | 1 — Runtime |
 | Roadmap phase | 1 |
-| Status | Lua API, pure-Lua reference backend and native yyjson decoder; Rust encoder; JSONTestSuite corpus runs on both backends; fuzzing to come |
+| Status | Lua API, pure-Lua reference backend and native yyjson decoder; Rust encoder; JSONTestSuite corpus and a differential fuzz test run on both backends |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |
 | Depends on | [`core`](../core) |
 | Used by | `cli`, `doc`, `hecate`, `http`, `kernel`, `log`, `openapi`, `schema`, `security`, `test` |

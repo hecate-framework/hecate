@@ -11,6 +11,7 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- `hecate.json`: differential fuzz test of the native backends against the reference backend (`tests/unit/fuzz_test.lua`: mutations of seeds and of the JSONTestSuite files; `HECATE_FUZZ_SECONDS` and `HECATE_FUZZ_SEED` for a longer search).
 - `tools`: `fetch-fixtures [package]` downloads the third-party test data a package declares in `tests/external.lua` into `.hecate/fixtures/` at a pinned commit.
 - `hecate.json`: the JSONTestSuite corpus (318 files, MIT; downloaded at a pinned commit by the new `fetch-fixtures` task, not vendored) runs on both backends: every `y_` text decodes (except two duplicate-name texts rejected on purpose, OQ-48), every `n_` text is rejected with a `DecodeError`, an `i_` text decodes or raises a `DecodeError`.
 - `hecate.json.encoder_native`: the Rust encoder (`packages/json/native`, `mlua` only, no `serde_json` since it writes the reference number format by hand; ADR 0021), built by `lua tools/run.lua build-native json` when `cargo` exists and picked up by the backend seam. It returns `nil` for anything it does not write itself (failures, `rfc8785`, nesting beyond 200) and the reference encoder answers, so the failure vocabulary stays in one place. Differential tests against the reference encoder (corpus, 40000 random floats, random values, canonical and indent); clippy and `cargo fmt` in CI.
