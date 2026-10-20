@@ -19,7 +19,7 @@ end
 
 function T:set_up()
   if not built then
-    if (os.getenv("CI") and package.config:sub(1, 1) == "/") then
+    if (os.getenv("CI")) then
       self:fail("hecate.json.encoder_native is not built (lua tools/run.lua build-native json)")
     end
     io.stderr:write("# skipped: hecate.json.encoder_native is not built\n")

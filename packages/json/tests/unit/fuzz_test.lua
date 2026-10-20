@@ -20,7 +20,7 @@ local here = debug.getinfo(1, "S").source:match("^@(.*)[/\\][^/\\]*$") or "."
 
 function T:set_up()
   if not built then
-    if (os.getenv("CI") and package.config:sub(1, 1) == "/") then self:fail("hecate.json.native is not built (lua tools/run.lua build-native json)") end
+    if (os.getenv("CI")) then self:fail("hecate.json.native is not built (lua tools/run.lua build-native json)") end
     io.stderr:write("# skipped: hecate.json.native is not built\n")
     self.skipped = true
     return

@@ -13,6 +13,7 @@ Each release heading states the supported Lua version.
 
 - `hecate.json`: tested examples (`packages/json/examples`, run by `tests/unit/examples_test.lua`) and the how-to guide "Encode and decode JSON" on the website.
 - `hecate.doc`: `json` joins the default packages of the generated code reference (`gen-reference`).
+- `hecate.json`: the Windows build of both native modules in CI (`build-native json` compiles the C decoder with MSVC, `cl` and `link`, against the import library of the interpreter, and builds the Rust encoder as for `net`); the native tests now fail in CI on every platform when a module is missing.
 - `hecate.json`: package metadata aligned with the implementation (no streaming, status, decisions, layout), yyjson recorded in `THIRD_PARTY_NOTICES`, and the Rust encoder uses `serde_json` (owner decision of OQ-52, after a spike: as fast as a hand-written encoder, 90 lines less).
 - `hecate.net`: `Cargo.lock` of the native TLS module updated to `rustls-webpki` 0.103.16 and `webpki-root-certs` 1.0.10 (RUSTSEC-2026-0382 and RUSTSEC-2026-0383, published 2026-10-19/20; patch versions, no API change).
 - `hecate.json`: spike OQ-52 (`docs/spikes/OQ-52-json-encoder.md`, code in `docs/spikes/OQ-52/`): the encoder on `serde_json` against the hand-written one, `mlua`'s serde bridge and the float text.

@@ -4,7 +4,7 @@
 -- binding, needs a C compiler and the Lua headers: LUA_INC, or next to the interpreter, or /usr/include)
 -- and Rust (ADR 0021: the encoder).
 --
--- Windows: mlua-sys needs the Lua 5.5 import library; set LUA_LIB_NAME (for example lua55),
+-- Windows: mlua-sys and the C modules need the Lua 5.5 import library; set LUA_LIB_NAME (for example lua55),
 -- LUA_LIB and LUA_INC before running (TLS spike OQ-4). macOS link flags are
 -- set by this task (and mirrored in packages/net/native/.cargo/config.toml).
 local util = require("lib.util")
@@ -41,12 +41,40 @@ local function lua_include_dir(ctx)
   return nil
 end
 
+-- Windows: the MSVC compiler (`cl`, `link`) from the environment of the Developer Command Prompt, the Lua headers
+-- and the import library of the interpreter's DLL (LUA_INC, LUA_LIB and LUA_LIB_NAME as for Rust, default: the
+-- bootstrapped toolchain, `.hecate/toolchain`). /W4 /WX on our own sources, the vendored sources without warnings.
+local function build_c_windows(ctx, name, m)
+  local toolchain = ctx.root .. "/.hecate/toolchain"
+  local include = os.getenv("LUA_INC") or (toolchain .. "/include")
+  local libdir = os.getenv("LUA_LIB") or (toolchain .. "/lib")
+  local libname = os.getenv("LUA_LIB_NAME") or "lua55"
+  local version = _VERSION:match("%d+%.%d+")
+  local dest = ("%s/.hecate/rocks/lib/lua/%s/%s.dll"):format(ctx.root, version, m.target)
+  util.mkdir(dest:match("^(.*)/[^/]*$"))
+  local package_dir = ("%s/packages/%s"):format(ctx.root, name)
+  local build_dir = ("%s/.hecate/build/%s"):format(ctx.root, name)
+  util.mkdir(build_dir)
+  local objects = {}
+  for index, source in ipairs(m.sources) do
+    local own = not source:find("/vendor/", 1, true)
+    local object = ("%s/%d.obj"):format(build_dir, index):gsub("/", "\\")
+    local flags = own and "/O2 /std:c11 /W4 /WX" or "/O2 /std:c11 /w"
+    local out, ok = util.capture(('cl /nologo /c %s /DLUA_BUILD_AS_DLL /I"%s" /Fo"%s" "%s" 2>&1'):format(
+      flags, include:gsub("/", "\\"), object, (package_dir .. "/" .. source):gsub("/", "\\")))
+    if not ok then return { ok = false, problems = { "compile failed for " .. source .. ":\n" .. out } } end
+    objects[#objects + 1] = '"' .. object .. '"'
+  end
+  local out, ok = util.capture(('link /nologo /DLL /OUT:"%s" /EXPORT:luaopen_%s /LIBPATH:"%s" %s.lib %s 2>&1'):format(
+    dest:gsub("/", "\\"), m.target:gsub("/", "_"), libdir:gsub("/", "\\"), libname, table.concat(objects, " ")))
+  if not ok then return { ok = false, problems = { "link failed:\n" .. out } } end
+  return { ok = true, problems = {}, output = "installed " .. dest }
+end
+
 -- Builds a C module with the system compiler: -Wall -Wextra -Werror on our own sources (coding-standards.md,
 -- "C code"), the vendored sources unchanged and without those flags. Windows builds go through LuaRocks.
 local function build_c(ctx, name, m)
-  if util.is_windows() then
-    return { ok = false, problems = { "build-native for C modules needs a POSIX compiler: on Windows use `luarocks make` in packages/" .. name } }
-  end
+  if util.is_windows() then return build_c_windows(ctx, name, m) end
   local include = lua_include_dir(ctx)
   if not include then return { ok = false, problems = { "lua.h not found: set LUA_INC to the Lua include directory" } } end
   local cc = os.getenv("CC") or "cc"

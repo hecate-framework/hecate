@@ -198,6 +198,21 @@ jobs:
           lua tools/run.lua build-native net
           if (-not (Test-Path .hecate/rocks/lib/lua/5.5/hecate/net/tls_native.dll)) { throw 'tls_native.dll missing' }
 
+      - name: Build the JSON native modules (Windows)
+        if: runner.os == 'Windows' && contains(format(' {0} ', needs.plan.outputs.packages), ' json ')
+        shell: pwsh
+        run: |
+          Push-Location packages/json/native
+          rustup toolchain install
+          Pop-Location
+          $tc = (Join-Path $env:GITHUB_WORKSPACE '.hecate/toolchain') -replace '\\', '/'
+          $env:LUA_LIB_NAME = 'lua55'
+          $env:LUA_LIB = "$tc/lib"
+          $env:LUA_INC = "$tc/include"
+          lua tools/run.lua build-native json
+          if (-not (Test-Path .hecate/rocks/lib/lua/5.5/hecate/json/native.dll)) { throw 'native.dll missing' }
+          if (-not (Test-Path .hecate/rocks/lib/lua/5.5/hecate/json/encoder_native.dll)) { throw 'encoder_native.dll missing' }
+
       - name: Lint the native module (Linux)
         if: runner.os == 'Linux' && contains(format(' {0} ', needs.plan.outputs.packages), ' net ')
         working-directory: packages/net/native
