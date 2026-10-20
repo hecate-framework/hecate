@@ -7,7 +7,7 @@ source = {
 }
 
 description = {
-  summary = "Fast, correct JSON codec (RFC 8259) with integer/float fidelity, explicit null and array markers, and streaming.",
+  summary = "Fast, correct JSON codec (RFC 8259) with integer/float fidelity, explicit null and array markers, and precise error positions.",
   homepage = "https://github.com/hecate-framework/hecate",
   license = "MIT",
 }

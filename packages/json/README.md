@@ -14,7 +14,7 @@
 | Used by | `cli`, `doc`, `hecate`, `http`, `kernel`, `log`, `openapi`, `schema`, `security`, `test` |
 | Native code | C decoder (yyjson), Rust encoder (OQ-5, ADR 0021) |
 | Specification | [schemas-and-contracts.md](../../docs/architecture/schemas-and-contracts.md) |
-| Decisions | — |
+| Decisions | [ADR 0020](../../docs/adr/0020-json-yyjson-decoder-serde-encoder.md), [ADR 0021](../../docs/adr/0021-rust-native-modules.md) |
 | Agent | [`pkg-json`](../../.claude/agents/pkg-json.md) |
 | Repository | read-only mirror `hecate-framework/hecate-json`, generated from this directory (ADR 0017) |
 
@@ -117,13 +117,14 @@ it returns `nil` and the reference encoder answers, so reasons, messages and pat
 the module is absent the reference encoder writes everything. It is not part of the rockspec yet
 (binary rocks, ADR 0021).
 
-## Layout (once implemented)
+## Layout
 
 ```text
 src/hecate/json/init.lua   public entry point
 src/hecate/json/errors.lua error classes
 src/hecate/json/internal/  markers, backend seam, reference backend, error positions
-tests/unit/  tests/integration/  tests/fixtures/
-examples/    benchmarks/
-csrc/        native sources
+tests/unit/  tests/suites/ shared suites run per backend; tests/external.lua pins the corpus
+examples/    tested examples of the reference pages
+csrc/        C decoder (vendored yyjson in csrc/vendor)
+native/      Rust encoder (Cargo workspace)
 ```

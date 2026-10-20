@@ -5,12 +5,12 @@ package-specific context. Specialist agent: `pkg-json`.
 
 ## Purpose
 
-Fast, correct JSON codec (RFC 8259) with integer/float fidelity, explicit null and array markers, and streaming.
+Fast, correct JSON codec (RFC 8259) with integer/float fidelity, explicit null and array markers, and precise error positions.
 
 ## Read before changing anything
 
 - Specification: `docs/architecture/schemas-and-contracts.md`
-- Decisions: none specific
+- Decisions: ADR 0020 (yyjson decoder, native encoder), ADR 0021 (Rust as a build-time tool); owner decisions OQ-48, OQ-49, OQ-51 in `docs/open-questions.md`
 - Glossary: `docs/glossary.md` · Coding standards: `docs/architecture/coding-standards.md`
 - This package's `README.md` (scope, dependencies, status)
 
@@ -18,7 +18,7 @@ Fast, correct JSON codec (RFC 8259) with integer/float fidelity, explicit null a
 
 - Allowed dependencies: `hecate.core`.
   Anything else requires an ADR; `check-boundaries` fails otherwise.
-- Native code: C codec (OQ-5).
+- Native code: C decoder over vendored yyjson (`csrc/`), Rust encoder (`native/`); the pure-Lua reference backend is the fallback and the test oracle, and every native answer must match it.
 - Out of scope: schema validation (see `schema`).
 - If your task needs a change in another package, stop and describe the needed change
   instead of making it (unless the task explicitly spans packages).
@@ -32,7 +32,7 @@ Fast, correct JSON codec (RFC 8259) with integer/float fidelity, explicit null a
 ## Test strategy
 
 - JSONTestSuite conformance
-- fuzzing (C)
+- differential tests and fuzzing of the native backends against the reference backend, JSONTestSuite corpus on both backends (`lua tools/run.lua fetch-fixtures json`)
 - property tests: decode(encode(x)) == x
 
 Plus, for every change: unit tests for public behaviour, LuaLS annotations on public API

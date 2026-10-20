@@ -13,6 +13,7 @@ Each release heading states the supported Lua version.
 
 - `hecate.json`: tested examples (`packages/json/examples`, run by `tests/unit/examples_test.lua`) and the how-to guide "Encode and decode JSON" on the website.
 - `hecate.doc`: `json` joins the default packages of the generated code reference (`gen-reference`).
+- `hecate.json`: package metadata aligned with the implementation (no streaming, status, decisions, layout), yyjson recorded in `THIRD_PARTY_NOTICES`, and OQ-52 records that the Rust encoder does not use `serde_json` as ADR 0020 and ADR 0021 say.
 - Benchmarks: `benchmarks/README.md` now documents how to run them on your own Ubuntu, Windows and macOS hardware, and `benchmarks/host-report.sh` describes the host and measures its noise.
 - `hecate.json`: differential fuzz test of the native backends against the reference backend (`tests/unit/fuzz_test.lua`: mutations of seeds and of the JSONTestSuite files; `HECATE_FUZZ_SECONDS` and `HECATE_FUZZ_SEED` for a longer search).
 - `tools`: `fetch-fixtures [package]` downloads the third-party test data a package declares in `tests/external.lua` into `.hecate/fixtures/` at a pinned commit.
