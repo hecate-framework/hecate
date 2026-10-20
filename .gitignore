@@ -40,3 +40,4 @@ Thumbs.db
 
 # Throwaway spike code (reports live in docs/spikes/)
 /spikes/
+benchmarks/results/
