@@ -15,6 +15,8 @@
 
 - Resumed after CI failure (logs not downloadable: blob host blocked by proxy). Merged main (#26 SHA pins); all local gates and full test pass. Pushed to re-run CI; if still red, diagnose from the Actions UI.
 
+- website `build` job failed on `luv` not found: build.lua now puts `.hecate/rocks` on package.path/cpath (like the test harness).
+
 ## Next steps
 
 1. Integrate the ADR 0022 native module (comrak, syntect) in steps (needs the Rust toolchain; check `cargo` is available).

@@ -12,7 +12,7 @@
 -- the parent of `source`) for the packages of `--packages` (default: the documented packages);
 -- without LuaLS it warns, and with --strict it fails.
 -- Exit codes: 0 built, 1 build failed or, with --strict, problems were found, 2 usage error.
-global <const> arg, io, os, package, require, print, pcall, tostring, ipairs, pairs, table, error
+global <const> _VERSION, arg, io, os, package, require, print, pcall, tostring, ipairs, pairs, table, error
 
 local script = arg[0]:gsub("\\", "/")
 local here = script:match("^(.*)/[^/]*$") or "."
@@ -24,6 +24,16 @@ for _, package_name in ipairs({ "doc", "core", "reactor", "json", "schema", "ope
 end
 local base = here .. "/../src/"
 package.path = base .. "?.lua;" .. base .. "?/init.lua;" .. package.path
+-- Project-local LuaRocks tree of a monorepo checkout (`.hecate/rocks`: luv for the reactor), as in
+-- tools/harness/run_file.lua.
+do
+  local version = _VERSION:match("%d+%.%d+")
+  local tree = here .. "/../../../.hecate/rocks"
+  package.path = tree .. "/share/lua/" .. version .. "/?.lua;" .. tree .. "/share/lua/" .. version
+    .. "/?/init.lua;" .. package.path
+  package.cpath = tree .. "/lib/lua/" .. version .. "/?.so;" .. tree .. "/lib/lua/" .. version
+    .. "/?.dll;" .. package.cpath
+end
 
 local doc = require("hecate.doc")
 local reactor = require("hecate.reactor")
