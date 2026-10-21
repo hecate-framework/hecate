@@ -47,6 +47,8 @@ local log = require("hecate.log")
 | `log.Record` | What sinks receive: `severity`, `message`, `fields`, `context`, `timestamp`, `logger`. |
 | `log.MemorySink(options?)` | Keeps records (`records()`, `clear()`, `dropped()`, option `capacity`). |
 | `log.JsonLinesSink(options)` | Writes one JSON object per record to `options.output(line)`; renders secrets as `[redacted]`. |
+| `log.ConsoleSink(options)` | Writes `timestamp SEVERITY [logger] message key=value ...` to `options.output(line)`; secrets redacted, control characters escaped. |
+| `log.FileSink(options)` | Appends JSON lines to `options.path` (synchronous); `close()`. |
 | `log.Secret(value)` | Marks a value that no sink renders; `reveal()` returns it. |
 
 A sink is any object with a synchronous `write(record)` that does not suspend. The context does not follow

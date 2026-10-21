@@ -1,0 +1,45 @@
+local test = require("harness.test")
+local json = require("hecate.json")
+local log = require("hecate.log")
+local T = test.Case("FileSinkTest")
+
+local function read(path)
+  local handle = assert(io.open(path, "rb"))
+  local text = handle:read("a")
+  handle:close()
+  return text
+end
+
+function T:test_records_are_appended_as_json_lines()
+  local path = os.tmpname()
+  local sink = log.FileSink({ path = path })
+  local logger = log.Logger({ sinks = { sink }, clock = function() return 1000000000 end })
+  logger:error("one")
+  sink:close()
+  local again = log.FileSink({ path = path })
+  log.Logger({ sinks = { again } }):error("two")
+  again:close()
+  local lines = {}
+  for line in read(path):gmatch("[^\n]+") do lines[#lines + 1] = json.decode(line) end
+  os.remove(path)
+  self:assert_equal(2, #lines)
+  self:assert_equal("one", lines[1].message)
+  self:assert_equal("two", lines[2].message)
+end
+
+function T:test_writes_after_close_are_ignored()
+  local path = os.tmpname()
+  local sink = log.FileSink({ path = path })
+  sink:close()
+  log.Logger({ sinks = { sink } }):error("late")
+  local text = read(path)
+  os.remove(path)
+  self:assert_equal("", text)
+end
+
+function T:test_an_unopenable_path_raises()
+  self:assert_error(function() log.FileSink({ path = "/nonexistent-dir/x/log" }) end)
+  self:assert_error(function() log.FileSink({}) end)
+end
+
+return T

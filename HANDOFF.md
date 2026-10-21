@@ -3,17 +3,19 @@
 
 - roadmap_item: `log`: structured logging, RFC 5424 severities, per-scope context.
 - status: in-progress
-- lock_until: 2026-10-21T11:14:16Z
-- last_update: 2026-10-21T09:44:16Z
+- lock_until: 2026-10-21T20:12:42Z
+- last_update: 2026-10-21T18:42:42Z
 
 ## Done
 
 - Claimed. The `doc` item is held by #28 (locked until 11:30Z); #26 awaits owner review; next free item is `log`.
 - Step 1: severities, `Record`, `Logger` (threshold, `with_context`, `context_provider`), `MemorySink`, `JsonLinesSink`, `Secret`; unit tests in `packages/log/tests/unit`; README and CHANGELOG updated; OQ-55 records the open points. Roadmap item NOT ticked.
 
+- Step 2: merged main; `ConsoleSink` and synchronous `FileSink` with tests, README, CHANGELOG. Asynchronous flushing not started.
+
 ## Next steps
 
-1. Console (human) and file sinks; asynchronous flushing with back-pressure (test strategy: sink back-pressure) without suspending the caller.
+1. Asynchronous flushing with back-pressure (test strategy: sink back-pressure) without suspending the caller.
 2. Sampling and rate limiting.
 3. Secret redaction beyond the marker (by field name, other sinks).
 4. Replace the `context_provider` workaround once `reactor` has scope-local context (OQ-55, needs the owner and a `reactor` change); then test propagation across fork/join through it.
