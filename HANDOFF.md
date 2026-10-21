@@ -2,9 +2,9 @@
 # Handoff
 
 - roadmap_item: `doc` (minimal) and the reference generator, pulled forward from Phase 3 (ADR 0012, OQ-11)
-- status: waiting-owner            <!-- in-progress | waiting-ci | waiting-owner -->
-- lock_until: 2026-10-21T18:56:16Z
-- last_update: 2026-10-21T18:56:16Z
+- status: in-progress            <!-- in-progress | waiting-ci | waiting-owner -->
+- lock_until: 2026-10-21T20:29:28Z
+- last_update: 2026-10-21T18:59:28Z
 
 ## Done
 
@@ -20,18 +20,13 @@
 - CI green on ubuntu and macos (windows pending) after the luv path fixes in build.lua/reference.lua.
 - Owner (chat): when shipping `doc`, ship the Rust module as prebuilt binaries (ADR 0021 / OQ-41: one binary rock per platform from release CI, source rock builds with cargo as fallback).
 
-## Blocked
-
-Step "native module" (ADR 0022). `cargo` 1.97.0 is installed. Denied by the auto-mode classifier
-(reason "Untrusted Code Integration"): creating `packages/doc/native/{Cargo.toml,rust-toolchain.toml,src/lib.rs}`
-(mlua 0.12 lua55+module, comrak 0.52, syntect 5 regex-fancy, two-face 0.4, layout copied from `packages/net/native`)
-chained with `cd packages/doc/native && cargo generate-lockfile` (downloads crates). Nothing was created. Not retried.
-Needs the owner to allow `cargo generate-lockfile` / `cargo build` in `packages/doc/native` (crates.io), or to run it.
+- Owner allowed `cargo generate-lockfile` / `cargo build` in `packages/doc/native`. Step 3 done: crate `hecate-doc-native` (mlua, comrak 0.52, syntect 5, two-face 0.4; 68 locked packages) with `render` (GFM, alerts, heading ids, outline, links, safe mode) and `highlight` (`hl-` classes). `cargo test --locked`, clippy, fmt pass. Not yet wired into Lua, rockspec, CI, docs.
 
 ## Next steps
 
-1. Integrate the ADR 0022 native module (comrak, syntect) in steps (needs the Rust toolchain; check `cargo` is available).
-2. Reference pages for `core` and `reactor`; website built by `doc` in CI.
+1. Load `hecate_doc_native` from Lua (build to `.hecate/rocks/lib/lua/5.5/hecate/doc/`), replace the in-house Markdown renderer and highlighters, migrate `::: note` to GFM alerts, golden tests; CommonMark/GFM spec examples through the module (OQ-37).
+2. CI Rust job for `doc/native` on three platforms (copy the `net` job), `cargo-deny`, licence audit of syntaxes into THIRD_PARTY_NOTICES, rockspec (binary rock per platform from release CI, source rock builds with cargo), packages/doc/CLAUDE.md + README + check-boundaries ("Native code: none" changes: owner approved by ADR 0022 E), CHANGELOG.
+3. Reference pages for `core` and `reactor`; website built by `doc` in CI.
 
 ## Decisions taken (and where they are recorded)
 
@@ -42,4 +37,5 @@ Needs the owner to allow `cargo generate-lockfile` / `cargo build` in `packages/
 ```sh
 export LUA_CPATH="/opt/lua-5.5/lib/lua/5.5/?.so;;"   # luv
 lua tools/run.lua test doc
+(cd packages/doc/native && cargo test --locked && cargo clippy --locked --all-targets && cargo fmt --check)
 ```
