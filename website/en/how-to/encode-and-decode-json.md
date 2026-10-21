@@ -52,16 +52,18 @@ For signing or hashing, `canonical = "rfc8785"` writes the full JSON Canonicaliz
 
 `decode` rejects some texts that RFC 8259 permits, because parsers disagree on them: duplicate
 member names, lone surrogates, a byte order mark and numbers outside the double range. The
-`DecodeError` says why and where.
+`DecodeError` says why and where: `context.reason`, and the position as `offset`, `line` and
+`column`. A duplicate member name has no position when the native decoder is used: its parser
+(yyjson) does not keep one.
 
 <!-- example: packages/json/examples/hecate.json.DecodeError.lua -->
 ```lua
 -- A rejected text raises a `DecodeError` whose context names the reason and the position.
 local json = require("hecate.json")
 
-local ok, err = pcall(json.decode, '{"a":1,"a":2}')
+local ok, err = pcall(json.decode, "[1, 2")
 print(("%s %s %d %d"):format(ok, err.context.reason, err.context.line, err.context.column))
--- Prints: false duplicate_key 1 8
+-- Prints: false syntax 1 6
 ```
 
 The table of reasons and what to do about each is in the

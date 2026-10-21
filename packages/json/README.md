@@ -82,7 +82,7 @@ the reference):
 
 | `context.reason` | Input | Why it is rejected | What to do |
 |---|---|---|---|
-| `duplicate_key` | `{"a":1,"a":2}` | Parsers disagree on which value wins (RFC 7493 section 2.3). | Make member names unique at the source. |
+| `duplicate_key` | `{"a":1,"a":2}` | Parsers disagree on which value wins (RFC 7493 section 2.3). The native decoder gives no position for it. | Make member names unique at the source. |
 | `lone_surrogate` | `"\ud800"` | A surrogate escape is valid only as half of a pair (RFC 8259 section 8.2, RFC 7493 section 2.1). | Write the character itself or its pair, e.g. `"\ud83d\ude00"`. |
 | `byte_order_mark` | text starting with bytes `EF BB BF` | RFC 8259 section 8.1 lets parsers ignore it, and they differ. | Strip the first three bytes before decoding. |
 | `number_out_of_range` | `1e999` | It does not fit in a 64-bit float; parsers answer infinity, error or clamp. | Send the number as a string, or a value within about 1.8e308. |
@@ -97,14 +97,29 @@ oracle; callers cannot tell them apart.
 
 The native module (`csrc/native.c`, vendored yyjson in `csrc/vendor`) decodes with yyjson and builds
 the same values as the reference backend (the `null` value and the array and object metatables of the
-Lua side, kept through `bind`; integers beyond 2^63 - 1 become floats; `-0` is the integer `0`). A valid
-text never leaves C. When yyjson rejects a text, or accepts one the codec rejects on purpose (a
-duplicate member name, nesting beyond `max_depth`, text beyond `max_size`, a byte order mark, a
-number outside the double range, a negative zero), the binding hands the same text to the reference
-decoder, which names the reason, message and offset: the failures are identical by construction, and
-a hostile text costs one extra reference pass (measured: 7 s for a 16 MiB array with a trailing comma, against 1.3 s when valid; OQ-54). Build it with `lua tools/run.lua build-native json`
+Lua side, kept through `bind`; integers beyond 2^63 - 1 become floats; `-0` is the integer `0`). A text
+that is too long, starts with a byte order mark or nests deeper than `max_depth` is refused before yyjson
+runs (nesting is counted in one pass, without allocation). A text that yyjson rejects is reported from the
+error of yyjson (a code, a message and a byte position) in the vocabulary of the codec, without a second
+parse: a hostile text costs no more than a valid one. Only `-0` (which yyjson cannot tell from `-0.0`) is
+left to the reference decoder. Build it with `lua tools/run.lua build-native json`
 (needs a C compiler and the Lua headers; `LUA_INC` names the include directory) or with
 `luarocks make`.
+
+Limits of the native decoder, which come from its parser (yyjson) and not from the codec; the reference
+backend, which is more precise, is the specification and has none of them (OQ-54):
+
+- The message says what yyjson found (`unexpected character '1'`), not what was expected (`expected ':'`).
+- A **duplicate member name** is found after the parse, and yyjson keeps no position for it: the error has a
+  `reason` and a message but no `offset`, `line` or `column`. A text that has a duplicate and another defect
+  is reported with the other defect.
+- A text with **several defects**, or a string with several, may be reported at another one than the reference
+  decoder does, with another `reason` among the string defects (`invalid_escape`, `lone_surrogate`,
+  `invalid_utf8`, `control_character`, an unterminated string) or another `offset`.
+- Known issue: a number literal that is an exact tie between two doubles and is followed by a tail of more than
+  about 700 zeros (for example `1.00000000000000011102230246251565404236316680908203125` and 715 zeros) is
+  rounded up by yyjson, one unit in the last place from the correctly rounded value that the reference backend
+  gives. Such a literal does not occur in practice.
 
 The encoder is a second, optional native module, `hecate.json.encoder_native` (Rust through `mlua`
 and `serde_json`, `native/`, ADR 0020 and ADR 0021; `build-native json` builds it too when `cargo` exists, the Rust toolchain is

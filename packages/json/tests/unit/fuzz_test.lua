@@ -17,6 +17,8 @@ local ENCODE_OPTIONS = { max_depth = 1000, max_size = 16 * 1024 * 1024, canonica
 local ITERATIONS = 4000
 
 local here = debug.getinfo(1, "S").source:match("^@(.*)[/\\][^/\\]*$") or "."
+-- What the two decoders must agree on when a text is rejected (see tests/suites/failure.lua).
+local compatible = assert(loadfile(here .. "/../suites/failure.lua"))()
 
 function T:set_up()
   if not built then
@@ -94,10 +96,8 @@ local function disagreement(text)
   local got, got_failure = native.decode(text, OPTIONS)
   if want_failure or got_failure then
     if not (want_failure and got_failure) then return "verdict differs" end
-    if want_failure.reason ~= got_failure.reason or want_failure.offset ~= got_failure.offset
-      or want_failure.message ~= got_failure.message then
-      return "failure differs: " .. tostring(want_failure.message) .. " / " .. tostring(got_failure.message)
-    end
+    local problem = compatible(want_failure, got_failure, false) -- mutated texts: no offset
+    if problem then return "failure differs: " .. problem end
     return nil
   end
   if not same(want, got) then return "values differ" end

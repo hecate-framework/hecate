@@ -168,7 +168,8 @@ end
 function T:test_duplicate_member_names_are_rejected()
   local err = decode_error(self, '{"a":1,"b":2,"a":3}')
   self:assert_equal("duplicate_key", err.context.reason)
-  self:assert_equal(13, err.context.offset)
+  -- yyjson keeps no position for a member name that occurs twice: the native decoder has none (OQ-54)
+  if backend_name == "native" then self:assert_nil(err.context.offset) else self:assert_equal(13, err.context.offset) end
   self:assert_equal("duplicate_key", decode_error(self, '{"a":null,"a":1}').context.reason)
   self:assert_equal("duplicate_key", decode_error(self, '{"a\\u0062":1,"ab":2}').context.reason)
 end

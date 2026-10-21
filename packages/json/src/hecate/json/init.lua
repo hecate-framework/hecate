@@ -133,6 +133,10 @@ function json.decode(text, options)
   }
   local value, failure = backend.get().decode(text, resolved)
   if failure ~= nil then
+    if failure.offset == nil then
+      -- The native decoder cannot place a duplicate member name (yyjson keeps no position for it).
+      error(errors.DecodeError({ message = failure.message, context = { reason = failure.reason } }), 2)
+    end
     local line, column = position.locate(text, failure.offset)
     error(errors.DecodeError({
       message = ("%s at line %d, column %d (offset %d)"):format(failure.message, line, column, failure.offset),

@@ -72,11 +72,20 @@ function T:test_trailing_content_is_located()
   self:assert_equal(5, err.context.column)
 end
 
-function T:test_the_message_names_what_was_found_and_what_was_expected()
+function T:test_the_message_names_what_was_found()
   local err = failure(self, '{"a" 1}')
   self:assert_true(err.message:find("unexpected character '1'", 1, true) ~= nil, err.message)
-  self:assert_true(err.message:find("expected ':'", 1, true) ~= nil, err.message)
   self:assert_true(err.message:find("^unexpected") ~= nil, err.message) -- lower case, no trailing period
+  self:assert_true(err.message:find("line 1, column 6 (offset 5)", 1, true) ~= nil, err.message)
+end
+
+-- What was expected is said by the reference decoder only: yyjson cannot say it (OQ-54).
+function T:test_the_reference_decoder_also_says_what_was_expected()
+  local backend = require("hecate.json.internal.backend")
+  backend.use("reference")
+  local err = failure(self, '{"a" 1}')
+  backend.use(nil)
+  self:assert_true(err.message:find("expected ':'", 1, true) ~= nil, err.message)
 end
 
 function T:test_encode_errors_carry_a_json_pointer()
