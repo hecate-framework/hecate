@@ -3,6 +3,7 @@
 -- through the `bin/build.lua` runner.
 local test = require("harness.test")
 local doc = require("hecate.doc")
+local reactor = require("hecate.reactor")
 local core = require("hecate.core")
 local T = test.Case("BuildIntegrationTest")
 
@@ -153,6 +154,13 @@ function T:test_building_the_repository_website_has_no_problem()
   end
   self:assert_equal(0, #problems, table.concat(problems, "\n"))
   self:assert_true(report.locales.en.pages >= 2)
+end
+
+-- `SystemFileSystem` suspends: every test of this file runs inside a reactor.
+for name, method in pairs(T) do
+  if type(name) == "string" and name:find("^test_") and type(method) == "function" then
+    T[name] = function(...) return reactor.run(method, ...) end
+  end
 end
 
 return T

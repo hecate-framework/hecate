@@ -16,7 +16,7 @@ Documentation generator and static site builder with an MDN-like theme: guides i
 
 ## Boundaries
 
-- Allowed dependencies: `hecate.core`, `hecate.openapi`, `hecate.schema`, `hecate.json`.
+- Allowed dependencies: `hecate.core`, `hecate.reactor`, `hecate.openapi`, `hecate.schema`, `hecate.json`.
   Anything else requires an ADR; `check-boundaries` fails otherwise.
 - Native code: none.
 - Out of scope: a general-purpose CMS.

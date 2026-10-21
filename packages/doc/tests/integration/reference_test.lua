@@ -4,6 +4,7 @@
 -- The tests that need `lua-language-server` do nothing when it is not installed (CI installs it).
 local test = require("harness.test")
 local doc = require("hecate.doc")
+local reactor = require("hecate.reactor")
 local luals = require("hecate.doc.luals")
 local reference_site = require("hecate.doc.reference_site")
 local json = require("hecate.json")
@@ -119,6 +120,13 @@ function T:test_the_site_builder_runs_the_generator_first_with_the_reference_fla
   end)
   fs:remove_tree(site)
   if not done then error(err, 0) end
+end
+
+-- `SystemFileSystem` suspends: every test of this file runs inside a reactor.
+for name, method in pairs(T) do
+  if type(name) == "string" and name:find("^test_") and type(method) == "function" then
+    T[name] = function(...) return reactor.run(method, ...) end
+  end
 end
 
 return T

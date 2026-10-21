@@ -1,6 +1,7 @@
 local test = require("harness.test")
 local doc = require("hecate.doc")
 local core = require("hecate.core")
+local reactor = require("hecate.reactor")
 local T = test.Case("FileSystemTest")
 
 local function names(entries)
@@ -56,10 +57,12 @@ function T:test_system_file_system_satisfies_the_contract()
   local root = ("%s/hecate-doc-test-%d-it's here"):format(base, math.random(1, 1e9))
   local fs = doc.SystemFileSystem()
   self:assert_true(core.implements(fs, doc.FileSystem))
-  local ok, err = pcall(check_contract, self, fs, root)
-  fs:remove_tree(root)
-  self:assert_false(fs:exists(root), "the temporary directory is removed")
-  if not ok then error(err, 0) end
+  reactor.run(function()
+    local ok, err = pcall(check_contract, self, fs, root)
+    fs:remove_tree(root)
+    self:assert_false(fs:exists(root), "the temporary directory is removed")
+    if not ok then error(err, 0) end
+  end)
 end
 
 function T:test_system_file_system_refuses_to_remove_a_root()
@@ -73,9 +76,12 @@ function T:test_system_file_system_reports_unwritable_paths_as_build_errors()
   local base = (os.getenv("TMPDIR") or os.getenv("TEMP") or os.getenv("TMP") or "/tmp"):gsub("\\", "/"):gsub("/+$", "")
   local root = ("%s/hecate-doc-test-file-%d"):format(base, math.random(1, 1e9))
   local fs = doc.SystemFileSystem()
-  fs:write(root .. "/file", "x")
-  local ok, err = pcall(function() fs:write(root .. "/file/child.txt", "y") end) -- a file is not a directory
-  fs:remove_tree(root)
+  local ok, err = reactor.run(function()
+    fs:write(root .. "/file", "x")
+    local written, failure = pcall(function() fs:write(root .. "/file/child.txt", "y") end) -- a file is not a directory
+    fs:remove_tree(root)
+    return written, failure
+  end)
   self:assert_false(ok)
   self:assert_true(core.is_instance_of(err, doc.BuildError))
 end

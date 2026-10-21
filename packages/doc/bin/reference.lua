@@ -10,12 +10,13 @@ global <const> string
 
 local script = arg[0]:gsub("\\", "/")
 local here = script:match("^(.*)/[^/]*$") or "."
-for _, package_name in ipairs({ "doc", "core", "json", "schema", "openapi" }) do
+for _, package_name in ipairs({ "doc", "core", "reactor", "json", "schema", "openapi" }) do
   local base = here .. "/../../" .. package_name .. "/src/"
   package.path = base .. "?.lua;" .. base .. "?/init.lua;" .. package.path
 end
 
 local doc = require("hecate.doc")
+local reactor = require("hecate.reactor")
 local reference_site = require("hecate.doc.reference_site")
 
 local function usage(stream)
@@ -49,7 +50,7 @@ end
 options.out = options.out or (options.root .. "/website/en")
 options.fs = doc.SystemFileSystem()
 
-local ok, report = pcall(reference_site.run, options)
+local ok, report = pcall(reactor.run, reference_site.run, options)
 if not ok then
   io.stderr:write(tostring(report), "\n")
   os.exit(1)

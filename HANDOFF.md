@@ -3,19 +3,20 @@
 
 - roadmap_item: `doc` (minimal) and the reference generator, pulled forward from Phase 3 (ADR 0012, OQ-11)
 - status: in-progress            <!-- in-progress | waiting-ci | waiting-owner -->
-- lock_until: 2026-10-21T11:30:00Z
-- last_update: 2026-10-21T09:40:00Z
+- lock_until: 2026-10-21T17:30:00Z
+- last_update: 2026-10-21T16:00:00Z
 
 ## Done
 
 - Step 1 done: `doc` uses `hecate.json`, internal codec and its test removed (tests, lint, boundaries pass).
 - Claimed. #25 (`json`) is merged; `doc` already has a first slice (renderer, site model, theme, search, reference generator).
 
+- Step 2 done: `SystemFileSystem` over `reactor.fs` (OQ-33 b); runners and tests run inside `reactor.run`; theme files read with `io`; deps/README/rockspec/CLAUDE.md updated; unit and integration tests, lint, boundaries, rockspecs pass.
+
 ## Next steps
 
-1. OQ-33 (b): move `FileSystem` onto `reactor.fs` (owner accepted the dependency).
-2. Integrate the ADR 0022 native module (comrak, syntect) in steps.
-3. Reference pages for `core` and `reactor`; website built by `doc` in CI.
+1. Integrate the ADR 0022 native module (comrak, syntect) in steps (needs the Rust toolchain; check `cargo` is available).
+2. Reference pages for `core` and `reactor`; website built by `doc` in CI.
 
 ## Decisions taken (and where they are recorded)
 
@@ -24,4 +25,6 @@
 ## Commands to re-run
 
 ```sh
+export LUA_CPATH="/opt/lua-5.5/lib/lua/5.5/?.so;;"   # luv
+lua tools/run.lua test doc
 ```

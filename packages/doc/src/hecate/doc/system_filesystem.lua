@@ -1,15 +1,14 @@
--- The real file system through the standard library: files with `io`, directories with
--- the platform shell (`ls`, `dir`, `mkdir`, `rm`, `rmdir`), because Lua has no directory
--- API and `hecate.reactor.fs` (libuv) would make a batch tool depend on a running reactor
--- and on `luv` (OQ-33). All platform-specific code of the package is in this file.
--- Verified on Linux only until CI runs it on macOS and Windows.
-global <const> require, io, os, table, string, package, pairs, error, tostring
+-- The real file system over `hecate.reactor.fs` (libuv): portable, no shell, no platform
+-- branch (OQ-33, alternative (b)). Every method suspends, so the builder that uses it
+-- runs inside a reactor (`reactor.run`), which the runners in `bin/` do.
+global <const> require, table, error, tostring, pcall, ipairs, pairs
 
 local core = require("hecate.core")
+local reactor = require("hecate.reactor")
 local FileSystem = require("hecate.doc.filesystem")
 local errors = require("hecate.doc.errors")
 
-local is_windows = package.config:sub(1, 1) == "\\"
+local fs = reactor.fs
 
 ---@class hecate.doc.SystemFileSystem : hecate.doc.FileSystem
 ---@overload fun(): hecate.doc.SystemFileSystem
@@ -20,31 +19,23 @@ function SystemFileSystem:init()
   self._made = {} -- directories already created by this instance
 end
 
-local function quote(path)
-  if is_windows then return '"' .. path:gsub("/", "\\"):gsub('"', '""') .. '"' end
-  return "'" .. path:gsub("'", "'\\''") .. "'"
+local function build_error(message, path, cause)
+  return errors.BuildError({ message = message .. ": " .. tostring(cause), context = { path = path } })
 end
 
-local function capture(command)
-  if is_windows then command = '"' .. command .. '"' end
-  local pipe = io.popen(command, "r")
-  if not pipe then return "", false end
-  local output = pipe:read("a")
-  local ok = pipe:close()
-  return output, ok == true
+local function is_directory(path)
+  local status = fs.stat(path)
+  return status ~= nil and status.type == "directory"
 end
 
-local function run(command)
-  local ok = os.execute(is_windows and ('"' .. command .. '"') or command)
-  return ok == true
-end
-
+--- `mkdir -p`: creates `path` and the missing parents.
 local function make_directory(self, path)
   if path == "" or self._made[path] then return end
-  local command = is_windows and ("mkdir %s >nul 2>&1"):format(quote(path))
-    or ("mkdir -p %s >/dev/null 2>&1"):format(quote(path))
-  if not run(command) and not self:list(path) then
-    error(errors.BuildError({ message = "cannot create directory " .. path, context = { path = path } }), 0)
+  local parent = path:match("^(.*)/[^/]+$")
+  if parent and parent ~= "" and not parent:match("^%a:$") then make_directory(self, parent) end
+  local ok, err = pcall(fs.mkdir, path)
+  if not ok and not is_directory(path) then
+    error(build_error("cannot create directory " .. path, path, err), 0)
   end
   self._made[path] = true
 end
@@ -52,10 +43,10 @@ end
 ---@param path string
 ---@return string?
 function SystemFileSystem:read(path)
-  local file = io.open(path, "rb")
-  if not file then return nil end
-  local data = file:read("a")
-  file:close()
+  local status = fs.stat(path)
+  if status == nil or status.type == "directory" then return nil end
+  local ok, data = pcall(fs.read_file, path)
+  if not ok then error(build_error("cannot read " .. path, path, data), 0) end
   return data
 end
 
@@ -63,31 +54,19 @@ end
 ---@param data string
 function SystemFileSystem:write(path, data)
   make_directory(self, path:match("^(.*)/[^/]*$") or "")
-  local file, message = io.open(path, "wb")
-  if not file then
-    error(errors.BuildError({ message = "cannot write " .. path .. ": " .. tostring(message), context = { path = path } }), 0)
-  end
-  file:write(data)
-  file:close()
+  local ok, err = pcall(fs.write_file, path, data)
+  if not ok then error(build_error("cannot write " .. path, path, err), 0) end
 end
 
 ---@param directory string
 ---@return hecate.doc.DirectoryEntry[]?
 function SystemFileSystem:list(directory)
+  if not is_directory(directory) then return nil end
   local entries = {}
-  if is_windows then
-    local names, ok = capture(("dir /b /a:d %s 2>nul"):format(quote(directory)))
-    for name in names:gmatch("[^\r\n]+") do entries[#entries + 1] = { name = name, is_directory = true } end
-    local files, files_ok = capture(("dir /b /a:-d %s 2>nul"):format(quote(directory)))
-    for name in files:gmatch("[^\r\n]+") do entries[#entries + 1] = { name = name, is_directory = false } end
-    if not ok and not files_ok then return nil end
-  else
-    local output, ok = capture(("ls -1Ap %s 2>/dev/null"):format(quote(directory)))
-    if not ok then return nil end
-    for name in output:gmatch("[^\n]+") do
-      local directory_name = name:match("^(.*)/$")
-      entries[#entries + 1] = { name = directory_name or name, is_directory = directory_name ~= nil }
-    end
+  for _, entry in ipairs(fs.list(directory)) do
+    local directory_entry = entry.type == "directory"
+    if entry.type == "link" then directory_entry = is_directory(directory .. "/" .. entry.name) end
+    entries[#entries + 1] = { name = entry.name, is_directory = directory_entry }
   end
   table.sort(entries, function(a, b) return a.name < b.name end)
   return entries
@@ -96,12 +75,19 @@ end
 ---@param path string
 ---@return boolean
 function SystemFileSystem:exists(path)
-  local file = io.open(path, "rb")
-  if file then
-    file:close()
-    return true
+  return fs.stat(path) ~= nil
+end
+
+local function remove_below(path)
+  for _, entry in ipairs(fs.list(path)) do
+    local child = path .. "/" .. entry.name
+    if entry.type == "directory" then
+      remove_below(child)
+      fs.rmdir(child)
+    else
+      fs.remove(child)
+    end
   end
-  return self:list(path) ~= nil
 end
 
 ---@param path string
@@ -109,7 +95,18 @@ function SystemFileSystem:remove_tree(path)
   if path == "" or path == "/" or path == "." or path == ".." then
     error(core.ArgumentError("refusing to remove " .. ("%q"):format(path)), 2)
   end
-  run(is_windows and ("rmdir /s /q %s >nul 2>&1"):format(quote(path)) or ("rm -rf %s"):format(quote(path)))
+  if fs.stat(path) ~= nil then
+    local ok, err
+    if is_directory(path) then
+      ok, err = pcall(function()
+        remove_below(path)
+        fs.rmdir(path)
+      end)
+    else
+      ok, err = pcall(fs.remove, path)
+    end
+    if not ok then error(build_error("cannot remove " .. path, path, err), 0) end
+  end
   for made in pairs(self._made) do
     if made == path or made:sub(1, #path + 1) == path .. "/" then self._made[made] = nil end
   end

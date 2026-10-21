@@ -10,7 +10,7 @@
 | Roadmap phase | 3 |
 | Status | in progress — Markdown renderer, site model (locales with fallback, sidebar, previous/next), original theme on the brand kit, search index, `build` and the LuaLS code reference (reference generator, `gen-reference`) implemented; OpenAPI reference, versioned documentation, development server and runnable examples pending |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |
-| Depends on | [`core`](../core), [`openapi`](../openapi), [`schema`](../schema), [`json`](../json) |
+| Depends on | [`core`](../core), [`reactor`](../reactor), [`openapi`](../openapi), [`schema`](../schema), [`json`](../json) |
 | Used by | `cli` |
 | Native code | none |
 | Specification | [documentation.md](../../docs/architecture/documentation.md) |
@@ -59,7 +59,7 @@ decided in [ADR 0022](../../docs/adr/0022-doc-dependencies.md).
 | `Page` | One page in one locale: `id`, `url`, `title`, `html`, `headings`, `sections`, `fallback`, `meta`. |
 | `FileSystem` | Interface (`read`, `write`, `list`, `exists`, `remove_tree`) the builder reads and writes through. |
 | `MemoryFileSystem(files?)` | In-memory implementation (tests, embedders). |
-| `SystemFileSystem()` | Real file system: `io` for files, the platform shell for directories (OQ-33). |
+| `SystemFileSystem()` | Real file system over `hecate.reactor.fs`; every method suspends, so call it inside `reactor.run` (OQ-33). |
 | `BuildError` | `hecate.doc.BuildError` (a `core.Error`): malformed front matter, unreadable source, clashing URLs, `strict` problems. |
 | `markdown.render(source, options?)` | Markdown to HTML (`html`, `title`, `headings`, `sections`, `links`); escaping is the default. |
 | `front_matter.parse(source, path?)` | Splits front matter (flat YAML subset) from the body. |
