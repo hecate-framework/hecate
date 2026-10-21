@@ -2,9 +2,9 @@
 # Handoff
 
 - roadmap_item: `doc` (minimal) and the reference generator, pulled forward from Phase 3 (ADR 0012, OQ-11)
-- status: in-progress            <!-- in-progress | waiting-ci | waiting-owner -->
-- lock_until: 2026-10-21T20:51:37Z
-- last_update: 2026-10-21T19:21:37Z
+- status: waiting-owner            <!-- in-progress | waiting-ci | waiting-owner -->
+- lock_until: 2026-10-21T20:52:52Z
+- last_update: 2026-10-21T19:22:52Z
 
 ## Done
 
@@ -36,6 +36,8 @@
 ## Decisions taken (and where they are recorded)
 
 ## Doubts and questions for the owner
+
+- OQ-55 (`docs/open-questions.md`): `rust dependencies` (cargo deny) is red on the new crate: `comrak` BSD-2-Clause and `finl_unicode` Unicode-DFS-2016 are not in `deny.toml` allow-list; `bincode 1.3.3` (RUSTSEC-2025-0141, unmaintained) comes with `syntect`/`two-face`. `deny.toml` says these are the owner's call, so nothing was changed. Recommendation is in OQ-55.
 
 ## Commands to re-run
 
