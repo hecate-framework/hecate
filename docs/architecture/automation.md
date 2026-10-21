@@ -30,6 +30,7 @@ Status column: `done` = implemented in `tools/`, `now` = workflow exists today, 
 | `format` / `format-check` | formatter on Lua sources (and `clang-format` on C) | done |
 | `lint` | linter rules from coding-standards.md | done |
 | `typecheck` | `lua-language-server --check` with the repository `.luarc.json`, zero diagnostics | done |
+| `fetch-fixtures` | downloads the third-party test data a package declares in `tests/external.lua` into `.hecate/fixtures/` (git-ignored) with git at a pinned commit (`HECATE_FIXTURES_LATEST=1`: the head of the default branch, for scheduled runs); suites that need it skip locally without it and fail in CI | done |
 | `check-lua-constructs` | only the 5.5 constructs allowed by ADR 0001 | done |
 | `check-boundaries` | layer rules (overview.md): requires match declared rockspec dependencies, no upward or cyclic dependency, `luv` only in `reactor`, raw `setmetatable` only in `core` or justified | done |
 | `check-glossary` | deny-list of discouraged identifiers in `packages/**/src` (from glossary "Instead of" columns) | done |
@@ -53,7 +54,7 @@ Status column: `done` = implemented in `tools/`, `now` = workflow exists today, 
 | `affected [--base ref]` | packages affected by a diff, following reverse dependencies; used to shrink CI | done |
 | `matrix` | emits the CI matrix (platforms × packages × services) as JSON | done |
 | `services up\|down\|status` | start database servers locally via `tools/services/compose.yaml` (same versions as CI) | P4 |
-| `bench [scenario] [--compare ref]` | run benchmarks, compare with a baseline, fail above threshold | P1 |
+| `bench [scenario] [--compare ref]` | run benchmarks, compare with a baseline, fail above threshold | P1 (partly done: `bench [name...] [--list] [--runs=N] [--pin=CPUS] [--out=DIR]` browses and runs the `packages/*/benchmarks/*.lua` files on a Linux host, with host reports and a summary of the runs; `--compare` and the scenarios wait for the harness) |
 | `fuzz <target> [--seconds n]` | libFuzzer targets for C parsers and codecs | P1 |
 | `sanitize` | build native modules with ASan/UBSan and run their tests | P1 |
 | `leaks` | run reactor-heavy suites with coroutine/handle leak detection | P1 |

@@ -1,0 +1,18 @@
+[package]
+name = "hecate-json-mlua-bridge"
+version = "0.0.0"
+edition = "2021"
+license = "MIT"
+publish = false
+description = "OQ-52 spike: what mlua's own serde bridge writes for the value model of hecate.json"
+
+[lib]
+name = "bridge"
+crate-type = ["cdylib"]
+
+[dependencies]
+mlua = { version = "0.12", features = ["lua55", "module", "serialize"] }
+serde_json = "1"
+
+[profile.release]
+opt-level = 3

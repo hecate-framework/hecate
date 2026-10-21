@@ -70,7 +70,8 @@ Exit: CI is green on all three platforms with a trivial test in every package sk
       packages' guides as the packages land, the translation status check, `hecate doc` for
       user projects, and the `doc` item below.
 - [x] `net`: TCP/UDP streams, DNS, buffered readers/writers, TLS (after OQ-4). Benchmarks of its hot paths wait for the harness item below.
-- [ ] `json`: codec (after OQ-5).
+- [x] `json`: codec (after OQ-5). Lua API, pure-Lua backend, yyjson decoder (C), `serde_json` encoder (Rust, OQ-52), corpus and fuzz tests, `bench json`, examples and how-to; native modules built and tested on Linux, macOS and Windows in CI. The native modules in the rockspec and the binary rocks come with release automation (Phase 3). The network benchmark scenarios wait for the harness item below; the micro-benchmark `packages/json/benchmarks/codec.lua` runs with `lua tools/run.lua bench json` and its numbers are measured and published by the owner on dedicated hardware (benchmarks/README.md). Hostile-input costs are open in OQ-54.
+- [ ] `json` follow-up: remove the pure-Lua backend once it has no use (OQ-53): encode failures produced by the native module (decode failures already are, OQ-54), `-0` handled natively, the oracle replaced by fixtures, native modules required at run time everywhere (Windows build and binary rocks first).
 - [ ] `doc` (minimal) and the reference generator, **pulled forward from Phase 3** (owner
       decision of 2026-10-13, ADR 0012, Accepted, OQ-11): site build from Markdown and the LuaLS export (`---@class` on every module
       table, `---@param name type description`), generated reference pages for `core` and
@@ -80,12 +81,17 @@ Exit: CI is green on all three platforms with a trivial test in every package sk
       Replaces the "website skeleton" item above as the way the site is built; OpenAPI
       reference, versioned documentation, runnable examples and `hecate doc build` for user
       projects stay in Phase 3.
+- [ ] `doc` theme, mobile navigation (owner report, 2026-10-20): the sidebar menu that browses
+      the guides, the reference and the other sections cannot be scrolled on mobile devices.
+      Fix it in the theme (a long menu scrolls inside its own container, the page behind it
+      does not), and add a check on a narrow viewport (a browser test or a documented manual
+      check in `docs/architecture/documentation.md`) so that it is not forgotten again.
 - [ ] `log`: structured logging, RFC 5424 severities, per-scope context.
 - [ ] Benchmarks harness and first scenario (TCP echo); `benchmarks.yml`.
 - [x] Pin every third-party action of the existing workflows by commit SHA (owner request,
       2026-10-18; [automation.md](architecture/automation.md)); Dependabot keeps them current.
 - [ ] Workflows `native.yml`, `security.yml`, `nightly.yml`; tasks `sanitize`, `fuzz`,
-      `leaks`, `coverage`, `bench`, `check-licenses`. (`security.yml` has its Rust dependency
+      `leaks`, `coverage`, `bench`, `check-licenses`. The native code of `json` (`csrc/native.c`, `native/`) needs its ASan and UBSan build and its libFuzzer targets there (coding-standards.md; today a differential fuzz test in Lua only, native review of the `json` pull request). (`security.yml` has its Rust dependency
       checks, `cargo audit` and `cargo deny`; CodeQL, dependency review and Scorecard remain.)
 
 Exit: an echo server handles 10 000 concurrent connections on each platform; structured
@@ -141,7 +147,7 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
 - [ ] `hecate generate workflow` (ci, contract, docs-pages, release) and its templates;
       regenerate the monorepo's `website.yml` with it.
 - [ ] Release automation: `release.yml` (including one LuaRocks binary rock per platform for
-      the Rust native module of `net`, ADR 0021), `docker.yml`, `cli-e2e.yml`, `website.yml`
+      the native modules of `net` and `json`, ADR 0021), `docker.yml`, `cli-e2e.yml`, `website.yml`
       and the `release *` tasks.
 
 Exit: from a clean machine on each platform, `install → hecate new → hecate serve`

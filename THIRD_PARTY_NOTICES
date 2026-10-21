@@ -52,7 +52,19 @@ Licence: MIT, Copyright (c) GitHub, Inc. (see the licence file of the Octicons r
 Used for the link to the project repository; GitHub's logo usage guidelines also apply.
 
 
-4. Not third-party
+4. yyjson (JSON decoder)
+------------------------
+
+Location: packages/json/csrc/vendor/ (yyjson.c, yyjson.h, LICENSE; version, upstream and
+SHA-256 of each file in VENDORED.md in the same directory).
+Source: https://github.com/ibireme/yyjson, tag 0.10.0. Unmodified by Hecate (ADR 0020).
+Licence: MIT, Copyright (c) 2020 YaoYuan.
+The JSONTestSuite corpus (https://github.com/nst/JSONTestSuite, MIT) is not shipped: the
+`fetch-fixtures` task downloads it for the tests (OQ-51). The Rust crates of the JSON encoder
+are pinned in packages/json/native/Cargo.lock and audited by `cargo deny` (ADR 0021).
+
+
+5. Not third-party
 ------------------
 
 The other icons of the theme (search, sun, moon, menu, close, globe, chevron, pencil,

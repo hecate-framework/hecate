@@ -9,7 +9,7 @@ agent in `.claude/agents/pkg-<name>.md`.
 | Package | Rock | Layer | Phase | Status | Summary |
 |---|---|---|---|---|---|
 | [`core`](core) | `hecate-core` | 0 — Foundation | 1 | implemented | Object model (classes, traits, interfaces), error hierarchy, enumerations, value objects and Lua-version compatibility shims. |
-| [`json`](json) | `hecate-json` | 1 — Runtime | 1 | specified | Fast, correct JSON codec (RFC 8259) with integer/float fidelity, explicit null and array markers, and streaming. |
+| [`json`](json) | `hecate-json` | 1 — Runtime | 1 | implemented | Fast, correct JSON codec (RFC 8259) with integer/float fidelity, explicit null and array markers, and precise error positions. |
 | [`log`](log) | `hecate-log` | 1 — Runtime | 1 | specified | Structured logging with RFC 5424 severities, per-scope context and pluggable sinks. |
 | [`net`](net) | `hecate-net` | 1 — Runtime | 1 | in progress | TCP/UDP streams, DNS resolution, buffered readers/writers and TLS, all suspending transparently. |
 | [`reactor`](reactor) | `hecate-reactor` | 1 — Runtime | 1 | in progress | The reactor over libuv (luv): coroutine scheduler, futures, structured concurrency, synchronisation primitives, timers, signals, processes, file system. |

@@ -29,6 +29,7 @@ website/dist/
 website/en/reference/core/
 website/en/reference/reactor/
 website/en/reference/net/
+website/en/reference/json/
 
 # Editors and OS
 .vscode/
@@ -39,3 +40,4 @@ Thumbs.db
 
 # Throwaway spike code (reports live in docs/spikes/)
 /spikes/
+benchmarks/results/

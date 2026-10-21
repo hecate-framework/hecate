@@ -1,0 +1,23 @@
+[package]
+name = "hecate-json-encode-serde"
+version = "0.0.0"
+edition = "2021"
+license = "MIT"
+publish = false
+description = "OQ-52 spike: the JSON encoder of hecate.json on serde_json with a custom Formatter"
+
+[lib]
+name = "hecate_json_encoder_native"
+crate-type = ["cdylib"]
+
+[dependencies]
+mlua = { version = "0.12", features = ["lua55", "module"] }
+serde = "1"
+serde_json = "1"
+
+[profile.release]
+opt-level = 3
+lto = true
+overflow-checks = true
+strip = true
+codegen-units = 1

@@ -148,13 +148,14 @@ jobs:
       # dependent package is affected; the TLS tests skip silently when it is missing, so the
       # build is asserted explicitly.
       - name: Cache native build
-        if: contains(format(' {0} ', needs.plan.outputs.packages), ' net ')
+        if: contains(format(' {0} ', needs.plan.outputs.packages), ' net ') || contains(format(' {0} ', needs.plan.outputs.packages), ' json ')
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: |
             ~/.cargo/registry
             packages/net/native/target
-          key: native-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('packages/net/native/Cargo.lock', 'packages/net/native/rust-toolchain.toml') }}
+            packages/json/native/target
+          key: native-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('packages/net/native/Cargo.lock', 'packages/net/native/rust-toolchain.toml', 'packages/json/native/Cargo.lock') }}
 
       - name: Build native modules (Linux, macOS)
         if: runner.os != 'Windows' && contains(format(' {0} ', needs.plan.outputs.packages), ' net ')
@@ -162,6 +163,26 @@ jobs:
           (cd packages/net/native && rustup toolchain install)
           lua tools/run.lua build-native net
           test -f .hecate/rocks/lib/lua/5.5/hecate/net/tls_native.so
+
+      - name: Build the JSON native modules (C decoder, Rust encoder; POSIX)
+        if: runner.os != 'Windows' && contains(format(' {0} ', needs.plan.outputs.packages), ' json ')
+        run: |
+          (cd packages/json/native && rustup toolchain install)
+          lua tools/run.lua build-native json
+          test -f .hecate/rocks/lib/lua/5.5/hecate/json/native.so
+          test -f .hecate/rocks/lib/lua/5.5/hecate/json/encoder_native.so
+
+      - name: Download the JSON test corpus
+        if: contains(format(' {0} ', needs.plan.outputs.packages), ' json ')
+        shell: bash
+        run: lua tools/run.lua fetch-fixtures json
+
+      - name: Lint the JSON encoder (Linux)
+        if: runner.os == 'Linux' && contains(format(' {0} ', needs.plan.outputs.packages), ' json ')
+        working-directory: packages/json/native
+        run: |
+          cargo fmt --check
+          cargo clippy --locked --all-targets
 
       - name: Build native modules (Windows)
         if: runner.os == 'Windows' && contains(format(' {0} ', needs.plan.outputs.packages), ' net ')
@@ -176,6 +197,21 @@ jobs:
           $env:LUA_INC = "$tc/include"
           lua tools/run.lua build-native net
           if (-not (Test-Path .hecate/rocks/lib/lua/5.5/hecate/net/tls_native.dll)) { throw 'tls_native.dll missing' }
+
+      - name: Build the JSON native modules (Windows)
+        if: runner.os == 'Windows' && contains(format(' {0} ', needs.plan.outputs.packages), ' json ')
+        shell: pwsh
+        run: |
+          Push-Location packages/json/native
+          rustup toolchain install
+          Pop-Location
+          $tc = (Join-Path $env:GITHUB_WORKSPACE '.hecate/toolchain') -replace '\\', '/'
+          $env:LUA_LIB_NAME = 'lua55'
+          $env:LUA_LIB = "$tc/lib"
+          $env:LUA_INC = "$tc/include"
+          lua tools/run.lua build-native json
+          if (-not (Test-Path .hecate/rocks/lib/lua/5.5/hecate/json/native.dll)) { throw 'native.dll missing' }
+          if (-not (Test-Path .hecate/rocks/lib/lua/5.5/hecate/json/encoder_native.dll)) { throw 'encoder_native.dll missing' }
 
       - name: Lint the native module (Linux)
         if: runner.os == 'Linux' && contains(format(' {0} ', needs.plan.outputs.packages), ' net ')
