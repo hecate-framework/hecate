@@ -14,16 +14,16 @@ jobs:
   markdownlint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: DavidAnson/markdownlint-cli2-action@v24
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: DavidAnson/markdownlint-cli2-action@21c1be1b93ad9ed58fa840aacc3f279cde2a72ff # v24
         with:
           globs: "**/*.md"
 
   links:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: lycheeverse/lychee-action@v2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2
         with:
           # Internal links only on pull requests; external links are checked nightly
           # once nightly.yml exists (see docs/architecture/automation.md).
