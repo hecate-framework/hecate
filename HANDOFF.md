@@ -2,9 +2,9 @@
 # Handoff
 
 - roadmap_item: `doc` (minimal) and the reference generator, pulled forward from Phase 3 (ADR 0012, OQ-11)
-- status: in-progress            <!-- in-progress | waiting-ci | waiting-owner -->
-- lock_until: 2026-10-21T20:05:37Z
-- last_update: 2026-10-21T18:35:37Z
+- status: waiting-owner            <!-- in-progress | waiting-ci | waiting-owner -->
+- lock_until: 2026-10-21T18:56:16Z
+- last_update: 2026-10-21T18:56:16Z
 
 ## Done
 
@@ -16,6 +16,17 @@
 - Resumed after CI failure (logs not downloadable: blob host blocked by proxy). Merged main (#26 SHA pins); all local gates and full test pass. Pushed to re-run CI; if still red, diagnose from the Actions UI.
 
 - website `build` job failed on `luv` not found: build.lua now puts `.hecate/rocks` on package.path/cpath (like the test harness).
+
+- CI green on ubuntu and macos (windows pending) after the luv path fixes in build.lua/reference.lua.
+- Owner (chat): when shipping `doc`, ship the Rust module as prebuilt binaries (ADR 0021 / OQ-41: one binary rock per platform from release CI, source rock builds with cargo as fallback).
+
+## Blocked
+
+Step "native module" (ADR 0022). `cargo` 1.97.0 is installed. Denied by the auto-mode classifier
+(reason "Untrusted Code Integration"): creating `packages/doc/native/{Cargo.toml,rust-toolchain.toml,src/lib.rs}`
+(mlua 0.12 lua55+module, comrak 0.52, syntect 5 regex-fancy, two-face 0.4, layout copied from `packages/net/native`)
+chained with `cd packages/doc/native && cargo generate-lockfile` (downloads crates). Nothing was created. Not retried.
+Needs the owner to allow `cargo generate-lockfile` / `cargo build` in `packages/doc/native` (crates.io), or to run it.
 
 ## Next steps
 
