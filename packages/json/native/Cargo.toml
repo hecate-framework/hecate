@@ -1,0 +1,30 @@
+[package]
+name = "hecate-json-encode"
+version = "0.0.0"
+edition = "2021"
+license = "MIT"
+publish = false
+description = "JSON encoder for hecate.json: walks Lua values through mlua and writes them with serde_json (ADR 0020, ADR 0021)"
+
+[lib]
+name = "hecate_json_encoder_native"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+mlua = { version = "0.12", features = ["lua55", "module"] }
+serde = "1"
+serde_json = "1"
+
+[profile.release]
+opt-level = 3
+lto = true
+overflow-checks = true
+strip = true
+codegen-units = 1
+
+[lints.rust]
+unsafe_code = "forbid"
+warnings = "deny"
+
+[lints.clippy]
+all = { level = "deny", priority = -1 }

@@ -7,7 +7,7 @@ source = {
 }
 
 description = {
-  summary = "Fast, correct JSON codec (RFC 8259) with integer/float fidelity, explicit null and array markers, and streaming.",
+  summary = "Fast, correct JSON codec (RFC 8259) with integer/float fidelity, explicit null and array markers, and precise error positions.",
   homepage = "https://github.com/hecate-framework/hecate",
   license = "MIT",
 }
@@ -19,5 +19,11 @@ dependencies = {
 
 build = {
   type = "builtin",
-  modules = {},
+  modules = {
+    -- The native backend (ADR 0020): the yyjson binding and the vendored yyjson sources (C11).
+    ["hecate.json.native"] = {
+      sources = { "csrc/native.c", "csrc/vendor/yyjson.c" },
+      incdirs = { "csrc" },
+    },
+  },
 }

@@ -46,7 +46,7 @@
 - [Package catalogue](packages/README.md): every package with layer, phase and summary
 <!-- gen-llms-txt:begin -->
 - [hecate-core](packages/core/README.md): Object model (classes, traits, interfaces), error hierarchy, enumerations, value objects and Lua-version compatibility shims.
-- [hecate-json](packages/json/README.md): Fast, correct JSON codec (RFC 8259) with integer/float fidelity, explicit null and array markers, and streaming.
+- [hecate-json](packages/json/README.md): Fast, correct JSON codec (RFC 8259) with integer/float fidelity, explicit null and array markers, and precise error positions.
 - [hecate-log](packages/log/README.md): Structured logging with RFC 5424 severities, per-scope context and pluggable sinks.
 - [hecate-net](packages/net/README.md): TCP/UDP streams, DNS resolution, buffered readers/writers and TLS, all suspending transparently.
 - [hecate-reactor](packages/reactor/README.md): The reactor over libuv (luv): coroutine scheduler, futures, structured concurrency, synchronisation primitives, timers, signals, processes, file system.

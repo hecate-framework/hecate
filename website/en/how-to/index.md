@@ -22,3 +22,8 @@ read the matching page of the [explanation](../explanation/index.md) section.
 - [UDP, Unix sockets, named pipes and DNS](udp-pipes-and-dns.md): the transports other than TCP.
 - [Run child processes and pass connections between processes](run-processes-and-pass-connections.md):
   `run_process`, `spawn`, the message pipe and handing a connection to a child.
+
+## Data
+
+- [Encode and decode JSON](encode-and-decode-json.md): integers and floats, `null`, empty
+  arrays, canonical output and decode errors.
