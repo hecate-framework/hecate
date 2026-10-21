@@ -559,6 +559,23 @@ fn rendered_to_lua(lua: &Lua, rendered: Rendered) -> LuaResult<LuaTable> {
     Ok(result)
 }
 
+/// Renders with the options of the specifications: raw HTML kept and, when `extension` names one of the
+/// GFM extensions of the specification (`table`, `strikethrough`, `autolink`, `tagfilter`), that
+/// extension only; none by default (CommonMark). It exists so that the specification examples can
+/// run through this module (OQ-37); the site never uses it.
+pub fn commonmark(markdown: &str, extension: Option<&str>) -> String {
+    let mut options = Options::default();
+    options.render.r#unsafe = true;
+    match extension {
+        Some("table") => options.extension.table = true,
+        Some("strikethrough") => options.extension.strikethrough = true,
+        Some("autolink") => options.extension.autolink = true,
+        Some("tagfilter") => options.extension.tagfilter = true,
+        _ => {}
+    }
+    comrak::markdown_to_html(markdown, &options)
+}
+
 #[mlua::lua_module(name = "hecate_doc_native")]
 fn module(lua: &Lua) -> LuaResult<LuaTable> {
     let exports = lua.create_table()?;
@@ -579,6 +596,15 @@ fn module(lua: &Lua) -> LuaResult<LuaTable> {
                 Ok(rendered) => rendered_to_lua(lua, rendered),
                 Err(message) => Err(failure.unwrap_or_else(|| LuaError::runtime(message))),
             }
+        })?,
+    )?;
+    exports.set(
+        "commonmark",
+        lua.create_function(|_, (markdown, extension): (LuaString, Option<LuaString>)| {
+            let extension = extension
+                .map(|e| e.to_str().map(|e| e.to_string()))
+                .transpose()?;
+            Ok(commonmark(&markdown.to_str()?, extension.as_deref()))
         })?,
     )?;
     exports.set(

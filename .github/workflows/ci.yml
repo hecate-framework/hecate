@@ -182,6 +182,11 @@ jobs:
           lua tools/run.lua build-native doc
           test -f .hecate/rocks/lib/lua/5.5/hecate/doc/native.so
 
+      - name: Download the specification examples (Markdown)
+        if: contains(format(' {0} ', needs.plan.outputs.packages), ' doc ')
+        shell: bash
+        run: lua tools/run.lua fetch-fixtures doc
+
       - name: Download the JSON test corpus
         if: contains(format(' {0} ', needs.plan.outputs.packages), ' json ')
         shell: bash

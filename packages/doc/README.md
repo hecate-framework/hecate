@@ -137,7 +137,7 @@ readable without JavaScript. Vendored material: [THIRD_PARTY_NOTICES](../../THIR
 
 Not implemented: OpenAPI reference, error-code and configuration references, translations of generated pages keyed by symbol, `llms.txt`,
 versioned documentation, development server, runnable examples, translation status report,
-extension points of the theme for user projects (OQ-38). Markdown is GFM through comrak; the specification examples are not yet run as a test (OQ-37). The search ranking is client-side JavaScript without an automated test (OQ-36).
+extension points of the theme for user projects (OQ-38). Markdown is GFM through comrak; the CommonMark 0.31.2 and GFM extension examples run as a test through the module (OQ-37). The search ranking is client-side JavaScript without an automated test (OQ-36).
 Verified on Linux; macOS and Windows are verified by CI only (the shell calls of
 `SystemFileSystem` are the platform-specific part, OQ-33).
 
