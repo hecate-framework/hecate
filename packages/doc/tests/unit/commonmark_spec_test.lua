@@ -20,7 +20,8 @@ local function examples(path)
   local file = io.open(path, "rb")
   if not file then return nil end
   local list, current, part = {}, nil, nil
-  for line in file:lines() do
+  for raw in file:lines() do
+    local line = raw:gsub("\r$", "") -- git on Windows checks the file out with CRLF line endings
     local tag = line:match("^" .. FENCE .. " example ?(.*)$")
     if tag then
       current, part = { markdown = {}, html = {}, tag = tag }, "markdown"
