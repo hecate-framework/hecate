@@ -3,8 +3,8 @@
 
 - roadmap_item: `doc` (minimal) and the reference generator, pulled forward from Phase 3 (ADR 0012, OQ-11)
 - status: in-progress            <!-- in-progress | waiting-ci | waiting-owner -->
-- lock_until: 2026-10-21T21:40:13Z
-- last_update: 2026-10-21T20:10:13Z
+- lock_until: 2026-10-21T23:20:00Z
+- last_update: 2026-10-21T21:50:00Z
 
 ## Done
 
@@ -26,10 +26,12 @@
 
 - Step 5 done (OQ-37, resolved): spec examples as a test (`commonmark_spec_test.lua`, `native.commonmark` test hook, `tests/external.lua`, CI `fetch-fixtures doc`); 652 CommonMark + 22 GFM extension examples pass with no deviation.
 
+- CI of #28 green on the three platforms (head f246656). Step 6 done: licence audit of the two-face syntaxes recorded in THIRD_PARTY_NOTICES (59 permissive licences, no copyleft); CHANGELOG adjusted.
+
 ## Next steps
 
-1. Watch CI of this push (first run of `fetch-fixtures doc` and the spec test on three platforms).
-2. Lua 5.5 syntax (`global`, `---@` annotations): syntect renders `global` as a plain variable (see features.html); licence audit of the two-face syntaxes into THIRD_PARTY_NOTICES.
+1. Watch CI of this push (notices and changelog only).
+2. Lua 5.5 syntax (`global`, `---@` annotations): syntect renders `global` as a plain variable (see features.html).
 3. Rockspec and release: binary rock per platform (owner: ship the Rust module as prebuilt binaries), source rock builds with cargo.
 4. Cosmetic: code language labels come from syntect names ("Bourne Again Shell (bash)" for `sh`); images lost `loading="lazy"`.
 5. Reference pages for `core` and `reactor`; website built by `doc` in CI.
