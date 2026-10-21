@@ -311,9 +311,9 @@ static int ends_in_string(const char *text, size_t length) {
 static int classify(lua_State *L, const char *text, size_t length, const yyjson_read_err *err) {
   size_t pos = err->pos;
   const char *msg = err->msg;
-  switch (err->code) {
-    case YYJSON_READ_ERROR_EMPTY_CONTENT:
-    case YYJSON_READ_ERROR_UNEXPECTED_END: {
+  /* An `if` chain, not a `switch`: the codes of yyjson are `static const` variables, which MSVC does not accept as
+   * case labels. Every branch returns. */
+  if (err->code == YYJSON_READ_ERROR_EMPTY_CONTENT || err->code == YYJSON_READ_ERROR_UNEXPECTED_END) {
       /* A text cut inside a literal (`[1,tru`): the reference decoder points at the first letter of the literal. */
       if (ends_in_string(text, length))
         return fail_with(L, "syntax", (lua_Integer)length, "unterminated string: expected a closing quote");
@@ -329,8 +329,8 @@ static int classify(lua_State *L, const char *text, size_t length, const yyjson_
         return push_failure(L, "syntax", (lua_Integer)start);
       }
       return fail_with(L, "syntax", (lua_Integer)length, "unexpected end of input");
-    }
-    case YYJSON_READ_ERROR_INVALID_NUMBER:
+  }
+  if (err->code == YYJSON_READ_ERROR_INVALID_NUMBER) {
       if (strstr(msg, "infinity") != NULL || strstr(msg, "nan or inf") != NULL) {
         size_t end = pos;
         while (end < length && strchr("+-0123456789.eE", text[end]) != NULL) end++;
@@ -345,7 +345,8 @@ static int classify(lua_State *L, const char *text, size_t length, const yyjson_
       /* A leading zero: yyjson points at the zero, the reference decoder at the digit after it. */
       if (strstr(msg, "leading zero") != NULL && pos + 1 < length) pos++;
       return push_failure(L, "syntax", (lua_Integer)pos);
-    case YYJSON_READ_ERROR_INVALID_STRING:
+  }
+  if (err->code == YYJSON_READ_ERROR_INVALID_STRING) {
       if (strstr(msg, "utf-8") != NULL || strstr(msg, "UTF-8") != NULL)
         return fail_with(L, "invalid_utf8", (lua_Integer)pos, "invalid UTF-8 in string");
       if (strstr(msg, "control character") != NULL) {
@@ -367,7 +368,8 @@ static int classify(lua_State *L, const char *text, size_t length, const yyjson_
       /* yyjson points at the character after the backslash; the reference decoder at the backslash. */
       return fail_with(L, "invalid_escape", (lua_Integer)(pos > 0 && text[pos - 1] == '\\' ? pos - 1 : pos),
                        "invalid escape in string");
-    default: /* unexpected character or content, structure, literal */
+  }
+  { /* unexpected character or content, structure, literal */
       /* A trailing comma: yyjson points at the comma, the reference decoder at the closing bracket after it. */
       if (err->code == YYJSON_READ_ERROR_JSON_STRUCTURE && pos < length && text[pos] == ',') {
         size_t next = pos + 1;
