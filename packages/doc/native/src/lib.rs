@@ -12,13 +12,14 @@
 //! a leading level-1 heading is stripped, and every link destination.
 
 use std::borrow::Cow;
+use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::OnceLock;
 
 use comrak::adapters::{HeadingAdapter, HeadingMeta, SyntaxHighlighterAdapter};
-use comrak::nodes::{AlertType, AstNode, NodeValue, Sourcepos};
+use comrak::nodes::{AlertType, Ast, AstNode, NodeValue, Sourcepos};
 use comrak::options::Plugins;
 use comrak::{format_html_with_plugins, parse_document, Arena, Options};
 use mlua::prelude::*;
@@ -298,6 +299,7 @@ fn options() -> Options<'static> {
     options.extension.autolink = true;
     options.extension.footnotes = true;
     options.extension.alerts = true;
+    options.render.tasklist_classes = true;
     options
 }
 
@@ -314,6 +316,38 @@ pub fn render(
     let options = options();
     let arena = Arena::new();
     let root = parse_document(&arena, markdown, &options);
+
+    // Raw HTML is shown as text, never passed through; comments are dropped so that generated
+    // pages can carry their "generated, do not edit" header.
+    let raw: Vec<_> = root
+        .descendants()
+        .filter(|n| {
+            matches!(
+                n.data.borrow().value,
+                NodeValue::HtmlBlock(_) | NodeValue::HtmlInline(_)
+            )
+        })
+        .collect();
+    for node in raw {
+        let (literal, block) = match &node.data.borrow().value {
+            NodeValue::HtmlBlock(b) => (b.literal.clone(), true),
+            NodeValue::HtmlInline(l) => (l.clone(), false),
+            _ => continue,
+        };
+        let trimmed = literal.trim();
+        if trimmed.starts_with("<!--") && trimmed.ends_with("-->") {
+            node.detach();
+        } else if block {
+            let text = arena.alloc(AstNode::new(RefCell::new(Ast::new(
+                NodeValue::Text(trimmed.to_string().into()),
+                (0, 0).into(),
+            ))));
+            node.data.borrow_mut().value = NodeValue::Paragraph;
+            node.append(text);
+        } else {
+            node.data.borrow_mut().value = NodeValue::Text(literal.into());
+        }
+    }
 
     // Destinations, in document order.
     let mut links = Vec::new();

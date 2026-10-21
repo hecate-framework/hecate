@@ -81,10 +81,9 @@ local reader, writer = stream:reader(), stream:writer()
 Les lignes et les enregistrements sont limités à 65536 octets par défaut. Une ligne plus longue
 lève `ProtocolError`. Passez `{ limit = n }` à `stream:reader()` pour changer cette limite.
 
-::: tip Un lecteur par flux
-`stream:reader()` crée un nouveau lecteur à chaque appel. Deux lecteurs sur un même flux se
-partageraient ses octets. Créez un seul lecteur par flux et conservez-le.
-:::
+> [!TIP] Un lecteur par flux
+> `stream:reader()` crée un nouveau lecteur à chaque appel. Deux lecteurs sur un même flux se
+> partageraient ses octets. Créez un seul lecteur par flux et conservez-le.
 
 Vous pouvez aussi appeler directement `stream:read(max)` et `stream:write(data)`. `write`
 accepte la totalité de `data` ou lève une erreur. Il ne renvoie jamais un compte partiel.
@@ -107,17 +106,15 @@ Après `close`, tout usage lève `reactor.TransportError` avec `context.errno` v
 choisit un port libre ; `listener:local_address().port` vous dit lequel. Les options sont celles
 de `connect`, plus `backlog` (128 par défaut) et `reuseport`.
 
-::: warning `reuseport` n’est pas encore utilisable
-`reuseport = true` permet à plusieurs processus d’écouter sur un même port. Aujourd’hui, il lève
-`TransportError` avec `ENOTSUP`, parce que luv 1.53 ne l’expose pas pour TCP (OQ-43). Testez
-d’abord `reactor.supports_reuseport()`. Voir
-[Service multiprocessus](../explanation/multi-process-serving.md#reuseport-does-not-work-yet).
-:::
+> [!WARNING] `reuseport` n’est pas encore utilisable
+> `reuseport = true` permet à plusieurs processus d’écouter sur un même port. Aujourd’hui, il lève
+> `TransportError` avec `ENOTSUP`, parce que luv 1.53 ne l’expose pas pour TCP (OQ-43). Testez
+> d’abord `reactor.supports_reuseport()`. Voir
+> [Service multiprocessus](../explanation/multi-process-serving.md#reuseport-does-not-work-yet).
 
-::: warning Nommez votre adresse
-`net.listen("localhost", port)` ne lie que la première adresse listée par le résolveur, qui peut
-être `127.0.0.1` ou `::1`. Passez une adresse numérique, ou `family`, quand l’adresse compte.
-:::
+> [!WARNING] Nommez votre adresse
+> `net.listen("localhost", port)` ne lie que la première adresse listée par le résolveur, qui peut
+> être `127.0.0.1` ou `::1`. Passez une adresse numérique, ou `family`, quand l’adresse compte.
 
 `listener:accept()` suspend jusqu’à ce qu’un client se connecte et renvoie un `TcpStream`. Un
 serveur boucle sur `accept` et démarre une coroutine par connexion avec `fork`, pour qu’un client

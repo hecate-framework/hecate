@@ -148,14 +148,15 @@ jobs:
       # dependent package is affected; the TLS tests skip silently when it is missing, so the
       # build is asserted explicitly.
       - name: Cache native build
-        if: contains(format(' {0} ', needs.plan.outputs.packages), ' net ') || contains(format(' {0} ', needs.plan.outputs.packages), ' json ')
+        if: contains(format(' {0} ', needs.plan.outputs.packages), ' net ') || contains(format(' {0} ', needs.plan.outputs.packages), ' json ') || contains(format(' {0} ', needs.plan.outputs.packages), ' doc ')
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: |
             ~/.cargo/registry
             packages/net/native/target
             packages/json/native/target
-          key: native-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('packages/net/native/Cargo.lock', 'packages/net/native/rust-toolchain.toml', 'packages/json/native/Cargo.lock') }}
+            packages/doc/native/target
+          key: native-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('packages/net/native/Cargo.lock', 'packages/net/native/rust-toolchain.toml', 'packages/json/native/Cargo.lock', 'packages/doc/native/Cargo.lock') }}
 
       - name: Build native modules (Linux, macOS)
         if: runner.os != 'Windows' && contains(format(' {0} ', needs.plan.outputs.packages), ' net ')
@@ -171,6 +172,15 @@ jobs:
           lua tools/run.lua build-native json
           test -f .hecate/rocks/lib/lua/5.5/hecate/json/native.so
           test -f .hecate/rocks/lib/lua/5.5/hecate/json/encoder_native.so
+
+      # Markdown and highlighting of `doc` (comrak, syntect; ADR 0022): the tests of `doc` and of the
+      # website build need the module, so it is built whenever `doc` is affected.
+      - name: Build the documentation native module (Linux, macOS)
+        if: runner.os != 'Windows' && contains(format(' {0} ', needs.plan.outputs.packages), ' doc ')
+        run: |
+          (cd packages/doc/native && rustup toolchain install)
+          lua tools/run.lua build-native doc
+          test -f .hecate/rocks/lib/lua/5.5/hecate/doc/native.so
 
       - name: Download the JSON test corpus
         if: contains(format(' {0} ', needs.plan.outputs.packages), ' json ')
@@ -212,6 +222,28 @@ jobs:
           lua tools/run.lua build-native json
           if (-not (Test-Path .hecate/rocks/lib/lua/5.5/hecate/json/native.dll)) { throw 'native.dll missing' }
           if (-not (Test-Path .hecate/rocks/lib/lua/5.5/hecate/json/encoder_native.dll)) { throw 'encoder_native.dll missing' }
+
+      - name: Build the documentation native module (Windows)
+        if: runner.os == 'Windows' && contains(format(' {0} ', needs.plan.outputs.packages), ' doc ')
+        shell: pwsh
+        run: |
+          Push-Location packages/doc/native
+          rustup toolchain install
+          Pop-Location
+          $tc = (Join-Path $env:GITHUB_WORKSPACE '.hecate/toolchain') -replace '\\', '/'
+          $env:LUA_LIB_NAME = 'lua55'
+          $env:LUA_LIB = "$tc/lib"
+          $env:LUA_INC = "$tc/include"
+          lua tools/run.lua build-native doc
+          if (-not (Test-Path .hecate/rocks/lib/lua/5.5/hecate/doc/native.dll)) { throw 'native.dll missing' }
+
+      - name: Lint the documentation native module (Linux)
+        if: runner.os == 'Linux' && contains(format(' {0} ', needs.plan.outputs.packages), ' doc ')
+        working-directory: packages/doc/native
+        run: |
+          cargo fmt --check
+          cargo clippy --locked --all-targets
+          cargo test --locked
 
       - name: Lint the native module (Linux)
         if: runner.os == 'Linux' && contains(format(' {0} ', needs.plan.outputs.packages), ' net ')

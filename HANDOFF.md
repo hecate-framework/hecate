@@ -3,8 +3,8 @@
 
 - roadmap_item: `doc` (minimal) and the reference generator, pulled forward from Phase 3 (ADR 0012, OQ-11)
 - status: in-progress            <!-- in-progress | waiting-ci | waiting-owner -->
-- lock_until: 2026-10-21T20:29:28Z
-- last_update: 2026-10-21T18:59:28Z
+- lock_until: 2026-10-21T20:51:37Z
+- last_update: 2026-10-21T19:21:37Z
 
 ## Done
 
@@ -22,11 +22,16 @@
 
 - Owner allowed `cargo generate-lockfile` / `cargo build` in `packages/doc/native`. Step 3 done: crate `hecate-doc-native` (mlua, comrak 0.52, syntect 5, two-face 0.4; 68 locked packages) with `render` (GFM, alerts, heading ids, outline, links, safe mode) and `highlight` (`hl-` classes). `cargo test --locked`, clippy, fmt pass. Not yet wired into Lua, rockspec, CI, docs.
 
+- Step 4 done: native `render` returns outline, sections, title, links; callout titles, code toolbar, raw HTML as text, link rewriting. `hecate.doc.markdown`/`highlight` now wrap the module; in-house renderer, inline renderer and lexers removed; `::: name` containers converted to GFM alerts in `website/` (en and fr, structure only) and fixtures; theme CSS uses `markdown-alert-*` and `hl-*`; `build-native doc` task; CI (build + lint on 3 platforms), website workflow and security workflow (audit, deny) cover the crate; README, CLAUDE.md, CHANGELOG updated. All local gates and tests pass.
+
 ## Next steps
 
-1. Load `hecate_doc_native` from Lua (build to `.hecate/rocks/lib/lua/5.5/hecate/doc/`), replace the in-house Markdown renderer and highlighters, migrate `::: note` to GFM alerts, golden tests; CommonMark/GFM spec examples through the module (OQ-37).
-2. CI Rust job for `doc/native` on three platforms (copy the `net` job), `cargo-deny`, licence audit of syntaxes into THIRD_PARTY_NOTICES, rockspec (binary rock per platform from release CI, source rock builds with cargo), packages/doc/CLAUDE.md + README + check-boundaries ("Native code: none" changes: owner approved by ADR 0022 E), CHANGELOG.
-3. Reference pages for `core` and `reactor`; website built by `doc` in CI.
+1. Watch CI of this push: first run of the doc native build on macOS/Windows and of `cargo deny` on the new crate (licences; fix `deny.toml` only with the owner's approval if a licence is new).
+2. OQ-37: run the CommonMark/GFM spec examples through the module (vendor data under CC BY-SA 4.0 or fetch in CI like `fetch-fixtures`).
+3. Lua 5.5 syntax (`global`, `---@` annotations): syntect renders `global` as a plain variable (see features.html); licence audit of the two-face syntaxes into THIRD_PARTY_NOTICES.
+4. Rockspec and release: binary rock per platform (owner: ship the Rust module as prebuilt binaries), source rock builds with cargo.
+5. Cosmetic: code language labels come from syntect names ("Bourne Again Shell (bash)" for `sh`); images lost `loading="lazy"`.
+6. Reference pages for `core` and `reactor`; website built by `doc` in CI.
 
 ## Decisions taken (and where they are recorded)
 

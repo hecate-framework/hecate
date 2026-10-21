@@ -87,11 +87,10 @@ A running child keeps the reactor alive, so waiting for it with nothing else pen
 deadlock. `reactor.run` returns when its main coroutine ends, whether or not a child still runs. Wait for
 your children, or kill them, before the main coroutine ends.
 
-::: warning Relative search paths
-A child started from another Lua process finds its modules through `package.path`. That path may
-hold relative entries, which stop working when you set `cwd`. Make them absolute, or pass them
-through `LUA_PATH_5_5` and `LUA_CPATH_5_5` in `env`, as the examples do.
-:::
+> [!WARNING] Relative search paths
+> A child started from another Lua process finds its modules through `package.path`. That path may
+> hold relative entries, which stop working when you set `cwd`. Make them absolute, or pass them
+> through `LUA_PATH_5_5` and `LUA_CPATH_5_5` in `env`, as the examples do.
 
 ## Talk to a child over a message pipe
 
@@ -208,12 +207,11 @@ end)
 The stream is closed in the sender once it is handed over: using it afterwards raises
 `TransportError` with `EBADF`.
 
-::: warning Windows
-The operating system duplicates the socket for the receiver, and the duplicate is valid only
-while the sender's socket is open. The sender closes it as soon as `send` returns, which can be
-before the receiver calls `receive`. Have the receiver acknowledge with a message, and do not exit
-the sender before the acknowledgement arrives.
-:::
+> [!WARNING] Windows
+> The operating system duplicates the socket for the receiver, and the duplicate is valid only
+> while the sender's socket is open. The sender closes it as soon as `send` returns, which can be
+> before the receiver calls `receive`. Have the receiver acknowledge with a message, and do not exit
+> the sender before the acknowledgement arrives.
 
 ## Share a port between processes
 

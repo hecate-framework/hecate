@@ -55,7 +55,7 @@ function T:test_the_library_builds_the_fixture_site_to_disk()
     end
     local page = fs:read(out .. "/en/guide/concurrency/index.html")
     self:assert_true(page:find("<h2 id=\"callouts\"", 1, true) ~= nil)
-    self:assert_true(page:find('class="callout callout-danger"', 1, true) ~= nil)
+    self:assert_true(page:find('class="markdown-alert markdown-alert-caution"', 1, true) ~= nil)
     self:assert_true(page:find('<a href="/en/reference/sleep/#syntax">', 1, true) ~= nil)
     local font = fs:read(out .. "/assets/fonts/fira-code-latin-400-normal.woff2")
     self:assert_equal(fs:read(doc.theme.assets_directory() .. "/fonts/fira-code-latin-400-normal.woff2"), font,

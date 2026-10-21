@@ -16,11 +16,10 @@ once with `lua tools/run.lua build-native`. Without it, `net.tls.available()` re
 and the reason, and every TLS call raises `TlsError` with `context.reason` set to
 `"native_missing"`.
 
-::: warning Verification cannot be turned off
-There is no option that disables certificate verification, and none will be added. A mistyped
-or unsafe option such as `verify = false` raises `ArgumentError`. See
-[TLS trust and security defaults](../explanation/tls-trust-and-security.md) for the reasons.
-:::
+> [!WARNING] Verification cannot be turned off
+> There is no option that disables certificate verification, and none will be added. A mistyped
+> or unsafe option such as `verify = false` raises `ArgumentError`. See
+> [TLS trust and security defaults](../explanation/tls-trust-and-security.md) for the reasons.
 
 ## Connect to a public server
 
@@ -104,13 +103,12 @@ local peer = net.tls.accept(listener:accept(), config)
 `listener:accept()` returns the TCP stream. `tls.accept` runs the handshake of that one
 connection and takes ownership of the stream: if the handshake fails, the stream is closed.
 
-::: tip Fork the handshake
-Never run the handshake in the accept loop itself. A client that connects and then says nothing
-would stall every other client. Fork one coroutine per connection and run `tls.accept` inside it.
-The handshake is bounded anyway by `handshake_deadline`, which is 10 seconds by default. Pass
-`{ handshake_deadline = 5 }` as the third argument to change it. On expiry the stream is closed and
-`DeadlineExceededError` is raised.
-:::
+> [!TIP] Fork the handshake
+> Never run the handshake in the accept loop itself. A client that connects and then says nothing
+> would stall every other client. Fork one coroutine per connection and run `tls.accept` inside it.
+> The handshake is bounded anyway by `handshake_deadline`, which is 10 seconds by default. Pass
+> `{ handshake_deadline = 5 }` as the third argument to change it. On expiry the stream is closed and
+> `DeadlineExceededError` is raised.
 
 The example below negotiates an application protocol with ALPN (Application-Layer Protocol Negotiation, RFC 7301). The server offers `echo`; the
 client asks for it; each side reads the result with `stream:alpn()`.
@@ -216,10 +214,9 @@ end)
 -- Prints: welcome alice
 ```
 
-::: note
-The server does not check client certificates for revocation: it configures no revocation
-lists.
-:::
+> [!NOTE]
+> The server does not check client certificates for revocation: it configures no revocation
+> lists.
 
 ## Close a TLS stream
 

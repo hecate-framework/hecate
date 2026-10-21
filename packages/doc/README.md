@@ -8,11 +8,11 @@
 | Rock | `hecate-doc` |
 | Layer | Tooling |
 | Roadmap phase | 3 |
-| Status | in progress — Markdown renderer, site model (locales with fallback, sidebar, previous/next), original theme on the brand kit, search index, `build` and the LuaLS code reference (reference generator, `gen-reference`) implemented; OpenAPI reference, versioned documentation, development server and runnable examples pending |
+| Status | in progress — Markdown rendering and highlighting by the native module (comrak, syntect), site model (locales with fallback, sidebar, previous/next), original theme on the brand kit, search index, `build` and the LuaLS code reference (reference generator, `gen-reference`) implemented; OpenAPI reference, versioned documentation, development server and runnable examples pending |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |
 | Depends on | [`core`](../core), [`reactor`](../reactor), [`openapi`](../openapi), [`schema`](../schema), [`json`](../json) |
 | Used by | `cli` |
-| Native code | none |
+| Native code | Rust (`native/`): comrak (Markdown) and syntect with two-face (highlighting), through `mlua` (ADR 0022) |
 | Specification | [documentation.md](../../docs/architecture/documentation.md) |
 | Decisions | [ADR 0012](../../docs/adr/0012-website-generator.md), [ADR 0013](../../docs/adr/0013-english-code-multilingual-documentation.md) |
 | Agent | [`pkg-doc`](../../.claude/agents/pkg-doc.md) |
@@ -63,7 +63,7 @@ decided in [ADR 0022](../../docs/adr/0022-doc-dependencies.md).
 | `BuildError` | `hecate.doc.BuildError` (a `core.Error`): malformed front matter, unreadable source, clashing URLs, `strict` problems. |
 | `markdown.render(source, options?)` | Markdown to HTML (`html`, `title`, `headings`, `sections`, `links`); escaping is the default. |
 | `front_matter.parse(source, path?)` | Splits front matter (flat YAML subset) from the body. |
-| `highlight.render(language, code)` | Syntax highlighting for Lua, JSON, shell, HTTP and diff. |
+| `highlight.render(language, code)` | Syntax highlighting by syntect (two-face syntaxes, `hl-` classes); an unknown language is escaped and left plain. |
 | `navigation` | `sidebar`, `reading_order`, `neighbours`, `top_links`, `section_of` (pure functions). |
 | `search.build(locale, pages)`, `search.encode(index)` | The client-side search index. |
 | `theme` | `page(context)`, `not_found(context)`, `strings`, `asset_files`, `assets_directory()`. |
@@ -117,8 +117,8 @@ default locale with a visible notice. The page title is the single `#` heading o
 override of the label used in navigation, search and `<title>` (OQ-35). Front matter keys: `title`, `description`, `order`
 (sidebar order), `hecate` and `lua` (the "written for" line), `layout: home` with
 `actions: ["Text | page or URL | primary"]`, `outline: false`, `sidebar: false`,
-`last_updated`, `source_revision`, `source` (generated pages: repository path of the Lua file). Callouts: `::: note|tip|warning|danger [title]`. Raw HTML
-is not supported (shown as text). Conventions: OQ-35. Site configuration (`site.lua`):
+`last_updated`, `source_revision`, `source` (generated pages: repository path of the Lua file). Callouts are GFM alerts: `> [!NOTE|TIP|IMPORTANT|WARNING|CAUTION] [title]`. Raw HTML
+is not supported (shown as text, comments are dropped). Conventions: OQ-35. Site configuration (`site.lua`):
 `title`, `description`, `base`, `url`, `default_locale`, `locales`, `nav`, `sidebar`,
 `repository`, `edit_link`, `source_edit_link` (edit link of generated pages, from their `source`),
 `footer`, `outline`, `strings`, `exclude`; see
@@ -137,8 +137,7 @@ readable without JavaScript. Vendored material: [THIRD_PARTY_NOTICES](../../THIR
 
 Not implemented: OpenAPI reference, error-code and configuration references, translations of generated pages keyed by symbol, `llms.txt`,
 versioned documentation, development server, runnable examples, translation status report,
-extension points of the theme for user projects (OQ-38). Markdown is a CommonMark subset
-(OQ-37). The search ranking is client-side JavaScript without an automated test (OQ-36).
+extension points of the theme for user projects (OQ-38). Markdown is GFM through comrak; the specification examples are not yet run as a test (OQ-37). The search ranking is client-side JavaScript without an automated test (OQ-36).
 Verified on Linux; macOS and Windows are verified by CI only (the shell calls of
 `SystemFileSystem` are the platform-specific part, OQ-33).
 
@@ -146,7 +145,8 @@ Verified on Linux; macOS and Windows are verified by CI only (the shell calls of
 
 ```text
 src/hecate/doc/init.lua        public entry point
-src/hecate/doc/markdown.lua    block renderer; internal/inline.lua inline renderer
+src/hecate/doc/markdown.lua    Markdown (comrak) and highlight.lua (syntect) over the native module
+native/                        the Rust crate (comrak, syntect, two-face; `lua tools/run.lua build-native doc`)
 src/hecate/doc/site.lua        content tree, locales, links, navigation, output
 src/hecate/doc/reference.lua   code reference pages from the LuaLS export; reference_site.lua, luals.lua
 src/hecate/doc/theme/          templates (layout.lua), strings, assets/ (css, js, fonts, brand)
