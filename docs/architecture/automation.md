@@ -113,10 +113,8 @@ Rules:
   LuaRocks tree keyed by rockspecs.
 - Required checks on `main`: `ci`, `docs`, `pr-hygiene`, and from their phase on,
   `native`, `integration`, `website`.
-- Third-party actions pinned by commit SHA in `release.yml`, `docker.yml` and
-  `security.yml`; Dependabot updates them. (Owner, 2026-10-18: pinning is no longer deferred: the
-  existing workflows are to be pinned too, none is yet; tracked as a roadmap item
-  of Phase 1.)
+- Third-party actions pinned by commit SHA in every workflow, with the tag as a trailing comment
+  (`uses: owner/name@<sha> # v1`); Dependabot updates both. (Owner, 2026-10-18; done.)
 - Licences: the Rust crates must be permissive (`deny.toml`), so that Hecate stays MIT; any other
   licence fails CI and the project owner decides. Dependabot also watches the Rust crates of the
   native modules (`.github/dependabot.yml`).
