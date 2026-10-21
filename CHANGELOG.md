@@ -75,6 +75,7 @@ Each release heading states the supported Lua version.
 
 ### Changed
 
+- `hecate.doc`: the search index, the page configuration and the LuaLS export go through `hecate.json`; the in-house codec `hecate.doc.internal.json` is removed (OQ-33). Output stays deterministic (`canonical = true`) and `<`, `>`, `&` stay escaped.
 - `hecate.json`: `-0` decodes as the integer `0`; `canonical` orders member names by UTF-16 code units (RFC 8785); `check-boundaries` exempts the JSON markers file from the `setmetatable` rule.
 
 ### Fixed

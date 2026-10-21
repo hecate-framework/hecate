@@ -6,7 +6,7 @@ local test = require("harness.test")
 local doc = require("hecate.doc")
 local reference = require("hecate.doc.reference")
 local reference_site = require("hecate.doc.reference_site")
-local json = require("hecate.doc.internal.json")
+local json = require("hecate.json")
 local core = require("hecate.core")
 local T = test.Case("ReferenceTest")
 

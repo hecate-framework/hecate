@@ -6,7 +6,7 @@ local test = require("harness.test")
 local doc = require("hecate.doc")
 local luals = require("hecate.doc.luals")
 local reference_site = require("hecate.doc.reference_site")
-local json = require("hecate.doc.internal.json")
+local json = require("hecate.json")
 local T = test.Case("ReferenceIntegrationTest")
 
 local here = debug.getinfo(1, "S").source:sub(2):gsub("\\", "/")
