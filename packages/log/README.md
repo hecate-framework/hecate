@@ -8,7 +8,7 @@
 | Rock | `hecate-log` |
 | Layer | 1 — Runtime |
 | Roadmap phase | 1 |
-| Status | specified — no code yet |
+| Status | step 1: severities, records, `Logger` with context, in-memory and JSON lines sinks, `Secret`; console and file sinks, asynchronous flushing, sampling and rate limiting to come |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |
 | Depends on | [`core`](../core), [`reactor`](../reactor), [`json`](../json) |
 | Used by | `cli`, `hecate`, `http`, `kernel`, `migration`, `sql`, `test` |
@@ -35,13 +35,27 @@
 
 ## Public API
 
-*To be filled during implementation: list every exported class and function with a one-line
-description, linking to the generated reference.*
+```lua
+local log = require("hecate.log")
+```
+
+| Name | Description |
+|---|---|
+| `log.Severity` | Enumeration of the eight RFC 5424 severities, `emergency` to `debug` (`informational`, no alias). |
+| `log.severity_code(severity)` | RFC 5424 numerical code, 0 to 7. |
+| `log.Logger(options?)` | Options: `level` (default `informational`), `sinks`, `name`, `context`, `context_provider`, `clock`. Methods `emergency` ... `debug` `(message, fields?)`, `log(severity, message, fields?)`, `is_enabled`, `set_level`, `level`, `add_sink`, `with_context(fields)`, `failures()`. A call below the threshold builds no record; a sink that raises never fails the caller. |
+| `log.Record` | What sinks receive: `severity`, `message`, `fields`, `context`, `timestamp`, `logger`. |
+| `log.MemorySink(options?)` | Keeps records (`records()`, `clear()`, `dropped()`, option `capacity`). |
+| `log.JsonLinesSink(options)` | Writes one JSON object per record to `options.output(line)`; renders secrets as `[redacted]`. |
+| `log.Secret(value)` | Marks a value that no sink renders; `reveal()` returns it. |
+
+A sink is any object with a synchronous `write(record)` that does not suspend. The context does not follow
+fork and join by itself yet: pass the child logger from `with_context` to forked computations (OQ-55).
 
 ## Layout (once implemented)
 
 ```text
-src/hecate/log/init.lua   public entry point
+src/hecate/log/init.lua   public entry point (one file per class beside it, `internal/` for helpers)
 tests/unit/  tests/integration/  tests/fixtures/
 examples/    benchmarks/
 ```

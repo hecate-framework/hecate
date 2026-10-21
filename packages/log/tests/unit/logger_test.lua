@@ -1,0 +1,123 @@
+local test = require("harness.test")
+local core = require("hecate.core")
+local log = require("hecate.log")
+local Severity = log.Severity
+local T = test.Case("LoggerTest")
+
+local function new_logger(options)
+  local sink = log.MemorySink()
+  options = options or {}
+  options.sinks = { sink }
+  options.clock = options.clock or function() return 1000 end
+  return log.Logger(options), sink
+end
+
+function T:test_every_severity_has_a_method_that_records_that_severity()
+  local logger, sink = new_logger({ level = "debug" })
+  for _, name in ipairs(Severity:names()) do logger[name](logger, "message " .. name) end
+  local records = sink:records()
+  self:assert_equal(8, #records)
+  for i, name in ipairs(Severity:names()) do
+    self:assert_true(records[i].severity == Severity[name])
+    self:assert_equal("message " .. name, records[i].message)
+  end
+end
+
+function T:test_the_default_threshold_is_informational()
+  local logger, sink = new_logger()
+  logger:debug("hidden")
+  logger:informational("shown")
+  self:assert_equal(1, #sink:records())
+  self:assert_equal("shown", sink:records()[1].message)
+end
+
+function T:test_a_disabled_severity_builds_no_record_and_reaches_no_sink()
+  local logger, sink = new_logger({ level = "error" })
+  logger:warning("hidden")
+  self:assert_false(logger:is_enabled(Severity.warning))
+  self:assert_true(logger:is_enabled("critical"))
+  self:assert_equal(0, #sink:records())
+end
+
+function T:test_set_level_accepts_a_name_or_a_severity()
+  local logger = new_logger()
+  logger:set_level("debug")
+  self:assert_true(logger:is_enabled(Severity.debug))
+  logger:set_level(Severity.alert)
+  self:assert_true(logger:level() == Severity.alert)
+  self:assert_false(logger:is_enabled(Severity.error))
+end
+
+function T:test_an_unknown_severity_is_an_argument_error()
+  local logger = new_logger()
+  local err = self:assert_error(function() logger:set_level("verbose") end)
+  self:assert_true(core.is_instance_of(err, core.ArgumentError))
+  self:assert_error(function() log.Logger({ level = "verbose" }) end)
+  self:assert_error(function() logger:log("verbose", "x") end)
+end
+
+function T:test_the_record_carries_message_fields_timestamp_and_name()
+  local logger, sink = new_logger({ name = "app", clock = function() return 42 end })
+  logger:error("failed", { code = 7 })
+  local record = sink:records()[1]
+  self:assert_equal("failed", record.message)
+  self:assert_equal(7, record.fields.code)
+  self:assert_equal(42, record.timestamp)
+  self:assert_equal("app", record.logger)
+end
+
+function T:test_context_of_a_child_logger_is_merged_over_its_parent()
+  local logger, sink = new_logger({ context = { service = "api", request_id = "a" } })
+  local child = logger:with_context({ request_id = "b", user = "u" })
+  child:informational("hi")
+  logger:informational("parent")
+  local context = sink:records()[1].context
+  self:assert_equal("api", context.service)
+  self:assert_equal("b", context.request_id)
+  self:assert_equal("u", context.user)
+  self:assert_equal("a", sink:records()[2].context.request_id)
+end
+
+function T:test_a_child_shares_the_sinks_of_its_parent()
+  local logger, sink = new_logger()
+  local late = log.MemorySink()
+  local child = logger:with_context({ a = 1 })
+  logger:add_sink(late)
+  child:informational("x")
+  self:assert_equal(1, #sink:records())
+  self:assert_equal(1, #late:records())
+end
+
+function T:test_the_context_provider_supplies_the_ambient_context()
+  local ambient = { request_id = "r1", service = "ambient" }
+  local logger, sink = new_logger({
+    context = { service = "static" }, context_provider = function() return ambient end,
+  })
+  logger:informational("x")
+  local context = sink:records()[1].context
+  self:assert_equal("r1", context.request_id)
+  self:assert_equal("static", context.service)
+  self:assert_equal("ambient", ambient.service)
+end
+
+function T:test_a_failing_sink_never_fails_the_caller_and_is_counted()
+  local logger, sink = new_logger()
+  logger:add_sink({ write = function() error("disk full") end })
+  logger:informational("x")
+  self:assert_equal(1, #sink:records())
+  self:assert_equal(1, logger:failures())
+end
+
+function T:test_a_sink_without_write_is_rejected()
+  local logger = new_logger()
+  self:assert_error(function() logger:add_sink({}) end)
+  self:assert_error(function() log.Logger({ sinks = { 3 } }) end)
+end
+
+function T:test_message_and_fields_are_checked()
+  local logger = new_logger()
+  self:assert_error(function() logger:informational(12) end)
+  self:assert_error(function() logger:informational("x", "y") end)
+end
+
+return T
