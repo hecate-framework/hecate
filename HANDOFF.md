@@ -3,8 +3,8 @@
 
 - roadmap_item: `doc` (minimal) and the reference generator, pulled forward from Phase 3 (ADR 0012, OQ-11)
 - status: in-progress            <!-- in-progress | waiting-ci | waiting-owner -->
-- lock_until: 2026-10-21T17:30:00Z
-- last_update: 2026-10-21T16:00:00Z
+- lock_until: 2026-10-21T20:05:37Z
+- last_update: 2026-10-21T18:35:37Z
 
 ## Done
 
@@ -12,6 +12,8 @@
 - Claimed. #25 (`json`) is merged; `doc` already has a first slice (renderer, site model, theme, search, reference generator).
 
 - Step 2 done: `SystemFileSystem` over `reactor.fs` (OQ-33 b); runners and tests run inside `reactor.run`; theme files read with `io`; deps/README/rockspec/CLAUDE.md updated; unit and integration tests, lint, boundaries, rockspecs pass.
+
+- Resumed after CI failure (logs not downloadable: blob host blocked by proxy). Merged main (#26 SHA pins); all local gates and full test pass. Pushed to re-run CI; if still red, diagnose from the Actions UI.
 
 ## Next steps
 
