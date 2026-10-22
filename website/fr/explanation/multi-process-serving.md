@@ -12,13 +12,12 @@ Cette page explique comment hecate utilisera plusieurs processus pour servir des
 pourquoi. Elle est écrite pour hecate 0.x et Lua 5.5. La conception est l’ADR 0023 (acceptée le
 2026-10-18).
 
-::: warning Ce qui existe aujourd’hui
-Seules les **primitives** de `hecate.reactor` existent : `reactor.spawn`, `reactor.ipc` et
-l’option `reuseport` des écouteurs TCP. Le paquet `kernel`, qui contient le superviseur et les
-stratégies d’écoute, n’est pas encore implémenté. Il n’y a aujourd’hui aucune commande
-`hecate serve --workers`. Les sections marquées *Prévu* décrivent la conception, pas le
-comportement actuel. La section [Ce qui existe aujourd’hui](#what-exists-today) liste les deux.
-:::
+> [!WARNING] Ce qui existe aujourd’hui
+> Seules les **primitives** de `hecate.reactor` existent : `reactor.spawn`, `reactor.ipc` et
+> l’option `reuseport` des écouteurs TCP. Le paquet `kernel`, qui contient le superviseur et les
+> stratégies d’écoute, n’est pas encore implémenté. Il n’y a aujourd’hui aucune commande
+> `hecate serve --workers`. Les sections marquées *Prévu* décrivent la conception, pas le
+> comportement actuel. La section [Ce qui existe aujourd’hui](#what-exists-today) liste les deux.
 
 ## Pourquoi des processus
 

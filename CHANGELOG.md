@@ -11,6 +11,7 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- `hecate.log`: `Logger` option `redact` (field names, case-insensitive, any depth) wraps the matching values of fields and context in a `Secret` before any sink sees them.
 - `hecate.log`, step 1: the eight RFC 5424 severities (`Severity`, `severity_code`), `Record`, `Logger` with a threshold, per-logger context (`with_context`, `context_provider`) and synchronous sinks, `MemorySink`, `JsonLinesSink` (one JSON object per line, built on `hecate.json`) and `Secret` (never rendered), step 2 (part): `ConsoleSink` (human-readable lines) and `FileSink` (JSON lines appended to a file, synchronous). step 3 (part): `LimitedSink`, a decorator sink that samples and rate-limits (token bucket) records less urgent than an exempt severity and counts what it drops. step 4 (part): `AsyncSink`, a decorator sink that queues records (bounded, overflow dropped and counted) and writes them from a detached task driven by a `Semaphore`, so a log call never suspends. Open points in OQ-55 (the reactor has no scope-local context yet; proposal in ADR 0025). Documentation: how-to guide `log-structured-records` and two tested examples.
 - `hecate.json`: tested examples (`packages/json/examples`, run by `tests/unit/examples_test.lua`) and the how-to guide "Encode and decode JSON" on the website.
 - `hecate.doc`: `json` joins the default packages of the generated code reference (`gen-reference`).
@@ -76,6 +77,8 @@ Each release heading states the supported Lua version.
 
 ### Changed
 
+- `hecate.doc`: `SystemFileSystem` runs over `hecate.reactor.fs` instead of the platform shell (OQ-33, alternative (b)); its methods suspend, so the runners and the tests that use it run inside `reactor.run`. `hecate-reactor` joins the dependencies of the package.
+- `hecate.doc`: the search index, the page configuration and the LuaLS export go through `hecate.json`; the in-house codec `hecate.doc.internal.json` is removed (OQ-33). Output stays deterministic (`canonical = true`) and `<`, `>`, `&` stay escaped.
 - `hecate.json`: `-0` decodes as the integer `0`; `canonical` orders member names by UTF-16 code units (RFC 8785); `check-boundaries` exempts the JSON markers file from the `setmetatable` rule.
 
 ### Fixed

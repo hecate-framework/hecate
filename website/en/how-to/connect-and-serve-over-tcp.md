@@ -78,10 +78,9 @@ local reader, writer = stream:reader(), stream:writer()
 Lines and records are limited to 65536 bytes by default. A longer one raises `ProtocolError`.
 Pass `{ limit = n }` to `stream:reader()` to change it.
 
-::: tip One reader per stream
-`stream:reader()` creates a new reader each time. Two readers over one stream would split its
-bytes between them. Create one reader per stream and keep it.
-:::
+> [!TIP] One reader per stream
+> `stream:reader()` creates a new reader each time. Two readers over one stream would split its
+> bytes between them. Create one reader per stream and keep it.
 
 You can also call `stream:read(max)` and `stream:write(data)` directly. `write` accepts all of
 `data` or raises. It never returns a partial count.
@@ -103,17 +102,15 @@ After `close`, any use raises `reactor.TransportError` with `context.errno` set 
 a free port; `listener:local_address().port` tells you which. The options are those of
 `connect` plus `backlog` (default 128) and `reuseport`.
 
-::: warning `reuseport` is not usable yet
-`reuseport = true` lets several processes listen on one port. It raises `TransportError` with
-`ENOTSUP` today, because luv 1.53 does not expose it for TCP (OQ-43). Check
-`reactor.supports_reuseport()` first. See
-[Multi-process serving](../explanation/multi-process-serving.md#reuseport-does-not-work-yet).
-:::
+> [!WARNING] `reuseport` is not usable yet
+> `reuseport = true` lets several processes listen on one port. It raises `TransportError` with
+> `ENOTSUP` today, because luv 1.53 does not expose it for TCP (OQ-43). Check
+> `reactor.supports_reuseport()` first. See
+> [Multi-process serving](../explanation/multi-process-serving.md#reuseport-does-not-work-yet).
 
-::: warning Name your address
-`net.listen("localhost", port)` binds only the first address the resolver lists, which can be
-`127.0.0.1` or `::1`. Pass a numeric address, or `family`, when the address matters.
-:::
+> [!WARNING] Name your address
+> `net.listen("localhost", port)` binds only the first address the resolver lists, which can be
+> `127.0.0.1` or `::1`. Pass a numeric address, or `family`, when the address matters.
 
 `listener:accept()` suspends until a client connects and returns a `TcpStream`. A server loops on
 `accept` and forks one coroutine per connection, so that a slow client never delays the others.

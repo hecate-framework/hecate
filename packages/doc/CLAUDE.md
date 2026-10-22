@@ -16,9 +16,9 @@ Documentation generator and static site builder with an MDN-like theme: guides i
 
 ## Boundaries
 
-- Allowed dependencies: `hecate.core`, `hecate.openapi`, `hecate.schema`, `hecate.json`.
+- Allowed dependencies: `hecate.core`, `hecate.reactor`, `hecate.openapi`, `hecate.schema`, `hecate.json`.
   Anything else requires an ADR; `check-boundaries` fails otherwise.
-- Native code: none.
+- Native code: Rust crate in `native/` (comrak, syntect, two-face through `mlua`; ADR 0022, rules of ADR 0021: `Cargo.lock`, `cargo-deny`, `unsafe` forbidden). Build it with `lua tools/run.lua build-native doc`; the tests of this package need it. It ships as a prebuilt binary rock per platform from release CI (OQ-41).
 - Out of scope: a general-purpose CMS.
 - If your task needs a change in another package, stop and describe the needed change
   instead of making it (unless the task explicitly spans packages).

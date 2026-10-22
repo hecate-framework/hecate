@@ -58,21 +58,17 @@ $ hecate new --name app
 > A quote
 > with two lines.
 
-::: note
-A note.
-:::
+> [!NOTE]
+> A note.
 
-::: tip A custom title
-A tip.
-:::
+> [!TIP] A custom title
+> A tip.
 
-::: warning
-A warning.
-:::
+> [!WARNING]
+> A warning.
 
-::: danger
-A danger.
-:::
+> [!CAUTION]
+> A danger.
 
 ---
 

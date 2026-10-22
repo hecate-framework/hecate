@@ -21,9 +21,11 @@ targets = [
 allow = [
   "MIT",
   "Apache-2.0",
+  "BSD-2-Clause",   # comrak (ADR 0022); owner decision 2026-10-21, OQ-55
   "BSD-3-Clause",
   "ISC",
   "Unicode-3.0",
+  "Unicode-DFS-2016", # finl_unicode, a dependency of comrak (OQ-55)
   "Unlicense",
 ]
 confidence-threshold = 0.93
@@ -37,7 +39,13 @@ wildcards = "deny"
 [advisories]
 # Known vulnerabilities fail the run. `cargo audit` (security.yml) reads the same database; an
 # advisory that does not apply is listed here with the reason, never silently.
-ignore = []
+ignore = [
+  # bincode 1.3.3 is unmaintained, with no vulnerability and no safe upgrade. syntect reads its syntax
+  # dumps with it, and two-face ships its syntax set as such dumps (`hecate.doc`, ADR 0022): the input is
+  # embedded at build time, never untrusted. Upstream has no plan yet (syntect issues 606 and 623 and pull
+  # request 694, open); revisit when syntect or two-face drops bincode. Owner decision 2026-10-21, OQ-55.
+  { id = "RUSTSEC-2025-0141", reason = "bincode unmaintained; only reads syntax dumps embedded at build time" },
+]
 yanked = "deny"
 
 [sources]

@@ -9,7 +9,7 @@
 global <const> require, type, ipairs, pairs, table, string, error, tostring, pcall, setmetatable
 
 local core = require("hecate.core")
-local json = require("hecate.doc.internal.json")
+local json = require("hecate.json")
 
 local M = {}
 

@@ -77,6 +77,20 @@ jobs:
         if: steps.rocks.outputs.cache-hit != 'true'
         run: luarocks --tree .hecate/rocks install luv 1.53.0-0
 
+      # Markdown and highlighting (comrak and syntect, ADR 0022) come from the native module of `doc`.
+      - name: Cache the native build
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: |
+            ~/.cargo/registry
+            packages/doc/native/target
+          key: website-native-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('packages/doc/native/Cargo.lock', 'packages/doc/native/rust-toolchain.toml', 'packages/doc/native/src/**') }}
+
+      - name: Build the documentation native module
+        run: |
+          (cd packages/doc/native && rustup toolchain install)
+          lua tools/run.lua build-native doc
+
       # Only a deploy knows where the site is served: the origin and the path come from Pages
       # (a project site lives under /hecate/, a custom domain at the root).
       - name: Configure Pages

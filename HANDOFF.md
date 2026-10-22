@@ -25,10 +25,12 @@
 
 ## Next steps
 
-1. Secret redaction beyond the marker (by field name, other sinks).
+1. (done, Logger option `redact`) Secret redaction by field name; remaining: redaction in sinks other than the JSON lines one, if wanted.
 2. When ADR 0025 is accepted and implemented in `reactor`: default context provider in `log`, propagation test across fork/join.
 3. Reference page in `website/`, how-to for `AsyncSink`, benchmark of a disabled and an enabled call (and of `AsyncSink`).
 4. Run `typecheck` (CI), then tick the roadmap item and mark the PR ready. The item can also be ticked without 2 if the owner agrees.
+
+- Step 8 (parallel session, merged here; resumed 2026-10-22, work pushed on the session branch `claude/sweet-feynman-ycyozt`, which carries the PR #29 history): merged main; `Logger` option `redact` (step 3 done, by field name; other sinks already redact `Secret`) with tests.
 
 ## Decisions taken (and where they are recorded)
 

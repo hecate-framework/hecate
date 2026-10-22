@@ -1,7 +1,6 @@
 -- The contract between the site builder and the file system. The builder never touches
 -- files directly, so it can run on an in-memory tree in tests and on the real file system
--- in the `bin/build.lua` runner (OQ-33: how the production implementation reaches the
--- file system is not decided yet).
+-- in the `bin/build.lua` runner (`SystemFileSystem`, over `reactor.fs`: OQ-33).
 global <const> require
 
 local core = require("hecate.core")
