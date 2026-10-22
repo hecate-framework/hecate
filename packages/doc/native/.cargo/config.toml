@@ -1,0 +1,3 @@
+# macOS: a Lua module resolves the Lua API from the host at load time (TLS spike OQ-4).
+[target.'cfg(target_os = "macos")']
+rustflags = ["-C", "link-arg=-undefined", "-C", "link-arg=dynamic_lookup"]

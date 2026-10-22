@@ -2,7 +2,7 @@
 -- the project-local tree `.hecate/rocks`, where the test harness and the bootstrap look for native
 -- modules. `net` is Rust (ADR 0021, needs a Rust toolchain); `json` is both: C (ADR 0020: yyjson
 -- binding, needs a C compiler and the Lua headers: LUA_INC, or next to the interpreter, or /usr/include)
--- and Rust (ADR 0021: the encoder).
+-- and Rust (ADR 0021: the encoder); `doc` is Rust (ADR 0022: comrak and syntect).
 --
 -- Windows: mlua-sys and the C modules need the Lua 5.5 import library; set LUA_LIB_NAME (for example lua55),
 -- LUA_LIB and LUA_INC before running (TLS spike OQ-4). macOS link flags are
@@ -13,6 +13,7 @@ local util = require("lib.util")
 local modules = {
   net = { dir = "native", lib = "hecate_net_tls_native", target = "hecate/net/tls_native" },
   json = { dir = "native", lib = "hecate_json_encoder_native", target = "hecate/json/encoder_native" },
+  doc = { dir = "native", lib = "hecate_doc_native", target = "hecate/doc/native" },
 }
 
 -- C modules: package -> { sources (relative to the package), installed module path }

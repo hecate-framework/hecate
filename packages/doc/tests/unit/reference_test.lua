@@ -4,9 +4,10 @@
 -- To accept a deliberate change of the output: HECATE_DOC_UPDATE_GOLDEN=1 lua tools/run.lua test doc
 local test = require("harness.test")
 local doc = require("hecate.doc")
+local reactor = require("hecate.reactor")
 local reference = require("hecate.doc.reference")
 local reference_site = require("hecate.doc.reference_site")
-local json = require("hecate.doc.internal.json")
+local json = require("hecate.json")
 local core = require("hecate.core")
 local T = test.Case("ReferenceTest")
 
@@ -294,6 +295,13 @@ function T:test_a_site_with_the_generated_pages_builds_in_strict_mode_with_a_sid
     self:assert_true(page:find('href="' .. url .. '"', 1, true) ~= nil, "sidebar entry " .. url)
   end
   self:assert_true(page:find('id="wait_for"', 1, true) ~= nil, "a member has a stable anchor")
+end
+
+-- `SystemFileSystem` suspends: every test of this file runs inside a reactor.
+for name, method in pairs(T) do
+  if type(name) == "string" and name:find("^test_") and type(method) == "function" then
+    T[name] = function(...) return reactor.run(method, ...) end
+  end
 end
 
 return T

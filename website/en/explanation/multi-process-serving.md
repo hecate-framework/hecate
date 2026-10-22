@@ -10,13 +10,12 @@ order: 3
 This page explains how hecate will use several processes to serve requests, and why. It is
 written for hecate 0.x and Lua 5.5. The design is ADR 0023 (accepted 2026-10-18).
 
-::: warning What exists today
-Only the **primitives** in `hecate.reactor` exist: `reactor.spawn`, `reactor.ipc` and the
-`reuseport` option of TCP listeners. The `kernel` package, which holds the supervisor and the
-listening strategies, is not implemented yet. There is no `hecate serve --workers` command today.
-Sections marked *Planned* describe the design, not the current behaviour. The section
-[What exists today](#what-exists-today) lists both.
-:::
+> [!WARNING] What exists today
+> Only the **primitives** in `hecate.reactor` exist: `reactor.spawn`, `reactor.ipc` and the
+> `reuseport` option of TCP listeners. The `kernel` package, which holds the supervisor and the
+> listening strategies, is not implemented yet. There is no `hecate serve --workers` command today.
+> Sections marked *Planned* describe the design, not the current behaviour. The section
+> [What exists today](#what-exists-today) lists both.
 
 ## Why processes
 

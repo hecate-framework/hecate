@@ -6,7 +6,7 @@
 -- Locales (documentation.md, "Translations"): `website/<locale>/` mirrors the default
 -- locale's tree; a page missing in a locale is built from the default locale with a visible
 -- notice. URLs are `<base><locale>/<page path>/`, written as `<page path>/index.html`.
-global <const> require, assert, ipairs, pairs, next, table, string, tostring, tonumber, type, error
+global <const> require, assert, io, ipairs, pairs, next, table, string, tostring, tonumber, type, error
 
 local core = require("hecate.core")
 local config_module = require("hecate.doc.config")
@@ -27,7 +27,7 @@ local MARKER = ".hecate-doc-output"
 ---@field source string  content root: contains one directory per locale, and optionally `public/`
 ---@field fs hecate.doc.FileSystem  where the sources are read from
 ---@field last_updated? fun(path: string): string?  ISO 8601 date of the last change of a source file
----@field theme_fs? hecate.doc.FileSystem  where the theme's static files are read from (default: the real file system)
+---@field theme_fs? hecate.doc.FileSystem  where the theme's static files are read from (default: read with `io`)
 ---@field theme_directory? string  directory of the theme's static files (default: the theme's own)
 
 ---@class hecate.doc.Site
@@ -512,7 +512,17 @@ function Site:emit(write)
     table.sort(assets, function(a, b) return a.relative < b.relative end)
     for _, file in ipairs(assets) do put(code .. "/" .. file.relative, read_required(self, file.path)) end
   end
-  local theme_fs = self._theme_fs or require("hecate.doc.system_filesystem")()
+  -- The theme's own files are read with `io` (no directory listing), so that a build on an
+  -- in-memory tree needs no reactor.
+  local theme_fs = self._theme_fs or {
+    read = function(_, path)
+      local file = io.open(path, "rb")
+      if not file then return nil end
+      local data = file:read("a")
+      file:close()
+      return data
+    end,
+  }
   local directory = self._theme_directory or theme.assets_directory()
   for _, file in ipairs(theme.asset_files) do
     local data = theme_fs:read(directory .. "/" .. file)

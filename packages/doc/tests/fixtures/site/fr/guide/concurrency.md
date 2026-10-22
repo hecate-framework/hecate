@@ -15,6 +15,5 @@ comme `sleep` met la coroutine en pause pendant que les autres avancent.
 - Une **future** est le résultat à venir d'un calcul.
 - `fork` lance un calcul et renvoie sa future.
 
-::: tip
-Voir la [page elle-même](concurrency.md).
-:::
+> [!TIP]
+> Voir la [page elle-même](concurrency.md).

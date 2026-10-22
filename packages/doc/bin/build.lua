@@ -6,26 +6,37 @@
 -- `source` is the content root (default `website`): one directory per locale, optionally
 -- `public/`. The configuration defaults to `<source>/site.lua`, the output to `<source>/dist`.
 -- This is the bootstrap entry point until `hecate doc build` exists (automation.md); it
--- reads the file system through `hecate.doc.SystemFileSystem` (OQ-33).
+-- reads the file system through `hecate.doc.SystemFileSystem` inside a reactor (OQ-33).
 -- `--reference` first generates the code reference (reference.lua: needs lua-language-server) into
 -- `<source>/<default locale>/reference/` from the packages of the checkout at `--root` (default:
 -- the parent of `source`) for the packages of `--packages` (default: the documented packages);
 -- without LuaLS it warns, and with --strict it fails.
 -- Exit codes: 0 built, 1 build failed or, with --strict, problems were found, 2 usage error.
-global <const> arg, io, os, package, require, print, pcall, tostring, ipairs, pairs, table, error
+global <const> _VERSION, arg, io, os, package, require, print, pcall, tostring, ipairs, pairs, table, error
 
 local script = arg[0]:gsub("\\", "/")
 local here = script:match("^(.*)/[^/]*$") or "."
 -- Monorepo checkout: the sources of this package and of its dependencies. An installed
 -- rock has them on the path already.
-for _, package_name in ipairs({ "doc", "core", "json", "schema", "openapi" }) do
+for _, package_name in ipairs({ "doc", "core", "reactor", "json", "schema", "openapi" }) do
   local base = here .. "/../../" .. package_name .. "/src/"
   package.path = base .. "?.lua;" .. base .. "?/init.lua;" .. package.path
 end
 local base = here .. "/../src/"
 package.path = base .. "?.lua;" .. base .. "?/init.lua;" .. package.path
+-- Project-local LuaRocks tree of a monorepo checkout (`.hecate/rocks`: luv for the reactor), as in
+-- tools/harness/run_file.lua.
+do
+  local version = _VERSION:match("%d+%.%d+")
+  local tree = here .. "/../../../.hecate/rocks"
+  package.path = tree .. "/share/lua/" .. version .. "/?.lua;" .. tree .. "/share/lua/" .. version
+    .. "/?/init.lua;" .. package.path
+  package.cpath = tree .. "/lib/lua/" .. version .. "/?.so;" .. tree .. "/lib/lua/" .. version
+    .. "/?.dll;" .. package.cpath
+end
 
 local doc = require("hecate.doc")
+local reactor = require("hecate.reactor")
 local reference_site = require("hecate.doc.reference_site")
 
 local function usage(stream)
@@ -123,7 +134,7 @@ local function run()
   return result
 end
 
-local ok, report = pcall(run)
+local ok, report = pcall(reactor.run, run)
 if not ok then
   io.stderr:write(tostring(report), "\n")
   os.exit(1)

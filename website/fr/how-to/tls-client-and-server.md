@@ -18,12 +18,11 @@ une fois avec `lua tools/run.lua build-native`. Sans lui, `net.tls.available()` 
 et la raison, et chaque appel TLS lève `TlsError` avec `context.reason` valant
 `"native_missing"`.
 
-::: warning La vérification ne peut pas être désactivée
-Aucune option ne désactive la vérification des certificats, et aucune ne sera ajoutée. Une option
-mal orthographiée ou dangereuse comme `verify = false` lève `ArgumentError`. Voir
-[Confiance TLS et valeurs par défaut de sécurité](../explanation/tls-trust-and-security.md) pour
-les raisons.
-:::
+> [!WARNING] La vérification ne peut pas être désactivée
+> Aucune option ne désactive la vérification des certificats, et aucune ne sera ajoutée. Une option
+> mal orthographiée ou dangereuse comme `verify = false` lève `ArgumentError`. Voir
+> [Confiance TLS et valeurs par défaut de sécurité](../explanation/tls-trust-and-security.md) pour
+> les raisons.
 
 ## Se connecter à un serveur public
 
@@ -111,14 +110,13 @@ local peer = net.tls.accept(listener:accept(), config)
 cette seule connexion et prend possession du flux : si la poignée de main échoue, le flux est
 fermé.
 
-::: tip Démarrer la poignée de main dans une coroutine
-N’exécutez jamais la poignée de main dans la boucle d’acceptation elle-même. Un client qui se
-connecte puis ne dit rien bloquerait tous les autres. Démarrez une coroutine par connexion avec
-`fork` et exécutez-y `tls.accept`. La poignée de main est de toute façon bornée par
-`handshake_deadline`, qui vaut 10 secondes par défaut. Passez `{ handshake_deadline = 5 }` comme
-troisième argument pour la changer. À l’expiration, le flux est fermé et
-`DeadlineExceededError` est levée.
-:::
+> [!TIP] Démarrer la poignée de main dans une coroutine
+> N’exécutez jamais la poignée de main dans la boucle d’acceptation elle-même. Un client qui se
+> connecte puis ne dit rien bloquerait tous les autres. Démarrez une coroutine par connexion avec
+> `fork` et exécutez-y `tls.accept`. La poignée de main est de toute façon bornée par
+> `handshake_deadline`, qui vaut 10 secondes par défaut. Passez `{ handshake_deadline = 5 }` comme
+> troisième argument pour la changer. À l’expiration, le flux est fermé et
+> `DeadlineExceededError` est levée.
 
 L’exemple ci-dessous négocie un protocole applicatif avec ALPN (Application-Layer Protocol
 Negotiation, RFC 7301). Le serveur propose `echo` ; le client le demande ; chaque côté lit le
@@ -227,10 +225,9 @@ end)
 -- Prints: welcome alice
 ```
 
-::: note
-Le serveur ne vérifie pas la révocation des certificats clients : il ne configure aucune liste de
-révocation.
-:::
+> [!NOTE]
+> Le serveur ne vérifie pas la révocation des certificats clients : il ne configure aucune liste de
+> révocation.
 
 ## Fermer un flux TLS {#close-a-tls-stream}
 
