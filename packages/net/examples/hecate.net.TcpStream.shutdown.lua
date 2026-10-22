@@ -1,5 +1,6 @@
--- A half-close. The client sends its request, then calls `shutdown` to say that nothing more
--- follows; it can still read. The server reads until the end of the stream, then answers.
+-- A half-close. The client sends its request, then calls `shutdown` to say that
+-- nothing more follows; it can still read. The server reads until the end of
+-- the stream, then answers.
 local reactor = require("hecate.reactor")
 local net = require("hecate.net")
 

@@ -1,7 +1,8 @@
--- A TLS client against a local server whose certificate comes from the test CA of this package.
--- With no option, `connect_tls` verifies the server against the operating system's trust store;
--- here `ca_pem` names the private CA and `system_roots = false` trusts nothing else. Verification
--- cannot be disabled. Needs the native TLS module (`lua tools/run.lua build-native`).
+-- A TLS client against a local server whose certificate comes from the test CA
+-- of this package. With no option, `connect_tls` verifies the server against
+-- the operating system's trust store; here `ca_pem` names the private CA and
+-- `system_roots = false` trusts nothing else. Verification cannot be disabled.
+-- Needs the native TLS module (`lua tools/run.lua build-native`).
 local reactor = require("hecate.reactor")
 local net = require("hecate.net")
 

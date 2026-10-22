@@ -1,6 +1,7 @@
--- A long-lived child with a message pipe. The child is a second Lua interpreter that waits for one
--- message, answers it in capitals and exits; the parent sends, receives and waits for the exit.
--- The child needs the same module paths as this process, hence the two environment variables.
+-- A long-lived child with a message pipe. The child is a second Lua interpreter
+-- that waits for one message, answers it in capitals and exits; the parent
+-- sends, receives and waits for the exit. The child needs the same module paths
+-- as this process, hence the two environment variables.
 local reactor = require("hecate.reactor")
 
 local CHILD = [[

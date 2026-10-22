@@ -23,9 +23,10 @@ vide. Un datagramme n’est jamais coupé ni fusionné, contrairement aux octets
 
 <!-- example: packages/net/examples/hecate.net.bind_udp.lua -->
 ```lua
--- A datagram exchange over the loopback interface: two sockets on free ports, one datagram
--- each way. `send_to` takes a numeric address (resolve a name first with `net.resolve`), and
--- each `receive_from` returns exactly one datagram with the sender's address.
+-- A datagram exchange over the loopback interface: two sockets on free ports,
+-- one datagram each way. `send_to` takes a numeric address (resolve a name
+-- first with `net.resolve`), and each `receive_from` returns exactly one
+-- datagram with the sender's address.
 local reactor = require("hecate.reactor")
 local net = require("hecate.net")
 
@@ -65,9 +66,9 @@ forme d’une liste de `{ ip, family }`. `family` (`"inet"` ou `"inet6"`) n’en
 
 <!-- example: packages/net/examples/hecate.net.resolve.lua -->
 ```lua
--- Name resolution. `resolve` returns the numeric addresses of a host in the resolver's order;
--- `family` keeps one kind. `UdpSocket:send_to` takes a numeric address only, so a datagram to a
--- name goes through `resolve` first.
+-- Name resolution. `resolve` returns the numeric addresses of a host in the
+-- resolver's order; `family` keeps one kind. `UdpSocket:send_to` takes a
+-- numeric address only, so a datagram to a name goes through `resolve` first.
 local reactor = require("hecate.reactor")
 local net = require("hecate.net")
 
@@ -97,8 +98,9 @@ objets `PipeStream` qui ont la même API que `TcpStream` : `reader`, `writer`, 
 
 <!-- example: packages/net/examples/hecate.net.listen_pipe.lua -->
 ```lua
--- A Unix-domain socket (a named pipe on Windows) in place of TCP: the stream and the buffered
--- API are the same. The path must not exist; `mode` says who may connect (default: the owner).
+-- A Unix-domain socket (a named pipe on Windows) in place of TCP: the stream
+-- and the buffered API are the same. The path must not exist; `mode` says who
+-- may connect (default: the owner).
 local reactor = require("hecate.reactor")
 local net = require("hecate.net")
 
