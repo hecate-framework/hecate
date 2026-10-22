@@ -114,7 +114,8 @@ function AsyncSink:close()
     wait_marker(self, true)
     drain_task:value()
   end
-  if type(self._sink.close) == "function" then self._sink:close() end
+  local close = self._sink["close"]
+  if type(close) == "function" then close(self._sink) end
 end
 
 --- Returns how many records were dropped because the queue was full.

@@ -81,4 +81,3 @@ wrong: `Semaphore:release()` never suspends and `reactor.detach` starts a task t
 which is all a sink queue needs. `hecate.log.AsyncSink` is built on them, with no `reactor` change. What
 remains open is point (1) of OQ-55, answered by the proposal [ADR 0025](adr/0025-scope-local-context.md):
 `reactor.with_local(key, value, fn)` and `reactor.local(key)`.
-
