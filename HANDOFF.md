@@ -3,8 +3,8 @@
 
 - roadmap_item: `log`: structured logging, RFC 5424 severities, per-scope context.
 - status: in-progress
-- lock_until: 2026-10-21T20:12:42Z
-- last_update: 2026-10-21T18:42:42Z
+- lock_until: 2026-10-22T03:43:07Z
+- last_update: 2026-10-22T03:43:07Z
 
 ## Done
 
@@ -12,6 +12,8 @@
 - Step 1: severities, `Record`, `Logger` (threshold, `with_context`, `context_provider`), `MemorySink`, `JsonLinesSink`, `Secret`; unit tests in `packages/log/tests/unit`; README and CHANGELOG updated; OQ-55 records the open points. Roadmap item NOT ticked.
 
 - Step 2: merged main; `ConsoleSink` and synchronous `FileSink` with tests, README, CHANGELOG. Asynchronous flushing not started.
+
+- Step 3 (investigation only): asynchronous flushing is blocked. A sink queue needs a wake for its drain task that never suspends the logging caller. `Condition:signal` requires entering the monitor (can suspend); `Channel:_try_send` is private. Needed from `reactor` (owner decision, cross-package): a public non-suspending wake, e.g. `Channel:try_send`/`try_receive`. Until then take next steps 2, 3, 5, 6 first.
 
 ## Next steps
 
