@@ -3,8 +3,8 @@
 
 - roadmap_item: `log`: structured logging, RFC 5424 severities, per-scope context.
 - status: in-progress
-- lock_until: 2026-10-22T08:45:00Z
-- last_update: 2026-10-22T06:55:00Z
+- lock_until: 2026-10-22T20:20:00Z
+- last_update: 2026-10-22T18:50:00Z
 
 ## Done
 
@@ -18,6 +18,8 @@
 - Step 4: `LimitedSink` (sampling, token-bucket rate limit, exempt severities) with tests, README, CHANGELOG. Next steps 2 done.
 
 - Step 5: CI typecheck failed (8 undefined-field on `Severity:names/values/find/contains`); declared the enumeration operations on the `Severity` class annotation. LuaLS still not installed locally, CI is the check.
+
+- Step 6 (2026-10-22T18:50Z, new run, lock had expired, CI was green): how-to guide `website/en/how-to/log-structured-records.md`, tested examples in `packages/log/examples`. Next steps 5 partly done (reference page and benchmark remain).
 
 ## Next steps
 
