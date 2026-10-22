@@ -1,13 +1,35 @@
 -- The logger: filters by severity, builds a record, hands it to synchronous sinks.
 -- Logging never suspends the caller: no call below touches the reactor (invariant).
-global <const> require, type, pairs, pcall, os, error, ipairs, tostring
+global <const> require, type, pairs, pcall, os, error, ipairs, tostring, getmetatable, next
 
 local core = require("hecate.core")
 local Record = require("hecate.log.record")
 local Severity = require("hecate.log.severity")
 local severity = require("hecate.log.internal.severity")
 
+local Secret = require("hecate.log.secret")
+
 local EMPTY = {}
+local MAX_REDACT_DEPTH = 16
+
+--- Copies `value`, wrapping in a `Secret` every value whose key is in `names`. Stops at `MAX_REDACT_DEPTH`
+--- (a deeper table is kept as is: sinks bound their own depth).
+---@param value any
+---@param names table<string, true>
+---@param depth integer
+---@return any
+local function redact(value, names, depth)
+  if type(value) ~= "table" or getmetatable(value) ~= nil or depth > MAX_REDACT_DEPTH then return value end
+  local copy = {}
+  for key, item in pairs(value) do
+    if type(key) == "string" and names[key:lower()] and not core.is_instance_of(item, Secret) then
+      copy[key] = Secret(item)
+    else
+      copy[key] = redact(item, names, depth + 1)
+    end
+  end
+  return copy
+end
 
 --- A sink: any object with a `write` method. It is called synchronously and must not suspend.
 ---@class hecate.log.Sink
@@ -20,6 +42,7 @@ local EMPTY = {}
 ---@field name? string  name stored in every record
 ---@field context? table  fields added to every record
 ---@field context_provider? fun(): table?  returns the ambient context of the running computation (per scope), merged under `context`
+---@field redact? string[]  field names (case-insensitive, at any depth) whose values are replaced by a `Secret`
 ---@field clock? fun(): number  seconds since the epoch (default `os.time`)
 
 --- A logger with the eight methods of RFC 5424 (`emergency` to `debug`), a threshold and a context.
@@ -56,6 +79,17 @@ function Logger:init(options)
   self._context = options.context or EMPTY
   self._provider = options.context_provider
   self._clock = options.clock or os.time
+  if options.redact ~= nil then
+    if type(options.redact) ~= "table" then
+      error(core.ArgumentError("invalid redact option: expected a list of field names"), 2)
+    end
+    local names = {}
+    for _, name in ipairs(options.redact) do
+      if type(name) ~= "string" then error(core.ArgumentError("invalid redact option: names are strings"), 2) end
+      names[name:lower()] = true
+    end
+    if next(names) then self._redact = names end
+  end
   -- State shared with the children made by `with_context`: the sink list and the failure count.
   self._shared = { sinks = {}, failures = 0 }
   for _, sink in ipairs(options.sinks or EMPTY) do
@@ -109,6 +143,7 @@ function Logger:with_context(fields)
   local child = Logger({
     level = self:level(), name = self._name, context_provider = self._provider, clock = self._clock,
   })
+  child._redact = self._redact
   local context = {}
   for key, value in pairs(self._context) do context[key] = value end
   for key, value in pairs(fields) do context[key] = value end
@@ -132,7 +167,13 @@ local function emit(self, level, message, fields)
   local ambient = self._provider and self._provider()
   if ambient then for key, value in pairs(ambient) do context[key] = value end end
   for key, value in pairs(self._context) do context[key] = value end
-  local record = Record(level, message, fields or {}, context, self._clock(), self._name)
+  fields = fields or {}
+  local names = self._redact
+  if names then
+    fields = redact(fields, names, 1)
+    context = redact(context, names, 1)
+  end
+  local record = Record(level, message, fields, context, self._clock(), self._name)
   local shared = self._shared
   for _, sink in ipairs(shared.sinks) do
     -- A sink must never fail the caller: the failure is counted (OQ-55).

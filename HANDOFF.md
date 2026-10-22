@@ -3,8 +3,8 @@
 
 - roadmap_item: `log`: structured logging, RFC 5424 severities, per-scope context.
 - status: in-progress
-- lock_until: 2026-10-22T08:45:00Z
-- last_update: 2026-10-22T06:55:00Z
+- lock_until: 2026-10-22T14:30:00Z
+- last_update: 2026-10-22T12:55:00Z
 
 ## Done
 
@@ -19,11 +19,13 @@
 
 - Step 5: CI typecheck failed (8 undefined-field on `Severity:names/values/find/contains`); declared the enumeration operations on the `Severity` class annotation. LuaLS still not installed locally, CI is the check.
 
+- Step 6 (resumed 2026-10-22, work pushed on the session branch `claude/sweet-feynman-ycyozt`, which carries the PR #29 history): merged main; `Logger` option `redact` (step 3 done, by field name; other sinks already redact `Secret`) with tests.
+
 ## Next steps
 
 1. Asynchronous flushing with back-pressure (test strategy: sink back-pressure) without suspending the caller.
 2. Sampling and rate limiting.
-3. Secret redaction beyond the marker (by field name, other sinks).
+3. (done) Secret redaction by field name.
 4. Replace the `context_provider` workaround once `reactor` has scope-local context (OQ-55, needs the owner and a `reactor` change); then test propagation across fork/join through it.
 5. Docs in `website/` (reference, how-to), examples in `packages/log/examples`, benchmark of a disabled and an enabled call.
 6. Run `typecheck` (LuaLS was not installed in this session), then tick the roadmap item and mark the PR ready.

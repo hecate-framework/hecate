@@ -120,4 +120,27 @@ function T:test_message_and_fields_are_checked()
   self:assert_error(function() logger:informational("x", "y") end)
 end
 
+function T:test_redact_wraps_named_fields_at_any_depth_without_touching_the_caller_table()
+  local logger, sink = new_logger({ redact = { "Password", "token" } })
+  local fields = { user = "ada", password = "p", nested = { Token = "t", ok = 1 } }
+  logger:informational("login", fields)
+  local record = sink:records()[1]
+  self:assert_equal("p", fields.password)
+  self:assert_equal("ada", record.fields.user)
+  self:assert_equal("p", record.fields.password:reveal())
+  self:assert_equal("t", record.fields.nested.Token:reveal())
+  self:assert_equal(1, record.fields.nested.ok)
+end
+
+function T:test_redact_applies_to_the_context_and_is_inherited_by_children()
+  local logger, sink = new_logger({ redact = { "secret" } })
+  logger:with_context({ secret = "s" }):informational("x")
+  self:assert_equal("s", sink:records()[1].context.secret:reveal())
+end
+
+function T:test_redact_rejects_a_value_that_is_not_a_list_of_names()
+  self:assert_error(function() log.Logger({ redact = "password" }) end)
+  self:assert_error(function() log.Logger({ redact = { 1 } }) end)
+end
+
 return T
