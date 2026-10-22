@@ -63,6 +63,14 @@ Implementation and conventions: [`packages/doc`](../../packages/doc/README.md); 
 choices OQ-33 to OQ-38. Build: `lua packages/doc/bin/build.lua website --strict` (bootstrap
 runner until `hecate doc build`).
 
+### Manual check on a narrow viewport
+
+Before changing the navigation of the theme, build the site and open it in a browser at 375 px
+wide (device mode). With the sidebar open ("Menu" in the local bar) and with the header panel open
+(hamburger): a long menu scrolls inside its own container, the page behind does not move, and the
+last entry is reachable with the address bar visible. `ThemeTest` guards the CSS and script rules
+behind this behaviour.
+
 ## Reference page template (MDN-like)
 
 Inspired by Lua Web Docs (<https://luadocs.com>, "like MDN, but for Lua"). Every

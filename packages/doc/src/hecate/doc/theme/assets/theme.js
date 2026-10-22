@@ -58,13 +58,24 @@
     entry.panel.classList.add("is-open");
     if (entry.scrim) entry.scrim.classList.add("is-open");
     entry.button.setAttribute("aria-expanded", "true");
+    updateScrollLock();
   }
 
   function close(entry, restoreFocus) {
     entry.panel.classList.remove("is-open");
     if (entry.scrim) entry.scrim.classList.remove("is-open");
     entry.button.setAttribute("aria-expanded", "false");
+    updateScrollLock();
     if (restoreFocus) entry.button.focus();
+  }
+
+  /* While the sidebar or the header panel covers the page on a small screen, the page behind
+     must not scroll: the menu scrolls inside its own container. */
+  function updateScrollLock() {
+    var locked = panels.some(function (entry) {
+      return entry.panel.id !== "outline" && entry.panel.classList.contains("is-open");
+    });
+    root.classList.toggle("scroll-locked", locked);
   }
 
   function closeAll() { panels.forEach(function (entry) { close(entry, false); }); }
