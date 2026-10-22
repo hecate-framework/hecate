@@ -3,7 +3,7 @@
 
 - roadmap_item: `log`: structured logging, RFC 5424 severities, per-scope context.
 - status: in-progress
-- lock_until: 2026-10-22T08:30:00Z
+- lock_until: 2026-10-22T08:45:00Z
 - last_update: 2026-10-22T06:55:00Z
 
 ## Done
@@ -16,6 +16,8 @@
 - Step 3 (investigation only): asynchronous flushing is blocked. A sink queue needs a wake for its drain task that never suspends the logging caller. `Condition:signal` requires entering the monitor (can suspend); `Channel:_try_send` is private. Needed from `reactor` (owner decision, cross-package): a public non-suspending wake, e.g. `Channel:try_send`/`try_receive`. Until then take next steps 2, 3, 5, 6 first.
 
 - Step 4: `LimitedSink` (sampling, token-bucket rate limit, exempt severities) with tests, README, CHANGELOG. Next steps 2 done.
+
+- Step 5: CI typecheck failed (8 undefined-field on `Severity:names/values/find/contains`); declared the enumeration operations on the `Severity` class annotation. LuaLS still not installed locally, CI is the check.
 
 ## Next steps
 
