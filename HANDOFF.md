@@ -3,13 +3,8 @@
 
 - roadmap_item: `log`: structured logging, RFC 5424 severities, per-scope context.
 - status: in-progress
-<<<<<<< HEAD
 - lock_until: 2026-10-22T23:10:15Z
 - last_update: 2026-10-22T21:40:15Z
-=======
-- lock_until: 2026-10-22T20:20:00Z
-- last_update: 2026-10-22T18:50:00Z
->>>>>>> origin/claude/sweet-feynman-2jslka
 
 ## Done
 
@@ -24,17 +19,15 @@
 
 - Step 5: CI typecheck failed (8 undefined-field on `Severity:names/values/find/contains`); declared the enumeration operations on the `Severity` class annotation. LuaLS still not installed locally, CI is the check.
 
-<<<<<<< HEAD
-- Step 6 (owner go-ahead, 2026-10-22): the "blocked" claim was wrong; `AsyncSink` built on `Semaphore:release` and `reactor.detach` (tests pass), OQ-55 addendum corrected, ADR 0025 (`reactor.with_local` / `reactor.local`, Proposed) written, README and CHANGELOG updated.
-=======
 - Step 6 (2026-10-22T18:50Z, new run, lock had expired, CI was green): how-to guide `website/en/how-to/log-structured-records.md`, tested examples in `packages/log/examples`. Next steps 5 partly done (reference page and benchmark remain).
->>>>>>> origin/claude/sweet-feynman-2jslka
+
+- Step 7 (owner go-ahead, 2026-10-22): the "blocked" claim was wrong; `AsyncSink` built on `Semaphore:release` and `reactor.detach` (tests pass), OQ-55 addendum corrected, ADR 0025 (`reactor.with_local` / `reactor.local`, Proposed) written, README and CHANGELOG updated.
 
 ## Next steps
 
 1. Secret redaction beyond the marker (by field name, other sinks).
 2. When ADR 0025 is accepted and implemented in `reactor`: default context provider in `log`, propagation test across fork/join.
-3. Docs in `website/` (reference, how-to), examples in `packages/log/examples`, benchmark of a disabled and an enabled call (and of `AsyncSink`).
+3. Reference page in `website/`, how-to for `AsyncSink`, benchmark of a disabled and an enabled call (and of `AsyncSink`).
 4. Run `typecheck` (CI), then tick the roadmap item and mark the PR ready. The item can also be ticked without 2 if the owner agrees.
 
 ## Decisions taken (and where they are recorded)
