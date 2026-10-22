@@ -73,9 +73,11 @@ When resolved, record the outcome (ADR or specification update) and move the ent
 | OQ-9 | Raise error objects, `nil` for expected absence: [ADR 0018](adr/0018-error-signalling.md) (2026-10-11). |
 | — | Native libraries (OQ-4, OQ-5, OQ-6) are decided by the owner on the basis of spike reports, not by agents (2026-10-11). |
 
-### OQ-55 addendum — non-suspending wake for asynchronous sinks
+### OQ-55 addendum — asynchronous sinks (corrected)
 
-`hecate.log` asynchronous flushing needs a public reactor operation that wakes a waiting task
-without suspending the caller (for example `Channel:try_send` and `Channel:try_receive`, today
-private). Without it a sink queue cannot be drained by a detached task. Needs the owner and a
-`reactor` change; the log package goes on with sampling, redaction and docs meanwhile.
+An earlier note said asynchronous flushing needed a public non-suspending wake from `reactor`. That was
+wrong: `Semaphore:release()` never suspends and `reactor.detach` starts a task that outlives the caller,
+which is all a sink queue needs. `hecate.log.AsyncSink` is built on them, with no `reactor` change. What
+remains open is point (1) of OQ-55, answered by the proposal [ADR 0025](adr/0025-scope-local-context.md):
+`reactor.with_local(key, value, fn)` and `reactor.local(key)`.
+

@@ -8,7 +8,7 @@
 | Rock | `hecate-log` |
 | Layer | 1 — Runtime |
 | Roadmap phase | 1 |
-| Status | step 1: severities, records, `Logger` with context, in-memory and JSON lines sinks, `Secret`; console and file sinks, `LimitedSink` (sampling and rate limiting); asynchronous flushing blocked on `reactor` |
+| Status | step 1: severities, records, `Logger` with context, in-memory and JSON lines sinks, `Secret`; console and file sinks, `LimitedSink` (sampling and rate limiting), `AsyncSink` (drain task on `Semaphore` and `detach`); scope-local context awaits ADR 0025 |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |
 | Depends on | [`core`](../core), [`reactor`](../reactor), [`json`](../json) |
 | Used by | `cli`, `hecate`, `http`, `kernel`, `migration`, `sql`, `test` |
@@ -49,10 +49,11 @@ local log = require("hecate.log")
 | `log.JsonLinesSink(options)` | Writes one JSON object per record to `options.output(line)`; renders secrets as `[redacted]`. |
 | `log.ConsoleSink(options)` | Writes `timestamp SEVERITY [logger] message key=value ...` to `options.output(line)`; secrets redacted, control characters escaped. |
 | `log.FileSink(options)` | Appends JSON lines to `options.path` (synchronous); `close()`. |
+| `log.AsyncSink(options)` | Decorator: `write` queues the record (bounded by `capacity`, default 1024; beyond it the record is dropped and counted) and never suspends; a detached task writes to `options.sink`. `flush()` and `close()` suspend until the queue is written; `dropped()`, `failures()`, `pending()`. Call `close()` before the main computation ends. |
 | `log.Secret(value)` | Marks a value that no sink renders; `reveal()` returns it. |
 
 A sink is any object with a synchronous `write(record)` that does not suspend. The context does not follow
-fork and join by itself yet: pass the child logger from `with_context` to forked computations (OQ-55).
+fork and join by itself yet: pass the child logger from `with_context` to forked computations (OQ-55, proposal in [ADR 0025](../../docs/adr/0025-scope-local-context.md)).
 
 ## Layout (once implemented)
 
