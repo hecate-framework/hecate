@@ -72,7 +72,7 @@ Exit: CI is green on all three platforms with a trivial test in every package sk
 - [x] `net`: TCP/UDP streams, DNS, buffered readers/writers, TLS (after OQ-4). Benchmarks of its hot paths wait for the harness item below.
 - [x] `json`: codec (after OQ-5). Lua API, pure-Lua backend, yyjson decoder (C), `serde_json` encoder (Rust, OQ-52), corpus and fuzz tests, `bench json`, examples and how-to; native modules built and tested on Linux, macOS and Windows in CI. The native modules in the rockspec and the binary rocks come with release automation (Phase 3). The network benchmark scenarios wait for the harness item below; the micro-benchmark `packages/json/benchmarks/codec.lua` runs with `lua tools/run.lua bench json` and its numbers are measured and published by the owner on dedicated hardware (benchmarks/README.md). Hostile-input costs are open in OQ-54.
 - [ ] `json` follow-up: remove the pure-Lua backend once it has no use (OQ-53): encode failures produced by the native module (decode failures already are, OQ-54), `-0` handled natively, the oracle replaced by fixtures, native modules required at run time everywhere (Windows build and binary rocks first).
-- [ ] `doc` (minimal) and the reference generator, **pulled forward from Phase 3** (owner
+- [x] `doc` (minimal) and the reference generator, **pulled forward from Phase 3** (owner
       decision of 2026-10-13, ADR 0012, Accepted, OQ-11): site build from Markdown and the LuaLS export (`---@class` on every module
       table, `---@param name type description`), generated reference pages for `core` and
       `reactor`, the website built by it in CI. Depends on `json` (the export) and on
@@ -80,7 +80,9 @@ Exit: CI is green on all three platforms with a trivial test in every package sk
       third-party dependencies of ADR 0022 (Accepted) are integrated first.
       Replaces the "website skeleton" item above as the way the site is built; OpenAPI
       reference, versioned documentation, runnable examples and `hecate doc build` for user
-      projects stay in Phase 3.
+      projects stay in Phase 3. Native module (Rust: comrak, syntect) and its
+      binary rocks per platform come with release automation (Phase 3, ADR 0021, OQ-41); Lua 5.5
+      `global` highlighting (syntect plain variable) and cosmetic code-label cleanups are follow-ups.
 - [ ] `doc` theme, mobile navigation (owner report, 2026-10-20): the sidebar menu that browses
       the guides, the reference and the other sections cannot be scrolled on mobile devices.
       Fix it in the theme (a long menu scrolls inside its own container, the page behind it
