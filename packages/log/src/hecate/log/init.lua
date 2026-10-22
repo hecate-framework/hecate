@@ -13,6 +13,7 @@ local severity = require("hecate.log.internal.severity")
 ---@field JsonLinesSink table  sink writing one JSON object per line
 ---@field ConsoleSink table  sink writing human-readable lines
 ---@field FileSink table  sink appending JSON lines to a file
+---@field LimitedSink table  decorator sink that samples and rate-limits records
 local log = {}
 
 log.Severity = require("hecate.log.severity")
@@ -23,6 +24,7 @@ log.MemorySink = require("hecate.log.memory_sink")
 log.JsonLinesSink = require("hecate.log.json_lines_sink")
 log.ConsoleSink = require("hecate.log.console_sink")
 log.FileSink = require("hecate.log.file_sink")
+log.LimitedSink = require("hecate.log.limited_sink")
 
 --- Returns the numerical code of a severity, as in RFC 5424, section 6.2.1 (0 for `emergency` to 7 for `debug`).
 ---@param level hecate.core.EnumerationValue  a `hecate.log.Severity` value

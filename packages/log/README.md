@@ -8,7 +8,7 @@
 | Rock | `hecate-log` |
 | Layer | 1 — Runtime |
 | Roadmap phase | 1 |
-| Status | step 1: severities, records, `Logger` with context, in-memory and JSON lines sinks, `Secret`; console and file sinks, asynchronous flushing, sampling and rate limiting to come |
+| Status | step 1: severities, records, `Logger` with context, in-memory and JSON lines sinks, `Secret`; console and file sinks, `LimitedSink` (sampling and rate limiting); asynchronous flushing blocked on `reactor` |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |
 | Depends on | [`core`](../core), [`reactor`](../reactor), [`json`](../json) |
 | Used by | `cli`, `hecate`, `http`, `kernel`, `migration`, `sql`, `test` |
