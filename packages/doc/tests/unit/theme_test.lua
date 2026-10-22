@@ -301,6 +301,20 @@ function T:test_dates_are_formatted_with_locale_month_names()
   self:assert_nil(doc.theme.strings.format_date("yesterday", en))
 end
 
+--- The sidebar and the header panel scroll inside their own container on a small screen, and the page
+--- behind them does not (owner report 2026-10-20). Manual check: docs/architecture/documentation.md.
+function T:test_mobile_menus_scroll_inside_their_container()
+  local small = CSS_CODE:match("@media %(max%-width: 959px%) {(.-)\n}\n")
+  self:assert_not_nil(small, "the small-screen block is missing")
+  local sidebar = small:match("\n  %.sidebar {([^}]*)}")
+  self:assert_not_nil(sidebar)
+  self:assert_true(sidebar:find("overflow%-y: auto") ~= nil, "the sidebar must scroll")
+  self:assert_true(sidebar:find("overscroll%-behavior: contain") ~= nil, "scroll must not chain to the page")
+  self:assert_true(CSS_CODE:find("html%.scroll%-locked") ~= nil, "the page behind an open menu must be locked")
+  self:assert_true(CSS_CODE:find("100dvh") ~= nil, "the header panel must fit the visible viewport")
+  self:assert_true(JS:find('classList.toggle("scroll-locked"', 1, true) ~= nil, "the script must lock the page")
+end
+
 -- `SystemFileSystem` suspends: every test of this file runs inside a reactor.
 for name, method in pairs(T) do
   if type(name) == "string" and name:find("^test_") and type(method) == "function" then
