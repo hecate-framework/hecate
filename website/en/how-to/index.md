@@ -27,3 +27,5 @@ read the matching page of the [explanation](../explanation/index.md) section.
 
 - [Encode and decode JSON](encode-and-decode-json.md): integers and floats, `null`, empty
   arrays, canonical output and decode errors.
+- [Log structured records](log-structured-records.md): levels, context, sinks, secrets and
+  volume limits.
