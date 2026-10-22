@@ -5,17 +5,27 @@
 -- it nothing is written and the exit code is 0 (the caller decides whether that is acceptable:
 -- `tools/run.lua gen-reference` reports it as a skip). Exit codes: 0 done or skipped, 1 failed,
 -- 2 usage error. This is the bootstrap entry point until `hecate doc` exists (automation.md).
-global <const> arg, io, os, package, require, print, pcall, tostring, ipairs, pairs, table
+global <const> _VERSION, arg, io, os, package, require, print, pcall, tostring, ipairs, pairs, table
 global <const> string
 
 local script = arg[0]:gsub("\\", "/")
 local here = script:match("^(.*)/[^/]*$") or "."
-for _, package_name in ipairs({ "doc", "core", "json", "schema", "openapi" }) do
+for _, package_name in ipairs({ "doc", "core", "reactor", "json", "schema", "openapi" }) do
   local base = here .. "/../../" .. package_name .. "/src/"
   package.path = base .. "?.lua;" .. base .. "?/init.lua;" .. package.path
 end
+-- Project-local LuaRocks tree of a monorepo checkout (`.hecate/rocks`: luv for the reactor), as in build.lua.
+do
+  local version = _VERSION:match("%d+%.%d+")
+  local tree = here .. "/../../../.hecate/rocks"
+  package.path = tree .. "/share/lua/" .. version .. "/?.lua;" .. tree .. "/share/lua/" .. version
+    .. "/?/init.lua;" .. package.path
+  package.cpath = tree .. "/lib/lua/" .. version .. "/?.so;" .. tree .. "/lib/lua/" .. version
+    .. "/?.dll;" .. package.cpath
+end
 
 local doc = require("hecate.doc")
+local reactor = require("hecate.reactor")
 local reference_site = require("hecate.doc.reference_site")
 
 local function usage(stream)
@@ -49,7 +59,7 @@ end
 options.out = options.out or (options.root .. "/website/en")
 options.fs = doc.SystemFileSystem()
 
-local ok, report = pcall(reference_site.run, options)
+local ok, report = pcall(reactor.run, reference_site.run, options)
 if not ok then
   io.stderr:write(tostring(report), "\n")
   os.exit(1)

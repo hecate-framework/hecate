@@ -14,12 +14,11 @@ d’exécution asynchrone, un serveur HTTP, un routeur, des schémas et la valid
 OpenAPI automatiques, un cadre de test, un générateur de documentation, des pilotes de bases de
 données, un mappeur objet-relationnel et un outil en ligne de commande.
 
-::: note État d’avancement
-Les paquets core, reactor et net sont implémentés et documentés, de même que le générateur qui
-construit ce site. Voir les [guides pratiques](how-to/index.md), les
-[explications](explanation/index.md) et la [référence](reference/index.md) générée. Tout le reste
-est encore spécifié et non implémenté. Ce site grandit avec le code, paquet par paquet.
-:::
+> [!NOTE] État d’avancement
+> Les paquets core, reactor et net sont implémentés et documentés, de même que le générateur qui
+> construit ce site. Voir les [guides pratiques](how-to/index.md), les
+> [explications](explanation/index.md) et la [référence](reference/index.md) générée. Tout le reste
+> est encore spécifié et non implémenté. Ce site grandit avec le code, paquet par paquet.
 
 ## Principes
 

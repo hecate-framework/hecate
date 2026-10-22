@@ -8,7 +8,7 @@
 global <const> require, table, string, ipairs, tostring
 
 local html = require("hecate.doc.internal.html")
-local json = require("hecate.doc.internal.json")
+local json = require("hecate.json")
 local strings_module = require("hecate.doc.theme.strings")
 
 local escape, attributes = html.escape, html.attributes
@@ -288,9 +288,11 @@ local function script_config(context)
     "search_hint", "no_results", "results", "search_failed" }
   local subset = {}
   for _, key in ipairs(keys) do subset[key] = s[key] end
-  return ("<script type=\"application/json\" id=\"doc-config\">%s</script>"):format(json.encode({
+  -- `<`, `>` and `&` are written as escapes so that the text cannot close the script element.
+  local text = json.encode({
     base = context.config.base, locale = context.locale.code, index = context.search_index_url, strings = subset,
-  }))
+  }, { canonical = true }):gsub("[<>&]", function(char) return ("\\u%04x"):format(char:byte()) end)
+  return ("<script type=\"application/json\" id=\"doc-config\">%s</script>"):format(text)
 end
 
 --- Renders a documentation page to a complete HTML document.

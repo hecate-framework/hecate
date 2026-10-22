@@ -3,6 +3,7 @@
 -- through the `bin/build.lua` runner.
 local test = require("harness.test")
 local doc = require("hecate.doc")
+local reactor = require("hecate.reactor")
 local core = require("hecate.core")
 local T = test.Case("BuildIntegrationTest")
 
@@ -54,7 +55,7 @@ function T:test_the_library_builds_the_fixture_site_to_disk()
     end
     local page = fs:read(out .. "/en/guide/concurrency/index.html")
     self:assert_true(page:find("<h2 id=\"callouts\"", 1, true) ~= nil)
-    self:assert_true(page:find('class="callout callout-danger"', 1, true) ~= nil)
+    self:assert_true(page:find('class="markdown-alert markdown-alert-caution"', 1, true) ~= nil)
     self:assert_true(page:find('<a href="/en/reference/sleep/#syntax">', 1, true) ~= nil)
     local font = fs:read(out .. "/assets/fonts/fira-code-latin-400-normal.woff2")
     self:assert_equal(fs:read(doc.theme.assets_directory() .. "/fonts/fira-code-latin-400-normal.woff2"), font,
@@ -153,6 +154,13 @@ function T:test_building_the_repository_website_has_no_problem()
   end
   self:assert_equal(0, #problems, table.concat(problems, "\n"))
   self:assert_true(report.locales.en.pages >= 2)
+end
+
+-- `SystemFileSystem` suspends: every test of this file runs inside a reactor.
+for name, method in pairs(T) do
+  if type(name) == "string" and name:find("^test_") and type(method) == "function" then
+    T[name] = function(...) return reactor.run(method, ...) end
+  end
 end
 
 return T

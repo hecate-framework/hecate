@@ -64,7 +64,38 @@ The JSONTestSuite corpus (https://github.com/nst/JSONTestSuite, MIT) is not ship
 are pinned in packages/json/native/Cargo.lock and audited by `cargo deny` (ADR 0021).
 
 
-5. Not third-party
+5. Rust crates of the documentation module (comrak, syntect, two-face)
+-----------------------------------------------------------------------
+
+Location: packages/doc/native/ (pinned in Cargo.lock, checked by `cargo deny` and `cargo audit`,
+ADR 0022; the crates are compiled into the native module and are not vendored in the repository).
+- comrak 0.52: Markdown. Licence: BSD-2-Clause, Copyright (c) 2017-2025, Comrak contributors
+  (https://github.com/kivikakk/comrak, file COPYING; it also carries the notice of cmark-gfm,
+  from which comrak is derived). The licence requires that binary distributions reproduce this
+  notice and disclaimer: the release artefacts of the native module must ship it.
+- finl_unicode 1.5 (a dependency of comrak): (MIT OR Apache-2.0) AND Unicode-DFS-2016; the Unicode
+  licence of its data files is in the crate (LICENSE-UNICODE), to be shipped the same way.
+- syntect 5.3 (MIT) and two-face 0.4.5 (MIT OR Apache-2.0): syntax highlighting. two-face embeds
+  syntax definitions (from the `bat` project, themselves from Sublime Text packages) under their
+  own licences. Audit (ADR 0022), made 2026-10-21 from `two_face::acknowledgement::listing()` of
+  the locked version: 59 licence files cover the embedded syntaxes: MIT (48), Apache-2.0 (8:
+  Crystal, Jsonnet, Kotlin, Lean, NSIS, SLS, SystemVerilog, TypeScript), BSD-2-Clause (2: Org mode,
+  Apache conf) and BSD-3-Clause (1: HTML (Twig)). No copyleft, no custom or non-commercial
+  licence, no entry of type "Sublime". All of them require the copyright notice and licence text
+  to accompany binary distributions: the release artefacts of the native module must ship the full
+  text, which `acknowledgements_full.md` of two-face (two_face::acknowledgement::url()) compiles;
+  the release tooling generates it. The themes of two-face are not used. The default Sublime
+  packages bundled by syntect itself are not used either (the `two_face::syntax::extra_newlines`
+  set is).
+Test data, not shipped: the examples of the CommonMark specification 0.31.2
+(https://github.com/commonmark/commonmark-spec, CC BY-SA 4.0) and of the GFM specification
+0.29.gfm.13 (https://github.com/github/cmark-gfm) are downloaded by `fetch-fixtures doc` for
+the tests (packages/doc/tests/external.lua) and git-ignored.
+The notices of the whole crate tree (about 70 crates) are to be generated for the release
+artefacts by the release tooling.
+
+
+6. Not third-party
 ------------------
 
 The other icons of the theme (search, sun, moon, menu, close, globe, chevron, pencil,

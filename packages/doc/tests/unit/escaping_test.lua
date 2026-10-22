@@ -72,7 +72,7 @@ function T:test_table_cells_and_container_titles_are_escaped()
   local table_html = render("| <b>h</b> |\n|---|\n| <i>c</i> |")
   self:assert_nil(table_html:find("<b>", 1, true))
   self:assert_nil(table_html:find("<i>", 1, true))
-  local callout = render("::: tip <script>x</script>\nbody\n:::")
+  local callout = render("> [!TIP] <script>x</script>\n> body")
   self:assert_nil(callout:find("<script", 1, true))
 end
 

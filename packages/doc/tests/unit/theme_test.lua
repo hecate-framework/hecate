@@ -4,6 +4,7 @@
 -- and the structure of the generated HTML (landmarks, keyboard order, names).
 local test = require("harness.test")
 local doc = require("hecate.doc")
+local reactor = require("hecate.reactor")
 local T = test.Case("ThemeTest")
 
 local function read(path)
@@ -208,7 +209,7 @@ local function build_fixture()
   return memory
 end
 
-local OUTPUT = build_fixture()
+local OUTPUT = reactor.run(build_fixture)
 
 function T:test_the_first_focusable_element_is_the_skip_link_and_its_target_exists()
   local html = OUTPUT:read("o/en/guide/concurrency/index.html")
@@ -298,6 +299,13 @@ function T:test_dates_are_formatted_with_locale_month_names()
   self:assert_equal("3 octobre 2026", (doc.theme.strings.format_date("2026-10-03", doc.theme.strings.for_locale("fr"))))
   self:assert_nil(doc.theme.strings.format_date("2026-13-03", en))
   self:assert_nil(doc.theme.strings.format_date("yesterday", en))
+end
+
+-- `SystemFileSystem` suspends: every test of this file runs inside a reactor.
+for name, method in pairs(T) do
+  if type(name) == "string" and name:find("^test_") and type(method) == "function" then
+    T[name] = function(...) return reactor.run(method, ...) end
+  end
 end
 
 return T

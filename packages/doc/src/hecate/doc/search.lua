@@ -4,7 +4,7 @@
 -- matches word prefixes, which suits documentation and French text alike.
 global <const> require, ipairs, table, string, utf8
 
-local json = require("hecate.doc.internal.json")
+local json = require("hecate.json")
 
 local M = {}
 
@@ -60,6 +60,12 @@ end
 --- Serialises an index (`build` result) to JSON.
 ---@param index table
 ---@return string
-function M.encode(index) return json.encode(index) end
+function M.encode(index)
+  -- `<`, `>` and `&` are written as escapes, so the text can also sit inside a `<script>` element.
+  local text = json.encode(index, { canonical = true }):gsub("[<>&]", function(char)
+    return ("\\u%04x"):format(char:byte())
+  end)
+  return text
+end
 
 return M

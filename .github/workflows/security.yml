@@ -70,7 +70,12 @@ jobs:
         working-directory: packages/json/native
         run: cargo audit
 
+      - name: cargo audit (doc)
+        working-directory: packages/doc/native
+        run: cargo audit
+
       - name: cargo deny
         run: |
           cargo deny --manifest-path packages/net/native/Cargo.toml --config deny.toml check
           cargo deny --manifest-path packages/json/native/Cargo.toml --config deny.toml check
+          cargo deny --manifest-path packages/doc/native/Cargo.toml --config deny.toml check

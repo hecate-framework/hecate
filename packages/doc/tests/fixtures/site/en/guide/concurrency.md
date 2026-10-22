@@ -34,18 +34,14 @@ go back to the [guide index](index.md).
 
 ## Callouts
 
-::: note
-A note carries background information.
-:::
+> [!NOTE]
+> A note carries background information.
 
-::: tip
-A tip suggests a better way, for example `reactor.deadline` instead of a manual timer.
-:::
+> [!TIP]
+> A tip suggests a better way, for example `reactor.deadline` instead of a manual timer.
 
-::: warning
-A warning names a consequence that is easy to miss.
-:::
+> [!WARNING]
+> A warning names a consequence that is easy to miss.
 
-::: danger Data loss
-A danger names a consequence that cannot be undone.
-:::
+> [!CAUTION] Data loss
+> A danger names a consequence that cannot be undone.

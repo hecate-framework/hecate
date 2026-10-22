@@ -1,0 +1,31 @@
+[package]
+name = "hecate-doc-native"
+version = "0.0.0"
+edition = "2021"
+license = "MIT"
+publish = false
+description = "Markdown rendering and syntax highlighting for hecate.doc: comrak, syntect and two-face bound to Lua 5.5 through mlua (ADR 0022)"
+
+[lib]
+name = "hecate_doc_native"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+mlua = { version = "0.12", features = ["lua55", "module"] }
+comrak = { version = "0.52", default-features = false }
+syntect = { version = "5", default-features = false, features = ["html", "parsing", "regex-fancy"] }
+two-face = { version = "0.4", default-features = false, features = ["syntect-fancy"] }
+
+[profile.release]
+opt-level = 3
+lto = true
+overflow-checks = true
+strip = true
+codegen-units = 1
+
+[lints.rust]
+unsafe_code = "forbid"
+warnings = "deny"
+
+[lints.clippy]
+all = { level = "deny", priority = -1 }

@@ -91,12 +91,11 @@ attente n’est donc pas un interblocage. `reactor.run` rend la main quand sa co
 se termine, qu’un enfant tourne encore ou non. Attendez vos enfants, ou tuez-les, avant la fin de
 la coroutine principale.
 
-::: warning Chemins de recherche relatifs
-Un enfant démarré depuis un autre processus Lua trouve ses modules par `package.path`. Ce chemin
-peut contenir des entrées relatives, qui cessent de fonctionner quand vous fixez `cwd`. Rendez-les
-absolues, ou passez-les par `LUA_PATH_5_5` et `LUA_CPATH_5_5` dans `env`, comme le font les
-exemples.
-:::
+> [!WARNING] Chemins de recherche relatifs
+> Un enfant démarré depuis un autre processus Lua trouve ses modules par `package.path`. Ce chemin
+> peut contenir des entrées relatives, qui cessent de fonctionner quand vous fixez `cwd`. Rendez-les
+> absolues, ou passez-les par `LUA_PATH_5_5` et `LUA_CPATH_5_5` dans `env`, comme le font les
+> exemples.
 
 ## Dialoguer avec un enfant par un tube de messages
 
@@ -216,12 +215,11 @@ end)
 Le flux est fermé chez l’expéditeur une fois transféré : l’utiliser ensuite lève `TransportError`
 avec `EBADF`.
 
-::: warning Windows
-Le système d’exploitation duplique le socket pour le destinataire, et le doublon n’est valide que
-tant que le socket de l’expéditeur est ouvert. L’expéditeur le ferme dès que `send` rend la main,
-ce qui peut arriver avant que le destinataire n’appelle `receive`. Faites accuser réception par le
-destinataire avec un message, et ne laissez pas l’expéditeur sortir avant l’arrivée de l’accusé.
-:::
+> [!WARNING] Windows
+> Le système d’exploitation duplique le socket pour le destinataire, et le doublon n’est valide que
+> tant que le socket de l’expéditeur est ouvert. L’expéditeur le ferme dès que `send` rend la main,
+> ce qui peut arriver avant que le destinataire n’appelle `receive`. Faites accuser réception par le
+> destinataire avec un message, et ne laissez pas l’expéditeur sortir avant l’arrivée de l’accusé.
 
 ## Partager un port entre processus
 
