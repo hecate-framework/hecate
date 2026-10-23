@@ -18,8 +18,8 @@ back to the same text.
 
 <!-- example: packages/json/examples/hecate.json.decode.lua -->
 ```lua
--- Decoding returns Lua integers for integer literals and floats otherwise; `[]` and `{}` keep
--- their kind through markers, so an empty array round-trips.
+-- Decoding returns Lua integers for integer literals and floats otherwise; `[]`
+-- and `{}` keep their kind through markers, so an empty array round-trips.
 local json = require("hecate.json")
 
 local value = json.decode('{"count":3,"ratio":0.5,"items":[]}')
@@ -38,8 +38,8 @@ mark an empty table. `canonical = true` orders members by UTF-16 code units (RFC
 
 <!-- example: packages/json/examples/hecate.json.encode.lua -->
 ```lua
--- Encoding keeps the difference between integers and floats, writes `json.null` explicitly, and
--- orders members with `canonical` so that the text is stable.
+-- Encoding keeps the difference between integers and floats, writes `json.null`
+-- explicitly, and orders members with `canonical` so that the text is stable.
 local json = require("hecate.json")
 
 print(json.encode({ b = 1, a = 2.0, c = json.null }, { canonical = true }))
@@ -58,7 +58,8 @@ member names, lone surrogates, a byte order mark and numbers outside the double 
 
 <!-- example: packages/json/examples/hecate.json.DecodeError.lua -->
 ```lua
--- A rejected text raises a `DecodeError` whose context names the reason and the position.
+-- A rejected text raises a `DecodeError` whose context names the reason and the
+-- position.
 local json = require("hecate.json")
 
 local ok, err = pcall(json.decode, "[1, 2")

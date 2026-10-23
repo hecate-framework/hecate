@@ -1,5 +1,5 @@
--- An echo exchange over the loopback interface: a listener on a free port, a client that
--- connects to it, one line each way.
+-- An echo exchange over the loopback interface: a listener on a free port, a
+-- client that connects to it, one line each way.
 local reactor = require("hecate.reactor")
 local net = require("hecate.net")
 
