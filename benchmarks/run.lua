@@ -9,7 +9,6 @@ local stats = dofile("benchmarks/lib/stats.lua")
 local runner = dofile("benchmarks/lib/runner.lua")
 
 ---@param message string
----@return never
 local function fail(message)
   io.stderr:write("run.lua: ", message, "\n")
   os.exit(2)
@@ -33,7 +32,7 @@ local rounds = {}
 for round = 1, options.rounds do
   io.stderr:write(("[round %d/%d] %s\n"):format(round, options.rounds, scenario))
   local measures, problem = runner.round(scenario, options)
-  if not measures then fail(problem) end
+  if not measures then fail(problem or "") return end
   rounds[#rounds + 1] = measures
 end
 

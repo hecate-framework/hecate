@@ -13,7 +13,6 @@ local ALPHA, THRESHOLD = 0.01, 0.10
 local WATCHED = { ["throughput"] = "lower", ["latency p99"] = "higher" }
 
 ---@param message string
----@return never
 local function fail(message)
   io.stderr:write("compare.lua: ", message, "\n")
   os.exit(2)
@@ -45,7 +44,7 @@ for round = 1, options.rounds do
     io.stderr:write(("[round %d/%d] %s\n"):format(round, options.rounds, side))
     options.src = side == "base" and base or head
     local measures, problem = runner.round(scenario, options)
-    if not measures then fail(side .. ": " .. problem) end
+    if not measures then fail(side .. ": " .. (problem or "")) return end
     for _, m in ipairs(measures) do
       if not samples[side][m.label] then
         samples[side][m.label] = {}
