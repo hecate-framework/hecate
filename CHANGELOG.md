@@ -11,6 +11,7 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- `hecate.log`: generated code reference (`log` added to the reference generator's default packages) and micro-benchmark `packages/log/benchmarks/logger.lua` (disabled and enabled call).
 - `hecate.log`: `Logger` option `redact` (field names, case-insensitive, any depth) wraps the matching values of fields and context in a `Secret` before any sink sees them.
 - `hecate.log`, step 1: the eight RFC 5424 severities (`Severity`, `severity_code`), `Record`, `Logger` with a threshold, per-logger context (`with_context`, `context_provider`) and synchronous sinks, `MemorySink`, `JsonLinesSink` (one JSON object per line, built on `hecate.json`) and `Secret` (never rendered), step 2 (part): `ConsoleSink` (human-readable lines) and `FileSink` (JSON lines appended to a file, synchronous). step 3 (part): `LimitedSink`, a decorator sink that samples and rate-limits (token bucket) records less urgent than an exempt severity and counts what it drops. step 4 (part): `AsyncSink`, a decorator sink that queues records (bounded, overflow dropped and counted) and writes them from a detached task driven by a `Semaphore`, so a log call never suspends. Open points in OQ-55 (the reactor has no scope-local context yet; proposal in ADR 0025). Documentation: how-to guide `log-structured-records` and two tested examples.
 - `hecate.json`: tested examples (`packages/json/examples`, run by `tests/unit/examples_test.lua`) and the how-to guide "Encode and decode JSON" on the website.

@@ -3,8 +3,8 @@
 
 - roadmap_item: `log`: structured logging, RFC 5424 severities, per-scope context.
 - status: in-progress
-- lock_until: 2026-10-23T11:15:00Z
-- last_update: 2026-10-23T09:45:00Z
+- lock_until: 2026-10-23T14:20:00Z
+- last_update: 2026-10-23T12:50:00Z
 
 ## Done
 
@@ -22,6 +22,8 @@
 - Step 6 (2026-10-22T18:50Z, new run, lock had expired, CI was green): how-to guide `website/en/how-to/log-structured-records.md`, tested examples in `packages/log/examples`. Next steps 5 partly done (reference page and benchmark remain).
 
 - Step 7 (owner go-ahead, 2026-10-22): the "blocked" claim was wrong; `AsyncSink` built on `Semaphore:release` and `reactor.detach` (tests pass), OQ-55 addendum corrected, ADR 0025 (`reactor.with_local` / `reactor.local`, Proposed) written, README and CHANGELOG updated.
+
+- Step 10 (2026-10-23T12:50Z, new run on `claude/sweet-feynman-pwytm6`, locks expired; main already merged): `log` added to `reference_site.DEFAULT_PACKAGES` (reference generated in CI, LuaLS not installed here), benchmark `packages/log/benchmarks/logger.lua` (disabled ~115 ns, enabled ~1.7 us). Local gates ok; `test doc` fails locally only because the Rust native module is not built (same on main). Remaining: CI typecheck and reference build green, then tick the roadmap item (ADR 0025 default context provider can follow).
 
 ## Next steps
 
