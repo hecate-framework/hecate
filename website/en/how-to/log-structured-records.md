@@ -66,3 +66,32 @@ print(("%s %s"):format(lines[1]:find("hunter2", 1, true) == nil, lines[1]:find("
 Wrap a sink in `log.LimitedSink({ sink = ..., sample = 0.1, rate = 100 })` to keep a fraction of the
 records and at most `rate` per second (token bucket, `burst` capacity). Records at least as urgent
 as `exempt` (default `warning`) always pass. `dropped()` counts what was discarded.
+
+## Keep slow sinks off the request path
+
+Wrap a sink in `log.AsyncSink({ sink = ..., capacity = 1024 })`. `write` only queues the record, so
+it never suspends; a detached task writes to the target. When the queue is full the record is
+dropped and counted (`dropped()`): back-pressure is loss, never waiting. `flush()` suspends until
+what is queued has been written, and `close()` flushes and stops the task. Call `close()` before
+the main computation ends: a drain task still waiting for records is a deadlock to the reactor.
+
+<!-- example: packages/log/examples/hecate.log.AsyncSink.lua -->
+```lua
+-- An asynchronous sink queues records and writes them from a detached task: logging never waits
+-- for the target. `close` flushes what is queued and stops the task.
+local reactor = require("hecate.reactor")
+local log = require("hecate.log")
+
+reactor.run(function()
+  local memory = log.MemorySink()
+  local async = log.AsyncSink({ sink = memory, capacity = 128 })
+  local logger = log.Logger({ sinks = { async } })
+
+  logger:informational("first")
+  logger:informational("second")
+  local waiting = async:pending()
+  async:close()
+  print(("%d %d %d"):format(waiting, #memory:records(), async:dropped()))
+end)
+-- Prints: 2 2 0
+```

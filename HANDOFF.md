@@ -3,8 +3,8 @@
 
 - roadmap_item: `log`: structured logging, RFC 5424 severities, per-scope context.
 - status: in-progress
-- lock_until: 2026-10-22T23:10:15Z
-- last_update: 2026-10-22T21:40:15Z
+- lock_until: 2026-10-23T11:15:00Z
+- last_update: 2026-10-23T09:45:00Z
 
 ## Done
 
@@ -31,6 +31,8 @@
 4. Run `typecheck` (CI), then tick the roadmap item and mark the PR ready. The item can also be ticked without 2 if the owner agrees.
 
 - Step 8 (parallel session, merged here; resumed 2026-10-22, work pushed on the session branch `claude/sweet-feynman-ycyozt`, which carries the PR #29 history): merged main; `Logger` option `redact` (step 3 done, by field name; other sinks already redact `Secret`) with tests.
+
+- Step 9 (2026-10-23, new run on session branch `claude/sweet-feynman-w6qist`, locks had expired; merged main): how-to section and tested example for `AsyncSink`. Remaining: reference page, benchmark, typecheck in CI, tick.
 
 ## Decisions taken (and where they are recorded)
 
