@@ -5,12 +5,16 @@
 --          [--rate=REQUESTS_PER_SECOND] [--duration=SECONDS] [--warmup=SECONDS] [--payload=BYTES]
 -- Prints measurement lines (`label value unit`): throughput, errors, p50/p90/p99/p99.9 and max latency.
 global <const> _VERSION, package, io, arg, print, require, tonumber, ipairs, pcall, string, table, os, dofile
+-- HECATE_SRC: the checkout whose packages are measured (default: the current directory), so that the
+-- A/B comparison runs one set of scenario files against a base and a head tree.
+local src = os.getenv("HECATE_SRC") or "."
 for _, name in ipairs({ "core", "reactor", "net" }) do
-  package.path = ("packages/%s/src/?.lua;packages/%s/src/?/init.lua;"):format(name, name) .. package.path
+  package.path = ("%s/packages/%s/src/?.lua;%s/packages/%s/src/?/init.lua;"):format(src, name, src, name) .. package.path
 end
 local version = _VERSION:match("%d+%.%d+")
 for _, tree in ipairs({ ".hecate/rocks", "spikes/rocks" }) do
   package.cpath = tree .. "/lib/lua/" .. version .. "/?.so;" .. package.cpath
+  if src ~= "." then package.cpath = src .. "/" .. tree .. "/lib/lua/" .. version .. "/?.so;" .. package.cpath end
 end
 
 local reactor = require("hecate.reactor")

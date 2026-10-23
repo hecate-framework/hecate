@@ -34,10 +34,32 @@ Performance is a product requirement (vision.md). Benchmarks run in CI
   measured by hand on a dedicated machine, following [Running on your own hardware](#running-on-your-own-hardware).
   The hosted runners keep the relative A/B comparison above.
 
-## Planned layout
+## Layout
 
-`benchmarks/scenarios/<name>/` (application + load profile), `benchmarks/run.lua`,
-`benchmarks/results/` (git-ignored; history stored as CI artefacts and on the website).
+- `benchmarks/scenarios/<name>/`: a network scenario, made of `server.lua` (starts the application under
+  test, prints `listening <port>`) and `load.lua` (drives it and prints `label value unit` lines).
+- `benchmarks/run.lua`: runs a scenario for several rounds and prints the median and spread of each measure.
+- `benchmarks/compare.lua`: the A/B comparison of a base tree and a head tree (below).
+- `benchmarks/lib/`: `runner.lua` (one round) and `stats.lua` (percentiles, median, Mann-Whitney U).
+- `benchmarks/results/` (git-ignored; history stored as CI artefacts and on the website).
+
+The load generator is written in Lua on the reactor of the repository, so that no third-party tool is needed.
+It is open loop: each connection sends one request per interval, and the latency of a request is measured from
+the instant it was due, not from the instant it was sent, so a slow server cannot hide its queueing
+(coordinated omission). `wrk2` or `oha` stay an option for the later HTTP scenarios, run by hand on dedicated hardware.
+
+```sh
+lua tools/run.lua bench tcp-echo --rounds=5 --connections=10000 --rate=5000 --duration=10
+lua tools/run.lua bench tcp-echo --compare=origin/main        # A/B/A/B against a git reference
+lua benchmarks/run.lua tcp-echo --server-pin=2 --load-pin=3   # directly, with pinned processes
+```
+
+Options of the load generator: `--connections`, `--rate` (total requests per second), `--duration` and
+`--warmup` (seconds), `--payload` (bytes). Raise `ulimit -n` above the number of connections first. Latency
+is reported in microseconds (p50, p90, p99, p99.9, max), throughput in requests per second, `errors` in
+connections that failed. A throughput below `--rate` means the server (or the generator) is saturated.
+`--compare` checks the reference out in `.hecate/bench-base` and runs the same scenario files against that tree
+and the working tree, alternately, on this host; it exits with status 1 on a significant regression.
 
 ## Running on your own hardware
 

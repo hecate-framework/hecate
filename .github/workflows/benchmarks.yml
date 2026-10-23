@@ -1,0 +1,85 @@
+name: benchmarks
+
+# Relative performance comparison (OQ-14, benchmarks/README.md): the base and the head are measured
+# alternately (A/B/A/B) on the same GitHub-hosted runner; a regression is reported only when it is
+# statistically significant (Mann-Whitney U, p < 0.01) and above 10 %. Absolute numbers from a hosted
+# runner are indicative only; the published figures come from dedicated hardware.
+# Pull requests run it when labelled `performance`; a push to main compares with the previous head.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      base:
+        description: Git reference to compare with
+        required: true
+        default: origin/main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: benchmarks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compare:
+    name: tcp-echo
+    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'performance')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+
+      - name: Cache toolchain
+        id: toolchain
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: .hecate/toolchain
+          key: toolchain-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('tools/bootstrap/**') }}
+
+      - name: Bootstrap
+        if: steps.toolchain.outputs.cache-hit != 'true'
+        run: tools/bootstrap/bootstrap.sh --prefix .hecate/toolchain
+
+      - name: Add toolchain to PATH
+        run: echo "$GITHUB_WORKSPACE/.hecate/toolchain/bin" >> "$GITHUB_PATH"
+
+      - name: Cache rocks
+        id: rocks
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: .hecate/rocks
+          key: rocks-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('tools/bootstrap/**', '.github/workflows/ci.yml') }}
+
+      # The same pinned luv as ci.yml (the reactor depends on its version).
+      - name: Install luv
+        if: steps.rocks.outputs.cache-hit != 'true'
+        run: luarocks --tree .hecate/rocks install luv 1.53.0-0
+
+      - name: Compare with the base
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+          BEFORE: ${{ github.event.before }}
+          INPUT_BASE: ${{ inputs.base }}
+        run: |
+          case "$EVENT" in
+            pull_request) base="origin/$BASE_REF" ;;
+            workflow_dispatch) base="$INPUT_BASE" ;;
+            *) base="$BEFORE" ;;
+          esac
+          # Two cores: the server and the load generator on disjoint CPUs when the runner has them.
+          set +e
+          lua tools/run.lua bench tcp-echo --compare="$base" --rounds=7 --connections=1000 --rate=5000 \
+            --duration=5 --warmup=2 --lua="$(command -v lua)" > benchmark.txt 2>&1
+          status=$?
+          set -e
+          { echo '```'; cat benchmark.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          cat benchmark.txt
+          exit "$status"

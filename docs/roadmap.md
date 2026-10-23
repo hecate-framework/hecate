@@ -89,7 +89,7 @@ Exit: CI is green on all three platforms with a trivial test in every package sk
       does not), and add a check on a narrow viewport (a browser test or a documented manual
       check in `docs/architecture/documentation.md`) so that it is not forgotten again.
 - [ ] `log`: structured logging, RFC 5424 severities, per-scope context.
-- [ ] Benchmarks harness and first scenario (TCP echo); `benchmarks.yml`.
+- [x] Benchmarks harness and first scenario (TCP echo); `benchmarks.yml`. Delivered: `benchmarks/scenarios/tcp-echo`, `benchmarks/run.lua`, `benchmarks/compare.lua`, `bench <scenario> [--compare=ref]`. The Lua load generator replaces `wrk2`/`oha` (no dependency); the baseline numbers are measured by the owner on dedicated hardware.
 - [x] Pin every third-party action of the existing workflows by commit SHA (owner request,
       2026-10-18; [automation.md](architecture/automation.md)); Dependabot keeps them current.
 - [ ] Workflows `native.yml`, `security.yml`, `nightly.yml`; tasks `sanitize`, `fuzz`,
