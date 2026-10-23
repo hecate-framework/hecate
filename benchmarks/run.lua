@@ -8,6 +8,8 @@
 local stats = dofile("benchmarks/lib/stats.lua")
 local runner = dofile("benchmarks/lib/runner.lua")
 
+---@param message string
+---@return never
 local function fail(message)
   io.stderr:write("run.lua: ", message, "\n")
   os.exit(2)

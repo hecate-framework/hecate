@@ -12,6 +12,8 @@ local ALPHA, THRESHOLD = 0.01, 0.10
 -- measures that matter, and the direction in which a change is worse
 local WATCHED = { ["throughput"] = "lower", ["latency p99"] = "higher" }
 
+---@param message string
+---@return never
 local function fail(message)
   io.stderr:write("compare.lua: ", message, "\n")
   os.exit(2)
