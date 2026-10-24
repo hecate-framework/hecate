@@ -1,8 +1,8 @@
 # 0025 — Scope-local context: `reactor.with_local` and `reactor.local`
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-10-22
-- **Deciders:** project owner (the shape was agreed in conversation on 2026-10-22; status stays `Proposed` until promoted)
+- **Deciders:** project owner (shape agreed on 2026-10-22, accepted in the review of #29)
 - **Packages:** reactor, log, kernel
 - **Related:** [concurrency.md](../architecture/concurrency.md) ("Scopes"), OQ-55, ADR 0002
 
