@@ -17,7 +17,7 @@ Performance is a product requirement (vision.md). Benchmarks run in CI
 
 ## Method
 
-- Load generator: `wrk2` or `oha` with constant arrival rate (coordinated-omission safe).
+- Load generator: constant arrival rate, latency from the due time (coordinated-omission safe): the Lua generator of the repository for `tcp-echo`; `wrk2` or `oha` for the HTTP scenarios.
 - Report throughput, p50/p90/p99/p99.9 latency, memory, allocations per request.
 - Same hardware for comparisons; 3 runs minimum; variance reported.
 - Comparison targets (informative, separate job): FastAPI (uvicorn), Node.js (Fastify),
@@ -65,8 +65,8 @@ and the working tree, alternately, on this host; it exits with status 1 on a sig
 
 Goal: absolute numbers that mean something, together with a description of the machine that
 produced them. The `bench` task browses and runs every benchmark file of the repository
-(`packages/<package>/benchmarks/<name>.lua`) on a Linux host; the comparison with a baseline and the
-network scenarios come with the Phase 1 harness item.
+(`packages/<package>/benchmarks/<name>.lua`) on a Linux host; the network scenarios and the comparison with
+a baseline are run as shown in [Layout](#layout).
 
 ```sh
 lua tools/run.lua bench --list                      # what exists

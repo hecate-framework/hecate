@@ -172,7 +172,10 @@ end
 return {
   description = "browse and run the benchmarks on a Linux host (--list, --runs=N, --pin=CPUS, --out=DIR)",
   run = function(ctx)
-    if ctx.args[1] and util.is_dir(ctx.root .. "/benchmarks/scenarios/" .. ctx.args[1]) and not util.is_windows() then
+    if ctx.args[1] and util.is_dir(ctx.root .. "/benchmarks/scenarios/" .. ctx.args[1]) then
+      if util.is_windows() then
+        return { ok = false, problems = { "network scenarios need a POSIX shell, taskset and kill; they run on Linux and macOS (see benchmarks/README.md)" } }
+      end
       return run_scenario(ctx, ctx.args[1])
     end
     local options, problems = parse_args(ctx.args)

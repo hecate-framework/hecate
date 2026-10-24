@@ -91,4 +91,4 @@ tests/unit/  tests/integration/  tests/fixtures/
 examples/                     tested examples of the reference
 ```
 
-There are no benchmarks and no native sources of our own yet (luv is the only native code).
+Micro-benchmark: `benchmarks/scheduler.lua` (fork and join, channel ping-pong, concurrent timers; `lua tools/run.lua bench reactor`). The `tcp-echo` scenario of the repository-level harness measures the reactor under 10 000 connections. There are no native sources of our own yet (luv is the only native code).
