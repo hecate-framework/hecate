@@ -1,5 +1,6 @@
--- A Unix-domain socket (a named pipe on Windows) in place of TCP: the stream and the buffered
--- API are the same. The path must not exist; `mode` says who may connect (default: the owner).
+-- A Unix-domain socket (a named pipe on Windows) in place of TCP: the stream
+-- and the buffered API are the same. The path must not exist; `mode` says who
+-- may connect (default: the owner).
 local reactor = require("hecate.reactor")
 local net = require("hecate.net")
 

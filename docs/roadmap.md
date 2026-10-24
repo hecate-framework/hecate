@@ -83,7 +83,7 @@ Exit: CI is green on all three platforms with a trivial test in every package sk
       projects stay in Phase 3. Native module (Rust: comrak, syntect) and its
       binary rocks per platform come with release automation (Phase 3, ADR 0021, OQ-41); Lua 5.5
       `global` highlighting (syntect plain variable) and cosmetic code-label cleanups are follow-ups.
-- [ ] `doc` theme, mobile navigation (owner report, 2026-10-20): the sidebar menu that browses
+- [x] `doc` theme, mobile navigation (owner report, 2026-10-20): the sidebar menu that browses
       the guides, the reference and the other sections cannot be scrolled on mobile devices.
       Fix it in the theme (a long menu scrolls inside its own container, the page behind it
       does not), and add a check on a narrow viewport (a browser test or a documented manual

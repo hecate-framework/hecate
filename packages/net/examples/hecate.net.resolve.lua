@@ -1,6 +1,6 @@
--- Name resolution. `resolve` returns the numeric addresses of a host in the resolver's order;
--- `family` keeps one kind. `UdpSocket:send_to` takes a numeric address only, so a datagram to a
--- name goes through `resolve` first.
+-- Name resolution. `resolve` returns the numeric addresses of a host in the
+-- resolver's order; `family` keeps one kind. `UdpSocket:send_to` takes a
+-- numeric address only, so a datagram to a name goes through `resolve` first.
 local reactor = require("hecate.reactor")
 local net = require("hecate.net")
 

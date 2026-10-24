@@ -26,8 +26,8 @@ line and reads one line back.
 
 <!-- example: packages/net/examples/hecate.net.connect.lua -->
 ```lua
--- An echo exchange over the loopback interface: a listener on a free port, a client that
--- connects to it, one line each way.
+-- An echo exchange over the loopback interface: a listener on a free port, a
+-- client that connects to it, one line each way.
 local reactor = require("hecate.reactor")
 local net = require("hecate.net")
 
@@ -117,8 +117,9 @@ a free port; `listener:local_address().port` tells you which. The options are th
 
 <!-- example: packages/net/examples/hecate.net.listen.lua -->
 ```lua
--- An accept loop that forks one coroutine per connection, so that a slow client never delays the
--- others. Two clients are served at the same time; the loop is cancelled when they are done.
+-- An accept loop that forks one coroutine per connection, so that a slow client
+-- never delays the others. Two clients are served at the same time; the loop is
+-- cancelled when they are done.
 local reactor = require("hecate.reactor")
 local net = require("hecate.net")
 
@@ -166,8 +167,9 @@ reads to the end of the stream while the client stays able to read the answer. T
 
 <!-- example: packages/net/examples/hecate.net.TcpStream.shutdown.lua -->
 ```lua
--- A half-close. The client sends its request, then calls `shutdown` to say that nothing more
--- follows; it can still read. The server reads until the end of the stream, then answers.
+-- A half-close. The client sends its request, then calls `shutdown` to say that
+-- nothing more follows; it can still read. The server reads until the end of
+-- the stream, then answers.
 local reactor = require("hecate.reactor")
 local net = require("hecate.net")
 

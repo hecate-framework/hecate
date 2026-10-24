@@ -45,10 +45,11 @@ ensemble de confiance fermé, qui est aussi celui qu’emploient les tests de he
 
 <!-- example: packages/net/examples/hecate.net.connect_tls.lua -->
 ```lua
--- A TLS client against a local server whose certificate comes from the test CA of this package.
--- With no option, `connect_tls` verifies the server against the operating system's trust store;
--- here `ca_pem` names the private CA and `system_roots = false` trusts nothing else. Verification
--- cannot be disabled. Needs the native TLS module (`lua tools/run.lua build-native`).
+-- A TLS client against a local server whose certificate comes from the test CA
+-- of this package. With no option, `connect_tls` verifies the server against
+-- the operating system's trust store; here `ca_pem` names the private CA and
+-- `system_roots = false` trusts nothing else. Verification cannot be disabled.
+-- Needs the native TLS module (`lua tools/run.lua build-native`).
 local reactor = require("hecate.reactor")
 local net = require("hecate.net")
 
@@ -124,11 +125,11 @@ résultat avec `stream:alpn()`.
 
 <!-- example: packages/net/examples/hecate.net.tls.accept.lua -->
 ```lua
--- The server side of TLS, in the two-step form that is the idiom: accept the TCP connection,
--- then run the handshake of that one connection. A server forks the handshake per connection
--- (inside `reactor.deadline`) so that one silent client cannot stall the accept loop; this
--- example handles a single connection inline. Needs the native TLS module
--- (`lua tools/run.lua build-native`).
+-- The server side of TLS, in the two-step form that is the idiom: accept the
+-- TCP connection, then run the handshake of that one connection. A server forks
+-- the handshake per connection (inside `reactor.deadline`) so that one silent
+-- client cannot stall the accept loop; this example handles a single connection
+-- inline. Needs the native TLS module (`lua tools/run.lua build-native`).
 local reactor = require("hecate.reactor")
 local net = require("hecate.net")
 
@@ -176,10 +177,11 @@ L’exemple démarre la poignée de main de chaque connexion dans sa propre coro
 
 <!-- example: packages/net/examples/hecate.net.tls.server_config.lua -->
 ```lua
--- A TLS server that requires client certificates (mutual TLS). `client_ca_pem` names the
--- authority that signed the client certificates. The accept loop forks the handshake of each
--- connection and bounds it with `handshake_deadline`, so that one silent client cannot stall it.
--- Needs the native TLS module (`lua tools/run.lua build-native`).
+-- A TLS server that requires client certificates (mutual TLS). `client_ca_pem`
+-- names the authority that signed the client certificates. The accept loop
+-- forks the handshake of each connection and bounds it with
+-- `handshake_deadline`, so that one silent client cannot stall it. Needs the
+-- native TLS module (`lua tools/run.lua build-native`).
 local reactor = require("hecate.reactor")
 local net = require("hecate.net")
 
@@ -262,9 +264,10 @@ type d’échec quand il est reconnu :
 
 <!-- example: packages/net/examples/hecate.net.TlsError.lua -->
 ```lua
--- A failed verification raises a `TlsError` whose `context.reason` names the kind of failure.
--- Here the client trusts only another authority than the one that signed the server's
--- certificate. Needs the native TLS module (`lua tools/run.lua build-native`).
+-- A failed verification raises a `TlsError` whose `context.reason` names the
+-- kind of failure. Here the client trusts only another authority than the one
+-- that signed the server's certificate. Needs the native TLS module
+-- (`lua tools/run.lua build-native`).
 local core = require("hecate.core")
 local reactor = require("hecate.reactor")
 local net = require("hecate.net")
@@ -281,14 +284,16 @@ reactor.run(function()
   local config = net.tls.server_config({ cert_pem = fixture("server.pem"), key_pem = fixture("server.key") })
   local listener <close> = net.listen("127.0.0.1", 0)
   reactor.fork(function()
-    local ok = pcall(net.tls.accept, listener:accept(), config) -- the client abandons the handshake
+    -- The client abandons the handshake.
+    local ok = pcall(net.tls.accept, listener:accept(), config)
     assert(not ok)
   end)
   local ok, err = pcall(net.connect_tls, "localhost", listener:local_address().port, {
     family = "inet", ca_pem = fixture("other_ca.pem"), system_roots = false,
   })
   assert(not ok and core.is_instance_of(err, net.TlsError))
-  ---@cast err any -- an error value, not the stream that `pcall` is typed to return
+  -- An error value, not the stream that `pcall` is typed to return.
+  ---@cast err any
   print(err.context.reason)
 end)
 -- Prints: untrusted_issuer

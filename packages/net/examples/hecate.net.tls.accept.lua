@@ -1,8 +1,8 @@
--- The server side of TLS, in the two-step form that is the idiom: accept the TCP connection,
--- then run the handshake of that one connection. A server forks the handshake per connection
--- (inside `reactor.deadline`) so that one silent client cannot stall the accept loop; this
--- example handles a single connection inline. Needs the native TLS module
--- (`lua tools/run.lua build-native`).
+-- The server side of TLS, in the two-step form that is the idiom: accept the
+-- TCP connection, then run the handshake of that one connection. A server forks
+-- the handshake per connection (inside `reactor.deadline`) so that one silent
+-- client cannot stall the accept loop; this example handles a single connection
+-- inline. Needs the native TLS module (`lua tools/run.lua build-native`).
 local reactor = require("hecate.reactor")
 local net = require("hecate.net")
 
