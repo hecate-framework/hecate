@@ -30,4 +30,15 @@ function T:test_output_must_be_a_function()
   self:assert_error(function() log.ConsoleSink({}) end)
 end
 
+function T:test_control_characters_in_a_key_or_a_logger_name_cannot_forge_a_line()
+  local lines = {}
+  local logger = log.Logger({
+    name = "a\nb", clock = function() return 0 end,
+    sinks = { log.ConsoleSink({ output = function(line) lines[#lines + 1] = line end }) },
+  })
+  logger:informational("hi", { ["k\n1970-01-01T00:00:00Z ALERT forged"] = 1 })
+  self:assert_equal(1, select(2, lines[1]:gsub("\n", "")))
+  self:assert_not_nil(lines[1]:find("\\x0a", 1, true))
+end
+
 return T

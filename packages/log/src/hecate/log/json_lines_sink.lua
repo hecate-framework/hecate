@@ -1,5 +1,5 @@
 -- A sink that renders each record as one line of JSON (JSON Lines, RFC 8259 text per line).
-global <const> require, type, pairs, pcall, os, math, string, next, tostring, error
+global <const> require, type, pairs, pcall, os, math, string, next, tostring, error, utf8
 
 local core = require("hecate.core")
 local json = require("hecate.json")
@@ -63,6 +63,13 @@ local function format_timestamp(seconds)
   return text .. "Z"
 end
 
+--- Replaces every byte outside ASCII by `\xNN`, for a text that is not valid UTF-8.
+---@param text string
+---@return string
+local function escape_bytes(text)
+  return (text:gsub("[\128-\255]", function(c) return ("\\x%02x"):format(c:byte()) end))
+end
+
 --- Writes a record as one line.
 ---@param record hecate.log.Record
 function JsonLinesSink:write(record)
@@ -79,6 +86,10 @@ function JsonLinesSink:write(record)
   if not ok then
     object.context, object.fields = nil, nil
     object.encoding_error = tostring(text)
+    -- A message or a name that is not UTF-8 would fail again: keep the record, with the bytes escaped.
+    if utf8.len(object.message) == nil then object.message = escape_bytes(object.message) end
+    if object.logger ~= nil and utf8.len(object.logger) == nil then object.logger = escape_bytes(object.logger) end
+    object.encoding_error = escape_bytes(object.encoding_error)
     text = json.encode(object)
   end
   self._output(text .. "\n")

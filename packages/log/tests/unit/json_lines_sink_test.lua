@@ -71,4 +71,14 @@ function T:test_the_output_is_required()
   self:assert_error(function() log.JsonLinesSink({}) end)
 end
 
+function T:test_a_message_that_is_not_utf8_is_kept_with_its_bytes_escaped()
+  local logger, lines = new_logger()
+  logger:informational("bad \xff byte", { a = 1 })
+  self:assert_equal(1, #lines)
+  self:assert_equal(0, logger:failures())
+  local object = json.decode(lines[1])
+  self:assert_equal("bad \\xff byte", object.message)
+  self:assert_not_nil(object.encoding_error)
+end
+
 return T

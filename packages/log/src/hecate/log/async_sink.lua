@@ -97,10 +97,11 @@ local function wait_marker(self, stop)
   marker.reached:acquire()
 end
 
---- Suspends until every record queued before the call has been written to the target.
+--- Suspends until every record queued before the call has been written to the target. Does nothing
+--- on a sink that was never written to or is closed.
 ---@async
 function AsyncSink:flush()
-  if not self._drain then return end
+  if not self._drain or self._closed then return end
   wait_marker(self, false)
 end
 

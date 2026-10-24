@@ -27,6 +27,13 @@ function ConsoleSink:init(options)
   self._output = options.output
 end
 
+--- Escapes the control characters of a text, so that it stays on one line.
+---@param text string
+---@return string
+local function escape(text)
+  return (text:gsub("%c", function(c) return ("\\x%02x"):format(c:byte()) end))
+end
+
 --- Renders a value on one line; secrets are redacted, control characters are escaped.
 ---@param value any
 ---@return string
@@ -39,7 +46,7 @@ local function render(value)
   else
     text = tostring(value)
   end
-  text = text:gsub("[%c]", function(c) return ("\\x%02x"):format(c:byte()) end)
+  text = escape(text)
   if #text > MAX_VALUE then text = text:sub(1, MAX_VALUE) .. "..." end
   if text == "" or text:find("[%s=\"]") then text = '"' .. text:gsub('"', '\\"') .. '"' end
   return text
@@ -51,7 +58,7 @@ end
 local function append_pairs(parts, map)
   local keys, values = {}, {}
   for key, value in pairs(map) do
-    local name = tostring(key)
+    local name = escape(tostring(key))
     keys[#keys + 1] = name
     values[name] = value
   end
@@ -66,7 +73,7 @@ function ConsoleSink:write(record)
     os.date("!%Y-%m-%dT%H:%M:%SZ", math.floor(record.timestamp)),
     string.upper(record.severity.name),
   }
-  if record.logger then parts[#parts + 1] = "[" .. record.logger .. "]" end
+  if record.logger then parts[#parts + 1] = "[" .. escape(record.logger) .. "]" end
   parts[#parts + 1] = (tostring(record.message):gsub("%c", " "))
   if next(record.context) ~= nil then append_pairs(parts, record.context) end
   if next(record.fields) ~= nil then append_pairs(parts, record.fields) end

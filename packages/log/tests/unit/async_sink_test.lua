@@ -95,4 +95,14 @@ function T:test_invalid_options_raise()
   self:assert_error(function() log.AsyncSink({ sink = log.MemorySink(), capacity = 0 }) end)
 end
 
+function T:test_flush_after_close_returns_instead_of_waiting_forever()
+  local logger, memory, async = setup()
+  run(function()
+    logger:informational("a")
+    async:close()
+    async:flush()
+  end)
+  self:assert_equal(1, #memory:records())
+end
+
 return T
