@@ -8,7 +8,7 @@
 | Rock | `hecate-reactor` |
 | Layer | 1 — Runtime |
 | Roadmap phase | 1 |
-| Status | in progress — scheduler, `Future`, `fork`/`join`/`select`/`sleep`/`scope`/`deadline`, cancellation and virtual clock, `Channel`, `Semaphore`, `Mutex`, `Monitor` and `Condition` implemented; `detach`, signals, processes, file system, TCP, UDP and pipe transport and `resolve` implemented; `spawn`, `ipc` (framed messages with handle passing, over a message pipe) and the TCP `reuseport` option implemented (ADR 0023; effective only with a luv that supports it, OQ-43); `offload` pending |
+| Status | in progress — scheduler, `Future`, `fork`/`join`/`select`/`sleep`/`scope`/`deadline`, cancellation and virtual clock, `Channel`, `Semaphore`, `Mutex`, `Monitor` and `Condition` implemented; `detach`, scope-local context, signals, processes, file system, TCP, UDP and pipe transport and `resolve` implemented; `spawn`, `ipc` (framed messages with handle passing, over a message pipe) and the TCP `reuseport` option implemented (ADR 0023; effective only with a luv that supports it, OQ-43); `offload` pending |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |
 | Depends on | [`core`](../core) |
 | Used by | `cli`, `hecate`, `http`, `kernel`, `log`, `mongodb`, `mysql`, `net`, `orm`, `postgresql`, `redis`, `sql`, `sqlite`, `sqlserver`, `test`, `websocket` |
@@ -56,6 +56,7 @@ Implemented (steps 1 to 4, then TCP transport). Every function marked *suspends*
 | `reactor.deadline(seconds_or_instant, fn, ...)` | *suspends*. Cancels `fn` and raises `DeadlineExceededError` when late. |
 | `reactor.now()`, `reactor.at(seconds)` | Reading of the running clock; absolute `Instant` for `deadline` (OQ-22). |
 | `reactor.detach(fn, ...)` | *suspends*. Starts `fn` in the application scope; its failure is seen only through its future (OQ-26). |
+| `reactor.with_local(key, value, fn, ...)`, `reactor.local_value(key)` | Scope-local context (ADR 0025): immutable bindings visible in `fn` and in computations forked or detached from it; `local_value` is also `reactor["local"]`. Managed coroutines only. |
 | `reactor.fs` | *suspend*: `read_file(path)`, `write_file(path, data)`, `stat(path)` (nil if absent), `remove`, `mkdir`, `rmdir`, `list(path)`. Real clock only; failures raise `reactor.IoError` (`context.errno`). |
 | `reactor.wait_signal(name, ...)` | *suspends*. Returns the name of the first signal delivered (`"sigint"`, `"sigterm"`, ...). |
 | `reactor.run_process(program, args)` | *suspends*. Runs a program, returns `{ code, signal, stdout, stderr }`; the child is terminated on cancellation. It inherits this process's environment without the marker of its own message pipe, and does not inherit that pipe. On Windows a child ended by `kill` reports `code` 1 and `signal` 0: detect a crash by `code` there. |
