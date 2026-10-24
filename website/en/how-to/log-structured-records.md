@@ -42,11 +42,13 @@ child logger: pass it to forked computations, because the context does not follo
 - `FileSink({ path = ... })`: appends JSON lines to a file, synchronously; call `close()` at the end.
 - `MemorySink({ capacity = ... })`: keeps records, for tests.
 
-A sink is any object with a `write(record)` method that does not suspend.
+A sink is any object with a `write(record)` method that does not suspend. A logger hands each
+record to all its sinks; `logger:failures()` counts the sinks that raised.
 
 ## Hide secrets
 
-Wrap a value in `log.Secret`: no sink renders it, at any depth of a record.
+Wrap a value in `log.Secret`: no sink renders it (it shows as `[redacted]`), at any depth of a
+record. The value stays reachable through `reveal()`.
 
 <!-- example: packages/log/examples/hecate.log.Secret.lua -->
 ```lua
