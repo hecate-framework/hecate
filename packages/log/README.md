@@ -48,7 +48,7 @@ local log = require("hecate.log")
 | `log.MemorySink(options?)` | Keeps records (`records()`, `clear()`, `dropped()`, option `capacity`). |
 | `log.JsonLinesSink(options)` | Writes one JSON object per record to `options.output(line)`; renders secrets as `[redacted]`. |
 | `log.ConsoleSink(options)` | Writes `timestamp SEVERITY [logger] message key=value ...` to `options.output(line)`; secrets redacted, control characters escaped. |
-| `log.FileSink(options)` | Appends JSON lines to `options.path` (synchronous); `close()`. |
+| `log.FileSink(options)` | Appends JSON lines to `options.path` (synchronous); `close()`; a failed write raises `hecate.core.Error` (a `Logger` counts it in `failures()`). |
 | `log.AsyncSink(options)` | Decorator: `write` queues the record (bounded by `capacity`, default 1024; beyond it the record is dropped and counted) and never suspends; a detached task writes to `options.sink`. `flush()` and `close()` suspend until the queue is written; `dropped()`, `failures()`, `pending()`. Call `close()` before the main computation ends. |
 | `log.Secret(value)` | Marks a value that no sink renders; `reveal()` returns it. |
 

@@ -42,4 +42,14 @@ function T:test_an_unopenable_path_raises()
   self:assert_error(function() log.FileSink({}) end)
 end
 
+function T:test_a_failed_write_raises_and_the_logger_counts_it()
+  local probe = io.open("/dev/full", "wb") -- Linux only: a device that always reports a full disk
+  if not probe then return end
+  probe:close()
+  local sink = log.FileSink({ path = "/dev/full" })
+  local logger = log.Logger({ sinks = { sink } })
+  logger:informational("x")
+  self:assert_equal(1, logger:failures())
+end
+
 return T

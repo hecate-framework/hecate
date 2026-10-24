@@ -22,30 +22,42 @@ function MemorySink:init(options)
     error(core.ArgumentError(("invalid capacity %s: expected a positive integer"):format(tostring(capacity))), 2)
   end
   self._capacity = capacity
-  self._records = {}
+  self._records = {} -- a ring when `capacity` is set: `_head` is the oldest, `_count` the number kept
+  self._head, self._count = 1, 0
   self._dropped = 0
 end
 
 --- Keeps a record.
 ---@param record hecate.log.Record
 function MemorySink:write(record)
-  local records = self._records
-  records[#records + 1] = record
-  if self._capacity and #records > self._capacity then
-    table.remove(records, 1)
+  local capacity = self._capacity
+  if capacity and self._count == capacity then
+    self._records[self._head] = record
+    self._head = self._head % capacity + 1
     self._dropped = self._dropped + 1
+    return
   end
+  self._count = self._count + 1
+  self._records[self._count] = record -- below capacity the ring has not wrapped: `_head` is 1
 end
 
 --- Returns a copy of the list of kept records, oldest first.
 ---@return hecate.log.Record[]
-function MemorySink:records() return table.move(self._records, 1, #self._records, 1, {}) end
+function MemorySink:records()
+  local records, head, count = self._records, self._head, self._count
+  local copy = table.move(records, head, count, 1, {})
+  if head > 1 then table.move(records, 1, head - 1, count - head + 2, copy) end
+  return copy
+end
 
 --- Returns how many records were dropped because of the capacity.
 ---@return integer
 function MemorySink:dropped() return self._dropped end
 
 --- Forgets every kept record.
-function MemorySink:clear() self._records = {} end
+function MemorySink:clear()
+  self._records = {}
+  self._head, self._count = 1, 0
+end
 
 return core.finalise(MemorySink)

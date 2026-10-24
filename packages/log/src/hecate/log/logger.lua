@@ -41,7 +41,7 @@ end
 ---@field sinks? hecate.log.Sink[]  where records go
 ---@field name? string  name stored in every record
 ---@field context? table  fields added to every record
----@field context_provider? fun(): table?  returns the ambient context of the running computation (per scope), merged under `context`
+---@field context_provider? fun(): table?  returns the ambient context of the running computation (per scope), merged under `context`; if it raises or returns a non-table the call is counted in `failures()` and the record is written without it
 ---@field redact? string[]  field names (case-insensitive, at any depth) whose values are replaced by a `Secret`
 ---@field clock? fun(): number  seconds since the epoch (default `os.time`)
 
@@ -164,8 +164,15 @@ local function emit(self, level, message, fields)
     error(core.ArgumentError(("log fields must be a table, got %s"):format(type(fields))), 3)
   end
   local context = {}
-  local ambient = self._provider and self._provider()
-  if ambient then for key, value in pairs(ambient) do context[key] = value end end
+  if self._provider then
+    -- A provider that raises or returns something else than a table is counted and ignored: the record is kept.
+    local ok, ambient = pcall(self._provider)
+    if ok and type(ambient) == "table" then
+      for key, value in pairs(ambient) do context[key] = value end
+    elseif not ok or ambient ~= nil then
+      self._shared.failures = self._shared.failures + 1
+    end
+  end
   for key, value in pairs(self._context) do context[key] = value end
   fields = fields or {}
   local names = self._redact

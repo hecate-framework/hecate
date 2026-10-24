@@ -143,4 +143,15 @@ function T:test_redact_rejects_a_value_that_is_not_a_list_of_names()
   self:assert_error(function() log.Logger({ redact = { 1 } }) end)
 end
 
+function T:test_a_context_provider_that_raises_or_returns_a_non_table_is_counted_and_the_record_kept()
+  local logger, sink = new_logger({ context_provider = function() error("no scope") end })
+  logger:informational("x")
+  self:assert_equal(1, #sink:records())
+  self:assert_equal(1, logger:failures())
+  local other, memory = new_logger({ context_provider = function() return "oops" end })
+  other:informational("y")
+  self:assert_equal(1, #memory:records())
+  self:assert_equal(1, other:failures())
+end
+
 return T

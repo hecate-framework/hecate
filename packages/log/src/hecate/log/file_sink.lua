@@ -26,10 +26,16 @@ function FileSink:init(options)
   if not handle then error(core.Error(("cannot open log file: %s"):format(tostring(message))), 2) end
   handle:setvbuf("line")
   self._handle = handle
-  self._lines = JsonLinesSink({ output = function(line) handle:write(line) end })
+  self._lines = JsonLinesSink({
+    output = function(line)
+      local ok, reason = handle:write(line)
+      if not ok then error(core.Error(("cannot write to the log file: %s"):format(tostring(reason))), 0) end
+    end,
+  })
 end
 
---- Writes a record as one line.
+--- Writes a record as one line. Raises `hecate.core.Error` if the write fails (disk full, closed descriptor);
+--- a `Logger` counts it in `failures()` and goes on.
 ---@param record hecate.log.Record
 function FileSink:write(record)
   if not self._handle then return end
