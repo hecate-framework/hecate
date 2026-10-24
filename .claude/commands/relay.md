@@ -13,7 +13,9 @@ at all times. Specification: `docs/architecture/ai-assisted-development.md#relay
    For each, read `HANDOFF.md` at the root of its branch.
    - If `lock_until` is in the future, another run owns it: skip it.
    - If CI failed or `status: in-progress`, check out the branch and continue from
-     "Next steps". Pick the oldest such pull request.
+     "Next steps". Pick the oldest such pull request. **Push to that pull request's own
+     branch**, even when the session designates another one: never redo its work on a
+     session branch.
 2. **Start.** Otherwise take the first unchecked item of `docs/roadmap.md` whose
    dependencies are done and which is not blocked: skip items needing a decision listed
    in `docs/open-questions.md` as `decision` or `spike → owner decision` that is not

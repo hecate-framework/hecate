@@ -90,6 +90,11 @@ entries in `docs/open-questions.md`, and merges pull requests into `main`.
 Git workflow: work on a branch, push it, open a pull request, follow its CI on the three
 platforms. Never push to `main`, never force-push, never create tags, never publish.
 
+**Resuming an unmerged pull request: push to that pull request's own branch.** Check out its
+head branch and push there, even when the session designates another branch. Never carry the
+work over to a session branch: parallel branches for one subject mean the same work is redone
+and has to be merged by hand. Open a new branch only for a subject that has no open pull request.
+
 ## Cloud sessions
 
 Most sessions run in Claude Code cloud sessions (Ubuntu 24.04 x86_64, environment
