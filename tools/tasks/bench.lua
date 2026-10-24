@@ -156,7 +156,7 @@ local function run_scenario(ctx, scenario)
   if not compare then
     local text, ok = util.capture(("cd %s && %s benchmarks/run.lua %s %s 2>&1"):format(root, interpreter,
       util.quote(scenario), table.concat(passed, " ")))
-    return { ok = ok, problems = ok and {} or { text }, output = text }
+    return { ok = ok, problems = ok and {} or { text }, output = text, data = ok and bench.parse_scenario(text) or nil }
   end
   local base = ctx.root .. "/.hecate/bench-base"
   util.capture(("cd %s && git worktree remove --force %s 2>&1"):format(root, util.quote(base)))
