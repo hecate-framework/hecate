@@ -68,7 +68,10 @@ function T:test_nil_key_is_an_argument_error()
     self:assert_true(core.is_instance_of(err, core.ArgumentError))
     local err2 = self:assert_error(function() reactor.local_value(nil) end)
     self:assert_true(core.is_instance_of(err2, core.ArgumentError))
-    local err3 = self:assert_error(function() reactor.with_local(KEY, 1, 42) end)
+    local err3 = self:assert_error(function()
+      ---@diagnostic disable-next-line: param-type-mismatch  -- the point of the test
+      reactor.with_local(KEY, 1, 42)
+    end)
     self:assert_true(core.is_instance_of(err3, core.ArgumentError))
   end)
 end
