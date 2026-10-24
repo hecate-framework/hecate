@@ -13,7 +13,7 @@ local M = {}
 
 --- The packages whose public modules follow the annotation convention (coding-standards.md),
 --- in sidebar order. Add a package here once its modules are annotated.
-M.DEFAULT_PACKAGES = { "core", "reactor", "net", "json" }
+M.DEFAULT_PACKAGES = { "core", "reactor", "net", "json", "log" }
 
 ---@class hecate.doc.ReferenceSiteOptions
 ---@field root string  repository root (holds `packages/`)

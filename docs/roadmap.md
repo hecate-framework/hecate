@@ -88,7 +88,14 @@ Exit: CI is green on all three platforms with a trivial test in every package sk
       Fix it in the theme (a long menu scrolls inside its own container, the page behind it
       does not), and add a check on a narrow viewport (a browser test or a documented manual
       check in `docs/architecture/documentation.md`) so that it is not forgotten again.
-- [ ] `log`: structured logging, RFC 5424 severities, per-scope context.
+- [x] `log`: structured logging, RFC 5424 severities, per-scope context (explicit through
+      `Logger:with_context`; the implicit propagation across `fork` and `detach` is the next item).
+- [ ] `reactor` follow-up: scope-local context, `reactor.with_local(key, value, fn)` and
+      `reactor.local(key)` ([ADR 0025](adr/0025-scope-local-context.md), OQ-55): specify it in
+      `concurrency.md`, implement it, test inheritance across `fork`, `detach`, `scope`,
+      cancellation and the virtual clock; then give `log` a default context provider and a test
+      that a record logged by a forked computation carries the bound context. Needed before
+      `kernel` binds the request id.
 - [ ] Benchmarks harness and first scenario (TCP echo); `benchmarks.yml`.
 - [x] Pin every third-party action of the existing workflows by commit SHA (owner request,
       2026-10-18; [automation.md](architecture/automation.md)); Dependabot keeps them current.
