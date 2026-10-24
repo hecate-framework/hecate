@@ -127,4 +127,4 @@ examples/                 one tested file per documented symbol (hecate.net.<sym
 native/                   Rust crate of the TLS module (Cargo.lock committed)
 ```
 
-There are no benchmarks yet: the `benchmarks/` harness arrives in Phase 1, and `net` will contribute scenarios (buffered `read_until` over many chunks, `BufferedWriter` with large payloads, TLS throughput).
+Micro-benchmarks (`benchmarks/`, run with `lua tools/run.lua bench net`): `read-until` (`read_line` over many small chunks), `buffered-writer` (small coalesced writes and 1 MiB payloads) and `tls-throughput` (one TLS stream, needs the native module). The network scenario `tcp-echo` of the repository-level harness exercises `net` and the reactor under 10 000 connections (`lua tools/run.lua bench tcp-echo`).

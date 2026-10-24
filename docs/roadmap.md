@@ -69,7 +69,7 @@ Exit: CI is green on all three platforms with a trivial test in every package sk
       tested example files). Still to come, in their own items: tutorials and the other
       packages' guides as the packages land, the translation status check, `hecate doc` for
       user projects, and the `doc` item below.
-- [x] `net`: TCP/UDP streams, DNS, buffered readers/writers, TLS (after OQ-4). Benchmarks of its hot paths wait for the harness item below.
+- [x] `net`: TCP/UDP streams, DNS, buffered readers/writers, TLS (after OQ-4). Micro-benchmarks of its hot paths (`read-until`, `buffered-writer`, `tls-throughput`) landed with the harness item below.
 - [x] `json`: codec (after OQ-5). Lua API, pure-Lua backend, yyjson decoder (C), `serde_json` encoder (Rust, OQ-52), corpus and fuzz tests, `bench json`, examples and how-to; native modules built and tested on Linux, macOS and Windows in CI. The native modules in the rockspec and the binary rocks come with release automation (Phase 3). The network benchmark scenarios wait for the harness item below; the micro-benchmark `packages/json/benchmarks/codec.lua` runs with `lua tools/run.lua bench json` and its numbers are measured and published by the owner on dedicated hardware (benchmarks/README.md). Hostile-input costs are open in OQ-54.
 - [ ] `json` follow-up: remove the pure-Lua backend once it has no use (OQ-53): encode failures produced by the native module (decode failures already are, OQ-54), `-0` handled natively, the oracle replaced by fixtures, native modules required at run time everywhere (Windows build and binary rocks first).
 - [x] `doc` (minimal) and the reference generator, **pulled forward from Phase 3** (owner
@@ -96,7 +96,8 @@ Exit: CI is green on all three platforms with a trivial test in every package sk
       cancellation and the virtual clock; then give `log` a default context provider and a test
       that a record logged by a forked computation carries the bound context. Needed before
       `kernel` binds the request id.
-- [ ] Benchmarks harness and first scenario (TCP echo); `benchmarks.yml`.
+- [x] Benchmarks harness and first scenario (TCP echo); `benchmarks.yml`. Delivered: `benchmarks/scenarios/tcp-echo`, `benchmarks/run.lua`, `benchmarks/compare.lua`, `bench <scenario> [--compare=ref]`. The Lua load generator replaces `wrk2`/`oha` (no dependency); Micro-benchmarks added for `net` (`read-until`, `buffered-writer`, `tls-throughput`) and `reactor` (`scheduler`). The baseline numbers are measured by the owner on dedicated hardware, and the Phase 1 exit criterion "10 000 concurrent connections on each platform" is verified on Linux and macOS by the scenario; Windows and the ADR 0023 accept-spread scenario are the two follow-ups below.
+- [ ] Benchmarks follow-up: run the network scenarios on Windows (the runner needs a POSIX shell, `taskset` and `kill` today: port `benchmarks/lib/runner.lua` to `reactor.spawn`), add the multi-process accept-spread scenario of [ADR 0023](adr/0023-multi-process-serving.md) (connections per second and worker spread per strategy), and publish the first baseline measured by the owner.
 - [x] Pin every third-party action of the existing workflows by commit SHA (owner request,
       2026-10-18; [automation.md](architecture/automation.md)); Dependabot keeps them current.
 - [ ] Workflows `native.yml`, `security.yml`, `nightly.yml`; tasks `sanitize`, `fuzz`,
