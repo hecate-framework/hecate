@@ -281,6 +281,8 @@ function Reactor:_create_task(scope, fn, args)
     reactor = self, state = "ready", wait_id = 0, cancellable = false,
     scope = scope, home = scope, future = future,
   }
+  local creator = self._tasks[coroutine.running()]
+  if creator then task.locals = creator.locals end -- scope-local context (ADR 0025)
   task.co = coroutine.create(function() return fn(table.unpack(args, 1, args.n)) end)
   future._task = task
   self._tasks[task.co] = task
