@@ -1,7 +1,8 @@
--- A TLS server that requires client certificates (mutual TLS). `client_ca_pem` names the
--- authority that signed the client certificates. The accept loop forks the handshake of each
--- connection and bounds it with `handshake_deadline`, so that one silent client cannot stall it.
--- Needs the native TLS module (`lua tools/run.lua build-native`).
+-- A TLS server that requires client certificates (mutual TLS). `client_ca_pem`
+-- names the authority that signed the client certificates. The accept loop
+-- forks the handshake of each connection and bounds it with
+-- `handshake_deadline`, so that one silent client cannot stall it. Needs the
+-- native TLS module (`lua tools/run.lua build-native`).
 local reactor = require("hecate.reactor")
 local net = require("hecate.net")
 

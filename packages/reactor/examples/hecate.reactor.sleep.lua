@@ -1,5 +1,5 @@
--- Two computations sleep for different durations; the shorter sleep ends first, whatever the
--- order in which they were forked.
+-- Two computations sleep for different durations; the shorter sleep ends first,
+-- whatever the order in which they were forked.
 local reactor = require("hecate.reactor")
 
 reactor.run(function()

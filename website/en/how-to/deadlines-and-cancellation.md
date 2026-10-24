@@ -43,9 +43,10 @@ that had already arrived stay in the reader. You can read again later.
 
 <!-- example: packages/net/examples/hecate.net.TcpStream.read.lua -->
 ```lua
--- A deadline around a read. The server stays silent, so the read is cancelled when the deadline
--- passes. Nothing is lost: the stream and the reader are intact, and the next read gets the
--- answer when it comes. (A write cancelled by a deadline would have closed the stream.)
+-- A deadline around a read. The server stays silent, so the read is cancelled
+-- when the deadline passes. Nothing is lost: the stream and the reader are
+-- intact, and the next read gets the answer when it comes. (A write cancelled
+-- by a deadline would have closed the stream.)
 local core = require("hecate.core")
 local reactor = require("hecate.reactor")
 local net = require("hecate.net")

@@ -40,8 +40,9 @@ l’enfant est terminé.
 
 <!-- example: packages/reactor/examples/hecate.reactor.run_process.lua -->
 ```lua
--- Runs a program to completion and captures its output. The program is the Lua interpreter that
--- runs this file (`arg[-1]`), so the example needs nothing installed.
+-- Runs a program to completion and captures its output. The program is the Lua
+-- interpreter that runs this file (`arg[-1]`), so the example needs nothing
+-- installed.
 local reactor = require("hecate.reactor")
 
 reactor.run(function()
@@ -121,9 +122,10 @@ rien. Un `send` annulé ferme le pair, parce que la quantité envoyée est incon
 
 <!-- example: packages/reactor/examples/hecate.reactor.spawn.lua -->
 ```lua
--- A long-lived child with a message pipe. The child is a second Lua interpreter that waits for one
--- message, answers it in capitals and exits; the parent sends, receives and waits for the exit.
--- The child needs the same module paths as this process, hence the two environment variables.
+-- A long-lived child with a message pipe. The child is a second Lua interpreter
+-- that waits for one message, answers it in capitals and exits; the parent
+-- sends, receives and waits for the exit. The child needs the same module paths
+-- as this process, hence the two environment variables.
 local reactor = require("hecate.reactor")
 
 local CHILD = [[
@@ -174,10 +176,11 @@ primaire passe les connexions acceptées à ses workers.
 
 <!-- example: packages/reactor/examples/hecate.reactor.Peer.send.lua -->
 ```lua
--- Hands a connection to another process. The parent accepts a TCP connection and passes it to the
--- child with the message "serve"; the child writes on the stream it received, and the connection
--- is closed in the parent by the hand-over. The parent waits for the child's acknowledgement
--- before it goes on, as a sender should (on Windows the receiver's copy of the socket depends
+-- Hands a connection to another process. The parent accepts a TCP connection
+-- and passes it to the child with the message "serve"; the child writes on the
+-- stream it received, and the connection is closed in the parent by the
+-- hand-over. The parent waits for the child's acknowledgement before it goes
+-- on, as a sender should (on Windows the receiver's copy of the socket depends
 -- on the sender still being there).
 local reactor = require("hecate.reactor")
 
@@ -231,9 +234,11 @@ connexion, comme ci-dessus.
 
 ```lua
 if reactor.supports_reuseport() then
-  listener = reactor.tcp_listen("0.0.0.0", 8080, { reuseport = true }) -- every worker does this
+  -- Every worker does this.
+  listener = reactor.tcp_listen("0.0.0.0", 8080, { reuseport = true })
 else
-  -- the primary accepts and passes each connection to a worker with peer:send(message, stream)
+  -- the primary accepts and passes each connection to a worker with
+  -- peer:send(message, stream)
 end
 ```
 

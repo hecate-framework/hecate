@@ -1,5 +1,6 @@
--- An accept loop that forks one coroutine per connection, so that a slow client never delays the
--- others. Two clients are served at the same time; the loop is cancelled when they are done.
+-- An accept loop that forks one coroutine per connection, so that a slow client
+-- never delays the others. Two clients are served at the same time; the loop is
+-- cancelled when they are done.
 local reactor = require("hecate.reactor")
 local net = require("hecate.net")
 
