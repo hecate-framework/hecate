@@ -31,4 +31,26 @@ function T:test_mann_whitney_accepts_identical_samples()
   self:assert_true(p > 0.5, "p = " .. p)
 end
 
+function T:test_mann_whitney_is_exact_on_small_samples()
+  local _, p = stats.mann_whitney({ 1, 2, 3 }, { 4, 5, 6 })
+  self:assert_true(math.abs(p - 0.1) < 1e-9, tostring(p)) -- 2 / C(6, 3)
+  -- five rounds per side, completely separated: the smallest p of the exact test, 2 / 252
+  local u
+  u, p = stats.mann_whitney({ 1, 2, 3, 4, 5 }, { 6, 7, 8, 9, 10 })
+  self:assert_equal(0, u)
+  self:assert_true(math.abs(p - 2 / 252) < 1e-9 and p < 0.01, tostring(p))
+  _, p = stats.mann_whitney({ 1, 3, 5, 7, 9 }, { 2, 4, 6, 8, 10 })
+  self:assert_true(p > 0.5, tostring(p))
+end
+
+function T:test_mann_whitney_falls_back_on_the_normal_approximation_with_ties()
+  local _, p = stats.mann_whitney({ 1, 1, 1, 1, 1 }, { 1, 1, 1, 1, 1 })
+  self:assert_equal(1, p)
+  local larger = {}
+  local other = {}
+  for i = 1, 20 do larger[i], other[i] = i, i + 100 end
+  _, p = stats.mann_whitney(larger, other)
+  self:assert_true(p < 0.001, tostring(p))
+end
+
 return T

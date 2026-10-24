@@ -32,7 +32,26 @@ local function normal_tail(z)
   return erfc / 2
 end
 
---- Two-sided Mann-Whitney U test, normal approximation with tie correction and continuity correction.
+--- Number of arrangements of `n1` and `n2` values with U statistic exactly `u`, as a function builder
+--- (memoised); used for the exact test on small samples, where the normal approximation cannot reach
+--- p < 0.01 with 5 rounds per side (the smallest exact two-sided p is 2/252).
+local function exact_counts()
+  local memo = {}
+  local function count(n1, n2, u)
+    if u < 0 or u > n1 * n2 then return 0 end
+    if n1 == 0 or n2 == 0 then return u == 0 and 1 or 0 end
+    local key = n1 * 1000000 + n2 * 1000 + u
+    local cached = memo[key]
+    if cached then return cached end
+    local value = count(n1 - 1, n2, u - n2) + count(n1, n2 - 1, u)
+    memo[key] = value
+    return value
+  end
+  return count
+end
+
+--- Two-sided Mann-Whitney U test. Exact distribution when both samples have at most 12 values and there are
+--- no ties; otherwise normal approximation with tie correction and continuity correction.
 ---@param a number[]
 ---@param b number[]
 ---@return number u  the U statistic of `a`
@@ -58,6 +77,15 @@ function M.mann_whitney(a, b)
     i = j + 1
   end
   local u = rank_sum_a - n1 * (n1 + 1) / 2
+  if tie_term == 0 and n1 <= 12 and n2 <= 12 then
+    local count = exact_counts()
+    local low = math.min(u, n1 * n2 - u)
+    local tail = 0
+    for k = 0, low do tail = tail + count(n1, n2, k) end
+    local total = 1
+    for k = 1, n1 do total = total * (n2 + k) / k end -- binomial(n1 + n2, n1)
+    return u, math.min(1, 2 * tail / total)
+  end
   local mean = n1 * n2 / 2
   local variance = n1 * n2 / 12 * ((n + 1) - tie_term / (n * (n - 1)))
   if variance <= 0 then return u, 1 end

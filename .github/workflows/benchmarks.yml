@@ -74,6 +74,7 @@ jobs:
             workflow_dispatch) base="$INPUT_BASE" ;;
             *) base="$BEFORE" ;;
           esac
+          ulimit -n 65536 || true
           # Two cores: the server and the load generator on disjoint CPUs when the runner has them.
           set +e
           lua tools/run.lua bench tcp-echo --compare="$base" --rounds=7 --connections=1000 --rate=5000 \

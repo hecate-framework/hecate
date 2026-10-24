@@ -4,7 +4,7 @@
 -- Usage: lua benchmarks/scenarios/tcp-echo/load.lua [--port=N] [--host=ADDR] [--connections=N]
 --          [--rate=REQUESTS_PER_SECOND] [--duration=SECONDS] [--warmup=SECONDS] [--payload=BYTES]
 -- Prints measurement lines (`label value unit`): throughput, errors, p50/p90/p99/p99.9 and max latency.
-global <const> _VERSION, package, io, arg, print, require, tonumber, ipairs, pcall, string, table, os, dofile
+global <const> _VERSION, package, io, arg, print, require, tonumber, ipairs, pcall, string, table, os, dofile, math
 -- HECATE_SRC: the checkout whose packages are measured (default: the current directory), so that the
 -- A/B comparison runs one set of scenario files against a base and a head tree.
 local src = os.getenv("HECATE_SRC") or "."
@@ -41,6 +41,7 @@ local interval = options.connections / options.rate -- seconds between two reque
 local function run()
   local start, warm_until, stop -- set once every connection is open, so that connecting is not measured
   local latencies, errors, completed, pending = {}, 0, 0, options.connections
+  local last_done = 0 -- instant of the last counted completion, so that a saturated server shows in the throughput
 
   local function client(index)
     local ok, connection = pcall(net.connect, options.host, options.port, { nodelay = true })
@@ -65,6 +66,7 @@ local function run()
       if due >= warm_until then
         latencies[#latencies + 1] = reactor.now() - due
         completed = completed + 1
+        last_done = reactor.now()
       end
       due = due + interval
     end
@@ -77,12 +79,12 @@ local function run()
   warm_until = start + options.warmup
   stop = warm_until + options.duration
   reactor.join(table.unpack(scope))
-  return latencies, errors, completed
+  return latencies, errors, completed, math.max(options.duration, last_done - warm_until)
 end
 
-local latencies, errors, completed = reactor.run(run)
+local latencies, errors, completed, elapsed = reactor.run(run)
 local microseconds = function(seconds) return seconds * 1e6 end
-print(("throughput %.0f requests/s"):format(completed / options.duration))
+print(("throughput %.0f requests/s"):format(completed / elapsed))
 print(("errors %d connections"):format(errors))
 if #latencies > 0 then
   table.sort(latencies)
