@@ -54,6 +54,20 @@ local function discover(root)
   return found
 end
 
+--- The network scenarios (benchmarks/scenarios/<name>/), run by `bench <name>`.
+local function discover_scenarios(root)
+  local found = {}
+  local dir = root .. "/benchmarks/scenarios"
+  if not util.is_dir(dir) then return found end
+  for _, name in ipairs(util.list_dir(dir)) do
+    if util.is_dir(dir .. "/" .. name) then
+      found[#found + 1] = { id = name, kind = "scenario",
+        description = bench.describe(read(dir .. "/" .. name .. "/load.lua") or "") }
+    end
+  end
+  return found
+end
+
 local function number(path)
   local text = read(path)
   return text and tonumber((text:gsub("%s+", ""))) or nil
@@ -184,8 +198,16 @@ return {
 
     if options.list then
       local lines = {}
-      for _, b in ipairs(all) do lines[#lines + 1] = ("%-28s %s"):format(b.id, b.description) end
-      return { ok = true, problems = {}, output = table.concat(lines, "\n"), data = all }
+      local listed = {}
+      for _, b in ipairs(all) do
+        lines[#lines + 1] = ("%-28s %s"):format(b.id, b.description)
+        listed[#listed + 1] = { id = b.id, path = b.path, description = b.description, kind = "micro" }
+      end
+      for _, s in ipairs(discover_scenarios(ctx.root)) do
+        lines[#lines + 1] = ("%-28s %s"):format(s.id, s.description .. " [scenario: bench " .. s.id .. " (Linux, macOS)]")
+        listed[#listed + 1] = s
+      end
+      return { ok = true, problems = {}, output = table.concat(lines, "\n"), data = listed }
     end
     if util.is_windows() or util.capture("uname -s") ~= "Linux" then
       return { ok = false, problems = { "bench runs on Linux (Ubuntu server is the reference platform); see benchmarks/README.md for Windows and macOS" } }

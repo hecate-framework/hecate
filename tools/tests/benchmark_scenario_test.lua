@@ -31,4 +31,11 @@ function T:test_run_rejects_an_unknown_scenario_and_option()
   self:assert_true(text:find("unknown argument", 1, true) ~= nil, text)
 end
 
+function T:test_list_shows_the_scenarios_next_to_the_micro_benchmarks()
+  local text, ok = util.capture(("%s tools/run.lua bench --list 2>&1"):format(util.quote(util.interpreter())))
+  self:assert_true(ok, text)
+  self:assert_true(text:find("tcp-echo", 1, true) ~= nil, text)
+  self:assert_true(text:find("core/dispatch", 1, true) ~= nil, text)
+end
+
 return T
