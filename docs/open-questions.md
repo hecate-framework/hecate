@@ -72,3 +72,11 @@ When resolved, record the outcome (ADR or specification update) and move the ent
 | OQ-15 | `@claude` restricted to organisation owners, members and collaborators (`claude.yml`); the Claude GitHub App and `ANTHROPIC_API_KEY` remain to be installed (2026-10-11). |
 | OQ-9 | Raise error objects, `nil` for expected absence: [ADR 0018](adr/0018-error-signalling.md) (2026-10-11). |
 | — | Native libraries (OQ-4, OQ-5, OQ-6) are decided by the owner on the basis of spike reports, not by agents (2026-10-11). |
+
+### OQ-55 addendum — asynchronous sinks (corrected)
+
+An earlier note said asynchronous flushing needed a public non-suspending wake from `reactor`. That was
+wrong: `Semaphore:release()` never suspends and `reactor.detach` starts a task that outlives the caller,
+which is all a sink queue needs. `hecate.log.AsyncSink` is built on them, with no `reactor` change. Point (1)
+of OQ-55 is decided by [ADR 0025](adr/0025-scope-local-context.md) (Accepted):
+`reactor.with_local(key, value, fn)` and `reactor.local(key)`, still to be implemented in `reactor`.
