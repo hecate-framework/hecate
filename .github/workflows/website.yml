@@ -84,12 +84,19 @@ jobs:
           path: |
             ~/.cargo/registry
             packages/doc/native/target
-          key: website-native-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('packages/doc/native/Cargo.lock', 'packages/doc/native/rust-toolchain.toml', 'packages/doc/native/src/**') }}
+            packages/json/native/target
+          key: website-native-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('packages/doc/native/Cargo.lock', 'packages/doc/native/rust-toolchain.toml', 'packages/doc/native/src/**', 'packages/json/native/Cargo.lock', 'packages/json/native/src/**') }}
 
       - name: Build the documentation native module
         run: |
           (cd packages/doc/native && rustup toolchain install)
           lua tools/run.lua build-native doc
+
+      # `hecate.doc` writes JSON (search index, reference data) with `hecate.json`, which has no pure-Lua fallback.
+      - name: Build the JSON native modules
+        run: |
+          (cd packages/json/native && rustup toolchain install)
+          lua tools/run.lua build-native json
 
       # Only a deploy knows where the site is served: the origin and the path come from Pages
       # (a project site lives under /hecate/, a custom domain at the root).

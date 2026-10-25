@@ -56,3 +56,14 @@ accepts and reproduces (round-trip property tests).
 Round-trip property tests (`decode(encode(v)) == v`, which also pin the shared markers
 between the two backends); test corpus for RFC 8259 conformance, integer/float fidelity, depth limit and
 invalid UTF-8; fuzzing of the binding (`fuzz` task); `native-code-reviewer` review.
+
+## Note (2026-10-25, owner decisions of OQ-53)
+
+The pure-Lua reference backend that the first implementation kept as a fallback and as the test oracle is removed
+(code that has no use is thrown away; the git history keeps it). The two native modules are required at run time on
+every platform and a module that is not built raises an error that names `lua tools/run.lua build-native json`. The
+Rust encoder produces the encoding failures itself (reason, message, JSON Pointer path) and writes
+`canonical = "rfc8785"` output; the yyjson binding produces every decoding failure itself and hands nothing to Lua. The
+oracle is replaced by expected-output fixtures generated from the reference backend before it was deleted
+(`packages/json/tests/fixtures`) and by property tests. The decision itself (yyjson decoder, `serde_json` encoder, one
+public API) is unchanged. In "Verification", "the two backends" now reads "the decoder and the encoder".

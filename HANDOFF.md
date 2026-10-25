@@ -3,10 +3,12 @@
 
 - roadmap_item: `json` follow-up: remove the pure-Lua backend once it has no use (OQ-53)
 - status: in-progress            <!-- in-progress | waiting-ci | waiting-owner -->
-- lock_until: 2026-10-25T10:51:56Z
-- last_update: 2026-10-25T09:21:56Z
+- lock_until: 2026-10-25T10:54:02Z
+- last_update: 2026-10-25T09:24:02Z
 
 ## Done
+
+- Step 6: CI (task needs, ci.yml json_native, website.yml), README, schemas-and-contracts.md, ADR 0020 note, OQ-53 closed, roadmap ticked, CHANGELOG. Remaining: final verification, delete HANDOFF.md.
 
 - Steps 4-5: C decoder delegates nothing (depth clamped to 1000, duplicate/limits native; -0: yyjson already reads the integer literal -0 as integer 0, so no limitation exists, no special case remains), backend.lua loads both native modules with a JsonError naming build-native json, internal/reference.lua and fixtures/generate.lua deleted, oracle tests replaced by fixture tests and oracle-free property tests (fuzz_test). All json and doc tests pass locally (doc native built). TODO: CI (json natives needed by every dependent package, website.yml), README, spec, ADR note, OQ-53 close, CHANGELOG, roadmap, CLAUDE.md of json.
 

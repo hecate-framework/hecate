@@ -8,7 +8,7 @@
 | Rock | `hecate-json` |
 | Layer | 1 — Runtime |
 | Roadmap phase | 1 |
-| Status | Lua API, pure-Lua reference backend and native yyjson decoder; Rust encoder; JSONTestSuite corpus and a differential fuzz test run on both backends |
+| Status | Lua API on two native modules, both required at run time (yyjson decoder in C, serde_json encoder in Rust; no pure-Lua fallback, OQ-53); expected-output fixtures, JSONTestSuite corpus and property-based fuzz tests |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |
 | Depends on | [`core`](../core) |
 | Used by | `cli`, `doc`, `hecate`, `http`, `kernel`, `log`, `openapi`, `schema`, `security`, `test` |
@@ -50,12 +50,13 @@ local json = require("hecate.json")
 | `json.is_array(v)`, `json.is_object(v)` | Tell whether a value carries a marker. |
 | `json.JsonError`, `json.DecodeError`, `json.EncodeError` | Errors on the `hecate.core` hierarchy, with stable codes `hecate.json.*`. |
 
-Value model (the same for every backend, ADR 0020):
+Value model (ADR 0020):
 
 - A Lua integer is a JSON integer; a float is always written with a decimal point or an
   exponent, so `1.0` stays a float. NaN and the infinities raise `EncodeError`.
 - An integer literal that does not fit in 64 bits decodes as a float. `-0` is an integer literal and
-  decodes as the integer `0`; `-0.0` and `-0e0` are floats and keep their sign.
+  decodes as the integer `0`; `-0.0` and `-0e0` are floats and keep their sign. The binding does not handle
+  `-0` itself: this is what yyjson reads, and a test fails if a yyjson update changes it (OQ-53).
 - `decode` returns every array marked with `json.array` and every object marked with
   `json.object`; an empty `[]` and an empty `{}` therefore round-trip.
 - On encoding, an unmarked table is an array when all its keys are positive integers, an object
@@ -91,55 +92,76 @@ the reference):
 
 The error message echoes at most 40 bytes of the input (a member name or a number literal), cut on a character boundary, with control characters, quotes and backslashes escaped. Errors: `DecodeError.context` has `reason`, `offset` (bytes before the offending byte, from 0),
 `line` and `column` (from 1, in characters); `EncodeError.context` has `reason` and `path` (a JSON
-Pointer, RFC 6901). Backends: the native module `hecate.json.native` is used when present,
-otherwise the pure-Lua reference backend `hecate.json.internal.reference`, which is also the test
-oracle; callers cannot tell them apart.
+Pointer, RFC 6901).
 
-The native module (`csrc/native.c`, vendored yyjson in `csrc/vendor`) decodes with yyjson and builds
-the same values as the reference backend (the `null` value and the array and object metatables of the
-Lua side, kept through `bind`; integers beyond 2^63 - 1 become floats; `-0` is the integer `0`). A text
-that is too long, starts with a byte order mark or nests deeper than `max_depth` is refused before yyjson
-runs (nesting is counted in one pass, without allocation). A text that yyjson rejects is reported from the
-error of yyjson (a code, a message and a byte position) in the vocabulary of the codec, without a second
-parse: a hostile text costs no more than a valid one. Only `-0` (which yyjson cannot tell from `-0.0`) is
-left to the reference decoder. Build it with `lua tools/run.lua build-native json`
-(needs a C compiler and the Lua headers; `LUA_INC` names the include directory) or with
-`luarocks make`.
+## Native modules
 
-Limits of the native decoder, which come from its parser (yyjson) and not from the codec; the reference
-backend, which is more precise, is the specification and has none of them (OQ-54):
+The codec has no pure-Lua backend (OQ-53, owner decision of 2026-10-25: code that has no use is thrown away; the
+git history keeps the one that existed). It runs on two native modules, both **required at run time** on every
+platform; a module that is not built raises a `JsonError` that names the command
+`lua tools/run.lua build-native json` (needs a C compiler with the Lua headers, `LUA_INC` names the include
+directory, and a Rust toolchain, pinned in `native/rust-toolchain.toml`), and a module that is present but fails to
+load raises its own error. `luarocks make` builds the decoder; the binary rocks of both modules come with the
+release automation (ADR 0021). The modules are looked up on first use, never when `hecate.json` is required, and the
+seam between them and the public module is `hecate.json.internal.backend`.
+
+**Decoder**, `hecate.json.native` (`csrc/native.c`, vendored yyjson in `csrc/vendor`): builds the value model (the
+`null` value and the array and object metatables of the Lua side, kept through `bind`; integers beyond 2^63 - 1 become
+floats). A text that is too long, starts with a byte order mark or nests deeper than `max_depth` is refused before
+yyjson runs (nesting is counted in one pass, without allocation). A text that yyjson rejects is reported from the
+error of yyjson (a code, a message and a byte position) in the vocabulary of the codec, without a second parse: a
+hostile text costs no more than a valid one. No case is handed to any other code.
+
+Limits of the decoder, which come from its parser (yyjson) and not from the codec (OQ-54):
 
 - The message says what yyjson found (`unexpected character '1'`), not what was expected (`expected ':'`).
 - A **duplicate member name** is found after the parse, and yyjson keeps no position for it: the error has a
   `reason` and a message but no `offset`, `line` or `column`. A text that has a duplicate and another defect
   is reported with the other defect.
-- A text with **several defects**, or a string with several, may be reported at another one than the reference
-  decoder does, with another `reason` among the string defects (`invalid_escape`, `lone_surrogate`,
-  `invalid_utf8`, `control_character`, an unterminated string) or another `offset`.
+- A text with **several defects**, or a string with several, may be reported at another defect than the first one,
+  with another `reason` among the string defects (`invalid_escape`, `lone_surrogate`, `invalid_utf8`,
+  `control_character`, an unterminated string) or another `offset`.
+- `-0` is whatever yyjson reads (today the integer `0`, see above): the binding does not special-case it, and will
+  keep following yyjson until it can tell the two spellings apart or users ask for more (owner decision, OQ-53).
 - Known issue: a number literal that is an exact tie between two doubles and is followed by a tail of more than
   about 700 zeros (for example `1.00000000000000011102230246251565404236316680908203125` and 715 zeros) is
-  rounded up by yyjson, one unit in the last place from the correctly rounded value that the reference backend
-  gives. Such a literal does not occur in practice.
+  rounded up by yyjson, one unit in the last place from the correctly rounded value. Such a literal does not
+  occur in practice.
 
-The encoder is a second, optional native module, `hecate.json.encoder_native` (Rust through `mlua`
-and `serde_json`, `native/`, ADR 0020 and ADR 0021; `build-native json` builds it too when `cargo` exists, the Rust toolchain is
-pinned in `native/rust-toolchain.toml`). It walks the Lua value itself and `serde_json` writes the text, which is the same as the
-reference encoder's: the same escaping, member and array rules, markers, `indent`, `canonical` order
-(UTF-16 code units) and float format (the fewest of 15 to 17 digits). It never reports a failure: for
-a value it cannot or must not write (ambiguous table, limit reached, NaN, invalid UTF-8, unsupported
-type), for `canonical = "rfc8785"` and for nesting beyond 200 levels (it recurses on the native stack)
-it returns `nil` and the reference encoder answers, so reasons, messages and paths exist once. The work of the encoder is bounded by the size of the output (`max_size`), not by the size of the value: a value that shares substructure is written in full, and a failure, or a table of more than about a million members, costs two passes (OQ-54). When
-the module is absent the reference encoder writes everything. It is not part of the rockspec yet
-(binary rocks, ADR 0021).
+**Encoder**, `hecate.json.encoder_native` (Rust through `mlua` and `serde_json`, `native/`, ADR 0020 and ADR 0021): walks
+the Lua value itself and `serde_json` writes the text (escaping, integers, punctuation, indentation). It owns the whole
+encoding contract: markers, the rules for arrays, objects and holes, `canonical` order (UTF-16 code units), the float
+format (the fewest of 15 to 17 digits, or the ECMAScript format of RFC 8785 for `canonical = "rfc8785"`, integers
+beyond +-2^53 refused) and the **failures**: it returns `nil` and a table `{ reason, message, path }` (the reason
+and message of `EncodeFailureReason`, the JSON Pointer of the offending value), found where the walk meets the
+problem, with the path built on the way out so that a successful encoding records nothing. The message of NaN says
+`nan` whatever its sign (the sign of `0/0` differs between processors). The work of the encoder is bounded by the
+size of the output (`max_size`), not by the size of the value: a value that shares substructure is written in full
+(OQ-54). It recurses on the native stack, about 450 to 700 bytes a level, so the ceiling of 1000 levels takes at most
+700 KB (a Windows main thread has 1 MiB: the test `test_a_value_nested_to_the_ceiling_is_encoded_on_a_small_native_stack`
+runs it in CI on the three platforms).
+
+## Tests
+
+The oracle of the first release, a pure-Lua backend, is replaced by **expected-output fixtures** in `tests/fixtures`,
+generated from that backend before it was deleted (the generator and the backend are in the git history, commit
+`test(json): expected-output fixtures generated from the reference backend`): `decode_cases.lua` (texts with their
+value or their failure), `encode_cases.lua` (values with their text or their failure: reason, message, path) and
+`jcs_numbers.lua` (RFC 8785 numbers by bit pattern). They are edited by hand when a behaviour changes on purpose, never
+regenerated. Besides: the behaviour tests of the public API (`decode_test.lua`, `encode_test.lua`, `errors_test.lua`),
+property tests with no oracle (`roundtrip_test.lua`: `decode(encode(x)) == x`; `fuzz_test.lua`: mutated texts and
+random values never crash, never produce invalid UTF-8 and round-trip; `HECATE_FUZZ_SECONDS` and `HECATE_FUZZ_SEED`
+for a longer search), `tonumber` of Lua as the reference for number literals, the RFC 8785 appendix B vectors, and the
+JSONTestSuite corpus (`lua tools/run.lua fetch-fixtures json`).
 
 ## Layout
 
 ```text
 src/hecate/json/init.lua   public entry point
 src/hecate/json/errors.lua error classes
-src/hecate/json/internal/  markers, backend seam, reference backend, error positions
-tests/unit/  tests/suites/ shared suites run per backend; tests/external.lua pins the corpus
+src/hecate/json/internal/  markers, backend seam (loads the native modules), error positions
+tests/unit/  tests/fixtures/ expected outputs; tests/external.lua pins the corpus
 examples/    tested examples of the reference pages
 csrc/        C decoder (vendored yyjson in csrc/vendor)
-native/      Rust encoder (Cargo workspace)
+native/      Rust encoder (Cargo crate)
 ```
