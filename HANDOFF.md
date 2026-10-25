@@ -3,10 +3,12 @@
 
 - roadmap_item: `json` follow-up: remove the pure-Lua backend once it has no use (OQ-53)
 - status: in-progress            <!-- in-progress | waiting-ci | waiting-owner -->
-- lock_until: 2026-10-25T10:34:30Z
-- last_update: 2026-10-25T09:04:30Z
+- lock_until: 2026-10-25T10:38:26Z
+- last_update: 2026-10-25T09:08:26Z
 
 ## Done
+
+- Step 1: OQ-53 amended with the four owner decisions (specification; README, spec and ADR note come with the final docs step).
 
 ## Next steps
 
