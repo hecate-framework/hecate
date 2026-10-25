@@ -8,6 +8,7 @@ Performance is a product requirement (vision.md). Benchmarks run in CI
 | Scenario | Measures | Phase |
 |---|---|---|
 | `tcp-echo` | reactor + net overhead, 10 000 concurrent connections | 1 |
+| `accept-spread` | multi-process serving ([ADR 0023](../docs/adr/0023-multi-process-serving.md)): connections per second and spread over the workers, per listening strategy | 1 |
 | `plaintext` | HTTP/1.1 server, keep-alive, pipelining | 2 |
 | `json` | serialisation + routing + kernel | 2 |
 | `validation` | coercion and validation of path, query and content | 2 |
@@ -159,3 +160,20 @@ Apple Silicon has no frequency governor to set; compare runs of the same cooled-
 - Never compare a run with turbo on to one with turbo off, nor a quiet run to a noisy one (read
   the noise line of the two host reports first).
 - A difference smaller than the spread of the noise measurement is not a result.
+
+### `accept-spread`
+
+A primary starts N worker processes (`reactor.spawn` with a message pipe) that echo what they receive. The load
+generator opens short connections at a constant rate and, at the end, asks the server's control port how many
+connections each worker accepted. The **spread** is the largest count over the smallest (1.00 is perfect, ADR 0023).
+
+```sh
+lua benchmarks/run.lua accept-spread --server-args="round_robin 4" --rate=2000 --duration=10
+lua benchmarks/run.lua accept-spread --server-args="reuseport 4"
+```
+
+`--server-args` is `<strategy> <workers>` (default `round_robin 4`). `round_robin`: the primary accepts and passes
+each connection to the next worker. `reuseport`: each worker binds with `SO_REUSEPORT`; it is reported as skipped
+while `reactor.supports_reuseport()` is false (luv without TCP `reuseport`, OQ-43). The load options are `--rate`
+(connections per second), `--duration` and `--payload`. The baseline per strategy is measured by the owner on
+dedicated hardware.

@@ -20,7 +20,7 @@ end
 
 --- Runs one round.
 ---@param scenario string
----@param o { lua: string, src?: string, server_pin?: string, load_pin?: string, load_args?: string[] }
+---@param o { lua: string, src?: string, server_pin?: string, load_pin?: string, load_args?: string[], server_args?: string[] }
 ---@return { label: string, value: number, unit: string }[]? measures
 ---@return string? problem
 function M.round(scenario, o)
@@ -28,16 +28,21 @@ function M.round(scenario, o)
   local env = o.src and ("HECATE_SRC=%s "):format(quote(o.src)) or ""
   -- the shell prints its pid, then becomes the server, so that `kill` stops the right process
   local server = assert(io.popen(("echo $$; %sexec %s"):format(env,
-    pinned(o.server_pin, ("%s %s/server.lua 0 2>&1"):format(quote(o.lua), dir))), "r"))
+    pinned(o.server_pin, ("%s %s/server.lua 0 %s 2>&1"):format(quote(o.lua), dir, table.concat(o.server_args or {}, " ")))), "r"))
   local pid = server:read("l")
-  local port = (server:read("l") or ""):match("^listening (%d+)$")
+  local first = server:read("l") or ""
+  -- a server may add a control port (`listening <port> <control>`, handed to the load as --control), or
+  -- report `skipped <reason>` when the configuration cannot run on this host
+  local port, control = first:match("^listening (%d+) ?(%d*)$")
   if not port then
     os.execute("kill " .. pid .. " 2>/dev/null")
     server:close()
+    local reason = first:match("^skipped (.*)$")
+    if reason then return nil, "skipped: " .. reason end
     return nil, "the server did not report its port"
   end
-  local command = env .. pinned(o.load_pin, ("%s %s/load.lua --port=%s %s 2>&1"):format(
-    quote(o.lua), dir, port, table.concat(o.load_args or {}, " ")))
+  local command = env .. pinned(o.load_pin, ("%s %s/load.lua --port=%s %s %s 2>&1"):format(
+    quote(o.lua), dir, port, control ~= "" and "--control=" .. control or "", table.concat(o.load_args or {}, " ")))
   local load = assert(io.popen(command, "r"))
   local text = load:read("a")
   local ok = load:close()
