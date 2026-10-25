@@ -23,6 +23,11 @@ read the matching page of the [explanation](../explanation/index.md) section.
 - [Run child processes and pass connections between processes](run-processes-and-pass-connections.md):
   `run_process`, `spawn`, the message pipe and handing a connection to a child.
 
+## Performance
+
+- [Measure performance](measure-performance.md): run the TCP echo benchmark, read its figures and
+  compare a change with its base.
+
 ## Data
 
 - [Encode and decode JSON](encode-and-decode-json.md): integers and floats, `null`, empty
