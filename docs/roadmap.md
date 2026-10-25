@@ -100,9 +100,12 @@ Exit: CI is green on all three platforms with a trivial test in every package sk
 - [ ] Benchmarks follow-up: add the multi-process accept-spread scenario of [ADR 0023](adr/0023-multi-process-serving.md) (connections per second and worker spread per strategy), and publish the first baseline measured by the owner. Windows is **not** a benchmark target (owner decision, 2026-10-25: Linux is the only production target, [vision](vision.md)): the network scenarios run on Linux and macOS, and the runner keeps its POSIX shell, `taskset` and `kill`.
 - [x] Pin every third-party action of the existing workflows by commit SHA (owner request,
       2026-10-18; [automation.md](architecture/automation.md)); Dependabot keeps them current.
-- [ ] Workflows `native.yml`, `security.yml`, `nightly.yml`; tasks `sanitize`, `fuzz`,
-      `leaks`, `coverage`, `bench`, `check-licenses`. The native code of `json` (`csrc/native.c`, `native/`) needs its ASan and UBSan build and its libFuzzer targets there (coding-standards.md; today a differential fuzz test in Lua only, native review of the `json` pull request). (`security.yml` has its Rust dependency
-      checks, `cargo audit` and `cargo deny`; CodeQL, dependency review and Scorecard remain.)
+- [x] Workflows `native.yml`, `security.yml`, `nightly.yml`; tasks `sanitize`, `fuzz`,
+      `leaks`, `coverage`, `bench`, `check-licenses` (`security.yml`: `cargo audit`,
+      `cargo deny`, CodeQL, dependency review, Scorecard).
+- [ ] `json` follow-up: libFuzzer C targets for the native code of `json`
+      (`csrc/native.c`), run by the `fuzz` task and `nightly.yml` (coding-standards.md;
+      the `sanitize` task already covers its ASan and UBSan build).
 
 Exit: an echo server handles 10 000 concurrent connections on each platform; structured
 concurrency test suite passes; benchmark baseline recorded.
