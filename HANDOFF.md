@@ -3,8 +3,8 @@
 
 - roadmap_item: Workflows `native.yml`, `security.yml`, `nightly.yml`; tasks `sanitize`, `fuzz`, `leaks`, `coverage`, `bench`, `check-licenses`.
 - status: in-progress
-- lock_until: 2026-10-25T08:12:33Z
-- last_update: 2026-10-25T06:42:33Z
+- lock_until: 2026-10-25T10:02:23Z
+- last_update: 2026-10-25T08:32:23Z
 
 ## Done
 
@@ -17,7 +17,9 @@
 
 - Step 4 done: `fuzz` task (tools/lib/fuzz.lua, tests) wrapping the cargo-fuzz targets of net; json C libFuzzer target still to write.
 
-- Step 5 done: `leaks` task (tools/lib/leaks.lua, harness `on_finish` hook, `HECATE_TEST_LEAKS` in run_file.lua, tests). NOT verified against real suites: this cloud session has no `luv` (reactor/net tests cannot run here); check CI output of `lua tools/run.lua leaks`.
+- Step 5 done: `leaks` task (tools/lib/leaks.lua, harness `on_finish` hook, `HECATE_TEST_LEAKS` in run_file.lua, tests). Verified with luv installed (`luarocks --tree .hecate/rocks install luv 1.53.0-0`): it found a handle leaked by the net tcp test spy helper (fixed); `leaks`, reactor and net tests pass.
+
+- Merged origin/main (conflicts in CHANGELOG.md and automation.md resolved).
 
 ## Next steps
 
