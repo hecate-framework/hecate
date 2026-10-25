@@ -74,7 +74,7 @@ verified on macOS and Windows through pull requests.
       coding-standards.md (OQ-3).
 - [x] Fill the "Commands" section of `CLAUDE.md`.
 
-- [ ] **Phase 0 gate**: verification of the phase, as described in [Phase gates](#phase-gates).
+- [x] **Phase 0 gate**: verification of the phase, as described in [Phase gates](#phase-gates).
 
 Exit: CI is green on all three platforms with a trivial test in every package skeleton.
 
