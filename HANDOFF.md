@@ -3,8 +3,8 @@
 
 - roadmap_item: Workflows `native.yml`, `security.yml`, `nightly.yml`; tasks `sanitize`, `fuzz`, `leaks`, `coverage`, `bench`, `check-licenses`.
 - status: in-progress
-- lock_until: 2026-10-25T10:02:23Z
-- last_update: 2026-10-25T08:32:23Z
+- lock_until: 2026-10-25T12:51:26Z
+- last_update: 2026-10-25T11:21:26Z
 
 ## Done
 
@@ -21,9 +21,11 @@
 
 - Merged origin/main (conflicts in CHANGELOG.md and automation.md resolved).
 
+- Resumed after lock expiry; merged origin/main. Step 6 done: `coverage` task (tools/lib/coverage.lua, harness hook `HECATE_TEST_COVERAGE`, tests; core measures 93.2 %). Executable lines are approximated from source text.
+
 ## Next steps
 
-1. Implement the task `coverage` (debug-hook LCOV, thresholds core/reactor/router/schema >= 90 %, tests first); json libFuzzer C target.
+1. json libFuzzer C target.
 2. Add `native.yml`, `nightly.yml`; complete `security.yml` (CodeQL, dependency review, Scorecard).
 
 ## Decisions taken (and where they are recorded)

@@ -67,6 +67,57 @@ if os.getenv("HECATE_TEST_LEAKS") then
     end
   end
 end
+-- Line coverage (`coverage` task, HECATE_TEST_COVERAGE=<dir>): records the lines of package sources that
+-- run, in the main thread and in every coroutine, and writes them to <dir> when the file finishes.
+local flush_coverage = function() end
+do
+  local dir = os.getenv("HECATE_TEST_COVERAGE")
+  if dir then
+    local hits = {}
+    local previous = debug.gethook()
+    local function record(event, line)
+      if event ~= "line" then
+        if previous then previous(event, line) end
+        return
+      end
+      local info = debug.getinfo(2, "S")
+      local source = info.source
+      if source:sub(1, 1) == "@" then
+        source = source:sub(2):gsub("\\", "/")
+        if source:find("/packages/[^/]+/src/") then
+          local set = hits[source]
+          if not set then set = {}; hits[source] = set end
+          set[line] = true
+        end
+      end
+    end
+    debug.sethook(record, "l", 1000000)
+    local create = coroutine.create
+    coroutine.create = function(f)
+      local co = create(f)
+      debug.sethook(co, record, "l", 1000000)
+      return co
+    end
+    coroutine.wrap = function(f)
+      local co = coroutine.create(f)
+      return function(...)
+        local results = table.pack(coroutine.resume(co, ...))
+        if not results[1] then error(results[2], 0) end
+        return table.unpack(results, 2, results.n)
+      end
+    end
+    flush_coverage = function()
+      local out = {}
+      for source, set in pairs(hits) do
+        for line in pairs(set) do out[#out + 1] = source .. "\t" .. line end
+      end
+      local name = file:gsub("\\", "/"):gsub("[^%w]", "_")
+      local f = assert(io.open(dir .. "/" .. name .. ".hits", "w"))
+      f:write(table.concat(out, "\n"), "\n")
+      f:close()
+    end
+  end
+end
 local class = assert(loadfile(file))()
 local failed = 0
 for i, r in ipairs(test.run_case(class)) do
@@ -77,4 +128,5 @@ for i, r in ipairs(test.run_case(class)) do
     print("  # " .. tostring(r.message):gsub("\n", "\n  # "))
   end
 end
+flush_coverage()
 os.exit(failed == 0 and 0 or 1)
