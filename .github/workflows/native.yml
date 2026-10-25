@@ -65,7 +65,10 @@ jobs:
         if: steps.rocks.outputs.cache-hit != 'true'
         run: luarocks --tree .hecate/rocks install luv 1.53.0-0
 
-      - name: Build tools and sanitizer run
+      - name: Download the JSON test corpus
+        run: lua tools/run.lua fetch-fixtures json
+
+      - name: Sanitizer run
         run: |
           (cd packages/json/native && rustup toolchain install)
           lua tools/run.lua sanitize json
