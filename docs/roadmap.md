@@ -34,7 +34,7 @@ verified on macOS and Windows through pull requests.
       LuaLS configuration (`.luarc.json`), test runner bootstrap (temporary harness
       until `hecate.test` exists, see ADR 0008).
 - [x] CI: GitHub Actions matrix `{ubuntu, macos, windows} × Lua 5.5`, C toolchains
-      (sanitizers on Linux move to the Phase 1 `native.yml` item: no native code yet).
+      (sanitizers on Linux moved to the Phase 1 `native.yml` item, delivered there).
 - [x] `tools/run.lua` task runner and the Phase 0 tasks of the catalogue in
       [automation.md](architecture/automation.md) (format, lint, typecheck,
       check-lua-constructs, check-boundaries, check-glossary, check-versions,
@@ -107,7 +107,8 @@ Exit: CI is green on all three platforms with a trivial test in every package sk
       (`csrc/native.c`), run by the `fuzz` task and `nightly.yml` (coding-standards.md;
       the `sanitize` task already covers its ASan and UBSan build).
 
-Exit: an echo server handles 10 000 concurrent connections on each platform; structured
+Exit: an echo server handles 10 000 concurrent connections on Linux and macOS (Windows is not a
+benchmark target, owner decision of 2026-10-25); structured
 concurrency test suite passes; benchmark baseline recorded.
 
 ## Phase 2 — HTTP and framework kernel
@@ -137,8 +138,9 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       `reuseport` (OQ-43): `reactor.supports_reuseport()` reports it and `auto` stays `round_robin`
       until then.
 
-- [ ] Spike OQ-11 (documentation tooling: site generator and code-reference renderer),
-      report with rendered samples submitted to the owner before the website skeleton.
+- [x] Spike OQ-11 (documentation tooling: site generator and code-reference renderer),
+      report with rendered samples submitted to the owner before the website skeleton
+      (resolved 2026-10-13: [report](spikes/OQ-11-doc-tooling.md), [ADR 0012](adr/0012-website-generator.md)).
 
 ## Phase 3 — Contracts and tooling → `0.1.0`
 

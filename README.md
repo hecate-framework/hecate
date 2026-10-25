@@ -2,13 +2,17 @@
 
 **A modular, contract-first web API framework for Lua 5.5.**
 
-![status](https://img.shields.io/badge/status-specification-lightgrey)
+![status](https://img.shields.io/badge/status-early%20implementation-orange)
 ![lua](https://img.shields.io/badge/Lua-5.5-blue)
 ![platforms](https://img.shields.io/badge/platforms-Linux%20%7C%20macOS%20%7C%20Windows-informational)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
-> **Status:** specification stage. This repository currently contains the design
-> (vision, architecture, decision records, roadmap) and no implementation yet.
+> **Status:** early implementation, not usable yet. The foundations exist and are tested on
+> Linux, macOS and Windows: the object model and errors (`core`), the asynchronous runtime
+> (`reactor`), networking with TLS (`net`), the JSON codec (`json`), structured logging (`log`)
+> and the documentation generator that builds the website (`doc`). The HTTP server, router,
+> schemas, kernel, tooling and data access are specified in `docs/` and not written yet; the
+> [roadmap](docs/roadmap.md) says what comes next.
 
 Hecate is a complete ecosystem for building HTTP APIs in Lua: an asynchronous runtime,
 an HTTP server, a router, schemas and validation, automatic OpenAPI contracts, a test
