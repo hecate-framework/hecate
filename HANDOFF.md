@@ -3,8 +3,8 @@
 
 - roadmap_item: Workflows `native.yml`, `security.yml`, `nightly.yml`; tasks `sanitize`, `fuzz`, `leaks`, `coverage`, `bench`, `check-licenses`.
 - status: in-progress
-- lock_until: 2026-10-24T23:05:54Z
-- last_update: 2026-10-24T21:35:54Z
+- lock_until: 2026-10-25T02:15:00Z
+- last_update: 2026-10-25T00:45:00Z
 
 ## Done
 
@@ -13,9 +13,11 @@
 
 - Step 2 done: `sanitize` task (tools/lib/sanitize.lua, tests, HECATE_SANITIZE in build-native), verified locally on json. #29 merged; #31 waits on the owner.
 
+- Step 3 done: `check-licenses` task (tools/lib/licenses.lua, tests).
+
 ## Next steps
 
-1. Implement the tasks `fuzz`, `leaks`, `coverage`, `check-licenses` (tests first).
+1. Implement the tasks `fuzz`, `leaks`, `coverage` (tests first).
 2. Add `native.yml`, `nightly.yml`; complete `security.yml` (CodeQL, dependency review, Scorecard).
 
 ## Decisions taken (and where they are recorded)

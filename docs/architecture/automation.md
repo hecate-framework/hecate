@@ -43,7 +43,7 @@ Status column: `done` = implemented in `tools/`, `now` = workflow exists today, 
 | `check-docs-examples` | every code block of the website introduced by `<!-- example: <path> -->` is identical to that file and the file exists (the examples run in the tests of their package) | done |
 | `check-translations` | missing/stale translations (front matter `source_revision`) | P3 |
 | `check-links` | internal Markdown links and anchors | done |
-| `check-licenses` | third-party code and rocks have compatible licenses; `THIRD_PARTY_NOTICES` up to date | P1 |
+| `check-licenses` | third-party code and rocks have compatible licenses; `THIRD_PARTY_NOTICES` up to date | done (vendored directories: `LICENSE` and a notices entry; Rust crates by cargo-deny) |
 
 ### Tests and measurements
 
