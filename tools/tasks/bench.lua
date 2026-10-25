@@ -10,6 +10,11 @@
 --   --yes            do not ask for confirmation when the host is not quiet
 --   --strict         the checks of a quiet host are errors, not warnings
 --
+-- A scenario (benchmarks/scenarios/<name>/, network benchmarks) is run by `bench <scenario> [options]`, which
+-- passes every option to benchmarks/run.lua (--rounds, --server-pin, --load-pin, --connections, --rate, ...);
+-- `bench <scenario> --compare=<ref>` checks <ref> out in `.hecate/bench-base` (a git worktree) and runs the
+-- interleaved A/B comparison of benchmarks/compare.lua against it; a regression fails the task.
+--
 -- Results: host-before.md and host-after.md (benchmarks/host-report.sh), run-<n>/<benchmark>.txt, and
 -- summary.md (minimum, median, maximum and spread of every measure over the runs).
 local util = require("lib.util")
@@ -44,6 +49,20 @@ local function discover(root)
           }
         end
       end
+    end
+  end
+  return found
+end
+
+--- The network scenarios (benchmarks/scenarios/<name>/), run by `bench <name>`.
+local function discover_scenarios(root)
+  local found = {}
+  local dir = root .. "/benchmarks/scenarios"
+  if not util.is_dir(dir) then return found end
+  for _, name in ipairs(util.list_dir(dir)) do
+    if util.is_dir(dir .. "/" .. name) then
+      found[#found + 1] = { id = name, kind = "scenario",
+        description = bench.describe(read(dir .. "/" .. name .. "/load.lua") or "") }
     end
   end
   return found
@@ -139,17 +158,56 @@ local function menu(all)
   end
 end
 
+--- Runs a network scenario, or its A/B comparison with a git reference.
+local function run_scenario(ctx, scenario)
+  local interpreter = util.quote(util.interpreter())
+  local compare, passed = nil, {}
+  for i = 2, #ctx.args do
+    local ref = ctx.args[i]:match("^%-%-compare=(.+)$")
+    if ref then compare = ref else passed[#passed + 1] = util.quote(ctx.args[i]) end
+  end
+  local root = util.quote(ctx.root)
+  if not compare then
+    local text, ok = util.capture(("cd %s && %s benchmarks/run.lua %s %s 2>&1"):format(root, interpreter,
+      util.quote(scenario), table.concat(passed, " ")))
+    return { ok = ok, problems = ok and {} or { text }, output = text, data = ok and bench.parse_scenario(text) or nil }
+  end
+  local base = ctx.root .. "/.hecate/bench-base"
+  util.capture(("cd %s && git worktree remove --force %s 2>&1"):format(root, util.quote(base)))
+  local out, ok = util.capture(("cd %s && git worktree add --detach %s %s 2>&1"):format(root, util.quote(base), util.quote(compare)))
+  if not ok then return { ok = false, problems = { "cannot check out " .. compare .. ":\n" .. out } } end
+  -- the base needs the same native modules as the head (luv, ...): the scenarios fall back on the head's tree
+  local text, passed_ok = util.capture(("cd %s && %s benchmarks/compare.lua %s --base=%s %s 2>&1"):format(root,
+    interpreter, util.quote(scenario), util.quote(base), table.concat(passed, " ")))
+  util.capture(("cd %s && git worktree remove --force %s 2>&1"):format(root, util.quote(base)))
+  return { ok = passed_ok, problems = passed_ok and {} or { "regression or run error:\n" .. text }, output = text }
+end
+
 return {
   description = "browse and run the benchmarks on a Linux host (--list, --runs=N, --pin=CPUS, --out=DIR)",
   run = function(ctx)
+    if ctx.args[1] and util.is_dir(ctx.root .. "/benchmarks/scenarios/" .. ctx.args[1]) then
+      if util.is_windows() then
+        return { ok = false, problems = { "network scenarios need a POSIX shell, taskset and kill; they run on Linux and macOS (see benchmarks/README.md)" } }
+      end
+      return run_scenario(ctx, ctx.args[1])
+    end
     local options, problems = parse_args(ctx.args)
     if #problems > 0 then return { ok = false, problems = problems } end
     local all = discover(ctx.root)
 
     if options.list then
       local lines = {}
-      for _, b in ipairs(all) do lines[#lines + 1] = ("%-28s %s"):format(b.id, b.description) end
-      return { ok = true, problems = {}, output = table.concat(lines, "\n"), data = all }
+      local listed = {}
+      for _, b in ipairs(all) do
+        lines[#lines + 1] = ("%-28s %s"):format(b.id, b.description)
+        listed[#listed + 1] = { id = b.id, path = b.path, description = b.description, kind = "micro" }
+      end
+      for _, s in ipairs(discover_scenarios(ctx.root)) do
+        lines[#lines + 1] = ("%-28s %s"):format(s.id, s.description .. " [scenario: bench " .. s.id .. " (Linux, macOS)]")
+        listed[#listed + 1] = s
+      end
+      return { ok = true, problems = {}, output = table.concat(lines, "\n"), data = listed }
     end
     if util.is_windows() or util.capture("uname -s") ~= "Linux" then
       return { ok = false, problems = { "bench runs on Linux (Ubuntu server is the reference platform); see benchmarks/README.md for Windows and macOS" } }
