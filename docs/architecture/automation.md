@@ -57,7 +57,7 @@ Status column: `done` = implemented in `tools/`, `now` = workflow exists today, 
 | `bench [scenario] [--compare ref]` | run benchmarks, compare with a baseline, fail above threshold | P1 (partly done: `bench [name...] [--list] [--runs=N] [--pin=CPUS] [--out=DIR]` browses and runs the `packages/*/benchmarks/*.lua` files on a Linux host, with host reports and a summary of the runs; `--compare` and the scenarios wait for the harness) |
 | `fuzz <target> [--seconds n]` | libFuzzer targets for C parsers and codecs | done for the cargo-fuzz targets of `net` (`fuzz --list`); the C targets of `json` wait for the libFuzzer harness |
 | `sanitize [packages]` | build native modules with ASan/UBSan and run their tests (Linux, macOS) | done |
-| `leaks` | run reactor-heavy suites with coroutine/handle leak detection | P1 |
+| `leaks [packages]` | run the reactor-heavy suites (default `reactor`, `net`) with the harness leak check (`HECATE_TEST_LEAKS=1`): a test that leaves libuv handles open fails; coroutine leaks are already failed by `hecate.test` scopes | done (verified only where `luv` is installed: in CI) |
 | `cli-e2e` | generate each CLI template, install, test, serve, request | P3 |
 
 ### Generators

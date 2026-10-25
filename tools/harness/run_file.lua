@@ -42,6 +42,31 @@ do
     end
   end
 end
+
+-- Leak detection (`leaks` task, HECATE_TEST_LEAKS=1): a test must leave the libuv loop with the handles it
+-- found, so a stream, timer or process handle that a test (or the code under test) forgot to close fails it.
+if os.getenv("HECATE_TEST_LEAKS") then
+  local ok, uv = pcall(require, "luv")
+  if ok then
+    local function open_handles()
+      local count = 0
+      uv.walk(function(handle) if not uv.is_closing(handle) then count = count + 1 end end)
+      return count
+    end
+    local baseline
+    local previous = test.on_start
+    test.on_start = function(name)
+      if previous then previous(name) end
+      baseline = open_handles()
+    end
+    test.on_finish = function(_, passed)
+      local now = open_handles()
+      if passed and now > baseline then
+        return ("leaked %d libuv handle(s) (HECATE_TEST_LEAKS)"):format(now - baseline)
+      end
+    end
+  end
+end
 local class = assert(loadfile(file))()
 local failed = 0
 for i, r in ipairs(test.run_case(class)) do
