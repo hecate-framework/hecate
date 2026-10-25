@@ -114,6 +114,8 @@ jobs:
           cargo install cargo-fuzz --locked --version 0.12.0
 
       - name: Fuzz every target for ten minutes
+        env:
+          LUA_LIB: ${{ github.workspace }}/.hecate/toolchain/lib
         run: |
           set -e
           lua tools/run.lua fuzz --list | while read -r package target; do

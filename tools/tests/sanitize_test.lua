@@ -5,7 +5,7 @@ local T = test.Case("SanitizeTest")
 function T:test_cflags_enable_both_sanitizers_and_stop_on_undefined_behaviour()
   local flags = sanitize.cflags()
   self:assert_true(flags:find("address,undefined", 1, true) ~= nil)
-  self:assert_true(flags:find("-fno-sanitize-recover=undefined", 1, true) ~= nil)
+  self:assert_true(flags:find("-fsanitize-undefined-trap-on-error", 1, true) ~= nil)
 end
 
 function T:test_runtime_accepts_a_path_and_rejects_a_bare_name()

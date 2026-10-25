@@ -1,10 +1,12 @@
 -- Helpers of the `sanitize` task: compiler flags and runtime environment of ASan/UBSan builds.
 local M = {}
 
---- Compiler flags of a sanitizer build (the C modules, coding-standards.md "C code").
+--- Compiler flags of a sanitizer build (the C modules, coding-standards.md "C code"). Undefined behaviour
+--- traps instead of calling the UBSan runtime: only the ASan runtime is preloaded into the (uninstrumented)
+--- interpreter, and Clang's ASan runtime does not export the UBSan handlers.
 ---@return string
 function M.cflags()
-  return "-fsanitize=address,undefined -fno-sanitize-recover=undefined -fno-omit-frame-pointer -g -O1"
+  return "-fsanitize=address,undefined -fsanitize-undefined-trap-on-error -fno-omit-frame-pointer -g -O1"
 end
 
 --- Returns the runtime library to preload for an uninstrumented interpreter, from `cc -print-file-name`
