@@ -107,3 +107,7 @@ Each release heading states the supported Lua version.
 ### Security
 
 - Every third-party GitHub Action of the workflows is pinned by commit SHA (tag kept as a comment); Dependabot keeps them current.
+
+### Changed
+
+- Documentation: Linux is the only production target; macOS and Windows are development platforms (`docs/vision.md`). Windows is not a benchmark target: the Windows part of the benchmarks follow-up is dropped from the roadmap and `benchmarks/README.md`.

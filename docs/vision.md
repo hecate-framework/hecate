@@ -37,6 +37,10 @@ structure with less weight and more throughput.
   releases respond with JSON only.
 - HTTP/2, HTTP/3 and WebSocket in the first releases (planned).
 - Being a general-purpose application runtime outside HTTP services.
+- Production deployments on macOS or Windows. **Linux is the only production target** (owner decision,
+  2026-10-25). macOS and Windows are development platforms: the CLI, the tools and the framework run
+  natively there, and CI covers all three, to give developers the same experience on each. Benchmarks,
+  performance targets and production images are Linux-only.
 
 ## Principles
 

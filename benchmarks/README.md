@@ -137,25 +137,12 @@ procedure. Otherwise run both on one machine, on disjoint pinned cores, over the
 interface, and say so: the numbers then measure the server under a handicap and are good for
 comparing commits, not for comparing frameworks.
 
-### Windows with QEMU
+### Windows
 
-QEMU on a Linux host measures a **virtual machine**, not Windows on hardware: the numbers are
-valid for comparing two commits on the same VM, never as absolute figures. To make them as
-steady as possible: use KVM (`-accel kvm -cpu host`), give the guest fixed memory
-(`-m 8G`, no ballooning) and a few cores pinned on the host (`taskset` on the QEMU process, or
-`-smp 4` with `chrt`/`taskset` per vCPU thread), disk and network on `virtio` (install the virtio
-drivers in the guest), and perform the host steps 3 to 6 above on the **host**. In the guest:
-High performance power plan (`powercfg /setactive SCHEME_MIN`), no Windows Update or Defender
-scan during the run (`Set-MpPreference -DisableRealtimeMonitoring $true` for the duration only), then
-the same procedure. Absolute Windows figures need a physical machine (a spare PC booted on Windows,
-or a Windows-to-go disk): everything above then applies unchanged.
-
-Describe the Windows host from PowerShell, since `host-report.sh` needs a POSIX shell (Git Bash
-runs it, with fewer sections): `Get-CimInstance Win32_Processor | Select Name,NumberOfCores,NumberOfLogicalProcessors,MaxClockSpeed`,
-`Get-CimInstance Win32_ComputerSystem | Select TotalPhysicalMemory,HypervisorPresent`,
-`(Get-CimInstance Win32_OperatingSystem).Caption`, `powercfg /getactivescheme`, and the same
-noise measurement:
-`lua -e "..."` copied from the end of `host-report.sh`, or `sh benchmarks/host-report.sh` in Git Bash.
+Windows is not a benchmark target (owner decision, 2026-10-25): Linux is the only production target and
+Windows is a development platform (see [the vision](../docs/vision.md)). The network scenarios need a POSIX
+shell, `taskset` and `kill`, and no work should be started to port them. The micro-benchmarks of the packages
+run wherever Lua runs, but their numbers are not published for Windows.
 
 ### macOS
 
