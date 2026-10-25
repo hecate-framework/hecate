@@ -1,5 +1,5 @@
 -- Expected outputs of the codec, generated from the pure-Lua reference backend before it was removed (OQ-53).
--- Edited by hand where the behaviour changed on purpose (see packages/json/README.md, "Known limitations").
+-- Edited by hand after generation: the message of a NaN says `nan` whatever its sign (the sign of 0/0 differs between processors).
 local json = require("hecate.json")
 local array, object, null = json.array, json.object, json.null
 local nan, inf = 0 / 0, math.huge

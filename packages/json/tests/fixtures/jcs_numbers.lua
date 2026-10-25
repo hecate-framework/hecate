@@ -1,5 +1,4 @@
 -- Expected outputs of the codec, generated from the pure-Lua reference backend before it was removed (OQ-53).
--- Edited by hand where the behaviour changed on purpose (see packages/json/README.md, "Known limitations").
 -- Each entry is { the IEEE 754 bit pattern of a double, the text RFC 8785 section 3.2.2.3 gives it }.
 
 return {

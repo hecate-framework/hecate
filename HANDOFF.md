@@ -3,10 +3,12 @@
 
 - roadmap_item: `json` follow-up: remove the pure-Lua backend once it has no use (OQ-53)
 - status: in-progress            <!-- in-progress | waiting-ci | waiting-owner -->
-- lock_until: 2026-10-25T10:45:51Z
-- last_update: 2026-10-25T09:15:51Z
+- lock_until: 2026-10-25T10:51:56Z
+- last_update: 2026-10-25T09:21:56Z
 
 ## Done
+
+- Steps 4-5: C decoder delegates nothing (depth clamped to 1000, duplicate/limits native; -0: yyjson already reads the integer literal -0 as integer 0, so no limitation exists, no special case remains), backend.lua loads both native modules with a JsonError naming build-native json, internal/reference.lua and fixtures/generate.lua deleted, oracle tests replaced by fixture tests and oracle-free property tests (fuzz_test). All json and doc tests pass locally (doc native built). TODO: CI (json natives needed by every dependent package, website.yml), README, spec, ADR note, OQ-53 close, CHANGELOG, roadmap, CLAUDE.md of json.
 
 - Step 3 (spec step 2): Rust encoder returns text or {reason,message,path}, writes rfc8785 itself, depth 1000 without a native cap (about 450-700 bytes of native stack per level, 1000 levels pass under ulimit -s 700; Windows main stack is 1 MiB: watch Windows CI). Fixtures regenerated so that plain objects with 2+ members are canonical (member order of plain output is undefined).
 

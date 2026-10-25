@@ -1,16 +1,8 @@
 -- Property-style tests (package invariants): decode(encode(x)) == x for every value the codec can
 -- encode, integer/float fidelity, and text stability. A fixed seed makes failures reproducible.
--- Shared suite: loaded once per backend by tests/unit/roundtrip_<backend>_test.lua with the backend name as
--- argument (`...`), so that the reference and native backends meet exactly the same assertions.
 local test = require("harness.test")
 local json = require("hecate.json")
-local backend = require("hecate.json.internal.backend")
-local backend_name = ...
-local T = test.Case("JsonRoundTripTest[" .. backend_name .. "]")
-
-function T:set_up() backend.use(backend_name) end
-
-function T:tear_down() backend.use(nil) end
+local T = test.Case("JsonRoundTripTest")
 
 local SEED = 20261019
 local CASES = 400

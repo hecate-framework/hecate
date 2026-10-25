@@ -1,35 +1,20 @@
--- Differential fuzzing of the native backend against the reference backend: mutations of valid texts (the
--- built-in seeds and, when downloaded, the JSONTestSuite files) must give the same verdict, value and failure
--- on both, and a decoded value must encode to the same text on both and decode back to itself.
+-- Fuzzing the codec with properties and no oracle (OQ-53): mutations of valid texts (the built-in seeds and, when
+-- downloaded, the JSONTestSuite files) must never crash or raise anything but a `DecodeError`; a text that decodes must
+-- encode, the text must be valid UTF-8 and must decode back to the same value; random values, valid or not, must
+-- encode to valid UTF-8 or raise an `EncodeError`, and what encodes must decode back to itself.
 -- Default: a fixed seed and a fixed number of iterations (a regression test). For a longer search:
 --   HECATE_FUZZ_SECONDS=60 HECATE_FUZZ_SEED=1234 lua tools/run.lua test json
--- A mismatch names the seed and the text, so that it can be replayed and added to the fixed corpus.
+-- A failure names the seed and the text, so that it can be replayed and added to the fixtures.
 local test = require("harness.test")
-local reference = require("hecate.json.internal.reference")
-local markers = require("hecate.json.internal.markers")
+local core = require("hecate.core")
+local json = require("hecate.json")
 local T = test.Case("JsonFuzzTest")
 
-local built, native = pcall(require, "hecate.json.native")
-local built_encoder, encoder = pcall(require, "hecate.json.encoder_native")
-
-local OPTIONS = { max_depth = 1000, max_size = 16 * 1024 * 1024 }
-local ENCODE_OPTIONS = { max_depth = 1000, max_size = 16 * 1024 * 1024, canonical = false, rfc8785 = false }
 local ITERATIONS = 4000
 
 local here = debug.getinfo(1, "S").source:match("^@(.*)[/\\][^/\\]*$") or "."
--- What the two decoders must agree on when a text is rejected (see tests/suites/failure.lua).
-local compatible = assert(loadfile(here .. "/../suites/failure.lua"))()
 
-function T:set_up()
-  if not built then
-    if (os.getenv("CI")) then self:fail("hecate.json.native is not built (lua tools/run.lua build-native json)") end
-    io.stderr:write("# skipped: hecate.json.native is not built\n")
-    self.skipped = true
-    return
-  end
-  if built_encoder then encoder.bind(markers) end
-end
-
+-- Structural equality that tells integers from floats, distinguishes -0.0 and compares marker metatables by identity.
 local function same(a, b)
   if type(a) ~= type(b) then return false end
   if type(a) == "number" then
@@ -90,31 +75,33 @@ local function mutate(text, random)
   return text
 end
 
--- Returns a description of the first disagreement on `text`, or nil.
-local function disagreement(text)
-  local want, want_failure = reference.decode(text, OPTIONS)
-  local got, got_failure = native.decode(text, OPTIONS)
-  if want_failure or got_failure then
-    if not (want_failure and got_failure) then return "verdict differs" end
-    local problem = compatible(want_failure, got_failure, false) -- mutated texts: no offset
-    if problem then return "failure differs: " .. problem end
+local REASONS = {
+  syntax = true, invalid_utf8 = true, invalid_escape = true, lone_surrogate = true, control_character = true,
+  byte_order_mark = true, duplicate_key = true, number_out_of_range = true, depth_limit = true, size_limit = true,
+}
+
+-- Returns a description of the first property that `text` breaks, or nil.
+local function broken(text)
+  local ok, value = pcall(json.decode, text)
+  if not ok then
+    if not core.is_instance_of(value, json.DecodeError) then return "decode raised " .. tostring(value) end
+    local context = value.context
+    if not REASONS[context.reason] then return "unknown reason " .. tostring(context.reason) end
+    if context.offset ~= nil and (context.offset < 0 or context.offset > #text) then
+      return "offset " .. tostring(context.offset) .. " outside the text"
+    end
     return nil
   end
-  if not same(want, got) then return "values differ" end
-  local text_ref = reference.encode(want, ENCODE_OPTIONS)
-  if text_ref ~= nil and built_encoder then
-    local text_native = encoder.encode(want, ENCODE_OPTIONS)
-    if text_native ~= nil and text_native ~= text_ref then return "encoders differ" end
-  end
-  if text_ref ~= nil then
-    local again = reference.decode(text_ref, OPTIONS)
-    if not same(want, again) then return "the encoded text does not decode back to the value" end
-  end
+  local encoded, encoded_value = pcall(json.encode, value)
+  if not encoded then return "a decoded value does not encode: " .. tostring(encoded_value) end
+  if utf8.len(encoded_value) == nil then return "the encoded text is not valid UTF-8" end
+  local again = json.decode(encoded_value)
+  if not same(value, again) then return "the encoded text does not decode back to the value" end
+  if json.encode(again, { canonical = true }) ~= json.encode(value, { canonical = true }) then return "the canonical text is not stable" end
   return nil
 end
 
-function T:test_mutated_texts_agree_on_both_backends()
-  if self.skipped then return end
+function T:test_mutated_texts_never_crash_and_what_decodes_round_trips()
   local seed = tonumber(os.getenv("HECATE_FUZZ_SEED")) or 20261022
   local seconds = tonumber(os.getenv("HECATE_FUZZ_SECONDS"))
   math.randomseed(seed)
@@ -125,7 +112,7 @@ function T:test_mutated_texts_agree_on_both_backends()
   local count = 0
   while true do
     local text = mutate(seeds[random(1, #seeds)], random)
-    local problem = disagreement(text)
+    local problem = broken(text)
     if problem then
       self:fail(("seed %d, iteration %d: %s for %q"):format(seed, count, problem, text:sub(1, 200)))
     end
@@ -137,6 +124,51 @@ function T:test_mutated_texts_agree_on_both_backends()
     end
   end
   io.stderr:write(("# fuzz: %d texts, seed %d\n"):format(count, seed))
+end
+
+local function random_value(random, depth)
+  local kind = random(1, depth > 4 and 9 or 13)
+  if kind == 1 then return random(-1000, 1000)
+  elseif kind == 2 then return random() * 10 ^ random(-10, 20)
+  elseif kind == 3 then return string.char(random(32, 126), random(0, 255), random(1, 126)) -- may be invalid UTF-8
+  elseif kind == 4 then return random() < 0.5
+  elseif kind == 5 then return json.null
+  elseif kind == 6 then return "k" .. random(1, 9)
+  elseif kind == 7 then return ({ 0 / 0, math.huge, -math.huge, print, -0.0, math.mininteger })[random(1, 6)]
+  elseif kind == 8 then return random(math.mininteger, math.maxinteger)
+  elseif kind == 9 then return "\u{e9}\u{1F600}"
+  elseif kind == 10 or kind == 11 then
+    local t = {}
+    for i = 1, random(0, 5) do t[i] = random_value(random, depth + 1) end
+    if random() < 0.3 then t = json.array(t) end
+    return t
+  end
+  local t = {}
+  for _ = 1, random(0, 5) do t["k" .. random(1, 20)] = random_value(random, depth + 1) end
+  if random() < 0.3 then t = json.object(t) end
+  return t
+end
+
+function T:test_random_values_encode_to_valid_utf8_or_raise_an_encode_error_and_round_trip()
+  math.randomseed(20261023)
+  local encoded_count = 0
+  for case = 1, 3000 do
+    local value = random_value(math.random, 0)
+    for _, options in ipairs({ {}, { canonical = true, indent = 2 }, { canonical = "rfc8785" } }) do
+      local ok, text = pcall(json.encode, value, options)
+      if ok then
+        self:assert_true(utf8.len(text) ~= nil, ("case %d: invalid UTF-8 in %q"):format(case, text))
+        local decoded = json.decode(text)
+        if options.canonical ~= "rfc8785" then
+          self:assert_equal(json.encode(decoded, { canonical = true }), json.encode(value, { canonical = true }), "case " .. case)
+        end
+        encoded_count = encoded_count + 1
+      else
+        self:assert_true(core.is_instance_of(text, json.EncodeError), ("case %d: %s"):format(case, tostring(text)))
+      end
+    end
+  end
+  self:assert_true(encoded_count > 1000)
 end
 
 return T

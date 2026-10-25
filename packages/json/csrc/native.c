@@ -1,19 +1,17 @@
 /*
- * hecate.json.native: the native backend of hecate.json (ADR 0020).
+ * hecate.json.native: the native decoder of hecate.json (ADR 0020).
  *
  * Decoder: a binding to yyjson (vendored in csrc/vendor, RFC 8259 strict reader, UTF-8 validated).
  * The binding turns the yyjson document into the value model of hecate.json (the `null` value and the
  * array/object metatables of hecate.json.internal.markers, integer/float fidelity).
  *
- * Failures: this module reports a failure exactly as the reference backend does (reason, message,
- * offset), by delegating to it on the failure path only. When yyjson rejects the text, or when the
- * text is one the reference backend rejects and yyjson accepts (a duplicate member name, a nesting
- * deeper than max_depth, a text beyond max_size, a byte order mark, "-0", a number that does not fit a
- * 64-bit float), the binding calls hecate.json.internal.reference.decode on the same text and returns its
- * answer: a failure, or (when yyjson was stricter than the reference) the reference value. A valid text
- * never pays for this. The classification is thus deterministic and identical by construction.
+ * Failures: every failure is produced here, in the vocabulary of the codec (reason, message, offset): from the error
+ * of yyjson when it rejects the text, and by the binding itself for what yyjson accepts and the codec does not (a
+ * duplicate member name, a nesting deeper than max_depth, a text beyond max_size, a byte order mark). No second parse
+ * and no Lua code is involved (OQ-53). Known limits, which come from yyjson and are documented in the README: no
+ * position for a duplicate member name; `-0` is whatever yyjson reads (today the integer 0).
  *
- * Encoder: not native yet (serde_json, ADR 0021). `encode` delegates to the reference backend.
+ * Encoder: the Rust module `hecate.json.encoder_native` (serde_json, ADR 0021); this module does not encode.
  *
  * Sources of normative behaviour: RFC 8259 sections 2 to 8, I-JSON (RFC 7493) sections 2.1 to 2.3.
  */
@@ -26,13 +24,12 @@
 #include "lua.h"
 #include "vendor/yyjson.h"
 
-#define REFERENCE_MODULE "hecate.json.internal.reference"
 #define MARKERS_MODULE "hecate.json.internal.markers"
 #define STATE_METATABLE "hecate.json.native.state"
 
 /* The deepest nesting the converter recurses into, whatever max_depth says: the C stack is finite (1 MiB for the main
  * thread of a Windows process, 80 to 150 bytes a level). It equals the highest max_depth the public module accepts
- * (1000, for decode and encode alike); a caller of this module that passes more is answered by the reference decoder. */
+ * (1000, for decode and encode alike); a caller of this module that asks for more gets this ceiling. */
 #define HARD_DEPTH_CEILING 1000
 
 /* The registry references held by this module (one state per Lua state; freed by __gc). */
@@ -40,8 +37,6 @@ typedef struct {
   int null_ref;
   int array_ref;
   int object_ref;
-  int decode_ref; /* reference.decode */
-  int encode_ref; /* reference.encode */
 } hecate_json_state;
 
 static void release(lua_State *L, int *ref) {
@@ -56,8 +51,6 @@ static int state_gc(lua_State *L) {
   release(L, &state->null_ref);
   release(L, &state->array_ref);
   release(L, &state->object_ref);
-  release(L, &state->decode_ref);
-  release(L, &state->encode_ref);
   return 0;
 }
 
@@ -87,25 +80,12 @@ static int native_bind(lua_State *L) {
   return 0;
 }
 
-/* Calls a reference function (kept in the registry) with the arguments 1..nargs; returns all its results. */
-static int delegate(lua_State *L, int ref, int nargs) {
-  int base = lua_gettop(L);
-  lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
-  for (int i = 1; i <= nargs; i++) lua_pushvalue(L, i);
-  lua_call(L, nargs, LUA_MULTRET);
-  return lua_gettop(L) - base;
-}
-
-/* encode(value, options): not native yet; the reference backend encodes (serde_json comes with ADR 0021). */
-static int native_encode(lua_State *L) {
-  return delegate(L, get_state(L)->encode_ref, lua_gettop(L));
-}
-
 typedef struct {
   hecate_json_state *state;
   yyjson_val *root;
   lua_Integer max_depth;
   yyjson_val *duplicate; /* set when a member name occurs twice in an object: the name (yyjson gives no position) */
+  const char *unexpected; /* set when the converter meets what yyjson cannot produce (a bug, reported as a Lua error) */
 } conversion;
 
 static void mark(lua_State *L, int ref) {
@@ -115,9 +95,9 @@ static void mark(lua_State *L, int ref) {
 
 /*
  * Pushes the Lua value of `val`. Returns 0 when the conversion stops: a duplicate member name (`c->duplicate` is
- * set, the failure is ours), or a value the reference backend must decide ("-0", a float outside the 64-bit range,
- * nesting beyond the ceiling); nothing is left on the stack. `depth` is the nesting level of the containers around
- * `val`.
+ * set, the failure is ours) or a state that cannot happen (`c->unexpected` is set); nothing is left on the stack.
+ * `depth` is the nesting level of the containers around `val`. The depth was checked on the text before yyjson ran
+ * (`first_too_deep`), so the check here is a guard for the C stack, not a decision.
  */
 static int convert(lua_State *L, conversion *c, yyjson_val *val, lua_Integer depth) {
   switch (yyjson_get_type(val)) {
@@ -145,17 +125,23 @@ static int convert(lua_State *L, conversion *c, yyjson_val *val, lua_Integer dep
         }
         default: {
           double number = yyjson_get_real(val);
-          /* Negative zero: "-0" is an integer literal (decodes as 0) but "-0.0" is a float that keeps its
-           * sign; yyjson does not tell them apart, so the reference backend decides. */
-          if (number == 0.0 && signbit(number)) return 0;
-          if (isinf(number) || isnan(number)) return 0;
+          /* yyjson rejects a number beyond the double range itself (classify: number_out_of_range). Negative zero is
+           * not handled here (OQ-53): "-0.0" is a float that keeps its sign, and whatever yyjson reads for the
+           * integer literal "-0" (today the integer 0) is what the codec returns. */
+          if (isinf(number) || isnan(number)) {
+            c->unexpected = "a non-finite number";
+            return 0;
+          }
           lua_pushnumber(L, (lua_Number)number);
           return 1;
         }
       }
     case YYJSON_TYPE_ARR: {
       lua_Integer level = depth + 1;
-      if (level > c->max_depth || level > HARD_DEPTH_CEILING) return 0;
+      if (level > c->max_depth || level > HARD_DEPTH_CEILING) {
+        c->unexpected = "a nesting deeper than max_depth";
+        return 0;
+      }
       luaL_checkstack(L, 4, "JSON nesting too deep");
       size_t length = yyjson_arr_size(val);
       lua_createtable(L, length > (size_t)INT_MAX ? INT_MAX : (int)length, 0);
@@ -171,7 +157,10 @@ static int convert(lua_State *L, conversion *c, yyjson_val *val, lua_Integer dep
     }
     case YYJSON_TYPE_OBJ: {
       lua_Integer level = depth + 1;
-      if (level > c->max_depth || level > HARD_DEPTH_CEILING) return 0;
+      if (level > c->max_depth || level > HARD_DEPTH_CEILING) {
+        c->unexpected = "a nesting deeper than max_depth";
+        return 0;
+      }
       luaL_checkstack(L, 5, "JSON nesting too deep");
       size_t length = yyjson_obj_size(val);
       lua_createtable(L, 0, length > (size_t)INT_MAX ? INT_MAX : (int)length);
@@ -194,11 +183,12 @@ static int convert(lua_State *L, conversion *c, yyjson_val *val, lua_Integer dep
       return 1;
     }
     default:
+      c->unexpected = "a value of an unknown type";
       return 0;
   }
 }
 
-/* Protected conversion: pushes the value, or nothing (fallback). Arg 1: light userdata `conversion`. */
+/* Protected conversion: pushes the value, or nil when it stopped. Arg 1: light userdata `conversion`. */
 static int convert_protected(lua_State *L) {
   conversion *c = (conversion *)lua_touserdata(L, 1);
   lua_settop(L, 0);
@@ -213,7 +203,7 @@ static int convert_protected(lua_State *L) {
 #define EXCERPT_LIMIT 40
 
 /* Pushes at most EXCERPT_LIMIT bytes of `text` quoted, cut on a character boundary, with control characters,
- * quotes and backslashes escaped (the same rule as the reference decoder: no raw input in a message). */
+ * quotes and backslashes escaped (no raw input in a message). */
 static void push_excerpt(lua_State *L, const char *text, size_t length) {
   int cut = length > EXCERPT_LIMIT;
   size_t stop = cut ? EXCERPT_LIMIT : length;
@@ -257,7 +247,7 @@ static int fail_with(lua_State *L, const char *reason, lua_Integer offset, const
   return push_failure(L, reason, offset);
 }
 
-/* What the byte at `position` is, as the reference decoder says it: "character 'x'", "control character 0x0a", ... */
+/* What the byte at `position` is, in the vocabulary of the codec: "character 'x'", "control character 0x0a", ... */
 static void push_describe(lua_State *L, const char *text, size_t length, size_t position) {
   char description[48];
   if (position >= length) {
@@ -314,7 +304,7 @@ static int classify(lua_State *L, const char *text, size_t length, const yyjson_
   /* An `if` chain, not a `switch`: the codes of yyjson are `static const` variables, which MSVC does not accept as
    * case labels. Every branch returns. */
   if (err->code == YYJSON_READ_ERROR_EMPTY_CONTENT || err->code == YYJSON_READ_ERROR_UNEXPECTED_END) {
-      /* A text cut inside a literal (`[1,tru`): the reference decoder points at the first letter of the literal. */
+      /* A text cut inside a literal (`[1,tru`): the codec points at the first letter of the literal. */
       if (ends_in_string(text, length))
         return fail_with(L, "syntax", (lua_Integer)length, "unterminated string: expected a closing quote");
       size_t start = length;
@@ -342,7 +332,7 @@ static int classify(lua_State *L, const char *text, size_t length, const yyjson_
         return push_failure(L, "number_out_of_range", (lua_Integer)pos);
       }
       lua_pushfstring(L, "invalid number: %s", msg);
-      /* A leading zero: yyjson points at the zero, the reference decoder at the digit after it. */
+      /* A leading zero: yyjson points at the zero, the codec at the digit after it. */
       if (strstr(msg, "leading zero") != NULL && pos + 1 < length) pos++;
       return push_failure(L, "syntax", (lua_Integer)pos);
   }
@@ -356,7 +346,7 @@ static int classify(lua_State *L, const char *text, size_t length, const yyjson_
         return push_failure(L, "control_character", (lua_Integer)pos);
       }
       if (strstr(msg, "surrogate") != NULL) {
-        /* The reference decoder points at the backslash of the lone escape; yyjson at the byte after it. */
+        /* The codec points at the backslash of the lone escape; yyjson at the byte after it. */
         if (pos >= 6 && text[pos - 6] == '\\' && text[pos - 5] == 'u' && strstr(msg, "no low") != NULL) pos -= 6;
         else if (pos >= 6 && text[pos - 6] == '\\' && text[pos - 5] == 'u' && strstr(msg, "invalid low") != NULL) pos -= 6;
         return fail_with(L, "lone_surrogate", (lua_Integer)pos,
@@ -365,12 +355,12 @@ static int classify(lua_State *L, const char *text, size_t length, const yyjson_
       }
       if (strstr(msg, "unclosed") != NULL)
         return fail_with(L, "syntax", (lua_Integer)length, "unterminated string: expected a closing quote");
-      /* yyjson points at the character after the backslash; the reference decoder at the backslash. */
+      /* yyjson points at the character after the backslash; the codec at the backslash. */
       return fail_with(L, "invalid_escape", (lua_Integer)(pos > 0 && text[pos - 1] == '\\' ? pos - 1 : pos),
                        "invalid escape in string");
   }
   { /* unexpected character or content, structure, literal */
-      /* A trailing comma: yyjson points at the comma, the reference decoder at the closing bracket after it. */
+      /* A trailing comma: yyjson points at the comma, the codec at the closing bracket after it. */
       if (err->code == YYJSON_READ_ERROR_JSON_STRUCTURE && pos < length && text[pos] == ',') {
         size_t next = pos + 1;
         while (next < length && (text[next] == ' ' || text[next] == '\t' || text[next] == '\n' || text[next] == '\r')) next++;
@@ -385,7 +375,7 @@ static int classify(lua_State *L, const char *text, size_t length, const yyjson_
           before--;
         if (before > 0 && text[before - 1] == ',') pos = pos - 1;
       }
-      /* A bad literal (`tru`, `nul`): yyjson points past what it read, the reference decoder at its first letter. */
+      /* A bad literal (`tru`, `nul`): yyjson points past what it read, the codec at its first letter. */
       if (err->code == YYJSON_READ_ERROR_LITERAL) {
         if (pos > length) pos = length;
         while (pos > 0 && text[pos - 1] >= 'a' && text[pos - 1] <= 'z') pos--;
@@ -398,9 +388,7 @@ static int classify(lua_State *L, const char *text, size_t length, const yyjson_
 }
 
 /* decode(text, options) -> value | nil, failure   (options: { max_depth, max_size }, validated).
- * Every failure is produced here, from the error of yyjson, with no second parse. The reference decoder answers
- * only for "-0" (an integer literal that yyjson reads as a negative zero float) and, as a safety net, for a nesting
- * beyond the ceiling of the converter. */
+ * Every failure is produced here, from the error of yyjson or by the binding, with no second parse. */
 static int native_decode(lua_State *L) {
   hecate_json_state *state = get_state(L);
   size_t length;
@@ -411,6 +399,7 @@ static int native_decode(lua_State *L) {
   lua_Integer max_depth = luaL_checkinteger(L, -2);
   lua_Integer max_size = luaL_checkinteger(L, -1);
   lua_pop(L, 2);
+  if (max_depth > HARD_DEPTH_CEILING) max_depth = HARD_DEPTH_CEILING;
 
   if ((lua_Integer)length > max_size) {
     lua_pushfstring(L, "input of %I bytes exceeds max_size (%I)", (lua_Integer)length, max_size);
@@ -431,7 +420,7 @@ static int native_decode(lua_State *L) {
   yyjson_doc *doc = yyjson_read_opts((char *)text, length, YYJSON_READ_NOFLAG, NULL, &err);
   if (doc == NULL) return classify(L, text, length, &err);
 
-  conversion c = { state, yyjson_doc_get_root(doc), max_depth, NULL };
+  conversion c = { state, yyjson_doc_get_root(doc), max_depth, NULL, NULL };
   int top = lua_gettop(L);
   lua_pushcfunction(L, convert_protected);
   lua_pushlightuserdata(L, &c);
@@ -455,7 +444,7 @@ static int native_decode(lua_State *L) {
     return push_failure(L, "duplicate_key", -1);
   }
   yyjson_doc_free(doc);
-  return delegate(L, state->decode_ref, 2);
+  return luaL_error(L, "hecate.json.native: the converter met %s", c.unexpected != NULL ? c.unexpected : "an unknown state");
 }
 
 static const luaL_Reg state_methods[] = { { "__gc", state_gc }, { NULL, NULL } };
@@ -467,25 +456,12 @@ static void require_module(lua_State *L, const char *module) {
   lua_call(L, 1, 1);
 }
 
-/* Keeps field `field` of the module on top of the stack in *ref (the module stays). */
-static void keep_field(lua_State *L, const char *field, int *ref) {
-  lua_getfield(L, -1, field);
-  keep(L, ref);
-}
-
 int luaopen_hecate_json_native(lua_State *L) {
   hecate_json_state *state = (hecate_json_state *)lua_newuserdatauv(L, sizeof(hecate_json_state), 0);
   state->null_ref = state->array_ref = state->object_ref = LUA_NOREF;
-  state->decode_ref = state->encode_ref = LUA_NOREF;
   if (luaL_newmetatable(L, STATE_METATABLE)) luaL_setfuncs(L, state_methods, 0);
   lua_setmetatable(L, -2); /* from here on, an error frees what was kept */
   const int state_index = lua_gettop(L); /* below it: the arguments of luaopen */
-
-  /* Delegation targets: the reference backend (the failure path of decode, and encode). */
-  require_module(L, REFERENCE_MODULE);
-  keep_field(L, "decode", &state->decode_ref);
-  keep_field(L, "encode", &state->encode_ref);
-  lua_pop(L, 1);
 
   /* The module table; every function shares the state as its upvalue. */
   lua_newtable(L); /* stack: state, module */
@@ -495,9 +471,6 @@ int luaopen_hecate_json_native(lua_State *L) {
   lua_pushvalue(L, state_index);
   lua_pushcclosure(L, native_decode, 1);
   lua_setfield(L, -2, "decode");
-  lua_pushvalue(L, state_index);
-  lua_pushcclosure(L, native_encode, 1);
-  lua_setfield(L, -2, "encode");
 
   /* Bound at once to the markers of the Lua side, so that decode works before bind is called. */
   require_module(L, MARKERS_MODULE);

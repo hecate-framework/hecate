@@ -42,6 +42,7 @@ local EncodeError = core.error_class("EncodeError", "hecate.json.EncodeError", J
 
 ---@alias hecate.json.EncodeFailureReason
 ---| "unsupported_type"  a function, userdata, thread or `nil` has no JSON representation
+---| "integer_out_of_range"  an integer beyond +-2^53 with `canonical = "rfc8785"`, which writes numbers as IEEE doubles
 ---| "non_finite_number"  NaN and the infinities are not JSON numbers (RFC 8259 section 6)
 ---| "invalid_utf8"  a string or key is not well-formed UTF-8
 ---| "ambiguous_table"  a table that is neither a sequence nor an object (mixed or non-string keys)

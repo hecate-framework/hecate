@@ -213,8 +213,19 @@ fn write_rfc8785_number<W: ?Sized + Write>(w: &mut W, number: f64) -> io::Result
     if number < 0.0 {
         out.push('-');
     }
-    // `{:e}` writes the shortest digits that read back, as `d.ddde-7` or `de22`.
-    let scientific = format!("{:e}", number.abs());
+    // The first precision whose correctly rounded digits read back is the shortest: the digits of RFC 8785, where
+    // several shortest strings exist, are the one closest to the double (a tie goes to the even digit, as `printf`
+    // does; `{:e}` alone, which only promises some shortest string, writes ...206.3 for 1424953923781206.25).
+    let mut scientific = String::new();
+    for precision in 0..=16usize {
+        scientific = format!("{:.*e}", precision, number.abs());
+        if scientific
+            .parse::<f64>()
+            .is_ok_and(|read| read == number.abs())
+        {
+            break;
+        }
+    }
     let (mantissa, exponent) = scientific.split_once('e').unwrap_or((&scientific, "0"));
     let mut digits: String = mantissa.chars().filter(|c| *c != '.').collect();
     digits.truncate(digits.trim_end_matches('0').len().max(1));

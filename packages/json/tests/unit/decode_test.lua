@@ -1,17 +1,9 @@
 -- Behaviour of json.decode: RFC 8259 grammar, numbers (integer/float fidelity), strings, UTF-8,
 -- duplicate names, limits and arguments.
--- Shared suite: loaded once per backend by tests/unit/decode_<backend>_test.lua with the backend name as
--- argument (`...`), so that the reference and native backends meet exactly the same assertions.
 local test = require("harness.test")
 local core = require("hecate.core")
 local json = require("hecate.json")
-local backend = require("hecate.json.internal.backend")
-local backend_name = ...
-local T = test.Case("JsonDecodeTest[" .. backend_name .. "]")
-
-function T:set_up() backend.use(backend_name) end
-
-function T:tear_down() backend.use(nil) end
+local T = test.Case("JsonDecodeTest")
 
 local function decode_error(self, text, options)
   local err = self:assert_error(function() return json.decode(text, options) end)
@@ -48,6 +40,8 @@ function T:test_integers_beyond_64_bits_become_floats()
   self:assert_equal("float", math.type(json.decode("-12345678901234567890123")))
 end
 
+-- yyjson reads the integer literal `-0` as the integer 0, with no help from the binding (OQ-53: the binding does not
+-- handle `-0` itself; if a yyjson release changes this, this test fails and the README says so).
 function T:test_negative_zero_is_an_integer_but_a_float_zero_keeps_its_sign()
   local value = json.decode("-0")
   self:assert_equal("integer", math.type(value))
@@ -168,8 +162,8 @@ end
 function T:test_duplicate_member_names_are_rejected()
   local err = decode_error(self, '{"a":1,"b":2,"a":3}')
   self:assert_equal("duplicate_key", err.context.reason)
-  -- yyjson keeps no position for a member name that occurs twice: the native decoder has none (OQ-54)
-  if backend_name == "native" then self:assert_nil(err.context.offset) else self:assert_equal(13, err.context.offset) end
+  -- yyjson keeps no position for a member name that occurs twice: the error has none (OQ-54)
+  self:assert_nil(err.context.offset)
   self:assert_equal("duplicate_key", decode_error(self, '{"a":null,"a":1}').context.reason)
   self:assert_equal("duplicate_key", decode_error(self, '{"a\\u0062":1,"ab":2}').context.reason)
 end

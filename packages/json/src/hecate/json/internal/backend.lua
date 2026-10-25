@@ -1,103 +1,79 @@
 -- The backend seam of hecate.json (ADR 0020, "One public API").
 --
--- A backend is a table with `decode(text, options)` and `encode(value, options)` that follow the
--- contract documented in `hecate.json.internal.reference`: the same value model (the markers of
--- `hecate.json.internal.markers`), the same failure reasons, options already validated, failures
--- returned as `nil, failure` instead of raised. Two backends exist:
+-- The codec runs on two native modules, both required at run time (OQ-53: there is no fallback backend):
 --
---   * `hecate.json.native`: the native module (C, built by `lua tools/run.lua build-native json` or by
---     LuaRocks): yyjson decoder; its own `encode` delegates to the reference backend, the Rust
---     encoder below replaces it. When it is loaded, `native.bind(markers)` is called once if it exists, so that the native code
---     holds the very `null` and metatables of the Lua side (identity is part of the value model).
---     The Rust encoder (`hecate.json.encoder_native`, `serde_json` through `mlua`, ADR 0021) is optional and loaded with it: it returns
---     `nil` for everything it does not encode itself (failures, `rfc8785`), and the reference encoder then
---     answers, so the failure reasons exist once.
---   * `hecate.json.internal.reference`: pure Lua, the fallback and the test oracle.
+--   * `hecate.json.native`: the decoder (C over vendored yyjson, built by `lua tools/run.lua build-native json`
+--     or by LuaRocks). `native.bind(markers)` is called once, so that the native code holds the very `null`
+--     and metatables of the Lua side (identity is part of the value model).
+--   * `hecate.json.encoder_native`: the encoder (Rust, `serde_json` through `mlua`, ADR 0021), bound to the same
+--     markers.
 --
--- The native module is looked up on first use, never at `require` time (coding-standards.md, "Modules").
--- A module that is absent selects the reference backend; a module that is present but fails to load
--- raises, so that a broken build is never hidden behind the slower fallback.
+-- The backend is a table with `decode(text, options)` and `encode(value, options)`:
+--
+--   decode(text, options) -> value | nil, failure     options: { max_depth, max_size }
+--   encode(value, options) -> text | nil, failure     options: { max_depth, max_size, indent?, canonical, rfc8785 }
+--
+-- `rfc8785` (implies `canonical`, never combined with `indent`) selects RFC 8785 (JCS): every number is written as
+-- an IEEE double in the ECMAScript format, and an integer beyond +-2^53 is a failure. A `failure` is
+-- `{ reason, message, offset? }` for decoding (offset: bytes before the offending byte; absent for a duplicate member
+-- name) and `{ reason, message, path }` for encoding (path: an RFC 6901 JSON Pointer). Options arrive validated and
+-- complete; the public module (`hecate.json`) owns validation, the construction of error objects and the line and
+-- column of a decoding failure.
+--
+-- The modules are looked up on first use, never at `require` time (coding-standards.md, "Modules"). A module that is
+-- absent raises a `JsonError` that names the build command; a module that is present but fails to load raises its own
+-- error, so that a broken build is never mistaken for a missing one.
 global <const> require, pcall, type, error
 
+local errors = require("hecate.json.errors")
 local markers = require("hecate.json.internal.markers")
 
 local NATIVE = "hecate.json.native"
 local ENCODER = "hecate.json.encoder_native"
+local BUILD_COMMAND = "lua tools/run.lua build-native json"
 
 local M = {}
 
----@type table?
+---@type { decode: function, encode: function }?
 local selected
----@type "native"|"reference"|nil
-local selected_name
 
---- Wraps the native backend with the Rust encoder when that module is built. A module that is present
---- but fails to load raises, as for the native decoder.
----@param native table
----@return table backend
-local function with_encoder(native)
-  local loaded, encoder = pcall(require, ENCODER)
-  if not loaded then
-    if type(encoder) == "string" and encoder:find(("module '%s' not found"):format(ENCODER), 1, true) then
-      return native
-    end
-    error(encoder, 0)
+--- Requires a native module of the codec.
+---@param name string
+---@return table module
+local function load_module(name)
+  local loaded, module = pcall(require, name)
+  if loaded then return module end
+  if type(module) == "string" and module:find(("module '%s' not found"):format(name), 1, true) then
+    error(errors.JsonError({
+      message = ("the native module %s is not built: run `%s` (hecate.json has no pure-Lua fallback)"):format(
+        name, BUILD_COMMAND),
+      context = { module = name, command = BUILD_COMMAND },
+    }), 0)
   end
-  encoder.bind(markers)
-  local reference = require("hecate.json.internal.reference")
-  local encode = encoder.encode
-  return {
-    decode = native.decode,
-    encode = function(value, options)
-      if not options.rfc8785 then
-        local text = encode(value, options)
-        if text ~= nil then return text end
-      end
-      return reference.encode(value, options)
-    end,
-  }
+  error(module, 0)
 end
 
---- Returns the active backend, selecting it on first use.
----@return table backend
----@return "native"|"reference" name
+--- Returns the backend, loading and binding the native modules on first use.
+---@return { decode: function, encode: function } backend
 function M.get()
-  if selected then return selected, selected_name --[[@as "native"|"reference"]] end
-  local loaded, native = pcall(require, NATIVE)
-  if loaded then
-    if type(native) ~= "table" or type(native.decode) ~= "function" or type(native.encode) ~= "function" then
-      error(("%s does not provide decode and encode"):format(NATIVE), 0)
-    end
-    if type(native.bind) == "function" then native.bind(markers) end
-    selected, selected_name = with_encoder(native), "native"
-  elseif type(native) == "string" and native:find(("module '%s' not found"):format(NATIVE), 1, true) then
-    selected, selected_name = require("hecate.json.internal.reference"), "reference"
-  else
-    error(native, 0)
+  if selected then return selected end
+  local native = load_module(NATIVE)
+  if type(native) ~= "table" or type(native.decode) ~= "function" then
+    error(("%s does not provide decode"):format(NATIVE), 0)
   end
-  return selected, selected_name
+  local encoder = load_module(ENCODER)
+  if type(encoder) ~= "table" or type(encoder.encode) ~= "function" or type(encoder.bind) ~= "function" then
+    error(("%s does not provide bind and encode"):format(ENCODER), 0)
+  end
+  if type(native.bind) == "function" then native.bind(markers) end
+  encoder.bind(markers)
+  selected = { decode = native.decode, encode = encoder.encode }
+  return selected
 end
 
---- Forces a backend (tests: the shared suites run against both). `"native"` raises when the module is
---- not built; `"reference"` never loads the native module; `nil` forgets the choice, as `reset` does.
----@param name "native"|"reference"|nil
-function M.use(name)
-  if name == nil then
-    selected, selected_name = nil, nil
-  elseif name == "reference" then
-    selected, selected_name = require("hecate.json.internal.reference"), "reference"
-  elseif name == "native" then
-    local native = require(NATIVE)
-    if type(native.bind) == "function" then native.bind(markers) end
-    selected, selected_name = with_encoder(native), "native"
-  else
-    error(("unknown backend %q"):format(name), 2)
-  end
-end
-
---- Forgets the selected backend so that the next call selects again (tests, after a native build).
+--- Forgets the selected backend so that the next call loads again (tests, after a native build).
 function M.reset()
-  selected, selected_name = nil, nil
+  selected = nil
 end
 
 return M

@@ -1,5 +1,5 @@
 -- Expected outputs of the codec, generated from the pure-Lua reference backend before it was removed (OQ-53).
--- Edited by hand where the behaviour changed on purpose (see packages/json/README.md, "Known limitations").
+-- Edited by hand after generation: nothing (the decoder answers as the reference decoder did, `-0` included).
 -- Each entry is a text with either its expected value (`value`: the text of `json.encode(value, { canonical = true })`,
 -- which tells integers from floats and keeps every marker) or its expected failure (`reason`, `offset`, `message`;
 -- a duplicate member name has no `offset`, OQ-54). `options` are the options of `json.decode`.
@@ -7,7 +7,7 @@
 
 return {
   { text = "0", value = "0" },
-  { text = "-0", value = "-0.0" },
+  { text = "-0", value = "0" },
   { text = "-0.0", value = "-0.0" },
   { text = "-0e0", value = "-0.0" },
   { text = "0.0", value = "0.0" },
@@ -35,7 +35,7 @@ return {
   { text = "1.7976931348623157e308", value = "1.7976931348623157e+308" },
   { text = "1.7976931348623159e308", reason = "number_out_of_range", offset = 0, message = "number \"1.7976931348623159e308\" is out of range: it does not fit in a 64-bit float (about 1.8e308 at most); RFC 8259 allows it but parsers disagree on the result (infinity, error or clamp), so it is rejected" },
   { text = "0.30000000000000004", value = "0.30000000000000004" },
-  { text = "[-0, -0.0, 0, 0.0]", value = "[-0.0,-0.0,0,0.0]" },
+  { text = "[-0, -0.0, 0, 0.0]", value = "[0,-0.0,0,0.0]" },
   { text = "01", reason = "syntax", offset = 1, message = "invalid number: number with leading zero is not allowed" },
   { text = "-", reason = "syntax", offset = 1, message = "unexpected end of input" },
   { text = "+1", reason = "syntax", offset = 0, message = "unexpected character '+'" },
