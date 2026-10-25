@@ -154,35 +154,34 @@ end
 ---@param fn fun(...): ...  the function run with the binding
 ---@param ... any  the arguments passed to `fn`
 ---@return any ...  the results of `fn`
-function M.with_local(key, value, fn, ...)
+function M.with_ambient(key, value, fn, ...)
   if key == nil then
-    error(core.ArgumentError("with_local expects a key that is not nil"), 2)
+    error(core.ArgumentError("with_ambient expects a key that is not nil"), 2)
   end
   if type(fn) ~= "function" then
-    error(core.ArgumentError(("with_local expects a function, got %s"):format(type(fn))), 2)
+    error(core.ArgumentError(("with_ambient expects a function, got %s"):format(type(fn))), 2)
   end
-  local task = context.current_task("with_local")
-  local outer = task.locals
-  task.locals = { key = key, value = value, parent = outer }
+  local task = context.current_task("with_ambient")
+  local outer = task.ambient
+  task.ambient = { key = key, value = value, parent = outer }
   local results = table.pack(pcall(fn, ...))
-  task.locals = outer
+  task.ambient = outer
   if not results[1] then error(results[2], 0) end
   return table.unpack(results, 2, results.n)
 end
 
---- Returns the value bound to `key` in the running computation, or `nil` (ADR 0025). Also reachable
---- as `reactor["local"]`, the name of the decision, which is a reserved word of Lua.
+--- Returns the value bound to `key` in the running computation, or `nil` (ADR 0025).
 ---
 --- Raises `hecate.core.ArgumentError` if `key` is `nil` and
 --- `hecate.core.NonYieldableContextError` outside a managed coroutine.
 ---@async
----@param key any  the key given to `with_local`
+---@param key any  the key given to `with_ambient`
 ---@return any value  the bound value, or `nil`
-function M.local_value(key)
+function M.ambient(key)
   if key == nil then
-    error(core.ArgumentError("local expects a key that is not nil"), 2)
+    error(core.ArgumentError("ambient expects a key that is not nil"), 2)
   end
-  local node = context.current_task("local").locals
+  local node = context.current_task("ambient").ambient
   while node do
     if node.key == key then return node.value end
     node = node.parent

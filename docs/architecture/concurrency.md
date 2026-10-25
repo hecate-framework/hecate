@@ -26,8 +26,8 @@ All primitives live in `hecate.reactor`. Names follow [the glossary](../glossary
 | `deadline(seconds_or_instant, fn, ...)` | Run `fn`; raise `DeadlineExceededError` and cancel it if it does not finish in time. Accepts a relative duration or an absolute instant. |
 | `sleep(seconds)` | Suspend the current coroutine. |
 | `scope(fn)` | Open a structured-concurrency scope: returns only when every computation forked inside has completed or been cancelled. |
-| `with_local(key, value, fn, ...) → ...` | Run `fn` with `key` bound to `value` in the running computation and in what it forks or detaches meanwhile (see "Scope-local context"). |
-| `local_value(key) → value` | The value bound to `key`, or `nil`. Also `reactor["local"]` (`local` is a reserved word; OQ-56). |
+| `with_ambient(key, value, fn, ...) → ...` | Run `fn` with `key` bound to `value` in the running computation and in what it forks or detaches meanwhile (see "Ambient context"). |
+| `ambient(key) → value` | The value bound to `key`, or `nil`. |
 | `Future` | `:value()` (suspends until ready), `:cancel()`, `:done()`, `:state()`. |
 | `Channel(capacity)` | `:send(v)`, `:receive()`, `:close()`; capacity 0 is a rendezvous channel. Usable in `select`. |
 | `Semaphore(n)`, `Mutex()`, `Monitor()`, `Condition` | Classical synchronisation. `Mutex` and `Semaphore` permits are `<close>`-able. |
@@ -49,14 +49,14 @@ the test framework opens one per test. Rules:
 
 This removes the classic leak where background work outlives the request that started it.
 
-## Scope-local context
+## Ambient context
 
-[ADR 0025](../adr/0025-scope-local-context.md). Request-scoped values (a request id, a principal) reach every
+[ADR 0025](../adr/0025-ambient-context.md). Request-scoped values (a request id, a principal) reach every
 computation forked while serving a request without being passed through each function.
 
-- `with_local(key, value, fn, ...)` binds `key` to `value` while `fn` runs and returns the results of `fn`. A nested
+- `with_ambient(key, value, fn, ...)` binds `key` to `value` while `fn` runs and returns the results of `fn`. A nested
   binding of the same key shadows the outer one until `fn` returns; the binding is removed when `fn` returns or raises.
-- `local_value(key)` returns the value bound in the running computation, or `nil`.
+- `ambient(key)` returns the value bound in the running computation, or `nil`.
 - `fork`, `detach` and `Scope:fork` give the new computation the bindings visible **at the moment of the call**, from
   the creator (not from the application scope). Bindings made later by the creator are not seen by the child, and a
   binding made by a child is seen by neither its parent nor its siblings.

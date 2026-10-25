@@ -78,12 +78,13 @@ When resolved, record the outcome (ADR or specification update) and move the ent
 An earlier note said asynchronous flushing needed a public non-suspending wake from `reactor`. That was
 wrong: `Semaphore:release()` never suspends and `reactor.detach` starts a task that outlives the caller,
 which is all a sink queue needs. `hecate.log.AsyncSink` is built on them, with no `reactor` change. Point (1)
-of OQ-55 is decided by [ADR 0025](adr/0025-scope-local-context.md) (Accepted):
-`reactor.with_local(key, value, fn)` and `reactor.local(key)`, implemented (see OQ-56 for the name `local`).
+of OQ-55 is decided by [ADR 0025](adr/0025-ambient-context.md) (Accepted):
+`reactor.with_ambient(key, value, fn)` and `reactor.ambient(key)`, implemented (OQ-56 chose the name).
 
-### OQ-56 — `reactor.local` is not callable with dot syntax
+### OQ-56 — The name of the scope-bound context accessor
 
-`local` is a reserved word of Lua, so `reactor.local(key)` is a syntax error; only `reactor["local"](key)` works.
-ADR 0025 (Accepted) names it `reactor.local`. Taken conservatively: the function is exposed under both
-`reactor["local"]` (the name of the decision) and `reactor.local_value` (callable with dot syntax; used by `log` and
-the tests). **Decision for the owner:** keep both, or amend ADR 0025 to keep only `local_value` (or another name).
+**Decided by the owner (2026-10-25).** ADR 0025 named the accessor `reactor.local`, which is a syntax error with dot
+syntax because `local` is a reserved word of Lua. The word `local` is dropped everywhere (the accessor, the binder, the
+internal field, the tests and the documents): the concept is the **ambient context**, with `reactor.with_ambient(key,
+value, fn, ...)` and `reactor.ambient(key)`, matching the `ambient` module of `hecate.log`. ADR 0025 is amended and its
+file renamed to `0025-ambient-context.md`. There is no second name.

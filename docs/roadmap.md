@@ -90,8 +90,8 @@ Exit: CI is green on all three platforms with a trivial test in every package sk
       check in `docs/architecture/documentation.md`) so that it is not forgotten again.
 - [x] `log`: structured logging, RFC 5424 severities, per-scope context (explicit through
       `Logger:with_context`; the implicit propagation across `fork` and `detach` is the next item).
-- [x] `reactor` follow-up: scope-local context, `reactor.with_local(key, value, fn)` and
-      `reactor.local(key)` ([ADR 0025](adr/0025-scope-local-context.md), OQ-55): specify it in
+- [x] `reactor` follow-up: ambient context, `reactor.with_ambient(key, value, fn)` and
+      `reactor.ambient(key)` ([ADR 0025](adr/0025-ambient-context.md), OQ-55): specify it in
       `concurrency.md`, implement it, test inheritance across `fork`, `detach`, `scope`,
       cancellation and the virtual clock; then give `log` a default context provider and a test
       that a record logged by a forked computation carries the bound context. Needed before

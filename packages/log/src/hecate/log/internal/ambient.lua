@@ -1,4 +1,4 @@
--- The ambient log context: fields bound to the running computation through the scope-local
+-- The ambient log context: fields bound to the running computation through the ambient
 -- context of the reactor (ADR 0025), inherited by what it forks or detaches.
 global <const> require, pairs, pcall, type
 
@@ -11,7 +11,7 @@ local M = {}
 --- Returns the fields bound by `bind` in the running computation, or `nil` (also outside a reactor).
 ---@return table?
 function M.fields()
-  local ok, fields = pcall(reactor.local_value, KEY)
+  local ok, fields = pcall(reactor.ambient, KEY)
   if ok and type(fields) == "table" then return fields end
   return nil
 end
@@ -26,7 +26,7 @@ function M.bind(fields, fn, ...)
   local outer = M.fields()
   if outer then for key, value in pairs(outer) do merged[key] = value end end
   for key, value in pairs(fields) do merged[key] = value end
-  return reactor.with_local(KEY, merged, fn, ...)
+  return reactor.with_ambient(KEY, merged, fn, ...)
 end
 
 return M

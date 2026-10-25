@@ -8,7 +8,7 @@
 | Rock | `hecate-log` |
 | Layer | 1 — Runtime |
 | Roadmap phase | 1 |
-| Status | step 1: severities, records, `Logger` with context, in-memory and JSON lines sinks, `Secret`; console and file sinks, `LimitedSink` (sampling and rate limiting), `AsyncSink` (drain task on `Semaphore` and `detach`); `log.bind` binds ambient context through the scope-local context of `reactor` (ADR 0025) |
+| Status | step 1: severities, records, `Logger` with context, in-memory and JSON lines sinks, `Secret`; console and file sinks, `LimitedSink` (sampling and rate limiting), `AsyncSink` (drain task on `Semaphore` and `detach`); `log.bind` binds ambient context through the ambient context of `reactor` (ADR 0025) |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |
 | Depends on | [`core`](../core), [`reactor`](../reactor), [`json`](../json) |
 | Used by | `cli`, `hecate`, `http`, `kernel`, `migration`, `sql`, `test` |
@@ -54,7 +54,7 @@ local log = require("hecate.log")
 
 A sink is any object with a synchronous `write(record)` that does not suspend. `log.bind(fields, fn, ...)` adds
 `fields` to every record logged while `fn` runs and by the computations it forks or detaches meanwhile (a logger
-without `context_provider` reads them; [ADR 0025](../../docs/adr/0025-scope-local-context.md)). A logger's own
+without `context_provider` reads them; [ADR 0025](../../docs/adr/0025-ambient-context.md)). A logger's own
 context wins over the bound fields.
 
 ## Layout (once implemented)
