@@ -1,13 +1,17 @@
--- sanitize [package...]: builds the C modules of the packages that have one (default: all) with ASan and
--- UBSan into a separate tree and runs their tests against it. Linux and macOS with GCC or Clang; the
--- interpreter is not instrumented, so the sanitizer runtime is preloaded (Linux).
+-- sanitize [package...]: builds the C modules of the named packages (default: json, the only package with C
+-- code) with ASan and UBSan into the rocks tree and runs their tests against it. Linux only, with GCC or Clang:
+-- the interpreter is not instrumented, so the ASan runtime is preloaded with LD_PRELOAD (macOS would need
+-- DYLD_INSERT_LIBRARIES and its own runtime lookup, not done). The Rust code is not covered (it is memory-safe
+-- outside `unsafe`; the cargo-fuzz targets exercise its boundary).
 local util = require("lib.util")
 local sanitize = require("lib.sanitize")
 
 return {
   description = "build native modules with ASan/UBSan and run their tests",
   run = function(ctx)
-    if util.is_windows() then return { ok = false, problems = { "sanitize runs on Linux and macOS" } } end
+    if util.is_windows() or util.capture("uname -s"):find("Darwin", 1, true) then
+      return { ok = false, problems = { "sanitize runs on Linux only (it preloads the ASan runtime with LD_PRELOAD)" } }
+    end
     local cc = os.getenv("CC") or "cc"
     local runtime = sanitize.runtime(util.capture(cc .. " -print-file-name=libasan.so"))
     if not runtime then return { ok = false, problems = { "the AddressSanitizer runtime was not found for " .. cc } } end

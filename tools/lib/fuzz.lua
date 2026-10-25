@@ -1,4 +1,6 @@
 -- Helpers of the `fuzz` task: argument parsing, target lookup and the cargo-fuzz command line.
+local util = require("lib.util")
+
 local M = {}
 
 --- Parses `<target> [--seconds n]`; nil when the arguments are invalid.
@@ -42,7 +44,19 @@ end
 ---@param seconds integer
 ---@return string
 function M.command(crate, name, seconds)
-  return ("cd %s && cargo +nightly fuzz run %s -- -max_total_time=%d"):format(crate, name, seconds)
+  return ("cd %s && cargo +nightly fuzz run %s -- -max_total_time=%d"):format(util.quote(crate), name, seconds)
+end
+
+--- The last `count` lines of a report: a fuzzer prints a line per new input, and the verdict (the crash, its
+--- stack trace and the path of the input that reproduces it) is at the end.
+---@param text string
+---@param count integer
+---@return string
+function M.tail(text, count)
+  local lines = {}
+  for line in text:gmatch("[^\r\n]+") do lines[#lines + 1] = line end
+  if #lines <= count then return table.concat(lines, "\n") end
+  return ("... (%d earlier lines omitted)\n"):format(#lines - count) .. table.concat(lines, "\n", #lines - count + 1)
 end
 
 return M

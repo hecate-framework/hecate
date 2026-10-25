@@ -30,4 +30,11 @@ function T:test_command_runs_cargo_fuzz_with_a_time_limit()
   self:assert_true(cmd:find("-max_total_time=45", 1, true) ~= nil)
 end
 
+function T:test_tail_keeps_the_last_lines_and_says_how_many_were_omitted()
+  local text = "a\nb\nc\nd\ne\n"
+  self:assert_equal("c\nd\ne", fuzz.tail(text, 3):gsub("^.-\n", ""))
+  self:assert_true(fuzz.tail(text, 3):find("2 earlier lines omitted", 1, true) ~= nil)
+  self:assert_equal("a\nb", fuzz.tail("a\nb\n", 3))
+end
+
 return T

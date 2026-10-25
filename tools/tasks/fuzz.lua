@@ -27,7 +27,7 @@ return {
     if not target then return { ok = false, problems = { "unknown fuzz target: " .. options.target } } end
     local out, ok = util.capture(fuzz.command(ctx.root .. "/packages/" .. target.package .. "/native", target.name,
       options.seconds) .. " 2>&1")
-    if not ok then return { ok = false, problems = { "fuzzing " .. target.name .. " found a failure or did not run:\n" .. out } } end
+    if not ok then return { ok = false, problems = { "fuzzing " .. target.name .. " found a failure or did not run (last 80 lines):\n" .. fuzz.tail(out, 80) } } end
     return { ok = true, problems = {} }
   end,
 }

@@ -48,6 +48,31 @@ jobs:
         if: steps.rocks.outputs.cache-hit != 'true'
         run: luarocks --tree .hecate/rocks install luv 1.53.0-0
 
+      # The tests of every package need the native modules: `net` (TLS), `json` (decoder and encoder) and
+      # `doc` (Markdown), as in ci.yml, and the downloaded test data. The Rust build is cached.
+      - name: Cache native build
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: |
+            ~/.cargo/registry
+            packages/net/native/target
+            packages/json/native/target
+            packages/doc/native/target
+          key: native-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('packages/net/native/Cargo.lock', 'packages/net/native/rust-toolchain.toml', 'packages/json/native/Cargo.lock', 'packages/doc/native/Cargo.lock') }}
+
+      - name: Build the native modules
+        run: |
+          set -e
+          for package in net json doc; do
+            (cd "packages/$package/native" && rustup toolchain install)
+            lua tools/run.lua build-native "$package"
+          done
+
+      - name: Download the test data
+        run: |
+          lua tools/run.lua fetch-fixtures json
+          lua tools/run.lua fetch-fixtures doc
+
       - name: Leak detection
         run: lua tools/run.lua leaks
 
@@ -83,6 +108,31 @@ jobs:
         if: steps.rocks.outputs.cache-hit != 'true'
         run: luarocks --tree .hecate/rocks install luv 1.53.0-0
 
+      # The tests of every package need the native modules: `net` (TLS), `json` (decoder and encoder) and
+      # `doc` (Markdown), as in ci.yml, and the downloaded test data. The Rust build is cached.
+      - name: Cache native build
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: |
+            ~/.cargo/registry
+            packages/net/native/target
+            packages/json/native/target
+            packages/doc/native/target
+          key: native-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('packages/net/native/Cargo.lock', 'packages/net/native/rust-toolchain.toml', 'packages/json/native/Cargo.lock', 'packages/doc/native/Cargo.lock') }}
+
+      - name: Build the native modules
+        run: |
+          set -e
+          for package in net json doc; do
+            (cd "packages/$package/native" && rustup toolchain install)
+            lua tools/run.lua build-native "$package"
+          done
+
+      - name: Download the test data
+        run: |
+          lua tools/run.lua fetch-fixtures json
+          lua tools/run.lua fetch-fixtures doc
+
       - name: Coverage and thresholds
         run: lua tools/run.lua coverage
 
@@ -93,7 +143,6 @@ jobs:
           name: lcov
           path: coverage/lcov.info
           if-no-files-found: ignore
-
 
   fuzz:
     name: fuzz (long)
@@ -116,10 +165,20 @@ jobs:
       - name: Add toolchain to PATH
         run: echo "$GITHUB_WORKSPACE/.hecate/toolchain/bin" >> "$GITHUB_PATH"
 
+      - name: Cache cargo-fuzz and the fuzz build
+        id: cargo-fuzz
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: |
+            ~/.cargo/bin/cargo-fuzz
+            ~/.cargo/registry
+            packages/net/native/fuzz/target
+          key: cargo-fuzz-0.12.0-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('packages/net/native/fuzz/Cargo.lock', 'packages/net/native/rust-toolchain.toml') }}
+
       - name: Rust toolchain (nightly) and cargo-fuzz
         run: |
           rustup toolchain install nightly --profile minimal
-          cargo install cargo-fuzz --locked --version 0.12.0
+          command -v cargo-fuzz >/dev/null || cargo install cargo-fuzz --locked --version 0.12.0
 
       - name: Fuzz every target for ten minutes
         env:
