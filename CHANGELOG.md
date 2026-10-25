@@ -86,6 +86,7 @@ Each release heading states the supported Lua version.
 - `hecate.doc`: `SystemFileSystem` runs over `hecate.reactor.fs` instead of the platform shell (OQ-33, alternative (b)); its methods suspend, so the runners and the tests that use it run inside `reactor.run`. `hecate-reactor` joins the dependencies of the package.
 - `hecate.doc`: the search index, the page configuration and the LuaLS export go through `hecate.json`; the in-house codec `hecate.doc.internal.json` is removed (OQ-33). Output stays deterministic (`canonical = true`) and `<`, `>`, `&` stay escaped.
 - `hecate.json`: `-0` decodes as the integer `0`; `canonical` orders member names by UTF-16 code units (RFC 8785); `check-boundaries` exempts the JSON markers file from the `setmetatable` rule.
+- Documentation: Linux is the only production target; macOS and Windows are development platforms (`docs/vision.md`). Windows is not a benchmark target: the Windows part of the benchmarks follow-up is dropped from the roadmap and `benchmarks/README.md`.
 
 ### Fixed
 
@@ -107,7 +108,3 @@ Each release heading states the supported Lua version.
 ### Security
 
 - Every third-party GitHub Action of the workflows is pinned by commit SHA (tag kept as a comment); Dependabot keeps them current.
-
-### Changed
-
-- Documentation: Linux is the only production target; macOS and Windows are development platforms (`docs/vision.md`). Windows is not a benchmark target: the Windows part of the benchmarks follow-up is dropped from the roadmap and `benchmarks/README.md`.
