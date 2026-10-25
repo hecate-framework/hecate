@@ -40,6 +40,8 @@ BASH_MAX_TIMEOUT_MS=1200000
 ```
 
 Builds of native modules and full test runs exceed the 2-minute default command timeout.
+`hecate.json` has no pure-Lua fallback (OQ-53): run `lua tools/run.lua build-native json` (and `build-native doc` for
+the tests of `doc`) before the tests of `json` and of every package that depends on it.
 Do not put secrets here: anyone who can use the environment can read its variables.
 
 ## Limits to keep in mind

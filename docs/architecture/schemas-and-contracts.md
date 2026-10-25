@@ -76,3 +76,23 @@ one constraint, with the expected violation.
 Nothing about the HTTP interface is declared twice. Documentation comments
 (`summary`, `description`) live in the route declaration; LuaLS annotations document
 code, not the HTTP contract. The documentation generator merges both views.
+
+## JSON codec (`json`)
+
+Every schema, contract and test datum that crosses the wire goes through `hecate.json` (RFC 8259, I-JSON RFC 7493), whose
+behaviour is specified here and in `packages/json/README.md`:
+
+- **Value model.** Lua integers and floats stay distinct (a float is always written with a point or an exponent),
+  `json.null` is a unique value, `json.array` and `json.object` mark tables so that `[]` and `{}` round-trip, and an
+  unmarked empty table is an object. `decode` rejects what parsers disagree on (duplicate member names, lone
+  surrogates, a byte order mark, numbers outside the double range) with a `DecodeError` that has a `reason`, an `offset`,
+  a `line` and a `column`; `encode` rejects what has no JSON representation with an `EncodeError` that has a `reason`
+  and the JSON Pointer (RFC 6901) `path` of the offending value.
+- **Two native modules, no fallback.** The decoder (C over yyjson) and the encoder (Rust, `serde_json` through `mlua`)
+  are required at run time on every platform; each produces its own failures in the vocabulary above, and a module that
+  is not built raises an error naming `lua tools/run.lua build-native json` (OQ-53, ADR 0020 and ADR 0021). The seam is
+  `hecate.json.internal.backend`; packages that depend on `json` need the modules in their tests and in CI.
+- **Canonical output.** `canonical = true` orders members by UTF-16 code units (RFC 8785 section 3.2.3);
+  `canonical = "rfc8785"` is the full JSON Canonicalization Scheme, for signatures and hashes.
+- **Tested by fixtures, not by an oracle.** Expected outputs (`packages/json/tests/fixtures`), property tests
+  (`decode(encode(x)) == x`, never invalid UTF-8, no crash), RFC 8785 appendix B vectors and the JSONTestSuite corpus.

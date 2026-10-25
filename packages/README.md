@@ -9,8 +9,8 @@ agent in `.claude/agents/pkg-<name>.md`.
 | Package | Rock | Layer | Phase | Status | Summary |
 |---|---|---|---|---|---|
 | [`core`](core) | `hecate-core` | 0 — Foundation | 1 | implemented | Object model (classes, traits, interfaces), error hierarchy, enumerations, value objects and Lua-version compatibility shims. |
-| [`json`](json) | `hecate-json` | 1 — Runtime | 1 | implemented | Fast, correct JSON codec (RFC 8259) with integer/float fidelity, explicit null and array markers, and precise error positions. |
-| [`log`](log) | `hecate-log` | 1 — Runtime | 1 | specified | Structured logging with RFC 5424 severities, per-scope context and pluggable sinks. |
+| [`json`](json) | `hecate-json` | 1 — Runtime | 1 | Lua API on two native modules | Fast, correct JSON codec (RFC 8259) with integer/float fidelity, explicit null and array markers, and precise error positions. |
+| [`log`](log) | `hecate-log` | 1 — Runtime | 1 | step | Structured logging with RFC 5424 severities, per-scope context and pluggable sinks. |
 | [`net`](net) | `hecate-net` | 1 — Runtime | 1 | in progress | TCP/UDP streams, DNS resolution, buffered readers/writers and TLS, all suspending transparently. |
 | [`reactor`](reactor) | `hecate-reactor` | 1 — Runtime | 1 | in progress | The reactor over libuv (luv): coroutine scheduler, futures, structured concurrency, synchronisation primitives, timers, signals, processes, file system. |
 | [`http`](http) | `hecate-http` | 2 — Protocol | 2 | specified | HTTP/1.1 server and client with a message model following RFC 9110 semantics. |
@@ -21,7 +21,7 @@ agent in `.claude/agents/pkg-<name>.md`.
 | [`kernel`](kernel) | `hecate-kernel` | 3 — Framework | 2 | specified | The application: modules, controllers, route modules, filters (chain of responsibility), problem details, lifecycle, workers and graceful shutdown. |
 | [`openapi`](openapi) | `hecate-openapi` | 3 — Framework | 3 | specified | OpenAPI 3.1 document assembly from the route table, schemas and project settings; served endpoint, export, lint and breaking-change diff. |
 | [`cli`](cli) | `hecate-cli` | Tooling | 3 | specified | The `hecate` command: toolchains, projects, dependencies (LuaRocks), development server, tests, contracts, documentation, migrations, scaffolding, packaging. |
-| [`doc`](doc) | `hecate-doc` | Tooling | 3 | in progress | Documentation generator and static site builder with an MDN-like theme: guides in Markdown, code reference from LuaLS annotations, API reference from OpenAPI, configuration and error-code references, locales, search. |
+| [`doc`](doc) | `hecate-doc` | Tooling | 3 | minimal slice done | Documentation generator and static site builder with an MDN-like theme: guides in Markdown, code reference from LuaLS annotations, API reference from OpenAPI, configuration and error-code references, locales, search. |
 | [`test`](test) | `hecate-test` | Tooling | 3 | specified | xUnit test framework running inside the reactor: cases, suites, fixtures, assertions, in-process HTTP client, contract conformance, property-based testing, coverage. |
 | [`hecate`](hecate) | `hecate` | Meta | 3 | specified | Meta-rock `hecate`: depends on the standard edition and provides the `hecate` meta-module re-exporting the framework surface. |
 | [`migration`](migration) | `hecate-migration` | Data | 4 | specified | Versioned, reversible schema migrations with checksums and CLI integration. |

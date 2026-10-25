@@ -1,8 +1,8 @@
 -- hecate.json: the JSON codec (RFC 8259) of Hecate, with integer/float fidelity, explicit null and
 -- array markers and precise error positions (ADR 0020, packages/json/README.md).
 --
--- One public API: the native backend (yyjson decoder, serde_json encoder, ADR 0020 and 0021) and the
--- pure-Lua reference backend sit behind `hecate.json.internal.backend`; callers never see which one runs.
+-- The codec runs on two native modules, required at run time (yyjson decoder, serde_json encoder, ADR 0020 and 0021;
+-- OQ-53: no pure-Lua fallback); they sit behind `hecate.json.internal.backend`.
 global <const> require, type, getmetatable, setmetatable, table, rawequal, error, math, string, pairs, tostring
 
 local core = require("hecate.core")
@@ -111,7 +111,8 @@ end
 --- Decodes a JSON text (RFC 8259) into a Lua value.
 ---
 --- An integer without fraction or exponent that fits in 64 bits is a Lua integer; any other number is
---- a float (numbers beyond the 64-bit range included); `-0` is the integer 0 while `-0.0` is a float that keeps its sign. `null` is `json.null`. Every array is a
+--- a float (numbers beyond the 64-bit range included); `-0` is the integer 0 while `-0.0` is a float that keeps its sign (both
+--- as yyjson reads them, see the README). `null` is `json.null`. Every array is a
 --- table marked with `json.array` and every object a table marked with `json.object`, so that an empty
 --- `[]` and an empty `{}` stay distinct and `encode` reproduces the text's value model.
 ---
@@ -134,7 +135,7 @@ function json.decode(text, options)
   local value, failure = backend.get().decode(text, resolved)
   if failure ~= nil then
     if failure.offset == nil then
-      -- The native decoder cannot place a duplicate member name (yyjson keeps no position for it).
+      -- The decoder cannot place a duplicate member name (yyjson keeps no position for it).
       error(errors.DecodeError({ message = failure.message, context = { reason = failure.reason } }), 2)
     end
     local line, column = position.locate(text, failure.offset)
