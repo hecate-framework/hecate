@@ -3,8 +3,8 @@
 
 - roadmap_item: Workflows `native.yml`, `security.yml`, `nightly.yml`; tasks `sanitize`, `fuzz`, `leaks`, `coverage`, `bench`, `check-licenses`.
 - status: in-progress
-- lock_until: 2026-10-25T15:18:33Z
-- last_update: 2026-10-25T13:48:33Z
+- lock_until: 2026-10-25T15:50:39Z
+- last_update: 2026-10-25T14:20:39Z
 
 ## Done
 
@@ -25,16 +25,18 @@
 
 - Step 7 done: `native.yml` and `nightly.yml` written (YAML parses; not yet run on GitHub). No artefact upload: the `upload-artifact` hash was not taken from the repo.
 
+- CI fixes after the first run of native.yml (all green on 82030c5): sanitizer builds trap on UB (`-fsanitize-undefined-trap-on-error`, Clang's ASan runtime has no UBSan handlers), JSON corpus fetched, fuzz binaries link the toolchain Lua (`LUA_LIB`, packages/net/native/fuzz/build.rs), `fuzz --list` status line filtered.
+- Step 8 done: `security.yml` gains codeql (c-cpp, build-mode none), dependency-review (PRs) and scorecard (push/schedule); pins taken from `git ls-remote` of the upstream tags; LCOV and fuzz artefact uploads restored in nightly.yml (upload-artifact v7.0.1).
+
 ## Next steps
 
-1. Watch CI of the new workflows (native.yml runs on this PR because it touches its own file); fix failures.
-2. Complete `security.yml` (CodeQL for C, dependency review, Scorecard) with pinned action hashes verified from the actions' repositories.
-3. json libFuzzer C target (optional follow-up; may become its own roadmap item).
-4. Then: delete HANDOFF.md, tick the roadmap item, mark ready for review.
-
-## Decisions taken (and where they are recorded)
+1. Watch CI of security.yml's new jobs (CodeQL/Scorecard need code scanning enabled in Settings > Code security; if they fail for that reason, tell the owner).
+2. json libFuzzer C target: not part of this PR unless the owner wants it; propose a separate roadmap item.
+3. Then: delete HANDOFF.md, tick the roadmap item, mark ready for review, ask for the owner's review.
 
 ## Doubts and questions for the owner
+
+- Is code scanning enabled for the repository? CodeQL and Scorecard upload SARIF.
 
 ## Commands to re-run
 

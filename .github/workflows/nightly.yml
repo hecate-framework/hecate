@@ -86,6 +86,14 @@ jobs:
       - name: Coverage and thresholds
         run: lua tools/run.lua coverage
 
+      - name: Upload the LCOV report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: lcov
+          path: coverage/lcov.info
+          if-no-files-found: ignore
+
 
   fuzz:
     name: fuzz (long)
@@ -123,3 +131,11 @@ jobs:
             lua tools/run.lua fuzz "$target" --seconds 600
             echo "::endgroup::"
           done
+
+      - name: Upload crashing inputs
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: fuzz-artifacts
+          path: packages/*/native/fuzz/artifacts/
+          if-no-files-found: ignore
