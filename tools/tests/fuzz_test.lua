@@ -3,13 +3,13 @@ local fuzz = require("lib.fuzz")
 local T = test.Case("FuzzTest")
 
 function T:test_parse_reads_target_and_seconds()
-  local options = fuzz.parse({ "feed", "--seconds", "30" })
+  local options = assert(fuzz.parse({ "feed", "--seconds", "30" }))
   self:assert_equal("feed", options.target)
   self:assert_equal(30, options.seconds)
 end
 
 function T:test_parse_defaults_to_sixty_seconds()
-  self:assert_equal(60, fuzz.parse({ "feed" }).seconds)
+  self:assert_equal(60, assert(fuzz.parse({ "feed" })).seconds)
 end
 
 function T:test_parse_rejects_a_missing_target_and_a_bad_duration()
