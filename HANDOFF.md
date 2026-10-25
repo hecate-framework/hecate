@@ -8,11 +8,12 @@
 
 ## Done
 
+- Step 1 done: runner ported to `reactor.spawn` (ipc report instead of stdout; luv installed with `luarocks --tree .hecate/rocks install luv 1.53.0-0`); `run.lua`, `compare.lua` verified on Linux incl. pinning; lint ok. Windows only verified by CI (no CI job runs bench on Windows yet).
 - Claimed the item (#34 locked by another run; #35 and #38 wait on the owner).
 
 ## Next steps
 
-1. Port `benchmarks/lib/runner.lua` (and run.lua/compare.lua callers) from popen/taskset/kill to `reactor.spawn`; keep pinning where `taskset` exists.
+1. (done)
 2. Accept-spread scenario (ADR 0023).
 3. Docs, changelog, README of benchmarks; tick the roadmap except the owner-measured baseline.
 

@@ -1,7 +1,7 @@
 -- tcp-echo server: accepts connections and sends back every byte it receives, on the reactor and `hecate.net`.
 -- Usage: lua benchmarks/scenarios/tcp-echo/server.lua [port]   (from the repository root; 0 = a free port)
--- Prints `listening <port>` once it accepts connections, then runs until it is killed.
-global <const> _VERSION, package, io, os, arg, print, require, tonumber, ipairs, pcall
+-- Reports `listening <port>` (benchmarks/lib/report.lua) once it accepts connections, then runs until it is killed.
+global <const> _VERSION, package, os, arg, dofile, require, tonumber, ipairs, pcall
 -- HECATE_SRC: the checkout whose packages are measured (default: the current directory), so that the
 -- A/B comparison runs one set of scenario files against a base and a head tree.
 local src = os.getenv("HECATE_SRC") or "."
@@ -16,6 +16,7 @@ end
 
 local reactor = require("hecate.reactor")
 local net = require("hecate.net")
+local report = dofile("benchmarks/lib/report.lua")
 
 local function serve(connection)
   local peer <close> = connection
@@ -29,8 +30,7 @@ end
 
 reactor.run(function()
   local listener <close> = net.listen("0.0.0.0", tonumber(arg[1]) or 0, { backlog = 4096 })
-  print("listening " .. listener:local_address().port)
-  io.stdout:flush()
+  report.send("listening " .. listener:local_address().port)
   while true do
     local connection = listener:accept()
     reactor.detach(function() pcall(serve, connection) end)

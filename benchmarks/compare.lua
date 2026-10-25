@@ -7,6 +7,7 @@
 -- Exit status: 0 no regression, 1 regression, 2 usage or run error.
 local stats = dofile("benchmarks/lib/stats.lua")
 local runner = dofile("benchmarks/lib/runner.lua")
+local reactor = require("hecate.reactor")
 
 local ALPHA, THRESHOLD = 0.01, 0.10
 -- measures that matter, and the direction in which a change is worse
@@ -39,21 +40,23 @@ if not runner.exists(scenario) then fail(("no scenario '%s'"):format(scenario)) 
 
 local samples = { base = {}, head = {} }
 local order = {}
-for round = 1, options.rounds do
-  for _, side in ipairs(round % 2 == 1 and { "base", "head" } or { "head", "base" }) do
-    io.stderr:write(("[round %d/%d] %s\n"):format(round, options.rounds, side))
-    options.src = side == "base" and base or head
-    local measures, problem = runner.round(scenario, options)
-    if not measures then fail(side .. ": " .. (problem or "")) return end
-    for _, m in ipairs(measures) do
-      if not samples[side][m.label] then
-        samples[side][m.label] = {}
-        if side == "base" then order[#order + 1] = { label = m.label, unit = m.unit } end
+reactor.run(function()
+  for round = 1, options.rounds do
+    for _, side in ipairs(round % 2 == 1 and { "base", "head" } or { "head", "base" }) do
+      io.stderr:write(("[round %d/%d] %s\n"):format(round, options.rounds, side))
+      options.src = side == "base" and base or head
+      local measures, problem = runner.round(scenario, options)
+      if not measures then fail(side .. ": " .. (problem or "")) return end
+      for _, m in ipairs(measures) do
+        if not samples[side][m.label] then
+          samples[side][m.label] = {}
+          if side == "base" then order[#order + 1] = { label = m.label, unit = m.unit } end
+        end
+        table.insert(samples[side][m.label], m.value)
       end
-      table.insert(samples[side][m.label], m.value)
     end
   end
-end
+end)
 
 local regressed = false
 print(("# %s, base %s against head %s, %d rounds each"):format(scenario, base, head, options.rounds))

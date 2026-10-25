@@ -2,11 +2,12 @@
 -- several rounds, stops it, and prints the median and spread of every measure.
 -- Usage: lua benchmarks/run.lua <scenario> [--rounds=N] [--server-pin=CPUS] [--load-pin=CPUS]
 --          [--lua=PATH] [load options: --connections=N --rate=N --duration=S --warmup=S --payload=BYTES]
--- Run from the repository root, on Linux or macOS (a POSIX shell is required). Scenarios live in
+-- Run from the repository root, on Linux, macOS or Windows (`--server-pin` and `--load-pin` need `taskset`: Linux). Scenarios live in
 -- benchmarks/scenarios/<name>/ as `server.lua` (prints `listening <port>`) and `load.lua`
 -- (prints `label value unit` lines); benchmarks/README.md describes the method.
 local stats = dofile("benchmarks/lib/stats.lua")
 local runner = dofile("benchmarks/lib/runner.lua")
+local reactor = require("hecate.reactor")
 
 ---@param message string
 local function fail(message)
@@ -29,12 +30,14 @@ end
 if not runner.exists(scenario) then fail(("no scenario '%s' (see benchmarks/scenarios/)"):format(scenario)) end
 
 local rounds = {}
-for round = 1, options.rounds do
-  io.stderr:write(("[round %d/%d] %s\n"):format(round, options.rounds, scenario))
-  local measures, problem = runner.round(scenario, options)
-  if not measures then fail(problem or "") return end
-  rounds[#rounds + 1] = measures
-end
+reactor.run(function()
+  for round = 1, options.rounds do
+    io.stderr:write(("[round %d/%d] %s\n"):format(round, options.rounds, scenario))
+    local measures, problem = runner.round(scenario, options)
+    if not measures then fail(problem or "") return end
+    rounds[#rounds + 1] = measures
+  end
+end)
 
 print(("# %s, %d rounds"):format(scenario, options.rounds))
 print(("%-20s %12s %12s %12s %8s"):format("measure", "median", "min", "max", "max/min"))

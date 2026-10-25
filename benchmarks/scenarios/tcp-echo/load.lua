@@ -3,8 +3,8 @@
 -- so a slow server cannot hide its queueing (coordinated omission).
 -- Usage: lua benchmarks/scenarios/tcp-echo/load.lua [--port=N] [--host=ADDR] [--connections=N]
 --          [--rate=REQUESTS_PER_SECOND] [--duration=SECONDS] [--warmup=SECONDS] [--payload=BYTES]
--- Prints measurement lines (`label value unit`): throughput, errors, p50/p90/p99/p99.9 and max latency.
-global <const> _VERSION, package, io, arg, print, require, tonumber, ipairs, pcall, string, table, os, dofile, math
+-- Reports measurement lines (`label value unit`): throughput, errors, p50/p90/p99/p99.9 and max latency.
+global <const> _VERSION, package, io, arg, require, tonumber, ipairs, pcall, string, table, os, dofile, math
 -- HECATE_SRC: the checkout whose packages are measured (default: the current directory), so that the
 -- A/B comparison runs one set of scenario files against a base and a head tree.
 local src = os.getenv("HECATE_SRC") or "."
@@ -82,14 +82,20 @@ local function run()
   return latencies, errors, completed, math.max(options.duration, last_done - warm_until)
 end
 
-local latencies, errors, completed, elapsed = reactor.run(run)
-local microseconds = function(seconds) return seconds * 1e6 end
-print(("throughput %.0f requests/s"):format(completed / elapsed))
-print(("errors %d connections"):format(errors))
-if #latencies > 0 then
-  table.sort(latencies)
-  for _, p in ipairs({ { "p50", 50 }, { "p90", 90 }, { "p99", 99 }, { "p99.9", 99.9 } }) do
-    print(("latency %s %.1f us"):format(p[1], microseconds(stats.percentile(latencies, p[2]))))
+local report = dofile("benchmarks/lib/report.lua")
+reactor.run(function()
+  local latencies, errors, completed, elapsed = run()
+  local microseconds = function(seconds) return seconds * 1e6 end
+  local lines = {
+    ("throughput %.0f requests/s"):format(completed / elapsed),
+    ("errors %d connections"):format(errors),
+  }
+  if #latencies > 0 then
+    table.sort(latencies)
+    for _, p in ipairs({ { "p50", 50 }, { "p90", 90 }, { "p99", 99 }, { "p99.9", 99.9 } }) do
+      lines[#lines + 1] = ("latency %s %.1f us"):format(p[1], microseconds(stats.percentile(latencies, p[2])))
+    end
+    lines[#lines + 1] = ("latency max %.1f us"):format(microseconds(latencies[#latencies]))
   end
-  print(("latency max %.1f us"):format(microseconds(latencies[#latencies])))
-end
+  report.send(table.concat(lines, "\n"))
+end)
