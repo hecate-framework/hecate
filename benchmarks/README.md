@@ -17,7 +17,7 @@ Performance is a product requirement (vision.md). Benchmarks run in CI
 
 ## Method
 
-- Load generator: `wrk2` or `oha` with constant arrival rate (coordinated-omission safe).
+- Load generator: constant arrival rate, latency from the due time (coordinated-omission safe): the Lua generator of the repository for `tcp-echo`; `wrk2` or `oha` for the HTTP scenarios.
 - Report throughput, p50/p90/p99/p99.9 latency, memory, allocations per request.
 - Same hardware for comparisons; 3 runs minimum; variance reported.
 - Comparison targets (informative, separate job): FastAPI (uvicorn), Node.js (Fastify),
@@ -34,17 +34,39 @@ Performance is a product requirement (vision.md). Benchmarks run in CI
   measured by hand on a dedicated machine, following [Running on your own hardware](#running-on-your-own-hardware).
   The hosted runners keep the relative A/B comparison above.
 
-## Planned layout
+## Layout
 
-`benchmarks/scenarios/<name>/` (application + load profile), `benchmarks/run.lua`,
-`benchmarks/results/` (git-ignored; history stored as CI artefacts and on the website).
+- `benchmarks/scenarios/<name>/`: a network scenario, made of `server.lua` (starts the application under
+  test, prints `listening <port>`) and `load.lua` (drives it and prints `label value unit` lines).
+- `benchmarks/run.lua`: runs a scenario for several rounds and prints the median and spread of each measure.
+- `benchmarks/compare.lua`: the A/B comparison of a base tree and a head tree (below).
+- `benchmarks/lib/`: `runner.lua` (one round) and `stats.lua` (percentiles, median, Mann-Whitney U).
+- `benchmarks/results/` (git-ignored; history stored as CI artefacts and on the website).
+
+The load generator is written in Lua on the reactor of the repository, so that no third-party tool is needed.
+It is open loop: each connection sends one request per interval, and the latency of a request is measured from
+the instant it was due, not from the instant it was sent, so a slow server cannot hide its queueing
+(coordinated omission). `wrk2` or `oha` stay an option for the later HTTP scenarios, run by hand on dedicated hardware.
+
+```sh
+lua tools/run.lua bench tcp-echo --rounds=5 --connections=10000 --rate=5000 --duration=10
+lua tools/run.lua bench tcp-echo --compare=origin/main        # A/B/A/B against a git reference
+lua benchmarks/run.lua tcp-echo --server-pin=2 --load-pin=3   # directly, with pinned processes
+```
+
+Options of the load generator: `--connections`, `--rate` (total requests per second), `--duration` and
+`--warmup` (seconds), `--payload` (bytes). Raise `ulimit -n` above the number of connections first. Latency
+is reported in microseconds (p50, p90, p99, p99.9, max), throughput in requests per second, `errors` in
+connections that failed. A throughput below `--rate` means the server (or the generator) is saturated.
+`--compare` checks the reference out in `.hecate/bench-base` and runs the same scenario files against that tree
+and the working tree, alternately, on this host; it exits with status 1 on a significant regression.
 
 ## Running on your own hardware
 
 Goal: absolute numbers that mean something, together with a description of the machine that
 produced them. The `bench` task browses and runs every benchmark file of the repository
-(`packages/<package>/benchmarks/<name>.lua`) on a Linux host; the comparison with a baseline and the
-network scenarios come with the Phase 1 harness item.
+(`packages/<package>/benchmarks/<name>.lua`) on a Linux host; the network scenarios and the comparison with
+a baseline are run as shown in [Layout](#layout).
 
 ```sh
 lua tools/run.lua bench --list                      # what exists
@@ -115,25 +137,12 @@ procedure. Otherwise run both on one machine, on disjoint pinned cores, over the
 interface, and say so: the numbers then measure the server under a handicap and are good for
 comparing commits, not for comparing frameworks.
 
-### Windows with QEMU
+### Windows
 
-QEMU on a Linux host measures a **virtual machine**, not Windows on hardware: the numbers are
-valid for comparing two commits on the same VM, never as absolute figures. To make them as
-steady as possible: use KVM (`-accel kvm -cpu host`), give the guest fixed memory
-(`-m 8G`, no ballooning) and a few cores pinned on the host (`taskset` on the QEMU process, or
-`-smp 4` with `chrt`/`taskset` per vCPU thread), disk and network on `virtio` (install the virtio
-drivers in the guest), and perform the host steps 3 to 6 above on the **host**. In the guest:
-High performance power plan (`powercfg /setactive SCHEME_MIN`), no Windows Update or Defender
-scan during the run (`Set-MpPreference -DisableRealtimeMonitoring $true` for the duration only), then
-the same procedure. Absolute Windows figures need a physical machine (a spare PC booted on Windows,
-or a Windows-to-go disk): everything above then applies unchanged.
-
-Describe the Windows host from PowerShell, since `host-report.sh` needs a POSIX shell (Git Bash
-runs it, with fewer sections): `Get-CimInstance Win32_Processor | Select Name,NumberOfCores,NumberOfLogicalProcessors,MaxClockSpeed`,
-`Get-CimInstance Win32_ComputerSystem | Select TotalPhysicalMemory,HypervisorPresent`,
-`(Get-CimInstance Win32_OperatingSystem).Caption`, `powercfg /getactivescheme`, and the same
-noise measurement:
-`lua -e "..."` copied from the end of `host-report.sh`, or `sh benchmarks/host-report.sh` in Git Bash.
+Windows is not a benchmark target (owner decision, 2026-10-25): Linux is the only production target and
+Windows is a development platform (see [the vision](../docs/vision.md)). The network scenarios need a POSIX
+shell, `taskset` and `kill`, and no work should be started to port them. The micro-benchmarks of the packages
+run wherever Lua runs, but their numbers are not published for Windows.
 
 ### macOS
 

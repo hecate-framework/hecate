@@ -1,7 +1,7 @@
--- Throughput of the JSON codec: decode and encode of three generated documents, on the reference
--- backend and, when built (lua tools/run.lua build-native json), on the native backends.
+-- Throughput of the JSON codec: decode and encode of three generated documents on the native modules
+-- (lua tools/run.lua build-native json; there is no other backend).
 -- Usage: lua packages/json/benchmarks/codec.lua   (from the repository root)
-global <const> _VERSION, package, os, string, print, require, pcall, tostring, table, ipairs
+global <const> _VERSION, package, os, string, print, require, table, ipairs
 package.path = "packages/json/src/?.lua;packages/json/src/?/init.lua;packages/core/src/?.lua;"
   .. "packages/core/src/?/init.lua;" .. package.path
 local version = _VERSION:match("%d+%.%d+")
@@ -11,7 +11,6 @@ for _, tree in ipairs({ ".hecate/rocks", "spikes/rocks" }) do
 end
 
 local json = require("hecate.json")
-local backend = require("hecate.json.internal.backend")
 
 local ROUNDS = 7
 local TARGET_BYTES = 2 * 1024 * 1024
@@ -74,11 +73,6 @@ local function time(f)
 end
 
 local function run(name)
-  local ok, problem = pcall(backend.use, name)
-  if not ok then
-    print(("# backend %s is not available: %s"):format(name, (tostring(problem):gsub("\n.*", ""))))
-    return
-  end
   for _, document in ipairs(DOCUMENTS) do
     local label, value = document[1], document[2]
     local text = json.encode(value)
@@ -88,6 +82,4 @@ local function run(name)
   end
 end
 
-run("reference")
 run("native")
-backend.use(nil)

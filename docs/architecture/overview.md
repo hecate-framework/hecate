@@ -57,6 +57,7 @@ flowchart TB
     cli --> migration
     cli --> test
     doc --> openapi
+    doc --> reactor
     test --> kernel
     test --> openapi
   end

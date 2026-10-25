@@ -24,6 +24,20 @@ function M.parse_line(line)
   return label, tonumber(value), unit
 end
 
+--- Reads the table printed by benchmarks/run.lua: one row per measure with its median, minimum and maximum.
+---@param text string
+---@return { label: string, median: number, min: number, max: number, unit: string }[]
+function M.parse_scenario(text)
+  local rows = {}
+  for line in text:gmatch("[^\n]+") do
+    local label, median, min, max, unit = line:match("^(%a.-)%s+(%-?[%d.]+)%s+(%-?[%d.]+)%s+(%-?[%d.]+)%s+[%d.]+%s+(%S+)$")
+    if label then
+      rows[#rows + 1] = { label = label, median = tonumber(median), min = tonumber(min), max = tonumber(max), unit = unit }
+    end
+  end
+  return rows
+end
+
 --- Median of a sorted array.
 ---@param sorted number[]
 ---@return number

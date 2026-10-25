@@ -42,6 +42,21 @@ function T:test_parse_selection()
   self:assert_true(select(2, bench.parse_selection("x", 5)) ~= nil)
 end
 
+function T:test_parse_scenario_reads_the_table_of_run_lua()
+  local rows = bench.parse_scenario(table.concat({
+    "# tcp-echo, 3 rounds",
+    "measure                    median          min          max  max/min",
+    "throughput                 4999.5       4990.0       5000.0     1.00  requests/s",
+    "latency p99.9              4591.5       4000.1       9000.0     2.25  us",
+  }, "\n"))
+  self:assert_equal(2, #rows)
+  self:assert_equal("throughput", rows[1].label)
+  self:assert_equal(4999.5, rows[1].median)
+  self:assert_equal("latency p99.9", rows[2].label)
+  self:assert_equal(9000, rows[2].max)
+  self:assert_equal("us", rows[2].unit)
+end
+
 function T:test_valid_cpu_list()
   self:assert_true(bench.valid_cpu_list("2,3"))
   self:assert_true(bench.valid_cpu_list("2-3,6"))

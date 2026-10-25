@@ -1,6 +1,7 @@
--- A datagram exchange over the loopback interface: two sockets on free ports, one datagram
--- each way. `send_to` takes a numeric address (resolve a name first with `net.resolve`), and
--- each `receive_from` returns exactly one datagram with the sender's address.
+-- A datagram exchange over the loopback interface: two sockets on free ports,
+-- one datagram each way. `send_to` takes a numeric address (resolve a name
+-- first with `net.resolve`), and each `receive_from` returns exactly one
+-- datagram with the sender's address.
 local reactor = require("hecate.reactor")
 local net = require("hecate.net")
 

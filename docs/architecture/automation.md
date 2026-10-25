@@ -43,21 +43,22 @@ Status column: `done` = implemented in `tools/`, `now` = workflow exists today, 
 | `check-docs-examples` | every code block of the website introduced by `<!-- example: <path> -->` is identical to that file and the file exists (the examples run in the tests of their package) | done |
 | `check-translations` | missing/stale translations (front matter `source_revision`) | P3 |
 | `check-links` | internal Markdown links and anchors | done |
-| `check-licenses` | third-party code and rocks have compatible licenses; `THIRD_PARTY_NOTICES` up to date | P1 |
+| `check-licenses` | third-party code and rocks have compatible licenses; `THIRD_PARTY_NOTICES` up to date | done (every directory with a `VENDORED.md` has a `LICENSE` and an entry in the notices, a `vendor` or `third_party` directory without a `VENDORED.md` is reported, every path the notices name must exist; Rust crates by cargo-deny; run by `ci`) |
 
 ### Tests and measurements
 
 | Task | Purpose | Status |
 |---|---|---|
 | `test [packages] [--integration] [--tag t]` | run tests (bootstrap harness, then `hecate.test`); a test that runs longer than `HECATE_TEST_TIMEOUT` seconds (default 120) fails its file and is named; with `CI=true` each file is announced on standard error; the CI job has a 30-minute limit | done |
-| `coverage` | LCOV report, per-package thresholds (core/reactor/router/schema ≥ 90 %) | P1 |
+| `coverage [packages]` | line coverage by a debug line hook in the harness (`HECATE_TEST_COVERAGE`, main thread and coroutines), LCOV report `coverage/lcov.info`, thresholds core/reactor/router/schema ≥ 90 % (executable lines are approximated from the source text) | done |
 | `affected [--base ref]` | packages affected by a diff, following reverse dependencies; used to shrink CI | done |
+| `needs <package> [packages...]` | `true` when a listed package is, or depends on, `<package>`; CI builds the native modules of `json` when it says so (OQ-53: no fallback backend) | done |
 | `matrix` | emits the CI matrix (platforms × packages × services) as JSON | done |
 | `services up\|down\|status` | start database servers locally via `tools/services/compose.yaml` (same versions as CI) | P4 |
-| `bench [scenario] [--compare ref]` | run benchmarks, compare with a baseline, fail above threshold | P1 (partly done: `bench [name...] [--list] [--runs=N] [--pin=CPUS] [--out=DIR]` browses and runs the `packages/*/benchmarks/*.lua` files on a Linux host, with host reports and a summary of the runs; `--compare` and the scenarios wait for the harness) |
-| `fuzz <target> [--seconds n]` | libFuzzer targets for C parsers and codecs | P1 |
-| `sanitize` | build native modules with ASan/UBSan and run their tests | P1 |
-| `leaks` | run reactor-heavy suites with coroutine/handle leak detection | P1 |
+| `bench [scenario] [--compare ref]` | run benchmarks, compare with a baseline, fail above threshold | P1 (partly done: `bench [name...] [--list] [--runs=N] [--pin=CPUS] [--out=DIR]` browses and runs the `packages/*/benchmarks/*.lua` files on a Linux host, with host reports and a summary of the runs; `bench <scenario> [--compare=ref]` runs a network scenario of `benchmarks/scenarios/` and its interleaved A/B comparison against a git reference, Mann-Whitney U with p < 0.01 and a 10 % threshold; the `plaintext`, `json` and later scenarios come with their packages) |
+| `fuzz <target> [--seconds n]` | libFuzzer targets for C parsers and codecs | done for the cargo-fuzz targets of `net` (`fuzz --list`); the C targets of `json` wait for the libFuzzer harness |
+| `sanitize [packages]` | build native modules with ASan/UBSan and run their tests (Linux and macOS, GCC or Clang: the ASan runtime is preloaded with `LD_PRELOAD`, or `DYLD_INSERT_LIBRARIES` on macOS; default package `json`, the only one with C code; the Rust code is not instrumented, the cargo-fuzz targets exercise its boundary) | done |
+| `leaks [packages]` | run the reactor-heavy suites (default `reactor`, `net`) with the harness leak check (`HECATE_TEST_LEAKS=1`): a test that leaves libuv handles open fails; coroutine leaks are already failed by `hecate.test` scopes | done (verified only where `luv` is installed: in CI) |
 | `cli-e2e` | generate each CLI template, install, test, serve, request | P3 |
 
 ### Generators
@@ -94,18 +95,18 @@ Status column: `done` = implemented in `tools/`, `now` = workflow exists today, 
 | `docs.yml` | PR, push to main (Markdown changes) | markdownlint, link check | now |
 | `pr-hygiene.yml` | PR opened/edited | Conventional Commits title, path labels | now |
 | `claude.yml` | `@claude` in issues, PR comments and reviews | Claude Code GitHub Action | now (needs `ANTHROPIC_API_KEY` secret) |
-| `ci.yml` | PR, push to main | `affected` → matrix {ubuntu, macos, windows} × affected packages: bootstrap (cached), format-check, lint, typecheck, check-*, unit tests, coverage upload | P0 |
-| `native.yml` | PR touching `csrc/`, nightly | GCC/Clang/MSVC builds, sanitizers, short fuzzing (PR), long fuzzing (nightly) | P1 |
+| `ci.yml` | PR, push to main | `affected` → matrix {ubuntu, macos, windows} × affected packages: bootstrap (cached), format-check, lint, typecheck, check-* (including `check-docs-examples` and `check-licenses`), unit tests; coverage runs in `nightly` | P0 |
+| `native.yml` | PR and push to main touching `csrc/` or `native/` (and the sanitize and fuzz tools) | ASan/UBSan run of `json` (Linux with GCC and Clang, macOS with Clang), one-minute fuzzing (Linux) of every cargo-fuzz target (crashing inputs uploaded as an artefact); MSVC builds are part of `ci`; long fuzzing in `nightly` | P1 (done; the json libFuzzer C target is still to write) |
 | `integration.yml` | PR touching data/net packages, nightly | service containers: PostgreSQL, MySQL, MariaDB, Redis, Valkey, later MongoDB, SQL Server — two most recent major versions each | P4 |
-| `benchmarks.yml` | push to main, PR labelled `performance` | GitHub-hosted runner, `bench --compare main` with interleaved A/B runs on the same runner (relative comparison only, OQ-14), repeated runs (at least 11), the **median** is the reference value (mean, min and max reported alongside, since shared runners are noisy), PR comment with deltas and significance, history published as indicative | P1 |
+| `benchmarks.yml` | push to main, PR labelled `performance` | GitHub-hosted runner, `bench --compare main` with interleaved A/B runs on the same runner (relative comparison only, OQ-14), repeated runs (7 rounds each side for `tcp-echo`, at least 5 are required; the table asks for more as scenarios stabilise), the **median** is the reference value (mean, min and max reported alongside, since shared runners are noisy), deltas and significance in the job summary (a PR comment and the published history come later), history published as indicative | P1 (delivered for `tcp-echo`: `benchmarks.yml`) |
 | `website.yml` | PR (build only), push to main (deploy) | gen-reference, site build (`hecate doc`, or the interim generator chosen after OQ-11), link check, translation status, deploy to GitHub Pages | P2; first version done (pinned LuaLS, `build.lua --reference --strict`, base path and origin from `configure-pages`, deploy from main; link check inside `--strict`; translation status and `hecate doc` pending; needs Settings > Pages > Source = GitHub Actions) |
 | `docker.yml` | changes in `docker/`, weekly, release | multi-arch builds (buildx), Trivy scan, push on release | P3 |
 | `cli-e2e.yml` | PR touching `cli`, nightly | `cli-e2e` on 3 platforms with the built executable | P3 |
-| `security.yml` | PR touching a Cargo manifest or lockfile, push to main, weekly | `cargo audit` (known vulnerabilities) and `cargo deny` (licences, bans, sources; policy in `deny.toml`) for the Rust crates, with the tools built from source at pinned versions (done); CodeQL (C), dependency review, OpenSSF Scorecard (to come) | P1 |
+| `security.yml` | PR touching a Cargo manifest or lockfile, push to main, weekly | `cargo audit` (known vulnerabilities) and `cargo deny` (licences, bans, sources; policy in `deny.toml`) for the Rust crates, with the tools built from source at pinned versions (done); CodeQL (C, build mode `none`), dependency review (pull requests) and OpenSSF Scorecard (push to main and weekly), all pinned by commit hash and uploading SARIF (code scanning must be enabled in the repository settings) | P1 (done) |
 | `split.yml` | push to `main`, tag `v*.*.*` | `affected` → `split --push` for affected packages on `main`; all packages on tags (same tag in every mirror) | P3 |
 | `labels.yml` | push to `main` touching `.github/labels.yml` | synchronise repository labels from `.github/labels.yml` | now |
 | `release.yml` | tag `v*.*.*` (jobs that publish run in environment `release`) | `release verify` → wait for `split.yml` tags → rocks (sources from mirrors) → binaries (6 targets) → sign + SBOM → GitHub Release → Docker → Homebrew tap, Scoop bucket, winget → versioned website | P3 |
-| `nightly.yml` | schedule | full matrix including all integration services, long fuzzing, leak detection, dependency freshness report as an issue; `check-mirrors` from P3 | P1 |
+| `nightly.yml` | schedule | `leaks`, `coverage` with thresholds and long fuzzing of every target (done; the jobs build the native modules and download the test data like `ci`); the integration services, a dependency freshness report as an issue and `check-mirrors` from P3 come with their phases; the LCOV report and crashing fuzz inputs are uploaded as artefacts | P1 |
 
 Rules:
 

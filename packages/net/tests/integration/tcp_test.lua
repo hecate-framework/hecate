@@ -351,7 +351,9 @@ end
 --- reactor creates. (Tests may require luv; only `src` is forbidden to, OQ-28.)
 local function spying_on_handles(fn)
   local uv = require("luv")
-  local methods = getmetatable(uv.new_tcp()).__index
+  local probe = uv.new_tcp()
+  local methods = getmetatable(probe).__index
+  probe:close()
   local calls = {}
   local originals = { nodelay = methods.nodelay, keepalive = methods.keepalive }
   for name, original in pairs(originals) do

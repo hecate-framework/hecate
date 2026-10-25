@@ -1,4 +1,5 @@
--- A rejected text raises a `DecodeError` whose context names the reason and the position.
+-- A rejected text raises a `DecodeError` whose context names the reason and the
+-- position.
 local json = require("hecate.json")
 
 local ok, err = pcall(json.decode, "[1, 2")

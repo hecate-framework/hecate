@@ -44,6 +44,11 @@ end
 ---@type fun(name: string)?
 M.on_start = nil
 
+--- Called with the full name of a test after it ran and was torn down, and whether it passed; returns a failure
+--- message to fail the test (the file runner's leak detection, `leaks` task).
+---@type (fun(name: string, passed: boolean): string?)?
+M.on_finish = nil
+
 --- Runs every test_* method of a case, in name order. Returns a list of results
 --- { name, ok, message }.
 ---@param class table
@@ -67,6 +72,10 @@ function M.run_case(class)
     end)
     local message
     if not ok then message = type(err) == "table" and err.harness_failure or tostring(err) end
+    if M.on_finish then
+      local leak = M.on_finish((class.name or "case") .. "." .. n, ok)
+      if ok and leak then ok, message = false, leak end
+    end
     results[#results + 1] = { name = (class.name or "case") .. "." .. n, ok = ok, message = message }
   end
   if class.tear_down_case then class:tear_down_case() end

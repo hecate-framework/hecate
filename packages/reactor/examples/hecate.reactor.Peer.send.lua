@@ -1,7 +1,8 @@
--- Hands a connection to another process. The parent accepts a TCP connection and passes it to the
--- child with the message "serve"; the child writes on the stream it received, and the connection
--- is closed in the parent by the hand-over. The parent waits for the child's acknowledgement
--- before it goes on, as a sender should (on Windows the receiver's copy of the socket depends
+-- Hands a connection to another process. The parent accepts a TCP connection
+-- and passes it to the child with the message "serve"; the child writes on the
+-- stream it received, and the connection is closed in the parent by the
+-- hand-over. The parent waits for the child's acknowledgement before it goes
+-- on, as a sender should (on Windows the receiver's copy of the socket depends
 -- on the sender still being there).
 local reactor = require("hecate.reactor")
 

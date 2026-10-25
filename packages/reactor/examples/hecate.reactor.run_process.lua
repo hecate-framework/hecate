@@ -1,5 +1,6 @@
--- Runs a program to completion and captures its output. The program is the Lua interpreter that
--- runs this file (`arg[-1]`), so the example needs nothing installed.
+-- Runs a program to completion and captures its output. The program is the Lua
+-- interpreter that runs this file (`arg[-1]`), so the example needs nothing
+-- installed.
 local reactor = require("hecate.reactor")
 
 reactor.run(function()

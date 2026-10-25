@@ -1,14 +1,42 @@
-# Hecate
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="packages/doc/src/hecate/doc/theme/assets/brand/hecate-logo-horizontal-on-dark.svg">
+    <img src="packages/doc/src/hecate/doc/theme/assets/brand/hecate-logo-horizontal.svg" alt="hecate" width="342" height="96">
+  </picture>
+</p>
 
-**A modular, contract-first web API framework for Lua 5.5.**
+<h3 align="center"><em>A modular, contract-first web API framework for Lua 5.5.</em></h3>
 
-![status](https://img.shields.io/badge/status-specification-lightgrey)
-![lua](https://img.shields.io/badge/Lua-5.5-blue)
-![platforms](https://img.shields.io/badge/platforms-Linux%20%7C%20macOS%20%7C%20Windows-informational)
-![license](https://img.shields.io/badge/license-MIT-green)
+<p align="center">
+  <img alt="status" src="https://img.shields.io/badge/status-early%20implementation-2F6F64?style=flat-square&labelColor=1C2766">
+  <img alt="Lua" src="https://img.shields.io/badge/Lua-5.5-1C2766?style=flat-square&labelColor=1C2766&logo=lua&logoColor=white">
+  <img alt="platforms" src="https://img.shields.io/badge/Linux%20%7C%20macOS%20%7C%20Windows-first--class-2F6F64?style=flat-square&labelColor=1C2766">
+  <img alt="license" src="https://img.shields.io/badge/license-MIT-2F6F64?style=flat-square&labelColor=1C2766">
+</p>
 
-> **Status:** specification stage. This repository currently contains the design
-> (vision, architecture, decision records, roadmap) and no implementation yet.
+<p align="center">
+  <a href="docs/vision.md"><b>Vision</b></a> ·
+  <a href="docs/developer-experience.md"><b>Developer experience</b></a> ·
+  <a href="docs/architecture/overview.md"><b>Architecture</b></a> ·
+  <a href="docs/roadmap.md"><b>Roadmap</b></a> ·
+  <a href="packages/README.md"><b>Packages</b></a> ·
+  <a href="https://hecate.theandre.dev"><b>Website</b></a>
+</p>
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme-pattern-on-dark.svg">
+    <img src="docs/assets/readme-pattern.svg" alt="" width="100%" height="96">
+  </picture>
+</p>
+
+> [!NOTE]
+> **Status: early implementation, not usable yet.** The foundations exist and are tested on
+> Linux, macOS and Windows: the object model and errors (`core`), the asynchronous runtime
+> (`reactor`), networking with TLS (`net`), the JSON codec (`json`), structured logging (`log`)
+> and the documentation generator that builds the website (`doc`). The HTTP server, router,
+> schemas, kernel, tooling and data access are specified in `docs/` and not written yet; the
+> [roadmap](docs/roadmap.md) says what comes next.
 
 Hecate is a complete ecosystem for building HTTP APIs in Lua: an asynchronous runtime,
 an HTTP server, a router, schemas and validation, automatic OpenAPI contracts, a test
@@ -59,7 +87,7 @@ The full catalogue, with status and dependencies, is in [packages/README.md](pac
 
 | Hecate | Lua | Status |
 |---|---|---|
-| 0.x | 5.5 | in design |
+| 0.x | 5.5 | early implementation |
 | future | 5.4 | planned, through source lowering ([ADR 0001](docs/adr/0001-lua-5.5-as-sole-target.md)) |
 
 The supported Lua version is always visible: in `hecate version`, in every rockspec,

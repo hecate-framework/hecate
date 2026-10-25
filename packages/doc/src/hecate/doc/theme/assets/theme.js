@@ -166,9 +166,12 @@
   /* Sidebar: show the current page ------------------------------------------------------ */
   var current = $(".sidebar a[aria-current='page']");
   if (current && current.scrollIntoView) {
-    var sidebar = $(".sidebar");
-    var offset = current.offsetTop - sidebar.clientHeight / 2;
-    if (offset > 0) sidebar.scrollTop = offset;
+    var nav = $(".sidebar > nav");
+    /* The navigation scrolls on large screens, the drawer itself on small ones. */
+    var scroller = nav.scrollHeight > nav.clientHeight ? nav : nav.parentNode;
+    var offset = current.getBoundingClientRect().top - scroller.getBoundingClientRect().top
+      + scroller.scrollTop - scroller.clientHeight / 2;
+    if (offset > 0) scroller.scrollTop = offset;
   }
 
   /* Outline: mark the heading being read ------------------------------------------------- */

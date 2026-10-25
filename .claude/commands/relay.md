@@ -13,11 +13,15 @@ at all times. Specification: `docs/architecture/ai-assisted-development.md#relay
    For each, read `HANDOFF.md` at the root of its branch.
    - If `lock_until` is in the future, another run owns it: skip it.
    - If CI failed or `status: in-progress`, check out the branch and continue from
-     "Next steps". Pick the oldest such pull request.
+     "Next steps". Pick the oldest such pull request. **Push to that pull request's own
+     branch**, even when the session designates another one: never redo its work on a
+     session branch.
 2. **Start.** Otherwise take the first unchecked item of `docs/roadmap.md` whose
-   dependencies are done and which is not blocked: skip items needing a decision listed
-   in `docs/open-questions.md` as `decision` or `spike → owner decision` that is not
-   resolved, and items with an open issue labelled `needs-decision` or `blocked`.
+   dependencies are done and which is not blocked. A **phase gate** item is startable only
+   when every other item of its phase is ticked, and no item of phase N+1 is startable
+   while the gate of phase N is unticked (see "Phase gates" below). Skip items needing a
+   decision listed in `docs/open-questions.md` as `decision` or `spike → owner decision`
+   that is not resolved, and items with an open issue labelled `needs-decision` or `blocked`.
 3. **Nothing to do.** If every remaining item is blocked, open (or update) one issue
    labelled `needs-decision` listing what you are waiting for, then stop.
 
@@ -51,3 +55,23 @@ at all times. Specification: `docs/architecture/ai-assisted-development.md#relay
   and ask for the owner's review in a comment. Never merge.
 - Stop after one roadmap item per run, even if usage seems to remain: the next run
   continues.
+
+## 5. Phase gates
+
+A gate item (`docs/roadmap.md`, "Phase gates") is a verification, not development. It follows the
+same claim and handoff steps (branch `claude/relay-phase-<n>-gate`, draft pull request, `HANDOFF.md`),
+and its steps are the four checks of the roadmap: completeness, it works, coherence, open questions.
+
+- Verify from a clean checkout, not from memory: run the tools, build the native modules, read the
+  code of every ticked item against its specification and the definition of done, run the
+  examples and benchmark scenarios, read the CI results of the latest `main` on the three
+  platforms. Use the reviewer agents (`/review-package`) on the packages of the phase.
+- Write the report `docs/reviews/phase-<n>.md`: for each ticked item, the evidence that it is
+  delivered and works (command, result, file), then the gaps found, then the open questions
+  with their context and a recommendation.
+- Fix a small gap in the pull request. Add a larger one as a new unticked roadmap item placed
+  before the gate, and stop: the gate stays unticked.
+- Put the open questions to the owner: update `docs/open-questions.md` and open (or update)
+  one issue labelled `needs-decision`. Never decide them.
+- Tick the gate only when the report shows no open gap and each listed question has an owner
+  decision or a recorded deferral; then follow "Finish" above.

@@ -36,3 +36,4 @@ Use [`template.md`](template.md) or the `/new-adr` command.
 | [0022](0022-doc-dependencies.md) | Documentation generator: third-party dependencies and WebAssembly assets | Accepted |
 | [0023](0023-multi-process-serving.md) | Multi-process serving: share-nothing workers behind a listening-strategy abstraction | Accepted |
 | [0024](0024-tls-trust-store.md) | TLS trust store: the operating system's verifier by default | Accepted |
+| [0025](0025-ambient-context.md) | Ambient context: `reactor.with_ambient` and `reactor.ambient` | Accepted |

@@ -4,8 +4,10 @@ Hecate is a modular, contract-first web API framework for **Lua 5.5**, with its 
 asynchronous runtime (libuv via luv), HTTP stack, schemas, OpenAPI generation, test
 framework, documentation generator, database drivers, ORM and CLI.
 
-The project is currently at the **specification stage**: the design exists, the code
-does not. Your job is to implement it, milestone by milestone, following the roadmap.
+The project is in **early implementation**: the design is complete, and the foundations are
+written (`core`, `reactor`, `net`, `json`, `log`, `doc`; Phase 0 and most of Phase 1 of the
+roadmap). The other packages are still specifications. Your job is to implement the rest,
+milestone by milestone, following the roadmap.
 
 ## Sources of truth, in order of precedence
 
@@ -90,6 +92,11 @@ entries in `docs/open-questions.md`, and merges pull requests into `main`.
 Git workflow: work on a branch, push it, open a pull request, follow its CI on the three
 platforms. Never push to `main`, never force-push, never create tags, never publish.
 
+**Resuming an unmerged pull request: push to that pull request's own branch.** Check out its
+head branch and push there, even when the session designates another branch. Never carry the
+work over to a session branch: parallel branches for one subject mean the same work is redone
+and has to be merged by hand. Open a new branch only for a subject that has no open pull request.
+
 ## Cloud sessions
 
 Most sessions run in Claude Code cloud sessions (Ubuntu 24.04 x86_64, environment
@@ -118,11 +125,15 @@ Run `lua tools/run.lua --list` for the full catalogue.
 - Type check (LuaLS): `lua tools/run.lua typecheck` (needs `lua-language-server`)
 - Other gates: `check-lua-constructs`, `check-boundaries`, `check-glossary`,
   `check-versions`, `check-rockspecs`, `check-package-structure`, `check-adr-index`,
-  `check-changelog`, `check-links`
+  `check-changelog`, `check-links`, `check-docs-examples`, `check-licenses`
+- Native modules: `build-native <package>` (needs `cargo` or a C compiler), `sanitize [package]`
+  (ASan/UBSan, Linux), `fuzz <target> [--seconds n]` or `fuzz --list` (cargo-fuzz, nightly Rust)
+- Robustness and measurement: `leaks [package]`, `coverage [package]`, `fetch-fixtures <package>`,
+  `needs <package>`
 - Test all packages: `lua tools/run.lua test`
 - Test one package: `lua tools/run.lua test <package>` (tools: `test tools`)
 - Affected packages: `lua tools/run.lua affected --base origin/main`
-- Benchmarks: _TBD (Phase 1)_
+- Benchmarks: `lua tools/run.lua bench --list`; `bench <scenario> [--compare=ref]` (Linux and macOS)
 
 ## Repository map
 
