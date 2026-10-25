@@ -2,14 +2,10 @@
 -- decode, every `n_` file must be rejected with a DecodeError, and an `i_` file (implementation-defined) must
 -- either decode or raise a DecodeError, never anything else. Documented rejections of valid texts
 -- (OQ-48) are listed in STRICTER.
--- Shared suite: loaded once per backend by tests/unit/corpus_<backend>_test.lua with the backend name as
--- argument (`...`).
 local test = require("harness.test")
 local core = require("hecate.core")
 local json = require("hecate.json")
-local backend = require("hecate.json.internal.backend")
-local backend_name = ...
-local T = test.Case("JsonCorpusTest[" .. backend_name .. "]")
+local T = test.Case("JsonCorpusTest")
 
 local here = debug.getinfo(1, "S").source:match("^@(.*)[/\\][^/\\]*$") or "."
 local dir = here .. "/../../../../.hecate/fixtures/json/JSONTestSuite/test_parsing/"
@@ -26,10 +22,6 @@ local function available()
   if file then file:close() end
   return file ~= nil
 end
-
-function T:set_up() backend.use(backend_name) end
-
-function T:tear_down() backend.use(nil) end
 
 local function read(name)
   local file = assert(io.open(dir .. name, "rb"))

@@ -20,6 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       packages: ${{ steps.affected.outputs.packages }}
+      json_native: ${{ steps.affected.outputs.json_native }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -54,6 +55,11 @@ jobs:
           packages=$(lua tools/run.lua affected --base "$base" | tr '\n' ' ' | sed 's/ *$//')
           echo "affected: ${packages:-none}"
           echo "packages=$packages" >> "$GITHUB_OUTPUT"
+          # hecate.json has no pure-Lua fallback (OQ-53): its native modules are built whenever json, or a package that
+          # depends on it, is affected.
+          json_native=$(lua tools/run.lua needs json $packages | head -n 1)
+          echo "json native modules needed: $json_native"
+          echo "json_native=$json_native" >> "$GITHUB_OUTPUT"
 
   ci:
     needs: plan
@@ -148,7 +154,7 @@ jobs:
       # dependent package is affected; the TLS tests skip silently when it is missing, so the
       # build is asserted explicitly.
       - name: Cache native build
-        if: contains(format(' {0} ', needs.plan.outputs.packages), ' net ') || contains(format(' {0} ', needs.plan.outputs.packages), ' json ') || contains(format(' {0} ', needs.plan.outputs.packages), ' doc ')
+        if: contains(format(' {0} ', needs.plan.outputs.packages), ' net ') || needs.plan.outputs.json_native == 'true' || contains(format(' {0} ', needs.plan.outputs.packages), ' doc ')
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: |
@@ -165,8 +171,9 @@ jobs:
           lua tools/run.lua build-native net
           test -f .hecate/rocks/lib/lua/5.5/hecate/net/tls_native.so
 
+      # Both modules are required at run time (no fallback backend, OQ-53): every package that depends on `json` needs them.
       - name: Build the JSON native modules (C decoder, Rust encoder; POSIX)
-        if: runner.os != 'Windows' && contains(format(' {0} ', needs.plan.outputs.packages), ' json ')
+        if: runner.os != 'Windows' && needs.plan.outputs.json_native == 'true'
         run: |
           (cd packages/json/native && rustup toolchain install)
           lua tools/run.lua build-native json
@@ -214,7 +221,7 @@ jobs:
           if (-not (Test-Path .hecate/rocks/lib/lua/5.5/hecate/net/tls_native.dll)) { throw 'tls_native.dll missing' }
 
       - name: Build the JSON native modules (Windows)
-        if: runner.os == 'Windows' && contains(format(' {0} ', needs.plan.outputs.packages), ' json ')
+        if: runner.os == 'Windows' && needs.plan.outputs.json_native == 'true'
         shell: pwsh
         run: |
           Push-Location packages/json/native

@@ -18,7 +18,7 @@ Fast, correct JSON codec (RFC 8259) with integer/float fidelity, explicit null a
 
 - Allowed dependencies: `hecate.core`.
   Anything else requires an ADR; `check-boundaries` fails otherwise.
-- Native code: C decoder over vendored yyjson (`csrc/`), Rust encoder (`native/`); the pure-Lua reference backend is the fallback and the test oracle, and every native answer must match it.
+- Native code: C decoder over vendored yyjson (`csrc/`), Rust encoder (`native/`); both native modules are required at run time (no fallback backend, OQ-53); expected results live in fixtures under `tests/fixtures/`.
 - Out of scope: schema validation (see `schema`).
 - If your task needs a change in another package, stop and describe the needed change
   instead of making it (unless the task explicitly spans packages).
@@ -32,7 +32,7 @@ Fast, correct JSON codec (RFC 8259) with integer/float fidelity, explicit null a
 ## Test strategy
 
 - JSONTestSuite conformance
-- differential tests and fuzzing of the native backends against the reference backend, JSONTestSuite corpus on both backends (`lua tools/run.lua fetch-fixtures json`)
+- fixture-based decode and encode tests, oracle-free fuzzing (never crashes, valid UTF-8, round-trip), JSONTestSuite corpus (`lua tools/run.lua fetch-fixtures json`)
 - property tests: decode(encode(x)) == x
 
 Plus, for every change: unit tests for public behaviour, LuaLS annotations on public API

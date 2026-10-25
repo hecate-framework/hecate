@@ -43,4 +43,31 @@ function M.compute(files, deps)
   return out
 end
 
+--- Tells whether any of the given packages is `target` or depends on it, directly or not: whether a run that covers
+--- these packages needs what `target` builds (for example the native modules of `json`).
+---@param names string[]
+---@param target string
+---@param deps table<string, string[]>  package -> direct dependencies
+---@return boolean
+function M.needs(names, target, deps)
+  local memo = {}
+  local function reaches(name, trail)
+    if name == target then return true end
+    if memo[name] ~= nil then return memo[name] end
+    if trail[name] then return false end -- a cycle is reported by check-boundaries, not here
+    trail[name] = true
+    local found = false
+    for _, dependency in ipairs(deps[name] or {}) do
+      if reaches(dependency, trail) then found = true break end
+    end
+    trail[name] = nil
+    memo[name] = found
+    return found
+  end
+  for _, name in ipairs(names) do
+    if reaches(name, {}) then return true end
+  end
+  return false
+end
+
 return M

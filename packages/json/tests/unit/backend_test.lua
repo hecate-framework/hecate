@@ -1,115 +1,125 @@
--- The backend seam: lazy selection of hecate.json.native, fallback to the reference backend, and
--- the shared contract (markers, failures as values).
+-- The backend seam: lazy loading of the two native modules (the decoder `hecate.json.native`, the encoder
+-- `hecate.json.encoder_native`), the clear error of a module that is not built, and the shared contract
+-- (markers, failures as values). There is no fallback backend (OQ-53).
 local test = require("harness.test")
+local core = require("hecate.core")
 local json = require("hecate.json")
 local backend = require("hecate.json.internal.backend")
-local reference = require("hecate.json.internal.reference")
-local markers = require("hecate.json.internal.markers")
 local T = test.Case("JsonBackendTest")
 
 local NATIVE = "hecate.json.native"
 local ENCODER = "hecate.json.encoder_native"
 
--- The Rust encoder is hidden, as if not built, unless a test installs its own.
-local function hide_encoder()
-  package.loaded[ENCODER] = nil
-  package.preload[ENCODER] = function() error(("module '%s' not found"):format(ENCODER), 0) end
+local function missing(name)
+  return function() error(("module '%s' not found"):format(name), 0) end
 end
 
 function T:set_up()
-  self.preload = package.preload[NATIVE]
-  self.loaded = package.loaded[NATIVE]
-  self.encoder_preload = package.preload[ENCODER]
-  self.encoder_loaded = package.loaded[ENCODER]
-  hide_encoder()
+  self.preload = { [NATIVE] = package.preload[NATIVE], [ENCODER] = package.preload[ENCODER] }
+  self.loaded = { [NATIVE] = package.loaded[NATIVE], [ENCODER] = package.loaded[ENCODER] }
   backend.reset()
 end
 
 function T:tear_down()
-  package.preload[NATIVE] = self.preload
-  package.loaded[NATIVE] = self.loaded
-  package.preload[ENCODER] = self.encoder_preload
-  package.loaded[ENCODER] = self.encoder_loaded
+  for _, name in ipairs({ NATIVE, ENCODER }) do
+    package.preload[name] = self.preload[name]
+    package.loaded[name] = self.loaded[name]
+  end
   backend.reset()
 end
 
-function T:test_requiring_the_module_does_not_load_the_native_backend()
-  package.loaded[NATIVE] = nil
+-- Installs fake modules; `nil` for a module leaves the real one out of reach (it is reported as not found).
+local function install(native, encoder)
+  package.loaded[NATIVE], package.loaded[ENCODER] = nil, nil
+  package.preload[NATIVE] = native and function() return native end or missing(NATIVE)
+  package.preload[ENCODER] = encoder and function() return encoder end or missing(ENCODER)
+end
+
+function T:test_requiring_the_module_does_not_load_the_native_modules()
+  package.loaded[NATIVE], package.loaded[ENCODER] = nil, nil
   package.preload[NATIVE] = function() error("loaded at require time") end
+  package.preload[ENCODER] = function() error("loaded at require time") end
   package.loaded["hecate.json"] = nil
   local fresh = require("hecate.json")
   self:assert_not_nil(fresh.encode)
   package.loaded["hecate.json"] = json
 end
 
-function T:test_without_a_native_module_the_reference_backend_is_used()
-  package.loaded[NATIVE] = nil
-  package.preload[NATIVE] = nil
-  local selected, name = backend.get()
-  if name == "reference" then self:assert_true(selected == reference) end
-  self:assert_equal("[1]", json.encode({ 1 }))
-  local again, again_name = backend.get()
-  self:assert_true(again == selected and again_name == name, "the selection is cached")
+function T:test_a_missing_decoder_raises_an_error_that_names_the_build_command()
+  install(nil, { bind = function() end, encode = function() end })
+  local err = self:assert_error(function() return json.decode("1") end)
+  self:assert_true(core.is_instance_of(err, json.JsonError), tostring(err))
+  self:assert_true(tostring(err):find("lua tools/run.lua build-native json", 1, true) ~= nil, tostring(err))
+  self:assert_true(tostring(err):find(NATIVE, 1, true) ~= nil, tostring(err))
+  self:assert_equal("lua tools/run.lua build-native json", err.context.command)
 end
 
-function T:test_a_native_module_is_preferred_bound_to_the_markers_and_used_by_the_public_api()
+function T:test_a_missing_encoder_raises_an_error_that_names_the_build_command()
+  install({ decode = function() end }, nil)
+  local err = self:assert_error(function() return json.encode(1) end)
+  self:assert_true(core.is_instance_of(err, json.JsonError), tostring(err))
+  self:assert_true(tostring(err):find("lua tools/run.lua build-native json", 1, true) ~= nil, tostring(err))
+  self:assert_true(tostring(err):find(ENCODER, 1, true) ~= nil, tostring(err))
+end
+
+function T:test_there_is_no_fallback_backend()
+  self:assert_nil(package.loaded["hecate.json.internal.reference"])
+  self:assert_false(pcall(require, "hecate.json.internal.reference"))
+  self:assert_nil(backend.use)
+end
+
+function T:test_the_native_modules_are_bound_to_the_markers_and_used_by_the_public_api()
   local calls = {}
-  package.loaded[NATIVE] = nil
-  package.preload[NATIVE] = function()
-    return {
-      bind = function(bound) calls.bound = bound end,
-      decode = function(text, options) calls.decode = options return "decoded:" .. text end,
-      encode = function(value, options) calls.encode = options return "encoded" end,
-    }
-  end
+  install({
+    bind = function(bound) calls.native_bound = bound end,
+    decode = function(text, options) calls.decode = options return "decoded:" .. text end,
+  }, {
+    bind = function(bound) calls.encoder_bound = bound end,
+    encode = function(value, options) calls.encode = options return "encoded" end,
+  })
   self:assert_equal("decoded:x", json.decode("x", { max_depth = 7 }))
   self:assert_equal("encoded", json.encode({}, { pretty = true, canonical = true }))
-  self:assert_true(calls.bound.null == json.null)
-  self:assert_true(calls.bound.array_metatable ~= nil and calls.bound.object_metatable ~= nil)
+  self:assert_true(calls.native_bound.null == json.null)
+  self:assert_true(calls.encoder_bound.null == json.null)
+  self:assert_true(calls.encoder_bound.array_metatable ~= nil and calls.encoder_bound.object_metatable ~= nil)
   self:assert_equal(7, calls.decode.max_depth)
   self:assert_equal(16 * 1024 * 1024, calls.decode.max_size)
   self:assert_equal("  ", calls.encode.indent)
   self:assert_true(calls.encode.canonical)
-  self:assert_equal("native", select(2, backend.get()))
+  self:assert_false(calls.encode.rfc8785)
+  self:assert_true(backend.get() == backend.get(), "the selection is cached")
 end
 
-function T:test_the_rust_encoder_answers_and_the_reference_encoder_takes_what_it_declines()
-  local calls = {}
-  package.loaded[NATIVE] = nil
-  package.preload[NATIVE] = function()
-    return { decode = function() return "decoded" end, encode = function() return "native encode" end }
-  end
-  package.loaded[ENCODER] = nil
-  package.preload[ENCODER] = function()
-    return {
-      bind = function(bound) calls.bound = bound end,
-      encode = function(value) if value == 1 then return "rust" end end,
-    }
-  end
-  self:assert_equal("rust", json.encode(1))
-  self:assert_equal("[2]", json.encode({ 2 }), "declined: the reference encoder answers")
-  self:assert_equal("2", json.encode(2, { canonical = "rfc8785" }), "rfc8785 never reaches the Rust encoder")
-  self:assert_equal("decoded", json.decode("x"))
-  self:assert_true(calls.bound.null == json.null)
+function T:test_rfc8785_goes_to_the_encoder_with_its_flag()
+  local seen
+  install({ decode = function() end }, { bind = function() end, encode = function(_, options) seen = options return "2" end })
+  self:assert_equal("2", json.encode(2, { canonical = "rfc8785" }))
+  self:assert_true(seen.rfc8785 and seen.canonical)
 end
 
-function T:test_a_rust_encoder_that_fails_to_load_is_not_hidden()
-  package.loaded[NATIVE] = nil
-  package.preload[NATIVE] = function() return { decode = function() end, encode = function() end } end
-  package.loaded[ENCODER] = nil
+function T:test_a_native_module_that_fails_to_load_is_reported_as_it_is()
+  package.loaded[NATIVE], package.loaded[ENCODER] = nil, nil
+  package.preload[NATIVE] = function() error("undefined symbol: yyjson_read", 0) end
+  local err = self:assert_error(function() return json.decode("1") end)
+  self:assert_true(tostring(err):find("undefined symbol", 1, true) ~= nil, tostring(err))
+  self:assert_nil(tostring(err):find("build-native", 1, true), "a broken build is not a missing one")
+end
+
+function T:test_an_encoder_that_fails_to_load_is_reported_as_it_is()
+  package.loaded[NATIVE], package.loaded[ENCODER] = nil, nil
+  package.preload[NATIVE] = function() return { decode = function() end } end
   package.preload[ENCODER] = function() error("boom", 0) end
   local err = self:assert_error(function() backend.get() end)
   self:assert_true(tostring(err):find("boom", 1, true) ~= nil)
 end
 
-function T:test_native_failures_become_the_same_errors_with_computed_positions()
-  package.loaded[NATIVE] = nil
-  package.preload[NATIVE] = function()
-    return {
-      decode = function() return nil, { reason = "syntax", message = "boom", offset = 4 } end,
-      encode = function() return nil, { reason = "unsupported_type", message = "bad", path = "/a" } end,
-    }
-  end
+function T:test_failures_become_the_same_errors_with_computed_positions()
+  install({
+    decode = function() return nil, { reason = "syntax", message = "boom", offset = 4 } end,
+  }, {
+    bind = function() end,
+    encode = function() return nil, { reason = "unsupported_type", message = "bad", path = "/a" } end,
+  })
   local err = self:assert_error(function() json.decode("ab\ncd\n") end)
   self:assert_equal("hecate.json.DecodeError", err.code)
   self:assert_equal(2, err.context.line)
@@ -120,33 +130,27 @@ function T:test_native_failures_become_the_same_errors_with_computed_positions()
   self:assert_equal("/a", encode_err.context.path)
 end
 
-function T:test_a_native_module_that_fails_to_load_is_not_hidden_by_the_fallback()
-  package.loaded[NATIVE] = nil
-  package.preload[NATIVE] = function() error("undefined symbol: yyjson_read", 0) end
-  local err = self:assert_error(function() return json.decode("1") end)
-  self:assert_true(tostring(err):find("undefined symbol", 1, true) ~= nil, tostring(err))
-end
-
-function T:test_a_native_module_without_the_contract_is_rejected()
-  package.loaded[NATIVE] = nil
-  package.preload[NATIVE] = function() return { decode = function() end } end
+function T:test_a_module_without_the_contract_is_rejected()
+  install({ decode = function() end }, { bind = function() end })
+  self:assert_error(function() return json.decode("1") end, "does not provide")
+  install({ bind = function() end }, { bind = function() end, encode = function() end })
+  backend.reset()
   self:assert_error(function() return json.decode("1") end, "does not provide")
 end
 
-function T:test_the_reference_backend_returns_failures_instead_of_raising()
-  local options = { max_depth = 1000, max_size = 1000 }
-  local value, failure = reference.decode("[1,", options)
+function T:test_the_real_modules_return_failures_instead_of_raising()
+  package.loaded[NATIVE], package.loaded[ENCODER] = self.loaded[NATIVE], self.loaded[ENCODER]
+  package.preload[NATIVE], package.preload[ENCODER] = self.preload[NATIVE], self.preload[ENCODER]
+  backend.reset()
+  local selected = backend.get()
+  local value, failure = selected.decode("[1,", { max_depth = 1000, max_size = 1000 })
   self:assert_nil(value)
-  assert(failure)
   self:assert_equal("syntax", failure.reason)
   self:assert_equal(3, failure.offset)
-  local text, encode_failure = reference.encode(0 / 0, { max_depth = 10, max_size = 100, canonical = false })
+  local text, encode_failure = selected.encode(0 / 0, { max_depth = 10, max_size = 100, canonical = false, rfc8785 = false })
   self:assert_nil(text)
-  assert(encode_failure)
   self:assert_equal("non_finite_number", encode_failure.reason)
   self:assert_equal("", encode_failure.path)
-  local decoded = reference.decode("[]", options)
-  self:assert_true(getmetatable(decoded) == markers.array_metatable)
 end
 
 return T
