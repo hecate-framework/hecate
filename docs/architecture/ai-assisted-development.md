@@ -107,6 +107,9 @@ makes every interruption harmless instead.
   `.github/relay/`), updated and pushed after every step.
 - **Procedure**: `.claude/commands/relay.md` (resume an unfinished relay pull request
   first, otherwise start the next unblocked roadmap item; one item per run; never merge).
+- **Phase gates**: the last item of every phase is a verification (completeness, it works,
+  coherence, open questions) that produces `docs/reviews/phase-<n>.md`; the relay starts no
+  item of the next phase until the gate is ticked (`docs/roadmap.md`, "Phase gates").
 - **Locking**: `lock_until` in `HANDOFF.md` prevents two runs from working on the same
   item.
 - **Automatic restart**: a Claude Code **routine** (claude.ai/code/routines) using the

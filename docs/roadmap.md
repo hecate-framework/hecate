@@ -6,6 +6,32 @@ dependencies allow. Each phase ends with explicit exit criteria. Tick items as t
 Versions: Phases 0–2 produce no release. Phase 3 ends with `0.1.0` (alpha), Phase 4 with
 `0.2.0`. All packages share one version ([ADR 0005](adr/0005-single-brand-monorepo-lockstep-versioning.md)).
 
+## Phase gates
+
+Every phase ends with a **gate** item, so that no phase is left with holes before the next one starts
+(no "Swiss cheese"). The relay takes a gate only when every other item of its phase is ticked, and it starts no
+item of phase N+1 while the gate of phase N is unticked. A gate is a verification, not new development; it
+produces a report, `docs/reviews/phase-<N>.md`, and checks:
+
+1. **Completeness.** Every ticked item of the phase is delivered as the item says: the code exists, the public
+   API is annotated, the tests and documentation required by the definition of done in `CLAUDE.md` exist
+   (package README status, website reference, `CHANGELOG.md`, benchmarks of hot paths), and nothing is a stub, a
+   `TODO`, dead code or a silent deviation from the specification.
+2. **It works.** From a clean checkout, the full check catalogue (`lua tools/run.lua --list`), the native
+   builds, the tests of every package and the examples and benchmark scenarios of the phase pass, and the CI
+   workflows are green on the three platforms (Windows excepted where the owner has said so). The exit criteria of the
+   phase are demonstrated, not assumed.
+3. **Coherence.** Code, ADRs, specifications, package READMEs, the glossary, the roadmap, `docs/open-questions.md`,
+   the website (English and French), the catalogue in `automation.md`, `llms.txt`, `README.md` and `CLAUDE.md` say
+   the same thing, and nothing says a thing that is not true.
+4. **Open questions.** The questions of `docs/open-questions.md` that block the next phase, or that the phase made
+   stale, are listed in the report with their context and a recommendation; an issue labelled `needs-decision`
+   asks the owner. The relay never decides them.
+
+A gap found becomes a new unticked roadmap item placed before the gate (or a fix inside the gate's pull request
+when it is small). The gate is ticked only when the report shows no open gap and every open question it listed
+has an owner decision or an explicit, recorded deferral.
+
 ## Phase 0 — Groundwork
 
 Goal: a repository where code can be written, checked and tested on three platforms.
@@ -47,6 +73,8 @@ verified on macOS and Windows through pull requests.
 - [x] Settle the global-declaration idiom and formatter choice; update
       coding-standards.md (OQ-3).
 - [x] Fill the "Commands" section of `CLAUDE.md`.
+
+- [ ] **Phase 0 gate**: verification of the phase, as described in [Phase gates](#phase-gates).
 
 Exit: CI is green on all three platforms with a trivial test in every package skeleton.
 
@@ -106,6 +134,8 @@ Exit: CI is green on all three platforms with a trivial test in every package sk
 - [ ] `json` follow-up: libFuzzer C targets for the native code of `json`
       (`csrc/native.c`), run by the `fuzz` task and `nightly.yml` (coding-standards.md;
       the `sanitize` task already covers its ASan and UBSan build).
+- [ ] **Phase 1 gate**: verification of the phase, as described in [Phase gates](#phase-gates). Open
+      questions to put to the owner before Phase 2: OQ-50, OQ-47, OQ-23, OQ-24, OQ-26 (1) and OQ-22.
 
 Exit: an echo server handles 10 000 concurrent connections on Linux and macOS (Windows is not a
 benchmark target, owner decision of 2026-10-25); structured
@@ -142,6 +172,10 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       report with rendered samples submitted to the owner before the website skeleton
       (resolved 2026-10-13: [report](spikes/OQ-11-doc-tooling.md), [ADR 0012](adr/0012-website-generator.md)).
 
+- [ ] **Phase 2 gate**: verification of the phase, as described in [Phase gates](#phase-gates). Open
+      questions to put to the owner before Phase 3: OQ-46, OQ-13, OQ-17, OQ-38 and the housekeeping of
+      OQ-33 to OQ-36 and OQ-40.
+
 ## Phase 3 — Contracts and tooling → `0.1.0`
 
 - [ ] `openapi`: OpenAPI 3.1 assembly, served endpoint, export, contract diff.
@@ -165,6 +199,9 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       the native modules of `net` and `json`, ADR 0021), `docker.yml`, `cli-e2e.yml`, `website.yml`
       and the `release *` tasks.
 
+- [ ] **Phase 3 gate**: verification of the phase, as described in [Phase gates](#phase-gates). Open
+      questions to put to the owner before Phase 4: OQ-18 and OQ-45.
+
 Exit: from a clean machine on each platform, `install → hecate new → hecate serve`
 in under five minutes; tutorial reproducible verbatim.
 
@@ -187,6 +224,8 @@ in under five minutes; tutorial reproducible verbatim.
 - [ ] Benchmarks: database scenarios (single query, multiple queries, updates), compared
       with reference clients of other ecosystems (ADR 0014 performance condition).
 
+- [ ] **Phase 4 gate**: verification of the phase, as described in [Phase gates](#phase-gates).
+
 Exit: `examples/crud` works unchanged on PostgreSQL, MySQL, MariaDB and SQLite.
 
 ## Phase 5 — Ecosystem expansion
@@ -200,10 +239,15 @@ Exit: `examples/crud` works unchanged on PostgreSQL, MySQL, MariaDB and SQLite.
 - [ ] HTTP/2.
 - [ ] Further NoSQL drivers by demand (e.g. Cassandra/ScyllaDB CQL).
 
+- [ ] **Phase 5 gate**: verification of the phase, as described in [Phase gates](#phase-gates). Open
+      questions to put to the owner before Phase 6: OQ-7.
+
 ## Phase 6 — Lua 5.4 support
 
 - [ ] Source lowering tool 5.5 → 5.4 ([ADR 0001](adr/0001-lua-5.5-as-sole-target.md)).
 - [ ] CI matrix extended to 5.4; publication strategy for 5.4 artefacts (OQ-7).
+
+- [ ] **Phase 6 gate**: verification of the phase, as described in [Phase gates](#phase-gates).
 
 ## Phase 7 — Code review and quality pass
 
@@ -219,6 +263,8 @@ Exit: `examples/crud` works unchanged on PostgreSQL, MySQL, MariaDB and SQLite.
       and benchmarks confirm no hot-path regression.
 - [ ] Re-run all reviewer agents (`/review-package`) on every package and record the
       findings fixed or deferred.
+
+- [ ] **Phase 7 gate**: verification of the phase, as described in [Phase gates](#phase-gates).
 
 Exit: every package reviewed, findings resolved or tracked in `docs/open-questions.md`,
 CI green on the three platforms.
