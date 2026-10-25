@@ -118,7 +118,7 @@ jobs:
           LUA_LIB: ${{ github.workspace }}/.hecate/toolchain/lib
         run: |
           set -e
-          lua tools/run.lua fuzz --list | while read -r package target; do
+          lua tools/run.lua fuzz --list | grep -v "^fuzz:" | while read -r package target; do
             echo "::group::$package $target"
             lua tools/run.lua fuzz "$target" --seconds 600
             echo "::endgroup::"
