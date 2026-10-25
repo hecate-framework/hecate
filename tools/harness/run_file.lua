@@ -93,11 +93,13 @@ do
     end
     debug.sethook(record, "l", 1000000)
     local create = coroutine.create
+    ---@diagnostic disable-next-line: duplicate-set-field
     coroutine.create = function(f)
       local co = create(f)
       debug.sethook(co, record, "l", 1000000)
       return co
     end
+    ---@diagnostic disable-next-line: duplicate-set-field
     coroutine.wrap = function(f)
       local co = coroutine.create(f)
       return function(...)
