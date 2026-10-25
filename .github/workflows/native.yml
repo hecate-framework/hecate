@@ -1,0 +1,106 @@
+name: native
+
+# C and Rust native modules (docs/architecture/automation.md): sanitizer runs with GCC and Clang and a
+# short fuzzing pass on pull requests that touch native code. MSVC builds are part of `ci`, which builds
+# the modules on Windows. Long fuzzing runs in `nightly`.
+on:
+  pull_request:
+    paths:
+      - "packages/*/csrc/**"
+      - "packages/*/native/**"
+      - "tools/lib/sanitize.lua"
+      - "tools/lib/fuzz.lua"
+      - "tools/tasks/sanitize.lua"
+      - "tools/tasks/fuzz.lua"
+      - ".github/workflows/native.yml"
+  push:
+    branches: [main]
+    paths:
+      - "packages/*/csrc/**"
+      - "packages/*/native/**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sanitize:
+    name: sanitize (${{ matrix.cc }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        cc: [gcc, clang]
+    env:
+      CC: ${{ matrix.cc }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Cache toolchain
+        id: toolchain
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: .hecate/toolchain
+          key: toolchain-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('tools/bootstrap/**') }}
+
+      - name: Bootstrap
+        if: steps.toolchain.outputs.cache-hit != 'true'
+        run: tools/bootstrap/bootstrap.sh --prefix .hecate/toolchain
+
+      - name: Add toolchain to PATH
+        run: echo "$GITHUB_WORKSPACE/.hecate/toolchain/bin" >> "$GITHUB_PATH"
+
+      - name: Cache rocks
+        id: rocks
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: .hecate/rocks
+          key: rocks-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('tools/bootstrap/**', '.github/workflows/ci.yml') }}
+
+      - name: Install luv
+        if: steps.rocks.outputs.cache-hit != 'true'
+        run: luarocks --tree .hecate/rocks install luv 1.53.0-0
+
+      - name: Build tools and sanitizer run
+        run: |
+          (cd packages/json/native && rustup toolchain install)
+          lua tools/run.lua sanitize json
+
+  fuzz:
+    name: fuzz (short)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Cache toolchain
+        id: toolchain
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: .hecate/toolchain
+          key: toolchain-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('tools/bootstrap/**') }}
+
+      - name: Bootstrap
+        if: steps.toolchain.outputs.cache-hit != 'true'
+        run: tools/bootstrap/bootstrap.sh --prefix .hecate/toolchain
+
+      - name: Add toolchain to PATH
+        run: echo "$GITHUB_WORKSPACE/.hecate/toolchain/bin" >> "$GITHUB_PATH"
+
+      - name: Rust toolchain (nightly) and cargo-fuzz
+        run: |
+          rustup toolchain install nightly --profile minimal
+          cargo install cargo-fuzz --locked --version 0.12.0
+
+      - name: Fuzz every target for one minute
+        run: |
+          set -e
+          lua tools/run.lua fuzz --list | while read -r package target; do
+            echo "::group::$package $target"
+            lua tools/run.lua fuzz "$target" --seconds 60
+            echo "::endgroup::"
+          done

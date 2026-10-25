@@ -3,8 +3,8 @@
 
 - roadmap_item: Workflows `native.yml`, `security.yml`, `nightly.yml`; tasks `sanitize`, `fuzz`, `leaks`, `coverage`, `bench`, `check-licenses`.
 - status: in-progress
-- lock_until: 2026-10-25T12:51:26Z
-- last_update: 2026-10-25T11:21:26Z
+- lock_until: 2026-10-25T15:18:33Z
+- last_update: 2026-10-25T13:48:33Z
 
 ## Done
 
@@ -23,10 +23,14 @@
 
 - Resumed after lock expiry; merged origin/main. Step 6 done: `coverage` task (tools/lib/coverage.lua, harness hook `HECATE_TEST_COVERAGE`, tests; core measures 93.2 %). Executable lines are approximated from source text.
 
+- Step 7 done: `native.yml` and `nightly.yml` written (YAML parses; not yet run on GitHub). No artefact upload: the `upload-artifact` hash was not taken from the repo.
+
 ## Next steps
 
-1. json libFuzzer C target.
-2. Add `native.yml`, `nightly.yml`; complete `security.yml` (CodeQL, dependency review, Scorecard).
+1. Watch CI of the new workflows (native.yml runs on this PR because it touches its own file); fix failures.
+2. Complete `security.yml` (CodeQL for C, dependency review, Scorecard) with pinned action hashes verified from the actions' repositories.
+3. json libFuzzer C target (optional follow-up; may become its own roadmap item).
+4. Then: delete HANDOFF.md, tick the roadmap item, mark ready for review.
 
 ## Decisions taken (and where they are recorded)
 

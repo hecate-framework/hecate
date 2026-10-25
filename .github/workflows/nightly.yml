@@ -1,0 +1,123 @@
+name: nightly
+
+# Slow checks that do not belong in a pull request (docs/architecture/automation.md): leak detection,
+# coverage with its thresholds, long fuzzing and the freshness of the pinned dependencies. The
+# integration services and `check-mirrors` join this workflow with their phases.
+on:
+  schedule:
+    - cron: "17 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly
+  cancel-in-progress: false
+
+jobs:
+  leaks:
+    name: leaks
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Cache toolchain
+        id: toolchain
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: .hecate/toolchain
+          key: toolchain-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('tools/bootstrap/**') }}
+
+      - name: Bootstrap
+        if: steps.toolchain.outputs.cache-hit != 'true'
+        run: tools/bootstrap/bootstrap.sh --prefix .hecate/toolchain
+
+      - name: Add toolchain to PATH
+        run: echo "$GITHUB_WORKSPACE/.hecate/toolchain/bin" >> "$GITHUB_PATH"
+
+      - name: Cache rocks
+        id: rocks
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: .hecate/rocks
+          key: rocks-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('tools/bootstrap/**', '.github/workflows/ci.yml') }}
+
+      - name: Install luv
+        if: steps.rocks.outputs.cache-hit != 'true'
+        run: luarocks --tree .hecate/rocks install luv 1.53.0-0
+
+      - name: Leak detection
+        run: lua tools/run.lua leaks
+
+  coverage:
+    name: coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Cache toolchain
+        id: toolchain
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: .hecate/toolchain
+          key: toolchain-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('tools/bootstrap/**') }}
+
+      - name: Bootstrap
+        if: steps.toolchain.outputs.cache-hit != 'true'
+        run: tools/bootstrap/bootstrap.sh --prefix .hecate/toolchain
+
+      - name: Add toolchain to PATH
+        run: echo "$GITHUB_WORKSPACE/.hecate/toolchain/bin" >> "$GITHUB_PATH"
+
+      - name: Cache rocks
+        id: rocks
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: .hecate/rocks
+          key: rocks-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('tools/bootstrap/**', '.github/workflows/ci.yml') }}
+
+      - name: Install luv
+        if: steps.rocks.outputs.cache-hit != 'true'
+        run: luarocks --tree .hecate/rocks install luv 1.53.0-0
+
+      - name: Coverage and thresholds
+        run: lua tools/run.lua coverage
+
+
+  fuzz:
+    name: fuzz (long)
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Cache toolchain
+        id: toolchain
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: .hecate/toolchain
+          key: toolchain-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('tools/bootstrap/**') }}
+
+      - name: Bootstrap
+        if: steps.toolchain.outputs.cache-hit != 'true'
+        run: tools/bootstrap/bootstrap.sh --prefix .hecate/toolchain
+
+      - name: Add toolchain to PATH
+        run: echo "$GITHUB_WORKSPACE/.hecate/toolchain/bin" >> "$GITHUB_PATH"
+
+      - name: Rust toolchain (nightly) and cargo-fuzz
+        run: |
+          rustup toolchain install nightly --profile minimal
+          cargo install cargo-fuzz --locked --version 0.12.0
+
+      - name: Fuzz every target for ten minutes
+        run: |
+          set -e
+          lua tools/run.lua fuzz --list | while read -r package target; do
+            echo "::group::$package $target"
+            lua tools/run.lua fuzz "$target" --seconds 600
+            echo "::endgroup::"
+          done

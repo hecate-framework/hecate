@@ -95,7 +95,7 @@ Status column: `done` = implemented in `tools/`, `now` = workflow exists today, 
 | `pr-hygiene.yml` | PR opened/edited | Conventional Commits title, path labels | now |
 | `claude.yml` | `@claude` in issues, PR comments and reviews | Claude Code GitHub Action | now (needs `ANTHROPIC_API_KEY` secret) |
 | `ci.yml` | PR, push to main | `affected` → matrix {ubuntu, macos, windows} × affected packages: bootstrap (cached), format-check, lint, typecheck, check-*, unit tests, coverage upload | P0 |
-| `native.yml` | PR touching `csrc/`, nightly | GCC/Clang/MSVC builds, sanitizers, short fuzzing (PR), long fuzzing (nightly) | P1 |
+| `native.yml` | PR touching `csrc/`, nightly | ASan/UBSan runs with GCC and Clang, short fuzzing of every target (PR); MSVC builds are part of `ci`; long fuzzing in `nightly` | P1 (done; the json libFuzzer C target is still to write) |
 | `integration.yml` | PR touching data/net packages, nightly | service containers: PostgreSQL, MySQL, MariaDB, Redis, Valkey, later MongoDB, SQL Server — two most recent major versions each | P4 |
 | `benchmarks.yml` | push to main, PR labelled `performance` | GitHub-hosted runner, `bench --compare main` with interleaved A/B runs on the same runner (relative comparison only, OQ-14), repeated runs (7 rounds each side for `tcp-echo`, at least 5 are required; the table asks for more as scenarios stabilise), the **median** is the reference value (mean, min and max reported alongside, since shared runners are noisy), deltas and significance in the job summary (a PR comment and the published history come later), history published as indicative | P1 (delivered for `tcp-echo`: `benchmarks.yml`) |
 | `website.yml` | PR (build only), push to main (deploy) | gen-reference, site build (`hecate doc`, or the interim generator chosen after OQ-11), link check, translation status, deploy to GitHub Pages | P2; first version done (pinned LuaLS, `build.lua --reference --strict`, base path and origin from `configure-pages`, deploy from main; link check inside `--strict`; translation status and `hecate doc` pending; needs Settings > Pages > Source = GitHub Actions) |
@@ -105,7 +105,7 @@ Status column: `done` = implemented in `tools/`, `now` = workflow exists today, 
 | `split.yml` | push to `main`, tag `v*.*.*` | `affected` → `split --push` for affected packages on `main`; all packages on tags (same tag in every mirror) | P3 |
 | `labels.yml` | push to `main` touching `.github/labels.yml` | synchronise repository labels from `.github/labels.yml` | now |
 | `release.yml` | tag `v*.*.*` (jobs that publish run in environment `release`) | `release verify` → wait for `split.yml` tags → rocks (sources from mirrors) → binaries (6 targets) → sign + SBOM → GitHub Release → Docker → Homebrew tap, Scoop bucket, winget → versioned website | P3 |
-| `nightly.yml` | schedule | full matrix including all integration services, long fuzzing, leak detection, dependency freshness report as an issue; `check-mirrors` from P3 | P1 |
+| `nightly.yml` | schedule | `leaks`, `coverage` with thresholds, long fuzzing of every target (done); the integration services, a dependency freshness report as an issue and `check-mirrors` from P3 come with their phases; upload of the LCOV and fuzz artefacts waits for a pinned `upload-artifact` hash taken from the repository | P1 |
 
 Rules:
 
