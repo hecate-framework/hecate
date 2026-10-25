@@ -1,9 +1,10 @@
-# 0025 — Scope-local context: `reactor.with_local` and `reactor.local`
+# 0025 — Ambient context: `reactor.with_ambient` and `reactor.ambient`
 
 - **Status:** Accepted
 - **Date:** 2026-10-22
 - **Deciders:** project owner (shape agreed on 2026-10-22, accepted in the review of #29)
 - **Packages:** reactor, log, kernel
+- **Amended:** 2026-10-25, owner decision (OQ-56): `local` is a reserved word of Lua, so the pair `with_local`/`local` became `with_ambient`/`ambient`.
 - **Related:** [concurrency.md](../architecture/concurrency.md) ("Scopes"), OQ-55, ADR 0002
 
 ## Context
@@ -36,7 +37,7 @@ How other systems answer, for comparison:
 2. **Mutable per-task storage** (`set_local(key, value)`, Python and .NET style). Simple to call, but it raises
    the question whether a child's write is visible to its parent or to its siblings, and a forgotten reset leaks
    a value into the next request served by the same task.
-3. **Immutable, scoped bindings** (`with_local(key, value, fn)`, Swift, Java `ScopedValue`). A binding exists
+3. **Immutable, scoped bindings** (`with_ambient(key, value, fn)`, Swift, Java `ScopedValue`). A binding exists
    exactly while `fn` runs and in the computations forked from it; nothing to clean up, no write visible
    outside its region.
 
@@ -44,10 +45,10 @@ How other systems answer, for comparison:
 
 Option 3, as written:
 
-- `reactor.with_local(key, value, fn, ...)` runs `fn(...)` with `key` bound to `value` for the running task and
+- `reactor.with_ambient(key, value, fn, ...)` runs `fn(...)` with `key` bound to `value` for the running task and
   returns the results of `fn`. A nested binding of the same key shadows the outer one until `fn` returns.
   The binding is removed when `fn` returns or raises.
-- `reactor.local(key)` returns the value bound to `key` in the running task, or `nil`.
+- `reactor.ambient(key)` returns the value bound to `key` in the running task, or `nil`.
 - `fork` and `detach` give the new computation the bindings visible **at the moment of the call**, from the
   creator, not from the application scope. Later bindings of the creator are not seen by the child.
 - Bindings are immutable. A value that must change is a table the owner mutates, on purpose and visibly.

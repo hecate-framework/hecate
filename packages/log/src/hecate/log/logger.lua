@@ -6,6 +6,7 @@ local core = require("hecate.core")
 local Record = require("hecate.log.record")
 local Severity = require("hecate.log.severity")
 local severity = require("hecate.log.internal.severity")
+local ambient = require("hecate.log.internal.ambient")
 
 local Secret = require("hecate.log.secret")
 
@@ -41,7 +42,7 @@ end
 ---@field sinks? hecate.log.Sink[]  where records go
 ---@field name? string  name stored in every record
 ---@field context? table  fields added to every record
----@field context_provider? fun(): table?  returns the ambient context of the running computation (per scope), merged under `context`; if it raises or returns a non-table the call is counted in `failures()` and the record is written without it
+---@field context_provider? fun(): table?  returns the ambient context of the running computation, merged under `context` (default: the fields bound by `log.bind`); if it raises or returns a non-table the call is counted in `failures()` and the record is written without it
 ---@field redact? string[]  field names (case-insensitive, at any depth) whose values are replaced by a `Secret`
 ---@field clock? fun(): number  seconds since the epoch (default `os.time`)
 
@@ -77,7 +78,7 @@ function Logger:init(options)
   self._threshold = severity.resolve(options.level or Severity.informational, 2).ordinal
   self._name = options.name
   self._context = options.context or EMPTY
-  self._provider = options.context_provider
+  self._provider = options.context_provider or ambient.fields
   self._clock = options.clock or os.time
   if options.redact ~= nil then
     if type(options.redact) ~= "table" then

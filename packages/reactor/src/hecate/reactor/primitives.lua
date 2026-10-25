@@ -141,6 +141,54 @@ function M.detach(fn, ...)
   return future
 end
 
+--- Runs `fn(...)` with `key` bound to `value` for the running computation and for the computations
+--- it forks or detaches while the binding exists (ADR 0025). A binding is immutable; a nested
+--- binding of the same key shadows the outer one until `fn` returns. The binding is removed when
+--- `fn` returns or raises.
+---
+--- Raises `hecate.core.ArgumentError` if `key` is `nil` or `fn` is not a function,
+--- `hecate.core.NonYieldableContextError` outside a managed coroutine, and the error of `fn`.
+---@async
+---@param key any  what identifies the binding; a module-private table avoids collisions
+---@param value any  the value bound to `key`
+---@param fn fun(...): ...  the function run with the binding
+---@param ... any  the arguments passed to `fn`
+---@return any ...  the results of `fn`
+function M.with_ambient(key, value, fn, ...)
+  if key == nil then
+    error(core.ArgumentError("with_ambient expects a key that is not nil"), 2)
+  end
+  if type(fn) ~= "function" then
+    error(core.ArgumentError(("with_ambient expects a function, got %s"):format(type(fn))), 2)
+  end
+  local task = context.current_task("with_ambient")
+  local outer = task.ambient
+  task.ambient = { key = key, value = value, parent = outer }
+  local results = table.pack(pcall(fn, ...))
+  task.ambient = outer
+  if not results[1] then error(results[2], 0) end
+  return table.unpack(results, 2, results.n)
+end
+
+--- Returns the value bound to `key` in the running computation, or `nil` (ADR 0025).
+---
+--- Raises `hecate.core.ArgumentError` if `key` is `nil` and
+--- `hecate.core.NonYieldableContextError` outside a managed coroutine.
+---@async
+---@param key any  the key given to `with_ambient`
+---@return any value  the bound value, or `nil`
+function M.ambient(key)
+  if key == nil then
+    error(core.ArgumentError("ambient expects a key that is not nil"), 2)
+  end
+  local node = context.current_task("ambient").ambient
+  while node do
+    if node.key == key then return node.value end
+    node = node.parent
+  end
+  return nil
+end
+
 --- Suspends the running coroutine for `seconds` of the reactor clock.
 ---
 --- Raises `hecate.core.ArgumentError` if `seconds` is not a finite number greater than or equal
