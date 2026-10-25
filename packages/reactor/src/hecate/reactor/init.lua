@@ -88,6 +88,8 @@ reactor.join = primitives.join
 reactor.select = primitives.select
 reactor.sleep = primitives.sleep
 reactor.scope = primitives.scope
+reactor.with_ambient = primitives.with_ambient
+reactor.ambient = primitives.ambient
 reactor.deadline = primitives.deadline
 reactor.now = primitives.now
 

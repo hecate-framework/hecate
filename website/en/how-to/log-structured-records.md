@@ -32,8 +32,9 @@ print(("%d %s %s %s"):format(#sink:records(), record.message, record.context.req
 ```
 
 The severities are the eight of RFC 5424, `emergency` to `debug`. `with_context(fields)` returns a
-child logger: pass it to forked computations, because the context does not follow `fork` and
-`join` by itself yet.
+child logger, whose context is fixed. To tag every record of a request, including those logged by
+computations it forks or detaches, wrap the work in `log.bind({ request_id = "r-1" }, fn)`: a logger
+without a `context_provider` adds the bound fields to its records.
 
 ## Choose a sink
 
