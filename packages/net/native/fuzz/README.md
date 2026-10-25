@@ -14,3 +14,7 @@ cargo +nightly fuzz run feed -- -max_total_time=300
 `tests/robustness.rs` runs a fixed pseudo-random sample of the same entry points under
 `cargo test`, so a panic found by fuzzing is reproduced there with a regression input.
 The entry points are `hecate_net_tls_native::fuzzing` (hidden from the documentation).
+
+`build.rs` links the Lua library of the toolchain into the fuzz binaries (the library is a Lua module, whose
+Lua symbols the interpreter normally provides): set `LUA_LIB` to its directory, for example
+`LUA_LIB=$PWD/../../../.hecate/toolchain/lib`; `LUA_LIB_NAME` and `LUA_LIB_KIND` (`static` or `dylib`) are optional.
