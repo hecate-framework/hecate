@@ -3,10 +3,12 @@
 
 - roadmap_item: `json` follow-up: remove the pure-Lua backend once it has no use (OQ-53)
 - status: in-progress            <!-- in-progress | waiting-ci | waiting-owner -->
-- lock_until: 2026-10-25T10:40:53Z
-- last_update: 2026-10-25T09:10:53Z
+- lock_until: 2026-10-25T10:45:51Z
+- last_update: 2026-10-25T09:15:51Z
 
 ## Done
+
+- Step 3 (spec step 2): Rust encoder returns text or {reason,message,path}, writes rfc8785 itself, depth 1000 without a native cap (about 450-700 bytes of native stack per level, 1000 levels pass under ulimit -s 700; Windows main stack is 1 MiB: watch Windows CI). Fixtures regenerated so that plain objects with 2+ members are canonical (member order of plain output is undefined).
 
 - Step 2: fixtures generated from the reference (tests/fixtures/{decode_cases,encode_cases,jcs_numbers}.lua + generate.lua). NaN message is sign-free; -0 decode cases already carry the new expectation (-0.0).
 

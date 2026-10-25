@@ -316,6 +316,20 @@ local function encode_case(expression, overrides)
   local options = {}
   for k, v in pairs(ENCODE_OPTIONS) do options[k] = v end
   for k, v in pairs(overrides or {}) do options[k] = v end
+  -- The member order of a plain encoding is undefined (the order of `next`, which changes from one run to the next):
+  -- an object with two members or more is written in canonical order, so that the expected text is stable.
+  local visited = {}
+  local function has_ordered_object(v)
+    if type(v) ~= "table" or v == null or visited[v] then return false end
+    visited[v] = true
+    local strings = 0
+    for k, member in pairs(v) do
+      if type(k) == "string" then strings = strings + 1 end
+      if has_ordered_object(member) then return true end
+    end
+    return strings >= 2
+  end
+  if has_ordered_object(build(expression)()) then options.canonical = true end
   if options.rfc8785 then options.canonical = true end
   local text, failure = reference.encode(build(expression)(), options)
   local entry
