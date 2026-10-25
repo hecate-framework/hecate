@@ -90,14 +90,14 @@ Exit: CI is green on all three platforms with a trivial test in every package sk
       check in `docs/architecture/documentation.md`) so that it is not forgotten again.
 - [x] `log`: structured logging, RFC 5424 severities, per-scope context (explicit through
       `Logger:with_context`; the implicit propagation across `fork` and `detach` is the next item).
-- [ ] `reactor` follow-up: scope-local context, `reactor.with_local(key, value, fn)` and
-      `reactor.local(key)` ([ADR 0025](adr/0025-scope-local-context.md), OQ-55): specify it in
+- [x] `reactor` follow-up: ambient context, `reactor.with_ambient(key, value, fn)` and
+      `reactor.ambient(key)` ([ADR 0025](adr/0025-ambient-context.md), OQ-55): specify it in
       `concurrency.md`, implement it, test inheritance across `fork`, `detach`, `scope`,
       cancellation and the virtual clock; then give `log` a default context provider and a test
       that a record logged by a forked computation carries the bound context. Needed before
       `kernel` binds the request id.
-- [x] Benchmarks harness and first scenario (TCP echo); `benchmarks.yml`. Delivered: `benchmarks/scenarios/tcp-echo`, `benchmarks/run.lua`, `benchmarks/compare.lua`, `bench <scenario> [--compare=ref]`. The Lua load generator replaces `wrk2`/`oha` (no dependency); Micro-benchmarks added for `net` (`read-until`, `buffered-writer`, `tls-throughput`) and `reactor` (`scheduler`). The baseline numbers are measured by the owner on dedicated hardware, and the Phase 1 exit criterion "10 000 concurrent connections on each platform" is verified on Linux and macOS by the scenario; Windows and the ADR 0023 accept-spread scenario are the two follow-ups below.
-- [ ] Benchmarks follow-up: run the network scenarios on Windows (the runner needs a POSIX shell, `taskset` and `kill` today: port `benchmarks/lib/runner.lua` to `reactor.spawn`), add the multi-process accept-spread scenario of [ADR 0023](adr/0023-multi-process-serving.md) (connections per second and worker spread per strategy), and publish the first baseline measured by the owner.
+- [x] Benchmarks harness and first scenario (TCP echo); `benchmarks.yml`. Delivered: `benchmarks/scenarios/tcp-echo`, `benchmarks/run.lua`, `benchmarks/compare.lua`, `bench <scenario> [--compare=ref]`. The Lua load generator replaces `wrk2`/`oha` (no dependency); Micro-benchmarks added for `net` (`read-until`, `buffered-writer`, `tls-throughput`) and `reactor` (`scheduler`). The baseline numbers are measured by the owner on dedicated hardware, and the Phase 1 exit criterion "10 000 concurrent connections on each platform" is verified on Linux and macOS by the scenario; the ADR 0023 accept-spread scenario is the follow-up below (Windows is not a benchmark target, see the vision).
+- [ ] Benchmarks follow-up: add the multi-process accept-spread scenario of [ADR 0023](adr/0023-multi-process-serving.md) (connections per second and worker spread per strategy), and publish the first baseline measured by the owner. Windows is **not** a benchmark target (owner decision, 2026-10-25: Linux is the only production target, [vision](vision.md)): the network scenarios run on Linux and macOS, and the runner keeps its POSIX shell, `taskset` and `kill`.
 - [x] Pin every third-party action of the existing workflows by commit SHA (owner request,
       2026-10-18; [automation.md](architecture/automation.md)); Dependabot keeps them current.
 - [ ] Workflows `native.yml`, `security.yml`, `nightly.yml`; tasks `sanitize`, `fuzz`,
