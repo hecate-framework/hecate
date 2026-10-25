@@ -3,8 +3,8 @@
 
 - roadmap_item: Workflows `native.yml`, `security.yml`, `nightly.yml`; tasks `sanitize`, `fuzz`, `leaks`, `coverage`, `bench`, `check-licenses`.
 - status: in-progress
-- lock_until: 2026-10-25T02:15:00Z
-- last_update: 2026-10-25T00:45:00Z
+- lock_until: 2026-10-25T05:12:02Z
+- last_update: 2026-10-25T03:42:02Z
 
 ## Done
 
@@ -15,9 +15,11 @@
 
 - Step 3 done: `check-licenses` task (tools/lib/licenses.lua, tests).
 
+- Step 4 done: `fuzz` task (tools/lib/fuzz.lua, tests) wrapping the cargo-fuzz targets of net; json C libFuzzer target still to write.
+
 ## Next steps
 
-1. Implement the tasks `fuzz`, `leaks`, `coverage` (tests first).
+1. Implement the tasks `leaks`, `coverage` (tests first); json libFuzzer C target.
 2. Add `native.yml`, `nightly.yml`; complete `security.yml` (CodeQL, dependency review, Scorecard).
 
 ## Decisions taken (and where they are recorded)
