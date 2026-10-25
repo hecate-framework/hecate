@@ -14,8 +14,8 @@ framework, a documentation generator, database drivers, an object-relational map
 command-line tool.
 
 > [!NOTE] Status
-> The core, reactor and net packages are implemented and documented, and so is the generator that
-> builds this site. See the
+> The core, reactor, net, json and log packages are implemented and documented, and so is the
+> generator that builds this site. See the
 > [how-to guides](how-to/index.md), the [explanation](explanation/index.md) and the generated
 > [reference](reference/index.md). Everything else is still specified and not implemented. This site
 > grows with the code, package by package.

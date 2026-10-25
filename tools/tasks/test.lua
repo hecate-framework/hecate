@@ -25,7 +25,10 @@ return {
         if os.getenv("CI") then io.stderr:write("# test ", file:sub(#ctx.root + 2), "\n") end
         local quoted = {}
         for i, dir in ipairs(srcs) do quoted[i] = util.quote(dir) end
-        local out, ok = util.capture(("%s %s %s %s 2>&1"):format(util.quote(util.interpreter()), util.quote(runner),
+        -- `sanitize` on macOS: DYLD_* variables do not survive the system shell, so the variables of the
+        -- sanitizer run are set on the command of each file.
+        local inline = os.getenv("HECATE_SANITIZE_ENV")
+        local out, ok = util.capture(("%s%s %s %s %s 2>&1"):format(inline and (inline .. " ") or "", util.quote(util.interpreter()), util.quote(runner),
           util.quote(file), table.concat(quoted, " ")))
         if not ok then problems[#problems + 1] = file:sub(#ctx.root + 2) .. "\n" .. out end
       end

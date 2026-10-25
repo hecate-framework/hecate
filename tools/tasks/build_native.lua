@@ -8,6 +8,7 @@
 -- LUA_LIB and LUA_INC before running (TLS spike OQ-4). macOS link flags are
 -- set by this task (and mirrored in packages/net/native/.cargo/config.toml).
 local util = require("lib.util")
+local sanitize = require("lib.sanitize")
 
 -- package -> { crate directory, cargo library name, installed module path (without extension) }
 local modules = {
@@ -79,6 +80,7 @@ local function build_c(ctx, name, m)
   local include = lua_include_dir(ctx)
   if not include then return { ok = false, problems = { "lua.h not found: set LUA_INC to the Lua include directory" } } end
   local cc = os.getenv("CC") or "cc"
+  local sanitized = os.getenv("HECATE_SANITIZE") == "1"
   local macos = util.capture("uname -s") == "Darwin"
   local version = _VERSION:match("%d+%.%d+")
   local dest = ("%s/.hecate/rocks/lib/lua/%s/%s.so"):format(ctx.root, version, m.target)
@@ -91,12 +93,14 @@ local function build_c(ctx, name, m)
     local own = not source:find("/vendor/", 1, true)
     local object = ("%s/%d.o"):format(build_dir, index)
     local flags = own and "-std=c11 -O2 -Wall -Wextra -Werror" or "-O2 -w"
+    if sanitized then flags = flags .. " " .. sanitize.cflags() end
     local out, ok = util.capture(("%s -c -fPIC %s -I%s %s -o %s 2>&1"):format(
       cc, flags, util.quote(include), util.quote(package_dir .. "/" .. source), util.quote(object)))
     if not ok then return { ok = false, problems = { "compile failed for " .. source .. ":\n" .. out } } end
     objects[#objects + 1] = util.quote(object)
   end
   local link = macos and "-bundle -undefined dynamic_lookup" or "-shared"
+  if sanitized then link = link .. " -fsanitize=address,undefined" end
   local out, ok = util.capture(("%s %s -o %s %s -lm 2>&1"):format(cc, link, util.quote(dest), table.concat(objects, " ")))
   if not ok then return { ok = false, problems = { "link failed:\n" .. out } } end
   return { ok = true, problems = {}, output = "installed " .. dest }
