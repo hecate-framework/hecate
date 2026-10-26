@@ -65,13 +65,13 @@ the glossary while `log` still says "per-scope context" (F02); "channel" used fo
 claims contradicting specifications (F05, F12, F13); stale statements (F20, F24, F26, F28).
 
 Fixed in this pull request, with the owner's decisions, except what the findings' "Resolution" lists as open
-(parts of F06 and F16 as OQ-57 and OQ-58, the French glossary page). F07 was decided by the owner (option B) and applied. The gate stays unticked until the
+(part of F16 as OQ-58, the French glossary page). F07 was decided by the owner (option B) and applied. The gate stays unticked until the
 owner has reviewed.
 
 ## 4. Open questions
 
 The coherence audit raised decisions for the owner (F07, F12, F17, F19, F34 and parts of F06 and F16);
-they were taken, except the two that became OQ-57 and OQ-58. None of the existing open questions
+they were taken, except the one that became OQ-58 (OQ-57 was decided). None of the existing open questions
 blocks Phase 1 work.
 OQ-3 (formatter) is resolved as "none until a formatter supports Lua 5.5"; recommended to
 revisit when StyLua parses `global` and named varargs. Branch protection and secrets

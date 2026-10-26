@@ -77,9 +77,9 @@ README lists its exact dependencies.
 - Rock: `hecate-<name>` (the meta-rock is `hecate`)
 - Lua module root: `hecate.<name>` (e.g. `require "hecate.router"`)
 - The meta-module `hecate` re-exports the framework surface (controllers,
-  routes, problem details) so that typical application code needs one `require`. Whether it
-  also re-exports the object-model entry points (`hecate.class`) is open
-  ([OQ-57](../open-questions.md)); until decided, applications use `hecate.core`.
+  routes, problem details) so that typical application code needs one `require`. It does not
+  re-export the object-model entry points: applications declare classes with `core.class`
+  from `hecate.core` ([OQ-57](../open-questions.md), resolved).
 
 ## Native code policy
 

@@ -46,7 +46,7 @@ one-call client versus handshake over an existing stream, and stay); F34 qualifi
 prefix (runtime failures built from the operating system keep their shape); F19 the `hecate task` alias is
 dropped (contributor tooling, not a CLI feature); F12 the README states the specification (eager loading is
 explicit, lazy loading suspends, development warning on N+1). F07 decided by the owner (option B: `request.parameters.path.id`, `request.parameters.query.expand`,
-`request.path` is the path string) and applied to the specification and the developer-experience document. Still open: F06 and F16 in part, now OQ-57 and OQ-58 in `docs/open-questions.md`. Not done:
+`request.path` is the path string) and applied to the specification and the developer-experience document. F06 decided (OQ-57: no `hecate.class` alias). Still open: F16 in part, now OQ-58 in `docs/open-questions.md`. Not done:
 the internal `task` record of `reactor` (optional, Phase 7); the French glossary page does not list the new
 glossary rows yet (terms are in `website/fr/glossary-terms.md`); the strict website build could not run here
 (no LuaLS, reference pages not generated). The uncovered areas of the audit remain uncovered.
