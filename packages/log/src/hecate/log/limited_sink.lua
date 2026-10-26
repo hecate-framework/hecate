@@ -39,7 +39,7 @@ function LimitedSink:init(options)
     error(core.ArgumentError("log.LimitedSink: invalid sink: expected an object with a write method"), 2)
   end
   self._sink = target
-  self._exempt = severity.resolve(options.exempt or "warning", 2).ordinal
+  self._exempt = severity.resolve(options.exempt or "warning", 2, "log.LimitedSink").ordinal
   self._sample = options.sample or 1
   check_number(self._sample, "sample", 0)
   if self._sample > 1 then error(core.ArgumentError("log.LimitedSink: invalid sample: expected at most 1"), 2) end

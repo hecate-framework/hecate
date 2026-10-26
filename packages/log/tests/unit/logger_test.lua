@@ -39,6 +39,18 @@ function T:test_a_disabled_severity_builds_no_record_and_reaches_no_sink()
   self:assert_equal(0, #sink:records())
 end
 
+function T:test_errors_name_the_call_the_caller_wrote()
+  local logger = new_logger()
+  local err = self:assert_error(function() logger:set_severity("verbose") end)
+  self:assert_true(err.message:find("^log%.Logger%.set_severity: invalid severity") ~= nil)
+  err = self:assert_error(function() logger:is_enabled("verbose") end)
+  self:assert_true(err.message:find("^log%.Logger%.is_enabled: invalid severity") ~= nil)
+  err = self:assert_error(function() logger:informational(12) end)
+  self:assert_true(err.message:find("^log%.Logger%.informational: message must be a string") ~= nil)
+  err = self:assert_error(function() logger:log("warning", 12) end)
+  self:assert_true(err.message:find("^log%.Logger%.log: message must be a string") ~= nil)
+end
+
 function T:test_set_severity_accepts_a_name_or_a_severity()
   local logger = new_logger()
   logger:set_severity("debug")

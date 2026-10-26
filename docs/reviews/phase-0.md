@@ -62,7 +62,7 @@ Sample pages, fixtures and generated tables had their headers and vocabulary che
 
 The coherence audit raised decisions for the owner (F07, F12, F17, F19, F34 and parts of F06 and F16);
 they were all taken (F07, OQ-57, OQ-58, OQ-60, OQ-61). None of the existing open questions
-blocks Phase 1 work. OQ-62 (new): specification sections for `container`, `config` and `log`.
+blocks Phase 1 work. OQ-62 (specification sections for `container`, `config` and `log`) is resolved: `log` is specified in [logging.md](../architecture/logging.md); `container` and `config` are specified when implemented (Phase 2).
 OQ-3 (formatter) is resolved as "none until a formatter supports Lua 5.5"; recommended to
 revisit when StyLua parses `global` and named varargs. Branch protection and secrets
 (roadmap item "Repository settings") need the owner's confirmation.

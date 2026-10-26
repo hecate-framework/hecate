@@ -23,6 +23,7 @@
 - [HTTP and routing](docs/architecture/http-and-routing.md): server, router, kernel, filters
 - [Schemas and contracts](docs/architecture/schemas-and-contracts.md): refinement types, OpenAPI
 - [Data access](docs/architecture/data-access.md): SQL interfaces, drivers, query builder, ORM
+- [Logging](docs/architecture/logging.md): severities, loggers, records, sinks, ambient context
 - [Testing](docs/architecture/testing.md), [Documentation](docs/architecture/documentation.md)
 - [CLI and packaging](docs/architecture/cli-and-packaging.md), [Versioning and distribution](docs/architecture/versioning-and-distribution.md)
 - [Coding standards](docs/architecture/coding-standards.md), [Automation](docs/architecture/automation.md), [AI-assisted development](docs/architecture/ai-assisted-development.md)

@@ -75,7 +75,7 @@ end
 ---@param options? hecate.log.LoggerOptions
 function Logger:init(options)
   options = options or EMPTY
-  self._severity = severities.resolve(options.severity or Severity.informational, 2).ordinal
+  self._severity = severities.resolve(options.severity or Severity.informational, 2, "log.Logger").ordinal
   self._name = options.name
   self._context = options.context or EMPTY
   self._provider = options.context_provider or ambient.fields
@@ -113,7 +113,7 @@ end
 ---
 --- Raises `hecate.core.ArgumentError` for an unknown severity.
 ---@param severity hecate.core.EnumerationValue|string
-function Logger:set_severity(severity) self._severity = severities.resolve(severity, 2).ordinal end
+function Logger:set_severity(severity) self._severity = severities.resolve(severity, 2, "log.Logger.set_severity").ordinal end
 
 --- Returns the least urgent severity that is recorded.
 ---@return hecate.core.EnumerationValue
@@ -124,7 +124,7 @@ function Logger:severity() return Severity:values()[self._severity] end
 --- Raises `hecate.core.ArgumentError` for an unknown severity.
 ---@param severity hecate.core.EnumerationValue|string
 ---@return boolean
-function Logger:is_enabled(severity) return severities.resolve(severity, 2).ordinal <= self._severity end
+function Logger:is_enabled(severity) return severities.resolve(severity, 2, "log.Logger.is_enabled").ordinal <= self._severity end
 
 --- Returns how many times a sink raised while writing a record (shared with the children).
 ---@return integer
@@ -154,15 +154,16 @@ function Logger:with_context(fields)
 end
 
 ---@param self hecate.log.Logger
+---@param call string  qualified name of the call the caller wrote (message prefix)
 ---@param severity hecate.core.EnumerationValue
 ---@param message string
 ---@param fields? table
-local function emit(self, severity, message, fields)
+local function emit(self, call, severity, message, fields)
   if type(message) ~= "string" then
-    error(core.ArgumentError(("log.Logger.log: message must be a string, got %s"):format(type(message))), 3)
+    error(core.ArgumentError(("%s: message must be a string, got %s"):format(call, type(message))), 3)
   end
   if fields ~= nil and type(fields) ~= "table" then
-    error(core.ArgumentError(("log.Logger.log: fields must be a table, got %s"):format(type(fields))), 3)
+    error(core.ArgumentError(("%s: fields must be a table, got %s"):format(call, type(fields))), 3)
   end
   local context = {}
   if self._provider then
@@ -196,16 +197,17 @@ end
 ---@param message string
 ---@param fields? table
 function Logger:log(severity, message, fields)
-  local resolved = severities.resolve(severity, 2)
+  local resolved = severities.resolve(severity, 2, "log.Logger.log")
   if resolved.ordinal > self._severity then return end
-  emit(self, resolved, message, fields)
+  emit(self, "log.Logger.log", resolved, message, fields)
 end
 
 for _, value in ipairs(Severity:values()) do
   local ordinal = value.ordinal
+  local call = "log.Logger." .. value.name
   Logger[value.name] = function(self, message, fields)
     if ordinal > self._severity then return end
-    emit(self, value, message, fields)
+    emit(self, call, value, message, fields)
   end
 end
 

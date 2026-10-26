@@ -13,7 +13,7 @@
 | Depends on | [`core`](../core), [`reactor`](../reactor), [`json`](../json) |
 | Used by | `cli`, `hecate`, `http`, `kernel`, `migration`, `sql`, `test` |
 | Native code | none |
-| Specification | [overview.md](../../docs/architecture/overview.md) |
+| Specification | [logging.md](../../docs/architecture/logging.md) |
 | Decisions | [ADR 0004](../../docs/adr/0004-academic-vocabulary.md) |
 | Agent | [`pkg-log`](../../.claude/agents/pkg-log.md) |
 | Repository | read-only mirror `hecate-framework/hecate-log`, generated from this directory (ADR 0017) |
@@ -50,6 +50,7 @@ local log = require("hecate.log")
 | `log.ConsoleSink(options)` | Writes `timestamp SEVERITY [logger] message key=value ...` to `options.output(line)`; secrets redacted, control characters escaped. |
 | `log.FileSink(options)` | Appends JSON lines to `options.path` (synchronous); `close()`; a failed write raises `hecate.core.Error` (a `Logger` counts it in `failures()`). |
 | `log.AsyncSink(options)` | Decorator: `write` queues the record (bounded by `capacity`, default 1024; beyond it the record is dropped and counted) and never suspends; a detached computation writes to `options.sink`. `flush()` and `close()` suspend until the queue is written; `dropped()`, `failures()`, `pending()`. Call `close()` before the main computation ends. |
+| `log.LimitedSink(options)` | Decorator: options `sink`, `exempt` (default `warning`: records at least this urgent always pass), `sample` (fraction in (0, 1]), `rate` and `burst` (token bucket), `random`, `clock`; `dropped()`. |
 | `log.Secret(value)` | Marks a value that no sink renders; `reveal()` returns it. |
 
 A sink is any object with a synchronous `write(record)` that does not suspend. `log.bind(fields, fn, ...)` adds

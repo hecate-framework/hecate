@@ -16,13 +16,14 @@ function M.code(severity) return severity.ordinal - 1 end
 --- Raises `hecate.core.ArgumentError` if the argument is neither.
 ---@param value any
 ---@param depth integer  stack level of the caller to blame
+---@param call string  qualified name of the call the caller wrote (for the message prefix)
 ---@return hecate.core.EnumerationValue
-function M.resolve(value, depth)
+function M.resolve(value, depth, call)
   if Severity:contains(value) then return value end
   local found = type(value) == "string" and Severity:find(value) or nil
   if found == nil then
-    error(core.ArgumentError(("log: invalid severity %s: expected one of %s"):format(
-      type(value) == "string" and ("%q"):format(value) or tostring(value), table.concat(Severity:names(), ", "))),
+    error(core.ArgumentError(("%s: invalid severity %s: expected one of %s"):format(
+      call, type(value) == "string" and ("%q"):format(value) or tostring(value), table.concat(Severity:names(), ", "))),
       depth + 1)
   end
   return found

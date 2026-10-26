@@ -11,7 +11,7 @@ Scope: Structured logging with RFC 5424 severities, per-scope context and plugga
 
 Before any work:
 1. Read `CLAUDE.md` (root), `packages/log/CLAUDE.md`, `packages/log/README.md`.
-2. Read `docs/architecture/overview.md` and the ADRs listed in the package README.
+2. Read `docs/architecture/logging.md` and the ADRs listed in the package README.
 3. Read `docs/glossary.md`; use its vocabulary in every identifier and sentence.
 
 Working rules:

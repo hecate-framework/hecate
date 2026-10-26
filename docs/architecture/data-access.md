@@ -54,7 +54,7 @@ each ends with `Error` and its `code` is the full class name (`hecate.sql.Integr
 
 ### Instrumentation
 
-Every query emits a structured log event (debug level) and timing metrics; slow-query
+Every query emits a structured log event (debug severity) and timing metrics; slow-query
 threshold configurable.
 
 ### Translation to a dialect

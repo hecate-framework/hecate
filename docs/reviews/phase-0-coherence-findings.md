@@ -51,7 +51,9 @@ F02 is not a finding ("ambient" is a scope; `log` keeps "per-scope context"); F0
 French glossary page equals the English one.
 
 Left, by their nature: F75 (the missing specification sections of `container`, `config` and `log`) is not a
-vocabulary defect and is recorded as OQ-62 for the owner; `SyntaxError` in `data-access.md` ends in `Error`
+vocabulary defect: OQ-62 is resolved by the owner (2026-10-26): the `log` section is written
+([logging.md](../architecture/logging.md)), those of `container` and `config` are written when the packages are
+implemented (Phase 2); `SyntaxError` in `data-access.md` ends in `Error`
 and was not renamed. Not verified here: `typecheck` and the strict website build (they need LuaLS, which could
 not be run in this environment); CI runs both. Out of scope by nature: vendored yyjson, binary files,
 `Cargo.lock` and generated data (see the third pass).
@@ -299,7 +301,7 @@ headers and the vocabulary of their messages were checked).
 | F72 | `packages/doc/.../reference.lua` | `alias_of` returned `class.short` on both branches of a condition. | Reduced to `class.short`, documented; tests pass. | fixed |
 | F73 | `docs/spikes/OQ-39`, `docs/spikes/README.md` | comrak 0.56.0 measured against `0.52` pinned in `Cargo.toml`; no statement that spike scripts keep their period vocabulary. | One-line factual note in OQ-39; the policy stated once in the spikes README. | fixed |
 | F74 | tests of `log`, `reactor`, `net`, `doc` | "task" for the drain computation (`test_close_flushes_stops_the_task...`, and the local `drain_task` of `async_sink.lua`, now `drain_future`); a local helper `spawn` that forks a coroutine (`tls_stream_test.lua`, now `fork_job`); "close handlers" for `__close` metamethods in test names and in `reactor/CLAUDE.md` ("handler" is reserved for I/O completion handlers); `ambient_test.lua` still named `ScopeLocalTest` and its first test spoke of a "reserved word name" (the second name that OQ-56 rules out); `test_write_to_a_reset_peer_raises_io_error` asserting a `TransportError`; "container titles" for callouts; a field named `handler` in a log test; French fixture "les scopes" (glossary: « portée »); "closed-trust path" in a TLS test comment. | Renamed or reworded; no behaviour changed. | fixed |
-| F75 | specifications | `container`, `config` and `log` have only a few lines of specification (`overview.md`, two mentions of the container in `http-and-routing.md`), while their agents point to those files. | Not a vocabulary defect: recorded here for the owner (a specification section per package would let the agents and READMEs cite something). | open |
+| F75 | specifications | `container`, `config` and `log` have only a few lines of specification (`overview.md`, two mentions of the container in `http-and-routing.md`), while their agents point to those files. | Not a vocabulary defect: recorded as OQ-62; owner decision 2026-10-26: `log` specified now in `docs/architecture/logging.md`, `container` and `config` when implemented (Phase 2). | `log` fixed; `container`, `config` deferred |
 
 Observed and left, with the reason:
 

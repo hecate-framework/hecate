@@ -9,7 +9,7 @@ Structured logging with RFC 5424 severities, per-scope context and pluggable sin
 
 ## Read before changing anything
 
-- Specification: `docs/architecture/overview.md`
+- Specification: `docs/architecture/logging.md` (layering: `docs/architecture/overview.md`)
 - Decisions: `docs/adr/0004-academic-vocabulary.md`
 - Glossary: `docs/glossary.md` · Coding standards: `docs/architecture/coding-standards.md`
 - This package's `README.md` (scope, dependencies, status)
