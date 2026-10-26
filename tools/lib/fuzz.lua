@@ -28,9 +28,9 @@ function M.parse(args)
 end
 
 --- Finds a target by name.
----@param targets {package: string, name: string}[]
+---@param targets {package: string, name: string, kind?: "c"|"rust"}[]
 ---@param name string
----@return {package: string, name: string}?
+---@return {package: string, name: string, kind?: "c"|"rust"}?
 function M.find(targets, name)
   for _, t in ipairs(targets) do
     if t.name == name then return t end
