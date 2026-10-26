@@ -41,3 +41,6 @@ Thumbs.db
 # Throwaway spike code (reports live in docs/spikes/)
 /spikes/
 benchmarks/results/
+
+# libFuzzer findings of the C targets
+/packages/*/csrc/fuzz/artifacts/

@@ -30,6 +30,15 @@ function T:test_command_runs_cargo_fuzz_with_a_time_limit()
   self:assert_true(cmd:find("-max_total_time=45", 1, true) ~= nil)
 end
 
+function T:test_c_command_builds_a_sanitized_fuzzer_and_runs_it_with_a_time_limit()
+  local cmd = fuzz.c_command({ cc = "clang", include = "/lua/include", lib = "/lua/lib/liblua.a", source = "csrc/fuzz/decode.c",
+    binary = "work/fuzzer", corpus = "work/corpus", seeds = "csrc/fuzz/seeds", artifacts = "csrc/fuzz/artifacts" }, 45)
+  self:assert_true(cmd:find("-fsanitize=fuzzer,address,undefined", 1, true) ~= nil)
+  self:assert_true(cmd:find("liblua.a", 1, true) ~= nil)
+  self:assert_true(cmd:find("-max_total_time=45", 1, true) ~= nil)
+  self:assert_true(cmd:find("-artifact_prefix=", 1, true) ~= nil)
+end
+
 function T:test_tail_keeps_the_last_lines_and_says_how_many_were_omitted()
   local text = "a\nb\nc\nd\ne\n"
   self:assert_equal("c\nd\ne", fuzz.tail(text, 3):gsub("^.-\n", ""))

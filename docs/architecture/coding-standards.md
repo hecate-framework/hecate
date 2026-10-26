@@ -163,7 +163,7 @@ Generated pages: `lua tools/run.lua gen-reference` (needs `lua-language-server`)
 - C11, `-Wall -Wextra -Werror` (GCC/Clang), `/W4 /WX` (MSVC).
 - ASan + UBSan builds on Linux in CI (`native.yml`, task `sanitize`); fuzzing targets for
   parsers (llhttp wrapper, JSON, BSON, protocol frame decoders) with libFuzzer (task `fuzz`:
-  today the cargo-fuzz targets of `net`; the C targets of `json` are a roadmap item).
+  the cargo-fuzz targets of `net` and the C targets of `json`, `packages/json/csrc/fuzz`).
 - No global mutable state; every native handle wrapped as userdata with `__gc` and
   `__close`.
 
