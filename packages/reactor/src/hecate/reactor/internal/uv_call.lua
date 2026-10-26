@@ -36,15 +36,15 @@ function M.fail_transport(operation, message)
   M.fail(operation, message, TransportError)
 end
 
---- Requires a running real-clock reactor and returns its internal task record.
+--- Requires a running real-clock reactor and returns its internal computation record.
 ---@param operation string
----@return table task
+---@return table computation
 function M.begin(operation)
-  local task = context.current_task(operation)
-  if not task.reactor:is_real() then
+  local computation = context.current_computation(operation)
+  if not computation.reactor:is_real() then
     error(core.Error(operation .. " needs the real clock: libuv I/O cannot run on a virtual-clock reactor"), 0)
   end
-  return task
+  return computation
 end
 
 --- Starts a libuv request with `start(callback)` and suspends until the callback runs.

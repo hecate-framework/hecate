@@ -93,7 +93,7 @@ end
 ---@async
 ---@param value any
 function Channel:send(value)
-  context.current_task("Channel:send")
+  context.current_computation("Channel:send")
   if self:_try_send(value) then return end
   local senders = self._senders
   local waiter
@@ -109,7 +109,7 @@ end
 ---@async
 ---@return any value
 function Channel:receive()
-  context.current_task("Channel:receive")
+  context.current_computation("Channel:receive")
   local received, value = self:_try_receive()
   if received then return value end
   local receivers = self._receivers

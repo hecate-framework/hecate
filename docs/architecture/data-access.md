@@ -67,7 +67,7 @@ descriptor (dialect name, server version, capabilities such as `RETURNING`; this
 written in Lua or native. `connection:execute(expression)` selects the translator from the
 descriptor, translates, then sends. The translation layer is an interface whose first
 implementations are SQL; a cross-paradigm query language for Redis or MongoDB is not
-promised ([OQ-58](../open-questions.md), resolved).
+promised ([ADR 0026](../adr/0026-query-sql-layering.md), OQ-58 resolved).
 
 ## `hecate.query` — query builder
 

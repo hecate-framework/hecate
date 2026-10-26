@@ -17,7 +17,7 @@ function Future:init()
   self._state = "pending"
   self._results = nil
   self._error = nil
-  self._task = nil
+  self._computation = nil
   self._watchers = {}
 end
 
@@ -53,8 +53,8 @@ end
 function Future:cancel()
   if self._state ~= "pending" then return false end
   local err = core.CancellationError({ message = "future cancelled", context = { source = self } })
-  if self._task then
-    context.cancel_task(self._task, err)
+  if self._computation then
+    context.cancel_computation(self._computation, err)
   else
     self:_settle("cancelled", nil, err)
   end
