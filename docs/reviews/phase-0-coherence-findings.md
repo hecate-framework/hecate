@@ -39,17 +39,22 @@ Severity: **U** = user-facing (public API, user documentation, website, names a 
 
 ## Resolution (2026-10-26)
 
-All findings were fixed in the pull request except those below. Owner decisions: F02 is not a finding
-("ambient" is a scope; `log` keeps "per-scope context"); F17 verb-first (`connect_tcp`, `listen_tcp`,
-`connect_pipe`, `listen_pipe`, `bind_udp`; `net.connect_tls` and `net.tls.connect` are different operations,
-one-call client versus handshake over an existing stream, and stay); F34 qualified `module.function:`
-prefix (runtime failures built from the operating system keep their shape); F19 the `hecate task` alias is
-dropped (contributor tooling, not a CLI feature); F12 the README states the specification (eager loading is
-explicit, lazy loading suspends, development warning on N+1). F07 decided by the owner (option B: `request.parameters.path.id`, `request.parameters.query.expand`,
-`request.path` is the path string) and applied to the specification and the developer-experience document. F06 decided (OQ-57: no `hecate.class` alias). F16 decided with OQ-58 (abstract API in `query`, translators in `sql`). Not done:
-the internal `task` record of `reactor` (optional, Phase 7); the French glossary page does not list the new
-glossary rows yet (terms are in `website/fr/glossary-terms.md`); the strict website build could not run here
-(no LuaLS, reference pages not generated). The uncovered areas of the audit remain uncovered.
+Every finding of the three passes (F01 to F75) is fixed in this pull request, with the owner's decisions:
+F02 is not a finding ("ambient" is a scope; `log` keeps "per-scope context"); F06 `core.class`, no
+`hecate.class` alias (OQ-57); F07 `request.parameters.path.id`, `request.parameters.query.expand`,
+`request.path` is the path string; F12 the README states the specification; F16 and the data-access layering
+(OQ-58, [ADR 0026](../adr/0026-query-sql-layering.md), Proposed): abstract API in `query`, translators in
+`sql`, drivers transport only; F17 verb-first transport names; F19 `hecate task` dropped; F34 qualified
+`module.function:` prefix everywhere, with one documented exception (cancellation signals and the direct
+`coroutine.yield` report, which involve no call the caller wrote); OQ-60 `severity` in `log`; OQ-61
+`duplicate_member_name` in `json`. The internal `task` record of `reactor` is renamed `computation`, the
+French glossary page equals the English one.
+
+Left, by their nature: F75 (the missing specification sections of `container`, `config` and `log`) is not a
+vocabulary defect and is recorded as OQ-62 for the owner; `SyntaxError` in `data-access.md` ends in `Error`
+and was not renamed. Not verified here: `typecheck` and the strict website build (they need LuaLS, which could
+not be run in this environment); CI runs both. Out of scope by nature: vendored yyjson, binary files,
+`Cargo.lock` and generated data (see the third pass).
 
 ## Summary
 

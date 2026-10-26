@@ -46,33 +46,23 @@ skeleton": CI run 309 on `main` succeeded on ubuntu, macos and windows.
 Coherence means that every concept is named and identified identically in every file, because
 it shapes what users of the libraries read and type. The first pass of this gate only ran the
 mechanical checks (links, ADR index, generated catalogue) and was rejected by the owner as not
-being coherence. The audit was redone file by file against `docs/glossary.md` and ADR 0004; the
-complete findings, with quoted lines, are in
-[phase-0-coherence-findings.md](phase-0-coherence-findings.md): 36 findings, 28 user-facing,
-about 26 small fixes, 5 medium, and the ones below needing the owner.
+being coherence. The audit was redone file by file, in three passes, against `docs/glossary.md` and
+ADR 0004; the findings, with quoted lines, are in
+[phase-0-coherence-findings.md](phase-0-coherence-findings.md): 75 findings (F01 to F75), all fixed in this
+pull request with the owner's decisions (verb-first transport names, qualified error prefixes,
+`request.parameters`, `core.class`, `severity`, `duplicate_member_name`, and the data-access layering of
+[ADR 0026](../adr/0026-query-sql-layering.md)).
 
-Coverage is stated in the findings ("Method and coverage"): the glossary, specifications,
-vision, developer-experience, READMEs and tools documents were read in full; ADRs, open
-questions, the website (en, fr), the other agents and commands and the Lua sources were covered
-by targeted searches; `docs/spikes/`, the Rust and C sources and `.github/` were not covered.
-That uncovered part is a known hole of the audit and is to be done by the fix item or the next gate.
-
-Main gaps: "unit of work" and "task" used for coroutines (F01, F03); "ambient context" absent from
-the glossary while `log` still says "per-scope context" (F02); "channel" used for the message pipe
-(F04); the developer-experience document and `object-model.md` disagree with ADR 0007 and the code
-(F06, F07); `reactor` and `net` order the same operations oppositely (`pipe_connect` versus
-`connect_pipe` (now verb-first everywhere), F17); error classes without the `Error` suffix in `data-access.md` (F10); README
-claims contradicting specifications (F05, F12, F13); stale statements (F20, F24, F26, F28).
-
-Fixed in this pull request, with the owner's decisions, except what the findings' "Resolution" lists as open
-(the French glossary page, the internal `task` record). F07 (option B), OQ-57 and OQ-58 (data-access layering: abstract API in `query`,
-translators in `sql`, drivers transport only) were decided by the owner and applied.
+Coverage: the three passes read every tracked file in full (glossary, specifications, ADRs, open questions,
+spikes, READMEs, agents, commands, tools, `.github`, website in English and French, Lua, Rust and C sources,
+tests, examples, benchmarks), except vendored `yyjson`, binary files, `Cargo.lock` files and generated data.
+Sample pages, fixtures and generated tables had their headers and vocabulary checked.
 
 ## 4. Open questions
 
 The coherence audit raised decisions for the owner (F07, F12, F17, F19, F34 and parts of F06 and F16);
-they were all taken (F07, OQ-57, OQ-58). None of the existing open questions
-blocks Phase 1 work.
+they were all taken (F07, OQ-57, OQ-58, OQ-60, OQ-61). None of the existing open questions
+blocks Phase 1 work. OQ-62 (new): specification sections for `container`, `config` and `log`.
 OQ-3 (formatter) is resolved as "none until a formatter supports Lua 5.5"; recommended to
 revisit when StyLua parses `global` and named varargs. Branch protection and secrets
 (roadmap item "Repository settings") need the owner's confirmation.
