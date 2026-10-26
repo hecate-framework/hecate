@@ -33,10 +33,18 @@ local function protected(fn, ...)
   return result, err
 end
 
+--- The call named in the messages of `operation`: the method of the class in `_label`.
+---@param self table
+---@param operation string
+---@return string
+local function qualified(self, operation)
+  return self._label .. "." .. operation
+end
+
 ---@param self table
 ---@param operation string
 local function require_open(self, operation)
-  if self._closed then uv_call.fail_transport(self._label .. "." .. operation, operation, "EBADF: socket is closed") end
+  if self._closed then uv_call.fail_transport(qualified(self, operation), operation, "EBADF: socket is closed") end
 end
 
 --- A bound UDP socket; its operations suspend until the datagram moves.
@@ -63,10 +71,10 @@ end
 ---@param data string
 function UdpSocket:send_to(host, port, data)
   if type(data) ~= "string" then
-    error(core.ArgumentError(("reactor.UdpSocket.send_to: expects a string, got %s"):format(type(data))), 2)
+    error(core.ArgumentError(("%s: expects a string, got %s"):format(qualified(self, "send_to"), type(data))), 2)
   end
-  check_endpoint("reactor.UdpSocket.send_to", host, port)
-  uv_call.begin(self._label .. ".send_to")
+  check_endpoint(qualified(self, "send_to"), host, port)
+  uv_call.begin(qualified(self, "send_to"))
   require_open(self, "send_to")
   local state = {}
   local ok, failure = pcall(context.suspend, function(wake)
@@ -83,7 +91,7 @@ function UdpSocket:send_to(host, port, data)
     if not state.done then self:close() end
     error(failure, 0)
   end
-  if state.err then uv_call.fail_transport(self._label .. ".send_to", "send_to", state.err) end
+  if state.err then uv_call.fail_transport(qualified(self, "send_to"), "send_to", state.err) end
 end
 
 --- Suspends until a datagram arrives; returns its payload and the sender's address. An empty
@@ -93,9 +101,9 @@ end
 ---@return string data
 ---@return hecate.reactor.SocketAddress from
 function UdpSocket:receive_from()
-  uv_call.begin(self._label .. ".receive_from")
+  uv_call.begin(qualified(self, "receive_from"))
   require_open(self, "receive_from")
-  if self._receiving then error(core.Error("reactor.UdpSocket.receive_from: another coroutine is already receiving"), 2) end
+  if self._receiving then error(core.Error(qualified(self, "receive_from") .. ": another coroutine is already receiving"), 2) end
   local state = {}
   self._receiving = true
   local ok, failure = pcall(context.suspend, function(wake)
@@ -120,8 +128,8 @@ function UdpSocket:receive_from()
   end)
   self._receiving = false
   if not ok then error(failure, 0) end
-  if self._closed then uv_call.fail_transport(self._label .. ".receive_from", "receive_from", "ECANCELED: socket closed while receiving") end
-  if state.err then uv_call.fail_transport(self._label .. ".receive_from", "receive_from", state.err) end
+  if self._closed then uv_call.fail_transport(qualified(self, "receive_from"), "receive_from", "ECANCELED: socket closed while receiving") end
+  if state.err then uv_call.fail_transport(qualified(self, "receive_from"), "receive_from", state.err) end
   local address = state.address
   return state.data, { ip = address.ip, port = address.port, family = address.family }
 end
@@ -149,7 +157,7 @@ function UdpSocket:is_closed() return self._closed end
 function UdpSocket:local_address()
   require_open(self, "local_address")
   local address, err = self._handle:getsockname()
-  if not address then uv_call.fail_transport(self._label .. ".local_address", "local_address", tostring(err)) end
+  if not address then uv_call.fail_transport(qualified(self, "local_address"), "local_address", tostring(err)) end
   return { ip = address.ip, port = address.port, family = address.family }
 end
 

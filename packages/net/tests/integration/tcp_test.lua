@@ -173,6 +173,9 @@ function T:test_close_is_idempotent_and_runs_at_the_end_of_a_close_scope()
     self:assert_equal("EBADF", errno_of(self, function() stream:read() end))
     local _, closed = errno_of(self, function() stream:read() end)
     self:assert_equal("net.TcpStream.read: EBADF: stream is closed", closed.message) -- the net class, not the reactor's
+    local open <close> = net.connect(LOOPBACK, port)
+    local misuse = self:assert_error(function() open:set_nodelay("yes") end)
+    self:assert_equal("net.TcpStream.set_nodelay: expects a boolean, got string", misuse.message)
   end)
 end
 

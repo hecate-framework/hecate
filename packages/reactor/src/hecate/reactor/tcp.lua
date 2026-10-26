@@ -254,10 +254,10 @@ end
 function TcpStream:read(max)
   uv_call.begin(qualified(self, "read"))
   if max ~= nil and (math.type(max) ~= "integer" or max < 1) then
-    error(core.ArgumentError(("reactor.TcpStream.read: expects a positive integer, got %s"):format(tostring(max))), 2)
+    error(core.ArgumentError(("%s: expects a positive integer, got %s"):format(qualified(self, "read"), tostring(max))), 2)
   end
   require_open(self, "read")
-  if self._reading then error(core.Error("reactor.TcpStream.read: another coroutine is already reading this stream"), 2) end
+  if self._reading then error(core.Error(qualified(self, "read") .. ": another coroutine is already reading this stream"), 2) end
   self._demanded = true
   while self._inbox == nil and not self._eof and self._failure == nil do
     self._reading = true
@@ -304,7 +304,7 @@ end
 ---@param data string
 function TcpStream:write(data)
   if type(data) ~= "string" then
-    error(core.ArgumentError(("reactor.TcpStream.write: expects a string, got %s"):format(type(data))), 2)
+    error(core.ArgumentError(("%s: expects a string, got %s"):format(qualified(self, "write"), type(data))), 2)
   end
   uv_call.begin(qualified(self, "write"))
   require_open(self, "write")
@@ -357,7 +357,7 @@ end
 function TcpStream:set_nodelay(enabled)
   require_open(self, "set_nodelay")
   if type(enabled) ~= "boolean" then
-    error(core.ArgumentError(("reactor.TcpStream.set_nodelay: expects a boolean, got %s"):format(type(enabled))), 2)
+    error(core.ArgumentError(("%s: expects a boolean, got %s"):format(qualified(self, "set_nodelay"), type(enabled))), 2)
   end
   local ok, err = self._handle:nodelay(enabled)
   if not ok then uv_call.fail_transport(qualified(self, "set_nodelay"), "set_nodelay", tostring(err)) end
@@ -370,10 +370,10 @@ end
 function TcpStream:set_keepalive(enabled, delay)
   require_open(self, "set_keepalive")
   if type(enabled) ~= "boolean" then
-    error(core.ArgumentError(("reactor.TcpStream.set_keepalive: expects a boolean, got %s"):format(type(enabled))), 2)
+    error(core.ArgumentError(("%s: expects a boolean, got %s"):format(qualified(self, "set_keepalive"), type(enabled))), 2)
   end
   if delay ~= nil and (math.type(delay) ~= "integer" or delay < 1) then
-    error(core.ArgumentError("reactor.TcpStream.set_keepalive: delay must be a positive integer number of seconds"), 2)
+    error(core.ArgumentError(qualified(self, "set_keepalive") .. ": delay must be a positive integer number of seconds"), 2)
   end
   local ok, err = self._handle:keepalive(enabled, delay or DEFAULT_KEEPALIVE_DELAY)
   if not ok then uv_call.fail_transport(qualified(self, "set_keepalive"), "set_keepalive", tostring(err)) end
@@ -415,7 +415,7 @@ local DROPPED = { EINVAL = true, ENOTCONN = true, ECONNRESET = true, ECONNABORTE
 function TcpListener:accept()
   uv_call.begin(qualified(self, "accept"))
   require_open(self, "accept")
-  if self._accepting then error(core.Error("reactor.TcpListener.accept: another coroutine is already accepting"), 2) end
+  if self._accepting then error(core.Error(qualified(self, "accept") .. ": another coroutine is already accepting"), 2) end
   while true do
     while self._incoming == 0 and self._failure == nil do
       self._accepting = true

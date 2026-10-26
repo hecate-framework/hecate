@@ -80,7 +80,7 @@ local function scope_run(fn, deadline_at)
   if body[1] then return table.unpack(body, 2, body.n) end
   -- The body ended with this scope's own cancellation: the scope absorbs it.
   if scope._deadline_hit then
-    error(core.DeadlineExceededError({ message = "deadline exceeded", context = { at = deadline_at } }), 0)
+    error(core.DeadlineExceededError({ message = "reactor.deadline: deadline exceeded", context = { at = deadline_at } }), 0)
   end
 end
 context.scope_run = scope_run

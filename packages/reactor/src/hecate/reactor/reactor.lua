@@ -208,9 +208,10 @@ end
 --- A cancellable suspension raises the pending `CancellationError` instead of returning.
 ---@param register? fun(wake: fun(...): boolean): (fun()?)
 ---@param uncancellable? boolean
+---@param operation? string  the public call, for the message when the caller is not a managed coroutine
 ---@return any ...
-function context.suspend(register, uncancellable)
-  local computation = current_computation("suspending operation")
+function context.suspend(register, uncancellable, operation)
+  local computation = current_computation(operation or "reactor")
   if not uncancellable then
     local pending = pending_cancel(computation)
     if pending ~= nil then error(pending, 0) end
@@ -309,7 +310,7 @@ local function has_ready(self) return self._head <= self._tail end
 
 local function deadlock(self)
   error(core.Error({
-    message = ("deadlock: %d coroutine(s) are suspended and nothing can wake them"):format(self._live),
+    message = ("reactor.run: deadlock: %d coroutine(s) are suspended and nothing can wake them"):format(self._live),
     context = { live = self._live },
   }), 0)
 end

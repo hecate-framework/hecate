@@ -38,7 +38,7 @@ function Future:value()
     context.suspend(function(wake)
       local watcher = self:_watch(wake)
       return function() watcher.active = false end
-    end)
+    end, nil, "reactor.Future.value")
   end
   if self._state == "completed" then
     local results = self._results --[[@as table]]

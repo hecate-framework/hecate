@@ -80,6 +80,14 @@ Decided in [ADR 0018](../adr/0018-error-signalling.md).
   (`net.TcpStream.read: ECONNRESET ...`, `reactor.connect_tcp: connect 127.0.0.1:80: ECONNREFUSED ...`); the stable
   `context.operation` stays as the data of the failure. The prefix is never bare (`resolve` exists in `reactor` and in
   `net`).
+  The one exception is a message raised from inside the scheduler, in a computation that made no call
+  the caller wrote: the cancellation signals delivered to a computation (`cancelled`, `future cancelled`,
+  `scope cancelled`, `the scope body failed`, `a sibling computation failed`) and the report of a
+  coroutine that called `coroutine.yield` directly (`a managed coroutine called coroutine.yield
+  directly; ...`). This list is complete; every other message of `reactor` and `net` carries the prefix,
+  including `reactor.deadline: deadline exceeded`, `reactor.run: deadlock: ...` and
+  `reactor.Channel.send: the channel is closed`. A method of a class that another package wraps names the
+  wrapper when it is reached through it (`net.TcpStream.write`, not `reactor.TcpStream.write`).
 
 ## Resources
 

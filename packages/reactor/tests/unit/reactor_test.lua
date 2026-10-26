@@ -69,7 +69,7 @@ function T:test_deadlock_is_reported_and_close_handlers_run()
     end)
   end)
   self:assert_true(core.is_instance_of(err, core.Error))
-  self:assert_true(err.message:find("deadlock") ~= nil)
+  self:assert_true(err.message:find("reactor.run: deadlock", 1, true) == 1, err.message)
   self:assert_true(closed)
   self:assert_equal(0, instance:live_coroutines())
 end
