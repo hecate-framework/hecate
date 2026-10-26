@@ -40,7 +40,7 @@ local function worker(parent, strategy, port)
     reactor.detach(function() pcall(serve, stream) end)
   end
   if strategy == "reuseport" then
-    local listener <close> = reactor.tcp_listen("0.0.0.0", port, { reuseport = true, backlog = 4096 })
+    local listener <close> = reactor.listen_tcp("0.0.0.0", port, { reuseport = true, backlog = 4096 })
     reactor.detach(function() while true do take(listener:accept()) end end)
     parent:send("ready")
   else
@@ -67,7 +67,7 @@ local function primary(port, strategy, count)
     io.stdout:flush()
     return
   end
-  local listener <close> = reactor.tcp_listen("0.0.0.0", port, { backlog = 4096, reuseport = strategy == "reuseport" })
+  local listener <close> = reactor.listen_tcp("0.0.0.0", port, { backlog = 4096, reuseport = strategy == "reuseport" })
   port = listener:local_address().port
   if strategy == "reuseport" then listener:close() end -- the workers bind the port: the primary must not accept
   local workers = {}
@@ -75,7 +75,7 @@ local function primary(port, strategy, count)
     workers[i] = reactor.spawn(arg[-1] or "lua", { arg[0], tostring(port), strategy, tostring(count), "--worker" }, { ipc = true })
     assert(workers[i].ipc:receive() == "ready", "a worker did not become ready")
   end
-  local control <close> = reactor.tcp_listen("127.0.0.1", 0)
+  local control <close> = reactor.listen_tcp("127.0.0.1", 0)
   print(("listening %d %d"):format(port, control:local_address().port))
   io.stdout:flush()
   reactor.detach(function()
