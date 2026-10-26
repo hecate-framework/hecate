@@ -69,7 +69,7 @@
   description: "Package migration: Versioned, reversible database schema migrations with checksums and CLI integrat…"
 - name: "package:orm"
   color: "1D76DB"
-  description: "Package orm: Object-relational mapper: Data Mapper with Unit of Work, Identity Map,…"
+  description: "Package orm: Object-relational mapper: data mapper with unit of work, identity map,…"
 - name: "package:security"
   color: "1D76DB"
   description: "Package security: Authentication (bearer tokens, JWT, sessions), authorisation policies,…"

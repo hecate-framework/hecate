@@ -894,7 +894,8 @@ function M.generate(inputs, options)
   return { pages = pages, problems = problems, order = order }
 end
 
---- Names of the generated pages of a package directory, for the stale-page check of writers.
+--- Tells whether a page carries the marker of generated pages, so that a writer replaces only what a
+--- previous generation wrote (see `reference_site`).
 ---@param content string
 ---@return boolean
 function M.is_generated(content)

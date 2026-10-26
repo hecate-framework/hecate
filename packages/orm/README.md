@@ -1,6 +1,6 @@
 # `hecate-orm`
 
-> Object-relational mapper: Data Mapper with Unit of Work, Identity Map, associations and repositories.
+> Object-relational mapper: data mapper with unit of work, identity map, associations and repositories.
 
 | | |
 |---|---|

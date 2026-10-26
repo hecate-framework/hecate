@@ -26,7 +26,7 @@ agent in `.claude/agents/pkg-<name>.md`.
 | [`hecate`](hecate) | `hecate` | Meta | 3 | specified | Meta-rock `hecate`: depends on the standard edition and provides the `hecate` meta-module re-exporting the framework surface. |
 | [`migration`](migration) | `hecate-migration` | Data | 4 | specified | Versioned, reversible database schema migrations with checksums and CLI integration. |
 | [`mysql`](mysql) | `hecate-mysql` | Data | 4 | specified | MySQL and MariaDB driver implementing the client/server protocol in Lua, reporting a descriptor of its dialect, version and capabilities. |
-| [`orm`](orm) | `hecate-orm` | Data | 4 | specified | Object-relational mapper: Data Mapper with Unit of Work, Identity Map, associations and repositories. |
+| [`orm`](orm) | `hecate-orm` | Data | 4 | specified | Object-relational mapper: data mapper with unit of work, identity map, associations and repositories. |
 | [`postgresql`](postgresql) | `hecate-postgresql` | Data | 4 | specified | PostgreSQL driver implementing the frontend/backend protocol v3 in Lua. |
 | [`query`](query) | `hecate-query` | Data | 4 | specified | Query builder using relational-algebra vocabulary (projection, selection, join, rename, union) and the database-schema definition API, independent of any dialect. |
 | [`redis`](redis) | `hecate-redis` | Data | 4 | specified | Redis client (RESP3 with RESP2 fallback), compatible with Valkey and KeyDB. |

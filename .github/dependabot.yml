@@ -9,8 +9,14 @@ updates:
         patterns: ["*"]
   # Rust crates of the native modules (ADR 0021): new versions and security fixes, one weekly pull
   # request. The lockfile is committed and CI builds with --locked, so an update is a reviewed change.
+  # Every crate with a committed lockfile is listed (`net`, the fuzz crate of `net`, `json`, `doc`); the
+  # spike crates under docs/spikes are historical and not maintained.
   - package-ecosystem: cargo
-    directory: "/packages/net/native"
+    directories:
+      - "/packages/net/native"
+      - "/packages/net/native/fuzz"
+      - "/packages/json/native"
+      - "/packages/doc/native"
     schedule:
       interval: weekly
     groups:

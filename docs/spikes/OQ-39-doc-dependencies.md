@@ -4,7 +4,7 @@ Status: **partial** (Markdown, syntax highlighting, search, OpenAPI and WebAssem
 on Linux x86_64; macOS and Windows read from build requirements only; no dependency added to
 any package or rockspec). Recommendation submitted to the owner; the decision is theirs.
 Nothing in this report promotes or changes an ADR. Proposal: [ADR 0022](../adr/0022-doc-dependencies.md)
-(Proposed).
+(since accepted by the owner).
 
 ## Question
 

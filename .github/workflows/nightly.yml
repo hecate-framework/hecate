@@ -1,8 +1,8 @@
 name: nightly
 
 # Slow checks that do not belong in a pull request (docs/architecture/automation.md): leak detection,
-# coverage with its thresholds, long fuzzing and the freshness of the pinned dependencies. The
-# integration services and `check-mirrors` join this workflow with their phases.
+# coverage with its thresholds and long fuzzing. The integration services, the freshness report of the
+# pinned dependencies and `check-mirrors` join this workflow with their phases.
 on:
   schedule:
     - cron: "17 2 * * *"

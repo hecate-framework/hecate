@@ -107,7 +107,7 @@ and return values, errors raised, whether it may suspend (`---@async`), examples
 compatibility, see also), a `generated: true` front matter key and a header comment saying not to
 edit it. A class page lists its fields and methods with a stable anchor each (`#name`). Examples
 are the tested files `packages/<package>/examples/<symbol>.lua`. The pages are not committed
-(git-ignored); the output is deterministic. Documented packages: `core`, `reactor`, `net`.
+(git-ignored); the output is deterministic. Documented packages: `core`, `reactor`, `net`, `json`, `log` (`reference_site.DEFAULT_PACKAGES`).
 
 ### Content
 

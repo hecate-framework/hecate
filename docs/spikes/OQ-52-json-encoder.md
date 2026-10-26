@@ -3,6 +3,10 @@
 Status: **done (Linux, Ubuntu 24.04 on a shared 4-vCPU VM; numbers are indicative, see "Reproduce")**.
 Recommendation submitted to the owner; the decision is theirs.
 
+*Later decisions (OQ-53, 2026-10-25): the pure-Lua reference encoder and fallback backend named below were removed;
+the Rust encoder (candidate B, `serde_json`) produces the encoding failures itself. The paths and the "fallback" in this
+report describe the code as it was when the spike ran.*
+
 ## Question
 
 ADR 0020 and ADR 0021 choose `serde_json` through `mlua` for the encoder of `hecate.json`, so as not to write

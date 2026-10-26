@@ -21,6 +21,8 @@ tools/
                         and the logic of the coverage, sanitize, fuzz, leaks and licence tasks)
   harness/              bootstrap test harness (ADR 0008), removed after Phase 3
   hooks/                git hooks (install.lua installer; pre-commit.lua, commit-msg.lua bodies)
+  tests/                tests of the tasks and libraries (`lua tools/run.lua test tools`)
+  cloud/                configuration of the Claude Code cloud environment (README.md, setup.sh)
   services/compose.yaml database servers for local integration tests (planned, Phase 4; does not exist yet)
 ```
 

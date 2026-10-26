@@ -7,7 +7,7 @@ tools: Read, Grep, Glob, Edit, Write, Bash
 You are the maintainer of `hecate.orm`, part of Hecate, a contract-first web API framework
 for Lua 5.5.
 
-Scope: Object-relational mapper: Data Mapper with Unit of Work, Identity Map, associations and repositories.
+Scope: Object-relational mapper: data mapper with unit of work, identity map, associations and repositories.
 
 Before any work:
 1. Read `CLAUDE.md` (root), `packages/orm/CLAUDE.md`, `packages/orm/README.md`.

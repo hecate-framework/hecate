@@ -225,3 +225,85 @@ shapes), `website/fr/reference/glossary.md`.
 - Spike reports keep the vocabulary of their time (HTTP "headers" in the llhttp report, "task" for Swift or tokio):
   historical measurements, left as written.
 - Not run: the strict website build (no LuaLS here).
+
+## Third pass (2026-10-26)
+
+Scope: the areas the second pass admitted it had not read line by line. Everything below was read in full unless
+the last list says otherwise. Not touched, by instruction: `packages/reactor/src`, `packages/reactor/tests`,
+`packages/net/src`; OQ-60 and OQ-61 left to the owner.
+
+### Files read
+
+- (a) `.claude/agents`: the 13 non-package agents (`api-reviewer`, `architect`, `ci-engineer`,
+  `cross-platform-reviewer`, `docs-writer`, `dx-reviewer`, `native-code-reviewer`, `performance-engineer`,
+  `release-manager`, `security-reviewer`, `terminology-reviewer`, `test-engineer`, `translator-fr`) by `cat`; the 28
+  `pkg-*` agents are generated from one template, so each was checked by a script against the template (all lines
+  other than description, scope, documents to read, allowed dependencies and standards are identical, verified by
+  substitution and diff), its scope against the README summary line, its description against its scope, its allowed
+  dependencies against the README "Depends on" row, and its documents and standards were printed and read.
+- (b) `.github`, every file: `CODEOWNERS`, `dependabot.yml`, `labeler.yml`, `labels.yml`, `pull_request_template.md`,
+  the 5 issue templates and `config.yml`, `mirror-template` (README, READ-ONLY, workflow), `relay/HANDOFF.template.md`,
+  and the 10 workflows (`ci`, `claude`, `docs`, `pr-hygiene`, `labels`, `security`, `website`, `benchmarks`, `native`,
+  `nightly`), including comments, job and step names. Also `lychee.toml` and `deny.toml` (they are referred to by the
+  workflows).
+- (c) Native code: `packages/json/csrc/native.c` (482 lines), `packages/json/native/src/lib.rs`,
+  `packages/net/native/src/lib.rs`, `packages/net/native/tests/robustness.rs`, `packages/net/native/fuzz`
+  (`build.rs`, the 4 targets, README), `packages/doc/native/src/lib.rs`, the three `Cargo.toml`, the fuzz
+  `Cargo.toml`, `rust-toolchain.toml` and `.cargo/config.toml`.
+- (d) `tools/` in full: `run.lua`, `harness`, `hooks`, all 19 `lib` files, all 32 tasks, all 20 test files,
+  `bootstrap` (both scripts and the CMake file), `cloud` (README and `setup.sh`), `README.md`, `CLAUDE.md`.
+  `packages/doc/src` in full: every Lua module (`build`, `config`, `errors`, `file_system`, `front_matter`,
+  `highlight`, `init`, `luals`, `markdown`, `memory_file_system`, `navigation`, `page`, `reference`,
+  `reference_site`, `search`, `site`, `system_file_system`, `internal/html`, `theme/init`, `theme/layout`,
+  `theme/strings`), `theme.css`, `theme.js`, `theme-init.js`, the brand `LICENSE`, and `bin/build.lua`,
+  `bin/reference.lua`.
+- (e) `docs/spikes`, every text file: the 10 reports (OQ-1, 2, 3, 4, 5, 6, 8, 11, 39, 41, 44, 52), `README.md`,
+  `OQ-8/` (`spike.lua`, `bench.lua`, `rp.c`, the patch, `luv-issue.md`, `luv-pr.md`), `OQ-44/churn.lua`, and
+  `OQ-52/` (the five Lua scripts and the two spike crates).
+
+Could not be read in full, and why:
+
+- `packages/json/csrc/vendor/yyjson.c` and `yyjson.h` (17 500 lines): vendored third-party code (see
+  `VENDORED.md`), not ours to rename; only its use in `native.c` was checked.
+- The binary files: the screenshots of `docs/spikes/OQ-11-samples/` (PNG), the fonts and SVG brand files of the theme.
+- `Cargo.lock` files and the test fixtures of the crates (generated or data).
+- The test files of the packages `doc`, `core`, `net`, `json`, `log` (outside the scope of this pass).
+
+### Findings
+
+| # | Where | Defect | Fix | Status |
+|---|---|---|---|---|
+| F52 | `.github/dependabot.yml` | Only `packages/net/native` was watched; the crates of `json`, `doc` and the fuzz crate of `net` (each has a lockfile) were not. | `directories:` lists the four lockfile directories in the one `rust-crates` group of the existing entry (spike crates under `docs/spikes` excluded: historical). | fixed |
+| F53 | `docs.yml`, `lychee.toml`, `nightly.yml` | "external links are checked nightly once nightly.yml exists": `nightly.yml` exists and has no link job; its header also promised "freshness of the pinned dependencies", which is no job of it. | Both say that the external link check is not written yet; `nightly.yml` header lists what it does. | fixed |
+| F54 | `ci.yml` | Step names "Build native modules" and "Lint the native module" for the TLS module of `net` only (three native modules exist). | "Build the TLS native module", "Lint the TLS native module". | fixed |
+| F55 | `native-code-reviewer` | Scope "C code under `packages/*/csrc`" although most native code is Rust (ADR 0021). | Scope and checklist cover `packages/*/native` and Rust (`unsafe`, `mlua` errors, clippy, locked dependencies). | fixed |
+| F56 | `pkg-doc` | Allowed dependencies omitted `hecate.reactor`, which the README, the rockspec and `check-boundaries` list. | Added. | fixed |
+| F57 | `translator-fr` | `check-translations` presented as existing (it is planned, Phase 3). | Marked as planned. | fixed |
+| F58 | `orm` summary (README, `CLAUDE.md`, rockspec, catalogue, `llms.txt`, labels, agent) | "Data Mapper with Unit of Work, Identity Map" capitalised as proper names; the glossary terms are lower case (`data mapper`, `unit of work`, `identity map`). | Lower case everywhere the summary is repeated; generators report in step. | fixed |
+| F59 | `tools/lib/glossary.lua` | The deny-list answers `spawn` with "fork" although the glossary now keeps `spawn` for an operating-system process (`reactor.spawn`). | The message says so and names the `glossary-ok` mark. | fixed |
+| F60 | `tools/tests/glossary_test.lua` | Fixture `fork(task)` uses the discouraged "task" for a computation. | `fork(computation)`. | fixed |
+| F61 | `tools/tasks/build_native.lua` | Comment "Windows builds go through LuaRocks" after the MSVC path (`build_c_windows`) was written. | Corrected. | fixed |
+| F62 | `tools/README.md` | Layout omitted `tests/` and `cloud/`. | Added. | fixed |
+| F63 | `packages/doc/native/src/lib.rs` | Doc comment lists the callout titles "note, tip, warning, caution, important" while the option key is `danger` (the theme name of the GFM `CAUTION` alert, ADR 0022). | Comment says `danger` (the GFM `CAUTION` alert). Comment only. | fixed |
+| F64 | `packages/doc/src/hecate/doc/init.lua` | Header says the LuaLS code reference is not implemented; `luals`, `reference` and `reference_site` exist and the website build uses them. | Header lists it as implemented. | fixed |
+| F65 | `packages/doc/src/hecate/doc/reference.lua` | Doc comment of `is_generated` described something else ("names of the generated pages ... stale-page check"). | Describes the marker test. | fixed |
+| F66 | `packages/doc/README.md` | "Documented packages: core, reactor, net" while `DEFAULT_PACKAGES` is core, reactor, net, json, log. | Updated. | fixed |
+| F67 | `theme.css` | Comment "Containers (callouts)": containers were superseded by GFM alerts (ADR 0022), and "container" is the dependency-injection term. | "Callouts (GFM alerts)". | fixed |
+| F68 | `docs/spikes/OQ-8`, `OQ-39` | "the Proposed ADR 0023" and "ADR 0022 (Proposed)": both are Accepted. | Reworded. | fixed |
+| F69 | `docs/spikes/OQ-5`, `OQ-52` | The OQ-5 addendum says a Lua encoder was chosen in ADR 0020 (it is `serde_json` now); OQ-52 refers to the pure-Lua reference encoder and fallback removed by OQ-53. | One italic note each, saying what was decided later; the measurements are untouched. | fixed |
+
+Observed and left, with the reason:
+
+- `tools/tasks/new_package.lua` writes a shorter agent than the `pkg-*` template (no documents list, no standards, no
+  invariants line): a scaffold, completed by hand; not a vocabulary defect.
+- `tools/tasks/gen_rockspecs.lua` rewrites a rockspec wholesale from the README; it would drop a hand-made `build`
+  section. No package has one today (`modules = {}` everywhere), so nothing is lost; worth a guard before a
+  package ships native modules (OQ-41).
+- `reference.lua` `alias_of` returns the same value on both branches of its condition: dead code, behaviour unchanged,
+  not a naming matter.
+- Spike scripts and reports keep period vocabulary ("handler" in `churn.lua`, "headers" in the llhttp report, "task"
+  for tokio or Swift) and several refer to modules that no longer exist (`internal/reference.lua`, `backend.use`):
+  historical, left as written (OQ-52 now says so).
+- `OQ-39` measured comrak 0.56.0 while `packages/doc/native/Cargo.toml` requires `0.52`: a version fact of the day,
+  not a naming contradiction.
+

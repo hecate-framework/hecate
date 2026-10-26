@@ -66,7 +66,7 @@
 - [hecate](packages/hecate/README.md): Meta-rock `hecate`: depends on the standard edition and provides the `hecate` meta-module re-exporting the framework surface.
 - [hecate-migration](packages/migration/README.md): Versioned, reversible database schema migrations with checksums and CLI integration.
 - [hecate-mysql](packages/mysql/README.md): MySQL and MariaDB driver implementing the client/server protocol in Lua, reporting a descriptor of its dialect, version and capabilities.
-- [hecate-orm](packages/orm/README.md): Object-relational mapper: Data Mapper with Unit of Work, Identity Map, associations and repositories.
+- [hecate-orm](packages/orm/README.md): Object-relational mapper: data mapper with unit of work, identity map, associations and repositories.
 - [hecate-postgresql](packages/postgresql/README.md): PostgreSQL driver implementing the frontend/backend protocol v3 in Lua.
 - [hecate-query](packages/query/README.md): Query builder using relational-algebra vocabulary (projection, selection, join, rename, union) and the database-schema definition API, independent of any dialect.
 - [hecate-redis](packages/redis/README.md): Redis client (RESP3 with RESP2 fallback), compatible with Valkey and KeyDB.

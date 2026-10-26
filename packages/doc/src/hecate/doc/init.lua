@@ -1,8 +1,8 @@
 -- hecate.doc: documentation generator and static site builder (ADR 0012). Guides in
 -- Markdown with front matter, one original theme built on the hecate brand kit, locales
 -- with fallback, a client-side search index. Status: Markdown renderer, site model, theme,
--- search index and `build` are implemented; the LuaLS code reference, the OpenAPI
--- reference and versioned documentation are not (see README.md).
+-- search index, `build` and the LuaLS code reference (`reference`, `luals`, `reference_site`) are
+-- implemented; the OpenAPI reference and versioned documentation are not (see README.md).
 global <const> require
 
 local build = require("hecate.doc.build")
