@@ -12,9 +12,9 @@ generation.
 
 | Kind | Constructors (illustrative) |
 |---|---|
-| Base | `boolean`, `integer`, `number`, `string`, `null`, `any` |
+| Base types | `boolean`, `integer`, `number`, `string`, `null`, `any` |
 | Refinement keywords | `minimum`, `maximum`, `exclusive_minimum`, `exclusive_maximum`, `multiple_of`, `min_length`, `max_length`, `pattern`, `format` (`email`, `uri`, `uuid`, `date`, `date-time`, ...), `enum`, `const` |
-| Product | `object { field = schema, ... }` with `optional`, `nullable`, `default`, `additional` |
+| Product | `object { property = schema, ... }` with `optional`, `nullable`, `default`, `additional_properties` |
 | Collections | `array(item, { min_items, max_items, unique_items })`, `map(key, value)` |
 | Sum | `union { a, b }`, `tagged_union("kind", { variant = schema })` |
 | Literal | `literal "ok"` |
@@ -37,7 +37,8 @@ coercion (except where explicitly allowed).
   machine-readable code and a human message.
 - Schemas compile to validator closures at boot; validation must not walk the schema
   description at request time.
-- Unknown properties: rejected by default for request content (configurable per schema).
+- Unknown properties (`additional_properties`): rejected by default for request content (configurable per schema).
+- Members of an `object` schema are *properties* (the JSON Schema term); *fields* are HTTP header fields only.
 
 ### Classes and schemas
 

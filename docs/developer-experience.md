@@ -2,7 +2,9 @@
 
 This document describes what using Hecate should feel like. It is the north star for
 API design. **Code below is illustrative**: names and signatures are settled by ADRs and
-specifications, which take precedence.
+specifications, which take precedence. In particular, classes are declared with
+`core.class` and finalised with `core.finalise` (ADR 0007); a `hecate.class` alias is
+not decided ([OQ-57](open-questions.md)).
 
 ## Installation and a new project
 

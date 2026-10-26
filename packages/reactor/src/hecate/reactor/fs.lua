@@ -25,7 +25,7 @@ end
 ---@param path string
 ---@return string
 function fs.read_file(path)
-  require_path("read_file", path)
+  require_path("reactor.read_file", path)
   local fd = uv_call.request("open " .. path, function(cb) uv.fs_open(path, "r", 438, cb) end)
   local parts, offset = {}, 0
   local ok, err = pcall(function()
@@ -46,7 +46,7 @@ end
 ---@param path string
 ---@param data string
 function fs.write_file(path, data)
-  require_path("write_file", path)
+  require_path("reactor.write_file", path)
   if type(data) ~= "string" then
     error(core.ArgumentError(("reactor.write_file: expects a string, got %s"):format(type(data))), 2)
   end
@@ -69,7 +69,7 @@ end
 ---@param path string
 ---@return table?
 function fs.stat(path)
-  require_path("stat", path)
+  require_path("reactor.stat", path)
   uv_call.begin("stat")
   local missing = false
   local ok, result = pcall(uv_call.request, "stat " .. path, function(cb) uv.fs_stat(path, cb) end)
@@ -85,7 +85,7 @@ end
 ---@async
 ---@param path string
 function fs.remove(path)
-  require_path("remove", path)
+  require_path("reactor.remove", path)
   uv_call.request("unlink " .. path, function(cb) uv.fs_unlink(path, cb) end)
 end
 
@@ -93,7 +93,7 @@ end
 ---@async
 ---@param path string
 function fs.mkdir(path)
-  require_path("mkdir", path)
+  require_path("reactor.mkdir", path)
   uv_call.request("mkdir " .. path, function(cb) uv.fs_mkdir(path, 511, cb) end)
 end
 
@@ -101,7 +101,7 @@ end
 ---@async
 ---@param path string
 function fs.rmdir(path)
-  require_path("rmdir", path)
+  require_path("reactor.rmdir", path)
   uv_call.request("rmdir " .. path, function(cb) uv.fs_rmdir(path, cb) end)
 end
 
@@ -110,7 +110,7 @@ end
 ---@param path string
 ---@return { name: string, type: string }[]
 function fs.list(path)
-  require_path("list", path)
+  require_path("reactor.list", path)
   local handle = uv_call.request("scandir " .. path, function(cb) uv.fs_scandir(path, cb) end)
   local entries = {}
   while true do

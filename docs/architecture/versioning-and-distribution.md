@@ -23,7 +23,7 @@ A user must know at a glance which Lua version a Hecate installation uses:
 | README badge and website header | supported Lua line |
 | Release notes | first line: `Hecate X.Y.Z — Lua 5.5` |
 | Changelog headings | `## [0.3.0] — 2027-01-15 — Lua 5.5` |
-| Docker tags | `hecate:0.3.0-lua5.5-debian` |
+| Docker tags | `hecate/runtime:0.3.0-lua5.5-debian` |
 | Website | compatibility matrix page |
 
 ### Compatibility matrix (maintained in `website/en/reference/compatibility.md`)

@@ -60,6 +60,7 @@ other packages beyond what its task requires (it reports needed changes instead)
 | `/write-docs <package>` | write or update the website pages of a package |
 | `/bench <scenario>` | run and interpret benchmarks |
 | `/prepare-release <version>` | release checklist |
+| `/relay` | one unit of autonomous, resumable work (see "Relay" below) |
 
 ## Working modes
 

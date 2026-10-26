@@ -32,7 +32,7 @@ end
 function Monitor:enter()
   local task = context.current_task("Monitor:enter")
   if self._owner == task then
-    error(core.ArgumentError("the calling coroutine has already entered the monitor (not reentrant)"), 2)
+    error(core.ArgumentError("reactor.Monitor.enter: the calling coroutine has already entered the monitor (not reentrant)"), 2)
   end
   self._inner = self._mutex:lock()
   self._owner = task

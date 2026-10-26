@@ -27,7 +27,7 @@ end
 local function require_inside(self, operation)
   local task = context.current_task(operation)
   if self._monitor._owner ~= task then
-    error(core.ArgumentError(operation .. " requires the calling coroutine to have entered the monitor"), 3)
+    error(core.ArgumentError("reactor." .. operation .. ": requires the calling coroutine to have entered the monitor"), 3)
   end
   return task
 end

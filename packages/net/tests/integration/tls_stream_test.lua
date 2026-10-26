@@ -413,8 +413,8 @@ function T:test_read_validates_its_argument_like_a_tcp_stream()
       self:assert_true(core.is_instance_of(err, core.ArgumentError), tostring(err))
       local expected = self:assert_error(function() tcp:read(bad) end)
       -- Same message prefix as the TCP stream.
-      self:assert_true(tostring(err):find("read expects a positive integer", 1, true) ~= nil, tostring(err))
-      self:assert_true(tostring(expected):find("read expects a positive integer", 1, true) ~= nil, tostring(expected))
+      self:assert_true(tostring(err):find("read: expects a positive integer", 1, true) ~= nil, tostring(err))
+      self:assert_true(tostring(expected):find("read: expects a positive integer", 1, true) ~= nil, tostring(expected))
     end
     tcp:close()
     client:close()
