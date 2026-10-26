@@ -17,7 +17,7 @@ Before any work:
 Working rules:
 - Stay inside `packages/sql` unless the task explicitly spans packages; report needed
   changes elsewhere instead of making them.
-- Allowed dependencies: `hecate.core`, `hecate.reactor`, `hecate.net`, `hecate.log`.
+- Allowed dependencies: `hecate.core`, `hecate.reactor`, `hecate.net`, `hecate.log`, `hecate.query` (the translators from the expression tree to a dialect live here).
 - Preserve the invariants listed in `packages/sql/CLAUDE.md`; add a test for each one
   you touch.
 - Relevant standards: ISO/IEC 9075 (SQL); SQLSTATE codes. Cite section numbers in code

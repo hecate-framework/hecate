@@ -57,6 +57,18 @@ each ends with `Error` and its `code` is the full class name (`hecate.sql.Integr
 Every query emits a structured log event (debug level) and timing metrics; slow-query
 threshold configurable.
 
+### Translation to a dialect
+
+`sql` depends on `query` (not the reverse): it holds the translators from the expression tree
+to a dialect (`hecate.sql.dialect.<name>`: PostgreSQL, MySQL, MariaDB, SQLite, SQL Server
+later), producing SQL text plus bound parameters. A driver does transport only: it reports a
+descriptor (dialect name, server version, capabilities such as `RETURNING`; this is what the
+`mysql` dialect detection becomes) and sends final text and parameters, whether the driver is
+written in Lua or native. `connection:execute(expression)` selects the translator from the
+descriptor, translates, then sends. The translation layer is an interface whose first
+implementations are SQL; a cross-paradigm query language for Redis or MongoDB is not
+promised ([OQ-58](../open-questions.md), resolved).
+
 ## `hecate.query` — query builder
 
 Expressions follow relational algebra; see the correspondence table in
@@ -72,8 +84,8 @@ local q = users
   :limit(20)
 ```
 
-- Builds an immutable expression tree; rendering produces SQL plus bound parameters for
-  a given **dialect** (PostgreSQL, MySQL, MariaDB, SQLite, SQL Server later).
+- Builds an immutable expression tree that knows no dialect and no data source; `query`
+  depends on `core` only. Rendering and execution belong to `sql` (below).
 - Supports joins, aggregates, grouping, sub-queries, common table expressions,
   `INSERT`/`UPDATE`/`DELETE` with `RETURNING` where supported.
 - Raw SQL fragments are allowed but must carry bound parameters.
@@ -106,7 +118,7 @@ Status: [ADR 0011](../adr/0011-orm-data-mapper.md) (Proposed; spike OQ-18 decide
   `down`. Identifiers sortable by time.
 - Expressed with a database-schema definition API (create relation, add attribute, index,
   constraint) rendered per dialect, plus raw SQL when needed. The API is owned by `query`
-  and only sequenced and recorded by `migration` ([OQ-58](../open-questions.md)).
+  (rendered by the `sql` translators) and only sequenced and recorded by `migration` ([OQ-58](../open-questions.md)).
 - Each migration runs in a transaction when the database supports transactional DDL.
 - Applied migrations are recorded in a dedicated relation; checksums detect edited
   migrations.

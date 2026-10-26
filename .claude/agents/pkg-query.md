@@ -17,7 +17,7 @@ Before any work:
 Working rules:
 - Stay inside `packages/query` unless the task explicitly spans packages; report needed
   changes elsewhere instead of making them.
-- Allowed dependencies: `hecate.core`, `hecate.sql`.
+- Allowed dependencies: `hecate.core` only (the translators to a dialect live in `hecate.sql`, which depends on `query`).
 - Preserve the invariants listed in `packages/query/CLAUDE.md`; add a test for each one
   you touch.
 - Relevant standards: Codd, relational algebra (1970); SQL dialects of PostgreSQL, MySQL/MariaDB, SQLite, SQL Server. Cite section numbers in code

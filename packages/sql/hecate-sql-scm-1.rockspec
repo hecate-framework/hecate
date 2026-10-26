@@ -18,6 +18,7 @@ dependencies = {
   "hecate-reactor",
   "hecate-net",
   "hecate-log",
+  "hecate-query",
 }
 
 build = {

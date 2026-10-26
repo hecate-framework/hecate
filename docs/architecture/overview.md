@@ -39,16 +39,17 @@ flowchart TB
     template --> kernel
   end
   subgraph D[Data]
-    migration --> query
+    migration --> sql
     mongodb --> net
     mysql --> sql
-    orm --> query
     orm --> schema
+    orm --> sql
     postgresql --> sql
-    query --> sql
+    query --> core
     redis --> net
     sql --> log
     sql --> net
+    sql --> query
     sqlite --> sql
     sqlserver --> sql
   end
