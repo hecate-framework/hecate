@@ -378,7 +378,7 @@ function TlsStream:peer_certificate() return self._session:peer_certificate() en
 ---@return hecate.reactor.SocketAddress
 function TlsStream:peer_address()
   local inner = self._inner --[[@as table]]
-  if type(inner.peer_address) ~= "function" then error(core.Error("the inner stream has no peer address"), 2) end
+  if type(inner.peer_address) ~= "function" then error(core.Error("net.TlsStream: the inner stream has no peer address"), 2) end
   return inner:peer_address()
 end
 
@@ -386,7 +386,7 @@ end
 ---@return hecate.reactor.SocketAddress
 function TlsStream:local_address()
   local inner = self._inner --[[@as table]]
-  if type(inner.local_address) ~= "function" then error(core.Error("the inner stream has no local address"), 2) end
+  if type(inner.local_address) ~= "function" then error(core.Error("net.TlsStream: the inner stream has no local address"), 2) end
   return inner:local_address()
 end
 
@@ -395,7 +395,7 @@ end
 ---@param enabled boolean
 function TlsStream:set_nodelay(enabled)
   local inner = self._inner --[[@as table]]
-  if type(inner.set_nodelay) ~= "function" then error(core.Error("the inner stream has no set_nodelay"), 2) end
+  if type(inner.set_nodelay) ~= "function" then error(core.Error("net.TlsStream: the inner stream has no set_nodelay"), 2) end
   inner:set_nodelay(enabled)
 end
 

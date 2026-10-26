@@ -355,7 +355,7 @@ function Reactor:run(fn, ...)
     error(core.ArgumentError(("reactor.Reactor.run: expects a function, got %s"):format(type(fn))), 2)
   end
   if context.reactor ~= nil then
-    error(core.Error("a reactor is already running on this thread"), 2)
+    error(core.Error("reactor.Reactor.run: a reactor is already running on this thread"), 2)
   end
   local args = table.pack(...)
   context.reactor = self

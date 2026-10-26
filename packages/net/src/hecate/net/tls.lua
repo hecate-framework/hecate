@@ -279,6 +279,8 @@ end
 --- is malformed. `server_name` is sent as SNI and the certificate must match it (RFC 6125).
 --- The handshake must finish within `options.handshake_deadline` seconds (default 10); on expiry
 --- `hecate.core.DeadlineExceededError` is raised.
+--- This is the low-level step for a stream you already hold (any `Stream`); to open a TCP connection and
+--- secure it, call `net.connect_tls`, the client entry point.
 ---@async
 ---@param stream hecate.net.Stream
 ---@param server_name string

@@ -37,6 +37,20 @@ Severity: **U** = user-facing (public API, user documentation, website, names a 
 **I** = internal (engineering docs, agents, tools, internal identifiers). Fix size: **S** = a few lines,
 **M** = several files, mechanical; **D** = needs an owner decision first.
 
+## Resolution (2026-10-26)
+
+All findings were fixed in the pull request except those below. Owner decisions: F02 is not a finding
+("ambient" is a scope; `log` keeps "per-scope context"); F17 verb-first (`connect_tcp`, `listen_tcp`,
+`connect_pipe`, `listen_pipe`, `bind_udp`; `net.connect_tls` and `net.tls.connect` are different operations,
+one-call client versus handshake over an existing stream, and stay); F34 qualified `module.function:`
+prefix (runtime failures built from the operating system keep their shape); F19 the `hecate task` alias is
+dropped (contributor tooling, not a CLI feature); F12 the README states the specification (eager loading is
+explicit, lazy loading suspends, development warning on N+1). Still open: F07 (`request.path`, owner
+decision, not touched); F06 and F16 in part, now OQ-57 and OQ-58 in `docs/open-questions.md`. Not done:
+the internal `task` record of `reactor` (optional, Phase 7); the French glossary page does not list the new
+glossary rows yet (terms are in `website/fr/glossary-terms.md`); the strict website build could not run here
+(no LuaLS, reference pages not generated). The uncovered areas of the audit remain uncovered.
+
 ## Summary
 
 36 findings (F01 to F36): 28 user-facing (U), 8 internal (I). By fix size: about 26 small (S), 5 medium (M: F02, F14, F17, F26 translations, F03 internal rename), 5 needing an owner decision first (D: F07, F12, F17, F19, F34; F06 and F16 only in part).

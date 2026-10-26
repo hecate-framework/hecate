@@ -16,7 +16,7 @@ local ambient = require("hecate.log.internal.ambient")
 ---@field ConsoleSink table  sink writing human-readable lines
 ---@field FileSink table  sink appending JSON lines to a file
 ---@field LimitedSink table  decorator sink that samples and rate-limits records
----@field AsyncSink table  decorator sink that writes from a detached task, never suspending the caller
+---@field AsyncSink table  decorator sink that writes from a detached computation, never suspending the caller
 local log = {}
 
 log.Severity = require("hecate.log.severity")

@@ -1,4 +1,4 @@
--- A decorator sink that hands records to a detached task, so that logging never waits for I/O.
+-- A decorator sink that hands records to a detached computation, so that logging never waits for I/O.
 global <const> require, error, type, pcall, math
 
 local core = require("hecate.core")
@@ -6,15 +6,15 @@ local reactor = require("hecate.reactor")
 
 --- Options of `AsyncSink`.
 ---@class hecate.log.AsyncSinkOptions
----@field sink hecate.log.Sink  the sink that receives the records, from the drain task
+---@field sink hecate.log.Sink  the sink that receives the records, from the drain computation
 ---@field capacity? integer  most records waiting at once (default 1024); beyond it records are dropped and counted
 
---- A sink that queues records and writes them to another sink from a detached task. `write` never
+--- A sink that queues records and writes them to another sink from a detached computation. `write` never
 --- suspends: it appends to a bounded queue and adds one unit to a semaphore (Dijkstra's V) that
---- the drain task takes (P), so a slow target costs the callers nothing. When the queue is full
+--- the drain computation takes (P), so a slow target costs the callers nothing. When the queue is full
 --- the record is dropped and counted: back-pressure is loss, never waiting.
---- The drain task starts at the first `write`, which therefore must run inside a reactor. Call `close` before
---- the main computation ends: a drain task still waiting for records is a deadlock to the reactor.
+--- The drain computation starts at the first `write`, which therefore must run inside a reactor. Call `close` before
+--- the main computation ends: a drain computation still waiting for records is a deadlock to the reactor.
 ---@class hecate.log.AsyncSink
 ---@overload fun(options: hecate.log.AsyncSinkOptions): hecate.log.AsyncSink
 local AsyncSink = core.class("AsyncSink")
@@ -75,7 +75,7 @@ end
 
 --- Queues a record, or drops it when the queue is full or the sink is closed. Never suspends.
 ---
---- Raises `hecate.core.NonYieldableContextError` when the drain task has to start outside a reactor.
+--- Raises `hecate.core.NonYieldableContextError` when the drain computation has to start outside a reactor.
 ---@param record hecate.log.Record
 function AsyncSink:write(record)
   if self._closed then return end
@@ -105,7 +105,7 @@ function AsyncSink:flush()
   wait_marker(self, false)
 end
 
---- Flushes, then stops the drain task; later writes are ignored. Closing twice does nothing.
+--- Flushes, then stops the drain computation; later writes are ignored. Closing twice does nothing.
 ---@async
 function AsyncSink:close()
   if self._closed then return end

@@ -20,7 +20,7 @@ local BufferedReader = core.class("BufferedReader")
 ---@return integer
 local function check_limit(limit, level)
   if math.type(limit) ~= "integer" or limit < 1 then
-    error(core.ArgumentError(("invalid limit %s: expected a positive integer"):format(tostring(limit))), level)
+    error(core.ArgumentError(("net.BufferedReader: invalid limit %s: expected a positive integer"):format(tostring(limit))), level)
   end
   return limit
 end
@@ -221,7 +221,7 @@ end
 ---@return string
 function BufferedReader:read_exact(count, limit)
   if math.type(count) ~= "integer" or count < 0 then
-    error(core.ArgumentError(("invalid count %s: expected an integer >= 0"):format(tostring(count))), 2)
+    error(core.ArgumentError(("net.BufferedReader.read_exact: invalid count %s: expected an integer >= 0"):format(tostring(count))), 2)
   end
   if limit ~= nil then
     check_limit(limit, 2)
@@ -249,7 +249,7 @@ end
 ---@return string?
 function BufferedReader:read_some(max)
   if max ~= nil and (math.type(max) ~= "integer" or max < 1) then
-    error(core.ArgumentError(("invalid max %s: expected a positive integer"):format(tostring(max))), 2)
+    error(core.ArgumentError(("net.BufferedReader.read_some: invalid max %s: expected a positive integer"):format(tostring(max))), 2)
   end
   self:_check("read_some")
   local lock <close> = self._lock:lock()

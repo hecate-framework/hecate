@@ -134,7 +134,7 @@ function M.detach(fn, ...)
   local task = context.current_task("detach")
   local root = task.reactor._root
   if root == nil or root._closed then
-    error(core.Error("the application scope is not running"), 2)
+    error(core.Error("reactor.detach: the application scope is not running"), 2)
   end
   local future = task.reactor:_create_task(root, fn, table.pack(...))
   future._task.detached = true
@@ -369,7 +369,7 @@ end
 --- Raises `hecate.core.Error` if no reactor is running.
 ---@return number seconds  the clock reading
 function M.now()
-  if context.reactor == nil then error(core.Error("no reactor is running"), 2) end
+  if context.reactor == nil then error(core.Error("reactor.now: no reactor is running"), 2) end
   return context.reactor:now()
 end
 

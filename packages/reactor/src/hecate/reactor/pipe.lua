@@ -30,8 +30,8 @@ local function check_path(name, path, windows)
     end
     return
   end
-  -- `sun_path` holds 104 bytes on macOS and 108 on Linux, the terminating NUL included; a longer
-  -- path would otherwise fail with an obscure ENAMETOOLONG or EINVAL.
+  -- `sun_path` holds 108 bytes on Linux and 104 on macOS, the terminating NUL included, so a path of at most
+  -- 107 bytes (103 on macOS) fits; a longer path would otherwise fail with an obscure ENAMETOOLONG or EINVAL.
   local limit = (uv.os_uname().sysname == "Darwin" and 104 or 108) - 1
   if #path > limit then
     error(core.ArgumentError(("%s: the socket path is %d bytes, the limit on this platform is %d"):format(

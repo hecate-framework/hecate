@@ -117,7 +117,7 @@ errors.DeadlineExceededError = error_class("DeadlineExceededError", "hecate.core
 --- Raised when a suspending function is called outside a coroutine managed by the reactor.
 ---@class hecate.core.NonYieldableContextError : hecate.core.Error
 errors.NonYieldableContextError = error_class("NonYieldableContextError", "hecate.core.NonYieldableContextError")
---- Raised when a channel is used after it was closed, or closed while a task waited on it.
+--- Raised when a channel is used after it was closed, or closed while a coroutine waited on it.
 ---@class hecate.core.ClosedChannelError : hecate.core.Error
 errors.ClosedChannelError = error_class("ClosedChannelError", "hecate.core.ClosedChannelError")
 --- The failures of a network transport, such as a refused or reset connection.

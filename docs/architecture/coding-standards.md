@@ -75,7 +75,8 @@ Decided in [ADR 0018](../adr/0018-error-signalling.md).
 - **Message prefix.** A message that is raised for a call starts with the qualified
   `module.function:` exactly as the caller wrote the call: `net.bind_udp: unknown option foo`,
   `json.decode: ...`, `reactor.spawn: ...`; for a constructor, the class:
-  `net.BufferedReader: ...`. The prefix is never bare (`resolve` exists in `reactor` and in
+  `net.BufferedReader: ...`; for a method, `Class.method`: `net.TcpStream.read: ...`. Failures of
+  an operation reported by the operating system keep their own shape (`context.operation`). The prefix is never bare (`resolve` exists in `reactor` and in
   `net`).
 
 ## Resources

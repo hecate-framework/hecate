@@ -61,11 +61,12 @@ Main gaps: "unit of work" and "task" used for coroutines (F01, F03); "ambient co
 the glossary while `log` still says "per-scope context" (F02); "channel" used for the message pipe
 (F04); the developer-experience document and `object-model.md` disagree with ADR 0007 and the code
 (F06, F07); `reactor` and `net` order the same operations oppositely (`pipe_connect` versus
-`connect_pipe`, F17); error classes without the `Error` suffix in `data-access.md` (F10); README
+`connect_pipe` (now verb-first everywhere), F17); error classes without the `Error` suffix in `data-access.md` (F10); README
 claims contradicting specifications (F05, F12, F13); stale statements (F20, F24, F26, F28).
 
-The gap is larger than a fix inside this pull request, so it is a roadmap item placed before the
-gate, and the gate stays unticked.
+Fixed in this pull request, with the owner's decisions, except what the findings' "Resolution" lists as open
+(F07, parts of F06 and F16 as OQ-57 and OQ-58, the French glossary page). The gate stays unticked until the
+owner has reviewed and decided F07.
 
 ## 4. Open questions
 
@@ -78,5 +79,4 @@ revisit when StyLua parses `global` and named varargs. Branch protection and sec
 
 ## Verdict
 
-Open gaps: the coherence findings. The gate is not ticked; it can be once the roadmap item
-"Coherence fixes from the Phase 0 gate audit" is done and the owner has answered the listed decisions.
+Open: F07 (owner decision) and the items listed in the findings' "Resolution". The gate is not ticked.

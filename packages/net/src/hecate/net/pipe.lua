@@ -27,7 +27,7 @@ end
 --- `backlog` (length of the queue of pending connections, default 128, ignored on Windows) and `mode`
 --- (who may connect: `"owner"`, the default, `"readable"`, `"writable"` or `"readwrite"`; no effect on
 --- Windows). A Windows pipe name is limited to 256 characters, a Unix socket path to the platform's
---- `sun_path` (104 bytes on macOS, 108 on Linux): a longer one raises `ArgumentError`.
+--- `sun_path` (at most 107 bytes on Linux, 103 on macOS, excluding the terminating NUL): a longer one raises `ArgumentError`.
 ---
 --- Raises `hecate.reactor.TransportError` when binding or listening fails and
 --- `hecate.core.ArgumentError` for a malformed path or option.
