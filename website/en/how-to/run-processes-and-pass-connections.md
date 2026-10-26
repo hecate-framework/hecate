@@ -188,10 +188,10 @@ end)
 ]]
 
 reactor.run(function()
-  local listener <close> = reactor.tcp_listen("127.0.0.1", 0)
+  local listener <close> = reactor.listen_tcp("127.0.0.1", 0)
   local port = listener:local_address().port
   local client = reactor.fork(function()
-    local stream <close> = reactor.tcp_connect("127.0.0.1", port)
+    local stream <close> = reactor.connect_tcp("127.0.0.1", port)
     return stream:read()
   end)
   local process = reactor.spawn(arg[-1], { "-e", CHILD }, {
@@ -218,7 +218,7 @@ The stream is closed in the sender once it is handed over: using it afterwards r
 
 ## Share a port between processes
 
-Several processes can listen on one port with the `reuseport` option of `reactor.tcp_listen` and
+Several processes can listen on one port with the `reuseport` option of `reactor.listen_tcp` and
 `net.listen`, and the kernel balances the connections. It needs a luv that exposes it for TCP, which
 luv 1.53 does not (OQ-43): the call raises `TransportError` with `ENOTSUP`. Test first, and fall back
 to one process that accepts and hands each connection over, as above.
@@ -226,7 +226,7 @@ to one process that accepts and hands each connection over, as above.
 ```lua
 if reactor.supports_reuseport() then
   -- Every worker does this.
-  listener = reactor.tcp_listen("0.0.0.0", 8080, { reuseport = true })
+  listener = reactor.listen_tcp("0.0.0.0", 8080, { reuseport = true })
 else
   -- the primary accepts and passes each connection to a worker with
   -- peer:send(message, stream)

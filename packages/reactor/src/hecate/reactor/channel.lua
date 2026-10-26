@@ -31,7 +31,7 @@ local Channel = core.class("Channel")
 function Channel:init(capacity)
   if capacity == nil then capacity = 0 end
   if math.type(capacity) ~= "integer" or capacity < 0 then
-    error(core.ArgumentError(("Channel expects a non-negative integer capacity, got %s")
+    error(core.ArgumentError(("reactor.Channel: expects a non-negative integer capacity, got %s")
       :format(tostring(capacity))), 2)
   end
   self._capacity = capacity

@@ -38,10 +38,10 @@ end
 ---@return hecate.reactor.Future
 function Scope:fork(fn, ...)
   if type(fn) ~= "function" then
-    error(core.ArgumentError(("fork expects a function, got %s"):format(type(fn))), 2)
+    error(core.ArgumentError(("reactor.Scope.fork: expects a function, got %s"):format(type(fn))), 2)
   end
   if self._closed then
-    error(core.ArgumentError("cannot fork into a scope that has completed"), 2)
+    error(core.ArgumentError("reactor.Scope.fork: cannot fork into a scope that has completed"), 2)
   end
   return context.reactor:_create_task(self, fn, table.pack(...))
 end

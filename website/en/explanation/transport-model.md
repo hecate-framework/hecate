@@ -39,7 +39,7 @@ A UDP socket is not a stream. Each call moves one datagram, and boundaries matte
 
 No callback is ever exposed to your code. A call such as `read` suspends the running
 [coroutine](../reference/glossary.md#concurrency). The reactor runs other coroutines meanwhile and
-resumes this one when the operating system has an answer. Your handler therefore reads as
+resumes this one when the operating system has an answer. Your action therefore reads as
 sequential code:
 
 ```lua

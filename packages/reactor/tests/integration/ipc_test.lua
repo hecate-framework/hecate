@@ -130,8 +130,8 @@ function T:test_the_stream_of_the_next_frame_may_arrive_with_the_end_of_this_one
   -- The operating system may deliver a handle together with bytes of an earlier frame: that is
   -- not a violation as long as a following frame announces it.
   with_pair(self, function(a, b)
-    local listener <close> = reactor.tcp_listen("127.0.0.1", 0)
-    local client <close> = reactor.tcp_connect("127.0.0.1", listener:local_address().port)
+    local listener <close> = reactor.listen_tcp("127.0.0.1", 0)
+    local client <close> = reactor.connect_tcp("127.0.0.1", listener:local_address().port)
     local server = listener:accept()
     -- Both frames are written before anything is read, the second one carrying the handle.
     raw(a, frame("one"))
@@ -210,12 +210,12 @@ end
 
 function T:test_many_streams_handed_over_in_a_row_stay_matched_with_their_messages()
   with_pair(self, function(a, b)
-    local listener <close> = reactor.tcp_listen("127.0.0.1", 0, { backlog = 64 })
+    local listener <close> = reactor.listen_tcp("127.0.0.1", 0, { backlog = 64 })
     local port = listener:local_address().port
     local count = 30
     local clients = {}
     for index = 1, count do
-      clients[index] = reactor.tcp_connect("127.0.0.1", port)
+      clients[index] = reactor.connect_tcp("127.0.0.1", port)
       local server = listener:accept()
       if index % 3 == 0 then a:send("plain" .. index) end
       a:send("m" .. index, server)

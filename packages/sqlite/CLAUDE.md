@@ -25,7 +25,7 @@ SQLite driver: C binding to the vendored amalgamation, executed on the libuv thr
 
 ## Invariants (must hold after every change)
 
-- Lua state is never touched from worker threads
+- Lua state is never touched from pool threads
 
 ## Test strategy
 

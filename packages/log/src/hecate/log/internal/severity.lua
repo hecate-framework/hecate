@@ -21,7 +21,7 @@ function M.resolve(value, level)
   if Severity:contains(value) then return value end
   local found = type(value) == "string" and Severity:find(value) or nil
   if found == nil then
-    error(core.ArgumentError(("invalid severity %s: expected one of %s"):format(
+    error(core.ArgumentError(("log: invalid severity %s: expected one of %s"):format(
       type(value) == "string" and ("%q"):format(value) or tostring(value), table.concat(Severity:names(), ", "))),
       level + 1)
   end

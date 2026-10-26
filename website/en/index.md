@@ -26,5 +26,5 @@ command-line tool.
   model, the naming and the release cycle.
 - **Contract-first.** A route and its schemas are declared once, as runtime data.
   Validation, OpenAPI contracts, API documentation and contract tests derive from it.
-- **Transparent concurrency.** Handlers read like sequential code; input and output
+- **Transparent concurrency.** Actions read like sequential code; input and output
   suspend the running coroutine.

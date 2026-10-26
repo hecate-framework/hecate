@@ -93,7 +93,7 @@ end
 ---@param path string
 function SystemFileSystem:remove_tree(path)
   if path == "" or path == "/" or path == "." or path == ".." then
-    error(core.ArgumentError("refusing to remove " .. ("%q"):format(path)), 2)
+    error(core.ArgumentError("doc.SystemFilesystem.remove_tree: refusing to remove " .. ("%q"):format(path)), 2)
   end
   if fs.stat(path) ~= nil then
     local ok, err

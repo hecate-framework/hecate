@@ -15,7 +15,7 @@ local Condition = core.class("Condition")
 ---@param monitor hecate.reactor.Monitor
 function Condition:init(monitor)
   if not core.is_instance_of(monitor, require("hecate.reactor.monitor")) then -- lazy: monitor requires condition
-    error(core.ArgumentError("Condition expects a Monitor"), 2)
+    error(core.ArgumentError("reactor.Condition: expects a Monitor"), 2)
   end
   self._monitor = monitor
   self._waiters = Waitq()

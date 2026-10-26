@@ -16,7 +16,7 @@ local fs = {}
 ---@param value any
 local function require_path(name, value)
   if type(value) ~= "string" then
-    error(core.ArgumentError(("%s expects a path string, got %s"):format(name, type(value))), 3)
+    error(core.ArgumentError(("%s: expects a path string, got %s"):format(name, type(value))), 3)
   end
 end
 
@@ -48,7 +48,7 @@ end
 function fs.write_file(path, data)
   require_path("write_file", path)
   if type(data) ~= "string" then
-    error(core.ArgumentError(("write_file expects a string, got %s"):format(type(data))), 2)
+    error(core.ArgumentError(("reactor.write_file: expects a string, got %s"):format(type(data))), 2)
   end
   local fd = uv_call.request("open " .. path, function(cb) uv.fs_open(path, "w", 438, cb) end)
   local ok, err = pcall(function()

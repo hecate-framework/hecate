@@ -212,7 +212,7 @@ end
 --- Validates the options table of a configuration builder.
 local function check_table(name, options)
   if type(options) ~= "table" then
-    error(core.ArgumentError(("%s expects an options table, got %s"):format(name, type(options))), 3)
+    error(core.ArgumentError(("%s: expects an options table, got %s"):format(name, type(options))), 3)
   end
 end
 
@@ -220,7 +220,7 @@ end
 local function check_stream(name, stream)
   if type(stream) ~= "table" or type(stream.read) ~= "function" or type(stream.write) ~= "function"
     or type(stream.close) ~= "function" then
-    error(core.ArgumentError(("%s expects a stream (an object with read, write and close), got %s"):format(name, type(stream))), 3)
+    error(core.ArgumentError(("%s: expects a stream (an object with read, write and close), got %s"):format(name, type(stream))), 3)
   end
 end
 
@@ -251,7 +251,7 @@ function M.server_config(options)
   reject_unknown("server_config", options, SERVER_KEYS, "server")
   for _, key in ipairs({ "cert_pem", "key_pem" }) do
     if type(options[key]) ~= "string" then
-      error(core.ArgumentError(("server_config: option %s is required (a PEM string)"):format(key)), 3)
+      error(core.ArgumentError(("net.tls.server_config: option %s is required (a PEM string)"):format(key)), 3)
     end
   end
   check_values("server_config", options, { "client_ca_pem" })
@@ -288,14 +288,14 @@ end
 function M.connect(stream, server_name, config, options)
   check_stream("tls.connect", stream)
   if type(server_name) ~= "string" or server_name == "" then
-    error(core.ArgumentError("tls.connect expects a server name"), 2)
+    error(core.ArgumentError("net.tls.connect: expects a server name"), 2)
   end
   options = options or {}
   check_table("tls.connect", options)
   reject_unknown("tls.connect", options, HANDSHAKE_KEYS, "handshake")
   check_deadline("tls.connect", options)
   if type(config) ~= "userdata" then
-    error(core.ArgumentError("tls.connect expects a configuration from tls.client_config"), 2)
+    error(core.ArgumentError("net.tls.connect: expects a configuration from tls.client_config"), 2)
   end
   require_native()
   local ok, session = pcall(native.client, config, server_name)
@@ -322,7 +322,7 @@ function M.accept(stream, config, options)
   reject_unknown("tls.accept", options, HANDSHAKE_KEYS, "handshake")
   check_deadline("tls.accept", options)
   if type(config) ~= "userdata" then
-    error(core.ArgumentError("tls.accept expects a configuration from tls.server_config"), 2)
+    error(core.ArgumentError("net.tls.accept: expects a configuration from tls.server_config"), 2)
   end
   require_native()
   local ok, session = pcall(native.server, config)
@@ -387,13 +387,13 @@ end
 function M.connect_tls(host, port, options)
   options = options or {}
   if type(options) ~= "table" then
-    error(core.ArgumentError("connect_tls expects an options table"), 2)
+    error(core.ArgumentError("net.connect_tls: expects an options table"), 2)
   end
   if type(host) ~= "string" or host == "" then
-    error(core.ArgumentError(("connect_tls expects a host name or address, got %s"):format(tostring(host))), 2)
+    error(core.ArgumentError(("net.connect_tls: expects a host name or address, got %s"):format(tostring(host))), 2)
   end
   if math.type(port) ~= "integer" or port < 0 or port > 65535 then
-    error(core.ArgumentError(("connect_tls expects a port in 0..65535, got %s"):format(tostring(port))), 2)
+    error(core.ArgumentError(("net.connect_tls: expects a port in 0..65535, got %s"):format(tostring(port))), 2)
   end
   reject_unknown("connect_tls", options, CONNECT_KEYS, "connect")
   check_transport("connect_tls", options)
@@ -402,17 +402,17 @@ function M.connect_tls(host, port, options)
   if config ~= nil then
     if options.ca_pem ~= nil or options.system_roots ~= nil or options.cert_pem ~= nil or options.key_pem ~= nil
       or options.alpn ~= nil then
-      error(core.ArgumentError("connect_tls: tls_config cannot be combined with ca_pem, system_roots, cert_pem, key_pem or alpn"), 2)
+      error(core.ArgumentError("net.connect_tls: tls_config cannot be combined with ca_pem, system_roots, cert_pem, key_pem or alpn"), 2)
     end
     if type(config) ~= "userdata" then
-      error(core.ArgumentError("connect_tls: option tls_config must come from tls.client_config"), 2)
+      error(core.ArgumentError("net.connect_tls: option tls_config must come from tls.client_config"), 2)
     end
   else
     check_values("connect_tls", options, { "ca_pem", "cert_pem", "key_pem" })
     check_trust("connect_tls", options)
   end
   if options.server_name ~= nil and (type(options.server_name) ~= "string" or options.server_name == "") then
-    error(core.ArgumentError("connect_tls: option server_name must be a non-empty string"), 2)
+    error(core.ArgumentError("net.connect_tls: option server_name must be a non-empty string"), 2)
   end
   require_native()
   if config == nil then

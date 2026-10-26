@@ -15,10 +15,10 @@ local context = require("hecate.reactor.internal.context")
 ---@param port any
 local function check_endpoint(name, host, port)
   if type(host) ~= "string" then
-    error(core.ArgumentError(("%s expects a numeric address string, got %s"):format(name, type(host))), 3)
+    error(core.ArgumentError(("%s: expects a numeric address string, got %s"):format(name, type(host))), 3)
   end
   if math.type(port) ~= "integer" or port < 0 or port > 65535 then
-    error(core.ArgumentError(("%s expects a port in 0..65535, got %s"):format(name, tostring(port))), 3)
+    error(core.ArgumentError(("%s: expects a port in 0..65535, got %s"):format(name, tostring(port))), 3)
   end
 end
 
@@ -62,7 +62,7 @@ end
 ---@param data string
 function UdpSocket:send_to(host, port, data)
   if type(data) ~= "string" then
-    error(core.ArgumentError(("send_to expects a string, got %s"):format(type(data))), 2)
+    error(core.ArgumentError(("reactor.UdpSocket.send_to: expects a string, got %s"):format(type(data))), 2)
   end
   check_endpoint("send_to", host, port)
   uv_call.begin("send_to")
@@ -94,7 +94,7 @@ end
 function UdpSocket:receive_from()
   uv_call.begin("receive_from")
   require_open(self, "receive_from")
-  if self._receiving then error(core.Error("receive_from: another coroutine is already receiving"), 2) end
+  if self._receiving then error(core.Error("reactor.UdpSocket.receive_from: another coroutine is already receiving"), 2) end
   local state = {}
   self._receiving = true
   local ok, failure = pcall(context.suspend, function(wake)
@@ -170,9 +170,9 @@ local api = {}
 ---@param host string  numeric IPv4 or IPv6 address
 ---@param port integer  UDP port; 0 picks a free port
 ---@return hecate.reactor.UdpSocket socket  the bound socket
-function api.udp_bind(host, port)
-  check_endpoint("udp_bind", host, port)
-  uv_call.begin("udp_bind")
+function api.bind_udp(host, port)
+  check_endpoint("reactor.bind_udp", host, port)
+  uv_call.begin("bind_udp")
   local handle = uv.new_udp()
   local bound, err = protected(handle.bind, handle, host, port)
   if not bound then
@@ -182,6 +182,6 @@ function api.udp_bind(host, port)
   return UdpSocket(handle)
 end
 
-M.udp_bind = api.udp_bind
+M.bind_udp = api.bind_udp
 
 return M

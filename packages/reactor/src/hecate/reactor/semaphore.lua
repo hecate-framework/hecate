@@ -20,7 +20,7 @@ local Semaphore = core.class("Semaphore")
 ---@param units integer  not negative
 function Semaphore:init(units)
   if math.type(units) ~= "integer" or units < 0 then
-    error(core.ArgumentError(("Semaphore expects a non-negative integer, got %s"):format(tostring(units))), 2)
+    error(core.ArgumentError(("reactor.Semaphore: expects a non-negative integer, got %s"):format(tostring(units))), 2)
   end
   self._count = units
   self._waiters = Waitq()

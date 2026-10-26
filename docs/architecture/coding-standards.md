@@ -47,6 +47,11 @@ packages/<name>/
   (`user_repository.lua` → `UserRepository`).
 - Booleans read as predicates: `is_closed`, `has_body`, `can_retry`.
 - No abbreviations except standard ones (`uri`, `http`, `sql`, `json`, `id`, `tls`).
+- **Spelling.** Prose and identifiers use British spelling (`finalise`, `normalise_config`,
+  "licence", "behaviour", "catalogue"). External identifiers keep their own spelling: the
+  rockspec field `license`, SPDX identifiers, badges and the task name `check-licenses`.
+- **Operations name the verb first**, then the transport: `connect_tcp`, `listen_pipe`,
+  `bind_udp`; the same name in `reactor` and in `net`.
 
 ## Modules
 
@@ -65,8 +70,13 @@ Decided in [ADR 0018](../adr/0018-error-signalling.md).
   found). Never `nil, message` pairs in public APIs.
 - Error messages: lower case first word, no trailing period, mention the offending value
   and the expected one: `invalid port 70000: expected an integer in [0, 65535]`.
-- Every error class has a stable `code` (`hecate.http.HeaderTooLarge`) documented on the
-  website.
+- Every error class name ends with `Error` and has a stable `code`, the full class name
+  (`hecate.http.FieldTooLargeError`), documented on the website.
+- **Message prefix.** A message that is raised for a call starts with the qualified
+  `module.function:` exactly as the caller wrote the call: `net.bind_udp: unknown option foo`,
+  `json.decode: ...`, `reactor.spawn: ...`; for a constructor, the class:
+  `net.BufferedReader: ...`. The prefix is never bare (`resolve` exists in `reactor` and in
+  `net`).
 
 ## Resources
 

@@ -47,3 +47,12 @@ page (avec un lien vers le glossaire), puis le terme français seul.
 | filter | filtre | |
 | composition root | racine de composition | |
 | value object | objet-valeur | |
+| computation | calcul | unité en cours d’exécution du planificateur ; jamais « tâche » |
+| suspension point, suspend | point de suspension, suspendre | un appel suspendu ne bloque pas le réacteur |
+| action | action | méthode ou fonction appelée par une route ; « gestionnaire » seulement pour les gestionnaires d’achèvement d’E/S |
+| controller, route module, feature module | contrôleur, module de routes, module fonctionnel | |
+| entity | entité | |
+| database schema | schéma de base de données | « schéma » seul : déclaration de type (`hecate.schema`) |
+| problem details | détails de problème | RFC 9457 ; `hecate.problem` en code |
+| service | service | objet enregistré dans le conteneur |
+| local stream socket (`PipeStream`) | socket Unix, tube nommé (Windows) | à distinguer du « tube de messages » |

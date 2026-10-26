@@ -20,7 +20,7 @@
 
 ## Responsibilities
 
-- primitive and refinement types (`integer { minimum = 1 }`, `string { format = "email" }`)
+- base types and refinement types (`integer { minimum = 1 }`, `string { format = "email" }`)
 - product types (`object`), sum types (`union`, tagged union), `array`, `map`, `literal`, `enumeration`, `optional`, `nullable`
 - coercion of textual inputs (path, query, fields)
 - validation with all errors collected, JSON Pointer paths

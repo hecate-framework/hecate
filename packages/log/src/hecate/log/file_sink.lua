@@ -20,16 +20,16 @@ local FileSink = core.class("FileSink")
 ---@param options hecate.log.FileSinkOptions
 function FileSink:init(options)
   if type(options) ~= "table" or type(options.path) ~= "string" or options.path == "" then
-    error(core.ArgumentError("FileSink expects an options table with a path"), 2)
+    error(core.ArgumentError("log.FileSink: expects an options table with a path"), 2)
   end
   local handle, message = io.open(options.path, "ab")
-  if not handle then error(core.Error(("cannot open log file: %s"):format(tostring(message))), 2) end
+  if not handle then error(core.Error(("log.FileSink: cannot open log file: %s"):format(tostring(message))), 2) end
   handle:setvbuf("line")
   self._handle = handle
   self._lines = JsonLinesSink({
     output = function(line)
       local ok, reason = handle:write(line)
-      if not ok then error(core.Error(("cannot write to the log file: %s"):format(tostring(reason))), 0) end
+      if not ok then error(core.Error(("log.FileSink: cannot write to the log file: %s"):format(tostring(reason))), 0) end
     end,
   })
 end

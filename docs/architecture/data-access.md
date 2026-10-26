@@ -30,7 +30,7 @@ Driver-agnostic interfaces (object-model interfaces, checked for conformance):
   read-only flag; nested `transaction(fn)` calls create savepoints.
 - `Pool`: bounded connection pool with acquisition deadline, health checks, maximum
   lifetime and idle time; `pool:with(fn)` lends a connection for the duration of `fn`.
-- `ResultSet`: iteration over tuples, column metadata, affected count, last inserted
+- `ResultSet`: iteration over tuples, attribute metadata, affected count, last inserted
   identifier when the database supports it.
 
 Parameters are always bound (never interpolated). The placeholder syntax exposed to
@@ -47,9 +47,10 @@ result tuples).
 
 ### Errors
 
-`DatabaseError` subclasses: `ConnectionError`, `IntegrityViolation`
-(unique, foreign key, not null, check), `SerializationFailure`, `DeadlockDetected`,
-`SyntaxError`, ... with SQLSTATE and the driver's native code.
+`DatabaseError` subclasses: `ConnectionError`, `IntegrityViolationError`
+(unique, foreign key, not null, check), `SerializationFailureError`, `DeadlockDetectedError`,
+`SyntaxError`, ... with SQLSTATE and the driver's native code. Like every error class,
+each ends with `Error` and its `code` is the full class name (`hecate.sql.IntegrityViolationError`).
 
 ### Instrumentation
 
@@ -88,10 +89,12 @@ Status: [ADR 0011](../adr/0011-orm-data-mapper.md) (Proposed; spike OQ-18 decide
 - **Identity map** per unit of work.
 - **Mapping metadata** declared next to the entity class (`relation`, `attribute`,
   associations: `belongs_to`, `has_one`, `has_many`, `many_to_many`), validated at boot
-  against the schema produced by migrations where possible.
+  against the database schema produced by migrations where possible.
 - **Loading**: explicit eager loading (`with { "orders" }`) is the default
-  recommendation; lazy loading suspends transparently, and the ORM warns in development
-  when it detects N+1 query patterns.
+  recommendation; lazy loading suspends transparently (accessing a relation that the
+  first query did not load runs one more query), and the ORM warns in development when it
+  detects an N+1 pattern (one extra query per loaded tuple). There is no promise of
+  freedom from N+1 by default.
 - **Repositories**: generic repository with typed finders; custom repositories derive
   from it.
 - Entities can expose their representation schema for HTTP use, but the ORM never
@@ -101,8 +104,9 @@ Status: [ADR 0011](../adr/0011-orm-data-mapper.md) (Proposed; spike OQ-18 decide
 
 - Versioned migrations stored in the project (`migrations/`), each with `up` and
   `down`. Identifiers sortable by time.
-- Expressed with a schema-definition API (create relation, add attribute, index,
-  constraint) rendered per dialect, plus raw SQL when needed.
+- Expressed with a database-schema definition API (create relation, add attribute, index,
+  constraint) rendered per dialect, plus raw SQL when needed. The API is owned by `query`
+  and only sequenced and recorded by `migration` ([OQ-58](../open-questions.md)).
 - Each migration runs in a transaction when the database supports transactional DDL.
 - Applied migrations are recorded in a dedicated relation; checksums detect edited
   migrations.

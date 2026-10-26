@@ -69,12 +69,13 @@ Version constraints use LuaRocks syntax as-is.
 
 ```lua
 local hecate = require "hecate"
+local core   = require "hecate.core"
 local schema = require "hecate.schema"
 local User   = require "users.user"
 
 ---@class UserController : hecate.Controller
 ---@field private repository UserRepository
-local UserController = hecate.class("UserController", hecate.Controller)
+local UserController = core.class("UserController", hecate.Controller)
 
 UserController.prefix       = "/users"
 UserController.dependencies = { repository = "users.UserRepository" }
@@ -96,6 +97,8 @@ function UserController:show(request)
   end
   return user
 end
+
+core.finalise(UserController)   -- required before the class is instantiated
 
 return UserController
 ```
@@ -144,23 +147,26 @@ end
 ## Entities and the ORM
 
 ```lua
-local orm = require "hecate.orm"
+local core = require "hecate.core"
+local orm  = require "hecate.orm"
 
 ---@class User : hecate.orm.Entity
 ---@field id integer
 ---@field email string
-local User = hecate.class("User", orm.Entity)
+local User = core.class("User", orm.Entity)
 
 User.relation = orm.relation "users" {
   id    = orm.attribute.integer { primary = true, generated = true },
   email = orm.attribute.string { max_length = 254, unique = true },
 }
+
+core.finalise(User)
 ```
 
 ```lua
 -- inside a service
 local unit = self.orm:unit_of_work()
-local user = User:new { email = "ada@example.org" }
+local user = User { email = "ada@example.org" }
 unit:persist(user)
 unit:commit()        -- one transaction, flushed in dependency order
 ```

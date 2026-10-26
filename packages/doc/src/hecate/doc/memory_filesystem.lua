@@ -33,7 +33,7 @@ function MemoryFileSystem:read(path) return self.files[normalise(path)] end
 ---@param data string
 function MemoryFileSystem:write(path, data)
   if type(data) ~= "string" then
-    error(core.ArgumentError("write expects the content as a string"), 2)
+    error(core.ArgumentError("doc.MemoryFilesystem.write: expects the content as a string"), 2)
   end
   self.files[normalise(path)] = data
 end

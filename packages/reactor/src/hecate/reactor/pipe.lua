@@ -20,7 +20,7 @@ local WINDOWS_NAME_LIMIT = 256
 local function check_path(name, path, windows)
   if windows == nil then windows = IS_WINDOWS end
   if type(path) ~= "string" or path == "" then
-    error(core.ArgumentError(("%s expects a path string, got %s"):format(name, tostring(path))), 3)
+    error(core.ArgumentError(("%s: expects a path string, got %s"):format(name, tostring(path))), 3)
   end
   if windows then
     local pipe_name = path:match("^\\\\[.?]\\pipe\\(.*)$") or path
@@ -49,7 +49,7 @@ local MODES = { owner = true, readable = "r", writable = "w", readwrite = "rw" }
 local function check_options(name, options)
   if options == nil then return {} end
   if type(options) ~= "table" then
-    error(core.ArgumentError(("%s expects an options table, got %s"):format(name, type(options))), 3)
+    error(core.ArgumentError(("%s: expects an options table, got %s"):format(name, type(options))), 3)
   end
   for key in pairs(options) do
     if key ~= "backlog" and key ~= "mode" then
@@ -113,7 +113,7 @@ function PipeListener:path() return self._path end
 
 core.finalise(PipeListener)
 
---- Options of `pipe_listen`.
+--- Options of `listen_pipe`.
 ---@class hecate.reactor.PipeListenOptions
 ---@field backlog? integer  length of the queue of pending connections, default 128 (ignored on Windows)
 ---@field mode? "owner"|"readable"|"writable"|"readwrite"  who may connect, default "owner" (ignored on Windows)
@@ -131,9 +131,9 @@ local api = {}
 ---@async
 ---@param path string  socket path
 ---@return hecate.reactor.PipeStream stream  the connected stream
-function api.pipe_connect(path)
-  check_path("pipe_connect", path)
-  uv_call.begin("pipe_connect")
+function api.connect_pipe(path)
+  check_path("connect_pipe", path)
+  uv_call.begin("connect_pipe")
   local handle = uv.new_pipe(false)
   local state = {}
   local ok, failure = pcall(context.suspend, function(wake)
@@ -165,10 +165,10 @@ end
 ---@param path string  socket path
 ---@param options? hecate.reactor.PipeListenOptions
 ---@return hecate.reactor.PipeListener listener  the listening pipe
-function api.pipe_listen(path, options)
-  check_path("pipe_listen", path)
-  options = check_options("pipe_listen", options)
-  uv_call.begin("pipe_listen")
+function api.listen_pipe(path, options)
+  check_path("listen_pipe", path)
+  options = check_options("listen_pipe", options)
+  uv_call.begin("listen_pipe")
   local handle = uv.new_pipe(false)
   local bound, bind_err = handle:bind(path)
   if not bound then
@@ -202,7 +202,7 @@ function api.pipe_listen(path, options)
   return listener
 end
 
-M.pipe_connect = api.pipe_connect
-M.pipe_listen = api.pipe_listen
+M.connect_pipe = api.connect_pipe
+M.listen_pipe = api.listen_pipe
 
 return M

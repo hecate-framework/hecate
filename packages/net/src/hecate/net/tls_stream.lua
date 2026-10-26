@@ -234,10 +234,10 @@ end
 ---@return string?
 function TlsStream:read(max)
   if max ~= nil and (math.type(max) ~= "integer" or max < 1) then
-    error(core.ArgumentError(("read expects a positive integer, got %s"):format(tostring(max))), 2)
+    error(core.ArgumentError(("net.TlsStream.read: expects a positive integer, got %s"):format(tostring(max))), 2)
   end
   self:_check("read")
-  if self._reading then error(core.Error("read: another coroutine is already reading this stream"), 2) end
+  if self._reading then error(core.Error("net.TlsStream.read: another coroutine is already reading this stream"), 2) end
   self._reading = true
   local ok, result = pcall(self._read, self, max)
   self._reading = false

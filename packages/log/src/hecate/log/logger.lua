@@ -65,7 +65,7 @@ local Logger = core.class("Logger")
 ---@param sink any
 local function check_sink(sink)
   if type(sink) ~= "table" or type(sink.write) ~= "function" then
-    error(core.ArgumentError("invalid sink: expected an object with a write method"), 3)
+    error(core.ArgumentError("log.Logger: invalid sink: expected an object with a write method"), 3)
   end
 end
 
@@ -82,11 +82,11 @@ function Logger:init(options)
   self._clock = options.clock or os.time
   if options.redact ~= nil then
     if type(options.redact) ~= "table" then
-      error(core.ArgumentError("invalid redact option: expected a list of field names"), 2)
+      error(core.ArgumentError("log.Logger: invalid redact option: expected a list of field names"), 2)
     end
     local names = {}
     for _, name in ipairs(options.redact) do
-      if type(name) ~= "string" then error(core.ArgumentError("invalid redact option: names are strings"), 2) end
+      if type(name) ~= "string" then error(core.ArgumentError("log.Logger: invalid redact option: names are strings"), 2) end
       names[name:lower()] = true
     end
     if next(names) then self._redact = names end
@@ -139,7 +139,7 @@ function Logger:failures() return self._shared.failures end
 ---@return hecate.log.Logger
 function Logger:with_context(fields)
   if type(fields) ~= "table" then
-    error(core.ArgumentError(("with_context expects a table, got %s"):format(type(fields))), 2)
+    error(core.ArgumentError(("log.Logger.with_context: expects a table, got %s"):format(type(fields))), 2)
   end
   local child = Logger({
     level = self:level(), name = self._name, context_provider = self._provider, clock = self._clock,
@@ -159,10 +159,10 @@ end
 ---@param fields? table
 local function emit(self, level, message, fields)
   if type(message) ~= "string" then
-    error(core.ArgumentError(("log message must be a string, got %s"):format(type(message))), 3)
+    error(core.ArgumentError(("log.Logger.log: message must be a string, got %s"):format(type(message))), 3)
   end
   if fields ~= nil and type(fields) ~= "table" then
-    error(core.ArgumentError(("log fields must be a table, got %s"):format(type(fields))), 3)
+    error(core.ArgumentError(("log.Logger.log: fields must be a table, got %s"):format(type(fields))), 3)
   end
   local context = {}
   if self._provider then

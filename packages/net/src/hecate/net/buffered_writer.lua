@@ -24,20 +24,20 @@ local BufferedWriter = core.class("BufferedWriter")
 ---@param options? { capacity?: integer }
 function BufferedWriter:init(stream, options)
   if type(stream) ~= "table" or type(stream.write) ~= "function" then
-    error(core.ArgumentError("BufferedWriter expects a stream with a write method"), 3)
+    error(core.ArgumentError("net.BufferedWriter: expects a stream with a write method"), 3)
   end
   if options ~= nil and type(options) ~= "table" then
-    error(core.ArgumentError(("BufferedWriter expects an options table, got %s"):format(type(options))), 3)
+    error(core.ArgumentError(("net.BufferedWriter: expects an options table, got %s"):format(type(options))), 3)
   end
   for key in pairs(options or {}) do
     if key ~= "capacity" then
-      error(core.ArgumentError(("BufferedWriter: unknown option %s (options: capacity)"):format(tostring(key))), 3)
+      error(core.ArgumentError(("net.BufferedWriter: unknown option %s (options: capacity)"):format(tostring(key))), 3)
     end
   end
   local capacity = options and options.capacity
   if capacity == nil then capacity = DEFAULT_CAPACITY end
   if math.type(capacity) ~= "integer" or capacity < 1 then
-    error(core.ArgumentError(("invalid capacity %s: expected a positive integer"):format(tostring(capacity))), 3)
+    error(core.ArgumentError(("net.BufferedWriter: invalid capacity %s: expected a positive integer"):format(tostring(capacity))), 3)
   end
   self._stream = stream
   self._capacity = capacity
@@ -101,7 +101,7 @@ end
 ---@param data string
 function BufferedWriter:write(data)
   if type(data) ~= "string" then
-    error(core.ArgumentError(("write expects a string, got %s"):format(type(data))), 2)
+    error(core.ArgumentError(("net.BufferedWriter.write: expects a string, got %s"):format(type(data))), 2)
   end
   self:_check("write")
   if self._size == 0 and #data >= self._capacity then

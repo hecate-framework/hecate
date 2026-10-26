@@ -20,7 +20,7 @@ local M = {}
 ---@param path string  socket path
 ---@return hecate.net.PipeStream stream  the connected stream
 function M.connect_pipe(path)
-  return PipeStream(reactor.pipe_connect(path))
+  return PipeStream(reactor.connect_pipe(path))
 end
 
 --- Binds and listens on a Unix-domain socket path, which must not exist. Does not suspend. Options:
@@ -35,7 +35,7 @@ end
 ---@param options? hecate.reactor.PipeListenOptions  `backlog` and `mode`
 ---@return hecate.net.PipeListener listener  the listening pipe
 function M.listen_pipe(path, options)
-  return PipeListener(reactor.pipe_listen(path, options))
+  return PipeListener(reactor.listen_pipe(path, options))
 end
 
 return M

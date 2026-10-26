@@ -35,16 +35,16 @@ local M = {}
 ---@return hecate.reactor.ResolvedAddress[] addresses  the distinct addresses, in resolver order
 function M.resolve(host, options)
   if type(host) ~= "string" or host == "" then
-    error(core.ArgumentError(("resolve expects a host name, got %s"):format(tostring(host))), 2)
+    error(core.ArgumentError(("reactor.resolve: expects a host name, got %s"):format(tostring(host))), 2)
   end
   local family
   if options ~= nil then
     if type(options) ~= "table" then
-      error(core.ArgumentError("resolve expects an options table"), 2)
+      error(core.ArgumentError("reactor.resolve: expects an options table"), 2)
     end
     for key in pairs(options) do
       if key ~= "family" then
-        error(core.ArgumentError(("resolve: unknown option %s"):format(tostring(key))), 2)
+        error(core.ArgumentError(("reactor.resolve: unknown option %s"):format(tostring(key))), 2)
       end
     end
     family = options.family

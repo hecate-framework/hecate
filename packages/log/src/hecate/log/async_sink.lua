@@ -26,11 +26,11 @@ local AsyncSink = core.class("AsyncSink")
 function AsyncSink:init(options)
   local target = options and options.sink
   if type(target) ~= "table" or type(target.write) ~= "function" then
-    error(core.ArgumentError("invalid sink: expected an object with a write method"), 2)
+    error(core.ArgumentError("log.AsyncSink: invalid sink: expected an object with a write method"), 2)
   end
   local capacity = options.capacity or 1024
   if math.type(capacity) ~= "integer" or capacity < 1 then
-    error(core.ArgumentError("invalid capacity: expected a positive integer"), 2)
+    error(core.ArgumentError("log.AsyncSink: invalid capacity: expected a positive integer"), 2)
   end
   self._sink = target
   self._capacity = capacity

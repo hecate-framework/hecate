@@ -28,7 +28,7 @@ end
 ---@return string?
 function TcpStream:read(max)
   if max ~= nil and (math.type(max) ~= "integer" or max < 1) then
-    error(core.ArgumentError(("read expects a positive integer, got %s"):format(tostring(max))), 2)
+    error(core.ArgumentError(("net.TcpStream.read: expects a positive integer, got %s"):format(tostring(max))), 2)
   end
   return self._inner:read(max)
 end

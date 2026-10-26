@@ -8,7 +8,7 @@
 | Rock | `hecate-log` |
 | Layer | 1 — Runtime |
 | Roadmap phase | 1 |
-| Status | step 1: severities, records, `Logger` with context, in-memory and JSON lines sinks, `Secret`; console and file sinks, `LimitedSink` (sampling and rate limiting), `AsyncSink` (drain task on `Semaphore` and `detach`); `log.bind` binds ambient context through the ambient context of `reactor` (ADR 0025) |
+| Status | alpha — step 1: severities, records, `Logger` with context, in-memory and JSON lines sinks, `Secret`; console and file sinks, `LimitedSink` (sampling and rate limiting), `AsyncSink` (drain computation on `Semaphore` and `detach`); `log.bind` binds ambient context through the ambient context of `reactor` (ADR 0025) |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |
 | Depends on | [`core`](../core), [`reactor`](../reactor), [`json`](../json) |
 | Used by | `cli`, `hecate`, `http`, `kernel`, `migration`, `sql`, `test` |
@@ -49,7 +49,7 @@ local log = require("hecate.log")
 | `log.JsonLinesSink(options)` | Writes one JSON object per record to `options.output(line)`; renders secrets as `[redacted]`. |
 | `log.ConsoleSink(options)` | Writes `timestamp SEVERITY [logger] message key=value ...` to `options.output(line)`; secrets redacted, control characters escaped. |
 | `log.FileSink(options)` | Appends JSON lines to `options.path` (synchronous); `close()`; a failed write raises `hecate.core.Error` (a `Logger` counts it in `failures()`). |
-| `log.AsyncSink(options)` | Decorator: `write` queues the record (bounded by `capacity`, default 1024; beyond it the record is dropped and counted) and never suspends; a detached task writes to `options.sink`. `flush()` and `close()` suspend until the queue is written; `dropped()`, `failures()`, `pending()`. Call `close()` before the main computation ends. |
+| `log.AsyncSink(options)` | Decorator: `write` queues the record (bounded by `capacity`, default 1024; beyond it the record is dropped and counted) and never suspends; a detached computation writes to `options.sink`. `flush()` and `close()` suspend until the queue is written; `dropped()`, `failures()`, `pending()`. Call `close()` before the main computation ends. |
 | `log.Secret(value)` | Marks a value that no sink renders; `reveal()` returns it. |
 
 A sink is any object with a synchronous `write(record)` that does not suspend. `log.bind(fields, fn, ...)` adds

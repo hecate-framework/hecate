@@ -5,7 +5,7 @@
 -- Cancellation rules (reactor/CLAUDE.md invariant: cancellation runs `<close>` handlers):
 --   * `read` and `accept` leave the handle intact: data or connections that arrive after the
 --     coroutine was withdrawn are kept for the next call, never dropped.
---   * `write`, `shutdown` and `tcp_connect` cannot be withdrawn from libuv. When one is
+--   * `write`, `shutdown` and `connect_tcp` cannot be withdrawn from libuv. When one is
 --     cancelled before it completed, the handle is closed (libuv then cancels the request),
 --     because the number of bytes sent is unknown; a cancelled connect never leaks its handle.
 --   * `close` is idempotent, never suspends, and wakes every coroutine waiting on the handle.
@@ -62,7 +62,7 @@ local KNOWN = { nodelay = true, keepalive = true, keepalive_delay = true, backlo
 local function check_options(name, options)
   if options == nil then return {} end
   if type(options) ~= "table" then
-    error(core.ArgumentError(("%s expects an options table, got %s"):format(name, type(options))), 3)
+    error(core.ArgumentError(("%s: expects an options table, got %s"):format(name, type(options))), 3)
   end
   for key in pairs(options) do
     if not KNOWN[key] then
@@ -92,10 +92,10 @@ end
 ---@param port any
 local function check_endpoint(name, host, port)
   if type(host) ~= "string" then
-    error(core.ArgumentError(("%s expects a numeric address string, got %s"):format(name, type(host))), 3)
+    error(core.ArgumentError(("%s: expects a numeric address string, got %s"):format(name, type(host))), 3)
   end
   if math.type(port) ~= "integer" or port < 0 or port > 65535 then
-    error(core.ArgumentError(("%s expects a port in 0..65535, got %s"):format(name, tostring(port))), 3)
+    error(core.ArgumentError(("%s: expects a port in 0..65535, got %s"):format(name, tostring(port))), 3)
   end
 end
 
@@ -240,10 +240,10 @@ end
 function TcpStream:read(max)
   uv_call.begin("read")
   if max ~= nil and (math.type(max) ~= "integer" or max < 1) then
-    error(core.ArgumentError(("read expects a positive integer, got %s"):format(tostring(max))), 2)
+    error(core.ArgumentError(("reactor.TcpStream.read: expects a positive integer, got %s"):format(tostring(max))), 2)
   end
   require_open(self, "read")
-  if self._reading then error(core.Error("read: another coroutine is already reading this stream"), 2) end
+  if self._reading then error(core.Error("reactor.TcpStream.read: another coroutine is already reading this stream"), 2) end
   self._demanded = true
   while self._inbox == nil and not self._eof and self._failure == nil do
     self._reading = true
@@ -290,7 +290,7 @@ end
 ---@param data string
 function TcpStream:write(data)
   if type(data) ~= "string" then
-    error(core.ArgumentError(("write expects a string, got %s"):format(type(data))), 2)
+    error(core.ArgumentError(("reactor.TcpStream.write: expects a string, got %s"):format(type(data))), 2)
   end
   uv_call.begin("write")
   require_open(self, "write")
@@ -343,7 +343,7 @@ end
 function TcpStream:set_nodelay(enabled)
   require_open(self, "set_nodelay")
   if type(enabled) ~= "boolean" then
-    error(core.ArgumentError(("set_nodelay expects a boolean, got %s"):format(type(enabled))), 2)
+    error(core.ArgumentError(("reactor.TcpStream.set_nodelay: expects a boolean, got %s"):format(type(enabled))), 2)
   end
   local ok, err = self._handle:nodelay(enabled)
   if not ok then uv_call.fail_transport("set_nodelay", tostring(err)) end
@@ -356,10 +356,10 @@ end
 function TcpStream:set_keepalive(enabled, delay)
   require_open(self, "set_keepalive")
   if type(enabled) ~= "boolean" then
-    error(core.ArgumentError(("set_keepalive expects a boolean, got %s"):format(type(enabled))), 2)
+    error(core.ArgumentError(("reactor.TcpStream.set_keepalive: expects a boolean, got %s"):format(type(enabled))), 2)
   end
   if delay ~= nil and (math.type(delay) ~= "integer" or delay < 1) then
-    error(core.ArgumentError("set_keepalive: delay must be a positive integer number of seconds"), 2)
+    error(core.ArgumentError("reactor.TcpStream.set_keepalive: delay must be a positive integer number of seconds"), 2)
   end
   local ok, err = self._handle:keepalive(enabled, delay or DEFAULT_KEEPALIVE_DELAY)
   if not ok then uv_call.fail_transport("set_keepalive", tostring(err)) end
@@ -400,7 +400,7 @@ local DROPPED = { EINVAL = true, ENOTCONN = true, ECONNRESET = true, ECONNABORTE
 function TcpListener:accept()
   uv_call.begin("accept")
   require_open(self, "accept")
-  if self._accepting then error(core.Error("accept: another coroutine is already accepting"), 2) end
+  if self._accepting then error(core.Error("reactor.TcpListener.accept: another coroutine is already accepting"), 2) end
   while true do
     while self._incoming == 0 and self._failure == nil do
       self._accepting = true
@@ -492,10 +492,10 @@ local api = {}
 ---@param port integer  TCP port
 ---@param options? hecate.reactor.TcpOptions  `nodelay`, `keepalive` and `keepalive_delay`
 ---@return hecate.reactor.TcpStream stream  the connected stream
-function api.tcp_connect(host, port, options)
-  check_endpoint("tcp_connect", host, port)
-  options = check_options("tcp_connect", options)
-  uv_call.begin("tcp_connect")
+function api.connect_tcp(host, port, options)
+  check_endpoint("connect_tcp", host, port)
+  options = check_options("connect_tcp", options)
+  uv_call.begin("connect_tcp")
   local handle = uv.new_tcp()
   local state = {}
   local ok, failure = pcall(context.suspend, function(wake)
@@ -537,10 +537,10 @@ end
 ---@param port integer  TCP port; 0 picks a free port
 ---@param options? hecate.reactor.TcpListenOptions  stream options and `backlog`
 ---@return hecate.reactor.TcpListener listener  the listening socket
-function api.tcp_listen(host, port, options)
-  check_endpoint("tcp_listen", host, port)
-  options = check_options("tcp_listen", options)
-  uv_call.begin("tcp_listen")
+function api.listen_tcp(host, port, options)
+  check_endpoint("listen_tcp", host, port)
+  options = check_options("listen_tcp", options)
+  uv_call.begin("listen_tcp")
   local handle = uv.new_tcp()
   if options.reuseport and not api.supports_reuseport() then
     handle:close()
@@ -576,7 +576,7 @@ local reuseport_supported
 --- (`reuseport = true`). The first call probes with two loopback sockets and caches the answer.
 --- It says nothing about balance: macOS accepts the flag and gives every connection to one
 --- socket, which is why the listening strategy lives above (ADR 0023). Does not suspend.
----@return boolean supported  whether `tcp_listen` accepts `reuseport = true`
+---@return boolean supported  whether `listen_tcp` accepts `reuseport = true`
 function api.supports_reuseport()
   if reuseport_supported ~= nil then return reuseport_supported end
   local first, second = uv.new_tcp(), uv.new_tcp()
@@ -598,7 +598,7 @@ end
 function M.reset_reuseport_probe() reuseport_supported = nil end
 
 M.supports_reuseport = api.supports_reuseport
-M.tcp_connect = api.tcp_connect
-M.tcp_listen = api.tcp_listen
+M.connect_tcp = api.connect_tcp
+M.listen_tcp = api.listen_tcp
 
 return M

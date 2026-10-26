@@ -18,7 +18,7 @@ local function tag(t, marker) return setmetatable(t, marker) end
 ---@class hecate.json.Null
 local null = tag({}, {
   __tostring = function() return "json.null" end,
-  __newindex = function() error("json.null is immutable", 2) end,
+  __newindex = function() error("json.null: immutable", 2) end,
   __metatable = "hecate.json.null",
 })
 

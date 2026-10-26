@@ -6,7 +6,7 @@
 |---|---|
 | Module | `hecate.websocket` |
 | Rock | `hecate-websocket` |
-| Layer | Protocol |
+| Layer | 2 — Protocol |
 | Roadmap phase | 5 |
 | Status | planned — no code yet |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |

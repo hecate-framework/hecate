@@ -24,7 +24,7 @@
 - unit of work: change tracking, ordered flush, single transaction
 - identity map per unit of work
 - repositories
-- lazy and eager loading without N+1 by default
+- loading: eager loading is explicit and recommended; lazy loading suspends transparently, and the ORM warns in development when it detects N+1 queries (extra queries caused by accessing a relation that the first query did not load)
 - integration with `schema` for representations
 
 ## Non-goals

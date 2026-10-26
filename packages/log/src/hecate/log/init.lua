@@ -43,7 +43,7 @@ log.AsyncSink = require("hecate.log.async_sink")
 ---@return any ...  the results of `fn`
 function log.bind(fields, fn, ...)
   if type(fields) ~= "table" then
-    error(core.ArgumentError(("bind expects a table of fields, got %s"):format(type(fields))), 2)
+    error(core.ArgumentError(("log.bind: expects a table of fields, got %s"):format(type(fields))), 2)
   end
   return ambient.bind(fields, fn, ...)
 end

@@ -32,7 +32,7 @@ function Reactor:init(options)
   options = options or {}
   local clock = options.clock or "real"
   if clock ~= "real" and clock ~= "virtual" then
-    error(core.ArgumentError(("invalid clock %s: expected \"real\" or \"virtual\""):format(tostring(clock))), 2)
+    error(core.ArgumentError(("reactor.Reactor: invalid clock %s: expected \"real\" or \"virtual\""):format(tostring(clock))), 2)
   end
   self._virtual = clock == "virtual"
   self._virtual_now = options.start or 0
@@ -352,7 +352,7 @@ end
 ---@return any ...
 function Reactor:run(fn, ...)
   if type(fn) ~= "function" then
-    error(core.ArgumentError(("run expects a function, got %s"):format(type(fn))), 2)
+    error(core.ArgumentError(("reactor.Reactor.run: expects a function, got %s"):format(type(fn))), 2)
   end
   if context.reactor ~= nil then
     error(core.Error("a reactor is already running on this thread"), 2)

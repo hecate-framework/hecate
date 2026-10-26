@@ -8,7 +8,7 @@
 | Rock | `hecate-doc` |
 | Layer | Tooling |
 | Roadmap phase | 3 |
-| Status | minimal slice done (Phase 1 roadmap item), package still in progress for Phase 3 — Markdown rendering and highlighting by the native module (comrak, syntect), site model (locales with fallback, sidebar, previous/next), original theme on the brand kit, search index, `build` and the LuaLS code reference (reference generator, `gen-reference`) implemented; OpenAPI reference, versioned documentation, development server, runnable examples, `hecate doc build` for user projects and the prebuilt binary rocks of the native module pending (Phase 3) |
+| Status | alpha — minimal slice done (Phase 1 roadmap item), package still in progress for Phase 3: Markdown rendering and highlighting by the native module (comrak, syntect), site model (locales with fallback, sidebar, previous/next), original theme on the brand kit, search index, `build` and the LuaLS code reference (reference generator, `gen-reference`) implemented; OpenAPI reference, versioned documentation, development server, runnable examples, `hecate doc build` for user projects and the prebuilt binary rocks of the native module pending (Phase 3) |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |
 | Depends on | [`core`](../core), [`reactor`](../reactor), [`openapi`](../openapi), [`schema`](../schema), [`json`](../json) |
 | Used by | `cli` |

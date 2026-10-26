@@ -19,7 +19,7 @@ local MemorySink = core.class("MemorySink")
 function MemorySink:init(options)
   local capacity = options and options.capacity
   if capacity ~= nil and (math.type(capacity) ~= "integer" or capacity < 1) then
-    error(core.ArgumentError(("invalid capacity %s: expected a positive integer"):format(tostring(capacity))), 2)
+    error(core.ArgumentError(("log.MemorySink: invalid capacity %s: expected a positive integer"):format(tostring(capacity))), 2)
   end
   self._capacity = capacity
   self._records = {} -- a ring when `capacity` is set: `_head` is the oldest, `_count` the number kept

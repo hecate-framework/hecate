@@ -41,11 +41,11 @@ local CHECKS = {
 ---@return string? family
 local function split_options(name, host, options, allowed)
   if type(host) ~= "string" or host == "" then
-    error(core.ArgumentError(("%s expects a host name or address, got %s"):format(name, tostring(host))), 3)
+    error(core.ArgumentError(("%s: expects a host name or address, got %s"):format(name, tostring(host))), 3)
   end
   if options == nil then return {}, nil end
   if type(options) ~= "table" then
-    error(core.ArgumentError(("%s expects an options table, got %s"):format(name, type(options))), 3)
+    error(core.ArgumentError(("%s: expects an options table, got %s"):format(name, type(options))), 3)
   end
   local known = {}
   for _, key in ipairs(allowed) do known[key] = true end
@@ -69,7 +69,7 @@ end
 ---@param port any
 local function check_port(name, port)
   if math.type(port) ~= "integer" or port < 0 or port > 65535 then
-    error(core.ArgumentError(("%s expects a port in 0..65535, got %s"):format(name, tostring(port))), 3)
+    error(core.ArgumentError(("%s: expects a port in 0..65535, got %s"):format(name, tostring(port))), 3)
   end
 end
 
@@ -151,7 +151,7 @@ function M.connect(host, port, options)
   local attempts = {}
   local tried = {}
   for i = 1, #addresses do
-    local ok, result = pcall(reactor.tcp_connect, addresses[i].ip, port, transport)
+    local ok, result = pcall(reactor.connect_tcp, addresses[i].ip, port, transport)
     if ok then return TcpStream(result) end
     -- Only a failed attempt moves on to the next address; cancellation and misuse propagate.
     if not core.is_instance_of(result, reactor.TransportError) then error(result, 0) end
@@ -184,7 +184,7 @@ function M.listen(host, port, options)
   local transport, family = split_options("listen", host, options, LISTEN_OPTIONS)
   check_port("listen", port)
   local addresses = dns.resolve(host, { family = family })
-  local ok, result = pcall(reactor.tcp_listen, addresses[1].ip, port, transport)
+  local ok, result = pcall(reactor.listen_tcp, addresses[1].ip, port, transport)
   if ok then return TcpListener(result) end
   if not core.is_instance_of(result, reactor.TransportError) then error(result, 0) end
   error(rewrap(result --[[@as hecate.core.Error]], "listen on " .. endpoint(host, port), { host = host, port = port }), 0)

@@ -3,7 +3,7 @@
 > Hecate is a modular, contract-first web API framework for Lua 5.5, with its own
 > asynchronous runtime (libuv via luv), HTTP stack, schemas, OpenAPI 3.1 generation,
 > test framework, documentation generator, database drivers, ORM and CLI. Status:
-> specification stage, no implementation yet.
+> early implementation (foundations written, other packages still specifications).
 
 ## Start here
 
@@ -34,6 +34,9 @@
 - [Connect and serve over TCP](website/en/how-to/connect-and-serve-over-tcp.md): connect, accept loop, reader and writer, half-close, name resolution
 - [TLS client and server](website/en/how-to/tls-client-and-server.md): system trust store, private authority, two-step accept, mutual TLS, error reasons
 - [Deadlines and cancellation on streams](website/en/how-to/deadlines-and-cancellation.md): what each cancelled operation leaves behind
+- [Encode and decode JSON](website/en/how-to/encode-and-decode-json.md): integers and floats apart, null and empty arrays, decode errors
+- [Structured logging](website/en/how-to/log-structured-records.md): keep a context on a logger, hide secrets, limit the volume
+- [Measure performance](website/en/how-to/measure-performance.md): run the TCP echo benchmark, read its figures, compare with a Git reference
 - [UDP, Unix sockets, named pipes and DNS](website/en/how-to/udp-pipes-and-dns.md): the transports other than TCP
 - [Run child processes and pass connections between processes](website/en/how-to/run-processes-and-pass-connections.md): `run_process`, `spawn`, the message pipe
 - [The transport model](website/en/explanation/transport-model.md): streams, back-pressure, half-close, buffering, cancellation rules

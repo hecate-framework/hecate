@@ -8,7 +8,7 @@
 | Rock | `hecate-net` |
 | Layer | 1 — Runtime |
 | Roadmap phase | 1 |
-| Status | in progress — buffered layer, TCP, UDP, pipes, name resolution and TLS (over rustls, needs the native module: `lua tools/run.lua build-native`) implemented; names are resolved through `reactor.resolve` (OQ-32), trust store: ADR 0024 |
+| Status | alpha — buffered layer, TCP, UDP, pipes, name resolution and TLS (over rustls, needs the native module: `lua tools/run.lua build-native`) implemented; names are resolved through `reactor.resolve` (OQ-32), trust store: ADR 0024 |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |
 | Depends on | [`core`](../core), [`reactor`](../reactor) |
 | Used by | `hecate`, `http`, `mongodb`, `mysql`, `postgresql`, `redis`, `sql`, `sqlserver`, `websocket` |
@@ -59,7 +59,7 @@ Every example in the reference is a tested file of `examples/`.
 
 ### TCP
 
-TCP over `reactor.tcp_connect` / `tcp_listen` / `resolve`; `net` never requires `luv`.
+TCP over `reactor.connect_tcp` / `listen_tcp` / `resolve`; `net` never requires `luv`.
 
 | Name | Description |
 |---|---|
@@ -87,7 +87,7 @@ local ok, err = pcall(reactor.deadline, 2, function() return reader:read_line() 
 | `net.resolve(host, options?)` | *suspends*. A list of `{ ip, family }` entries in resolver order, never empty (`options.family`: `"inet"` or `"inet6"`). A failure is a `reactor.TransportError` whose message and `context.host` carry the name (`context.errno` is for example `EAI_NONAME`). |
 | `net.bind_udp(host, port, options?)` | *suspends* (resolution only). A `UdpSocket` on the first resolved address; the only option is `family`. |
 | `net.UdpSocket` | `send_to(host, port, data)` (*suspends*; one datagram; the destination first, like `connect`; **numeric address only**: a host name raises `ArgumentError` pointing to `net.resolve`, because a datagram has no connection to retry on another address), `receive_from()` (*suspends*; the payload, possibly empty, and the sender's `{ ip, port, family }`; cancelling loses no datagram), `local_address()`, `close()`, `is_closed()`; `<close>`-able. A cancelled `send_to` closes the socket; a closed socket raises `TransportError` (`EBADF`). |
-| `net.listen_pipe(path, options?)` | Unix-domain socket (named pipe `\\.\pipe\name` on Windows); `path` must not exist. Does not suspend. Options: `backlog` (positive integer, default 128; ignored on Windows) and `mode` (who may connect: `"owner"`, the default, `"readable"`, `"writable"`, `"readwrite"`; no effect on Windows). A Windows pipe name is limited to 256 characters and a Unix socket path to the platform's `sun_path` (104 bytes on macOS, 108 on Linux): a longer one raises `ArgumentError`. Returns a `PipeListener`. |
+| `net.listen_pipe(path, options?)` | Unix-domain socket (named pipe `\\.\pipe\name` on Windows); `path` must not exist. Does not suspend. Options: `backlog` (positive integer, default 128; ignored on Windows) and `mode` (who may connect: `"owner"`, the default, `"readable"`, `"writable"`, `"readwrite"`; no effect on Windows). A Windows pipe name is limited to 256 characters and a Unix socket path to the platform's `sun_path` (at most 107 bytes, 103 on macOS, excluding the terminating NUL): a longer one raises `ArgumentError`. Returns a `PipeListener`. |
 | `net.connect_pipe(path)` | *suspends*. A `PipeStream`. |
 | `net.PipeStream` | Same stream and buffered API as `TcpStream` (`read`, `write`, `shutdown`, `close`, `is_closed`, `reader`, `writer`) plus `path()`. |
 | `net.PipeListener` | `accept()` (*suspends*; cancelling keeps the listener), `close()`, `is_closed()`, `path()`; `<close>`-able. |

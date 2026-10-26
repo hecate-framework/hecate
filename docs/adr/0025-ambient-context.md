@@ -34,9 +34,9 @@ How other systems answer, for comparison:
 
 1. **Explicit passing** (Go). Nothing to build; every function signature carries the context, and
    third-party code cannot log with a request id. Rejected for a framework whose logger is called from everywhere.
-2. **Mutable per-task storage** (`set_local(key, value)`, Python and .NET style). Simple to call, but it raises
+2. **Mutable per-computation storage** (`set_local(key, value)`, Python and .NET style). Simple to call, but it raises
    the question whether a child's write is visible to its parent or to its siblings, and a forgotten reset leaks
-   a value into the next request served by the same task.
+   a value into the next request served by the same computation.
 3. **Immutable, scoped bindings** (`with_ambient(key, value, fn)`, Swift, Java `ScopedValue`). A binding exists
    exactly while `fn` runs and in the computations forked from it; nothing to clean up, no write visible
    outside its region.
@@ -45,10 +45,10 @@ How other systems answer, for comparison:
 
 Option 3, as written:
 
-- `reactor.with_ambient(key, value, fn, ...)` runs `fn(...)` with `key` bound to `value` for the running task and
+- `reactor.with_ambient(key, value, fn, ...)` runs `fn(...)` with `key` bound to `value` for the running computation and
   returns the results of `fn`. A nested binding of the same key shadows the outer one until `fn` returns.
   The binding is removed when `fn` returns or raises.
-- `reactor.ambient(key)` returns the value bound to `key` in the running task, or `nil`.
+- `reactor.ambient(key)` returns the value bound to `key` in the running computation, or `nil`.
 - `fork` and `detach` give the new computation the bindings visible **at the moment of the call**, from the
   creator, not from the application scope. Later bindings of the creator are not seen by the child.
 - Bindings are immutable. A value that must change is a table the owner mutates, on purpose and visibly.
@@ -56,7 +56,7 @@ Option 3, as written:
   that two packages cannot collide on a name.
 - Both functions raise `hecate.core.NonYieldableContextError` outside a managed coroutine, like the other
   primitives.
-- The bindings of a task form a persistent linked list (a node per binding, pointing to its parent), so
+- The bindings of a computation form a persistent linked list (a node per binding, pointing to its parent), so
   inheritance is O(1) and a lookup is O(depth of nesting).
 
 Uses once accepted: `kernel` binds the request id around each request; `log` reads it through the

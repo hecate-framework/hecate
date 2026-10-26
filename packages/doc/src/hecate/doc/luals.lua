@@ -60,7 +60,7 @@ end
 ---@return string json  the content of `doc.json`
 function M.export(executable, source, options)
   if type(executable) ~= "string" or type(source) ~= "string" or type(options) ~= "table" or not options.fs then
-    error(core.ArgumentError("luals.export expects an executable, a source directory and { fs = ... }"), 2)
+    error(core.ArgumentError("doc.luals.export: expects an executable, a source directory and { fs = ... }"), 2)
   end
   local fs = options.fs
   local directory = temporary_directory()

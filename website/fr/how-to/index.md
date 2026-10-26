@@ -24,3 +24,15 @@ raisons d’une recette, lisez la page correspondante de la section
 - [UDP, sockets Unix, tubes nommés et DNS](udp-pipes-and-dns.md) : les transports autres que TCP.
 - [Lancer des processus enfants et se passer des connexions](run-processes-and-pass-connections.md) :
   `run_process`, `spawn`, le tube de messages et le transfert d’une connexion à un enfant.
+
+## Performances
+
+- [Mesurer les performances](measure-performance.md) : exécuter le benchmark d’écho TCP, lire ses
+  chiffres et comparer une modification à sa base.
+
+## Données
+
+- [Encoder et décoder du JSON](encode-and-decode-json.md) : entiers et flottants, `null`, tableaux
+  vides, sortie canonique et erreurs de décodage.
+- [Journaliser des enregistrements structurés](log-structured-records.md) : niveaux, contexte,
+  puits, secrets et limites de volume.

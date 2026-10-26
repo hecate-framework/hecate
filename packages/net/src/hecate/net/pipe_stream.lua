@@ -23,7 +23,7 @@ function PipeStream:init(inner) self._inner = inner end
 ---@return string?
 function PipeStream:read(max)
   if max ~= nil and (math.type(max) ~= "integer" or max < 1) then
-    error(core.ArgumentError(("read expects a positive integer, got %s"):format(tostring(max))), 2)
+    error(core.ArgumentError(("net.PipeStream.read: expects a positive integer, got %s"):format(tostring(max))), 2)
   end
   return self._inner:read(max)
 end

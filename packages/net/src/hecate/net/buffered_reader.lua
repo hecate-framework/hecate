@@ -33,14 +33,14 @@ end
 ---@param options? { limit?: integer }
 function BufferedReader:init(stream, options)
   if type(stream) ~= "table" or type(stream.read) ~= "function" then
-    error(core.ArgumentError("BufferedReader expects a stream with a read method"), 3)
+    error(core.ArgumentError("net.BufferedReader: expects a stream with a read method"), 3)
   end
   if options ~= nil and type(options) ~= "table" then
-    error(core.ArgumentError(("BufferedReader expects an options table, got %s"):format(type(options))), 3)
+    error(core.ArgumentError(("net.BufferedReader: expects an options table, got %s"):format(type(options))), 3)
   end
   for key in pairs(options or {}) do
     if key ~= "limit" then
-      error(core.ArgumentError(("BufferedReader: unknown option %s (options: limit)"):format(tostring(key))), 3)
+      error(core.ArgumentError(("net.BufferedReader: unknown option %s (options: limit)"):format(tostring(key))), 3)
     end
   end
   self._stream = stream
@@ -151,7 +151,7 @@ end
 ---@private
 function BufferedReader:_read_until(delimiter, limit, operation)
   if type(delimiter) ~= "string" or delimiter == "" then
-    error(core.ArgumentError("read_until expects a non-empty delimiter string"), 3)
+    error(core.ArgumentError("net.BufferedReader.read_until: expects a non-empty delimiter string"), 3)
   end
   limit = limit == nil and self._limit or check_limit(limit, 3)
   self:_check(operation)

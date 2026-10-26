@@ -824,14 +824,14 @@ end
 function M.generate(inputs, options)
   options = options or {}
   if type(inputs) ~= "table" then
-    error(core.ArgumentError("generate expects a list of { name, export } inputs"), 2)
+    error(core.ArgumentError("doc.reference.generate: expects a list of { name, export } inputs"), 2)
   end
   local root = options.root or "reference"
   local problems = {}
   local order_of = {}
   for index, input in ipairs(inputs) do
     if type(input) ~= "table" or type(input.name) ~= "string" or input.export == nil then
-      error(core.ArgumentError(("generate: input %d must be { name = string, export = ... }"):format(index)), 2)
+      error(core.ArgumentError(("doc.reference.generate: input %d must be { name = string, export = ... }"):format(index)), 2)
     end
     order_of[input.name] = index * 10
   end

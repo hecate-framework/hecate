@@ -45,13 +45,13 @@ end
 function UdpSocket:send_to(host, port, data)
   if type(host) ~= "string" or not is_numeric_address(host) then
     error(core.ArgumentError(
-      ("send_to expects a numeric IP address, got %s: resolve a name first with net.resolve"):format(tostring(host))), 2)
+      ("net.UdpSocket.send_to: expects a numeric IP address, got %s: resolve a name first with net.resolve"):format(tostring(host))), 2)
   end
   if math.type(port) ~= "integer" or port < 1 or port > 65535 then
-    error(core.ArgumentError(("send_to expects a port in 1..65535, got %s"):format(tostring(port))), 2)
+    error(core.ArgumentError(("net.UdpSocket.send_to: expects a port in 1..65535, got %s"):format(tostring(port))), 2)
   end
   if type(data) ~= "string" then
-    error(core.ArgumentError(("send_to expects a string, got %s"):format(type(data))), 2)
+    error(core.ArgumentError(("net.UdpSocket.send_to: expects a string, got %s"):format(type(data))), 2)
   end
   self._inner:send_to(host, port, data)
 end

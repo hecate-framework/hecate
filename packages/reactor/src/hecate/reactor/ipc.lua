@@ -30,7 +30,7 @@ local HEADER_SIZE = 5
 local function check_options(name, options)
   if options == nil then return {} end
   if type(options) ~= "table" then
-    error(core.ArgumentError(("%s expects an options table, got %s"):format(name, type(options))), 3)
+    error(core.ArgumentError(("%s: expects an options table, got %s"):format(name, type(options))), 3)
   end
   for key in pairs(options) do
     if key ~= "max_message" then error(core.ArgumentError(("%s: unknown option %s"):format(name, tostring(key))), 3) end
@@ -88,16 +88,16 @@ end
 ---@param handle? hecate.reactor.TcpStream  a connected stream to hand over
 function Peer:send(message, handle)
   if type(message) ~= "string" then
-    error(core.ArgumentError(("send expects a string message, got %s"):format(type(message))), 2)
+    error(core.ArgumentError(("reactor.Peer.send: expects a string message, got %s"):format(type(message))), 2)
   end
   if #message > self._max_message then
-    error(core.ArgumentError(("send: the message is %d bytes, the limit is %d"):format(#message, self._max_message)), 2)
+    error(core.ArgumentError(("reactor.Peer.send: the message is %d bytes, the limit is %d"):format(#message, self._max_message)), 2)
   end
   if handle ~= nil and not core.is_instance_of(handle, tcp.TcpStream) then
-    error(core.ArgumentError("send: only a TcpStream can be handed over"), 2)
+    error(core.ArgumentError("reactor.Peer.send: only a TcpStream can be handed over"), 2)
   end
   if handle ~= nil and handle:is_closed() then
-    error(core.ArgumentError("send: the stream to hand over is closed"), 2)
+    error(core.ArgumentError("reactor.Peer.send: the stream to hand over is closed"), 2)
   end
   local frame = string.pack(HEADER, #message, handle and 1 or 0) .. message
   if handle == nil then
@@ -180,7 +180,7 @@ end
 ---@return string? message  the message, or nil at the end of the message pipe
 ---@return hecate.reactor.TcpStream? handle  the stream handed over with it
 function Peer:receive()
-  if self._receiving then error(core.Error("receive: another coroutine is already receiving"), 2) end
+  if self._receiving then error(core.Error("reactor.Peer.receive: another coroutine is already receiving"), 2) end
   self._receiving = true
   local ok, message, handle = pcall(self._receive, self)
   self._receiving = false
