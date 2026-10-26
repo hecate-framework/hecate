@@ -146,10 +146,10 @@ function T:test_options_are_validated()
 end
 
 function T:test_a_windows_pipe_name_is_limited_to_256_characters()
-  pipe._check_path("listen_pipe", "\\\\.\\pipe\\" .. ("n"):rep(256), true)
-  pipe._check_path("listen_pipe", ("n"):rep(256), true)
+  pipe._check_path("reactor.listen_pipe", "\\\\.\\pipe\\" .. ("n"):rep(256), true)
+  pipe._check_path("reactor.listen_pipe", ("n"):rep(256), true)
   for _, path in ipairs({ "\\\\.\\pipe\\" .. ("n"):rep(257), ("n"):rep(257), "\\\\?\\pipe\\" .. ("n"):rep(300) }) do
-    local err = self:assert_error(function() pipe._check_path("listen_pipe", path, true) end)
+    local err = self:assert_error(function() pipe._check_path("reactor.listen_pipe", path, true) end)
     self:assert_true(core.is_instance_of(err, core.ArgumentError), tostring(err))
     self:assert_true(tostring(err):find("256", 1, true) ~= nil, tostring(err))
   end

@@ -64,7 +64,7 @@ function UdpSocket:send_to(host, port, data)
   if type(data) ~= "string" then
     error(core.ArgumentError(("reactor.UdpSocket.send_to: expects a string, got %s"):format(type(data))), 2)
   end
-  check_endpoint("send_to", host, port)
+  check_endpoint("reactor.UdpSocket.send_to", host, port)
   uv_call.begin("send_to")
   require_open(self, "send_to")
   local state = {}

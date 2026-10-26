@@ -143,8 +143,8 @@ end
 ---@param options? hecate.reactor.TcpOptions | { family?: "inet"|"inet6" }  transport options and address family
 ---@return hecate.net.TcpStream stream  the connected stream
 function M.connect(host, port, options)
-  local transport, family = split_options("connect", host, options, CONNECT_OPTIONS)
-  check_port("connect", port)
+  local transport, family = split_options("net.connect", host, options, CONNECT_OPTIONS)
+  check_port("net.connect", port)
   local addresses = dns.resolve(host, { family = family })
   ---@type hecate.core.Error?
   local last
@@ -181,8 +181,8 @@ end
 ---@param options? hecate.reactor.TcpListenOptions | { family?: "inet"|"inet6" }  transport options, backlog and address family
 ---@return hecate.net.TcpListener listener  the listening socket
 function M.listen(host, port, options)
-  local transport, family = split_options("listen", host, options, LISTEN_OPTIONS)
-  check_port("listen", port)
+  local transport, family = split_options("net.listen", host, options, LISTEN_OPTIONS)
+  check_port("net.listen", port)
   local addresses = dns.resolve(host, { family = family })
   local ok, result = pcall(reactor.listen_tcp, addresses[1].ip, port, transport)
   if ok then return TcpListener(result) end

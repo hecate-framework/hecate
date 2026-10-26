@@ -54,7 +54,7 @@ local Peer = core.class("Peer")
 ---@param stream? table  replaces the stream over `handle` (tests of the framing)
 ---@private
 function Peer:init(handle, options, stream)
-  options = check_options("Peer", options)
+  options = check_options("reactor.Peer", options)
   self._handle = handle
   self._stream = stream or tcp.TcpStream(handle, { read_ahead = false })
   self._max_message = options.max_message or DEFAULT_MAX_MESSAGE
@@ -273,7 +273,7 @@ local ipc = { Peer = Peer, child_marker = child_marker, holds_descriptor = holds
 ---@param options? hecate.reactor.PeerOptions  `max_message`
 ---@return hecate.reactor.Peer? peer  the parent's peer
 function ipc.parent(options)
-  options = check_options("ipc.parent", options)
+  options = check_options("reactor.ipc.parent", options)
   if parent_peer and not parent_peer:is_closed() then return parent_peer end
   local fd = uv.os_getenv(ENV_NAME)
   if fd ~= tostring(PIPE_FD) or uv.guess_handle(PIPE_FD) ~= "pipe" then return nil end

@@ -235,7 +235,7 @@ end
 function M.join(...)
   context.current_task("join")
   local futures = table.pack(...)
-  for i = 1, futures.n do require_future("join", futures[i]) end
+  for i = 1, futures.n do require_future("reactor.join", futures[i]) end
   while true do
     local pending = false
     for i = 1, futures.n do

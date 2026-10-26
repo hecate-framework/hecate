@@ -132,8 +132,8 @@ local api = {}
 ---@param path string  socket path
 ---@return hecate.reactor.PipeStream stream  the connected stream
 function api.connect_pipe(path)
-  check_path("connect_pipe", path)
-  uv_call.begin("connect_pipe")
+  check_path("reactor.connect_pipe", path)
+  uv_call.begin("reactor.connect_pipe")
   local handle = uv.new_pipe(false)
   local state = {}
   local ok, failure = pcall(context.suspend, function(wake)
@@ -166,9 +166,9 @@ end
 ---@param options? hecate.reactor.PipeListenOptions
 ---@return hecate.reactor.PipeListener listener  the listening pipe
 function api.listen_pipe(path, options)
-  check_path("listen_pipe", path)
-  options = check_options("listen_pipe", options)
-  uv_call.begin("listen_pipe")
+  check_path("reactor.listen_pipe", path)
+  options = check_options("reactor.listen_pipe", options)
+  uv_call.begin("reactor.listen_pipe")
   local handle = uv.new_pipe(false)
   local bound, bind_err = handle:bind(path)
   if not bound then

@@ -13,7 +13,7 @@
   language, cross-platform). Shell or PowerShell only for bootstrap steps that run
   before Lua exists.
 - Every check that CI performs can be run locally with the same script
-  (`lua tools/run.lua <task>` until the CLI exists; `hecate task <task>` afterwards).
+  (`lua tools/run.lua <task>`).
 - Third-party actions are pinned by commit SHA in release workflows; Dependabot keeps
   them current.
 

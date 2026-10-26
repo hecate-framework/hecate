@@ -493,9 +493,9 @@ local api = {}
 ---@param options? hecate.reactor.TcpOptions  `nodelay`, `keepalive` and `keepalive_delay`
 ---@return hecate.reactor.TcpStream stream  the connected stream
 function api.connect_tcp(host, port, options)
-  check_endpoint("connect_tcp", host, port)
-  options = check_options("connect_tcp", options)
-  uv_call.begin("connect_tcp")
+  check_endpoint("reactor.connect_tcp", host, port)
+  options = check_options("reactor.connect_tcp", options)
+  uv_call.begin("reactor.connect_tcp")
   local handle = uv.new_tcp()
   local state = {}
   local ok, failure = pcall(context.suspend, function(wake)
@@ -538,9 +538,9 @@ end
 ---@param options? hecate.reactor.TcpListenOptions  stream options and `backlog`
 ---@return hecate.reactor.TcpListener listener  the listening socket
 function api.listen_tcp(host, port, options)
-  check_endpoint("listen_tcp", host, port)
-  options = check_options("listen_tcp", options)
-  uv_call.begin("listen_tcp")
+  check_endpoint("reactor.listen_tcp", host, port)
+  options = check_options("reactor.listen_tcp", options)
+  uv_call.begin("reactor.listen_tcp")
   local handle = uv.new_tcp()
   if options.reuseport and not api.supports_reuseport() then
     handle:close()

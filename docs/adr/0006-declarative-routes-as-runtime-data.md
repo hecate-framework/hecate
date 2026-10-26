@@ -8,11 +8,11 @@
 
 ## Context
 
-The owner wanted routes declared next to their handlers rather than in a central
+The owner wanted routes declared next to their actions rather than in a central
 configuration file, ideally through annotations. Lua comments do not exist at run time;
 annotation-based routing requires parsing source files and inventing tags that LuaLS
 does not understand (`---@route`, status codes on `---@return`), losing the IDE support
-that motivated annotations. LuaLS also has no notion of path/query/header/content
+that motivated annotations. LuaLS also has no notion of path/query/field/content
 parameters.
 
 ## Options considered

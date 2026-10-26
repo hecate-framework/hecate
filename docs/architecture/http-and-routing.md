@@ -11,7 +11,7 @@ Packages: `http`, `router`, `kernel`. Status: specification.
   order preserved.
 - Persistent connections, pipelining tolerated (responses in order), `Expect:
   100-continue`, chunked transfer coding in both directions.
-- Limits, all configurable with safe defaults: request line length, header count and
+- Limits, all configurable with safe defaults: request line length, field count and
   size, content length, read and idle deadlines per connection.
 - Content is streamed: `request:content()` reads fully (bounded by the limit),
   `request:reader()` streams; responses accept strings, tables (serialised) or
@@ -22,8 +22,8 @@ Packages: `http`, `router`, `kernel`. Status: specification.
 
 `Request` and `Response` are classes from the shared object model. A request exposes
 `method`, `target`, `path`, `query`, `fields` (header fields), parsed `path`
-parameters after routing, validated `content`, the `scope`, and the connection's remote
-address. Responses carry `status`, `fields`, `content`.
+parameters after routing, validated `content`, the `scope`, and the connection's peer
+address (`peer_address()`, as on every `net` stream). Responses carry `status`, `fields`, `content`.
 
 ### Client
 
@@ -59,13 +59,16 @@ code), `security`, `filters`, and the action. The kernel verifies at boot that e
 declared action exists and that path parameters in the template match the declared
 `parameters.path`.
 
+In the emitted OpenAPI document, the parameter location `fields` maps to `in: header` (the
+OpenAPI term), `path` to `in: path`, `query` to `in: query` and `cookies` to `in: cookie`.
+
 ## `hecate.kernel`
 
-### Application and modules
+### Application and feature modules
 
 - `Application` is the composition root: configuration, container, modules, filters,
   servers.
-- A **module** groups controllers, route modules, services (container bindings),
+- A **feature module** groups controllers, route modules, services (container bindings),
   migrations and configuration schema for one feature. Modules may declare dependencies
   on other modules; the kernel orders initialisation topologically and rejects cycles.
 
