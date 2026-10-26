@@ -28,4 +28,5 @@ None.
 lua tools/run.lua fuzz decode --seconds 30
 lua tools/run.lua test tools
 ```
+
 (needs libclang-rt-dev for the fuzzer runtime)
