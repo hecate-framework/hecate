@@ -5,7 +5,7 @@ global <const> require, table, error, tostring, pcall, ipairs, pairs
 
 local core = require("hecate.core")
 local reactor = require("hecate.reactor")
-local FileSystem = require("hecate.doc.filesystem")
+local FileSystem = require("hecate.doc.file_system")
 local errors = require("hecate.doc.errors")
 
 local fs = reactor.fs
@@ -93,7 +93,7 @@ end
 ---@param path string
 function SystemFileSystem:remove_tree(path)
   if path == "" or path == "/" or path == "." or path == ".." then
-    error(core.ArgumentError("refusing to remove " .. ("%q"):format(path)), 2)
+    error(core.ArgumentError("doc.SystemFileSystem.remove_tree: refusing to remove " .. ("%q"):format(path)), 2)
   end
   if fs.stat(path) ~= nil then
     local ok, err

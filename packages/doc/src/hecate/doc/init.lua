@@ -1,8 +1,8 @@
 -- hecate.doc: documentation generator and static site builder (ADR 0012). Guides in
 -- Markdown with front matter, one original theme built on the hecate brand kit, locales
 -- with fallback, a client-side search index. Status: Markdown renderer, site model, theme,
--- search index and `build` are implemented; the LuaLS code reference, the OpenAPI
--- reference and versioned documentation are not (see README.md).
+-- search index, `build` and the LuaLS code reference (`reference`, `luals`, `reference_site`) are
+-- implemented; the OpenAPI reference and versioned documentation are not (see README.md).
 global <const> require
 
 local build = require("hecate.doc.build")
@@ -31,11 +31,11 @@ local doc = {
   Site = require("hecate.doc.site"),
   ---@diagnostic disable-next-line: assign-type-mismatch  -- class constructor exported as its class
   Page = require("hecate.doc.page"),
-  FileSystem = require("hecate.doc.filesystem"),
+  FileSystem = require("hecate.doc.file_system"),
   ---@diagnostic disable-next-line: assign-type-mismatch  -- class constructor exported as its class
-  MemoryFileSystem = require("hecate.doc.memory_filesystem"),
+  MemoryFileSystem = require("hecate.doc.memory_file_system"),
   ---@diagnostic disable-next-line: assign-type-mismatch  -- class constructor exported as its class
-  SystemFileSystem = require("hecate.doc.system_filesystem"),
+  SystemFileSystem = require("hecate.doc.system_file_system"),
   BuildError = require("hecate.doc.errors").BuildError,
   markdown = require("hecate.doc.markdown"),
   front_matter = require("hecate.doc.front_matter"),

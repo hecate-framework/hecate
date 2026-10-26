@@ -71,11 +71,11 @@ local reactor = {
 -- The functions are assigned one by one, not in the table constructor: LuaLS leaves
 -- constructor entries out of the documentation export, and an entry hides the documented
 -- definition of the same name (coding-standards.md, "Annotations for the reference").
-reactor.tcp_connect = tcp.tcp_connect
-reactor.tcp_listen = tcp.tcp_listen
-reactor.pipe_connect = pipe.pipe_connect
-reactor.pipe_listen = pipe.pipe_listen
-reactor.udp_bind = udp.udp_bind
+reactor.connect_tcp = tcp.connect_tcp
+reactor.listen_tcp = tcp.listen_tcp
+reactor.connect_pipe = pipe.connect_pipe
+reactor.listen_pipe = pipe.listen_pipe
+reactor.bind_udp = udp.bind_udp
 local process = require("hecate.reactor.process")
 reactor.run_process = process.run_process
 reactor.spawn = process.spawn -- glossary-ok: operating-system process (ADR 0023)

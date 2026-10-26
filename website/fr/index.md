@@ -27,5 +27,5 @@ données, un mappeur objet-relationnel et un outil en ligne de commande.
 - **Contrat d’abord.** Une route et ses schémas sont déclarés une seule fois, sous forme de
   données à l’exécution. La validation, les contrats OpenAPI, la documentation de l’API et les
   tests de contrat en découlent.
-- **Concurrence transparente.** Les gestionnaires se lisent comme du code séquentiel. Les
+- **Concurrence transparente.** Les actions se lisent comme du code séquentiel. Les
   entrées et sorties suspendent la coroutine en cours d’exécution.

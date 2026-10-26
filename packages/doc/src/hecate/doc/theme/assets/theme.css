@@ -313,7 +313,7 @@ h1:hover > .header-anchor, h2:hover > .header-anchor, h3:hover > .header-anchor,
 .hl-comment { color: var(--hl-comment); font-style: italic; font-weight: inherit; }
 .hl-punctuation { color: inherit; font-weight: inherit; }
 
-/* Containers (callouts). The brand palette has no warning hue: warning and danger both
+/* Callouts (GFM alerts). The brand palette has no warning hue: warning and danger both
    use `danger`, told apart by their label, icon and frame. */
 .markdown-alert { --callout: var(--moon); margin: var(--space-4) 0; padding: var(--space-2) var(--space-4) var(--space-2) var(--space-4); background: var(--surface-200); border-left: 4px solid var(--callout); border-radius: 0 var(--radius-md) var(--radius-md) 0; font-size: 16px; line-height: 24px; }
 .markdown-alert > :last-child { margin-bottom: 0; }

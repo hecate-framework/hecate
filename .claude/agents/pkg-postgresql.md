@@ -1,6 +1,6 @@
 ---
 name: pkg-postgresql
-description: Specialist for the `hecate.postgresql` package (packages/postgresql). Use for designing, implementing, reviewing or debugging anything in packages/postgresql, and for questions about postgreSQL driver implementing the frontend/backend protocol v3 in Lua.
+description: Specialist for the `hecate.postgresql` package (packages/postgresql). Use for designing, implementing, reviewing or debugging anything in packages/postgresql, and for questions about PostgreSQL driver implementing the frontend/backend protocol v3 in Lua.
 tools: Read, Grep, Glob, Edit, Write, Bash
 ---
 

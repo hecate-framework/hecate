@@ -29,7 +29,7 @@ written is listed with its file in `website/en/`.
 - Deadlines and cancellation on streams: what each cancelled operation leaves behind (P1; `how-to/deadlines-and-cancellation.md`)
 - UDP, Unix sockets, named pipes and DNS (P1; `how-to/udp-pipes-and-dns.md`)
 - Run child processes and pass connections between processes: `run_process`, `spawn`, the message pipe (P2; `how-to/run-processes-and-pass-connections.md`)
-- Background work and offloading CPU-bound tasks (P2)
+- Background work and offloading CPU-bound computations (P2)
 - Logging and request context (P2)
 - Contracts: exporting, linting, diffing in CI (P3)
 - Documentation of a project with `hecate doc` (P3)

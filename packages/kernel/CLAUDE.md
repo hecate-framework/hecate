@@ -5,7 +5,7 @@ package-specific context. Specialist agent: `pkg-kernel`.
 
 ## Purpose
 
-The application: modules, controllers, route modules, filters (chain of responsibility), problem details, lifecycle, workers and graceful shutdown.
+The application: feature modules, controllers, route modules, filters (chain of responsibility), problem details, lifecycle, workers and graceful shutdown.
 
 ## Read before changing anything
 

@@ -29,7 +29,7 @@ The reactor over libuv (luv): coroutine scheduler, futures, structured concurren
 - a scope never completes before its children
 - calling a suspending operation outside a managed coroutine raises immediately
 - no callback is ever exposed to user code
-- cancellation runs `<close>` handlers
+- cancellation runs the `__close` metamethods of pending `<close>` variables
 
 ## Test strategy
 

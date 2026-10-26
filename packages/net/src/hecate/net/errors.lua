@@ -1,6 +1,6 @@
 -- Error classes of hecate.net. The roots (`NetworkError`, `ProtocolError`) live in `core`
 -- (OQ-19); this package subclasses only for conditions callers handle differently.
-global <const> require, tostring, ipairs, type, getmetatable
+global <const> require, tostring, ipairs, type, getmetatable, pcall, error
 
 local core = require("hecate.core")
 
@@ -57,4 +57,45 @@ local function tls_failure(text, reason)
   return TlsError({ message = text, context = { reason = reason } })
 end
 
-return { EndOfStreamError = EndOfStreamError, TlsError = TlsError, tls_failure = tls_failure }
+--- Prefixes the message of a `TlsError` with the public call that raised it, as the caller wrote it
+--- (coding-standards.md, "Errors"), replacing the prefix of an inner call. Other failures
+--- (cancellations, transport failures, programmer errors) pass through untouched. Returns `failure`.
+---@param failure any
+---@param call string  for example `net.TlsStream.read`
+---@return any
+local function qualify(failure, call)
+  if core.is_instance_of(failure, TlsError) then
+    local text = (failure --[[@as hecate.net.TlsError]]).message
+    text = text:gsub("^net%.[%w_.]+: ", "")
+    ;(failure --[[@as hecate.net.TlsError]]).message = call .. ": " .. text
+  end
+  return failure
+end
+
+--- Renames the call a failure of a reactor function names: `reactor.connect_pipe: ...` raised under
+--- `net.connect_pipe` becomes `net.connect_pipe: ...`, because the caller wrote the net call
+--- (coding-standards.md, "Errors"). Failures that do not start with a reactor call pass through.
+---@param failure any
+---@param call string  the public net call
+---@return any
+local function rename(failure, call)
+  if core.is_instance_of(failure, core.Error) then
+    local text = (failure --[[@as hecate.core.Error]]).message
+    if type(text) == "string" and text:find("^reactor%.[%w_.]+: ") then
+      ;(failure --[[@as hecate.core.Error]]).message = call .. ": " .. text:gsub("^reactor%.[%w_.]+: ", "")
+    end
+  end
+  return failure
+end
+
+--- Calls the reactor function `fn(...)` for the net call `call`, renaming the call in its failures.
+---@param call string
+---@param fn function
+---@return any
+local function delegate(call, fn, ...)
+  local ok, result = pcall(fn, ...)
+  if ok then return result end
+  error(rename(result, call), 0)
+end
+
+return { rename = rename, delegate = delegate, EndOfStreamError = EndOfStreamError, TlsError = TlsError, tls_failure = tls_failure, qualify = qualify }

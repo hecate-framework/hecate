@@ -7,7 +7,7 @@ source = {
 }
 
 description = {
-  summary = "Query builder using relational-algebra vocabulary (projection, selection, join, rename, union) rendered per SQL dialect.",
+  summary = "Query builder using relational-algebra vocabulary (projection, selection, join, rename, union) and the database-schema definition API, independent of any dialect.",
   homepage = "https://github.com/hecate-framework/hecate",
   license = "MIT",
 }
@@ -15,7 +15,6 @@ description = {
 dependencies = {
   "lua >= 5.5, < 5.6",
   "hecate-core",
-  "hecate-sql",
 }
 
 build = {

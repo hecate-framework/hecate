@@ -17,8 +17,9 @@ local ChannelOperation = require("hecate.reactor.channel_operation")
 local OK, CLOSED = true, false -- status handed to a suspended sender or receiver
 
 ---@param channel table
-local function raise_closed(channel)
-  error(core.ClosedChannelError({ message = "the channel is closed", context = { channel = channel } }), 0)
+---@param call string  the public call, for the message prefix
+local function raise_closed(channel, call)
+  error(core.ClosedChannelError({ message = call .. ": the channel is closed", context = { channel = channel } }), 0)
 end
 
 --- A channel between coroutines: a rendezvous when its capacity is 0, a FIFO buffer otherwise (Hoare 1978, section 2).
@@ -31,7 +32,7 @@ local Channel = core.class("Channel")
 function Channel:init(capacity)
   if capacity == nil then capacity = 0 end
   if math.type(capacity) ~= "integer" or capacity < 0 then
-    error(core.ArgumentError(("Channel expects a non-negative integer capacity, got %s")
+    error(core.ArgumentError(("reactor.Channel: expects a non-negative integer capacity, got %s")
       :format(tostring(capacity))), 2)
   end
   self._capacity = capacity
@@ -60,8 +61,9 @@ end
 --- Hands `value` over without suspending. Returns false when the sender would have to wait.
 ---@return boolean sent
 ---@private
-function Channel:_try_send(value)
-  if self._closed then raise_closed(self) end
+---@param call string
+function Channel:_try_send(value, call)
+  if self._closed then raise_closed(self, call) end
   if self._receivers:wake_first(OK, value) then return true end
   if self._count < self._capacity then
     buffer_push(self, value)
@@ -74,7 +76,8 @@ end
 ---@return boolean received
 ---@return any value
 ---@private
-function Channel:_try_receive()
+---@param call string
+function Channel:_try_receive(call)
   if self._count > 0 then
     local value = buffer_pop(self)
     local sender = self._senders:wake_first(OK) -- a room has opened in the buffer
@@ -83,7 +86,7 @@ function Channel:_try_receive()
   end
   local sender = self._senders:wake_first(OK) -- rendezvous
   if sender then return true, sender.value end
-  if self._closed then raise_closed(self) end
+  if self._closed then raise_closed(self, call) end
   return false, nil
 end
 
@@ -93,15 +96,15 @@ end
 ---@async
 ---@param value any
 function Channel:send(value)
-  context.current_task("Channel:send")
-  if self:_try_send(value) then return end
+  context.current_computation("reactor.Channel.send")
+  if self:_try_send(value, "reactor.Channel.send") then return end
   local senders = self._senders
   local waiter
   local status = context.suspend(function(wake)
     waiter = senders:push({ wake = wake, value = value })
     return function() senders:remove(waiter) end
   end)
-  if status == CLOSED then raise_closed(self) end
+  if status == CLOSED then raise_closed(self, "reactor.Channel.send") end
 end
 
 --- Receives the next value, suspending while there is none. A closed channel first yields
@@ -109,8 +112,8 @@ end
 ---@async
 ---@return any value
 function Channel:receive()
-  context.current_task("Channel:receive")
-  local received, value = self:_try_receive()
+  context.current_computation("reactor.Channel.receive")
+  local received, value = self:_try_receive("reactor.Channel.receive")
   if received then return value end
   local receivers = self._receivers
   local waiter
@@ -119,7 +122,7 @@ function Channel:receive()
     waiter = receivers:push({ wake = wake })
     return function() receivers:remove(waiter) end
   end)
-  if status == CLOSED then raise_closed(self) end
+  if status == CLOSED then raise_closed(self, "reactor.Channel.receive") end
   return value
 end
 

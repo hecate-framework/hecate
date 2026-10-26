@@ -3,7 +3,7 @@
 Owner direction (2026-10-18): Hecate is multi-process by design, through an abstraction that
 serves each platform in the best possible way, and Linux, where most servers will run, is never
 compromised for the sake of another platform. This spike measures the candidate listening
-strategies on the three platforms. The design it supports is the Proposed
+strategies on the three platforms. The design it supports is
 [ADR 0023](../adr/0023-multi-process-serving.md).
 
 ## What was measured

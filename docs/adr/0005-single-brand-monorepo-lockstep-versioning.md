@@ -31,4 +31,4 @@ function) but wants components named after what they do.
 
 ## Verification
 
-`check-versions` script: all rockspecs share the version in `VERSION`.
+`check-versions` task: all rockspecs share the version in `VERSION`.

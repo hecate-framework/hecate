@@ -34,7 +34,7 @@ Returns nothing.
 ## Suspension
 
 `sleep` **suspends** (`---@async`). It is a cancellation point: if the enclosing scope is
-cancelled, the timer is withdrawn and `<close>` handlers run.
+cancelled, the timer is withdrawn and the pending `<close>` variables are closed.
 
 ## Examples
 

@@ -29,6 +29,6 @@ other languages.
 
 ## Verification
 
-`check-glossary` script: a deny-list of discouraged identifiers (`promise`, `spawn`,
+`check-glossary` task: a deny-list of discouraged identifiers (`promise`, `spawn`,
 `middleware`, `race`, ...) scanned in `packages/**/src`; the `terminology-reviewer`
 agent reviews pull requests.

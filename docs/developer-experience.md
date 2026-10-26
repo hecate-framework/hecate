@@ -2,7 +2,9 @@
 
 This document describes what using Hecate should feel like. It is the north star for
 API design. **Code below is illustrative**: names and signatures are settled by ADRs and
-specifications, which take precedence.
+specifications, which take precedence. In particular, classes are declared with
+`core.class` and finalised with `core.finalise` (ADR 0007), through `require "hecate.core"`; the meta-module `hecate` has no `class` alias
+([OQ-57](open-questions.md), resolved).
 
 ## Installation and a new project
 
@@ -69,12 +71,13 @@ Version constraints use LuaRocks syntax as-is.
 
 ```lua
 local hecate = require "hecate"
+local core   = require "hecate.core"
 local schema = require "hecate.schema"
 local User   = require "users.user"
 
 ---@class UserController : hecate.Controller
 ---@field private repository UserRepository
-local UserController = hecate.class("UserController", hecate.Controller)
+local UserController = core.class("UserController", hecate.Controller)
 
 UserController.prefix       = "/users"
 UserController.dependencies = { repository = "users.UserRepository" }
@@ -90,12 +93,14 @@ UserController:route {
 
 ---@param request hecate.Request
 function UserController:show(request)
-  local user = self.repository:find(request.path.id)   -- suspends during I/O
+  local user = self.repository:find(request.parameters.path.id)   -- suspends during I/O
   if user == nil then
     return hecate.problem.NotFound { detail = "No such user." }
   end
   return user
 end
+
+core.finalise(UserController)   -- required before the class is instantiated
 
 return UserController
 ```
@@ -126,7 +131,7 @@ behave identically.
 local reactor = require "hecate.reactor"
 
 function DashboardController:show(request)
-  local user = self.users:find(request.path.id)
+  local user = self.users:find(request.parameters.path.id)
 
   local orders, rate = reactor.join(
     reactor.fork(function() return self.orders:of(user) end),
@@ -144,23 +149,26 @@ end
 ## Entities and the ORM
 
 ```lua
-local orm = require "hecate.orm"
+local core = require "hecate.core"
+local orm  = require "hecate.orm"
 
 ---@class User : hecate.orm.Entity
 ---@field id integer
 ---@field email string
-local User = hecate.class("User", orm.Entity)
+local User = core.class("User", orm.Entity)
 
 User.relation = orm.relation "users" {
   id    = orm.attribute.integer { primary = true, generated = true },
   email = orm.attribute.string { max_length = 254, unique = true },
 }
+
+core.finalise(User)
 ```
 
 ```lua
 -- inside a service
 local unit = self.orm:unit_of_work()
-local user = User:new { email = "ada@example.org" }
+local user = User { email = "ada@example.org" }
 unit:persist(user)
 unit:commit()        -- one transaction, flushed in dependency order
 ```

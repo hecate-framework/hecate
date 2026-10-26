@@ -20,14 +20,14 @@ local M = {}
 ---@param value any
 local function require_future(name, value)
   if not core.is_instance_of(value, Future) then
-    error(core.ArgumentError(("%s expects futures, got %s"):format(name, type(value))), 3)
+    error(core.ArgumentError(("%s: expects futures, got %s"):format(name, type(value))), 3)
   end
 end
 
 ---@param value any
 local function require_selectable(value)
   if not core.is_instance_of(value, Future) and not core.is_instance_of(value, ChannelOperation) then
-    error(core.ArgumentError(("select expects futures or channel operations, got %s"):format(type(value))), 3)
+    error(core.ArgumentError(("reactor.select: expects futures or channel operations, got %s"):format(type(value))), 3)
   end
 end
 
@@ -37,11 +37,11 @@ end
 ---@param deadline_at? number  clock reading at which the scope is cancelled
 ---@return any ...
 local function scope_run(fn, deadline_at)
-  local task = context.current_task("scope")
-  local reactor = task.reactor
-  local scope = Scope(task, task.scope)
+  local computation = context.current_computation("reactor.scope")
+  local reactor = computation.reactor
+  local scope = Scope(computation, computation.scope)
   if scope.parent then scope.parent:_add_subscope(scope) end
-  task.scope = scope
+  computation.scope = scope
   local timer
   if deadline_at ~= nil then
     timer = reactor:_add_timer(deadline_at, function()
@@ -73,14 +73,14 @@ local function scope_run(fn, deadline_at)
   end
   scope._closed = true
   if timer then reactor:_cancel_timer(timer) end
-  task.scope = scope.parent
+  computation.scope = scope.parent
   if scope.parent then scope.parent:_remove_subscope(scope) end
 
   if scope._failed then error(scope._failure, 0) end
   if body[1] then return table.unpack(body, 2, body.n) end
   -- The body ended with this scope's own cancellation: the scope absorbs it.
   if scope._deadline_hit then
-    error(core.DeadlineExceededError({ message = "deadline exceeded", context = { at = deadline_at } }), 0)
+    error(core.DeadlineExceededError({ message = "reactor.deadline: deadline exceeded", context = { at = deadline_at } }), 0)
   end
 end
 context.scope_run = scope_run
@@ -95,7 +95,7 @@ context.scope_run = scope_run
 ---@return any ...  the results of `fn`
 function M.scope(fn)
   if type(fn) ~= "function" then
-    error(core.ArgumentError(("scope expects a function, got %s"):format(type(fn))), 2)
+    error(core.ArgumentError(("reactor.scope: expects a function, got %s"):format(type(fn))), 2)
   end
   return scope_run(fn)
 end
@@ -110,10 +110,10 @@ end
 ---@return hecate.reactor.Future future  the future of the computation
 function M.fork(fn, ...)
   if type(fn) ~= "function" then
-    error(core.ArgumentError(("fork expects a function, got %s"):format(type(fn))), 2)
+    error(core.ArgumentError(("reactor.fork: expects a function, got %s"):format(type(fn))), 2)
   end
-  local task = context.current_task("fork")
-  return task.reactor:_create_task(task.scope, fn, table.pack(...))
+  local computation = context.current_computation("reactor.fork")
+  return computation.reactor:_create_computation(computation.scope, fn, table.pack(...))
 end
 
 --- Starts `fn(...)` in the application scope (the root scope of the running reactor), so it
@@ -129,15 +129,15 @@ end
 ---@return hecate.reactor.Future future  the future of the computation
 function M.detach(fn, ...)
   if type(fn) ~= "function" then
-    error(core.ArgumentError(("detach expects a function, got %s"):format(type(fn))), 2)
+    error(core.ArgumentError(("reactor.detach: expects a function, got %s"):format(type(fn))), 2)
   end
-  local task = context.current_task("detach")
-  local root = task.reactor._root
+  local computation = context.current_computation("reactor.detach")
+  local root = computation.reactor._root
   if root == nil or root._closed then
-    error(core.Error("the application scope is not running"), 2)
+    error(core.Error("reactor.detach: the application scope is not running"), 2)
   end
-  local future = task.reactor:_create_task(root, fn, table.pack(...))
-  future._task.detached = true
+  local future = computation.reactor:_create_computation(root, fn, table.pack(...))
+  future._computation.detached = true
   return future
 end
 
@@ -156,16 +156,16 @@ end
 ---@return any ...  the results of `fn`
 function M.with_ambient(key, value, fn, ...)
   if key == nil then
-    error(core.ArgumentError("with_ambient expects a key that is not nil"), 2)
+    error(core.ArgumentError("reactor.with_ambient: expects a key that is not nil"), 2)
   end
   if type(fn) ~= "function" then
-    error(core.ArgumentError(("with_ambient expects a function, got %s"):format(type(fn))), 2)
+    error(core.ArgumentError(("reactor.with_ambient: expects a function, got %s"):format(type(fn))), 2)
   end
-  local task = context.current_task("with_ambient")
-  local outer = task.ambient
-  task.ambient = { key = key, value = value, parent = outer }
+  local computation = context.current_computation("reactor.with_ambient")
+  local outer = computation.ambient
+  computation.ambient = { key = key, value = value, parent = outer }
   local results = table.pack(pcall(fn, ...))
-  task.ambient = outer
+  computation.ambient = outer
   if not results[1] then error(results[2], 0) end
   return table.unpack(results, 2, results.n)
 end
@@ -179,9 +179,9 @@ end
 ---@return any value  the bound value, or `nil`
 function M.ambient(key)
   if key == nil then
-    error(core.ArgumentError("ambient expects a key that is not nil"), 2)
+    error(core.ArgumentError("reactor.ambient: expects a key that is not nil"), 2)
   end
-  local node = context.current_task("ambient").ambient
+  local node = context.current_computation("reactor.ambient").ambient
   while node do
     if node.key == key then return node.value end
     node = node.parent
@@ -199,11 +199,11 @@ end
 ---@param seconds number  finite and not negative; 0 yields to the other ready coroutines
 function M.sleep(seconds)
   if type(seconds) ~= "number" or not (seconds >= 0) or seconds == math.huge then
-    error(core.ArgumentError(("invalid duration %s: expected a finite number of seconds >= 0")
+    error(core.ArgumentError(("reactor.sleep: invalid duration %s: expected a finite number of seconds >= 0")
       :format(tostring(seconds))), 2)
   end
-  local task = context.current_task("sleep")
-  local reactor = task.reactor
+  local computation = context.current_computation("reactor.sleep")
+  local reactor = computation.reactor
   context.suspend(function(wake)
     local timer = reactor:_add_timer(reactor:now() + seconds, wake)
     return function() reactor:_cancel_timer(timer) end
@@ -233,9 +233,9 @@ end
 ---@param ... hecate.reactor.Future  the futures to wait for
 ---@return any ...  the first value of each future, in argument order
 function M.join(...)
-  context.current_task("join")
+  context.current_computation("reactor.join")
   local futures = table.pack(...)
-  for i = 1, futures.n do require_future("join", futures[i]) end
+  for i = 1, futures.n do require_future("reactor.join", futures[i]) end
   while true do
     local pending = false
     for i = 1, futures.n do
@@ -302,9 +302,9 @@ end
 ---@return integer index  the position of the selected item
 ---@return any value  its value
 function M.select(...)
-  context.current_task("select")
+  context.current_computation("reactor.select")
   local items = table.pack(...)
-  if items.n == 0 then error(core.ArgumentError("select expects at least one future"), 2) end
+  if items.n == 0 then error(core.ArgumentError("reactor.select: expects at least one future"), 2) end
   for i = 1, items.n do require_selectable(items[i]) end
   while true do
     for i = 1, items.n do
@@ -328,7 +328,7 @@ function M.select(...)
     if tag == HANDOFF then
       cancel_futures(items)
       if status == false then error(core.ClosedChannelError({
-        message = "the channel is closed", context = { channel = items[index].channel },
+        message = "reactor.select: the channel is closed", context = { channel = items[index].channel },
       }), 0) end
       return index, value
     end
@@ -348,16 +348,16 @@ end
 ---@return any ...  the results of `fn`
 function M.deadline(limit, fn, ...)
   if type(fn) ~= "function" then
-    error(core.ArgumentError(("deadline expects a function, got %s"):format(type(fn))), 2)
+    error(core.ArgumentError(("reactor.deadline: expects a function, got %s"):format(type(fn))), 2)
   end
-  local task = context.current_task("deadline")
+  local computation = context.current_computation("reactor.deadline")
   local at
   if type(limit) == "number" and limit == limit then
-    at = task.reactor:now() + limit
+    at = computation.reactor:now() + limit
   elseif core.is_instance_of(limit, Instant) then
     at = limit.seconds
   else
-    error(core.ArgumentError(("invalid deadline %s: expected seconds or an Instant")
+    error(core.ArgumentError(("reactor.deadline: invalid deadline %s: expected seconds or an Instant")
       :format(tostring(limit))), 2)
   end
   local args = table.pack(...)
@@ -369,7 +369,7 @@ end
 --- Raises `hecate.core.Error` if no reactor is running.
 ---@return number seconds  the clock reading
 function M.now()
-  if context.reactor == nil then error(core.Error("no reactor is running"), 2) end
+  if context.reactor == nil then error(core.Error("reactor.now: no reactor is running"), 2) end
   return context.reactor:now()
 end
 

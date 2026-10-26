@@ -5,7 +5,7 @@ package-specific context. Specialist agent: `pkg-mysql`.
 
 ## Purpose
 
-MySQL and MariaDB driver implementing the client/server protocol in Lua, with dialect detection.
+MySQL and MariaDB driver implementing the client/server protocol in Lua, reporting a descriptor of its dialect, version and capabilities.
 
 ## Read before changing anything
 

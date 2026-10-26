@@ -19,11 +19,5 @@ dependencies = {
 
 build = {
   type = "builtin",
-  modules = {
-    -- The native backend (ADR 0020): the yyjson binding and the vendored yyjson sources (C11).
-    ["hecate.json.native"] = {
-      sources = { "csrc/native.c", "csrc/vendor/yyjson.c" },
-      incdirs = { "csrc" },
-    },
-  },
+  modules = {},
 }

@@ -11,7 +11,7 @@ local N = 2000000
 local ROUNDS = 5
 
 local sink = log.MemorySink({ capacity = 16 })
-local logger = log.Logger({ level = "informational", sinks = { sink }, name = "bench", context = { service = "api" } })
+local logger = log.Logger({ severity = "informational", sinks = { sink }, name = "bench", context = { service = "api" } })
 
 local function run(label, call, count)
   count = count or N
@@ -25,7 +25,7 @@ local function run(label, call, count)
   print(string.format("%-40s %7.0f ns/call (best of %d rounds)", label, best / count * 1e9, ROUNDS))
 end
 
-run("disabled call (debug < threshold)", function() logger:debug("hidden", { id = 1 }) end)
+run("disabled call (debug less urgent than informational)", function() logger:debug("hidden", { id = 1 }) end)
 run("enabled call, no fields", function() logger:informational("shown") end)
 run("enabled call, 3 fields", function() logger:informational("shown", { id = 1, route = "/x", ms = 4 }) end)
 local child = logger:with_context({ request = "r-1" })

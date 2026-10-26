@@ -101,7 +101,7 @@ function Gate:close() self.inner:close() end
 function Gate:is_closed() return self.inner:is_closed() end
 
 --- Starts `fn` in a coroutine and returns a table that holds its outcome once its future is done.
-local function spawn(fn)
+local function fork_job(fn)
   local job = {}
   job.future = reactor.fork(function()
     job.ok, job.value = pcall(fn)
@@ -138,7 +138,7 @@ function T:test_a_write_cancelled_midway_closes_the_stream()
     local gate
     local client = dial(listener:local_address().port, function(raw) gate = new_gate(raw) return gate end)
     gate.blocked = true
-    local writer = spawn(function() client:write("hello") end)
+    local writer = fork_job(function() client:write("hello") end)
     gate.parked:receive() -- the writer is inside the inner write: the session holds its bytes
     writer.future:cancel()
     writer.future:value()
@@ -160,10 +160,10 @@ function T:test_a_write_cancelled_while_waiting_for_its_turn_changes_nothing()
     local gate
     local client = dial(listener:local_address().port, function(raw) gate = new_gate(raw) return gate end)
     gate.blocked = true
-    local first = spawn(function() client:write("first;") end)
+    local first = fork_job(function() client:write("first;") end)
     gate.parked:receive() -- the first write holds the send mutex, blocked in the inner write
     local started = reactor.Channel(1)
-    local second = spawn(function()
+    local second = fork_job(function()
       started:send(true)
       client:write("second;")
     end)
@@ -199,8 +199,8 @@ function T:test_concurrent_large_writes_arrive_intact_and_unmixed()
       end,
     })
     local client <close> = dial(listener:local_address().port)
-    local a = spawn(function() client:write(("a"):rep(size)) end)
-    local b = spawn(function() client:write(("b"):rep(size)) end)
+    local a = fork_job(function() client:write(("a"):rep(size)) end)
+    local b = fork_job(function() client:write(("b"):rep(size)) end)
     reactor.join(a.future, b.future)
     self:assert_true(a.ok and b.ok, tostring(a.value) .. tostring(b.value))
     outcome.future:value()
@@ -226,9 +226,9 @@ function T:test_a_reader_is_not_held_up_by_a_writer_blocked_in_back_pressure()
     local gate
     local client = dial(listener:local_address().port, function(raw) gate = new_gate(raw) return gate end)
     gate.blocked = true
-    local writer = spawn(function() client:write("blocked") end)
+    local writer = fork_job(function() client:write("blocked") end)
     gate.parked:receive() -- the writer holds the send mutex and cannot finish
-    local reader = spawn(function() return client:read() end)
+    local reader = fork_job(function() return client:read() end)
     -- The guard turns a regression (the reader queued behind the writer) into a failure, not a hang.
     local ok, failure = pcall(reactor.deadline, 5, function() return reader.future:value() end)
     self:assert_true(ok, tostring(failure))
@@ -259,8 +259,8 @@ function T:test_one_reader_and_one_writer_share_a_stream_with_a_peer_that_reads_
       end,
     })
     local client <close> = dial(listener:local_address().port)
-    local writer = spawn(function() client:write(("c"):rep(size)) end)
-    local reader = spawn(function()
+    local writer = fork_job(function() client:write(("c"):rep(size)) end)
+    local reader = fork_job(function()
       local got = 0
       while got < size do got = got + #assert(client:read()) end
       return got
@@ -288,7 +288,7 @@ function T:test_a_cancellation_while_sending_an_alert_is_not_turned_into_a_tls_e
     local gate
     local client = dial(listener:local_address().port, function(raw) gate = new_gate(raw) return gate end)
     gate.blocked = true
-    local reader = spawn(function() return client:read() end)
+    local reader = fork_job(function() return client:read() end)
     gate.parked:receive() -- the record failed to decrypt: its alert is being sent and cannot finish
     reader.future:cancel()
     reader.future:value()
@@ -308,7 +308,7 @@ function T:test_a_shutdown_cancelled_midway_closes_the_stream()
     local gate
     local client = dial(listener:local_address().port, function(raw) gate = new_gate(raw) return gate end)
     gate.blocked = true
-    local closing = spawn(function() client:shutdown() end)
+    local closing = fork_job(function() client:shutdown() end)
     gate.parked:receive() -- close_notify is queued and being sent
     closing.future:cancel()
     closing.future:value()
@@ -362,7 +362,7 @@ function T:test_two_readers_on_one_stream_are_refused()
       started:send(true)
       return client:read()
     end
-    local first, second = spawn(reader), spawn(reader)
+    local first, second = fork_job(reader), fork_job(reader)
     started:receive()
     started:receive() -- both are at their read; the data is only sent now
     release:send(true)
@@ -413,8 +413,8 @@ function T:test_read_validates_its_argument_like_a_tcp_stream()
       self:assert_true(core.is_instance_of(err, core.ArgumentError), tostring(err))
       local expected = self:assert_error(function() tcp:read(bad) end)
       -- Same message prefix as the TCP stream.
-      self:assert_true(tostring(err):find("read expects a positive integer", 1, true) ~= nil, tostring(err))
-      self:assert_true(tostring(expected):find("read expects a positive integer", 1, true) ~= nil, tostring(expected))
+      self:assert_true(tostring(err):find("read: expects a positive integer", 1, true) ~= nil, tostring(err))
+      self:assert_true(tostring(expected):find("read: expects a positive integer", 1, true) ~= nil, tostring(expected))
     end
     tcp:close()
     client:close()

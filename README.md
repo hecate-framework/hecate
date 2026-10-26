@@ -55,7 +55,7 @@ together: one version number, one set of conventions, one vocabulary, one CLI.
 3. **Object-oriented, simple by choice.** Classes, traits and interfaces for serious
    code; lightweight route modules remain available for small services. Both compile to
    the same structures.
-4. **Transparent concurrency.** Handlers read like sequential code. I/O suspends the
+4. **Transparent concurrency.** Actions read like sequential code. I/O suspends the
    current coroutine; explicit primitives (`fork`, `join`, `select`, `deadline`) exist
    for intended concurrency.
 5. **Academic vocabulary.** Names follow the literature (future, reactor, refinement
@@ -74,11 +74,10 @@ See [docs/vision.md](docs/vision.md) and the target
 |---|---|
 | Foundation | [`core`](packages/core) |
 | Runtime | [`reactor`](packages/reactor) · [`net`](packages/net) · [`json`](packages/json) · [`log`](packages/log) |
-| Protocol | [`http`](packages/http) · [`schema`](packages/schema) · [`router`](packages/router) |
-| Framework | [`container`](packages/container) · [`config`](packages/config) · [`kernel`](packages/kernel) · [`openapi`](packages/openapi) |
-| Data | [`sql`](packages/sql) · [`query`](packages/query) · [`postgresql`](packages/postgresql) · [`mysql`](packages/mysql) · [`sqlite`](packages/sqlite) · [`redis`](packages/redis) · [`migration`](packages/migration) · [`orm`](packages/orm) |
+| Protocol | [`http`](packages/http) · [`schema`](packages/schema) · [`router`](packages/router) · [`websocket`](packages/websocket) |
+| Framework | [`container`](packages/container) · [`config`](packages/config) · [`kernel`](packages/kernel) · [`openapi`](packages/openapi) · [`security`](packages/security) · [`template`](packages/template) |
+| Data | [`sql`](packages/sql) · [`query`](packages/query) · [`postgresql`](packages/postgresql) · [`mysql`](packages/mysql) · [`sqlite`](packages/sqlite) · [`redis`](packages/redis) · [`mongodb`](packages/mongodb) · [`sqlserver`](packages/sqlserver) · [`migration`](packages/migration) · [`orm`](packages/orm) |
 | Tooling | [`cli`](packages/cli) · [`test`](packages/test) · [`doc`](packages/doc) |
-| Planned | [`security`](packages/security) · [`mongodb`](packages/mongodb) · [`sqlserver`](packages/sqlserver) · [`template`](packages/template) · [`websocket`](packages/websocket) |
 | Meta | [`hecate`](packages/hecate): the standard edition in one dependency |
 
 The full catalogue, with status and dependencies, is in [packages/README.md](packages/README.md).

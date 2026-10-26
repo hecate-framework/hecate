@@ -30,7 +30,7 @@ Driver-agnostic interfaces (object-model interfaces, checked for conformance):
   read-only flag; nested `transaction(fn)` calls create savepoints.
 - `Pool`: bounded connection pool with acquisition deadline, health checks, maximum
   lifetime and idle time; `pool:with(fn)` lends a connection for the duration of `fn`.
-- `ResultSet`: iteration over tuples, column metadata, affected count, last inserted
+- `ResultSet`: iteration over tuples, attribute metadata, affected count, last inserted
   identifier when the database supports it.
 
 Parameters are always bound (never interpolated). The placeholder syntax exposed to
@@ -47,14 +47,27 @@ result tuples).
 
 ### Errors
 
-`DatabaseError` subclasses: `ConnectionError`, `IntegrityViolation`
-(unique, foreign key, not null, check), `SerializationFailure`, `DeadlockDetected`,
-`SyntaxError`, ... with SQLSTATE and the driver's native code.
+`DatabaseError` subclasses: `ConnectionError`, `IntegrityViolationError`
+(unique, foreign key, not null, check), `SerializationFailureError`, `DeadlockDetectedError`,
+`SyntaxError`, ... with SQLSTATE and the driver's native code. Like every error class,
+each ends with `Error` and its `code` is the full class name (`hecate.sql.IntegrityViolationError`).
 
 ### Instrumentation
 
-Every query emits a structured log event (debug level) and timing metrics; slow-query
+Every query emits a structured log event (debug severity) and timing metrics; slow-query
 threshold configurable.
+
+### Translation to a dialect
+
+`sql` depends on `query` (not the reverse): it holds the translators from the expression tree
+to a dialect (`hecate.sql.dialect.<name>`: PostgreSQL, MySQL, MariaDB, SQLite, SQL Server
+later), producing SQL text plus bound parameters. A driver does transport only: it reports a
+descriptor (dialect name, server version, capabilities such as `RETURNING`; this is what the
+`mysql` dialect detection becomes) and sends final text and parameters, whether the driver is
+written in Lua or native. `connection:execute(expression)` selects the translator from the
+descriptor, translates, then sends. The translation layer is an interface whose first
+implementations are SQL; a cross-paradigm query language for Redis or MongoDB is not
+promised ([ADR 0026](../adr/0026-query-sql-layering.md), OQ-58 resolved).
 
 ## `hecate.query` — query builder
 
@@ -71,8 +84,8 @@ local q = users
   :limit(20)
 ```
 
-- Builds an immutable expression tree; rendering produces SQL plus bound parameters for
-  a given **dialect** (PostgreSQL, MySQL, MariaDB, SQLite, SQL Server later).
+- Builds an immutable expression tree that knows no dialect and no data source; `query`
+  depends on `core` only. Rendering and execution belong to `sql` (below).
 - Supports joins, aggregates, grouping, sub-queries, common table expressions,
   `INSERT`/`UPDATE`/`DELETE` with `RETURNING` where supported.
 - Raw SQL fragments are allowed but must carry bound parameters.
@@ -88,10 +101,12 @@ Status: [ADR 0011](../adr/0011-orm-data-mapper.md) (Proposed; spike OQ-18 decide
 - **Identity map** per unit of work.
 - **Mapping metadata** declared next to the entity class (`relation`, `attribute`,
   associations: `belongs_to`, `has_one`, `has_many`, `many_to_many`), validated at boot
-  against the schema produced by migrations where possible.
+  against the database schema produced by migrations where possible.
 - **Loading**: explicit eager loading (`with { "orders" }`) is the default
-  recommendation; lazy loading suspends transparently, and the ORM warns in development
-  when it detects N+1 query patterns.
+  recommendation; lazy loading suspends transparently (accessing a relation that the
+  first query did not load runs one more query), and the ORM warns in development when it
+  detects an N+1 pattern (one extra query per loaded tuple). There is no promise of
+  freedom from N+1 by default.
 - **Repositories**: generic repository with typed finders; custom repositories derive
   from it.
 - Entities can expose their representation schema for HTTP use, but the ORM never
@@ -101,8 +116,9 @@ Status: [ADR 0011](../adr/0011-orm-data-mapper.md) (Proposed; spike OQ-18 decide
 
 - Versioned migrations stored in the project (`migrations/`), each with `up` and
   `down`. Identifiers sortable by time.
-- Expressed with a schema-definition API (create relation, add attribute, index,
-  constraint) rendered per dialect, plus raw SQL when needed.
+- Expressed with a database-schema definition API (create relation, add attribute, index,
+  constraint) rendered per dialect, plus raw SQL when needed. The API is owned by `query`
+  (rendered by the `sql` translators) and only sequenced and recorded by `migration` ([OQ-58](../open-questions.md)).
 - Each migration runs in a transaction when the database supports transactional DDL.
 - Applied migrations are recorded in a dedicated relation; checksums detect edited
   migrations.

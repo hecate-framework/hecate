@@ -1,6 +1,6 @@
 ---
 title: La concurrence dans hecate
-description: Comment les calculs lancés, les futures et les scopes s'articulent.
+description: Comment les calculs lancés, les futures et les portées s'articulent.
 hecate: "0.x"
 lua: "5.5"
 order: 2

@@ -85,7 +85,7 @@ end
 ---@return hecate.core.NetworkError
 local function closed_error(operation)
   return reactor.TransportError({
-    message = operation .. ": EBADF: the TLS stream is closed",
+    message = "net.TlsStream." .. operation .. ": EBADF: the TLS stream is closed",
     context = { operation = operation, errno = "EBADF" },
   })
 end
@@ -219,7 +219,7 @@ function TlsStream:handshake()
   local ok, failure = pcall(self._handshake, self)
   if not ok then
     self:close()
-    error(failure, 0)
+    error(errors.qualify(failure, "net.TlsStream.handshake"), 0)
   end
 end
 
@@ -234,14 +234,14 @@ end
 ---@return string?
 function TlsStream:read(max)
   if max ~= nil and (math.type(max) ~= "integer" or max < 1) then
-    error(core.ArgumentError(("read expects a positive integer, got %s"):format(tostring(max))), 2)
+    error(core.ArgumentError(("net.TlsStream.read: expects a positive integer, got %s"):format(tostring(max))), 2)
   end
   self:_check("read")
-  if self._reading then error(core.Error("read: another coroutine is already reading this stream"), 2) end
+  if self._reading then error(core.Error("net.TlsStream.read: another coroutine is already reading this stream"), 2) end
   self._reading = true
   local ok, result = pcall(self._read, self, max)
   self._reading = false
-  if not ok then error(result, 0) end
+  if not ok then error(errors.qualify(result, "net.TlsStream.read"), 0) end
   return result
 end
 
@@ -279,7 +279,7 @@ function TlsStream:write(data)
   self:_check("write") -- closed while waiting for the turn
   if self._shut then
     error(reactor.TransportError({
-      message = "write: EPIPE: the TLS stream was shut down",
+      message = "net.TlsStream.write: EPIPE: the TLS stream was shut down",
       context = { operation = "write", errno = "EPIPE" },
     }), 0)
   end
@@ -287,7 +287,7 @@ function TlsStream:write(data)
   local ok, failure = pcall(self._write, self, data)
   if not ok then
     if self._wrote then self:close() end
-    error(failure, 0)
+    error(errors.qualify(failure, "net.TlsStream.write"), 0)
   end
 end
 
@@ -324,7 +324,7 @@ function TlsStream:shutdown()
   local ok, failure = pcall(self._shutdown_locked, self)
   if not ok then
     self:close()
-    error(failure, 0)
+    error(errors.qualify(failure, "net.TlsStream.shutdown"), 0)
   end
 end
 
@@ -378,7 +378,7 @@ function TlsStream:peer_certificate() return self._session:peer_certificate() en
 ---@return hecate.reactor.SocketAddress
 function TlsStream:peer_address()
   local inner = self._inner --[[@as table]]
-  if type(inner.peer_address) ~= "function" then error(core.Error("the inner stream has no peer address"), 2) end
+  if type(inner.peer_address) ~= "function" then error(core.Error("net.TlsStream.peer_address: the inner stream has no peer address"), 2) end
   return inner:peer_address()
 end
 
@@ -386,7 +386,7 @@ end
 ---@return hecate.reactor.SocketAddress
 function TlsStream:local_address()
   local inner = self._inner --[[@as table]]
-  if type(inner.local_address) ~= "function" then error(core.Error("the inner stream has no local address"), 2) end
+  if type(inner.local_address) ~= "function" then error(core.Error("net.TlsStream.local_address: the inner stream has no local address"), 2) end
   return inner:local_address()
 end
 
@@ -395,7 +395,7 @@ end
 ---@param enabled boolean
 function TlsStream:set_nodelay(enabled)
   local inner = self._inner --[[@as table]]
-  if type(inner.set_nodelay) ~= "function" then error(core.Error("the inner stream has no set_nodelay"), 2) end
+  if type(inner.set_nodelay) ~= "function" then error(core.Error("net.TlsStream.set_nodelay: the inner stream has no set_nodelay"), 2) end
   inner:set_nodelay(enabled)
 end
 

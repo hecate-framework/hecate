@@ -20,7 +20,7 @@
 
 ## Responsibilities
 
-- connections executed on worker threads without blocking the reactor
+- connections executed on libuv thread-pool threads without blocking the reactor
 - prepared statements, transactions, WAL mode defaults
 - in-memory databases for tests
 

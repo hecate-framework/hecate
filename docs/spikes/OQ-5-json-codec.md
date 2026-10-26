@@ -92,6 +92,9 @@ compare it on this corpus. Either way, `hecate.json` needs a depth limit, an exp
 
 ## Addendum: encoder candidates (owner decision: yyjson decodes, a Lua library encodes)
 
+*Later decision: ADR 0020 now chooses a Rust encoder on `serde_json` (see the next addendum and
+[OQ-52](OQ-52-json-encoder.md)); the Lua encoder compared below was not built.*
+
 Pure-Lua encoders on a 15 kB document, median of 11 runs of 200 encodes (lua-cjson, C,
 for reference):
 

@@ -25,7 +25,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2
         with:
-          # Internal links only on pull requests; external links are checked nightly
-          # once nightly.yml exists (see docs/architecture/automation.md).
+          # Internal links only; external links are not checked yet (the nightly check is not written,
+          # see docs/architecture/automation.md).
           args: --config lychee.toml --offline --no-progress --include-fragments "./**/*.md"
           fail: true

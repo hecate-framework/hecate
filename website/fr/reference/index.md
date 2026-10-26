@@ -17,5 +17,6 @@ chaque paquet documenté.
   signaux, processus, système de fichiers, TCP, UDP, tubes et résolution de noms.
 - [`hecate.net`](net/index.md) : flux, TCP, UDP, tubes, résolution de noms, TLS et couche
   tamponnée.
+- [`hecate.json`](json/index.md) : encodage, décodage, marqueurs et erreurs.
 
 Le [glossaire](glossary.md) définit le vocabulaire utilisé partout.

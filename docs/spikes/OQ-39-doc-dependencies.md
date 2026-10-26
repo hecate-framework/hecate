@@ -4,7 +4,7 @@ Status: **partial** (Markdown, syntax highlighting, search, OpenAPI and WebAssem
 on Linux x86_64; macOS and Windows read from build requirements only; no dependency added to
 any package or rockspec). Recommendation submitted to the owner; the decision is theirs.
 Nothing in this report promotes or changes an ADR. Proposal: [ADR 0022](../adr/0022-doc-dependencies.md)
-(Proposed).
+(since accepted by the owner).
 
 ## Question
 
@@ -30,7 +30,7 @@ ts-doc,wasm-doc,wasm-lua,oas-test,size-*}`. Network: `github.com` (git clone and
 download counts or reverse dependencies) and `api.github.com` for repositories outside the
 session allowlist (release asset lists were probed with `HEAD` requests instead).
 
-Versions: comrak 0.56.0 (BSD-2-Clause), cmark-gfm `27d942c` of 2026-09-28 (BSD-2-Clause, with the
+Versions (comrak 0.56.0 was measured; `packages/doc/native` pins `0.52` in `Cargo.toml`, as `Cargo.lock` records): comrak 0.56.0 (BSD-2-Clause), cmark-gfm `27d942c` of 2026-09-28 (BSD-2-Clause, with the
 MIT-licensed parts of cmark), pulldown-cmark 0.13.4 (MIT), md4c `60e8065` of 2026-10-13 (MIT),
 `cmark` rock 0.31.1 (jgm/cmark-lua, BSD-2-Clause), lunamark `708c670` of 2024-07-01 (MIT, needs LPeg),
 syntect 5.3.0 (MIT) with two-face 0.5.2 (MIT OR Apache-2.0), tree-sitter-highlight 0.27.1 with

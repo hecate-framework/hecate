@@ -53,7 +53,7 @@ end
 
 function T:test_a_value_that_cannot_be_encoded_still_yields_a_valid_line()
   local logger, lines = new_logger()
-  logger:error("bad", { handler = function() end })
+  logger:error("bad", { callback = function() end })
   local object = json.decode(lines[1])
   self:assert_equal("bad", object.message)
   self:assert_not_nil(object.encoding_error)

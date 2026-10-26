@@ -3,7 +3,7 @@
 > Hecate is a modular, contract-first web API framework for Lua 5.5, with its own
 > asynchronous runtime (libuv via luv), HTTP stack, schemas, OpenAPI 3.1 generation,
 > test framework, documentation generator, database drivers, ORM and CLI. Status:
-> specification stage, no implementation yet.
+> early implementation (foundations written, other packages still specifications).
 
 ## Start here
 
@@ -23,6 +23,7 @@
 - [HTTP and routing](docs/architecture/http-and-routing.md): server, router, kernel, filters
 - [Schemas and contracts](docs/architecture/schemas-and-contracts.md): refinement types, OpenAPI
 - [Data access](docs/architecture/data-access.md): SQL interfaces, drivers, query builder, ORM
+- [Logging](docs/architecture/logging.md): severities, loggers, records, sinks, ambient context
 - [Testing](docs/architecture/testing.md), [Documentation](docs/architecture/documentation.md)
 - [CLI and packaging](docs/architecture/cli-and-packaging.md), [Versioning and distribution](docs/architecture/versioning-and-distribution.md)
 - [Coding standards](docs/architecture/coding-standards.md), [Automation](docs/architecture/automation.md), [AI-assisted development](docs/architecture/ai-assisted-development.md)
@@ -34,6 +35,9 @@
 - [Connect and serve over TCP](website/en/how-to/connect-and-serve-over-tcp.md): connect, accept loop, reader and writer, half-close, name resolution
 - [TLS client and server](website/en/how-to/tls-client-and-server.md): system trust store, private authority, two-step accept, mutual TLS, error reasons
 - [Deadlines and cancellation on streams](website/en/how-to/deadlines-and-cancellation.md): what each cancelled operation leaves behind
+- [Encode and decode JSON](website/en/how-to/encode-and-decode-json.md): integers and floats apart, null and empty arrays, decode errors
+- [Structured logging](website/en/how-to/log-structured-records.md): keep a context on a logger, hide secrets, limit the volume
+- [Measure performance](website/en/how-to/measure-performance.md): run the TCP echo benchmark, read its figures, compare with a Git reference
 - [UDP, Unix sockets, named pipes and DNS](website/en/how-to/udp-pipes-and-dns.md): the transports other than TCP
 - [Run child processes and pass connections between processes](website/en/how-to/run-processes-and-pass-connections.md): `run_process`, `spawn`, the message pipe
 - [The transport model](website/en/explanation/transport-model.md): streams, back-pressure, half-close, buffering, cancellation rules
@@ -55,19 +59,19 @@
 - [hecate-schema](packages/schema/README.md): Refinement types, composition, coercion and validation with JSON Pointer error paths; emits JSON Schema 2020-12.
 - [hecate-config](packages/config/README.md): Layered configuration (defaults, environment files, environment variables, secrets) validated by schemas at boot.
 - [hecate-container](packages/container/README.md): Inversion-of-control container: bindings, lifetimes (singleton, scoped, transient), constructor injection, cycle detection at boot.
-- [hecate-kernel](packages/kernel/README.md): The application: modules, controllers, route modules, filters (chain of responsibility), problem details, lifecycle, workers and graceful shutdown.
+- [hecate-kernel](packages/kernel/README.md): The application: feature modules, controllers, route modules, filters (chain of responsibility), problem details, lifecycle, workers and graceful shutdown.
 - [hecate-openapi](packages/openapi/README.md): OpenAPI 3.1 document assembly from the route table, schemas and project settings; served endpoint, export, lint and breaking-change diff.
 - [hecate-cli](packages/cli/README.md): The `hecate` command: toolchains, projects, dependencies (LuaRocks), development server, tests, contracts, documentation, migrations, scaffolding, packaging.
 - [hecate-doc](packages/doc/README.md): Documentation generator and static site builder with an MDN-like theme: guides in Markdown, code reference from LuaLS annotations, API reference from OpenAPI, configuration and error-code references, locales, search.
 - [hecate-test](packages/test/README.md): xUnit test framework running inside the reactor: cases, suites, fixtures, assertions, in-process HTTP client, contract conformance, property-based testing, coverage.
 - [hecate](packages/hecate/README.md): Meta-rock `hecate`: depends on the standard edition and provides the `hecate` meta-module re-exporting the framework surface.
-- [hecate-migration](packages/migration/README.md): Versioned, reversible schema migrations with checksums and CLI integration.
-- [hecate-mysql](packages/mysql/README.md): MySQL and MariaDB driver implementing the client/server protocol in Lua, with dialect detection.
-- [hecate-orm](packages/orm/README.md): Object-relational mapper: Data Mapper with Unit of Work, Identity Map, associations and repositories.
+- [hecate-migration](packages/migration/README.md): Versioned, reversible database schema migrations with checksums and CLI integration.
+- [hecate-mysql](packages/mysql/README.md): MySQL and MariaDB driver implementing the client/server protocol in Lua, reporting a descriptor of its dialect, version and capabilities.
+- [hecate-orm](packages/orm/README.md): Object-relational mapper: data mapper with unit of work, identity map, associations and repositories.
 - [hecate-postgresql](packages/postgresql/README.md): PostgreSQL driver implementing the frontend/backend protocol v3 in Lua.
-- [hecate-query](packages/query/README.md): Query builder using relational-algebra vocabulary (projection, selection, join, rename, union) rendered per SQL dialect.
+- [hecate-query](packages/query/README.md): Query builder using relational-algebra vocabulary (projection, selection, join, rename, union) and the database-schema definition API, independent of any dialect.
 - [hecate-redis](packages/redis/README.md): Redis client (RESP3 with RESP2 fallback), compatible with Valkey and KeyDB.
-- [hecate-sql](packages/sql/README.md): Driver-agnostic SQL interfaces: drivers, connections, prepared statements, transactions and savepoints, connection pool, type mapping, instrumentation.
+- [hecate-sql](packages/sql/README.md): Driver-agnostic SQL interfaces (drivers, connections, prepared statements, transactions and savepoints, connection pool, type mapping, instrumentation) and the translators from the query expression tree to each SQL dialect.
 - [hecate-sqlite](packages/sqlite/README.md): SQLite driver: C binding to the vendored amalgamation, executed on the libuv thread pool.
 - [hecate-websocket](packages/websocket/README.md): WebSocket protocol (RFC 6455) server and client integrated with the kernel.
 - [hecate-security](packages/security/README.md): Authentication (bearer tokens, JWT, sessions), authorisation policies, password hashing.

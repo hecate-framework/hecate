@@ -402,7 +402,7 @@ function T:test_an_expired_certificate_is_rejected()
     end)
     self:assert_true(core.is_instance_of(err, net.TlsError), tostring(err))
     self:assert_true(tostring(err):lower():find("expired", 1, true) ~= nil, tostring(err))
-    self:assert_equal("expired", err.context.reason) -- the closed-trust path is the same everywhere
+    self:assert_equal("expired", err.context.reason) -- the path with only the given anchors (system_roots = false) is the same everywhere
     outcome.future:value()
   end)
 end

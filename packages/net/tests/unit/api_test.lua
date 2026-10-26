@@ -54,7 +54,7 @@ function T:test_read_validates_max_the_same_way_for_tcp_and_pipe_streams()
     for _, bad in ipairs({ 0, -1, 1.5, "8" }) do
       local err = self:assert_error(function() stream:read(bad) end)
       self:assert_true(core.is_instance_of(err, core.ArgumentError), tostring(err))
-      self:assert_true(tostring(err):find("read expects a positive integer, got", 1, true) ~= nil, tostring(err))
+      self:assert_true(tostring(err):find("read: expects a positive integer, got", 1, true) ~= nil, tostring(err))
     end
     self:assert_equal("x", stream:read(1))
   end
@@ -84,9 +84,9 @@ end
 
 function T:test_each_ergonomics_error_names_the_net_function()
   local err = self:assert_error(function() net.connect("example.org", 80, { nodelay = 1 }) end)
-  self:assert_true(tostring(err):find("connect: option nodelay must be a boolean", 1, true) ~= nil, tostring(err))
+  self:assert_true(tostring(err):find("net.connect: option nodelay must be a boolean", 1, true) ~= nil, tostring(err))
   err = self:assert_error(function() net.listen("example.org", 80, { colour = "red" }) end)
-  self:assert_true(tostring(err):find("listen: unknown option colour (options: ", 1, true) ~= nil, tostring(err))
+  self:assert_true(tostring(err):find("net.listen: unknown option colour (options: ", 1, true) ~= nil, tostring(err))
 end
 
 return T

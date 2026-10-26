@@ -60,7 +60,7 @@ end
 ---@return hecate.doc.BuildReport
 function M.build(options)
   if type(options) ~= "table" or type(options.out) ~= "string" or options.out == "" then
-    error(core.ArgumentError("build expects options with an `out` directory"), 2)
+    error(core.ArgumentError("doc.build: expects options with an `out` directory"), 2)
   end
   local out = options.out:gsub("/+$", "")
   local site = Site(options):load()

@@ -49,7 +49,7 @@ pub struct Section {
 
 /// How a document is rendered.
 pub struct Config {
-    /// Titles of the callouts that have none of their own: note, tip, warning, caution, important.
+    /// Titles of the callouts that have none of their own: note, tip, warning, danger (the GFM `CAUTION` alert), important.
     pub labels: [Option<String>; 5],
     /// Remove a leading level-1 heading and return its text as the title.
     pub strip_title: bool,

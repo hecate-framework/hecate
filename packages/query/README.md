@@ -1,6 +1,6 @@
 # `hecate-query`
 
-> Query builder using relational-algebra vocabulary (projection, selection, join, rename, union) rendered per SQL dialect.
+> Query builder using relational-algebra vocabulary (projection, selection, join, rename, union) and the database-schema definition API, independent of any dialect.
 
 | | |
 |---|---|
@@ -10,8 +10,8 @@
 | Roadmap phase | 4 |
 | Status | specified — no code yet |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |
-| Depends on | [`core`](../core), [`sql`](../sql) |
-| Used by | `migration`, `orm` |
+| Depends on | [`core`](../core) |
+| Used by | `migration`, `orm`, `sql` |
 | Native code | none |
 | Specification | [data-access.md](../../docs/architecture/data-access.md) |
 | Decisions | [ADR 0004](../../docs/adr/0004-academic-vocabulary.md), [ADR 0011](../../docs/adr/0011-orm-data-mapper.md) |
@@ -21,13 +21,13 @@
 ## Responsibilities
 
 - immutable query values
-- dialect renderers
-- schema-definition API used by `migration`
+- the abstract, dialect-free API: expression tree for queries, data manipulation and the database-schema definition (DDL) API used by `migration`
 - relational algebra ↔ SQL correspondence table in docs
 
 ## Non-goals
 
 - object mapping (see `orm`)
+- rendering to a dialect and executing (see `sql`)
 
 ## Standards and references
 

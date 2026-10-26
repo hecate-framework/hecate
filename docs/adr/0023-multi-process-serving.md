@@ -77,12 +77,12 @@ What follows from the measurements:
      - `reactor.spawn(program, args, options)`: a long-lived child as a `Process` (`:wait()`,
        `:kill(signal)`, `pid`), with environment and standard stream inheritance, unlike
        `run_process`, which runs a child to completion.
-     - `reactor.ipc`: a framed message channel between a parent and its child, with optional
+     - `reactor.ipc`: a framed message pipe between a parent and its child, with optional
        handle passing. `Peer:send(message, handle?)` and `Peer:receive() → message, handle?`
        (a `TcpStream` can be passed); a child reaches its parent with `reactor.ipc.parent()`.
        Messages are strings: serialising them is the caller's concern (`reactor` stays below
        `json`).
-     - `reactor.tcp_listen(host, port, { reuseport = true })`.
+     - `reactor.listen_tcp(host, port, { reuseport = true })`.
    - `hecate.kernel` owns the policy: the **supervisor** in the primary (start, readiness, restart
      with exponential backoff and a crash-loop limit, signals, rolling reload, graceful shutdown)
      and the **listening strategies**.
@@ -90,7 +90,7 @@ What follows from the measurements:
    operations: `supported() → boolean, reason` (can this platform run it), `prepare(endpoint)`
    (in the primary, once), `worker_listener(context) → Listener` (in the worker: where the worker
    accepts connections from), and `run(workers)` (in the primary: the dispatch loop, empty for a
-   strategy that needs none). Everything above the `Listener` (server, router, handlers) is
+   strategy that needs none). Everything above the `Listener` (server, router, actions) is
    identical for every strategy. Two implementations:
 
    | Strategy | Who accepts | Primary in the data path | Platform |
@@ -105,9 +105,9 @@ What follows from the measurements:
    `reactor` primitives, behind capability queries, never in the common path. The `reuseport` path
    has no IPC in the data path and no dispatch loop. A change to a common abstraction needs the
    Linux benchmark of the verification section not to regress.
-5. **The control channel is the same on every platform and is not in the data path.** Each worker
-   has an IPC channel to the primary. It carries `ready`, `stop(deadline)`, `reload` and counters.
-   A worker that sees the channel close (the primary died) drains and exits, which gives
+5. **The control message pipe is the same on every platform and is not in the data path.** Each worker
+   has a message pipe to the primary. It carries `ready`, `stop(deadline)`, `reload` and counters.
+   A worker that sees the message pipe close (the primary died) drains and exits, which gives
    orphan protection without `PR_SET_PDEATHSIG`. The primary never signals workers directly: it
    sends `stop`, then kills the process after the deadline, which behaves the same on Windows where
    POSIX signals do not exist.

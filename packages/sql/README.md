@@ -1,6 +1,6 @@
 # `hecate-sql`
 
-> Driver-agnostic SQL interfaces: drivers, connections, prepared statements, transactions and savepoints, connection pool, type mapping, instrumentation.
+> Driver-agnostic SQL interfaces (drivers, connections, prepared statements, transactions and savepoints, connection pool, type mapping, instrumentation) and the translators from the query expression tree to each SQL dialect.
 
 | | |
 |---|---|
@@ -10,8 +10,8 @@
 | Roadmap phase | 4 |
 | Status | specified — no code yet |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |
-| Depends on | [`core`](../core), [`reactor`](../reactor), [`net`](../net), [`log`](../log) |
-| Used by | `migration`, `mysql`, `orm`, `postgresql`, `query`, `sqlite`, `sqlserver` |
+| Depends on | [`core`](../core), [`reactor`](../reactor), [`net`](../net), [`log`](../log), [`query`](../query) |
+| Used by | `migration`, `mysql`, `orm`, `postgresql`, `sqlite`, `sqlserver` |
 | Native code | none |
 | Specification | [data-access.md](../../docs/architecture/data-access.md) |
 | Decisions | [ADR 0014](../../docs/adr/0014-wire-protocol-drivers-in-lua.md) |
@@ -26,10 +26,11 @@
 - uniform placeholders translated per driver
 - `DatabaseError` hierarchy with SQLSTATE
 - instrumentation hooks (log, timing)
+- translators from the `query` expression tree to a dialect (PostgreSQL, MySQL, MariaDB, SQLite, SQL Server): submodules `hecate.sql.dialect.<name>`, selected from the descriptor (dialect name, server version, capabilities) that each driver reports; `connection:execute(expression)` translates, then sends text and bound parameters to the driver
 
 ## Non-goals
 
-- query building (see `query`)
+- building queries (see `query`); transport and wire protocols (see the drivers)
 
 ## Standards and references
 

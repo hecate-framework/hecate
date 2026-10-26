@@ -6,7 +6,7 @@
 |---|---|
 | Module | `hecate.security` |
 | Rock | `hecate-security` |
-| Layer | Framework |
+| Layer | 3 — Framework |
 | Roadmap phase | 5 |
 | Status | planned — no code yet |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |

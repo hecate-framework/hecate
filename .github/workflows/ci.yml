@@ -164,7 +164,7 @@ jobs:
             packages/doc/native/target
           key: native-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('packages/net/native/Cargo.lock', 'packages/net/native/rust-toolchain.toml', 'packages/json/native/Cargo.lock', 'packages/doc/native/Cargo.lock') }}
 
-      - name: Build native modules (Linux, macOS)
+      - name: Build the TLS native module (Linux, macOS)
         if: runner.os != 'Windows' && contains(format(' {0} ', needs.plan.outputs.packages), ' net ')
         run: |
           (cd packages/net/native && rustup toolchain install)
@@ -206,7 +206,7 @@ jobs:
           cargo fmt --check
           cargo clippy --locked --all-targets
 
-      - name: Build native modules (Windows)
+      - name: Build the TLS native module (Windows)
         if: runner.os == 'Windows' && contains(format(' {0} ', needs.plan.outputs.packages), ' net ')
         shell: pwsh
         run: |
@@ -257,7 +257,7 @@ jobs:
           cargo clippy --locked --all-targets
           cargo test --locked
 
-      - name: Lint the native module (Linux)
+      - name: Lint the TLS native module (Linux)
         if: runner.os == 'Linux' && contains(format(' {0} ', needs.plan.outputs.packages), ' net ')
         working-directory: packages/net/native
         run: |

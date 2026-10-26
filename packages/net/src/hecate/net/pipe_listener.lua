@@ -12,7 +12,11 @@ local PipeListener = core.class("PipeListener")
 --- Wraps a reactor listener, which this listener owns. Prefer `net.listen_pipe`.
 ---@param inner hecate.reactor.PipeListener
 ---@private
-function PipeListener:init(inner) self._inner = inner end
+function PipeListener:init(inner)
+  self._inner = inner
+  ---@diagnostic disable-next-line: inject-field  -- the reactor listener names this class in its messages
+  inner._label = "net.PipeListener"
+end
 
 --- Suspends until a connection arrives. Cancelling keeps the listener open and the queued
 --- connections.

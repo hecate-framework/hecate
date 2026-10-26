@@ -12,17 +12,17 @@ and Lua 5.5.
 
 ## Create a logger and write records
 
-A `Logger` has a level (default `informational`), sinks and an optional context. A call below the
-level builds no record. A sink that raises never fails the caller.
+A `Logger` has a severity (default `informational`), sinks and an optional context. A call below the
+severity builds no record. A sink that raises never fails the caller.
 
 <!-- example: packages/log/examples/hecate.log.Logger.lua -->
 ```lua
--- A logger drops what is below its level, adds its context to every record and hands the rest to
+-- A logger drops what is less urgent than its severity, adds its context to every record and hands the rest to
 -- its sinks.
 local log = require("hecate.log")
 
 local sink = log.MemorySink()
-local logger = log.Logger({ level = "informational", sinks = { sink } }):with_context({ request = "r-1" })
+local logger = log.Logger({ severity = "informational", sinks = { sink } }):with_context({ request = "r-1" })
 
 logger:debug("not recorded")
 logger:warning("slow query", { millis = 120 })
@@ -75,15 +75,15 @@ as `exempt` (default `warning`) always pass. `dropped()` counts what was discard
 ## Keep slow sinks off the request path
 
 Wrap a sink in `log.AsyncSink({ sink = ..., capacity = 1024 })`. `write` only queues the record, so
-it never suspends; a detached task writes to the target. When the queue is full the record is
+it never suspends; a detached coroutine writes to the target. When the queue is full the record is
 dropped and counted (`dropped()`): back-pressure is loss, never waiting. `flush()` suspends until
-what is queued has been written, and `close()` flushes and stops the task. Call `close()` before
-the main computation ends: a drain task still waiting for records is a deadlock to the reactor.
+what is queued has been written, and `close()` flushes and stops the coroutine. Call `close()` before
+the main computation ends: a drain coroutine still waiting for records is a deadlock to the reactor.
 
 <!-- example: packages/log/examples/hecate.log.AsyncSink.lua -->
 ```lua
--- An asynchronous sink queues records and writes them from a detached task: logging never waits
--- for the target. `close` flushes what is queued and stops the task.
+-- An asynchronous sink queues records and writes them from a detached coroutine: logging never waits
+-- for the target. `close` flushes what is queued and stops the coroutine.
 local reactor = require("hecate.reactor")
 local log = require("hecate.log")
 
