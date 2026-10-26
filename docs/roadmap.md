@@ -74,13 +74,6 @@ verified on macOS and Windows through pull requests.
       coding-standards.md (OQ-3).
 - [x] Fill the "Commands" section of `CLAUDE.md`.
 
-- [ ] Coherence fixes from the Phase 0 gate audit
-      ([findings](reviews/phase-0-coherence-findings.md), F01 to F36): make every concept carry one name
-      in every file (specifications, package READMEs, agents, tools, website in English and French,
-      public doc comments), add the ten proposed glossary entries (ADR 0004) with their French terms,
-      and fix the stale statements. The findings that need an owner decision (F06 and F16 in part, F07,
-      F12, F17, F19, F34) wait for the owner's answer in the `needs-decision` issue; the others are
-      small fixes.
 - [ ] **Phase 0 gate**: verification of the phase, as described in [Phase gates](#phase-gates).
 
 Exit: CI is green on all three platforms with a trivial test in every package skeleton.
