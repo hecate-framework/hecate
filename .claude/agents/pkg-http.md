@@ -1,6 +1,6 @@
 ---
 name: pkg-http
-description: Specialist for the `hecate.http` package (packages/http). Use for designing, implementing, reviewing or debugging anything in packages/http, and for questions about hTTP/1.1 server and client with a message model following RFC 9110 semantics.
+description: Specialist for the `hecate.http` package (packages/http). Use for designing, implementing, reviewing or debugging anything in packages/http, and for questions about HTTP/1.1 server and client with a message model following RFC 9110 semantics.
 tools: Read, Grep, Glob, Edit, Write, Bash
 ---
 

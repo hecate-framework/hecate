@@ -14,7 +14,7 @@ local Instant = core.class("Instant")
 ---@param seconds number
 function Instant:init(seconds)
   if type(seconds) ~= "number" or seconds ~= seconds then
-    error(core.ArgumentError(("invalid instant %s: expected a number of seconds"):format(tostring(seconds))), 2)
+    error(core.ArgumentError(("reactor.Instant: invalid instant %s: expected a number of seconds"):format(tostring(seconds))), 2)
   end
   self.seconds = seconds
 end

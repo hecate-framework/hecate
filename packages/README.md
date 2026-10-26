@@ -8,33 +8,33 @@ agent in `.claude/agents/pkg-<name>.md`.
 
 | Package | Rock | Layer | Phase | Status | Summary |
 |---|---|---|---|---|---|
-| [`core`](core) | `hecate-core` | 0 — Foundation | 1 | implemented | Object model (classes, traits, interfaces), error hierarchy, enumerations, value objects and Lua-version compatibility shims. |
-| [`json`](json) | `hecate-json` | 1 — Runtime | 1 | Lua API on two native modules | Fast, correct JSON codec (RFC 8259) with integer/float fidelity, explicit null and array markers, and precise error positions. |
-| [`log`](log) | `hecate-log` | 1 — Runtime | 1 | step | Structured logging with RFC 5424 severities, per-scope context and pluggable sinks. |
-| [`net`](net) | `hecate-net` | 1 — Runtime | 1 | in progress | TCP/UDP streams, DNS resolution, buffered readers/writers and TLS, all suspending transparently. |
-| [`reactor`](reactor) | `hecate-reactor` | 1 — Runtime | 1 | in progress | The reactor over libuv (luv): coroutine scheduler, futures, structured concurrency, synchronisation primitives, timers, signals, processes, file system. |
+| [`core`](core) | `hecate-core` | 0 — Foundation | 1 | alpha | Object model (classes, traits, interfaces), error hierarchy, enumerations, value objects and Lua-version compatibility shims. |
+| [`json`](json) | `hecate-json` | 1 — Runtime | 1 | alpha | Fast, correct JSON codec (RFC 8259) with integer/float fidelity, explicit null and array markers, and precise error positions. |
+| [`log`](log) | `hecate-log` | 1 — Runtime | 1 | alpha | Structured logging with RFC 5424 severities, per-scope context and pluggable sinks. |
+| [`net`](net) | `hecate-net` | 1 — Runtime | 1 | alpha | TCP/UDP streams, DNS resolution, buffered readers/writers and TLS, all suspending transparently. |
+| [`reactor`](reactor) | `hecate-reactor` | 1 — Runtime | 1 | alpha | The reactor over libuv (luv): coroutine scheduler, futures, structured concurrency, synchronisation primitives, timers, signals, processes, file system. |
 | [`http`](http) | `hecate-http` | 2 — Protocol | 2 | specified | HTTP/1.1 server and client with a message model following RFC 9110 semantics. |
 | [`router`](router) | `hecate-router` | 2 — Protocol | 2 | specified | Radix-tree router over URI templates (RFC 6570 level-1 subset) with 404/405 handling and reverse routing. |
 | [`schema`](schema) | `hecate-schema` | 2 — Protocol | 2 | specified | Refinement types, composition, coercion and validation with JSON Pointer error paths; emits JSON Schema 2020-12. |
 | [`config`](config) | `hecate-config` | 3 — Framework | 2 | specified | Layered configuration (defaults, environment files, environment variables, secrets) validated by schemas at boot. |
 | [`container`](container) | `hecate-container` | 3 — Framework | 2 | specified | Inversion-of-control container: bindings, lifetimes (singleton, scoped, transient), constructor injection, cycle detection at boot. |
-| [`kernel`](kernel) | `hecate-kernel` | 3 — Framework | 2 | specified | The application: modules, controllers, route modules, filters (chain of responsibility), problem details, lifecycle, workers and graceful shutdown. |
+| [`kernel`](kernel) | `hecate-kernel` | 3 — Framework | 2 | specified | The application: feature modules, controllers, route modules, filters (chain of responsibility), problem details, lifecycle, workers and graceful shutdown. |
 | [`openapi`](openapi) | `hecate-openapi` | 3 — Framework | 3 | specified | OpenAPI 3.1 document assembly from the route table, schemas and project settings; served endpoint, export, lint and breaking-change diff. |
 | [`cli`](cli) | `hecate-cli` | Tooling | 3 | specified | The `hecate` command: toolchains, projects, dependencies (LuaRocks), development server, tests, contracts, documentation, migrations, scaffolding, packaging. |
-| [`doc`](doc) | `hecate-doc` | Tooling | 3 | minimal slice done | Documentation generator and static site builder with an MDN-like theme: guides in Markdown, code reference from LuaLS annotations, API reference from OpenAPI, configuration and error-code references, locales, search. |
+| [`doc`](doc) | `hecate-doc` | Tooling | 3 | alpha | Documentation generator and static site builder with an MDN-like theme: guides in Markdown, code reference from LuaLS annotations, API reference from OpenAPI, configuration and error-code references, locales, search. |
 | [`test`](test) | `hecate-test` | Tooling | 3 | specified | xUnit test framework running inside the reactor: cases, suites, fixtures, assertions, in-process HTTP client, contract conformance, property-based testing, coverage. |
 | [`hecate`](hecate) | `hecate` | Meta | 3 | specified | Meta-rock `hecate`: depends on the standard edition and provides the `hecate` meta-module re-exporting the framework surface. |
-| [`migration`](migration) | `hecate-migration` | Data | 4 | specified | Versioned, reversible schema migrations with checksums and CLI integration. |
-| [`mysql`](mysql) | `hecate-mysql` | Data | 4 | specified | MySQL and MariaDB driver implementing the client/server protocol in Lua, with dialect detection. |
-| [`orm`](orm) | `hecate-orm` | Data | 4 | specified | Object-relational mapper: Data Mapper with Unit of Work, Identity Map, associations and repositories. |
+| [`migration`](migration) | `hecate-migration` | Data | 4 | specified | Versioned, reversible database schema migrations with checksums and CLI integration. |
+| [`mysql`](mysql) | `hecate-mysql` | Data | 4 | specified | MySQL and MariaDB driver implementing the client/server protocol in Lua, reporting a descriptor of its dialect, version and capabilities. |
+| [`orm`](orm) | `hecate-orm` | Data | 4 | specified | Object-relational mapper: data mapper with unit of work, identity map, associations and repositories. |
 | [`postgresql`](postgresql) | `hecate-postgresql` | Data | 4 | specified | PostgreSQL driver implementing the frontend/backend protocol v3 in Lua. |
-| [`query`](query) | `hecate-query` | Data | 4 | specified | Query builder using relational-algebra vocabulary (projection, selection, join, rename, union) rendered per SQL dialect. |
+| [`query`](query) | `hecate-query` | Data | 4 | specified | Query builder using relational-algebra vocabulary (projection, selection, join, rename, union) and the database-schema definition API, independent of any dialect. |
 | [`redis`](redis) | `hecate-redis` | Data | 4 | specified | Redis client (RESP3 with RESP2 fallback), compatible with Valkey and KeyDB. |
-| [`sql`](sql) | `hecate-sql` | Data | 4 | specified | Driver-agnostic SQL interfaces: drivers, connections, prepared statements, transactions and savepoints, connection pool, type mapping, instrumentation. |
+| [`sql`](sql) | `hecate-sql` | Data | 4 | specified | Driver-agnostic SQL interfaces (drivers, connections, prepared statements, transactions and savepoints, connection pool, type mapping, instrumentation) and the translators from the query expression tree to each SQL dialect. |
 | [`sqlite`](sqlite) | `hecate-sqlite` | Data | 4 | specified | SQLite driver: C binding to the vendored amalgamation, executed on the libuv thread pool. |
-| [`websocket`](websocket) | `hecate-websocket` | Protocol | 5 | planned | WebSocket protocol (RFC 6455) server and client integrated with the kernel. |
-| [`security`](security) | `hecate-security` | Framework | 5 | planned | Authentication (bearer tokens, JWT, sessions), authorisation policies, password hashing. |
-| [`template`](template) | `hecate-template` | Framework | 5 | planned | Compiled templates with contextual auto-escaping, for HTML and text responses. |
+| [`websocket`](websocket) | `hecate-websocket` | 2 — Protocol | 5 | planned | WebSocket protocol (RFC 6455) server and client integrated with the kernel. |
+| [`security`](security) | `hecate-security` | 3 — Framework | 5 | planned | Authentication (bearer tokens, JWT, sessions), authorisation policies, password hashing. |
+| [`template`](template) | `hecate-template` | 3 — Framework | 5 | planned | Compiled templates with contextual auto-escaping, for HTML and text responses. |
 | [`mongodb`](mongodb) | `hecate-mongodb` | Data | 5 | planned | MongoDB driver (OP_MSG + BSON) and document mapper sharing the unit-of-work vocabulary. |
 | [`sqlserver`](sqlserver) | `hecate-sqlserver` | Data | 5 | planned | Microsoft SQL Server driver implementing TDS in Lua. |
 

@@ -40,7 +40,7 @@ end
 --- Path with backslashes turned into slashes and `dir/..` segments collapsed.
 ---@param path string
 ---@return string
-function M.normalize(path)
+function M.normalise(path)
   path = path:gsub("\\", "/")
   local previous
   repeat
@@ -59,7 +59,7 @@ end
 function M.parse_hits(text, into)
   local hits = into or {}
   for raw, line in text:gmatch("([^\t\n]+)\t(%d+)") do
-    local path = M.normalize(raw)
+    local path = M.normalise(raw)
     local set = hits[path]
     if not set then set = {}; hits[path] = set end
     set[tonumber(line)] = true

@@ -12,7 +12,7 @@
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |
 | Depends on | [`core`](../core), [`reactor`](../reactor), [`net`](../net), [`json`](../json), [`log`](../log) |
 | Used by | `hecate`, `kernel`, `websocket` |
-| Native code | llhttp binding (OQ-6) |
+| Native code | llhttp binding (ADR 0019) |
 | Specification | [http-and-routing.md](../../docs/architecture/http-and-routing.md) |
 | Decisions | [ADR 0003](../../docs/adr/0003-transparent-structured-concurrency.md) |
 | Agent | [`pkg-http`](../../.claude/agents/pkg-http.md) |
@@ -20,7 +20,7 @@
 
 ## Responsibilities
 
-- server: keep-alive, pipelining safety, limits (header size, body size, timeouts), streaming bodies, graceful shutdown
+- server: keep-alive, pipelining safety, limits (field size, content size, deadlines), streamed content, graceful shutdown
 - message model: `Request`, `Response`, case-insensitive fields, content, media types, cookies
 - client: connection pool, redirects, timeouts/deadlines, TLS, streaming
 - multipart and URL-encoded content parsing

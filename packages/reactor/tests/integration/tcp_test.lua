@@ -10,7 +10,7 @@ local LOOPBACK = "127.0.0.1"
 local function with_listener(self, fn, options)
   local before = reactor.Reactor.open_handles()
   local result = reactor.run(function()
-    local listener <close> = reactor.tcp_listen(LOOPBACK, 0, options)
+    local listener <close> = reactor.listen_tcp(LOOPBACK, 0, options)
     return fn(listener, listener:local_address().port)
   end)
   self:assert_equal(before, reactor.Reactor.open_handles())
@@ -30,7 +30,7 @@ end
 --- Another process may take the port before the test connects: callers retry once on success.
 local function closed_port()
   return reactor.run(function()
-    local listener = reactor.tcp_listen(LOOPBACK, 0)
+    local listener = reactor.listen_tcp(LOOPBACK, 0)
     local port = listener:local_address().port
     listener:close()
     return port
@@ -53,7 +53,7 @@ function T:test_echo_round_trip_with_addresses()
       peer:write(data:upper())
       return peer:peer_address().ip
     end)
-    local client <close> = reactor.tcp_connect(LOOPBACK, port)
+    local client <close> = reactor.connect_tcp(LOOPBACK, port)
     client:write("hello")
     local reply = client:read()
     self:assert_equal(port, client:peer_address().port)
@@ -74,7 +74,7 @@ function T:test_read_returns_nil_at_end_of_stream_and_honours_max()
       peer:shutdown()
       done:receive() -- keeps the peer open: the end of stream comes from the half-close
     end)
-    local client <close> = reactor.tcp_connect(LOOPBACK, port)
+    local client <close> = reactor.connect_tcp(LOOPBACK, port)
     local got = {}
     while true do
       local chunk = client:read(4)
@@ -100,7 +100,7 @@ function T:test_shutdown_is_a_half_close_that_keeps_the_stream_readable()
       end
       peer:write("got " .. table.concat(request))
     end)
-    local client <close> = reactor.tcp_connect(LOOPBACK, port)
+    local client <close> = reactor.connect_tcp(LOOPBACK, port)
     client:write("ping")
     client:shutdown()
     return client:read()
@@ -112,7 +112,7 @@ function T:test_close_is_idempotent_and_closes_on_scope_exit()
   with_listener(self, function(listener, port)
     local stream
     do
-      local client <close> = reactor.tcp_connect(LOOPBACK, port)
+      local client <close> = reactor.connect_tcp(LOOPBACK, port)
       stream = client
       self:assert_false(client:is_closed())
     end
@@ -121,6 +121,9 @@ function T:test_close_is_idempotent_and_closes_on_scope_exit()
     stream:close()
     local errno = errno_of(self, function() stream:write("x") end)
     self:assert_equal("EBADF", errno)
+    local _, closed = errno_of(self, function() stream:read() end)
+    self:assert_equal("reactor.TcpStream.read: EBADF: stream is closed", closed.message) -- coding-standards.md, "Errors"
+    self:assert_equal("read", closed.context.operation)
     errno = errno_of(self, function() stream:read() end)
     self:assert_equal("EBADF", errno)
     listener:close()
@@ -135,7 +138,7 @@ function T:test_close_by_the_peer_ends_the_stream_and_close_wakes_a_pending_read
       local peer = listener:accept()
       peer:close()
     end)
-    local client <close> = reactor.tcp_connect(LOOPBACK, port)
+    local client <close> = reactor.connect_tcp(LOOPBACK, port)
     self:assert_nil(client:read())
   end)
   with_listener(self, function(listener, port)
@@ -144,7 +147,7 @@ function T:test_close_by_the_peer_ends_the_stream_and_close_wakes_a_pending_read
       local peer <close> = listener:accept()
       release:receive()
     end)
-    local client = reactor.tcp_connect(LOOPBACK, port)
+    local client = reactor.connect_tcp(LOOPBACK, port)
     local closer = reactor.fork(function()
       wait_until(self, function() return client._reading end, "the read to park") ---@diagnostic disable-line: invisible
       client:close()
@@ -161,7 +164,7 @@ function T:test_connect_refused_raises_transport_error_with_errno()
   local errno, err
   for _ = 1, 2 do -- the port may have been taken in between: one retry on an unexpected success
     local port = closed_port()
-    local ok, failure = pcall(reactor.run, function() reactor.tcp_connect(LOOPBACK, port) end)
+    local ok, failure = pcall(reactor.run, function() reactor.connect_tcp(LOOPBACK, port) end)
     if not ok then
       self:assert_true(core.is_instance_of(failure, reactor.TransportError), tostring(failure))
       errno, err = failure.context.errno, failure
@@ -171,19 +174,20 @@ function T:test_connect_refused_raises_transport_error_with_errno()
   self:assert_not_nil(err, "the connection to a closed port succeeded twice")
   self:assert_equal("ECONNREFUSED", errno)
   self:assert_equal("connect", err.context.operation:match("^connect"))
+  self:assert_equal("reactor.connect_tcp: " .. err.context.operation .. ": ", err.message:match("^(.-: .-: )"))
   self:assert_equal(before, reactor.Reactor.open_handles())
 end
 
 function T:test_a_host_name_is_not_resolved()
   local errno = errno_of(self, function()
-    reactor.run(function() reactor.tcp_connect("localhost", 80) end)
+    reactor.run(function() reactor.connect_tcp("localhost", 80) end)
   end)
   self:assert_equal("EINVAL", errno)
 end
 
 function T:test_listen_on_a_used_port_raises_eaddrinuse()
   with_listener(self, function(_, port)
-    local errno = errno_of(self, function() reactor.tcp_listen(LOOPBACK, port) end)
+    local errno = errno_of(self, function() reactor.listen_tcp(LOOPBACK, port) end)
     self:assert_equal("EADDRINUSE", errno)
   end)
 end
@@ -191,7 +195,7 @@ end
 function T:test_cancelled_connect_leaks_no_handle()
   with_listener(self, function(_, port)
     -- The connector starts and suspends; the canceller runs before libuv completes it.
-    local connector = reactor.fork(function() return reactor.tcp_connect(LOOPBACK, port) end)
+    local connector = reactor.fork(function() return reactor.connect_tcp(LOOPBACK, port) end)
     reactor.fork(function() connector:cancel() end)
     self:assert_error(function() connector:value() end)
     self:assert_equal("cancelled", connector:state())
@@ -200,7 +204,7 @@ end
 
 function T:test_connect_cancelled_before_it_starts()
   with_listener(self, function(_, port)
-    local connector = reactor.fork(function() return reactor.tcp_connect(LOOPBACK, port) end)
+    local connector = reactor.fork(function() return reactor.connect_tcp(LOOPBACK, port) end)
     connector:cancel()
     self:assert_error(function() connector:value() end)
     self:assert_equal("cancelled", connector:state())
@@ -213,7 +217,7 @@ function T:test_cancelled_accept_keeps_the_listener_and_queued_connections()
     self:assert_false(ok)
     self:assert_true(core.is_instance_of(err, core.DeadlineExceededError))
     -- The listener still works, and a connection that arrived with nobody accepting is kept.
-    local client <close> = reactor.tcp_connect(LOOPBACK, port)
+    local client <close> = reactor.connect_tcp(LOOPBACK, port)
     wait_until(self, function() return listener._incoming > 0 end, "the connection to be queued") ---@diagnostic disable-line: invisible
     local peer <close> = listener:accept()
     client:write("late")
@@ -243,7 +247,7 @@ function T:test_cancelled_read_keeps_the_stream_and_loses_no_data()
       release:receive() -- silent until the deadline has expired
       peer:write("after")
     end)
-    local client <close> = reactor.tcp_connect(LOOPBACK, port)
+    local client <close> = reactor.connect_tcp(LOOPBACK, port)
     local ok, err = pcall(reactor.deadline, 0.02, function() return client:read() end)
     self:assert_false(ok)
     self:assert_true(core.is_instance_of(err, core.DeadlineExceededError))
@@ -258,7 +262,7 @@ function T:test_data_arriving_as_the_read_is_cancelled_is_kept()
     local peer
     local accepted = reactor.Channel(1)
     reactor.fork(function() peer = listener:accept(); accepted:send(true) end)
-    local client <close> = reactor.tcp_connect(LOOPBACK, port)
+    local client <close> = reactor.connect_tcp(LOOPBACK, port)
     accepted:receive()
     local reader = reactor.fork(function() return client:read() end)
     -- The writer sends and the canceller cancels in the same turn: libuv may deliver the
@@ -283,7 +287,7 @@ function T:test_write_applies_back_pressure_and_cancelled_write_closes_the_strea
       local peer <close> = listener:accept()
       release:receive() -- never reads: the peer's buffers fill up, until the test is done
     end)
-    local client = reactor.tcp_connect(LOOPBACK, port)
+    local client = reactor.connect_tcp(LOOPBACK, port)
     -- The peer never reads, so a stream of large writes must end up waiting (Windows loopback
     -- buffers far more than Linux before a write has to wait). A write that never waited would
     -- let the loop finish and `ok` be true: the deadline expiring is the proof that it suspended.
@@ -298,7 +302,7 @@ function T:test_write_applies_back_pressure_and_cancelled_write_closes_the_strea
   end)
 end
 
-function T:test_write_to_a_reset_peer_raises_io_error()
+function T:test_write_to_a_reset_peer_raises_a_transport_error()
   with_listener(self, function(listener, port)
     local closed = reactor.Channel(1)
     reactor.fork(function()
@@ -306,7 +310,7 @@ function T:test_write_to_a_reset_peer_raises_io_error()
       peer:close()
       closed:send(true)
     end)
-    local client <close> = reactor.tcp_connect(LOOPBACK, port)
+    local client <close> = reactor.connect_tcp(LOOPBACK, port)
     closed:receive()
     local errno = errno_of(self, function()
       -- The first writes may sit in kernel buffers: write until the failure shows.
@@ -322,7 +326,7 @@ function T:test_options_have_documented_defaults_and_validate()
   with_listener(self, function(listener, port)
     local release = reactor.Channel(1)
     reactor.fork(function() local peer <close> = listener:accept(); release:receive() end)
-    local client <close> = reactor.tcp_connect(LOOPBACK, port, { nodelay = false, keepalive = true, keepalive_delay = 30 })
+    local client <close> = reactor.connect_tcp(LOOPBACK, port, { nodelay = false, keepalive = true, keepalive_delay = 30 })
     client:set_nodelay(true)
     client:set_keepalive(false)
     -- The peer closes only now (some systems refuse socket options on a reset connection); the end
@@ -331,17 +335,17 @@ function T:test_options_have_documented_defaults_and_validate()
     self:assert_nil(client:read())
   end, { backlog = 16, nodelay = true, keepalive = true })
   local err = self:assert_error(function()
-    reactor.run(function() reactor.tcp_connect(LOOPBACK, 1, { nodelays = true }) end)
+    reactor.run(function() reactor.connect_tcp(LOOPBACK, 1, { nodelays = true }) end)
   end)
   self:assert_true(core.is_instance_of(err, core.ArgumentError))
   err = self:assert_error(function()
-    reactor.run(function() reactor.tcp_connect(LOOPBACK, 70000) end)
+    reactor.run(function() reactor.connect_tcp(LOOPBACK, 70000) end)
   end)
   self:assert_true(core.is_instance_of(err, core.ArgumentError))
   -- keepalive_delay is a positive integer number of seconds (libuv takes an unsigned integer)
   for _, delay in ipairs({ 0, -1, 1.5, "30", true }) do
     err = self:assert_error(function()
-      reactor.run(function() reactor.tcp_connect(LOOPBACK, 1, { keepalive_delay = delay }) end)
+      reactor.run(function() reactor.connect_tcp(LOOPBACK, 1, { keepalive_delay = delay }) end)
     end)
     self:assert_true(core.is_instance_of(err, core.ArgumentError), tostring(delay))
     self:assert_true(tostring(err):find("keepalive_delay", 1, true) ~= nil, tostring(err))
@@ -349,7 +353,7 @@ function T:test_options_have_documented_defaults_and_validate()
   with_listener(self, function(listener, port)
     local release = reactor.Channel(1)
     reactor.fork(function() local peer <close> = listener:accept(); release:receive() end)
-    local client <close> = reactor.tcp_connect(LOOPBACK, port)
+    local client <close> = reactor.connect_tcp(LOOPBACK, port)
     ---@diagnostic disable: param-type-mismatch  -- the point is to pass wrong types
     for _, call in ipairs({
       function() client:set_keepalive(true, 0) end,
@@ -384,7 +388,7 @@ function T:test_concurrent_streams()
     local futures = {}
     for i = 1, 20 do
       futures[i] = reactor.fork(function()
-        local client <close> = reactor.tcp_connect(LOOPBACK, port)
+        local client <close> = reactor.connect_tcp(LOOPBACK, port)
         client:write(tostring(i))
         return tonumber(client:read())
       end)
@@ -400,7 +404,7 @@ function T:test_a_second_concurrent_read_is_refused()
   with_listener(self, function(listener, port)
     local release = reactor.Channel(1)
     reactor.fork(function() local peer <close> = listener:accept(); release:receive() end)
-    local client <close> = reactor.tcp_connect(LOOPBACK, port)
+    local client <close> = reactor.connect_tcp(LOOPBACK, port)
     local first = reactor.fork(function() return client:read() end)
     wait_until(self, function() return client._reading end, "the first read to park") ---@diagnostic disable-line: invisible
     local err = self:assert_error(function() client:read() end)
@@ -412,8 +416,8 @@ end
 
 function T:test_operations_require_a_managed_coroutine()
   for _, fn in ipairs({
-    function() reactor.tcp_connect(LOOPBACK, 1) end,
-    function() reactor.tcp_listen(LOOPBACK, 0) end,
+    function() reactor.connect_tcp(LOOPBACK, 1) end,
+    function() reactor.listen_tcp(LOOPBACK, 0) end,
   }) do
     local err = self:assert_error(fn)
     self:assert_true(core.is_instance_of(err, core.NonYieldableContextError))
@@ -422,7 +426,7 @@ end
 
 function T:test_transport_on_a_virtual_clock_is_refused()
   local err = self:assert_error(function()
-    reactor.Reactor({ clock = "virtual" }):run(function() reactor.tcp_listen(LOOPBACK, 0) end)
+    reactor.Reactor({ clock = "virtual" }):run(function() reactor.listen_tcp(LOOPBACK, 0) end)
   end)
   self:assert_true(core.is_instance_of(err, core.Error))
 end
@@ -455,8 +459,8 @@ function T:test_a_connection_whose_options_cannot_be_applied_is_dropped_and_acce
   }) do
     with_listener(self, function(listener, port)
       with_failing_nodelay(0, failure, function(arm)
-        local first = reactor.tcp_connect(LOOPBACK, port)
-        local second = reactor.tcp_connect(LOOPBACK, port)
+        local first = reactor.connect_tcp(LOOPBACK, port)
+        local second = reactor.connect_tcp(LOOPBACK, port)
         -- libuv announces one pending connection at a time: wait for the first.
         wait_until(self, function() return listener._incoming > 0 end, "a connection to be queued") ---@diagnostic disable-line: invisible
         arm(1) -- the options of the first accepted connection fail
@@ -492,13 +496,13 @@ end
 function T:test_any_other_failure_to_apply_options_is_raised_and_the_listener_survives()
   with_listener(self, function(listener, port)
     with_failing_nodelay(0, "EPERM: operation not permitted", function(arm)
-      local first = reactor.tcp_connect(LOOPBACK, port)
+      local first = reactor.connect_tcp(LOOPBACK, port)
       wait_until(self, function() return listener._incoming == 1 end, "the connection to be queued") ---@diagnostic disable-line: invisible
       arm(1)
       local errno = errno_of(self, function() listener:accept() end)
       self:assert_equal("EPERM", errno)
       self:assert_false(listener:is_closed())
-      local second = reactor.tcp_connect(LOOPBACK, port)
+      local second = reactor.connect_tcp(LOOPBACK, port)
       local accepted <close> = listener:accept()
       second:write("ok")
       self:assert_equal("ok", accepted:read())
@@ -510,7 +514,7 @@ end
 
 function T:test_a_reset_connection_ends_the_read_with_an_error_or_a_clean_end()
   with_listener(self, function(listener, port)
-    local client <close> = reactor.tcp_connect(LOOPBACK, port)
+    local client <close> = reactor.connect_tcp(LOOPBACK, port)
     local peer = listener:accept()
     peer:write("pending")
     self:assert_equal("pending", client:read())
@@ -541,7 +545,7 @@ function T:test_data_that_arrives_between_reads_is_kept_in_order_and_max_slices_
       sent:send(true)
       release:receive()
     end)
-    local client <close> = reactor.tcp_connect(LOOPBACK, port)
+    local client <close> = reactor.connect_tcp(LOOPBACK, port)
     self:assert_equal("001", client:read(3)) -- the first read starts the read-ahead
     sent:receive()
     local parts, total = {}, 3
@@ -571,7 +575,7 @@ function T:test_a_large_transfer_arrives_intact_through_small_and_unbounded_read
         peer:shutdown()
         peer:read() -- until the reader is done
       end)
-      local client <close> = reactor.tcp_connect(LOOPBACK, port)
+      local client <close> = reactor.connect_tcp(LOOPBACK, port)
       local parts = {}
       while true do
         local chunk = client:read(max > 0 and max or nil)
@@ -594,7 +598,7 @@ function T:test_the_end_of_stream_that_arrives_with_unread_data_is_seen_after_th
       peer:close()
       closed:send(true)
     end)
-    local client <close> = reactor.tcp_connect(LOOPBACK, port)
+    local client <close> = reactor.connect_tcp(LOOPBACK, port)
     self:assert_equal("t", client:read(1))
     closed:receive()
     self:assert_equal("ail", client:read())

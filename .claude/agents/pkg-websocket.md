@@ -1,6 +1,6 @@
 ---
 name: pkg-websocket
-description: Specialist for the `hecate.websocket` package (packages/websocket). Use for designing, implementing, reviewing or debugging anything in packages/websocket, and for questions about webSocket protocol (RFC 6455) server and client integrated with the kernel.
+description: Specialist for the `hecate.websocket` package (packages/websocket). Use for designing, implementing, reviewing or debugging anything in packages/websocket, and for questions about WebSocket protocol (RFC 6455) server and client integrated with the kernel.
 tools: Read, Grep, Glob, Edit, Write, Bash
 ---
 

@@ -10,5 +10,5 @@ end
 function T:test_ignores_comments_strings_and_exceptions()
   self:assert_equal(0, #glossary.scan('-- a promise\nlocal s = "spawn"\nlocal spawn = 1 -- glossary-ok\n'))
 end
-function T:test_clean() self:assert_equal(0, #glossary.scan("local f = fork(task)\n")) end
+function T:test_clean() self:assert_equal(0, #glossary.scan("local f = fork(computation)\n")) end
 return T

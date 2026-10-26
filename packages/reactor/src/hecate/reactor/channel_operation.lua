@@ -27,10 +27,10 @@ end
 function ChannelOperation:_try()
   if self.kind == "send" then
     ---@diagnostic disable-next-line: invisible  -- friend class
-    return self.channel:_try_send(self.value), nil
+    return self.channel:_try_send(self.value, "reactor.select"), nil
   end
   ---@diagnostic disable-next-line: invisible
-  return self.channel:_try_receive()
+  return self.channel:_try_receive("reactor.select")
 end
 
 --- Queues a waiter for the operation; `wake(status, value)` returns false when the

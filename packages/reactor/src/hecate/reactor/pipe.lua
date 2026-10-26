@@ -20,7 +20,7 @@ local WINDOWS_NAME_LIMIT = 256
 local function check_path(name, path, windows)
   if windows == nil then windows = IS_WINDOWS end
   if type(path) ~= "string" or path == "" then
-    error(core.ArgumentError(("%s expects a path string, got %s"):format(name, tostring(path))), 3)
+    error(core.ArgumentError(("%s: expects a path string, got %s"):format(name, tostring(path))), 3)
   end
   if windows then
     local pipe_name = path:match("^\\\\[.?]\\pipe\\(.*)$") or path
@@ -30,8 +30,8 @@ local function check_path(name, path, windows)
     end
     return
   end
-  -- `sun_path` holds 104 bytes on macOS and 108 on Linux, the terminating NUL included; a longer
-  -- path would otherwise fail with an obscure ENAMETOOLONG or EINVAL.
+  -- `sun_path` holds 108 bytes on Linux and 104 on macOS, the terminating NUL included, so a path of at most
+  -- 107 bytes (103 on macOS) fits; a longer path would otherwise fail with an obscure ENAMETOOLONG or EINVAL.
   local limit = (uv.os_uname().sysname == "Darwin" and 104 or 108) - 1
   if #path > limit then
     error(core.ArgumentError(("%s: the socket path is %d bytes, the limit on this platform is %d"):format(
@@ -49,7 +49,7 @@ local MODES = { owner = true, readable = "r", writable = "w", readwrite = "rw" }
 local function check_options(name, options)
   if options == nil then return {} end
   if type(options) ~= "table" then
-    error(core.ArgumentError(("%s expects an options table, got %s"):format(name, type(options))), 3)
+    error(core.ArgumentError(("%s: expects an options table, got %s"):format(name, type(options))), 3)
   end
   for key in pairs(options) do
     if key ~= "backlog" and key ~= "mode" then
@@ -70,13 +70,22 @@ end
 ---@overload fun(handle: table): hecate.reactor.PipeStream
 local PipeStream = core.class("PipeStream", tcp.TcpStream)
 
+---@param handle table
+---@param options? table
+---@private
+function PipeStream:init(handle, options)
+  ---@diagnostic disable-next-line: invisible  -- base class initialiser
+  tcp.TcpStream.init(self, handle, options)
+  self._label = "reactor.PipeStream"
+end
+
 --- Path of the pipe the stream is bound to (the local end), or the peer's for a client.
 ---@return string
 function PipeStream:path()
-  if self._closed then tcp.fail_closed("path", "EBADF: stream is closed") end
+  if self._closed then tcp.fail_closed(self, "path", "EBADF: stream is closed") end
   local path, err = self._handle:getpeername()
   if not path or path == "" then path, err = self._handle:getsockname() end
-  if not path then uv_call.fail_transport("path", tostring(err)) end
+  if not path then uv_call.fail_transport(self._label .. ".path", "path", tostring(err)) end
   return path
 end
 
@@ -94,6 +103,7 @@ local PipeListener = core.class("PipeListener", tcp.TcpListener)
 function PipeListener:init(handle, options, path)
   ---@diagnostic disable-next-line: invisible  -- base class initialiser
   tcp.TcpListener.init(self, handle, options)
+  self._label = "reactor.PipeListener"
   self._path = path
 end
 
@@ -113,7 +123,7 @@ function PipeListener:path() return self._path end
 
 core.finalise(PipeListener)
 
---- Options of `pipe_listen`.
+--- Options of `listen_pipe`.
 ---@class hecate.reactor.PipeListenOptions
 ---@field backlog? integer  length of the queue of pending connections, default 128 (ignored on Windows)
 ---@field mode? "owner"|"readable"|"writable"|"readwrite"  who may connect, default "owner" (ignored on Windows)
@@ -131,9 +141,9 @@ local api = {}
 ---@async
 ---@param path string  socket path
 ---@return hecate.reactor.PipeStream stream  the connected stream
-function api.pipe_connect(path)
-  check_path("pipe_connect", path)
-  uv_call.begin("pipe_connect")
+function api.connect_pipe(path)
+  check_path("reactor.connect_pipe", path)
+  uv_call.begin("reactor.connect_pipe")
   local handle = uv.new_pipe(false)
   local state = {}
   local ok, failure = pcall(context.suspend, function(wake)
@@ -148,7 +158,7 @@ function api.pipe_connect(path)
   end
   if state.err then
     handle:close()
-    uv_call.fail_transport("connect " .. path, state.err)
+    uv_call.fail_transport("reactor.connect_pipe", "connect " .. path, state.err)
   end
   return PipeStream(handle)
 end
@@ -165,15 +175,15 @@ end
 ---@param path string  socket path
 ---@param options? hecate.reactor.PipeListenOptions
 ---@return hecate.reactor.PipeListener listener  the listening pipe
-function api.pipe_listen(path, options)
-  check_path("pipe_listen", path)
-  options = check_options("pipe_listen", options)
-  uv_call.begin("pipe_listen")
+function api.listen_pipe(path, options)
+  check_path("reactor.listen_pipe", path)
+  options = check_options("reactor.listen_pipe", options)
+  uv_call.begin("reactor.listen_pipe")
   local handle = uv.new_pipe(false)
   local bound, bind_err = handle:bind(path)
   if not bound then
     handle:close()
-    uv_call.fail_transport("bind " .. path, tostring(bind_err))
+    uv_call.fail_transport("reactor.listen_pipe", "bind " .. path, tostring(bind_err))
   end
   if not IS_WINDOWS and path:sub(1, 1) ~= "\0" then -- an abstract socket has no file to protect
     local mode = options.mode or "owner"
@@ -185,7 +195,7 @@ function api.pipe_listen(path, options)
     end
     if not changed then
       handle:close()
-      uv_call.fail_transport("chmod " .. path, tostring(chmod_err))
+      uv_call.fail_transport("reactor.listen_pipe", "chmod " .. path, tostring(chmod_err))
     end
   end
   local listener = PipeListener(handle, options, path)
@@ -197,12 +207,12 @@ function api.pipe_listen(path, options)
   end)
   if not listening then
     listener:close()
-    uv_call.fail_transport("listen " .. path, tostring(listen_err))
+    uv_call.fail_transport("reactor.listen_pipe", "listen " .. path, tostring(listen_err))
   end
   return listener
 end
 
-M.pipe_connect = api.pipe_connect
-M.pipe_listen = api.pipe_listen
+M.connect_pipe = api.connect_pipe
+M.listen_pipe = api.listen_pipe
 
 return M

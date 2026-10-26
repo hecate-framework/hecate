@@ -34,8 +34,11 @@ for public APIs, documentation and internal code.
 | half-close | Ending one direction of a connection while the other stays usable (`shutdown`) | RFC 9293, section 3.6 | — |
 | primary | The process that starts, supervises and, for some strategies, feeds the workers | Buschmann et al., *Pattern-Oriented Software Architecture* vol. 1 (1996), Master-Slave pattern | master, parent (for the operating-system relation, "parent process" is accepted) |
 | worker | A process with its own reactor that serves requests; workers share nothing | Buschmann et al. (1996), Master-Slave pattern | slave, child process (for the operating-system relation) |
-| message pipe | A framed connection between two processes that carries string messages and, optionally, a stream handle (`reactor.ipc`) | POSIX `pipe(2)`; ADR 0023 | channel (reserved for communication between coroutines) |
+| message pipe | A framed connection between two processes that carries string messages and, optionally, a stream handle (`reactor.ipc`). Not to be confused with `PipeStream`, a local stream socket (Unix-domain socket, named pipe on Windows) | POSIX `pipe(2)`; ADR 0023 | channel (reserved for communication between coroutines) |
+| peer | The remote end of a connection (`peer_address`) or of a message pipe (`Peer`) | RFC 9293 | remote (in "remote address"), client (when the role is unknown) |
 | listening strategy | How the workers obtain connections: `reuseport` or `round_robin` ([ADR 0023](adr/0023-multi-process-serving.md)) | — | cluster mode |
+| computation | A running unit of the scheduler: a coroutine started by `fork` or `detach`, or the main coroutine; what a scope owns and a future stands for | `concurrency.md` | task |
+| suspension point (suspend) | A call at which the running coroutine yields to the reactor: every I/O operation and every primitive of `hecate.reactor`. A suspended call does not block the reactor | `concurrency.md` | blocking, async |
 | cancellation | Cooperative request to stop a computation | — | abort, kill |
 | scope | Structured-concurrency region owning forked computations | Sústrik (2016); Smith, *nursery* (2018) | task group, nursery |
 | channel | Typed communication between coroutines | Hoare, CSP (1978) | queue (when used for communication) |
@@ -58,9 +61,13 @@ for public APIs, documentation and internal code.
 | cause chain | Errors linked by `cause`, rendered by `__tostring` | — | — |
 | inversion of control | The framework calls user code | Fowler (2004) | — |
 | container | Object that resolves and constructs dependencies | Fowler (2004) | service locator (an anti-pattern, not a synonym) |
+| service | An object registered in the container and resolved by it | Fowler (2004) | bean, provider |
+| action | The controller method or function that a route invokes; what filters wrap. "Handler" is reserved for I/O completion handlers of the reactor | `http-and-routing.md` | handler |
+| controller, route module, feature module | The two route declaration styles (a class of actions, or `hecate.routes(name)`) and the kernel's grouping of them into a feature module ([ADR 0006](adr/0006-declarative-routes-as-runtime-data.md)) | ADR 0006; `http-and-routing.md` | router group, blueprint, plugin; "module" alone, which is ambiguous with a Lua module |
 | chain of responsibility | Ordered handlers around an action | Gamma et al. (1994) | middleware stack |
 | filter | One element of the chain around an action | — | middleware |
 | composition root | Single place where the object graph is assembled | Seemann (2011) | bootstrap file |
+| entity | A class whose instances have an identity and are persisted by a data mapper | Evans (2003) | model, record |
 | value object | Immutable object compared by value | Evans (2003) | DTO (when immutability is meant) |
 | representation | The transferable form of a resource state | Fielding (2000); RFC 9110 | DTO, view model |
 
@@ -79,7 +86,8 @@ for public APIs, documentation and internal code.
 | unit of work | Tracks changes during a business transaction and commits them atomically | Fowler, *PoEAA* (2002) | session, entity manager |
 | identity map | Ensures each tuple is loaded once per unit of work | Fowler, *PoEAA* (2002) | cache |
 | repository | Collection-like access to aggregates | Evans (2003); Fowler (2002) | DAO |
-| migration | Versioned, reversible schema transformation | — | — |
+| database schema | The relations, constraints and indexes of a database (SQL DDL); not a `hecate.schema` type declaration | ISO/IEC 9075 | schema (alone, in data access) |
+| migration | Versioned, reversible transformation of the database schema | — | — |
 | connection pool | Bounded set of reusable connections | — | — |
 
 ### Relational algebra and SQL
@@ -112,10 +120,12 @@ Schema keywords follow JSON Schema 2020-12 vocabulary in `snake_case`: `minimum`
 
 Terms from RFC 9110 are used as defined: *resource*, *representation*, *method*,
 *status code*, *field* (header field), *content* (message body), *media type*.
-Errors are *problem details* (RFC 9457). Path parameters follow URI Template syntax
+Errors are *problem details* (RFC 9457; `hecate.problem.*` is the namespace). Path parameters follow URI Template syntax
 (RFC 6570, level 1 subset).
 
 ## Logging
 
 Severities follow RFC 5424: `emergency`, `alert`, `critical`, `error`, `warning`,
 `notice`, `informational`, `debug`.
+A *severity* is the urgency of a record; a logger records the severities at least as urgent as its own
+`severity` option (never "level" or "threshold").

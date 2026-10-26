@@ -15,10 +15,10 @@ local context = require("hecate.reactor.internal.context")
 ---@param port any
 local function check_endpoint(name, host, port)
   if type(host) ~= "string" then
-    error(core.ArgumentError(("%s expects a numeric address string, got %s"):format(name, type(host))), 3)
+    error(core.ArgumentError(("%s: expects a numeric address string, got %s"):format(name, type(host))), 3)
   end
   if math.type(port) ~= "integer" or port < 0 or port > 65535 then
-    error(core.ArgumentError(("%s expects a port in 0..65535, got %s"):format(name, tostring(port))), 3)
+    error(core.ArgumentError(("%s: expects a port in 0..65535, got %s"):format(name, tostring(port))), 3)
   end
 end
 
@@ -33,10 +33,18 @@ local function protected(fn, ...)
   return result, err
 end
 
+--- The call named in the messages of `operation`: the method of the class in `_label`.
+---@param self table
+---@param operation string
+---@return string
+local function qualified(self, operation)
+  return self._label .. "." .. operation
+end
+
 ---@param self table
 ---@param operation string
 local function require_open(self, operation)
-  if self._closed then uv_call.fail_transport(operation, "EBADF: socket is closed") end
+  if self._closed then uv_call.fail_transport(qualified(self, operation), operation, "EBADF: socket is closed") end
 end
 
 --- A bound UDP socket; its operations suspend until the datagram moves.
@@ -48,6 +56,7 @@ local UdpSocket = core.class("UdpSocket")
 ---@private
 function UdpSocket:init(handle)
   self._handle = handle
+  self._label = "reactor.UdpSocket" -- the class named in messages; a wrapper may relabel it
   self._closed = false
   self._wake = nil
   self._receiving = false
@@ -62,10 +71,10 @@ end
 ---@param data string
 function UdpSocket:send_to(host, port, data)
   if type(data) ~= "string" then
-    error(core.ArgumentError(("send_to expects a string, got %s"):format(type(data))), 2)
+    error(core.ArgumentError(("%s: expects a string, got %s"):format(qualified(self, "send_to"), type(data))), 2)
   end
-  check_endpoint("send_to", host, port)
-  uv_call.begin("send_to")
+  check_endpoint(qualified(self, "send_to"), host, port)
+  uv_call.begin(qualified(self, "send_to"))
   require_open(self, "send_to")
   local state = {}
   local ok, failure = pcall(context.suspend, function(wake)
@@ -82,7 +91,7 @@ function UdpSocket:send_to(host, port, data)
     if not state.done then self:close() end
     error(failure, 0)
   end
-  if state.err then uv_call.fail_transport("send_to", state.err) end
+  if state.err then uv_call.fail_transport(qualified(self, "send_to"), "send_to", state.err) end
 end
 
 --- Suspends until a datagram arrives; returns its payload and the sender's address. An empty
@@ -92,9 +101,9 @@ end
 ---@return string data
 ---@return hecate.reactor.SocketAddress from
 function UdpSocket:receive_from()
-  uv_call.begin("receive_from")
+  uv_call.begin(qualified(self, "receive_from"))
   require_open(self, "receive_from")
-  if self._receiving then error(core.Error("receive_from: another coroutine is already receiving"), 2) end
+  if self._receiving then error(core.Error(qualified(self, "receive_from") .. ": another coroutine is already receiving"), 2) end
   local state = {}
   self._receiving = true
   local ok, failure = pcall(context.suspend, function(wake)
@@ -119,8 +128,8 @@ function UdpSocket:receive_from()
   end)
   self._receiving = false
   if not ok then error(failure, 0) end
-  if self._closed then uv_call.fail_transport("receive_from", "ECANCELED: socket closed while receiving") end
-  if state.err then uv_call.fail_transport("receive_from", state.err) end
+  if self._closed then uv_call.fail_transport(qualified(self, "receive_from"), "receive_from", "ECANCELED: socket closed while receiving") end
+  if state.err then uv_call.fail_transport(qualified(self, "receive_from"), "receive_from", state.err) end
   local address = state.address
   return state.data, { ip = address.ip, port = address.port, family = address.family }
 end
@@ -148,7 +157,7 @@ function UdpSocket:is_closed() return self._closed end
 function UdpSocket:local_address()
   require_open(self, "local_address")
   local address, err = self._handle:getsockname()
-  if not address then uv_call.fail_transport("local_address", tostring(err)) end
+  if not address then uv_call.fail_transport(qualified(self, "local_address"), "local_address", tostring(err)) end
   return { ip = address.ip, port = address.port, family = address.family }
 end
 
@@ -170,18 +179,18 @@ local api = {}
 ---@param host string  numeric IPv4 or IPv6 address
 ---@param port integer  UDP port; 0 picks a free port
 ---@return hecate.reactor.UdpSocket socket  the bound socket
-function api.udp_bind(host, port)
-  check_endpoint("udp_bind", host, port)
-  uv_call.begin("udp_bind")
+function api.bind_udp(host, port)
+  check_endpoint("reactor.bind_udp", host, port)
+  uv_call.begin("reactor.bind_udp")
   local handle = uv.new_udp()
   local bound, err = protected(handle.bind, handle, host, port)
   if not bound then
     handle:close()
-    uv_call.fail_transport("bind " .. host .. ":" .. port, tostring(err))
+    uv_call.fail_transport("reactor.bind_udp", "bind " .. host .. ":" .. port, tostring(err))
   end
   return UdpSocket(handle)
 end
 
-M.udp_bind = api.udp_bind
+M.bind_udp = api.bind_udp
 
 return M

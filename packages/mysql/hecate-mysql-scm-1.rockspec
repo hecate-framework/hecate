@@ -7,7 +7,7 @@ source = {
 }
 
 description = {
-  summary = "MySQL and MariaDB driver implementing the client/server protocol in Lua, with dialect detection.",
+  summary = "MySQL and MariaDB driver implementing the client/server protocol in Lua, reporting a descriptor of its dialect, version and capabilities.",
   homepage = "https://github.com/hecate-framework/hecate",
   license = "MIT",
 }

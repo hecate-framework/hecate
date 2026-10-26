@@ -21,7 +21,7 @@
 ## Responsibilities
 
 - single dependency for typical applications
-- `require "hecate"` gives classes, controllers, routes, problems, schema shortcuts
+- `require "hecate"` gives classes, controllers, routes, problem details, schema shortcuts
 
 ## Non-goals
 

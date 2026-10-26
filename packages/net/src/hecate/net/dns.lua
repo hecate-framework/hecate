@@ -4,6 +4,7 @@ global <const> require, error, pcall
 
 local core = require("hecate.core")
 local reactor = require("hecate.reactor")
+local errors = require("hecate.net.errors")
 
 ---@class hecate.net
 local M = {}
@@ -20,6 +21,18 @@ local M = {}
 ---@param options? hecate.reactor.ResolveOptions  `family` restricts the answer to one address family
 ---@return hecate.reactor.ResolvedAddress[] addresses  the distinct addresses, in resolver order
 function M.resolve(host, options)
+  return M.resolve_for("net.resolve", host, options)
+end
+
+--- `net.resolve` on behalf of another net call (`net.connect`, `net.listen`, `net.bind_udp`): the
+--- failures name that call, as the caller wrote it.
+---@async
+---@param call string  the public net call
+---@param host string
+---@param options? hecate.reactor.ResolveOptions
+---@return hecate.reactor.ResolvedAddress[]
+---@private
+function M.resolve_for(call, host, options)
   local ok, addresses = pcall(reactor.resolve, host, options)
   if not ok then
     -- The same error object, with the host added; cancellation and misuse pass through untouched.
@@ -28,12 +41,12 @@ function M.resolve(host, options)
       if failure.context == nil then failure.context = {} end
       failure.context.host = host
     end
-    error(addresses, 0)
+    error(errors.rename(addresses, call), 0)
   end
   -- Defensive: `reactor.resolve` already raises for an empty answer.
   if #addresses == 0 then
     error(reactor.TransportError({
-      message = ("resolve %s: EAI_NONAME: no address"):format(host),
+      message = ("%s: resolve %s: EAI_NONAME: no address"):format(call, host),
       context = { operation = "resolve " .. host, errno = "EAI_NONAME", host = host },
     }), 0)
   end

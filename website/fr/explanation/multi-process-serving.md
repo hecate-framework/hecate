@@ -60,7 +60,7 @@ Le travail est réparti entre deux paquets.
 
 Une [stratégie d’écoute](../reference/glossary.md#concurrency) (*listening strategy*) décide d’où
 un worker obtient ses connexions. C’est la seule partie de la conception qui dépend de la
-plateforme. Tout ce qui est au-dessus, le serveur, le routeur et les gestionnaires, est identique
+plateforme. Tout ce qui est au-dessus, le serveur, le routeur et les actions, est identique
 pour chaque stratégie. Il y en a deux.
 
 | Stratégie | Qui accepte | Primaire sur le chemin des données | Par défaut sur |
@@ -136,7 +136,7 @@ l’échéance, puis annule ce qui reste.
 
 L’option TCP `reuseport` exige une version de luv qui l’expose pour TCP. luv 1.53, la version sur
 laquelle hecate est figé, ne le fait pas (OQ-43). `reactor.supports_reuseport()` renvoie `false`,
-et `tcp_listen(..., { reuseport = true })` lève `TransportError` avec `ENOTSUP`, au lieu d’ignorer
+et `listen_tcp(..., { reuseport = true })` lève `TransportError` avec `ENOTSUP`, au lieu d’ignorer
 l’option. Tant que luv ne la prend pas en charge, `auto` choisira aussi `round_robin` sous Linux.
 Le cadre reste complet, et aussi rapide pour les connexions réutilisées.
 
@@ -161,4 +161,4 @@ nouveau binaire.
 - Référence : [`reactor.spawn`](../reference/reactor/functions/spawn.md),
   [`reactor.ipc`](../reference/reactor/ipc.md),
   [`reactor.supports_reuseport`](../reference/reactor/functions/supports_reuseport.md),
-  [`reactor.tcp_listen`](../reference/reactor/functions/tcp_listen.md)
+  [`reactor.listen_tcp`](../reference/reactor/functions/listen_tcp.md)

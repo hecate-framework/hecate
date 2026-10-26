@@ -2,7 +2,7 @@
 -- generator). The export format is pinned to the LuaLS version of CI (`PINNED`); another
 -- version is reported, not refused. The export goes to a temporary directory that is removed
 -- afterwards. Platform-specific code (the shell calls) is isolated here, as in
--- system_filesystem.lua; verified on Linux only until CI runs it elsewhere.
+-- system_file_system.lua; verified on Linux only until CI runs it elsewhere.
 global <const> require, io, os, package, math, string, table, error, tostring, type
 
 local core = require("hecate.core")
@@ -60,7 +60,7 @@ end
 ---@return string json  the content of `doc.json`
 function M.export(executable, source, options)
   if type(executable) ~= "string" or type(source) ~= "string" or type(options) ~= "table" or not options.fs then
-    error(core.ArgumentError("luals.export expects an executable, a source directory and { fs = ... }"), 2)
+    error(core.ArgumentError("doc.luals.export: expects an executable, a source directory and { fs = ... }"), 2)
   end
   local fs = options.fs
   local directory = temporary_directory()

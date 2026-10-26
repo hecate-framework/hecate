@@ -13,6 +13,8 @@ local TcpListener = core.class("TcpListener")
 ---@param inner hecate.reactor.TcpListener
 ---@private
 function TcpListener:init(inner)
+  ---@diagnostic disable-next-line: inject-field  -- the reactor listener names this class in its messages
+  inner._label = "net.TcpListener"
   self._inner = inner
 end
 

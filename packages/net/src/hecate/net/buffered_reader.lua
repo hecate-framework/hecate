@@ -20,7 +20,7 @@ local BufferedReader = core.class("BufferedReader")
 ---@return integer
 local function check_limit(limit, level)
   if math.type(limit) ~= "integer" or limit < 1 then
-    error(core.ArgumentError(("invalid limit %s: expected a positive integer"):format(tostring(limit))), level)
+    error(core.ArgumentError(("net.BufferedReader: invalid limit %s: expected a positive integer"):format(tostring(limit))), level)
   end
   return limit
 end
@@ -33,14 +33,14 @@ end
 ---@param options? { limit?: integer }
 function BufferedReader:init(stream, options)
   if type(stream) ~= "table" or type(stream.read) ~= "function" then
-    error(core.ArgumentError("BufferedReader expects a stream with a read method"), 3)
+    error(core.ArgumentError("net.BufferedReader: expects a stream with a read method"), 3)
   end
   if options ~= nil and type(options) ~= "table" then
-    error(core.ArgumentError(("BufferedReader expects an options table, got %s"):format(type(options))), 3)
+    error(core.ArgumentError(("net.BufferedReader: expects an options table, got %s"):format(type(options))), 3)
   end
   for key in pairs(options or {}) do
     if key ~= "limit" then
-      error(core.ArgumentError(("BufferedReader: unknown option %s (options: limit)"):format(tostring(key))), 3)
+      error(core.ArgumentError(("net.BufferedReader: unknown option %s (options: limit)"):format(tostring(key))), 3)
     end
   end
   self._stream = stream
@@ -64,7 +64,7 @@ end
 function BufferedReader:_check(operation)
   if self._closed then
     error(reactor.TransportError({
-      message = operation .. ": EBADF: the reader is closed",
+      message = "net.BufferedReader." .. operation .. ": EBADF: the reader is closed",
       context = { operation = operation, errno = "EBADF" },
     }), 0)
   end
@@ -125,9 +125,10 @@ end
 function BufferedReader:buffered() return self:_size() end
 
 ---@param wanted? integer
-local function end_of_stream(self, wanted)
+---@param call string  the public method
+local function end_of_stream(self, wanted, call)
   error(errors.EndOfStreamError({
-    message = "the stream ended before the read completed",
+    message = "net.BufferedReader." .. call .. ": the stream ended before the read completed",
     context = { wanted = wanted, buffered = self:_size() },
   }), 0)
 end
@@ -151,7 +152,7 @@ end
 ---@private
 function BufferedReader:_read_until(delimiter, limit, operation)
   if type(delimiter) ~= "string" or delimiter == "" then
-    error(core.ArgumentError("read_until expects a non-empty delimiter string"), 3)
+    error(core.ArgumentError("net.BufferedReader.read_until: expects a non-empty delimiter string"), 3)
   end
   limit = limit == nil and self._limit or check_limit(limit, 3)
   self:_check(operation)
@@ -185,7 +186,7 @@ function BufferedReader:_read_until(delimiter, limit, operation)
     if self:_size() >= limit + width then break end
     if not self:_fill() then
       if searched == 0 then return nil end
-      end_of_stream(self)
+      end_of_stream(self, nil, operation)
     end
     local chunk = self._parts[#self._parts]
     local probe = tail .. chunk
@@ -195,7 +196,7 @@ function BufferedReader:_read_until(delimiter, limit, operation)
     tail = width > 1 and probe:sub(-(width - 1)) or ""
   end
   error(core.ProtocolError({
-    message = ("no delimiter within %d bytes"):format(limit),
+    message = ("net.BufferedReader.%s: no delimiter within %d bytes"):format(operation, limit),
     context = { limit = limit },
   }), 0)
 end
@@ -221,13 +222,13 @@ end
 ---@return string
 function BufferedReader:read_exact(count, limit)
   if math.type(count) ~= "integer" or count < 0 then
-    error(core.ArgumentError(("invalid count %s: expected an integer >= 0"):format(tostring(count))), 2)
+    error(core.ArgumentError(("net.BufferedReader.read_exact: invalid count %s: expected an integer >= 0"):format(tostring(count))), 2)
   end
   if limit ~= nil then
     check_limit(limit, 2)
     if count > limit then
       error(core.ProtocolError({
-        message = ("%d bytes requested, more than the limit of %d"):format(count, limit),
+        message = ("net.BufferedReader.read_exact: %d bytes requested, more than the limit of %d"):format(count, limit),
         context = { limit = limit, wanted = count },
       }), 0)
     end
@@ -236,7 +237,7 @@ function BufferedReader:read_exact(count, limit)
   local lock <close> = self._lock:lock()
   self:_check("read_exact")
   while self:_size() < count do
-    if not self:_fill() then end_of_stream(self, count) end
+    if not self:_fill() then end_of_stream(self, count, "read_exact") end
   end
   return self:_take(count)
 end
@@ -249,7 +250,7 @@ end
 ---@return string?
 function BufferedReader:read_some(max)
   if max ~= nil and (math.type(max) ~= "integer" or max < 1) then
-    error(core.ArgumentError(("invalid max %s: expected a positive integer"):format(tostring(max))), 2)
+    error(core.ArgumentError(("net.BufferedReader.read_some: invalid max %s: expected a positive integer"):format(tostring(max))), 2)
   end
   self:_check("read_some")
   local lock <close> = self._lock:lock()

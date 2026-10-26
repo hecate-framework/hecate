@@ -65,7 +65,7 @@ end
 local function check_options(name, options, allowed)
   if options == nil then return {} end
   if type(options) ~= "table" then
-    error(ArgumentError(("json.%s expects an options table, got %s"):format(name, describe(options))), 3)
+    error(ArgumentError(("json.%s: expects an options table, got %s"):format(name, describe(options))), 3)
   end
   for key in pairs(options) do
     if not allowed[key] then
@@ -125,7 +125,7 @@ end
 ---@return any value
 function json.decode(text, options)
   if type(text) ~= "string" then
-    error(ArgumentError(("json.decode expects a string, got %s"):format(describe(text))), 2)
+    error(ArgumentError(("json.decode: expects a string, got %s"):format(describe(text))), 2)
   end
   options = check_options("decode", options, DECODE_OPTIONS)
   local resolved = {
@@ -199,7 +199,7 @@ end
 local function mark(name, marker, t)
   if t == nil then return tag({}, marker) end
   if type(t) ~= "table" then
-    error(ArgumentError(("json.%s expects a table or nothing, got %s"):format(name, describe(t))), 3)
+    error(ArgumentError(("json.%s: expects a table or nothing, got %s"):format(name, describe(t))), 3)
   end
   local existing = getmetatable(t)
   if existing ~= nil and existing ~= array_metatable and existing ~= object_metatable then

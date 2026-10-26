@@ -1,6 +1,6 @@
 ---
 name: pkg-mongodb
-description: Specialist for the `hecate.mongodb` package (packages/mongodb). Use for designing, implementing, reviewing or debugging anything in packages/mongodb, and for questions about mongoDB driver (OP_MSG + BSON) and document mapper sharing the unit-of-work vocabulary.
+description: Specialist for the `hecate.mongodb` package (packages/mongodb). Use for designing, implementing, reviewing or debugging anything in packages/mongodb, and for questions about MongoDB driver (OP_MSG + BSON) and document mapper sharing the unit-of-work vocabulary.
 tools: Read, Grep, Glob, Edit, Write, Bash
 ---
 

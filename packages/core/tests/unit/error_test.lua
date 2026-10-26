@@ -53,9 +53,9 @@ function T:test_database_error_carries_sqlstate()
 end
 
 function T:test_error_class_helper_defines_stable_code()
-  local HeaderTooLarge = core.error_class("HeaderTooLarge", "hecate.http.HeaderTooLarge", core.ProtocolError)
-  local e = HeaderTooLarge("header too large")
-  self:assert_equal("hecate.http.HeaderTooLarge", e.code)
+  local FieldTooLargeError = core.error_class("FieldTooLargeError", "hecate.http.FieldTooLargeError", core.ProtocolError)
+  local e = FieldTooLargeError("field too large")
+  self:assert_equal("hecate.http.FieldTooLargeError", e.code)
   self:assert_true(core.is_instance_of(e, core.ProtocolError))
   self:assert_true(core.is_instance_of(e, core.Error))
 end

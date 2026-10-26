@@ -16,8 +16,8 @@ end
 
 function T:test_datagram_round_trip_with_sender_address()
   local result = run(self, function()
-    local server <close> = reactor.udp_bind(LOOPBACK, 0)
-    local client <close> = reactor.udp_bind(LOOPBACK, 0)
+    local server <close> = reactor.bind_udp(LOOPBACK, 0)
+    local client <close> = reactor.bind_udp(LOOPBACK, 0)
     client:send_to(LOOPBACK, server:local_address().port, "ping")
     local data, from = server:receive_from()
     server:send_to(from.ip, from.port, data:upper())
@@ -35,10 +35,10 @@ end
 
 function T:test_receive_suspends_until_a_datagram_arrives()
   local data = run(self, function()
-    local server <close> = reactor.udp_bind(LOOPBACK, 0)
+    local server <close> = reactor.bind_udp(LOOPBACK, 0)
     local port = server:local_address().port
     reactor.fork(function()
-      local client <close> = reactor.udp_bind(LOOPBACK, 0)
+      local client <close> = reactor.bind_udp(LOOPBACK, 0)
       -- Send only once the receiver is parked (bounded poll, no fixed delay).
       for _ = 1, 5000 do
         if server._receiving then break end ---@diagnostic disable-line: invisible
@@ -53,10 +53,10 @@ end
 
 function T:test_cancelled_receive_keeps_socket_and_loses_nothing()
   local data = run(self, function()
-    local server <close> = reactor.udp_bind(LOOPBACK, 0)
+    local server <close> = reactor.bind_udp(LOOPBACK, 0)
     local port = server:local_address().port
     local ok = pcall(reactor.deadline, 0.02, function() server:receive_from() end)
-    local client <close> = reactor.udp_bind(LOOPBACK, 0)
+    local client <close> = reactor.bind_udp(LOOPBACK, 0)
     client:send_to(LOOPBACK, port, "after")
     return { ok = ok, data = (server:receive_from()), closed = server:is_closed() }
   end)
@@ -67,7 +67,7 @@ end
 
 function T:test_close_wakes_a_waiting_receiver_with_transport_error()
   local err = run(self, function()
-    local server = reactor.udp_bind(LOOPBACK, 0)
+    local server = reactor.bind_udp(LOOPBACK, 0)
     local waiter = reactor.fork(function() return pcall(server.receive_from, server) end)
     for _ = 1, 5000 do -- let the receiver park (bounded poll)
       if server._receiving then break end ---@diagnostic disable-line: invisible
@@ -85,7 +85,7 @@ end
 
 function T:test_closed_socket_raises_ebadf()
   run(self, function()
-    local socket = reactor.udp_bind(LOOPBACK, 0)
+    local socket = reactor.bind_udp(LOOPBACK, 0)
     socket:close()
     local err = self:assert_error(function() socket:send_to(LOOPBACK, 9, "x") end)
     self:assert_equal("EBADF", err.context.errno)
@@ -94,12 +94,12 @@ end
 
 function T:test_invalid_arguments_and_bind_failure()
   run(self, function()
-    local taken <close> = reactor.udp_bind(LOOPBACK, 0)
-    local err = self:assert_error(function() reactor.udp_bind(LOOPBACK, taken:local_address().port) end)
+    local taken <close> = reactor.bind_udp(LOOPBACK, 0)
+    local err = self:assert_error(function() reactor.bind_udp(LOOPBACK, taken:local_address().port) end)
     self:assert_true(core.is_instance_of(err, reactor.TransportError), tostring(err))
-    err = self:assert_error(function() reactor.udp_bind("not-an-address", 0) end)
+    err = self:assert_error(function() reactor.bind_udp("not-an-address", 0) end)
     self:assert_equal("EINVAL", err.context.errno)
-    self:assert_true(core.is_instance_of(self:assert_error(function() reactor.udp_bind(LOOPBACK, -1) end), core.ArgumentError))
+    self:assert_true(core.is_instance_of(self:assert_error(function() reactor.bind_udp(LOOPBACK, -1) end), core.ArgumentError))
     self:assert_true(core.is_instance_of(self:assert_error(function() taken:send_to(LOOPBACK, 9, 1) end), core.ArgumentError))
   end)
 end

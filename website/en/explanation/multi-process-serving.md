@@ -57,7 +57,7 @@ The work is split in two packages.
 
 A [listening strategy](../reference/glossary.md#concurrency) decides where a worker obtains its
 connections. It is the only part of the design that depends on the platform. Everything above it,
-the server, the router and the handlers, is the same for every strategy. There are two.
+the server, the router and the actions, is the same for every strategy. There are two.
 
 | Strategy | Who accepts | Primary in the data path | Default on |
 |---|---|---|---|
@@ -128,7 +128,7 @@ deadline, then cancels what remains.
 
 The TCP `reuseport` option needs a version of luv that exposes it for TCP. luv 1.53, the version
 hecate is pinned to, does not (OQ-43). `reactor.supports_reuseport()` returns `false`, and
-`tcp_listen(..., { reuseport = true })` raises `TransportError` with `ENOTSUP`, instead of
+`listen_tcp(..., { reuseport = true })` raises `TransportError` with `ENOTSUP`, instead of
 ignoring the option. Until luv supports it, `auto` will select `round_robin` on Linux too. The
 framework stays complete, and as fast for connections that are reused.
 
@@ -152,4 +152,4 @@ inheriting descriptors across a new binary.
 - Reference: [`reactor.spawn`](../reference/reactor/functions/spawn.md),
   [`reactor.ipc`](../reference/reactor/ipc.md),
   [`reactor.supports_reuseport`](../reference/reactor/functions/supports_reuseport.md),
-  [`reactor.tcp_listen`](../reference/reactor/functions/tcp_listen.md)
+  [`reactor.listen_tcp`](../reference/reactor/functions/listen_tcp.md)

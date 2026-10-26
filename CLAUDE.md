@@ -78,7 +78,7 @@ new ADR with status `Proposed` (use `/new-adr`) or add an entry to
   `native-code-reviewer`, `cross-platform-reviewer`.
 - **Production**: `docs-writer`, `translator-fr`, `ci-engineer`, `release-manager`.
 - **Commands**: `/implement-task`, `/new-adr`, `/new-package`, `/review-package`,
-  `/spike`, `/check`, `/write-docs`, `/translate`, `/bench`, `/prepare-release`.
+  `/spike`, `/check`, `/write-docs`, `/translate`, `/bench`, `/prepare-release`, `/relay`.
 - After implementing anything non-trivial, run `/review-package` (or the relevant
   reviewers) before reporting completion.
 - Details: `docs/architecture/ai-assisted-development.md`.

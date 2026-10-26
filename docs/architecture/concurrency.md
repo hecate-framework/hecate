@@ -6,7 +6,7 @@ Status: specification; decisions in [ADR 0002](../adr/0002-libuv-via-luv.md) and
 ## Model
 
 - One OS process runs one **reactor** (libuv loop through luv) on one thread.
-- Every unit of work (request, background job, test) is a Lua **coroutine** managed by
+- Every concurrent computation (request, background job, test) is a Lua **coroutine** managed by
   the reactor's scheduler.
 - I/O operations exposed by Hecate are **transparent**: they look synchronous, but
   internally submit the operation to libuv and `yield` the current coroutine; the
@@ -93,7 +93,7 @@ Lua report a generic "attempt to yield across a C-call boundary".
 ## Transport
 
 `hecate.reactor` wraps libuv's network handles once, so that `net` never requires `luv`
-(ADR 0002, OQ-28): `tcp_connect`, `tcp_listen`, `udp_bind`, `pipe_connect`, `pipe_listen`
+(ADR 0002, OQ-28): `connect_tcp`, `listen_tcp`, `bind_udp`, `connect_pipe`, `listen_pipe`
 and `resolve` suspend the calling coroutine and return streams, listeners and sockets with
 `read`, `write`, `accept`, `receive_from`, `send_to`, `shutdown` and `close`.
 
@@ -134,8 +134,8 @@ Accepted in [ADR 0023](../adr/0023-multi-process-serving.md), measured in
   listening socket shared by all workers was measured and balances on no platform. Linux is never
   constrained by what another platform needs.
 - The primary supervises workers (readiness, restart on crash with exponential backoff and a
-  crash-loop limit) over a control channel that exists on every platform and carries `ready`,
-  `stop(deadline)` and `reload`; a worker whose control channel closes drains and exits.
+  crash-loop limit) over a control message pipe that exists on every platform and carries `ready`,
+  `stop(deadline)` and `reload`; a worker whose control message pipe closes drains and exits.
 - Graceful shutdown: stop accepting, drain in-flight requests up to a configurable deadline,
   then cancel remaining scopes. A rolling reload starts the replacement before stopping the old
   worker.

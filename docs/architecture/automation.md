@@ -1,16 +1,16 @@
-# Automation: CI/CD and repository scripts
+# Automation: CI/CD and repository tasks
 
 Status: specification; [ADR 0015](../adr/0015-ci-cd-on-github-actions.md) (Accepted).
 
-Principle: **workflows are thin, scripts are thick.** Every CI check is a script in
+Principle: **workflows are thin, tasks are thick.** Every CI check is a task in
 `tools/` that runs identically on a developer machine, in CI and for agents. Workflows
-only prepare runners, call scripts and publish results.
+only prepare runners, call tasks and publish results.
 
-Until the CLI exists, tasks run with `lua tools/run.lua <task> [args]` (after
-`tools/bootstrap`). Afterwards `hecate task <task>` is an alias. Every task supports
+Tasks run with `lua tools/run.lua <task> [args]` (after `tools/bootstrap`). They are
+contributor tooling of this monorepo, not a feature of the `hecate` CLI. Every task supports
 `--json` output and returns a non-zero exit code on failure.
 
-## 1. Script catalogue (`tools/`)
+## 1. Task catalogue (`tools/`)
 
 Status column: `done` = implemented in `tools/`, `now` = workflow exists today, `P0` = to write in Phase 0, `P1+` = later.
 
@@ -36,14 +36,14 @@ Status column: `done` = implemented in `tools/`, `now` = workflow exists today, 
 | `check-glossary` | deny-list of discouraged identifiers in `packages/**/src` (from glossary "Instead of" columns) | done |
 | `check-annotations` | every exported symbol has LuaLS annotations; functions that suspend carry `---@async`; functions returning `nil` for absence declare a nullable return (ADR 0018) | P1 |
 | `check-versions` | all rockspecs and `VERSION` agree (ADR 0005); `lua >= 5.5, < 5.6` everywhere | done |
-| `check-rockspecs` | rockspec lint (`luarocks lint`), fields, licenses, sources | done |
+| `check-rockspecs` | rockspec lint (`luarocks lint`), fields, licences, sources | done |
 | `check-package-structure` | every `packages/<name>` has README.md, CLAUDE.md, rockspec, `tests/`, and an agent in `.claude/agents/pkg-<name>.md` | done |
 | `check-adr-index` | `docs/adr/README.md` lists every ADR with its actual status | done |
 | `check-changelog` | pull requests touching `packages/` add an `[Unreleased]` entry | done |
 | `check-docs-examples` | every code block of the website introduced by `<!-- example: <path> -->` is identical to that file and the file exists (the examples run in the tests of their package) | done |
 | `check-translations` | missing/stale translations (front matter `source_revision`) | P3 |
 | `check-links` | internal Markdown links and anchors | done |
-| `check-licenses` | third-party code and rocks have compatible licenses; `THIRD_PARTY_NOTICES` up to date | done (every directory with a `VENDORED.md` has a `LICENSE` and an entry in the notices, a `vendor` or `third_party` directory without a `VENDORED.md` is reported, every path the notices name must exist; Rust crates by cargo-deny; run by `ci`) |
+| `check-licenses` | third-party code and rocks have compatible licences; `THIRD_PARTY_NOTICES` up to date | done (every directory with a `VENDORED.md` has a `LICENSE` and an entry in the notices, a `vendor` or `third_party` directory without a `VENDORED.md` is reported, every path the notices name must exist; Rust crates by cargo-deny; run by `ci`) |
 
 ### Tests and measurements
 
@@ -56,7 +56,7 @@ Status column: `done` = implemented in `tools/`, `now` = workflow exists today, 
 | `matrix` | emits the CI matrix (platforms × packages × services) as JSON | done |
 | `services up\|down\|status` | start database servers locally via `tools/services/compose.yaml` (same versions as CI) | P4 |
 | `bench [scenario] [--compare ref]` | run benchmarks, compare with a baseline, fail above threshold | P1 (partly done: `bench [name...] [--list] [--runs=N] [--pin=CPUS] [--out=DIR]` browses and runs the `packages/*/benchmarks/*.lua` files on a Linux host, with host reports and a summary of the runs; `bench <scenario> [--compare=ref]` runs a network scenario of `benchmarks/scenarios/` and its interleaved A/B comparison against a git reference, Mann-Whitney U with p < 0.01 and a 10 % threshold; the `plaintext`, `json` and later scenarios come with their packages) |
-| `fuzz <target> [--seconds n]` | libFuzzer targets for C parsers and codecs | done for the cargo-fuzz targets of `net` (`fuzz --list`); the C targets of `json` wait for the libFuzzer harness |
+| `fuzz <target> [--seconds n]` | libFuzzer targets for C parsers and codecs | done: the cargo-fuzz targets of `net` and the C targets of `json` (`decode`, `decode_limits`: clang with libFuzzer, ASan and UBSan, seeds in `csrc/fuzz/seeds`; `fuzz --list`) |
 | `sanitize [packages]` | build native modules with ASan/UBSan and run their tests (Linux and macOS, GCC or Clang: the ASan runtime is preloaded with `LD_PRELOAD`, or `DYLD_INSERT_LIBRARIES` on macOS; default package `json`, the only one with C code; the Rust code is not instrumented, the cargo-fuzz targets exercise its boundary) | done |
 | `leaks [packages]` | run the reactor-heavy suites (default `reactor`, `net`) with the harness leak check (`HECATE_TEST_LEAKS=1`): a test that leaves libuv handles open fails; coroutine leaks are already failed by `hecate.test` scopes | done (verified only where `luv` is installed: in CI) |
 | `cli-e2e` | generate each CLI template, install, test, serve, request | P3 |
@@ -65,7 +65,8 @@ Status column: `done` = implemented in `tools/`, `now` = workflow exists today, 
 
 | Task | Output | Status |
 |---|---|---|
-| `new-package <name> --layer L` | package skeleton + CLAUDE.md + agent + catalogue entry | done |
+| `new-package <name> --layer "<label>" --phase <n> --summary "<text>" [--deps a,b]` | package skeleton + CLAUDE.md + agent + catalogue entry | done |
+| `gen-rockspecs` | per-package rockspecs and `tests/` skeleton from the READMEs | done |
 | `gen-catalogue` | `packages/README.md` table from rockspecs and READMEs | done |
 | `gen-dependency-graph` | Mermaid graph in overview.md (between markers) | done |
 | `gen-reference` | Markdown reference from LuaLS JSON export into `website/en/reference/<package>/` (not committed, git-ignored; skipped with a message without `lua-language-server`, `--require` fails instead; `build.lua --reference` runs the same generator before a site build; OQ-40) | done for `core`, `reactor`, `net` |
@@ -96,7 +97,7 @@ Status column: `done` = implemented in `tools/`, `now` = workflow exists today, 
 | `pr-hygiene.yml` | PR opened/edited | Conventional Commits title, path labels | now |
 | `claude.yml` | `@claude` in issues, PR comments and reviews | Claude Code GitHub Action | now (needs `ANTHROPIC_API_KEY` secret) |
 | `ci.yml` | PR, push to main | `affected` → matrix {ubuntu, macos, windows} × affected packages: bootstrap (cached), format-check, lint, typecheck, check-* (including `check-docs-examples` and `check-licenses`), unit tests; coverage runs in `nightly` | P0 |
-| `native.yml` | PR and push to main touching `csrc/` or `native/` (and the sanitize and fuzz tools) | ASan/UBSan run of `json` (Linux with GCC and Clang, macOS with Clang), one-minute fuzzing (Linux) of every cargo-fuzz target (crashing inputs uploaded as an artefact); MSVC builds are part of `ci`; long fuzzing in `nightly` | P1 (done; the json libFuzzer C target is still to write) |
+| `native.yml` | PR and push to main touching `csrc/` or `native/` (and the sanitize and fuzz tools) | ASan/UBSan run of `json` (Linux with GCC and Clang, macOS with Clang), one-minute fuzzing (Linux) of every cargo-fuzz target (crashing inputs uploaded as an artefact); MSVC builds are part of `ci`; long fuzzing in `nightly` | P1 (done) |
 | `integration.yml` | PR touching data/net packages, nightly | service containers: PostgreSQL, MySQL, MariaDB, Redis, Valkey, later MongoDB, SQL Server — two most recent major versions each | P4 |
 | `benchmarks.yml` | push to main, PR labelled `performance` | GitHub-hosted runner, `bench --compare main` with interleaved A/B runs on the same runner (relative comparison only, OQ-14), repeated runs (7 rounds each side for `tcp-echo`, at least 5 are required; the table asks for more as scenarios stabilise), the **median** is the reference value (mean, min and max reported alongside, since shared runners are noisy), deltas and significance in the job summary (a PR comment and the published history come later), history published as indicative | P1 (delivered for `tcp-echo`: `benchmarks.yml`) |
 | `website.yml` | PR (build only), push to main (deploy) | gen-reference, site build (`hecate doc`, or the interim generator chosen after OQ-11), link check, translation status, deploy to GitHub Pages | P2; first version done (pinned LuaLS, `build.lua --reference --strict`, base path and origin from `configure-pages`, deploy from main; link check inside `--strict`; translation status and `hecate doc` pending; needs Settings > Pages > Source = GitHub Actions) |

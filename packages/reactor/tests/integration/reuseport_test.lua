@@ -57,12 +57,12 @@ function T:test_an_unsupported_platform_raises_enotsup_instead_of_ignoring_the_o
     self:assert_false(reactor.supports_reuseport())
     reactor.run(function()
       local before = reactor.Reactor.open_handles()
-      local err = self:assert_error(function() reactor.tcp_listen(LOOPBACK, 0, { reuseport = true }) end)
+      local err = self:assert_error(function() reactor.listen_tcp(LOOPBACK, 0, { reuseport = true }) end)
       self:assert_true(core.is_instance_of(err, reactor.TransportError), tostring(err))
       self:assert_equal("ENOTSUP", err.context.errno)
       self:assert_equal(before, reactor.Reactor.open_handles())
       -- Without the option nothing changes.
-      reactor.tcp_listen(LOOPBACK, 0):close()
+      reactor.listen_tcp(LOOPBACK, 0):close()
     end)
   end)
 end
@@ -70,23 +70,23 @@ end
 function T:test_the_option_is_validated()
   reactor.run(function()
     ---@diagnostic disable-next-line: assign-type-mismatch  -- the point is to pass a wrong type
-    local err = self:assert_error(function() reactor.tcp_listen(LOOPBACK, 0, { reuseport = "yes" }) end)
+    local err = self:assert_error(function() reactor.listen_tcp(LOOPBACK, 0, { reuseport = "yes" }) end)
     self:assert_true(core.is_instance_of(err, core.ArgumentError))
   end)
 end
 
 function T:test_a_port_in_use_is_refused_without_reuseport_and_when_mixing_modes()
   reactor.run(function()
-    local plain <close> = reactor.tcp_listen(LOOPBACK, 0)
+    local plain <close> = reactor.listen_tcp(LOOPBACK, 0)
     local port = plain:local_address().port
-    self:assert_equal("EADDRINUSE", errno_of(self, function() reactor.tcp_listen(LOOPBACK, port) end))
+    self:assert_equal("EADDRINUSE", errno_of(self, function() reactor.listen_tcp(LOOPBACK, port) end))
     if not reactor.supports_reuseport() then return end
     -- A reuseport socket cannot join a plain one, nor the other way round.
     self:assert_equal("EADDRINUSE",
-      errno_of(self, function() reactor.tcp_listen(LOOPBACK, port, { reuseport = true }) end))
-    local shared <close> = reactor.tcp_listen(LOOPBACK, 0, { reuseport = true })
+      errno_of(self, function() reactor.listen_tcp(LOOPBACK, port, { reuseport = true }) end))
+    local shared <close> = reactor.listen_tcp(LOOPBACK, 0, { reuseport = true })
     self:assert_equal("EADDRINUSE",
-      errno_of(self, function() reactor.tcp_listen(LOOPBACK, shared:local_address().port) end))
+      errno_of(self, function() reactor.listen_tcp(LOOPBACK, shared:local_address().port) end))
   end)
 end
 
@@ -101,9 +101,9 @@ function T:test_both_sockets_of_a_shared_port_accept_connections()
   end
   local before = reactor.Reactor.open_handles()
   local seen = reactor.run(function()
-    local a <close> = reactor.tcp_listen(LOOPBACK, 0, { reuseport = true })
+    local a <close> = reactor.listen_tcp(LOOPBACK, 0, { reuseport = true })
     local port = a:local_address().port
-    local b <close> = reactor.tcp_listen(LOOPBACK, port, { reuseport = true })
+    local b <close> = reactor.listen_tcp(LOOPBACK, port, { reuseport = true })
     local counts = { a = 0, b = 0 }
     local accepted = reactor.Channel(256)
     for name, listener in pairs({ a = a, b = b }) do
@@ -119,7 +119,7 @@ function T:test_both_sockets_of_a_shared_port_accept_connections()
     end
     local clients = {}
     local total = 100 -- the kernel hashes each connection: all on one socket has probability 2^-99
-    for index = 1, total do clients[index] = reactor.tcp_connect(LOOPBACK, port) end
+    for index = 1, total do clients[index] = reactor.connect_tcp(LOOPBACK, port) end
     for _ = 1, total do accepted:receive() end
     for _, client in ipairs(clients) do client:close() end
     a:close()

@@ -27,9 +27,9 @@ function T:test_count_ignores_hits_outside_executable_lines()
   self:assert_equal(1, covered)
 end
 
-function T:test_normalize_collapses_parent_segments()
-  self:assert_equal("packages/core/src/a.lua", coverage.normalize("tools/../packages\\core/src/a.lua"))
-  self:assert_equal("../x.lua", coverage.normalize("../x.lua"))
+function T:test_normalise_collapses_parent_segments()
+  self:assert_equal("packages/core/src/a.lua", coverage.normalise("tools/../packages\\core/src/a.lua"))
+  self:assert_equal("../x.lua", coverage.normalise("../x.lua"))
 end
 
 function T:test_percent_of_an_empty_file_is_full()

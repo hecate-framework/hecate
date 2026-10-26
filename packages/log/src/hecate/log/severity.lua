@@ -15,7 +15,7 @@ local core = require("hecate.core")
 ---@field warning hecate.core.EnumerationValue  code 4: warning conditions
 ---@field notice hecate.core.EnumerationValue  code 5: normal but significant condition
 ---@field informational hecate.core.EnumerationValue  code 6: informational messages
----@field debug hecate.core.EnumerationValue  code 7: debug-level messages
+---@field debug hecate.core.EnumerationValue  code 7: debug messages
 ---@field values fun(self: hecate.log.Severity): hecate.core.EnumerationValue[]  the severities, most urgent first
 ---@field names fun(self: hecate.log.Severity): string[]  the severity names, most urgent first
 ---@field contains fun(self: hecate.log.Severity, candidate: any): boolean  tells whether a value is a severity

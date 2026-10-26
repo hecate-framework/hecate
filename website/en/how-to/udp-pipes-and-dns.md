@@ -134,8 +134,8 @@ end)
 - The path must not exist. Binding an existing path fails with `EADDRINUSE`. The listener
   removes its socket file when it closes. After a crash a stale file stays: remove it before you
   listen again.
-- A Windows pipe name is at most 256 characters. A Unix socket path is at most 104 bytes on
-  macOS and 108 on Linux, the terminating NUL included. A longer path raises `ArgumentError`.
+- A Windows pipe name is at most 256 characters. A Unix socket path is at most 107 bytes (103
+  on macOS), the terminating NUL excluded. A longer path raises `ArgumentError`.
 
 ### Differences on Windows
 

@@ -89,7 +89,7 @@ and which prints measurement lines of the form `<label> <value> <unit>` (for exa
 
 ### Ubuntu 24.04 (reference platform)
 
-1. **Install the toolchain** once: `sh tools/bootstrap.sh` (Lua 5.5, `luarocks`), a C compiler, `cmake` and `cargo` and, for the network scenarios, a load generator (`wrk2` or `oha`)
+1. **Install the toolchain** once: `sh tools/bootstrap/bootstrap.sh` (Lua 5.5, `luarocks`), a C compiler, `cmake` and `cargo` and, for the network scenarios, a load generator (`wrk2` or `oha`)
    and a **second machine** if you have one (see "Load generator" below).
 2. **Build** a clean checkout of the commit to measure (record it, the host report does):
    `git clone`, `git checkout <commit>`, `lua tools/run.lua build-native json`.

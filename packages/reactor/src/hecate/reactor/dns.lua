@@ -35,24 +35,24 @@ local M = {}
 ---@return hecate.reactor.ResolvedAddress[] addresses  the distinct addresses, in resolver order
 function M.resolve(host, options)
   if type(host) ~= "string" or host == "" then
-    error(core.ArgumentError(("resolve expects a host name, got %s"):format(tostring(host))), 2)
+    error(core.ArgumentError(("reactor.resolve: expects a host name, got %s"):format(tostring(host))), 2)
   end
   local family
   if options ~= nil then
     if type(options) ~= "table" then
-      error(core.ArgumentError("resolve expects an options table"), 2)
+      error(core.ArgumentError("reactor.resolve: expects an options table"), 2)
     end
     for key in pairs(options) do
       if key ~= "family" then
-        error(core.ArgumentError(("resolve: unknown option %s"):format(tostring(key))), 2)
+        error(core.ArgumentError(("reactor.resolve: unknown option %s"):format(tostring(key))), 2)
       end
     end
     family = options.family
     if family ~= nil and family ~= "inet" and family ~= "inet6" then
-      error(core.ArgumentError('resolve: option family must be "inet" or "inet6"'), 2)
+      error(core.ArgumentError('reactor.resolve: option family must be "inet" or "inet6"'), 2)
     end
   end
-  uv_call.begin("resolve")
+  uv_call.begin("reactor.resolve")
   local state = {}
   local ok, failure = pcall(context.suspend, function(wake)
     local started, err = uv.getaddrinfo(host, nil, { family = family, socktype = "stream" }, function(e, result)
@@ -65,7 +65,7 @@ function M.resolve(host, options)
     end
   end)
   if not ok then error(failure, 0) end
-  if state.err then uv_call.fail_transport("resolve " .. host, state.err) end
+  if state.err then uv_call.fail_transport("reactor.resolve", "resolve " .. host, state.err) end
   local addresses, seen = {}, {}
   for _, entry in ipairs(state.result or {}) do
     local key = entry.addr
@@ -74,7 +74,7 @@ function M.resolve(host, options)
       addresses[#addresses + 1] = { ip = entry.addr, family = entry.family }
     end
   end
-  if #addresses == 0 then uv_call.fail_transport("resolve " .. host, "EAI_NONAME: no address") end
+  if #addresses == 0 then uv_call.fail_transport("reactor.resolve", "resolve " .. host, "EAI_NONAME: no address") end
   return addresses
 end
 

@@ -39,16 +39,17 @@ flowchart TB
     template --> kernel
   end
   subgraph D[Data]
-    migration --> query
+    migration --> sql
     mongodb --> net
     mysql --> sql
-    orm --> query
     orm --> schema
+    orm --> sql
     postgresql --> sql
-    query --> sql
+    query --> core
     redis --> net
     sql --> log
     sql --> net
+    sql --> query
     sqlite --> sql
     sqlserver --> sql
   end
@@ -76,8 +77,10 @@ README lists its exact dependencies.
 - Directory: `packages/<name>/`
 - Rock: `hecate-<name>` (the meta-rock is `hecate`)
 - Lua module root: `hecate.<name>` (e.g. `require "hecate.router"`)
-- The meta-module `hecate` re-exports the framework surface (classes, controllers,
-  routes, problem details) so that typical application code needs one `require`.
+- The meta-module `hecate` re-exports the framework surface (controllers,
+  routes, problem details) so that typical application code needs one `require`. It does not
+  re-export the object-model entry points: applications declare classes with `core.class`
+  from `hecate.core` ([OQ-57](../open-questions.md), resolved).
 
 ## Native code policy
 
@@ -87,8 +90,8 @@ performance or system access:
 | Need | Native component | Decision |
 |---|---|---|
 | Asynchronous I/O | libuv through luv | ADR 0002 |
-| HTTP/1.1 parsing | llhttp | OQ-6 |
-| JSON | C codec | OQ-5 |
+| HTTP/1.1 parsing | llhttp | [ADR 0019](../adr/0019-http-parser-llhttp.md) |
+| JSON | yyjson decoder (C), serde_json encoder (Rust) | [ADR 0020](../adr/0020-json-yyjson-decoder-serde-encoder.md), [ADR 0021](../adr/0021-rust-native-modules.md) |
 | TLS | rustls through mlua | ADR 0021 |
 | SQLite | SQLite amalgamation | data-access.md |
 | Hashing for auth protocols (SHA-256, HMAC, PBKDF2) | provided by the TLS library binding | OQ-4 |

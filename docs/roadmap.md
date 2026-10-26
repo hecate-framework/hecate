@@ -74,7 +74,7 @@ verified on macOS and Windows through pull requests.
       coding-standards.md (OQ-3).
 - [x] Fill the "Commands" section of `CLAUDE.md`.
 
-- [ ] **Phase 0 gate**: verification of the phase, as described in [Phase gates](#phase-gates).
+- [x] **Phase 0 gate**: verification of the phase, as described in [Phase gates](#phase-gates).
 
 Exit: CI is green on all three platforms with a trivial test in every package skeleton.
 
@@ -131,7 +131,7 @@ Exit: CI is green on all three platforms with a trivial test in every package sk
 - [x] Workflows `native.yml`, `security.yml`, `nightly.yml`; tasks `sanitize`, `fuzz`,
       `leaks`, `coverage`, `bench`, `check-licenses` (`security.yml`: `cargo audit`,
       `cargo deny`, CodeQL, dependency review, Scorecard).
-- [ ] `json` follow-up: libFuzzer C targets for the native code of `json`
+- [x] `json` follow-up: libFuzzer C targets for the native code of `json`
       (`csrc/native.c`), run by the `fuzz` task and `nightly.yml` (coding-standards.md;
       the `sanitize` task already covers its ASan and UBSan build).
 - [ ] **Phase 1 gate**: verification of the phase, as described in [Phase gates](#phase-gates). Open
@@ -148,8 +148,8 @@ concurrency test suite passes; benchmark baseline recorded.
 - [ ] `router`: radix tree, URI template subset, 404/405, reverse routing.
 - [ ] `schema`: refinement types, composition, coercion, validation with JSON Pointer
       error paths, JSON Schema 2020-12 emission.
-- [ ] `container`: IoC container, lifetimes, cycle detection at boot.
-- [ ] `config`: layered configuration validated by schemas.
+- [ ] `container`: IoC container, lifetimes, cycle detection at boot; write its specification section in `docs/architecture/` (OQ-62).
+- [ ] `config`: layered configuration validated by schemas; write its specification section in `docs/architecture/`, including the logging keys (OQ-62).
 - [ ] `kernel`: application, modules, controllers, route modules, filters, problem
       details, lifecycle, multi-process workers, graceful shutdown.
 - [ ] Example: `examples/hello` (JSON API with validation).

@@ -40,7 +40,7 @@ local Site = core.class("Site")
 ---@param options hecate.doc.SiteOptions
 function Site:init(options)
   if type(options) ~= "table" or type(options.source) ~= "string" or options.fs == nil then
-    error(core.ArgumentError("Site expects { config, source, fs }"), 3)
+    error(core.ArgumentError("doc.Site: expects { config, source, fs }"), 3)
   end
   self.config = config_module.normalise(options.config)
   self._source = options.source:gsub("/+$", "")
@@ -252,7 +252,7 @@ function Site:load()
 end
 
 local function ensure_loaded(self)
-  if not self._loaded then error(core.ArgumentError("call Site:load() first"), 3) end
+  if not self._loaded then error(core.ArgumentError("doc.Site: call Site:load() first"), 3) end
 end
 
 --- Returns the pages of a locale, sorted by id (fallback pages included).

@@ -75,7 +75,7 @@ function T:test_a_raising_target_is_counted_and_does_not_stop_the_drain()
   self:assert_equal(1, async:failures())
 end
 
-function T:test_close_flushes_stops_the_task_and_ignores_later_writes()
+function T:test_close_flushes_stops_the_drain_and_ignores_later_writes()
   local closed = false
   local memory = log.MemorySink()
   local target = { write = function(_, r) memory:write(r) end, close = function() closed = true end }

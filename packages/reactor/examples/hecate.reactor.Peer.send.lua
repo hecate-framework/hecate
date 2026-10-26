@@ -18,10 +18,10 @@ end)
 ]]
 
 reactor.run(function()
-  local listener <close> = reactor.tcp_listen("127.0.0.1", 0)
+  local listener <close> = reactor.listen_tcp("127.0.0.1", 0)
   local port = listener:local_address().port
   local client = reactor.fork(function()
-    local stream <close> = reactor.tcp_connect("127.0.0.1", port)
+    local stream <close> = reactor.connect_tcp("127.0.0.1", port)
     return stream:read()
   end)
   local process = reactor.spawn(arg[-1], { "-e", CHILD }, {

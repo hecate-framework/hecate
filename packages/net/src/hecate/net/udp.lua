@@ -4,6 +4,7 @@ global <const> require, type, error, tostring, math, pairs
 
 local core = require("hecate.core")
 local reactor = require("hecate.reactor")
+local errors = require("hecate.net.errors")
 local UdpSocket = require("hecate.net.udp_socket")
 local dns = require("hecate.net.dns")
 
@@ -27,21 +28,21 @@ local M = {}
 ---@return hecate.net.UdpSocket socket  the bound socket
 function M.bind_udp(host, port, options)
   if type(host) ~= "string" or host == "" then
-    error(core.ArgumentError(("bind_udp expects a host name or address, got %s"):format(tostring(host))), 2)
+    error(core.ArgumentError(("net.bind_udp: expects a host name or address, got %s"):format(tostring(host))), 2)
   end
   if math.type(port) ~= "integer" or port < 0 or port > 65535 then
-    error(core.ArgumentError(("bind_udp expects a port in 0..65535, got %s"):format(tostring(port))), 2)
+    error(core.ArgumentError(("net.bind_udp: expects a port in 0..65535, got %s"):format(tostring(port))), 2)
   end
   if options ~= nil and type(options) ~= "table" then
-    error(core.ArgumentError(("bind_udp expects an options table, got %s"):format(type(options))), 2)
+    error(core.ArgumentError(("net.bind_udp: expects an options table, got %s"):format(type(options))), 2)
   end
   for key in pairs(options or {}) do
     if key ~= "family" then
-      error(core.ArgumentError(("bind_udp: unknown option %s"):format(tostring(key))), 2)
+      error(core.ArgumentError(("net.bind_udp: unknown option %s"):format(tostring(key))), 2)
     end
   end
-  local addresses = dns.resolve(host, { family = options and options.family })
-  return UdpSocket(reactor.udp_bind(addresses[1].ip, port))
+  local addresses = dns.resolve_for("net.bind_udp", host, { family = options and options.family })
+  return UdpSocket(errors.delegate("net.bind_udp", reactor.bind_udp, addresses[1].ip, port))
 end
 
 return M

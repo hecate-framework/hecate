@@ -47,6 +47,11 @@ packages/<name>/
   (`user_repository.lua` → `UserRepository`).
 - Booleans read as predicates: `is_closed`, `has_body`, `can_retry`.
 - No abbreviations except standard ones (`uri`, `http`, `sql`, `json`, `id`, `tls`).
+- **Spelling.** Prose and identifiers use British spelling (`finalise`, `normalise_config`,
+  "licence", "behaviour", "catalogue"). External identifiers keep their own spelling: the
+  rockspec field `license`, SPDX identifiers, badges and the task name `check-licenses`.
+- **Operations name the verb first**, then the transport: `connect_tcp`, `listen_pipe`,
+  `bind_udp`; the same name in `reactor` and in `net`.
 
 ## Modules
 
@@ -65,8 +70,24 @@ Decided in [ADR 0018](../adr/0018-error-signalling.md).
   found). Never `nil, message` pairs in public APIs.
 - Error messages: lower case first word, no trailing period, mention the offending value
   and the expected one: `invalid port 70000: expected an integer in [0, 65535]`.
-- Every error class has a stable `code` (`hecate.http.HeaderTooLarge`) documented on the
-  website.
+- Every error class name ends with `Error` and has a stable `code`, the full class name
+  (`hecate.http.FieldTooLargeError`), documented on the website.
+- **Message prefix.** A message that is raised for a call starts with the qualified
+  `module.function:` exactly as the caller wrote the call: `net.bind_udp: unknown option foo`,
+  `json.decode: ...`, `reactor.spawn: ...`; for a constructor, the class:
+  `net.BufferedReader: ...`; for a method, `Class.method`: `net.TcpStream.read: ...`. Failures of
+  an operation reported by the operating system carry the prefix too
+  (`net.TcpStream.read: ECONNRESET ...`, `reactor.connect_tcp: connect 127.0.0.1:80: ECONNREFUSED ...`); the stable
+  `context.operation` stays as the data of the failure. The prefix is never bare (`resolve` exists in `reactor` and in
+  `net`).
+  The one exception is a message raised from inside the scheduler, in a computation that made no call
+  the caller wrote: the cancellation signals delivered to a computation (`cancelled`, `future cancelled`,
+  `scope cancelled`, `the scope body failed`, `a sibling computation failed`) and the report of a
+  coroutine that called `coroutine.yield` directly (`a managed coroutine called coroutine.yield
+  directly; ...`). This list is complete; every other message of `reactor` and `net` carries the prefix,
+  including `reactor.deadline: deadline exceeded`, `reactor.run: deadlock: ...` and
+  `reactor.Channel.send: the channel is closed`. A method of a class that another package wraps names the
+  wrapper when it is reached through it (`net.TcpStream.write`, not `reactor.TcpStream.write`).
 
 ## Resources
 
@@ -142,7 +163,7 @@ Generated pages: `lua tools/run.lua gen-reference` (needs `lua-language-server`)
 - C11, `-Wall -Wextra -Werror` (GCC/Clang), `/W4 /WX` (MSVC).
 - ASan + UBSan builds on Linux in CI (`native.yml`, task `sanitize`); fuzzing targets for
   parsers (llhttp wrapper, JSON, BSON, protocol frame decoders) with libFuzzer (task `fuzz`:
-  today the cargo-fuzz targets of `net`; the C targets of `json` are a roadmap item).
+  the cargo-fuzz targets of `net` and the C targets of `json`, `packages/json/csrc/fuzz`).
 - No global mutable state; every native handle wrapped as userdata with `__gc` and
   `__close`.
 

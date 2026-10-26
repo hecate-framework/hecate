@@ -63,7 +63,7 @@ function Waitq:wake_first(...)
   end
 end
 
---- Reports whether no waiter is queued. A cancelled waiter stays queued until its task
+--- Reports whether no waiter is queued. A cancelled waiter stays queued until its computation
 --- resumes and withdraws it, so a false result may count a waiter that is about to leave.
 ---@return boolean
 function Waitq:is_empty() return self.size == 0 end

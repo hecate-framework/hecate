@@ -16,7 +16,7 @@ local context = require("hecate.reactor.internal.context")
 local Scope = core.class("Scope")
 
 --- Initialises a scope owned by the coroutine that opens it.
----@param owner table  internal task
+---@param owner table  internal computation
 ---@param parent? hecate.reactor.Scope
 function Scope:init(owner, parent)
   self.parent = parent
@@ -38,12 +38,12 @@ end
 ---@return hecate.reactor.Future
 function Scope:fork(fn, ...)
   if type(fn) ~= "function" then
-    error(core.ArgumentError(("fork expects a function, got %s"):format(type(fn))), 2)
+    error(core.ArgumentError(("reactor.Scope.fork: expects a function, got %s"):format(type(fn))), 2)
   end
   if self._closed then
-    error(core.ArgumentError("cannot fork into a scope that has completed"), 2)
+    error(core.ArgumentError("reactor.Scope.fork: cannot fork into a scope that has completed"), 2)
   end
-  return context.reactor:_create_task(self, fn, table.pack(...))
+  return context.reactor:_create_computation(self, fn, table.pack(...))
 end
 
 --- Requests cancellation of every computation in the scope (and of the code that opened
@@ -75,10 +75,10 @@ function Scope:_propagate()
 end
 
 ---@private
-function Scope:_adopt(task)
+function Scope:_adopt(computation)
   local children = self._children
-  children[#children + 1] = task
-  task.slot = #children
+  children[#children + 1] = computation
+  computation.slot = #children
 end
 
 ---@private
@@ -99,18 +99,18 @@ function Scope:_remove_subscope(scope)
 end
 
 --- Records the end of a child; the first failure cancels the siblings.
----@param task table
+---@param computation table
 ---@param state "completed"|"failed"|"cancelled"
 ---@param err any
 ---@private
-function Scope:_child_done(task, state, err)
+function Scope:_child_done(computation, state, err)
   local children = self._children
   local last = children[#children]
-  children[task.slot] = last
-  last.slot = task.slot
+  children[computation.slot] = last
+  last.slot = computation.slot
   children[#children] = nil
-  task.slot = nil
-  if state == "failed" and not task.detached and not self._failed then
+  computation.slot = nil
+  if state == "failed" and not computation.detached and not self._failed then
     self._failed, self._failure = true, err
     self:cancel(core.CancellationError({
       message = "a sibling computation failed", cause = err, context = { source = self },

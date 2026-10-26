@@ -27,7 +27,7 @@ Option 1.
 - Failures (I/O failure, protocol error, invalid input, misconfiguration, programmer
   error, cancellation, deadline) **raise** an instance of the `hecate.core.Error`
   hierarchy, with a stable `code`, a message, optional `cause` and `context`.
-- **Expected absence returns `nil`** (`repository:find(id)`, `headers:get(name)`,
+- **Expected absence returns `nil`** (`repository:find(id)`, `fields:get(name)`,
   `cache:get(key)`). The function's documentation states when `nil` is returned.
 - Public APIs never return `nil, message` pairs.
 - A boolean-returning variant may exist when failure is a normal outcome and its name

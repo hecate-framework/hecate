@@ -79,15 +79,17 @@ function M.available()
   return false, BUILD_HINT .. ": " .. tostring(native)
 end
 
-local function require_native()
-  if not loaded then error(errors.tls_failure(BUILD_HINT, "native_missing"), 0) end
+---@param call string  the public call, for the message
+local function require_native(call)
+  if not loaded then error(errors.qualify(errors.tls_failure(BUILD_HINT, "native_missing"), call), 0) end
 end
 
 --- Converts a native failure (a text, or a `{ kind, message }` table) into a `TlsError`.
 ---@param failure any
+---@param call string  the public call, for the message
 ---@return hecate.net.TlsError
-local function native_error(failure)
-  return errors.tls_failure(failure)
+local function native_error(failure, call)
+  return errors.qualify(errors.tls_failure(failure), call)
 end
 
 local function set(list)
@@ -212,7 +214,7 @@ end
 --- Validates the options table of a configuration builder.
 local function check_table(name, options)
   if type(options) ~= "table" then
-    error(core.ArgumentError(("%s expects an options table, got %s"):format(name, type(options))), 3)
+    error(core.ArgumentError(("%s: expects an options table, got %s"):format(name, type(options))), 3)
   end
 end
 
@@ -220,7 +222,7 @@ end
 local function check_stream(name, stream)
   if type(stream) ~= "table" or type(stream.read) ~= "function" or type(stream.write) ~= "function"
     or type(stream.close) ~= "function" then
-    error(core.ArgumentError(("%s expects a stream (an object with read, write and close), got %s"):format(name, type(stream))), 3)
+    error(core.ArgumentError(("%s: expects a stream (an object with read, write and close), got %s"):format(name, type(stream))), 3)
   end
 end
 
@@ -232,13 +234,13 @@ end
 ---@return hecate.net.TlsClientConfig config
 function M.client_config(options)
   options = options or {}
-  check_table("client_config", options)
-  reject_unknown("client_config", options, CLIENT_KEYS, "client")
-  check_values("client_config", options, { "ca_pem", "cert_pem", "key_pem" })
-  check_trust("client_config", options)
-  require_native()
+  check_table("net.tls.client_config", options)
+  reject_unknown("net.tls.client_config", options, CLIENT_KEYS, "client")
+  check_values("net.tls.client_config", options, { "ca_pem", "cert_pem", "key_pem" })
+  check_trust("net.tls.client_config", options)
+  require_native("net.tls.client_config")
   local ok, config = pcall(native.client_config, options)
-  if not ok then error(native_error(config), 0) end
+  if not ok then error(native_error(config, "net.tls.client_config"), 0) end
   return config
 end
 
@@ -247,29 +249,33 @@ end
 ---@param options hecate.net.TlsServerOptions
 ---@return hecate.net.TlsServerConfig config
 function M.server_config(options)
-  check_table("server_config", options)
-  reject_unknown("server_config", options, SERVER_KEYS, "server")
+  check_table("net.tls.server_config", options)
+  reject_unknown("net.tls.server_config", options, SERVER_KEYS, "server")
   for _, key in ipairs({ "cert_pem", "key_pem" }) do
     if type(options[key]) ~= "string" then
-      error(core.ArgumentError(("server_config: option %s is required (a PEM string)"):format(key)), 3)
+      error(core.ArgumentError(("net.tls.server_config: option %s is required (a PEM string)"):format(key)), 3)
     end
   end
-  check_values("server_config", options, { "client_ca_pem" })
-  require_native()
+  check_values("net.tls.server_config", options, { "client_ca_pem" })
+  require_native("net.tls.server_config")
   local ok, config = pcall(native.server_config, options)
-  if not ok then error(native_error(config), 0) end
+  if not ok then error(native_error(config, "net.tls.server_config"), 0) end
   return config
 end
 
 --- Runs `tls.handshake` under the handshake deadline; on any failure (expiry and cancellation
 --- included) closes the stream and rethrows.
 ---@async
-local function handshake(stream, session, options)
+---@param stream hecate.net.Stream
+---@param session userdata
+---@param options hecate.net.TlsHandshakeOptions
+---@param call string  the public call, for the message
+local function handshake(stream, session, options, call)
   local tls = TlsStream(stream, session)
   local done, failure = pcall(reactor.deadline, options.handshake_deadline or DEFAULT_HANDSHAKE_DEADLINE, tls.handshake, tls)
   if not done then
     tls:close()
-    error(failure, 0)
+    error(errors.qualify(failure, call), 0)
   end
   return tls
 end
@@ -279,6 +285,8 @@ end
 --- is malformed. `server_name` is sent as SNI and the certificate must match it (RFC 6125).
 --- The handshake must finish within `options.handshake_deadline` seconds (default 10); on expiry
 --- `hecate.core.DeadlineExceededError` is raised.
+--- This is the low-level step for a stream you already hold (any `Stream`); to open a TCP connection and
+--- secure it, call `net.connect_tls`, the client entry point.
 ---@async
 ---@param stream hecate.net.Stream
 ---@param server_name string
@@ -286,24 +294,24 @@ end
 ---@param options? hecate.net.TlsHandshakeOptions
 ---@return hecate.net.TlsStream
 function M.connect(stream, server_name, config, options)
-  check_stream("tls.connect", stream)
+  check_stream("net.tls.connect", stream)
   if type(server_name) ~= "string" or server_name == "" then
-    error(core.ArgumentError("tls.connect expects a server name"), 2)
+    error(core.ArgumentError("net.tls.connect: expects a server name"), 2)
   end
   options = options or {}
-  check_table("tls.connect", options)
-  reject_unknown("tls.connect", options, HANDSHAKE_KEYS, "handshake")
-  check_deadline("tls.connect", options)
+  check_table("net.tls.connect", options)
+  reject_unknown("net.tls.connect", options, HANDSHAKE_KEYS, "handshake")
+  check_deadline("net.tls.connect", options)
   if type(config) ~= "userdata" then
-    error(core.ArgumentError("tls.connect expects a configuration from tls.client_config"), 2)
+    error(core.ArgumentError("net.tls.connect: expects a configuration from tls.client_config"), 2)
   end
-  require_native()
+  require_native("net.tls.connect")
   local ok, session = pcall(native.client, config, server_name)
   if not ok then
     stream:close()
-    error(native_error(session), 0)
+    error(native_error(session, "net.tls.connect"), 0)
   end
-  return handshake(stream, session, options)
+  return handshake(stream, session, options, "net.tls.connect")
 end
 
 --- Runs a TLS server handshake over an accepted `stream`, which the result owns: it is closed when
@@ -316,21 +324,21 @@ end
 ---@param options? hecate.net.TlsHandshakeOptions
 ---@return hecate.net.TlsStream
 function M.accept(stream, config, options)
-  check_stream("tls.accept", stream)
+  check_stream("net.tls.accept", stream)
   options = options or {}
-  check_table("tls.accept", options)
-  reject_unknown("tls.accept", options, HANDSHAKE_KEYS, "handshake")
-  check_deadline("tls.accept", options)
+  check_table("net.tls.accept", options)
+  reject_unknown("net.tls.accept", options, HANDSHAKE_KEYS, "handshake")
+  check_deadline("net.tls.accept", options)
   if type(config) ~= "userdata" then
-    error(core.ArgumentError("tls.accept expects a configuration from tls.server_config"), 2)
+    error(core.ArgumentError("net.tls.accept: expects a configuration from tls.server_config"), 2)
   end
-  require_native()
+  require_native("net.tls.accept")
   local ok, session = pcall(native.server, config)
   if not ok then
     stream:close()
-    error(native_error(session), 0)
+    error(native_error(session, "net.tls.accept"), 0)
   end
-  return handshake(stream, session, options)
+  return handshake(stream, session, options, "net.tls.accept")
 end
 
 -- Default client configurations (system roots, no `ca_pem`, no client certificate), one per ALPN
@@ -387,34 +395,34 @@ end
 function M.connect_tls(host, port, options)
   options = options or {}
   if type(options) ~= "table" then
-    error(core.ArgumentError("connect_tls expects an options table"), 2)
+    error(core.ArgumentError("net.connect_tls: expects an options table"), 2)
   end
   if type(host) ~= "string" or host == "" then
-    error(core.ArgumentError(("connect_tls expects a host name or address, got %s"):format(tostring(host))), 2)
+    error(core.ArgumentError(("net.connect_tls: expects a host name or address, got %s"):format(tostring(host))), 2)
   end
   if math.type(port) ~= "integer" or port < 0 or port > 65535 then
-    error(core.ArgumentError(("connect_tls expects a port in 0..65535, got %s"):format(tostring(port))), 2)
+    error(core.ArgumentError(("net.connect_tls: expects a port in 0..65535, got %s"):format(tostring(port))), 2)
   end
-  reject_unknown("connect_tls", options, CONNECT_KEYS, "connect")
-  check_transport("connect_tls", options)
-  check_deadline("connect_tls", options)
+  reject_unknown("net.connect_tls", options, CONNECT_KEYS, "connect")
+  check_transport("net.connect_tls", options)
+  check_deadline("net.connect_tls", options)
   local config = options.tls_config
   if config ~= nil then
     if options.ca_pem ~= nil or options.system_roots ~= nil or options.cert_pem ~= nil or options.key_pem ~= nil
       or options.alpn ~= nil then
-      error(core.ArgumentError("connect_tls: tls_config cannot be combined with ca_pem, system_roots, cert_pem, key_pem or alpn"), 2)
+      error(core.ArgumentError("net.connect_tls: tls_config cannot be combined with ca_pem, system_roots, cert_pem, key_pem or alpn"), 2)
     end
     if type(config) ~= "userdata" then
-      error(core.ArgumentError("connect_tls: option tls_config must come from tls.client_config"), 2)
+      error(core.ArgumentError("net.connect_tls: option tls_config must come from tls.client_config"), 2)
     end
   else
-    check_values("connect_tls", options, { "ca_pem", "cert_pem", "key_pem" })
-    check_trust("connect_tls", options)
+    check_values("net.connect_tls", options, { "ca_pem", "cert_pem", "key_pem" })
+    check_trust("net.connect_tls", options)
   end
   if options.server_name ~= nil and (type(options.server_name) ~= "string" or options.server_name == "") then
-    error(core.ArgumentError("connect_tls: option server_name must be a non-empty string"), 2)
+    error(core.ArgumentError("net.connect_tls: option server_name must be a non-empty string"), 2)
   end
-  require_native()
+  require_native("net.connect_tls")
   if config == nil then
     if options.ca_pem == nil and options.system_roots ~= false and options.cert_pem == nil then
       config = default_config(options.alpn)
@@ -430,7 +438,7 @@ function M.connect_tls(host, port, options)
   local stream = tcp.connect(host, port, transport)
   local ok, result = pcall(M.connect, stream, options.server_name or host, config, { handshake_deadline = options.handshake_deadline })
   if ok then return result end
-  local failure = result --[[@as hecate.core.Error]]
+  local failure = errors.qualify(result, "net.connect_tls") --[[@as hecate.core.Error]]
   -- An unknown issuer is the usual failure of a system trust store that lacks the server's CA.
   if core.is_instance_of(failure, TlsError) and failure.context and failure.context.reason == "untrusted_issuer"
     and options.tls_config == nil and options.system_roots ~= false then
@@ -442,7 +450,7 @@ function M.connect_tls(host, port, options)
       cause = failure,
     }), 0)
   end
-  error(result, 0)
+  error(failure, 0)
 end
 
 return M

@@ -12,7 +12,7 @@ local debug_mode = false
 --- The root of the error hierarchy: failures raise instances of its subclasses, each with a stable `code`, a `message`, an optional `cause` and structured `context` (ADR 0018).
 ---@class hecate.core.Error
 ---@field message string  human-readable description; never exposed over HTTP by default
----@field code string  stable identifier, for example "hecate.http.HeaderTooLarge"
+---@field code string  stable identifier, for example "hecate.http.FieldTooLargeError"
 ---@field cause? any  the error that caused this one (usually another Error)
 ---@field context table  structured data about the failure
 ---@field traceback? string  captured at creation when debug mode is on
@@ -88,7 +88,7 @@ local errors = { Error = Error }
 
 --- Declares a finalised subclass of `Error` with a stable code.
 ---@param name string  class name
----@param code string  stable identifier, for example "hecate.http.HeaderTooLarge"
+---@param code string  stable identifier, for example "hecate.http.FieldTooLargeError"
 ---@param superclass? any  defaults to `Error`
 ---@return any class  the new error class
 function errors.error_class(name, code, superclass)
@@ -117,7 +117,7 @@ errors.DeadlineExceededError = error_class("DeadlineExceededError", "hecate.core
 --- Raised when a suspending function is called outside a coroutine managed by the reactor.
 ---@class hecate.core.NonYieldableContextError : hecate.core.Error
 errors.NonYieldableContextError = error_class("NonYieldableContextError", "hecate.core.NonYieldableContextError")
---- Raised when a channel is used after it was closed, or closed while a task waited on it.
+--- Raised when a channel is used after it was closed, or closed while a coroutine waited on it.
 ---@class hecate.core.ClosedChannelError : hecate.core.Error
 errors.ClosedChannelError = error_class("ClosedChannelError", "hecate.core.ClosedChannelError")
 --- The failures of a network transport, such as a refused or reset connection.

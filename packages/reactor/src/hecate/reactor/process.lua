@@ -58,9 +58,9 @@ local M = {}
 ---@return hecate.reactor.ProcessResult result  the exit status and the captured output
 function M.run_process(program, args)
   if type(program) ~= "string" then
-    error(core.ArgumentError(("run expects a program name, got %s"):format(type(program))), 2)
+    error(core.ArgumentError(("reactor.run_process: expects a program name, got %s"):format(type(program))), 2)
   end
-  uv_call.begin("run")
+  uv_call.begin("reactor.run_process")
   local out, err = uv.new_pipe(false), uv.new_pipe(false)
   local chunks = { out = {}, err = {} }
   local process
@@ -94,7 +94,7 @@ function M.run_process(program, args)
   if guard then guard:close() end
   if not spawned then
     out:close(); err:close()
-    uv_call.fail("start " .. program, tostring(pid))
+    uv_call.fail("reactor.run_process", "start " .. program, tostring(pid))
   end
   process = spawned
   reader(out, "out"); reader(err, "err")
@@ -152,7 +152,7 @@ end
 ---@async
 ---@return { code: integer, signal: integer } status  exit status and terminating signal (0 if none)
 function Process:wait()
-  uv_call.begin("wait")
+  uv_call.begin("reactor.Process.wait")
   while self._result == nil do
     context.suspend(function(wake)
       local list = self._waiting
@@ -182,10 +182,10 @@ function Process:kill(signal)
   if self._result ~= nil or self._handle:is_closing() then return end
   -- luv raises a Lua error for an unknown signal name: report it like libuv's EINVAL.
   local called, ok, err = pcall(self._handle.kill, self._handle, signal or "sigterm")
-  if not called then uv_call.fail("kill", "EINVAL: invalid signal (" .. tostring(ok) .. ")") end
+  if not called then uv_call.fail("reactor.Process.kill", "kill", "EINVAL: invalid signal (" .. tostring(ok) .. ")") end
   if not ok then
     if tostring(err):match("^ESRCH") then return end
-    uv_call.fail("kill", tostring(err))
+    uv_call.fail("reactor.Process.kill", "kill", tostring(err))
   end
 end
 
@@ -210,28 +210,28 @@ local PROCESS_KEYS = { env = true, cwd = true, ipc = true, stdout = true, stderr
 local function check_start_options(options)
   if options == nil then return {} end
   if type(options) ~= "table" then
-    error(core.ArgumentError(("spawn expects an options table, got %s"):format(type(options))), 3)
+    error(core.ArgumentError(("reactor.spawn: expects an options table, got %s"):format(type(options))), 3)
   end
   for key in pairs(options) do
-    if not PROCESS_KEYS[key] then error(core.ArgumentError(("spawn: unknown option %s"):format(tostring(key))), 3) end
+    if not PROCESS_KEYS[key] then error(core.ArgumentError(("reactor.spawn: unknown option %s"):format(tostring(key))), 3) end
   end
   if options.ipc ~= nil and type(options.ipc) ~= "boolean" then
-    error(core.ArgumentError("spawn: option ipc must be a boolean"), 3)
+    error(core.ArgumentError("reactor.spawn: option ipc must be a boolean"), 3)
   end
   if options.cwd ~= nil and type(options.cwd) ~= "string" then
-    error(core.ArgumentError("spawn: option cwd must be a string"), 3)
+    error(core.ArgumentError("reactor.spawn: option cwd must be a string"), 3)
   end
   for _, key in ipairs({ "stdout", "stderr" }) do
     local value = options[key]
     if value ~= nil and value ~= "inherit" and value ~= "ignore" then
-      error(core.ArgumentError(("spawn: option %s must be \"inherit\" or \"ignore\""):format(key)), 3)
+      error(core.ArgumentError(("reactor.spawn: option %s must be \"inherit\" or \"ignore\""):format(key)), 3)
     end
   end
   if options.env ~= nil then
-    if type(options.env) ~= "table" then error(core.ArgumentError("spawn: option env must be a table"), 3) end
+    if type(options.env) ~= "table" then error(core.ArgumentError("reactor.spawn: option env must be a table"), 3) end
     for name, value in pairs(options.env) do
       if type(name) ~= "string" or name == "" or name:find("=", 1, true) or type(value) ~= "string" then
-        error(core.ArgumentError("spawn: option env maps variable names to strings"), 3)
+        error(core.ArgumentError("reactor.spawn: option env maps variable names to strings"), 3)
       end
     end
   end
@@ -264,13 +264,13 @@ end
 ---@return hecate.reactor.Process process  the running child
 function M.spawn(program, args, options) -- glossary-ok: starts an operating-system process (ADR 0023), not a coroutine
   if type(program) ~= "string" or program == "" then
-    error(core.ArgumentError(("spawn expects a program name, got %s"):format(tostring(program))), 2)
+    error(core.ArgumentError(("reactor.spawn: expects a program name, got %s"):format(tostring(program))), 2)
   end
   if args ~= nil and type(args) ~= "table" then
-    error(core.ArgumentError(("spawn expects an argument list, got %s"):format(type(args))), 2)
+    error(core.ArgumentError(("reactor.spawn: expects an argument list, got %s"):format(type(args))), 2)
   end
   options = check_start_options(options)
-  uv_call.begin("spawn")
+  uv_call.begin("reactor.spawn")
   local added = options.env or {}
   local ipc_pipe
   if options.ipc then
@@ -300,7 +300,7 @@ function M.spawn(program, args, options) -- glossary-ok: starts an operating-sys
   if guard then guard:close() end
   if not spawned then
     if ipc_pipe then ipc_pipe:close() end
-    uv_call.fail("start " .. program, tostring(pid))
+    uv_call.fail("reactor.spawn", "start " .. program, tostring(pid))
   end
   local process = Process(spawned, pid --[[@as integer]], ipc_pipe and ipc.Peer(ipc_pipe) or nil)
   state.process = process

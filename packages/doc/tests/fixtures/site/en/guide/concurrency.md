@@ -21,7 +21,7 @@ When a scope ends, every computation forked inside has either completed or been
 cancelled. Nothing is left running behind your back.
 
 > Cancellation is cooperative: it is delivered at the next suspension point, and
-> `<close>` handlers run.
+> the pending `<close>` variables are closed.
 
 | Operation | Suspends | Returns |
 |---|---|---|

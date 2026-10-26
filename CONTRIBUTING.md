@@ -1,6 +1,6 @@
 # Contributing to Hecate
 
-Thank you for your interest. Hecate is at the specification stage; contributions to
+Thank you for your interest. Hecate is in early implementation (the foundations are written, the other packages are still specifications); contributions to
 the design are as welcome as code.
 
 ## Before writing code

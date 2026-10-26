@@ -179,11 +179,11 @@ end
 
 function T:test_a_stream_is_handed_over_to_the_child()
   local text = run(self, function()
-    local listener <close> = reactor.tcp_listen("127.0.0.1", 0)
+    local listener <close> = reactor.listen_tcp("127.0.0.1", 0)
     local port = listener:local_address().port
     local process = child("stream", { ipc = true })
     local peer = process.ipc --[[@as hecate.reactor.Peer]]
-    local client <close> = reactor.tcp_connect("127.0.0.1", port)
+    local client <close> = reactor.connect_tcp("127.0.0.1", port)
     local accepted = listener:accept()
     peer:send("job", accepted)
     self:assert_true(accepted:is_closed(), "the sender gives the stream up")
@@ -223,8 +223,8 @@ function T:test_send_validation()
     refused(42)
     refused(("x"):rep(16 * 1024 * 1024 + 1))
     refused("m", {})
-    local listener <close> = reactor.tcp_listen("127.0.0.1", 0)
-    local closed = reactor.tcp_connect("127.0.0.1", listener:local_address().port)
+    local listener <close> = reactor.listen_tcp("127.0.0.1", 0)
+    local closed = reactor.connect_tcp("127.0.0.1", listener:local_address().port)
     closed:close()
     refused("m", closed)
     peer:close()
@@ -384,7 +384,7 @@ end
 
 function T:test_a_child_hands_a_stream_over_to_the_parent()
   local text = run(self, function()
-    local listener <close> = reactor.tcp_listen("127.0.0.1", 0)
+    local listener <close> = reactor.listen_tcp("127.0.0.1", 0)
     local process = child("connect", { ipc = true, args = { tostring(listener:local_address().port) } })
     local peer = process.ipc --[[@as hecate.reactor.Peer]]
     local server <close> = listener:accept()
@@ -404,13 +404,13 @@ end
 function T:test_hand_overs_queue_up_while_the_child_is_not_receiving()
   local count = 200
   local replies = run(self, function()
-    local listener <close> = reactor.tcp_listen("127.0.0.1", 0, { backlog = 256 })
+    local listener <close> = reactor.listen_tcp("127.0.0.1", 0, { backlog = 256 })
     local port = listener:local_address().port
     local process = child("delayed", { ipc = true, args = { tostring(count) } })
     local peer = process.ipc --[[@as hecate.reactor.Peer]]
     local clients = {}
     for index = 1, count do
-      clients[index] = reactor.tcp_connect("127.0.0.1", port)
+      clients[index] = reactor.connect_tcp("127.0.0.1", port)
       local accepted = listener:accept()
       peer:send("c" .. index, accepted)
     end
@@ -428,12 +428,12 @@ end
 
 function T:test_back_to_back_hand_overs_keep_every_stream_with_its_message()
   local result = run(self, function()
-    local listener <close> = reactor.tcp_listen("127.0.0.1", 0)
+    local listener <close> = reactor.listen_tcp("127.0.0.1", 0)
     local port = listener:local_address().port
     local process = child("handover", { ipc = true })
     local peer = process.ipc --[[@as hecate.reactor.Peer]]
     local function pair()
-      local client = reactor.tcp_connect("127.0.0.1", port)
+      local client = reactor.connect_tcp("127.0.0.1", port)
       return client, listener:accept()
     end
     local c1, s1 = pair()

@@ -20,7 +20,7 @@ local Semaphore = core.class("Semaphore")
 ---@param units integer  not negative
 function Semaphore:init(units)
   if math.type(units) ~= "integer" or units < 0 then
-    error(core.ArgumentError(("Semaphore expects a non-negative integer, got %s"):format(tostring(units))), 2)
+    error(core.ArgumentError(("reactor.Semaphore: expects a non-negative integer, got %s"):format(tostring(units))), 2)
   end
   self._count = units
   self._waiters = Waitq()
@@ -60,7 +60,7 @@ function Semaphore:waiting() return self._waiters.size end
 ---@return hecate.reactor.Permit
 ---@private
 function Semaphore:_acquire(uncancellable)
-  context.current_task("Semaphore:acquire")
+  context.current_computation("reactor.Semaphore.acquire")
   if self._count > 0 then
     self._count = self._count - 1
   else

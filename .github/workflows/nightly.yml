@@ -1,8 +1,8 @@
 name: nightly
 
 # Slow checks that do not belong in a pull request (docs/architecture/automation.md): leak detection,
-# coverage with its thresholds, long fuzzing and the freshness of the pinned dependencies. The
-# integration services and `check-mirrors` join this workflow with their phases.
+# coverage with its thresholds and long fuzzing. The integration services, the freshness report of the
+# pinned dependencies and `check-mirrors` join this workflow with their phases.
 on:
   schedule:
     - cron: "17 2 * * *"
@@ -138,7 +138,7 @@ jobs:
 
       - name: Upload the LCOV report
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: lcov
           path: coverage/lcov.info
@@ -193,8 +193,10 @@ jobs:
 
       - name: Upload crashing inputs
         if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: fuzz-artifacts
-          path: packages/*/native/fuzz/artifacts/
+          path: |
+            packages/*/native/fuzz/artifacts/
+            packages/*/csrc/fuzz/artifacts/
           if-no-files-found: ignore
