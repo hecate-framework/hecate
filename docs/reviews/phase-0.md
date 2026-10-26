@@ -43,23 +43,40 @@ skeleton": CI run 309 on `main` succeeded on ubuntu, macos and windows.
 
 ## 3. Coherence
 
-`check-links`, `check-adr-index`, `check-package-structure` and the three `gen-* --check`
-tasks pass, so the catalogue, the dependency graph, `llms.txt` and the ADR index agree with
-the repository. The task catalogue in `automation.md` matches `--list`. `CLAUDE.md` lists
-`check-licenses`, which exists. No contradiction found in the Phase 0 documents.
+Coherence means that every concept is named and identified identically in every file, because
+it shapes what users of the libraries read and type. The first pass of this gate only ran the
+mechanical checks (links, ADR index, generated catalogue) and was rejected by the owner as not
+being coherence. The audit was redone file by file against `docs/glossary.md` and ADR 0004; the
+complete findings, with quoted lines, are in
+[phase-0-coherence-findings.md](phase-0-coherence-findings.md): 36 findings, 28 user-facing,
+about 26 small fixes, 5 medium, and the ones below needing the owner.
 
-Observation (not a gap): a fresh checkout cannot run `test` without building the native
-modules and fetching fixtures first (`needs`, `build-native`, `fetch-fixtures`); the
-cloud setup and CI do it, and `tools/cloud/README.md` documents it.
+Coverage is stated in the findings ("Method and coverage"): the glossary, specifications,
+vision, developer-experience, READMEs and tools documents were read in full; ADRs, open
+questions, the website (en, fr), the other agents and commands and the Lua sources were covered
+by targeted searches; `docs/spikes/`, the Rust and C sources and `.github/` were not covered.
+That uncovered part is a known hole of the audit and is to be done by the fix item or the next gate.
+
+Main gaps: "unit of work" and "task" used for coroutines (F01, F03); "ambient context" absent from
+the glossary while `log` still says "per-scope context" (F02); "channel" used for the message pipe
+(F04); the developer-experience document and `object-model.md` disagree with ADR 0007 and the code
+(F06, F07); `reactor` and `net` order the same operations oppositely (`pipe_connect` versus
+`connect_pipe`, F17); error classes without the `Error` suffix in `data-access.md` (F10); README
+claims contradicting specifications (F05, F12, F13); stale statements (F20, F24, F26, F28).
+
+The gap is larger than a fix inside this pull request, so it is a roadmap item placed before the
+gate, and the gate stays unticked.
 
 ## 4. Open questions
 
-None of the open questions blocks Phase 1 work, and none was made stale by Phase 0.
+The coherence audit raises decisions for the owner (F07, F12, F17, F19, F34 and parts of F06 and F16),
+listed in the findings and put in the `needs-decision` issue. None of the existing open questions
+blocks Phase 1 work.
 OQ-3 (formatter) is resolved as "none until a formatter supports Lua 5.5"; recommended to
 revisit when StyLua parses `global` and named varargs. Branch protection and secrets
-(roadmap item "Repository settings") need the owner's confirmation; no `needs-decision`
-issue is required for it.
+(roadmap item "Repository settings") need the owner's confirmation.
 
 ## Verdict
 
-No open gap. The gate can be ticked.
+Open gaps: the coherence findings. The gate is not ticked; it can be once the roadmap item
+"Coherence fixes from the Phase 0 gate audit" is done and the owner has answered the listed decisions.
