@@ -131,7 +131,7 @@ Exit: CI is green on all three platforms with a trivial test in every package sk
 - [x] Workflows `native.yml`, `security.yml`, `nightly.yml`; tasks `sanitize`, `fuzz`,
       `leaks`, `coverage`, `bench`, `check-licenses` (`security.yml`: `cargo audit`,
       `cargo deny`, CodeQL, dependency review, Scorecard).
-- [ ] `json` follow-up: libFuzzer C targets for the native code of `json`
+- [x] `json` follow-up: libFuzzer C targets for the native code of `json`
       (`csrc/native.c`), run by the `fuzz` task and `nightly.yml` (coding-standards.md;
       the `sanitize` task already covers its ASan and UBSan build).
 - [ ] **Phase 1 gate**: verification of the phase, as described in [Phase gates](#phase-gates). Open
