@@ -1,6 +1,6 @@
 # `hecate-mysql`
 
-> MySQL and MariaDB driver implementing the client/server protocol in Lua, with dialect detection.
+> MySQL and MariaDB driver implementing the client/server protocol in Lua, reporting a descriptor of its dialect, version and capabilities.
 
 | | |
 |---|---|
@@ -22,7 +22,7 @@
 
 - handshake, `caching_sha2_password`, `mysql_native_password`, TLS
 - text and binary protocols, prepared statements
-- MariaDB detection and differences
+- MariaDB detection and differences, reported through the descriptor (dialect, server version, capabilities) that `sql` uses to choose a translator (ADR 0026)
 
 ## Non-goals
 

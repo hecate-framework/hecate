@@ -1,6 +1,6 @@
 # `hecate-migration`
 
-> Versioned, reversible schema migrations with checksums and CLI integration.
+> Versioned, reversible database schema migrations with checksums and CLI integration.
 
 | | |
 |---|---|

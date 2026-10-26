@@ -66,7 +66,7 @@ may bind the principal.
 ## Consequences
 
 - Easier: request context in logs without passing it; one mechanism for every package that needs it.
-- Harder: a public `reactor` API to maintain; `concurrency.md` gains a section; a hidden channel of data
+- Harder: a public `reactor` API to maintain; `concurrency.md` gains a section; a hidden flow of data
   between functions, which the documentation must present as an exception to explicit passing.
 - Roadmap: a `reactor` follow-up item (specify in `concurrency.md`, implement, test inheritance across
   `fork`, `detach`, `scope`, cancellation); a `log` follow-up (default context provider).

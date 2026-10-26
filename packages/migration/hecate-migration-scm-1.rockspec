@@ -7,7 +7,7 @@ source = {
 }
 
 description = {
-  summary = "Versioned, reversible schema migrations with checksums and CLI integration.",
+  summary = "Versioned, reversible database schema migrations with checksums and CLI integration.",
   homepage = "https://github.com/hecate-framework/hecate",
   license = "MIT",
 }

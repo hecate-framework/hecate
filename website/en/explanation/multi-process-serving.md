@@ -57,7 +57,7 @@ The work is split in two packages.
 
 A [listening strategy](../reference/glossary.md#concurrency) decides where a worker obtains its
 connections. It is the only part of the design that depends on the platform. Everything above it,
-the server, the router and the handlers, is the same for every strategy. There are two.
+the server, the router and the actions, is the same for every strategy. There are two.
 
 | Strategy | Who accepts | Primary in the data path | Default on |
 |---|---|---|---|

@@ -2,6 +2,7 @@
 global <const> require
 
 local reactor = require("hecate.reactor")
+local errors = require("hecate.net.errors")
 local PipeStream = require("hecate.net.pipe_stream")
 local PipeListener = require("hecate.net.pipe_listener")
 
@@ -20,7 +21,7 @@ local M = {}
 ---@param path string  socket path
 ---@return hecate.net.PipeStream stream  the connected stream
 function M.connect_pipe(path)
-  return PipeStream(reactor.connect_pipe(path))
+  return PipeStream(errors.delegate("net.connect_pipe", reactor.connect_pipe, path))
 end
 
 --- Binds and listens on a Unix-domain socket path, which must not exist. Does not suspend. Options:
@@ -35,7 +36,7 @@ end
 ---@param options? hecate.reactor.PipeListenOptions  `backlog` and `mode`
 ---@return hecate.net.PipeListener listener  the listening pipe
 function M.listen_pipe(path, options)
-  return PipeListener(reactor.listen_pipe(path, options))
+  return PipeListener(errors.delegate("net.listen_pipe", reactor.listen_pipe, path, options))
 end
 
 return M

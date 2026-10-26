@@ -1,6 +1,6 @@
 # `hecate-kernel`
 
-> The application: modules, controllers, route modules, filters (chain of responsibility), problem details, lifecycle, workers and graceful shutdown.
+> The application: feature modules, controllers, route modules, filters (chain of responsibility), problem details, lifecycle, workers and graceful shutdown.
 
 | | |
 |---|---|

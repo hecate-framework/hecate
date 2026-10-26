@@ -31,11 +31,11 @@ local doc = {
   Site = require("hecate.doc.site"),
   ---@diagnostic disable-next-line: assign-type-mismatch  -- class constructor exported as its class
   Page = require("hecate.doc.page"),
-  FileSystem = require("hecate.doc.filesystem"),
+  FileSystem = require("hecate.doc.file_system"),
   ---@diagnostic disable-next-line: assign-type-mismatch  -- class constructor exported as its class
-  MemoryFileSystem = require("hecate.doc.memory_filesystem"),
+  MemoryFileSystem = require("hecate.doc.memory_file_system"),
   ---@diagnostic disable-next-line: assign-type-mismatch  -- class constructor exported as its class
-  SystemFileSystem = require("hecate.doc.system_filesystem"),
+  SystemFileSystem = require("hecate.doc.system_file_system"),
   BuildError = require("hecate.doc.errors").BuildError,
   markdown = require("hecate.doc.markdown"),
   front_matter = require("hecate.doc.front_matter"),

@@ -189,13 +189,13 @@ local function current_computation(operation)
   local computation = reactor and reactor._computations[co]
   if not computation then
     error(core.NonYieldableContextError({
-      message = operation .. " may only be called from a coroutine managed by a running reactor",
+      message = operation .. ": may only be called from a coroutine managed by a running reactor",
       context = { operation = operation },
     }), 0)
   end
   if not coroutine.isyieldable() then
     error(core.NonYieldableContextError({
-      message = operation .. " cannot suspend here: the coroutine is inside a non-yieldable context"
+      message = operation .. ": cannot suspend here: the coroutine is inside a non-yieldable context"
         .. " (for example a table.sort comparator, a string.gsub callback or a metamethod called from C)",
       context = { operation = operation },
     }), 0)
@@ -210,7 +210,7 @@ end
 ---@param uncancellable? boolean
 ---@return any ...
 function context.suspend(register, uncancellable)
-  local computation = current_computation("a suspending operation")
+  local computation = current_computation("suspending operation")
   if not uncancellable then
     local pending = pending_cancel(computation)
     if pending ~= nil then error(pending, 0) end

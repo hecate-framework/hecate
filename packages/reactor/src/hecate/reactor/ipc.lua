@@ -57,6 +57,7 @@ function Peer:init(handle, options, stream)
   options = check_options("reactor.Peer", options)
   self._handle = handle
   self._stream = stream or tcp.TcpStream(handle, { read_ahead = false })
+  self._stream._calls = { read = "reactor.Peer.receive", write = "reactor.Peer.send", send = "reactor.Peer.send" } -- the calls whose failures the stream reports
   self._max_message = options.max_message or DEFAULT_MAX_MESSAGE
   -- Bytes received and not yet decoded: `_buf` from `_pos` on, then the chunks of `_extra`, which
   -- are joined into `_buf` only once a whole frame is available (one copy per frame, not per read).
@@ -164,7 +165,7 @@ end
 ---@private
 function Peer:_violation(reason)
   self:close()
-  uv_call.fail_transport("receive", "EPROTO: " .. reason)
+  uv_call.fail_transport("reactor.Peer.receive", "receive", "EPROTO: " .. reason)
 end
 
 --- Receives the next message, and the stream that came with it, if any. Returns `nil` when the
@@ -195,14 +196,14 @@ end
 function Peer:_receive()
   if not self:_fill(HEADER_SIZE) then
     if self:_available() > 0 then
-      uv_call.fail_transport("receive", "EPIPE: the message pipe ended inside a frame")
+      uv_call.fail_transport("reactor.Peer.receive", "receive", "EPIPE: the message pipe ended inside a frame")
     end
     return nil
   end
   local length, flag = string.unpack(HEADER, self._buf, self._pos)
   if length > self._max_message or flag > 1 then self:_violation("malformed frame") end
   if not self:_fill(HEADER_SIZE + length) then
-    uv_call.fail_transport("receive", "EPIPE: the message pipe ended inside a frame")
+    uv_call.fail_transport("reactor.Peer.receive", "receive", "EPIPE: the message pipe ended inside a frame")
   end
   local first = self._pos + HEADER_SIZE
   local message = self._buf:sub(first, first + length - 1)
@@ -225,7 +226,7 @@ function Peer:_receive()
   local accepted, err = self._handle:accept(raw)
   if not accepted then
     raw:close()
-    uv_call.fail_transport("receive", tostring(err))
+    uv_call.fail_transport("reactor.Peer.receive", "receive", tostring(err))
   end
   return message, tcp.TcpStream(raw)
 end
@@ -281,7 +282,7 @@ function ipc.parent(options)
   local opened, err = handle:open(PIPE_FD)
   if not opened then
     handle:close()
-    uv_call.fail_transport("ipc.parent", tostring(err))
+    uv_call.fail_transport("reactor.ipc.parent", "ipc.parent", tostring(err))
   end
   parent_peer = Peer(handle, options)
   uv.os_unsetenv(ENV_NAME)

@@ -37,7 +37,7 @@ end
 ---@param deadline_at? number  clock reading at which the scope is cancelled
 ---@return any ...
 local function scope_run(fn, deadline_at)
-  local computation = context.current_computation("scope")
+  local computation = context.current_computation("reactor.scope")
   local reactor = computation.reactor
   local scope = Scope(computation, computation.scope)
   if scope.parent then scope.parent:_add_subscope(scope) end
@@ -112,7 +112,7 @@ function M.fork(fn, ...)
   if type(fn) ~= "function" then
     error(core.ArgumentError(("reactor.fork: expects a function, got %s"):format(type(fn))), 2)
   end
-  local computation = context.current_computation("fork")
+  local computation = context.current_computation("reactor.fork")
   return computation.reactor:_create_computation(computation.scope, fn, table.pack(...))
 end
 
@@ -131,7 +131,7 @@ function M.detach(fn, ...)
   if type(fn) ~= "function" then
     error(core.ArgumentError(("reactor.detach: expects a function, got %s"):format(type(fn))), 2)
   end
-  local computation = context.current_computation("detach")
+  local computation = context.current_computation("reactor.detach")
   local root = computation.reactor._root
   if root == nil or root._closed then
     error(core.Error("reactor.detach: the application scope is not running"), 2)
@@ -161,7 +161,7 @@ function M.with_ambient(key, value, fn, ...)
   if type(fn) ~= "function" then
     error(core.ArgumentError(("reactor.with_ambient: expects a function, got %s"):format(type(fn))), 2)
   end
-  local computation = context.current_computation("with_ambient")
+  local computation = context.current_computation("reactor.with_ambient")
   local outer = computation.ambient
   computation.ambient = { key = key, value = value, parent = outer }
   local results = table.pack(pcall(fn, ...))
@@ -181,7 +181,7 @@ function M.ambient(key)
   if key == nil then
     error(core.ArgumentError("reactor.ambient: expects a key that is not nil"), 2)
   end
-  local node = context.current_computation("ambient").ambient
+  local node = context.current_computation("reactor.ambient").ambient
   while node do
     if node.key == key then return node.value end
     node = node.parent
@@ -202,7 +202,7 @@ function M.sleep(seconds)
     error(core.ArgumentError(("reactor.sleep: invalid duration %s: expected a finite number of seconds >= 0")
       :format(tostring(seconds))), 2)
   end
-  local computation = context.current_computation("sleep")
+  local computation = context.current_computation("reactor.sleep")
   local reactor = computation.reactor
   context.suspend(function(wake)
     local timer = reactor:_add_timer(reactor:now() + seconds, wake)
@@ -233,7 +233,7 @@ end
 ---@param ... hecate.reactor.Future  the futures to wait for
 ---@return any ...  the first value of each future, in argument order
 function M.join(...)
-  context.current_computation("join")
+  context.current_computation("reactor.join")
   local futures = table.pack(...)
   for i = 1, futures.n do require_future("reactor.join", futures[i]) end
   while true do
@@ -302,7 +302,7 @@ end
 ---@return integer index  the position of the selected item
 ---@return any value  its value
 function M.select(...)
-  context.current_computation("select")
+  context.current_computation("reactor.select")
   local items = table.pack(...)
   if items.n == 0 then error(core.ArgumentError("reactor.select: expects at least one future"), 2) end
   for i = 1, items.n do require_selectable(items[i]) end
@@ -328,7 +328,7 @@ function M.select(...)
     if tag == HANDOFF then
       cancel_futures(items)
       if status == false then error(core.ClosedChannelError({
-        message = "the channel is closed", context = { channel = items[index].channel },
+        message = "reactor.select: the channel is closed", context = { channel = items[index].channel },
       }), 0) end
       return index, value
     end
@@ -350,7 +350,7 @@ function M.deadline(limit, fn, ...)
   if type(fn) ~= "function" then
     error(core.ArgumentError(("reactor.deadline: expects a function, got %s"):format(type(fn))), 2)
   end
-  local computation = context.current_computation("deadline")
+  local computation = context.current_computation("reactor.deadline")
   local at
   if type(limit) == "number" and limit == limit then
     at = computation.reactor:now() + limit

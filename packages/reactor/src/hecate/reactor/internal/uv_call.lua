@@ -17,32 +17,41 @@ local M = { IoError = IoError, TransportError = TransportError }
 
 --- Raises an `IoError` (or an instance of `class`) for a libuv error string such as
 --- "ENOENT: no such file or directory". `context.errno` is the libuv name.
+---
+--- `qualified` is the call as the caller wrote it (`reactor.fs.read_file`, `net.TcpStream.read`;
+--- coding-standards.md, "Errors"): it prefixes the message. `operation` stays the stable
+--- `context.operation` and is repeated in the message when it says more than the call
+--- (`reactor.connect_tcp: connect 127.0.0.1:80: ECONNREFUSED`).
+---@param qualified string
 ---@param operation string
 ---@param message string
 ---@param class? any  defaults to `IoError`
-function M.fail(operation, message, class)
+function M.fail(qualified, operation, message, class)
   -- Request errors read "ENOENT: no such file or directory"; stream callbacks deliver the bare name.
   local name = message:match("^(%u[%u%d_]*):") or message:match("^(%u[%u%d_]*)$")
+  local prefix = qualified .. ": "
+  if qualified:sub(-#operation - 1) ~= "." .. operation then prefix = prefix .. operation .. ": " end
   error((class or IoError)({
-    message = operation .. ": " .. message,
+    message = prefix .. message,
     context = { operation = operation, errno = name },
   }), 0)
 end
 
 --- Raises a `TransportError`, the network failure of TCP and name resolution.
+---@param qualified string
 ---@param operation string
 ---@param message string
-function M.fail_transport(operation, message)
-  M.fail(operation, message, TransportError)
+function M.fail_transport(qualified, operation, message)
+  M.fail(qualified, operation, message, TransportError)
 end
 
 --- Requires a running real-clock reactor and returns its internal computation record.
----@param operation string
+---@param qualified string  the public call, as the caller wrote it
 ---@return table computation
-function M.begin(operation)
-  local computation = context.current_computation(operation)
+function M.begin(qualified)
+  local computation = context.current_computation(qualified)
   if not computation.reactor:is_real() then
-    error(core.Error(operation .. " needs the real clock: libuv I/O cannot run on a virtual-clock reactor"), 0)
+    error(core.Error(qualified .. ": needs the real clock, libuv I/O cannot run on a virtual-clock reactor"), 0)
   end
   return computation
 end
@@ -50,11 +59,12 @@ end
 --- Starts a libuv request with `start(callback)` and suspends until the callback runs.
 --- The callback receives `(err, ...)`; returns the values after `err`, or raises `IoError`.
 ---@async
----@param operation string
+---@param qualified string  the public call, for messages
+---@param operation string  the `context.operation`
 ---@param start fun(callback: fun(err: string?, ...))
 ---@return any ...
-function M.request(operation, start)
-  M.begin(operation)
+function M.request(qualified, operation, start)
+  M.begin(qualified)
   local err, results
   local function pack(...) return { n = select("#", ...), ... } end
   -- Uncancellable: a started request cannot be withdrawn, so the coroutine waits for its
@@ -65,7 +75,7 @@ function M.request(operation, start)
       wake()
     end)
   end, true)
-  if err then M.fail(operation, err) end
+  if err then M.fail(qualified, operation, err) end
   return table.unpack(results --[[@as table]], 1, results.n)
 end
 

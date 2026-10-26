@@ -30,7 +30,7 @@ end
 ---@async
 ---@return hecate.reactor.Permit
 function Monitor:enter()
-  local computation = context.current_computation("Monitor:enter")
+  local computation = context.current_computation("reactor.Monitor.enter")
   if self._owner == computation then
     error(core.ArgumentError("reactor.Monitor.enter: the calling coroutine has already entered the monitor (not reentrant)"), 2)
   end

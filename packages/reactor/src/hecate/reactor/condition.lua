@@ -27,7 +27,7 @@ end
 local function require_inside(self, operation)
   local computation = context.current_computation(operation)
   if self._monitor._owner ~= computation then
-    error(core.ArgumentError("reactor." .. operation .. ": requires the calling coroutine to have entered the monitor"), 3)
+    error(core.ArgumentError(operation .. ": requires the calling coroutine to have entered the monitor"), 3)
   end
   return computation
 end
@@ -36,7 +36,7 @@ end
 --- inside the monitor and inside a loop that tests the awaited predicate.
 ---@async
 function Condition:wait()
-  local computation = require_inside(self, "Condition:wait")
+  local computation = require_inside(self, "reactor.Condition.wait")
   local monitor, waiters = self._monitor, self._waiters
   ---@diagnostic disable-next-line: invisible
   monitor:_leave()
@@ -52,13 +52,13 @@ end
 
 --- Wakes the first waiting coroutine, if any. Must be called inside the monitor.
 function Condition:signal()
-  require_inside(self, "Condition:signal")
+  require_inside(self, "reactor.Condition.signal")
   self._waiters:wake_first(true)
 end
 
 --- Wakes every waiting coroutine. Must be called inside the monitor.
 function Condition:broadcast()
-  require_inside(self, "Condition:broadcast")
+  require_inside(self, "reactor.Condition.broadcast")
   while self._waiters:wake_first(true) do end
 end
 

@@ -14,6 +14,8 @@ local UdpSocket = core.class("UdpSocket")
 ---@private
 function UdpSocket:init(inner)
   self._inner = inner
+  ---@diagnostic disable-next-line: inject-field  -- the reactor socket names this class in its messages
+  inner._label = "net.UdpSocket"
 end
 
 --- Whether `text` looks like a numeric IPv4 or IPv6 address (the transport checks it exactly).

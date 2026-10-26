@@ -2,7 +2,7 @@
 -- generator). The export format is pinned to the LuaLS version of CI (`PINNED`); another
 -- version is reported, not refused. The export goes to a temporary directory that is removed
 -- afterwards. Platform-specific code (the shell calls) is isolated here, as in
--- system_filesystem.lua; verified on Linux only until CI runs it elsewhere.
+-- system_file_system.lua; verified on Linux only until CI runs it elsewhere.
 global <const> require, io, os, package, math, string, table, error, tostring, type
 
 local core = require("hecate.core")

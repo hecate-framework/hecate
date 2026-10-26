@@ -18,6 +18,8 @@ local TcpStream = core.class("TcpStream", nil, { implements = { Stream } })
 ---@private
 function TcpStream:init(inner)
   self._inner = inner
+  ---@diagnostic disable-next-line: inject-field  -- the reactor stream names this class in its messages
+  inner._label = "net.TcpStream"
 end
 
 --- Reads at most `max` bytes; nil at end of stream (the peer shut down its side); never an
@@ -62,7 +64,7 @@ end
 ---@return boolean
 function TcpStream:is_closed() return self._inner:is_closed() end
 
---- Address of the remote end.
+--- Address of the peer.
 ---@return hecate.reactor.SocketAddress
 function TcpStream:peer_address() return self._inner:peer_address() end
 

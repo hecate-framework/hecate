@@ -60,7 +60,7 @@ function Semaphore:waiting() return self._waiters.size end
 ---@return hecate.reactor.Permit
 ---@private
 function Semaphore:_acquire(uncancellable)
-  context.current_computation("Semaphore:acquire")
+  context.current_computation("reactor.Semaphore.acquire")
   if self._count > 0 then
     self._count = self._count - 1
   else

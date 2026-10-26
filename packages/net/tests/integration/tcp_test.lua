@@ -171,6 +171,8 @@ function T:test_close_is_idempotent_and_runs_at_the_end_of_a_close_scope()
     stream:close()
     self:assert_equal("EBADF", errno_of(self, function() stream:write("x") end))
     self:assert_equal("EBADF", errno_of(self, function() stream:read() end))
+    local _, closed = errno_of(self, function() stream:read() end)
+    self:assert_equal("net.TcpStream.read: EBADF: stream is closed", closed.message) -- the net class, not the reactor's
   end)
 end
 
@@ -292,7 +294,7 @@ function T:test_connect_refused_raises_a_transport_error()
   self:assert_false(core.is_instance_of(err, reactor.IoError), tostring(err))
   self:assert_equal("ECONNREFUSED", err.context.errno)
   -- The message names the endpoint and the failure, and the original error is kept as the cause.
-  self:assert_equal(("connect to %s:%d failed: ECONNREFUSED connection refused"):format(LOOPBACK, port), err.message)
+  self:assert_equal(("net.connect: connect to %s:%d failed: ECONNREFUSED connection refused"):format(LOOPBACK, port), err.message)
   self:assert_equal(LOOPBACK, err.context.host)
   self:assert_equal(port, err.context.port)
   self:assert_true(core.is_instance_of(err.cause, reactor.TransportError))
@@ -537,9 +539,9 @@ function T:test_listen_failures_name_the_endpoint_and_keep_the_errno()
     -- Windows may report a bound address as EACCES instead (exclusive address use); a documented difference.
     if not (IS_WINDOWS and err.context.errno == "EACCES") then
       self:assert_equal("EADDRINUSE", err.context.errno)
-      self:assert_equal(("listen on %s:%d failed: EADDRINUSE address already in use"):format(LOOPBACK, port), err.message)
+      self:assert_equal(("net.listen: listen on %s:%d failed: EADDRINUSE address already in use"):format(LOOPBACK, port), err.message)
     end
-    self:assert_true(tostring(err.message):find(("listen on %s:%d failed: "):format(LOOPBACK, port), 1, true) == 1)
+    self:assert_true(tostring(err.message):find(("net.listen: listen on %s:%d failed: "):format(LOOPBACK, port), 1, true) == 1)
     self:assert_equal(port, err.context.port)
     self:assert_true(core.is_instance_of(err.cause, reactor.TransportError))
   end)
@@ -614,7 +616,7 @@ function T:test_connect_reports_every_attempt_in_order_when_all_refuse()
         self:assert_equal("192.0.2.1", err.context.attempts[1].address)
         self:assert_equal("192.0.2.2", err.context.attempts[2].address)
         self:assert_equal("ECONNREFUSED", err.context.attempts[2].errno)
-        self:assert_equal("connect to multi.example:5432 failed: ECONNREFUSED connection refused"
+        self:assert_equal("net.connect: connect to multi.example:5432 failed: ECONNREFUSED connection refused"
           .. " (tried 192.0.2.1, 192.0.2.2)", err.message)
         self:assert_equal("ECONNREFUSED", err.context.errno)
         self:assert_true(core.is_instance_of(err.cause, reactor.TransportError))

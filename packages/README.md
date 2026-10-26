@@ -18,19 +18,19 @@ agent in `.claude/agents/pkg-<name>.md`.
 | [`schema`](schema) | `hecate-schema` | 2 — Protocol | 2 | specified | Refinement types, composition, coercion and validation with JSON Pointer error paths; emits JSON Schema 2020-12. |
 | [`config`](config) | `hecate-config` | 3 — Framework | 2 | specified | Layered configuration (defaults, environment files, environment variables, secrets) validated by schemas at boot. |
 | [`container`](container) | `hecate-container` | 3 — Framework | 2 | specified | Inversion-of-control container: bindings, lifetimes (singleton, scoped, transient), constructor injection, cycle detection at boot. |
-| [`kernel`](kernel) | `hecate-kernel` | 3 — Framework | 2 | specified | The application: modules, controllers, route modules, filters (chain of responsibility), problem details, lifecycle, workers and graceful shutdown. |
+| [`kernel`](kernel) | `hecate-kernel` | 3 — Framework | 2 | specified | The application: feature modules, controllers, route modules, filters (chain of responsibility), problem details, lifecycle, workers and graceful shutdown. |
 | [`openapi`](openapi) | `hecate-openapi` | 3 — Framework | 3 | specified | OpenAPI 3.1 document assembly from the route table, schemas and project settings; served endpoint, export, lint and breaking-change diff. |
 | [`cli`](cli) | `hecate-cli` | Tooling | 3 | specified | The `hecate` command: toolchains, projects, dependencies (LuaRocks), development server, tests, contracts, documentation, migrations, scaffolding, packaging. |
 | [`doc`](doc) | `hecate-doc` | Tooling | 3 | alpha | Documentation generator and static site builder with an MDN-like theme: guides in Markdown, code reference from LuaLS annotations, API reference from OpenAPI, configuration and error-code references, locales, search. |
 | [`test`](test) | `hecate-test` | Tooling | 3 | specified | xUnit test framework running inside the reactor: cases, suites, fixtures, assertions, in-process HTTP client, contract conformance, property-based testing, coverage. |
 | [`hecate`](hecate) | `hecate` | Meta | 3 | specified | Meta-rock `hecate`: depends on the standard edition and provides the `hecate` meta-module re-exporting the framework surface. |
-| [`migration`](migration) | `hecate-migration` | Data | 4 | specified | Versioned, reversible schema migrations with checksums and CLI integration. |
-| [`mysql`](mysql) | `hecate-mysql` | Data | 4 | specified | MySQL and MariaDB driver implementing the client/server protocol in Lua, with dialect detection. |
+| [`migration`](migration) | `hecate-migration` | Data | 4 | specified | Versioned, reversible database schema migrations with checksums and CLI integration. |
+| [`mysql`](mysql) | `hecate-mysql` | Data | 4 | specified | MySQL and MariaDB driver implementing the client/server protocol in Lua, reporting a descriptor of its dialect, version and capabilities. |
 | [`orm`](orm) | `hecate-orm` | Data | 4 | specified | Object-relational mapper: Data Mapper with Unit of Work, Identity Map, associations and repositories. |
 | [`postgresql`](postgresql) | `hecate-postgresql` | Data | 4 | specified | PostgreSQL driver implementing the frontend/backend protocol v3 in Lua. |
-| [`query`](query) | `hecate-query` | Data | 4 | specified | Query builder using relational-algebra vocabulary (projection, selection, join, rename, union) rendered per SQL dialect. |
+| [`query`](query) | `hecate-query` | Data | 4 | specified | Query builder using relational-algebra vocabulary (projection, selection, join, rename, union) and the database-schema definition API, independent of any dialect. |
 | [`redis`](redis) | `hecate-redis` | Data | 4 | specified | Redis client (RESP3 with RESP2 fallback), compatible with Valkey and KeyDB. |
-| [`sql`](sql) | `hecate-sql` | Data | 4 | specified | Driver-agnostic SQL interfaces: drivers, connections, prepared statements, transactions and savepoints, connection pool, type mapping, instrumentation. |
+| [`sql`](sql) | `hecate-sql` | Data | 4 | specified | Driver-agnostic SQL interfaces (drivers, connections, prepared statements, transactions and savepoints, connection pool, type mapping, instrumentation) and the translators from the query expression tree to each SQL dialect. |
 | [`sqlite`](sqlite) | `hecate-sqlite` | Data | 4 | specified | SQLite driver: C binding to the vendored amalgamation, executed on the libuv thread pool. |
 | [`websocket`](websocket) | `hecate-websocket` | 2 — Protocol | 5 | planned | WebSocket protocol (RFC 6455) server and client integrated with the kernel. |
 | [`security`](security) | `hecate-security` | 3 — Framework | 5 | planned | Authentication (bearer tokens, JWT, sessions), authorisation policies, password hashing. |

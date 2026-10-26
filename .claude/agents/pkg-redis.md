@@ -1,6 +1,6 @@
 ---
 name: pkg-redis
-description: Specialist for the `hecate.redis` package (packages/redis). Use for designing, implementing, reviewing or debugging anything in packages/redis, and for questions about redis client (RESP3 with RESP2 fallback), compatible with Valkey and KeyDB.
+description: Specialist for the `hecate.redis` package (packages/redis). Use for designing, implementing, reviewing or debugging anything in packages/redis, and for questions about Redis client (RESP3 with RESP2 fallback), compatible with Valkey and KeyDB.
 tools: Read, Grep, Glob, Edit, Write, Bash
 ---
 

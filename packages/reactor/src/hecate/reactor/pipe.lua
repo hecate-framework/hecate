@@ -70,13 +70,22 @@ end
 ---@overload fun(handle: table): hecate.reactor.PipeStream
 local PipeStream = core.class("PipeStream", tcp.TcpStream)
 
+---@param handle table
+---@param options? table
+---@private
+function PipeStream:init(handle, options)
+  ---@diagnostic disable-next-line: invisible  -- base class initialiser
+  tcp.TcpStream.init(self, handle, options)
+  self._label = "reactor.PipeStream"
+end
+
 --- Path of the pipe the stream is bound to (the local end), or the peer's for a client.
 ---@return string
 function PipeStream:path()
-  if self._closed then tcp.fail_closed("path", "EBADF: stream is closed") end
+  if self._closed then tcp.fail_closed(self, "path", "EBADF: stream is closed") end
   local path, err = self._handle:getpeername()
   if not path or path == "" then path, err = self._handle:getsockname() end
-  if not path then uv_call.fail_transport("path", tostring(err)) end
+  if not path then uv_call.fail_transport(self._label .. ".path", "path", tostring(err)) end
   return path
 end
 
@@ -94,6 +103,7 @@ local PipeListener = core.class("PipeListener", tcp.TcpListener)
 function PipeListener:init(handle, options, path)
   ---@diagnostic disable-next-line: invisible  -- base class initialiser
   tcp.TcpListener.init(self, handle, options)
+  self._label = "reactor.PipeListener"
   self._path = path
 end
 
@@ -148,7 +158,7 @@ function api.connect_pipe(path)
   end
   if state.err then
     handle:close()
-    uv_call.fail_transport("connect " .. path, state.err)
+    uv_call.fail_transport("reactor.connect_pipe", "connect " .. path, state.err)
   end
   return PipeStream(handle)
 end
@@ -173,7 +183,7 @@ function api.listen_pipe(path, options)
   local bound, bind_err = handle:bind(path)
   if not bound then
     handle:close()
-    uv_call.fail_transport("bind " .. path, tostring(bind_err))
+    uv_call.fail_transport("reactor.listen_pipe", "bind " .. path, tostring(bind_err))
   end
   if not IS_WINDOWS and path:sub(1, 1) ~= "\0" then -- an abstract socket has no file to protect
     local mode = options.mode or "owner"
@@ -185,7 +195,7 @@ function api.listen_pipe(path, options)
     end
     if not changed then
       handle:close()
-      uv_call.fail_transport("chmod " .. path, tostring(chmod_err))
+      uv_call.fail_transport("reactor.listen_pipe", "chmod " .. path, tostring(chmod_err))
     end
   end
   local listener = PipeListener(handle, options, path)
@@ -197,7 +207,7 @@ function api.listen_pipe(path, options)
   end)
   if not listening then
     listener:close()
-    uv_call.fail_transport("listen " .. path, tostring(listen_err))
+    uv_call.fail_transport("reactor.listen_pipe", "listen " .. path, tostring(listen_err))
   end
   return listener
 end

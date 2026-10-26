@@ -174,3 +174,54 @@ Also add to `website/fr/glossary-terms.md` the French term of each entry added a
   partielle`, `n-uplet` as in `website/fr/glossary-terms.md`.
 - The brand rule (the name `hecate` is never capitalised on the website, `Hecate` in engineering documents) is
   applied in both places.
+
+## Second pass (2026-10-26)
+
+Scope: the areas the first audit did not read in full. Decisions applied as given (verb-first transport names,
+qualified `module.function:` prefixes, `request.parameters.path`, `core.class`, ADR 0026, "computation", "message
+pipe", "action", "feature module", `Error` suffix, British spelling). Not touched, by instruction:
+`packages/reactor/src`, `packages/reactor/tests` (another agent renames the internal `task` record and error
+shapes), `website/fr/reference/glossary.md`.
+
+### Files read
+
+- Read in full: all 26 ADRs, the ADR index and template; `docs/open-questions.md`; the text reports of
+  `docs/spikes/` (OQ-1, 2, 3, 6, 41 in full; OQ-4, 5, 8, 11, 39, 44, 52 and the OQ-8 notes by term scan of every
+  line, because they are measurement logs); every page of `website/en` and `website/fr` (prose; the code blocks of
+  each French page were compared with the English one: identical), `website/CLAUDE.md`, `OUTLINE.md`, `README.md`,
+  the French README and `glossary-terms.md`; all `.claude/commands` and `.claude/agents` (reviewers in full, the
+  28 package agents by description and scope); `.github` (CODEOWNERS, labeler, labels, templates, mirror template,
+  relay template, workflow comments and step names); `tools/README.md`, `tools/CLAUDE.md`, `tools/cloud/README.md`,
+  the task catalogue, `tools/lib/glossary.lua`; `benchmarks/` (README and sources) and `examples/`; the doc comments,
+  identifiers and error messages of `core`, `net`, `json`, `log` and `doc` (`src`), and a term scan of the Rust and
+  C sources and of the remaining `tools` sources. Generated `website/dist` and vendored code excluded.
+
+### Findings
+
+| # | Where | Defect | Fix | Status |
+|---|---|---|---|---|
+| F37 | `docs/open-questions.md` | Two different entries named OQ-55 (log ambient context, referenced by ADR 0025, `log`, roadmap; `cargo deny` policy of `doc`, referenced by `deny.toml`). Rows OQ-57 and OQ-58 sat after prose, outside the Resolved table. | `doc` policy renumbered OQ-59 (table and `deny.toml`); rows moved into the table. | fixed |
+| F38 | ADR 0001, 0004, 0005, 0015 (and index) | "script" for a task of `tools/run.lua` (F31 had not reached the ADRs). | "task"; ADR 0015 title now "tasks in Lua", index updated. | fixed |
+| F39 | ADR 0023, `website/en` and `fr` multi-process pages | "handlers" for the code above the listener (glossary: action). | "actions". | fixed |
+| F40 | ADR 0025, OQ-30, OQ-50, OUTLINE | "hidden channel", "a task waits", "one task reads", "CPU-bound tasks", "handler receives the request body", "typed route bodies". | flow, computation, action, content (RFC 9110). | fixed |
+| F41 | ADR 0026 follow-through | Query/sql CLAUDE.md files still gave `query` a dependency on `sql`, rendering invariants and per-dialect tests; summaries said "rendered per SQL dialect"; migration "schema migrations"; mysql "dialect detection". | CLAUDE.md of `query` and `sql` rewritten, summaries updated in READMEs, rockspecs, catalogue, `llms.txt`, agents and labels (generators report in step); `migration`: "database schema"; `mysql`: descriptor. | fixed |
+| F42 | `log` API | The least urgent severity recorded is `level` (option, `set_level`, `level()`, `is_enabled`), "threshold" (comments) and `Severity` (class, RFC 5424). | OQ-60 (decision). | open |
+| F43 | `json` | Reason `duplicate_key` versus RFC 8259 "member name" used in the prose. | OQ-61 (decision). | open |
+| F44 | `.claude/agents/pkg-*.md` | Descriptions generated with a lower-cased first letter: "hTTP/1.1", "mySQL", "tCP/UDP", "openAPI", "postgreSQL", "sQLite", "microsoft", "mongoDB", "webSocket", "redis". `pkg-kernel`: "modules" for feature modules. `ci-engineer`: "scripts" for tasks. | corrected. | fixed |
+| F45 | `terminology-reviewer` | The context-dependent misuses of F03 and F31 were not in its checklist. | paragraph added. | fixed |
+| F46 | `website/fr` | `README.md` said three pages were untranslated (all exist); the reference index lacked `hecate.json`. | both corrected. | fixed |
+| F47 | `core/error.lua`, its test | Doc example code `hecate.http.HeaderTooLarge` (no `Error` suffix, "header"), contrary to F10. | `hecate.http.FieldTooLargeError`. | fixed |
+| F48 | `net/tcp_stream.lua` | "Address of the remote end" for `peer_address`. | "Address of the peer". | fixed |
+| F49 | `doc` | Messages named `doc.SystemFilesystem`, `doc.MemoryFilesystem` (classes are `...FileSystem`); module files `filesystem.lua`, `memory_filesystem.lua`, `system_filesystem.lua` against `FileSystem`. | messages fixed; files renamed `file_system.lua`, `memory_file_system.lua`, `system_file_system.lua` (and the test). | fixed |
+| F50 | `tools` | `coverage.normalize` against British `normalise` used elsewhere (F30 residue). | renamed. | fixed |
+| F51 | `benchmarks/README.md` | `tools/bootstrap.sh` (the file is `tools/bootstrap/bootstrap.sh`). | corrected. | fixed |
+
+### Left
+
+- OQ-60 and OQ-61: two names for one concept in public API; the owner chooses.
+- The French glossary page does not list the new rows (excluded by instruction).
+- `.github/dependabot.yml` watches only `packages/net/native`, not the `json` and `doc` crates: not terminology,
+  reported for the CI owner.
+- Spike reports keep the vocabulary of their time (HTTP "headers" in the llhttp report, "task" for Swift or tokio):
+  historical measurements, left as written.
+- Not run: the strict website build (no LuaLS here).

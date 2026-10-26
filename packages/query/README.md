@@ -1,6 +1,6 @@
 # `hecate-query`
 
-> Query builder using relational-algebra vocabulary (projection, selection, join, rename, union) rendered per SQL dialect.
+> Query builder using relational-algebra vocabulary (projection, selection, join, rename, union) and the database-schema definition API, independent of any dialect.
 
 | | |
 |---|---|

@@ -49,8 +49,11 @@ Les identifiants et les termes de la colonne « À la place de » restent en
 | fermeture partielle (*half-close*) | Terminer une direction d’une connexion pendant que l’autre reste utilisable (`shutdown`) | RFC 9293, section 3.6 | — |
 | primaire (*primary*) | Le processus qui démarre, supervise et, pour certaines stratégies, alimente les workers | Buschmann et al., *Pattern-Oriented Software Architecture* vol. 1 (1996), patron Master-Slave | master, parent (pour la relation du système d’exploitation, « processus parent » est accepté) |
 | worker (*worker*) | Un processus avec son propre réacteur qui sert des requêtes ; les workers ne partagent rien | Buschmann et al. (1996), patron Master-Slave | slave, child process (pour la relation du système d’exploitation) |
-| tube de messages (*message pipe*) | Une connexion à trames entre deux processus qui transporte des messages sous forme de chaînes et, facultativement, un handle de flux (`reactor.ipc`) | POSIX `pipe(2)` ; ADR 0023 | channel (réservé à la communication entre coroutines) |
+| tube de messages (*message pipe*) | Une connexion à trames entre deux processus qui transporte des messages sous forme de chaînes et, facultativement, un handle de flux (`reactor.ipc`). À ne pas confondre avec `PipeStream`, un socket de flux local (socket de domaine Unix, tube nommé sous Windows) | POSIX `pipe(2)` ; ADR 0023 | channel (réservé à la communication entre coroutines) |
+| pair (*peer*) | L’extrémité distante d’une connexion (`peer_address`) ou d’un tube de messages (`Peer`) | RFC 9293 | remote (dans « remote address »), client (quand le rôle est inconnu) |
 | stratégie d’écoute (*listening strategy*) | La façon dont les workers obtiennent leurs connexions : `reuseport` ou `round_robin` ([ADR 0023](https://github.com/hecate-framework/hecate/blob/main/docs/adr/0023-multi-process-serving.md)) | — | cluster mode |
+| calcul (*computation*) | Une unité en cours d’exécution du planificateur : une coroutine démarrée avec `fork` ou `detach`, ou la coroutine principale ; ce que possède une portée et ce que représente une future | `concurrency.md` | task |
+| point de suspension (*suspension point*, suspendre) | Un appel où la coroutine en cours cède la main au réacteur : toute opération d’entrée-sortie et toute primitive de `hecate.reactor`. Un appel suspendu ne bloque pas le réacteur | `concurrency.md` | blocking, async |
 | annulation (*cancellation*) | Demande coopérative d’arrêter un calcul | — | abort, kill |
 | portée (*scope*) | Région de concurrence structurée qui possède les calculs démarrés avec `fork` | Sústrik (2016) ; Smith, *nursery* (2018) | task group, nursery |
 | canal (*channel*) | Communication typée entre coroutines | Hoare, CSP (1978) | queue (quand elle sert à communiquer) |
@@ -73,9 +76,13 @@ Les identifiants et les termes de la colonne « À la place de » restent en
 | chaîne de causes (*cause chain*) | Erreurs liées par `cause`, rendues par `__tostring` | — | — |
 | inversion de contrôle (*inversion of control*) | Le cadre applicatif appelle le code de l’utilisateur | Fowler (2004) | — |
 | conteneur (*container*) | Objet qui résout et construit des dépendances | Fowler (2004) | service locator (un anti-patron, pas un synonyme) |
+| service (*service*) | Un objet enregistré dans le conteneur et résolu par lui | Fowler (2004) | bean, provider |
+| action (*action*) | La méthode de contrôleur ou la fonction qu’invoque une route ; ce que les filtres enveloppent. « Gestionnaire » (*handler*) est réservé aux gestionnaires d’achèvement d’E/S du réacteur | `http-and-routing.md` | handler |
+| contrôleur, module de routes, module fonctionnel (*controller, route module, feature module*) | Les deux styles de déclaration de routes (une classe d’actions, ou `hecate.routes(name)`) et le regroupement que fait le noyau en module fonctionnel ([ADR 0006](https://github.com/hecate-framework/hecate/blob/main/docs/adr/0006-declarative-routes-as-runtime-data.md)) | ADR 0006 ; `http-and-routing.md` | router group, blueprint, plugin ; « module » seul, ambigu avec un module Lua |
 | chaîne de responsabilité (*chain of responsibility*) | Gestionnaires ordonnés autour d’une action | Gamma et al. (1994) | middleware stack |
 | filtre (*filter*) | Un élément de la chaîne autour d’une action | — | middleware |
 | racine de composition (*composition root*) | Lieu unique où le graphe d’objets est assemblé | Seemann (2011) | bootstrap file |
+| entité (*entity*) | Une classe dont les instances ont une identité et sont persistées par un data mapper | Evans (2003) | model, record |
 | objet-valeur (*value object*) | Objet immuable comparé par valeur | Evans (2003) | DTO (quand l’immuabilité est visée) |
 | représentation (*representation*) | La forme transférable de l’état d’une ressource | Fielding (2000) ; RFC 9110 | DTO, view model |
 
@@ -94,6 +101,7 @@ Les identifiants et les termes de la colonne « À la place de » restent en
 | unité de travail (*unit of work*) | Suit les changements pendant une transaction métier et les valide de façon atomique | Fowler, *PoEAA* (2002) | session, entity manager |
 | table d’identités (*identity map*) | Garantit que chaque n-uplet est chargé une seule fois par unité de travail | Fowler, *PoEAA* (2002) | cache |
 | dépôt (*repository*) | Accès aux agrégats à la manière d’une collection | Evans (2003) ; Fowler (2002) | DAO |
+| schéma de base de données (*database schema*) | Les relations, contraintes et index d’une base de données (DDL SQL) ; pas une déclaration de type de `hecate.schema` | ISO/IEC 9075 | schema (seul, dans l’accès aux données) |
 | migration (*migration*) | Transformation de schéma versionnée et réversible | — | — |
 | pool de connexions (*connection pool*) | Ensemble borné de connexions réutilisables | — | — |
 
@@ -128,7 +136,7 @@ Les mots-clés de schéma suivent le vocabulaire de JSON Schema 2020-12 en `snak
 Les termes de la RFC 9110 sont utilisés tels que définis : *resource* (ressource),
 *representation* (représentation), *method* (méthode), *status code* (code d’état), *field*
 (champ d’en-tête), *content* (contenu du message), *media type* (type de média). Les erreurs sont
-des *problem details* (RFC 9457). Les paramètres de chemin suivent la syntaxe des gabarits d’URI
+des *problem details* (détails de problème, RFC 9457 ; `hecate.problem.*` est l’espace de noms). Les paramètres de chemin suivent la syntaxe des gabarits d’URI
 (RFC 6570, sous-ensemble de niveau 1).
 
 ## Journalisation {#logging}

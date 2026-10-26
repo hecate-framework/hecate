@@ -64,7 +64,7 @@ end
 function BufferedReader:_check(operation)
   if self._closed then
     error(reactor.TransportError({
-      message = operation .. ": EBADF: the reader is closed",
+      message = "net.BufferedReader." .. operation .. ": EBADF: the reader is closed",
       context = { operation = operation, errno = "EBADF" },
     }), 0)
   end
@@ -125,9 +125,10 @@ end
 function BufferedReader:buffered() return self:_size() end
 
 ---@param wanted? integer
-local function end_of_stream(self, wanted)
+---@param call string  the public method
+local function end_of_stream(self, wanted, call)
   error(errors.EndOfStreamError({
-    message = "the stream ended before the read completed",
+    message = "net.BufferedReader." .. call .. ": the stream ended before the read completed",
     context = { wanted = wanted, buffered = self:_size() },
   }), 0)
 end
@@ -185,7 +186,7 @@ function BufferedReader:_read_until(delimiter, limit, operation)
     if self:_size() >= limit + width then break end
     if not self:_fill() then
       if searched == 0 then return nil end
-      end_of_stream(self)
+      end_of_stream(self, nil, operation)
     end
     local chunk = self._parts[#self._parts]
     local probe = tail .. chunk
@@ -195,7 +196,7 @@ function BufferedReader:_read_until(delimiter, limit, operation)
     tail = width > 1 and probe:sub(-(width - 1)) or ""
   end
   error(core.ProtocolError({
-    message = ("no delimiter within %d bytes"):format(limit),
+    message = ("net.BufferedReader.%s: no delimiter within %d bytes"):format(operation, limit),
     context = { limit = limit },
   }), 0)
 end
@@ -227,7 +228,7 @@ function BufferedReader:read_exact(count, limit)
     check_limit(limit, 2)
     if count > limit then
       error(core.ProtocolError({
-        message = ("%d bytes requested, more than the limit of %d"):format(count, limit),
+        message = ("net.BufferedReader.read_exact: %d bytes requested, more than the limit of %d"):format(count, limit),
         context = { limit = limit, wanted = count },
       }), 0)
     end
@@ -236,7 +237,7 @@ function BufferedReader:read_exact(count, limit)
   local lock <close> = self._lock:lock()
   self:_check("read_exact")
   while self:_size() < count do
-    if not self:_fill() then end_of_stream(self, count) end
+    if not self:_fill() then end_of_stream(self, count, "read_exact") end
   end
   return self:_take(count)
 end

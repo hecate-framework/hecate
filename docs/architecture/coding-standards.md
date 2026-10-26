@@ -76,7 +76,9 @@ Decided in [ADR 0018](../adr/0018-error-signalling.md).
   `module.function:` exactly as the caller wrote the call: `net.bind_udp: unknown option foo`,
   `json.decode: ...`, `reactor.spawn: ...`; for a constructor, the class:
   `net.BufferedReader: ...`; for a method, `Class.method`: `net.TcpStream.read: ...`. Failures of
-  an operation reported by the operating system keep their own shape (`context.operation`). The prefix is never bare (`resolve` exists in `reactor` and in
+  an operation reported by the operating system carry the prefix too
+  (`net.TcpStream.read: ECONNRESET ...`, `reactor.connect_tcp: connect 127.0.0.1:80: ECONNREFUSED ...`); the stable
+  `context.operation` stays as the data of the failure. The prefix is never bare (`resolve` exists in `reactor` and in
   `net`).
 
 ## Resources

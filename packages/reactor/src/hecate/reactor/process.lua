@@ -60,7 +60,7 @@ function M.run_process(program, args)
   if type(program) ~= "string" then
     error(core.ArgumentError(("reactor.run_process: expects a program name, got %s"):format(type(program))), 2)
   end
-  uv_call.begin("run")
+  uv_call.begin("reactor.run_process")
   local out, err = uv.new_pipe(false), uv.new_pipe(false)
   local chunks = { out = {}, err = {} }
   local process
@@ -94,7 +94,7 @@ function M.run_process(program, args)
   if guard then guard:close() end
   if not spawned then
     out:close(); err:close()
-    uv_call.fail("start " .. program, tostring(pid))
+    uv_call.fail("reactor.run_process", "start " .. program, tostring(pid))
   end
   process = spawned
   reader(out, "out"); reader(err, "err")
@@ -152,7 +152,7 @@ end
 ---@async
 ---@return { code: integer, signal: integer } status  exit status and terminating signal (0 if none)
 function Process:wait()
-  uv_call.begin("wait")
+  uv_call.begin("reactor.Process.wait")
   while self._result == nil do
     context.suspend(function(wake)
       local list = self._waiting
@@ -182,10 +182,10 @@ function Process:kill(signal)
   if self._result ~= nil or self._handle:is_closing() then return end
   -- luv raises a Lua error for an unknown signal name: report it like libuv's EINVAL.
   local called, ok, err = pcall(self._handle.kill, self._handle, signal or "sigterm")
-  if not called then uv_call.fail("kill", "EINVAL: invalid signal (" .. tostring(ok) .. ")") end
+  if not called then uv_call.fail("reactor.Process.kill", "kill", "EINVAL: invalid signal (" .. tostring(ok) .. ")") end
   if not ok then
     if tostring(err):match("^ESRCH") then return end
-    uv_call.fail("kill", tostring(err))
+    uv_call.fail("reactor.Process.kill", "kill", tostring(err))
   end
 end
 
@@ -270,7 +270,7 @@ function M.spawn(program, args, options) -- glossary-ok: starts an operating-sys
     error(core.ArgumentError(("reactor.spawn: expects an argument list, got %s"):format(type(args))), 2)
   end
   options = check_start_options(options)
-  uv_call.begin("spawn")
+  uv_call.begin("reactor.spawn")
   local added = options.env or {}
   local ipc_pipe
   if options.ipc then
@@ -300,7 +300,7 @@ function M.spawn(program, args, options) -- glossary-ok: starts an operating-sys
   if guard then guard:close() end
   if not spawned then
     if ipc_pipe then ipc_pipe:close() end
-    uv_call.fail("start " .. program, tostring(pid))
+    uv_call.fail("reactor.spawn", "start " .. program, tostring(pid))
   end
   local process = Process(spawned, pid --[[@as integer]], ipc_pipe and ipc.Peer(ipc_pipe) or nil)
   state.process = process

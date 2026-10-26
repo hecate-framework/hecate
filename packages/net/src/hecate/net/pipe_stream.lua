@@ -14,7 +14,11 @@ local PipeStream = core.class("PipeStream", nil, { implements = { Stream } })
 --- Wraps an established reactor pipe stream, which this stream owns. Prefer `net.connect_pipe`.
 ---@param inner hecate.reactor.PipeStream
 ---@private
-function PipeStream:init(inner) self._inner = inner end
+function PipeStream:init(inner)
+  self._inner = inner
+  ---@diagnostic disable-next-line: inject-field  -- the reactor stream names this class in its messages
+  inner._label = "net.PipeStream"
+end
 
 --- Reads at most `max` bytes; nil at end of stream; never an empty string. Cancelling keeps the
 --- stream open and loses no data.

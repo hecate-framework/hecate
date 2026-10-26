@@ -60,7 +60,7 @@ Le travail est réparti entre deux paquets.
 
 Une [stratégie d’écoute](../reference/glossary.md#concurrency) (*listening strategy*) décide d’où
 un worker obtient ses connexions. C’est la seule partie de la conception qui dépend de la
-plateforme. Tout ce qui est au-dessus, le serveur, le routeur et les gestionnaires, est identique
+plateforme. Tout ce qui est au-dessus, le serveur, le routeur et les actions, est identique
 pour chaque stratégie. Il y en a deux.
 
 | Stratégie | Qui accepte | Primaire sur le chemin des données | Par défaut sur |

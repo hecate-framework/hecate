@@ -4,6 +4,7 @@ global <const> require, type, error, tostring, math, pairs
 
 local core = require("hecate.core")
 local reactor = require("hecate.reactor")
+local errors = require("hecate.net.errors")
 local UdpSocket = require("hecate.net.udp_socket")
 local dns = require("hecate.net.dns")
 
@@ -40,8 +41,8 @@ function M.bind_udp(host, port, options)
       error(core.ArgumentError(("net.bind_udp: unknown option %s"):format(tostring(key))), 2)
     end
   end
-  local addresses = dns.resolve(host, { family = options and options.family })
-  return UdpSocket(reactor.bind_udp(addresses[1].ip, port))
+  local addresses = dns.resolve_for("net.bind_udp", host, { family = options and options.family })
+  return UdpSocket(errors.delegate("net.bind_udp", reactor.bind_udp, addresses[1].ip, port))
 end
 
 return M

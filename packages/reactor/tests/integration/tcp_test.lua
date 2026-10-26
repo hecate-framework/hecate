@@ -121,6 +121,9 @@ function T:test_close_is_idempotent_and_closes_on_scope_exit()
     stream:close()
     local errno = errno_of(self, function() stream:write("x") end)
     self:assert_equal("EBADF", errno)
+    local _, closed = errno_of(self, function() stream:read() end)
+    self:assert_equal("reactor.TcpStream.read: EBADF: stream is closed", closed.message) -- coding-standards.md, "Errors"
+    self:assert_equal("read", closed.context.operation)
     errno = errno_of(self, function() stream:read() end)
     self:assert_equal("EBADF", errno)
     listener:close()
@@ -171,6 +174,7 @@ function T:test_connect_refused_raises_transport_error_with_errno()
   self:assert_not_nil(err, "the connection to a closed port succeeded twice")
   self:assert_equal("ECONNREFUSED", errno)
   self:assert_equal("connect", err.context.operation:match("^connect"))
+  self:assert_equal("reactor.connect_tcp: " .. err.context.operation .. ": ", err.message:match("^(.-: .-: )"))
   self:assert_equal(before, reactor.Reactor.open_handles())
 end
 

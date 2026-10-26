@@ -49,10 +49,10 @@ function M.resolve(host, options)
     end
     family = options.family
     if family ~= nil and family ~= "inet" and family ~= "inet6" then
-      error(core.ArgumentError('resolve: option family must be "inet" or "inet6"'), 2)
+      error(core.ArgumentError('reactor.resolve: option family must be "inet" or "inet6"'), 2)
     end
   end
-  uv_call.begin("resolve")
+  uv_call.begin("reactor.resolve")
   local state = {}
   local ok, failure = pcall(context.suspend, function(wake)
     local started, err = uv.getaddrinfo(host, nil, { family = family, socktype = "stream" }, function(e, result)
@@ -65,7 +65,7 @@ function M.resolve(host, options)
     end
   end)
   if not ok then error(failure, 0) end
-  if state.err then uv_call.fail_transport("resolve " .. host, state.err) end
+  if state.err then uv_call.fail_transport("reactor.resolve", "resolve " .. host, state.err) end
   local addresses, seen = {}, {}
   for _, entry in ipairs(state.result or {}) do
     local key = entry.addr
@@ -74,7 +74,7 @@ function M.resolve(host, options)
       addresses[#addresses + 1] = { ip = entry.addr, family = entry.family }
     end
   end
-  if #addresses == 0 then uv_call.fail_transport("resolve " .. host, "EAI_NONAME: no address") end
+  if #addresses == 0 then uv_call.fail_transport("reactor.resolve", "resolve " .. host, "EAI_NONAME: no address") end
   return addresses
 end
 

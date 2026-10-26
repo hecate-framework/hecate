@@ -12,7 +12,7 @@ local debug_mode = false
 --- The root of the error hierarchy: failures raise instances of its subclasses, each with a stable `code`, a `message`, an optional `cause` and structured `context` (ADR 0018).
 ---@class hecate.core.Error
 ---@field message string  human-readable description; never exposed over HTTP by default
----@field code string  stable identifier, for example "hecate.http.HeaderTooLarge"
+---@field code string  stable identifier, for example "hecate.http.FieldTooLargeError"
 ---@field cause? any  the error that caused this one (usually another Error)
 ---@field context table  structured data about the failure
 ---@field traceback? string  captured at creation when debug mode is on
@@ -88,7 +88,7 @@ local errors = { Error = Error }
 
 --- Declares a finalised subclass of `Error` with a stable code.
 ---@param name string  class name
----@param code string  stable identifier, for example "hecate.http.HeaderTooLarge"
+---@param code string  stable identifier, for example "hecate.http.FieldTooLargeError"
 ---@param superclass? any  defaults to `Error`
 ---@return any class  the new error class
 function errors.error_class(name, code, superclass)

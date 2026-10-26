@@ -90,7 +90,7 @@ What follows from the measurements:
    operations: `supported() → boolean, reason` (can this platform run it), `prepare(endpoint)`
    (in the primary, once), `worker_listener(context) → Listener` (in the worker: where the worker
    accepts connections from), and `run(workers)` (in the primary: the dispatch loop, empty for a
-   strategy that needs none). Everything above the `Listener` (server, router, handlers) is
+   strategy that needs none). Everything above the `Listener` (server, router, actions) is
    identical for every strategy. Two implementations:
 
    | Strategy | Who accepts | Primary in the data path | Platform |

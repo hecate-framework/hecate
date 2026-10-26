@@ -54,11 +54,11 @@ end
 function BufferedWriter:_check(operation)
   if self._failure then
     -- A fresh error: the stored failure may be a cancellation this caller is not subject to.
-    error(core.NetworkError({ message = "the writer failed earlier and is poisoned", cause = self._failure }), 0)
+    error(core.NetworkError({ message = "net.BufferedWriter." .. operation .. ": the writer failed earlier and is poisoned", cause = self._failure }), 0)
   end
   if self._closed then
     error(reactor.TransportError({
-      message = operation .. ": EBADF: the writer is closed",
+      message = "net.BufferedWriter." .. operation .. ": EBADF: the writer is closed",
       context = { operation = operation, errno = "EBADF" },
     }), 0)
   end
