@@ -13,18 +13,18 @@ hecate 0.x et Lua 5.5.
 
 ## Créer un journaliseur et écrire des enregistrements
 
-Un `Logger` a un niveau (`informational` par défaut), des puits (*sinks*) et un contexte
-facultatif. Un appel sous le niveau ne construit aucun enregistrement. Un puits qui lève une erreur
+Un `Logger` a une gravité (`informational` par défaut), des puits (*sinks*) et un contexte
+facultatif. Un appel moins grave que la gravité du journaliseur ne construit aucun enregistrement. Un puits qui lève une erreur
 ne fait jamais échouer l’appelant.
 
 <!-- example: packages/log/examples/hecate.log.Logger.lua -->
 ```lua
--- A logger drops what is below its level, adds its context to every record and hands the rest to
+-- A logger drops what is less urgent than its severity, adds its context to every record and hands the rest to
 -- its sinks.
 local log = require("hecate.log")
 
 local sink = log.MemorySink()
-local logger = log.Logger({ level = "informational", sinks = { sink } }):with_context({ request = "r-1" })
+local logger = log.Logger({ severity = "informational", sinks = { sink } }):with_context({ request = "r-1" })
 
 logger:debug("not recorded")
 logger:warning("slow query", { millis = 120 })

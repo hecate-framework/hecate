@@ -38,7 +38,7 @@ Plus, for every change: unit tests for public behaviour, LuaLS annotations on pu
 
 ## Known pitfalls
 
-- string formatting cost when the level is disabled
+- string formatting cost when the severity is disabled
 
 ## Standards
 

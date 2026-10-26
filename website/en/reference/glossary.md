@@ -137,3 +137,5 @@ Errors are *problem details* (RFC 9457; `hecate.problem.*` is the namespace). Pa
 
 Severities follow RFC 5424: `emergency`, `alert`, `critical`, `error`, `warning`,
 `notice`, `informational`, `debug`.
+A *severity* is the urgency of a record; a logger records the severities at least as urgent as its own
+`severity` option (never "level" or "threshold").

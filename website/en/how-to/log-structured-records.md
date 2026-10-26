@@ -12,17 +12,17 @@ and Lua 5.5.
 
 ## Create a logger and write records
 
-A `Logger` has a level (default `informational`), sinks and an optional context. A call below the
-level builds no record. A sink that raises never fails the caller.
+A `Logger` has a severity (default `informational`), sinks and an optional context. A call below the
+severity builds no record. A sink that raises never fails the caller.
 
 <!-- example: packages/log/examples/hecate.log.Logger.lua -->
 ```lua
--- A logger drops what is below its level, adds its context to every record and hands the rest to
+-- A logger drops what is less urgent than its severity, adds its context to every record and hands the rest to
 -- its sinks.
 local log = require("hecate.log")
 
 local sink = log.MemorySink()
-local logger = log.Logger({ level = "informational", sinks = { sink } }):with_context({ request = "r-1" })
+local logger = log.Logger({ severity = "informational", sinks = { sink } }):with_context({ request = "r-1" })
 
 logger:debug("not recorded")
 logger:warning("slow query", { millis = 120 })

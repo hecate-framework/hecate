@@ -34,5 +34,5 @@ raisons d’une recette, lisez la page correspondante de la section
 
 - [Encoder et décoder du JSON](encode-and-decode-json.md) : entiers et flottants, `null`, tableaux
   vides, sortie canonique et erreurs de décodage.
-- [Journaliser des enregistrements structurés](log-structured-records.md) : niveaux, contexte,
+- [Journaliser des enregistrements structurés](log-structured-records.md) : gravités, contexte,
   puits, secrets et limites de volume.

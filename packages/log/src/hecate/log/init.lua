@@ -2,7 +2,7 @@
 global <const> require, type, error
 
 local core = require("hecate.core")
-local severity = require("hecate.log.internal.severity")
+local severities = require("hecate.log.internal.severity")
 local ambient = require("hecate.log.internal.ambient")
 
 --- Structured logging: severities, records, loggers and sinks.
@@ -49,8 +49,8 @@ function log.bind(fields, fn, ...)
 end
 
 --- Returns the numerical code of a severity, as in RFC 5424, section 6.2.1 (0 for `emergency` to 7 for `debug`).
----@param level hecate.core.EnumerationValue  a `hecate.log.Severity` value
+---@param severity hecate.core.EnumerationValue  a `hecate.log.Severity` value
 ---@return integer code
-function log.severity_code(level) return severity.code(level) end
+function log.severity_code(severity) return severities.code(severity) end
 
 return log

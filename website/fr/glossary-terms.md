@@ -56,3 +56,4 @@ page (avec un lien vers le glossaire), puis le terme français seul.
 | problem details | détails de problème | RFC 9457 ; `hecate.problem` en code |
 | service | service | objet enregistré dans le conteneur |
 | local stream socket (`PipeStream`) | socket Unix, tube nommé (Windows) | à distinguer du « tube de messages » |
+| severity | gravité | RFC 5424 ; option `severity` de `hecate.log.Logger` ; jamais « niveau » ni « sévérité » |

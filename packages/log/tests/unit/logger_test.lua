@@ -13,7 +13,7 @@ local function new_logger(options)
 end
 
 function T:test_every_severity_has_a_method_that_records_that_severity()
-  local logger, sink = new_logger({ level = "debug" })
+  local logger, sink = new_logger({ severity = "debug" })
   for _, name in ipairs(Severity:names()) do logger[name](logger, "message " .. name) end
   local records = sink:records()
   self:assert_equal(8, #records)
@@ -23,7 +23,7 @@ function T:test_every_severity_has_a_method_that_records_that_severity()
   end
 end
 
-function T:test_the_default_threshold_is_informational()
+function T:test_the_default_severity_is_informational()
   local logger, sink = new_logger()
   logger:debug("hidden")
   logger:informational("shown")
@@ -32,27 +32,27 @@ function T:test_the_default_threshold_is_informational()
 end
 
 function T:test_a_disabled_severity_builds_no_record_and_reaches_no_sink()
-  local logger, sink = new_logger({ level = "error" })
+  local logger, sink = new_logger({ severity = "error" })
   logger:warning("hidden")
   self:assert_false(logger:is_enabled(Severity.warning))
   self:assert_true(logger:is_enabled("critical"))
   self:assert_equal(0, #sink:records())
 end
 
-function T:test_set_level_accepts_a_name_or_a_severity()
+function T:test_set_severity_accepts_a_name_or_a_severity()
   local logger = new_logger()
-  logger:set_level("debug")
+  logger:set_severity("debug")
   self:assert_true(logger:is_enabled(Severity.debug))
-  logger:set_level(Severity.alert)
-  self:assert_true(logger:level() == Severity.alert)
+  logger:set_severity(Severity.alert)
+  self:assert_true(logger:severity() == Severity.alert)
   self:assert_false(logger:is_enabled(Severity.error))
 end
 
 function T:test_an_unknown_severity_is_an_argument_error()
   local logger = new_logger()
-  local err = self:assert_error(function() logger:set_level("verbose") end)
+  local err = self:assert_error(function() logger:set_severity("verbose") end)
   self:assert_true(core.is_instance_of(err, core.ArgumentError))
-  self:assert_error(function() log.Logger({ level = "verbose" }) end)
+  self:assert_error(function() log.Logger({ severity = "verbose" }) end)
   self:assert_error(function() logger:log("verbose", "x") end)
 end
 

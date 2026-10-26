@@ -1,9 +1,9 @@
--- A logger drops what is below its level, adds its context to every record and hands the rest to
+-- A logger drops what is less urgent than its severity, adds its context to every record and hands the rest to
 -- its sinks.
 local log = require("hecate.log")
 
 local sink = log.MemorySink()
-local logger = log.Logger({ level = "informational", sinks = { sink } }):with_context({ request = "r-1" })
+local logger = log.Logger({ severity = "informational", sinks = { sink } }):with_context({ request = "r-1" })
 
 logger:debug("not recorded")
 logger:warning("slow query", { millis = 120 })

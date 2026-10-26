@@ -141,5 +141,6 @@ des *problem details* (détails de problème, RFC 9457 ; `hecate.problem.*` es
 
 ## Journalisation {#logging}
 
-Les sévérités suivent la RFC 5424 : `emergency`, `alert`, `critical`, `error`, `warning`,
-`notice`, `informational`, `debug`.
+Les gravités (*severities*) suivent la RFC 5424 : `emergency`, `alert`, `critical`, `error`, `warning`,
+`notice`, `informational`, `debug`. Un journaliseur enregistre les gravités au moins aussi élevées que son
+option `severity` (jamais « niveau » ni « seuil »).

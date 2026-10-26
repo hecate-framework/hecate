@@ -1,6 +1,6 @@
 ---
 name: pkg-orm
-description: Specialist for the `hecate.orm` package (packages/orm). Use for designing, implementing, reviewing or debugging anything in packages/orm, and for questions about object-relational mapper: Data Mapper with Unit of Work, Identity Map, associations and repositories.
+description: Specialist for the `hecate.orm` package (packages/orm). Use for designing, implementing, reviewing or debugging anything in packages/orm, and for questions about object-relational mapper: data mapper with unit of work, identity map, associations and repositories.
 tools: Read, Grep, Glob, Edit, Write, Bash
 ---
 

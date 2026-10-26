@@ -1,6 +1,6 @@
 ---
 name: pkg-query
-description: Specialist for the `hecate.query` package (packages/query). Use for designing, implementing, reviewing or debugging anything in packages/query, and for questions about the query builder using relational-algebra vocabulary (projection, selection, join, rename, union) and the database-schema definition API, independent of any dialect.
+description: Specialist for the `hecate.query` package (packages/query). Use for designing, implementing, reviewing or debugging anything in packages/query, and for questions about query builder using relational-algebra vocabulary (projection, selection, join, rename, union) and the database-schema definition API, independent of any dialect.
 tools: Read, Grep, Glob, Edit, Write, Bash
 ---
 
