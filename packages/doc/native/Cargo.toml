@@ -12,9 +12,9 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 mlua = { version = "0.12", features = ["lua55", "module"] }
-comrak = { version = "0.52", default-features = false }
+comrak = { version = "0.57", default-features = false }
 syntect = { version = "5", default-features = false, features = ["html", "parsing", "regex-fancy"] }
-two-face = { version = "0.4", default-features = false, features = ["syntect-fancy"] }
+two-face = { version = "0.5", default-features = false, features = ["syntect-fancy"] }
 
 [profile.release]
 opt-level = 3

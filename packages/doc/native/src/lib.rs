@@ -560,7 +560,7 @@ fn rendered_to_lua(lua: &Lua, rendered: Rendered) -> LuaResult<LuaTable> {
 }
 
 /// Renders with the options of the specifications: raw HTML kept and, when `extension` names one of the
-/// GFM extensions of the specification (`table`, `strikethrough`, `autolink`, `tagfilter`), that
+/// GFM extensions of the specification (`table`, `strikethrough`, `autolink`), that
 /// extension only; none by default (CommonMark). It exists so that the specification examples can
 /// run through this module (OQ-37); the site never uses it.
 pub fn commonmark(markdown: &str, extension: Option<&str>) -> String {
@@ -570,7 +570,6 @@ pub fn commonmark(markdown: &str, extension: Option<&str>) -> String {
         Some("table") => options.extension.table = true,
         Some("strikethrough") => options.extension.strikethrough = true,
         Some("autolink") => options.extension.autolink = true,
-        Some("tagfilter") => options.extension.tagfilter = true,
         _ => {}
     }
     comrak::markdown_to_html(markdown, &options)
