@@ -21,9 +21,21 @@ Packages: `http`, `router`, `kernel`. Status: specification.
 ### Message model
 
 `Request` and `Response` are classes from the shared object model. A request exposes
-`method`, `target`, `path`, `query`, `fields` (header fields), parsed `path`
-parameters after routing, validated `content`, the `scope`, and the connection's peer
+`method`, `target` (the raw request-target, RFC 9112: `/users/42?expand=orders`), `path` (the
+path component of the target as a string: `/users/42`), `fields` (header fields), `parameters`
+(the values declared by the route, parsed and validated after routing: `parameters.path`,
+`parameters.query`, `parameters.fields`, `parameters.cookies`, the same four keys as the
+`parameters` of a route declaration), validated `content`, the `scope`, and the connection's peer
 address (`peer_address()`, as on every `net` stream). Responses carry `status`, `fields`, `content`.
+
+```lua
+-- GET /users/42?expand=orders
+function UsersController:show(request)
+  local id     = request.parameters.path.id        -- 42, coerced by the route's schema
+  local expand = request.parameters.query.expand   -- "orders"
+  local where  = request.path                      -- "/users/42"
+end
+```
 
 ### Client
 

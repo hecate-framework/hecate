@@ -93,7 +93,7 @@ UserController:route {
 
 ---@param request hecate.Request
 function UserController:show(request)
-  local user = self.repository:find(request.path.id)   -- suspends during I/O
+  local user = self.repository:find(request.parameters.path.id)   -- suspends during I/O
   if user == nil then
     return hecate.problem.NotFound { detail = "No such user." }
   end
@@ -131,7 +131,7 @@ behave identically.
 local reactor = require "hecate.reactor"
 
 function DashboardController:show(request)
-  local user = self.users:find(request.path.id)
+  local user = self.users:find(request.parameters.path.id)
 
   local orders, rate = reactor.join(
     reactor.fork(function() return self.orders:of(user) end),
