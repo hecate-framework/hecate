@@ -57,7 +57,7 @@ function T:test_no_libuv_handle_and_no_coroutine_leaks()
   self:assert_equal(before, reactor.Reactor.open_handles())
 end
 
-function T:test_deadlock_is_reported_and_close_handlers_run()
+function T:test_deadlock_is_reported_and_pending_closes_run()
   local closed = false
   local instance = reactor.Reactor({ clock = "virtual" })
   local err = self:assert_error(function()

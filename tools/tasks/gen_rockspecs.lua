@@ -1,6 +1,8 @@
 -- gen-rockspecs: writes packages/<name>/hecate-<name>-scm-1.rockspec and tests/.gitkeep
--- from the package README (summary line and "Depends on" row). Idempotent.
+-- from the package README (summary line and "Depends on" row). Idempotent; a `build` table that was edited by hand
+-- (native modules) is kept.
 local util = require("lib.util")
+local rockspec = require("lib.rockspec")
 
 local function read(path)
   local f = assert(io.open(path, "rb"))
@@ -56,7 +58,9 @@ build = {
   modules = {},
 }
 ]]):format(rock, rock, (summary:gsub('"', '\\"')), table.concat(deps, ",\n  "))
-          write(pkgs .. "/" .. name .. "/" .. rock .. "-scm-1.rockspec", spec)
+          local path = pkgs .. "/" .. name .. "/" .. rock .. "-scm-1.rockspec"
+          local existing = util.exists(path) and read(path) or nil
+          write(path, rockspec.keep_build(spec, existing))
           if not util.exists(pkgs .. "/" .. name .. "/tests") then
             util.mkdir(pkgs .. "/" .. name .. "/tests")
             write(pkgs .. "/" .. name .. "/tests/.gitkeep", "")

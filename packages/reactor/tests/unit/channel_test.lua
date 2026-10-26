@@ -160,7 +160,7 @@ function T:test_cancelled_sender_on_a_full_buffer_leaves_the_buffer_intact()
   self:assert_equal("a", got[1])
 end
 
-function T:test_cancellation_runs_close_handlers_of_a_waiting_receiver()
+function T:test_cancellation_runs_the_pending_closes_of_a_waiting_receiver()
   local closed = false
   support.run_virtual(function()
     local channel = reactor.Channel()

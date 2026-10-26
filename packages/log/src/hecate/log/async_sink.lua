@@ -109,11 +109,11 @@ end
 ---@async
 function AsyncSink:close()
   if self._closed then return end
-  local drain_task = self._drain
+  local drain_future = self._drain
   self._closed = true
-  if drain_task then
+  if drain_future then
     wait_marker(self, true)
-    drain_task:value()
+    drain_future:value()
   end
   local close = self._sink["close"]
   if type(close) == "function" then close(self._sink) end

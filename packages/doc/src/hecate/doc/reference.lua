@@ -435,8 +435,10 @@ local function page(meta, package_name, heading, body)
   return table.concat(out, "\n"):gsub("\n+$", "") .. "\n"
 end
 
+--- The local name of a class in the signatures of its page: its last segment (the module table of a package
+--- is `hecate.core`, so the local is `core`).
 local function alias_of(class)
-  return class.is_root and class.short or class.short
+  return class.short
 end
 
 local function parameter_names(member, mark_optional)

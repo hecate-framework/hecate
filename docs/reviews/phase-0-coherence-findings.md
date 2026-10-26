@@ -234,13 +234,10 @@ the last list says otherwise. Not touched, by instruction: `packages/reactor/src
 
 ### Files read
 
-- (a) `.claude/agents`: the 13 non-package agents (`api-reviewer`, `architect`, `ci-engineer`,
-  `cross-platform-reviewer`, `docs-writer`, `dx-reviewer`, `native-code-reviewer`, `performance-engineer`,
-  `release-manager`, `security-reviewer`, `terminology-reviewer`, `test-engineer`, `translator-fr`) by `cat`; the 28
-  `pkg-*` agents are generated from one template, so each was checked by a script against the template (all lines
-  other than description, scope, documents to read, allowed dependencies and standards are identical, verified by
-  substitution and diff), its scope against the README summary line, its description against its scope, its allowed
-  dependencies against the README "Depends on" row, and its documents and standards were printed and read.
+- (a) `.claude/agents`: the 13 non-package agents and all 28 `pkg-*` agents, each read in full (the 28 share one
+  template: every file was read, and the scope, description, documents to read, allowed dependencies and standards
+  of each were compared with the package README, the "Specification" row of the README and the rockspec; the
+  comparison is now also a test, `tools/tests/agent_test.lua`).
 - (b) `.github`, every file: `CODEOWNERS`, `dependabot.yml`, `labeler.yml`, `labels.yml`, `pull_request_template.md`,
   the 5 issue templates and `config.yml`, `mirror-template` (README, READ-ONLY, workflow), `relay/HANDOFF.template.md`,
   and the 10 workflows (`ci`, `claude`, `docs`, `pr-hygiene`, `labels`, `security`, `website`, `benchmarks`, `native`,
@@ -257,17 +254,18 @@ the last list says otherwise. Not touched, by instruction: `packages/reactor/src
   `reference_site`, `search`, `site`, `system_file_system`, `internal/html`, `theme/init`, `theme/layout`,
   `theme/strings`), `theme.css`, `theme.js`, `theme-init.js`, the brand `LICENSE`, and `bin/build.lua`,
   `bin/reference.lua`.
+- Tests, in full: every test file of `core`, `log`, `json`, `net`, `reactor` and `doc` (unit and integration:
+  test names, strings, comments, expected messages), the fixtures of `reactor`, and the fixture sites, demo package
+  and Markdown samples of `doc`; the READMEs of the fixtures.
 - (e) `docs/spikes`, every text file: the 10 reports (OQ-1, 2, 3, 4, 5, 6, 8, 11, 39, 41, 44, 52), `README.md`,
   `OQ-8/` (`spike.lua`, `bench.lua`, `rp.c`, the patch, `luv-issue.md`, `luv-pr.md`), `OQ-44/churn.lua`, and
   `OQ-52/` (the five Lua scripts and the two spike crates).
 
-Could not be read in full, and why:
-
-- `packages/json/csrc/vendor/yyjson.c` and `yyjson.h` (17 500 lines): vendored third-party code (see
-  `VENDORED.md`), not ours to rename; only its use in `native.c` was checked.
-- The binary files: the screenshots of `docs/spikes/OQ-11-samples/` (PNG), the fonts and SVG brand files of the theme.
-- `Cargo.lock` files and the test fixtures of the crates (generated or data).
-- The test files of the packages `doc`, `core`, `net`, `json`, `log` (outside the scope of this pass).
+Out of scope, on purpose (nothing else is unread): binary files (the PNG screenshots of
+`docs/spikes/OQ-11-samples`, fonts, SVG brand files), vendored `packages/json/csrc/vendor/yyjson.*` (third-party,
+`VENDORED.md`), `Cargo.lock` files and generated data (the golden pages and `export.json` of `doc`, the expected-output
+tables `decode_cases.lua`, `encode_cases.lua` and `jcs_numbers.lua` of `json`, the PEM fixtures of `net`; their
+headers and the vocabulary of their messages were checked).
 
 ### Findings
 
@@ -291,19 +289,17 @@ Could not be read in full, and why:
 | F67 | `theme.css` | Comment "Containers (callouts)": containers were superseded by GFM alerts (ADR 0022), and "container" is the dependency-injection term. | "Callouts (GFM alerts)". | fixed |
 | F68 | `docs/spikes/OQ-8`, `OQ-39` | "the Proposed ADR 0023" and "ADR 0022 (Proposed)": both are Accepted. | Reworded. | fixed |
 | F69 | `docs/spikes/OQ-5`, `OQ-52` | The OQ-5 addendum says a Lua encoder was chosen in ADR 0020 (it is `serde_json` now); OQ-52 refers to the pure-Lua reference encoder and fallback removed by OQ-53. | One italic note each, saying what was decided later; the measurements are untouched. | fixed |
+| F70 | `pkg-orm` (description), `pkg-query` | The description of `pkg-orm` kept the capitalised "Data Mapper with Unit of Work, Identity Map" (F58 missed it); `pkg-query` said "the query builder" where the template and the other agents have no article. | Corrected; the template test now reproduces every agent byte for byte. | fixed |
+| F71 | `tools` | `new-package` wrote a shorter agent than the 28 `pkg-*` files (no documents list, standards or invariants line), and `gen-rockspecs` rewrote a rockspec wholesale, erasing a hand-made `build` table. | `tools/lib/agent.lua` holds the template, used by `new-package` and checked against every agent by `tools/tests/agent_test.lua` (including a scaffold on a scratch repository); `tools/lib/rockspec.lua` keeps an edited `build` table, with `tools/tests/rockspec_test.lua`. | fixed |
+| F72 | `packages/doc/.../reference.lua` | `alias_of` returned `class.short` on both branches of a condition. | Reduced to `class.short`, documented; tests pass. | fixed |
+| F73 | `docs/spikes/OQ-39`, `docs/spikes/README.md` | comrak 0.56.0 measured against `0.52` pinned in `Cargo.toml`; no statement that spike scripts keep their period vocabulary. | One-line factual note in OQ-39; the policy stated once in the spikes README. | fixed |
+| F74 | tests of `log`, `reactor`, `net`, `doc` | "task" for the drain computation (`test_close_flushes_stops_the_task...`, and the local `drain_task` of `async_sink.lua`, now `drain_future`); a local helper `spawn` that forks a coroutine (`tls_stream_test.lua`, now `fork_job`); "close handlers" for `__close` metamethods in test names and in `reactor/CLAUDE.md` ("handler" is reserved for I/O completion handlers); `ambient_test.lua` still named `ScopeLocalTest` and its first test spoke of a "reserved word name" (the second name that OQ-56 rules out); `test_write_to_a_reset_peer_raises_io_error` asserting a `TransportError`; "container titles" for callouts; a field named `handler` in a log test; French fixture "les scopes" (glossary: « portée »); "closed-trust path" in a TLS test comment. | Renamed or reworded; no behaviour changed. | fixed |
+| F75 | specifications | `container`, `config` and `log` have only a few lines of specification (`overview.md`, two mentions of the container in `http-and-routing.md`), while their agents point to those files. | Not a vocabulary defect: recorded here for the owner (a specification section per package would let the agents and READMEs cite something). | open |
 
 Observed and left, with the reason:
 
-- `tools/tasks/new_package.lua` writes a shorter agent than the `pkg-*` template (no documents list, no standards, no
-  invariants line): a scaffold, completed by hand; not a vocabulary defect.
-- `tools/tasks/gen_rockspecs.lua` rewrites a rockspec wholesale from the README; it would drop a hand-made `build`
-  section. No package has one today (`modules = {}` everywhere), so nothing is lost; worth a guard before a
-  package ships native modules (OQ-41).
-- `reference.lua` `alias_of` returns the same value on both branches of its condition: dead code, behaviour unchanged,
-  not a naming matter.
-- Spike scripts and reports keep period vocabulary ("handler" in `churn.lua`, "headers" in the llhttp report, "task"
-  for tokio or Swift) and several refer to modules that no longer exist (`internal/reference.lua`, `backend.use`):
-  historical, left as written (OQ-52 now says so).
-- `OQ-39` measured comrak 0.56.0 while `packages/doc/native/Cargo.toml` requires `0.52`: a version fact of the day,
-  not a naming contradiction.
-
+- Spike scripts and reports keep the vocabulary of their time ("handler" in `churn.lua`, "headers" in the llhttp
+  report, "task" for tokio or Swift) and several refer to modules that no longer exist (`internal/reference.lua`,
+  `backend.use`): history, stated once in `docs/spikes/README.md`; OQ-52 carries a dated note.
+- The OQ-60 and OQ-61 renames (`level` to `severity` in `log`, `duplicate_key` to `duplicate_member_name` in `json`)
+  were done by another agent while this pass ran; the tests read here already use the new names.

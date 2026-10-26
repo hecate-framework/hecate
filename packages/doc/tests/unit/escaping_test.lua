@@ -68,7 +68,7 @@ function T:test_heading_text_and_ids_are_escaped()
   self:assert_true(out:find("&lt;img", 1, true) ~= nil)
 end
 
-function T:test_table_cells_and_container_titles_are_escaped()
+function T:test_table_cells_and_callout_titles_are_escaped()
   local table_html = render("| <b>h</b> |\n|---|\n| <i>c</i> |")
   self:assert_nil(table_html:find("<b>", 1, true))
   self:assert_nil(table_html:find("<i>", 1, true))

@@ -302,7 +302,7 @@ function T:test_write_applies_back_pressure_and_cancelled_write_closes_the_strea
   end)
 end
 
-function T:test_write_to_a_reset_peer_raises_io_error()
+function T:test_write_to_a_reset_peer_raises_a_transport_error()
   with_listener(self, function(listener, port)
     local closed = reactor.Channel(1)
     reactor.fork(function()
