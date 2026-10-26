@@ -48,7 +48,7 @@ Plus, for every change: unit tests for public behaviour, LuaLS annotations on pu
 - `net.listen("localhost", ...)` binds only the first address the resolver lists; tests pin `family = "inet"` or use numeric addresses
 - `UdpSocket:send_to` takes a numeric address only (a name raises `ArgumentError` pointing to `net.resolve`)
 - tests may require `luv` to spy on handles; `src` never may (`check-boundaries`)
-- the unit tests wrap `reactor.resolve` and `reactor.tcp_connect` to script multi-address connects: restore them in every path
+- the unit tests wrap `reactor.resolve` and `reactor.connect_tcp` to script multi-address connects: restore them in every path
 
 - Windows socket error codes differ
 - Nagle and keep-alive defaults

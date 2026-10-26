@@ -7,7 +7,7 @@ source = {
 }
 
 description = {
-  summary = "Object-relational mapper: Data Mapper with Unit of Work, Identity Map, associations and repositories.",
+  summary = "Object-relational mapper: data mapper with unit of work, identity map, associations and repositories.",
   homepage = "https://github.com/hecate-framework/hecate",
   license = "MIT",
 }

@@ -1,6 +1,6 @@
 # `hecate-kernel`
 
-> The application: modules, controllers, route modules, filters (chain of responsibility), problem details, lifecycle, workers and graceful shutdown.
+> The application: feature modules, controllers, route modules, filters (chain of responsibility), problem details, lifecycle, workers and graceful shutdown.
 
 | | |
 |---|---|
@@ -20,9 +20,9 @@
 
 ## Responsibilities
 
-- `Application` (composition root), feature modules, `Controller` superclass, `routes` modules
+- `Application` (composition root), feature modules, `Controller` superclass, route modules
 - boot sequence with full validation (overview.md)
-- filters around actions; request scope; container scope per request
+- filters around actions; request scope (the reactor scope of a request) and the scoped lifetime of the container
 - coercion/validation of inputs, serialisation of results, response validation in development/test
 - problem details mapping of errors
 - workers (multi-process) and graceful shutdown

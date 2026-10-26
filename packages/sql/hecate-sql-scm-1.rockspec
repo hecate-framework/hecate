@@ -7,7 +7,7 @@ source = {
 }
 
 description = {
-  summary = "Driver-agnostic SQL interfaces: drivers, connections, prepared statements, transactions and savepoints, connection pool, type mapping, instrumentation.",
+  summary = "Driver-agnostic SQL interfaces (drivers, connections, prepared statements, transactions and savepoints, connection pool, type mapping, instrumentation) and the translators from the query expression tree to each SQL dialect.",
   homepage = "https://github.com/hecate-framework/hecate",
   license = "MIT",
 }
@@ -18,6 +18,7 @@ dependencies = {
   "hecate-reactor",
   "hecate-net",
   "hecate-log",
+  "hecate-query",
 }
 
 build = {

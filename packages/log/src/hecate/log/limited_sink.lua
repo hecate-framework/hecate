@@ -25,7 +25,7 @@ local LimitedSink = core.class("LimitedSink")
 ---@param low number
 local function check_number(value, name, low)
   if type(value) ~= "number" or value ~= value or value <= low then
-    error(core.ArgumentError(("invalid %s %s: expected a number greater than %s"):format(name, tostring(value), low)), 3)
+    error(core.ArgumentError(("log.LimitedSink: invalid %s %s: expected a number greater than %s"):format(name, tostring(value), low)), 3)
   end
 end
 
@@ -36,13 +36,13 @@ end
 function LimitedSink:init(options)
   local target = options and options.sink
   if type(target) ~= "table" or type(target.write) ~= "function" then
-    error(core.ArgumentError("invalid sink: expected an object with a write method"), 2)
+    error(core.ArgumentError("log.LimitedSink: invalid sink: expected an object with a write method"), 2)
   end
   self._sink = target
-  self._exempt = severity.resolve(options.exempt or "warning", 2).ordinal
+  self._exempt = severity.resolve(options.exempt or "warning", 2, "log.LimitedSink").ordinal
   self._sample = options.sample or 1
   check_number(self._sample, "sample", 0)
-  if self._sample > 1 then error(core.ArgumentError("invalid sample: expected at most 1"), 2) end
+  if self._sample > 1 then error(core.ArgumentError("log.LimitedSink: invalid sample: expected at most 1"), 2) end
   self._rate = options.rate
   if self._rate ~= nil then
     check_number(self._rate, "rate", 0)

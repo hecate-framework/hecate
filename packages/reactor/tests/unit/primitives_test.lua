@@ -156,6 +156,7 @@ function T:test_deadline_raises_and_cancels_when_late()
     end)
   end)
   self:assert_true(core.is_instance_of(err, core.DeadlineExceededError))
+  self:assert_equal("reactor.deadline: deadline exceeded", err.message) -- coding-standards.md, "Errors"
   self:assert_false(core.is_instance_of(err, core.CancellationError))
   self:assert_true(closed)
 end

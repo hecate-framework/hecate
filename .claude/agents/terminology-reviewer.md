@@ -12,3 +12,9 @@ Check every new identifier, doc comment, error message and website sentence agai
 `race`, `middleware`, `DTO`, ...). Standards keep their own terms (RFC 9110, RFC 9457,
 JSON Schema, OpenAPI, SQL). Propose the correct term with its reference. If a concept is
 missing from the glossary, propose an entry (term, meaning, reference, instead of).
+
+The deny-list task cannot see context-dependent misuse; check these by reading: `task` or
+`unit of work` for a coroutine (say computation), `handler` for the code a route runs (say action),
+`channel` for a message pipe, `header`/`body` instead of field/content, `schema` alone for a database
+schema, `script` for a task of `tools/run.lua`, `remote address` instead of peer, and one concept
+named two ways across code, README, specification and website (English and French).

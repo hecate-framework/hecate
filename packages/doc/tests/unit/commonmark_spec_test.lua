@@ -59,7 +59,8 @@ end
 local function differences(list, only_tagged)
   local failures, run = {}, 0
   for number, example in ipairs(list) do
-    local extension = example.tag ~= "" and example.tag ~= "disabled" and example.tag or nil
+    -- comrak 0.56 removed the tagfilter extension; the site never enables it (safe mode omits raw HTML).
+    local extension = example.tag ~= "" and example.tag ~= "disabled" and example.tag ~= "tagfilter" and example.tag or nil
     if not only_tagged or extension then
       run = run + 1
       local actual = native.commonmark(example.markdown, extension)
@@ -83,7 +84,7 @@ function T:test_the_gfm_extension_examples_render_as_specified()
   local list = examples(fixtures .. "cmark-gfm/test/spec.txt")
   if not present(self, list, "GFM") then return end
   local failures, run = differences(list, true)
-  self:assert_equal(22, run, "table (8), autolink (11), strikethrough (2) and tagfilter (1) examples")
+  self:assert_equal(21, run, "table (8), autolink (11) and strikethrough (2) examples")
   self:assert_equal(0, #failures, #failures .. " example(s) differ:\n" .. table.concat(failures, "\n", 1, math.min(#failures, 20)))
 end
 

@@ -1,10 +1,11 @@
 -- new-package: scaffolds packages/<name> (README, CLAUDE.md, rockspec, tests/) and its
--- specialist agent, then refreshes the generated catalogue, graph and llms.txt.
+-- specialist agent (the template of lib/agent.lua), then refreshes the generated catalogue, graph and llms.txt.
 -- Usage: new-package <name> --layer "<label>" --phase <n> --summary "<text>" [--deps a,b] [--spec <path>]
 -- Layer labels: "0 — Foundation", "1 — Runtime", "2 — Protocol", "3 — Framework", Data, Tooling.
 -- Check with the `architect` agent first: a new layer or third-party dependency needs an ADR.
 local util = require("lib.util")
 local boundaries = require("lib.boundaries")
+local agent = require("lib.agent")
 
 local function write(path, s)
   local f = assert(io.open(path, "wb"))
@@ -140,30 +141,12 @@ package-specific context. Specialist agent: `pkg-%s`.
 Plus, for every change: unit tests for public behaviour, LuaLS annotations on public API
 (`---@async` on anything that may suspend), README "Public API" section updated.
 ]]):format(name, name, name, opts.summary, allowed))
-    write(ctx.root .. "/.claude/agents/pkg-" .. name .. ".md", ([[
----
-name: pkg-%s
-description: Specialist for the `hecate.%s` package (packages/%s). Use for designing, implementing, reviewing or debugging anything in packages/%s.
-tools: Read, Grep, Glob, Edit, Write, Bash
----
-
-You are the maintainer of `hecate.%s`, part of Hecate, a contract-first web API framework
-for Lua 5.5.
-
-Scope: %s
-
-Before any work:
-1. Read `CLAUDE.md` (root), `packages/%s/CLAUDE.md`, `packages/%s/README.md`.
-2. Read `docs/glossary.md`; use its vocabulary in every identifier and sentence.
-
-Working rules:
-- Stay inside `packages/%s` unless the task explicitly spans packages.
-- Allowed dependencies: %s.
-- Tests first for public behaviour; run lint, typecheck and the package tests before
-  reporting completion.
-- Never invent a decision: missing decisions go to a `Proposed` ADR or
-  `docs/open-questions.md`.
-]]):format(name, name, name, name, name, opts.summary, name, name, name, allowed))
+    write(ctx.root .. "/.claude/agents/pkg-" .. name .. ".md", agent.render({
+      name = name,
+      scope = opts.summary,
+      doc = opts.spec or "docs/roadmap.md",
+      allowed = agent.allowed(opts.deps),
+    }))
     for _, task in ipairs({ "gen_rockspecs", "gen_catalogue", "gen_dependency_graph", "gen_llms_txt" }) do
       local report = require("tasks." .. task).run({ root = ctx.root, args = {} })
       if not report.ok then return report end

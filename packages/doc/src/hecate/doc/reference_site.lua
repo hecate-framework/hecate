@@ -79,7 +79,7 @@ end
 ---@return hecate.doc.ReferenceSiteReport
 function M.run(options)
   if type(options) ~= "table" or not options.root or not options.out or not options.fs then
-    error(core.ArgumentError("reference_site.run expects { root, out, fs }"), 2)
+    error(core.ArgumentError("doc.reference_site.run: expects { root, out, fs }"), 2)
   end
   local fs = options.fs
   local report = { pages = 0, packages = {}, problems = {} }

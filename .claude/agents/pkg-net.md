@@ -1,6 +1,6 @@
 ---
 name: pkg-net
-description: Specialist for the `hecate.net` package (packages/net). Use for designing, implementing, reviewing or debugging anything in packages/net, and for questions about tCP/UDP streams, DNS resolution, buffered readers/writers and TLS, all suspending transparently.
+description: Specialist for the `hecate.net` package (packages/net). Use for designing, implementing, reviewing or debugging anything in packages/net, and for questions about TCP/UDP streams, DNS resolution, buffered readers/writers and TLS, all suspending transparently.
 tools: Read, Grep, Glob, Edit, Write, Bash
 ---
 

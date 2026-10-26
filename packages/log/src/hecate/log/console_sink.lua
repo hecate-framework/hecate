@@ -22,7 +22,7 @@ local ConsoleSink = core.class("ConsoleSink")
 ---@param options hecate.log.ConsoleSinkOptions
 function ConsoleSink:init(options)
   if type(options) ~= "table" or type(options.output) ~= "function" then
-    error(core.ArgumentError("ConsoleSink expects an options table with an output function"), 2)
+    error(core.ArgumentError("log.ConsoleSink: expects an options table with an output function"), 2)
   end
   self._output = options.output
 end

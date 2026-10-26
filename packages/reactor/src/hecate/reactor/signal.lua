@@ -23,13 +23,13 @@ local M = {}
 ---@return string name  the name of the signal delivered
 function M.wait_signal(...)
   local names = { ... }
-  if #names == 0 then error(core.ArgumentError("wait_signal expects at least one signal name"), 2) end
+  if #names == 0 then error(core.ArgumentError("reactor.wait_signal: expects at least one signal name"), 2) end
   for i = 1, #names do
     if type(names[i]) ~= "string" then
-      error(core.ArgumentError("signal names must be strings"), 2)
+      error(core.ArgumentError("reactor.wait_signal: signal names must be strings"), 2)
     end
   end
-  uv_call.begin("wait_signal")
+  uv_call.begin("reactor.wait_signal")
   local handles = {}
   local ok, name = pcall(context.suspend, function(wake)
     for i = 1, #names do
@@ -41,7 +41,7 @@ function M.wait_signal(...)
       if not started then
         for j = 1, #handles do handles[j]:close() end
         handles = {}
-        uv_call.fail("wait_signal", tostring(err))
+        uv_call.fail("reactor.wait_signal", "wait_signal", tostring(err))
       end
     end
     return function()

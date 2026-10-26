@@ -60,9 +60,10 @@ An inherited requirement (an interface of a superclass, a trait `requires` met b
 superclass) is satisfied only by a real function on the superclass class table (checked
 with `rawget`), never by a fallback, unless the name is declared with `fallback_provides`.
 
-The exact spelling (`core.class("Money", Superclass, options)` versus a declarative table)
-is settled in ADR 0007 during implementation. Whatever is chosen must be identical
-across all packages.
+The spelling was settled in ADR 0007 ("Final spelling"): `core.class("Money", Superclass,
+options)`, an instance created by calling the class (`Money(...)`, which runs `init`), and
+`core.finalise(C)` required before the first instantiation. It is identical across all
+packages.
 
 ## Visibility
 

@@ -1,6 +1,6 @@
 ---
 name: pkg-sqlserver
-description: Specialist for the `hecate.sqlserver` package (packages/sqlserver). Use for designing, implementing, reviewing or debugging anything in packages/sqlserver, and for questions about microsoft SQL Server driver implementing TDS in Lua.
+description: Specialist for the `hecate.sqlserver` package (packages/sqlserver). Use for designing, implementing, reviewing or debugging anything in packages/sqlserver, and for questions about Microsoft SQL Server driver implementing TDS in Lua.
 tools: Read, Grep, Glob, Edit, Write, Bash
 ---
 

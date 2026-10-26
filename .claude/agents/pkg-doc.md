@@ -17,7 +17,7 @@ Before any work:
 Working rules:
 - Stay inside `packages/doc` unless the task explicitly spans packages; report needed
   changes elsewhere instead of making them.
-- Allowed dependencies: `hecate.core`, `hecate.openapi`, `hecate.schema`, `hecate.json`.
+- Allowed dependencies: `hecate.core`, `hecate.reactor`, `hecate.openapi`, `hecate.schema`, `hecate.json`.
 - Preserve the invariants listed in `packages/doc/CLAUDE.md`; add a test for each one
   you touch.
 - Relevant standards: Diátaxis; OpenAPI 3.1; CommonMark. Cite section numbers in code

@@ -77,7 +77,7 @@ end
 
 local REASONS = {
   syntax = true, invalid_utf8 = true, invalid_escape = true, lone_surrogate = true, control_character = true,
-  byte_order_mark = true, duplicate_key = true, number_out_of_range = true, depth_limit = true, size_limit = true,
+  byte_order_mark = true, duplicate_member_name = true, number_out_of_range = true, depth_limit = true, size_limit = true,
 }
 
 -- Returns a description of the first property that `text` breaks, or nil.

@@ -5,7 +5,7 @@ package-specific context. Specialist agent: `pkg-migration`.
 
 ## Purpose
 
-Versioned, reversible schema migrations with checksums and CLI integration.
+Versioned, reversible database schema migrations with checksums and CLI integration.
 
 ## Read before changing anything
 

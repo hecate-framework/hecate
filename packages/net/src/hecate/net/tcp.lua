@@ -9,6 +9,7 @@ local reactor = require("hecate.reactor")
 local TcpStream = require("hecate.net.tcp_stream")
 local TcpListener = require("hecate.net.tcp_listener")
 local dns = require("hecate.net.dns")
+local errors = require("hecate.net.errors")
 
 -- Documented on `hecate.net` (module class completed here so that the LuaLS export lists the
 -- functions; coding-standards.md, "Annotations for the reference").
@@ -41,11 +42,11 @@ local CHECKS = {
 ---@return string? family
 local function split_options(name, host, options, allowed)
   if type(host) ~= "string" or host == "" then
-    error(core.ArgumentError(("%s expects a host name or address, got %s"):format(name, tostring(host))), 3)
+    error(core.ArgumentError(("%s: expects a host name or address, got %s"):format(name, tostring(host))), 3)
   end
   if options == nil then return {}, nil end
   if type(options) ~= "table" then
-    error(core.ArgumentError(("%s expects an options table, got %s"):format(name, type(options))), 3)
+    error(core.ArgumentError(("%s: expects an options table, got %s"):format(name, type(options))), 3)
   end
   local known = {}
   for _, key in ipairs(allowed) do known[key] = true end
@@ -69,7 +70,7 @@ end
 ---@param port any
 local function check_port(name, port)
   if math.type(port) ~= "integer" or port < 0 or port > 65535 then
-    error(core.ArgumentError(("%s expects a port in 0..65535, got %s"):format(name, tostring(port))), 3)
+    error(core.ArgumentError(("%s: expects a port in 0..65535, got %s"):format(name, tostring(port))), 3)
   end
 end
 
@@ -99,7 +100,10 @@ local DESCRIPTIONS = {
 local function describe(failure)
   local text = failure.message or tostring(failure)
   local operation = failure.context and failure.context.operation
-  if operation and text:sub(1, #operation + 2) == operation .. ": " then text = text:sub(#operation + 3) end
+  if operation then
+    local _, last = text:find(operation .. ": ", 1, true) -- after the call prefix and the operation
+    if last then text = text:sub(last + 1) end
+  end
   local name, rest = text:match("^(%u[%u%d_]*):%s*(.*)$")
   if name == nil and text:match("^%u[%u%d_]*$") then name, rest = text, "" end
   if name == nil then return text end
@@ -110,16 +114,17 @@ end
 --- Rebuilds a transport failure with a message that names the endpoint, keeping its class, its
 --- `context.errno` and `context.operation`, and setting `cause`.
 ---@param failure hecate.core.Error
+---@param call string  the public call, as the caller wrote it
 ---@param action string  for example "connect to example.org:80"
 ---@param extra table  more context
 ---@param suffix? string
 ---@return hecate.core.Error
-local function rewrap(failure, action, extra, suffix)
+local function rewrap(failure, call, action, extra, suffix)
   local context = {}
   for key, value in pairs(failure.context or {}) do context[key] = value end
   for key, value in pairs(extra) do context[key] = value end
   return reactor.TransportError({
-    message = ("%s failed: %s%s"):format(action, describe(failure), suffix or ""),
+    message = ("%s: %s failed: %s%s"):format(call, action, describe(failure), suffix or ""),
     context = context,
     cause = failure,
   })
@@ -143,25 +148,25 @@ end
 ---@param options? hecate.reactor.TcpOptions | { family?: "inet"|"inet6" }  transport options and address family
 ---@return hecate.net.TcpStream stream  the connected stream
 function M.connect(host, port, options)
-  local transport, family = split_options("connect", host, options, CONNECT_OPTIONS)
-  check_port("connect", port)
-  local addresses = dns.resolve(host, { family = family })
+  local transport, family = split_options("net.connect", host, options, CONNECT_OPTIONS)
+  check_port("net.connect", port)
+  local addresses = dns.resolve_for("net.connect", host, { family = family })
   ---@type hecate.core.Error?
   local last
   local attempts = {}
   local tried = {}
   for i = 1, #addresses do
-    local ok, result = pcall(reactor.tcp_connect, addresses[i].ip, port, transport)
+    local ok, result = pcall(reactor.connect_tcp, addresses[i].ip, port, transport)
     if ok then return TcpStream(result) end
     -- Only a failed attempt moves on to the next address; cancellation and misuse propagate.
-    if not core.is_instance_of(result, reactor.TransportError) then error(result, 0) end
+    if not core.is_instance_of(result, reactor.TransportError) then error(errors.rename(result, "net.connect"), 0) end
     local failure = result --[[@as hecate.core.Error]]
     attempts[#attempts + 1] = { address = addresses[i].ip, errno = failure.context and failure.context.errno }
     tried[#tried + 1] = addresses[i].ip
     last = failure
   end
   ---@cast last hecate.core.Error
-  error(rewrap(last, "connect to " .. endpoint(host, port), { host = host, port = port, attempts = attempts },
+  error(rewrap(last, "net.connect", "connect to " .. endpoint(host, port), { host = host, port = port, attempts = attempts },
     #tried > 1 and (" (tried %s)"):format(table.concat(tried, ", ")) or nil), 0)
 end
 
@@ -181,13 +186,13 @@ end
 ---@param options? hecate.reactor.TcpListenOptions | { family?: "inet"|"inet6" }  transport options, backlog and address family
 ---@return hecate.net.TcpListener listener  the listening socket
 function M.listen(host, port, options)
-  local transport, family = split_options("listen", host, options, LISTEN_OPTIONS)
-  check_port("listen", port)
-  local addresses = dns.resolve(host, { family = family })
-  local ok, result = pcall(reactor.tcp_listen, addresses[1].ip, port, transport)
+  local transport, family = split_options("net.listen", host, options, LISTEN_OPTIONS)
+  check_port("net.listen", port)
+  local addresses = dns.resolve_for("net.listen", host, { family = family })
+  local ok, result = pcall(reactor.listen_tcp, addresses[1].ip, port, transport)
   if ok then return TcpListener(result) end
-  if not core.is_instance_of(result, reactor.TransportError) then error(result, 0) end
-  error(rewrap(result --[[@as hecate.core.Error]], "listen on " .. endpoint(host, port), { host = host, port = port }), 0)
+  if not core.is_instance_of(result, reactor.TransportError) then error(errors.rename(result, "net.listen"), 0) end
+  error(rewrap(result --[[@as hecate.core.Error]], "net.listen", "listen on " .. endpoint(host, port), { host = host, port = port }), 0)
 end
 
 return M

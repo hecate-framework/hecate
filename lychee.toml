@@ -1,5 +1,5 @@
-# Link checker settings (docs.yml). Internal links only on pull requests; external links are checked
-# nightly once nightly.yml exists (docs/architecture/automation.md).
+# Link checker settings (docs.yml). Internal links only; external links are not checked yet (the
+# nightly check is not written, docs/architecture/automation.md).
 
 # The code reference (website/<locale>/reference/<package>/) is generated at build time and is not in
 # the checkout, so the pages that link into it cannot be resolved here. `website.yml` builds the site

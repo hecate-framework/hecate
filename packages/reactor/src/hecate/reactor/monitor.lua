@@ -30,12 +30,12 @@ end
 ---@async
 ---@return hecate.reactor.Permit
 function Monitor:enter()
-  local task = context.current_task("Monitor:enter")
-  if self._owner == task then
-    error(core.ArgumentError("the calling coroutine has already entered the monitor (not reentrant)"), 2)
+  local computation = context.current_computation("reactor.Monitor.enter")
+  if self._owner == computation then
+    error(core.ArgumentError("reactor.Monitor.enter: the calling coroutine has already entered the monitor (not reentrant)"), 2)
   end
   self._inner = self._mutex:lock()
-  self._owner = task
+  self._owner = computation
   return Permit(function()
     self._owner = nil
     self._inner:release()
@@ -60,12 +60,12 @@ function Monitor:_leave()
 end
 
 --- Re-enters the monitor after a wait; not cancellable.
----@param task table
+---@param computation table
 ---@private
-function Monitor:_reenter(task)
+function Monitor:_reenter(computation)
   ---@diagnostic disable-next-line: invisible  -- friend class
   self._inner = self._mutex:_lock(true)
-  self._owner = task
+  self._owner = computation
 end
 
 return core.finalise(Monitor)

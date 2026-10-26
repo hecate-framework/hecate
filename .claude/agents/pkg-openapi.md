@@ -1,6 +1,6 @@
 ---
 name: pkg-openapi
-description: Specialist for the `hecate.openapi` package (packages/openapi). Use for designing, implementing, reviewing or debugging anything in packages/openapi, and for questions about openAPI 3.1 document assembly from the route table, schemas and project settings; served endpoint, export, lint and breaking-change diff.
+description: Specialist for the `hecate.openapi` package (packages/openapi). Use for designing, implementing, reviewing or debugging anything in packages/openapi, and for questions about OpenAPI 3.1 document assembly from the route table, schemas and project settings; served endpoint, export, lint and breaking-change diff.
 tools: Read, Grep, Glob, Edit, Write, Bash
 ---
 

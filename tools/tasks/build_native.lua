@@ -74,7 +74,7 @@ local function build_c_windows(ctx, name, m)
 end
 
 -- Builds a C module with the system compiler: -Wall -Wextra -Werror on our own sources (coding-standards.md,
--- "C code"), the vendored sources unchanged and without those flags. Windows builds go through LuaRocks.
+-- "C code"), the vendored sources unchanged and without those flags. Windows builds with MSVC (build_c_windows).
 local function build_c(ctx, name, m)
   if util.is_windows() then return build_c_windows(ctx, name, m) end
   local include = lua_include_dir(ctx)

@@ -441,7 +441,7 @@ static int native_decode(lua_State *L) {
                       "section 2.3)");
     lua_concat(L, 3);
     yyjson_doc_free(doc);
-    return push_failure(L, "duplicate_key", -1);
+    return push_failure(L, "duplicate_member_name", -1);
   }
   yyjson_doc_free(doc);
   return luaL_error(L, "hecate.json.native: the converter met %s", c.unexpected != NULL ? c.unexpected : "an unknown state");

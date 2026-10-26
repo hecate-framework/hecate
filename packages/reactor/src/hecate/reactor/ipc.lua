@@ -30,7 +30,7 @@ local HEADER_SIZE = 5
 local function check_options(name, options)
   if options == nil then return {} end
   if type(options) ~= "table" then
-    error(core.ArgumentError(("%s expects an options table, got %s"):format(name, type(options))), 3)
+    error(core.ArgumentError(("%s: expects an options table, got %s"):format(name, type(options))), 3)
   end
   for key in pairs(options) do
     if key ~= "max_message" then error(core.ArgumentError(("%s: unknown option %s"):format(name, tostring(key))), 3) end
@@ -54,9 +54,10 @@ local Peer = core.class("Peer")
 ---@param stream? table  replaces the stream over `handle` (tests of the framing)
 ---@private
 function Peer:init(handle, options, stream)
-  options = check_options("Peer", options)
+  options = check_options("reactor.Peer", options)
   self._handle = handle
   self._stream = stream or tcp.TcpStream(handle, { read_ahead = false })
+  self._stream._calls = { read = "reactor.Peer.receive", write = "reactor.Peer.send", send = "reactor.Peer.send" } -- the calls whose failures the stream reports
   self._max_message = options.max_message or DEFAULT_MAX_MESSAGE
   -- Bytes received and not yet decoded: `_buf` from `_pos` on, then the chunks of `_extra`, which
   -- are joined into `_buf` only once a whole frame is available (one copy per frame, not per read).
@@ -88,16 +89,16 @@ end
 ---@param handle? hecate.reactor.TcpStream  a connected stream to hand over
 function Peer:send(message, handle)
   if type(message) ~= "string" then
-    error(core.ArgumentError(("send expects a string message, got %s"):format(type(message))), 2)
+    error(core.ArgumentError(("reactor.Peer.send: expects a string message, got %s"):format(type(message))), 2)
   end
   if #message > self._max_message then
-    error(core.ArgumentError(("send: the message is %d bytes, the limit is %d"):format(#message, self._max_message)), 2)
+    error(core.ArgumentError(("reactor.Peer.send: the message is %d bytes, the limit is %d"):format(#message, self._max_message)), 2)
   end
   if handle ~= nil and not core.is_instance_of(handle, tcp.TcpStream) then
-    error(core.ArgumentError("send: only a TcpStream can be handed over"), 2)
+    error(core.ArgumentError("reactor.Peer.send: only a TcpStream can be handed over"), 2)
   end
   if handle ~= nil and handle:is_closed() then
-    error(core.ArgumentError("send: the stream to hand over is closed"), 2)
+    error(core.ArgumentError("reactor.Peer.send: the stream to hand over is closed"), 2)
   end
   local frame = string.pack(HEADER, #message, handle and 1 or 0) .. message
   if handle == nil then
@@ -164,7 +165,7 @@ end
 ---@private
 function Peer:_violation(reason)
   self:close()
-  uv_call.fail_transport("receive", "EPROTO: " .. reason)
+  uv_call.fail_transport("reactor.Peer.receive", "receive", "EPROTO: " .. reason)
 end
 
 --- Receives the next message, and the stream that came with it, if any. Returns `nil` when the
@@ -180,7 +181,7 @@ end
 ---@return string? message  the message, or nil at the end of the message pipe
 ---@return hecate.reactor.TcpStream? handle  the stream handed over with it
 function Peer:receive()
-  if self._receiving then error(core.Error("receive: another coroutine is already receiving"), 2) end
+  if self._receiving then error(core.Error("reactor.Peer.receive: another coroutine is already receiving"), 2) end
   self._receiving = true
   local ok, message, handle = pcall(self._receive, self)
   self._receiving = false
@@ -195,14 +196,14 @@ end
 function Peer:_receive()
   if not self:_fill(HEADER_SIZE) then
     if self:_available() > 0 then
-      uv_call.fail_transport("receive", "EPIPE: the message pipe ended inside a frame")
+      uv_call.fail_transport("reactor.Peer.receive", "receive", "EPIPE: the message pipe ended inside a frame")
     end
     return nil
   end
   local length, flag = string.unpack(HEADER, self._buf, self._pos)
   if length > self._max_message or flag > 1 then self:_violation("malformed frame") end
   if not self:_fill(HEADER_SIZE + length) then
-    uv_call.fail_transport("receive", "EPIPE: the message pipe ended inside a frame")
+    uv_call.fail_transport("reactor.Peer.receive", "receive", "EPIPE: the message pipe ended inside a frame")
   end
   local first = self._pos + HEADER_SIZE
   local message = self._buf:sub(first, first + length - 1)
@@ -225,7 +226,7 @@ function Peer:_receive()
   local accepted, err = self._handle:accept(raw)
   if not accepted then
     raw:close()
-    uv_call.fail_transport("receive", tostring(err))
+    uv_call.fail_transport("reactor.Peer.receive", "receive", tostring(err))
   end
   return message, tcp.TcpStream(raw)
 end
@@ -273,7 +274,7 @@ local ipc = { Peer = Peer, child_marker = child_marker, holds_descriptor = holds
 ---@param options? hecate.reactor.PeerOptions  `max_message`
 ---@return hecate.reactor.Peer? peer  the parent's peer
 function ipc.parent(options)
-  options = check_options("ipc.parent", options)
+  options = check_options("reactor.ipc.parent", options)
   if parent_peer and not parent_peer:is_closed() then return parent_peer end
   local fd = uv.os_getenv(ENV_NAME)
   if fd ~= tostring(PIPE_FD) or uv.guess_handle(PIPE_FD) ~= "pipe" then return nil end
@@ -281,7 +282,7 @@ function ipc.parent(options)
   local opened, err = handle:open(PIPE_FD)
   if not opened then
     handle:close()
-    uv_call.fail_transport("ipc.parent", tostring(err))
+    uv_call.fail_transport("reactor.ipc.parent", "ipc.parent", tostring(err))
   end
   parent_peer = Peer(handle, options)
   uv.os_unsetenv(ENV_NAME)

@@ -435,8 +435,10 @@ local function page(meta, package_name, heading, body)
   return table.concat(out, "\n"):gsub("\n+$", "") .. "\n"
 end
 
+--- The local name of a class in the signatures of its page: its last segment (the module table of a package
+--- is `hecate.core`, so the local is `core`).
 local function alias_of(class)
-  return class.is_root and class.short or class.short
+  return class.short
 end
 
 local function parameter_names(member, mark_optional)
@@ -824,14 +826,14 @@ end
 function M.generate(inputs, options)
   options = options or {}
   if type(inputs) ~= "table" then
-    error(core.ArgumentError("generate expects a list of { name, export } inputs"), 2)
+    error(core.ArgumentError("doc.reference.generate: expects a list of { name, export } inputs"), 2)
   end
   local root = options.root or "reference"
   local problems = {}
   local order_of = {}
   for index, input in ipairs(inputs) do
     if type(input) ~= "table" or type(input.name) ~= "string" or input.export == nil then
-      error(core.ArgumentError(("generate: input %d must be { name = string, export = ... }"):format(index)), 2)
+      error(core.ArgumentError(("doc.reference.generate: input %d must be { name = string, export = ... }"):format(index)), 2)
     end
     order_of[input.name] = index * 10
   end
@@ -894,7 +896,8 @@ function M.generate(inputs, options)
   return { pages = pages, problems = problems, order = order }
 end
 
---- Names of the generated pages of a package directory, for the stale-page check of writers.
+--- Tells whether a page carries the marker of generated pages, so that a writer replaces only what a
+--- previous generation wrote (see `reference_site`).
 ---@param content string
 ---@return boolean
 function M.is_generated(content)

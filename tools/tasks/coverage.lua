@@ -14,7 +14,7 @@ end
 return {
   description = "line coverage report (LCOV) with per-package thresholds",
   run = function(ctx)
-    local root = coverage.normalize(ctx.root)
+    local root = coverage.normalise(ctx.root)
     local out_dir = ctx.root .. "/coverage"
     local data = out_dir .. "/data"
     util.mkdir(out_dir)
@@ -36,7 +36,7 @@ return {
       local base = ctx.root .. "/packages/" .. package .. "/src"
       local s = { total = 0, covered = 0 }
       for _, path in ipairs(util.walk(base, ".lua")) do
-        local normal = coverage.normalize(path)
+        local normal = coverage.normalise(path)
         local executable = coverage.executable_lines(read(path) or "")
         local total, covered = coverage.count(executable, hits[normal])
         s.total, s.covered = s.total + total, s.covered + covered

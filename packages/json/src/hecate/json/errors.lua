@@ -35,7 +35,7 @@ local EncodeError = core.error_class("EncodeError", "hecate.json.EncodeError", J
 ---| "lone_surrogate"  a `\u` escape of a surrogate that is not part of a valid pair (section 8.2, I-JSON)
 ---| "control_character"  an unescaped control character U+0000 to U+001F in a string (section 7)
 ---| "byte_order_mark"  the text starts with a byte order mark (section 8.1)
----| "duplicate_key"  an object has two members with the same name (section 4, I-JSON section 2.3)
+---| "duplicate_member_name"  an object has two members with the same name (section 4, I-JSON section 2.3)
 ---| "number_out_of_range"  a number that is not finite as a float
 ---| "depth_limit"  nesting deeper than `max_depth`
 ---| "size_limit"  input longer than `max_size`

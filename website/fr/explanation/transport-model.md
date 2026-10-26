@@ -14,7 +14,7 @@ Pour les recettes, voir [Se connecter et servir en TCP](../how-to/connect-and-se
 
 ## Deux couches
 
-`hecate.reactor` enveloppe une seule fois les handles réseau de libuv : TCP, UDP, tubes et
+`hecate.reactor` enveloppe une seule fois les handles réseau de libuv : TCP, UDP, sockets Unix ou tubes nommés, et
 résolution de noms. `hecate.net` s’appuie dessus et ajoute la résolution de noms avant la
 connexion, le lecteur et l’écrivain tamponnés, et TLS. `net` ne parle jamais à libuv lui-même.
 Tout ce qui attend passe par le [réacteur](../reference/glossary.md#concurrency) (*reactor*),
@@ -43,7 +43,7 @@ Un socket UDP n’est pas un flux. Chaque appel déplace un datagramme, et les f
 Aucun rappel (*callback*) n’est jamais exposé à votre code. Un appel comme `read` suspend la
 [coroutine](../reference/glossary.md#concurrency) en cours. Le réacteur exécute d’autres
 coroutines pendant ce temps et reprend celle-ci quand le système d’exploitation a une réponse.
-Votre gestionnaire se lit donc comme du code séquentiel :
+Votre action se lit donc comme du code séquentiel :
 
 ```lua
 local line = reader:read_line()

@@ -32,7 +32,7 @@ function Reactor:init(options)
   options = options or {}
   local clock = options.clock or "real"
   if clock ~= "real" and clock ~= "virtual" then
-    error(core.ArgumentError(("invalid clock %s: expected \"real\" or \"virtual\""):format(tostring(clock))), 2)
+    error(core.ArgumentError(("reactor.Reactor: invalid clock %s: expected \"real\" or \"virtual\""):format(tostring(clock))), 2)
   end
   self._virtual = clock == "virtual"
   self._virtual_now = options.start or 0
@@ -42,7 +42,7 @@ function Reactor:init(options)
   self._heap = {}
   self._cancelled_timers = 0
   self._sequence = 0
-  self._tasks = {}
+  self._computations = {}
   self._live = 0
   self._uv_timer = nil
   self._sigpipe_guard = nil
@@ -145,25 +145,25 @@ local function fire_due(self, now)
   end
 end
 
--- Tasks.
+-- Computations.
 
-local function push_ready(self, task)
+local function push_ready(self, computation)
   self._tail = self._tail + 1
-  self._ready[self._tail] = task
+  self._ready[self._tail] = computation
 end
 
-local function wake_task(task, id, ...)
-  if task.state ~= "suspended" or id ~= task.wait_id then return false end
-  task.state = "ready"
-  task.resume = table.pack(...)
-  push_ready(task.reactor, task)
+local function wake_computation(computation, id, ...)
+  if computation.state ~= "suspended" or id ~= computation.wait_id then return false end
+  computation.state = "ready"
+  computation.resume = table.pack(...)
+  push_ready(computation.reactor, computation)
   return true
 end
 
 --- Returns the cancellation pending for a coroutine: its own, or that of any enclosing scope.
-local function pending_cancel(task)
-  if task.cancel_error ~= nil then return task.cancel_error end
-  local scope = task.scope
+local function pending_cancel(computation)
+  if computation.cancel_error ~= nil then return computation.cancel_error end
+  local scope = computation.scope
   while scope do
     if scope._cancel_error ~= nil then return scope._cancel_error end
     scope = scope.parent
@@ -171,36 +171,36 @@ local function pending_cancel(task)
   return nil
 end
 
-function context.notify_cancel(task)
-  if task.state == "suspended" and task.cancellable and pending_cancel(task) ~= nil then
-    wake_task(task, task.wait_id, CANCELLED)
+function context.notify_cancel(computation)
+  if computation.state == "suspended" and computation.cancellable and pending_cancel(computation) ~= nil then
+    wake_computation(computation, computation.wait_id, CANCELLED)
   end
 end
 
-function context.cancel_task(task, err)
-  if task.cancel_error == nil then task.cancel_error = err end
-  context.notify_cancel(task)
+function context.cancel_computation(computation, err)
+  if computation.cancel_error == nil then computation.cancel_error = err end
+  context.notify_cancel(computation)
 end
 
 --- Returns the coroutine of the running coroutine, or raises `NonYieldableContextError`.
-local function current_task(operation)
+local function current_computation(operation)
   local reactor = context.reactor
   local co = coroutine.running()
-  local task = reactor and reactor._tasks[co]
-  if not task then
+  local computation = reactor and reactor._computations[co]
+  if not computation then
     error(core.NonYieldableContextError({
-      message = operation .. " may only be called from a coroutine managed by a running reactor",
+      message = operation .. ": may only be called from a coroutine managed by a running reactor",
       context = { operation = operation },
     }), 0)
   end
   if not coroutine.isyieldable() then
     error(core.NonYieldableContextError({
-      message = operation .. " cannot suspend here: the coroutine is inside a non-yieldable context"
+      message = operation .. ": cannot suspend here: the coroutine is inside a non-yieldable context"
         .. " (for example a table.sort comparator, a string.gsub callback or a metamethod called from C)",
       context = { operation = operation },
     }), 0)
   end
-  return task
+  return computation
 end
 
 --- Suspends the running coroutine until the `wake` function handed to `register` is called.
@@ -208,88 +208,89 @@ end
 --- A cancellable suspension raises the pending `CancellationError` instead of returning.
 ---@param register? fun(wake: fun(...): boolean): (fun()?)
 ---@param uncancellable? boolean
+---@param operation? string  the public call, for the message when the caller is not a managed coroutine
 ---@return any ...
-function context.suspend(register, uncancellable)
-  local task = current_task("a suspending operation")
+function context.suspend(register, uncancellable, operation)
+  local computation = current_computation(operation or "reactor")
   if not uncancellable then
-    local pending = pending_cancel(task)
+    local pending = pending_cancel(computation)
     if pending ~= nil then error(pending, 0) end
   end
-  local id = task.wait_id + 1
-  task.wait_id = id
-  task.state = "suspended"
-  task.cancellable = not uncancellable
+  local id = computation.wait_id + 1
+  computation.wait_id = id
+  computation.state = "suspended"
+  computation.cancellable = not uncancellable
   local undo
   if register then
-    undo = register(function(...) return wake_task(task, id, ...) end)
+    undo = register(function(...) return wake_computation(computation, id, ...) end)
   end
   local resumed = table.pack(coroutine.yield(YIELD))
-  task.cancellable = false
+  computation.cancellable = false
   if undo then undo() end
   if resumed[1] == CANCELLED then
-    error(pending_cancel(task) or core.CancellationError("cancelled"), 0)
+    error(pending_cancel(computation) or core.CancellationError("cancelled"), 0)
   end
   return table.unpack(resumed, 1, resumed.n)
 end
 
-context.current_task = current_task
+context.current_computation = current_computation
 
-local function finish(self, task, state, results, err)
-  self._tasks[task.co] = nil
+local function finish(self, computation, state, results, err)
+  self._computations[computation.co] = nil
   self._live = self._live - 1
-  task.state = "dead"
-  task.future:_settle(state, results, err)
-  if task.home then task.home:_child_done(task, state, err) end
+  computation.state = "dead"
+  computation.future:_settle(state, results, err)
+  if computation.home then computation.home:_child_done(computation, state, err) end
 end
 
-local function step(self, task)
-  local resume = task.resume
-  task.resume = nil
-  task.state = "running"
+local function step(self, computation)
+  local resume = computation.resume
+  computation.resume = nil
+  computation.state = "running"
   local outcome
   if resume then
-    outcome = table.pack(coroutine.resume(task.co, table.unpack(resume, 1, resume.n)))
+    outcome = table.pack(coroutine.resume(computation.co, table.unpack(resume, 1, resume.n)))
   else
-    outcome = table.pack(coroutine.resume(task.co))
+    outcome = table.pack(coroutine.resume(computation.co))
   end
   if not outcome[1] then
     -- An errored coroutine has not unwound: closing it runs the pending `<close>` handlers
     -- (reactor/CLAUDE.md invariant: cancellation runs `<close>` handlers). An error raised by
     -- a handler replaces the original one.
-    local closed, err = coroutine.close(task.co)
+    local closed, err = coroutine.close(computation.co)
     if closed then err = outcome[2] end
     local state = core.is_instance_of(err, core.CancellationError) and "cancelled" or "failed"
-    finish(self, task, state, nil, err)
-  elseif coroutine.status(task.co) == "dead" then
-    finish(self, task, "completed", table.pack(table.unpack(outcome, 2, outcome.n)))
+    finish(self, computation, state, nil, err)
+  elseif coroutine.status(computation.co) == "dead" then
+    finish(self, computation, "completed", table.pack(table.unpack(outcome, 2, outcome.n)))
   elseif outcome[2] ~= YIELD then
-    coroutine.close(task.co)
-    finish(self, task, "failed", nil,
+    coroutine.close(computation.co)
+    finish(self, computation, "failed", nil,
       core.Error("a managed coroutine called coroutine.yield directly; use the reactor primitives"))
   end
 end
 
 --- Creates a coroutine for `fn(...)` in `scope` and marks it ready.
----@param scope? hecate.reactor.Scope  nil for the main task
+---@param scope? hecate.reactor.Scope  nil for the main computation
 ---@param fn function
 ---@param args table  packed arguments
 ---@return hecate.reactor.Future
 ---@private
-function Reactor:_create_task(scope, fn, args)
+function Reactor:_create_computation(scope, fn, args)
   local future = Future()
-  local task = {
+  local computation = {
     reactor = self, state = "ready", wait_id = 0, cancellable = false,
     scope = scope, home = scope, future = future,
   }
-  local creator = self._tasks[coroutine.running()]
-  if creator then task.ambient = creator.ambient end -- ambient context (ADR 0025)
-  task.co = coroutine.create(function() return fn(table.unpack(args, 1, args.n)) end)
-  future._task = task
-  self._tasks[task.co] = task
+  local creator = self._computations[coroutine.running()]
+  if creator then computation.ambient = creator.ambient end -- ambient context (ADR 0025)
+  computation.co = coroutine.create(function() return fn(table.unpack(args, 1, args.n)) end)
+  future._computation = computation
+  self._computations[computation.co] = computation
   self._live = self._live + 1
   ---@diagnostic disable-next-line: invisible  -- the scheduler is the friend of `Scope`
-  if scope then scope:_adopt(task) end
-  push_ready(self, task)
+  if scope then scope:_adopt(computation) end
+  push_ready(self, computation)
   return future
 end
 
@@ -297,10 +298,10 @@ local function run_ready(self)
   local count = self._tail - self._head + 1
   for _ = 1, count do
     local index = self._head
-    local task = self._ready[index]
+    local computation = self._ready[index]
     self._ready[index] = nil
     self._head = index + 1
-    step(self, task)
+    step(self, computation)
   end
   if self._head > self._tail then self._head, self._tail = 1, 0 end
 end
@@ -309,7 +310,7 @@ local function has_ready(self) return self._head <= self._tail end
 
 local function deadlock(self)
   error(core.Error({
-    message = ("deadlock: %d coroutine(s) are suspended and nothing can wake them"):format(self._live),
+    message = ("reactor.run: deadlock: %d coroutine(s) are suspended and nothing can wake them"):format(self._live),
     context = { live = self._live },
   }), 0)
 end
@@ -352,10 +353,10 @@ end
 ---@return any ...
 function Reactor:run(fn, ...)
   if type(fn) ~= "function" then
-    error(core.ArgumentError(("run expects a function, got %s"):format(type(fn))), 2)
+    error(core.ArgumentError(("reactor.Reactor.run: expects a function, got %s"):format(type(fn))), 2)
   end
   if context.reactor ~= nil then
-    error(core.Error("a reactor is already running on this thread"), 2)
+    error(core.Error("reactor.Reactor.run: a reactor is already running on this thread"), 2)
   end
   local args = table.pack(...)
   context.reactor = self
@@ -375,7 +376,7 @@ function Reactor:run(fn, ...)
       guard:close()
     end
   end
-  local main = self:_create_task(nil, function()
+  local main = self:_create_computation(nil, function()
     return context.scope_run(function(scope)
       self._root = scope
       return fn(table.unpack(args, 1, args.n))
@@ -395,11 +396,11 @@ function Reactor:run(fn, ...)
   end
   if not ok then
     -- Abandon what is left: closing a suspended coroutine runs its `<close>` handlers.
-    for co, task in pairs(self._tasks) do
+    for co, computation in pairs(self._computations) do
       coroutine.close(co)
-      task.state = "dead"
+      computation.state = "dead"
     end
-    self._tasks, self._live = {}, 0
+    self._computations, self._live = {}, 0
     error(failure, 0)
   end
   if main._state == "completed" then

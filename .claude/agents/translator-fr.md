@@ -1,6 +1,6 @@
 ---
 name: translator-fr
-description: Translates Hecate's website pages from English to French and keeps translations in sync. Use for website/fr work or when check-translations reports stale pages.
+description: Translates Hecate's website pages from English to French and keeps translations in sync. Use for website/fr work or when `check-translations` (planned, Phase 3) reports stale pages.
 tools: Read, Grep, Glob, Edit, Write, Bash
 ---
 

@@ -5,7 +5,7 @@ package-specific context. Specialist agent: `pkg-query`.
 
 ## Purpose
 
-Query builder using relational-algebra vocabulary (projection, selection, join, rename, union) rendered per SQL dialect.
+Query builder using relational-algebra vocabulary (projection, selection, join, rename, union) and the database-schema definition API, independent of any dialect.
 
 ## Read before changing anything
 
@@ -16,22 +16,21 @@ Query builder using relational-algebra vocabulary (projection, selection, join, 
 
 ## Boundaries
 
-- Allowed dependencies: `hecate.core`, `hecate.sql`.
+- Allowed dependencies: `hecate.core` only (the translators to a dialect live in `hecate.sql`, which depends on `query`; ADR 0026).
   Anything else requires an ADR; `check-boundaries` fails otherwise.
 - Native code: none.
-- Out of scope: object mapping (see `orm`).
+- Out of scope: object mapping (see `orm`); translation to a dialect and execution (see `sql`).
 - If your task needs a change in another package, stop and describe the needed change
   instead of making it (unless the task explicitly spans packages).
 
 ## Invariants (must hold after every change)
 
-- rendering is deterministic
-- identifiers quoted per dialect
+- expression trees are immutable values; building one never touches a dialect or a data source
+- the database-schema (DDL) definition API is part of this package, not of `migration` or `sql`
 
 ## Test strategy
 
-- golden SQL per dialect
-- execution tests on all drivers
+- unit tests of the expression tree and of the database-schema definition API; the golden SQL per dialect lives in `sql`
 
 Plus, for every change: unit tests for public behaviour, LuaLS annotations on public API
 (`---@async` on anything that may suspend), README "Public API" section updated.

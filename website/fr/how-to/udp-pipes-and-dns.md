@@ -91,7 +91,8 @@ mise en cache. Bornez-la avec `reactor.deadline` comme n’importe quel autre ap
 
 ## Écouter sur un socket Unix ou un tube nommé
 
-`net.listen_pipe(path, options?)` écoute sur un socket de domaine Unix. Sous Windows, le même
+`net.listen_pipe(path, options?)` écoute sur un socket de domaine Unix (un « socket Unix », à ne
+pas confondre avec le [tube de messages](run-processes-and-pass-connections.md) entre processus). Sous Windows, le même
 appel écoute sur un tube nommé, dont le chemin a la forme `\\.\pipe\name`. Les flux sont des
 objets `PipeStream` qui ont la même API que `TcpStream` : `reader`, `writer`, `shutdown`,
 `close`, etc., plus `path()`.
@@ -137,8 +138,8 @@ end)
 - Le chemin ne doit pas exister. Lier un chemin existant échoue avec `EADDRINUSE`. L’écouteur
   supprime son fichier socket à sa fermeture. Après un plantage, un fichier orphelin reste :
   supprimez-le avant d’écouter de nouveau.
-- Un nom de tube Windows fait au plus 256 caractères. Un chemin de socket Unix fait au plus 104
-  octets sous macOS et 108 sous Linux, NUL final compris. Un chemin plus long lève
+- Un nom de tube Windows fait au plus 256 caractères. Un chemin de socket Unix fait au plus 107
+  octets (103 sous macOS), NUL final exclu. Un chemin plus long lève
   `ArgumentError`.
 
 ### Différences sous Windows

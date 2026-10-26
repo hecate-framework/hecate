@@ -1,6 +1,6 @@
 ---
 name: pkg-sqlite
-description: Specialist for the `hecate.sqlite` package (packages/sqlite). Use for designing, implementing, reviewing or debugging anything in packages/sqlite, and for questions about sQLite driver: C binding to the vendored amalgamation, executed on the libuv thread pool.
+description: Specialist for the `hecate.sqlite` package (packages/sqlite). Use for designing, implementing, reviewing or debugging anything in packages/sqlite, and for questions about SQLite driver: C binding to the vendored amalgamation, executed on the libuv thread pool.
 tools: Read, Grep, Glob, Edit, Write, Bash
 ---
 

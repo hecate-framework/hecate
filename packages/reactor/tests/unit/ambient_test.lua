@@ -4,12 +4,12 @@ local reactor = require("hecate.reactor")
 local support = {
   run_virtual = function(fn, ...) return reactor.Reactor({ clock = "virtual" }):run(fn, ...) end,
 }
-local T = test.Case("ScopeLocalTest")
+local T = test.Case("AmbientTest")
 
 local KEY = {}
 local OTHER = {}
 
-function T:test_local_is_reachable_under_its_reserved_word_name()
+function T:test_a_binding_is_read_through_ambient()
   support.run_virtual(function()
     reactor.with_ambient(KEY, "v", function() self:assert_equal("v", reactor.ambient(KEY)) end)
   end)

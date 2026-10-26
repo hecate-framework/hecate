@@ -7,7 +7,7 @@ source = {
 }
 
 description = {
-  summary = "The application: modules, controllers, route modules, filters (chain of responsibility), problem details, lifecycle, workers and graceful shutdown.",
+  summary = "The application: feature modules, controllers, route modules, filters (chain of responsibility), problem details, lifecycle, workers and graceful shutdown.",
   homepage = "https://github.com/hecate-framework/hecate",
   license = "MIT",
 }

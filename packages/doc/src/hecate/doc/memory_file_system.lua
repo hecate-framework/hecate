@@ -3,7 +3,7 @@
 global <const> require, table, string, pairs, type, error
 
 local core = require("hecate.core")
-local FileSystem = require("hecate.doc.filesystem")
+local FileSystem = require("hecate.doc.file_system")
 
 ---@class hecate.doc.MemoryFileSystem : hecate.doc.FileSystem
 ---@field files table<string, string>  path to content (read it to inspect what was written)
@@ -33,7 +33,7 @@ function MemoryFileSystem:read(path) return self.files[normalise(path)] end
 ---@param data string
 function MemoryFileSystem:write(path, data)
   if type(data) ~= "string" then
-    error(core.ArgumentError("write expects the content as a string"), 2)
+    error(core.ArgumentError("doc.MemoryFileSystem.write: expects the content as a string"), 2)
   end
   self.files[normalise(path)] = data
 end

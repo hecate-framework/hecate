@@ -133,7 +133,7 @@ function T:test_a_scope_absorbs_its_own_cancellation()
   self:assert_true(after)
 end
 
-function T:test_cancellation_runs_close_handlers()
+function T:test_cancellation_runs_the_pending_closes()
   local closed = {}
   support.run_virtual(function()
     local f = reactor.fork(function()
@@ -179,7 +179,7 @@ function T:test_scope_fork_method_adds_children()
   self:assert_true(ran)
 end
 
-function T:test_a_close_handler_error_replaces_the_cancellation()
+function T:test_a_close_metamethod_error_replaces_the_cancellation()
   local err = self:assert_error(function()
     support.run_virtual(function()
       reactor.scope(function()
