@@ -83,7 +83,7 @@ the reference):
 
 | `context.reason` | Input | Why it is rejected | What to do |
 |---|---|---|---|
-| `duplicate_key` | `{"a":1,"a":2}` | Parsers disagree on which value wins (RFC 7493 section 2.3). The native decoder gives no position for it. | Make member names unique at the source. |
+| `duplicate_member_name` | `{"a":1,"a":2}` | Parsers disagree on which value wins (RFC 7493 section 2.3). The native decoder gives no position for it. | Make member names unique at the source. |
 | `lone_surrogate` | `"\ud800"` | A surrogate escape is valid only as half of a pair (RFC 8259 section 8.2, RFC 7493 section 2.1). | Write the character itself or its pair, e.g. `"\ud83d\ude00"`. |
 | `byte_order_mark` | text starting with bytes `EF BB BF` | RFC 8259 section 8.1 lets parsers ignore it, and they differ. | Strip the first three bytes before decoding. |
 | `number_out_of_range` | `1e999` | It does not fit in a 64-bit float; parsers answer infinity, error or clamp. | Send the number as a string, or a value within about 1.8e308. |

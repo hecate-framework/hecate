@@ -161,21 +161,21 @@ end
 
 function T:test_duplicate_member_names_are_rejected()
   local err = decode_error(self, '{"a":1,"b":2,"a":3}')
-  self:assert_equal("duplicate_key", err.context.reason)
+  self:assert_equal("duplicate_member_name", err.context.reason)
   -- yyjson keeps no position for a member name that occurs twice: the error has none (OQ-54)
   self:assert_nil(err.context.offset)
-  self:assert_equal("duplicate_key", decode_error(self, '{"a":null,"a":1}').context.reason)
-  self:assert_equal("duplicate_key", decode_error(self, '{"a\\u0062":1,"ab":2}').context.reason)
+  self:assert_equal("duplicate_member_name", decode_error(self, '{"a":null,"a":1}').context.reason)
+  self:assert_equal("duplicate_member_name", decode_error(self, '{"a\\u0062":1,"ab":2}').context.reason)
 end
 
 function T:test_an_error_message_never_echoes_more_than_a_short_excerpt_of_the_input()
   -- a hostile text must not grow the message nor forge a line of a log
   local long = decode_error(self, '{"' .. string.rep("k", 100000) .. '":1,"' .. string.rep("k", 100000) .. '":2}')
-  self:assert_equal("duplicate_key", long.context.reason)
+  self:assert_equal("duplicate_member_name", long.context.reason)
   self:assert_true(#long.message < 400, "message length " .. #long.message)
   self:assert_true(long.message:find("(cut)", 1, true) ~= nil)
   local forged = decode_error(self, [[{"x\nERROR forged\n":1,"x\nERROR forged\n":2}]])
-  self:assert_equal("duplicate_key", forged.context.reason)
+  self:assert_equal("duplicate_member_name", forged.context.reason)
   self:assert_nil(forged.message:find("\n", 1, true), "raw line feed in the message")
   self:assert_true(forged.message:find("\\x0a", 1, true) ~= nil, forged.message)
   local number = decode_error(self, "[1" .. string.rep("0", 100000) .. "]")
