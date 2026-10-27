@@ -8,6 +8,8 @@ global <const> require, io, os, package, math, string, table, error, tostring, t
 local core = require("hecate.core")
 local errors = require("hecate.doc.errors")
 
+--- Access to the LuaLS documentation export.
+---@class hecate.doc.luals
 local M = {}
 
 --- The LuaLS version whose export format the generator and its fixtures are written for.

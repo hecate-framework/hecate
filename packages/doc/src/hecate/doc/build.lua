@@ -5,6 +5,8 @@ local core = require("hecate.core")
 local errors = require("hecate.doc.errors")
 local Site = require("hecate.doc.site")
 
+--- The build entry point: loads the site configuration and builds the static site.
+---@class hecate.doc.build
 local M = {}
 
 ---@class hecate.doc.BuildOptions : hecate.doc.SiteOptions

@@ -9,6 +9,8 @@ local core = require("hecate.core")
 local reference = require("hecate.doc.reference")
 local luals = require("hecate.doc.luals")
 
+--- Pages of the code reference for the site builder.
+---@class hecate.doc.reference_site
 local M = {}
 
 --- The packages whose public modules follow the annotation convention (coding-standards.md),

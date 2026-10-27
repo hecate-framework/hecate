@@ -172,7 +172,7 @@ end
 --- Raises `hecate.core.ArgumentError` if `key` is `nil` and
 --- `hecate.core.NonYieldableContextError` outside a managed coroutine.
 ---@param key any  the key given to `with_ambient`
----@return any value  the bound value, or `nil`
+---@return any? value  the bound value, or `nil`
 function M.ambient(key)
   if key == nil then
     error(core.ArgumentError("reactor.ambient: expects a key that is not nil"), 2)

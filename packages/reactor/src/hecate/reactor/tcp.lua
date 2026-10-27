@@ -488,7 +488,7 @@ end
 
 core.finalise(TcpListener)
 
-local M = { TcpStream = TcpStream, TcpListener = TcpListener, fail_closed = fail_closed }
+local M = { TcpStream = TcpStream, TcpListener = TcpListener, fail_closed = fail_closed } -- annotations-ok: internal table (the public functions are documented on `hecate.reactor` below)
 
 -- Documented on `hecate.reactor` (module class completed here so that the LuaLS export lists the
 -- functions; coding-standards.md, "Annotations for the reference").

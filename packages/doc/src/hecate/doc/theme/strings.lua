@@ -3,6 +3,8 @@
 -- The name of the project is never capitalised (brand kit), including in these strings.
 global <const> pairs, ipairs, tostring, tonumber
 
+--- Localised strings and date formatting of the documentation theme.
+---@class hecate.doc.theme.strings
 local M = {}
 
 ---@type table<string, table<string, any>>

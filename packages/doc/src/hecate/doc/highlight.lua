@@ -10,6 +10,8 @@ if not ok then
   error("the native module hecate.doc.native is not built (run `lua tools/run.lua build-native doc`): " .. native, 0)
 end
 
+--- Syntax highlighting of code blocks (native module).
+---@class hecate.doc.highlight
 local M = {}
 
 --- Returns true when a syntax exists for the language (a name or a file extension).

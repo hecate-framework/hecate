@@ -6,6 +6,8 @@ global <const> string, table, tonumber, require, type, error, ipairs, pairs, nex
 
 local errors = require("hecate.doc.errors")
 
+--- Parser of the front matter of a Markdown page.
+---@class hecate.doc.front_matter
 local M = {}
 
 local function fail(message, path, line)

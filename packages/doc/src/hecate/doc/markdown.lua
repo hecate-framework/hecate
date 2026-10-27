@@ -12,6 +12,8 @@ if not ok then
     .. " it needs a Rust toolchain, or install a prebuilt hecate-doc rock): " .. native, 0)
 end
 
+--- Markdown renderer (native module).
+---@class hecate.doc.markdown
 local M = {}
 
 ---@class hecate.doc.MarkdownOptions

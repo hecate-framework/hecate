@@ -3,6 +3,8 @@ global <const> require, type, ipairs, pairs, error, tostring, table, string
 
 local core = require("hecate.core")
 
+--- Validation and defaults of the site configuration.
+---@class hecate.doc.config
 local M = {}
 
 ---@class hecate.doc.Locale

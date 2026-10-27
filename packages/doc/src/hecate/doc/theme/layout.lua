@@ -13,6 +13,8 @@ local strings_module = require("hecate.doc.theme.strings")
 
 local escape, attributes = html.escape, html.attributes
 
+--- HTML layout of the documentation theme.
+---@class hecate.doc.theme.layout
 local M = {}
 
 ---@class hecate.doc.ResolvedLink
