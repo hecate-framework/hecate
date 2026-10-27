@@ -2,7 +2,7 @@
 # Handoff
 
 - roadmap_item: **Phase 1 gate**: verification of the phase, as described in Phase gates. Open questions to put to the owner before Phase 2: OQ-50, OQ-47, OQ-23, OQ-24, OQ-26 (1) and OQ-22.
-- status: waiting-owner
+- status: in-progress
 - lock_until: 2026-10-27T11:20:00Z
 - last_update: 2026-10-27T11:20:00Z
 
@@ -13,6 +13,8 @@
 - Cloud tip: run `eval "$(luarocks path)"` before `test`, else luv is not found.
 
 ## Next steps
+
+00. Owner answered OQ-50/47/23/24/26/22 on 2026-10-27 (recorded in docs/open-questions.md). Open: OQ-50 presence set vs json.null, OQ-26 (4) virtual clock. Next: add roadmap items before the gate (reactor.shield, on_unobserved_failure hook, core.IoError, listen_pipe 0700 dir, bind all addresses, CRL option, split handshake defaults, writer-size benchmark), then the coherence fixes.
 
 0. Coherence audit done in three raw parts (docs/reviews/_phase-1-part-{A,B,C}.md: 45+32+27 findings). Next: owner answers on the D items and the six OQs; then fix the small findings in this PR, merge the parts into phase-1-coherence-findings.md, update phase-1.md section 3, run /review-package. DONE earlier: sections 1, 2, 4 of docs/reviews/phase-1.md. Remaining: section 3 coherence audit (file by file, as phase-0-coherence-findings.md) and /review-package on core, reactor, net, json, log, doc; then owner decisions on OQ-50/47/23/24/26/22 (issue opened); then tick the gate and delete this file.
 
