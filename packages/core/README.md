@@ -8,7 +8,7 @@
 | Rock | `hecate-core` |
 | Layer | 0 — Foundation |
 | Roadmap phase | 1 |
-| Status | alpha — implemented in Phase 1; API pending owner freeze (ADR 0007) |
+| Status | alpha — implemented in Phase 1; the declaration spelling is frozen (ADR 0007, owner decision of 2026-10-27) |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |
 | Depends on | none |
 | Used by | `cli`, `config`, `container`, `doc`, `hecate`, `http`, `json`, `kernel`, `log`, `migration`, `mongodb`, `mysql`, `net`, `openapi`, `orm`, `postgresql`, `query`, `reactor`, `redis`, `router`, `schema`, `security`, `sql`, `sqlite`, `sqlserver`, `template`, `test`, `websocket` |

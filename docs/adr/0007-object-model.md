@@ -26,7 +26,7 @@ Scope confirmed by the owner (2026-10-11): the **complete** model from the first
 implementation, traits included; the alternatives (adopting an existing class library,
 or conventions on plain metatables) were rejected.
 
-### Final spelling (Phase 1 implementation, for owner review and freeze)
+### Final spelling (frozen by the owner, 2026-10-27)
 
 ```lua
 local C = core.class("Name", Superclass, { traits = { T, { U, exclude = {"m"}, alias = { n = "n2" } } },
@@ -58,6 +58,8 @@ Owner decisions recorded during review of the pull request:
 Traits: `core.trait(name, methods, { traits =, requires = })`; interfaces:
 `core.interface(name, names, { extends = })`; value classes and enumerations:
 `core.value_class(...)`, `core.enumeration(name, names)`. Resolved questions: OQ-19 to OQ-21.
+
+## Consequences
 
 - One mental model across framework and applications.
 - `kernel` (controllers), `orm` (entities), `test` (test cases), `container`

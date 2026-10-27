@@ -16,8 +16,8 @@ page (avec un lien vers le glossaire), puis le terme français seul.
 | spawn | `spawn` ; « lancer / démarrer un processus » | jamais pour une coroutine |
 | join | `join` | |
 | select | `select` | |
-| deadline | échéance | `reactor.deadline`, `handshake_deadline` en code |
-| timeout | délai | durée relative |
+| deadline | échéance | `reactor.deadline` en code ; un instant, ou une durée pour `reactor.deadline` |
+| timeout | délai | durée relative ; `handshake_timeout` en code |
 | stream | flux | |
 | back-pressure | contre-pression | |
 | half-close | fermeture partielle | |

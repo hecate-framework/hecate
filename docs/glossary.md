@@ -28,7 +28,8 @@ for public APIs, documentation and internal code.
 | spawn | Start an operating-system process (`reactor.spawn`); never a coroutine, which is a `fork` | POSIX `posix_spawn`; ADR 0023 | spawn for a coroutine |
 | join | Wait for one or several futures | Conway (1963) | await all, gather, Promise.all |
 | select | Wait for the first of several alternatives to become ready | Hoare, CSP (1978); Dijkstra, guarded commands (1975) | race, any |
-| deadline | Absolute bound on the completion of a computation | — | timeout (a timeout is a relative duration; both may be accepted as arguments) |
+| deadline | Absolute bound on the completion of a computation. `reactor.deadline` accepts a deadline as an instant (`reactor.at`) or as a relative duration | — | timeout, for an instant |
+| timeout | Relative duration in seconds that bounds an operation. An option or argument that takes only a duration is named `…_timeout` (`handshake_timeout`), never `…_deadline` | — | deadline, for a duration |
 | stream | Ordered sequence of bytes read, written and closed in order, over a file, a connection or another stream | Ritchie, *A Stream Input-Output System* (1984) | socket (for transports that are not sockets), channel (a channel carries values between coroutines) |
 | back-pressure | A producer suspends while its consumer is slower, instead of buffering without bound | *Reactive Streams* specification (2015) | throttling, rate limiting |
 | half-close | Ending one direction of a connection while the other stays usable (`shutdown`) | RFC 9293, section 3.6 | — |
@@ -47,7 +48,7 @@ for public APIs, documentation and internal code.
 | logger context | The fields a `Logger` adds to every record (`context` option, `with_context`); it wins over the ambient context | `logging.md` | MDC |
 | bound log fields | The fields bound by `log.bind` in the ambient context, which the default `context_provider` of a logger reads | `logging.md`; ADR 0025 | — |
 | request context | The values bound in the ambient context around the serving of one request: the request id (`kernel`, with `log.bind`), possibly the principal (`security`) and a deadline budget; planned, not implemented | ADR 0025 | — |
-| channel | Typed communication between coroutines | Hoare, CSP (1978) | queue (when used for communication) |
+| channel | Communication of values between coroutines | Hoare, CSP (1978) | queue (when used for communication) |
 | semaphore | Counting synchronisation primitive | Dijkstra (1965) | limiter |
 | mutex | Mutual exclusion lock | Dijkstra (1965) | lock (acceptable in prose) |
 | monitor | Mutex with condition variables | Hoare (1974); Brinch Hansen (1973) | — |
