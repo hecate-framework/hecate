@@ -61,6 +61,7 @@ local yields = setmetatable({}, { __mode = "k" }) -- coroutine -> number of yiel
 local real_yield = coroutine.yield
 
 local function install()
+  ---@diagnostic disable-next-line: duplicate-set-field  -- the instrumentation replaces the standard function on purpose
   coroutine.yield = function(...)
     local running = coroutine.running()
     yields[running] = (yields[running] or 0) + 1
@@ -299,7 +300,7 @@ local CASES = {
   end,
   ["Peer:receive"] = function(env)
     local a, b = peer_pair(env)
-    if not a then return nil end
+    if not a or not b then return nil end
     reactor.fork(function() reactor.sleep(0); a:send("x") end)
     return function() b:receive() end
   end,
