@@ -43,20 +43,23 @@
 
 Implemented. Every function marked *suspends* is `---@async` and raises
 `NonYieldableContextError` outside a managed coroutine or inside a non-yieldable C boundary.
+`fork`, `detach`, `with_ambient` and `ambient` do not suspend (`with_ambient` only if its `fn` does): they need a managed
+coroutine and raise the same error otherwise, but carry no `---@async` tag. `tests/unit/suspension_test.lua` checks that
+the tags match what the functions do.
 
 | Name | Description |
 |---|---|
 | `reactor.run(fn, ...)` | Runs `fn` on a new real-clock reactor until it and everything it forked have finished. |
 | `reactor.Reactor({ clock = "real"\|"virtual", start = 0 })` | The scheduler; `:run(fn, ...)`, `:now()`, `:live_coroutines()`, `:is_real()`; `Reactor.open_handles()` counts the open libuv handles (leak tests, task `leaks`). The virtual clock jumps to the next timer when nothing is ready (deterministic tests). |
 | `reactor.is_future(value)` | Whether `value` is a `Future`. |
-| `reactor.fork(fn, ...)` | Managed coroutines only (raises otherwise). Starts `fn` in the current scope, returns a `Future`. |
+| `reactor.fork(fn, ...)` | Does not suspend; managed coroutines only (raises otherwise). Starts `fn` in the current scope, returns a `Future`. |
 | `reactor.join(f1, ...)` | *suspends*. Values in argument order; the first failure cancels the others and is raised. |
 | `reactor.select(f1, ...)` | *suspends*. Returns `index, value` of the first future to finish; cancels the others. |
 | `reactor.sleep(seconds)` | *suspends*. `0` yields to the other ready coroutines. |
 | `reactor.scope(fn)` | *suspends*. Runs `fn(scope)`; returns only after every child has completed or been cancelled; raises the first failure. |
 | `reactor.deadline(seconds_or_instant, fn, ...)` | *suspends*. Cancels `fn` and raises `DeadlineExceededError` when late. |
 | `reactor.now()`, `reactor.at(seconds)`, `reactor.Instant` | Reading of the running clock; absolute `Instant` (a class) for `deadline` (OQ-22). |
-| `reactor.detach(fn, ...)` | Managed coroutines only (raises otherwise). Starts `fn` in the application scope; its failure is seen only through its future (OQ-26). |
+| `reactor.detach(fn, ...)` | Does not suspend; managed coroutines only (raises otherwise). Starts `fn` in the application scope; its failure is seen only through its future (OQ-26). |
 | `reactor.with_ambient(key, value, fn, ...)`, `reactor.ambient(key)` | Ambient context (ADR 0025): immutable bindings visible in `fn` and in computations forked or detached from it; `ambient` is also `reactor.ambient`. Managed coroutines only. |
 | `reactor.fs` | *suspend*: `read_file(path)`, `write_file(path, data)`, `stat(path)` (nil if absent), `remove`, `mkdir`, `rmdir`, `list(path)`. Real clock only; failures raise `reactor.IoError` (`context.errno`). |
 | `reactor.wait_signal(name, ...)` | *suspends*. Returns the name of the first signal delivered (`"sigint"`, `"sigterm"`, ...). |
@@ -76,7 +79,7 @@ Implemented. Every function marked *suspends* is `---@async` and raises
 | `reactor.Channel(capacity)` | `:send(v)`, `:receive()` (*suspend*), `:close()` (returns whether this call closed it), `:is_closed()`, `:length()`, `:capacity()`; capacity 0 is a rendezvous channel. Receivers drain the buffer of a closed channel, then `ClosedChannelError` is raised; sends on a closed channel raise it too. `:receive_op()` and `:send_op(v)` build operations for `select`. |
 | `reactor.Semaphore(n)` | `:acquire()` (*suspends*) returns a `Permit`; `:try_acquire()`, `:release()` (adds a unit), `:available()`, `:waiting()`. FIFO, no barging. |
 | `reactor.Mutex()` | `:lock()` (*suspends*) returns a `Permit`; `:try_lock()`, `:is_locked()`, `:waiting()`. |
-| `reactor.Monitor()`, `reactor.Condition` | `monitor:enter()` (*suspends*) returns a `Permit`; `monitor:is_entered()`; `monitor:condition()` creates a `Condition`; `condition:wait()` (*suspends*), `:signal()`, `:broadcast()`, `:waiting()`. Mesa semantics: test the predicate in a loop (OQ-25). |
+| `reactor.Monitor()`, `reactor.Condition` | `monitor:enter()` (*suspends*) returns a `Permit`; `monitor:is_entered()`; `monitor:condition()` creates a `Condition`; `condition:wait()` (*suspends*), `:notify()`, `:broadcast()`, `:waiting()`. Mesa semantics: test the predicate in a loop (OQ-25). |
 | `Permit` | `:release()` (idempotent), `:is_held()`; closing it releases it: `local permit <close> = mutex:lock()`. |
 
 `TcpStream`, `TcpListener`, `UdpSocket`, `PipeStream`, `PipeListener`, `Process`, `Future`, `Scope` and `Permit` are returned by the calls above and are not constructed by users (their `init` is private). Constructors meant for users: `Reactor`, `Channel`, `Semaphore`, `Mutex`, `Monitor` and `Peer(handle, options)`.

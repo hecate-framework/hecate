@@ -1,5 +1,7 @@
 # Phase 1 gate: decisions for the owner
 
+> Update 2026-10-27, after the owner's replies: A33 (`Condition:signal` renamed `notify`; channel row reworded; relative-seconds options are named `…_timeout`, so `handshake_deadline` became `handshake_timeout`, and `reactor.deadline` keeps its name because it also accepts an instant), A41 (ADR 0007 spelling frozen), A42 (suspension test written in `packages/reactor/tests/unit/suspension_test.lua`), C03 (`check-annotations` written), C17 (four entries resolved, OQ-64 opened) and A40 (`networking.md` written) are done. OQ-50: presence set confirmed. Still open: C18 (the five `reactor`/`net` entries, owner asked for more detail and a recommendation on Happy Eyeballs) and OQ-26 (4).
+
 Companion of [phase-1.md](phase-1.md) and [phase-1-coherence-findings.md](phase-1-coherence-findings.md).
 Each entry gives the context, the evidence, the options and a recommendation. Nothing here is decided: the
 relay never decides.

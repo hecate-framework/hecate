@@ -81,7 +81,8 @@ Because suspension is invisible in code, the documentation must state precisely 
 calls may suspend: **every I/O operation, `join`, `select`, `sleep`, `scope`, `deadline`, and the
 channel and lock operations, and nothing else**. `fork`, `detach`, `with_ambient` and `ambient` do not
 suspend; they only require a managed coroutine.
-Pure computations never yield.
+Pure computations never yield. A test (`packages/reactor/tests/unit/suspension_test.lua`) checks that the
+`---@async` tags of `hecate.reactor` match the calls that actually yield.
 
 Guidance for users (to appear in the website's "Explanation" section):
 

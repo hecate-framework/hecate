@@ -1,12 +1,12 @@
 -- Condition: condition variable attached to a Monitor (Hoare 1974). See `monitor.lua` for
--- the signalling discipline.
+-- the notification discipline.
 global <const> error, pcall, require
 
 local core = require("hecate.core")
 local context = require("hecate.reactor.internal.context")
 local Waitq = require("hecate.reactor.internal.waitq")
 
---- A condition variable: coroutines wait on it inside a monitor until another coroutine signals.
+--- A condition variable: coroutines wait on it inside a monitor until another coroutine notifies it.
 ---@class hecate.reactor.Condition
 ---@overload fun(monitor: hecate.reactor.Monitor): hecate.reactor.Condition
 local Condition = core.class("Condition")
@@ -32,7 +32,7 @@ local function require_inside(self, operation)
   return computation
 end
 
---- Leaves the monitor, suspends until signalled, and re-enters the monitor. Must be called
+--- Leaves the monitor, suspends until notified, and re-enters the monitor. Must be called
 --- inside the monitor and inside a loop that tests the awaited predicate.
 ---@async
 function Condition:wait()
@@ -51,8 +51,8 @@ function Condition:wait()
 end
 
 --- Wakes the first waiting coroutine, if any. Must be called inside the monitor.
-function Condition:signal()
-  require_inside(self, "reactor.Condition.signal")
+function Condition:notify()
+  require_inside(self, "reactor.Condition.notify")
   self._waiters:wake_first(true)
 end
 

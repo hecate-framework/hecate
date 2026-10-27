@@ -309,7 +309,9 @@ convenience methods (`log.Logger.informational: message must be a string, got nu
   `with_context`, `add_sink`, and the `write` of every provided sink do not suspend and do not touch the
   reactor, except `AsyncSink`, which starts its drain computation once, and only queues afterwards.
 - Everything that may suspend is annotated `---@async`: `AsyncSink:flush()` and `AsyncSink:close()`, and nothing
-  else of the package. A test checks that documented suspension matches behaviour.
+  else of the package. The suspension check of testing.md
+  (`packages/reactor/tests/unit/suspension_test.lua`) covers `hecate.reactor`; a counterpart for this package
+  is not written yet.
 - A `Logger` can be used outside a reactor, for a script or a test, with every sink except `AsyncSink`.
 - Sinks hold mutable state without locks; this is safe because computations interleave only at suspension
   points and no `write` of a provided sink has one. A custom sink whose `write` suspended would break the order

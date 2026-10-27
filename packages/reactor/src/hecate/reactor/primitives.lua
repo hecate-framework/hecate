@@ -100,7 +100,8 @@ function M.scope(fn)
   return scope_run(fn)
 end
 
---- Starts `fn(...)` in a new coroutine of the current scope and returns its future.
+--- Starts `fn(...)` in a new coroutine of the current scope and returns its future. Does not suspend;
+--- it needs a managed coroutine (hence no `---@async` tag).
 ---
 --- Raises `hecate.core.ArgumentError` if `fn` is not a function and
 --- `hecate.core.NonYieldableContextError` outside a managed coroutine.
@@ -117,7 +118,8 @@ end
 
 --- Starts `fn(...)` in the application scope (the root scope of the running reactor), so it
 --- may outlive the scope of the caller. Its failure is observable only through its future
---- and does not cancel the application scope (concurrency.md, rule 2; OQ-26).
+--- and does not cancel the application scope (concurrency.md, rule 2; OQ-26). Does not suspend; it needs a
+--- managed coroutine (hence no `---@async` tag).
 ---
 --- Raises `hecate.core.ArgumentError` if `fn` is not a function, `hecate.core.Error` if the
 --- application scope is not running, and `hecate.core.NonYieldableContextError` outside a
@@ -142,7 +144,7 @@ end
 --- Runs `fn(...)` with `key` bound to `value` for the running computation and for the computations
 --- it forks or detaches while the binding exists (ADR 0025). A binding is immutable; a nested
 --- binding of the same key shadows the outer one until `fn` returns. The binding is removed when
---- `fn` returns or raises.
+--- `fn` returns or raises. Suspends only if `fn` does; it needs a managed coroutine (hence no `---@async` tag).
 ---
 --- Raises `hecate.core.ArgumentError` if `key` is `nil` or `fn` is not a function,
 --- `hecate.core.NonYieldableContextError` outside a managed coroutine, and the error of `fn`.
@@ -167,7 +169,8 @@ function M.with_ambient(key, value, fn, ...)
   return table.unpack(results, 2, results.n)
 end
 
---- Returns the value bound to `key` in the running computation, or `nil` (ADR 0025).
+--- Returns the value bound to `key` in the running computation, or `nil` (ADR 0025). Does not suspend; it
+--- needs a managed coroutine (hence no `---@async` tag).
 ---
 --- Raises `hecate.core.ArgumentError` if `key` is `nil` and
 --- `hecate.core.NonYieldableContextError` outside a managed coroutine.
