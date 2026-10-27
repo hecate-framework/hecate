@@ -4,7 +4,7 @@ description: La référence de hecate : la référence de code générée de ch
 hecate: "0.x"
 lua: "5.5"
 order: 0
-source_revision: cba7be6
+source_revision: 258a819
 ---
 
 # Référence

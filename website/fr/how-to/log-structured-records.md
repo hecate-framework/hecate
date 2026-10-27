@@ -3,7 +3,7 @@ description: Journaliser des enregistrements structurés avec hecate.log, attach
 hecate: "0.x"
 lua: "5.5"
 order: 7
-source_revision: ac925c3
+source_revision: d54053f
 ---
 
 # Journaliser des enregistrements structurés

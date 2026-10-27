@@ -3,7 +3,7 @@ description: Un cadre applicatif modulaire, piloté par contrat, pour les API we
 hecate: "0.x"
 lua: "5.5"
 layout: home
-source_revision: f1f3b5e
+source_revision: d18b73f
 actions: ["Guides pratiques | how-to/ | primary", "Explications | explanation/", "Lire le glossaire | reference/glossary", "Code source | https://github.com/hecate-framework/hecate"]
 ---
 
