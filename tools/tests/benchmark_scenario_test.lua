@@ -21,6 +21,29 @@ function T:test_tcp_echo_completes_every_request_without_errors()
   self:assert_true(text:find("latency p99.9", 1, true) ~= nil, text)
 end
 
+function T:test_accept_spread_ratio_is_the_largest_over_the_smallest_count()
+  local spread = dofile("benchmarks/scenarios/accept-spread/spread.lua")
+  self:assert_equal(1, spread.ratio({ 250, 250, 250, 250 }))
+  self:assert_equal(2, spread.ratio({ 100, 200, 150 }))
+  self:assert_equal(0, spread.ratio({}))
+  self:assert_equal(0, spread.ratio({ 0, 0 }))
+  self:assert_equal(300, spread.ratio({ 300, 0, 100 })) -- a worker that took nothing: the largest count
+end
+
+function T:test_accept_spread_balances_round_robin_and_skips_an_unavailable_strategy()
+  if util.is_windows() then return end
+  local command = ("%s benchmarks/run.lua accept-spread --rounds=1 --rate=100 --duration=1 --server-args=\"round_robin 2\" 2>&1")
+    :format(util.quote(util.interpreter()))
+  local text, ok = util.capture(command)
+  if text:find("module 'luv' not found", 1, true) then return end
+  self:assert_true(ok, text)
+  self:assert_true(text:find("spread%s+1%.0") ~= nil, text)
+  self:assert_true(text:find("errors%s+0%.0") ~= nil, text)
+  text, ok = util.capture(("%s benchmarks/run.lua accept-spread --rounds=1 --server-args=\"nonsense 2\" 2>&1")
+    :format(util.quote(util.interpreter())))
+  self:assert_false(ok)
+end
+
 function T:test_run_rejects_an_unknown_scenario_and_option()
   if util.is_windows() then return end
   local text, ok = util.capture(("%s benchmarks/run.lua no-such-scenario 2>&1"):format(util.quote(util.interpreter())))

@@ -1,7 +1,7 @@
 -- Network scenario runner: starts the server of a scenario, drives it with the scenario's load generator for
 -- several rounds, stops it, and prints the median and spread of every measure.
 -- Usage: lua benchmarks/run.lua <scenario> [--rounds=N] [--server-pin=CPUS] [--load-pin=CPUS]
---          [--lua=PATH] [load options: --connections=N --rate=N --duration=S --warmup=S --payload=BYTES]
+--          [--server-args="ARGS"] [--lua=PATH] [load options: --connections=N --rate=N --duration=S --warmup=S --payload=BYTES]
 -- Run from the repository root, on Linux or macOS (a POSIX shell is required). Scenarios live in
 -- benchmarks/scenarios/<name>/ as `server.lua` (prints `listening <port>`) and `load.lua`
 -- (prints `label value unit` lines); benchmarks/README.md describes the method.
@@ -22,6 +22,7 @@ for i = 2, #arg do
   if key == "rounds" then options.rounds = tonumber(value) or fail("--rounds needs a number")
   elseif key == "server-pin" then options.server_pin = value
   elseif key == "load-pin" then options.load_pin = value
+  elseif key == "server-args" then options.server_args = { value }
   elseif key == "lua" then options.lua = value
   elseif key then options.load_args[#options.load_args + 1] = arg[i]
   else fail(("unknown argument '%s'"):format(arg[i])) end
@@ -32,7 +33,11 @@ local rounds = {}
 for round = 1, options.rounds do
   io.stderr:write(("[round %d/%d] %s\n"):format(round, options.rounds, scenario))
   local measures, problem = runner.round(scenario, options)
-  if not measures then fail(problem or "") return end
+  if not measures then
+    if (problem or ""):sub(1, 8) == "skipped:" then print(("# %s %s"):format(scenario, problem)) return end
+    fail(problem or "")
+    return
+  end
   rounds[#rounds + 1] = measures
 end
 
