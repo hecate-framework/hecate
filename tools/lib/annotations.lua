@@ -85,7 +85,7 @@ local function analyse(code, from)
   local pos = from
   while true do
     local s, e = code:find("[%a_][%w_]*", pos)
-    if not s then return #code, has_value, has_absence end
+    if not s or not e then return #code, has_value, has_absence end
     local word = code:sub(s, e)
     pos = e + 1
     if OPENERS[word] then
