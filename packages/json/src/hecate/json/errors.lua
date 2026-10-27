@@ -1,5 +1,5 @@
 -- Error classes of hecate.json. Every failure of the codec raises an instance of one of these
--- (ADR 0018, ADR 0020: one error hierarchy, whatever backend does the work).
+-- (ADR 0018, ADR 0020: one error hierarchy; both native modules report through it).
 global <const> require
 
 local core = require("hecate.core")

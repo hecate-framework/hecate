@@ -115,8 +115,8 @@ Owner decision 2026-10-13 ([ADR 0012](../adr/0012-website-generator.md)): Markdo
 GitHub Flavoured Markdown), syntax highlighting and, where one exists, OpenAPI rendering
 come from third-party Lua, C or Rust dependencies rather than from code written in the
 package; the site must remain deployable as static files on GitHub Pages. The candidates
-were measured in the spike [OQ-39](../spikes/OQ-39-doc-dependencies.md); the proposal is
-ADR 0022.
+were measured in the spike [OQ-39](../spikes/OQ-39-doc-dependencies.md); the decision is
+ADR 0022 (Accepted).
 
 ## Writing rules
 

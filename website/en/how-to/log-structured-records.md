@@ -51,7 +51,7 @@ record to all its sinks; `logger:failures()` counts the sinks that raised.
 Wrap a value in `log.Secret`: no sink renders it (it shows as `[redacted]`), at any depth of a
 record. The value stays reachable through `reveal()`. To protect fields by name instead, give the
 logger `redact = { "password", "token" }`: the values of fields with these names (case-insensitive,
-at any depth, in the fields and in the context) are wrapped in a `Secret` before any sink sees them.
+up to 16 levels deep, in the fields and in the context) are wrapped in a `Secret` before any sink sees them.
 
 <!-- example: packages/log/examples/hecate.log.Secret.lua -->
 ```lua

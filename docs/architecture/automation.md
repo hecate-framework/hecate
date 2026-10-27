@@ -27,7 +27,8 @@ Status column: `done` = implemented in `tools/`, `now` = workflow exists today, 
 
 | Task | Checks | Status |
 |---|---|---|
-| `format` / `format-check` | formatter on Lua sources (and `clang-format` on C) | done |
+| `format` / `format-check` | formatter on Lua sources (and `clang-format` on C); a no-op that succeeds until a formatter supports Lua 5.5 (OQ-3) | done (no-op) |
+| `build-native <package>` | build the native modules of a package (`cargo` or a C compiler) and install them into `.hecate/rocks` | done |
 | `lint` | linter rules from coding-standards.md | done |
 | `typecheck` | `lua-language-server --check` with the repository `.luarc.json`, zero diagnostics | done |
 | `fetch-fixtures` | downloads the third-party test data a package declares in `tests/external.lua` into `.hecate/fixtures/` (git-ignored) with git at a pinned commit (`HECATE_FIXTURES_LATEST=1`: the head of the default branch, for scheduled runs); suites that need it skip locally without it and fail in CI | done |
@@ -69,7 +70,7 @@ Status column: `done` = implemented in `tools/`, `now` = workflow exists today, 
 | `gen-rockspecs` | per-package rockspecs and `tests/` skeleton from the READMEs | done |
 | `gen-catalogue` | `packages/README.md` table from rockspecs and READMEs | done |
 | `gen-dependency-graph` | Mermaid graph in overview.md (between markers) | done |
-| `gen-reference` | Markdown reference from LuaLS JSON export into `website/en/reference/<package>/` (not committed, git-ignored; skipped with a message without `lua-language-server`, `--require` fails instead; `build.lua --reference` runs the same generator before a site build; OQ-40) | done for `core`, `reactor`, `net` |
+| `gen-reference` | Markdown reference from LuaLS JSON export into `website/en/reference/<package>/` (not committed, git-ignored; skipped with a message without `lua-language-server`, `--require` fails instead; `build.lua --reference` runs the same generator before a site build; OQ-40) | done; default set `core`, `reactor`, `net`, `json`, `log` |
 | `gen-llms-txt` | `llms.txt` and `website/public/llms.txt`, `llms-full.txt` | done (root `llms.txt` package list; website copies in P3) |
 | `gen-error-codes` | error code reference page from error classes | P2 |
 | `gen-config-reference` | configuration keys reference from config schemas | P2 |

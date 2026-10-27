@@ -46,8 +46,8 @@ All names are fields of `require "hecate.doc"`. Direction recorded by the owner 
 (ADR 0012, Accepted): `hecate.doc` is our own static site generator with a
 VitePress-like presentation and the Hecate brand kit. Same day, the owner asked for
 third-party dependencies wherever they save time (complete GFM, highlighting for many
-languages, no new JavaScript development tool); the first slice below has none, and the
-candidates are measured in [spike OQ-39](../../docs/spikes/OQ-39-doc-dependencies.md) and
+languages, no new JavaScript development tool); ADR 0022 (Accepted) lists them; the
+measurements are in [spike OQ-39](../../docs/spikes/OQ-39-doc-dependencies.md) and
 decided in [ADR 0022](../../docs/adr/0022-doc-dependencies.md).
 
 | Name | Description |
