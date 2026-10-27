@@ -14,14 +14,14 @@
 
 ## Next steps
 
-00. Owner answered OQ-50/47/23/24/26/22 on 2026-10-27 (recorded in docs/open-questions.md). Open: OQ-50 presence set vs json.null, OQ-26 (4) virtual clock. Next: add roadmap items before the gate (reactor.shield, on_unobserved_failure hook, core.IoError, listen_pipe 0700 dir, bind all addresses, CRL option, split handshake defaults, writer-size benchmark), then the coherence fixes.
+Owner answered OQ-50/47/23/24/26/22 on 2026-10-27 (recorded in docs/open-questions.md). Open: OQ-50 presence set vs json.null, OQ-26 (4) virtual clock. Roadmap items for those answers added before the gate (reactor follow-up, net follow-up). Next: the coherence fixes (small findings of parts A, B, C); the seven D findings and the ambient-context glossary entry still await the owner.
 
-0. Coherence audit done in three raw parts (docs/reviews/_phase-1-part-{A,B,C}.md: 45+32+27 findings). Next: owner answers on the D items and the six OQs; then fix the small findings in this PR, merge the parts into phase-1-coherence-findings.md, update phase-1.md section 3, run /review-package. DONE earlier: sections 1, 2, 4 of docs/reviews/phase-1.md. Remaining: section 3 coherence audit (file by file, as phase-0-coherence-findings.md) and /review-package on core, reactor, net, json, log, doc; then owner decisions on OQ-50/47/23/24/26/22 (issue opened); then tick the gate and delete this file.
+Coherence audit done in three raw parts (docs/reviews/_phase-1-part-{A,B,C}.md: 45+32+27 findings). Next: owner answers on the D items and the six OQs; then fix the small findings in this PR, merge the parts into phase-1-coherence-findings.md, update phase-1.md section 3, run /review-package. DONE earlier: sections 1, 2, 4 of docs/reviews/phase-1.md. Remaining: section 3 coherence audit (file by file, as phase-0-coherence-findings.md) and /review-package on core, reactor, net, json, log, doc; then owner decisions on OQ-50/47/23/24/26/22 (issue opened); then tick the gate and delete this file.
 
-1. Completeness: read every ticked Phase 1 item against its spec and the definition of done.
-2. It works: run the check catalogue, native builds, tests, examples, benchmarks; read CI of latest main.
-3. Coherence: docs, ADRs, README, website en/fr, llms.txt.
-4. Write docs/reviews/phase-1.md; update docs/open-questions.md; open/update needs-decision issue.
+- Completeness: read every ticked Phase 1 item against its spec and the definition of done.
+- It works: run the check catalogue, native builds, tests, examples, benchmarks; read CI of latest main.
+- Coherence: docs, ADRs, README, website en/fr, llms.txt.
+- Write docs/reviews/phase-1.md; update docs/open-questions.md; open/update needs-decision issue.
 
 ## Decisions taken (and where they are recorded)
 

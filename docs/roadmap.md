@@ -134,6 +134,8 @@ Exit: CI is green on all three platforms with a trivial test in every package sk
 - [x] `json` follow-up: libFuzzer C targets for the native code of `json`
       (`csrc/native.c`), run by the `fuzz` task and `nightly.yml` (coding-standards.md;
       the `sanitize` task already covers its ASan and UBSan build).
+- [ ] `reactor` follow-up (owner decisions of 2026-10-27, OQ-23, OQ-26): `reactor.shield(fn)` with its own deadline, so that cleanup can suspend while its scope is cancelled and a stuck peer cannot block shutdown (then `BufferedWriter:close` flushes, OQ-29); an `on_unobserved_failure` hook for failed detached computations, which `kernel` binds to `log`; `core.IoError` as a base class that `reactor.IoError` extends (`TransportError` stays a sibling).
+- [ ] `net` follow-up (owner decisions of 2026-10-27, OQ-47): create a Unix socket inside a `0700` directory (or equivalent) instead of binding then calling `chmod`; `net.listen` binds every resolved address (supersedes OQ-32 point 3); a CRL option for client certificates, and the limit documented until then; separate handshake defaults (10 seconds for `tls.connect` and `connect_tls`, 60 seconds for `tls.accept`, both editable); keep `max_message` editable; a benchmark of the `BufferedWriter` capacity against the 4 KiB default of Go's `bufio` and other frameworks.
 - [ ] **Phase 1 gate**: verification of the phase, as described in [Phase gates](#phase-gates). Open
       questions to put to the owner before Phase 2: OQ-50, OQ-47, OQ-23, OQ-24, OQ-26 (1) and OQ-22.
 
