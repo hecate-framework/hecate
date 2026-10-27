@@ -62,7 +62,7 @@ the catalogue; `tools/CLAUDE.md:10` says "Every new task: add it to the catalogu
 Fix: add a row under "Tests and measurements" (or a new "Native" group).
 
 **C03 — I / D — `docs/architecture/automation.md:37`, `docs/adr/0018-error-signalling.md:50`.**
-`check-annotations | every exported symbol has LuaLS annotations; functions that suspend carry the `@async` annotation;
+the `check-annotations` row: every exported symbol has LuaLS annotations; functions that suspend carry the `@async` annotation
 ... | P1`. The task does not exist (`--list`), no roadmap item delivers it, and Phase 1 is complete. The
 definition of done ("public API annotated") and ADR 0018 (nullable returns) rely on it. `lint` only checks
 that a chunk compiles and declares its globals (`tools/lib/lint.lua:2-4`).
