@@ -84,17 +84,17 @@ toujours. `dropped()` compte ce qui a été écarté.
 ## Garder les puits lents hors du chemin de la requête
 
 Enveloppez un puits dans `log.AsyncSink({ sink = ..., capacity = 1024 })`. `write` ne fait que
-mettre l’enregistrement en file, donc ne suspend jamais ; une coroutine détachée écrit vers la
+mettre l’enregistrement en file, donc ne suspend jamais ; un calcul de vidage écrit vers la
 cible. Quand la file est pleine, l’enregistrement est abandonné et compté (`dropped()`) : la
 contre-pression est une perte, jamais une attente. `flush()` suspend jusqu’à ce que ce qui est en
-file ait été écrit, et `close()` vide la file et arrête la coroutine. Appelez `close()` avant la
-fin du calcul principal : une coroutine de vidage qui attend encore des enregistrements est un
+file ait été écrit, et `close()` vide la file et arrête le calcul de vidage. Appelez `close()` avant la
+fin du calcul principal : un calcul de vidage qui attend encore des enregistrements est un
 interblocage pour le réacteur.
 
 <!-- example: packages/log/examples/hecate.log.AsyncSink.lua -->
 ```lua
--- An asynchronous sink queues records and writes them from a detached coroutine: logging never waits
--- for the target. `close` flushes what is queued and stops the coroutine.
+-- An asynchronous sink queues records and writes them from a drain computation: logging never waits
+-- for the target. `close` flushes what is queued and stops the drain computation.
 local reactor = require("hecate.reactor")
 local log = require("hecate.log")
 

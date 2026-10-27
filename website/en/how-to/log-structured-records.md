@@ -77,13 +77,13 @@ as `exempt` (default `warning`) always pass. `dropped()` counts what was discard
 Wrap a sink in `log.AsyncSink({ sink = ..., capacity = 1024 })`. `write` only queues the record, so
 it never suspends; a drain computation writes to the target. When the queue is full the record is
 dropped and counted (`dropped()`): back-pressure is loss, never waiting. `flush()` suspends until
-what is queued has been written, and `close()` flushes and stops the coroutine. Call `close()` before
+what is queued has been written, and `close()` flushes and stops the drain computation. Call `close()` before
 the main computation ends: a drain computation still waiting for records is a deadlock to the reactor.
 
 <!-- example: packages/log/examples/hecate.log.AsyncSink.lua -->
 ```lua
 -- An asynchronous sink queues records and writes them from a drain computation: logging never waits
--- for the target. `close` flushes what is queued and stops the coroutine.
+-- for the target. `close` flushes what is queued and stops the drain computation.
 local reactor = require("hecate.reactor")
 local log = require("hecate.log")
 
