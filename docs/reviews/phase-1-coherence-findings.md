@@ -564,4 +564,3 @@ Fix: add `log` to both reference indexes and `.gitignore`; list the three pages 
   The `tcp-echo` baseline is not recorded in a file either (`docs/reviews/phase-1.md:22` points to the roadmap).
   Decide where baselines live (S, D).
 - **docs/README.md** table omits `reviews/` and `spikes/`.
-
