@@ -92,7 +92,7 @@ Exit: CI is green on all three platforms with a trivial test in every package sk
       strict link check), `website.yml` builds it on pull requests and deploys it to GitHub
       Pages from `main` (Settings > Pages > Source = GitHub Actions), hand-written how-to
       guides and explanations for `net` and the `reactor` primitives, the public glossary,
-      the French translation of those pages (13 pages; terminology in
+      the French translation of those pages (16 pages; terminology in
       `website/fr/glossary-terms.md`), and `check-docs-examples` (code blocks equal their
       tested example files). Still to come, in their own items: tutorials and the other
       packages' guides as the packages land, the translation status check, `hecate doc` for

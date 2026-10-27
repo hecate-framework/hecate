@@ -1,7 +1,7 @@
 -- Permit: the right to hold a share of a synchronisation primitive (a semaphore unit, a
 -- mutex, a monitor). Releasing it is idempotent and happens automatically when the permit
 -- is closed, so `local permit <close> = mutex:lock()` is exception- and cancellation-safe
--- (reactor/CLAUDE.md invariant: cancellation runs `<close>` handlers).
+-- (reactor/CLAUDE.md invariant: cancellation runs the `__close` metamethods of pending `<close>` variables).
 global <const> require
 
 local core = require("hecate.core")

@@ -5,12 +5,13 @@ package-specific context. Specialist agent: `pkg-reactor`.
 
 ## Purpose
 
-The reactor over libuv (luv): coroutine scheduler, futures, structured concurrency, synchronisation primitives, timers, signals, processes, file system.
+The reactor over libuv (luv): coroutine scheduler, futures, structured concurrency, synchronisation primitives, timers, signals, processes, file system, network transport (TCP, UDP, pipes, name resolution), ambient context.
 
 ## Read before changing anything
 
 - Specification: `docs/architecture/concurrency.md`
-- Decisions: `docs/adr/0002-libuv-via-luv.md`, `docs/adr/0003-transparent-structured-concurrency.md`, `docs/adr/0004-academic-vocabulary.md`
+- Decisions: `docs/adr/0002-libuv-via-luv.md`, `docs/adr/0003-transparent-structured-concurrency.md`, `docs/adr/0004-academic-vocabulary.md`,
+  `docs/adr/0023-multi-process-serving.md`, `docs/adr/0025-ambient-context.md`
 - Glossary: `docs/glossary.md` · Coding standards: `docs/architecture/coding-standards.md`
 - This package's `README.md` (scope, dependencies, status)
 

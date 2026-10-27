@@ -33,7 +33,7 @@ print(("%d %s %s %s"):format(#sink:records(), record.message, record.context.req
 -- Prints: 1 slow query r-1 120
 ```
 
-Les sévérités sont les huit de la RFC 5424, de `emergency` à `debug`. `with_context(fields)`
+Les gravités sont les huit de la RFC 5424, de `emergency` à `debug`. `with_context(fields)`
 renvoie un journaliseur enfant dont le contexte est figé. Pour étiqueter chaque enregistrement
 d’une requête, y compris ceux des calculs qu’elle démarre avec `fork` ou détache, enveloppez le
 travail dans `log.bind({ request_id = "r-1" }, fn)` : un journaliseur sans `context_provider`

@@ -33,6 +33,7 @@ function PipeListener:close() self._inner:close() end
 --- Closes at the end of a `<close>` scope.
 function PipeListener:__close() self._inner:close() end
 
+--- Returns whether the listener is closed.
 ---@return boolean
 function PipeListener:is_closed() return self._inner:is_closed() end
 

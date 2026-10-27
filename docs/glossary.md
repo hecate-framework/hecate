@@ -38,7 +38,7 @@ for public APIs, documentation and internal code.
 | peer | The remote end of a connection (`peer_address`) or of a message pipe (`Peer`) | RFC 9293 | remote (in "remote address"), client (when the role is unknown) |
 | listening strategy | How the workers obtain connections: `reuseport` or `round_robin` ([ADR 0023](adr/0023-multi-process-serving.md)) | — | cluster mode |
 | computation | A running unit of the scheduler: a coroutine started by `fork` or `detach`, or the main coroutine; what a scope owns and a future stands for | `concurrency.md` | task |
-| suspension point (suspend) | A call at which the running coroutine yields to the reactor: every I/O operation and every primitive of `hecate.reactor`. A suspended call does not block the reactor | `concurrency.md` | blocking, async |
+| suspension point (suspend) | A call at which the running coroutine yields to the reactor: every I/O operation and every waiting primitive of `hecate.reactor` (`join`, `select`, `sleep`, `scope`, `deadline`, channel and lock operations; `fork`, `detach`, `with_ambient` and `ambient` only require a managed coroutine). A suspended call does not block the reactor | `concurrency.md` | blocking, async |
 | cancellation | Cooperative request to stop a computation | — | abort, kill |
 | scope | Structured-concurrency region owning forked computations | Sústrik (2016); Smith, *nursery* (2018) | task group, nursery |
 | channel | Typed communication between coroutines | Hoare, CSP (1978) | queue (when used for communication) |

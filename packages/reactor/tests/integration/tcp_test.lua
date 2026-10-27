@@ -268,7 +268,7 @@ function T:test_data_arriving_as_the_read_is_cancelled_is_kept()
     -- The writer sends and the canceller cancels in the same turn: libuv may deliver the
     -- data after the reader was withdrawn.
     reactor.fork(function() peer:write("kept"); reader:cancel() end)
-    -- Either the read won the race and returned the data, or it was withdrawn and the data
+    -- Either the read ran first and returned the data, or it was withdrawn and the data
     -- stays available: in both cases it is delivered exactly once.
     local ok, value = pcall(reader.value, reader)
     if ok then

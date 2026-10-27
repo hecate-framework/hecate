@@ -116,6 +116,16 @@ function T:test_a_handshake_that_finishes_in_time_is_unaffected_by_the_deadline(
   end)
 end
 
+function T:test_a_connection_failure_names_connect_tls()
+  run(self, function()
+    local listener = net.listen("127.0.0.1", 0)
+    local port = listener:local_address().port
+    listener:close()
+    local err = self:assert_error(function() net.connect_tls("127.0.0.1", port, { system_roots = false }) end)
+    self:assert_equal("net.connect_tls: ", tostring(err.message):sub(1, 17), tostring(err))
+  end)
+end
+
 function T:test_a_bad_transport_option_is_rejected_before_the_configuration_is_built()
   run(self, function()
     local calls = count_native("client_config", function()

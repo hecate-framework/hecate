@@ -104,7 +104,6 @@ end
 ---
 --- Raises `hecate.core.ArgumentError` if `fn` is not a function and
 --- `hecate.core.NonYieldableContextError` outside a managed coroutine.
----@async
 ---@param fn fun(...): ...  the computation to run
 ---@param ... any  the arguments passed to `fn`
 ---@return hecate.reactor.Future future  the future of the computation
@@ -123,7 +122,6 @@ end
 --- Raises `hecate.core.ArgumentError` if `fn` is not a function, `hecate.core.Error` if the
 --- application scope is not running, and `hecate.core.NonYieldableContextError` outside a
 --- managed coroutine.
----@async
 ---@param fn fun(...): ...  the computation to run
 ---@param ... any  the arguments passed to `fn`
 ---@return hecate.reactor.Future future  the future of the computation
@@ -148,7 +146,6 @@ end
 ---
 --- Raises `hecate.core.ArgumentError` if `key` is `nil` or `fn` is not a function,
 --- `hecate.core.NonYieldableContextError` outside a managed coroutine, and the error of `fn`.
----@async
 ---@param key any  what identifies the binding; a module-private table avoids collisions
 ---@param value any  the value bound to `key`
 ---@param fn fun(...): ...  the function run with the binding
@@ -174,7 +171,6 @@ end
 ---
 --- Raises `hecate.core.ArgumentError` if `key` is `nil` and
 --- `hecate.core.NonYieldableContextError` outside a managed coroutine.
----@async
 ---@param key any  the key given to `with_ambient`
 ---@return any value  the bound value, or `nil`
 function M.ambient(key)

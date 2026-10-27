@@ -1,5 +1,5 @@
 -- Reactor: the scheduler over libuv (Schmidt, "Reactor", 1995). One reactor runs on one
--- thread; every unit of work is a coroutine ("coroutine") resumed by the scheduler only, never
+-- thread; every computation is a coroutine resumed by the scheduler only, never
 -- from inside a libuv callback (reactor/CLAUDE.md, known pitfalls). Completions and
 -- timers merely mark coroutines ready; `Reactor:run` resumes them in FIFO order.
 --
@@ -254,9 +254,9 @@ local function step(self, computation)
     outcome = table.pack(coroutine.resume(computation.co))
   end
   if not outcome[1] then
-    -- An errored coroutine has not unwound: closing it runs the pending `<close>` handlers
-    -- (reactor/CLAUDE.md invariant: cancellation runs `<close>` handlers). An error raised by
-    -- a handler replaces the original one.
+    -- An errored coroutine has not unwound: closing it runs the `__close` metamethods of its
+    -- pending `<close>` variables (reactor/CLAUDE.md invariant). An error raised by one of
+    -- them replaces the original one.
     local closed, err = coroutine.close(computation.co)
     if closed then err = outcome[2] end
     local state = core.is_instance_of(err, core.CancellationError) and "cancelled" or "failed"
@@ -395,7 +395,7 @@ function Reactor:run(fn, ...)
     uv.run("nowait") -- lets libuv finish closing the handles
   end
   if not ok then
-    -- Abandon what is left: closing a suspended coroutine runs its `<close>` handlers.
+    -- Abandon what is left: closing a suspended coroutine runs the `__close` metamethods of its pending variables.
     for co, computation in pairs(self._computations) do
       coroutine.close(co)
       computation.state = "dead"

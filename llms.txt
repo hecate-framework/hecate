@@ -53,7 +53,7 @@
 - [hecate-json](packages/json/README.md): Fast, correct JSON codec (RFC 8259) with integer/float fidelity, explicit null and array markers, and precise error positions.
 - [hecate-log](packages/log/README.md): Structured logging with RFC 5424 severities, per-scope context and pluggable sinks.
 - [hecate-net](packages/net/README.md): TCP/UDP streams, DNS resolution, buffered readers/writers and TLS, all suspending transparently.
-- [hecate-reactor](packages/reactor/README.md): The reactor over libuv (luv): coroutine scheduler, futures, structured concurrency, synchronisation primitives, timers, signals, processes, file system.
+- [hecate-reactor](packages/reactor/README.md): The reactor over libuv (luv): coroutine scheduler, futures, structured concurrency, synchronisation primitives, timers, signals, processes, file system, network transport (TCP, UDP, pipes, name resolution), ambient context.
 - [hecate-http](packages/http/README.md): HTTP/1.1 server and client with a message model following RFC 9110 semantics.
 - [hecate-router](packages/router/README.md): Radix-tree router over URI templates (RFC 6570 level-1 subset) with 404/405 handling and reverse routing.
 - [hecate-schema](packages/schema/README.md): Refinement types, composition, coercion and validation with JSON Pointer error paths; emits JSON Schema 2020-12.

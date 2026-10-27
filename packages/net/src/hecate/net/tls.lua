@@ -435,7 +435,7 @@ function M.connect_tls(host, port, options)
   end
   local transport = {}
   for key in pairs(TRANSPORT_KEYS) do transport[key] = options[key] end
-  local stream = tcp.connect(host, port, transport)
+  local stream = tcp.connect_for("net.connect_tls", host, port, transport)
   local ok, result = pcall(M.connect, stream, options.server_name or host, config, { handshake_deadline = options.handshake_deadline })
   if ok then return result end
   local failure = errors.qualify(result, "net.connect_tls") --[[@as hecate.core.Error]]

@@ -18,5 +18,6 @@ chaque paquet documenté.
 - [`hecate.net`](net/index.md) : flux, TCP, UDP, tubes, résolution de noms, TLS et couche
   tamponnée.
 - [`hecate.json`](json/index.md) : encodage, décodage, marqueurs et erreurs.
+- [`hecate.log`](log/index.md) : enregistrements structurés, gravités de la RFC 5424, contexte et puits.
 
 Le [glossaire](glossary.md) définit le vocabulaire utilisé partout.

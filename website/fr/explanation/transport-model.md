@@ -110,7 +110,7 @@ ne prend d’argument de délai : vous l’enveloppez dans `reactor.deadline`.
 Une seule coroutine lit, accepte ou reçoit à la fois sur un objet. Un second appel concurrent
 lève une erreur au lieu d’attendre. La raison est que deux lecteurs se partageraient les octets
 d’un même flux, et que les données vues par chacun dépendraient de l’ordonnancement. Les écritures
-de plusieurs coroutines sont mises en file dans l’ordre des appels.
+de plusieurs coroutines sont mises en file dans l’ordre des appels. Un lecteur ou un écrivain tamponné met aussi en file un second appel concurrent au lieu de lever une erreur.
 
 Créez un seul lecteur tamponné par flux. La bibliothèque ne l’impose pas : un second lecteur sur
 le même flux n’est pas refusé, et les deux lecteurs se partagent ses octets.

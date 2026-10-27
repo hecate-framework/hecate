@@ -104,7 +104,8 @@ takes a timeout argument: you wrap it in `reactor.deadline`.
 One coroutine reads, accepts or receives at a time on an object. A second concurrent call raises
 an error instead of waiting. The reason is that two readers would split the bytes of one stream
 between them, so the data each sees would depend on scheduling. Writes from several coroutines are
-queued in call order.
+queued in call order. A buffered reader or writer also queues a second concurrent call instead of
+raising.
 
 Create one buffered reader per stream. The library does not enforce it: a second reader over the
 same stream is not refused, and the two readers split its bytes.

@@ -270,6 +270,7 @@ end
 --- Closing the reader (`local reader <close> = ...`) calls `close`.
 function BufferedReader:__close() self:close() end
 
+--- Returns whether the reader is closed.
 ---@return boolean
 function BufferedReader:is_closed() return self._closed end
 
