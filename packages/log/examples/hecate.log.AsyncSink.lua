@@ -1,4 +1,4 @@
--- An asynchronous sink queues records and writes them from a detached coroutine: logging never waits
+-- An asynchronous sink queues records and writes them from a drain computation: logging never waits
 -- for the target. `close` flushes what is queued and stops the coroutine.
 local reactor = require("hecate.reactor")
 local log = require("hecate.log")

@@ -21,7 +21,7 @@
 ## Responsibilities
 
 - `Logger` with `emergency` … `debug`
-- context propagation through reactor scopes (request id)
+- context propagation through reactor scopes (request id; the ambient context of ADR 0025)
 - sinks: console (human), JSON lines, file; asynchronous flushing
 - sampling and rate limiting
 
@@ -44,11 +44,12 @@ local log = require("hecate.log")
 | `log.Severity` | Enumeration of the eight RFC 5424 severities, `emergency` to `debug` (`informational`, no alias). |
 | `log.severity_code(severity)` | RFC 5424 numerical code, 0 to 7. |
 | `log.Logger(options?)` | Options: `severity` (default `informational`), `sinks`, `name`, `context`, `context_provider`, `redact` (field names wrapped in a `Secret`, case-insensitive, up to 16 levels deep, in fields and context), `clock`. Methods `emergency` ... `debug` `(message, fields?)`, `log(severity, message, fields?)`, `is_enabled`, `set_severity`, `severity`, `add_sink`, `with_context(fields)`, `failures()`. A call less urgent than the logger's severity builds no record; a sink that raises never fails the caller. |
+| `log.bind(fields, fn, ...)` | Runs `fn` with `fields` added to every record logged meanwhile (ambient context, below). Raises `ArgumentError` for bad arguments and `NonYieldableContextError` where the context cannot be carried. |
 | `log.Record` | What sinks receive: `severity`, `message`, `fields`, `context`, `timestamp`, `logger`. |
 | `log.MemorySink(options?)` | Keeps records (`records()`, `clear()`, `dropped()`, option `capacity`). |
 | `log.JsonLinesSink(options)` | Writes one JSON object per record to `options.output(line)`; renders secrets as `[redacted]`. |
 | `log.ConsoleSink(options)` | Writes `timestamp SEVERITY [logger] message key=value ...` to `options.output(line)`; secrets redacted, control characters escaped. |
-| `log.FileSink(options)` | Appends JSON lines to `options.path` (synchronous); `close()`; a failed write raises `hecate.core.Error` (a `Logger` counts it in `failures()`). |
+| `log.FileSink(options)` | Appends JSON lines to `options.path` (synchronous); `close()`; a failed write raises `hecate.core.Error` (a `Logger` counts it in `failures()`); a write after `close()` is ignored. |
 | `log.AsyncSink(options)` | Decorator: `write` queues the record (bounded by `capacity`, default 1024; beyond it the record is dropped and counted) and never suspends; a detached computation writes to `options.sink`. `flush()` and `close()` suspend until the queue is written; `dropped()`, `failures()`, `pending()`. Call `close()` before the main computation ends. |
 | `log.LimitedSink(options)` | Decorator: options `sink`, `exempt` (default `warning`: records at least this urgent always pass), `sample` (fraction in (0, 1]), `rate` and `burst` (token bucket), `random`, `clock`; `dropped()`. |
 | `log.Secret(value)` | Marks a value that no sink renders; `reveal()` returns it. |
