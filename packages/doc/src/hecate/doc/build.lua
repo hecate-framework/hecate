@@ -26,16 +26,16 @@ local M = {}
 function M.load_config(path, fs)
   local text = fs:read(path)
   if text == nil then
-    error(errors.BuildError({ message = "cannot read site configuration " .. path, context = { path = path } }), 0)
+    error(errors.BuildError({ message = "doc.build: cannot read site configuration " .. path, context = { path = path } }), 0)
   end
   local chunk, message = load(text, "=" .. path, "t", {})
   if not chunk then
-    error(core.ConfigurationError({ message = "invalid site configuration: " .. tostring(message), context = { path = path } }), 0)
+    error(core.ConfigurationError({ message = "doc.build: invalid site configuration: " .. tostring(message), context = { path = path } }), 0)
   end
   local ok, config = pcall(chunk)
   if not ok or type(config) ~= "table" then
     error(core.ConfigurationError({
-      message = "the site configuration must return a table" .. (ok and "" or (": " .. tostring(config))),
+      message = "doc.build: the site configuration must return a table" .. (ok and "" or (": " .. tostring(config))),
       context = { path = path },
     }), 0)
   end
@@ -46,7 +46,7 @@ local function clean_output(fs, out)
   if not fs:exists(out) then return end
   if fs:read(out .. "/" .. Site.MARKER) == nil and #(fs:list(out) or {}) > 0 then
     error(errors.BuildError({
-      message = ("refusing to clean %s: it was not written by hecate.doc (no %s file)"):format(out, Site.MARKER),
+      message = ("doc.build: refusing to clean %s: it was not written by hecate.doc (no %s file)"):format(out, Site.MARKER),
       context = { path = out },
     }), 0)
   end
@@ -89,7 +89,7 @@ function M.build(options)
   end
   if options.strict and #report.problems > 0 then
     error(errors.BuildError({
-      message = ("%d problem(s):\n  %s"):format(#report.problems, table.concat(report.problems, "\n  ")),
+      message = ("doc.build: %d problem(s):\n  %s"):format(#report.problems, table.concat(report.problems, "\n  ")),
       context = { problems = report.problems },
     }), 0)
   end

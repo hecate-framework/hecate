@@ -40,7 +40,7 @@ local M = {}
 
 local function invalid(field, message)
   error(core.ConfigurationError({
-    message = ("invalid site configuration `%s`: %s"):format(field, message),
+    message = ("doc.config: invalid site configuration `%s`: %s"):format(field, message),
     context = { field = field },
   }), 0)
 end

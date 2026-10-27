@@ -55,7 +55,7 @@ gradients or glows, the name never capitalised, earth as the single accent). Pag
   "On this page" outline;
 - previous/next cards, edit-this-page link, last-updated date, "written for hecate x.y and
   Lua 5.5" line;
-- callout containers (`note`, `tip`, `warning`, `danger`), code blocks with a language label
+- callouts (the five GFM alerts NOTE, TIP, IMPORTANT, WARNING and CAUTION), code blocks with a language label
   and a copy button, tables, task lists;
 - search: one JSON index per locale, queried by about 150 lines of vanilla JavaScript.
 

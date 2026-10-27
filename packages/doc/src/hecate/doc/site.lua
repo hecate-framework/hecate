@@ -57,7 +57,7 @@ function Site:init(options)
 end
 
 local function fail(message, path)
-  error(errors.BuildError({ message = message, context = { path = path } }), 0)
+  error(errors.BuildError({ message = "doc.Site: " .. message, context = { path = path } }), 0)
 end
 
 local function note(self, message)
@@ -70,7 +70,7 @@ end
 local function read_required(self, path)
   local text = self._fs:read(path)
   if text == nil then
-    error(errors.BuildError({ message = "cannot read " .. path, context = { path = path } }), 0)
+    error(errors.BuildError({ message = "doc.Site: cannot read " .. path, context = { path = path } }), 0)
   end
   return text
 end

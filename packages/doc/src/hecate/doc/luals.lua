@@ -73,7 +73,7 @@ function M.export(executable, source, options)
   fs:remove_tree(directory)
   if not ok or not export then
     error(errors.BuildError({
-      message = ("lua-language-server could not export the documentation of %s: %s"):format(source,
+      message = ("doc.luals.export: lua-language-server could not export the documentation of %s: %s"):format(source,
         output:gsub("%s+$", "")),
       context = { path = source },
     }), 0)
