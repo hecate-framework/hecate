@@ -27,6 +27,12 @@ page (avec un lien vers le glossaire), puis le terme français seul.
 | listening strategy | stratégie d’écoute | |
 | cancellation | annulation | |
 | scope | portée | `reactor.scope` en code |
+| ambient context | contexte ambiant | `reactor.with_ambient` et `reactor.ambient` en code |
+| ambient binding | liaison ambiante | |
+| ambient key | clé ambiante | |
+| logger context | contexte du journaliseur | `Logger:with_context` en code |
+| bound log fields | champs de journal liés | `log.bind` en code |
+| request context | contexte de requête | prévu, pas encore implémenté |
 | channel | canal | |
 | semaphore, monitor | sémaphore, moniteur | |
 | handshake | poignée de main | TLS ; `handshake_deadline` en code |

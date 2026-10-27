@@ -41,6 +41,12 @@ for public APIs, documentation and internal code.
 | suspension point (suspend) | A call at which the running coroutine yields to the reactor: every I/O operation and every waiting primitive of `hecate.reactor` (`join`, `select`, `sleep`, `scope`, `deadline`, channel and lock operations; `fork`, `detach`, `with_ambient` and `ambient` only require a managed coroutine). A suspended call does not block the reactor | `concurrency.md` | blocking, async |
 | cancellation | Cooperative request to stop a computation | — | abort, kill |
 | scope | Structured-concurrency region owning forked computations | Sústrik (2016); Smith, *nursery* (2018) | task group, nursery |
+| ambient context | The immutable key-value bindings visible to a running computation and inherited, as they are at the moment of the call, by the computations it forks or detaches (`reactor.with_ambient`, `reactor.ambient`). An exception to explicit passing, for cross-cutting values | [ADR 0025](adr/0025-ambient-context.md); Swift task-local values; Java `ScopedValue` | thread-local, context variable, MDC |
+| ambient binding | One key bound to one value while a call to `with_ambient` runs; it shadows an outer binding of the same key and disappears when the call returns or raises | ADR 0025 | — |
+| ambient key | The identity of a binding: any non-nil value, a module-private table by convention, so that two packages cannot collide | ADR 0025 | — |
+| logger context | The fields a `Logger` adds to every record (`context` option, `with_context`); it wins over the ambient context | `logging.md` | MDC |
+| bound log fields | The fields bound by `log.bind` in the ambient context, which the default `context_provider` of a logger reads | `logging.md`; ADR 0025 | — |
+| request context | The values bound in the ambient context around the serving of one request: the request id (`kernel`, with `log.bind`), possibly the principal (`security`) and a deadline budget; planned, not implemented | ADR 0025 | — |
 | channel | Typed communication between coroutines | Hoare, CSP (1978) | queue (when used for communication) |
 | semaphore | Counting synchronisation primitive | Dijkstra (1965) | limiter |
 | mutex | Mutual exclusion lock | Dijkstra (1965) | lock (acceptable in prose) |
