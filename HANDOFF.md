@@ -3,8 +3,8 @@
 
 - roadmap_item: **Phase 1 gate**: verification of the phase, as described in Phase gates. Open questions to put to the owner before Phase 2: OQ-50, OQ-47, OQ-23, OQ-24, OQ-26 (1) and OQ-22.
 - status: in-progress
-- lock_until: 2026-10-27T23:14:27Z
-- last_update: 2026-10-27T21:44:27Z
+- lock_until: 2026-10-27T23:15:28Z
+- last_update: 2026-10-27T21:45:28Z
 
 ## Done
 
@@ -13,6 +13,8 @@
 - Cloud tip: run `eval "$(luarocks path)"` before `test`, else luv is not found.
 
 ## Next steps
+
+Step done 2026-10-27 (run 4, later): Part C small findings fixed (C01, C02, C04-C12, C15, C16, C19, C20, C23-C27; C13/C14 already in order). Not fixed: C03, C17, C18 (D, owner), C21 (roadmap restructuring, M), C22 (README phase of doc, left as is with a status note), the glossary entry for ambient context (owner), French stamps of 7 pages not compared. Next: merge the three raw parts into docs/reviews/phase-1-coherence-findings.md, update phase-1.md section 3 (fixed / left), delete _phase-1-part-*.md, run /review-package, put the owner items in open-questions and the needs-decision issue, tick the gate only when decided.
 
 Step done 2026-10-27 (run 4): Part B finished: all small findings fixed (B18 was already in order; B32: stamps bumped for the five pages compared in scope, the 7 other French pages not compared: left for the A44/B32 deferral). Next: Part C small findings (docs/reviews/_phase-1-part-C.md, skip D items), then merge parts into phase-1-coherence-findings.md, phase-1.md section 3, /review-package, tick the gate. Re-run: `eval "$(luarocks path)"`; `lua tools/run.lua build-native json` and `doc` before tests.
 

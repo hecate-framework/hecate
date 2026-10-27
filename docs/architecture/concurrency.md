@@ -51,7 +51,7 @@ the test framework opens one per test. Rules:
 4. Cancellation is **cooperative**: it is delivered as a `CancellationError` raised at
    the next suspension point of the cancelled coroutine, and again at every later suspension
    point of the cancelled scope (level-triggered, OQ-23). Cleanup in `<close>` variables runs
-   normally.
+   normally but cannot suspend while its scope is cancelled (OQ-23).
 
 This removes the classic leak where background work outlives the request that started it.
 

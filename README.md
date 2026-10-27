@@ -10,7 +10,7 @@
 <p align="center">
   <img alt="status" src="https://img.shields.io/badge/status-early%20implementation-2F6F64?style=flat-square&labelColor=1C2766">
   <img alt="Lua" src="https://img.shields.io/badge/Lua-5.5-1C2766?style=flat-square&labelColor=1C2766&logo=lua&logoColor=white">
-  <img alt="platforms" src="https://img.shields.io/badge/Linux%20%7C%20macOS%20%7C%20Windows-first--class-2F6F64?style=flat-square&labelColor=1C2766">
+  <img alt="platforms" src="https://img.shields.io/badge/Linux%20%7C%20macOS%20%7C%20Windows-tested--in--CI-2F6F64?style=flat-square&labelColor=1C2766">
   <img alt="license" src="https://img.shields.io/badge/license-MIT-2F6F64?style=flat-square&labelColor=1C2766">
 </p>
 
@@ -63,7 +63,7 @@ together: one version number, one set of conventions, one vocabulary, one CLI.
 6. **Performance is measured.** Benchmarks run in CI; regressions block releases.
 7. **Documentation is part of the product.** No feature ships without reference
    documentation.
-8. **Cross-platform.** Linux, macOS and Windows are first-class targets.
+8. **Cross-platform.** Linux is the production target; macOS and Windows are supported development platforms, tested in CI.
 
 See [docs/vision.md](docs/vision.md) and the target
 [developer experience](docs/developer-experience.md).

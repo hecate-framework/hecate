@@ -72,7 +72,7 @@ Lua has no access control. Convention:
 
 - Fields and methods prefixed with `_` are private to the class.
 - They are annotated `---@private` or `---@protected` for LuaLS.
-- The linter (Phase 0 tooling) reports external access to `_`-prefixed members.
+- The linter is planned to report external access to `_`-prefixed members (no such rule exists yet).
 
 ## Value objects and immutability
 

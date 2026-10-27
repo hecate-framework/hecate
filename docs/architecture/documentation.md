@@ -32,7 +32,7 @@ The full site map is in [`website/OUTLINE.md`](../../website/OUTLINE.md).
 
 - Source: LuaLS annotations (`lua-language-server --doc` export, JSON) + route, schema
   and configuration metadata from the packages.
-- Produced by `hecate doc` (Phase 3; a bootstrap script in `tools/` before that) into
+- Produced by `hecate doc` (Phase 3; the scripts of `packages/doc/bin/` before that, wrapped by `gen-reference`) into
   `website/en/reference/` as Markdown. Generated pages are never edited by hand; they
   carry a header comment saying so.
 - Translations of generated pages translate only the prose parts (summaries,

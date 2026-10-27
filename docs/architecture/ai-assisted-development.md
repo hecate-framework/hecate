@@ -82,7 +82,7 @@ Implementation sessions run primarily as Claude Code cloud sessions (claude.ai/c
 - **Environment**: `hecate`, configured as described in
   [`tools/cloud/README.md`](../../tools/cloud/README.md): custom network allowlist
   (lua.org, luarocks.org, ...), longer command timeouts, setup script installing Lua 5.5
-  and LuaRocks 3.13+. Phase 0 replaces the setup script with the pinned bootstrap.
+  and LuaRocks 3.13+. Phase 0 replaced the setup script with the pinned bootstrap.
 - **Platforms**: cloud VMs are Linux x86_64. macOS and Windows are covered by the CI
   matrix; sessions iterate on pull requests with Auto-fix.
 - **Parallelism**: one cloud session per independent roadmap item or package, each on

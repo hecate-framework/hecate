@@ -2,8 +2,8 @@
 
 ## Layers
 
-Packages are organised in layers. **A package may depend only on packages of strictly
-lower layers** (or, for the data and tooling groups, on the layers listed). Cycles are
+Packages are organised in layers. **A package may depend only on packages of a lower
+or the same layer** (or, for the data and tooling groups, on the layers listed). Cycles are
 forbidden and checked in CI.
 
 <!-- gen-dependency-graph:begin -->
@@ -94,7 +94,7 @@ performance or system access:
 | JSON | yyjson decoder (C), serde_json encoder (Rust) | [ADR 0020](../adr/0020-json-yyjson-decoder-serde-encoder.md), [ADR 0021](../adr/0021-rust-native-modules.md) |
 | TLS | rustls through mlua | ADR 0021 |
 | SQLite | SQLite amalgamation | data-access.md |
-| Hashing for auth protocols (SHA-256, HMAC, PBKDF2) | provided by the TLS library binding | OQ-4 |
+| Hashing for auth protocols (SHA-256, HMAC, PBKDF2) | undecided: OQ-4's assumption is false, see OQ-45 | OQ-45 |
 
 C code is C11, compiled with warnings as errors, tested under AddressSanitizer and
 UndefinedBehaviorSanitizer on Linux, and must build with MSVC on Windows.
