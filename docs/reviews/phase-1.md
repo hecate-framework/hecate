@@ -5,8 +5,8 @@ macOS and Windows results are those of the CI runs on `main` (the run on 4b478f9
 this was written; the previous runs, the last one on 25fa7c5, succeeded). Windows is not a benchmark target.
 
 Scope of this pass: mechanical and behavioural verification (sections 1 and 2) and the open questions
-(section 4). The file-by-file coherence audit of section 3 and the reviewer agents (`/review-package`) were
-**not** run in this pass; the gate therefore stays unticked (see Verdict).
+(section 4), then the coherence audit of section 3. The reviewer agents (`/review-package`) have not run; the gate stays
+unticked (see Verdict).
 
 ## 1. Completeness
 
@@ -45,8 +45,11 @@ by the owner and by the benchmarks workflow; the local smoke run above uses the 
 
 ## 3. Coherence
 
-Not audited in this pass. Phase 0 showed that the mechanical checks (links, ADR index, generated catalogue,
-all ok above) are not a coherence audit.
+File-by-file audit in three parts, merged in [phase-1-coherence-findings.md](phase-1-coherence-findings.md): 104 findings
+(`core`, `reactor`, `net`; `json`, `log`, `doc`, benchmarks, tools; CI, layering, open questions, roadmap, website).
+All small findings were fixed in this pull request. Remaining: owner decisions (D items, listed at the top of that file,
+including `check-annotations`, OQ-31 to OQ-42 housekeeping and the ambient-context glossary row) and a few non-blocking
+items (A02, A44/B32, C21, C22). Terminology and academic-vocabulary checks (`check-glossary`) pass.
 
 ## 4. Open questions for the owner
 
@@ -61,5 +64,6 @@ all ok above) are not a coherence audit.
 
 ## Verdict
 
-No gap found in the mechanical and behavioural checks. The gate is **not** ticked: the coherence audit and
-the reviewer agents are still to run, and the six questions above have no owner decision or recorded deferral.
+Mechanical and behavioural checks: no gap. Coherence: small findings fixed, D items put to the owner. The reviewer
+agents (`/review-package`) have not run yet. The gate is **not** ticked: the six questions of section 4 and the D items of
+the coherence report have no owner decision or recorded deferral.
