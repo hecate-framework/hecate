@@ -54,7 +54,7 @@ the tags match what the functions do.
 | `reactor.is_future(value)` | Whether `value` is a `Future`. |
 | `reactor.fork(fn, ...)` | Does not suspend; managed coroutines only (raises otherwise). Starts `fn` in the current scope, returns a `Future`. |
 | `reactor.join(f1, ...)` | *suspends*. Values in argument order; the first failure cancels the others and is raised. |
-| `reactor.select(f1, ...)` | *suspends*. Returns `index, value` of the first future to finish; cancels the others. |
+| `reactor.select(f1, ...)` | *suspends*. Returns `index, value` of the first future to finish; cancels the others. If several are already ready, the first in argument order wins (a priority order, not random). |
 | `reactor.sleep(seconds)` | *suspends*. `0` yields to the other ready coroutines. |
 | `reactor.scope(fn)` | *suspends*. Runs `fn(scope)`; returns only after every child has completed or been cancelled; raises the first failure. |
 | `reactor.deadline(seconds_or_instant, fn, ...)` | *suspends*. Cancels `fn` and raises `DeadlineExceededError` when late. |

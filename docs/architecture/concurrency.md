@@ -25,7 +25,7 @@ concurrency primitives; transport, name resolution, `fs`, `wait_signal`, `run_pr
 |---|---|
 | `fork(fn, ...) → Future` | Start `fn` in a new coroutine in the current scope. |
 | `join(f1, f2, ...) → v1, v2, ...` | Wait for all futures; if one fails, cancel the others in the same `join` and raise the first error. |
-| `select(f1, f2, ...) → index, value` | Wait for the first future to complete; cancel the others. |
+| `select(f1, f2, ...) → index, value` | Wait for the first future to complete; cancel the others. If several are already ready, the first in argument order wins: the arguments are a priority order, not a random choice (a caller that wants fairness rotates them). |
 | `deadline(seconds_or_instant, fn, ...)` | Run `fn`; raise `DeadlineExceededError` and cancel it if it does not finish in time. Accepts a relative duration or an absolute instant. |
 | `sleep(seconds)` | Suspend the current coroutine. |
 | `detach(fn, ...) → Future` | Start `fn` in the application scope, outside the current scope; its failure is seen only through its future (rule 2). |
@@ -34,7 +34,7 @@ concurrency primitives; transport, name resolution, `fs`, `wait_signal`, `run_pr
 | `ambient(key) → value` | The value bound to `key`, or `nil`. |
 | `Future` | `:value()` (suspends until ready), `:cancel()`, `:done()`, `:state()`. |
 | `Channel(capacity)` | `:send(v)`, `:receive()`, `:close()`; capacity 0 is a rendezvous channel. Usable in `select`. |
-| `Semaphore(n)`, `Mutex()`, `Monitor()`, `Condition` | Classical synchronisation. `Mutex` and `Semaphore` permits are `<close>`-able. |
+| `Semaphore(n)`, `Mutex()`, `Monitor()`, `Condition` | Classical synchronisation. `Mutex` and `Semaphore` permits are `<close>`-able. A `Monitor` follows Mesa semantics: `Condition:notify` does not hand over the monitor, so a woken waiter re-enters later and must wait in a `while` loop that re-tests its predicate. |
 | `now()`, `at(seconds)`, `Instant` | Reading of the running clock; absolute instants for `deadline`. |
 | `offload(fn, ...)` | (Phase 2, not yet implemented; OQ-27.) Run a pure function on the libuv thread pool (no access to Lua state other than its arguments; see "Blocking work"). |
 
