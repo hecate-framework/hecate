@@ -175,8 +175,8 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       (resolved 2026-10-13: [report](spikes/OQ-11-doc-tooling.md), [ADR 0012](adr/0012-website-generator.md)).
 
 - [ ] **Phase 2 gate**: verification of the phase, as described in [Phase gates](#phase-gates). Open
-      questions to put to the owner before Phase 3: OQ-46, OQ-13, OQ-17, OQ-38 and the housekeeping of
-      OQ-33 to OQ-36 and OQ-40.
+      questions to put to the owner before Phase 3: OQ-46, OQ-13, OQ-17, OQ-38 and OQ-64
+      (OQ-33, OQ-35, OQ-36 and OQ-40 were resolved at the Phase 1 gate).
 
 ## Phase 3 — Contracts and tooling → `0.1.0`
 
