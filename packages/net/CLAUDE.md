@@ -9,7 +9,7 @@ TCP/UDP streams, DNS resolution, buffered readers/writers and TLS, all suspendin
 
 ## Read before changing anything
 
-- Specification: `docs/architecture/concurrency.md`
+- Specification: `docs/architecture/networking.md` (transport primitives: `docs/architecture/concurrency.md`)
 - Decisions: `docs/adr/0002-libuv-via-luv.md`, `docs/adr/0003-transparent-structured-concurrency.md`,
   `docs/adr/0021-rust-native-modules.md`, `docs/adr/0024-tls-trust-store.md`; open questions OQ-28, OQ-30, OQ-31, OQ-32, OQ-41, OQ-42
 - Glossary: `docs/glossary.md` · Coding standards: `docs/architecture/coding-standards.md`
