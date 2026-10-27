@@ -275,7 +275,7 @@ Entry points (all *suspend*):
 
 - `net.connect_tls(host, port, options?)`: `net.connect`, then the handshake. Options: the transport options of
   `connect`; the client options; `server_name` (default `host`: SNI and identity, RFC 6125); `tls_config` (a
-  prebuilt configuration, exclusive with the other TLS options); `handshake_deadline`. Every option is validated
+  prebuilt configuration, exclusive with the other TLS options); `handshake_timeout`. Every option is validated
   before any name is resolved. Without `tls_config` a configuration is built per call; the default one (system
   roots, no `ca_pem`, no client certificate) is cached per `alpn` list (at most 16 lists).
 - `net.tls.connect(stream, server_name, config, options?)`: the handshake over an existing `Stream`.
@@ -286,9 +286,9 @@ Entry points (all *suspend*):
   argument is malformed (`ArgumentError`) the caller keeps it; on any later failure, a deadline included, the
   stream is closed.
 
-### Handshake deadlines
+### Handshake timeouts
 
-`handshake_deadline` (a positive finite number of seconds, in `connect_tls`, `tls.connect` and `tls.accept`) bounds
+`handshake_timeout` (a positive finite number of seconds, in `connect_tls`, `tls.connect` and `tls.accept`) bounds
 the TLS handshake only: expiry raises `core.DeadlineExceededError` and closes the stream. In `connect_tls` the TCP
 connect is not covered: bound it with `reactor.deadline`.
 
@@ -297,7 +297,7 @@ connect is not covered: bound it with `reactor.deadline`.
 | `tls.connect`, `connect_tls` | 10 seconds (implemented) |
 | `tls.accept` | **60 seconds, decided, not implemented**: it is 10 seconds today (OQ-47 (2), owner, 2026-10-27) |
 
-Both defaults are editable per call through `handshake_deadline`.
+Both defaults are editable per call through `handshake_timeout`.
 
 ### TlsStream
 
@@ -335,7 +335,7 @@ first word, the offending value and the expected one.
 | `core.NetworkError` | A call on a poisoned `BufferedWriter` (`cause` is the first failure). |
 | `core.ProtocolError` | A line or record beyond its limit, or a `read_exact` count beyond its `limit`. |
 | `core.ArgumentError` | A malformed host, port, option or argument; checked before anything is resolved or sent. |
-| `core.DeadlineExceededError` | A handshake beyond `handshake_deadline`, or a `reactor.deadline` the caller set. |
+| `core.DeadlineExceededError` | A handshake beyond `handshake_timeout`, or a `reactor.deadline` the caller set. |
 | `core.NonYieldableContextError` | A suspending call outside a managed coroutine. |
 | `core.Error` | A second coroutine reads, accepts or receives at once on the same object. |
 
@@ -383,7 +383,7 @@ local ok, err = pcall(reactor.deadline, 2, function() return reader:read_line() 
 | Reader chunk | 16 KiB | `BufferedReader` |
 | `BufferedWriter` `capacity` | 8192 bytes (to be benchmarked, see above) | |
 | TCP read-ahead | 64 KiB | `TcpStream` |
-| Handshake deadline | 10 s; 60 s for `tls.accept` is decided, not implemented | TLS |
+| Handshake timeout | 10 s; 60 s for `tls.accept` is decided, not implemented | TLS |
 | `alpn` protocol | 1 to 255 bytes | TLS |
 | Cached default client configurations | 16 | `connect_tls` |
 | Unix socket path | 107 bytes (103 on macOS) | `sun_path` |

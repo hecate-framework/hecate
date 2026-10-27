@@ -107,8 +107,8 @@ connection and takes ownership of the stream: if the handshake fails, the stream
 > [!TIP] Fork the handshake
 > Never run the handshake in the accept loop itself. A client that connects and then says nothing
 > would stall every other client. Fork one coroutine per connection and run `tls.accept` inside it.
-> The handshake is bounded anyway by `handshake_deadline`, which is 10 seconds by default. Pass
-> `{ handshake_deadline = 5 }` as the third argument to change it. On expiry the stream is closed and
+> The handshake is bounded anyway by `handshake_timeout`, which is 10 seconds by default. Pass
+> `{ handshake_timeout = 5 }` as the third argument to change it. On expiry the stream is closed and
 > `DeadlineExceededError` is raised.
 
 The example below negotiates an application protocol with ALPN (Application-Layer Protocol Negotiation, RFC 7301). The server offers `echo`; the
@@ -161,7 +161,7 @@ select a certificate from it: there is one certificate chain per configuration.
 Mutual TLS asks the client to prove who it is. On the server, pass `client_ca_pem`: the
 authority that signed the client certificates. Clients then need `cert_pem` and `key_pem`.
 
-The example forks the handshake of every connection, bounds it with `handshake_deadline`, and
+The example forks the handshake of every connection, bounds it with `handshake_timeout`, and
 requires a client certificate.
 
 <!-- example: packages/net/examples/hecate.net.tls.server_config.lua -->
@@ -169,7 +169,7 @@ requires a client certificate.
 -- A TLS server that requires client certificates (mutual TLS). `client_ca_pem`
 -- names the authority that signed the client certificates. The accept loop
 -- forks the handshake of each connection and bounds it with
--- `handshake_deadline`, so that one silent client cannot stall it. Needs the
+-- `handshake_timeout`, so that one silent client cannot stall it. Needs the
 -- native TLS module (`lua tools/run.lua build-native`).
 local reactor = require("hecate.reactor")
 local net = require("hecate.net")
@@ -192,7 +192,7 @@ reactor.run(function()
       local connection = listener:accept()
       reactor.fork(function()
         -- The handshake owns `connection`: it is closed if the handshake fails.
-        local ok, peer = pcall(net.tls.accept, connection, config, { handshake_deadline = 5 })
+        local ok, peer = pcall(net.tls.accept, connection, config, { handshake_timeout = 5 })
         if not ok then return end
         local reader, writer = peer:reader(), peer:writer()
         writer:write("welcome " .. reader:read_line() .. "\n")

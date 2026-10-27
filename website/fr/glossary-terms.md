@@ -35,7 +35,7 @@ page (avec un lien vers le glossaire), puis le terme français seul.
 | request context | contexte de requête | prévu, pas encore implémenté |
 | channel | canal | |
 | semaphore, monitor | sémaphore, moniteur | |
-| handshake | poignée de main | TLS ; `handshake_deadline` en code |
+| handshake | poignée de main | TLS ; `handshake_timeout` en code |
 | callback | rappel | |
 | buffer, buffered | tampon, tamponné | |
 | poisoned writer | écrivain empoisonné | |

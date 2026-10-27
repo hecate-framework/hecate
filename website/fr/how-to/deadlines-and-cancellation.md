@@ -34,11 +34,11 @@ Une annulation arrête `connect` immédiatement. Il n’essaie pas l’adresse s
 à moitié ouverte est fermée : rien ne fuit.
 
 `connect_tls` a deux bornes. Le `reactor.deadline` que vous placez autour couvre la résolution et
-la connexion TCP. L’option `handshake_deadline` (10 secondes par défaut) couvre uniquement la
+la connexion TCP. L’option `handshake_timeout` (10 secondes par défaut) couvre uniquement la
 poignée de main TLS :
 
 ```lua
-local stream <close> = reactor.deadline(5, net.connect_tls, host, 443, { handshake_deadline = 5 })
+local stream <close> = reactor.deadline(5, net.connect_tls, host, 443, { handshake_timeout = 5 })
 ```
 
 ## Borner une lecture
@@ -103,7 +103,7 @@ de le laisser dans un état inconnu.
 | `net.connect`, `net.connect_pipe` | La connexion à moitié ouverte est fermée. Aucune autre adresse n’est essayée. |
 | `UdpSocket:send_to` | Le socket est fermé. |
 | `writer:flush`, et un `writer:write` qui vide le tampon | L’écrivain est empoisonné et le flux est fermé. |
-| Poignée de main TLS qui dépasse `handshake_deadline` | Le flux est fermé. |
+| Poignée de main TLS qui dépasse `handshake_timeout` | Le flux est fermé. |
 
 ## Connaître l’écrivain empoisonné
 
