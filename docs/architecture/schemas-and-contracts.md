@@ -87,7 +87,7 @@ behaviour is specified here and in `packages/json/README.md`:
   `json.null` is a unique value, `json.array` and `json.object` mark tables so that `[]` and `{}` round-trip, and an
   unmarked empty table is an object. `decode` rejects what parsers disagree on (duplicate member names, lone
   surrogates, a byte order mark, numbers outside the double range) with a `DecodeError` that has a `reason`, an `offset`,
-  a `line` and a `column`; `encode` rejects what has no JSON representation with an `EncodeError` that has a `reason`
+  a `line` and a `column` (a duplicate member name has the reason only); `encode` rejects what has no JSON representation with an `EncodeError` that has a `reason`
   and the JSON Pointer (RFC 6901) `path` of the offending value.
 - **Two native modules, no fallback.** The decoder (C over yyjson) and the encoder (Rust, `serde_json` through `mlua`)
   are required at run time on every platform; each produces its own failures in the vocabulary above, and a module that
