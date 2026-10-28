@@ -3,7 +3,7 @@
 
 - roadmap_item: **Phase 1 gate**: verification of the phase, as described in Phase gates. Open questions to put to the owner before Phase 2: OQ-50, OQ-47, OQ-23, OQ-24, OQ-26 (1) and OQ-22.
 - status: in-progress
-- lock_until: 2026-10-28T02:11:53Z
+- lock_until: 2026-10-28T00:00:00Z
 - last_update: 2026-10-28T00:41:53Z
 
 ## Done
@@ -14,7 +14,7 @@
 
 ## Next steps
 
-Run 5 (2026-10-28): CI of the PR green on 3 platforms (run 40603502783); review agents running on core, reactor, net, json, log, doc; next: record findings in phase-1.md, update issue 48.
+Run 5 (2026-10-28): CI green on 3 platforms (run 40603502783). Review agents done: findings in docs/reviews/phase-1-review-package.md. Next: fix the four majors R1 (reactor deadline inf), L1 (FileSink flush), L2 (Logger option checks), D1 (doc javascript: action links), each test-first (`eval "$(luarocks path)"`, build-native json/doc first), then the cheap minors (net TlsStream:write check, log annotations); the rest may become roadmap items or be deferred with the owner; then update issue 48 and tick the gate. Lock released.
 
 Step done 2026-10-27 (run 4, end): parts merged into docs/reviews/phase-1-coherence-findings.md (raw parts deleted), phase-1.md section 3 and verdict updated. Remaining: (1) `/review-package` on core, reactor, net, json, log, doc and a note of their findings in phase-1.md; (2) check CI of this PR on the 3 platforms; (3) update the needs-decision issue with the D items listed at the top of the coherence report; (4) tick the gate only after the owner decides or defers them. Lock released.
 

@@ -65,5 +65,5 @@ items (A02, A44/B32, C21, C22). Terminology and academic-vocabulary checks (`che
 ## Verdict
 
 Mechanical and behavioural checks: no gap. Coherence: small findings fixed, D items put to the owner. The reviewer
-agents (`/review-package`) have not run yet. The gate is **not** ticked: the six questions of section 4 and the D items of
+agents ran on 2026-10-28 ([phase-1-review-package.md](phase-1-review-package.md)): no blocker, four major findings (R1, L1, L2, D1) still open. The gate is **not** ticked: the six questions of section 4 and the D items of
 the coherence report have no owner decision or recorded deferral.
