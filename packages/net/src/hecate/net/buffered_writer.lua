@@ -121,7 +121,7 @@ function BufferedWriter:write(data)
 end
 
 --- Closes the writer. Unflushed bytes are discarded, never sent: flushing may suspend, and a
---- `<close>` handler must not suspend while its scope is cancelled (OQ-23). Call `flush`
+--- `__close` metamethod must not suspend while its scope is cancelled (OQ-23). Call `flush`
 --- first. Does not close the stream. Idempotent.
 function BufferedWriter:close()
   self._closed = true
@@ -131,6 +131,7 @@ end
 --- Closing the writer (`local writer <close> = ...`) calls `close`.
 function BufferedWriter:__close() self:close() end
 
+--- Returns whether the writer is closed.
 ---@return boolean
 function BufferedWriter:is_closed() return self._closed end
 

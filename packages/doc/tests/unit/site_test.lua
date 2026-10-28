@@ -88,6 +88,16 @@ function T:test_the_home_layout_has_a_hero_and_no_sidebar_or_outline()
   self:assert_true(html:find("<title>hecate</title>", 1, true) ~= nil)
 end
 
+function T:test_home_actions_with_an_unsafe_scheme_are_not_linked()
+  local files = {
+    ["en/index.md"] = page("hecate", "x", "layout: home\nactions: [\"Bad | javascript:alert(1)\", \"Ok | https://x.test/r\"]\n"),
+  }
+  local fs = build(files)
+  local html = fs:read("o/en/index.html")
+  self:assert_nil(html:lower():find("javascript:", 1, true))
+  self:assert_true(html:find('href="https://x.test/r"', 1, true) ~= nil)
+end
+
 function T:test_a_missing_translation_falls_back_with_a_visible_notice()
   local files = {}
   for path, data in pairs(BASIC) do files[path] = data end

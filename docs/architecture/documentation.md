@@ -32,7 +32,7 @@ The full site map is in [`website/OUTLINE.md`](../../website/OUTLINE.md).
 
 - Source: LuaLS annotations (`lua-language-server --doc` export, JSON) + route, schema
   and configuration metadata from the packages.
-- Produced by `hecate doc` (Phase 3; a bootstrap script in `tools/` before that) into
+- Produced by `hecate doc` (Phase 3; the scripts of `packages/doc/bin/` before that, wrapped by `gen-reference`) into
   `website/en/reference/` as Markdown. Generated pages are never edited by hand; they
   carry a header comment saying so.
 - Translations of generated pages translate only the prose parts (summaries,
@@ -55,7 +55,7 @@ gradients or glows, the name never capitalised, earth as the single accent). Pag
   "On this page" outline;
 - previous/next cards, edit-this-page link, last-updated date, "written for hecate x.y and
   Lua 5.5" line;
-- callout containers (`note`, `tip`, `warning`, `danger`), code blocks with a language label
+- callouts (the five GFM alerts NOTE, TIP, IMPORTANT, WARNING and CAUTION), code blocks with a language label
   and a copy button, tables, task lists;
 - search: one JSON index per locale, queried by about 150 lines of vanilla JavaScript.
 
@@ -115,8 +115,8 @@ Owner decision 2026-10-13 ([ADR 0012](../adr/0012-website-generator.md)): Markdo
 GitHub Flavoured Markdown), syntax highlighting and, where one exists, OpenAPI rendering
 come from third-party Lua, C or Rust dependencies rather than from code written in the
 package; the site must remain deployable as static files on GitHub Pages. The candidates
-were measured in the spike [OQ-39](../spikes/OQ-39-doc-dependencies.md); the proposal is
-ADR 0022.
+were measured in the spike [OQ-39](../spikes/OQ-39-doc-dependencies.md); the decision is
+ADR 0022 (Accepted).
 
 ## Writing rules
 

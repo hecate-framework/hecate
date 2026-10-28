@@ -7,7 +7,8 @@ model. No package may define its own class mechanism.
 
 ## Requirements
 
-1. Classes with single inheritance, constructors and `super` calls.
+1. Classes with single inheritance, constructors (`init`) and calls to the
+   superclass (`core.superclass(C).init(self, ...)`).
 2. **Traits** (Schärli et al.) for horizontal reuse: composition is flat, conflicts
    between traits are errors unless explicitly resolved (exclusion or aliasing).
 3. **Interfaces**: named sets of required methods. Conformance is checked when the
@@ -24,7 +25,7 @@ model. No package may define its own class mechanism.
 8. LuaLS-friendly: the declaration pattern must let LuaLS infer types with
    `---@class Name : Superclass` annotations.
 
-## Proposed surface (illustrative)
+## Declaration spelling
 
 ```lua
 local core = require "hecate.core"
@@ -71,7 +72,7 @@ Lua has no access control. Convention:
 
 - Fields and methods prefixed with `_` are private to the class.
 - They are annotated `---@private` or `---@protected` for LuaLS.
-- The linter (Phase 0 tooling) reports external access to `_`-prefixed members.
+- The linter is planned to report external access to `_`-prefixed members (no such rule exists yet).
 
 ## Value objects and immutability
 
@@ -89,7 +90,7 @@ A single hierarchy rooted at `hecate.core.Error`:
   `traceback` (captured when created in debug mode);
 - subclasses per domain: `ConfigurationError`, `ConformanceError`, `ArgumentError`
   (misuse of an API), `CancellationError`,
-  `DeadlineExceededError`, `NetworkError`, `ProtocolError`, `ValidationError`,
+  `DeadlineExceededError`, `NonYieldableContextError`, `ClosedChannelError`, `NetworkError`, `ProtocolError`, `ValidationError`,
   `DatabaseError` (with SQLSTATE when available), etc.;
 - `message` defaults to the class name when none is given;
 - `__tostring` renders the cause chain;

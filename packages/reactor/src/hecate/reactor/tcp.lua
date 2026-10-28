@@ -2,7 +2,7 @@
 -- transparent I/O; ADR 0002: luv is wrapped once, here). Callbacks only record a result and
 -- wake the coroutine; the scheduler resumes it (reactor/CLAUDE.md, known pitfalls).
 --
--- Cancellation rules (reactor/CLAUDE.md invariant: cancellation runs `<close>` handlers):
+-- Cancellation rules (reactor/CLAUDE.md invariant: cancellation runs the `__close` metamethods of pending `<close>` variables):
 --   * `read` and `accept` leave the handle intact: data or connections that arrive after the
 --     coroutine was withdrawn are kept for the next call, never dropped.
 --   * `write`, `shutdown` and `connect_tcp` cannot be withdrawn from libuv. When one is
@@ -338,7 +338,7 @@ function TcpStream:__close() self:close() end
 ---@return boolean
 function TcpStream:is_closed() return self._closed end
 
---- Address of the remote end.
+--- Address of the peer.
 ---@return hecate.reactor.SocketAddress
 function TcpStream:peer_address()
   require_open(self, "peer_address")
@@ -409,7 +409,7 @@ local DROPPED = { EINVAL = true, ENOTCONN = true, ECONNRESET = true, ECONNABORTE
 --- listener open; connections that arrive meanwhile stay queued. Connections are taken one
 --- per call, so a slow acceptor leaves the rest in the kernel backlog (back-pressure). A
 --- connection whose peer already reset it (the options cannot be applied: `EINVAL`, `ENOTCONN`,
---- `ECONNRESET`) is closed and skipped; any other failure is raised.
+--- `ECONNRESET`, `ECONNABORTED`) is closed and skipped; any other failure is raised.
 ---@async
 ---@return hecate.reactor.TcpStream
 function TcpListener:accept()
@@ -488,7 +488,7 @@ end
 
 core.finalise(TcpListener)
 
-local M = { TcpStream = TcpStream, TcpListener = TcpListener, fail_closed = fail_closed }
+local M = { TcpStream = TcpStream, TcpListener = TcpListener, fail_closed = fail_closed } -- annotations-ok: internal table (the public functions are documented on `hecate.reactor` below)
 
 -- Documented on `hecate.reactor` (module class completed here so that the LuaLS export lists the
 -- functions; coding-standards.md, "Annotations for the reference").

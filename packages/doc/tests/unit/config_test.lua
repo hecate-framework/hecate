@@ -26,6 +26,12 @@ function T:test_base_path_is_normalised_to_start_and_end_with_a_slash()
   self:assert_equal("/", config.normalise({ title = "t", base = "/" }).base)
 end
 
+function T:test_unsafe_urls_in_repository_and_nav_are_rejected()
+  invalid(self, { title = "t", repository = "javascript:alert(1)" }, "repository")
+  invalid(self, { title = "t", nav = { { text = "x", link = "javascript:alert(1)" } } }, "nav[1].link")
+  config.normalise({ title = "t", repository = "https://github.com/x/y" })
+end
+
 function T:test_the_public_url_loses_its_trailing_slash()
   self:assert_equal("https://x.test", config.normalise({ title = "t", url = "https://x.test/" }).url)
 end

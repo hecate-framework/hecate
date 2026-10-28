@@ -20,7 +20,7 @@ function SystemFileSystem:init()
 end
 
 local function build_error(message, path, cause)
-  return errors.BuildError({ message = message .. ": " .. tostring(cause), context = { path = path } })
+  return errors.BuildError({ message = "doc.SystemFileSystem: " .. message .. ": " .. tostring(cause), context = { path = path } })
 end
 
 local function is_directory(path)

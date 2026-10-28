@@ -1,5 +1,5 @@
 -- Error classes of hecate.json. Every failure of the codec raises an instance of one of these
--- (ADR 0018, ADR 0020: one error hierarchy, whatever backend does the work).
+-- (ADR 0018, ADR 0020: one error hierarchy; both native modules report through it).
 global <const> require
 
 local core = require("hecate.core")
@@ -16,7 +16,7 @@ local JsonError = core.error_class("JsonError", "hecate.json.JsonError")
 --- the 1-based line (lines end at a line feed) and `context.column` the 1-based column of the
 --- offending character on that line, counted in characters (code points), not bytes.
 ---@class hecate.json.DecodeError : hecate.json.JsonError
----@field context { reason: hecate.json.DecodeFailureReason, offset: integer, line: integer, column: integer }
+---@field context { reason: hecate.json.DecodeFailureReason, offset?: integer, line?: integer, column?: integer }
 local DecodeError = core.error_class("DecodeError", "hecate.json.DecodeError", JsonError)
 
 --- Raised by `json.encode` when a Lua value has no JSON representation, or the output exceeds a limit.
@@ -46,7 +46,7 @@ local EncodeError = core.error_class("EncodeError", "hecate.json.EncodeError", J
 ---| "non_finite_number"  NaN and the infinities are not JSON numbers (RFC 8259 section 6)
 ---| "invalid_utf8"  a string or key is not well-formed UTF-8
 ---| "ambiguous_table"  a table that is neither a sequence nor an object (mixed or non-string keys)
----| "sparse_array"  a marked array with a hole or with keys that are not 1 to n
+---| "sparse_array"  a marked array with a key that is not a positive integer, or with too many holes (highest index above twice the entries plus 16)
 ---| "depth_limit"  nesting deeper than `max_depth` (also raised for a cycle)
 ---| "size_limit"  output longer than `max_size`
 

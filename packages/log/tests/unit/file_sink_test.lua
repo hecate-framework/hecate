@@ -27,6 +27,16 @@ function T:test_records_are_appended_as_json_lines()
   self:assert_equal("two", lines[2].message)
 end
 
+function T:test_a_record_is_readable_while_the_file_is_open()
+  local path = os.tmpname()
+  local sink = log.FileSink({ path = path })
+  log.Logger({ sinks = { sink } }):error("visible")
+  local text = read(path)
+  sink:close()
+  os.remove(path)
+  self:assert_true(text:find("visible", 1, true) ~= nil)
+end
+
 function T:test_writes_after_close_are_ignored()
   local path = os.tmpname()
   local sink = log.FileSink({ path = path })

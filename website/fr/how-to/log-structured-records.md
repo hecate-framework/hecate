@@ -3,7 +3,7 @@ description: Journaliser des enregistrements structurés avec hecate.log, attach
 hecate: "0.x"
 lua: "5.5"
 order: 7
-source_revision: ac925c3
+source_revision: d54053f
 ---
 
 # Journaliser des enregistrements structurés
@@ -33,7 +33,7 @@ print(("%d %s %s %s"):format(#sink:records(), record.message, record.context.req
 -- Prints: 1 slow query r-1 120
 ```
 
-Les sévérités sont les huit de la RFC 5424, de `emergency` à `debug`. `with_context(fields)`
+Les gravités sont les huit de la RFC 5424, de `emergency` à `debug`. `with_context(fields)`
 renvoie un journaliseur enfant dont le contexte est figé. Pour étiqueter chaque enregistrement
 d’une requête, y compris ceux des calculs qu’elle démarre avec `fork` ou détache, enveloppez le
 travail dans `log.bind({ request_id = "r-1" }, fn)` : un journaliseur sans `context_provider`
@@ -84,17 +84,17 @@ toujours. `dropped()` compte ce qui a été écarté.
 ## Garder les puits lents hors du chemin de la requête
 
 Enveloppez un puits dans `log.AsyncSink({ sink = ..., capacity = 1024 })`. `write` ne fait que
-mettre l’enregistrement en file, donc ne suspend jamais ; une coroutine détachée écrit vers la
+mettre l’enregistrement en file, donc ne suspend jamais ; un calcul de vidage écrit vers la
 cible. Quand la file est pleine, l’enregistrement est abandonné et compté (`dropped()`) : la
 contre-pression est une perte, jamais une attente. `flush()` suspend jusqu’à ce que ce qui est en
-file ait été écrit, et `close()` vide la file et arrête la coroutine. Appelez `close()` avant la
-fin du calcul principal : une coroutine de vidage qui attend encore des enregistrements est un
+file ait été écrit, et `close()` vide la file et arrête le calcul de vidage. Appelez `close()` avant la
+fin du calcul principal : un calcul de vidage qui attend encore des enregistrements est un
 interblocage pour le réacteur.
 
 <!-- example: packages/log/examples/hecate.log.AsyncSink.lua -->
 ```lua
--- An asynchronous sink queues records and writes them from a detached coroutine: logging never waits
--- for the target. `close` flushes what is queued and stops the coroutine.
+-- An asynchronous sink queues records and writes them from a drain computation: logging never waits
+-- for the target. `close` flushes what is queued and stops the drain computation.
 local reactor = require("hecate.reactor")
 local log = require("hecate.log")
 

@@ -148,9 +148,20 @@ end
 ---@param options? hecate.reactor.TcpOptions | { family?: "inet"|"inet6" }  transport options and address family
 ---@return hecate.net.TcpStream stream  the connected stream
 function M.connect(host, port, options)
-  local transport, family = split_options("net.connect", host, options, CONNECT_OPTIONS)
-  check_port("net.connect", port)
-  local addresses = dns.resolve_for("net.connect", host, { family = family })
+  return M.connect_for("net.connect", host, port, options)
+end
+
+--- Internal: `connect` under the name of the public call that the caller wrote (messages).
+---@async
+---@param call string  qualified name of the public call, for messages
+---@param host string
+---@param port integer
+---@param options? table
+---@return hecate.net.TcpStream
+function M.connect_for(call, host, port, options)
+  local transport, family = split_options(call, host, options, CONNECT_OPTIONS)
+  check_port(call, port)
+  local addresses = dns.resolve_for(call, host, { family = family })
   ---@type hecate.core.Error?
   local last
   local attempts = {}
@@ -159,14 +170,14 @@ function M.connect(host, port, options)
     local ok, result = pcall(reactor.connect_tcp, addresses[i].ip, port, transport)
     if ok then return TcpStream(result) end
     -- Only a failed attempt moves on to the next address; cancellation and misuse propagate.
-    if not core.is_instance_of(result, reactor.TransportError) then error(errors.rename(result, "net.connect"), 0) end
+    if not core.is_instance_of(result, reactor.TransportError) then error(errors.rename(result, call), 0) end
     local failure = result --[[@as hecate.core.Error]]
     attempts[#attempts + 1] = { address = addresses[i].ip, errno = failure.context and failure.context.errno }
     tried[#tried + 1] = addresses[i].ip
     last = failure
   end
   ---@cast last hecate.core.Error
-  error(rewrap(last, "net.connect", "connect to " .. endpoint(host, port), { host = host, port = port, attempts = attempts },
+  error(rewrap(last, call, "connect to " .. endpoint(host, port), { host = host, port = port, attempts = attempts },
     #tried > 1 and (" (tried %s)"):format(table.concat(tried, ", ")) or nil), 0)
 end
 

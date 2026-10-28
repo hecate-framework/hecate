@@ -6,11 +6,13 @@ global <const> string, table, tonumber, require, type, error, ipairs, pairs, nex
 
 local errors = require("hecate.doc.errors")
 
+--- Parser of the front matter of a Markdown page.
+---@class hecate.doc.front_matter
 local M = {}
 
 local function fail(message, path, line)
   error(errors.BuildError({
-    message = ("invalid front matter%s: %s"):format(line and (" at line " .. line) or "", message),
+    message = ("doc.front_matter.parse: invalid front matter%s: %s"):format(line and (" at line " .. line) or "", message),
     context = { path = path, line = line },
   }), 0)
 end
@@ -79,7 +81,7 @@ function M.parse(source, path)
   end
   if not body_start then
     error(errors.BuildError({
-      message = "invalid front matter at line 1: missing closing `---` line", context = { path = path, line = 1 },
+      message = "doc.front_matter.parse: invalid front matter at line 1: missing closing `---` line", context = { path = path, line = 1 },
     }), 0)
   end
   local meta, list_key = {}, nil

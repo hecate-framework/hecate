@@ -60,7 +60,9 @@ return RouterTest
 - Drivers: integration matrix against real servers (service containers).
 - Parsers and codecs: fuzzing (C) and property tests (Lua).
 - Suspension documentation check: functions annotated `---@async` are the ones observed
-  to yield, measured by an instrumented run of the test suite.
+  to yield. `packages/reactor/tests/unit/suspension_test.lua` instruments `coroutine.yield`, runs each
+  public function of `hecate.reactor` on a path where it has to wait, and compares with the tag read from
+  the source; an untested tagged function must be in its justified allowlist.
 - Cross-platform: the whole suite runs on Linux, macOS and Windows.
 
 ## Bootstrap harness

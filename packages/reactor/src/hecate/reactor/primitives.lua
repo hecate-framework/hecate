@@ -100,11 +100,11 @@ function M.scope(fn)
   return scope_run(fn)
 end
 
---- Starts `fn(...)` in a new coroutine of the current scope and returns its future.
+--- Starts `fn(...)` in a new coroutine of the current scope and returns its future. Does not suspend;
+--- it needs a managed coroutine (hence no `---@async` tag).
 ---
 --- Raises `hecate.core.ArgumentError` if `fn` is not a function and
 --- `hecate.core.NonYieldableContextError` outside a managed coroutine.
----@async
 ---@param fn fun(...): ...  the computation to run
 ---@param ... any  the arguments passed to `fn`
 ---@return hecate.reactor.Future future  the future of the computation
@@ -118,12 +118,12 @@ end
 
 --- Starts `fn(...)` in the application scope (the root scope of the running reactor), so it
 --- may outlive the scope of the caller. Its failure is observable only through its future
---- and does not cancel the application scope (concurrency.md, rule 2; OQ-26).
+--- and does not cancel the application scope (concurrency.md, rule 2; OQ-26). Does not suspend; it needs a
+--- managed coroutine (hence no `---@async` tag).
 ---
 --- Raises `hecate.core.ArgumentError` if `fn` is not a function, `hecate.core.Error` if the
 --- application scope is not running, and `hecate.core.NonYieldableContextError` outside a
 --- managed coroutine.
----@async
 ---@param fn fun(...): ...  the computation to run
 ---@param ... any  the arguments passed to `fn`
 ---@return hecate.reactor.Future future  the future of the computation
@@ -144,11 +144,10 @@ end
 --- Runs `fn(...)` with `key` bound to `value` for the running computation and for the computations
 --- it forks or detaches while the binding exists (ADR 0025). A binding is immutable; a nested
 --- binding of the same key shadows the outer one until `fn` returns. The binding is removed when
---- `fn` returns or raises.
+--- `fn` returns or raises. Suspends only if `fn` does; it needs a managed coroutine (hence no `---@async` tag).
 ---
 --- Raises `hecate.core.ArgumentError` if `key` is `nil` or `fn` is not a function,
 --- `hecate.core.NonYieldableContextError` outside a managed coroutine, and the error of `fn`.
----@async
 ---@param key any  what identifies the binding; a module-private table avoids collisions
 ---@param value any  the value bound to `key`
 ---@param fn fun(...): ...  the function run with the binding
@@ -170,13 +169,13 @@ function M.with_ambient(key, value, fn, ...)
   return table.unpack(results, 2, results.n)
 end
 
---- Returns the value bound to `key` in the running computation, or `nil` (ADR 0025).
+--- Returns the value bound to `key` in the running computation, or `nil` (ADR 0025). Does not suspend; it
+--- needs a managed coroutine (hence no `---@async` tag).
 ---
 --- Raises `hecate.core.ArgumentError` if `key` is `nil` and
 --- `hecate.core.NonYieldableContextError` outside a managed coroutine.
----@async
 ---@param key any  the key given to `with_ambient`
----@return any value  the bound value, or `nil`
+---@return any? value  the bound value, or `nil`
 function M.ambient(key)
   if key == nil then
     error(core.ArgumentError("reactor.ambient: expects a key that is not nil"), 2)
@@ -336,7 +335,7 @@ function M.select(...)
 end
 
 --- Runs `fn(...)`; cancels it and raises `DeadlineExceededError` if it does not finish
---- in time. `limit` is a relative duration in seconds, or a `hecate.reactor.Instant`.
+--- in time. `limit` is a relative duration in finite seconds, or a `hecate.reactor.Instant`.
 ---
 --- Raises `hecate.core.DeadlineExceededError` when the limit expires, `hecate.core.ArgumentError`
 --- if `limit` is neither seconds nor an instant or `fn` is not a function, and
@@ -352,12 +351,12 @@ function M.deadline(limit, fn, ...)
   end
   local computation = context.current_computation("reactor.deadline")
   local at
-  if type(limit) == "number" and limit == limit then
+  if type(limit) == "number" and limit == limit and limit ~= math.huge and limit ~= -math.huge then
     at = computation.reactor:now() + limit
   elseif core.is_instance_of(limit, Instant) then
     at = limit.seconds
   else
-    error(core.ArgumentError(("reactor.deadline: invalid deadline %s: expected seconds or an Instant")
+    error(core.ArgumentError(("reactor.deadline: invalid deadline %s: expected finite seconds or an Instant")
       :format(tostring(limit))), 2)
   end
   local args = table.pack(...)

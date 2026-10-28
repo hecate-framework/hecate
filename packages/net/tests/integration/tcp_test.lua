@@ -385,7 +385,7 @@ function T:test_options_reach_the_transport()
   local calls = spying_on_handles(function()
     with_listener(self, function(listener, port)
       -- The acceptor is joined after the client closed: the listener must not be closed before
-      -- the accept completed (on macOS the scheduling made that race visible).
+      -- the accept completed (on macOS the scheduling made that ordering visible).
       local acceptor = reactor.fork(function() local peer <close> = listener:accept(); peer:read() end)
       do
         local client <close> = net.connect(LOOPBACK, port, { nodelay = false, keepalive = true, keepalive_delay = 30 })
@@ -675,7 +675,7 @@ function T:test_a_cancelled_connect_leaves_no_handle()
     local future = reactor.fork(net.connect, LOOPBACK, port)
     future:cancel()
     local ok, result = pcall(future.value, future)
-    if ok then result:close() end -- the connect won the race: a stream, which must close cleanly
+    if ok then result:close() end -- the connect ran first: a stream, which must close cleanly
   end)
   self:assert_equal(before, reactor.Reactor.open_handles())
 end

@@ -14,7 +14,7 @@
 | Used by | `cli`, `doc`, `hecate`, `http`, `kernel`, `log`, `openapi`, `schema`, `security`, `test` |
 | Native code | C decoder (yyjson), Rust encoder (OQ-5, ADR 0021) |
 | Specification | [schemas-and-contracts.md](../../docs/architecture/schemas-and-contracts.md) |
-| Decisions | [ADR 0020](../../docs/adr/0020-json-yyjson-decoder-serde-encoder.md), [ADR 0021](../../docs/adr/0021-rust-native-modules.md) |
+| Decisions | [ADR 0020](../../docs/adr/0020-json-yyjson-decoder-serde-encoder.md), [ADR 0021](../../docs/adr/0021-rust-native-modules.md); owner decisions OQ-48 to OQ-54 in `docs/open-questions.md` |
 | Agent | [`pkg-json`](../../.claude/agents/pkg-json.md) |
 | Repository | read-only mirror `hecate-framework/hecate-json`, generated from this directory (ADR 0017) |
 
@@ -43,7 +43,7 @@ local json = require("hecate.json")
 
 | Name | Description |
 |---|---|
-| `json.encode(value, options?)` | Encodes a Lua value as JSON text that is always valid UTF-8. Options: `pretty`, `indent` (spaces or a string of spaces and tabs), `canonical` (`true`: members in RFC 8785 order, UTF-16 code units; `"rfc8785"`: the full JSON Canonicalization Scheme), `max_depth` (default 1000, at most 1000, the same as `decode`), `max_size` (default 16 MiB). |
+| `json.encode(value, options?)` | Encodes a Lua value as JSON text that is always valid UTF-8. Options: `pretty`, `indent` (0 to 16 spaces, or a string of at most 16 spaces and tabs; not with `pretty = false`, not with `rfc8785`), `canonical` (`true`: members in RFC 8785 order, UTF-16 code units; `"rfc8785"`: the full JSON Canonicalization Scheme), `max_depth` (default 1000, at most 1000, the same as `decode`), `max_size` (default 16 MiB). |
 | `json.decode(text, options?)` | Decodes JSON text (RFC 8259). Options: `max_depth` (default 1000, at most 1000), `max_size` (default 16 MiB): the same two limits, with the same defaults and bounds, as `encode`; a text nested deeper is a `depth_limit` error. |
 | `json.null` | The value of JSON `null` (unique, immutable, never `nil`). |
 | `json.array(t?)`, `json.object(t?)` | Mark a table as a JSON array or object (a new empty table without argument); return the table. |
@@ -88,11 +88,26 @@ the reference):
 | `byte_order_mark` | text starting with bytes `EF BB BF` | RFC 8259 section 8.1 lets parsers ignore it, and they differ. | Strip the first three bytes before decoding. |
 | `number_out_of_range` | `1e999` | It does not fit in a 64-bit float; parsers answer infinity, error or clamp. | Send the number as a string, or a value within about 1.8e308. |
 | `invalid_utf8` | a string with bytes that are not UTF-8 | The text must be UTF-8 (RFC 8259 section 8.1). | Re-encode the source as UTF-8. |
+| `syntax`, `invalid_escape`, `control_character` | a text that is not JSON, a bad escape such as `"\x"`, a raw control character in a string | RFC 8259 sections 7 and 2. | Fix the text at the source. |
 | `depth_limit`, `size_limit` | nesting beyond `max_depth`, text beyond `max_size` | Protection against hostile input. | Raise the option if the input is trusted. |
 
 The error message echoes at most 40 bytes of the input (a member name or a number literal), cut on a character boundary, with control characters, quotes and backslashes escaped. Errors: `DecodeError.context` has `reason`, `offset` (bytes before the offending byte, from 0),
 `line` and `column` (from 1, in characters); `EncodeError.context` has `reason` and `path` (a JSON
 Pointer, RFC 6901).
+
+## Inputs `encode` rejects
+
+`encode` raises an `EncodeError` whose `context.reason` and `context.path` (a JSON Pointer) name the value:
+
+| `context.reason` | Input | What to do |
+|---|---|---|
+| `unsupported_type` | a function, userdata, thread | Convert it to a table, string or number first. |
+| `non_finite_number` | NaN, an infinity | Send `json.null` or a string. |
+| `ambiguous_table` | a table with mixed or non-string, non-index keys | Mark it with `json.object` and use string keys, or make it a sequence. |
+| `sparse_array` | a marked array with a key that is not a positive integer, or with too many holes (highest index above twice the entries plus 16) | Keep the array dense; write `json.null` for a missing item. |
+| `integer_out_of_range` | an integer beyond +-2^53 with `canonical = "rfc8785"` | Send it as a string. |
+| `invalid_utf8` | a string or key that is not UTF-8 | Re-encode it as UTF-8. |
+| `depth_limit`, `size_limit` | nesting (or a cycle) beyond `max_depth`, output beyond `max_size` | Raise the option if the input is trusted; break the cycle. |
 
 ## Native modules
 
@@ -101,8 +116,8 @@ git history keeps the one that existed). It runs on two native modules, both **r
 platform; a module that is not built raises a `JsonError` that names the command
 `lua tools/run.lua build-native json` (needs a C compiler with the Lua headers, `LUA_INC` names the include
 directory, and a Rust toolchain, pinned in `native/rust-toolchain.toml`), and a module that is present but fails to
-load raises its own error. `luarocks make` builds the decoder; the binary rocks of both modules come with the
-release automation (ADR 0021). The modules are looked up on first use, never when `hecate.json` is required, and the
+load raises its own error. The rockspec does not build the modules yet: `luarocks make` installs the Lua files only, and
+the binary rocks of both modules come with the release automation (Phase 3, OQ-46, ADR 0021). The modules are looked up on first use, never when `hecate.json` is required, and the
 seam between them and the public module is `hecate.json.internal.backend`.
 
 **Decoder**, `hecate.json.native` (`csrc/native.c`, vendored yyjson in `csrc/vendor`): builds the value model (the

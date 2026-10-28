@@ -34,6 +34,7 @@ function TcpListener:close() self._inner:close() end
 --- Closes at the end of a `<close>` scope.
 function TcpListener:__close() self._inner:close() end
 
+--- Returns whether the listener is closed.
 ---@return boolean
 function TcpListener:is_closed() return self._inner:is_closed() end
 

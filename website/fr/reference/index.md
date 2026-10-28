@@ -4,7 +4,7 @@ description: La référence de hecate : la référence de code générée de ch
 hecate: "0.x"
 lua: "5.5"
 order: 0
-source_revision: cba7be6
+source_revision: 258a819
 ---
 
 # Référence
@@ -18,5 +18,6 @@ chaque paquet documenté.
 - [`hecate.net`](net/index.md) : flux, TCP, UDP, tubes, résolution de noms, TLS et couche
   tamponnée.
 - [`hecate.json`](json/index.md) : encodage, décodage, marqueurs et erreurs.
+- [`hecate.log`](log/index.md) : enregistrements structurés, gravités de la RFC 5424, contexte et puits.
 
 Le [glossaire](glossary.md) définit le vocabulaire utilisé partout.

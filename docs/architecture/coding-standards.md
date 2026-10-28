@@ -99,8 +99,9 @@ Decided in [ADR 0018](../adr/0018-error-signalling.md).
 - Every public class, function, method and field carries LuaLS annotations
   (`---@class`, `---@param`, `---@return`, `---@field`, `---@async` for functions that
   may suspend).
-- `---@async` is **mandatory** on every function that can suspend. A test checks that
-  documented suspension matches behaviour (see testing.md).
+- `---@async` is **mandatory** on every function that can suspend. A test
+  (`packages/reactor/tests/unit/suspension_test.lua`) checks that documented suspension matches
+  behaviour (see testing.md).
 - First line of a doc comment: one sentence in the indicative mood ("Returns ...").
 
 ### Annotations for the reference

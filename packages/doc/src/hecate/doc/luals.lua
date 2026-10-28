@@ -8,6 +8,8 @@ global <const> require, io, os, package, math, string, table, error, tostring, t
 local core = require("hecate.core")
 local errors = require("hecate.doc.errors")
 
+--- Access to the LuaLS documentation export.
+---@class hecate.doc.luals
 local M = {}
 
 --- The LuaLS version whose export format the generator and its fixtures are written for.
@@ -73,7 +75,7 @@ function M.export(executable, source, options)
   fs:remove_tree(directory)
   if not ok or not export then
     error(errors.BuildError({
-      message = ("lua-language-server could not export the documentation of %s: %s"):format(source,
+      message = ("doc.luals.export: lua-language-server could not export the documentation of %s: %s"):format(source,
         output:gsub("%s+$", "")),
       context = { path = source },
     }), 0)

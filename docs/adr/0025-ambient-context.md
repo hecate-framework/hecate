@@ -5,7 +5,7 @@
 - **Deciders:** project owner (shape agreed on 2026-10-22, accepted in the review of #29)
 - **Packages:** reactor, log, kernel
 - **Amended:** 2026-10-25, owner decision (OQ-56): `local` is a reserved word of Lua, so the pair `with_local`/`local` became `with_ambient`/`ambient`.
-- **Related:** [concurrency.md](../architecture/concurrency.md) ("Scopes"), OQ-55, ADR 0002
+- **Related:** [concurrency.md](../architecture/concurrency.md) ("Ambient context"), OQ-55, ADR 0002
 
 ## Context
 

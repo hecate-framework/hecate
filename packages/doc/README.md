@@ -8,7 +8,7 @@
 | Rock | `hecate-doc` |
 | Layer | Tooling |
 | Roadmap phase | 3 |
-| Status | alpha — minimal slice done (Phase 1 roadmap item), package still in progress for Phase 3: Markdown rendering and highlighting by the native module (comrak, syntect), site model (locales with fallback, sidebar, previous/next), original theme on the brand kit, search index, `build` and the LuaLS code reference (reference generator, `gen-reference`) implemented; OpenAPI reference, versioned documentation, development server, runnable examples, `hecate doc build` for user projects and the prebuilt binary rocks of the native module pending (Phase 3) |
+| Status | alpha — minimal slice done (Phase 1 roadmap item); the roadmap phase stays 3 because the package is still in progress for it: Markdown rendering and highlighting by the native module (comrak, syntect), site model (locales with fallback, sidebar, previous/next), original theme on the brand kit, search index, `build` and the LuaLS code reference (reference generator, `gen-reference`) implemented; OpenAPI reference, versioned documentation, development server, runnable examples, `hecate doc build` for user projects and the prebuilt binary rocks of the native module pending (Phase 3) |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |
 | Depends on | [`core`](../core), [`reactor`](../reactor), [`openapi`](../openapi), [`schema`](../schema), [`json`](../json) |
 | Used by | `cli` |
@@ -46,8 +46,8 @@ All names are fields of `require "hecate.doc"`. Direction recorded by the owner 
 (ADR 0012, Accepted): `hecate.doc` is our own static site generator with a
 VitePress-like presentation and the Hecate brand kit. Same day, the owner asked for
 third-party dependencies wherever they save time (complete GFM, highlighting for many
-languages, no new JavaScript development tool); the first slice below has none, and the
-candidates are measured in [spike OQ-39](../../docs/spikes/OQ-39-doc-dependencies.md) and
+languages, no new JavaScript development tool); ADR 0022 (Accepted) lists them; the
+measurements are in [spike OQ-39](../../docs/spikes/OQ-39-doc-dependencies.md) and
 decided in [ADR 0022](../../docs/adr/0022-doc-dependencies.md).
 
 | Name | Description |
@@ -60,7 +60,7 @@ decided in [ADR 0022](../../docs/adr/0022-doc-dependencies.md).
 | `FileSystem` | Interface (`read`, `write`, `list`, `exists`, `remove_tree`) the builder reads and writes through. |
 | `MemoryFileSystem(files?)` | In-memory implementation (tests, embedders). |
 | `SystemFileSystem()` | Real file system over `hecate.reactor.fs`; every method suspends, so call it inside `reactor.run` (OQ-33). |
-| `BuildError` | `hecate.doc.BuildError` (a `core.Error`): malformed front matter, unreadable source, clashing URLs, `strict` problems. |
+| `BuildError` | `hecate.doc.BuildError` (a `core.Error`): malformed front matter, unreadable source, clashing URLs, `strict` problems, a file system failure (`SystemFileSystem`), a failed LuaLS export. |
 | `markdown.render(source, options?)` | Markdown to HTML (`html`, `title`, `headings`, `sections`, `links`); escaping is the default. |
 | `front_matter.parse(source, path?)` | Splits front matter (flat YAML subset) from the body. |
 | `highlight.render(language, code)` | Syntax highlighting by syntect (two-face syntaxes, `hl-` classes); an unknown language is escaped and left plain. |
@@ -133,7 +133,7 @@ search, locale switch, theme toggle and repository link, sidebar, "On this page"
 previous/next cards, edit link, last updated, callouts, responsive down to 390 px. Pages are
 readable without JavaScript. Vendored material: [THIRD_PARTY_NOTICES](../../THIRD_PARTY_NOTICES).
 
-### Limits of this first slice
+### Limits of the current implementation
 
 Not implemented: OpenAPI reference, error-code and configuration references, translations of generated pages keyed by symbol, `llms.txt`,
 versioned documentation, development server, runnable examples, translation status report,

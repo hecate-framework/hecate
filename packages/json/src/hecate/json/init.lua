@@ -116,7 +116,7 @@ end
 --- table marked with `json.array` and every object a table marked with `json.object`, so that an empty
 --- `[]` and an empty `{}` stay distinct and `encode` reproduces the text's value model.
 ---
---- Raises `hecate.json.DecodeError` (with `context.reason`, `offset`, `line` and `column`) when the text
+--- Raises `hecate.json.DecodeError` (with `context.reason`, and `offset`, `line` and `column` except for `duplicate_member_name`) when the text
 --- is not valid: trailing content, a byte order mark, invalid UTF-8, a lone surrogate escape, a
 --- duplicate member name, a number outside the float range, nesting deeper than `max_depth`, or a text
 --- longer than `max_size`.

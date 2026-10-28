@@ -20,6 +20,14 @@ function T:test_fork_returns_a_pending_future_that_completes()
   end)
 end
 
+function T:test_is_future_recognises_futures_only()
+  support.run_virtual(function()
+    self:assert_true(reactor.is_future(reactor.fork(function() end)))
+    self:assert_false(reactor.is_future({}))
+    self:assert_false(reactor.is_future(nil))
+  end)
+end
+
 function T:test_fork_passes_arguments()
   local result = support.run_virtual(function()
     return reactor.fork(function(a, b) return a + b end, 3, 4):value()

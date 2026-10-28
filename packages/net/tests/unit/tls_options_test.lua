@@ -61,7 +61,7 @@ function T:test_typos_are_rejected_and_the_valid_options_are_listed()
   contains(self, message, "client_ca_pem")
   message = argument_error(self, ENTRY_POINTS.connect_tls({ server_nam = "x" }))
   contains(self, message, "unknown option server_nam")
-  contains(self, message, "handshake_deadline")
+  contains(self, message, "handshake_timeout")
 end
 
 function T:test_a_client_option_given_to_a_server_says_which_kind_it_belongs_to()
@@ -132,16 +132,16 @@ function T:test_connect_tls_validates_host_and_port()
   contains(self, argument_error(self, function() net.connect_tls("example.org", 70000) end), "connect_tls")
 end
 
-function T:test_handshake_deadline_must_be_a_positive_number()
+function T:test_handshake_timeout_must_be_a_positive_number()
   local stream = { read = function() end, write = function() end, close = function() end }
   for _, value in ipairs({ 0, -1, "5", true, math.huge, 0 / 0 }) do
-    local message = argument_error(self, ENTRY_POINTS.connect_tls({ handshake_deadline = value }))
-    contains(self, message, "handshake_deadline")
+    local message = argument_error(self, ENTRY_POINTS.connect_tls({ handshake_timeout = value }))
+    contains(self, message, "handshake_timeout")
     -- tls.connect and tls.accept take the same option (a userdata stands in for the configuration).
-    message = argument_error(self, function() net.tls.connect(stream, "localhost", io.stdout, { handshake_deadline = value }) end)
-    contains(self, message, "handshake_deadline")
+    message = argument_error(self, function() net.tls.connect(stream, "localhost", io.stdout, { handshake_timeout = value }) end)
+    contains(self, message, "handshake_timeout")
   end
-  contains(self, argument_error(self, function() net.tls.accept(stream, io.stdout, { handshake_deadline = 0 }) end), "handshake_deadline")
+  contains(self, argument_error(self, function() net.tls.accept(stream, io.stdout, { handshake_timeout = 0 }) end), "handshake_timeout")
 end
 
 function T:test_tls_connect_and_accept_reject_unknown_options_and_non_streams()

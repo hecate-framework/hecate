@@ -1,13 +1,13 @@
 # Benchmarks
 
 Performance is a product requirement (vision.md). Benchmarks run in CI
-(`benchmarks.yml`) and their history is published on the website.
+(`benchmarks.yml`) and their history will be published on the website (not yet).
 
 ## Scenarios
 
 | Scenario | Measures | Phase |
 |---|---|---|
-| `tcp-echo` | reactor + net overhead, 10 000 concurrent connections | 1 |
+| `tcp-echo` | reactor + net overhead, up to 10 000 concurrent connections (100 by default, 1 000 in the workflow) | 1 |
 | `accept-spread` | multi-process serving ([ADR 0023](../docs/adr/0023-multi-process-serving.md)): connections per second and spread over the workers, per listening strategy | 1 |
 | `plaintext` | HTTP/1.1 server, keep-alive, pipelining | 2 |
 | `json` | serialisation + routing + kernel | 2 |
@@ -19,7 +19,7 @@ Performance is a product requirement (vision.md). Benchmarks run in CI
 ## Method
 
 - Load generator: constant arrival rate, latency from the due time (coordinated-omission safe): the Lua generator of the repository for `tcp-echo`; `wrk2` or `oha` for the HTTP scenarios.
-- Report throughput, p50/p90/p99/p99.9 latency, memory, allocations per request.
+- Report throughput, p50/p90/p99/p99.9 latency and errors; memory and allocations per request are not measured yet.
 - Same hardware for comparisons; 3 runs minimum; variance reported.
 - Comparison targets (informative, separate job): FastAPI (uvicorn), Node.js (Fastify),
   Go (net/http), OpenResty.
@@ -89,7 +89,7 @@ and which prints measurement lines of the form `<label> <value> <unit>` (for exa
 
 ### Ubuntu 24.04 (reference platform)
 
-1. **Install the toolchain** once: `sh tools/bootstrap/bootstrap.sh` (Lua 5.5, `luarocks`), a C compiler, `cmake` and `cargo` and, for the network scenarios, a load generator (`wrk2` or `oha`)
+1. **Install the toolchain** once: `sh tools/bootstrap/bootstrap.sh` (Lua 5.5, `luarocks`), a C compiler and `cargo` and, for the network scenarios, a load generator (`wrk2` or `oha`)
    and a **second machine** if you have one (see "Load generator" below).
 2. **Build** a clean checkout of the commit to measure (record it, the host report does):
    `git clone`, `git checkout <commit>`, `lua tools/run.lua build-native json`.

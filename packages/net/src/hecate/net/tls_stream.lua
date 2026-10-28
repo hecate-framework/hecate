@@ -270,10 +270,14 @@ end
 --- time: concurrent writes run one after the other, each intact. A write that fails after the
 --- session accepted bytes (a cancellation included) closes the stream and the inner stream, since
 --- the bytes sent are unknown; one cancelled while waiting its turn changes nothing. Raises
---- `TransportError` (EBADF) on a closed stream and (EPIPE) after `shutdown`.
+--- `TransportError` (EBADF) on a closed stream and (EPIPE) after `shutdown`, and
+--- `hecate.core.ArgumentError` when `data` is not a string.
 ---@async
 ---@param data string
 function TlsStream:write(data)
+  if type(data) ~= "string" then
+    error(core.ArgumentError(("net.TlsStream.write: expects a string, got %s"):format(type(data))), 2)
+  end
   self:_check("write")
   local lock <close> = self._send:lock()
   self:_check("write") -- closed while waiting for the turn

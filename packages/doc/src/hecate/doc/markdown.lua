@@ -12,10 +12,12 @@ if not ok then
     .. " it needs a Rust toolchain, or install a prebuilt hecate-doc rock): " .. native, 0)
 end
 
+--- Markdown renderer (native module).
+---@class hecate.doc.markdown
 local M = {}
 
 ---@class hecate.doc.MarkdownOptions
----@field labels? table<string, string>  titles of the callouts: note, tip, warning, danger, important
+---@field labels? table<string, string>  titles of the callouts: note, tip, warning, danger (the title of a CAUTION alert), important
 ---@field resolve_link? fun(href: string): string  rewrites link destinations and image sources
 ---@field highlight? boolean  highlight fenced code (default true)
 ---@field strip_title? boolean  remove a leading level-1 heading and return its text as `title`

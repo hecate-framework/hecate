@@ -8,13 +8,13 @@
 | Rock | `hecate-core` |
 | Layer | 0 — Foundation |
 | Roadmap phase | 1 |
-| Status | alpha — implemented in Phase 1; API pending owner freeze (ADR 0007) |
+| Status | alpha — implemented in Phase 1; the declaration spelling is frozen (ADR 0007, owner decision of 2026-10-27) |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |
 | Depends on | none |
 | Used by | `cli`, `config`, `container`, `doc`, `hecate`, `http`, `json`, `kernel`, `log`, `migration`, `mongodb`, `mysql`, `net`, `openapi`, `orm`, `postgresql`, `query`, `reactor`, `redis`, `router`, `schema`, `security`, `sql`, `sqlite`, `sqlserver`, `template`, `test`, `websocket` |
 | Native code | none |
 | Specification | [object-model.md](../../docs/architecture/object-model.md) |
-| Decisions | [ADR 0001](../../docs/adr/0001-lua-5.5-as-sole-target.md), [ADR 0004](../../docs/adr/0004-academic-vocabulary.md), [ADR 0007](../../docs/adr/0007-object-model.md) |
+| Decisions | [ADR 0001](../../docs/adr/0001-lua-5.5-as-sole-target.md), [ADR 0004](../../docs/adr/0004-academic-vocabulary.md), [ADR 0007](../../docs/adr/0007-object-model.md), [ADR 0018](../../docs/adr/0018-error-signalling.md) |
 | Agent | [`pkg-core`](../../.claude/agents/pkg-core.md) |
 | Repository | read-only mirror `hecate-framework/hecate-core`, generated from this directory (ADR 0017) |
 
@@ -83,6 +83,6 @@ defines the member or one entry excludes it.
 ```text
 src/hecate/core/init.lua   public entry point (class, trait, interface, introspection,
                            error, value_class, enumeration, compat; internal/)
-tests/unit/  tests/integration/  tests/fixtures/
+tests/unit/
 examples/    benchmarks/dispatch.lua
 ```

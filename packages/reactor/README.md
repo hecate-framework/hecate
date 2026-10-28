@@ -1,20 +1,20 @@
 # `hecate-reactor`
 
-> The reactor over libuv (luv): coroutine scheduler, futures, structured concurrency, synchronisation primitives, timers, signals, processes, file system.
+> The reactor over libuv (luv): coroutine scheduler, futures, structured concurrency, synchronisation primitives, timers, signals, processes, file system, network transport (TCP, UDP, pipes, name resolution), ambient context.
 
 | | |
 |---|---|
 | Module | `hecate.reactor` |
 | Rock | `hecate-reactor` |
 | Layer | 1 — Runtime |
-| Roadmap phase | 1 |
+| Roadmap phase | 1 (the transport primitives of ADR 0023: phase 2) |
 | Status | alpha — scheduler, `Future`, `fork`/`join`/`select`/`sleep`/`scope`/`deadline`, cancellation and virtual clock, `Channel`, `Semaphore`, `Mutex`, `Monitor` and `Condition` implemented; `detach`, ambient context, signals, processes, file system, TCP, UDP and pipe transport and `resolve` implemented; `spawn`, `ipc` (framed messages with handle passing, over a message pipe) and the TCP `reuseport` option implemented (ADR 0023; effective only with a luv that supports it, OQ-43); `offload` pending |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |
 | Depends on | [`core`](../core) |
 | Used by | `cli`, `hecate`, `http`, `kernel`, `log`, `mongodb`, `mysql`, `net`, `orm`, `postgresql`, `redis`, `sql`, `sqlite`, `sqlserver`, `test`, `websocket` |
 | Native code | luv (libuv binding) |
 | Specification | [concurrency.md](../../docs/architecture/concurrency.md) |
-| Decisions | [ADR 0002](../../docs/adr/0002-libuv-via-luv.md), [ADR 0003](../../docs/adr/0003-transparent-structured-concurrency.md), [ADR 0004](../../docs/adr/0004-academic-vocabulary.md) |
+| Decisions | [ADR 0002](../../docs/adr/0002-libuv-via-luv.md), [ADR 0003](../../docs/adr/0003-transparent-structured-concurrency.md), [ADR 0004](../../docs/adr/0004-academic-vocabulary.md), [ADR 0023](../../docs/adr/0023-multi-process-serving.md), [ADR 0025](../../docs/adr/0025-ambient-context.md) |
 | Agent | [`pkg-reactor`](../../.claude/agents/pkg-reactor.md) |
 | Repository | read-only mirror `hecate-framework/hecate-reactor`, generated from this directory (ADR 0017) |
 
@@ -24,7 +24,7 @@
 - `fork`, `join`, `select`, `deadline`, `sleep`, `scope`, `detach`
 - `Future`, `Channel`, `Semaphore`, `Mutex`, `Monitor`, `Condition`
 - cooperative cancellation (`CancellationError`) and `DeadlineExceededError`
-- timers, signals, child processes, pipes, file-system operations and TCP transport (connect, listen, accept, read, write, shutdown) as suspending calls; TCP, UDP (`bind_udp`) and pipes (`connect_pipe`, `listen_pipe`) transport, and name resolution (`resolve`), all as suspending calls
+- timers, signals, child processes, file-system operations, TCP, UDP and pipe transport and name resolution (the calls that wait are suspending calls)
 - virtual clock for tests
 
 ## Non-goals
@@ -41,21 +41,25 @@
 
 ## Public API
 
-Implemented (steps 1 to 4, then TCP transport). Every function marked *suspends* is `---@async` and raises
+Implemented. Every function marked *suspends* is `---@async` and raises
 `NonYieldableContextError` outside a managed coroutine or inside a non-yieldable C boundary.
+`fork`, `detach`, `with_ambient` and `ambient` do not suspend (`with_ambient` only if its `fn` does): they need a managed
+coroutine and raise the same error otherwise, but carry no `---@async` tag. `tests/unit/suspension_test.lua` checks that
+the tags match what the functions do.
 
 | Name | Description |
 |---|---|
 | `reactor.run(fn, ...)` | Runs `fn` on a new real-clock reactor until it and everything it forked have finished. |
-| `reactor.Reactor({ clock = "real"\|"virtual", start = 0 })` | The scheduler; `:run(fn, ...)`, `:now()`, `:live_coroutines()`. The virtual clock jumps to the next timer when nothing is ready (deterministic tests). |
-| `reactor.fork(fn, ...)` | Managed coroutines only (raises otherwise). Starts `fn` in the current scope, returns a `Future`. |
+| `reactor.Reactor({ clock = "real"\|"virtual", start = 0 })` | The scheduler; `:run(fn, ...)`, `:now()`, `:live_coroutines()`, `:is_real()`; `Reactor.open_handles()` counts the open libuv handles (leak tests, task `leaks`). The virtual clock jumps to the next timer when nothing is ready (deterministic tests). |
+| `reactor.is_future(value)` | Whether `value` is a `Future`. |
+| `reactor.fork(fn, ...)` | Does not suspend; managed coroutines only (raises otherwise). Starts `fn` in the current scope, returns a `Future`. |
 | `reactor.join(f1, ...)` | *suspends*. Values in argument order; the first failure cancels the others and is raised. |
-| `reactor.select(f1, ...)` | *suspends*. Returns `index, value` of the first future to finish; cancels the others. |
+| `reactor.select(f1, ...)` | *suspends*. Returns `index, value` of the first future to finish; cancels the others. If several are already ready, the first in argument order wins (a priority order, not random). |
 | `reactor.sleep(seconds)` | *suspends*. `0` yields to the other ready coroutines. |
 | `reactor.scope(fn)` | *suspends*. Runs `fn(scope)`; returns only after every child has completed or been cancelled; raises the first failure. |
 | `reactor.deadline(seconds_or_instant, fn, ...)` | *suspends*. Cancels `fn` and raises `DeadlineExceededError` when late. |
-| `reactor.now()`, `reactor.at(seconds)` | Reading of the running clock; absolute `Instant` for `deadline` (OQ-22). |
-| `reactor.detach(fn, ...)` | *suspends*. Starts `fn` in the application scope; its failure is seen only through its future (OQ-26). |
+| `reactor.now()`, `reactor.at(seconds)`, `reactor.Instant` | Reading of the running clock; absolute `Instant` (a class) for `deadline` (OQ-22). |
+| `reactor.detach(fn, ...)` | Does not suspend; managed coroutines only (raises otherwise). Starts `fn` in the application scope; its failure is seen only through its future (OQ-26). |
 | `reactor.with_ambient(key, value, fn, ...)`, `reactor.ambient(key)` | Ambient context (ADR 0025): immutable bindings visible in `fn` and in computations forked or detached from it; `ambient` is also `reactor.ambient`. Managed coroutines only. |
 | `reactor.fs` | *suspend*: `read_file(path)`, `write_file(path, data)`, `stat(path)` (nil if absent), `remove`, `mkdir`, `rmdir`, `list(path)`. Real clock only; failures raise `reactor.IoError` (`context.errno`). |
 | `reactor.wait_signal(name, ...)` | *suspends*. Returns the name of the first signal delivered (`"sigint"`, `"sigterm"`, ...). |
@@ -67,15 +71,18 @@ Implemented (steps 1 to 4, then TCP transport). Every function marked *suspends*
 | `reactor.connect_tcp(host, port, options?)` | *suspends*. Connects to a numeric address (no name resolution, OQ-30); returns a `TcpStream`. Bound it with `deadline`; cancellation abandons the attempt and closes its handle. Options: `nodelay` (default `true`), `keepalive` (default `false`), `keepalive_delay` (a positive integer number of seconds, default 60). |
 | `reactor.listen_tcp(host, port, options?)` | Binds and listens (port 0 picks a free port); returns a `TcpListener`. Options as above plus `backlog` (default 128); accepted streams inherit `nodelay` and `keepalive`. |
 | `TcpStream` | `:read(max?)` (*suspends*) returns at most `max` bytes, nil at end of stream, never an empty string; cancelling keeps the stream open and loses no data. `:write(data)` (*suspends*) returns once the bytes were handed to the system (back-pressure); a cancelled write closes the stream. `:shutdown()` (*suspends*) half-closes; `:close()` is idempotent and never suspends, `local s <close> = ...` closes on scope exit; `:is_closed()`, `:peer_address()`, `:local_address()` (`{ ip, port, family }`), `:set_nodelay(bool)`, `:set_keepalive(bool, delay?)`. Failures raise `TransportError` (a `core.NetworkError`) (`context.errno`: libuv name; `EBADF` after close, `ECANCELED` when closed while waiting). Once read, the stream reads ahead of its reader by up to 64 KiB, then stops reading from the socket until the reader caught up (back-pressure). |
-| `TcpListener` | `:accept()` (*suspends*) returns a `TcpStream`; cancelling keeps the listener and queued connections; a connection whose peer already reset it (`EINVAL`, `ENOTCONN`, `ECONNRESET` while applying the options, seen on BSD and macOS) is closed and skipped. `:close()`, `:is_closed()`, `:local_address()`; `<close>`-able. Connections are not guaranteed to be accepted in arrival order (libuv on Windows hands pending ones out last-in first-out). |
+| `TcpListener` | `:accept()` (*suspends*) returns a `TcpStream`; cancelling keeps the listener and queued connections; a connection whose peer already reset it (`EINVAL`, `ENOTCONN`, `ECONNRESET`, `ECONNABORTED` while applying the options, seen on BSD and macOS) is closed and skipped. `:close()`, `:is_closed()`, `:local_address()`; `<close>`-able. Connections are not guaranteed to be accepted in arrival order (libuv on Windows hands pending ones out last-in first-out). |
+| `reactor.bind_udp(host, port)` | Binds a `UdpSocket` (port 0 picks a free port; numeric addresses only). `:send_to(host, port, data)` (*suspends*; a send cancelled before it completed closes the socket), `:receive_from()` (*suspends*; returns `data, from`; cancelling keeps the socket and loses no datagram; one coroutine receives at a time, a second one raises), `:local_address()`, `:close()`, `:is_closed()`, `<close>`. Failures raise `TransportError`. |
 | `reactor.connect_pipe(path)`, `reactor.listen_pipe(path, options?)` | `connect_pipe` *suspends*. Unix-domain sockets (named pipes on Windows); `PipeStream` and `PipeListener` behave like their TCP counterparts (`:path()` too). `listen_pipe` options: `backlog` (positive integer, default 128, ignored on Windows) and `mode`: `"owner"` (default, the socket file is restricted to its owner), `"readable"`, `"writable"` or `"readwrite"` (open to every user with that access); `mode` has no effect on Windows. The path must not exist (`EADDRINUSE`); the socket path is limited to at most 107 bytes (103 on macOS), excluding the terminating NUL, a Windows pipe name to 256 characters. |
 | `Future` | `:value()` (*suspends*), `:cancel()`, `:done()`, `:state()` (`pending`, `completed`, `failed`, `cancelled`). |
-| `Scope` | `:fork(fn, ...)`, `:cancel()`, `:is_cancelled()`, `:live()`. |
-| `reactor.Channel(capacity)` | `:send(v)`, `:receive()` (*suspend*), `:close()`, `:is_closed()`, `:length()`, `:capacity()`; capacity 0 is a rendezvous channel. Receivers drain the buffer of a closed channel, then `ClosedChannelError` is raised; sends on a closed channel raise it too. `:receive_op()` and `:send_op(v)` build operations for `select`. |
+| `Scope` | `:fork(fn, ...)`, `:cancel(err?)` (the optional error is what the children are cancelled with), `:is_cancelled()`, `:live()`. |
+| `reactor.Channel(capacity)` | `:send(v)`, `:receive()` (*suspend*), `:close()` (returns whether this call closed it), `:is_closed()`, `:length()`, `:capacity()`; capacity 0 is a rendezvous channel. Receivers drain the buffer of a closed channel, then `ClosedChannelError` is raised; sends on a closed channel raise it too. `:receive_op()` and `:send_op(v)` build operations for `select`. |
 | `reactor.Semaphore(n)` | `:acquire()` (*suspends*) returns a `Permit`; `:try_acquire()`, `:release()` (adds a unit), `:available()`, `:waiting()`. FIFO, no barging. |
 | `reactor.Mutex()` | `:lock()` (*suspends*) returns a `Permit`; `:try_lock()`, `:is_locked()`, `:waiting()`. |
-| `reactor.Monitor()`, `reactor.Condition` | `monitor:enter()` (*suspends*) returns a `Permit`; `monitor:condition()` creates a `Condition`; `condition:wait()` (*suspends*), `:signal()`, `:broadcast()`, `:waiting()`. Mesa semantics: test the predicate in a loop (OQ-25). |
+| `reactor.Monitor()`, `reactor.Condition` | `monitor:enter()` (*suspends*) returns a `Permit`; `monitor:is_entered()`; `monitor:condition()` creates a `Condition`; `condition:wait()` (*suspends*), `:notify()`, `:broadcast()`, `:waiting()`. Mesa semantics: test the predicate in a loop (OQ-25). |
 | `Permit` | `:release()` (idempotent), `:is_held()`; closing it releases it: `local permit <close> = mutex:lock()`. |
+
+`TcpStream`, `TcpListener`, `UdpSocket`, `PipeStream`, `PipeListener`, `Process`, `Future`, `Scope` and `Permit` are returned by the calls above and are not constructed by users (their `init` is private). Constructors meant for users: `Reactor`, `Channel`, `Semaphore`, `Mutex`, `Monitor` and `Peer(handle, options)`.
 
 Terms: the framed parent/child connection of `spawn` is a *message pipe* (not a channel: `reactor.Channel` is the in-process rendezvous of coroutines).
 

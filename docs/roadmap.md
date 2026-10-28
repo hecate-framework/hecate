@@ -92,7 +92,7 @@ Exit: CI is green on all three platforms with a trivial test in every package sk
       strict link check), `website.yml` builds it on pull requests and deploys it to GitHub
       Pages from `main` (Settings > Pages > Source = GitHub Actions), hand-written how-to
       guides and explanations for `net` and the `reactor` primitives, the public glossary,
-      the French translation of those pages (13 pages; terminology in
+      the French translation of those pages (16 pages; terminology in
       `website/fr/glossary-terms.md`), and `check-docs-examples` (code blocks equal their
       tested example files). Still to come, in their own items: tutorials and the other
       packages' guides as the packages land, the translation status check, `hecate doc` for
@@ -124,7 +124,7 @@ Exit: CI is green on all three platforms with a trivial test in every package sk
       cancellation and the virtual clock; then give `log` a default context provider and a test
       that a record logged by a forked computation carries the bound context. Needed before
       `kernel` binds the request id.
-- [x] Benchmarks harness and first scenario (TCP echo); `benchmarks.yml`. Delivered: `benchmarks/scenarios/tcp-echo`, `benchmarks/run.lua`, `benchmarks/compare.lua`, `bench <scenario> [--compare=ref]`. The Lua load generator replaces `wrk2`/`oha` (no dependency); Micro-benchmarks added for `net` (`read-until`, `buffered-writer`, `tls-throughput`) and `reactor` (`scheduler`). The baseline numbers are measured by the owner on dedicated hardware, and the Phase 1 exit criterion "10 000 concurrent connections on each platform" is verified on Linux and macOS by the scenario; the ADR 0023 accept-spread scenario is the follow-up below (Windows is not a benchmark target, see the vision).
+- [x] Benchmarks harness and first scenario (TCP echo); `benchmarks.yml`. Delivered: `benchmarks/scenarios/tcp-echo`, `benchmarks/run.lua`, `benchmarks/compare.lua`, `bench <scenario> [--compare=ref]`. The Lua load generator replaces `wrk2`/`oha` (no dependency); Micro-benchmarks added for `net` (`read-until`, `buffered-writer`, `tls-throughput`) and `reactor` (`scheduler`). The baseline numbers are measured by the owner on dedicated hardware, and the Phase 1 exit criterion (10 000 concurrent connections on Linux and macOS) is verified on Linux and macOS by the scenario; the ADR 0023 accept-spread scenario is the follow-up below (Windows is not a benchmark target, see the vision).
 - [x] Benchmarks follow-up: add the multi-process accept-spread scenario of [ADR 0023](adr/0023-multi-process-serving.md) (connections per second and worker spread per strategy), and publish the first baseline measured by the owner. Delivered: `benchmarks/scenarios/accept-spread` (`round_robin`; `reuseport` reported as skipped until OQ-43); baseline measured by the owner on 2026-10-27 at `c75e403` (Ubuntu 24.04 virtual machine on an Intel Core Ultra 7 155H, `round_robin` with 8 workers, 5 000 connections/s for 20 s, 3 invocations of 5 rounds: about 4 980 connections/s, 0 errors, spread 1.00, latency p50 about 1.1 ms and p99 about 185 ms; host noise 1.056 to 1.071, slightly above the 1.05 target), details in the comment on pull request #40; `reuseport` has no baseline until OQ-43. Windows is **not** a benchmark target (owner decision, 2026-10-25: Linux is the only production target, [vision](vision.md)): the network scenarios run on Linux and macOS, and the runner keeps its POSIX shell, `taskset` and `kill`.
 - [x] Pin every third-party action of the existing workflows by commit SHA (owner request,
       2026-10-18; [automation.md](architecture/automation.md)); Dependabot keeps them current.
@@ -134,6 +134,8 @@ Exit: CI is green on all three platforms with a trivial test in every package sk
 - [x] `json` follow-up: libFuzzer C targets for the native code of `json`
       (`csrc/native.c`), run by the `fuzz` task and `nightly.yml` (coding-standards.md;
       the `sanitize` task already covers its ASan and UBSan build).
+- [ ] `reactor` follow-up (owner decisions of 2026-10-27, OQ-23, OQ-26): `reactor.shield(fn)` with its own deadline, so that cleanup can suspend while its scope is cancelled and a stuck peer cannot block shutdown (then `BufferedWriter:close` flushes, OQ-29); an `on_unobserved_failure` hook for failed detached computations, which `kernel` binds to `log`; `core.IoError` as a base class that `reactor.IoError` extends (`TransportError` stays a sibling).
+- [ ] `net` follow-up (owner decisions of 2026-10-27, OQ-47): create a Unix socket inside a `0700` directory (or equivalent) instead of binding then calling `chmod`; `net.listen` binds every resolved address (supersedes OQ-32 point 3); a CRL option for client certificates, and the limit documented until then; separate handshake defaults (10 seconds for `tls.connect` and `connect_tls`, 60 seconds for `tls.accept`, both editable); keep `max_message` editable; a benchmark of the `BufferedWriter` capacity against the 4 KiB default of Go's `bufio` and other frameworks. Also Happy Eyeballs (RFC 8305) in `net.connect` (OQ-32 (2), owner decision of 2026-10-27): the next address is tried after about 250 ms in parallel, the first success wins and the others are cancelled.
 - [ ] **Phase 1 gate**: verification of the phase, as described in [Phase gates](#phase-gates). Open
       questions to put to the owner before Phase 2: OQ-50, OQ-47, OQ-23, OQ-24, OQ-26 (1) and OQ-22.
 
@@ -173,8 +175,8 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       (resolved 2026-10-13: [report](spikes/OQ-11-doc-tooling.md), [ADR 0012](adr/0012-website-generator.md)).
 
 - [ ] **Phase 2 gate**: verification of the phase, as described in [Phase gates](#phase-gates). Open
-      questions to put to the owner before Phase 3: OQ-46, OQ-13, OQ-17, OQ-38 and the housekeeping of
-      OQ-33 to OQ-36 and OQ-40.
+      questions to put to the owner before Phase 3: OQ-46, OQ-13, OQ-17, OQ-38 and OQ-64
+      (OQ-33, OQ-35, OQ-36 and OQ-40 were resolved at the Phase 1 gate).
 
 ## Phase 3 — Contracts and tooling → `0.1.0`
 

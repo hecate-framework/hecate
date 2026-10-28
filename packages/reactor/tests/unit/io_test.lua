@@ -45,6 +45,7 @@ function T:test_fs_missing_file_raises_io_error()
   self:assert_true(core.is_instance_of(err, reactor.IoError))
   self:assert_false(core.is_instance_of(err, core.NetworkError)) -- fs and process failures stay IoError
   self:assert_equal("ENOENT", err.context.errno)
+  self:assert_equal("reactor.fs.read_file: ", err.message:sub(1, 22)) -- the call as the caller wrote it
 end
 
 function T:test_fs_list_directory()

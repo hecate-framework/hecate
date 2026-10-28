@@ -1,4 +1,4 @@
--- TLS configuration and the connect path: handshake deadline, default configuration cache,
+-- TLS configuration and the connect path: handshake timeout, default configuration cache,
 -- validation order and the unknown-issuer hint. Needs the native module (see tls_test.lua).
 ---@diagnostic disable: assign-type-mismatch  -- the tests pass invalid options on purpose
 local test = require("harness.test")
@@ -59,7 +59,7 @@ local function silent_peer(listener, release)
   end)
 end
 
-function T:test_a_stalled_handshake_expires_after_handshake_deadline_and_closes_the_stream()
+function T:test_a_stalled_handshake_expires_after_handshake_timeout_and_closes_the_stream()
   run(self, function()
     local listener <close> = net.listen("127.0.0.1", 0)
     local port = listener:local_address().port
@@ -67,7 +67,7 @@ function T:test_a_stalled_handshake_expires_after_handshake_deadline_and_closes_
     local peer = silent_peer(listener, release)
     local started = reactor.now()
     local err = self:assert_error(function()
-      net.connect_tls("127.0.0.1", port, { system_roots = false, ca_pem = CA, server_name = "localhost", handshake_deadline = 0.05 })
+      net.connect_tls("127.0.0.1", port, { system_roots = false, ca_pem = CA, server_name = "localhost", handshake_timeout = 0.05 })
     end)
     self:assert_true(core.is_instance_of(err, core.DeadlineExceededError), tostring(err))
     self:assert_true(reactor.now() - started < 5, "the default of 10 s must not apply")
@@ -76,7 +76,7 @@ function T:test_a_stalled_handshake_expires_after_handshake_deadline_and_closes_
   end) -- run() asserts that no libuv handle is left: the inner stream was closed
 end
 
-function T:test_tls_connect_and_accept_take_handshake_deadline()
+function T:test_tls_connect_and_accept_take_handshake_timeout()
   run(self, function()
     local listener <close> = net.listen("127.0.0.1", 0)
     local port = listener:local_address().port
@@ -84,7 +84,7 @@ function T:test_tls_connect_and_accept_take_handshake_deadline()
     local peer = silent_peer(listener, release)
     local config = net.tls.client_config({ system_roots = false, ca_pem = CA })
     local raw = net.connect("127.0.0.1", port)
-    local err = self:assert_error(function() net.tls.connect(raw, "localhost", config, { handshake_deadline = 0.05 }) end)
+    local err = self:assert_error(function() net.tls.connect(raw, "localhost", config, { handshake_timeout = 0.05 }) end)
     self:assert_true(core.is_instance_of(err, core.DeadlineExceededError), tostring(err))
     self:assert_true(raw:is_closed())
     release:send(true)
@@ -95,7 +95,7 @@ function T:test_tls_connect_and_accept_take_handshake_deadline()
     local listener2 <close> = net.listen("127.0.0.1", 0)
     local mute2 <close> = net.connect("127.0.0.1", listener2:local_address().port)
     local accepted = listener2:accept()
-    err = self:assert_error(function() net.tls.accept(accepted, server_config, { handshake_deadline = 0.05 }) end)
+    err = self:assert_error(function() net.tls.accept(accepted, server_config, { handshake_timeout = 0.05 }) end)
     self:assert_true(core.is_instance_of(err, core.DeadlineExceededError), tostring(err))
     self:assert_true(accepted:is_closed())
   end)
@@ -106,13 +106,23 @@ function T:test_a_handshake_that_finishes_in_time_is_unaffected_by_the_deadline(
     local listener <close> = net.listen("127.0.0.1", 0)
     local port = listener:local_address().port
     local served = reactor.fork(function()
-      local tls <close> = net.tls.accept(listener:accept(), net.tls.server_config({ cert_pem = SERVER_CERT, key_pem = SERVER_KEY }), { handshake_deadline = 5 })
+      local tls <close> = net.tls.accept(listener:accept(), net.tls.server_config({ cert_pem = SERVER_CERT, key_pem = SERVER_KEY }), { handshake_timeout = 5 })
       tls:write("ok")
       tls:shutdown()
     end)
-    local client <close> = net.connect_tls("127.0.0.1", port, { system_roots = false, ca_pem = CA, server_name = "localhost", handshake_deadline = 5 })
+    local client <close> = net.connect_tls("127.0.0.1", port, { system_roots = false, ca_pem = CA, server_name = "localhost", handshake_timeout = 5 })
     self:assert_equal("ok", client:read())
     served:value()
+  end)
+end
+
+function T:test_a_connection_failure_names_connect_tls()
+  run(self, function()
+    local listener = net.listen("127.0.0.1", 0)
+    local port = listener:local_address().port
+    listener:close()
+    local err = self:assert_error(function() net.connect_tls("127.0.0.1", port, { system_roots = false }) end)
+    self:assert_equal("net.connect_tls: ", tostring(err.message):sub(1, 17), tostring(err))
   end)
 end
 
@@ -134,7 +144,7 @@ function T:test_the_default_client_configuration_is_built_once_per_alpn_list()
     local port = listener:local_address().port
     local release = reactor.Channel(1)
     local function attempt(options)
-      options.handshake_deadline = 0.02
+      options.handshake_timeout = 0.02
       options.server_name = "localhost"
       local peer = silent_peer(listener, release)
       local err = self:assert_error(function() net.connect_tls("127.0.0.1", port, options) end)
@@ -168,7 +178,7 @@ function T:test_a_prebuilt_configuration_is_reused_without_building()
       for _ = 1, 2 do
         local peer = silent_peer(listener, release)
         local err = self:assert_error(function()
-          net.connect_tls("127.0.0.1", listener:local_address().port, { tls_config = config, server_name = "localhost", handshake_deadline = 0.02 })
+          net.connect_tls("127.0.0.1", listener:local_address().port, { tls_config = config, server_name = "localhost", handshake_timeout = 0.02 })
         end)
         self:assert_true(core.is_instance_of(err, core.DeadlineExceededError), tostring(err))
         release:send(true)

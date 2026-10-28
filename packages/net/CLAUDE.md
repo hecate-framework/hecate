@@ -9,9 +9,9 @@ TCP/UDP streams, DNS resolution, buffered readers/writers and TLS, all suspendin
 
 ## Read before changing anything
 
-- Specification: `docs/architecture/concurrency.md`
+- Specification: `docs/architecture/networking.md` (transport primitives: `docs/architecture/concurrency.md`)
 - Decisions: `docs/adr/0002-libuv-via-luv.md`, `docs/adr/0003-transparent-structured-concurrency.md`,
-  `docs/adr/0021-rust-native-modules.md`; open questions OQ-28, OQ-30, OQ-31, OQ-32, OQ-41, OQ-42
+  `docs/adr/0021-rust-native-modules.md`, `docs/adr/0024-tls-trust-store.md`; open questions OQ-28, OQ-30, OQ-31, OQ-32, OQ-41, OQ-42
 - Glossary: `docs/glossary.md` · Coding standards: `docs/architecture/coding-standards.md`
 - This package's `README.md` (scope, dependencies, status)
 
@@ -49,7 +49,6 @@ Plus, for every change: unit tests for public behaviour, LuaLS annotations on pu
 - `UdpSocket:send_to` takes a numeric address only (a name raises `ArgumentError` pointing to `net.resolve`)
 - tests may require `luv` to spy on handles; `src` never may (`check-boundaries`)
 - the unit tests wrap `reactor.resolve` and `reactor.connect_tcp` to script multi-address connects: restore them in every path
-
 - Windows socket error codes differ
 - Nagle and keep-alive defaults
 - certificate stores differ per platform: the default path goes through the operating system's verifier (ADR 0024), hermetic tests use `system_roots = false`

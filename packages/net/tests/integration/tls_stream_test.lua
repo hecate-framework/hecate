@@ -422,6 +422,23 @@ function T:test_read_validates_its_argument_like_a_tcp_stream()
   end)
 end
 
+function T:test_write_rejects_a_non_string_argument()
+  run(self, function()
+    local listener <close> = net.listen("127.0.0.1", 0)
+    local outcome = serve(listener, { serve = function(tls) tls:read() end })
+    local client <close> = dial(listener:local_address().port)
+    for _, bad in ipairs({ 42, true, {} }) do
+      ---@diagnostic disable-next-line: param-type-mismatch  -- the argument is invalid on purpose
+      local err = self:assert_error(function() client:write(bad) end)
+      self:assert_true(core.is_instance_of(err, core.ArgumentError), tostring(err))
+      self:assert_true(tostring(err):find("net.TlsStream.write: expects a string", 1, true) ~= nil, tostring(err))
+    end
+    self:assert_false(client:is_closed()) -- a bad argument does not poison the stream
+    client:close()
+    outcome.future:value()
+  end)
+end
+
 function T:test_addresses_and_the_requested_server_name_are_exposed()
   run(self, function()
     local listener <close> = net.listen("127.0.0.1", 0)

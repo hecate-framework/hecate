@@ -22,7 +22,7 @@ function T:test_enter_raises_outside_a_managed_coroutine()
   self:assert_true(core.is_instance_of(err, core.NonYieldableContextError))
 end
 
-function T:test_wait_signal_hands_the_monitor_over_and_back()
+function T:test_wait_notify_hands_the_monitor_over_and_back()
   local log = {}
   support.run_virtual(function()
     local monitor = reactor.Monitor()
@@ -37,15 +37,15 @@ function T:test_wait_signal_hands_the_monitor_over_and_back()
     do
       local permit <close> = monitor:enter() -- possible: the waiter left the monitor
       flag = true
-      ready:signal()
-      log[#log + 1] = "signalled"
+      ready:notify()
+      log[#log + 1] = "notified"
     end
     waiter:value()
   end)
-  self:assert_equal("signalled,woke@2", table.concat(log, ","))
+  self:assert_equal("notified,woke@2", table.concat(log, ","))
 end
 
-function T:test_signal_wakes_one_waiter_in_arrival_order_and_broadcast_wakes_all()
+function T:test_notify_wakes_one_waiter_in_arrival_order_and_broadcast_wakes_all()
   local log = {}
   support.run_virtual(function()
     local monitor = reactor.Monitor()
@@ -64,7 +64,7 @@ function T:test_signal_wakes_one_waiter_in_arrival_order_and_broadcast_wakes_all
     do
       local permit <close> = monitor:enter()
       tokens = 1
-      condition:signal()
+      condition:notify()
     end
     reactor.sleep(1)
     self:assert_equal("a", table.concat(log, ","))
@@ -77,24 +77,24 @@ function T:test_signal_wakes_one_waiter_in_arrival_order_and_broadcast_wakes_all
   self:assert_equal("a,b,c", table.concat(log, ","))
 end
 
-function T:test_signal_without_waiters_is_lost()
+function T:test_notify_without_waiters_is_lost()
   support.run_virtual(function()
     local monitor = reactor.Monitor()
     local condition = monitor:condition()
     local permit <close> = monitor:enter()
-    condition:signal()
+    condition:notify()
     condition:broadcast()
     self:assert_equal(0, condition:waiting())
   end)
 end
 
-function T:test_wait_signal_and_broadcast_require_the_monitor()
+function T:test_wait_notify_and_broadcast_require_the_monitor()
   support.run_virtual(function()
     local monitor = reactor.Monitor()
     local condition = monitor:condition()
     for _, operation in ipairs({
       function() condition:wait() end,
-      function() condition:signal() end,
+      function() condition:notify() end,
       function() condition:broadcast() end,
     }) do
       local err = self:assert_error(operation)
@@ -105,7 +105,7 @@ function T:test_wait_signal_and_broadcast_require_the_monitor()
       reactor.sleep(1)
     end)
     reactor.sleep(0)
-    local err = self:assert_error(function() condition:signal() end) -- occupied by another coroutine
+    local err = self:assert_error(function() condition:notify() end) -- occupied by another coroutine
     self:assert_true(core.is_instance_of(err, core.ArgumentError))
     other:value()
   end)
@@ -149,7 +149,7 @@ function T:test_cancelled_wait_reenters_the_monitor_before_raising()
   self:assert_equal(3, entered_by_other)
 end
 
-function T:test_cancelled_waiter_does_not_swallow_a_signal()
+function T:test_cancelled_waiter_does_not_swallow_a_notification()
   local woken
   support.run_virtual(function()
     local monitor = reactor.Monitor()
@@ -168,14 +168,14 @@ function T:test_cancelled_waiter_does_not_swallow_a_signal()
     first:cancel()
     do
       local permit <close> = monitor:enter()
-      condition:signal() -- first in the queue is cancelled: the signal must reach the second
+      condition:notify() -- first in the queue is cancelled: the notification must reach the second
     end
     second:value()
   end)
   self:assert_true(woken)
 end
 
-function T:test_a_waiter_nobody_signals_is_a_deadlock()
+function T:test_a_waiter_nobody_notifies_is_a_deadlock()
   local err = self:assert_error(function()
     support.run_virtual(function()
       local monitor = reactor.Monitor()
@@ -198,7 +198,7 @@ function T:test_bounded_buffer_built_from_a_monitor()
           local permit <close> = monitor:enter()
           while #items == limit do not_full:wait() end
           items[#items + 1] = i
-          not_empty:signal()
+          not_empty:notify()
         end
       end)
       scope:fork(function()
@@ -206,7 +206,7 @@ function T:test_bounded_buffer_built_from_a_monitor()
           local permit <close> = monitor:enter()
           while #items == 0 do not_empty:wait() end
           consumed[#consumed + 1] = table.remove(items, 1)
-          not_full:signal()
+          not_full:notify()
         end
       end)
     end)

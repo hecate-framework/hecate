@@ -57,7 +57,7 @@ function Site:init(options)
 end
 
 local function fail(message, path)
-  error(errors.BuildError({ message = message, context = { path = path } }), 0)
+  error(errors.BuildError({ message = "doc.Site: " .. message, context = { path = path } }), 0)
 end
 
 local function note(self, message)
@@ -70,7 +70,7 @@ end
 local function read_required(self, path)
   local text = self._fs:read(path)
   if text == nil then
-    error(errors.BuildError({ message = "cannot read " .. path, context = { path = path } }), 0)
+    error(errors.BuildError({ message = "doc.Site: cannot read " .. path, context = { path = path } }), 0)
   end
   return text
 end
@@ -411,7 +411,10 @@ local function render_page(self, page)
       local text, target, kind = fields[1], fields[2], fields[3]
       if text and target and target ~= "" then
         local url = target
-        if not target:find("^%a[%w+.%-]*:") then
+        if html.is_safe_url(target) == false then
+          url = nil
+          note(self, ("%s: action link with an unsafe URL scheme %s dropped"):format(page.relative_path, target))
+        elseif not target:find("^%a[%w+.%-]*:") then
           local id = target:gsub("/+$", "")
           if self._pages[page.locale][id] then
             url = self._pages[page.locale][id].url
@@ -421,7 +424,7 @@ local function render_page(self, page)
             note(self, ("%s: action link to missing page %s"):format(page.relative_path, target))
           end
         end
-        context.actions[#context.actions + 1] = { text = text, url = url, primary = kind == "primary" }
+        if url then context.actions[#context.actions + 1] = { text = text, url = url, primary = kind == "primary" } end
       end
     end
   end

@@ -115,7 +115,7 @@ fermé.
 > N’exécutez jamais la poignée de main dans la boucle d’acceptation elle-même. Un client qui se
 > connecte puis ne dit rien bloquerait tous les autres. Démarrez une coroutine par connexion avec
 > `fork` et exécutez-y `tls.accept`. La poignée de main est de toute façon bornée par
-> `handshake_deadline`, qui vaut 10 secondes par défaut. Passez `{ handshake_deadline = 5 }` comme
+> `handshake_timeout`, qui vaut 10 secondes par défaut. Passez `{ handshake_timeout = 5 }` comme
 > troisième argument pour la changer. À l’expiration, le flux est fermé et
 > `DeadlineExceededError` est levée.
 
@@ -173,14 +173,14 @@ l’autorité qui a signé les certificats clients. Les clients ont alors besoin
 `key_pem`.
 
 L’exemple démarre la poignée de main de chaque connexion dans sa propre coroutine, la borne avec
-`handshake_deadline` et exige un certificat client.
+`handshake_timeout` et exige un certificat client.
 
 <!-- example: packages/net/examples/hecate.net.tls.server_config.lua -->
 ```lua
 -- A TLS server that requires client certificates (mutual TLS). `client_ca_pem`
 -- names the authority that signed the client certificates. The accept loop
 -- forks the handshake of each connection and bounds it with
--- `handshake_deadline`, so that one silent client cannot stall it. Needs the
+-- `handshake_timeout`, so that one silent client cannot stall it. Needs the
 -- native TLS module (`lua tools/run.lua build-native`).
 local reactor = require("hecate.reactor")
 local net = require("hecate.net")
@@ -203,7 +203,7 @@ reactor.run(function()
       local connection = listener:accept()
       reactor.fork(function()
         -- The handshake owns `connection`: it is closed if the handshake fails.
-        local ok, peer = pcall(net.tls.accept, connection, config, { handshake_deadline = 5 })
+        local ok, peer = pcall(net.tls.accept, connection, config, { handshake_timeout = 5 })
         if not ok then return end
         local reader, writer = peer:reader(), peer:writer()
         writer:write("welcome " .. reader:read_line() .. "\n")

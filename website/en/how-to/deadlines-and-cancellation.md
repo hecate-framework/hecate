@@ -30,10 +30,10 @@ A cancellation stops `connect` at once. It does not try the next address. The ha
 connection is closed, so nothing leaks.
 
 `connect_tls` has two bounds. The `reactor.deadline` you wrap around it covers resolution and the TCP
-connect. The option `handshake_deadline` (10 seconds by default) covers the TLS handshake only:
+connect. The option `handshake_timeout` (10 seconds by default) covers the TLS handshake only:
 
 ```lua
-local stream <close> = reactor.deadline(5, net.connect_tls, host, 443, { handshake_deadline = 5 })
+local stream <close> = reactor.deadline(5, net.connect_tls, host, 443, { handshake_timeout = 5 })
 ```
 
 ## Bound a read
@@ -97,7 +97,7 @@ nobody knows how many were sent. They close the object instead of leaving it in 
 | `net.connect`, `net.connect_pipe` | The half-open connection is closed. No other address is tried. |
 | `UdpSocket:send_to` | The socket is closed. |
 | `writer:flush`, and a `writer:write` that flushes | The writer is poisoned and the stream is closed. |
-| TLS handshake that outlasts `handshake_deadline` | The stream is closed. |
+| TLS handshake that outlasts `handshake_timeout` | The stream is closed. |
 
 ## Know the poisoned writer
 
