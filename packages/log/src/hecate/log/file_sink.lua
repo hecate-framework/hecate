@@ -24,11 +24,12 @@ function FileSink:init(options)
   end
   local handle, message = io.open(options.path, "ab")
   if not handle then error(core.Error(("log.FileSink: cannot open log file: %s"):format(tostring(message))), 2) end
-  handle:setvbuf("line")
   self._handle = handle
   self._lines = JsonLinesSink({
     output = function(line)
+      -- Explicit flush: the Windows C runtime treats line buffering as full buffering.
       local ok, reason = handle:write(line)
+      if ok then ok, reason = handle:flush() end
       if not ok then error(core.Error(("log.FileSink: cannot write to the log file: %s"):format(tostring(reason))), 0) end
     end,
   })

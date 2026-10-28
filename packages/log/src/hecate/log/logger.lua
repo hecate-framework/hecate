@@ -76,8 +76,25 @@ end
 function Logger:init(options)
   options = options or EMPTY
   self._severity = severities.resolve(options.severity or Severity.informational, 2, "log.Logger").ordinal
+  if options.name ~= nil and type(options.name) ~= "string" then
+    error(core.ArgumentError("log.Logger: invalid name option: expected a string"), 2)
+  end
+  if options.context ~= nil and type(options.context) ~= "table" then
+    error(core.ArgumentError("log.Logger: invalid context option: expected a table"), 2)
+  end
+  if options.sinks ~= nil and type(options.sinks) ~= "table" then
+    error(core.ArgumentError("log.Logger: invalid sinks option: expected a list of sinks"), 2)
+  end
+  if options.clock ~= nil and type(options.clock) ~= "function" then
+    error(core.ArgumentError("log.Logger: invalid clock option: expected a function"), 2)
+  end
+  if options.context_provider ~= nil and type(options.context_provider) ~= "function" then
+    error(core.ArgumentError("log.Logger: invalid context_provider option: expected a function"), 2)
+  end
   self._name = options.name
-  self._context = options.context or EMPTY
+  local context = {}
+  for key, value in pairs(options.context or EMPTY) do context[key] = value end
+  self._context = context
   self._provider = options.context_provider or ambient.fields
   self._clock = options.clock or os.time
   if options.redact ~= nil then

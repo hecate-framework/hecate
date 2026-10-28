@@ -166,4 +166,24 @@ function T:test_a_context_provider_that_raises_or_returns_a_non_table_is_counted
   self:assert_equal(1, other:failures())
 end
 
+function T:test_invalid_options_raise_argument_errors()
+  local core = require("hecate.core")
+  local cases = {
+    { context = "x" }, { sinks = "x" }, { clock = "x" }, { name = 42 }, { context_provider = "x" },
+  }
+  for _, options in ipairs(cases) do
+    local err = self:assert_error(function() log.Logger(options) end)
+    self:assert_true(core.is_instance_of(err, core.ArgumentError))
+  end
+end
+
+function T:test_the_context_is_copied_at_construction()
+  local sink = log.MemorySink()
+  local context = { a = 1 }
+  local logger = log.Logger({ sinks = { sink }, context = context })
+  context.a = 2
+  logger:error("x")
+  self:assert_equal(1, sink:records()[1].context.a)
+end
+
 return T
