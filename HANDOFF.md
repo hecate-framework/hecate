@@ -14,6 +14,8 @@
 
 ## Next steps
 
+Run 8 (2026-10-28): CI green on 3 platforms at 042d27f; issue 48 updated. Nothing left for the relay: waiting for owner decisions, then tick the gate and delete this file. Lock released.
+
 Run 7 (2026-10-28): minors net TlsStream:write check and log redact annotation fixed (net tests ok with HECATE_REQUIRE_TLS=1). Remaining: check CI of the PR on 3 platforms, update issue 48 with the review findings left (other minors deferred), tick the gate only after owner decisions. Lock released.
 
 Run 6 (2026-10-28): the four majors R1, L1, L2, D1 are fixed test-first (commits on this branch; reactor, log, doc tests ok). Remaining: cheap minors (net TlsStream:write check, log annotations), then CI check on 3 platforms, update issue 48, tick the gate only after owner decisions. Lock released.
