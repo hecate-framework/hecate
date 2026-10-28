@@ -3,7 +3,7 @@
 
 - roadmap_item: **Phase 1 gate**: verification of the phase, as described in Phase gates. Open questions to put to the owner before Phase 2: OQ-50, OQ-47, OQ-23, OQ-24, OQ-26 (1) and OQ-22.
 - status: in-progress
-- lock_until: 2026-10-28T04:00:00Z
+- lock_until: 2026-10-28T00:00:00Z
 - last_update: 2026-10-28T03:55:00Z
 
 ## Done
@@ -13,6 +13,8 @@
 - Cloud tip: run `eval "$(luarocks path)"` before `test`, else luv is not found.
 
 ## Next steps
+
+Run 7 (2026-10-28): minors net TlsStream:write check and log redact annotation fixed (net tests ok with HECATE_REQUIRE_TLS=1). Remaining: check CI of the PR on 3 platforms, update issue 48 with the review findings left (other minors deferred), tick the gate only after owner decisions. Lock released.
 
 Run 6 (2026-10-28): the four majors R1, L1, L2, D1 are fixed test-first (commits on this branch; reactor, log, doc tests ok). Remaining: cheap minors (net TlsStream:write check, log annotations), then CI check on 3 platforms, update issue 48, tick the gate only after owner decisions. Lock released.
 

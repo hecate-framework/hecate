@@ -43,7 +43,7 @@ end
 ---@field name? string  name stored in every record
 ---@field context? table  fields added to every record
 ---@field context_provider? fun(): table?  returns the ambient context of the running computation, merged under `context` (default: the fields bound by `log.bind`); if it raises or returns a non-table the call is counted in `failures()` and the record is written without it
----@field redact? string[]  field names (case-insensitive, at any depth) whose values are replaced by a `Secret`
+---@field redact? string[]  field names (case-insensitive, in the first 16 levels of nested plain tables) whose values are replaced by a `Secret`
 ---@field clock? fun(): number  seconds since the epoch (default `os.time`)
 
 --- A logger with the eight methods of RFC 5424 (`emergency` to `debug`), a severity filter and a context.

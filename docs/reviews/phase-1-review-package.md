@@ -28,7 +28,7 @@ build in their sandbox): findings come from reading, and each fix must reproduce
   suspend/resume on the scheduler hot path (`reactor.lua:155-254`); `Reactor:run` clears `context.reactor` before
   closing abandoned coroutines, so a `__close` using the reactor loses its error (`reactor.lua:386-403`). Files not
   reviewed: `tcp`, `udp`, `pipe`, `process`, `ipc`, `fs`, `channel*`, `monitor`, `mutex`, `semaphore`.
-- **net**: `TlsStream:write` does not check its argument (`tls_stream.lua:276`); a `BufferedReader` closed during a
+- **net**: `TlsStream:write` does not check its argument (`tls_stream.lua:276`, **fixed 2026-10-28**); a `BufferedReader` closed during a
   suspended read still returns the chunk (`buffered_reader.lua:107,264`); hard-coded error levels in validators; unknown
   options in `net.connect`/`listen` reported in `pairs` order (`tcp.lua:54`); `TlsStream:close` skips the session
   close if the inner close raises, and a read racing `close()` gives `TlsError` instead of `EBADF`
@@ -39,7 +39,7 @@ build in their sandbox): findings come from reading, and each fix must reproduce
   owner approval of the one-line edit, B10); per-key allocation in the Rust encoder (`lib.rs:388,488`, run `bench json`);
   option values echoed in full in `ArgumentError` (`init.lua:44`); missing tests. Native modules were not built by the
   reviewer, so nothing was run.
-- **log**: stale "at any depth" annotation on `redact` (`logger.lua:46`); public classes typed `table` in `init.lua`;
+- **log**: stale "at any depth" annotation on `redact` (`logger.lua:46`, **fixed 2026-10-28**); public classes typed `table` in `init.lua`;
   no tests for depth 15/16/17 secrets, flush, `AsyncSink:close` with a raising target, option checks; a second
   concurrent `AsyncSink:close()` returns before the drain ends; `with_context` rebuilds the severity list
   (`logger.lua:145`).
