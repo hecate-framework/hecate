@@ -428,6 +428,7 @@ function T:test_write_rejects_a_non_string_argument()
     local outcome = serve(listener, { serve = function(tls) tls:read() end })
     local client <close> = dial(listener:local_address().port)
     for _, bad in ipairs({ 42, true, {} }) do
+      ---@diagnostic disable-next-line: param-type-mismatch  -- the argument is invalid on purpose
       local err = self:assert_error(function() client:write(bad) end)
       self:assert_true(core.is_instance_of(err, core.ArgumentError), tostring(err))
       self:assert_true(tostring(err):find("net.TlsStream.write: expects a string", 1, true) ~= nil, tostring(err))
