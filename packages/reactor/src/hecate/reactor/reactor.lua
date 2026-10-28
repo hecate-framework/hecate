@@ -335,7 +335,7 @@ local function loop(self, main)
     else
       local timer = peek_timer(self)
       if timer then
-        local delay = math.max(0, math.ceil((timer.when - self:now()) * 1000))
+        local delay = math.min(2 ^ 31 - 1, math.max(0, math.ceil((timer.when - self:now()) * 1000)))
         uv_timer:start(delay, 0, function() end)
       end
       local alive = uv.run("once")

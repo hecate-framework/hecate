@@ -229,6 +229,15 @@ function T:test_deadline_rejects_invalid_arguments()
   end)
 end
 
+function T:test_deadline_rejects_non_finite_durations()
+  support.run_virtual(function()
+    for _, bad in ipairs({ math.huge, -math.huge, 0 / 0 }) do
+      local err = self:assert_error(function() reactor.deadline(bad, function() end) end)
+      self:assert_true(core.is_instance_of(err, core.ArgumentError))
+    end
+  end)
+end
+
 function T:test_a_finished_deadline_leaves_no_timer_effect()
   support.run_virtual(function()
     reactor.deadline(5, function() return 1 end)

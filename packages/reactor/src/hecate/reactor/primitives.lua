@@ -335,7 +335,7 @@ function M.select(...)
 end
 
 --- Runs `fn(...)`; cancels it and raises `DeadlineExceededError` if it does not finish
---- in time. `limit` is a relative duration in seconds, or a `hecate.reactor.Instant`.
+--- in time. `limit` is a relative duration in finite seconds, or a `hecate.reactor.Instant`.
 ---
 --- Raises `hecate.core.DeadlineExceededError` when the limit expires, `hecate.core.ArgumentError`
 --- if `limit` is neither seconds nor an instant or `fn` is not a function, and
@@ -351,12 +351,12 @@ function M.deadline(limit, fn, ...)
   end
   local computation = context.current_computation("reactor.deadline")
   local at
-  if type(limit) == "number" and limit == limit then
+  if type(limit) == "number" and limit == limit and limit ~= math.huge and limit ~= -math.huge then
     at = computation.reactor:now() + limit
   elseif core.is_instance_of(limit, Instant) then
     at = limit.seconds
   else
-    error(core.ArgumentError(("reactor.deadline: invalid deadline %s: expected seconds or an Instant")
+    error(core.ArgumentError(("reactor.deadline: invalid deadline %s: expected finite seconds or an Instant")
       :format(tostring(limit))), 2)
   end
   local args = table.pack(...)
