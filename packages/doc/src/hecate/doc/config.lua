@@ -2,6 +2,7 @@
 global <const> require, type, ipairs, pairs, error, tostring, table, string
 
 local core = require("hecate.core")
+local html = require("hecate.doc.internal.html")
 
 --- Validation and defaults of the site configuration.
 ---@class hecate.doc.config
@@ -66,6 +67,9 @@ function M.normalise(raw)
   if type(raw.title) ~= "string" or raw.title == "" then invalid("title", "expected a non-empty string") end
   check_text("description", raw.description)
   check_text("footer", raw.footer)
+  if raw.repository ~= nil and (type(raw.repository) ~= "string" or not html.is_safe_url(raw.repository)) then
+    invalid("repository", "expected a URL with a safe scheme (http, https)")
+  end
   local config = {
     title = raw.title,
     description = raw.description,
@@ -109,6 +113,7 @@ function M.normalise(raw)
       if type(entry) ~= "table" or type(entry.link) ~= "string" then
         invalid("nav[" .. index .. "]", "expected { text = ..., link = \"path/\" }")
       end
+      if not html.is_safe_url(entry.link) then invalid("nav[" .. index .. "].link", "unsafe URL scheme") end
       check_text("nav[" .. index .. "].text", entry.text)
       config.nav[index] = { text = entry.text, link = entry.link }
     end

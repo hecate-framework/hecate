@@ -10,10 +10,10 @@ build in their sandbox): findings come from reading, and each fix must reproduce
 
 | Id | Package | Finding | Fix |
 |---|---|---|---|
-| R1 | reactor | `reactor.deadline(math.huge, fn)` arms a timer at infinity; `reactor.lua:338-339` then calls `math.ceil(inf)` and `uv_timer:start` raises, aborting `Reactor:run` (`primitives.lua:354`). Reproduced by the reviewer. | Validate in `deadline` as `sleep` does (decide: `math.huge` = no deadline, or `ArgumentError`); clamp the loop delay (about `2^31` ms). Test with a real clock. **open** |
-| L1 | log | `FileSink` promises line buffering (`logging.md:161`) but the Windows C runtime treats `_IOLBF` as fully buffered (`file_sink.lua:28`). | `flush()` after each write; test reading the file while open. **open** |
-| L2 | log | `Logger` does not validate `context`, `sinks`, `clock`, `name`, `context_provider` (`logger.lua:76-100`); bad values fail later with raw errors on the hot path, contrary to `logging.md:265`. | Raise `ArgumentError` in `init`; copy `context`; tests. **open** |
-| D1 | doc | Home-page `actions` links with a scheme bypass the URL allow-list (`site.lua`, `theme/layout.lua:327`): `javascript:` is emitted. Needs write access to front matter. | Pass scheme targets through `html.is_safe_url`; same for `nav` and `repository` in `config.normalise`; test. **open** |
+| R1 | reactor | `reactor.deadline(math.huge, fn)` arms a timer at infinity; `reactor.lua:338-339` then calls `math.ceil(inf)` and `uv_timer:start` raises, aborting `Reactor:run` (`primitives.lua:354`). Reproduced by the reviewer. | Validate in `deadline` as `sleep` does (decide: `math.huge` = no deadline, or `ArgumentError`); clamp the loop delay (about `2^31` ms). Test with a real clock. **fixed (2026-10-28)** |
+| L1 | log | `FileSink` promises line buffering (`logging.md:161`) but the Windows C runtime treats `_IOLBF` as fully buffered (`file_sink.lua:28`). | `flush()` after each write; test reading the file while open. **fixed (2026-10-28)** |
+| L2 | log | `Logger` does not validate `context`, `sinks`, `clock`, `name`, `context_provider` (`logger.lua:76-100`); bad values fail later with raw errors on the hot path, contrary to `logging.md:265`. | Raise `ArgumentError` in `init`; copy `context`; tests. **fixed (2026-10-28)** |
+| D1 | doc | Home-page `actions` links with a scheme bypass the URL allow-list (`site.lua`, `theme/layout.lua:327`): `javascript:` is emitted. Needs write access to front matter. | Pass scheme targets through `html.is_safe_url`; same for `nav` and `repository` in `config.normalise`; test. **fixed (2026-10-28)** |
 
 ## Minor (grouped)
 
