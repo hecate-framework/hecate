@@ -44,7 +44,9 @@ local M = {}
 ---@field links string[]  every link and image destination met, as written
 
 --- Renders GitHub Flavoured Markdown to HTML in safe mode. Raises `hecate.core.ArgumentError` when `source` is
---- not a valid UTF-8 string (the page reader reports it as a `hecate.doc.BuildError` naming the file).
+--- not a valid UTF-8 string, or when a line opens more than 100 block containers (quotes and list items;
+--- a nesting limit far above real documentation that bounds the work of the renderer). The page reader
+--- reports both as a `hecate.doc.BuildError` naming the file.
 ---@param source string
 ---@param options? hecate.doc.MarkdownOptions
 ---@return hecate.doc.RenderResult
@@ -52,7 +54,11 @@ function M.render(source, options)
   if type(source) ~= "string" or not utf8.len(source) then
     error(core.ArgumentError("doc.markdown.render: expects a valid UTF-8 string"), 2)
   end
-  return native.render(source, options)
+  local result, refusal = native.render(source, options)
+  if result == nil then
+    error(core.ArgumentError("doc.markdown.render: " .. refusal), 2)
+  end
+  return result
 end
 
 return M

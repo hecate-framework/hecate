@@ -61,7 +61,7 @@ decided in [ADR 0022](../../docs/adr/0022-doc-dependencies.md).
 | `MemoryFileSystem(files?)` | In-memory implementation (tests, embedders). |
 | `SystemFileSystem()` | Real file system over `hecate.reactor.fs`; every method suspends, so call it inside `reactor.run` (OQ-33). |
 | `BuildError` | `hecate.doc.BuildError` (a `core.Error`): malformed front matter, unreadable source, clashing URLs, `strict` problems, a file system failure (`SystemFileSystem`), a failed LuaLS export, a page that is not valid UTF-8, a file of `public/` that collides with a generated file, two output files whose paths differ only by case (one file on macOS and Windows). |
-| `markdown.render(source, options?)` | Markdown to HTML (`html`, `title`, `headings`, `sections`, `links`); safe mode only (raw HTML is not passed through); a source that is not valid UTF-8 raises `core.ArgumentError`. |
+| `markdown.render(source, options?)` | Markdown to HTML (`html`, `title`, `headings`, `sections`, `links`); safe mode only (raw HTML is not passed through); a source that is not valid UTF-8, or in which a line opens more than 100 block containers (`>` quotes and list items; the nesting limit), raises `core.ArgumentError`. |
 | `front_matter.parse(source, path?)` | Splits front matter (flat YAML subset) from the body; double-quoted scalars accept only the escapes `\\`, `\"`, `\n`, `\t` (any other backslash sequence is a `BuildError`). |
 | `luals` (`hecate.doc.luals`) | `locate()`, `version(executable)`, `export(executable, source, options)` (output in a private directory removed afterwards: `mktemp -d` on POSIX; on Windows a new directory below `TEMP`/`TMP` with an unpredictable name, never reused if it exists: `windows_temporary_directory(getenv, parts)`, `claim_directory(fs, path)`), `command_line(...)` and `quote(path, windows?)` (pure; shell quoting for POSIX and `cmd.exe`). |
 | `highlight.render(language, code)` | Syntax highlighting by syntect (two-face syntaxes, `hl-` classes); an unknown language is escaped and left plain. |
@@ -128,6 +128,8 @@ is not supported (shown as text, comments are dropped). Conventions: OQ-35. Site
 `bin/build.lua` parses its command line strictly: an unknown option, an option without value, a repeated option or a second source directory is a usage error (exit code 2); `--flag=value` is accepted; `--base` and `--url` are validated like the configuration keys.
 
 ### Native module and the specification examples
+
+Nesting limit: a native stack overflow cannot be caught, so the module refuses a line that opens more than 100 block containers (`MAX_NESTING` in `native/src/lib.rs`, the list depth that comrak caps itself) before parsing; real documentation rarely nests beyond five levels. The scan reads the leading `>` and list markers of each line and ignores code fences, so it is conservative. Parsing, formatting and the extraction of plain text are iterative, so inline nesting (emphasis, links, images) has no limit; `tests/unit/markdown_nesting_test.lua` runs the pathological inputs in a child process.
 
 The shipped native module exports `render` and `highlight` only (safe mode). The unsafe renderer that runs the CommonMark and GFM specification examples (OQ-37) is compiled only with the cargo feature `spec-tests`: `cargo build --release --features spec-tests --target-dir target/spec` in `native/` (or point `HECATE_DOC_SPEC_LIB` at the library); without that build `commonmark_spec_test.lua` skips.
 

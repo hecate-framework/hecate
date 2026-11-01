@@ -11,6 +11,7 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- `hecate.doc`: the Markdown renderer no longer overflows the native stack on deeply nested documents (plain-text extraction is iterative; a 200 KB run of `>` used to kill the process), and refuses with an `ArgumentError` a line that opens more than 100 block containers (quotes and list items).
 - `hecate.json`: the native decoder frees the yyjson document before it builds the duplicate-member-name failure, so a Lua memory error there no longer leaks it, and `classify` clamps the error position to the text length; the encoder is tested at the 1000-level depth ceiling (arrays and objects, compact and pretty, one level beyond, and under a 1 MiB stack on POSIX).
 - `hecate.doc`: on Windows the LuaLS export directory is created below `TEMP`/`TMP` with an unpredictable name and is never reused if it exists; `SystemFileSystem.remove_tree` unlinks a symbolic link instead of following it, and a build with `clean` refuses an output directory that is a symbolic link; the build refuses two output files whose paths differ only by case.
 - `hecate.net`: the native `server_config` refuses `client_crl_pem` without `client_ca_pem` instead of ignoring it (the Lua layer already refused it).
