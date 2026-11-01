@@ -110,7 +110,9 @@ makes every interruption harmless instead.
   first, otherwise start the next unblocked roadmap item; one item per run; never merge).
 - **Phase gates**: the last item of every phase is a verification (completeness, it works,
   coherence, open questions) that produces `docs/reviews/phase-<n>.md`; the relay starts no
-  item of the next phase until the gate is ticked (`docs/roadmap.md`, "Phase gates").
+  item of the next phase until the gate is ticked (`docs/roadmap.md`, "Phase gates"). The relay triages the minor
+  findings of a gate itself: a defect of something the phase delivered is fixed in the gate's pull request, anything
+  that needs a later phase or a measurement is deferred into that phase's roadmap item, so nothing is forgotten.
 - **Locking**: `lock_until` in `HANDOFF.md` prevents two runs from working on the same
   item.
 - **Automatic restart**: a Claude Code **routine** (claude.ai/code/routines) using the

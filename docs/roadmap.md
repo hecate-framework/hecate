@@ -28,6 +28,17 @@ produces a report, `docs/reviews/phase-<N>.md`, and checks:
    stale, are listed in the report with their context and a recommendation; an issue labelled `needs-decision`
    asks the owner. The relay never decides them.
 
+**Triage of minor findings (owner instruction, 2026-11-01).** The relay triages the minor findings of a gate (reviewer
+agents, coherence audit) itself and does not put them to the owner. For each, it asks: *does this minor belong to an item
+that must be resolved by the end of this gate?* That is, is it a defect of something the phase delivered (a bug, a
+missing check, a missing test, a security weakness, a stale or false statement)? If yes, it is fixed directly in the
+gate's pull request, test first. If no (it cannot be judged without a measurement or the work of a later phase, such as
+a performance finding, or it is a deliberate limit), it is deferred: written into the roadmap item of the later phase that
+will handle it, with a pointer to the review row and what to check, or recorded as a known limitation in
+`docs/open-questions.md`, so that it is not forgotten. Each row of the review report carries its disposition (fixed with
+the commit, or deferred to which item). Owner decisions stay the owner's: an Accepted ADR is never edited, a choice that
+nothing decides is made conservatively and recorded in `docs/open-questions.md` for confirmation.
+
 A gap found becomes a new unticked roadmap item placed before the gate (or a fix inside the gate's pull request
 when it is small). The gate is ticked only when the report shows no open gap and every open question it listed
 has an owner decision or an explicit, recorded deferral.
