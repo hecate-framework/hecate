@@ -170,6 +170,20 @@ function T:test_duplicate_member_names_are_rejected()
   self:assert_equal("duplicate_member_name", decode_error(self, '{"a\\u0062":1,"ab":2}').context.reason)
 end
 
+function T:test_the_excerpt_of_a_duplicate_member_name_is_cut_at_forty_bytes_on_a_character_boundary()
+  -- the name is copied out of the yyjson document before it is freed (native.c): the copy must give the same excerpt
+  local function duplicate(name) return decode_error(self, '{"' .. name .. '":1,"' .. name .. '":2}').message end
+  local exact = string.rep("k", 40)
+  self:assert_true(duplicate(exact):find('"' .. exact .. '": RFC', 1, true) ~= nil, "40 bytes are not cut")
+  local over = string.rep("k", 41)
+  self:assert_true(duplicate(over):find('"' .. exact .. '" (cut)', 1, true) ~= nil, "41 bytes are cut")
+  -- 39 bytes then a two-byte character straddling the limit: the cut falls before it
+  local straddle = string.rep("k", 39) .. "\u{E9}" .. "tail"
+  local message = duplicate(straddle)
+  self:assert_true(message:find('"' .. string.rep("k", 39) .. '" (cut)', 1, true) ~= nil, message)
+  self:assert_true(utf8.len(message) ~= nil, "the message is valid UTF-8")
+end
+
 function T:test_an_error_message_never_echoes_more_than_a_short_excerpt_of_the_input()
   -- a hostile text must not grow the message nor forge a line of a log
   local long = decode_error(self, '{"' .. string.rep("k", 100000) .. '":1,"' .. string.rep("k", 100000) .. '":2}')

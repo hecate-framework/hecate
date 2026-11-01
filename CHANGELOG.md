@@ -11,6 +11,7 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- `hecate.json`: the native decoder frees the yyjson document before it builds the duplicate-member-name failure, so a Lua memory error there no longer leaks it, and `classify` clamps the error position to the text length; the encoder is tested at the 1000-level depth ceiling (arrays and objects, compact and pretty, one level beyond, and under a 1 MiB stack on POSIX).
 - `hecate.doc`: on Windows the LuaLS export directory is created below `TEMP`/`TMP` with an unpredictable name and is never reused if it exists; `SystemFileSystem.remove_tree` unlinks a symbolic link instead of following it, and a build with `clean` refuses an output directory that is a symbolic link; the build refuses two output files whose paths differ only by case.
 - `hecate.net`: the native `server_config` refuses `client_crl_pem` without `client_ca_pem` instead of ignoring it (the Lua layer already refused it).
 - `hecate.reactor`: a computation body runs under `pcall` inside its coroutine, so the `<close>` handlers of a computation that dies from an uncaught error or cancellation run in a yieldable context and can suspend under `reactor.shield` (OQ-23); before, they ran inside `coroutine.close`, where nothing can yield.

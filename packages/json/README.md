@@ -154,8 +154,10 @@ problem, with the path built on the way out so that a successful encoding record
 `nan` whatever its sign (the sign of `0/0` differs between processors). The work of the encoder is bounded by the
 size of the output (`max_size`), not by the size of the value: a value that shares substructure is written in full
 (OQ-54). It recurses on the native stack, about 450 to 700 bytes a level, so the ceiling of 1000 levels takes at most
-700 KB (a Windows main thread has 1 MiB: the test `test_a_value_nested_to_the_ceiling_is_encoded_on_a_small_native_stack`
-runs it in CI on the three platforms).
+700 KB (a Windows main thread has 1 MiB: the tests of `encode_depth_test.lua` encode 1000 nested arrays and objects,
+compact and pretty, and reject one more level, in CI on the three platforms; on POSIX one of them also runs the
+encoder in a child process under `ulimit -s 1024`). Measured on Linux x86_64: the ceiling fits in a stack of 700 KB
+and overflows one of 600 KB.
 
 ## Tests
 
