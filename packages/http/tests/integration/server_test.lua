@@ -10,7 +10,7 @@ function T:assert_match(pattern, text)
 end
 
 local function echo(request)
-  return http.Response(200, { content = request.method .. " " .. request.target .. " " .. (request.content or "") })
+  return http.Response(200, { content = request.method .. " " .. request.target .. " " .. request:read_content() })
 end
 
 -- Runs a server with `handler`, calls fn(port, server), then shuts down.

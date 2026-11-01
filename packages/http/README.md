@@ -48,12 +48,16 @@ Implemented (message model, no I/O yet):
 - `http.Response`: `status`, `reason`, `fields`, `content`; `set_cookie`, `is_successful`.
 - `http.Cookie.parse` (the `Cookie` field, RFC 6265 section 4.2.1) and `http.SetCookie` (`format`).
 
-Implemented (server, needs the native module): `http.Server(handler, options)`, `server:serve(listener)` (*suspends*), `server:shutdown()`.
+Implemented (server, needs the native module): `http.Server(handler, options)`, `server:listen()` (*suspends*, returns the listener), `server:serve(listener?)` (*suspends*), `server:shutdown(grace?)` (*suspends*), `server:local_address()`, `Server.DEFAULTS`; also `http.ContentReader`, `http.ContentError` and `http.problem`.
 
-- One coroutine per connection and one scope per request (`request.scope`); keep-alive; pipelining (responses in request order); `Expect: 100-continue` (any other expectation: 417); HEAD answered without content; `Date` field; 400 for an HTTP/1.1 request without exactly one `Host`; the parser's `context.status` (400, 414, 431) for malformed requests; a failure of the handler is a generic 500 (nothing of the error reaches the client; `on_error` receives it).
-- Request content is read whole into a string (`max_content`, default 1048576 bytes; over it: 413 and the connection closes; streaming comes in a later step). Response content is a string (`Content-Length`) or a function receiving a `write(chunk)` function (chunked coding).
-- `shutdown()` stops accepting, closes idle connections and lets each running request finish (`Connection: close`); `serve` returns once every connection has ended.
-- Not yet: TLS, limits on time (read and idle deadlines), connection limits, client (later steps of the item).
+- One coroutine per connection, and per request one scope (`request.scope`) with one coroutine running the handler; a connection serves its requests in order, so pipelined responses come in request order; keep-alive and `Connection: close` (HTTP/1.0 closes unless it asks to keep alive); `Date` field; `Expect: 100-continue` (sent when the handler first reads the content; any other expectation: 417; a handler that never reads closes the connection after its answer); 400 for an HTTP/1.1 request without exactly one `Host`; the parser's `context.status` (400, 414, 431); 501 for an `Upgrade` or `CONNECT` request; the parser is fed chunks of at most 16 KiB and closed when the connection ends.
+- Errors are RFC 9457 problem details (`application/problem+json`, `type` `about:blank`) with a fixed `detail` chosen by status or by the class of the failure: a handler failure, a transport or network failure (`reactor.TransportError`: never an address, an errno or `context.attempts`), a parser failure. The text of an error never reaches the client; `on_error(err)` receives it.
+- Request content is a stream: `request:content_reader()` (`read()` chunk by chunk, `read_all(limit?)`, `is_finished()`) and `request:read_content(limit?)` (the whole content). It is read when the handler asks; what the handler leaves unread is drained (up to `max_content`) so the next request can be parsed. Over `max_content` it is a 413 (`ContentError`; with a `Content-Length` over the limit the handler does not run). Naming: OQ-68.
+- Response content is nil, a string (`Content-Length`), a table (JSON, `Content-Type: application/json` unless set) or a function `content(write, flush)` that streams: chunked coding, or the raw bytes when the handler declared a `Content-Length`, or close-delimited for HTTP/1.0. HEAD, 1xx, 204 and 304 never carry content; the framing fields of the handler (`Content-Length`, `Transfer-Encoding`, `Connection`) are replaced by the server's own.
+- `listen` binds a NUMERIC address: the option `host` defaults to `127.0.0.1` (loopback only) and a name is an `ArgumentError`; every interface is `0.0.0.0` or `::` (OQ-69).
+- Safe defaults (`Server.DEFAULTS`, each an option): `max_connections` 1024 (the others wait in the backlog), `max_content` 1048576 bytes, `head_timeout` 10 s (from the first byte of a head; then 408), `idle_timeout` 60 s (between requests; the connection closes silently), `content_timeout` 30 s (between two reads of content; then 408), `write_timeout` 30 s (a write to the client; then the connection closes), `backlog` 128, `port` 8080, parser limits as listed below (`parser` option).
+- `shutdown(grace)` (default 30 s) stops accepting, closes the connections that wait for a request, lets each request in flight finish (`Connection: close`), then returns; when the grace expires the remaining requests are cancelled. `serve` returns once every connection has ended.
+- Not yet: TLS (with its handshake limits), the full limits suite (a head that arrives in pieces after a pipelined request is held to `idle_timeout`, not `head_timeout`), client.
 
 Implemented (parser, needs the native module: `lua tools/run.lua build-native http`; `require("hecate.http.parser")`, not loaded by `require("hecate.http")`):
 
@@ -99,7 +103,7 @@ Found by the vectors and fixed in the binding: a request line without a version 
 
 Byte by byte costs one native call per byte; a server feeds the bytes of one read at a time.
 
-Pending: server, client, request-level limits (content size, deadlines), multipart and URL-encoded content.
+Pending: TLS in the server, the full limits suite, client, multipart and URL-encoded content.
 
 ## Layout (once implemented)
 
