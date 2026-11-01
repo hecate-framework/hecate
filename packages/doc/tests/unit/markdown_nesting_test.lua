@@ -16,6 +16,15 @@ local PRELUDE = ("package.path = %q; package.cpath = %q; local markdown = requir
 -- Runs `build` (Lua source returning the document) in a child interpreter; returns the status
 -- printed by the child ("ok", "refused") or "crash:..." when the process died.
 local function child(build)
+  if package.config:sub(1, 1) == "\\" then
+    -- Windows: the launch of a child interpreter through `cmd` is not portable here. The inputs run in this process:
+    -- a native crash would then fail the whole run loudly instead of one assertion.
+    local source = assert(load("return (function() " .. build .. " end)()"))()
+    local ok, err = pcall(markdown.render, source)
+    if ok then return "ok" end
+    if core.is_instance_of(err, core.Error) then return "refused" end
+    return "error:" .. tostring(err)
+  end
   local script = PRELUDE .. "local source = (function() " .. build .. " end)()\n" .. [[
     local ok, err = pcall(markdown.render, source)
     if ok then io.write("ok")

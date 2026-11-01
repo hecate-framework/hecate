@@ -75,7 +75,9 @@ end
 
 function T:test_a_failed_signal_registration_leaves_the_computation_in_a_clean_state()
   reactor.run(function()
-    local ok = pcall(reactor.wait_signal, "sigkill") -- libuv refuses to catch SIGKILL
+    -- An unknown name fails the registration on every platform (libuv refuses SIGKILL on POSIX only: on Windows
+    -- that registration succeeds and would wait for a signal that never comes).
+    local ok = pcall(reactor.wait_signal, "sigfoo")
     self:assert_false(ok)
     local slept = false
     pcall(reactor.scope, function(scope)
