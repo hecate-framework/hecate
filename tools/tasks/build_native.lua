@@ -23,6 +23,7 @@ local c_modules = {
   http = {
     sources = { "csrc/native.c", "csrc/vendor/llhttp/api.c", "csrc/vendor/llhttp/http.c", "csrc/vendor/llhttp/llhttp.c" },
     target = "hecate/http/native",
+    hidden = true, -- -fvisibility=hidden: only luaopen_* is exported (the llhttp symbols stay private)
   },
 }
 
@@ -97,6 +98,7 @@ local function build_c(ctx, name, m)
     local own = not source:find("/vendor/", 1, true)
     local object = ("%s/%d.o"):format(build_dir, index)
     local flags = own and "-std=c11 -O2 -Wall -Wextra -Werror" or "-O2 -w"
+    if m.hidden then flags = flags .. " -fvisibility=hidden" end
     if sanitized then flags = flags .. " " .. sanitize.cflags() end
     local out, ok = util.capture(("%s -c -fPIC %s -I%s %s -o %s 2>&1"):format(
       cc, flags, util.quote(include), util.quote(package_dir .. "/" .. source), util.quote(object)))

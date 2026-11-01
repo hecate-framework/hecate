@@ -50,11 +50,13 @@ Implemented (message model, no I/O yet):
 
 Implemented (parser, needs the native module: `lua tools/run.lua build-native http`; `require("hecate.http.parser")`, not loaded by `require("hecate.http")`):
 
-- `http.parser` (`Parser.request(options)`, `Parser.response(options)`): the incremental llhttp binding (ADR 0019, strict mode, no lenient flag reachable). `feed(chunk)` returns the events (`head`, `data`, `complete` with optional trailers, `upgrade`) and a `ParseError` for malformed input or an exceeded limit; `finish()` for the end of the connection; `skip_body()` for the response to HEAD. Events before a failure are delivered only for messages that completed.
-- `ParseError`: `context.reason`, `context.code`, `context.position`, `context.status` (400, 414 for the target, 431 for fields).
-- Limits with safe defaults: `max_target_size` 8192, `max_field_size` 8192, `max_head_size` 65536, `max_fields` 100.
+- `http.parser` (`Parser.request(options)`, `Parser.response(options)`): the incremental llhttp binding (ADR 0019; llhttp's lenient flags stay off and none is reachable). `feed(chunk)` returns the events (`head`, `data`, `complete` with optional trailers, `upgrade`) and a `ParseError` for malformed input or an exceeded limit; `finish()` for the end of the connection; `skip_body()` for the final response to HEAD (an interim 1xx does not consume it); `close()` releases the memory. Events before a failure are delivered only for messages that completed. A failed parser, and a parser after an upgrade, return the same error to every later call (`kind` `upgraded` after an upgrade).
+- Accepted: HTTP/1.0 and HTTP/1.1 only; RTSP and ICE (their methods, protocols and versions) are refused, and so is the chunked transfer coding in HTTP/1.0.
+- `ParseError`: `context.reason`, `context.code`, `context.kind` (a stable identifier for the binding's own refusals), `context.position` (offset in the chunk of the failing call), `context.status` (400, 414 for the target, 431 for fields and heads).
+- Limits with safe defaults, each an integer from 1 to 16777216 (an unknown option is an `ArgumentError`): `max_target_size` 8192, `max_field_size` 8192 (a name, a value, a reason phrase), `max_head_size` 65536 (raw bytes of a section: the head with its whitespace and leading empty lines, the bytes between two content chunks, the trailer section), `max_fields` 100, `max_events` 1024 (events recorded per native call; `feed` continues by itself). Feed chunks no larger than the read buffer: `feed` returns every event of the chunk in one list.
+- The server must answer 400 to an HTTP/1.1 request without exactly one `Host` field (RFC 9112 section 3.2): the parser only exposes the fields (roadmap, `http` item).
 - Known llhttp behaviour kept as is: more than one space between the method and the target is accepted (no smuggling effect); a leading CRLF before a request line is ignored (RFC 9112 section 2.2).
-- The third-party sources are vendored in `csrc/vendor/` (llhttp 9.4.3, MIT; `VENDORED.md`).
+- The third-party sources are vendored in `csrc/vendor/` (llhttp 9.4.3, MIT; `VENDORED.md`). A libFuzzer target (`fuzz parse`) feeds random bytes split at random sizes; `sanitize http` runs the tests under ASan and UBSan.
 
 Pending: server, client, request-level limits (content size, deadlines), multipart and URL-encoded content.
 

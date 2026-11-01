@@ -39,6 +39,12 @@ function T:test_c_command_builds_a_sanitized_fuzzer_and_runs_it_with_a_time_limi
   self:assert_true(cmd:find("-artifact_prefix=", 1, true) ~= nil)
 end
 
+function T:test_c_command_links_the_extra_sources()
+  local cmd = fuzz.c_command({ cc = "clang", include = "/i", lib = "/l/liblua.a", source = "csrc/fuzz/parse.c", binary = "b", corpus = "c",
+    seeds = "s", artifacts = "a", extra = { "csrc/vendor/llhttp/api.c", "csrc/vendor/llhttp/llhttp.c" } }, 5)
+  self:assert_true(cmd:find("api.c", 1, true) ~= nil and cmd:find("llhttp.c", 1, true) ~= nil)
+end
+
 function T:test_tail_keeps_the_last_lines_and_says_how_many_were_omitted()
   local text = "a\nb\nc\nd\ne\n"
   self:assert_equal("c\nd\ne", fuzz.tail(text, 3):gsub("^.-\n", ""))

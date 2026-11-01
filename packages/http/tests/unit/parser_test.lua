@@ -212,9 +212,12 @@ function T:test_a_malformed_request_line_is_rejected()
   self:reject("GET /a b HTTP/1.1\r\nHost: h\r\n\r\n")
 end
 
-function T:test_the_lenient_flags_are_not_reachable()
-  self:assert_nil(Parser.request().set_lenient)
-  self:assert_nil(parser_module.native.set_lenient)
+function T:test_the_lenient_flags_and_the_native_handle_are_not_reachable()
+  local p = Parser.request()
+  self:assert_nil(p.set_lenient)
+  self:assert_nil(parser_module.native, "the native module is not exported")
+  self:assert_equal("string", type(getmetatable(p._handle)), "the handle metatable is protected")
+  self:assert_nil(p._handle.set_lenient)
   self:reject("GET / HTTP/1.1\r\nHost: h\r\nX-A: a\0b\r\n\r\n")
 end
 
@@ -277,6 +280,195 @@ end
 function T:test_arguments_are_checked()
   self:assert_error(function() Parser.request():feed(nil) end)
   self:assert_error(function() Parser.new("both") end)
+end
+
+-- Findings of the native-code review (step 2b) -----------------------------------------------------------------
+
+function T:test_chunked_in_http_1_0_is_rejected()
+  local err = self:reject("POST / HTTP/1.0\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n\r\n")
+  self:assert_equal("chunked_in_http_1_0", err.context.kind)
+end
+
+function T:test_only_http_1_0_and_1_1_are_accepted()
+  self:assert_nil(select(2, parse("GET / HTTP/1.0\r\n\r\n")))
+  for _, line in ipairs({ "GET / HTTP/2.0", "GET / HTTP/0.9", "GET / HTTP/1.2", "GET / HTTP/3.0" }) do
+    self:reject(line .. "\r\nHost: h\r\n\r\n")
+  end
+end
+
+function T:test_rtsp_and_ice_requests_are_refused()
+  local err = self:reject("DESCRIBE rtsp://h/x RTSP/1.0\r\nCSeq: 1\r\n\r\n")
+  self:assert_equal("unsupported_method", err.context.kind)
+  self:reject("SETUP / HTTP/1.1\r\nHost: h\r\n\r\n")
+  self:reject("PLAY / HTTP/1.1\r\nHost: h\r\n\r\n")
+  self:reject("SOURCE /mount ICE/1.0\r\nHost: h\r\n\r\n")
+  self:reject("SOURCE /mount HTTP/1.1\r\nHost: h\r\n\r\n")
+  self:reject("GET / RTSP/1.0\r\nHost: h\r\n\r\n")
+  self:reject("GET / ICE/1.0\r\nHost: h\r\n\r\n")
+end
+
+function T:test_rtsp_and_ice_responses_are_refused()
+  for _, line in ipairs({ "RTSP/1.0 200 OK", "ICE/1.0 200 OK", "HTTP/2.0 200 OK" }) do
+    local _, err = Parser.response():feed(line .. "\r\nContent-Length: 0\r\n\r\n")
+    self:assert_true(err ~= nil, line)
+  end
+  self:assert_nil(select(2, Parser.response():feed("HTTP/1.0 200 OK\r\nContent-Length: 0\r\n\r\n")))
+end
+
+function T:test_the_head_budget_counts_raw_bytes_not_only_values()
+  -- Leading whitespace of values and the bytes between fields are not part of any field value.
+  local fields = {}
+  for i = 1, 30 do fields[i] = "X-" .. i .. ":" .. (" "):rep(3000) .. "v\r\n" end
+  local err = self:reject("GET / HTTP/1.1\r\n" .. table.concat(fields) .. "\r\n", 431)
+  self:assert_equal("head_too_large", err.context.kind)
+end
+
+function T:test_a_flood_of_empty_lines_before_the_request_line_hits_the_head_budget()
+  local p = Parser.request({ max_head_size = 1000 })
+  local failed
+  for _ = 1, 50 do
+    local _, err = p:feed(("\r\n"):rep(100))
+    if err then failed = err break end
+  end
+  self:assert_true(failed ~= nil, "unbounded leading CRLF")
+  self:assert_equal(431, failed.context.status)
+end
+
+function T:test_a_long_reason_phrase_is_bounded()
+  local _, err = Parser.response():feed("HTTP/1.1 200 " .. ("r"):rep(9000) .. "\r\n\r\n")
+  self:assert_equal("reason_too_long", err.context.kind)
+  self:assert_equal(400, err.context.status, "a response has nothing to answer: the generic status")
+end
+
+function T:test_chunk_extensions_and_chunk_size_digits_are_bounded()
+  local options = { max_head_size = 1000 }
+  local head = "POST / HTTP/1.1\r\nHost: h\r\nTransfer-Encoding: chunked\r\n\r\n"
+  local p = Parser.request(options)
+  local _, err = p:feed(head .. "3;" .. ("e"):rep(5000) .. "=x\r\nabc\r\n0\r\n\r\n")
+  self:assert_true(err ~= nil, "chunk extension")
+  p = Parser.request(options)
+  local failed
+  p:feed(head)
+  for _ = 1, 20 do
+    local _, e = p:feed(("0"):rep(200))
+    if e then failed = e break end
+  end
+  self:assert_true(failed ~= nil, "chunk size digits")
+  self:assert_equal(431, failed.context.status)
+end
+
+function T:test_pipelined_requests_do_not_share_a_head_budget()
+  local one = "GET /x HTTP/1.1\r\nHost: h\r\nX-A: " .. ("a"):rep(100) .. "\r\n\r\n"
+  local events, err = Parser.request({ max_head_size = 400 }):feed(one:rep(50))
+  self:assert_nil(err)
+  self:assert_equal(100, #events)
+end
+
+function T:test_skip_body_is_consumed_by_a_final_status_only()
+  local p = Parser.response()
+  p:skip_body()
+  local events, err = p:feed("HTTP/1.1 100 Continue\r\n\r\nHTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\n")
+  self:assert_nil(err)
+  self:assert_equal("head,complete,head,complete", kinds(events))
+  self:assert_equal(100, events[1].status)
+  -- consumed: the next response has its body
+  events, err = p:feed("HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok")
+  self:assert_nil(err)
+  self:assert_equal("head,data,complete", kinds(events))
+end
+
+function T:test_finish_after_an_error_returns_the_sticky_error()
+  local p = Parser.request()
+  local _, first = p:feed("GET / HTTP/1.1\r\nA: b\0c\r\n\r\n")
+  local events, err = p:finish()
+  self:assert_true(err ~= nil)
+  self:assert_equal("", kinds(events))
+  self:assert_equal(first.context.reason, err.context.reason)
+  self:assert_equal(first.context.position, err.context.position)
+end
+
+function T:test_feed_and_finish_after_an_upgrade_are_explicit_errors()
+  local p = Parser.request()
+  local events, err = p:feed("GET /ws HTTP/1.1\r\nHost: h\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n\r\n")
+  self:assert_nil(err)
+  self:assert_equal("upgrade", events[#events].type)
+  local again, e1 = p:feed("GET / HTTP/1.1\r\nHost: h\r\n\r\n")
+  self:assert_equal("upgraded", e1.context.kind)
+  self:assert_equal("", kinds(again))
+  local _, e2 = p:finish()
+  self:assert_equal("upgraded", e2.context.kind)
+end
+
+function T:test_the_error_position_is_that_of_the_failing_call()
+  local p = Parser.request()
+  local _, none = p:feed("GET / HTTP/1.1\r\n")
+  self:assert_nil(none)
+  local text = "Host: h\r\nX: a\0b\r\n\r\n"
+  local _, err = p:feed(text)
+  self:assert_true(err.context.position <= #text)
+  local _, again = p:feed(("x"):rep(10))
+  self:assert_equal(err.context.position, again.context.position)
+end
+
+function T:test_adjacent_content_is_one_data_event()
+  local body = ("x"):rep(100000)
+  local events, err = Parser.request():feed("POST / HTTP/1.1\r\nHost: h\r\nContent-Length: 100000\r\n\r\n" .. body)
+  self:assert_nil(err)
+  self:assert_equal("head,data,complete", kinds(events))
+  self:assert_equal(100000, #events[2].data)
+end
+
+function T:test_the_events_of_one_call_are_capped_without_losing_any()
+  local parts = {}
+  for i = 1, 200 do parts[i] = "1\r\n" .. string.char(96 + (i % 26) + 1) .. "\r\n" end
+  local text = "POST / HTTP/1.1\r\nHost: h\r\nTransfer-Encoding: chunked\r\n\r\n" .. table.concat(parts) .. "0\r\n\r\n"
+  local events, err = Parser.request({ max_events = 4 }):feed(text)
+  self:assert_nil(err)
+  local body = {}
+  for _, e in ipairs(events) do if e.type == "data" then body[#body + 1] = e.data end end
+  local expected = {}
+  for i = 1, 200 do expected[i] = string.char(96 + (i % 26) + 1) end
+  self:assert_equal(table.concat(expected), table.concat(body))
+  self:assert_equal("complete", events[#events].type)
+  self:assert_equal(202, #events, "head, 200 data, complete")
+end
+
+function T:test_options_are_integers_within_the_ceiling_and_known()
+  self:assert_error(function() Parser.request({ max_target_size = "8192" }) end)
+  self:assert_error(function() Parser.request({ max_target_size = 8192.0 }) end)
+  self:assert_error(function() Parser.request({ max_target_size = 16777217 }) end)
+  self:assert_error(function() Parser.request({ max_target_sise = 10 }) end)
+  self:assert_error(function() Parser.request(5) end)
+  Parser.request({ max_target_size = 16777216 })
+  local core = require("hecate.core")
+  local ok, err = pcall(Parser.request, { bogus = 1 })
+  self:assert_false(ok)
+  self:assert_true(core.is_instance_of(err, core.ArgumentError))
+end
+
+function T:test_failures_carry_a_machine_readable_kind()
+  local cases = {
+    { "GET /" .. ("a"):rep(9000) .. " HTTP/1.1\r\n\r\n", "target_too_long" },
+    { "GET / HTTP/1.1\r\nX-A: " .. ("a"):rep(9000) .. "\r\n\r\n", "field_value_too_large" },
+    { "GET / HTTP/1.1\r\n" .. ("N"):rep(9000) .. ": a\r\n\r\n", "field_name_too_large" },
+  }
+  for _, case in ipairs(cases) do
+    local err = select(2, parse(case[1]))
+    self:assert_equal(case[2], err.context.kind)
+  end
+  local plain = select(2, parse("GET / HTTP/1.1\r\nA: b\0c\r\n\r\n"))
+  self:assert_nil(plain.context.kind, "an llhttp rejection has no kind of ours")
+  local many = {}
+  for i = 1, 101 do many[i] = "X-" .. i .. ": v\r\n" end
+  self:assert_equal("too_many_fields", select(2, parse("GET / HTTP/1.1\r\n" .. table.concat(many) .. "\r\n")).context.kind)
+end
+
+function T:test_close_releases_the_parser()
+  local p = Parser.request()
+  p:feed("GET / HTTP/1.1\r\nHost: h\r\n")
+  p:close()
+  p:close()
+  self:assert_error(function() p:feed("x") end)
 end
 
 return T

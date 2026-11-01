@@ -11,11 +11,15 @@ local native = require("hecate.http.native")
 --- A message that is not valid HTTP/1.1, or that exceeds a limit of the parser.
 ---
 --- `context.reason` is the llhttp reason (or the limit that was exceeded), `context.code` the llhttp error name,
---- `context.position` the 0-based offset in the chunk where the parse failed, and `context.status` the status code to
+--- `context.kind` a stable identifier for the failures of the binding itself (`target_too_long`, `field_name_too_large`,
+--- `field_value_too_large`, `reason_too_long`, `head_too_large`, `too_many_fields`, `chunked_in_http_1_0`,
+--- `unsupported_version`, `unsupported_method`, `unsupported_protocol`, `out_of_memory`, `upgraded`; absent for llhttp's own
+--- rejections), `context.position` the 0-based offset in the chunk of the call that failed, and `context.status` the status code to
 --- answer with: 414 for a request target over its limit, 431 for a field, a head or a field count over its limit,
---- 400 otherwise (RFC 9110 sections 15.5.1, 15.5.15 and 15.5.32).
+--- 400 otherwise (RFC 9110 sections 15.5.1, 15.5.15 and 15.5.32). After an upgrade, `feed` and `finish` return a
+--- ParseError of kind `upgraded`: the bytes after the upgrade are not HTTP.
 ---@class hecate.http.ParseError : hecate.core.Error
----@field context { reason: string, code: string, position: integer, status: integer }
+---@field context { reason: string, code: string, kind?: string, position: integer, status: integer }
 local ParseError = core.error_class("ParseError", "hecate.http.ParseError")
 
 --- The head of a message (request line or status line, and its fields).
@@ -49,40 +53,50 @@ local ParseError = core.error_class("ParseError", "hecate.http.ParseError")
 
 ---@alias hecate.http.parser.Event hecate.http.parser.Head|hecate.http.parser.Data|hecate.http.parser.Complete|hecate.http.parser.Upgrade
 
---- Limits of the parser; every one has a safe default.
+--- Limits of the parser; every one has a safe default. Each is an integer between 1 and 16777216; an unknown key is
+--- an `ArgumentError`.
 ---@class hecate.http.parser.Options
 ---@field max_target_size? integer  request target, bytes (default 8192; over it: 414)
----@field max_field_size? integer  one field name or value, bytes (default 8192; over it: 431)
----@field max_head_size? integer  all field names and values of a head or of a trailer section, bytes (default 65536; 431)
----@field max_fields? integer  fields in a head or a trailer section (default 100; 431)
+---@field max_field_size? integer  one field name or value, or the reason phrase, bytes (default 8192; over it: 431)
+---@field max_head_size? integer  raw bytes of a section, whitespace included: a head from its first byte to its end
+---  (empty lines before the request line included), the bytes between two chunks of content (size digits and
+---  extensions), a trailer section (default 65536; over it: 431)
+---@field max_fields? integer  fields in a head or a trailer section (default 100; over it: 431)
+---@field max_events? integer  events the native parser records before it pauses and `feed` continues (default 1024)
 
 --- An incremental parser of one direction of one connection.
 ---@class hecate.http.Parser
----@field native table  the llhttp binding (hecate.http.native); not part of the public API
 ---@field ParseError hecate.http.ParseError
 local Parser = core.class("Parser")
 Parser.ParseError = ParseError
-Parser.native = native
 
 ---@param handle table  the native parser
-function Parser:init(handle)
+---@param kind string
+function Parser:init(handle, kind)
   self._handle = handle
+  self._kind = kind
 end
 
-local TOO_LARGE_TARGET = { ["request target too long"] = 414 }
-local TOO_LARGE_FIELD = {
-  ["field name too large"] = true,
-  ["field value too large"] = true,
-  ["header section too large"] = true,
-  ["too many fields"] = true,
-  ["reason phrase too long"] = true,
+-- Status to answer with, by the `kind` of a failure of the binding (never by matching its text).
+local STATUS_OF_KIND = {
+  target_too_long = 414,
+  field_name_too_large = 431,
+  field_value_too_large = 431,
+  head_too_large = 431,
+  too_many_fields = 431,
+  out_of_memory = 500,
 }
 
 local function failure(raw)
-  local status = TOO_LARGE_TARGET[raw.reason] or (TOO_LARGE_FIELD[raw.reason] and 431) or 400
   return ParseError({
     message = "HTTP message rejected: " .. raw.reason,
-    context = { reason = raw.reason, code = raw.code, position = raw.position, status = status },
+    context = {
+      reason = raw.reason,
+      code = raw.code,
+      kind = raw.kind,
+      position = raw.position,
+      status = STATUS_OF_KIND[raw.kind] or 400,
+    },
   })
 end
 
@@ -115,8 +129,8 @@ local function result(events, raw)
   local err = convert(events)
   if err == nil and raw ~= nil then err = failure(raw) end
   if err ~= nil then
-    -- Nothing from a message that failed in its head is delivered: a head event is kept only when its message
-    -- finished before the failure (events of earlier pipelined messages stay).
+    -- Nothing from a message that failed before its end is delivered: events are kept up to the last message that
+    -- finished (those of earlier pipelined messages stay).
     local complete = {}
     local pending = {}
     for _, event in ipairs(events) do
@@ -141,18 +155,12 @@ function Parser.new(kind, options)
   if kind ~= "request" and kind ~= "response" then
     error(core.ArgumentError("http.Parser: kind must be \"request\" or \"response\""), 2)
   end
-  local native_options
-  if options ~= nil then
-    native_options = {
-      max_target_size = options.max_target_size,
-      max_field_size = options.max_field_size,
-      max_head_size = options.max_head_size,
-      max_fields = options.max_fields,
-    }
+  if options ~= nil and type(options) ~= "table" then
+    error(core.ArgumentError("http.Parser: options must be a table"), 2)
   end
-  local ok, handle = pcall(native.new, kind, native_options)
+  local ok, handle = pcall(native.new, kind, options)
   if not ok then error(core.ArgumentError("http.Parser: " .. tostring(handle)), 2) end
-  return Parser(handle)
+  return Parser(handle, kind)
 end
 
 --- A parser of requests (the server side).
@@ -177,7 +185,16 @@ function Parser:feed(chunk)
   if type(chunk) ~= "string" then
     error(core.ArgumentError("http.Parser:feed expects a string, got " .. type(chunk)), 2)
   end
-  return result(self._handle:execute(chunk))
+  local handle = self._handle
+  local all, start, raw = {}, 0, nil
+  for _ = 1, #chunk + 2 do
+    local events, failed, consumed = handle:execute(chunk, start)
+    for _, event in ipairs(events) do all[#all + 1] = event end
+    raw = failed
+    if failed ~= nil or consumed >= #chunk or consumed <= start then break end
+    start = consumed
+  end
+  return result(all, raw)
 end
 
 --- Tells the parser that the peer closed the connection. Returns the events that closing completes (a response
@@ -185,13 +202,22 @@ end
 ---@return hecate.http.parser.Event[] events
 ---@return hecate.http.ParseError? err
 function Parser:finish()
-  return result(self._handle:finish())
+  local events, failed = self._handle:finish()
+  return result(events, failed)
 end
 
---- Declares that the next message has no content whatever its fields say: the response to a HEAD request or a
---- 304 (RFC 9112 section 6.3, rule 1).
+--- Declares that the next final response (status 200 or above) has no content whatever its fields say: the response to
+--- a HEAD request or a 304 (RFC 9112 section 6.3, rule 1). An interim response (1xx) does not consume it.
+--- Raises `hecate.core.ArgumentError` on a parser of requests.
 function Parser:skip_body()
+  if self._kind ~= "response" then error(core.ArgumentError("http.Parser:skip_body is for a parser of responses"), 2) end
   self._handle:skip_body()
+end
+
+--- Releases the memory of the parser. Calling `feed`, `finish` or `skip_body` afterwards raises; closing twice is
+--- harmless. A parser that is not closed is released when it is collected.
+function Parser:close()
+  self._handle:close()
 end
 
 return core.finalise(Parser)

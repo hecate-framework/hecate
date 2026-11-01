@@ -169,6 +169,10 @@ concurrency test suite passes; benchmark baseline recorded.
       `tls.accept` in a forked computation per connection (a silent client holds a handshake for up to 60 s), and
       bounds the bytes read during a handshake; (3) a production listener passes a numeric address (`net.listen` on
       a name binds every address the resolver lists): decide the default of the `listen` setting and document it.
+      **Also carries two items of the llhttp binding review (step 2b)**: (4) the server answers 400 to an HTTP/1.1
+      request without exactly one `Host` field (RFC 9112 section 3.2; the parser only exposes the fields); (5) the
+      server calls `Parser:close()` when a connection ends, and feeds the parser chunks no larger than its read buffer
+      (`feed` returns every event of the chunk in one list).
 - [ ] `router`: radix tree, URI template subset, 404/405, reverse routing.
 - [ ] `schema`: refinement types, composition, coercion, validation with JSON Pointer
       error paths, JSON Schema 2020-12 emission.

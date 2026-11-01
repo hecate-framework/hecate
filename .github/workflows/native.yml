@@ -74,7 +74,7 @@ jobs:
       - name: Sanitizer run
         run: |
           (cd packages/json/native && rustup toolchain install)
-          lua tools/run.lua sanitize json
+          lua tools/run.lua sanitize json http
 
   fuzz:
     name: fuzz (short)

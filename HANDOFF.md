@@ -18,8 +18,9 @@
 
 ## Next steps
 
-1. Step 2b (left over): a fuzz target for the parser wrapper under `csrc/fuzz/` (see json), RFC 9112 test vectors, a parse benchmark in `benchmarks/`, `native-code-reviewer` review of `csrc/native.c`; watch the first CI run on macOS and Windows.
+1. Step 2b is done (native-code review of e59793e fixed, see CHANGELOG). Left: RFC 9112 test vectors, a parse benchmark in `benchmarks/`, and the first CI run on macOS and Windows (build, `sanitize http` in `native.yml`, `fuzz parse` for a minute; clang's libFuzzer runtime is absent in the cloud image, so the target was checked locally with an ASan/UBSan driver over 180k mutated inputs only).
 2. Step 3: server over `hecate.net` (keep-alive, pipelining, `Expect: 100-continue`, chunked, HEAD without content, one coroutine and scope per request, graceful shutdown).
+3. (also for step 3) the server answers 400 to an HTTP/1.1 request without exactly one `Host` field (review finding 3, deferred: the parser exposes the fields); it calls `Parser:close()` when a connection ends and feeds chunks no larger than its read buffer (review finding 9). Both are in the roadmap `http` item.
 3. Step 4: limits with safe defaults (request line, field count and size, content size, read and idle deadlines; slowloris).
 4. Step 5: client (pool per origin, redirects, deadlines, TLS, streaming).
 5. Step 6: the three deferred Phase 1 findings (see docs/reviews/phase-1.md, rows deferred to `http`), multipart and URL-encoded content.
