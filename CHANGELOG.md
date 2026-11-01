@@ -11,6 +11,7 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- `hecate.reactor`: a computation body runs under `pcall` inside its coroutine, so the `<close>` handlers of a computation that dies from an uncaught error or cancellation run in a yieldable context and can suspend under `reactor.shield` (OQ-23); before, they ran inside `coroutine.close`, where nothing can yield.
 - `hecate.net`: the default `BufferedWriter` capacity is 16 KiB (one TLS record), up from 8 KiB (owner decision of 2026-11-01, OQ-47 (7), from the `net/buffered-writer` sweep).
 - `hecate.core`: `core.interface` raises `ArgumentError` when `methods` is not a plain list of names; trait, interface and error class names must be non-empty strings, with one shared message.
 - `hecate.core`: a trait alias that collides with another method of the same trait is a `ConformanceError`; a malformed `exclude` or `alias` is an `ArgumentError`.

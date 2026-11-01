@@ -120,6 +120,37 @@ function T:test_shields_nest_and_the_innermost_deadline_applies()
   end)
 end
 
+function T:test_a_close_handler_can_suspend_under_a_shield_when_the_computation_dies_from_an_uncaught_cancellation()
+  local flushed
+  run_virtual(function()
+    reactor.scope(function(scope)
+      scope:fork(function()
+        local cleanup <close> = setmetatable({}, { __close = function()
+          reactor.shield(5, function() reactor.sleep(1); flushed = reactor.now() end)
+        end })
+        reactor.sleep(100) -- not wrapped in pcall: the cancellation ends the computation
+      end)
+      reactor.sleep(2)
+      scope:cancel()
+    end)
+  end)
+  self:assert_equal(3, flushed) -- cancelled at 2, the shielded cleanup slept 1 more second
+end
+
+function T:test_a_close_handler_can_suspend_under_a_shield_when_the_computation_dies_from_an_error()
+  local flushed = false
+  local err = self:assert_error(function()
+    run_virtual(function()
+      local cleanup <close> = setmetatable({}, { __close = function()
+        reactor.shield(5, function() reactor.sleep(1); flushed = true end)
+      end })
+      error(core.Error("boom"), 0)
+    end)
+  end)
+  self:assert_equal("boom", err.message)
+  self:assert_true(flushed)
+end
+
 function T:test_arguments_are_checked()
   run_virtual(function()
     for _, bad in ipairs({ 0/0, math.huge, "1", false }) do

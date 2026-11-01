@@ -297,7 +297,14 @@ function Reactor:_create_computation(scope, fn, args)
   }
   local creator = self._computations[coroutine.running()]
   if creator then computation.ambient = creator.ambient end -- ambient context (ADR 0025)
-  computation.co = coroutine.create(function() return fn(table.unpack(args, 1, args.n)) end)
+  -- The body runs under `pcall` inside the coroutine: an error unwinds to it with the pending `<close>` variables
+  -- closed there, in a yieldable context, so a close handler may suspend (under `reactor.shield`, OQ-23). Left
+  -- uncaught, the error would end the coroutine and `coroutine.close` would run the handlers where nothing can yield.
+  computation.co = coroutine.create(function()
+    local outcome = table.pack(pcall(fn, table.unpack(args, 1, args.n)))
+    if not outcome[1] then error(outcome[2], 0) end
+    return table.unpack(outcome, 2, outcome.n)
+  end)
   future._computation = computation
   self._computations[computation.co] = computation
   self._live = self._live + 1
