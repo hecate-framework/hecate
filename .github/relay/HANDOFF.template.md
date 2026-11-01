@@ -19,4 +19,6 @@
 ## Commands to re-run
 
 ```sh
+lua tools/run.lua setup-luals   # once per session: pinned LuaLS into spikes/luals
+lua tools/run.lua typecheck     # required before every push (CI fails on any warning)
 ```

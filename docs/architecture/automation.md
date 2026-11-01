@@ -31,6 +31,7 @@ Status column: `done` = implemented in `tools/`, `now` = workflow exists today, 
 | `build-native <package>` | build the native modules of a package (`cargo` or a C compiler) and install them into `.hecate/rocks` | done |
 | `lint` | the chunk compiles and declares no global; the other rules of coding-standards.md are planned | done |
 | `typecheck` | `lua-language-server --check` with the repository `.luarc.json`, zero diagnostics | done |
+| `setup-luals` | installs the LuaLS release pinned in `ci.yml` (version and sha256, read from that file) into `spikes/luals/` (git-ignored) after checking the sha256; `typecheck` falls back to it when `lua-language-server` is not on PATH | done |
 | `fetch-fixtures` | downloads the third-party test data a package declares in `tests/external.lua` into `.hecate/fixtures/` (git-ignored) with git at a pinned commit (`HECATE_FIXTURES_LATEST=1`: the head of the default branch, for scheduled runs); suites that need it skip locally without it and fail in CI | done |
 | `check-lua-constructs` | only the 5.5 constructs allowed by ADR 0001 | done |
 | `check-boundaries` | layer rules (overview.md): requires match declared rockspec dependencies, no upward or cyclic dependency, `luv` only in `reactor`, raw `setmetatable` only in `core` or justified | done |

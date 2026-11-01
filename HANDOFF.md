@@ -3,10 +3,13 @@
 
 - roadmap_item: `http`: HTTP/1.1 server (llhttp, OQ-6) and client, message model, streaming, keep-alive, limits (Phase 2)
 - status: in-progress
-- lock_until: 2026-11-01T14:17:35Z
-- last_update: 2026-11-01T12:47:35Z
+- lock_until: 2026-11-01T00:00:00Z
+- last_update: 2026-11-01T13:00:00Z
 
 ## Done
+
+- Lock released at the owner's request (the next run starts at 14:30 Paris). CI was green; typecheck fixed in 6d17b80.
+- `setup-luals` task added; `typecheck` falls back to `spikes/luals`; relay doc and template require `typecheck` before every push.
 
 - Claimed the item after the Phase 1 gate merge (PR #47).
 - Step 1 (message model, pure Lua): `Fields`, `MediaType`, `Status`, `Request`, `Response`, `Cookie`/`SetCookie` in `packages/http/src/hecate/http/`, unit tests in `packages/http/tests/unit/`, README Public API and CHANGELOG. `test http`, `lint`, `check-package-structure`, `check-boundaries`, `check-glossary`, `check-rockspecs`, `check-changelog`, `check-lua-constructs`, `check-annotations` pass. `typecheck` not run (LuaLS not installed).

@@ -11,6 +11,7 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- `tools`: the `setup-luals` task installs the LuaLS release pinned in `ci.yml` into `spikes/luals/` (sha256 checked); `typecheck` uses it when LuaLS is not on PATH. The relay requires `typecheck` before every push.
 - `hecate.http`: the pure-Lua message model (step 1 of the Phase 2 item, no I/O yet): case-insensitive, multi-valued, order-preserving `Fields` that refuse CR, LF and NUL (RFC 9110, section 5); `MediaType` parse and format (section 8.3.1); `Status` reason phrases and classes; `Request` and `Response` value classes; `Cookie.parse` and `SetCookie` formatting (RFC 6265) that refuse attribute injection.
 - `hecate.net`: `BufferedWriter` flushes on a `<close>` unwound by an error or cancellation without ever replacing that error; `write` and `flush` accepted while `close` is flushing raise `EBADF`, and a poisoned writer that was then closed raises `EBADF`.
 - `hecate.net`: `TcpListener` no longer leaks connections taken while it closes, keeps an accept failure that arrives with a connection for the next `accept`, and `accept` on a closed listener raises `EBADF` naming the listener; `net.listen` with port 0 and several addresses retries with a new port (up to 5 attempts) when the port is busy on a later address, and closes the sockets it bound if it fails.
