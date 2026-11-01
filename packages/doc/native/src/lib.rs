@@ -113,7 +113,10 @@ pub fn check_nesting(markdown: &str) -> Result<(), String> {
                     at += 2;
                 }
                 b'0'..=b'9' => {
-                    let digits = bytes[at..].iter().take_while(|b| b.is_ascii_digit()).count();
+                    let digits = bytes[at..]
+                        .iter()
+                        .take_while(|b| b.is_ascii_digit())
+                        .count();
                     let end = at + digits;
                     let marker = matches!(bytes.get(end), Some(b'.' | b')'))
                         && matches!(bytes.get(end + 1), Some(b' ' | b'\t'));
