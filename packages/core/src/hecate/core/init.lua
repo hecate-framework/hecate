@@ -22,6 +22,7 @@ local compat = require("hecate.core.compat")
 ---@field NonYieldableContextError hecate.core.Error
 ---@field ClosedChannelError hecate.core.Error
 ---@field NetworkError hecate.core.Error
+---@field IoError hecate.core.Error
 ---@field ProtocolError hecate.core.Error
 ---@field ValidationError hecate.core.Error
 ---@field DatabaseError hecate.core.DatabaseError
@@ -55,7 +56,7 @@ core.is_debug_mode = errors.is_debug_mode
 
 for _, name in ipairs({
   "ConfigurationError", "ConformanceError", "ArgumentError", "CancellationError",
-  "DeadlineExceededError", "NonYieldableContextError", "ClosedChannelError", "NetworkError", "ProtocolError", "ValidationError", "DatabaseError",
+  "DeadlineExceededError", "NonYieldableContextError", "ClosedChannelError", "NetworkError", "IoError", "ProtocolError", "ValidationError", "DatabaseError",
 }) do
   ---@diagnostic disable-next-line: assign-type-mismatch  -- error classes are constructors exported as their class
   core[name] = errors[name]

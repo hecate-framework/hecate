@@ -117,6 +117,8 @@ function T:test_unknown_program_raises_io_error()
     reactor.run(function() reactor.spawn("hecate-no-such-program-xyz") end)
   end)
   self:assert_true(core.is_instance_of(err, reactor.IoError))
+  self:assert_true(core.is_instance_of(err, core.IoError), "reactor.IoError extends core.IoError")
+  self:assert_false(core.is_instance_of(err, core.NetworkError))
 end
 
 function T:test_argument_validation()

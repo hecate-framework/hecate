@@ -90,7 +90,7 @@ A single hierarchy rooted at `hecate.core.Error`:
   `traceback` (captured when created in debug mode);
 - subclasses per domain: `ConfigurationError`, `ConformanceError`, `ArgumentError`
   (misuse of an API), `CancellationError`,
-  `DeadlineExceededError`, `NonYieldableContextError`, `ClosedChannelError`, `NetworkError`, `ProtocolError`, `ValidationError`,
+  `DeadlineExceededError`, `NonYieldableContextError`, `ClosedChannelError`, `NetworkError`, `IoError`, `ProtocolError`, `ValidationError`,
   `DatabaseError` (with SQLSTATE when available), etc.;
 - `message` defaults to the class name when none is given;
 - `__tostring` renders the cause chain;
