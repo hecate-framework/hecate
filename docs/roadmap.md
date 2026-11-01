@@ -157,7 +157,13 @@ concurrency test suite passes; benchmark baseline recorded.
 ## Phase 2 — HTTP and framework kernel
 
 - [ ] `http`: HTTP/1.1 server (llhttp, OQ-6) and client, message model, streaming,
-      keep-alive, limits.
+      keep-alive, limits. **Carries three findings deferred from the Phase 1 gate review** (security review,
+      [report](reviews/phase-1.md)): (1) map `reactor.TransportError` to a generic RFC 9457 `detail` and never
+      forward `context.attempts` or resolved addresses to a client (the `net.connect` error lists every resolved
+      address with its errno), with a test; (2) the server owns a limit on concurrent TLS handshakes and runs
+      `tls.accept` in a forked computation per connection (a silent client holds a handshake for up to 60 s), and
+      bounds the bytes read during a handshake; (3) a production listener passes a numeric address (`net.listen` on
+      a name binds every address the resolver lists): decide the default of the `listen` setting and document it.
 - [ ] `router`: radix tree, URI template subset, 404/405, reverse routing.
 - [ ] `schema`: refinement types, composition, coercion, validation with JSON Pointer
       error paths, JSON Schema 2020-12 emission.
@@ -200,7 +206,10 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
 - [ ] `test`: test framework, runner, in-process client, fixtures, contract conformance,
       reporters (TAP, JUnit XML), coverage.
 - [ ] `doc`: project documentation generator for user projects (OpenAPI reference,
-      `hecate doc build`); the minimal generator and the code reference moved to Phase 1.
+      `hecate doc build`); the minimal generator and the code reference moved to Phase 1. **Carries deferrals
+      from the Phase 1 gate review** (cross-platform review): refuse, with a `BuildError`, page ids that are not valid
+      file names on Windows (`? : * " < > |`, trailing dots or spaces, reserved names such as `CON`) and normalise
+      NFC/NFD names before the collision check, because a site is built from a tree authored elsewhere.
 - [ ] `cli` v1: self-contained executable, `new`, `install`, `add`, `remove`, `update`,
       `serve [--watch]`, `test`, `doc`, `contract`, `toolchain`, `doctor`, `version`.
 - [ ] Docker images (runtime and build variants, amd64 + arm64).
