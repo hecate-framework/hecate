@@ -23,6 +23,19 @@ read the matching page of the [explanation](../explanation/index.md) section.
 - [Run child processes and pass connections between processes](run-processes-and-pass-connections.md):
   `run_process`, `spawn`, the message pipe and handing a connection to a child.
 
+## HTTP
+
+- [Serve HTTP](serve-http.md): start a server, write a handler, answer with JSON and problem
+  details, set cookies, shut down.
+- [Stream HTTP content](stream-http-content.md): read request content chunk by chunk and stream
+  a response.
+- [Use the HTTP client](use-the-http-client.md): requests, pooled connections, redirects,
+  deadlines and failures.
+- [Handle forms and multipart](handle-forms-and-multipart.md): urlencoded forms, uploads and
+  untrusted filenames.
+- [Set limits, timeouts and TLS on the HTTP server](http-limits-timeouts-and-tls.md): every
+  bound, its default, and HTTPS.
+
 ## Performance
 
 - [Measure performance](measure-performance.md): run the TCP echo benchmark, read its figures and

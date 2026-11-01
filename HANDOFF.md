@@ -3,8 +3,8 @@
 
 - roadmap_item: `http`: HTTP/1.1 server (llhttp, OQ-6) and client, message model, streaming, keep-alive, limits (Phase 2)
 - status: in-progress
-- lock_until: 2026-11-01T00:00:00Z
-- last_update: 2026-11-01T15:45:09Z
+- lock_until: 2026-11-01T20:18:40Z
+- last_update: 2026-11-01T18:48:40Z
 
 ## Done
 
@@ -31,7 +31,7 @@ Cloud image note: run the tests with `LUA_CPATH="/opt/lua-5.5/lib/lua/5.5/?.so;;
 4. Step 4 is done (see Done).
 5. Step 5 is done (see Done).
 6. Step 6 is done (see Done).
-7. Step 7: docs in `website/`, examples, benchmarks, `typecheck`, `/review-package`, then Finish.
+7. Step 7a done; step 7b done (website/en pages, packages/http/examples, examples_test; typecheck ok). Left: add `http` to `DEFAULT_PACKAGES` in `packages/doc` (reference site; needs LuaLS to verify, owner/`doc` item), French mirror (translator-fr, Phase 3), `/review-package http`, then Finish (delete HANDOFF.md, tick roadmap, ready for review).
 
 ## Decisions taken (and where they are recorded)
 
