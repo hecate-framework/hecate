@@ -1,3 +1,4 @@
+---@diagnostic disable: missing-fields, param-type-mismatch, assign-type-mismatch  -- the tests pass invalid options and arguments on purpose
 local test = require("harness.test")
 local json = require("hecate.json")
 local log = require("hecate.log")

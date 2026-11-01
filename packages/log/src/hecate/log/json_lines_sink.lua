@@ -11,7 +11,7 @@ local MAX_DEPTH = 16
 local TRUNCATED = "[truncated]"
 
 --- A sink that writes one JSON object per record, followed by a newline, to a function.
----@class hecate.log.JsonLinesSink
+---@class hecate.log.JsonLinesSink : hecate.log.Sink
 ---@overload fun(options: hecate.log.JsonLinesSinkOptions): hecate.log.JsonLinesSink
 local JsonLinesSink = core.class("JsonLinesSink")
 

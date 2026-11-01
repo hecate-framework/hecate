@@ -6,7 +6,7 @@ local JsonLinesSink = require("hecate.log.json_lines_sink")
 
 --- A sink appending one JSON object per record to a file. Writes are synchronous (they block the
 --- calling computation for the duration of the write); wrap it in an `AsyncSink` to move the write off the caller.
----@class hecate.log.FileSink
+---@class hecate.log.FileSink : hecate.log.Sink
 ---@overload fun(options: hecate.log.FileSinkOptions): hecate.log.FileSink
 local FileSink = core.class("FileSink")
 

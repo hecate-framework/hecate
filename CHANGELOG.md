@@ -11,6 +11,15 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- `hecate.core`: `core.interface` raises `ArgumentError` when `methods` is not a plain list of names; trait, interface and error class names must be non-empty strings, with one shared message.
+- `hecate.core`: a trait alias that collides with another method of the same trait is a `ConformanceError`; a malformed `exclude` or `alias` is an `ArgumentError`.
+- `hecate.core`: `Error` rejects a non-string `message`, a non-string `code` and a non-table `context` with `ArgumentError`; debug-mode tracebacks now start at the code that created the error. `core.error_class` rejects a superclass that is not an error class.
+- `hecate.core`: `core.is_instance_of(value, class)` raises `ArgumentError` when `class` is not a class (a `value` of any type still gives `false`).
+- `hecate.core`: values of two enumerations that share a name no longer compare equal; the exported error classes are annotated with their own class.
+- `hecate.json`: a failed allocation in the decoder is reported as `DecodeError` with reason `out_of_memory` (no position), not as a syntax error; `size_limit` failures carry no position; `ArgumentError` messages describe a long string option value or name by a 40-byte prefix and its length.
+- `hecate.doc`: site configuration validates every key and refuses a protocol-relative base; `--base` and `--url` are validated too. Front matter rejects malformed escapes in double-quoted scalars. A Markdown page that is not valid UTF-8, and a `public/` file that collides with a generated file, are a `BuildError`. Page paths are percent-encoded in URLs and links.
+- `hecate.doc`: the LuaLS export uses a private, unpredictable temporary directory and Windows command-line quoting is corrected and tested; `bin/build.lua` parses its command line strictly (usage error, exit code 2) and accepts `--flag=value`.
+- `hecate.doc`: the native module no longer exports the unsafe CommonMark renderer (cargo feature `spec-tests`, off by default); `lua tools/run.lua build-native doc --spec` builds the test-only variant that the specification tests load, and CI and the nightly workflow build it.
 - `hecate.net`: a `BufferedReader` closed during a suspended read raises the closed error (`TransportError`, `EBADF`) instead of returning the chunk.
 - `hecate.net`: `TlsStream:close` releases the native session even when closing the inner stream raises; a TLS read suspended when `close()` runs raises `TransportError` (`EBADF`) instead of `ECANCELED` or `TlsError`.
 - `hecate.net`: unknown or invalid options of `net.connect` and `net.listen` are reported in sorted key order, so the error message is deterministic.

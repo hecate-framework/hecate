@@ -15,7 +15,7 @@ local reactor = require("hecate.reactor")
 --- the record is dropped and counted: back-pressure is loss, never waiting.
 --- The drain computation starts at the first `write`, which therefore must run inside a reactor. Call `close` before
 --- the main computation ends: a drain computation still waiting for records is a deadlock to the reactor.
----@class hecate.log.AsyncSink
+---@class hecate.log.AsyncSink : hecate.log.Sink
 ---@overload fun(options: hecate.log.AsyncSinkOptions): hecate.log.AsyncSink
 local AsyncSink = core.class("AsyncSink")
 

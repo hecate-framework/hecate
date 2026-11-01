@@ -422,6 +422,7 @@ function Reactor:run(fn, ...)
   if not ok then
     -- The failure of the run stays the error raised; the errors of the `__close` handlers ride along.
     if #close_errors > 0 and core.is_instance_of(failure, core.Error) then
+      ---@cast failure hecate.core.Error
       failure.context.close_errors = close_errors
     end
     error(failure, 0)

@@ -16,7 +16,7 @@ local severity = require("hecate.log.internal.severity")
 
 --- A sink that forwards to another one, dropping part of the records that are less urgent than
 --- `exempt`: first by sampling, then by a token bucket. Dropped records are counted. `write` never suspends.
----@class hecate.log.LimitedSink
+---@class hecate.log.LimitedSink : hecate.log.Sink
 ---@overload fun(options: hecate.log.LimitedSinkOptions): hecate.log.LimitedSink
 local LimitedSink = core.class("LimitedSink")
 
