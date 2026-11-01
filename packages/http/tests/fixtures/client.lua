@@ -93,4 +93,59 @@ function support.with_server(case, action, options, fn)
   case:assert_equal(before, reactor.Reactor.open_handles(), "libuv handles left open")
 end
 
+--- Runs `fn` on a reactor under a 30 s deadline and asserts that no libuv handle is left open.
+---@param case table
+---@param fn function
+function support.run(case, fn)
+  local before = reactor.Reactor.open_handles()
+  reactor.run(function() reactor.deadline(30, fn) end)
+  case:assert_equal(before, reactor.Reactor.open_handles(), "libuv handles left open")
+end
+
+--- Reads one request head from a stream (until the blank line); nil at the end of the stream.
+---@param stream any
+---@return string?
+function support.read_head(stream)
+  local buffer = ""
+  while not buffer:find("\r\n\r\n", 1, true) do
+    local chunk = stream:read()
+    if chunk == nil then return nil end
+    buffer = buffer .. chunk
+  end
+  return buffer
+end
+
+--- A scripted server: `script(stream, index)` runs for each accepted connection (`index` counts them); the stream is closed
+--- when it returns. Returns `{ port, accepted, stop }`; `accepted` counts the connections taken so far.
+---@param script fun(stream: any, index: integer)
+---@return table
+function support.scripted(script)
+  local listener = net.listen("127.0.0.1", 0)
+  local state = { accepted = 0, port = listener:local_address().port }
+  local loop = reactor.fork(function()
+    while true do
+      local ok, stream = pcall(listener.accept, listener)
+      if not ok then return end
+      state.accepted = state.accepted + 1
+      local index = state.accepted
+      reactor.fork(function()
+        pcall(script, stream, index)
+        stream:close()
+      end)
+    end
+  end)
+  function state.stop()
+    listener:close()
+    loop:cancel()
+  end
+  return state
+end
+
+--- The response text of a 200 with `content`.
+---@param content string
+---@return string
+function support.ok(content)
+  return "HTTP/1.1 200 OK\r\nContent-Length: " .. #content .. "\r\n\r\n" .. content
+end
+
 return support

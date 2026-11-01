@@ -141,7 +141,6 @@ function T:test_head_204_and_304_have_no_content_and_the_connection_is_reused()
     self:assert_equal("", client:get(base(port, "/204")):read_content())
     self:assert_equal("", client:get(base(port, "/304")):read_content())
     self:assert_equal("hello", client:get(base(port, "/x")):read_content())
-    self:assert_equal(1, #({ [peers[1]] = true, [peers[2]] = true, [peers[3]] = true, [peers[4]] = true } and { 1 }) )
     self:assert_equal(peers[1], peers[4], "one connection served all four requests")
   end)
 end
@@ -158,7 +157,7 @@ function T:test_the_response_content_streams_chunk_by_chunk()
       if chunk == nil then break end
       count, total = count + 1, total + #chunk
     end
-    self:assert_equal(5 * 6000 - 0, total)
+    self:assert_equal(30000, total)
     self:assert_true(count >= 2, "several chunks, not one buffer: " .. count)
   end)
 end
@@ -190,17 +189,23 @@ function T:test_a_connection_is_reused_while_idle_and_not_after_the_idle_timeout
 end
 
 function T:test_a_response_holds_its_connection_until_read_or_closed_and_close_discards_it()
-  with_server(self, describe, nil, function(port)
+  local ports = {} -- the client port of each request, in order of arrival
+  with_server(self, function(request)
+    ports[#ports + 1] = request:peer_address().port
+    return Response(200, { content = tostring(ports[#ports]) })
+  end, nil, function(port)
     local client <close> = Client()
     local first = client:get(base(port))
     local second = client:get(base(port)) -- the first still holds its connection: a second one opens
-    local port1, port2 = json.decode(first:read_content()).peer_port, json.decode(second:read_content()).peer_port
-    self:assert_true(port1 ~= port2)
-    local unread = client:get(base(port))
+    self:assert_true(ports[1] ~= ports[2], "two responses held, two connections")
+    first:read_content()
+    second:read_content()
+    local unread = client:get(base(port)) -- reuses one of the two pooled connections
     unread:close() -- not read: the connection is dropped, not pooled
-    unread:close()
-    local after = json.decode(client:get(base(port)):read_content()).peer_port
-    self:assert_true(after == port1 or after == port2, "one of the two read connections was reused")
+    unread:close() -- idempotent
+    client:get(base(port)):read_content()
+    self:assert_true(ports[4] ~= ports[3], "the connection of the unread response was dropped, not reused")
+    self:assert_true(ports[4] == ports[1] or ports[4] == ports[2], "the other pooled connection was reused, no new one opened")
   end)
 end
 
@@ -282,6 +287,8 @@ end
 
 -- Redirects -------------------------------------------------------------------------------------------------------------
 
+local last_method -- the method of the last request that reached the final resource
+
 local function redirecting(request)
   local path = request.path
   local function to(status, location) return Response(status, { fields = http.Fields({ { "Location", location } }) }) end
@@ -295,6 +302,7 @@ local function redirecting(request)
   if path == "/loop-a" then return to(302, "/loop-b") end
   if path == "/loop-b" then return to(302, "/loop-a") end
   if path == "/chain" then return to(302, "/chain?" .. tostring((tonumber(request.query) or 0) + 1)) end
+  last_method = request.method
   local info = { method = request.method, content = request:read_content() }
   return Response(200, { content = info })
 end
@@ -314,7 +322,8 @@ function T:test_redirects_change_the_method_as_rfc_9110_section_15_4_says()
     self:assert_equal("POST", kept.method)
     self:assert_equal("body", kept.content)
     self:assert_equal("POST", final(308, "POST", "body").method)
-    self:assert_equal("HEAD", json.decode(client:request("HEAD", base(port, "/303")):read_content() == "" and '{"method":"HEAD"}' or "{}").method)
+    client:request("HEAD", base(port, "/303")):close()
+    self:assert_equal("HEAD", last_method, "a HEAD stays a HEAD after a 303")
   end)
 end
 
@@ -322,7 +331,8 @@ function T:test_a_307_with_a_streamed_content_is_returned_not_followed()
   with_server(self, redirecting, nil, function(port)
     local client <close> = Client()
     local response = client:post(base(port, "/307"), function(write) write("data") end)
-    self:assert_equal(307, response:close() or 307)
+    self:assert_equal(307, response.status)
+    response:close()
   end)
 end
 
@@ -506,7 +516,6 @@ function T:test_expect_continue_sends_the_content_after_the_interim_response()
     local client <close> = Client()
     local info = json.decode(client:post(base(port), "payload", { expect_continue = true }):read_content())
     self:assert_equal("payload", info.content)
-    self:assert_equal("100-continue", field(info, "Expect") or "100-continue")
   end)
 end
 
