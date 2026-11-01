@@ -166,4 +166,19 @@ function T:test_a_single_address_is_a_plain_attempt()
   approx(self, 1, result.at)
 end
 
+function T:test_at_most_16_addresses_are_tried_and_the_attempts_stay_truthful()
+  local addresses = {}
+  for i = 1, 20 do addresses[i] = { ip = "192.0.2." .. i, family = "inet" } end
+  local script = setmetatable({}, { __index = function() return { after = 0, fail = true } end })
+  local _, state = run(script, function()
+    local err = self:assert_error(function() net.connect("example.test", 80) end)
+    self:assert_equal(16, #err.context.attempts)
+    self:assert_equal("192.0.2.16", err.context.attempts[16].address)
+  end, addresses)
+  local started = 0
+  for _ in pairs(state.started) do started = started + 1 end
+  self:assert_equal(16, started)
+  self:assert_nil(state.started["192.0.2.17"])
+end
+
 return T

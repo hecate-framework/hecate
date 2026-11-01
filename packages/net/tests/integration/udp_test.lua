@@ -28,6 +28,18 @@ function T:test_bind_udp_validates_arguments()
   end)
 end
 
+function T:test_a_bind_failure_names_the_host_and_the_port()
+  reactor.run(function()
+    -- TEST-NET-1 (RFC 5737) is not an address of this host: binding it fails everywhere.
+    local err = self:assert_error(function() net.bind_udp("192.0.2.1", 5353) end)
+    self:assert_true(core.is_instance_of(err, reactor.TransportError), tostring(err))
+    self:assert_equal("192.0.2.1", err.context.host)
+    self:assert_equal(5353, err.context.port)
+    self:assert_not_nil(err.context.errno)
+    self:assert_true(tostring(err):find("net.bind_udp", 1, true) ~= nil, tostring(err))
+  end)
+end
+
 function T:test_resolve_numeric_and_invalid()
   reactor.run(function()
     local addresses = net.resolve("127.0.0.1", { family = "inet" })

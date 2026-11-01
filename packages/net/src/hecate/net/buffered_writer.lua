@@ -58,6 +58,7 @@ function BufferedWriter:init(stream, options)
   self._parts, self._size = {}, 0
   self._failure = nil
   self._closed = false
+  self._closing = false -- `close` is flushing: other tasks are refused, the flush itself is not
   self._lock = reactor.Mutex() -- keeps flushes, hence bytes, in order
 end
 
@@ -66,15 +67,16 @@ end
 ---@param operation string  the public method, the stable `context.operation` of the closed error
 ---@private
 function BufferedWriter:_check(operation)
-  if self._failure then
-    -- A fresh error: the stored failure may be a cancellation this caller is not subject to.
-    error(core.NetworkError({ message = "net.BufferedWriter." .. operation .. ": the writer failed earlier and is poisoned", cause = self._failure }), 0)
-  end
-  if self._closed then
+  -- Closed first: a poisoned writer that was then closed is closed, as the package invariant states.
+  if self._closed or self._closing then
     error(reactor.TransportError({
       message = "net.BufferedWriter." .. operation .. ": EBADF: the writer is closed",
       context = { operation = operation, errno = "EBADF" },
     }), 0)
+  end
+  if self._failure then
+    -- A fresh error: the stored failure may be a cancellation this caller is not subject to.
+    error(core.NetworkError({ message = "net.BufferedWriter." .. operation .. ": the writer failed earlier and is poisoned", cause = self._failure }), 0)
   end
 end
 
@@ -99,8 +101,22 @@ end
 ---@async
 function BufferedWriter:flush()
   self:_check("flush")
+  self:_drain("flush")
+end
+
+--- Takes the lock and sends the buffered bytes. `operation` is the public method to check against
+--- again once the lock is held (a `close` may have started meanwhile); `nil` skips the check, for the
+--- flush `close` performs itself.
+---@async
+---@param operation? string
+---@private
+function BufferedWriter:_drain(operation)
   local lock <close> = self._lock:lock()
-  self:_check("flush")
+  if operation then
+    self:_check(operation)
+  elseif self._failure then
+    return -- poisoned while `close` waited for the lock: reported already
+  end
   if self._size == 0 then return end
   local data = table.concat(self._parts)
   self._parts, self._size = {}, 0
@@ -108,7 +124,7 @@ function BufferedWriter:flush()
 end
 
 --- Appends `data`, flushing first when the buffer reaches its capacity. May suspend only
---- when it flushes. A payload of at least `capacity` bytes, written while nothing is buffered and
+--- when it flushes. Raises `TransportError` (`EBADF`) once `close` has started. A payload of at least `capacity` bytes, written while nothing is buffered and
 --- no flush is running, goes straight to the stream: the same ordering and failure rules, one copy
 --- less.
 ---@async
@@ -143,21 +159,30 @@ end
 --- Does not close the stream. Idempotent.
 ---@async
 function BufferedWriter:close()
-  if self._closed then return end
+  if self._closed or self._closing then return end
   if self._failure or self._size == 0 then
     self._closed = true
     self._parts, self._size = {}, 0
     return
   end
-  local ok, err = pcall(reactor.shield, self._close_timeout, self.flush, self)
+  -- From here a `write` or `flush` by another task raises EBADF instead of being silently dropped.
+  self._closing = true
+  local ok, err = pcall(reactor.shield, self._close_timeout, self._drain, self)
   self._closed = true
   self._parts, self._size = {}, 0
   if not ok then error(err, 0) end
 end
 
---- Closing the writer (`local writer <close> = ...`) calls `close`.
+--- Closing the writer (`local writer <close> = ...`) calls `close`. When the scope is left by an error or a
+--- cancellation (`err` is the error being propagated), the flush still happens under the shield but its failure
+--- is swallowed: it must not replace the `CancellationError` or `DeadlineExceededError` in flight, nor
+--- cancel siblings. On a normal exit the failure is raised, as `close` does.
 ---@async
-function BufferedWriter:__close() self:close() end
+---@param err? any  the error propagating out of the scope
+function BufferedWriter:__close(err)
+  if err == nil then return self:close() end
+  pcall(self.close, self)
+end
 
 --- Returns whether the writer is closed.
 ---@return boolean

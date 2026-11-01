@@ -218,6 +218,17 @@ function T:test_the_listener_is_closed_by_its_scope_and_wakes_a_pending_accept()
   end)
 end
 
+function T:test_accept_on_a_closed_listener_raises_ebadf_naming_the_listener()
+  with_listener(self, function(listener)
+    listener:close()
+    local errno, err = errno_of(self, function() listener:accept() end)
+    self:assert_equal("EBADF", errno)
+    self:assert_equal("accept", err.context.operation)
+    self:assert_true(err.message:find("net.TcpListener.accept", 1, true) ~= nil, err.message)
+    self:assert_true(err.message:find("listener is closed", 1, true) ~= nil, err.message)
+  end)
+end
+
 function T:test_a_deadline_expires_on_a_silent_peer_and_the_stream_stays_usable()
   with_listener(self, function(listener, port)
     local release = reactor.Channel(1)

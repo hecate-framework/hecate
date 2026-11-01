@@ -62,6 +62,7 @@ function T:test_connecting_to_a_missing_path_raises_enoent_and_leaks_nothing()
     local err = transport_error(self, function() net.connect_pipe(path) end)
     -- ENOENT on Unix; a missing named pipe is ENOENT on Windows too.
     self:assert_equal("ENOENT", err.context.errno)
+    self:assert_equal(path, err.context.path)
   end)
   self:assert_equal(before, reactor.Reactor.open_handles())
 end
@@ -75,6 +76,7 @@ function T:test_listening_on_an_existing_path_fails_and_leaks_nothing()
     -- A bound name is EADDRINUSE; Windows may report the exclusive first instance as EACCES.
     self:assert_true(err.context.errno == "EADDRINUSE" or (IS_WINDOWS and err.context.errno == "EACCES"),
       tostring(err.context.errno))
+    self:assert_equal(path, err.context.path)
     self:assert_false(first:is_closed())
   end)
   remove(path)

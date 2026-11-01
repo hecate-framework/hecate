@@ -376,22 +376,24 @@ function TlsStream:is_closed()
   return type(inner.is_closed) == "function" and inner:is_closed()
 end
 
---- The negotiated application protocol (ALPN, RFC 7301), or nil.
+--- The negotiated application protocol (ALPN, RFC 7301), or nil (also on a closed stream: the session
+--- state is dropped, and the accessors of the session never raise).
 ---@return string?
-function TlsStream:alpn() return self._session:alpn() end
+function TlsStream:alpn() if self._closed then return nil end return self._session:alpn() end
 
 --- The server name (SNI, RFC 6066 section 3) the client sent, on a stream accepted by a
---- server; nil on a client stream, whose own server name is the argument it connected with.
+--- server; nil on a client stream, whose own server name is the argument it connected with, and on a closed stream.
 ---@return string?
-function TlsStream:requested_server_name() return self._session:server_name() end
+function TlsStream:requested_server_name() if self._closed then return nil end return self._session:server_name() end
 
---- The protocol version, `"TLSv1.3"` or `"TLSv1.2"`.
+--- The protocol version, `"TLSv1.3"` or `"TLSv1.2"`; nil on a closed stream.
 ---@return string?
-function TlsStream:version() return self._session:version() end
+function TlsStream:version() if self._closed then return nil end return self._session:version() end
 
---- DER of the peer's end-entity certificate, once verified.
+--- DER of the peer's end-entity certificate, once verified; nil before the handshake completed and on a
+--- closed stream.
 ---@return string?
-function TlsStream:peer_certificate() return self._session:peer_certificate() end
+function TlsStream:peer_certificate() if self._closed then return nil end return self._session:peer_certificate() end
 
 --- The peer's address, from the inner stream (the stream must have one, as `TcpStream` does).
 ---@return hecate.reactor.SocketAddress

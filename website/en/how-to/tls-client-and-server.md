@@ -106,7 +106,8 @@ connection and takes ownership of the stream: if the handshake fails, the stream
 
 > [!TIP] Fork the handshake
 > Never run the handshake in the accept loop itself. A client that connects and then says nothing
-> would stall every other client. Fork one coroutine per connection and run `tls.accept` inside it.
+> would stall every other client for up to 60 seconds. `tls.accept` must run in a forked computation:
+> fork one coroutine per connection and run `tls.accept` inside it.
 > The handshake is bounded anyway by `handshake_timeout`, which is 60 seconds by default for `tls.accept` (10 for `connect_tls` and `tls.connect`). Pass
 > `{ handshake_timeout = 5 }` as the third argument to change it. On expiry the stream is closed and
 > `DeadlineExceededError` is raised.
@@ -219,7 +220,9 @@ end)
 > [!NOTE]
 > Without `client_crl_pem` the server does not check client certificates for revocation. Pass one
 > or more certificate revocation lists (PEM) in `client_crl_pem`, together with `client_ca_pem`, to
-> reject a revoked client certificate. The lists are read once: build a new configuration to load
+> reject a revoked client certificate. An intermediate CA needs its own list in the same PEM string:
+> without it the certificates that CA issued are denied (an unknown revocation status is denied). The
+> expiry of a list is not enforced and the lists are read once: build a new configuration to load
 > a newer one.
 
 ## Close a TLS stream

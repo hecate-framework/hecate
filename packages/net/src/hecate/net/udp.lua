@@ -19,7 +19,8 @@ local M = {}
 --- only option is `family` (`"inet"` or `"inet6"`), which restricts the resolution as for
 --- `net.connect`.
 ---
---- Raises `hecate.reactor.TransportError` when the name does not resolve or binding fails, and
+--- Raises `hecate.reactor.TransportError` when the name does not resolve or binding fails (`context.host`,
+--- `context.port`, and `context.errno` for a bind failure), and
 --- `hecate.core.ArgumentError` for a malformed host, port or option.
 ---@async
 ---@param host string  host name or numeric address
@@ -42,7 +43,7 @@ function M.bind_udp(host, port, options)
     end
   end
   local addresses = dns.resolve_for("net.bind_udp", host, { family = options and options.family })
-  return UdpSocket(errors.delegate("net.bind_udp", reactor.bind_udp, addresses[1].ip, port))
+  return UdpSocket(errors.delegate_in("net.bind_udp", { host = host, port = port }, reactor.bind_udp, addresses[1].ip, port))
 end
 
 return M

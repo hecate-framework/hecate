@@ -103,7 +103,7 @@ Rules:
 | `write(data)` | Appends `data` (a string); flushes when the buffer reaches `capacity`. Suspends only when it flushes. A payload of at least `capacity` bytes written while nothing is buffered and no flush is running goes to the stream directly, without a copy: same ordering and failure rules. |
 | `flush()` | *suspends*. Hands the buffered bytes to the stream; returns when the stream accepted them all. |
 | `buffered()` | Bytes accepted and not flushed. |
-| `close()`, `is_closed()` | `close` flushes the unflushed bytes under `reactor.shield`, bounded by the writer option `close_timeout` (default 5 seconds); it suspends only when bytes are buffered. A failed flush or an expired timeout (`DeadlineExceededError`) is raised once, the writer is closed anyway; a poisoned writer is closed without raising. Idempotent. Writing afterwards raises `TransportError` (`EBADF`, `context.operation` is `write` or `flush`). |
+| `close()`, `is_closed()` | `close` flushes the unflushed bytes under `reactor.shield`, bounded by the writer option `close_timeout` (default 5 seconds); it suspends only when bytes are buffered. A failed flush or an expired timeout (`DeadlineExceededError`) is raised once, the writer is closed anyway; a poisoned writer is closed without raising. Idempotent. Writing afterwards, or from another task while `close` is flushing, raises `TransportError` (`EBADF`, `context.operation` is `write` or `flush`), also on a writer that was poisoned and then closed. |
 
 Rules:
 
@@ -114,6 +114,9 @@ Rules:
   owner decision of 2026-10-27), so the flush completes while the enclosing scope is cancelled, and the writer option
   `close_timeout` (seconds, default 5, *not decided by the owner: OQ-29 note*) bounds it so that a stuck peer cannot block shutdown.
   With nothing buffered `close` does not suspend. The stream stays open.
+- **`__close` while unwinding.** When a `<close>` scope is left by an error or a cancellation, the flush still runs
+  under the shield but a failure is swallowed: it never replaces the `CancellationError` or `DeadlineExceededError`
+  being propagated and never cancels siblings. On a normal exit the failure is raised; an explicit `close()` raises it once.
 - Flushes are serialised by a `reactor.Mutex`, which keeps bytes in order.
 - Flush a writer before `shutdown`.
 - The default `capacity` is **16384 bytes**, one TLS record of plaintext (owner decision of 2026-11-01, OQ-47 (7)).
@@ -146,7 +149,7 @@ so the failures name the call the caller wrote.
 - Options (all optional, validated before anything is resolved; an unknown or invalid one raises `ArgumentError`
   naming `net.connect`): `nodelay` (boolean, default `true`: Nagle off), `keepalive` (boolean, default `false`),
   `keepalive_delay` (positive integer seconds, default 60), `family`.
-- The port is an integer in 0..65535; the host a non-empty string.
+- The port is an integer in 1..65535 for `connect` (0..65535 for `listen`, where 0 picks a free port); the host a non-empty string.
 - The addresses are tried **in resolver order, Happy Eyeballs style** (RFC 8305, owner decision of 2026-10-27, OQ-32
   (2)): the first attempt starts at once; the next starts 250 ms later when none has finished, or at once when the
   previous one fails; attempts run in parallel; the first to connect wins and the others are cancelled (one that
@@ -156,7 +159,8 @@ so the failures name the call the caller wrote.
   When none connects, the call raises a `reactor.TransportError` of the last address's failure, with the message naming the endpoint and the attempts
   (`net.connect: connect to example.org:5432 failed: ECONNREFUSED connection refused (tried 10.0.0.1, 10.0.0.2)`);
   `context.errno`, `context.host`, `context.port`, `context.attempts` (`{ address, errno }` per attempt) and
-  `cause` are set.
+  `cause` are set. At most the first 16 addresses of the resolver's list are tried; the rest is ignored, and
+  `context.attempts` lists what was tried. The port of `connect` is 1..65535 (port 0 is not a destination).
 
 `net.listen(host, port, options?)` *suspends* (resolution only) and returns a `TcpListener`. Options: those of
 `connect` plus `backlog` (positive integer, default 128) and `reuseport` (boolean; see `reactor.supports_reuseport`).
@@ -166,12 +170,17 @@ Port 0 picks a free port (`listener:local_address()`). Accepted streams inherit 
 - **Every resolved address is bound** (owner, 2026-10-27, OQ-47 (5); supersedes OQ-32 (3)), so that `localhost`
   serves `127.0.0.1` and `::1`. The listener holds one reactor listener per address, all on the same port (the one
   chosen for the first address when `port` is 0). `accept()` takes the next connection from any of them (a
-  connection taken from a socket that lost the race is kept for the next call); `close()` closes every socket and
+  connection taken from a socket that lost the race is kept for the next call, and an accept failure that came with a
+  connection, `EMFILE` or `ECONNABORTED`, is raised by the next call; a connection taken while `close()` runs is
+  closed, never queued); `close()` closes every socket and
   wakes `accept` (`ECANCELED`); `is_closed()` and `local_address()` answer for the first socket (the first address
   the resolver lists). An address the host cannot bind at all (`EAFNOSUPPORT`, `EADDRNOTAVAIL`: no IPv6, for instance)
   is skipped as long as another one is bound; any other failure (`EADDRINUSE`, `EACCES`, ...) fails the call and closes
   the sockets bound so far. This tolerance is not in the owner's decision: it is the conservative reading, recorded in
-  OQ-32 for confirmation. Pass a numeric address or `family` to bind just one.
+  OQ-32 for confirmation. With port 0, a port the system chose for the first address may be busy on a later one
+  (`EADDRINUSE`): the sockets bound so far are closed and the whole set is bound again with a new port, up to 5
+  attempts, then the call raises. A name that binds every address it lists widens the listening surface:
+  production services pass a numeric address, or `family`, to bind just one.
 - A bind failure reads `net.listen: listen on 0.0.0.0:8080 failed: EADDRINUSE address already in use` (same
   context as `connect`).
 - `reuseport` is accepted, but its branch cannot run in CI until luv supports TCP `reuseport` (OQ-43, OQ-47 (8)).
@@ -189,14 +198,15 @@ Port 0 picks a free port (`listener:local_address()`). Accepted streams inherit 
 | `reader(options?)`, `writer(options?)` | Buffered wrappers. |
 
 `TcpListener`: `accept()` (*suspends*, returns a `TcpStream`; one coroutine at a time; connections are taken one per
-call, so a slow acceptor leaves the rest in the kernel backlog), `close()` (a coroutine waiting in `accept` fails
-with `ECANCELED`; accepted streams are unaffected), `is_closed()`, `local_address()`. A read error is sticky (raised
+call on a single socket, so a slow acceptor leaves the rest in the kernel backlog; with several sockets, connections
+that completed together are queued in the listener), `close()` (a coroutine waiting in `accept` fails
+with `ECANCELED`; `accept` on a closed listener raises `TransportError` `EBADF`, `context.operation` `accept`; accepted streams are unaffected), `is_closed()`, `local_address()`. A read error is sticky (raised
 again by later reads); an accept error is raised once (OQ-30 (7)).
 
 ## UDP
 
 `net.bind_udp(host, port, options?)` *suspends* (resolution only) and returns a `UdpSocket` bound on the first
-resolved address; the only option is `family`. The port is 0..65535.
+resolved address; the only option is `family`. The port is 0..65535. A bind failure carries `context.host`, `context.port` and `context.errno`. `net.connect_pipe` and `net.listen_pipe` failures carry `context.path`.
 
 `UdpSocket`:
 
@@ -216,9 +226,10 @@ and returns a `PipeListener`.
 
 - `path` must not exist when listening; a stale socket file is **not** removed (`EADDRINUSE`), and libuv unlinks
   the path when the listener closes (OQ-42 (5)).
-- Options: `backlog` (positive integer, default 128; ignored on Windows) and `mode` (who may connect: `"owner"`,
-  the default, `"readable"`, `"writable"`, `"readwrite"`; no effect on Windows, where the default security of the
-  pipe applies).
+- Options: `backlog` (positive integer, default 128; ignored on Windows) and `mode` (the permissions of the socket file:
+  `"owner"`, the default, 0600; `"readable"` 0444, `"writable"` 0222, `"readwrite"` 0666; no effect on Windows, where
+  the default security of the pipe applies). Connecting to a Unix-domain socket requires write permission, so
+  `"readable"` is of no use for connecting on POSIX; `"writable"` or `"readwrite"` is what lets other users connect.
 - A Windows pipe name (`\\.\pipe\name`) is limited to 256 characters; a Unix socket path to the platform's
   `sun_path`: 107 bytes on Linux, 103 on macOS, excluding the terminating NUL. A longer path raises `ArgumentError`
   in both functions (OQ-42 (6)).
@@ -231,9 +242,12 @@ and returns a `PipeListener`.
   as `EADDRINUSE` like a bind) and removes the private entries. libuv would unlink the private path when the handle
   closes, so the listener removes the linked file itself; `path()` of a listener and of its accepted streams is the
   requested path. When the private directory cannot be used (it cannot be created, the path is too long once
-  the directory is added, or the file system refuses the hard link, as some network and virtual file systems do),
-  the socket is bound directly and restricted right after, with the short exposure window that this implies; put
-  it in a directory only the owner can enter then. **Leftovers:** the method costs about five file operations per
+  the directory is added, or the file system has no hard links for sockets, as some network and virtual file systems: the link fails with
+  `EPERM`, `ENOTSUP`, `EOPNOTSUPP`, `EXDEV`, `ENOSYS` or `EMLINK`; any other link failure raises `TransportError`),
+  the socket is bound directly and restricted right after, with the short exposure window that this implies (the
+  file has the permissions derived from the umask until the `chmod`; Lua cannot set a umask); put it in a directory
+  only the owner can enter then. The listener removes the linked file on close only if the file at the path still has
+  the device and inode of the socket it linked. **Leftovers:** the method costs about five file operations per
   listener and nothing per connection. A process killed between the bind and the cleanup (a window of milliseconds)
   leaves an empty `.hs-XXXXXX` directory next to the socket path, and any crash leaves the stale socket file itself
   (the path must not exist at the next bind). Users clean both up themselves from time to time, for example
@@ -302,7 +316,12 @@ Entry points (all *suspend*):
 - `net.tls.connect(stream, server_name, config, options?)`: the handshake over an existing `Stream`.
 - `net.tls.accept(stream, config, options?)`: the server handshake over an accepted stream. The two-step form
   `tls.accept(listener:accept(), config)` is the idiom, on purpose: fork the handshake per connection so that one
-  slow or silent client cannot stall the accept loop.
+  slow or silent client cannot stall the accept loop. `tls.accept` must run in a forked computation: a silent client
+  holds it up to `handshake_timeout` (60 seconds by default). A handshake that outlasts `handshake_timeout` raises
+  a `DeadlineExceededError` whose message names the public call (`net.tls.connect`, `net.tls.accept`,
+  `net.connect_tls`), unlike a deadline of the caller. A server name (`server_name`, or the host of `connect_tls`) is
+  validated before anything is resolved: a non-empty string of at most 253 bytes without spaces or control
+  characters (`ArgumentError`). The port of `connect_tls` is 1..65535.
 - Both `tls.connect` and `tls.accept` take ownership of the stream **once their arguments are valid**: when an
   argument is malformed (`ArgumentError`) the caller keeps it; on any later failure, a deadline included, the
   stream is closed.
@@ -341,8 +360,8 @@ The server configuration takes `client_crl_pem` (owner decision of 2026-10-27, O
 proposal recorded in OQ-47 for confirmation): a PEM string with one or more certificate revocation lists (`X509 CRL`
 blocks), checked for the client certificates. It needs `client_ca_pem` (`ArgumentError` otherwise). A client
 certificate listed in a CRL fails the handshake (`TlsError`, reason `revoked`). Only the client certificate itself is
-looked up (an intermediate CA needs its own list: put it in the same PEM string); the expiry of a list is not
-enforced; there is no refresh: build a new configuration with `tls.server_config` to load a newer list. **Limit:**
+looked up, so an intermediate CA needs its own CRL in the same PEM string, or the certificates it issued are
+denied (an unknown revocation status is denied); the expiry of a list is not enforced; there is no refresh: build a new configuration with `tls.server_config` to load a newer list. **Limit:**
 without `client_crl_pem` no revocation is checked, so a revoked client certificate that chains to `client_ca_pem` is
 accepted. Revocation of server certificates is the operating system's business and depends on the platform (see
 "Trust").

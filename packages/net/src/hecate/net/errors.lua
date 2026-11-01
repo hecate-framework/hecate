@@ -1,6 +1,6 @@
 -- Error classes of hecate.net. The roots (`NetworkError`, `ProtocolError`) live in `core`
 -- (OQ-19); this package subclasses only for conditions callers handle differently.
-global <const> require, tostring, ipairs, type, getmetatable, pcall, error
+global <const> require, tostring, ipairs, type, getmetatable, pcall, error, pairs
 
 local core = require("hecate.core")
 
@@ -58,13 +58,18 @@ local function tls_failure(text, reason)
 end
 
 --- Prefixes the message of a `TlsError` with the public call that raised it, as the caller wrote it
---- (coding-standards.md, "Errors"), replacing the prefix of an inner call. Other failures
+--- (coding-standards.md, "Errors"), replacing the prefix of an inner call; so does the handshake
+--- `DeadlineExceededError` this package raises. Other failures
 --- (cancellations, transport failures, programmer errors) pass through untouched. Returns `failure`.
 ---@param failure any
 ---@param call string  for example `net.TlsStream.read`
 ---@return any
 local function qualify(failure, call)
-  if core.is_instance_of(failure, TlsError) then
+  if core.is_instance_of(failure, TlsError) or (core.is_instance_of(failure, core.DeadlineExceededError)
+      and type((failure --[[@as hecate.core.Error]]).message) == "string"
+      and (failure --[[@as hecate.core.Error]]).message:find("^net%.")) then
+    -- A handshake deadline of this package (its message names a net call) is requalified too; a caller's
+    -- own deadline ("reactor.deadline: ...") passes through.
     local text = (failure --[[@as hecate.net.TlsError]]).message
     text = text:gsub("^net%.[%w_.]+: ", "")
     ;(failure --[[@as hecate.net.TlsError]]).message = call .. ": " .. text
@@ -98,4 +103,23 @@ local function delegate(call, fn, ...)
   error(rename(result, call), 0)
 end
 
-return { rename = rename, delegate = delegate, EndOfStreamError = EndOfStreamError, TlsError = TlsError, tls_failure = tls_failure, qualify = qualify }
+--- Like `delegate`, and adds `context` (for example `{ host = ..., port = ... }`) to the context of a
+--- `TransportError` the reactor raises, so that every net failure names what was asked for.
+---@param call string
+---@param context table
+---@param fn function
+---@return any
+local function delegate_in(call, context, fn, ...)
+  local ok, result = pcall(fn, ...)
+  if ok then return result end
+  if core.is_instance_of(result, core.Error) then
+    local failure = result --[[@as hecate.core.Error]]
+    failure.context = failure.context or {}
+    for key, value in pairs(context) do
+      if failure.context[key] == nil then failure.context[key] = value end
+    end
+  end
+  error(rename(result, call), 0)
+end
+
+return { rename = rename, delegate = delegate, delegate_in = delegate_in, EndOfStreamError = EndOfStreamError, TlsError = TlsError, tls_failure = tls_failure, qualify = qualify }

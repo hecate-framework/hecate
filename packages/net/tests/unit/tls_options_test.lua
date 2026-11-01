@@ -143,6 +143,31 @@ function T:test_connect_tls_validates_host_and_port()
   contains(self, argument_error(self, function() net.connect_tls("example.org", 70000) end), "connect_tls")
 end
 
+function T:test_connect_and_connect_tls_reject_port_zero()
+  contains(self, argument_error(self, function() net.connect_tls("example.org", 0) end), "net.connect_tls")
+  contains(self, argument_error(self, function() net.connect("example.org", 0) end), "net.connect")
+  contains(self, argument_error(self, function() net.connect("example.org", 0) end), "1..65535")
+end
+
+function T:test_a_malformed_server_name_is_rejected_before_anything_is_resolved()
+  local resolve = require("hecate.reactor").resolve
+  require("hecate.reactor").resolve = function() error("must not resolve") end
+  local stream = { read = function() end, write = function() end, close = function() end }
+  local ok, failure = pcall(function()
+    for _, bad in ipairs({ "has space.example", "tab\there", "nul\0byte", ("a"):rep(254), "line\nbreak" }) do
+      local message = argument_error(self, function() net.connect_tls("example.org", 443, { server_name = bad }) end)
+      contains(self, message, "net.connect_tls")
+      contains(self, message, "server name")
+      message = argument_error(self, function() net.tls.connect(stream, bad, io.stdout) end)
+      contains(self, message, "net.tls.connect")
+    end
+    -- The default name is the host: a malformed host is refused the same way.
+    contains(self, argument_error(self, function() net.connect_tls("bad host", 443) end), "server name")
+  end)
+  require("hecate.reactor").resolve = resolve
+  if not ok then error(failure, 0) end
+end
+
 function T:test_handshake_timeout_must_be_a_positive_number()
   local stream = { read = function() end, write = function() end, close = function() end }
   for _, value in ipairs({ 0, -1, "5", true, math.huge, 0 / 0 }) do

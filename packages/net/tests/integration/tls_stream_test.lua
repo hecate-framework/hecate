@@ -398,6 +398,9 @@ function T:test_a_closed_stream_raises_a_transport_error_for_every_operation()
       self:assert_equal(operation, err.context.operation)
     end
     self:assert_nil(client:alpn()) -- the session state is dropped
+    self:assert_nil(client:version())
+    self:assert_nil(client:peer_certificate())
+    self:assert_nil(client:requested_server_name())
     outcome.future:value()
   end)
 end
