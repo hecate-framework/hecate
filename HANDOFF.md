@@ -3,8 +3,8 @@
 
 - roadmap_item: **Phase 1 gate**: verification of the phase, as described in Phase gates. Open questions to put to the owner before Phase 2: OQ-50, OQ-47, OQ-23, OQ-24, OQ-26 (1) and OQ-22.
 - status: in-progress
-- lock_until: 2026-10-28T00:00:00Z
-- last_update: 2026-10-28T03:55:00Z
+- lock_until: 2026-11-01T11:23:56Z
+- last_update: 2026-11-01T09:53:56Z
 
 ## Done
 
@@ -13,6 +13,8 @@
 - Cloud tip: run `eval "$(luarocks path)"` before `test`, else luv is not found.
 
 ## Next steps
+
+Run 9 (2026-11-01, owner asked: no stacked branches, work directly on this branch): `reactor` follow-up in progress. Done and pushed here: `core.IoError` (reactor.IoError extends it), `on_unobserved_failure(err, future)` Reactor option (called for a detached computation that fails with no waiter on its future; hook errors discarded). Next: `reactor.shield(limit, fn, ...)` (limit required, like `deadline`: no default decided; innermost shield deadline applies; tests drafted in `packages/reactor/tests/unit/shield_test.lua`, implement in `pending_cancel` (reactor.lua) with a `_shielded` scope flag and `computation.shielded`, `scope_run` in primitives.lua), then spec in concurrency.md, README, CHANGELOG, note the required-limit choice under OQ-23 in open-questions.md, tick the `reactor` follow-up roadmap item, then the `net` follow-up item (one per run), then the gate run. PR #51 (stacked) is closed.
 
 Update 2026-11-01 (owner conversation): the owner HAS decided every item run 8 calls pending (OQ-50 presence set, OQ-26 (4) keep refusing, A33, A40, A41, A42, C03, C17, C18, ambient glossary); they are recorded in docs/open-questions.md and docs/reviews/phase-1-owner-decisions.md. Do not ask for them again; issue 48 is corrected. What remains: (1) the deferred minors of docs/reviews/phase-1-review-package.md need the owner's call; (2) the two roadmap items before the gate (`reactor` follow-up, `net` follow-up incl. Happy Eyeballs) are decided but NOT implemented: take them next, one per run, each on its own branch; (3) then the gate run ticks the gate and deletes this file.
 
