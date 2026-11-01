@@ -1,3 +1,4 @@
+---@diagnostic disable: undefined-field  -- the scripted connects return fake streams that carry an `ip`
 -- Happy Eyeballs (RFC 8305) in `net.connect`: attempts start 250 ms apart, or at once after a
 -- failure; the first success wins and the others are cancelled. Deterministic: a virtual clock and
 -- scripted `reactor.resolve` and `reactor.connect_tcp`.
