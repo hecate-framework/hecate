@@ -9,6 +9,7 @@ local reactor = require("hecate.reactor")
 local Response = require("hecate.http.response")
 local Status = require("hecate.http.status")
 local ContentError = require("hecate.http.content").ContentError
+local FormError = require("hecate.http.form").FormError
 local Parser = nil -- loaded on first use: the parser needs the native module
 
 --- Builds problem details responses and maps errors to them.
@@ -21,6 +22,7 @@ local DETAIL_BY_STATUS <const> = {
   [408] = "The request was not received in time.",
   [413] = "The request content exceeds the limit of the server.",
   [414] = "The request target is too long.",
+  [415] = "The media type of the request content is not supported.",
   [417] = "The expectation of the request cannot be met.",
   [431] = "The request fields are too large.",
   [500] = "The server could not process the request.",
@@ -60,7 +62,7 @@ end
 ---@return string detail
 function problem.of_error(err)
   Parser = Parser or require("hecate.http.parser")
-  if core.is_instance_of(err, Parser.ParseError) or core.is_instance_of(err, ContentError) then
+  if core.is_instance_of(err, Parser.ParseError) or core.is_instance_of(err, ContentError) or core.is_instance_of(err, FormError) then
     local status = err.context and err.context.status
     if DETAIL_BY_STATUS[status] ~= nil and status ~= 500 then return status, DETAIL_BY_STATUS[status] end
     return 400, DETAIL_BY_STATUS[400]

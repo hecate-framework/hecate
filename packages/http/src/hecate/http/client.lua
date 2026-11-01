@@ -14,6 +14,8 @@ local Status = require("hecate.http.status")
 local ContentStream = require("hecate.http.content")
 local grammar = require("hecate.http.grammar")
 local url = require("hecate.http.url")
+local form = require("hecate.http.form")
+local multipart = require("hecate.http.multipart")
 local wire = require("hecate.http.wire")
 
 local READ_SIZE <const> = 16384
@@ -496,7 +498,8 @@ end
 --- `response:read_content()` or `response:stream_content()`. The response holds its connection until the content is read
 --- to its end or the response is closed. Redirects (301, 302, 303, 307, 308) are followed up to `max_redirects`.
 ---
---- `options`: `fields` (a `Fields`, or a table for `Fields`), `content` (a string, sent with its length; a function
+--- `options`: `form` (pairs, sent as `application/x-www-form-urlencoded`), `multipart` (parts for `multipart.build`, sent as
+--- `multipart/form-data` with a random boundary; a function part streams the message, which is then not replayable), `fields` (a `Fields`, or a table for `Fields`), `content` (a string, sent with its length; a function
 --- `content(write)`, streamed chunked and never replayed; a table, serialised as JSON), `redirects` (false: return the 3xx
 --- response), `expect_continue` (send `Expect: 100-continue` and wait before the content; default false), `timeout`
 --- (this request's total seconds, overrides the client's).
@@ -509,7 +512,7 @@ end
 ---@async
 ---@param method string
 ---@param target string  an absolute http or https URL
----@param options? { fields?: hecate.http.Fields|table, content?: string|table|function, redirects?: boolean, expect_continue?: boolean, timeout?: number }
+---@param options? { fields?: hecate.http.Fields|table, content?: string|table|function, form?: string[][], multipart?: table[], redirects?: boolean, expect_continue?: boolean, timeout?: number }
 ---@return hecate.http.Response
 function Client:request(method, target, options)
   if self._closed then error(core.Error("http.Client:request: the client is closed"), 2) end
@@ -527,7 +530,17 @@ function Client:request(method, target, options)
   for _, name in ipairs({ "Host", "Content-Length", "Transfer-Encoding" }) do fields:remove(name) end
   if not fields:has("User-Agent") then fields:set("User-Agent", self._user_agent) end
   local content = options.content
-  if type(content) == "table" then
+  if (options.form ~= nil and 1 or 0) + (options.multipart ~= nil and 1 or 0) + (content ~= nil and 1 or 0) > 1 then
+    error(core.ArgumentError("http.Client:request: content, form and multipart exclude each other"), 2)
+  end
+  if options.form ~= nil then
+    content = form.encode_urlencoded(options.form)
+    if not fields:has("Content-Type") then fields:set("Content-Type", "application/x-www-form-urlencoded") end
+  elseif options.multipart ~= nil then
+    local built, content_type = multipart.build(options.multipart)
+    content = built
+    fields:set("Content-Type", content_type)
+  elseif type(content) == "table" then
     content = json.encode(content)
     if not fields:has("Content-Type") then fields:set("Content-Type", "application/json") end
   elseif content ~= nil and type(content) ~= "string" and type(content) ~= "function" then

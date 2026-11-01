@@ -12,6 +12,10 @@ global <const> require
 ---@field Response hecate.http.Response  the response message
 ---@field Server hecate.http.Server  the HTTP/1.1 server
 ---@field Client hecate.http.Client  the HTTP/1.1 client
+---@field form hecate.http.form  application/x-www-form-urlencoded
+---@field multipart hecate.http.multipart  multipart/form-data
+---@field Form hecate.http.Form  an ordered multi-map of form pairs
+---@field FormError hecate.http.FormError  form content refused (400, 413, 415)
 ---@field url hecate.http.url  URL parsing and resolution
 ---@field ContentStream hecate.http.ContentStream  message content as a stream
 ---@field ContentError hecate.http.ContentError  content over its limit, truncated, malformed or stalled
@@ -31,5 +35,9 @@ http.problem = require("hecate.http.problem")
 http.Server = require("hecate.http.server")
 http.Client = require("hecate.http.client")
 http.url = require("hecate.http.url")
+http.form = require("hecate.http.form")
+http.multipart = require("hecate.http.multipart")
+http.Form = http.form.Form
+http.FormError = http.form.FormError
 
 return http

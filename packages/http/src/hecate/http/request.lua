@@ -6,6 +6,8 @@ local grammar = require("hecate.http.grammar")
 local Fields = require("hecate.http.fields")
 local Cookie = require("hecate.http.cookie")
 local ContentStream = require("hecate.http.content")
+local form = require("hecate.http.form")
+local multipart = require("hecate.http.multipart")
 
 --- A request. The server builds it from the wire; a client or a test builds it by hand.
 ---@class hecate.http.Request
@@ -78,6 +80,35 @@ end
 ---@return string
 function Request:read_content(limit)
   return self:stream_content():read_all(limit)
+end
+
+--- Reads an `application/x-www-form-urlencoded` request into a `Form`, bounded by `limits.max_size` (default 1 MiB, and
+--- the `max_content` of the server) and `limits.max_pairs` (default 1000).
+---
+--- Raises `hecate.http.FormError`: `unsupported_media_type` (415) for any other `Content-Type`, `bad_percent_encoding`,
+--- `invalid_utf8` and `nul_in_value` (400), `too_many_pairs` and `too_large` (413); `hecate.http.ContentError` (413) beyond
+--- the size limit while reading. The server answers all of them with problem details that echo nothing of the input.
+---@async
+---@param limits? hecate.http.form.Limits
+---@return hecate.http.Form
+function Request:read_form(limits)
+  local media = self:media_type()
+  if media == nil or media:essence() ~= "application/x-www-form-urlencoded" then
+    error(form.failure("unsupported_media_type", "the content is not application/x-www-form-urlencoded"), 2)
+  end
+  local max_size = limits and limits.max_size or form.DEFAULTS.max_size
+  return form.parse_urlencoded(self:read_content(max_size), limits)
+end
+
+--- Reads a `multipart/form-data` request part by part (see `hecate.http.multipart`): the parts are read lazily from the
+--- content stream, with `limits` (parts, header size, part size, total size; defaults in `multipart.DEFAULTS`).
+---
+--- Raises `hecate.http.FormError` (`unsupported_media_type`, 415; `bad_boundary`, 400) at once; the reader raises the
+--- others as the parts are read.
+---@param limits? hecate.http.multipart.Limits
+---@return hecate.http.multipart.Reader
+function Request:stream_parts(limits)
+  return multipart.parts(self:stream_content(), self:media_type(), limits)
 end
 
 --- Returns the cookies sent by the client: every `Cookie` line parsed (RFC 6265, section 4.2.1).
