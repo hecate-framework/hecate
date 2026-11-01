@@ -116,3 +116,15 @@ checker, `cargo fmt`, two Windows-only tests, the macOS sanitizer jobs).
 No gap is open: every finding of the audits and of both review rounds is fixed or deferred into a named roadmap item, every
 owner question is decided, and the only owner action left is the optional one-sentence edit of the Accepted ADR 0020
 (the Note, line 69, reads "the two backends"; proposal: drop the sentence).
+
+## Delivery of the rows deferred to `http` (Phase 2)
+
+Added when the Phase 2 `http` item delivered them, so that the Phase 2 gate finds the evidence.
+
+| Row | Delivered in | Evidence |
+|---|---|---|
+| (1) `reactor.TransportError` becomes a generic RFC 9457 `detail`, no address, errno or `context.attempts` to a client | `hecate.http.problem` (server step 3b) | `tests/unit/problem_test.lua` (`test_a_transport_error_becomes_a_generic_detail_without_addresses_or_errno`), `tests/integration/server_lifecycle_test.lua` (`test_a_transport_error_of_a_handler_never_reaches_the_client`) |
+| (2) concurrent TLS handshakes limited, `tls.accept` in a forked computation per connection, bytes read during a handshake bounded | server TLS (step 3c): `handshake_timeout`, `max_handshakes`, `max_handshake_bytes`, `HandshakeStream` | `tests/integration/server_tls_test.lua` (silent client, queueing at the limit, byte budget, no detail to the client), `tests/unit/handshake_stream_test.lua`; CI builds the TLS module when `http` is affected (`net_native` plan output) |
+| (3) numeric address for the production listener, default of `listen` decided | `Server` option `host` (step 3b), OQ-69 | `tests/integration/server_lifecycle_test.lua` (`test_settings_are_validated`, `test_the_default_host_is_numeric_loopback`) |
+| (4) 400 for an HTTP/1.1 request without exactly one `Host` | server (step 3) | `tests/integration/server_test.lua` (`test_missing_or_duplicate_host_is_400`) |
+| (5) `Parser:close()` when a connection ends, chunks no larger than the read buffer | server (step 3b) | `tests/integration/server_lifecycle_test.lua` (`test_the_parser_is_closed_when_the_connection_ends_and_fed_chunks_within_the_read_buffer`, `test_a_burst_of_pipelined_requests_filling_the_read_buffer_is_answered_in_order`) |
