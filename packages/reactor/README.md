@@ -50,7 +50,7 @@ the tags match what the functions do.
 | Name | Description |
 |---|---|
 | `reactor.run(fn, ...)` | Runs `fn` on a new real-clock reactor until it and everything it forked have finished. |
-| `reactor.Reactor({ clock = "real"\|"virtual", start = 0 })` | The scheduler; `:run(fn, ...)`, `:now()`, `:live_coroutines()`, `:is_real()`; `Reactor.open_handles()` counts the open libuv handles (leak tests, task `leaks`). The virtual clock jumps to the next timer when nothing is ready (deterministic tests). |
+| `reactor.Reactor({ clock = "real"\|"virtual", start = 0, on_unobserved_failure = fn })` | The scheduler; `:run(fn, ...)`, `:now()`, `:live_coroutines()`, `:is_real()`; `Reactor.open_handles()` counts the open libuv handles (leak tests, task `leaks`). The virtual clock jumps to the next timer when nothing is ready (deterministic tests). |
 | `reactor.is_future(value)` | Whether `value` is a `Future`. |
 | `reactor.fork(fn, ...)` | Does not suspend; managed coroutines only (raises otherwise). Starts `fn` in the current scope, returns a `Future`. |
 | `reactor.join(f1, ...)` | *suspends*. Values in argument order; the first failure cancels the others and is raised. |
@@ -59,7 +59,7 @@ the tags match what the functions do.
 | `reactor.scope(fn)` | *suspends*. Runs `fn(scope)`; returns only after every child has completed or been cancelled; raises the first failure. |
 | `reactor.deadline(seconds_or_instant, fn, ...)` | *suspends*. Cancels `fn` and raises `DeadlineExceededError` when late. |
 | `reactor.now()`, `reactor.at(seconds)`, `reactor.Instant` | Reading of the running clock; absolute `Instant` (a class) for `deadline` (OQ-22). |
-| `reactor.detach(fn, ...)` | Does not suspend; managed coroutines only (raises otherwise). Starts `fn` in the application scope; its failure is seen only through its future (OQ-26). |
+| `reactor.detach(fn, ...)` | Does not suspend; managed coroutines only (raises otherwise). Starts `fn` in the application scope; its failure is seen through its future; when nothing waits for the future as it fails, the `on_unobserved_failure(err, future)` option of the reactor is called (OQ-26 (1)). |
 | `reactor.with_ambient(key, value, fn, ...)`, `reactor.ambient(key)` | Ambient context (ADR 0025): immutable bindings visible in `fn` and in computations forked or detached from it; `ambient` is also `reactor.ambient`. Managed coroutines only. |
 | `reactor.fs` | *suspend*: `read_file(path)`, `write_file(path, data)`, `stat(path)` (nil if absent), `remove`, `mkdir`, `rmdir`, `list(path)`. Real clock only; failures raise `reactor.IoError` (`context.errno`). |
 | `reactor.wait_signal(name, ...)` | *suspends*. Returns the name of the first signal delivered (`"sigint"`, `"sigterm"`, ...). |

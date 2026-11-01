@@ -46,7 +46,10 @@ the test framework opens one per test. Rules:
 1. A scope does not complete before all of its children have completed.
 2. If a child fails, the scope cancels its siblings and propagates the error (unless the
    child was explicitly detached into the application scope, an operation that must be
-   visible in code: `reactor.detach(fn)`).
+   visible in code: `reactor.detach(fn)`). A detached failure that nothing waits for when
+   it happens is reported to the `on_unobserved_failure(err, future)` hook of the reactor
+   (OQ-26 (1)), which `kernel` binds to `log`; without a hook it stays silent. The hook
+   is not called for a cancelled computation, and an error it raises is discarded.
 3. When a request is aborted (client disconnect, deadline), its scope is cancelled.
 4. Cancellation is **cooperative**: it is delivered as a `CancellationError` raised at
    the next suspension point of the cancelled coroutine, and again at every later suspension

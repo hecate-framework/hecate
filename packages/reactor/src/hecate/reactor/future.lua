@@ -71,6 +71,17 @@ function Future:_watch(wake)
   return watcher
 end
 
+--- Returns whether a coroutine is waiting for the future.
+---@return boolean
+---@private
+function Future:_has_watchers()
+  local watchers = self._watchers
+  for i = 1, #watchers do
+    if watchers[i].active then return true end
+  end
+  return false
+end
+
 --- Settles the future and wakes its watchers. Called by the scheduler only.
 ---@param state "completed"|"failed"|"cancelled"
 ---@param results? table  packed results when completed
