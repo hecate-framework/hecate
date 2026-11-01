@@ -3,8 +3,8 @@
 
 - roadmap_item: `router`: radix tree, URI template subset, 404/405, reverse routing (+ percent-decode segments, dot segments; OQ-75)
 - status: waiting-ci            <!-- in-progress | waiting-owner | waiting-ci -->
-- lock_until: 2026-11-02T00:40:00Z
-- last_update: 2026-11-01T22:10:00Z
+- lock_until: 2026-11-01T23:37:38Z
+- last_update: 2026-11-01T22:07:38Z
 
 ## Done
 
