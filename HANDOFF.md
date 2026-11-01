@@ -14,6 +14,8 @@
 
 ## Next steps
 
+Update 2026-11-01 (owner conversation): the owner HAS decided every item run 8 calls pending (OQ-50 presence set, OQ-26 (4) keep refusing, A33, A40, A41, A42, C03, C17, C18, ambient glossary); they are recorded in docs/open-questions.md and docs/reviews/phase-1-owner-decisions.md. Do not ask for them again; issue 48 is corrected. What remains: (1) the deferred minors of docs/reviews/phase-1-review-package.md need the owner's call; (2) the two roadmap items before the gate (`reactor` follow-up, `net` follow-up incl. Happy Eyeballs) are decided but NOT implemented: take them next, one per run, each on its own branch; (3) then the gate run ticks the gate and deletes this file.
+
 Run 8 (2026-10-28): CI green on 3 platforms at 042d27f; issue 48 updated. Nothing left for the relay: waiting for owner decisions, then tick the gate and delete this file. Lock released.
 
 Run 7 (2026-10-28): minors net TlsStream:write check and log redact annotation fixed (net tests ok with HECATE_REQUIRE_TLS=1). Remaining: check CI of the PR on 3 platforms, update issue 48 with the review findings left (other minors deferred), tick the gate only after owner decisions. Lock released.
