@@ -6,6 +6,7 @@ local json = require("hecate.json")
 local reactor = require("hecate.reactor")
 local net = require("hecate.net")
 local http = require("hecate.http")
+local log = require("hecate.log")
 local Server = require("hecate.http.server")
 local Parser = require("hecate.http.parser")
 local T = test.Case("ServerBehaviourTest")
@@ -594,15 +595,72 @@ end
 
 -- Settings --------------------------------------------------------------------------------------------------------
 
-function T:test_defaults_are_documented_safe_values()
+function T:test_defaults_are_the_documented_values()
   local d = Server.DEFAULTS
   self:assert_equal("127.0.0.1", d.host)
-  self:assert_equal(1024, d.max_connections)
+  self:assert_nil(d.max_connections, "no limit on connections by default")
   self:assert_equal(1048576, d.max_content)
-  self:assert_equal(10, d.head_timeout)
+  self:assert_equal(60, d.head_timeout)
   self:assert_equal(60, d.idle_timeout)
-  self:assert_equal(30, d.content_timeout)
-  self:assert_equal(30, d.write_timeout)
+  self:assert_equal(60, d.content_timeout)
+  self:assert_equal(60, d.write_timeout)
+end
+
+--- A listener whose first `failures[i]` accepts raise EMFILE, each burst ending after the next success.
+local function flaky(real, bursts)
+  local fake = { calls = 0, failed = 0, bursts = bursts, successes = 0 }
+  function fake.accept()
+    fake.calls = fake.calls + 1
+    local burst = fake.bursts[fake.successes + 1]
+    if burst and fake.failed < burst then
+      fake.failed = fake.failed + 1
+      error(reactor.TransportError({
+        message = "net.TcpListener.accept: EMFILE too many open files at 10.0.0.1",
+        context = { errno = "EMFILE", operation = "accept" },
+      }), 0)
+    end
+    fake.failed = 0
+    fake.successes = fake.successes + 1
+    return real:accept()
+  end
+  function fake.close() real:close() end
+  function fake.is_closed() return real:is_closed() end
+  function fake.local_address() return real:local_address() end
+  return fake
+end
+
+function T:test_the_accept_loop_survives_descriptor_exhaustion_and_logs_once_per_burst()
+  local sink = log.MemorySink()
+  local before = reactor.Reactor.open_handles()
+  local fake
+  reactor.run(function()
+    local real = net.listen("127.0.0.1", 0)
+    -- Burst of 3 failures before the first connection, then 2 before the second.
+    fake = flaky(real, { 3, 2 })
+    local server = Server(text_handler, { logger = log.Logger({ sinks = { sink }, severity = "debug" }) })
+    local serving = reactor.fork(server.serve, server, fake)
+    local port = real:local_address().port
+    local started = reactor.now()
+    local first <close> = connect(port)
+    self:assert_equal("GET /a", first:request(get("/a")).content) -- served after the failures
+    self:assert_true(reactor.now() - started >= 0.1, "the loop backed off instead of spinning")
+    local second <close> = connect(port)
+    self:assert_equal("GET /b", second:request(get("/b")).content)
+    self:assert_equal("GET /c", first:request(get("/c")).content) -- existing connections kept serving
+    server:shutdown(2)
+    serving:value()
+  end)
+  self:assert_equal(before, reactor.Reactor.open_handles())
+  local logged = 0
+  for _, record in ipairs(sink:records()) do
+    if record.message:find("accept failed", 1, true) then
+      logged = logged + 1
+      self:assert_nil(tostring(record.fields.peer or ""):find("10.0.0.1", 1, true))
+      self:assert_equal("EMFILE", record.fields.reason)
+    end
+  end
+  self:assert_equal(2, logged, "one record per burst, not per failure")
+  self:assert_true(fake.calls <= 8, "no spinning: " .. fake.calls .. " accepts")
 end
 
 function T:test_the_default_host_is_numeric_loopback()

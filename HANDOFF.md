@@ -12,6 +12,7 @@
 - Step 2 (llhttp binding): llhttp 9.4.3 vendored, `csrc/native.c`, `hecate.http.parser` (feed, finish, skip_body, ParseError, limits), corpus tests, `build-native http`, CI steps for the three platforms. macOS and Windows builds are verified by CI only.
 - Step 2b (native-code review of the binding) and step 2c: RFC 9112 conformance vectors (`tests/conformance/rfc9112_test.lua`), `benchmarks/parse.lua`, known limits in the README, OQ-67, fix of the HTTP/0.9 request line.
 - Step 3c (TLS in the server): option `tls`, handshake in a forked computation per connection, `handshake_timeout`, `max_handshakes` (slot before `accept`: the excess waits in the backlog, decided and tested), `max_handshake_bytes` (`handshake_stream.lua`), logging with the peer address only (`logger` option), generic nothing-to-the-client on failure; tests `server_tls_test.lua`, `handshake_stream_test.lua`; CI plan output `net_native`. OQ-68 and OQ-69 updated with the owner's answers.
+- Step 3d (owner defaults): `head_timeout`, `content_timeout`, `write_timeout` 60 s, `max_connections` unlimited by default, accept loop surviving `EMFILE` (backoff, one log per burst; tested with a flaky listener, a real descriptor limit cannot be set from Lua), invariant of `packages/http/CLAUDE.md` reworded, OQ-69 updated. `content_reader` not renamed (the owner is choosing).
 - Tooling: `setup-luals` task; `typecheck` falls back to `spikes/luals`; the relay documents require `typecheck` before every push.
 - Step 3, first part (commit ac17a94): `http.Server(handler, options)` with `serve(listener)` and `shutdown()`: keep-alive, pipelining, 100-continue, HEAD, chunked responses, Host check, 413, generic 500, graceful shutdown; `tests/integration/server_test.lua`.
 - Step 3b (this run, on top of ac17a94, API kept: `Server(handler, options)`): streaming request content (`content.lua`), problem details (`problem.lua`), response framing (`wire.lua`), deadlines, `max_connections`, numeric loopback `listen`, 501 for upgrades, `Parser:close()` and 16 KiB chunks, tests in `server_lifecycle_test.lua` and unit tests. Root causes found: the event queue of a connection used `#queue` after consuming entries (a second request on a connection never started); a response was sent without `Connection: close` when the handler ignored an `Expect: 100-continue` content; a content writer that failed left its head unflushed.
@@ -29,6 +30,8 @@ Cloud image note: run the tests with `LUA_CPATH="/opt/lua-5.5/lib/lua/5.5/?.so;;
 7. Step 7: docs in `website/`, examples, benchmarks, `typecheck`, `/review-package`, then Finish.
 
 ## Decisions taken (and where they are recorded)
+
+Server defaults (step 3d): see OQ-69; step 4 must judge them and decide between-reads versus whole-message deadlines.
 
 Server (step 3b): the handler failure, transport failure and parser failure texts are fixed (`problem.lua`); a connection serves its requests sequentially (pipelining without concurrency); an `Upgrade` request gets 501 until `websocket` exists; `shutdown` takes a grace period and then cancels. Choices recorded as OQ-68 and OQ-69.
 

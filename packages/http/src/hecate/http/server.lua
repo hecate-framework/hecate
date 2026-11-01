@@ -29,12 +29,12 @@ local READ_SIZE <const> = 16384
 ---@field host? string  a NUMERIC address, IPv4 or IPv6, for `listen` (default "127.0.0.1": the loopback interface only); a name is refused
 ---@field port? integer  0 to 65535 for `listen`; 0 picks a free port (default 8080)
 ---@field backlog? integer  pending connections the kernel queues (default 128)
----@field max_connections? integer  connections served at once (default 1024); the others wait in the backlog
+---@field max_connections? integer  connections served at once (default: no limit; an integer limits, and the others wait in the backlog)
 ---@field max_content? integer  bytes of request content (default 1048576; over it: 413)
----@field head_timeout? number  seconds to receive a request head once its first byte arrived (default 10; then 408)
+---@field head_timeout? number  seconds to receive a request head once its first byte arrived (default 60; counted from the first byte of the head to its end, not between reads; then 408)
 ---@field idle_timeout? number  seconds a connection may wait for the next request (default 60; then closed silently)
----@field content_timeout? number  seconds between two reads of request content (default 30; then 408)
----@field write_timeout? number  seconds a write to the client may take (default 30; then the connection is closed)
+---@field content_timeout? number  seconds between two reads of request content (default 60; a timeout between two reads, not a limit on the whole content; then 408)
+---@field write_timeout? number  seconds a write to the client may take (default 60; then the connection is closed)
 ---@field parser? hecate.http.parser.Options  limits of the message parser (target, field, head size, field count)
 ---@field tls? hecate.net.TlsServerOptions|hecate.net.TlsServerConfig  serve HTTPS: the options of `net.tls.server_config` (ALPN defaults to `http/1.1`), or a configuration built by it
 ---@field handshake_timeout? number  seconds a TLS handshake may take (default 10; the connection is dropped); needs `tls`
@@ -48,12 +48,12 @@ local DEFAULTS <const> = {
   host = "127.0.0.1",
   port = 8080,
   backlog = 128,
-  max_connections = 1024,
+  -- max_connections: absent, no limit (the file-descriptor limit of the process and the timeouts bound the resource)
   max_content = 1048576,
-  head_timeout = 10,
+  head_timeout = 60,
   idle_timeout = 60,
-  content_timeout = 30,
-  write_timeout = 30,
+  content_timeout = 60,
+  write_timeout = 60,
   handshake_timeout = 10,
   max_handshakes = 64,
   max_handshake_bytes = 65536,
@@ -138,7 +138,7 @@ function Server:init(handler, options)
   self._host = host
   self._port = integer("port", 0, 65535)
   self._backlog = integer("backlog", 1, 65535)
-  self._max_connections = integer("max_connections", 1, 1000000)
+  self._max_connections = options.max_connections ~= nil and integer("max_connections", 1, 1000000) or nil
   self._max_content = integer("max_content", 0, 1099511627776)
   self._head_timeout = seconds("head_timeout")
   self._idle_timeout = seconds("idle_timeout")
@@ -170,7 +170,7 @@ function Server:init(handler, options)
   self._scope = nil
   self._accepting = nil
   self._serving = false
-  self._slots = reactor.Semaphore(self._max_connections)
+  self._slots = self._max_connections ~= nil and reactor.Semaphore(self._max_connections) or nil -- nil: no limit
   self._finished = reactor.Semaphore(0)
 end
 
@@ -584,7 +584,7 @@ local function run_connection(self, raw)
     local secured = handshake(self, raw)
     self._handshakes:release()
     if secured == nil then
-      self._slots:release()
+      if self._slots ~= nil then self._slots:release() end
       return
     end
     stream = secured
@@ -604,7 +604,7 @@ local function run_connection(self, raw)
     pcall(reactor.deadline, 1, stream.shutdown, stream)
   end
   stream:close()
-  self._slots:release()
+  if self._slots ~= nil then self._slots:release() end
   if not ok and not is_cancellation(err) and not self._stopping then
     self:_report("a connection ended with a failure", err)
   end
@@ -613,18 +613,30 @@ end
 ---@async
 local function accept_loop(self, scope)
   local listener = self._listener
+  local failures = 0 -- consecutive accept failures: a burst
   while not self._stopping do
-    self._slots:acquire()
+    if self._slots ~= nil then self._slots:acquire() end
     -- A handshake slot is taken before accepting: past the limit, connections wait in the kernel backlog.
     if self._tls ~= nil then self._handshakes:acquire() end
     local ok, stream = pcall(listener.accept, listener)
     if not ok then
-      self._slots:release()
+      if self._slots ~= nil then self._slots:release() end
       if self._tls ~= nil then self._handshakes:release() end
       if self._stopping or is_cancellation(stream) or listener:is_closed() then return end
-      self:_report("accept failed", stream)
-      reactor.sleep(0.05) -- for example EMFILE: do not spin
+      -- Descriptor exhaustion (EMFILE, ENFILE) or another accept failure: existing connections keep serving, the
+      -- loop backs off (50 ms, doubling to 1 s) instead of spinning, and the burst is reported once.
+      failures = failures + 1
+      if failures == 1 then
+        local failure = stream --[[@as table]]
+        local errno = failure.context and failure.context.errno or "error"
+        if self._logger ~= nil then
+          pcall(self._logger.log, self._logger, "warning", "http.Server: accept failed", { reason = tostring(errno) })
+        end
+        self:_report("accept failed", stream)
+      end
+      reactor.sleep(math.min(0.05 * 2 ^ (failures - 1), 1))
     else
+      failures = 0
       scope:fork(run_connection, self, stream)
     end
   end
