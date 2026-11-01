@@ -3,22 +3,26 @@
 
 - roadmap_item: `http`: HTTP/1.1 server (llhttp, OQ-6) and client, message model, streaming, keep-alive, limits (Phase 2)
 - status: in-progress
-- lock_until: 2026-11-01T14:15:04Z
-- last_update: 2026-11-01T12:45:04Z
+- lock_until: 2026-11-01T14:17:35Z
+- last_update: 2026-11-01T12:47:35Z
 
 ## Done
 
 - Claimed the item after the Phase 1 gate merge (PR #47).
+- Step 1 (message model, pure Lua): `Fields`, `MediaType`, `Status`, `Request`, `Response`, `Cookie`/`SetCookie` in `packages/http/src/hecate/http/`, unit tests in `packages/http/tests/unit/`, README Public API and CHANGELOG. `test http`, `lint`, `check-package-structure`, `check-boundaries`, `check-glossary`, `check-rockspecs`, `check-changelog`, `check-lua-constructs`, `check-annotations` pass. `typecheck` not run (LuaLS not installed).
 
 ## Next steps
 
-1. Read docs/architecture/http-and-routing.md, ADR 0019, spike OQ-6, packages/http/CLAUDE.md.
-2. Plan the steps (message model, llhttp binding, server, client, limits, the three deferred Phase 1 findings) and record them here.
-3. Message model first (fields, media types, Request/Response), tests first.
+1. Step 2: llhttp binding (ADR 0019, spike OQ-6): `csrc/`, `build-native http`, parser wrapper, smuggling defences (conflicting Content-Length/Transfer-Encoding), fuzz target, RFC test vectors.
+2. Step 3: server over `hecate.net` (keep-alive, pipelining, `Expect: 100-continue`, chunked, HEAD without content, one coroutine and scope per request, graceful shutdown).
+3. Step 4: limits with safe defaults (request line, field count and size, content size, read and idle deadlines; slowloris).
+4. Step 5: client (pool per origin, redirects, deadlines, TLS, streaming).
+5. Step 6: the three deferred Phase 1 findings (see docs/reviews/phase-1.md, rows deferred to `http`), multipart and URL-encoded content.
+6. Step 7: docs in `website/`, examples, benchmarks, run `typecheck` (install pinned LuaLS under `spikes/`), `/review-package`, then Finish.
 
 ## Decisions taken (and where they are recorded)
 
-None yet.
+Conservative choices inside the message model (no ADR needed): malformed media types and cookies return nil or are skipped instead of raising; `Fields:combined` refuses `Set-Cookie` (RFC 9110 section 5.3); `Response` refuses content on 1xx, 204, 304; `SetCookie` refuses `SameSite=None` without `Secure`.
 
 ## Doubts and questions for the owner
 

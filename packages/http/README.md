@@ -8,7 +8,7 @@
 | Rock | `hecate-http` |
 | Layer | 2 — Protocol |
 | Roadmap phase | 2 |
-| Status | specified — no code yet |
+| Status | in progress — message model implemented (pure Lua); llhttp binding, server and client pending |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |
 | Depends on | [`core`](../core), [`reactor`](../reactor), [`net`](../net), [`json`](../json), [`log`](../log) |
 | Used by | `hecate`, `kernel`, `websocket` |
@@ -39,8 +39,16 @@
 
 ## Public API
 
-*To be filled during implementation: list every exported class and function with a one-line
-description, linking to the generated reference.*
+Implemented (message model, no I/O yet):
+
+- `http.Fields`: case-insensitive, multi-valued, order-preserving fields (`add`, `set`, `get`, `get_all`, `combined`, `has`, `remove`, `count`, `lines`, `copy`); refuses CR, LF and NUL in values and non-token names.
+- `http.MediaType`: `MediaType.parse` (nil and a reason on malformed input), `format`, `essence`, `suffix`, `matches`.
+- `http.Status`: `reason`, `class`, `is_valid`, `forbids_content`.
+- `http.Request`: `method`, `target`, `path`, `query`, `fields`, `content`, `parameters`, `scope`; `peer_address()`, `cookies()`, `media_type()`.
+- `http.Response`: `status`, `reason`, `fields`, `content`; `set_cookie`, `is_successful`.
+- `http.Cookie.parse` (the `Cookie` field, RFC 6265 section 4.2.1) and `http.SetCookie` (`format`).
+
+Pending: llhttp binding, server, client, limits, multipart and URL-encoded content.
 
 ## Layout (once implemented)
 
