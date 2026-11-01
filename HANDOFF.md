@@ -8,6 +8,7 @@
 
 ## Done
 
+- Step 2c: RFC conformance vectors (`packages/http/tests/conformance/rfc9112_test.lua`), `benchmarks/parse.lua` (numbers in the README), known limits in the README, OQ-67 (reason phrase control characters), fix of the HTTP/0.9 request line in `native.c` (test in `parser_test.lua`). Commands run: `test http`, `build-native http`, `bench http/parse`.
 - Lock released at the owner's request (the next run starts at 14:30 Paris). CI was green; typecheck fixed in 6d17b80.
 - `setup-luals` task added; `typecheck` falls back to `spikes/luals`; relay doc and template require `typecheck` before every push.
 
@@ -18,7 +19,7 @@
 
 ## Next steps
 
-1. Step 2b is done (native-code review of e59793e fixed, see CHANGELOG). Left: RFC 9112 test vectors, a parse benchmark in `benchmarks/`, and the first CI run on macOS and Windows (build, `sanitize http` in `native.yml`, `fuzz parse` for a minute; clang's libFuzzer runtime is absent in the cloud image, so the target was checked locally with an ASan/UBSan driver over 180k mutated inputs only).
+1. Steps 2b and 2c are done. Left: the first CI run on macOS and Windows (build, `sanitize http` in `native.yml`, `fuzz parse` for a minute; clang's libFuzzer runtime is absent in the cloud image, so the target was checked locally with an ASan/UBSan driver over 180k mutated inputs only).
 2. Step 3: server over `hecate.net` (keep-alive, pipelining, `Expect: 100-continue`, chunked, HEAD without content, one coroutine and scope per request, graceful shutdown).
 3. (also for step 3) the server answers 400 to an HTTP/1.1 request without exactly one `Host` field (review finding 3, deferred: the parser exposes the fields); it calls `Parser:close()` when a connection ends and feeds chunks no larger than its read buffer (review finding 9). Both are in the roadmap `http` item.
 4. Step 4: limits with safe defaults (request line, field count and size, content size, read and idle deadlines; slowloris).

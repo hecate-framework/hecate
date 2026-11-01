@@ -367,6 +367,9 @@ static int move_block(parser *p, record *r) {
 
 static int on_headers_complete(llhttp_t *l) {
   parser *p = (parser *)l;
+  /* A request line without a version is read by llhttp as HTTP/0.9, and on_version_complete never runs for it:
+   * RFC 9112 section 3 requires the HTTP-version, so the version is checked again here. */
+  if (l->http_major != 1 || l->http_minor > 1) return fail(l, K_VERSION);
   if ((l->flags & F_CHUNKED) != 0 && l->http_major == 1 && l->http_minor == 0) return fail(l, K_CHUNKED_10);
   record *r = new_record(p, EV_HEAD);
   if (r == NULL) return fail(l, K_MEMORY);

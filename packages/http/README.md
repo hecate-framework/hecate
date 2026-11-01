@@ -55,8 +55,43 @@ Implemented (parser, needs the native module: `lua tools/run.lua build-native ht
 - `ParseError`: `context.reason`, `context.code`, `context.kind` (a stable identifier for the binding's own refusals), `context.position` (offset in the chunk of the failing call), `context.status` (400, 414 for the target, 431 for fields and heads).
 - Limits with safe defaults, each an integer from 1 to 16777216 (an unknown option is an `ArgumentError`): `max_target_size` 8192, `max_field_size` 8192 (a name, a value, a reason phrase), `max_head_size` 65536 (raw bytes of a section: the head with its whitespace and leading empty lines, the bytes between two content chunks, the trailer section), `max_fields` 100, `max_events` 1024 (events recorded per native call; `feed` continues by itself). Feed chunks no larger than the read buffer: `feed` returns every event of the chunk in one list.
 - The server must answer 400 to an HTTP/1.1 request without exactly one `Host` field (RFC 9112 section 3.2): the parser only exposes the fields (roadmap, `http` item).
-- Known llhttp behaviour kept as is: more than one space between the method and the target is accepted (no smuggling effect); a leading CRLF before a request line is ignored (RFC 9112 section 2.2).
+- Known llhttp behaviour kept as is: see "Conformance and known limits" below (a leading CRLF before a request line is ignored, RFC 9112 section 2.2).
 - The third-party sources are vendored in `csrc/vendor/` (llhttp 9.4.3, MIT; `VENDORED.md`). A libFuzzer target (`fuzz parse`) feeds random bytes split at random sizes; `sanitize http` runs the tests under ASan and UBSan.
+
+## Conformance and known limits
+
+`tests/conformance/rfc9112_test.lua` holds the RFC 9112 and 9110 vectors, as data: request-line forms and the four request-target forms, malformed request and status lines, field syntax (OWS, empty values, case, obs-fold, characters), every rule of the message-framing table of RFC 9112 section 6.3 (Content-Length and Transfer-Encoding, requests and responses, HEAD, 1xx, 204, 304, CONNECT), chunked coding with extensions and trailers, connection persistence, upgrade, the examples quoted in the RFCs and the request-smuggling variants of section 11.2. Each message is fed whole and byte by byte, which must agree. A message the parser must refuse asserts the `ParseError` status (and `kind` where there is one) and that no head event is delivered.
+
+Where llhttp 9.4.3 (strict mode) differs from the RFCs, the test asserts the behaviour as it is and the difference is listed here.
+
+Stricter than the RFC (safe: the message is refused with 400; the RFC allows or recommends processing it):
+
+- Several identical `Content-Length` values (`4, 4`, or two lines): RFC 9112 section 6.3 rule 5 lets a recipient merge them; llhttp refuses.
+- `Content-Length` together with `Transfer-Encoding`: the RFC lets a server process the message with `Transfer-Encoding` and close the connection; llhttp refuses (RFC 9112 section 6.1, 11.2).
+- A request whose last transfer coding is not `chunked`, or an unknown coding: the answer is 400, where RFC 9112 section 6.1 suggests 501 for a coding the server does not understand. The server may translate the case (`gzip` alone) into 501 once it inspects the field.
+- Obsolete line folding in a response: RFC 9112 section 5.2 lets a client replace it with spaces; llhttp refuses it everywhere.
+- Whitespace around the `;` and `=` of a chunk extension (`3 ; a = b`): RFC 9112 section 7.1.1 allows BWS; llhttp refuses.
+
+More permissive than the RFC:
+
+- A reason phrase may hold control characters other than CR and LF (NUL, ESC, DEL): RFC 9112 section 4 allows only HTAB, SP, VCHAR and obs-text. The reason is informational and nothing decides on it; a logger or a terminal must escape it. Recorded in `docs/open-questions.md` (OQ-67).
+- Runs of SP in the request line (`GET  /  HTTP/1.1`) are accepted: RFC 9112 section 3 permits parsing on whitespace-delimited word boundaries. HTAB as a separator is refused.
+- Any three-digit status code is delivered, `099` included (RFC 9112 section 4 asks for three digits; the defined range is RFC 9110 section 15). The caller validates with `hecate.http.Status`.
+- After `Connection: close` the parser still parses a message that follows it in the same chunk: `keep_alive` is false on the head and the server must close without serving the next one (RFC 9112 section 9.6).
+
+Found by the vectors and fixed in the binding: a request line without a version (`GET /`) was read by llhttp as HTTP/0.9 and delivered with the version `HTTP/0.9` (llhttp does not call its version callback for it); the head is now refused with kind `unsupported_version`. A front proxy that treats such a line as a request line and a back end that does not would disagree on where a message ends.
+
+## Benchmark
+
+`benchmarks/parse.lua` (`lua tools/run.lua bench http/parse`): messages per second for a small request (`GET /users/42`, 45 bytes), a browser-sized request (17 fields, cookies and a bearer token, about 0.9 KiB) and a response with 8 fields, fed whole and byte by byte, medians of 7 samples of 0.25 s. The parser is the full path: llhttp, the event records and the conversion to `Fields`. No threshold is set. Measured on a cloud VM (Intel Xeon 2.80 GHz, 4 vCPU, 16 GiB, Linux 6.18, Lua 5.5.1, one run, not pinned, noisy host), 2026-11-01:
+
+| Message | Whole buffer | Byte by byte |
+|---|---|---|
+| request, small | 207 000 /s (8.9 MB/s) | 27 000 /s (1.2 MB/s) |
+| request, browser-sized | 16 900 /s (14.9 MB/s) | 1 400 /s (1.3 MB/s) |
+| response | 42 000 /s (13.3 MB/s) | 3 600 /s (1.1 MB/s) |
+
+Byte by byte costs one native call per byte; a server feeds the bytes of one read at a time.
 
 Pending: server, client, request-level limits (content size, deadlines), multipart and URL-encoded content.
 
@@ -64,7 +99,7 @@ Pending: server, client, request-level limits (content size, deadlines), multipa
 
 ```text
 src/hecate/http/init.lua   public entry point
-tests/unit/  tests/integration/  tests/fixtures/
+tests/unit/  tests/conformance/  tests/integration/  tests/fixtures/
 examples/    benchmarks/
 csrc/        native sources
 ```

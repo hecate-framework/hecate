@@ -471,4 +471,13 @@ function T:test_close_releases_the_parser()
   self:assert_error(function() p:feed("x") end)
 end
 
+
+-- Found by the conformance vectors (step 2c): llhttp reads a request line without a version as HTTP/0.9 and never
+-- calls its version callback; RFC 9112 section 3 requires the HTTP-version.
+function T:test_a_request_line_without_a_version_is_rejected()
+  local err = self:reject("GET /\r\nHost: h\r\n\r\n")
+  self:assert_equal("unsupported_version", err.context.kind)
+  self:reject("POST /x\r\nHost: h\r\nContent-Length: 3\r\n\r\nabc")
+end
+
 return T
