@@ -11,7 +11,9 @@ local available, reason = net.tls.available()
 if not available then
   function T:test_skipped_native_module_not_built()
     -- CI must not skip silently: CI sets `CI` (and `HECATE_REQUIRE_TLS=1` when the TLS module is built).
-    if os.getenv("HECATE_REQUIRE_TLS") == "1" or os.getenv("CI") then self:fail("TLS tests cannot run: " .. tostring(reason)) end
+    -- A job that deliberately does not build the TLS module (the sanitizer job) sets `HECATE_REQUIRE_TLS=0`.
+    local required = os.getenv("HECATE_REQUIRE_TLS")
+    if required == "1" or (required ~= "0" and os.getenv("CI")) then self:fail("TLS tests cannot run: " .. tostring(reason)) end
     print("# SKIP hecate.http client TLS tests: " .. tostring(reason))
   end
   return T
