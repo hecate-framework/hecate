@@ -27,6 +27,7 @@ concurrency primitives; transport, name resolution, `fs`, `wait_signal`, `run_pr
 | `join(f1, f2, ...) → v1, v2, ...` | Wait for all futures; if one fails, cancel the others in the same `join` and raise the first error. |
 | `select(f1, f2, ...) → index, value` | Wait for the first future to complete; cancel the others. If several are already ready, the first in argument order wins: the arguments are a priority order, not a random choice (a caller that wants fairness rotates them). |
 | `deadline(seconds_or_instant, fn, ...)` | Run `fn`; raise `DeadlineExceededError` and cancel it if it does not finish in time. Accepts a relative duration or an absolute instant. |
+| `shield(seconds_or_instant, fn, ...)` | Run `fn` shielded from cancellation (see rule 4): the cancellation of the enclosing scopes is not delivered inside `fn`, so cleanup can suspend. The shield has its own deadline (required: no default is decided); on expiry it is cancelled and raises `DeadlineExceededError`. |
 | `sleep(seconds)` | Suspend the current coroutine. |
 | `detach(fn, ...) → Future` | Start `fn` in the application scope, outside the current scope; its failure is seen only through its future (rule 2). |
 | `scope(fn)` | Open a structured-concurrency scope: returns only when every computation forked inside has completed or been cancelled. |
@@ -54,7 +55,11 @@ the test framework opens one per test. Rules:
 4. Cancellation is **cooperative**: it is delivered as a `CancellationError` raised at
    the next suspension point of the cancelled coroutine, and again at every later suspension
    point of the cancelled scope (level-triggered, OQ-23). Cleanup in `<close>` variables runs
-   normally but cannot suspend while its scope is cancelled (OQ-23).
+   normally but cannot suspend while its scope is cancelled, unless it runs in `reactor.shield(limit, fn)`:
+   inside a shield no cancellation of the enclosing scopes (nor of the running computation) is delivered, the
+   shield's own deadline bounds it, and a cancellation that arrived meanwhile is raised again at the first
+   suspension point after it. Computations forked inside a shield belong to the shield's scope and are not cancelled
+   by the outer one.
 
 This removes the classic leak where background work outlives the request that started it.
 

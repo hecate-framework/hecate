@@ -91,6 +91,7 @@ reactor.scope = primitives.scope
 reactor.with_ambient = primitives.with_ambient
 reactor.ambient = primitives.ambient
 reactor.deadline = primitives.deadline
+reactor.shield = primitives.shield
 reactor.now = primitives.now
 
 --- Runs `fn(...)` on a new reactor until it and everything it forked have finished.

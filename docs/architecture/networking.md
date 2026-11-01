@@ -112,8 +112,8 @@ Rules:
   the peer received is unknown: every later call raises a `NetworkError` whose `cause` is the original failure,
   rather than sending bytes after a gap (OQ-29 (4)).
 - **`close` discards.** `close` and `__close` never flush, because a close handler must not suspend while its scope
-  is cancelled (OQ-23, OQ-29 (5)). *Decided, not implemented:* once `reactor.shield(fn)` exists (roadmap,
-  `reactor` follow-up), `BufferedWriter:close` can flush under a shield with its own deadline.
+  is cancelled (OQ-23, OQ-29 (5)). *Decided, not implemented:* `reactor.shield(limit, fn)` now exists,
+  so `BufferedWriter:close` can flush under a shield with its own deadline (roadmap, `net` follow-up).
 - Flushes are serialised by a `reactor.Mutex`, which keeps bytes in order.
 - Flush a writer before `shutdown`.
 - The default `capacity` is **8192 bytes**, below one TLS record (16 KiB of plaintext). *Decided, not
@@ -401,7 +401,7 @@ The `net` follow-up of the [roadmap](../roadmap.md) (owner decisions of 2026-10-
 4. Handshake defaults split: 10 s for `tls.connect` and `connect_tls`, 60 s for `tls.accept`, both editable.
 5. A benchmark of the `BufferedWriter` capacity against Go's 4 KiB `bufio` and other frameworks, which decides the
    default.
-6. `BufferedWriter:close` flushing under `reactor.shield` (OQ-23; needs the `reactor` follow-up).
+6. `BufferedWriter:close` flushing under `reactor.shield` (OQ-23; `reactor.shield` exists, the writer deadline is to be chosen).
 
 Not decided and not planned: see "Non-goals".
 

@@ -167,11 +167,14 @@ local function wake_computation(computation, id, ...)
 end
 
 --- Returns the cancellation pending for a coroutine: its own, or that of any enclosing scope.
+--- A shielded scope (`reactor.shield`) stops the search: the cancellation of what encloses it,
+--- and a cancellation requested on the shielded computation itself, wait until the shield ends.
 local function pending_cancel(computation)
-  if computation.cancel_error ~= nil then return computation.cancel_error end
+  if computation.cancel_error ~= nil and not computation.shielded then return computation.cancel_error end
   local scope = computation.scope
   while scope do
     if scope._cancel_error ~= nil then return scope._cancel_error end
+    if scope._shielded then return nil end
     scope = scope.parent
   end
   return nil

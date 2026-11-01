@@ -139,6 +139,9 @@ local CASES = {
   ["primitives.scope"] = function()
     return function() reactor.scope(function(scope) scope:fork(reactor.sleep, 0) end) end
   end,
+  ["primitives.shield"] = function()
+    return function() reactor.shield(30, function() reactor.sleep(0) end) end
+  end,
   ["primitives.deadline"] = function()
     return function() reactor.deadline(30, function() reactor.sleep(0) end) end
   end,

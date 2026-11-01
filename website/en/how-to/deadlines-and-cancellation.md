@@ -122,8 +122,27 @@ cancelled. It does not wait for buffered data. To end a conversation cleanly, `f
 writer and call `shutdown` before the block ends. See
 [The transport model](../explanation/transport-model.md).
 
+## Run cleanup while the scope is cancelled
+
+Once a scope is cancelled, every suspension point inside it raises again, so a cleanup step that
+must wait (flush a buffer, send a closing message) would fail at once. Run it with
+`reactor.shield`, which keeps the cancellation of the enclosing scopes out of its body and has a
+deadline of its own, so that a stuck peer cannot block shutdown:
+
+```lua
+local ok = pcall(reactor.shield, 5, function()
+  writer:flush()
+  stream:shutdown()
+end)
+-- A deadline of 5 seconds bounds the cleanup. ok is false if it expired or failed.
+```
+
+The cancellation that arrived meanwhile is raised again at the first suspension point after the
+shield.
+
 ## See also
 
 - [Connect and serve over TCP](connect-and-serve-over-tcp.md)
 - [`reactor.deadline`](../reference/reactor/functions/deadline.md),
+  [`reactor.shield`](../reference/reactor/functions/shield.md),
   [`BufferedWriter`](../reference/net/BufferedWriter.md)

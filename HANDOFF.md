@@ -3,8 +3,8 @@
 
 - roadmap_item: **Phase 1 gate**: verification of the phase, as described in Phase gates. Open questions to put to the owner before Phase 2: OQ-50, OQ-47, OQ-23, OQ-24, OQ-26 (1) and OQ-22.
 - status: in-progress
-- lock_until: 2026-11-01T11:23:56Z
-- last_update: 2026-11-01T09:53:56Z
+- lock_until: 2026-11-01T11:26:19Z
+- last_update: 2026-11-01T09:56:19Z
 
 ## Done
 
@@ -14,7 +14,7 @@
 
 ## Next steps
 
-Run 9 (2026-11-01, owner asked: no stacked branches, work directly on this branch): `reactor` follow-up in progress. Done and pushed here: `core.IoError` (reactor.IoError extends it), `on_unobserved_failure(err, future)` Reactor option (called for a detached computation that fails with no waiter on its future; hook errors discarded). Next: `reactor.shield(limit, fn, ...)` (limit required, like `deadline`: no default decided; innermost shield deadline applies; tests drafted in `packages/reactor/tests/unit/shield_test.lua`, implement in `pending_cancel` (reactor.lua) with a `_shielded` scope flag and `computation.shielded`, `scope_run` in primitives.lua), then spec in concurrency.md, README, CHANGELOG, note the required-limit choice under OQ-23 in open-questions.md, tick the `reactor` follow-up roadmap item, then the `net` follow-up item (one per run), then the gate run. PR #51 (stacked) is closed.
+Run 9 (2026-11-01, owner asked: no stacked branches, work directly on this branch): the `reactor` follow-up roadmap item is DONE and ticked (`core.IoError`, `on_unobserved_failure`, `reactor.shield(limit, fn, ...)` with a required limit; docs, README, CHANGELOG, OQ-23 note, website how-to). `BufferedWriter:close` flushing under the shield moved into the `net` follow-up item (choose its shield deadline and record it). The French how-to `website/fr/how-to/deadlines-and-cancellation.md` lacks the new section (stale stamp, A44/B32 deferral). Check CI of this branch on the three platforms next (not yet checked for the new commits). Next run: the `net` follow-up item (one item per run), then the gate run (CI check, tick the gate, delete this file, ready for review). PR #51 (stacked) is closed; branch `claude/relay-reactor-shield` can be deleted.
 
 Update 2026-11-01 (owner conversation): the owner HAS decided every item run 8 calls pending (OQ-50 presence set, OQ-26 (4) keep refusing, A33, A40, A41, A42, C03, C17, C18, ambient glossary); they are recorded in docs/open-questions.md and docs/reviews/phase-1-owner-decisions.md. Do not ask for them again; issue 48 is corrected. What remains: (1) the deferred minors of docs/reviews/phase-1-review-package.md need the owner's call; (2) the two roadmap items before the gate (`reactor` follow-up, `net` follow-up incl. Happy Eyeballs) are decided but NOT implemented: take them next, one per run, each on its own branch; (3) then the gate run ticks the gate and deletes this file.
 

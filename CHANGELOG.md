@@ -11,6 +11,7 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- `hecate.reactor`: `reactor.shield(limit, fn, ...)` runs cleanup shielded from cancellation, with its own deadline (OQ-23, owner decision of 2026-10-27).
 - `hecate.reactor`: the `on_unobserved_failure(err, future)` option of `Reactor` reports a detached computation that fails while nothing waits for its future (OQ-26 (1)); `kernel` will bind it to `log`.
 - `hecate.core`: `IoError`, the base class of file-system and process failures; `hecate.reactor.IoError` now extends it (OQ-26 (2)). `TransportError` stays a sibling under `NetworkError`.
 - `hecate.reactor`: `tests/unit/suspension_test.lua` checks that documented suspension matches behaviour (finding A42): `coroutine.yield` is instrumented, 57 public functions run on a path where they must wait, and the observed yields are compared with the `---@async` tags read from the sources. The annotations of `fork`, `detach`, `with_ambient` and `ambient` (finding A04) say that they do not suspend (`with_ambient` only if its `fn` does).
