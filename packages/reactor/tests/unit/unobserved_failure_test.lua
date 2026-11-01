@@ -64,6 +64,7 @@ function T:test_a_failing_hook_does_not_stop_the_reactor()
 end
 
 function T:test_hook_must_be_a_function()
+  ---@diagnostic disable-next-line: assign-type-mismatch  -- the option is invalid on purpose
   local err = self:assert_error(function() reactor.Reactor({ on_unobserved_failure = 3 }) end)
   self:assert_true(core.is_instance_of(err, core.ArgumentError))
 end

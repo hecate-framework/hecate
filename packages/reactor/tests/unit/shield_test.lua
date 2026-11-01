@@ -112,6 +112,7 @@ function T:test_arguments_are_checked()
       local err = self:assert_error(function() reactor.shield(bad, function() end) end)
       self:assert_true(core.is_instance_of(err, core.ArgumentError))
     end
+    ---@diagnostic disable-next-line: param-type-mismatch  -- the argument is invalid on purpose
     local err = self:assert_error(function() reactor.shield(1, 3) end)
     self:assert_true(core.is_instance_of(err, core.ArgumentError))
   end)
