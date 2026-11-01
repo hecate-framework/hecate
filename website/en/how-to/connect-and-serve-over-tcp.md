@@ -18,8 +18,9 @@ behind this, read [The transport model](../explanation/transport-model.md).
 ## Connect
 
 `net.connect(host, port, options?)` returns a `TcpStream`. The host may be a name or a numeric
-address. A name is resolved first, and each address is tried in the order the resolver gives
-until one connects.
+address. A name is resolved first. The addresses are tried in the order the resolver gives: the next one
+starts after 250 milliseconds, or at once when an attempt fails, and the first one to connect
+wins. The attempts that lose are cancelled.
 
 The example below starts a listener on a free port and connects to it. The client sends one
 line and reads one line back.

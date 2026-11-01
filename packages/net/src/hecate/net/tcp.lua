@@ -130,15 +130,22 @@ local function rewrap(failure, call, action, extra, suffix)
   })
 end
 
+--- Seconds before the next address is tried while an attempt is still pending (RFC 8305 section 5,
+--- "Connection Attempt Delay": the recommended value). Not an option: a caller bounds the whole call.
+local CONNECTION_ATTEMPT_DELAY = 0.25
+
 --- Connects to `host:port`. A host name is resolved first and its addresses are tried in the
---- resolver's order until one connects (no parallel attempts, OQ-32). Options: `nodelay` (default
+--- resolver's order, Happy Eyeballs style (RFC 8305, OQ-32 (2)): the first attempt starts at once, the
+--- next one 250 ms later if none has finished, or at once when the previous one fails; attempts run in
+--- parallel, the first to connect wins and the others are cancelled (a connection that completes after
+--- the winner is closed). Options: `nodelay` (default
 --- true), `keepalive` (default false), `keepalive_delay` (positive integer, seconds, default 60),
 --- `family` (`"inet"` or `"inet6"`). There is no timeout option: bound the whole call, resolution
---- included, with `reactor.deadline(seconds, net.connect, host, port)`.
+--- included, with `reactor.deadline(seconds, net.connect, host, port)`, which cancels every pending attempt.
 ---
---- Raises `hecate.reactor.TransportError` (the last failure, rewrapped with the endpoint in its
---- message, `context.host`, `context.port`, the `context.errno` of the failure and its `cause`)
---- when no address connects. `context.attempts` lists `{ address, errno }` of every attempt (the
+--- Raises `hecate.reactor.TransportError` (the failure of the last address, rewrapped with the endpoint in
+--- its message, `context.host`, `context.port`, the `context.errno` of the failure and its `cause`)
+--- when no address connects. `context.attempts` lists `{ address, errno }` of every attempt in address order (the
 --- first failures are otherwise lost). A malformed host, port or option raises
 --- `hecate.core.ArgumentError` before anything is resolved. Cancellation, and a deadline, propagate
 --- at once instead of trying the next address.
@@ -162,19 +169,86 @@ function M.connect_for(call, host, port, options)
   local transport, family = split_options(call, host, options, CONNECT_OPTIONS)
   check_port(call, port)
   local addresses = dns.resolve_for(call, host, { family = family })
+  local count = #addresses
+  if count == 1 then
+    local ok, result = pcall(reactor.connect_tcp, addresses[1].ip, port, transport)
+    if ok then return TcpStream(result) end
+    if not core.is_instance_of(result, reactor.TransportError) then error(errors.rename(result, call), 0) end
+    local failure = result --[[@as hecate.core.Error]]
+    error(rewrap(failure, call, "connect to " .. endpoint(host, port),
+      { host = host, port = port, attempts = { { address = addresses[1].ip, errno = failure.context and failure.context.errno } } }), 0)
+  end
+
+  -- Several addresses: attempts are children of a scope that ends only when every one of them is done,
+  -- so no attempt outlives the call and a connection that arrives late can be closed.
+  local outcomes = {} -- by address index: { ok, result }
+  local winner, misuse
+  local scope_ok, scope_err = pcall(reactor.scope, function(scope)
+    local finished = reactor.Channel(count) -- capacity `count`: a finishing attempt never waits
+    local futures = {}
+    local started = 0
+    local function start()
+      started = started + 1
+      local index = started
+      futures[index] = scope:fork(function()
+        local ok, result = pcall(reactor.connect_tcp, addresses[index].ip, port, transport)
+        outcomes[index] = { ok = ok, result = result }
+        finished:send(index)
+      end)
+    end
+    start()
+    local done = 0
+    while done < count do
+      local index
+      if started < count then
+        local timer = scope:fork(reactor.sleep, CONNECTION_ATTEMPT_DELAY)
+        local which, value = reactor.select(finished:receive_op(), timer)
+        if which == 1 then
+          timer:cancel()
+          index = value
+        else
+          start() -- nothing finished in time: try the next address as well
+        end
+      else
+        index = finished:receive()
+      end
+      if index then
+        done = done + 1
+        local outcome = outcomes[index]
+        if outcome.ok then
+          winner = index
+          break
+        elseif not core.is_instance_of(outcome.result, reactor.TransportError) then
+          misuse = outcome.result -- cancellation or misuse: no further attempt
+          break
+        elseif started < count then
+          start() -- a failure does not wait for the delay (RFC 8305 section 5)
+        end
+      end
+    end
+    for _, future in ipairs(futures) do future:cancel() end
+  end)
+  -- Every attempt is done. A connection that completed and is not the winner is closed.
+  for index, outcome in pairs(outcomes) do
+    if outcome.ok and index ~= winner then outcome.result:close() end
+  end
+  if not scope_ok then
+    if winner then outcomes[winner].result:close() end
+    error(errors.rename(scope_err, call), 0)
+  end
+  if winner then return TcpStream(outcomes[winner].result) end
+  if misuse then error(errors.rename(misuse, call), 0) end
   ---@type hecate.core.Error?
   local last
   local attempts = {}
   local tried = {}
-  for i = 1, #addresses do
-    local ok, result = pcall(reactor.connect_tcp, addresses[i].ip, port, transport)
-    if ok then return TcpStream(result) end
-    -- Only a failed attempt moves on to the next address; cancellation and misuse propagate.
-    if not core.is_instance_of(result, reactor.TransportError) then error(errors.rename(result, call), 0) end
-    local failure = result --[[@as hecate.core.Error]]
-    attempts[#attempts + 1] = { address = addresses[i].ip, errno = failure.context and failure.context.errno }
-    tried[#tried + 1] = addresses[i].ip
-    last = failure
+  for i = 1, count do
+    local failure = outcomes[i] and not outcomes[i].ok and outcomes[i].result
+    if failure then
+      attempts[#attempts + 1] = { address = addresses[i].ip, errno = failure.context and failure.context.errno }
+      tried[#tried + 1] = addresses[i].ip
+      last = failure
+    end
   end
   ---@cast last hecate.core.Error
   error(rewrap(last, call, "connect to " .. endpoint(host, port), { host = host, port = port, attempts = attempts },

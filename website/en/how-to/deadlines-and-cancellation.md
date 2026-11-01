@@ -26,8 +26,8 @@ A cancellation from elsewhere, for example from an enclosing `reactor.scope`, ra
 local stream <close> = reactor.deadline(5, net.connect, "example.org", 80)
 ```
 
-A cancellation stops `connect` at once. It does not try the next address. The half-open
-connection is closed, so nothing leaks.
+A cancellation stops `connect` at once and cancels every attempt in flight. It does not try the
+next address. The half-open connections are closed, so nothing leaks.
 
 `connect_tls` has two bounds. The `reactor.deadline` you wrap around it covers resolution and the TCP
 connect. The option `handshake_timeout` (10 seconds by default) covers the TLS handshake only:

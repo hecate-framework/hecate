@@ -11,6 +11,7 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- `hecate.net`: `net.connect` tries a host name's addresses Happy Eyeballs style (RFC 8305): the next attempt after 250 ms, or at once after a failure, in parallel; the first success wins and the others are cancelled (OQ-32 (2)). The resolver's order is kept.
 - `hecate.net`: `tls.server_config` option `client_crl_pem` (PEM, one or more certificate revocation lists) rejects revoked client certificates (OQ-47 (6)); read once, no refresh. Test fixtures for a revocation CA, a revoked and a valid client certificate and the CRL.
 - `hecate.net`: `net.listen` binds every address its host name resolves to, on one port, and `accept` takes connections from all of them (OQ-47 (5), supersedes OQ-32 (3)); an address that cannot be bound at all (`EAFNOSUPPORT`, `EADDRNOTAVAIL`) is skipped when another is bound.
 - `hecate.reactor`, `hecate.net`: `listen_pipe` binds a Unix socket in a private `0700` directory and links it to the requested path with its final permissions, instead of binding then calling `chmod` (OQ-47 (4)); the socket never appears with wider permissions. `path()` of a listener, of its accepted streams and of a client stream is the requested path.

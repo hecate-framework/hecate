@@ -27,8 +27,8 @@ that application protocols read and write through. Its dependencies are `core` a
 - Application protocols (HTTP, database wire protocols) are **not** in `net`; they read and write through the
   `Stream` interface and the buffered layer.
 
-Non-goals: application protocols; connection pooling (a driver concern); parallel connection attempts across
-addresses (RFC 8305, Happy Eyeballs) and a resolver cache (OQ-32); SOCKS or HTTP proxies; certificate-based
+Non-goals: application protocols; connection pooling (a driver concern); a resolver cache (OQ-32), and RFC 8305's
+interleaving of address families (the resolver's order is kept); SOCKS or HTTP proxies; certificate-based
 server selection by SNI on the server (a single certificate per configuration); session resumption configuration,
 OCSP stapling policy and 0-RTT (OQ-41); datagram truncation and loss semantics (OQ-42 (8)); a non-blocking file
 API (that is `reactor.fs`).
@@ -144,9 +144,13 @@ so the failures name the call the caller wrote.
   naming `net.connect`): `nodelay` (boolean, default `true`: Nagle off), `keepalive` (boolean, default `false`),
   `keepalive_delay` (positive integer seconds, default 60), `family`.
 - The port is an integer in 0..65535; the host a non-empty string.
-- The addresses are tried **in resolver order, one after the other**, with no per-attempt deadline. A
-  cancellation or deadline stops at once instead of trying the next address. When none connects, the call raises a
-  `reactor.TransportError` of the last failure, with the message naming the endpoint and the attempts
+- The addresses are tried **in resolver order, Happy Eyeballs style** (RFC 8305, owner decision of 2026-10-27, OQ-32
+  (2)): the first attempt starts at once; the next starts 250 ms later when none has finished, or at once when the
+  previous one fails; attempts run in parallel; the first to connect wins and the others are cancelled (one that
+  completes after the winner is closed). The delay is not an option and there is no per-attempt deadline: the caller
+  bounds the whole call, which cancels every pending attempt, and a cancellation never leads to another attempt.
+  The families are not interleaved: the resolver's order is kept (the system resolver already sorts by RFC 6724).
+  When none connects, the call raises a `reactor.TransportError` of the last address's failure, with the message naming the endpoint and the attempts
   (`net.connect: connect to example.org:5432 failed: ECONNREFUSED connection refused (tried 10.0.0.1, 10.0.0.2)`);
   `context.errno`, `context.host`, `context.port`, `context.attempts` (`{ address, errno }` per attempt) and
   `cause` are set.
@@ -366,7 +370,7 @@ There is no `timeout` argument on any operation. A deadline or cancellation come
 
 | Operation | After cancellation |
 |---|---|
-| `connect`, `connect_pipe` (not yet completed) | The handle is closed; with several addresses, no further address is tried. |
+| `connect`, `connect_pipe` (not yet completed) | The handle is closed; with several addresses, every pending attempt is cancelled and no further address is tried. |
 | `resolve` | The caller is released at once; the late answer is discarded. |
 | `TcpStream:read`, `PipeStream:read`, `TlsStream:read` | The stream stays open; no data is lost. Exception: a cancellation that interrupts the sending of ciphertext the TLS session queued (key update, alert) closes the stream like a cancelled write. |
 | `write` on `TcpStream`, `PipeStream` | The stream is closed (the bytes sent are unknown). |
@@ -416,7 +420,8 @@ The `net` follow-up of the [roadmap](../roadmap.md) (owner decisions of 2026-10-
 4. ~~Handshake defaults split: 10 s for `tls.connect` and `connect_tls`, 60 s for `tls.accept`, both editable.~~ Done.
 5. A benchmark of the `BufferedWriter` capacity against Go's 4 KiB `bufio` and other frameworks, which decides the
    default.
-6. `BufferedWriter:close` flushing under `reactor.shield` (OQ-23; `reactor.shield` exists, the writer deadline is to be chosen).
+6. ~~`BufferedWriter:close` flushing under `reactor.shield` (OQ-23).~~ Done (`close_timeout`, default 5 seconds, to be confirmed by the owner).
+7. ~~Happy Eyeballs (RFC 8305) in `net.connect`.~~ Done.
 
 Not decided and not planned: see "Non-goals".
 
@@ -428,7 +433,7 @@ Not decided and not planned: see "Non-goals".
   (`packages/net/tests/fixtures`, throwaway certificates). Hermetic TLS tests use `system_roots = false`; one test
   per platform covers the default path, and one reaches a public server where `HECATE_NETWORK_TESTS=1`.
 - TLS tests fail, not skip, when `HECATE_REQUIRE_TLS=1` and the native module is missing.
-- Tests pin `family = "inet"` or use numeric addresses, because `listen("localhost", ...)` binds one address today.
+- Tests that need a single socket pin `family = "inet"` or use numeric addresses, because `listen("localhost", ...)` binds every address the resolver lists.
 - Order events with futures and joins, not `reactor.sleep`.
 - Fault injection: resets, half-close, slow peers, truncation without `close_notify`.
 - Every example in `packages/net/examples/` is run by a test.
@@ -438,8 +443,6 @@ Not decided and not planned: see "Non-goals".
 ## Open points
 
 - OQ-47 (8): the `reuseport` branch of TCP cannot run in CI until luv supports it (OQ-43).
-- Shape of `TcpListener` once it binds several addresses (local address, one handle per address): to be written
-  with the implementation of follow-up item 1.
 - Refresh of the CRL (re-reading a file, fetching a distribution point) and enforcement of its expiry: not done,
   `client_crl_pem` is a PEM string read once by `tls.server_config`.
 - Session resumption, OCSP stapling policy, SNI-based certificate selection on the server, peer certificate
