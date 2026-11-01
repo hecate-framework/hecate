@@ -216,7 +216,7 @@ function T:test_chunked_request_content_is_read_whole_and_streamed()
   local chunks = {}
   with_server(self, {
     handler = function(request)
-      local reader = request:content_reader()
+      local reader = request:stream_content()
       while true do
         local chunk = reader:read()
         if chunk == nil then break end
@@ -601,7 +601,7 @@ function T:test_defaults_are_the_documented_values()
   self:assert_nil(d.max_connections, "no limit on connections by default")
   self:assert_equal(1048576, d.max_content)
   self:assert_equal(60, d.head_timeout)
-  self:assert_equal(60, d.idle_timeout)
+  self:assert_equal(75, d.idle_timeout)
   self:assert_equal(60, d.content_timeout)
   self:assert_equal(60, d.write_timeout)
 end

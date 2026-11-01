@@ -10,22 +10,22 @@ local core = require("hecate.core")
 ---@field context { status: integer, reason: string, limit?: integer }
 local ContentError = core.error_class("ContentError", "hecate.http.ContentError", core.ProtocolError)
 
---- A reader of message content, chunk by chunk. A server creates one per request; a request built by hand
+--- A stream of message content: an ordered sequence of bytes read in order, chunk by chunk. A server creates one per request; a request built by hand
 --- gets one over its string content.
----@class hecate.http.ContentReader
----@overload fun(pull: fun(): (string?), options?: { limit?: integer }): hecate.http.ContentReader
-local ContentReader = core.class("ContentReader")
-ContentReader.ContentError = ContentError
+---@class hecate.http.ContentStream
+---@overload fun(pull: fun(): (string?), options?: { limit?: integer }): hecate.http.ContentStream
+local ContentStream = core.class("ContentStream")
+ContentStream.ContentError = ContentError
 
 --- Creates a reader. `pull` returns the next chunk (never empty) or nil at the end of the content; it may
 --- suspend. `options.limit` bounds the total number of bytes the reader delivers (no default: the server passes its own).
 ---@param pull fun(): string?
 ---@param options? { limit?: integer }
-function ContentReader:init(pull, options)
-  if type(pull) ~= "function" then error(core.ArgumentError("http.ContentReader: expected a pull function"), 3) end
+function ContentStream:init(pull, options)
+  if type(pull) ~= "function" then error(core.ArgumentError("http.ContentStream: expected a pull function"), 3) end
   local limit = options and options.limit
   if limit ~= nil and (math.type(limit) ~= "integer" or limit < 0) then
-    error(core.ArgumentError("http.ContentReader: limit must be a non-negative integer"), 3)
+    error(core.ArgumentError("http.ContentStream: limit must be a non-negative integer"), 3)
   end
   self._pull = pull
   self._limit = limit
@@ -37,10 +37,10 @@ end
 
 --- A reader over a string held in memory.
 ---@param text string
----@return hecate.http.ContentReader
-function ContentReader.of(text)
+---@return hecate.http.ContentStream
+function ContentStream.of(text)
   local sent = text == ""
-  return ContentReader(function()
+  return ContentStream(function()
     if sent then return nil end
     sent = true
     return text
@@ -53,7 +53,7 @@ end
 --- transport or the parser that stopped the content is raised as it came.
 ---@async
 ---@return string? chunk
-function ContentReader:read()
+function ContentStream:read()
   if self._failure ~= nil then error(self._failure, 0) end
   if self._finished then return nil end
   self._started = true
@@ -69,7 +69,7 @@ function ContentReader:read()
   self._total = self._total + #chunk
   if self._limit ~= nil and self._total > self._limit then
     self._failure = ContentError({
-      message = "http.ContentReader: the content exceeds its limit",
+      message = "http.ContentStream: the content exceeds its limit",
       context = { status = 413, reason = "too_large", limit = self._limit },
     })
     error(self._failure, 0)
@@ -83,9 +83,9 @@ end
 ---@async
 ---@param limit? integer
 ---@return string content
-function ContentReader:read_all(limit)
+function ContentStream:read_all(limit)
   if limit ~= nil and (math.type(limit) ~= "integer" or limit < 0) then
-    error(core.ArgumentError("http.ContentReader:read_all: limit must be a non-negative integer"), 2)
+    error(core.ArgumentError("http.ContentStream:read_all: limit must be a non-negative integer"), 2)
   end
   local parts, size = {}, 0
   while true do
@@ -94,7 +94,7 @@ function ContentReader:read_all(limit)
     size = size + #chunk
     if limit ~= nil and size > limit then
       error(ContentError({
-        message = "http.ContentReader: the content exceeds its limit",
+        message = "http.ContentStream: the content exceeds its limit",
         context = { status = 413, reason = "too_large", limit = limit },
       }), 2)
     end
@@ -105,14 +105,14 @@ end
 
 --- Reports whether the end of the content was reached.
 ---@return boolean
-function ContentReader:is_finished() return self._finished end
+function ContentStream:is_finished() return self._finished end
 
 --- Reports whether a read was attempted.
 ---@return boolean
-function ContentReader:is_started() return self._started end
+function ContentStream:is_started() return self._started end
 
 --- Returns the number of bytes delivered so far.
 ---@return integer
-function ContentReader:consumed() return self._total end
+function ContentStream:consumed() return self._total end
 
-return core.finalise(ContentReader)
+return core.finalise(ContentStream)

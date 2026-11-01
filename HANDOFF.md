@@ -12,7 +12,7 @@
 - Step 2 (llhttp binding): llhttp 9.4.3 vendored, `csrc/native.c`, `hecate.http.parser` (feed, finish, skip_body, ParseError, limits), corpus tests, `build-native http`, CI steps for the three platforms. macOS and Windows builds are verified by CI only.
 - Step 2b (native-code review of the binding) and step 2c: RFC 9112 conformance vectors (`tests/conformance/rfc9112_test.lua`), `benchmarks/parse.lua`, known limits in the README, OQ-67, fix of the HTTP/0.9 request line.
 - Step 3c (TLS in the server): option `tls`, handshake in a forked computation per connection, `handshake_timeout`, `max_handshakes` (slot before `accept`: the excess waits in the backlog, decided and tested), `max_handshake_bytes` (`handshake_stream.lua`), logging with the peer address only (`logger` option), generic nothing-to-the-client on failure; tests `server_tls_test.lua`, `handshake_stream_test.lua`; CI plan output `net_native`. OQ-68 and OQ-69 updated with the owner's answers.
-- Step 3d (owner defaults): `head_timeout`, `content_timeout`, `write_timeout` 60 s, `max_connections` unlimited by default, accept loop surviving `EMFILE` (backoff, one log per burst; tested with a flaky listener, a real descriptor limit cannot be set from Lua), invariant of `packages/http/CLAUDE.md` reworded, OQ-69 updated. `content_reader` not renamed (the owner is choosing).
+- Step 3d (owner defaults): `head_timeout`, `content_timeout`, `write_timeout` 60 s, `max_connections` unlimited by default, accept loop surviving `EMFILE` (backoff, one log per burst; tested with a flaky listener, a real descriptor limit cannot be set from Lua), invariant of `packages/http/CLAUDE.md` reworded, OQ-69 updated. Names decided afterwards: `request:read_content()`, `request:stream_content()`, `ContentStream` (OQ-68 resolved); `idle_timeout` 75 s.
 - Tooling: `setup-luals` task; `typecheck` falls back to `spikes/luals`; the relay documents require `typecheck` before every push.
 - Step 3, first part (commit ac17a94): `http.Server(handler, options)` with `serve(listener)` and `shutdown()`: keep-alive, pipelining, 100-continue, HEAD, chunked responses, Host check, 413, generic 500, graceful shutdown; `tests/integration/server_test.lua`.
 - Step 3b (this run, on top of ac17a94, API kept: `Server(handler, options)`): streaming request content (`content.lua`), problem details (`problem.lua`), response framing (`wire.lua`), deadlines, `max_connections`, numeric loopback `listen`, 501 for upgrades, `Parser:close()` and 16 KiB chunks, tests in `server_lifecycle_test.lua` and unit tests. Root causes found: the event queue of a connection used `#queue` after consuming entries (a second request on a connection never started); a response was sent without `Connection: close` when the handler ignored an `Expect: 100-continue` content; a content writer that failed left its head unflushed.
@@ -22,7 +22,7 @@ Cloud image note: run the tests with `LUA_CPATH="/opt/lua-5.5/lib/lua/5.5/?.so;;
 ## Next steps
 
 1. Left from step 2: the first CI run on macOS and Windows (build, `sanitize http` in `native.yml`, `fuzz parse` for a minute; clang's libFuzzer runtime is absent in the cloud image).
-2. Step 3b is done (see Done). Review it with `/review-package` at the end of the item: `request.content` is no longer filled by the server (OQ-68).
+2. Step 3b is done (see Done). Review it with `/review-package` at the end of the item: `request.content` is no longer filled by the server (OQ-68, resolved).
 3. Step 3c is done (see Done).
 4. Step 4: the full limits suite (slowloris, request line, field count and size, per-connection budgets).
 5. Step 5: client (pool per origin, redirects, deadlines, TLS, streaming).
@@ -39,7 +39,7 @@ Conservative choices inside the message model (no ADR needed): malformed media t
 
 ## Doubts and questions for the owner
 
-- OQ-68 (names of the content API: `read_content`, `content_reader`) and OQ-69 (numeric `host` only, first values of the defaults), both in `docs/open-questions.md`.
+- OQ-69 (numeric `host` only, first values of the defaults), both in `docs/open-questions.md`.
 
 ## Commands to re-run
 

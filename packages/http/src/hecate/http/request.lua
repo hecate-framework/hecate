@@ -5,7 +5,7 @@ local core = require("hecate.core")
 local grammar = require("hecate.http.grammar")
 local Fields = require("hecate.http.fields")
 local Cookie = require("hecate.http.cookie")
-local ContentReader = require("hecate.http.content")
+local ContentStream = require("hecate.http.content")
 
 --- A request. The server builds it from the wire; a client or a test builds it by hand.
 ---@class hecate.http.Request
@@ -29,7 +29,7 @@ local Request = core.class("Request")
 ---@field version? string
 ---@field scope? table
 ---@field peer_address? table
----@field content_reader? hecate.http.ContentReader  the content as a stream (the server passes one)
+---@field content_stream? hecate.http.ContentStream  the content as a stream (the server passes one)
 
 --- Initialises a request.
 ---
@@ -50,7 +50,7 @@ function Request:init(options)
   self.fields = options.fields or Fields()
   self.content, self.scope = options.content, options.scope
   self._peer_address = options.peer_address
-  self._content_reader = options.content_reader
+  self._content_stream = options.content_stream
   self.parameters = { path = {}, query = {}, fields = {}, cookies = {} }
 end
 
@@ -62,12 +62,12 @@ end
 
 --- Returns a reader of the content, chunk by chunk (`reader:read()` returns nil at the end). A request built by
 --- hand reads its string `content`; one without content reads nothing.
----@return hecate.http.ContentReader
-function Request:content_reader()
-  if self._content_reader == nil then
-    self._content_reader = ContentReader.of(type(self.content) == "string" and self.content or "")
+---@return hecate.http.ContentStream
+function Request:stream_content()
+  if self._content_stream == nil then
+    self._content_stream = ContentStream.of(type(self.content) == "string" and self.content or "")
   end
-  return self._content_reader
+  return self._content_stream
 end
 
 --- Reads the whole content into a string, bounded by the limit of the server (and by `limit` when it is lower).
@@ -77,7 +77,7 @@ end
 ---@param limit? integer  bytes
 ---@return string
 function Request:read_content(limit)
-  return self:content_reader():read_all(limit)
+  return self:stream_content():read_all(limit)
 end
 
 --- Returns the cookies sent by the client: every `Cookie` line parsed (RFC 6265, section 4.2.1).

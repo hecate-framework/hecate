@@ -13,12 +13,12 @@ local json = require("hecate.json")
 local Parser = require("hecate.http.parser")
 local Request = require("hecate.http.request")
 local Response = require("hecate.http.response")
-local ContentReader = require("hecate.http.content")
+local ContentStream = require("hecate.http.content")
 local problem = require("hecate.http.problem")
 local wire = require("hecate.http.wire")
 local HandshakeStream = require("hecate.http.handshake_stream")
 
-local ContentError = ContentReader.ContentError
+local ContentError = ContentStream.ContentError
 
 --- Bytes read from a connection at once: never more than the parser's read buffer (llhttp's `feed` returns every
 --- event of the chunk in one list).
@@ -32,7 +32,7 @@ local READ_SIZE <const> = 16384
 ---@field max_connections? integer  connections served at once (default: no limit; an integer limits, and the others wait in the backlog)
 ---@field max_content? integer  bytes of request content (default 1048576; over it: 413)
 ---@field head_timeout? number  seconds to receive a request head once its first byte arrived (default 60; counted from the first byte of the head to its end, not between reads; then 408)
----@field idle_timeout? number  seconds a connection may wait for the next request (default 60; then closed silently)
+---@field idle_timeout? number  seconds a connection may wait for the next request (default 75; then closed silently)
 ---@field content_timeout? number  seconds between two reads of request content (default 60; a timeout between two reads, not a limit on the whole content; then 408)
 ---@field write_timeout? number  seconds a write to the client may take (default 60; then the connection is closed)
 ---@field parser? hecate.http.parser.Options  limits of the message parser (target, field, head size, field count)
@@ -51,7 +51,7 @@ local DEFAULTS <const> = {
   -- max_connections: absent, no limit (the file-descriptor limit of the process and the timeouts bound the resource)
   max_content = 1048576,
   head_timeout = 60,
-  idle_timeout = 60,
+  idle_timeout = 75,
   content_timeout = 60,
   write_timeout = 60,
   handshake_timeout = 10,
@@ -425,8 +425,8 @@ end
 --- it (RFC 9110, section 10.1.1), and ends at the parser's `complete` event.
 ---@param head hecate.http.parser.Head
 ---@param expecting boolean
----@return hecate.http.ContentReader
-local function content_reader(self, conn, head, expecting)
+---@return hecate.http.ContentStream
+local function open_content(self, conn, head, expecting)
   local continued, done = false, false
   local function fail(status, reason, message)
     conn.broken = true
@@ -458,7 +458,7 @@ local function content_reader(self, conn, head, expecting)
     end
     fail(400, "malformed", "http.Server: unexpected event in the request content")
   end
-  return ContentReader(pull, { limit = self._max_content })
+  return ContentStream(pull, { limit = self._max_content })
 end
 
 --- The status and detail to answer a head with before any handler runs, or nil when the request may be handled.
@@ -497,10 +497,10 @@ local function serve_request(self, conn, head)
   end
   local expecting = head.version == "HTTP/1.1" and (head.chunked or (head.content_length or 0) > 0)
     and head.fields:has("Expect")
-  local reader = content_reader(self, conn, head, expecting)
+  local reader = open_content(self, conn, head, expecting)
   local made, request = pcall(Request, {
     method = head.method, target = head.target, fields = head.fields, version = head.version,
-    peer_address = conn.peer, content_reader = reader,
+    peer_address = conn.peer, content_stream = reader,
   })
   if not made then
     send_problem(self, conn, info, 400, nil)

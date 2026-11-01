@@ -13,8 +13,8 @@ Packages: `http`, `router`, `kernel`. Status: specification.
   100-continue`, chunked transfer coding in both directions.
 - Limits, all configurable with safe defaults: request line length, field count and
   size, content length, read and idle deadlines per connection.
-- Content is streamed: `request:content()` reads fully (bounded by the limit),
-  `request:reader()` streams; responses accept strings, tables (serialised) or
+- Content is streamed: `request:read_content()` reads fully (bounded by the limit),
+  `request:stream_content()` streams (a `ContentStream`: `read()`, `read_all(limit?)`); responses accept strings, tables (serialised) or
   writer functions.
 - Compression (gzip, br) is a later addition.
 

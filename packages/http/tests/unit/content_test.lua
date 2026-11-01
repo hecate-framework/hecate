@@ -13,7 +13,7 @@ local function chunks(list)
 end
 
 function T:test_reader_delivers_chunks_then_nil()
-  local reader = http.ContentReader(chunks({ "ab", "cd" }))
+  local reader = http.ContentStream(chunks({ "ab", "cd" }))
   self:assert_false(reader:is_started())
   self:assert_equal("ab", reader:read())
   self:assert_true(reader:is_started())
@@ -25,13 +25,13 @@ function T:test_reader_delivers_chunks_then_nil()
 end
 
 function T:test_read_all_joins_the_chunks()
-  self:assert_equal("abcd", http.ContentReader(chunks({ "ab", "cd" })):read_all())
-  self:assert_equal("", http.ContentReader.of(""):read_all())
-  self:assert_equal("hello", http.ContentReader.of("hello"):read_all())
+  self:assert_equal("abcd", http.ContentStream(chunks({ "ab", "cd" })):read_all())
+  self:assert_equal("", http.ContentStream.of(""):read_all())
+  self:assert_equal("hello", http.ContentStream.of("hello"):read_all())
 end
 
 function T:test_the_limit_of_the_reader_raises_413_and_is_sticky()
-  local reader = http.ContentReader(chunks({ "abc", "def" }), { limit = 4 })
+  local reader = http.ContentStream(chunks({ "abc", "def" }), { limit = 4 })
   self:assert_equal("abc", reader:read())
   local err = self:assert_error(function() reader:read() end)
   self:assert_true(core.is_instance_of(err, http.ContentError))
@@ -42,14 +42,14 @@ function T:test_the_limit_of_the_reader_raises_413_and_is_sticky()
 end
 
 function T:test_read_all_limit_is_lower_than_the_reader_limit()
-  local err = self:assert_error(function() http.ContentReader.of("abcdef"):read_all(3) end)
+  local err = self:assert_error(function() http.ContentStream.of("abcdef"):read_all(3) end)
   self:assert_equal(413, err.context.status)
-  self:assert_equal("abc", http.ContentReader.of("abc"):read_all(3))
+  self:assert_equal("abc", http.ContentStream.of("abc"):read_all(3))
 end
 
 function T:test_a_failure_of_the_source_is_sticky_and_raised_as_it_came()
   local boom = core.Error("source failed")
-  local reader = http.ContentReader(function() error(boom, 0) end)
+  local reader = http.ContentStream(function() error(boom, 0) end)
   self:assert_true(rawequal(boom, self:assert_error(function() reader:read() end)))
   self:assert_true(rawequal(boom, self:assert_error(function() reader:read() end)))
 end
@@ -58,14 +58,14 @@ function T:test_request_reads_its_string_content()
   local request = http.Request({ method = "POST", target = "/x", content = "payload" })
   self:assert_equal("payload", request:read_content())
   self:assert_equal("", http.Request({ target = "/x" }):read_content())
-  local reader = http.Request({ target = "/x", content = "ab" }):content_reader()
+  local reader = http.Request({ target = "/x", content = "ab" }):stream_content()
   self:assert_equal("ab", reader:read())
   self:assert_nil(reader:read())
 end
 
 function T:test_invalid_arguments()
-  self:assert_error(function() http.ContentReader("x") end)
-  self:assert_error(function() http.ContentReader(chunks({}), { limit = -1 }) end)
-  self:assert_error(function() http.ContentReader.of("a"):read_all("x") end)
+  self:assert_error(function() http.ContentStream("x") end)
+  self:assert_error(function() http.ContentStream(chunks({}), { limit = -1 }) end)
+  self:assert_error(function() http.ContentStream.of("a"):read_all("x") end)
 end
 return T
