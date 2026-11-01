@@ -104,16 +104,17 @@ Rules:
 | `write(data)` | Appends `data` (a string); flushes when the buffer reaches `capacity`. Suspends only when it flushes. A payload of at least `capacity` bytes written while nothing is buffered and no flush is running goes to the stream directly, without a copy: same ordering and failure rules. |
 | `flush()` | *suspends*. Hands the buffered bytes to the stream; returns when the stream accepted them all. |
 | `buffered()` | Bytes accepted and not flushed. |
-| `close()`, `is_closed()` | Discards unflushed bytes without sending them (flush first); idempotent. Writing afterwards raises `TransportError` (`EBADF`, `context.operation` is `write` or `flush`). |
+| `close()`, `is_closed()` | `close` flushes the unflushed bytes under `reactor.shield`, bounded by the writer option `close_timeout` (default 5 seconds); it suspends only when bytes are buffered. A failed flush or an expired timeout (`DeadlineExceededError`) is raised once, the writer is closed anyway; a poisoned writer is closed without raising. Idempotent. Writing afterwards raises `TransportError` (`EBADF`, `context.operation` is `write` or `flush`). |
 
 Rules:
 
 - **Poisoning.** A failed or cancelled flush (or direct write) poisons the writer, because the number of bytes
   the peer received is unknown: every later call raises a `NetworkError` whose `cause` is the original failure,
   rather than sending bytes after a gap (OQ-29 (4)).
-- **`close` discards.** `close` and `__close` never flush, because a close handler must not suspend while its scope
-  is cancelled (OQ-23, OQ-29 (5)). *Decided, not implemented:* `reactor.shield(limit, fn)` now exists,
-  so `BufferedWriter:close` can flush under a shield with its own deadline (roadmap, `net` follow-up).
+- **`close` flushes, bounded.** `close` and `__close` flush the buffered bytes under `reactor.shield` (OQ-23, OQ-29 (5),
+  owner decision of 2026-10-27), so the flush completes while the enclosing scope is cancelled, and the writer option
+  `close_timeout` (seconds, default 5, *not decided by the owner: OQ-29 note*) bounds it so that a stuck peer cannot block shutdown.
+  With nothing buffered `close` does not suspend. The stream stays open.
 - Flushes are serialised by a `reactor.Mutex`, which keeps bytes in order.
 - Flush a writer before `shutdown`.
 - The default `capacity` is **8192 bytes**, below one TLS record (16 KiB of plaintext). *Decided, not

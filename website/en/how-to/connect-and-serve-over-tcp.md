@@ -91,8 +91,9 @@ Streams, listeners, readers and writers implement the Lua 5.5 `<close>` protocol
 as `local stream <close> = ...` and they are closed when the block ends, even on an error or a
 cancellation.
 
-`close` is idempotent and never suspends. Closing a reader or a writer does not close the stream
-under it. Closing a writer discards what it still buffers, so call `flush` first.
+`close` is idempotent. Closing a reader or a writer does not close the stream under it. Closing a
+writer flushes what it still buffers, within `close_timeout` (5 seconds by default), and raises if
+the flush fails or times out.
 
 After `close`, any use raises `reactor.TransportError` with `context.errno` set to `EBADF`.
 

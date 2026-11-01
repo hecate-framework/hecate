@@ -115,11 +115,13 @@ end
 Reading from the same stream is not an option either, since the cancelled write closed it.
 Treat a cancelled write as the end of the connection.
 
-## Do not rely on `close` to wait
+## Let `close` flush a writer
 
-`close` never suspends, so it can run inside a `<close>` block while the coroutine is being
-cancelled. It does not wait for buffered data. To end a conversation cleanly, `flush` the
-writer and call `shutdown` before the block ends. See
+`BufferedWriter:close` flushes the bytes it still holds under `reactor.shield`, so it completes
+inside a `<close>` block even while the coroutine is being cancelled. The writer option
+`close_timeout` (5 seconds by default) bounds it: if the peer is stuck, `close` raises
+`DeadlineExceededError`, the writer is closed anyway and the unsent bytes are dropped. `close` does
+not shut the stream down: to end a conversation cleanly, call `shutdown` too. See
 [The transport model](../explanation/transport-model.md).
 
 ## Run cleanup while the scope is cancelled

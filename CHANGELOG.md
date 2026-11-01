@@ -11,6 +11,7 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- `hecate.net`: `BufferedWriter:close` (and `__close`) flushes the buffered bytes under `reactor.shield`, bounded by the new writer option `close_timeout` (default 5 seconds, proposed: OQ-29) (OQ-23, OQ-29 (5)). It used to discard them.
 - `hecate.net`: `tls.accept` allows 60 seconds for the handshake by default, `tls.connect` and `connect_tls` keep 10 (OQ-47 (2)); `handshake_timeout` still overrides both.
 - `hecate.reactor`: `reactor.shield(limit, fn, ...)` runs cleanup shielded from cancellation, with its own deadline (OQ-23, owner decision of 2026-10-27).
 - `hecate.reactor`: the `on_unobserved_failure(err, future)` option of `Reactor` reports a detached computation that fails while nothing waits for its future (OQ-26 (1)); `kernel` will bind it to `log`.

@@ -27,7 +27,7 @@ all streams. The `Stream` interface asks for three operations:
 - `read(max)` returns the bytes one receive delivered, at most `max` of them. It never returns an
   empty string. It returns `nil` at the end of the stream.
 - `write(data)` accepts all of `data`, or raises. It never reports a partial write.
-- `close()` is idempotent and never suspends.
+- `close()` is idempotent and never suspends, except `BufferedWriter:close`, which flushes first (see below).
 
 A stream may also offer `shutdown()` for a half-close, and `is_closed()`. Streams are
 `<close>`-able. The buffered reader and writer work over any stream, and a TLS stream is a stream
@@ -81,7 +81,7 @@ The buffered writer collects small writes and sends them when `flush` is called 
 reaches its capacity (8192 bytes by default). A payload at least as large as the capacity, written
 while nothing is buffered, goes to the stream directly, without a copy.
 
-Neither owns its stream. Closing a writer discards what it still holds, so you flush first. A
+Neither owns its stream. Closing a writer flushes what it still holds, within five seconds by default (`close_timeout`), even when the surrounding scope is cancelled. A
 writer whose flush failed or was cancelled is *poisoned*: it cannot know how much was sent, so
 every later call raises.
 
@@ -117,9 +117,11 @@ by a cancellation. A cancelled coroutine must be able to release its resources w
 the network, so `close` returns at once and wakes every coroutine waiting on the object, with
 `ECANCELED`.
 
-The consequence is that `close` cannot do work that needs the network. It cannot flush a buffer,
-and it cannot send a TLS `close_notify`. You do that explicitly, before the block ends:
-`writer:flush()`, then `stream:shutdown()`.
+The consequence is that the `close` of a stream cannot do work that needs the network: it cannot
+send a TLS `close_notify`. You do that explicitly, before the block ends: `stream:shutdown()`.
+A buffered writer is the one exception: its `close` flushes the buffered bytes under
+`reactor.shield`, so the flush survives a cancellation, and the `close_timeout` option (5 seconds by
+default) keeps a stuck peer from blocking it.
 
 ## Errors
 
