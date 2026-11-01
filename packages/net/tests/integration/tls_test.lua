@@ -84,6 +84,28 @@ function T:test_echo_with_sni_alpn_and_buffered_lines()
   self:assert_equal(before, reactor.Reactor.open_handles())
 end
 
+function T:test_handshake_defaults_are_10_seconds_to_connect_and_60_to_accept()
+  local limits = {}
+  local original = reactor.deadline
+  reactor.deadline = function(limit, fn, ...)
+    if fn ~= nil and type(limit) == "number" then limits[#limits + 1] = limit end
+    return original(limit, fn, ...)
+  end
+  local ok, err = pcall(run, self, function()
+    local listener <close> = net.listen("127.0.0.1", 0)
+    local port = listener:local_address().port
+    local outcome = serve_once(listener, net.tls.server_config(server_options()), function(tls) tls:shutdown() end)
+    local client <close> = net.connect_tls("127.0.0.1", port, { system_roots = false, ca_pem = CA, server_name = "localhost" })
+    outcome.future:value()
+  end)
+  reactor.deadline = original
+  self:assert_true(ok, tostring(err))
+  -- The server handshake is the first to start (the accepting coroutine), the client's follows.
+  table.sort(limits)
+  self:assert_equal(10, limits[1])
+  self:assert_equal(60, limits[#limits])
+end
+
 function T:test_large_payload_round_trip()
   run(self, function()
     local listener <close> = net.listen("127.0.0.1", 0)

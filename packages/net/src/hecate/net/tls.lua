@@ -19,7 +19,8 @@ local BUILD_HINT = "the native TLS module hecate.net.tls_native is not built (ru
   .. " installed rocks will ship the module once distribution lands)"
 
 --- Default time allowed for a TLS handshake, in seconds.
-local DEFAULT_HANDSHAKE_TIMEOUT = 10
+local CONNECT_HANDSHAKE_TIMEOUT = 10 -- seconds, `tls.connect` and `connect_tls` (owner decision on OQ-47)
+local ACCEPT_HANDSHAKE_TIMEOUT = 60 -- seconds, `tls.accept`: a server tolerates slower clients than a client its server
 
 --- TLS configuration and handshakes.
 ---@class hecate.net.tls
@@ -48,7 +49,7 @@ local M = {}
 
 --- Options of `tls.connect` and `tls.accept`.
 ---@class hecate.net.TlsHandshakeOptions
----@field handshake_timeout? number  seconds allowed for the whole handshake (positive, default 10)
+---@field handshake_timeout? number  seconds allowed for the whole handshake (positive; default 10 for `connect`, 60 for `accept`)
 
 --- Options of `net.connect_tls`: the client options, the transport options of `net.connect`
 --- and the connect path's own.
@@ -270,9 +271,10 @@ end
 ---@param session userdata
 ---@param options hecate.net.TlsHandshakeOptions
 ---@param call string  the public call, for the message
-local function handshake(stream, session, options, call)
+---@param default_timeout number  seconds allowed when `options.handshake_timeout` is absent
+local function handshake(stream, session, options, call, default_timeout)
   local tls = TlsStream(stream, session)
-  local done, failure = pcall(reactor.deadline, options.handshake_timeout or DEFAULT_HANDSHAKE_TIMEOUT, tls.handshake, tls)
+  local done, failure = pcall(reactor.deadline, options.handshake_timeout or default_timeout, tls.handshake, tls)
   if not done then
     tls:close()
     error(errors.qualify(failure, call), 0)
@@ -311,13 +313,13 @@ function M.connect(stream, server_name, config, options)
     stream:close()
     error(native_error(session, "net.tls.connect"), 0)
   end
-  return handshake(stream, session, options, "net.tls.connect")
+  return handshake(stream, session, options, "net.tls.connect", CONNECT_HANDSHAKE_TIMEOUT)
 end
 
 --- Runs a TLS server handshake over an accepted `stream`, which the result owns: it is closed when
 --- the session or the handshake fails (a deadline included), and left to the caller when an
 --- argument is malformed. The handshake must finish within `options.handshake_timeout` seconds
---- (default 10); on expiry `hecate.core.DeadlineExceededError` is raised.
+--- (default 60); on expiry `hecate.core.DeadlineExceededError` is raised.
 ---@async
 ---@param stream hecate.net.Stream
 ---@param config hecate.net.TlsServerConfig|userdata  from `server_config`
@@ -338,7 +340,7 @@ function M.accept(stream, config, options)
     stream:close()
     error(native_error(session, "net.tls.accept"), 0)
   end
-  return handshake(stream, session, options, "net.tls.accept")
+  return handshake(stream, session, options, "net.tls.accept", ACCEPT_HANDSHAKE_TIMEOUT)
 end
 
 -- Default client configurations (system roots, no `ca_pem`, no client certificate), one per ALPN

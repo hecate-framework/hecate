@@ -294,8 +294,8 @@ connect is not covered: bound it with `reactor.deadline`.
 
 | Entry point | Default |
 |---|---|
-| `tls.connect`, `connect_tls` | 10 seconds (implemented) |
-| `tls.accept` | **60 seconds, decided, not implemented**: it is 10 seconds today (OQ-47 (2), owner, 2026-10-27) |
+| `tls.connect`, `connect_tls` | 10 seconds |
+| `tls.accept` | 60 seconds (OQ-47 (2), owner, 2026-10-27) |
 
 Both defaults are editable per call through `handshake_timeout`.
 

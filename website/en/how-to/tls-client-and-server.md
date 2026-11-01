@@ -107,7 +107,7 @@ connection and takes ownership of the stream: if the handshake fails, the stream
 > [!TIP] Fork the handshake
 > Never run the handshake in the accept loop itself. A client that connects and then says nothing
 > would stall every other client. Fork one coroutine per connection and run `tls.accept` inside it.
-> The handshake is bounded anyway by `handshake_timeout`, which is 10 seconds by default. Pass
+> The handshake is bounded anyway by `handshake_timeout`, which is 60 seconds by default for `tls.accept` (10 for `connect_tls` and `tls.connect`). Pass
 > `{ handshake_timeout = 5 }` as the third argument to change it. On expiry the stream is closed and
 > `DeadlineExceededError` is raised.
 
