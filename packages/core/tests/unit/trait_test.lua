@@ -184,4 +184,63 @@ function T:test_trait_is_not_instantiable_and_is_frozen()
   self:assert_error(function() Tr.x = 1 end)
 end
 
+--- Passes a value through untyped, so that a test can give an argument that is invalid on purpose.
+---@param value any
+---@return any
+local function invalid(value) return value end
+
+function T:test_alias_onto_another_method_of_the_same_trait_is_a_collision()
+  local T1 = core.trait("T1", { m = function() return 1 end, n = function() return 2 end })
+  local A = core.class("A", nil, { traits = { { T1, alias = { m = "n" } } } })
+  local err = expect_conformance(self, function() core.finalise(A) end)
+  self:assert_true(err.message:find("n", 1, true) ~= nil)
+  self:assert_true(err.message:find("alias", 1, true) ~= nil)
+end
+
+function T:test_two_aliases_to_the_same_name_are_a_collision()
+  local T1 = core.trait("T1", { m = function() return 1 end, n = function() return 2 end })
+  local err = expect_conformance(self, function()
+    core.trait("T2", {}, { traits = { { T1, alias = { m = "x", n = "x" } } } })
+  end)
+  self:assert_true(err.message:find("alias", 1, true) ~= nil)
+  self:assert_true(err.message:find("x", 1, true) ~= nil)
+end
+
+function T:test_alias_to_an_excluded_name_is_not_a_collision()
+  local T1 = core.trait("T1", { m = function() return 1 end, n = function() return 2 end })
+  local A = core.class("A", nil, { traits = { { T1, exclude = { "n" }, alias = { m = "n" } } } })
+  core.finalise(A)
+  self:assert_equal(1, A():n())
+end
+
+function T:test_malformed_exclude_and_alias_are_argument_errors()
+  local T1 = core.trait("T1", { m = function() end })
+  for _, use in ipairs({
+    invalid({ T1, exclude = "m" }),
+    invalid({ T1, exclude = { 1 } }),
+    invalid({ T1, exclude = { m = true } }),
+    invalid({ T1, alias = "m" }),
+    invalid({ T1, alias = { m = 1 } }),
+    invalid({ T1, alias = { "m" } }),
+    invalid({ T1, alias = { m = "" } }),
+  }) do
+    local err = self:assert_error(function() core.class("A", nil, { traits = { use } }) end)
+    self:assert_equal("hecate.core.ArgumentError", err.code)
+  end
+end
+
+function T:test_trait_name_must_be_a_non_empty_string()
+  for _, name in ipairs({ "", 42 }) do
+    local err = self:assert_error(function() core.trait(invalid(name), {}) end)
+    self:assert_equal("hecate.core.ArgumentError", err.code)
+    self:assert_true(err.message:find("trait name must be a non-empty string", 1, true) ~= nil)
+  end
+end
+
+function T:test_a_trait_cannot_be_finalised()
+  local T1 = core.trait("T1", { m = function() end })
+  local err = self:assert_error(function() core.finalise(T1) end)
+  self:assert_equal("hecate.core.ArgumentError", err.code)
+end
+
 return T

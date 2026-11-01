@@ -125,11 +125,15 @@ function introspection.interfaces(class)
   return copy_list(record.interfaces)
 end
 
---- Returns true when `value` is an instance of `class` or of one of its subclasses.
+--- Returns true when `value` is an instance of `class` or of one of its subclasses. A `value` of
+--- any type is accepted and gives false when it is not such an instance.
+---
+--- Raises `hecate.core.ArgumentError` if `class` is not a class.
 ---@param value any  the object to test
 ---@param class any  a class created with `core.class`
 ---@return boolean result  `true` for an instance of `class` or of a subclass
 function introspection.is_instance_of(value, class)
+  if registry.classes[class] == nil then raise.argument("is_instance_of expects a class as its second argument") end
   local current = introspection.class_of(value)
   while current ~= nil do
     if rawequal(current, class) then return true end

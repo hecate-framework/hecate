@@ -14,17 +14,17 @@ local compat = require("hecate.core.compat")
 --- introspection, the error hierarchy and Lua-version shims.
 ---@class hecate.core
 ---@field Error hecate.core.Error
----@field ConfigurationError hecate.core.Error
----@field ConformanceError hecate.core.Error
----@field ArgumentError hecate.core.Error
----@field CancellationError hecate.core.Error
----@field DeadlineExceededError hecate.core.Error
----@field NonYieldableContextError hecate.core.Error
----@field ClosedChannelError hecate.core.Error
----@field NetworkError hecate.core.Error
----@field IoError hecate.core.Error
----@field ProtocolError hecate.core.Error
----@field ValidationError hecate.core.Error
+---@field ConfigurationError hecate.core.ConfigurationError
+---@field ConformanceError hecate.core.ConformanceError
+---@field ArgumentError hecate.core.ArgumentError
+---@field CancellationError hecate.core.CancellationError
+---@field DeadlineExceededError hecate.core.DeadlineExceededError
+---@field NonYieldableContextError hecate.core.NonYieldableContextError
+---@field ClosedChannelError hecate.core.ClosedChannelError
+---@field NetworkError hecate.core.NetworkError
+---@field IoError hecate.core.IoError
+---@field ProtocolError hecate.core.ProtocolError
+---@field ValidationError hecate.core.ValidationError
 ---@field DatabaseError hecate.core.DatabaseError
 ---@field compat hecate.core.compat  Lua-version shims (ADR 0001)
 local core = {

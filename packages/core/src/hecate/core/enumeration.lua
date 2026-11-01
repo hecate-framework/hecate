@@ -3,6 +3,7 @@ global <const> type, ipairs, next, setmetatable, tostring, require
 
 local registry = require("hecate.core.internal.registry")
 local raise = require("hecate.core.internal.raise")
+local validate = require("hecate.core.internal.validate")
 local class_module = require("hecate.core.class")
 local value_module = require("hecate.core.value_class")
 
@@ -32,6 +33,11 @@ end
 
 function EnumerationValue:__tostring() return self.name end
 
+--- Values are compared by identity: `__eq` only runs for two distinct objects, so it always
+--- answers false. Structural equality would make the values of two enumerations that share a
+--- name and value names equal.
+function EnumerationValue.__eq() return false end
+
 class_module.finalise(EnumerationValue)
 
 --- Declares an enumeration: a closed set of values with membership tests.
@@ -42,9 +48,7 @@ class_module.finalise(EnumerationValue)
 ---@param names string[]  value names, in declaration order
 ---@return table enumeration  the new enumeration
 function M.enumeration(name, names)
-  if type(name) ~= "string" or name == "" then
-    raise.argument("enumeration name must be a non-empty string, got " .. tostring(name))
-  end
+  validate.name("enumeration", name)
   if type(names) ~= "table" or #names == 0 then
     raise.argument(("enumeration %s: expects a non-empty list of value names"):format(name))
   end

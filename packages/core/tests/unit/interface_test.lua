@@ -2,6 +2,11 @@ local test = require("harness.test")
 local core = require("hecate.core")
 local T = test.Case("InterfaceTest")
 
+--- Passes a value through untyped, so that a test can give an argument that is invalid on purpose.
+---@param value any
+---@return any
+local function invalid(value) return value end
+
 function T:test_conforming_class_finalises()
   local Comparable = core.interface("Comparable", { "compare" })
   local A = core.class("A", nil, { implements = { Comparable } })
@@ -88,6 +93,28 @@ function T:test_interface_method_names_must_be_strings()
     core.interface("I", { 1 })
   end)
   self:assert_equal("hecate.core.ArgumentError", err.code)
+end
+
+function T:test_methods_with_non_sequence_keys_are_rejected()
+  for _, methods in ipairs({
+    invalid({ "a", extra = "b" }),
+    invalid({ m = "x" }),
+    invalid({ "a", nil, "c" }),
+    invalid({ "a", [3] = "c" }),
+    invalid({ [1.5] = "a" }),
+  }) do
+    local err = self:assert_error(function() core.interface("I", methods) end)
+    self:assert_equal("hecate.core.ArgumentError", err.code)
+    self:assert_true(err.message:find("list of names", 1, true) ~= nil)
+  end
+end
+
+function T:test_interface_name_must_be_a_non_empty_string()
+  for _, name in ipairs({ "", 42 }) do
+    local err = self:assert_error(function() core.interface(invalid(name), { "m" }) end)
+    self:assert_equal("hecate.core.ArgumentError", err.code)
+    self:assert_true(err.message:find("interface name must be a non-empty string", 1, true) ~= nil)
+  end
 end
 
 return T

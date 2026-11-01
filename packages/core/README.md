@@ -62,12 +62,12 @@ core.finalise(Money)
 |---|---|
 | `class(name, superclass?, options?)` | Declares a class; options `traits`, `implements`, `fallback_provides` (names an `__index` fallback provides; they satisfy conformance checks). Instantiate with `Class(...)` after finalisation (calls `init`). |
 | `finalise(class)` | Resolves traits and interfaces, flattens members into the class table; one `ConformanceError` lists every problem. Idempotent. |
-| `trait(name, methods, options?)` | Declares a trait; options `traits` (composition), `requires`. A trait entry of a class may be `{ trait, exclude = {...}, alias = { old = "new" } }`. |
+| `trait(name, methods, options?)` | Declares a trait; options `traits` (composition), `requires`. A trait entry of a class may be `{ trait, exclude = {...}, alias = { old = "new" } }`; an alias that collides with another method of the same trait is a `ConformanceError`, a malformed `exclude` or `alias` an `ArgumentError`. |
 | `interface(name, methods, options?)` | Declares an interface; option `extends`. |
 | `value_class(name, superclass?, options?)` | Like `class`; instances are frozen after `init`, compared structurally by `__eq`. |
 | `enumeration(name, names)` | Closed set of values (`Status.active`, `:values()`, `:names()`, `:contains(v)`, `:find(name)`, `:size()`). |
 | `name`, `superclass`, `traits`, `interfaces`, `class_of`, `origin` | Introspection. |
-| `is_instance_of(value, class)`, `implements(subject, interface_or_trait)` | Type tests. |
+| `is_instance_of(value, class)`, `implements(subject, interface_or_trait)` | Type tests. `value` may be of any type (a non-instance gives `false`); `class` must be a class, otherwise `ArgumentError`. |
 | `is_class`, `is_trait`, `is_interface`, `is_enumeration`, `is_finalised` | Kind predicates. |
 | `Error` and `ConfigurationError`, `ConformanceError`, `ArgumentError`, `CancellationError`, `DeadlineExceededError`, `NonYieldableContextError`, `ClosedChannelError`, `NetworkError`, `IoError`, `ProtocolError`, `ValidationError`, `DatabaseError` | Error hierarchy: `Error("message")` or `Error { message =, cause =, context =, code = }`; fields `message`, `code`, `cause`, `context`, `traceback`; `root_cause()`; `__tostring` renders the chain. |
 | `error_class(name, code, superclass?)` | Declares a finalised error subclass with a stable code. |

@@ -2,6 +2,11 @@ local test = require("harness.test")
 local core = require("hecate.core")
 local T = test.Case("ErrorTest")
 
+--- Passes a value through untyped, so that a test can give an argument that is invalid on purpose.
+---@param value any
+---@return any
+local function invalid(value) return value end
+
 function T:set_up() core.set_debug_mode(false) end
 function T:tear_down() core.set_debug_mode(false) end
 
@@ -111,6 +116,41 @@ function T:test_raised_error_object_is_caught_intact()
   self:assert_false(ok)
   self:assert_true(caught == e)
   self:assert_equal("port", caught and caught.context and caught.context.field)
+end
+
+function T:test_message_must_be_a_string()
+  for _, fields in ipairs({ invalid({ message = 42 }), invalid({ message = {} }), invalid({ message = true }) }) do
+    local err = self:assert_error(function() return core.Error(fields) end)
+    self:assert_equal("hecate.core.ArgumentError", err.code)
+    self:assert_true(err.message:find("message must be a string", 1, true) ~= nil)
+  end
+  local err = self:assert_error(function() return core.Error(invalid(42)) end)
+  self:assert_equal("hecate.core.ArgumentError", err.code)
+end
+
+function T:test_traceback_starts_at_the_caller_not_inside_the_library()
+  core.set_debug_mode(true)
+  for _, make in ipairs({
+    function() return core.Error("x") end,
+    function() return core.ValidationError { message = "x" } end,
+    function() return core.DatabaseError("x", { sqlstate = "23505" }) end,
+  }) do
+    local tb = make().traceback or ""
+    local first = tb:match("stack traceback:\n\t([^\n]*)") or ""
+    self:assert_true(first:find("error_test.lua", 1, true) ~= nil, first)
+  end
+end
+
+function T:test_error_class_validates_name_code_and_superclass()
+  for _, args in ipairs({ { "", "x.Code" }, { "Name", "" }, { 42, "x.Code" }, { "Name", 42 } }) do
+    local err = self:assert_error(function() core.error_class(invalid(args[1]), invalid(args[2])) end)
+    self:assert_equal("hecate.core.ArgumentError", err.code)
+    self:assert_true(err.message:find("must be a non-empty string", 1, true) ~= nil)
+  end
+  local Plain = core.class("Plain")
+  core.finalise(Plain)
+  local err = self:assert_error(function() core.error_class("Name", "x.Code", Plain) end)
+  self:assert_equal("hecate.core.ArgumentError", err.code)
 end
 
 return T

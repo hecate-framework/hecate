@@ -5,6 +5,7 @@ global <const> type, tostring, pairs, ipairs, setmetatable, rawequal, table, req
 
 local registry = require("hecate.core.internal.registry")
 local raise = require("hecate.core.internal.raise")
+local validate = require("hecate.core.internal.validate")
 
 -- Documented on `hecate.core` (module class completed here so that the LuaLS export lists the
 -- function; coding-standards.md, "Annotations for the reference").
@@ -38,8 +39,28 @@ local function normalise(owner, entry)
   local handle, exclude, alias = entry, {}, {}
   if registry.traits[entry] == nil and type(entry) == "table" and entry[1] ~= nil then
     handle = entry[1]
-    for _, name in ipairs(entry.exclude or {}) do exclude[name] = true end
-    alias = entry.alias or {}
+    if entry.exclude ~= nil then
+      if not validate.is_sequence(entry.exclude) then
+        raise.argument(owner .. ": exclude must be a list of method names")
+      end
+      for _, name in ipairs(entry.exclude) do
+        if type(name) ~= "string" or name == "" then
+          raise.argument(owner .. ": exclude must be a list of method names")
+        end
+        exclude[name] = true
+      end
+    end
+    if entry.alias ~= nil then
+      if type(entry.alias) ~= "table" then
+        raise.argument(owner .. ": alias must map method names to new names")
+      end
+      for original, new_name in pairs(entry.alias) do
+        if type(original) ~= "string" or original == "" or type(new_name) ~= "string" or new_name == "" then
+          raise.argument(owner .. ": alias must map method names to new names")
+        end
+      end
+      alias = entry.alias
+    end
   end
   if registry.traits[handle] == nil then
     raise.argument(owner .. ": traits must be traits created with core.trait")
@@ -72,10 +93,20 @@ local function compose(own, uses, owner)
         provided[name] = nil
       end
     end
-    for original, new_name in pairs(alias) do
+    local originals = {}
+    for original in pairs(alias) do originals[#originals + 1] = original end
+    table.sort(originals) -- messages do not depend on the order of `pairs`
+    for _, original in ipairs(originals) do
+      local new_name = alias[original]
       local source = record.methods[original]
+      local existing = provided[new_name]
       if source == nil then
         problems[#problems + 1] = ("%s aliases %s, which trait %s does not provide"):format(owner, original, record.name)
+      elseif existing ~= nil and existing.fn ~= source then
+        -- An alias must not silently replace a method of the same trait (Schärli et al. 2003,
+        -- section 3: aliasing adds a name; a name clash is a conflict to resolve explicitly).
+        problems[#problems + 1] = ("%s aliases %s as %s, but trait %s already provides %s; exclude it or choose another alias"):format(
+          owner, original, new_name, record.name, new_name)
       else
         provided[new_name] = { fn = source, origin = record.origins[original] }
       end
@@ -102,14 +133,15 @@ end
 
 --- Declares a trait. Composition of other traits is resolved at declaration time.
 ---
---- Raises `hecate.core.ArgumentError` if `name` is not a string or `methods` is not a table,
+--- Raises `hecate.core.ArgumentError` if `name` is not a non-empty string, `methods` is not a table or an `exclude` or `alias`
+--- has the wrong shape,
 --- and `hecate.core.ConformanceError` if the composed traits conflict.
 ---@param name string  trait name, used in messages
 ---@param methods table<string, function>  the methods the trait provides
 ---@param options? hecate.core.TraitOptions  composed traits and required methods
 ---@return table trait  the new trait
 function M.trait(name, methods, options)
-  if type(name) ~= "string" then raise.argument("trait name must be a string, got " .. type(name)) end
+  validate.name("trait", name)
   if type(methods) ~= "table" then raise.argument("trait " .. name .. ": methods must be a table") end
   options = options or {}
   local owner = "trait " .. name
