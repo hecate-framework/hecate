@@ -3,19 +3,19 @@
 
 - roadmap_item: `reactor` follow-up (owner decisions of 2026-10-27, OQ-23, OQ-26): `reactor.shield(fn)` with its own deadline; an `on_unobserved_failure` hook; `core.IoError` as a base class that `reactor.IoError` extends.
 - status: in-progress
-- lock_until: 2026-11-01T11:21:37Z
-- last_update: 2026-11-01T09:51:37Z
+- lock_until: 2026-11-01T11:22:54Z
+- last_update: 2026-11-01T09:52:54Z
 
 ## Done
 
 - Step 1: `core.IoError` added; `reactor.IoError` extends it (tests, README, object-model.md, concurrency.md, CHANGELOG). core and reactor tests ok.
+- Step 2: `on_unobserved_failure(err, future)` Reactor option (called when a detached computation fails with no active watcher on its future; hook errors discarded; not for cancelled). Tests `unobserved_failure_test.lua`, concurrency.md rule 2, README, CHANGELOG. Website has no page on detach: nothing to update.
 
 ## Next steps
 
-1. `on_unobserved_failure` hook for failed detached computations (spec in concurrency.md, test-first, reactor README, CHANGELOG).
-2. `reactor.shield(fn, opts)` with its own deadline (spec in concurrency.md, tests: cleanup can suspend while cancelled, deadline bounds a stuck peer, nesting, virtual clock).
-3. Then `BufferedWriter:close` flush under cancellation belongs to the `net` follow-up or this item per OQ-29: check networking.md.
-4. Finish: tick the roadmap item, restore the gate's HANDOFF.md (see below), mark ready.
+1. `reactor.shield(fn, opts)` with its own deadline (spec in concurrency.md, tests: cleanup can suspend while cancelled, deadline bounds a stuck peer, nesting, virtual clock).
+2. Then `BufferedWriter:close` flush under cancellation belongs to the `net` follow-up or this item per OQ-29: check networking.md.
+3. Finish: tick the roadmap item, restore the gate's HANDOFF.md (see below), mark ready.
 
 ## Decisions taken (and where they are recorded)
 

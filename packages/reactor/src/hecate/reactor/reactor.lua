@@ -20,6 +20,7 @@ local CANCELLED = {} -- value a cancelled suspension is resumed with
 ---@class hecate.reactor.ReactorOptions
 ---@field clock? "real"|"virtual"  default "real"
 ---@field start? number  initial reading of a virtual clock, default 0
+---@field on_unobserved_failure? fun(err: any, future: hecate.reactor.Future)  called when a detached computation fails while nothing waits for its future (OQ-26 (1)); an error it raises is discarded
 
 --- The scheduler: runs a main computation and everything it forks over libuv, on a real or a virtual clock.
 ---@class hecate.reactor.Reactor
@@ -34,6 +35,11 @@ function Reactor:init(options)
   if clock ~= "real" and clock ~= "virtual" then
     error(core.ArgumentError(("reactor.Reactor: invalid clock %s: expected \"real\" or \"virtual\""):format(tostring(clock))), 2)
   end
+  local hook = options.on_unobserved_failure
+  if hook ~= nil and type(hook) ~= "function" then
+    error(core.ArgumentError(("reactor.Reactor: on_unobserved_failure must be a function, got %s"):format(type(hook))), 2)
+  end
+  self._on_unobserved_failure = hook
   self._virtual = clock == "virtual"
   self._virtual_now = options.start or 0
   self._origin = 0
@@ -239,7 +245,11 @@ local function finish(self, computation, state, results, err)
   self._computations[computation.co] = nil
   self._live = self._live - 1
   computation.state = "dead"
-  computation.future:_settle(state, results, err)
+  local future = computation.future
+  local hook = self._on_unobserved_failure
+  local unobserved = hook ~= nil and state == "failed" and computation.detached and not future:_has_watchers()
+  future:_settle(state, results, err)
+  if unobserved then pcall(hook, err, future) end
   if computation.home then computation.home:_child_done(computation, state, err) end
 end
 
