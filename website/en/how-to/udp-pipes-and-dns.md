@@ -131,10 +131,14 @@ end)
 - `mode` says who may connect: `"owner"` (the default), `"readable"`, `"writable"` or
   `"readwrite"`. It has no effect on Windows. On Unix the socket is created in a private
   directory with its final permissions, then linked to your path, so no other user can connect
-  in between.
+  in between. If the file system refuses the link, the socket is bound directly and restricted
+  right after.
 - The path must not exist. Binding an existing path fails with `EADDRINUSE`. The listener
   removes its socket file when it closes. After a crash a stale file stays: remove it before you
   listen again.
+- A process that is killed at the wrong moment can leave an empty directory named `.hs-XXXXXX` next
+  to your socket path, and any crash leaves the stale socket file. Clean them up from time to time,
+  for example `find /run/myapp -maxdepth 1 -name '.hs-*' -type d -empty -delete`.
 - A Windows pipe name is at most 256 characters. A Unix socket path is at most 107 bytes (103
   on macOS), the terminating NUL excluded. A longer path raises `ArgumentError`.
 

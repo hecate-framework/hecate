@@ -80,7 +80,7 @@ rule, not enforced (OQ-32 (7)).
 | `read_exact(count, limit?)` | *suspends*. Exactly `count` bytes. With `limit`, a larger `count` raises `ProtocolError` before anything is read: pass it when `count` comes from a peer. Without it `count` is the caller's own and is not bounded. |
 | `read_some(max?)` | *suspends*. What is buffered (at most `max`), or the next chunk; `nil` at end of stream. |
 | `buffered()` | Bytes received and not consumed. |
-| `close()`, `is_closed()` | Discards the buffered bytes; idempotent. Any read afterwards raises `TransportError` (`EBADF`, `context.operation` is `read_line`, `read_until`, `read_exact` or `read_some`). |
+| `close()`, `is_closed()` | Discards the buffered bytes; idempotent. Any read afterwards, or one suspended on the stream when `close` runs (its chunk is dropped), raises `TransportError` (`EBADF`, `context.operation` is `read_line`, `read_until`, `read_exact` or `read_some`). |
 
 Rules:
 
@@ -230,10 +230,14 @@ and returns a `PipeListener`.
   final permissions (`mode`), links it to the requested path with `link` (which fails when the path exists, reported
   as `EADDRINUSE` like a bind) and removes the private entries. libuv would unlink the private path when the handle
   closes, so the listener removes the linked file itself; `path()` of a listener and of its accepted streams is the
-  requested path. When the private directory cannot be used (it cannot be created, or the path is too long once
-  the directory is added), the socket is bound directly and restricted right after, with the short exposure window
-  that this implies; put it in a directory only the owner can enter then. A process killed between the bind and
-  the cleanup leaves a `.hs-XXXXXX` directory behind.
+  requested path. When the private directory cannot be used (it cannot be created, the path is too long once
+  the directory is added, or the file system refuses the hard link, as some network and virtual file systems do),
+  the socket is bound directly and restricted right after, with the short exposure window that this implies; put
+  it in a directory only the owner can enter then. **Leftovers:** the method costs about five file operations per
+  listener and nothing per connection. A process killed between the bind and the cleanup (a window of milliseconds)
+  leaves an empty `.hs-XXXXXX` directory next to the socket path, and any crash leaves the stale socket file itself
+  (the path must not exist at the next bind). Users clean both up themselves from time to time, for example
+  `find /run/myapp -maxdepth 1 -name '.hs-*' -type d -empty -delete` and removing the stale socket file before a restart.
 - A `PipeStream` is not a message pipe: the framed, process-to-process `reactor.ipc` connection (glossary: message
   pipe) belongs to `reactor`. Its frame size limit, `max_message`, defaults to 16 MiB and is an option per peer
   (`reactor.Peer`); it stays editable (OQ-47 (3), owner answer of 2026-10-27) and does not read ahead.
@@ -329,7 +333,7 @@ Implements `Stream`.
   `nil` on client streams), `version()` (`"TLSv1.3"` or `"TLSv1.2"`), `peer_certificate()` (DER of the verified
   end-entity certificate), `peer_address()`, `local_address()` and `set_nodelay(bool)` (forwarded to the inner
   stream, which must provide them), `reader()`, `writer()`, `is_closed()`.
-- A closed stream raises `TransportError` (`EBADF`).
+- A closed stream raises `TransportError` (`EBADF`); so does a read suspended on the stream when `close()` runs (never `TlsError`). `close()` releases the native session even when closing the inner stream raises.
 
 ### Revocation of client certificates
 

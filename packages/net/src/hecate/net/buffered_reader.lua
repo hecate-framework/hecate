@@ -102,12 +102,15 @@ end
 
 --- Reads one chunk from the stream into the buffer; returns false at end of stream.
 ---@async
+---@param operation string  the public method, for the closed error
 ---@return boolean
 ---@private
-function BufferedReader:_fill()
+function BufferedReader:_fill(operation)
   if self._eof then return false end
   while true do
     local chunk = self._stream:read(CHUNK)
+    -- Closed while the read was suspended: the chunk is dropped, the caller gets the closed error.
+    if self._closed then self:_check(operation) end
     if chunk == nil then
       self._eof = true
       return false
@@ -184,7 +187,7 @@ function BufferedReader:_read_until(delimiter, limit, operation)
     -- A delimiter of length d can still start at offset `limit` (a record of `limit` bytes) until the
     -- buffer holds limit + d bytes without one; a partial delimiter at the end is not yet an error.
     if self:_size() >= limit + width then break end
-    if not self:_fill() then
+    if not self:_fill(operation) then
       if searched == 0 then return nil end
       end_of_stream(self, nil, operation)
     end
@@ -237,7 +240,7 @@ function BufferedReader:read_exact(count, limit)
   local lock <close> = self._lock:lock()
   self:_check("read_exact")
   while self:_size() < count do
-    if not self:_fill() then end_of_stream(self, count, "read_exact") end
+    if not self:_fill("read_exact") then end_of_stream(self, count, "read_exact") end
   end
   return self:_take(count)
 end
@@ -255,7 +258,7 @@ function BufferedReader:read_some(max)
   self:_check("read_some")
   local lock <close> = self._lock:lock()
   self:_check("read_some")
-  if self:_size() == 0 and not self:_fill() then return nil end
+  if self:_size() == 0 and not self:_fill("read_some") then return nil end
   local size = self:_size()
   return self:_take(max and math.min(max, size) or size)
 end

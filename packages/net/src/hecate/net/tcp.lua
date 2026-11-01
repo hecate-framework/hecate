@@ -51,7 +51,12 @@ local function split_options(name, host, options, allowed)
   local known = {}
   for _, key in ipairs(allowed) do known[key] = true end
   local transport = {}
-  for key, value in pairs(options) do
+  -- Sorted, so that with several mistakes the message is the same on every run (`pairs` order is not).
+  local keys = {}
+  for key in pairs(options) do keys[#keys + 1] = key end
+  table.sort(keys, function(a, b) return tostring(a) < tostring(b) end)
+  for _, key in ipairs(keys) do
+    local value = options[key]
     if not known[key] then
       error(core.ArgumentError(("%s: unknown option %s (options: %s)"):format(
         name, tostring(key), table.concat(allowed, ", "))), 3)

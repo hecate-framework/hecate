@@ -611,4 +611,42 @@ function T:test_concurrent_direct_and_buffered_writes_keep_byte_order()
   end)
 end
 
+-- A reader closed while a read is suspended on the stream: the chunk that arrives afterwards is
+-- dropped and the read raises the closed error (EBADF, stable operation), never returns data.
+function T:test_a_reader_closed_during_a_suspended_read_raises_and_returns_no_chunk()
+  local cases = {
+    { "read_line", function(reader) return reader:read_line() end },
+    { "read_until", function(reader) return reader:read_until("\n") end },
+    { "read_exact", function(reader) return reader:read_exact(3) end },
+    { "read_some", function(reader) return reader:read_some() end },
+  }
+  for _, case in ipairs(cases) do
+    run(function()
+      local arrived = reactor.Channel(1)
+      local parked = reactor.Channel(1)
+      local stream = { closed = false }
+      function stream:read()
+        parked:send(true)
+        return arrived:receive()
+      end
+      function stream:close() self.closed = true end
+      local reader = net.BufferedReader(stream)
+      local outcome = {}
+      local read = reactor.fork(function()
+        outcome.ok, outcome.value = pcall(case[2], reader)
+      end)
+      parked:receive() -- the read is now parked on the stream
+      reader:close()
+      arrived:send("abc\n") -- the chunk arrives after the close
+      read:value()
+      self:assert_false(outcome.ok, case[1] .. ": returned " .. tostring(outcome.value))
+      local err = outcome.value
+      self:assert_true(core.is_instance_of(err, reactor.TransportError), case[1] .. ": " .. tostring(err))
+      self:assert_equal("EBADF", err.context.errno, case[1])
+      self:assert_equal(case[1], err.context.operation)
+      self:assert_equal(0, reader:buffered(), case[1])
+    end)
+  end
+end
+
 return T

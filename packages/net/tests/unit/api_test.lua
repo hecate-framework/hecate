@@ -89,4 +89,25 @@ function T:test_each_ergonomics_error_names_the_net_function()
   self:assert_true(tostring(err):find("net.listen: unknown option colour (options: ", 1, true) ~= nil, tostring(err))
 end
 
+-- Unknown and invalid options are reported in sorted key order, not in `pairs` order.
+function T:test_option_errors_are_reported_in_sorted_order()
+  for _, name in ipairs({ "connect", "listen" }) do
+    for _ = 1, 20 do
+      local err = self:assert_error(function()
+        net[name]("example.org", 80, { zeta = 1, mid = 2, alpha = 3, [7] = true })
+      end)
+      self:assert_true(tostring(err):find("net." .. name .. ": unknown option 7 ", 1, true) ~= nil, tostring(err))
+      err = self:assert_error(function()
+        net[name]("example.org", 80, { zeta = 1, mid = 2, alpha = 3 })
+      end)
+      self:assert_true(tostring(err):find("net." .. name .. ": unknown option alpha ", 1, true) ~= nil, tostring(err))
+      -- Two invalid values: the smaller key is named.
+      err = self:assert_error(function()
+        net[name]("example.org", 80, { nodelay = 1, keepalive = 2, family = "x" })
+      end)
+      self:assert_true(tostring(err):find("net." .. name .. ": option family must be", 1, true) ~= nil, tostring(err))
+    end
+  end
+end
+
 return T

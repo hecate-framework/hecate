@@ -11,6 +11,10 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- `hecate.net`: a `BufferedReader` closed during a suspended read raises the closed error (`TransportError`, `EBADF`) instead of returning the chunk.
+- `hecate.net`: `TlsStream:close` releases the native session even when closing the inner stream raises; a TLS read suspended when `close()` runs raises `TransportError` (`EBADF`) instead of `ECANCELED` or `TlsError`.
+- `hecate.net`: unknown or invalid options of `net.connect` and `net.listen` are reported in sorted key order, so the error message is deterministic.
+- `hecate.net`, `hecate.reactor`: documented how to clean up the `.hs-XXXXXX` directories and stale socket files a crash can leave next to a Unix socket.
 - `hecate.log`: `AsyncSink:close()` called again, also while a first `close` still waits for the drain, now waits for it and reports the same outcome, an error raised by the target's `close` included, instead of returning at once. A sink that was never written to still closes without a reactor.
 - `hecate.log`: the classes of the `hecate.log` module (`Record`, `Logger`, `Secret` and the sinks) carry their real LuaLS types in the generated reference.
 - `hecate.reactor`: `reactor.deadline` and `reactor.shield` accept a zero, negative or past limit and expire immediately (documented, tested).

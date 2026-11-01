@@ -789,4 +789,54 @@ function T:test_a_native_failure_carries_its_kind_taken_from_the_error_variant()
   self:assert_true(tostring(failure):find("[untrusted_issuer] ", 1, true) ~= nil, tostring(failure))
 end
 
+-- close() releases the native session even when closing the inner stream raises, and still raises.
+function T:test_close_drops_the_session_even_when_the_inner_close_raises()
+  run(self, function()
+    local listener <close> = net.listen("127.0.0.1", 0)
+    local config = server_config({ alpn = { "h2" } })
+    local outcome = serve(listener, { config = config, serve = function(tls) tls:read() end })
+    local raw = net.connect("127.0.0.1", listener:local_address().port)
+    local broken = tamper(raw)
+    local real_close = broken.close
+    local raised = false
+    function broken:close()
+      real_close(self)
+      if not raised then
+        raised = true
+        error("inner close failed", 0)
+      end
+    end
+    local client = net.tls.connect(broken, "localhost",
+      net.tls.client_config({ system_roots = false, ca_pem = CA, alpn = { "h2" } }))
+    self:assert_equal("h2", client:alpn())
+    local err = self:assert_error(function() client:close() end)
+    self:assert_equal("inner close failed", tostring(err))
+    self:assert_true(client:is_closed())
+    self:assert_nil(client:alpn()) -- the session was closed all the same
+    client:close() -- idempotent afterwards
+    outcome.future:value()
+  end)
+end
+
+-- A read suspended on the transport when close() runs raises the closed error, not a TlsError.
+function T:test_a_read_racing_close_raises_a_transport_error_with_ebadf()
+  run(self, function()
+    local listener <close> = net.listen("127.0.0.1", 0)
+    local release = reactor.Channel(1)
+    local outcome = serve(listener, { serve = function() release:receive() end })
+    local client = dial(listener:local_address().port)
+    local read = fork_job(function() return client:read() end)
+    reactor.sleep(0) -- the read parks on the transport
+    client:close()
+    read.future:value()
+    release:send(true)
+    outcome.future:value()
+    self:assert_false(read.ok, tostring(read.value))
+    local err = read.value
+    self:assert_true(core.is_instance_of(err, reactor.TransportError), tostring(err))
+    self:assert_equal("EBADF", err.context.errno)
+    self:assert_equal("read", err.context.operation)
+  end)
+end
+
 return T
