@@ -59,13 +59,37 @@ Implemented (server, needs the native module): `http.Server(handler, options)`, 
 - The accept loop survives descriptor exhaustion (`EMFILE`, `ENFILE`) and any other accept failure: connections in service keep being served, the loop backs off (50 ms doubling to 1 s) instead of spinning, resumes by itself, and the burst is reported once (the `logger` option and `on_error`).
 - `shutdown(grace)` (default 30 s) stops accepting, closes the connections that wait for a request, lets each request in flight finish (`Connection: close`), then returns; when the grace expires the remaining requests are cancelled. `serve` returns once every connection has ended.
 - TLS (option `tls`: the options of `net.tls.server_config`, ALPN defaulting to `http/1.1`, or a configuration it built; needs the TLS native module of `net`): each accepted connection handshakes in its own computation, never in the accept loop, so a silent client holds nothing but its own slot. Bounds, each an option with a safe default in `Server.DEFAULTS`: `handshake_timeout` 10 s (the connection is dropped), `max_handshakes` 64 (a handshake slot is taken before `accept`, so the excess waits in the kernel backlog; a silent client can hold a slot until its deadline), `max_handshake_bytes` 65536 (bytes read from a client before the handshake ends; over it the connection is dropped). A failed handshake sends the client nothing of its own; the `logger` option (a `hecate.log.Logger`) receives `http.Server: TLS handshake failed` with the peer address and the reason class, and nothing else leaves the server. `shutdown` drops connections still in their handshake. These options need `tls`.
-- Not yet: the full limits suite (a head that arrives in pieces after a pipelined request is held to `idle_timeout`, not `head_timeout`), client.
+- Known limits of the server: a client that disconnects while its handler runs is not detected (nothing reads the connection then; the handler runs to its end and the write fails; OQ-70); a connection serves its requests one at a time, so there is no concurrency within a connection. Not yet: the client.
+
+### Limits and defaults
+
+Every limit is an option of `http.Server` (the parser limits go in its `parser` table). `Server.DEFAULTS` holds the values the server itself applies. Each row is exercised by `tests/integration/server_limits_test.lua`, which also checks that the server answers a new connection afterwards and leaks no handle. The answer to a limit that is exceeded is RFC 9457 problem details (`application/problem+json`, fixed `detail`) and the connection closes, except where the cell says otherwise.
+
+| Limit | Option | Default | When exceeded | Enforced by |
+|---|---|---|---|---|
+| Request target | `parser.max_target_size` | 8192 bytes | 414 | parser |
+| One field name or value, reason phrase | `parser.max_field_size` | 8192 bytes | 431 | parser |
+| Fields in a head or trailer section | `parser.max_fields` | 100 | 431 | parser |
+| Raw bytes of a head, trailer section or chunk framing | `parser.max_head_size` | 65536 bytes | 431 | parser |
+| Request content | `max_content` | 1048576 bytes | 413 (before the handler when `Content-Length` says so, else at the read) | server |
+| Head, first byte to its end (whole-head deadline: bytes that keep arriving do not extend it; a head after a pipelined request is timed from the moment the server turns to it) | `head_timeout` | 60 s | 408 | server |
+| Wait for the next request | `idle_timeout` | 75 s | closed without an answer | server |
+| Between two reads of content | `content_timeout` | 60 s | 408 | server |
+| Head end to last byte of content | `content_deadline` | none | 408 | server |
+| One write to the client (a reader that never reads a large response) | `write_timeout` | 60 s | connection closed, the writing handler gets a `DeadlineExceededError` | server |
+| Connections served at once | `max_connections` | none (bounded by the process descriptor limit, `idle_timeout` and `head_timeout`) | the excess waits in the backlog | server |
+| TLS handshakes at once | `max_handshakes` | 64 | the excess waits in the backlog | server |
+| TLS handshake time | `handshake_timeout` | 10 s | dropped, nothing sent | server |
+| Bytes read during a TLS handshake | `max_handshake_bytes` | 65536 | dropped, nothing sent | server |
+| Pipelined requests | none (see below) | what one 16 KiB read holds | back-pressure | server |
+
+`head_timeout` is a deadline on the whole head, which is what defends against a client that sends a byte per interval (slowloris); `content_timeout` is a timeout between reads, as in nginx and Apache, so a slow but steady upload is not cut (set `content_deadline` to bound its total time). Pipelining is bounded without an option: the server reads at most 16 KiB at a time, only when it has answered every request already parsed, so a client that pipelines more waits in the kernel buffers instead of in the server's memory.
 
 Deployment notes: Hecate serves HTTP itself and can face clients directly; a reverse proxy is optional, and the limits stay in force behind one.
 
 Implemented (parser, needs the native module: `lua tools/run.lua build-native http`; `require("hecate.http.parser")`, not loaded by `require("hecate.http")`):
 
-- `http.parser` (`Parser.request(options)`, `Parser.response(options)`): the incremental llhttp binding (ADR 0019; llhttp's lenient flags stay off and none is reachable). `feed(chunk)` returns the events (`head`, `data`, `complete` with optional trailers, `upgrade`) and a `ParseError` for malformed input or an exceeded limit; `finish()` for the end of the connection; `skip_body()` for the final response to HEAD (an interim 1xx does not consume it); `close()` releases the memory. Events before a failure are delivered only for messages that completed. A failed parser, and a parser after an upgrade, return the same error to every later call (`kind` `upgraded` after an upgrade).
+- `http.parser` (`Parser.request(options)`, `Parser.response(options)`): the incremental llhttp binding (ADR 0019; llhttp's lenient flags stay off and none is reachable). `feed(chunk)` returns the events (`head`, `data`, `complete` with optional trailers, `upgrade`) and a `ParseError` for malformed input or an exceeded limit; `finish()` for the end of the connection; `skip_body()` for the final response to HEAD (an interim 1xx does not consume it); `in_message()` tells whether a message has begun and not ended (the server times a pending head with it); `close()` releases the memory. Events before a failure are delivered only for messages that completed. A failed parser, and a parser after an upgrade, return the same error to every later call (`kind` `upgraded` after an upgrade).
 - Accepted: HTTP/1.0 and HTTP/1.1 only; RTSP and ICE (their methods, protocols and versions) are refused, and so is the chunked transfer coding in HTTP/1.0.
 - `ParseError`: `context.reason`, `context.code`, `context.kind` (a stable identifier for the binding's own refusals), `context.position` (offset in the chunk of the failing call), `context.status` (400, 414 for the target, 431 for fields and heads).
 - Limits with safe defaults, each an integer from 1 to 16777216 (an unknown option is an `ArgumentError`): `max_target_size` 8192, `max_field_size` 8192 (a name, a value, a reason phrase), `max_head_size` 65536 (raw bytes of a section: the head with its whitespace and leading empty lines, the bytes between two content chunks, the trailer section), `max_fields` 100, `max_events` 1024 (events recorded per native call; `feed` continues by itself). Feed chunks no larger than the read buffer: `feed` returns every event of the chunk in one list.
