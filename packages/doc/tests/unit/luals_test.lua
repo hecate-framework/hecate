@@ -66,4 +66,37 @@ function T:test_a_failed_export_leaves_no_temporary_directory_and_uses_an_unpred
   end
 end
 
+local PARTS = { pid = 4242, time = 1700000000, random = { 11, 22, 33, 44 } }
+
+function T:test_the_windows_temporary_name_is_below_temp_and_carries_the_unpredictable_parts()
+  local getenv = function(name) return ({ TEMP = "C:\\Users\\me\\Temp\\\\" })[name] end
+  local path = luals.windows_temporary_directory(getenv, PARTS)
+  self:assert_equal("C:/Users/me/Temp/hecate-luals-4242-1700000000-11-22-33-44", path)
+  local other = luals.windows_temporary_directory(getenv, { pid = 4242, time = 1700000000, random = { 11, 22, 33, 45 } })
+  self:assert_true(path ~= other)
+end
+
+function T:test_the_windows_temporary_name_falls_back_to_tmp()
+  local path = luals.windows_temporary_directory(function(name) return name == "TMP" and "D:/t" or nil end, PARTS)
+  self:assert_equal("D:/t/hecate-luals-4242-1700000000-11-22-33-44", path)
+end
+
+function T:test_the_windows_temporary_name_refuses_a_missing_or_unquotable_base()
+  for _, base in ipairs({ false, "", "C:\\100%", 'C:\\a"b' }) do
+    local err = self:assert_error(function()
+      luals.windows_temporary_directory(function(name) return name == "TEMP" and base or nil end, PARTS)
+    end)
+    self:assert_true(core.is_instance_of(err, doc.BuildError), tostring(base))
+  end
+end
+
+function T:test_a_temporary_directory_that_already_exists_is_never_reused()
+  local fs = doc.MemoryFileSystem({ ["t/hecate-luals-x/planted.txt"] = "attacker" })
+  local err = self:assert_error(function() luals.claim_directory(fs, "t/hecate-luals-x") end)
+  self:assert_true(core.is_instance_of(err, doc.BuildError), tostring(err))
+  self:assert_equal("attacker", fs:read("t/hecate-luals-x/planted.txt"))
+  luals.claim_directory(fs, "t/fresh")
+  self:assert_true(fs:exists("t/fresh"))
+end
+
 return T

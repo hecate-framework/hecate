@@ -45,6 +45,12 @@ function M.load_config(path, fs)
 end
 
 local function clean_output(fs, out)
+  if fs.is_link and fs:is_link(out) then
+    error(errors.BuildError({
+      message = ("doc.build: refusing to clean %s: it is a symbolic link; give the real output directory"):format(out),
+      context = { path = out },
+    }), 0)
+  end
   if not fs:exists(out) then return end
   if fs:read(out .. "/" .. Site.MARKER) == nil and #(fs:list(out) or {}) > 0 then
     error(errors.BuildError({

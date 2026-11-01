@@ -378,6 +378,22 @@ function T:test_a_page_that_is_not_valid_utf8_raises_a_build_error_naming_the_fi
   self:assert_true(tostring(err):find("UTF-8", 1, true) ~= nil, tostring(err))
 end
 
+function T:test_two_outputs_that_differ_only_by_case_are_refused()
+  local err = self:assert_error(function()
+    build({ ["en/index.md"] = page("Home", "ok"), ["en/Guide.md"] = page("Upper", "u"), ["en/guide.md"] = page("Lower", "l") },
+      { locales = { { code = "en", label = "English" } } })
+  end)
+  self:assert_true(core.is_instance_of(err, doc.BuildError), tostring(err))
+  local message = tostring(err)
+  self:assert_true(message:find("en/Guide/index.html", 1, true) ~= nil and message:find("en/guide/index.html", 1, true) ~= nil,
+    message)
+  local public = self:assert_error(function()
+    build({ ["en/index.md"] = page("Home", "ok"), ["public/EN/INDEX.HTML"] = "mine" },
+      { locales = { { code = "en", label = "English" } } })
+  end)
+  self:assert_true(core.is_instance_of(public, doc.BuildError), tostring(public))
+end
+
 function T:test_a_public_file_that_collides_with_a_generated_file_is_refused()
   for _, name in ipairs({ "404.html", "index.html", "assets/theme.css", "en/index.html", "en/guide/index.html",
     "assets/search-en.json" }) do

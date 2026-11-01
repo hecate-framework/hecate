@@ -533,6 +533,13 @@ fn revocation_lists(
 }
 
 fn build_server(p: ServerParams) -> LuaResult<Arc<ServerConfig>> {
+    // The Lua layer refuses this too, but this module can be called without it and is the security boundary:
+    // revocation lists without client anchors would configure a server that checks nothing.
+    if p.client_crl_pem.is_some() && p.client_ca_pem.is_none() {
+        return Err(LuaError::runtime(
+            "server_config: client_crl_pem needs client_ca_pem: revocation lists are checked for client certificates",
+        ));
+    }
     let alpn = check_alpn(p.alpn, "server_config")?;
     let builder =
         ServerConfig::builder_with_provider(Arc::new(rustls::crypto::ring::default_provider()))

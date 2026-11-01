@@ -11,6 +11,8 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- `hecate.doc`: on Windows the LuaLS export directory is created below `TEMP`/`TMP` with an unpredictable name and is never reused if it exists; `SystemFileSystem.remove_tree` unlinks a symbolic link instead of following it, and a build with `clean` refuses an output directory that is a symbolic link; the build refuses two output files whose paths differ only by case.
+- `hecate.net`: the native `server_config` refuses `client_crl_pem` without `client_ca_pem` instead of ignoring it (the Lua layer already refused it).
 - `hecate.reactor`: a computation body runs under `pcall` inside its coroutine, so the `<close>` handlers of a computation that dies from an uncaught error or cancellation run in a yieldable context and can suspend under `reactor.shield` (OQ-23); before, they ran inside `coroutine.close`, where nothing can yield.
 - `hecate.net`: the default `BufferedWriter` capacity is 16 KiB (one TLS record), up from 8 KiB (owner decision of 2026-11-01, OQ-47 (7), from the `net/buffered-writer` sweep).
 - `hecate.core`: `core.interface` raises `ArgumentError` when `methods` is not a plain list of names; trait, interface and error class names must be non-empty strings, with one shared message.

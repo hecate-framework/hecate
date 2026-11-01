@@ -90,12 +90,33 @@ local function remove_below(path)
   end
 end
 
+--- Tells whether `path` is itself a symbolic link (`stat` follows links, so the entry is looked up in its parent
+--- directory, where it is reported without being followed). A trailing `/` is ignored.
+---@param path string
+---@return boolean
+function SystemFileSystem:is_link(path)
+  local trimmed = path:gsub("/+$", "")
+  local parent, name = trimmed:match("^(.*)/([^/]+)$")
+  if not name then parent, name = ".", trimmed end
+  if parent == "" then parent = "/" end
+  if not is_directory(parent) then return false end
+  for _, entry in ipairs(fs.list(parent)) do
+    if entry.name == name then return entry.type == "link" end
+  end
+  return false
+end
+
+--- Removes a directory tree, or a file. A symbolic link at `path` is unlinked itself: its target is never
+--- followed or removed.
 ---@param path string
 function SystemFileSystem:remove_tree(path)
   if path == "" or path == "/" or path == "." or path == ".." then
     error(core.ArgumentError("doc.SystemFileSystem.remove_tree: refusing to remove " .. ("%q"):format(path)), 2)
   end
-  if fs.stat(path) ~= nil then
+  if self:is_link(path) then
+    local ok, err = pcall(fs.remove, (path:gsub("/+$", "")))
+    if not ok then error(build_error("cannot unlink " .. path, path, err), 0) end
+  elseif fs.stat(path) ~= nil then
     local ok, err
     if is_directory(path) then
       ok, err = pcall(function()

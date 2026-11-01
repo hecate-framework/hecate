@@ -99,6 +99,24 @@ function T:test_two_builds_produce_the_same_files()
   if not ok then error(err, 0) end
 end
 
+function T:test_clean_refuses_an_output_directory_that_is_a_symlink()
+  if is_windows then return end
+  local uv = require("luv")
+  local root = temporary()
+  local ok, err = pcall(function()
+    doc.build({ config = load_config(), source = fixture, out = root .. "/real", fs = fs, clean = true })
+    assert(uv.fs_symlink(root .. "/real", root .. "/link"))
+    local failure = self:assert_error(function()
+      doc.build({ config = load_config(), source = fixture, out = root .. "/link", fs = fs, clean = true })
+    end)
+    self:assert_true(core.is_instance_of(failure, doc.BuildError), tostring(failure))
+    self:assert_true(tostring(failure):find("symbolic link", 1, true) ~= nil, tostring(failure))
+    self:assert_true(fs:exists(root .. "/real/en/index.html"), "the target was not cleaned")
+  end)
+  fs:remove_tree(root)
+  if not ok then error(err, 0) end
+end
+
 function T:test_the_runner_builds_a_site_and_reports()
   local out = temporary()
   local output, ok = run(("%s --out %s --strict --no-git-dates --clean"):format(quote(fixture), quote(out)))

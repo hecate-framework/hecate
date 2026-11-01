@@ -3,7 +3,7 @@
 -- version is reported, not refused. The export goes to a temporary directory that is removed
 -- afterwards. Platform-specific code (the shell calls) is isolated here, as in
 -- system_file_system.lua; verified on Linux only until CI runs it elsewhere.
-global <const> require, io, os, package, string, table, error, tostring, type, pcall
+global <const> require, io, os, package, string, table, error, tostring, type, pcall, ipairs, math, tonumber
 
 local core = require("hecate.core")
 local errors = require("hecate.doc.errors")
@@ -63,24 +63,69 @@ function M.version(executable)
   return output:match("(%d+%.%d+%.%d+)")
 end
 
+local function build_error(message, path)
+  return errors.BuildError({ message = message, context = { path = path } })
+end
+
+--- Builds the name of the temporary directory of an export on Windows. Pure (no I/O), so that it is tested on
+--- every platform. The base is the `TEMP` (else `TMP`) environment variable, with `/` separators and no trailing
+--- separator (`os.tmpname` is not used: on some C runtimes it is relative to the drive root and sequential).
+--- The suffix is made of the process identifier, the time and random values, so that it cannot be guessed.
+--- Raises `hecate.doc.BuildError` when no base is set or the base has a `%` or a `"` (not quotable for `cmd.exe`).
+---@param getenv fun(name: string): string?
+---@param parts { pid: integer, time: integer, random: integer[] }
+---@return string directory
+function M.windows_temporary_directory(getenv, parts)
+  local base = getenv("TEMP")
+  if base == nil or base == "" then base = getenv("TMP") end
+  if not base or base == "" then
+    error(build_error("doc.luals.export: neither TEMP nor TMP is set: cannot create a temporary directory", ""), 0)
+  end
+  base = base:gsub("\\", "/"):gsub("/+$", "")
+  if base == "" or base:find('[%c"%%]') then
+    error(build_error(("doc.luals.export: the temporary directory %q cannot be used (empty, or it has a `%%`, a `\"` or a control character)")
+      :format(base), base), 0)
+  end
+  local random = {}
+  for index, value in ipairs(parts.random) do random[index] = ("%d"):format(value) end
+  return ("%s/hecate-luals-%d-%d-%s"):format(base, parts.pid, parts.time, table.concat(random, "-"))
+end
+
+--- Creates `path` as a new directory, refusing one that already exists (a directory planted by another user
+--- would be reused otherwise). Raises `hecate.doc.BuildError` if the path exists.
+---@param fs hecate.doc.FileSystem
+---@param path string
+function M.claim_directory(fs, path)
+  if fs:exists(path) then
+    error(build_error("doc.luals.export: the temporary directory " .. path .. " already exists; refusing to reuse it", path), 0)
+  end
+  fs:write(path .. "/.keep", "")
+end
+
+--- A per-process number for the Windows directory name. Lua has no process identifier without a native module,
+--- so the address of a fresh table is used (it varies between processes under address-space randomisation);
+--- the time and the random values complete the name.
+local function process_number()
+  return tonumber(tostring({}):match("%x+$") or "0", 16) or 0
+end
+
 --- Creates a fresh, unpredictable directory that only the current user can enter. POSIX: `mktemp -d`
---- (mode 0700, created atomically). Windows: the name of `os.tmpname`, which is unique and below the
---- per-user temporary directory; the file it creates is replaced by the directory (written by the caller).
+--- (mode 0700, created atomically). Windows: below `TEMP`/`TMP` with an unpredictable name, created only if
+--- absent (see `windows_temporary_directory` and `claim_directory`).
 local function temporary_directory(fs)
   if is_windows then
-    local name = os.tmpname()
-    os.remove(name)
-    local directory = name:gsub("\\", "/") .. "-hecate-luals"
-    fs:write(directory .. "/.keep", "")
+    local random = {}
+    for index = 1, 4 do random[index] = math.random(0, 0x7FFFFFFF) end
+    local directory = M.windows_temporary_directory(os.getenv,
+      { pid = process_number(), time = os.time(), random = random })
+    M.claim_directory(fs, directory)
     return directory
   end
   local base = (os.getenv("TMPDIR") or "/tmp"):gsub("/+$", "")
   local output, ok = capture(("mktemp -d %s 2>/dev/null"):format(quote(base .. "/hecate-luals.XXXXXXXXXX")))
   local directory = output:match("[^\r\n]+")
   if not ok or not directory then
-    error(errors.BuildError({
-      message = "doc.luals.export: cannot create a temporary directory below " .. base, context = { path = base },
-    }), 0)
+    error(build_error("doc.luals.export: cannot create a temporary directory below " .. base, base), 0)
   end
   return directory
 end

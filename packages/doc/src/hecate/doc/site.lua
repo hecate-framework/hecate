@@ -511,10 +511,17 @@ function Site:emit(write)
   local function put(path, data)
     -- A file of `public/` that has the path of a generated file is refused, never overwritten (or
     -- overwriting a generated file): generated pages are never replaced by hand-made files.
-    if written[path] then
-      fail(("the output file %s is written twice: a file of public/ or of a locale directory collides with a generated file"):format(path), path)
+    -- The key is case-folded: on a case-insensitive file system (macOS, Windows) two paths that differ only
+    -- by case are one file.
+    local key = path:lower()
+    if written[key] then
+      local other = written[key]
+      fail(other == path
+        and ("the output file %s is written twice: a file of public/ or of a locale directory collides with a generated file"):format(path)
+        or ("the output files %s and %s differ only by case: they are one file on a case-insensitive file system"):format(other, path),
+        path)
     end
-    written[path] = true
+    written[key] = path
     write(path, data)
     count = count + 1
   end

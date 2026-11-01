@@ -14,7 +14,8 @@ local core = require("hecate.core")
 ---@field write fun(self: hecate.doc.FileSystem, path: string, data: string)  creates parent directories; raises `hecate.doc.BuildError` on failure
 ---@field list fun(self: hecate.doc.FileSystem, directory: string): hecate.doc.DirectoryEntry[]?  entries sorted by name, nil when the directory is absent
 ---@field exists fun(self: hecate.doc.FileSystem, path: string): boolean
----@field remove_tree fun(self: hecate.doc.FileSystem, path: string)  removes a directory and everything below it
+---@field remove_tree fun(self: hecate.doc.FileSystem, path: string)  removes a directory and everything below it; a symbolic link at `path` is unlinked, never followed
+---@field is_link? fun(self: hecate.doc.FileSystem, path: string): boolean  optional: whether `path` is itself a symbolic link (absent: no links)
 
 local FileSystem = core.interface("FileSystem", { "read", "write", "list", "exists", "remove_tree" })
 
