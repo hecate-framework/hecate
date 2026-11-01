@@ -6,7 +6,7 @@ framework, documentation generator, database drivers, ORM and CLI.
 
 The project is in **early implementation**: the design is complete, and the foundations are
 written (`core`, `reactor`, `net`, `json`, `log`, `doc`; Phases 0 and 1 of the
-roadmap, the Phase 1 gate pending). The other packages are still specifications. Your job is to implement the rest,
+roadmap, both gates done). The other packages are still specifications. Your job is to implement the rest,
 milestone by milestone, following the roadmap.
 
 ## Sources of truth, in order of precedence

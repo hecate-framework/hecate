@@ -108,8 +108,10 @@ unwinding), found by the reviewer wave and fixed with tests that reproduce them.
 **Evidence at the final head:** all check tasks ok; `CI=1 lua tools/run.lua test` ok (every package, the tools tests,
 the CommonMark and GFM specification tests against the test-only `spec-tests` build, the JSONTestSuite corpus);
 `typecheck` ok with LuaLS 3.19.1 (the release pinned in `ci.yml`, installed under `spikes/`), `sanitize json` ok,
-`cargo clippy` clean in the three native crates. CI on the three platforms: see the pull request (to be filled in
-below when green).
+`cargo clippy` clean in the three native crates. CI on the three platforms: green at the final head `cf81412` of pull
+request 47 (`ci` on ubuntu, macOS and Windows with Lua 5.5, the three sanitizer jobs, fuzz, CodeQL, markdownlint, links,
+build, dependency review and the Rust dependency audit), after the failures of the intermediate heads were fixed (type
+checker, `cargo fmt`, two Windows-only tests, the macOS sanitizer jobs).
 
 No gap is open: every finding of the audits and of both review rounds is fixed or deferred into a named roadmap item, every
 owner question is decided, and the only owner action left is the optional one-sentence edit of the Accepted ADR 0020
