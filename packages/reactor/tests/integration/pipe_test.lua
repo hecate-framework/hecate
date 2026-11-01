@@ -119,6 +119,78 @@ function T:test_the_socket_is_restricted_to_its_owner_by_default_and_mode_opens_
   end
 end
 
+--- A private directory for one socket, so that its entries can be listed.
+local function private_directory()
+  local directory = assert(uv.fs_mkdtemp(uv.os_tmpdir() .. "/hecate-pipe-XXXXXX"))
+  created[#created + 1] = directory .. "/s"
+  return directory
+end
+
+local function entries(directory)
+  local names = {}
+  local request = assert(uv.fs_scandir(directory))
+  while true do
+    local name = uv.fs_scandir_next(request)
+    if not name then break end
+    names[#names + 1] = name
+  end
+  return names
+end
+
+function T:test_the_socket_never_leaves_a_temporary_entry_and_is_removed_on_close()
+  if is_windows then return end
+  local directory = private_directory()
+  local path = directory .. "/s"
+  reactor.run(function()
+    local listener <close> = reactor.listen_pipe(path)
+    self:assert_equal(path, listener:path())
+    self:assert_equal("s", table.concat(entries(directory), ","))
+    reactor.fork(function()
+      local peer <close> = listener:accept()
+      self:assert_equal(path, peer:path()) -- the requested path, not an internal one
+      peer:write("ok")
+    end)
+    local client <close> = reactor.connect_pipe(path)
+    self:assert_equal("ok", client:read())
+    listener:close()
+    self:assert_equal("", table.concat(entries(directory), ","))
+  end)
+  assert(uv.fs_rmdir(directory))
+end
+
+function T:test_the_socket_is_bound_inside_a_private_directory_never_at_the_final_path()
+  if is_windows then return end
+  local directory = private_directory()
+  local path = directory .. "/s"
+  local methods = getmetatable(uv.new_pipe(false)).__index
+  local original, seen = methods.bind, {}
+  methods.bind = function(handle, bound_path, ...)
+    local info = { path = bound_path, directory_mode = uv.fs_stat(bound_path:match("^(.*)/[^/]*$")).mode & tonumber("777", 8) }
+    seen[#seen + 1] = info
+    return original(handle, bound_path, ...)
+  end
+  local ok, err = pcall(reactor.run, function() reactor.listen_pipe(path):close() end)
+  methods.bind = original
+  self:assert_true(ok, tostring(err))
+  self:assert_equal(1, #seen)
+  self:assert_true(seen[1].path ~= path, "bound at the final path")
+  self:assert_equal(tonumber("700", 8), seen[1].directory_mode)
+  assert(uv.fs_rmdir(directory))
+end
+
+function T:test_a_stale_file_at_the_path_is_still_eaddrinuse_and_nothing_is_left_behind()
+  if is_windows then return end
+  local directory = private_directory()
+  local path = directory .. "/s"
+  assert(io.open(path, "w")):close()
+  reactor.run(function()
+    self:assert_equal("EADDRINUSE", errno_of(self, function() reactor.listen_pipe(path) end))
+  end)
+  self:assert_equal("s", table.concat(entries(directory), ","))
+  os.remove(path)
+  assert(uv.fs_rmdir(directory))
+end
+
 function T:test_a_mode_does_not_stop_the_owner_from_connecting()
   local reply = with_listener(self, function(listener, path)
     reactor.fork(function()

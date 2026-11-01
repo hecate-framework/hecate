@@ -67,22 +67,25 @@ end
 
 --- A connected pipe stream; same operations as `hecate.reactor.TcpStream` minus the TCP options.
 ---@class hecate.reactor.PipeStream: hecate.reactor.TcpStream
----@overload fun(handle: table): hecate.reactor.PipeStream
+---@overload fun(handle: table, options?: table, local_path?: string): hecate.reactor.PipeStream
 local PipeStream = core.class("PipeStream", tcp.TcpStream)
 
 ---@param handle table
 ---@param options? table
+---@param local_path? string  the path the stream was connected to, or the listener was asked to bind for an accepted stream
 ---@private
-function PipeStream:init(handle, options)
+function PipeStream:init(handle, options, local_path)
   ---@diagnostic disable-next-line: invisible  -- base class initialiser
   tcp.TcpStream.init(self, handle, options)
   self._label = "reactor.PipeStream"
+  self._local_path = local_path
 end
 
 --- Path of the pipe the stream is bound to (the local end), or the peer's for a client.
 ---@return string
 function PipeStream:path()
   if self._closed then tcp.fail_closed(self, "path", "EBADF: stream is closed") end
+  if self._local_path then return self._local_path end
   local path, err = self._handle:getpeername()
   if not path or path == "" then path, err = self._handle:getsockname() end
   if not path then uv_call.fail_transport(self._label .. ".path", "path", tostring(err)) end
@@ -93,18 +96,27 @@ core.finalise(PipeStream)
 
 --- A listening pipe that accepts `PipeStream`s.
 ---@class hecate.reactor.PipeListener: hecate.reactor.TcpListener
----@overload fun(handle: table, options: table, path: string): hecate.reactor.PipeListener
+---@overload fun(handle: table, options: table, path: string, owns_file?: boolean): hecate.reactor.PipeListener
 local PipeListener = core.class("PipeListener", tcp.TcpListener)
 
 ---@param handle table
 ---@param options table
 ---@param path string
+---@param owns_file? boolean  the socket file was linked to `path` here, so closing the listener removes it (libuv only knows the private path)
 ---@private
-function PipeListener:init(handle, options, path)
+function PipeListener:init(handle, options, path, owns_file)
   ---@diagnostic disable-next-line: invisible  -- base class initialiser
   tcp.TcpListener.init(self, handle, options)
   self._label = "reactor.PipeListener"
   self._path = path
+  self._owns_file = owns_file
+end
+
+--- Closes the listener and removes the socket file it linked to its path.
+function PipeListener:close()
+  if self._closed then return end
+  tcp.TcpListener.close(self)
+  if self._owns_file then uv.fs_unlink(self._path) end
 end
 
 ---@return table
@@ -114,9 +126,9 @@ function PipeListener:_new_handle() return uv.new_pipe(false) end
 ---@param client table
 ---@return hecate.reactor.PipeStream
 ---@private
-function PipeListener:_wrap(client) return PipeStream(client) end
+function PipeListener:_wrap(client) return PipeStream(client, nil, self._path) end
 
---- Path the listener is bound to. libuv removes the socket file when the listener closes; a stale file
+--- Path the listener is bound to. The socket file is removed when the listener closes; a stale file
 --- left by a crashed process is not removed before the bind, so binding it fails.
 ---@return string
 function PipeListener:path() return self._path end
@@ -160,13 +172,68 @@ function api.connect_pipe(path)
     handle:close()
     uv_call.fail_transport("reactor.connect_pipe", "connect " .. path, state.err)
   end
-  return PipeStream(handle)
+  return PipeStream(handle, nil, path)
+end
+
+--- File permissions of the socket for each `mode` option.
+local MODE_BITS = { owner = tonumber("600", 8), readable = tonumber("444", 8), writable = tonumber("222", 8), readwrite = tonumber("666", 8) }
+
+--- Longest socket path the platform accepts (see `check_path`).
+local function path_limit() return (uv.os_uname().sysname == "Darwin" and 104 or 108) - 1 end
+
+--- Binds `handle` so that the socket file is never visible at `path` with permissions other than
+--- the requested ones (owner decision on OQ-47 (4)): it is bound inside a fresh directory that only
+--- the owner can enter (libuv creates it `0700`), given its final permissions there, then linked to
+--- `path`; the link fails if `path` exists, as a bind would. Returns `true` when `path` is bound this way,
+--- `false` when the private directory cannot be used (path too long once the directory is added, or the
+--- directory cannot be created), in which case the caller binds directly and restricts afterwards.
+--- A failure that is not about the directory raises `TransportError` and closes `handle`.
+---@param handle table
+---@param path string
+---@param mode string
+---@return boolean linked
+local function bind_private(handle, path, mode)
+  local parent = path:match("^(.*)/[^/]*$")
+  if parent == nil then parent = "." elseif parent == "" then parent = "/" end
+  local private = uv.fs_mkdtemp((parent == "/" and "" or parent) .. "/.hs-XXXXXX")
+  if not private then return false end
+  local private_path = private .. "/s"
+  local function discard()
+    uv.fs_unlink(private_path)
+    uv.fs_rmdir(private)
+  end
+  if #private_path > path_limit() then
+    discard()
+    return false
+  end
+  local bound, bind_err = handle:bind(private_path)
+  if not bound then
+    discard()
+    handle:close()
+    uv_call.fail_transport("reactor.listen_pipe", "bind " .. path, tostring(bind_err))
+  end
+  local changed, chmod_err = uv.fs_chmod(private_path, MODE_BITS[mode])
+  local linked, link_err
+  if changed then linked, link_err = uv.fs_link(private_path, path) end
+  discard()
+  if not changed then
+    handle:close()
+    uv_call.fail_transport("reactor.listen_pipe", "chmod " .. path, tostring(chmod_err))
+  end
+  if not linked then
+    handle:close()
+    -- An existing file is what a direct bind reports as EADDRINUSE.
+    if tostring(link_err):sub(1, 7) == "EEXIST:" then link_err = "EADDRINUSE: address already in use" end
+    uv_call.fail_transport("reactor.listen_pipe", "bind " .. path, tostring(link_err))
+  end
+  return true
 end
 
 --- Binds and listens on a Unix-domain socket path. Does not suspend. The path must not exist
 --- (`EADDRINUSE` otherwise). Option `mode` says who may connect: `"owner"` (default) restricts the
 --- socket file to its owner, `"readable"`, `"writable"` and `"readwrite"` open it to every user
---- with that access (libuv `chmod`). `mode` has no effect on Windows, where the default security
+--- with that access. The socket is bound in a private `0700` directory next to `path` and linked to
+--- it with its final permissions, so it is never visible with wider ones. `mode` has no effect on Windows, where the default security
 --- of the named pipe applies; `backlog` is ignored there too. On Windows the pipe name after
 --- `\\.\pipe\` is limited to 256 characters.
 ---
@@ -180,25 +247,31 @@ function api.listen_pipe(path, options)
   options = check_options("reactor.listen_pipe", options)
   uv_call.begin("reactor.listen_pipe")
   local handle = uv.new_pipe(false)
-  local bound, bind_err = handle:bind(path)
-  if not bound then
-    handle:close()
-    uv_call.fail_transport("reactor.listen_pipe", "bind " .. path, tostring(bind_err))
-  end
+  local owns_file = false
   if not IS_WINDOWS and path:sub(1, 1) ~= "\0" then -- an abstract socket has no file to protect
-    local mode = options.mode or "owner"
-    local changed, chmod_err
-    if mode == "owner" then
-      changed, chmod_err = uv.fs_chmod(path, tonumber("600", 8))
-    else
-      changed, chmod_err = handle:chmod(MODES[mode])
-    end
-    if not changed then
+    owns_file = bind_private(handle, path, options.mode or "owner")
+  end
+  if not owns_file then
+    local bound, bind_err = handle:bind(path)
+    if not bound then
       handle:close()
-      uv_call.fail_transport("reactor.listen_pipe", "chmod " .. path, tostring(chmod_err))
+      uv_call.fail_transport("reactor.listen_pipe", "bind " .. path, tostring(bind_err))
+    end
+    if not IS_WINDOWS and path:sub(1, 1) ~= "\0" then -- the private directory was not usable: restrict after the bind
+      local mode = options.mode or "owner"
+      local changed, chmod_err
+      if mode == "owner" then
+        changed, chmod_err = uv.fs_chmod(path, tonumber("600", 8))
+      else
+        changed, chmod_err = handle:chmod(MODES[mode])
+      end
+      if not changed then
+        handle:close()
+        uv_call.fail_transport("reactor.listen_pipe", "chmod " .. path, tostring(chmod_err))
+      end
     end
   end
-  local listener = PipeListener(handle, options, path)
+  local listener = PipeListener(handle, options, path, owns_file)
   local listening, listen_err = handle:listen(options.backlog or DEFAULT_BACKLOG, function(e)
     if e then listener._failure = e else listener._incoming = listener._incoming + 1 end
     local wake = listener._wake

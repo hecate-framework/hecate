@@ -214,11 +214,15 @@ and returns a `PipeListener`.
 - `PipeStream` has the same stream and buffered API as `TcpStream` (`read`, `write`, `shutdown`, `close`,
   `is_closed`, `reader`, `writer`) plus `path()`; `PipeListener` has `accept()`, `close()`, `is_closed()`,
   `path()`. The cancellation rules are those of TCP.
-- **Implemented: owner-only permissions are applied after the bind.** `mode = "owner"` makes the socket file
-  `0600` right after binding: for a very short window the file has the permissions of the umask (libuv can only
-  open it to everyone). **Decided, not implemented** (owner, 2026-10-27, OQ-47 (4), a breach recipe): create the
-  socket inside a directory of mode `0700` (or an equivalent that never exposes it), instead of binding then
-  calling `chmod`. Until then, put the socket in a directory that only the owner can enter.
+- **The socket never shows with the wrong permissions** (owner, 2026-10-27, OQ-47 (4)). `listen_pipe` binds the socket
+  inside a fresh directory next to the requested path (created `0700` by libuv, named `.hs-XXXXXX`), gives the file its
+  final permissions (`mode`), links it to the requested path with `link` (which fails when the path exists, reported
+  as `EADDRINUSE` like a bind) and removes the private entries. libuv would unlink the private path when the handle
+  closes, so the listener removes the linked file itself; `path()` of a listener and of its accepted streams is the
+  requested path. When the private directory cannot be used (it cannot be created, or the path is too long once
+  the directory is added), the socket is bound directly and restricted right after, with the short exposure window
+  that this implies; put it in a directory only the owner can enter then. A process killed between the bind and
+  the cleanup leaves a `.hs-XXXXXX` directory behind.
 - A `PipeStream` is not a message pipe: the framed, process-to-process `reactor.ipc` connection (glossary: message
   pipe) belongs to `reactor`. Its frame size limit, `max_message`, defaults to 16 MiB and is an option per peer
   (`reactor.Peer`); it stays editable (OQ-47 (3), owner answer of 2026-10-27) and does not read ahead.
@@ -397,7 +401,7 @@ local ok, err = pcall(reactor.deadline, 2, function() return reader:read_line() 
 The `net` follow-up of the [roadmap](../roadmap.md) (owner decisions of 2026-10-27, OQ-47):
 
 1. `net.listen` binds every resolved address (supersedes OQ-32 (3)).
-2. A Unix socket is created inside a `0700` directory, or equivalent, instead of binding then calling `chmod`.
+2. ~~A Unix socket is created inside a `0700` directory, or equivalent, instead of binding then calling `chmod`.~~ Done.
 3. A CRL option for client certificates; the limit is documented above until then.
 4. Handshake defaults split: 10 s for `tls.connect` and `connect_tls`, 60 s for `tls.accept`, both editable.
 5. A benchmark of the `BufferedWriter` capacity against Go's 4 KiB `bufio` and other frameworks, which decides the

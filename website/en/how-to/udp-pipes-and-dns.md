@@ -129,8 +129,9 @@ end)
 
 - `backlog` is a positive integer, 128 by default. It is ignored on Windows.
 - `mode` says who may connect: `"owner"` (the default), `"readable"`, `"writable"` or
-  `"readwrite"`. It has no effect on Windows. On Unix the socket is made owner-only right after
-  the bind. For a very short moment it has the permissions of the umask.
+  `"readwrite"`. It has no effect on Windows. On Unix the socket is created in a private
+  directory with its final permissions, then linked to your path, so no other user can connect
+  in between.
 - The path must not exist. Binding an existing path fails with `EADDRINUSE`. The listener
   removes its socket file when it closes. After a crash a stale file stays: remove it before you
   listen again.
