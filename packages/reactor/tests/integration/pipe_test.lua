@@ -147,6 +147,7 @@ function T:test_the_socket_never_leaves_a_temporary_entry_and_is_removed_on_clos
     self:assert_equal("s", table.concat(entries(directory), ","))
     reactor.fork(function()
       local peer <close> = listener:accept()
+      ---@cast peer hecate.reactor.PipeStream
       self:assert_equal(path, peer:path()) -- the requested path, not an internal one
       peer:write("ok")
     end)

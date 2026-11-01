@@ -181,6 +181,7 @@ function M.connect_for(call, host, port, options)
 
   -- Several addresses: attempts are children of a scope that ends only when every one of them is done,
   -- so no attempt outlives the call and a connection that arrives late can be closed.
+  ---@type table<integer, { ok: boolean, result: any }>
   local outcomes = {} -- by address index: { ok, result }
   local winner, misuse
   local scope_ok, scope_err = pcall(reactor.scope, function(scope)
@@ -243,6 +244,7 @@ function M.connect_for(call, host, port, options)
   local attempts = {}
   local tried = {}
   for i = 1, count do
+    ---@type hecate.core.Error|false
     local failure = outcomes[i] and not outcomes[i].ok and outcomes[i].result
     if failure then
       attempts[#attempts + 1] = { address = addresses[i].ip, errno = failure.context and failure.context.errno }
@@ -287,13 +289,15 @@ function M.listen(host, port, options)
       sockets[#sockets + 1] = result
       if chosen == 0 then chosen = result:local_address().port end -- one port for every address
     else
-      local errno = core.is_instance_of(result, reactor.TransportError) and result.context and result.context.errno
+      local failure = result --[[@as hecate.core.Error]]
+      local transport_failure = core.is_instance_of(failure, reactor.TransportError)
+      local errno = transport_failure and failure.context and failure.context.errno
       if not (errno == "EAFNOSUPPORT" or errno == "EADDRNOTAVAIL") then
         for _, socket in ipairs(sockets) do socket:close() end
-        if not core.is_instance_of(result, reactor.TransportError) then error(errors.rename(result, "net.listen"), 0) end
-        error(rewrap(result --[[@as hecate.core.Error]], "net.listen", "listen on " .. endpoint(host, port), { host = host, port = port }), 0)
+        if not transport_failure then error(errors.rename(failure, "net.listen"), 0) end
+        error(rewrap(failure, "net.listen", "listen on " .. endpoint(host, port), { host = host, port = port }), 0)
       end
-      last = result
+      last = failure
     end
   end
   if #sockets > 0 then return TcpListener(sockets) end
