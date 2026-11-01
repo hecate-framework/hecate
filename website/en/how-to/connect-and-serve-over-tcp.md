@@ -109,9 +109,10 @@ a free port; `listener:local_address().port` tells you which. The options are th
 > `reactor.supports_reuseport()` first. See
 > [Multi-process serving](../explanation/multi-process-serving.md#reuseport-does-not-work-yet).
 
-> [!WARNING] Name your address
-> `net.listen("localhost", port)` binds only the first address the resolver lists, which can be
-> `127.0.0.1` or `::1`. Pass a numeric address, or `family`, when the address matters.
+> [!NOTE] One name, several addresses
+> `net.listen("localhost", port)` binds every address the resolver lists, usually `127.0.0.1` and
+> `::1`, on the same port, and `accept` takes connections from all of them. An address the machine
+> cannot bind (no IPv6, for instance) is skipped. Pass a numeric address, or `family`, to bind just one.
 
 `listener:accept()` suspends until a client connects and returns a `TcpStream`. A server loops on
 `accept` and forks one coroutine per connection, so that a slow client never delays the others.

@@ -182,9 +182,12 @@ function M.connect_for(call, host, port, options)
 end
 
 --- Binds and listens on `host:port` (port 0 picks a free port, see `TcpListener:local_address`).
---- A host name is resolved and only its first address is bound: `listen("localhost", ...)` listens
---- on whichever of `127.0.0.1` and `::1` the resolver lists first. Pass a numeric address, or the
---- `family` option, when the address matters. Suspends only for the resolution.
+--- A host name is resolved and every address it gives is bound, on the same port (the one chosen for
+--- the first when `port` is 0): `listen("localhost", ...)` listens on `127.0.0.1` and on `::1`, and
+--- `accept` takes connections from all of them. An address the host cannot bind at all
+--- (`EAFNOSUPPORT`, `EADDRNOTAVAIL`: no IPv6, for instance) is skipped as long as another one is
+--- bound; any other failure fails the call and closes the sockets bound so far. Pass a numeric address,
+--- or the `family` option, to bind just one. Suspends only for the resolution.
 --- Options: those of `connect` plus `backlog` (default 128) and `reuseport`
 --- (see `reactor.supports_reuseport`).
 ---
@@ -200,10 +203,28 @@ function M.listen(host, port, options)
   local transport, family = split_options("net.listen", host, options, LISTEN_OPTIONS)
   check_port("net.listen", port)
   local addresses = dns.resolve_for("net.listen", host, { family = family })
-  local ok, result = pcall(reactor.listen_tcp, addresses[1].ip, port, transport)
-  if ok then return TcpListener(result) end
-  if not core.is_instance_of(result, reactor.TransportError) then error(errors.rename(result, "net.listen"), 0) end
-  error(rewrap(result --[[@as hecate.core.Error]], "net.listen", "listen on " .. endpoint(host, port), { host = host, port = port }), 0)
+  local sockets = {}
+  local chosen = port
+  ---@type hecate.core.Error?
+  local last
+  for i = 1, #addresses do
+    local ok, result = pcall(reactor.listen_tcp, addresses[i].ip, chosen, transport)
+    if ok then
+      sockets[#sockets + 1] = result
+      if chosen == 0 then chosen = result:local_address().port end -- one port for every address
+    else
+      local errno = core.is_instance_of(result, reactor.TransportError) and result.context and result.context.errno
+      if not (errno == "EAFNOSUPPORT" or errno == "EADDRNOTAVAIL") then
+        for _, socket in ipairs(sockets) do socket:close() end
+        if not core.is_instance_of(result, reactor.TransportError) then error(errors.rename(result, "net.listen"), 0) end
+        error(rewrap(result --[[@as hecate.core.Error]], "net.listen", "listen on " .. endpoint(host, port), { host = host, port = port }), 0)
+      end
+      last = result
+    end
+  end
+  if #sockets > 0 then return TcpListener(sockets) end
+  ---@cast last hecate.core.Error
+  error(rewrap(last, "net.listen", "listen on " .. endpoint(host, port), { host = host, port = port }), 0)
 end
 
 return M

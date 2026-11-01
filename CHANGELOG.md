@@ -11,6 +11,7 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- `hecate.net`: `net.listen` binds every address its host name resolves to, on one port, and `accept` takes connections from all of them (OQ-47 (5), supersedes OQ-32 (3)); an address that cannot be bound at all (`EAFNOSUPPORT`, `EADDRNOTAVAIL`) is skipped when another is bound.
 - `hecate.reactor`, `hecate.net`: `listen_pipe` binds a Unix socket in a private `0700` directory and links it to the requested path with its final permissions, instead of binding then calling `chmod` (OQ-47 (4)); the socket never appears with wider permissions. `path()` of a listener, of its accepted streams and of a client stream is the requested path.
 - `hecate.net`: `BufferedWriter:close` (and `__close`) flushes the buffered bytes under `reactor.shield`, bounded by the new writer option `close_timeout` (default 5 seconds, proposed: OQ-29) (OQ-23, OQ-29 (5)). It used to discard them.
 - `hecate.net`: `tls.accept` allows 60 seconds for the handshake by default, `tls.connect` and `connect_tls` keep 10 (OQ-47 (2)); `handshake_timeout` still overrides both.

@@ -156,11 +156,15 @@ so the failures name the call the caller wrote.
 Port 0 picks a free port (`listener:local_address()`). Accepted streams inherit the listener's `nodelay` and
 `keepalive` options (OQ-30 (4)).
 
-- **Implemented: the first resolved address only is bound.** `listen("localhost", ...)` listens on whichever of
-  `127.0.0.1` and `::1` the resolver lists first. Pass a numeric address or `family` when the address matters.
-- **Decided, not implemented** (owner, 2026-10-27, OQ-47 (5); supersedes OQ-32 (3)): bind **every** resolved
-  address, so that `localhost` serves `::1` and `127.0.0.1`. The listener then has one handle per address;
-  `local_address()`, `accept()` and `close()` are to be specified with the implementation (see "Open points").
+- **Every resolved address is bound** (owner, 2026-10-27, OQ-47 (5); supersedes OQ-32 (3)), so that `localhost`
+  serves `127.0.0.1` and `::1`. The listener holds one reactor listener per address, all on the same port (the one
+  chosen for the first address when `port` is 0). `accept()` takes the next connection from any of them (a
+  connection taken from a socket that lost the race is kept for the next call); `close()` closes every socket and
+  wakes `accept` (`ECANCELED`); `is_closed()` and `local_address()` answer for the first socket (the first address
+  the resolver lists). An address the host cannot bind at all (`EAFNOSUPPORT`, `EADDRNOTAVAIL`: no IPv6, for instance)
+  is skipped as long as another one is bound; any other failure (`EADDRINUSE`, `EACCES`, ...) fails the call and closes
+  the sockets bound so far. This tolerance is not in the owner's decision: it is the conservative reading, recorded in
+  OQ-32 for confirmation. Pass a numeric address or `family` to bind just one.
 - A bind failure reads `net.listen: listen on 0.0.0.0:8080 failed: EADDRINUSE address already in use` (same
   context as `connect`).
 - `reuseport` is accepted, but its branch cannot run in CI until luv supports TCP `reuseport` (OQ-43, OQ-47 (8)).
@@ -400,10 +404,10 @@ local ok, err = pcall(reactor.deadline, 2, function() return reader:read_line() 
 
 The `net` follow-up of the [roadmap](../roadmap.md) (owner decisions of 2026-10-27, OQ-47):
 
-1. `net.listen` binds every resolved address (supersedes OQ-32 (3)).
+1. ~~`net.listen` binds every resolved address (supersedes OQ-32 (3)).~~ Done.
 2. ~~A Unix socket is created inside a `0700` directory, or equivalent, instead of binding then calling `chmod`.~~ Done.
 3. A CRL option for client certificates; the limit is documented above until then.
-4. Handshake defaults split: 10 s for `tls.connect` and `connect_tls`, 60 s for `tls.accept`, both editable.
+4. ~~Handshake defaults split: 10 s for `tls.connect` and `connect_tls`, 60 s for `tls.accept`, both editable.~~ Done.
 5. A benchmark of the `BufferedWriter` capacity against Go's 4 KiB `bufio` and other frameworks, which decides the
    default.
 6. `BufferedWriter:close` flushing under `reactor.shield` (OQ-23; `reactor.shield` exists, the writer deadline is to be chosen).
