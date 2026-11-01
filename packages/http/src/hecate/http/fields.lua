@@ -32,11 +32,12 @@ function Fields:init(initial)
   if initial == nil then return end
   for k, v in pairs(initial) do
     if type(k) == "number" then
+      ---@cast v string[]
       self:add(v[1], v[2])
     elseif type(v) == "table" then
-      for _, item in ipairs(v) do self:add(k, item) end
+      for _, item in ipairs(v) do self:add(k --[[@as string]], item) end
     else
-      self:add(k, v)
+      self:add(k --[[@as string]], v --[[@as string]])
     end
   end
 end

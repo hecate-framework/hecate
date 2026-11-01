@@ -1,4 +1,4 @@
----@diagnostic disable: param-type-mismatch  -- the tests pass invalid arguments on purpose
+---@diagnostic disable: param-type-mismatch, need-check-nil  -- the tests pass invalid arguments on purpose
 local test = require("harness.test")
 local http = require("hecate.http")
 local MediaType = http.MediaType

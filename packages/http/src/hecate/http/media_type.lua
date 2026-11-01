@@ -27,10 +27,11 @@ function MediaType:init(type_, subtype, parameters)
   end
   self.type, self.subtype = string.lower(type_), string.lower(subtype)
   self.parameters, self.order = {}, {}
+  local given = parameters or {}
   local names = {}
-  for name in pairs(parameters or {}) do names[#names + 1] = name end
+  for name in pairs(given) do names[#names + 1] = name end
   table.sort(names)
-  for _, name in ipairs(names) do self:set_parameter(name, parameters[name]) end
+  for _, name in ipairs(names) do self:set_parameter(name, given[name]) end
 end
 
 --- Sets a parameter (replacing an earlier one of the same name).
