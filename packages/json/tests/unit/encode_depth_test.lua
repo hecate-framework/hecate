@@ -94,6 +94,9 @@ io.write("done\n")
   -- A shell that refuses the limit reports it itself and `&&` skips the interpreter; an empty output means the same:
   -- the stack could not be capped, nothing was provoked.
   if output:find("ulimit", 1, true) or output:find("^%s*$") then return end
+  -- The sanitizer jobs build the modules with a sanitizer that a fresh interpreter cannot load when it is not
+  -- preloaded (macOS: "AddressSanitizer is loaded too late"): the child died before the encoder ran.
+  if output:find("Sanitizer", 1, true) or output:find("interceptors", 1, true) then return end
   self:assert_true(output:find("done", 1, true) ~= nil, "the encoder did not finish on a 1 MiB stack: " .. output)
 end
 
