@@ -34,6 +34,7 @@ local READ_SIZE <const> = 16384
 ---@field head_timeout? number  seconds to receive a request head once its first byte arrived (default 60; counted from the first byte of the head to its end, not between reads; then 408)
 ---@field idle_timeout? number  seconds a connection may wait for the next request (default 75; then closed silently)
 ---@field content_timeout? number  seconds between two reads of request content (default 60; a timeout between two reads, not a limit on the whole content; then 408)
+---@field content_deadline? number  seconds from the end of a head to the last byte of its content (default: none; then 408); `content_timeout` still applies between reads
 ---@field write_timeout? number  seconds a write to the client may take (default 60; then the connection is closed)
 ---@field parser? hecate.http.parser.Options  limits of the message parser (target, field, head size, field count)
 ---@field tls? hecate.net.TlsServerOptions|hecate.net.TlsServerConfig  serve HTTPS: the options of `net.tls.server_config` (ALPN defaults to `http/1.1`), or a configuration built by it
@@ -68,7 +69,7 @@ Server.DEFAULTS = DEFAULTS
 
 local KNOWN <const> = {
   host = true, port = true, backlog = true, max_connections = true, max_content = true, head_timeout = true,
-  idle_timeout = true, content_timeout = true, write_timeout = true, parser = true, on_error = true,
+  idle_timeout = true, content_timeout = true, content_deadline = true, write_timeout = true, parser = true, on_error = true,
   tls = true, handshake_timeout = true, max_handshakes = true, max_handshake_bytes = true, logger = true,
 }
 
@@ -144,6 +145,7 @@ function Server:init(handler, options)
   self._idle_timeout = seconds("idle_timeout")
   self._content_timeout = seconds("content_timeout")
   self._write_timeout = seconds("write_timeout")
+  self._content_deadline = options.content_deadline ~= nil and seconds("content_deadline") or nil
   self._handshake_timeout = seconds("handshake_timeout")
   self._max_handshakes = integer("max_handshakes", 1, 1000000)
   self._max_handshake_bytes = integer("max_handshake_bytes", 1, 16777216)
@@ -201,24 +203,22 @@ local function is_deadline(err) return core.is_instance_of(err, core.DeadlineExc
 
 -- Reading ---------------------------------------------------------------------------------------------------------
 
---- Reads one chunk with the deadline that fits the state of the connection.
+--- Reads one chunk with the deadline that fits the state of the connection: between reads while content is read (and
+--- by the total deadline of the content, when set); until the end of the head while one is pending (a whole-head
+--- deadline: bytes that keep arriving do not extend it); the idle timeout otherwise.
 ---@async
 local function read_chunk(self, conn)
   local limit
   if conn.in_content then
     limit = self._content_timeout
-  elseif conn.head_started then
+    if conn.content_deadline ~= nil then limit = math.min(limit, math.max(0, conn.content_deadline - reactor.now())) end
+  elseif conn.head_deadline ~= nil then
     limit = math.max(0, conn.head_deadline - reactor.now())
   else
     limit = self._idle_timeout
   end
   local stream = conn.stream
-  local chunk = reactor.deadline(limit, stream.read, stream, READ_SIZE)
-  if chunk ~= nil and not conn.in_content and not conn.head_started then
-    conn.head_started = true
-    conn.head_deadline = reactor.now() + self._head_timeout
-  end
-  return chunk
+  return reactor.deadline(limit, stream.read, stream, READ_SIZE)
 end
 
 --- The next parser event of the connection, or nil and a reason: a `ParseError`, or the string "eof" when the peer
@@ -248,6 +248,10 @@ local function next_event(self, conn)
       queue[conn.tail] = parsed
     end
     if err ~= nil and chunk ~= nil then conn.failure = err end
+    -- The first byte of a head has arrived: its deadline starts now (a head that follows a pipelined request is timed
+    -- when the connection turns to it, see `serve_connection`).
+    conn.partial = conn.parser:in_message()
+    if conn.waiting and conn.partial and conn.head_deadline == nil then conn.head_deadline = reactor.now() + self._head_timeout end
   end
 end
 
@@ -527,11 +531,14 @@ end
 ---@async
 local function serve_connection(self, conn)
   while true do
-    conn.waiting, conn.head_started, conn.in_content = true, false, false
+    conn.waiting, conn.in_content = true, false
+    -- Bytes of the next head already read (pipelining) start its deadline now: it is held to `head_timeout`, not to
+    -- `idle_timeout`.
+    conn.head_deadline = conn.partial and (reactor.now() + self._head_timeout) or nil
     local ok, event, failure = pcall(next_event, self, conn)
     conn.waiting = false
     if not ok then
-      if is_deadline(event) and conn.head_started then
+      if is_deadline(event) and conn.head_deadline ~= nil then
         send_problem(self, conn, { version = "HTTP/1.1", keep_alive = false }, 408, nil)
       end
       return
@@ -544,6 +551,8 @@ local function serve_connection(self, conn)
       return
     end
     if event.type ~= "head" then return end
+    conn.head_deadline = nil
+    conn.content_deadline = self._content_deadline ~= nil and (reactor.now() + self._content_deadline) or nil
     local keep = serve_request(self, conn, event)
     if not keep or self._stopping then return end
   end
@@ -591,7 +600,7 @@ local function run_connection(self, raw)
   end
   local conn = {
     stream = stream, writer = stream:writer(), parser = Parser.request(self._limits), queue = {}, position = 1, tail = 0,
-    waiting = false, head_started = false, in_content = false, broken = false, eof = false,
+    waiting = false, partial = false, in_content = false, broken = false, eof = false,
   }
   local known, peer = pcall(stream.peer_address, stream)
   conn.peer = known and peer or nil

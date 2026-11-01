@@ -131,6 +131,7 @@ typedef struct {
   llhttp_t llhttp; /* first: the callbacks receive a pointer to it */
   int request;
   int skip_body;
+  int in_message; /* a message has begun and not ended: bytes of its head or content are pending */
   int closed;
   int terminal; /* failed or upgraded: the stored failure is returned by every call */
   int err_code; /* llhttp errno of the stored failure */
@@ -259,6 +260,7 @@ static int within_budget(parser *p, const char *at, size_t n) {
 
 static int on_message_begin(llhttp_t *l) {
   parser *p = (parser *)l;
+  p->in_message = 1;
   p->target.len = p->status.len = p->field.len = p->value.len = p->block.len = 0;
   buffer_trim(&p->target);
   buffer_trim(&p->status);
@@ -431,6 +433,7 @@ static int on_chunk_header(llhttp_t *l) {
 
 static int on_message_complete(llhttp_t *l) {
   parser *p = (parser *)l;
+  p->in_message = 0;
   record *r = new_record(p, EV_COMPLETE);
   if (r == NULL) return fail(l, K_MEMORY);
   if (move_block(p, r) != 0) return fail(l, K_MEMORY);
@@ -734,6 +737,13 @@ static int parser_finish(lua_State *L) {
   return 3;
 }
 
+/* in_message(): whether a message has begun and not ended, so that bytes of a head or of content are still expected. */
+static int parser_in_message(lua_State *L) {
+  parser *p = open_parser(L);
+  lua_pushboolean(L, p->in_message);
+  return 1;
+}
+
 /* skip_body(): the final response that follows has no body (the response to a HEAD request, RFC 9112 section 6.3);
  * an interim response (1xx) does not consume it. For a parser of responses only. */
 static int parser_skip_body(lua_State *L) {
@@ -753,7 +763,8 @@ static int parser_skip_body(lua_State *L) {
 
 HECATE_EXPORT int luaopen_hecate_http_native(lua_State *L) {
   static const luaL_Reg methods[] = {
-      {"execute", parser_execute}, {"finish", parser_finish}, {"skip_body", parser_skip_body}, {"close", parser_close},
+      {"execute", parser_execute}, {"finish", parser_finish}, {"skip_body", parser_skip_body}, {"in_message", parser_in_message},
+      {"close", parser_close},
       {NULL, NULL}};
   static const luaL_Reg meta[] = {{"__gc", parser_close}, {"__close", parser_close}, {NULL, NULL}};
   if (luaL_newmetatable(L, PARSER_METATABLE)) {

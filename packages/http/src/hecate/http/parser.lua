@@ -214,6 +214,13 @@ function Parser:skip_body()
   self._handle:skip_body()
 end
 
+--- Reports whether a message has begun and not yet ended: the bytes of a head, or of content, are still expected. After a
+--- chunk whose last message completed this is false; with the first bytes of the next head already fed it is true.
+---@return boolean
+function Parser:in_message()
+  return self._handle:in_message()
+end
+
 --- Releases the memory of the parser. Calling `feed`, `finish` or `skip_body` afterwards raises; closing twice is
 --- harmless. A parser that is not closed is released when it is collected.
 function Parser:close()

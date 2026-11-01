@@ -480,4 +480,20 @@ function T:test_a_request_line_without_a_version_is_rejected()
   self:reject("POST /x\r\nHost: h\r\nContent-Length: 3\r\n\r\nabc")
 end
 
+function T:test_in_message_tells_whether_a_message_is_open()
+  local p = Parser.request()
+  self:assert_false(p:in_message())
+  p:feed("GET / HTTP/1.1\r\nHost: h\r\n\r\n")
+  self:assert_false(p:in_message(), "a complete message leaves nothing pending")
+  p:feed("GET /next HT")
+  self:assert_true(p:in_message(), "the start of the next head is pending")
+  p:feed("TP/1.1\r\nHost: h\r\nContent-Length: 4\r\n\r\nab")
+  self:assert_true(p:in_message(), "content is pending")
+  p:feed("cd")
+  self:assert_false(p:in_message())
+  p:feed("GET / HTTP/1.1\r\nHost: h\r\n\r\nGET /b HTTP/1.1\r\nHo")
+  self:assert_true(p:in_message(), "a complete message followed by a partial head")
+  p:close()
+end
+
 return T
