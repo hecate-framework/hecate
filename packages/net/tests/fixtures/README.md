@@ -14,6 +14,12 @@ Throwaway test keys, valid for 100 years, never used outside the tests of `hecat
   default-server-name mismatch test.
 - `not_yet_valid.pem` / `not_yet_valid.key`: valid for `localhost` and `127.0.0.1` from 2099-01-01, for the
   not-yet-valid test (made with `openssl ca -startdate 20990101000000Z`).
+- `revocation_ca.pem`: a CA (key discarded) that signs the two client certificates below and the CRL. Test for
+  `client_crl_pem`.
+- `valid_client.pem` / `valid_client.key`: a client certificate of `revocation_ca.pem`, not revoked.
+- `revoked_client.pem` / `revoked_client.key`: a client certificate of `revocation_ca.pem`, listed in the CRL.
+- `revoked.crl.pem`: the CRL of `revocation_ca.pem` (valid until 2126), revoking `revoked_client.pem` (made with
+  `openssl ca -revoke` and `-gencrl`, `ECDSA P-256`).
 
 Regenerate with `openssl req -x509 ...` for the CAs and `openssl x509 -req -CA ...` for the
 leaves (ECDSA P-256, `subjectAltName=DNS:localhost,IP:127.0.0.1` on the server).

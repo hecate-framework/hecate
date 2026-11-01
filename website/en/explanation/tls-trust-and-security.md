@@ -81,8 +81,8 @@ Whether a revoked certificate is refused depends on the platform.
   checking on any platform.
 
 If a handshake must never block, use `system_roots = false` and accept that revocation is not
-checked. A server that asks for client certificates (`client_ca_pem`) does not check them for
-revocation: it configures no revocation lists.
+checked. A server that asks for client certificates (`client_ca_pem`) checks them for revocation only
+when you give it lists in `client_crl_pem`.
 
 ## Wider trust by default
 
@@ -100,7 +100,7 @@ certificates, or `system_roots = false`, avoid it. The error is the system's own
 
 ## What is not provided yet
 
-Not done: session resumption settings, OCSP stapling policy, certificate revocation lists,
+Not done: session resumption settings, OCSP stapling policy, refreshing or fetching certificate revocation lists,
 selecting a certificate by SNI (Server Name Indication, RFC 6066) on the server, certificate details beyond the DER bytes of the peer
 certificate, and Android (the platform verifier needs a Java runtime there). The server side of
 `tls.server_config` is unchanged by ADR 0024.

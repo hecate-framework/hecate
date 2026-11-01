@@ -279,6 +279,7 @@ A configuration built once can be reused across connections. `net.tls.client_con
 | `cert_pem`, `key_pem` | Required: certificate chain (end-entity first) and private key. |
 | `alpn` | Accepted protocols, in preference order. |
 | `client_ca_pem` | Require and verify client certificates against these anchors. |
+| `client_crl_pem` | Certificate revocation lists (PEM) checked for the client certificates; needs `client_ca_pem`; see "Revocation of client certificates". |
 
 Entry points (all *suspend*):
 
@@ -325,10 +326,15 @@ Implements `Stream`.
 
 ### Revocation of client certificates
 
-**Decided, not implemented** (owner, 2026-10-27, OQ-47 (6)): a CRL option on the server configuration, to check
-client certificates for revocation. **Limit until then:** the server configures no CRLs, so a revoked client
-certificate that chains to `client_ca_pem` is accepted. Revocation of server certificates is the operating
-system's business and depends on the platform (see "Trust").
+The server configuration takes `client_crl_pem` (owner decision of 2026-10-27, OQ-47 (6); its form is a conservative
+proposal recorded in OQ-47 for confirmation): a PEM string with one or more certificate revocation lists (`X509 CRL`
+blocks), checked for the client certificates. It needs `client_ca_pem` (`ArgumentError` otherwise). A client
+certificate listed in a CRL fails the handshake (`TlsError`, reason `revoked`). Only the client certificate itself is
+looked up (an intermediate CA needs its own list: put it in the same PEM string); the expiry of a list is not
+enforced; there is no refresh: build a new configuration with `tls.server_config` to load a newer list. **Limit:**
+without `client_crl_pem` no revocation is checked, so a revoked client certificate that chains to `client_ca_pem` is
+accepted. Revocation of server certificates is the operating system's business and depends on the platform (see
+"Trust").
 
 ## Error classes
 
@@ -406,7 +412,7 @@ The `net` follow-up of the [roadmap](../roadmap.md) (owner decisions of 2026-10-
 
 1. ~~`net.listen` binds every resolved address (supersedes OQ-32 (3)).~~ Done.
 2. ~~A Unix socket is created inside a `0700` directory, or equivalent, instead of binding then calling `chmod`.~~ Done.
-3. A CRL option for client certificates; the limit is documented above until then.
+3. ~~A CRL option for client certificates; the limit is documented above until then.~~ Done (`client_crl_pem`).
 4. ~~Handshake defaults split: 10 s for `tls.connect` and `connect_tls`, 60 s for `tls.accept`, both editable.~~ Done.
 5. A benchmark of the `BufferedWriter` capacity against Go's 4 KiB `bufio` and other frameworks, which decides the
    default.
@@ -434,8 +440,8 @@ Not decided and not planned: see "Non-goals".
 - OQ-47 (8): the `reuseport` branch of TCP cannot run in CI until luv supports it (OQ-43).
 - Shape of `TcpListener` once it binds several addresses (local address, one handle per address): to be written
   with the implementation of follow-up item 1.
-- Form of the CRL option (file, PEM string, list) and its refresh: to be decided with follow-up item 3; record it
-  in `docs/open-questions.md` when the work starts.
+- Refresh of the CRL (re-reading a file, fetching a distribution point) and enforcement of its expiry: not done,
+  `client_crl_pem` is a PEM string read once by `tls.server_config`.
 - Session resumption, OCSP stapling policy, SNI-based certificate selection on the server, peer certificate
   details beyond the DER: not done (OQ-41).
 - Datagram truncation and loss: not specified or tested (OQ-42 (8)).

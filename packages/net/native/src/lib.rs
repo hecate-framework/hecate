@@ -512,7 +512,24 @@ struct ServerParams {
     cert_pem: Vec<u8>,
     key_pem: Vec<u8>,
     client_ca_pem: Option<Vec<u8>>,
+    client_crl_pem: Option<Vec<u8>>,
     alpn: Vec<Vec<u8>>,
+}
+
+/// Parses the certificate revocation lists of a PEM string (`X509 CRL` blocks); at least one is required.
+fn revocation_lists(
+    pem: &[u8],
+    what: &str,
+) -> LuaResult<Vec<rustls::pki_types::CertificateRevocationListDer<'static>>> {
+    let lists = rustls::pki_types::CertificateRevocationListDer::pem_slice_iter(pem)
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| tls_error(what, e))?;
+    if lists.is_empty() {
+        return Err(LuaError::runtime(format!(
+            "{what}: no certificate revocation list in the PEM data"
+        )));
+    }
+    Ok(lists)
 }
 
 fn build_server(p: ServerParams) -> LuaResult<Arc<ServerConfig>> {
@@ -523,12 +540,20 @@ fn build_server(p: ServerParams) -> LuaResult<Arc<ServerConfig>> {
             .map_err(|e| tls_error("server_config", e))?;
     let builder = match &p.client_ca_pem {
         Some(ca) => {
-            let verifier = rustls::server::WebPkiClientVerifier::builder_with_provider(
+            let mut verifier = rustls::server::WebPkiClientVerifier::builder_with_provider(
                 Arc::new(roots(ca, "server_config client_ca_pem")?),
                 Arc::new(rustls::crypto::ring::default_provider()),
-            )
-            .build()
-            .map_err(|e| tls_error("server_config", e))?;
+            );
+            if let Some(crls) = &p.client_crl_pem {
+                // Only the client certificate itself is looked up in the lists: an intermediate CA
+                // would need its own list, which a deployment can add to the same PEM string.
+                verifier = verifier
+                    .with_crls(revocation_lists(crls, "server_config client_crl_pem")?)
+                    .only_check_end_entity_revocation();
+            }
+            let verifier = verifier
+                .build()
+                .map_err(|e| tls_error("server_config", e))?;
             builder.with_client_cert_verifier(verifier)
         }
         None => builder.with_no_client_auth(),
@@ -543,9 +568,9 @@ fn build_server(p: ServerParams) -> LuaResult<Arc<ServerConfig>> {
     Ok(Arc::new(config))
 }
 
-/// server_config{ cert_pem, key_pem, alpn?, client_ca_pem? }. `client_ca_pem` requires and
-/// verifies a client certificate (mutual TLS). Client certificate revocation is not checked:
-/// no CRLs are configured (see docs/open-questions.md).
+/// server_config{ cert_pem, key_pem, alpn?, client_ca_pem?, client_crl_pem? }. `client_ca_pem`
+/// requires and verifies a client certificate (mutual TLS); `client_crl_pem` adds the revocation
+/// lists the client certificate is checked against. Without it no revocation is checked.
 fn server_config(_: &Lua, options: LuaTable) -> LuaResult<Config> {
     let params = ServerParams {
         cert_pem: opt_bytes(&options, "cert_pem")?
@@ -553,6 +578,7 @@ fn server_config(_: &Lua, options: LuaTable) -> LuaResult<Config> {
         key_pem: opt_bytes(&options, "key_pem")?
             .ok_or_else(|| LuaError::runtime("server_config: key_pem is required"))?,
         client_ca_pem: opt_bytes(&options, "client_ca_pem")?,
+        client_crl_pem: opt_bytes(&options, "client_crl_pem")?,
         alpn: alpn_list(&options, "server_config")?,
     };
     Ok(Config {
@@ -665,6 +691,7 @@ pub mod fuzzing {
             cert_pem: cert_pem.to_vec(),
             key_pem: key_pem.to_vec(),
             client_ca_pem: None,
+            client_crl_pem: None,
             alpn: Vec::new(),
         }) else {
             return;
@@ -711,6 +738,7 @@ mod tests {
             cert_pem: cert.to_vec(),
             key_pem: key.to_vec(),
             client_ca_pem: None,
+            client_crl_pem: None,
             alpn: names(alpn),
         })
         .unwrap();
@@ -841,6 +869,7 @@ mod tests {
             cert_pem: SERVER_CERT.to_vec(),
             key_pem: SERVER_KEY.to_vec(),
             client_ca_pem: None,
+            client_crl_pem: None,
             alpn: vec![Vec::new()],
         })
         .expect_err("an empty protocol name is refused");

@@ -217,8 +217,10 @@ end)
 ```
 
 > [!NOTE]
-> The server does not check client certificates for revocation: it configures no revocation
-> lists.
+> Without `client_crl_pem` the server does not check client certificates for revocation. Pass one
+> or more certificate revocation lists (PEM) in `client_crl_pem`, together with `client_ca_pem`, to
+> reject a revoked client certificate. The lists are read once: build a new configuration to load
+> a newer one.
 
 ## Close a TLS stream
 

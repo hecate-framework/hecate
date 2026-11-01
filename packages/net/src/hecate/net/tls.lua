@@ -46,6 +46,7 @@ local M = {}
 ---@field key_pem string  private key
 ---@field alpn? string[]  accepted application protocols, in preference order
 ---@field client_ca_pem? string  require and verify client certificates against these anchors
+---@field client_crl_pem? string  certificate revocation lists (PEM, one or more `X509 CRL` blocks) checked for the client certificates; needs `client_ca_pem`. Not refreshed: build a new configuration to load a newer list
 
 --- Options of `tls.connect` and `tls.accept`.
 ---@class hecate.net.TlsHandshakeOptions
@@ -100,7 +101,7 @@ local function set(list)
 end
 
 local CLIENT_KEYS = set({ "ca_pem", "system_roots", "alpn", "cert_pem", "key_pem" })
-local SERVER_KEYS = set({ "cert_pem", "key_pem", "alpn", "client_ca_pem" })
+local SERVER_KEYS = set({ "cert_pem", "key_pem", "alpn", "client_ca_pem", "client_crl_pem" })
 local HANDSHAKE_KEYS = set({ "handshake_timeout" })
 local TRANSPORT_KEYS = set({ "nodelay", "keepalive", "keepalive_delay", "family" })
 local CONNECT_KEYS = {}
@@ -137,6 +138,8 @@ local function reject_unknown(name, options, allowed, kind)
   elseif kind ~= "server" and key == "client_ca_pem" then
     message = message .. " (client_ca_pem is a server option: it requires clients to present a certificate;"
       .. " to verify the server use ca_pem and system_roots)"
+  elseif kind ~= "server" and key == "client_crl_pem" then
+    message = message .. " (client_crl_pem is a server option: it lists the revoked client certificates)"
   elseif VERIFICATION_SWITCHES[key] then
     message = message .. " (certificate verification cannot be disabled)"
   else
@@ -257,7 +260,10 @@ function M.server_config(options)
       error(core.ArgumentError(("net.tls.server_config: option %s is required (a PEM string)"):format(key)), 3)
     end
   end
-  check_values("net.tls.server_config", options, { "client_ca_pem" })
+  check_values("net.tls.server_config", options, { "client_ca_pem", "client_crl_pem" })
+  if options.client_crl_pem ~= nil and options.client_ca_pem == nil then
+    error(core.ArgumentError("net.tls.server_config: option client_crl_pem needs client_ca_pem: revocation lists are checked for client certificates"), 3)
+  end
   require_native("net.tls.server_config")
   local ok, config = pcall(native.server_config, options)
   if not ok then error(native_error(config, "net.tls.server_config"), 0) end

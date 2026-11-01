@@ -103,10 +103,21 @@ function T:test_alpn_is_validated_in_lua()
   argument_error(self, function() net.tls.server_config({ cert_pem = PEM, key_pem = KEY, alpn = "h2" }) end)
 end
 
+function T:test_client_crl_pem_requires_client_ca_pem()
+  local message = argument_error(self, ENTRY_POINTS.server_config({ client_crl_pem = PEM }))
+  contains(self, message, "client_crl_pem")
+  contains(self, message, "client_ca_pem")
+end
+
+function T:test_client_crl_pem_is_a_server_option()
+  contains(self, argument_error(self, ENTRY_POINTS.client_config({ client_crl_pem = PEM })), "client_crl_pem is a server option")
+end
+
 function T:test_pem_options_must_be_strings()
   contains(self, argument_error(self, ENTRY_POINTS.client_config({ ca_pem = 5 })), "ca_pem")
   contains(self, argument_error(self, ENTRY_POINTS.client_config({ cert_pem = 5, key_pem = KEY })), "cert_pem")
   contains(self, argument_error(self, ENTRY_POINTS.server_config({ client_ca_pem = 5 })), "client_ca_pem")
+  contains(self, argument_error(self, ENTRY_POINTS.server_config({ client_ca_pem = PEM, client_crl_pem = 5 })), "client_crl_pem")
   contains(self, argument_error(self, ENTRY_POINTS.server_config({ key_pem = {} })), "key_pem")
 end
 
