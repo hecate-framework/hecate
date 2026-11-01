@@ -3,10 +3,13 @@
 
 - roadmap_item: `router`: radix tree, URI template subset, 404/405, reverse routing (+ percent-decode segments, dot segments; OQ-75)
 - status: in-progress            <!-- in-progress | waiting-ci | waiting-owner -->
-- lock_until: 2026-11-01T23:26:57Z
-- last_update: 2026-11-01T21:56:57Z
+- lock_until: 2026-11-02T00:31:36Z
+- last_update: 2026-11-01T22:01:36Z
 
 ## Done
+
+- Step 2: `Router` (match 200/204/400/404/405, Allow, automatic HEAD/OPTIONS, trailing_slash policy, url_for, routes(), route()),
+  `RouteTableError`, tree with backtracking, oracle property tests, instruction-count test of the static-prefix invariant.
 
 - Step 1: `hecate.router.path` (split with percent-decoding per segment and dot segments, encode/decode) and
   `hecate.router.template` (parse the level-1 subset plus `{name...}` wildcard, expand for reverse routing), tests first
@@ -14,7 +17,9 @@
 
 ## Next steps
 
-2. `tree.lua` + `router.lua` (class `Router(routes, options)`: `match(method, path)` -> `Match` with status 200/204/404/405,
+(Step 2 done: tree.lua, router.lua, errors.lua, init.lua, router_test.lua, properties_test.lua; all clean.)
+
+2-old. `tree.lua` + `router.lua` (class `Router(routes, options)`: `match(method, path)` -> `Match` with status 200/204/404/405,
    `allow`; `url_for`; `routes()`; `route(name)`), boot-time ambiguity diagnostics (`RouteTableError`), `init.lua`; tests first
    (match precedence, backtracking, 405/Allow, automatic HEAD/OPTIONS, trailing slash policy, ambiguity, instruction-count
    test for the static-prefix invariant, property tests with generated route sets).
