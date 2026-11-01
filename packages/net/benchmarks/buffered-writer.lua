@@ -13,8 +13,8 @@ end
 local reactor = require("hecate.reactor")
 local net = require("hecate.net")
 
--- Capacities swept for small writes: 4096 is the default of Go's `bufio.Writer`, 8192 the current
--- default of `BufferedWriter`, 16384 one TLS record of plaintext (RFC 8446 section 5.1). The measurement decides
+-- Capacities swept for small writes: 4096 is the default of Go's `bufio.Writer`, 8192 the former
+-- default of `BufferedWriter` (16384 since 2026-11-01), 16384 one TLS record of plaintext (RFC 8446 section 5.1). The measurement decides
 -- the default (OQ-47 (7)): it is not changed here.
 local CAPACITIES = { 4096, 8192, 16384, 32768, 65536 }
 local SMALL_WRITES = { { size = 64, count = 100000 }, { size = 512, count = 50000 } }

@@ -258,6 +258,19 @@ function T:test_close_flushes_buffered_bytes_and_keeps_the_stream_open()
   end)
 end
 
+function T:test_the_default_capacity_is_16_kib_one_tls_record()
+  run(function()
+    local stream = fake_stream({})
+    local writer = net.BufferedWriter(stream)
+    writer:write(("x"):rep(16383))
+    self:assert_equal(16383, writer:buffered())
+    self:assert_equal(0, #stream.sent) -- nothing sent below the capacity
+    writer:write("y") -- reaches 16384 bytes: flushed
+    self:assert_equal(0, writer:buffered())
+    self:assert_equal(16384, #table.concat(stream.sent))
+  end)
+end
+
 function T:test_closing_an_empty_writer_needs_no_reactor()
   local writer = net.BufferedWriter(fake_stream({}))
   writer:close()

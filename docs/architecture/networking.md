@@ -116,14 +116,14 @@ Rules:
   With nothing buffered `close` does not suspend. The stream stays open.
 - Flushes are serialised by a `reactor.Mutex`, which keeps bytes in order.
 - Flush a writer before `shutdown`.
-- The default `capacity` is **8192 bytes**, below one TLS record (16 KiB of plaintext). A benchmark
-  decides the default (OQ-47 (7), owner answer of 2026-10-27): the micro-benchmark `buffered-writer` sweeps the capacity
-  (4096, Go's `bufio` default, 8192, 16384, 32768, 65536) for 64 B and 512 B writes over TCP, and 64 B writes over
-  TLS. One indicative run on a shared cloud virtual machine (Lua 5.5, loopback, a single round, not a measurement:
-  the owner measures on dedicated hardware) gave, for 64 B writes over TCP, 33, 72, 115, 161 and 184 MB/s, and over
-  TLS 42, 99, 120, 136 and 104 MB/s: a larger buffer is faster up to about 16 to 32 KiB, and 4 KiB is clearly slower
-  than 8 KiB. The default is **not changed** (that is the owner's decision after measuring); `{ capacity = n }`
-  overrides it.
+- The default `capacity` is **16384 bytes**, one TLS record of plaintext (owner decision of 2026-11-01, OQ-47 (7)).
+  The micro-benchmark `buffered-writer` sweeps the capacity (4096, Go's `bufio` default, 8192, 16384, 32768, 65536) for
+  64 B and 512 B writes over TCP, and 64 B writes over TLS. One indicative run on a shared cloud virtual machine (Lua
+  5.5, loopback, a single round, not a measurement) gave, for 64 B writes over TCP, 33, 72, 115, 161 and 184 MB/s, and
+  over TLS 42, 99, 120, 136 and 104 MB/s: a larger buffer is faster up to about 16 to 32 KiB, and 4 KiB is clearly
+  slower than 8 KiB. The cost is memory: a writer holds up to `capacity` bytes (about 160 MB for 10 000 connections
+  with full buffers, 80 MB at 8 KiB); `capacity` does not change when an explicit `flush` sends data.
+  `{ capacity = n }` overrides it.
 
 ## Addresses and name resolution
 
@@ -407,7 +407,7 @@ local ok, err = pcall(reactor.deadline, 2, function() return reader:read_line() 
 | `backlog` | 128 | TCP, pipes |
 | `BufferedReader` `limit` | 65536 bytes | per line or record |
 | Reader chunk | 16 KiB | `BufferedReader` |
-| `BufferedWriter` `capacity` | 8192 bytes (to be benchmarked, see above) | |
+| `BufferedWriter` `capacity` | 16384 bytes (see "Buffered writer") | |
 | TCP read-ahead | 64 KiB | `TcpStream` |
 | Handshake timeout | 10 s; 60 s for `tls.accept` | TLS |
 | `alpn` protocol | 1 to 255 bytes | TLS |

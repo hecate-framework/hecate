@@ -11,6 +11,7 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- `hecate.net`: the default `BufferedWriter` capacity is 16 KiB (one TLS record), up from 8 KiB (owner decision of 2026-11-01, OQ-47 (7), from the `net/buffered-writer` sweep).
 - `hecate.core`: `core.interface` raises `ArgumentError` when `methods` is not a plain list of names; trait, interface and error class names must be non-empty strings, with one shared message.
 - `hecate.core`: a trait alias that collides with another method of the same trait is a `ConformanceError`; a malformed `exclude` or `alias` is an `ArgumentError`.
 - `hecate.core`: `Error` rejects a non-string `message`, a non-string `code` and a non-table `context` with `ArgumentError`; debug-mode tracebacks now start at the code that created the error. `core.error_class` rejects a superclass that is not an error class.

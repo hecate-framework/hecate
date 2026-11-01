@@ -78,7 +78,7 @@ The buffered reader keeps bytes that arrived but were not consumed. `read_until`
 chunk once, so the cost is linear in the length of the record however it was chunked.
 
 The buffered writer collects small writes and sends them when `flush` is called or the buffer
-reaches its capacity (8192 bytes by default). A payload at least as large as the capacity, written
+reaches its capacity (16384 bytes by default, one TLS record). A payload at least as large as the capacity, written
 while nothing is buffered, goes to the stream directly, without a copy.
 
 Neither owns its stream. Closing a writer flushes what it still holds, within five seconds by default (`close_timeout`), even when the surrounding scope is cancelled. A
