@@ -62,6 +62,102 @@ function T:test_fs_list_directory()
   self:assert_equal("a", names[1].name)
 end
 
+function T:test_a_request_that_fails_to_start_raises_instead_of_hanging()
+  local uv_call = require("hecate.reactor.internal.uv_call")
+  local err = self:assert_error(function()
+    reactor.run(function()
+      uv_call.request("reactor.fs.stub", "stub x", function() return nil, "EINVAL: x" end) -- never calls back
+    end)
+  end)
+  self:assert_true(core.is_instance_of(err, reactor.IoError), tostring(err))
+  self:assert_equal("EINVAL", err.context.errno)
+end
+
+function T:test_a_failed_signal_registration_leaves_the_computation_in_a_clean_state()
+  reactor.run(function()
+    local ok = pcall(reactor.wait_signal, "sigkill") -- libuv refuses to catch SIGKILL
+    self:assert_false(ok)
+    local slept = false
+    pcall(reactor.scope, function(scope)
+      scope:cancel()
+      -- The computation is running: the cancellation must not have scheduled a second resumption.
+      reactor.shield(1, function() reactor.sleep(0.01); slept = true end)
+    end)
+    self:assert_true(slept)
+  end)
+end
+
+function T:test_fs_rejects_an_embedded_nul_in_a_path()
+  ---@diagnostic disable: param-type-mismatch  -- the arguments are invalid on purpose
+  reactor.run(function()
+    for _, call in ipairs({
+      function() reactor.fs.read_file("a\0b") end,
+      function() reactor.fs.write_file("a\0b", "x") end,
+      function() reactor.fs.stat("a\0b") end,
+      function() reactor.fs.remove("a\0b") end,
+      function() reactor.fs.mkdir("a\0b") end,
+      function() reactor.fs.rmdir("a\0b") end,
+      function() reactor.fs.list("a\0b") end,
+    }) do
+      local err = self:assert_error(call)
+      self:assert_true(core.is_instance_of(err, core.ArgumentError), tostring(err))
+    end
+  end)
+end
+
+function T:test_a_failure_to_close_does_not_replace_the_error_of_a_read()
+  local directory = tmp("readdir")
+  assert(uv.fs_mkdir(directory, 448))
+  local close = uv.fs_close
+  uv.fs_close = function(fd, callback) return close(fd, function() callback("EIO: close failed") end) end
+  local ok, err = pcall(reactor.run, function() reactor.fs.read_file(directory) end)
+  uv.fs_close = close
+  uv.fs_rmdir(directory)
+  self:assert_false(ok)
+  self:assert_true(core.is_instance_of(err, reactor.IoError), tostring(err))
+  if package.config:sub(1, 1) ~= "\\" then self:assert_equal("EISDIR", err.context.errno) end
+end
+
+function T:test_a_failure_to_close_does_not_replace_the_error_of_a_write()
+  if not uv.fs_stat("/dev/full") then return end -- Linux: writes fail with ENOSPC
+  local close = uv.fs_close
+  uv.fs_close = function(fd, callback) return close(fd, function() callback("EIO: close failed") end) end
+  local ok, err = pcall(reactor.run, function() reactor.fs.write_file("/dev/full", "x") end)
+  uv.fs_close = close
+  self:assert_false(ok)
+  self:assert_equal("ENOSPC", err.context.errno)
+end
+
+function T:test_stat_reports_a_path_below_a_file_as_missing()
+  local path = tmp("notdir")
+  reactor.run(function()
+    reactor.fs.write_file(path, "x")
+    self:assert_equal(nil, reactor.fs.stat(path .. "/child")) -- ENOTDIR: the path does not exist
+    reactor.fs.remove(path)
+  end)
+end
+
+function T:test_a_scan_error_raises_instead_of_ending_the_list()
+  local dir = tmp("scanfail")
+  local next_entry = uv.fs_scandir_next
+  local calls = 0
+  uv.fs_scandir_next = function()
+    calls = calls + 1
+    if calls == 1 then return "a", "file" end
+    return nil, "EIO: i/o error"
+  end
+  local ok, err = pcall(reactor.run, function()
+    reactor.fs.mkdir(dir)
+    local listed, failure = pcall(reactor.fs.list, dir)
+    reactor.fs.rmdir(dir)
+    if not listed then error(failure, 0) end
+  end)
+  uv.fs_scandir_next = next_entry
+  self:assert_false(ok)
+  self:assert_true(core.is_instance_of(err, reactor.IoError), tostring(err))
+  self:assert_equal("EIO", err.context.errno)
+end
+
 function T:test_fs_requires_a_managed_coroutine()
   local err = self:assert_error(function() reactor.fs.read_file("x") end)
   self:assert_true(core.is_instance_of(err, core.NonYieldableContextError))

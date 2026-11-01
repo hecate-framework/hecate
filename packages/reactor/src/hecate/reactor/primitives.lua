@@ -322,7 +322,11 @@ function M.select(...)
         end
       else
         ---@diagnostic disable-next-line: invisible  -- friend class
-        local completed, value = item:_try()
+        local tried, completed, value = pcall(item._try, item) -- raises for a closed channel
+        if not tried then
+          cancel_futures(items)
+          error(completed, 0)
+        end
         if completed then
           cancel_futures(items)
           return i, value
@@ -385,6 +389,12 @@ end
 --- is raised again at the first suspension point after the shield (level-triggered). Shields nest;
 --- the innermost deadline applies to its own body. As for `deadline`, a limit of zero or less, or a
 --- past instant, expires the shield immediately (at the body's first suspension point).
+---
+--- The caller owns the bound: there is no cap on `limit` (a large one defeats the purpose of the shield).
+--- Nested shields each keep their own deadline and bound their own body only: the deadline of an
+--- outer shield is not delivered inside an inner one, so the inner body runs until its own deadline
+--- (the outer cancellation is raised at the first suspension point after the inner shield). A deadline
+--- is delivered at suspension points: a body that never suspends is not bounded.
 ---
 --- Raises `hecate.core.DeadlineExceededError` when the limit expires, `hecate.core.ArgumentError`
 --- if `limit` is neither finite seconds nor an instant or `fn` is not a function, and

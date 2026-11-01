@@ -54,18 +54,20 @@ local function protected(fn, ...)
   return result, err
 end
 
-local KNOWN = { nodelay = true, keepalive = true, keepalive_delay = true, backlog = true, reuseport = true }
+local CONNECT_KEYS = { nodelay = true, keepalive = true, keepalive_delay = true }
+local LISTEN_KEYS = { nodelay = true, keepalive = true, keepalive_delay = true, backlog = true, reuseport = true }
 
 ---@param name string
 ---@param options any
+---@param known table<string, true>  the option names the call accepts
 ---@return table
-local function check_options(name, options)
+local function check_options(name, options, known)
   if options == nil then return {} end
   if type(options) ~= "table" then
     error(core.ArgumentError(("%s: expects an options table, got %s"):format(name, type(options))), 3)
   end
   for key in pairs(options) do
-    if not KNOWN[key] then
+    if not known[key] then
       error(core.ArgumentError(("%s: unknown option %s"):format(name, tostring(key))), 3)
     end
   end
@@ -509,7 +511,7 @@ local api = {}
 ---@return hecate.reactor.TcpStream stream  the connected stream
 function api.connect_tcp(host, port, options)
   check_endpoint("reactor.connect_tcp", host, port)
-  options = check_options("reactor.connect_tcp", options)
+  options = check_options("reactor.connect_tcp", options, CONNECT_KEYS)
   uv_call.begin("reactor.connect_tcp")
   local handle = uv.new_tcp()
   local state = {}
@@ -554,7 +556,7 @@ end
 ---@return hecate.reactor.TcpListener listener  the listening socket
 function api.listen_tcp(host, port, options)
   check_endpoint("reactor.listen_tcp", host, port)
-  options = check_options("reactor.listen_tcp", options)
+  options = check_options("reactor.listen_tcp", options, LISTEN_KEYS)
   uv_call.begin("reactor.listen_tcp")
   local handle = uv.new_tcp()
   if options.reuseport and not api.supports_reuseport() then

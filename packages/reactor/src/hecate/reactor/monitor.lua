@@ -37,6 +37,9 @@ function Monitor:enter()
   self._inner = self._mutex:lock()
   self._owner = computation
   return Permit(function()
+    -- A permit released while its holder waits on a condition (the monitor was left, and another
+    -- coroutine may have entered since) must not free a monitor it no longer holds.
+    if self._owner ~= computation then return end
     self._owner = nil
     self._inner:release()
   end)

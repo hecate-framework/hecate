@@ -322,6 +322,16 @@ function T:test_write_to_a_reset_peer_raises_a_transport_error()
   end)
 end
 
+function T:test_connect_rejects_the_options_of_a_listener()
+  ---@diagnostic disable: param-type-mismatch  -- the options are invalid on purpose
+  reactor.run(function()
+    for _, options in ipairs({ { backlog = 10 }, { reuseport = true } }) do
+      local err = self:assert_error(function() reactor.connect_tcp(LOOPBACK, 1, options) end)
+      self:assert_true(core.is_instance_of(err, core.ArgumentError), tostring(err))
+    end
+  end)
+end
+
 function T:test_options_have_documented_defaults_and_validate()
   with_listener(self, function(listener, port)
     local release = reactor.Channel(1)

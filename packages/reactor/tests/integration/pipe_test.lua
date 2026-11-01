@@ -163,7 +163,10 @@ function T:test_the_socket_is_bound_inside_a_private_directory_never_at_the_fina
   if is_windows then return end
   local directory = private_directory()
   local path = directory .. "/s"
-  local methods = getmetatable(uv.new_pipe(false)).__index
+  local probe = uv.new_pipe(false)
+  local methods = getmetatable(probe).__index
+  probe:close()
+  self:assert_equal("function", type(methods.bind))
   local original, seen = methods.bind, {}
   methods.bind = function(handle, bound_path, ...)
     local info = { path = bound_path, directory_mode = uv.fs_stat(bound_path:match("^(.*)/[^/]*$")).mode & tonumber("777", 8) }
@@ -177,6 +180,93 @@ function T:test_the_socket_is_bound_inside_a_private_directory_never_at_the_fina
   self:assert_true(seen[1].path ~= path, "bound at the final path")
   self:assert_equal(tonumber("700", 8), seen[1].directory_mode)
   assert(uv.fs_rmdir(directory))
+end
+
+function T:test_closing_does_not_remove_a_file_that_replaced_the_socket()
+  if is_windows then return end
+  local directory = private_directory()
+  local path = directory .. "/s"
+  reactor.run(function()
+    local listener = reactor.listen_pipe(path)
+    assert(uv.fs_unlink(path))
+    local file = assert(io.open(path, "w")) -- another file now lives at the path
+    file:write("not a socket")
+    file:close()
+    listener:close()
+  end)
+  local file = io.open(path, "r")
+  self:assert_true(file ~= nil, "the file that replaced the socket was removed")
+  ---@cast file -nil
+  self:assert_equal("not a socket", file:read("a"))
+  file:close()
+  os.remove(path)
+  assert(uv.fs_rmdir(directory))
+end
+
+function T:test_closing_removes_the_socket_file_even_when_the_base_close_raises()
+  if is_windows then return end
+  local directory = private_directory()
+  local path = directory .. "/s"
+  local tcp = require("hecate.reactor.tcp")
+  local base_close = tcp.TcpListener.close
+  reactor.run(function()
+    local listener = reactor.listen_pipe(path)
+    tcp.TcpListener.close = function(self_listener)
+      base_close(self_listener)
+      error("close failed", 0)
+    end
+    local ok, err = pcall(listener.close, listener)
+    tcp.TcpListener.close = base_close
+    self:assert_false(ok)
+    self:assert_equal("close failed", err)
+  end)
+  self:assert_equal("", table.concat(entries(directory), ","))
+  assert(uv.fs_rmdir(directory))
+end
+
+function T:test_a_link_failure_that_is_not_about_missing_hard_links_raises()
+  if is_windows then return end
+  local directory = private_directory()
+  local path = directory .. "/s"
+  local link = uv.fs_link
+  uv.fs_link = function() return nil, "EACCES: permission denied" end
+  local before = reactor.Reactor.open_handles()
+  local ok, err = pcall(reactor.run, function() reactor.listen_pipe(path) end)
+  uv.fs_link = link
+  self:assert_false(ok)
+  self:assert_true(core.is_instance_of(err, reactor.TransportError), tostring(err))
+  self:assert_equal("EACCES", err.context.errno)
+  self:assert_equal("", table.concat(entries(directory), ","), "no socket, no private directory")
+  self:assert_equal(before, reactor.Reactor.open_handles())
+  assert(uv.fs_rmdir(directory))
+end
+
+function T:test_every_error_that_means_no_hard_links_falls_back_to_a_direct_bind()
+  if is_windows then return end
+  local link = uv.fs_link
+  for _, code in ipairs({ "EPERM", "ENOTSUP", "EOPNOTSUPP", "EXDEV", "ENOSYS", "EMLINK" }) do
+    local directory = private_directory()
+    local path = directory .. "/s"
+    uv.fs_link = function() return nil, code .. ": refused" end
+    local ok, err = pcall(reactor.run, function() reactor.listen_pipe(path):close() end)
+    uv.fs_link = link
+    self:assert_true(ok, code .. ": " .. tostring(err))
+    assert(uv.fs_rmdir(directory))
+  end
+end
+
+function T:test_an_embedded_nul_in_a_path_is_rejected_but_a_leading_one_names_an_abstract_socket()
+  local check = pipe._check_path
+  for _, path in ipairs({ "/tmp/a\0b", "a\0" }) do
+    local err = self:assert_error(function() check("reactor.listen_pipe", path, false) end)
+    self:assert_true(core.is_instance_of(err, core.ArgumentError), path)
+    self:assert_error(function() check("reactor.listen_pipe", path, true) end)
+  end
+  check("reactor.listen_pipe", "\0hecate-abstract", false) -- must not raise
+  local err = self:assert_error(function() reactor.run(function() reactor.connect_pipe("/tmp/a\0b") end) end)
+  self:assert_true(core.is_instance_of(err, core.ArgumentError))
+  err = self:assert_error(function() reactor.listen_pipe("/tmp/a\0b") end)
+  self:assert_true(core.is_instance_of(err, core.ArgumentError))
 end
 
 function T:test_a_filesystem_that_refuses_the_link_falls_back_to_bind_then_chmod()

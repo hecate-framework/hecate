@@ -111,6 +111,31 @@ function T:test_wait_notify_and_broadcast_require_the_monitor()
   end)
 end
 
+function T:test_a_permit_released_by_another_coroutine_does_not_free_a_monitor_it_no_longer_holds()
+  local still_entered
+  support.run_virtual(function()
+    local monitor = reactor.Monitor()
+    local condition = monitor:condition()
+    local stale
+    local waiter = reactor.fork(function()
+      stale = monitor:enter() -- not a <close> variable: released from outside below
+      condition:wait() -- leaves the monitor
+    end)
+    reactor.sleep(0)
+    local holder = reactor.fork(function()
+      local permit <close> = monitor:enter()
+      reactor.sleep(2)
+    end)
+    reactor.sleep(1)
+    stale:release() -- the monitor is occupied by `holder`, not by the owner of `stale`
+    still_entered = monitor:is_entered()
+    holder:value()
+    waiter:cancel()
+    pcall(waiter.value, waiter)
+  end)
+  self:assert_true(still_entered)
+end
+
 function T:test_condition_requires_a_monitor()
   local err = self:assert_error(function() reactor.Condition({}) end)
   self:assert_true(core.is_instance_of(err, core.ArgumentError))

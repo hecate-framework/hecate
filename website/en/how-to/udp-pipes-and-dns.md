@@ -128,8 +128,10 @@ end)
 ### Options and limits
 
 - `backlog` is a positive integer, 128 by default. It is ignored on Windows.
-- `mode` says who may connect: `"owner"` (the default), `"readable"`, `"writable"` or
-  `"readwrite"`. It has no effect on Windows. On Unix the socket is created in a private
+- `mode` sets the permissions of the socket file: `"owner"` (the default), `"readable"`,
+  `"writable"` or `"readwrite"`. Connecting to a Unix-domain socket needs write permission, so
+  `"readable"` is of no use for connecting on POSIX: use `"writable"` or `"readwrite"` to let
+  other users connect. It has no effect on Windows. On Unix the socket is created in a private
   directory with its final permissions, then linked to your path, so no other user can connect
   in between. If the file system refuses the link, the socket is bound directly and restricted
   right after.

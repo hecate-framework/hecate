@@ -109,6 +109,32 @@ function T:test_an_error_raised_by_a_close_handler_during_teardown_is_reported()
   self:assert_equal(0, instance:live_coroutines())
 end
 
+function T:test_a_close_handler_that_forks_during_teardown_fails_cleanly()
+  local forked, fork_error
+  local instance = reactor.Reactor({ clock = "virtual" })
+  local err = self:assert_error(function()
+    instance:run(function()
+      reactor.scope(function(scope)
+        local guard <close> = setmetatable({}, { -- hecate: test-only
+          __close = function() forked, fork_error = pcall(scope.fork, scope, function() end) end,
+        })
+        for _ = 1, 30 do -- many entries: an insertion during the traversal would be visible
+          local waiting
+          waiting = scope:fork(function() return waiting:value() end)
+        end
+        local waiting
+        waiting = scope:fork(function() return waiting:value() end)
+        return waiting:value()
+      end)
+    end)
+  end)
+  self:assert_true(err.message:find("reactor.run: deadlock", 1, true) == 1, err.message)
+  self:assert_false(forked)
+  self:assert_true(core.is_instance_of(fork_error, core.Error), tostring(fork_error))
+  self:assert_equal(0, instance:live_coroutines())
+  self:assert_equal("ok", instance:run(function() return "ok" end)) -- the reactor is not left "running"
+end
+
 function T:test_nested_run_is_rejected()
   reactor.run(function()
     local err = self:assert_error(function() reactor.run(function() end) end)

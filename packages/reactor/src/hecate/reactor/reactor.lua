@@ -50,6 +50,7 @@ function Reactor:init(options)
   self._sequence = 0
   self._computations = {}
   self._live = 0
+  self._tearing_down = false
   self._uv_timer = nil
   self._sigpipe_guard = nil
   self._root = nil
@@ -231,7 +232,15 @@ function context.suspend(register, uncancellable, operation)
   computation.cancellable = not uncancellable
   local undo
   if register then
-    undo = register(function(...) return wake_computation(computation, id, ...) end)
+    local registered, result = pcall(register, function(...) return wake_computation(computation, id, ...) end)
+    if not registered then
+      -- The coroutine never suspended: leave it running and not cancellable, so that no cancellation
+      -- schedules a resumption of a coroutine that is already running.
+      computation.state = "running"
+      computation.cancellable = false
+      error(result, 0)
+    end
+    undo = result
   end
   local resumed = table.pack(coroutine.yield(YIELD))
   computation.cancellable = false
@@ -290,6 +299,9 @@ end
 ---@return hecate.reactor.Future
 ---@private
 function Reactor:_create_computation(scope, fn, args)
+  if self._tearing_down then
+    error(core.Error("reactor: cannot start a coroutine while the run is being torn down"), 0)
+  end
   local future = Future()
   local computation = {
     reactor = self, state = "ready", wait_id = 0, cancellable = false,
@@ -407,13 +419,28 @@ function Reactor:run(fn, ...)
   -- the `__close` metamethods of its pending variables, and a handler may use the reactor. The
   -- errors they raise are collected, not lost (`coroutine.close` returns them instead of raising).
   local close_errors = {}
-  if not ok then
-    for co, computation in pairs(self._computations) do
+  -- The teardown always completes: whatever a `__close` handler does, the reactor stops being current and
+  -- its libuv handles are released. The coroutines are snapshotted first (a handler must not change the
+  -- table being walked), and each one is marked dead before it is closed, so a handler cannot resume
+  -- it, wake it or start a computation next to it (`_create_computation` refuses while `_tearing_down`).
+  local teardown_ok, teardown_error = pcall(function()
+    if ok then return end
+    self._tearing_down = true
+    local pending = {}
+    for co, computation in pairs(self._computations) do pending[#pending + 1] = { co = co, computation = computation } end
+    for i = 1, #pending do
+      local co, computation = pending[i].co, pending[i].computation
+      computation.state = "dead"
+      self._computations[co] = nil
       local closed, close_error = coroutine.close(co)
       if not closed then close_errors[#close_errors + 1] = close_error end
-      computation.state = "dead"
     end
+  end)
+  if not teardown_ok then close_errors[#close_errors + 1] = teardown_error end
+  self._tearing_down = false
+  if not ok then
     self._computations, self._live = {}, 0
+    self._ready, self._head, self._tail = {}, 1, 0
   end
   context.reactor = nil
   self._root = nil
