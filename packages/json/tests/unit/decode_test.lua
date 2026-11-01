@@ -243,8 +243,9 @@ print(ok and "decoded" or err.context.reason, err.context and err.context.offset
   local output = pipe and pipe:read("a") or ""
   if pipe then pipe:close() end
   os.remove(script)
-  -- macOS refuses `ulimit -v` ("cannot modify limit: Invalid argument"): the cap cannot be applied, nothing was provoked.
-  if output:find("ulimit", 1, true) then return end
+  -- macOS refuses `ulimit -v` ("cannot modify limit: Invalid argument"): the shell reports it on its own stderr,
+  -- `&&` skips the interpreter and the pipe stays empty. The cap cannot be applied: nothing was provoked.
+  if output:find("ulimit", 1, true) or output:find("^%s*$") then return end
   if output:find("decoded", 1, true) then return end -- the cap does not apply on this host: nothing was provoked
   self:assert_equal("out_of_memory\tnil", output:gsub("%s+$", ""), output)
 end
