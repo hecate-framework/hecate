@@ -14,8 +14,19 @@
 - Claimed the item after the Phase 1 gate merge (PR #47).
 - Step 1 (message model, pure Lua): `Fields`, `MediaType`, `Status`, `Request`, `Response`, `Cookie`/`SetCookie` in `packages/http/src/hecate/http/`, unit tests in `packages/http/tests/unit/`, README Public API and CHANGELOG. `test http`, `lint`, `check-package-structure`, `check-boundaries`, `check-glossary`, `check-rockspecs`, `check-changelog`, `check-lua-constructs`, `check-annotations` pass. `typecheck` not run (LuaLS not installed).
 
+- Step 2 (llhttp binding) BLOCKED, nothing implemented: the vendoring download was refused.
+  Command: `curl -sS -L -o spikes/OQ-6/dl/llhttp.tgz https://github.com/nodejs/llhttp/archive/refs/tags/release/v9.4.3.tar.gz`
+  Answer: HTTP 403 from the agent proxy, body "GitHub access to this repository is not enabled for this session. Use add_repo
+  to request access." Needed: read access to `github.com/nodejs/llhttp` (host github.com, repository nodejs/llhttp; the
+  `release` branch, tag v9.4.3 or the tag the spike pins) for the session. No workaround attempted (no npm or other mirror).
+  `setup-luals` and `typecheck` pass on the unchanged tree.
+
 ## Next steps
 
+0. Once access to nodejs/llhttp is granted: vendor `src/llhttp.c`, `src/api.c`, `src/http.c`, `include/llhttp.h`, LICENSE at the
+   pinned tag into `packages/http/csrc/vendor/` with `VENDORED.md` (tag, commit sha, SHA-256 per file) and a THIRD_PARTY_NOTICES
+   entry; add `http` to `c_modules` in `tools/tasks/build_native.lua` and to the CI `build-native` steps; write the
+   malformed-request corpus tests first.
 1. Step 2: llhttp binding (ADR 0019, spike OQ-6): `csrc/`, `build-native http`, parser wrapper, smuggling defences (conflicting Content-Length/Transfer-Encoding), fuzz target, RFC test vectors.
 2. Step 3: server over `hecate.net` (keep-alive, pipelining, `Expect: 100-continue`, chunked, HEAD without content, one coroutine and scope per request, graceful shutdown).
 3. Step 4: limits with safe defaults (request line, field count and size, content size, read and idle deadlines; slowloris).
