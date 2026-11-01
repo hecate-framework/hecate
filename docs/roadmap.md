@@ -161,7 +161,7 @@ concurrency test suite passes; benchmark baseline recorded.
 
 ## Phase 2 — HTTP and framework kernel
 
-- [ ] `http`: HTTP/1.1 server (llhttp, OQ-6) and client, message model, streaming,
+- [x] `http`: HTTP/1.1 server (llhttp, OQ-6) and client, message model, streaming,
       keep-alive, limits. **Carries three findings deferred from the Phase 1 gate review** (security review,
       [report](reviews/phase-1.md)): (1) map `reactor.TransportError` to a generic RFC 9457 `detail` and never
       forward `context.attempts` or resolved addresses to a client (the `net.connect` error lists every resolved

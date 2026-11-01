@@ -14,7 +14,7 @@
 | Used by | `hecate`, `kernel`, `websocket`, `test`, `cli` |
 | Native code | llhttp binding (ADR 0019) |
 | Specification | [http-and-routing.md](../../docs/architecture/http-and-routing.md) |
-| Decisions | [ADR 0003](../../docs/adr/0003-transparent-structured-concurrency.md), [0018](../../docs/adr/0018-error-signalling.md), [0019](../../docs/adr/0019-http-parser-llhttp.md), [0023](../../docs/adr/0023-multi-process-serving.md), [0024](../../docs/adr/0024-tls-trust-store.md), [0025](../../docs/adr/0025-ambient-context.md); open questions OQ-67 to OQ-81 in [open-questions.md](../../docs/open-questions.md) |
+| Decisions | [ADR 0003](../../docs/adr/0003-transparent-structured-concurrency.md), [0018](../../docs/adr/0018-error-signalling.md), [0019](../../docs/adr/0019-http-parser-llhttp.md), [0023](../../docs/adr/0023-multi-process-serving.md), [0024](../../docs/adr/0024-tls-trust-store.md), [0025](../../docs/adr/0025-ambient-context.md); open questions OQ-67 to OQ-82 in [open-questions.md](../../docs/open-questions.md) |
 | Agent | [`pkg-http`](../../.claude/agents/pkg-http.md) |
 | Repository | read-only mirror `hecate-framework/hecate-http`, generated from this directory (ADR 0017) |
 
