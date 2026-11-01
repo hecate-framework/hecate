@@ -6,7 +6,7 @@
 -- Locales (documentation.md, "Translations"): `website/<locale>/` mirrors the default
 -- locale's tree; a page missing in a locale is built from the default locale with a visible
 -- notice. URLs are `<base><locale>/<page path>/`, written as `<page path>/index.html`.
-global <const> require, assert, io, ipairs, pairs, next, table, string, tostring, tonumber, type, error
+global <const> require, assert, io, ipairs, pairs, next, table, string, tostring, tonumber, type, error, utf8
 
 local core = require("hecate.core")
 local config_module = require("hecate.doc.config")
@@ -109,7 +109,18 @@ local function url_path(id)
   return (id:gsub("/index$", "")) .. "/"
 end
 
-local function page_url(self, locale, id) return self.config.base .. locale .. "/" .. url_path(id) end
+--- Percent-encodes every byte of a URL path that is not an unreserved character or a `/` (RFC 3986, 2.3 and
+--- 2.1), so that a page id with a space, `?`, `#`, `%` or non-ASCII letters is one valid path.
+local function encode_path(path)
+  return (path:gsub("[^%w%-._~/]", function(char) return ("%%%02X"):format(char:byte()) end))
+end
+
+--- Inverse of `encode_path` for the destination of a link written in a page (RFC 3986, 2.1).
+local function decode_path(path)
+  return (path:gsub("%%(%x%x)", function(hex) return string.char(tonumber(hex, 16)) end))
+end
+
+local function page_url(self, locale, id) return self.config.base .. locale .. "/" .. encode_path(url_path(id)) end
 
 local function output_path(locale, id) return locale .. "/" .. url_path(id) .. "index.html" end
 
@@ -149,9 +160,10 @@ local function link_resolver(self, locale, page_id, problems_prefix)
   local base = self.config.base
   return function(href)
     if href == "" or href:find("^#") or href:find("^//") or href:find("^%a[%w+.%-]*:") then return href end
-    local path, suffix = href:match("^([^#?]*)(.*)$")
-    if path == "" then return href end
-    if path:sub(1, 1) == "/" then return base .. path:sub(2) .. suffix end
+    local written, suffix = href:match("^([^#?]*)(.*)$")
+    if written == "" then return href end
+    if written:sub(1, 1) == "/" then return base .. written:sub(2) .. suffix end
+    local path = decode_path(written)
     local joined = normalise_path(directory == "" and path or (directory .. "/" .. path))
     if joined == nil then
       note(self, ("%s: link %s leaves the content root"):format(problems_prefix, href))
@@ -173,7 +185,7 @@ local function link_resolver(self, locale, page_id, problems_prefix)
       note(self, ("%s: missing file %s"):format(problems_prefix, href))
       return href
     end
-    return base .. locale .. "/" .. joined .. suffix
+    return base .. locale .. "/" .. encode_path(joined) .. suffix
   end
 end
 
@@ -181,6 +193,9 @@ local function build_page(self, locale, id)
   local file, fallback = source_for(self, locale, id)
   assert(file, "no source for page " .. id)
   local source = read_required(self, file.path)
+  if not utf8.len(source) then
+    fail(("%s is not valid UTF-8 (Markdown pages are UTF-8 text)"):format(file.path), file.path)
+  end
   local meta, body = front_matter.parse(source, file.path)
   local strings = theme.strings.for_locale(locale, self.config.strings)
   local rendered = markdown.render(body, {
@@ -492,7 +507,14 @@ end
 function Site:emit(write)
   ensure_loaded(self)
   local count = 0
+  local written = {}
   local function put(path, data)
+    -- A file of `public/` that has the path of a generated file is refused, never overwritten (or
+    -- overwriting a generated file): generated pages are never replaced by hand-made files.
+    if written[path] then
+      fail(("the output file %s is written twice: a file of public/ or of a locale directory collides with a generated file"):format(path), path)
+    end
+    written[path] = true
     write(path, data)
     count = count + 1
   end

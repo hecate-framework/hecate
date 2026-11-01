@@ -4,13 +4,15 @@
 -- schemes are dropped. Code fences are highlighted by syntect with the two-face syntaxes.
 --
 -- Callouts are GFM alerts (`> [!NOTE]`, with an optional title: `> [!NOTE] Title`).
-global <const> pcall, require, error
+global <const> pcall, require, error, utf8, type
 
 local ok, native = pcall(require, "hecate.doc.native")
 if not ok then
   error("the native module hecate.doc.native is not built (run `lua tools/run.lua build-native doc`;"
     .. " it needs a Rust toolchain, or install a prebuilt hecate-doc rock): " .. native, 0)
 end
+
+local core = require("hecate.core")
 
 --- Markdown renderer (native module).
 ---@class hecate.doc.markdown
@@ -41,10 +43,15 @@ local M = {}
 ---@field sections hecate.doc.Section[]
 ---@field links string[]  every link and image destination met, as written
 
+--- Renders GitHub Flavoured Markdown to HTML in safe mode. Raises `hecate.core.ArgumentError` when `source` is
+--- not a valid UTF-8 string (the page reader reports it as a `hecate.doc.BuildError` naming the file).
 ---@param source string
 ---@param options? hecate.doc.MarkdownOptions
 ---@return hecate.doc.RenderResult
 function M.render(source, options)
+  if type(source) ~= "string" or not utf8.len(source) then
+    error(core.ArgumentError("doc.markdown.render: expects a valid UTF-8 string"), 2)
+  end
   return native.render(source, options)
 end
 

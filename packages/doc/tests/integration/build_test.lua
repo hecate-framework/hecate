@@ -111,6 +111,41 @@ function T:test_the_runner_builds_a_site_and_reports()
   self:assert_true(sitemap:find("https://docs.example.test/en/guide/concurrency/", 1, true) ~= nil)
 end
 
+function T:test_the_runner_refuses_malformed_command_lines_with_a_usage_error()
+  local cases = {
+    { "--bogus", "unknown option --bogus" },
+    { "-x", "unknown option -x" },
+    { "--strict=yes", "takes no value" },
+    { "--out", "needs a value" },
+    { "--out --strict", "needs a value" },
+    { "--base", "needs a value" },
+    { "--strict --strict", "repeated option --strict" },
+    { "--out a --out b", "repeated option --out" },
+    { "--base /a/ --base=/b/", "repeated option --base" },
+    { "one two", "more than one source directory" },
+    { "--base //evil.test/", "invalid --base" },
+    { "--url " .. quote("javascript:alert(1)"), "invalid --url" },
+  }
+  for _, case in ipairs(cases) do
+    local output, ok = run(case[1] .. " --no-git-dates")
+    self:assert_false(ok, case[1])
+    self:assert_true(output:find(case[2], 1, true) ~= nil, case[1] .. ": " .. output)
+    self:assert_true(output:find("usage:", 1, true) ~= nil, case[1] .. ": " .. output)
+  end
+  local output, ok = run("--help")
+  self:assert_true(ok, output)
+  self:assert_true(output:find("usage:", 1, true) ~= nil)
+end
+
+function T:test_the_runner_accepts_values_with_an_equals_sign()
+  local out = temporary()
+  local output, ok = run(("%s --out=%s --base=/docs --no-git-dates"):format(quote(fixture), quote(out)))
+  local page = fs:read(out .. "/en/guide/concurrency/index.html")
+  fs:remove_tree(out)
+  self:assert_true(ok, output)
+  self:assert_true(page:find('href="/docs/assets/theme.css"', 1, true) ~= nil)
+end
+
 function T:test_the_runner_applies_a_base_path()
   local out = temporary()
   local output, ok = run(("%s --out %s --base /docs/"):format(quote(fixture), quote(out)))

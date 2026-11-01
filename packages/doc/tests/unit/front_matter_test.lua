@@ -58,4 +58,22 @@ function T:test_malformed_front_matter_raises_a_build_error_with_the_line()
   failure('---\ntitle: "unterminated\n---\n')
 end
 
+function T:test_malformed_escapes_in_double_quoted_scalars_are_rejected()
+  local function failure(value)
+    local err = self:assert_error(function() front_matter.parse("---\ntitle: " .. value .. "\n---\n", "p.md") end)
+    self:assert_true(core.is_instance_of(err, doc.BuildError), value)
+    self:assert_equal(2, err.context.line)
+  end
+  failure('"a\\\\"b"')   -- a, escaped backslash, then a bare quote
+  failure('"a\\"')        -- the quote is escaped: the string never ends
+  failure('"a\\qb"')      -- \q is not an escape of the subset
+  failure('"a\\"b"c"')    -- escaped quote, then a bare quote
+  failure('"a\\')
+  failure('["a\\q"]')
+  local meta = front_matter.parse('---\na: "x\\\\"\nb: "q\\"q"\nc: "t\\tn\\n"\n---\n')
+  self:assert_equal("x\\", meta.a)
+  self:assert_equal('q"q', meta.b)
+  self:assert_equal("t\tn\n", meta.c)
+end
+
 return T

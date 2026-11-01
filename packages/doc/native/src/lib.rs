@@ -562,7 +562,10 @@ fn rendered_to_lua(lua: &Lua, rendered: Rendered) -> LuaResult<LuaTable> {
 /// Renders with the options of the specifications: raw HTML kept and, when `extension` names one of the
 /// GFM extensions of the specification (`table`, `strikethrough`, `autolink`), that
 /// extension only; none by default (CommonMark). It exists so that the specification examples can
-/// run through this module (OQ-37); the site never uses it.
+/// run through this module (OQ-37); the site never uses it. This is the unsafe renderer: it is
+/// compiled only with the `spec-tests` feature, so the shipped module exposes the safe renderer
+/// alone.
+#[cfg(feature = "spec-tests")]
 pub fn commonmark(markdown: &str, extension: Option<&str>) -> String {
     let mut options = Options::default();
     options.render.r#unsafe = true;
@@ -597,6 +600,7 @@ fn module(lua: &Lua) -> LuaResult<LuaTable> {
             }
         })?,
     )?;
+    #[cfg(feature = "spec-tests")]
     exports.set(
         "commonmark",
         lua.create_function(|_, (markdown, extension): (LuaString, Option<LuaString>)| {

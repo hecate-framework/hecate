@@ -2,6 +2,7 @@
 -- GFM conformance is comrak's; what is tested here is what hecate.doc adds on top of it.
 local test = require("harness.test")
 local markdown = require("hecate.doc.markdown")
+local core = require("hecate.core")
 local T = test.Case("MarkdownTest")
 
 local function has(text, part) return text:find(part, 1, true) ~= nil end
@@ -79,6 +80,23 @@ function T:test_raw_html_is_text_comments_are_dropped_and_script_links_are_not_l
   self:assert_true(not has(html, "<!--"))
   self:assert_true(not has(html, "javascript:"))
   self:assert_true(has(html, "&lt;b&gt;x&lt;/b&gt;"))
+end
+
+function T:test_invalid_utf8_is_an_argument_error_not_a_raw_native_error()
+  local err = self:assert_error(function() markdown.render("bad \xFF byte") end)
+  self:assert_true(core.is_instance_of(err, core.ArgumentError), tostring(err))
+  ---@diagnostic disable-next-line: param-type-mismatch  -- the argument is invalid on purpose
+  err = self:assert_error(function() markdown.render(nil) end)
+  self:assert_true(core.is_instance_of(err, core.ArgumentError), tostring(err))
+end
+
+function T:test_only_the_safe_renderer_is_reachable_from_lua()
+  local native = require("hecate.doc.native")
+  self:assert_nil(native.commonmark, "the unsafe renderer exists only in the spec-tests build")
+  self:assert_nil(rawget(markdown, "commonmark"))
+  local html = markdown.render("<script>alert(1)</script>\n\n[x](javascript:alert(1))\n").html
+  self:assert_nil(html:find("<script", 1, true))
+  self:assert_nil(html:find("javascript:", 1, true))
 end
 
 return T

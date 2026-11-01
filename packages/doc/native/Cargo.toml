@@ -16,6 +16,11 @@ comrak = { version = "0.57", default-features = false }
 syntect = { version = "5", default-features = false, features = ["html", "parsing", "regex-fancy"] }
 two-face = { version = "0.5", default-features = false, features = ["syntect-fancy"] }
 
+[features]
+# Exports the unsafe renderer (raw HTML kept) that runs the CommonMark examples (OQ-37). Never enabled
+# in a shipped build.
+spec-tests = []
+
 [profile.release]
 opt-level = 3
 lto = true

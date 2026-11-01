@@ -54,15 +54,16 @@ decided in [ADR 0022](../../docs/adr/0022-doc-dependencies.md).
 |---|---|
 | `build(options)` | Reads `<source>/<locale>/**/*.md`, renders every page of every locale, writes pages, search indexes, theme files and static files to `options.out`, returns a `BuildReport` (`files`, `bytes`, `locales`, `problems`). Options: `config`, `source`, `out`, `fs`, `clean`, `strict`, `last_updated`. Output is deterministic. |
 | `load_config(path, fs)` | Loads a `site.lua` (data only: it runs with an empty environment). |
-| `normalise_config(raw)` | Validates a site configuration and fills the defaults; raises `core.ConfigurationError` with `context.field`. |
+| `normalise_config(raw)` | Validates every key of a site configuration (type and shape; `base` must be an absolute path and not protocol-relative, `url` an http(s) origin) and fills the defaults; raises `core.ConfigurationError` with `context.field` naming the offending key. |
 | `Site(options)` | The site model: `load()`, `pages(locale)`, `page(locale, id)`, `emit(write)`, `problems`. |
 | `Page` | One page in one locale: `id`, `url`, `title`, `html`, `headings`, `sections`, `fallback`, `meta`. |
 | `FileSystem` | Interface (`read`, `write`, `list`, `exists`, `remove_tree`) the builder reads and writes through. |
 | `MemoryFileSystem(files?)` | In-memory implementation (tests, embedders). |
 | `SystemFileSystem()` | Real file system over `hecate.reactor.fs`; every method suspends, so call it inside `reactor.run` (OQ-33). |
-| `BuildError` | `hecate.doc.BuildError` (a `core.Error`): malformed front matter, unreadable source, clashing URLs, `strict` problems, a file system failure (`SystemFileSystem`), a failed LuaLS export. |
-| `markdown.render(source, options?)` | Markdown to HTML (`html`, `title`, `headings`, `sections`, `links`); escaping is the default. |
-| `front_matter.parse(source, path?)` | Splits front matter (flat YAML subset) from the body. |
+| `BuildError` | `hecate.doc.BuildError` (a `core.Error`): malformed front matter, unreadable source, clashing URLs, `strict` problems, a file system failure (`SystemFileSystem`), a failed LuaLS export, a page that is not valid UTF-8, a file of `public/` that collides with a generated file. |
+| `markdown.render(source, options?)` | Markdown to HTML (`html`, `title`, `headings`, `sections`, `links`); safe mode only (raw HTML is not passed through); a source that is not valid UTF-8 raises `core.ArgumentError`. |
+| `front_matter.parse(source, path?)` | Splits front matter (flat YAML subset) from the body; double-quoted scalars accept only the escapes `\\`, `\"`, `\n`, `\t` (any other backslash sequence is a `BuildError`). |
+| `luals` (`hecate.doc.luals`) | `locate()`, `version(executable)`, `export(executable, source, options)` (output in a private `mktemp -d` directory, removed afterwards), `command_line(...)` and `quote(path, windows?)` (pure; shell quoting for POSIX and `cmd.exe`). |
 | `highlight.render(language, code)` | Syntax highlighting by syntect (two-face syntaxes, `hl-` classes); an unknown language is escaped and left plain. |
 | `navigation` | `sidebar`, `reading_order`, `neighbours`, `top_links`, `section_of` (pure functions). |
 | `search.build(locale, pages)`, `search.encode(index)` | The client-side search index. |
@@ -112,7 +113,7 @@ are the tested files `packages/<package>/examples/<symbol>.lua`. The pages are n
 ### Content
 
 `<source>/<locale>/` holds Markdown pages with front matter; `<source>/public/` is copied to
-the site root. `en` is the default locale; a page missing in another locale is built from the
+the site root (hidden files excepted). A file of `public/` that has the path of a generated file (a page, `404.html`, `index.html`, `sitemap.xml`, `assets/...`) is a `BuildError`: generated files are never overwritten, and never overwrite hand-made ones silently. Page paths are percent-encoded in URLs (RFC 3986), files keep their real names on disk. `en` is the default locale; a page missing in another locale is built from the
 default locale with a visible notice. The page title is the single `#` heading of the body; front matter `title` is an optional
 override of the label used in navigation, search and `<title>` (OQ-35). Front matter keys: `title`, `description`, `order`
 (sidebar order), `hecate` and `lua` (the "written for" line), `layout: home` with
@@ -123,6 +124,12 @@ is not supported (shown as text, comments are dropped). Conventions: OQ-35. Site
 `repository`, `edit_link`, `source_edit_link` (edit link of generated pages, from their `source`),
 `footer`, `outline`, `strings`, `exclude`; see
 `hecate.doc.SiteConfig` and [website/site.lua](../../website/site.lua).
+
+`bin/build.lua` parses its command line strictly: an unknown option, an option without value, a repeated option or a second source directory is a usage error (exit code 2); `--flag=value` is accepted; `--base` and `--url` are validated like the configuration keys.
+
+### Native module and the specification examples
+
+The shipped native module exports `render` and `highlight` only (safe mode). The unsafe renderer that runs the CommonMark and GFM specification examples (OQ-37) is compiled only with the cargo feature `spec-tests`: `cargo build --release --features spec-tests --target-dir target/spec` in `native/` (or point `HECATE_DOC_SPEC_LIB` at the library); without that build `commonmark_spec_test.lua` skips.
 
 ### Theme
 
