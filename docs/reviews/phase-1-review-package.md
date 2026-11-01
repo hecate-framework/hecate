@@ -50,3 +50,53 @@ build in their sandbox): findings come from reading, and each fix must reproduce
   `commonmark` exports the unsafe renderer.
 
 Clean in all six: layering, no globals, vocabulary (`check-glossary`), error-message prefixes.
+
+## Disposition of the minor findings (gate triage, 2026-11-01)
+
+Rule (owner instruction, 2026-11-01, `.claude/commands/relay.md`): a minor that belongs to an item the gate must
+resolve (a defect of something Phase 1 delivered) is fixed in this pull request, test first; one that needs a
+measurement or a later phase is deferred into that phase's roadmap item, with a pointer back here. Commits are the
+short hashes on `claude/relay-phase-1-gate`.
+
+| Id | Finding | Disposition |
+|---|---|---|
+| C1 | malformed interface accepted | fixed `4fe9e25` |
+| C2 | a finalised class can be overwritten for existing keys | deferred: known limitation recorded in `docs/open-questions.md` (OQ-65) |
+| C3 | traceback starts inside the library; `Error{message=42}` accepted | fixed `4fe9e25` (also `code` and `context` types) |
+| C4 | trait alias collisions, unchecked `alias`/`exclude` | fixed `4fe9e25` |
+| C5 | name validation inconsistent | fixed `4fe9e25` (one shared validator) |
+| C6 | error classes annotated as `hecate.core.Error` | fixed `4fe9e25` |
+| C7 | `is_instance_of` lenient on a non-class | fixed `4fe9e25` (decision: `ArgumentError`, ADR 0018) |
+| C8 | same-named enumeration values compare equal | fixed `4fe9e25` |
+| C9 | missing tests (`__gc`, `finalise` on a trait, alias collisions) | fixed `4fe9e25` |
+| RE1 | negative or past deadlines accepted silently | fixed `c381fe5` (decision: immediate expiry, documented and tested) |
+| RE2 | table allocations on the scheduler hot path | deferred: Phase 2 "Benchmarks: plaintext and JSON scenarios" item |
+| RE3 | `Reactor:run` clears `context.reactor` before closing coroutines | fixed `c381fe5` |
+| RE4 | `tcp`, `udp`, `pipe`, `process`, `ipc`, `fs`, `channel*`, `monitor`, `mutex`, `semaphore` not reviewed | reviewed in the reviewer wave below |
+| N1 | `BufferedReader` closed during a suspended read returns the chunk | fixed `0d5658b` |
+| N2 | hard-coded error levels in validators | no effect: `error` ignores the level for a table value; nothing to fix |
+| N3 | unknown options in `pairs` order | fixed `0d5658b` |
+| N4 | `TlsStream:close` skips the session close; read racing `close()` | fixed `0d5658b` |
+| N5 | README row 16 cites `concurrency.md` | checked: the link is right (`concurrency.md#transport`); wording made precise `0d5658b` |
+| N6 | test gaps | fixed `0d5658b` (closed-reader race, TLS close paths, option order) |
+| N7 | native crate, pipe files, `errors.lua` not read | reviewed in the reviewer wave below |
+| J1 | allocation failure reported as a syntax error | fixed `b28af5c` (reason `out_of_memory`) |
+| J2 | `size_limit` and BOM failures carry a made-up position | fixed `b28af5c` (`size_limit` has none; the BOM position is the true one) |
+| J3 | stale "two backends" text (OQ-54, ADR 0020) | OQ-54 fixed `b28af5c`; the one sentence of the Accepted ADR 0020 (line 69, the Note) is left: an Accepted ADR is not edited, owner approval needed (proposal: drop the sentence or read "the shared markers are pinned between the decoder and the encoder") |
+| J4 | per-key allocation in the Rust encoder | deferred: Phase 2 "Benchmarks: plaintext and JSON scenarios" item (`bench json`) |
+| J5 | option values echoed in full | fixed `b28af5c` |
+| J6 | missing tests | fixed `b28af5c` |
+| LO1 | public classes typed `table` | fixed `83966dd`, `ac02277` (sinks declared as `hecate.log.Sink`) |
+| LO2 | missing tests (depth 15/16/17, raising target) | fixed `83966dd` |
+| LO3 | second concurrent `AsyncSink:close()` returns early | fixed `83966dd` (and a never-written sink still closes outside a reactor) |
+| LO4 | `with_context` rebuilds the severity list | deferred: Phase 2 "Benchmarks: plaintext and JSON scenarios" item (`bench log/logger`) |
+| DO1 | `config.normalise` leaves keys unchecked, accepts `base = "//host/"` | fixed `6ef68d9` |
+| DO2 | `\\"` accepted in a quoted front-matter scalar | fixed `6ef68d9` |
+| DO3 | invalid UTF-8 Markdown gives a raw error | fixed `6ef68d9` (`BuildError` naming the file) |
+| DO4 | predictable `luals` temporary directory | fixed `6ef68d9` (`mktemp -d`) |
+| DO5 | `public/` files can overwrite generated files | fixed `6ef68d9` (`BuildError`) |
+| DO6 | page ids not percent-encoded | fixed `6ef68d9` |
+| DO7 | `luals.lua` Windows quoting untested | fixed `6ef68d9` (quoting corrected and tested) |
+| DO8 | `bin/build.lua` flag parsing | fixed `6ef68d9` |
+| DO9 | native `commonmark` exports the unsafe renderer | fixed `6ef68d9` (cargo feature `spec-tests`, off by default; CI builds the test-only variant: `build-native doc --spec`) |
+| M1 | the French pages lack the new text (`shield`, json `out_of_memory`, close behaviour); stale `source_revision` stamps | deferred: `translate` work with the French locale, in the Phase 3 "Website" roadmap item (French locale enabled), together with OQ-64, A44 and B32 of the coherence findings |

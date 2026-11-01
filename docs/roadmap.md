@@ -207,6 +207,10 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
 - [ ] Website: Diátaxis structure, English source, French locale enabled, MDN-like
       theme, getting-started tutorial, reference generated from annotations, built by
       `hecate doc` (ADR 0012, after OQ-11). Pages may be drafted as Markdown earlier.
+      **Carries a deferral from the Phase 1 gate:** bring the French pages in step with the English ones (the
+      `shield` section of `deadlines-and-cancellation`, the `BufferedWriter:close` and 16 KiB text, the sockets
+      how-to, json `out_of_memory`) and refresh every stale `source_revision` stamp (OQ-64; findings A44 and B32 of
+      `docs/reviews/phase-1-coherence-findings.md`; row M1 of `docs/reviews/phase-1-review-package.md`).
 - [ ] Meta-rock `hecate` (standard edition).
 - [ ] Read-only mirrors (ADR 0017): `split`, `mirrors ensure`, `check-mirrors`,
       `split.yml`; Homebrew tap and Scoop bucket repositories (resolves OQ-17).
