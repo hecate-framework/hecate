@@ -16,6 +16,7 @@ local Response = require("hecate.http.response")
 local ContentReader = require("hecate.http.content")
 local problem = require("hecate.http.problem")
 local wire = require("hecate.http.wire")
+local HandshakeStream = require("hecate.http.handshake_stream")
 
 local ContentError = ContentReader.ContentError
 
@@ -35,6 +36,11 @@ local READ_SIZE <const> = 16384
 ---@field content_timeout? number  seconds between two reads of request content (default 30; then 408)
 ---@field write_timeout? number  seconds a write to the client may take (default 30; then the connection is closed)
 ---@field parser? hecate.http.parser.Options  limits of the message parser (target, field, head size, field count)
+---@field tls? hecate.net.TlsServerOptions|hecate.net.TlsServerConfig  serve HTTPS: the options of `net.tls.server_config` (ALPN defaults to `http/1.1`), or a configuration built by it
+---@field handshake_timeout? number  seconds a TLS handshake may take (default 10; the connection is dropped); needs `tls`
+---@field max_handshakes? integer  TLS handshakes in progress at once (default 64); the other connections wait in the backlog; needs `tls`
+---@field max_handshake_bytes? integer  bytes read from a client during its handshake (default 65536; over it the connection is dropped); needs `tls`
+---@field logger? hecate.log.Logger  receives the failed handshakes, with the peer address (default: none)
 ---@field on_error? fun(err: any)  called with the failure of a handler or a connection (the client only sees generic problem details)
 
 --- Defaults of the settings, exported so that documentation and tests read one source.
@@ -48,6 +54,9 @@ local DEFAULTS <const> = {
   idle_timeout = 60,
   content_timeout = 30,
   write_timeout = 30,
+  handshake_timeout = 10,
+  max_handshakes = 64,
+  max_handshake_bytes = 65536,
 }
 
 --- An HTTP/1.1 server: `serve` accepts connections from a listener and answers each request with the handler.
@@ -60,6 +69,7 @@ Server.DEFAULTS = DEFAULTS
 local KNOWN <const> = {
   host = true, port = true, backlog = true, max_connections = true, max_content = true, head_timeout = true,
   idle_timeout = true, content_timeout = true, write_timeout = true, parser = true, on_error = true,
+  tls = true, handshake_timeout = true, max_handshakes = true, max_handshake_bytes = true, logger = true,
 }
 
 ---@param host string
@@ -116,6 +126,14 @@ function Server:init(handler, options)
     return value
   end
   if options.on_error ~= nil and type(options.on_error) ~= "function" then bad("on_error", "a function", options.on_error) end
+  if options.tls == nil then
+    for _, name in ipairs({ "handshake_timeout", "max_handshakes", "max_handshake_bytes" }) do
+      if options[name] ~= nil then bad(name, "unset: it applies to TLS only, and no `tls` option was given", options[name]) end
+    end
+  end
+  if options.logger ~= nil and (type(options.logger) ~= "table" or type(options.logger.log) ~= "function") then
+    bad("logger", "a hecate.log.Logger", options.logger)
+  end
   self._handler = handler
   self._host = host
   self._port = integer("port", 0, 65535)
@@ -126,6 +144,22 @@ function Server:init(handler, options)
   self._idle_timeout = seconds("idle_timeout")
   self._content_timeout = seconds("content_timeout")
   self._write_timeout = seconds("write_timeout")
+  self._handshake_timeout = seconds("handshake_timeout")
+  self._max_handshakes = integer("max_handshakes", 1, 1000000)
+  self._max_handshake_bytes = integer("max_handshake_bytes", 1, 16777216)
+  self._logger = options.logger
+  local tls = options.tls
+  if type(tls) == "table" then
+    local config = {}
+    for key, value in pairs(tls) do config[key] = value end
+    if config.alpn == nil then config.alpn = { "http/1.1" } end
+    tls = net.tls.server_config(config)
+  elseif tls ~= nil and type(tls) ~= "userdata" then
+    bad("tls", "a table of net.tls.server_config options or a configuration it built", tls)
+  end
+  self._tls = tls
+  self._handshaking = {}
+  self._handshakes = reactor.Semaphore(self._max_handshakes)
   if options.parser ~= nil then Parser.request(options.parser):close() end -- validates the limits now
   self._limits = options.parser
   self._on_error = options.on_error
@@ -515,8 +549,46 @@ local function serve_connection(self, conn)
   end
 end
 
+--- Runs the TLS handshake of an accepted connection under its deadline and byte budget. Returns the TLS stream, or nil
+--- when the connection was dropped (the stream is closed). Nothing about the failure reaches the client; the log
+--- receives the class of the failure and the peer address.
 ---@async
-local function run_connection(self, stream)
+---@param raw hecate.net.TcpStream
+---@return hecate.net.TlsStream?
+local function handshake(self, raw)
+  local known, peer = pcall(raw.peer_address, raw)
+  local limited = HandshakeStream(raw, self._max_handshake_bytes)
+  self._handshaking[limited] = true
+  local ok, result = pcall(net.tls.accept, limited, self._tls, { handshake_timeout = self._handshake_timeout })
+  self._handshaking[limited] = nil
+  if ok then
+    limited:release()
+    return result
+  end
+  limited:close()
+  if self._logger ~= nil and not is_cancellation(result) and not self._stopping then
+    local failure = result --[[@as table]]
+    local reason = core.is_instance_of(failure, core.Error) and ((failure.context and failure.context.reason) or failure.code) or "error"
+    pcall(self._logger.log, self._logger, "warning", "http.Server: TLS handshake failed", {
+      peer = known and (tostring(peer.ip) .. ":" .. tostring(peer.port)) or "unknown",
+      reason = tostring(reason),
+    })
+  end
+  return nil
+end
+
+---@async
+local function run_connection(self, raw)
+  local stream = raw
+  if self._tls ~= nil then
+    local secured = handshake(self, raw)
+    self._handshakes:release()
+    if secured == nil then
+      self._slots:release()
+      return
+    end
+    stream = secured
+  end
   local conn = {
     stream = stream, writer = stream:writer(), parser = Parser.request(self._limits), queue = {}, position = 1, tail = 0,
     waiting = false, head_started = false, in_content = false, broken = false, eof = false,
@@ -528,7 +600,7 @@ local function run_connection(self, stream)
   self._connections[conn] = nil
   conn.parser:close()
   if ok and not stream:is_closed() then
-    -- Half-close first, so that the last bytes are not lost to a reset when the client still sends.
+    -- Half-close first, so that the last bytes are not lost to a reset when the client still sends (TLS: close_notify).
     pcall(reactor.deadline, 1, stream.shutdown, stream)
   end
   stream:close()
@@ -543,9 +615,12 @@ local function accept_loop(self, scope)
   local listener = self._listener
   while not self._stopping do
     self._slots:acquire()
+    -- A handshake slot is taken before accepting: past the limit, connections wait in the kernel backlog.
+    if self._tls ~= nil then self._handshakes:acquire() end
     local ok, stream = pcall(listener.accept, listener)
     if not ok then
       self._slots:release()
+      if self._tls ~= nil then self._handshakes:release() end
       if self._stopping or is_cancellation(stream) or listener:is_closed() then return end
       self:_report("accept failed", stream)
       reactor.sleep(0.05) -- for example EMFILE: do not spin
@@ -615,6 +690,7 @@ function Server:shutdown(grace)
     for conn in pairs(self._connections) do
       if conn.waiting then conn.stream:close() end
     end
+    for limited in pairs(self._handshaking) do limited:close() end
   end
   if not self._serving then return end
   local ok, err = pcall(reactor.deadline, grace, wait_finished, self)
