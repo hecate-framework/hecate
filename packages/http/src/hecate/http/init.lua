@@ -11,6 +11,8 @@ global <const> require
 ---@field Request hecate.http.Request  the request message
 ---@field Response hecate.http.Response  the response message
 ---@field Server hecate.http.Server  the HTTP/1.1 server
+---@field Client hecate.http.Client  the HTTP/1.1 client
+---@field url hecate.http.url  URL parsing and resolution
 ---@field ContentStream hecate.http.ContentStream  message content as a stream
 ---@field ContentError hecate.http.ContentError  content over its limit, truncated, malformed or stalled
 ---@field problem hecate.http.problem  RFC 9457 problem details responses
@@ -27,5 +29,7 @@ http.ContentStream = require("hecate.http.content")
 http.ContentError = http.ContentStream.ContentError
 http.problem = require("hecate.http.problem")
 http.Server = require("hecate.http.server")
+http.Client = require("hecate.http.client")
+http.url = require("hecate.http.url")
 
 return http

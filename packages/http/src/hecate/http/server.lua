@@ -400,6 +400,7 @@ local function send_response(self, conn, info, response, force_close)
     return not wants_close
   end
 
+  flush(self, conn) -- the head reaches the client now: a streamed response is useful before its end
   local write, flush_content, remaining = content_writer(self, conn, mode, mode == "declared" and math.tointeger(text) or nil)
   local ok, err = pcall(response.content --[[@as function]], write, flush_content)
   if not ok then

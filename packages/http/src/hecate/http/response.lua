@@ -1,9 +1,10 @@
 -- The response message (RFC 9110, section 3.4; RFC 9112, section 4).
-global <const> require, error
+global <const> require, error, type, pcall
 
 local core = require("hecate.core")
 local Fields = require("hecate.http.fields")
 local Status = require("hecate.http.status")
+local ContentStream = require("hecate.http.content")
 
 --- A response. `content` is a string, a table (serialised by the kernel) or a writer function.
 ---@class hecate.http.Response
@@ -11,6 +12,7 @@ local Status = require("hecate.http.status")
 ---@field reason string  the reason phrase; defaults to the registered one, or "" (RFC 9112, section 4)
 ---@field fields hecate.http.Fields
 ---@field content? string|table|function
+---@field url? string  the URL that answered, for a response of the client
 ---@overload fun(status?: integer, options?: hecate.http.ResponseOptions): hecate.http.Response
 local Response = core.class("Response")
 
@@ -18,6 +20,9 @@ local Response = core.class("Response")
 ---@field fields? hecate.http.Fields
 ---@field content? string|table|function
 ---@field reason? string
+---@field content_stream? hecate.http.ContentStream  the content read lazily (the client passes one)
+---@field discard? fun()  called by `close` when the content was not read to its end (the client drops the connection)
+---@field max_content? integer  default limit of `read_content` for a stream
 
 --- Initialises a response.
 ---
@@ -38,7 +43,49 @@ function Response:init(status, options)
   self.reason = options.reason or Status.reason(status) or ""
   self.fields = options.fields or Fields()
   self.content = options.content
+  self._content_stream = options.content_stream
+  self._discard = options.discard
+  self._max_content = options.max_content
 end
+
+--- Returns the content as a stream, chunk by chunk (`read()` returns nil at the end). A response of the client holds its
+--- connection until the stream is read to its end or the response is closed. A response built by hand streams its string
+--- `content`.
+---@return hecate.http.ContentStream
+function Response:stream_content()
+  if self._content_stream == nil then
+    self._content_stream = ContentStream.of(type(self.content) == "string" and self.content or "")
+  end
+  return self._content_stream
+end
+
+--- Reads the whole content into a string, bounded by `limit` (default: the `max_content` of the client for a client
+--- response). Raises `hecate.http.ContentError` (status 413, `too_large`) beyond the limit, and the failure of the
+--- connection when the content cannot be read.
+---@async
+---@param limit? integer  bytes
+---@return string
+function Response:read_content(limit)
+  if type(self.content) == "string" then return self.content --[[@as string]] end
+  local stream = self:stream_content()
+  local ok, content = pcall(stream.read_all, stream, limit or self._max_content)
+  if not ok then
+    self:close() -- the content could not be read to its end: the connection cannot be reused
+    error(content, 0)
+  end
+  return content
+end
+
+--- Gives the connection back: a response whose content was not read to its end drops the connection (it cannot be
+--- reused). Idempotent, never suspends; also the `<close>` protocol.
+function Response:close()
+  local discard = self._discard
+  self._discard = nil
+  if discard ~= nil and not (self._content_stream and self._content_stream:is_finished()) then discard() end
+end
+
+--- Closes at the end of a `<close>` scope.
+function Response:__close() self:close() end
 
 --- Adds a `Set-Cookie` line (RFC 6265, section 4.1); one line per cookie, never combined.
 ---@param cookie hecate.http.SetCookie
