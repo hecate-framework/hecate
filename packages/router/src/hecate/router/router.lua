@@ -18,7 +18,7 @@ local RouteTableError = errors.RouteTableError
 ---@field [string] any
 
 --- Options of a router.
----@class hecate.router.Options
+---@class hecate.router.RouterOptions
 ---@field trailing_slash? "strict"|"ignore"  `strict` (default): `/a` and `/a/` are different paths; `ignore`: both are `/a`
 ---@field automatic_head? boolean  default `true`: `HEAD` is served by the `GET` route unless a `HEAD` route exists
 ---@field automatic_options? boolean  default `true`: `OPTIONS` answers 204 with `Allow` unless an `OPTIONS` route exists
@@ -37,7 +37,7 @@ local RouteTableError = errors.RouteTableError
 --- decoded segments of the path, in the order static, parameter, wildcard, so its cost depends on the length of the
 --- path and not on the number of routes.
 ---@class hecate.router.Router
----@overload fun(routes: hecate.router.Route[], options?: hecate.router.Options): hecate.router.Router
+---@overload fun(routes: hecate.router.Route[], options?: hecate.router.RouterOptions): hecate.router.Router
 local Router = core.class("Router")
 
 local OPTION_NAMES <const> = { "trailing_slash", "automatic_head", "automatic_options" }
@@ -100,7 +100,7 @@ end
 --- `hecate.router.RouteTableError` for an invalid route, a duplicate name and an ambiguous table (two routes that
 --- serve the same method for the same paths), and `hecate.core.ArgumentError` for bad arguments.
 ---@param routes hecate.router.Route[]
----@param options? hecate.router.Options
+---@param options? hecate.router.RouterOptions
 function Router:init(routes, options)
   if type(routes) ~= "table" then argument_error("routes must be a list of route tables") end
   local settings = check_options(options)

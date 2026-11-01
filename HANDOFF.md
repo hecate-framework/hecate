@@ -2,44 +2,39 @@
 # Handoff
 
 - roadmap_item: `router`: radix tree, URI template subset, 404/405, reverse routing (+ percent-decode segments, dot segments; OQ-75)
-- status: in-progress            <!-- in-progress | waiting-ci | waiting-owner -->
-- lock_until: 2026-11-02T00:31:36Z
-- last_update: 2026-11-01T22:01:36Z
+- status: waiting-ci            <!-- in-progress | waiting-owner | waiting-ci -->
+- lock_until: 2026-11-02T00:40:00Z
+- last_update: 2026-11-01T22:10:00Z
 
 ## Done
 
+- Step 1: `hecate.router.path` and `hecate.router.template`, tests first.
 - Step 2: `Router` (match 200/204/400/404/405, Allow, automatic HEAD/OPTIONS, trailing_slash policy, url_for, routes(), route()),
   `RouteTableError`, tree with backtracking, oracle property tests, instruction-count test of the static-prefix invariant.
-
-- Step 1: `hecate.router.path` (split with percent-decoding per segment and dot segments, encode/decode) and
-  `hecate.router.template` (parse the level-1 subset plus `{name...}` wildcard, expand for reverse routing), tests first
-  (`tests/unit/path_test.lua`, `template_test.lua`). typecheck, lint, tests clean.
+- Step 3: docs. README (status, Public API, layout), guide `website/en/how-to/route-requests.md` (+ OUTLINE, how-to index,
+  reference index), tested examples (`packages/router/examples/`, `tests/unit/examples_test.lua`), CHANGELOG `[Unreleased]`,
+  OQ-83 (choices to confirm), glossary rows (path template, route table, dot segment), spec "Implemented surface",
+  `benchmarks/match.lua`, `gen-catalogue` and `gen-llms-txt` run.
+- Cross-package one-word edits (as `http` did): `packages/doc/src/hecate/doc/reference_site.lua` DEFAULT_PACKAGES and
+  `.github/workflows/website.yml` reference check now list `router`.
 
 ## Next steps
 
-(Step 2 done: tree.lua, router.lua, errors.lua, init.lua, router_test.lua, properties_test.lua; all clean.)
-
-2-old. `tree.lua` + `router.lua` (class `Router(routes, options)`: `match(method, path)` -> `Match` with status 200/204/404/405,
-   `allow`; `url_for`; `routes()`; `route(name)`), boot-time ambiguity diagnostics (`RouteTableError`), `init.lua`; tests first
-   (match precedence, backtracking, 405/Allow, automatic HEAD/OPTIONS, trailing slash policy, ambiguity, instruction-count
-   test for the static-prefix invariant, property tests with generated route sets).
-3. Docs: README (status, Public API), website reference page + how-to (with tested examples in `examples/`), CHANGELOG
-   `[Unreleased]`, open questions (see doubts), `benchmarks/match.lua`, glossary entries if needed
-   (path template, path parameter, wildcard), architecture spec update. Run check-* tasks. Roadmap tick only at the very end.
+1. Follow CI on the three platforms of the draft PR; fix failures.
+2. Run the reviewers (`/review-package router`: architect, terminology, api, test-engineer, security, performance), triage.
+3. `translator-fr`: French page of `how-to/route-requests.md` and the reference index line (not done here).
+4. Only when CI is green and reviews are triaged: tick the roadmap item, delete this file, mark the PR ready.
 
 ## Decisions taken (and where they are recorded)
 
-- Tree is a trie over decoded segments (radix over segments); parameters are bound by position, names per route.
-- Strict trailing slash by default (`/a` and `/a/` differ); `ignore` option drops one trailing empty segment of path and template.
-- To record in `docs/open-questions.md` (step 3): see doubts.
+- All undecided choices: OQ-83 in `docs/open-questions.md` (whole-segment parameters, wildcard rules, 400 for unreadable
+  paths, `%2E` as dot, strict trailing slash, automatic HEAD/OPTIONS, method fallback, `url_for` strictness).
 
 ## Doubts and questions for the owner
 
-- Mixed segments (`/{id}.json`) refused (the spec says whole-segment parameters).
-- `%00` and malformed percent-encoding answer 400; wildcard never matches a segment whose decoded text holds `/` (so it
-  cannot smuggle `..%2F`); `//` empty segments never match a parameter.
-- `url_for` raises on unknown names, unknown parameters, `.`/`..`/empty values.
-- `%2e` is treated as a dot segment (RFC 3986 section 6.2.2.2).
+- See OQ-83. Notably: status 400 vs 404 for malformed percent-encoding, and `Allow` as the union over all matched routes.
+- `lua tools/run.lua test doc` cannot run here (native `hecate.doc.native` not built, needs Rust); the `doc` edit is only a list entry.
+- `check-changelog` needs the commit (it reads the diff against the base).
 
 ## Commands to re-run
 
@@ -48,4 +43,8 @@ lua tools/run.lua setup-luals   # once per session: pinned LuaLS into spikes/lua
 lua tools/run.lua typecheck     # required before every push (CI fails on any warning)
 lua tools/run.lua test router
 lua tools/run.lua lint
+lua tools/run.lua check-docs-examples
+lua tools/run.lua check-links
+lua tools/run.lua check-changelog
+lua packages/router/benchmarks/match.lua
 ```
