@@ -11,6 +11,8 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- `hecate.log`: `AsyncSink:close()` called again, also while a first `close` still waits for the drain, now waits for it and reports the same outcome, an error raised by the target's `close` included, instead of returning at once. A sink that was never written to still closes without a reactor.
+- `hecate.log`: the classes of the `hecate.log` module (`Record`, `Logger`, `Secret` and the sinks) carry their real LuaLS types in the generated reference.
 - `hecate.reactor`: `reactor.deadline` and `reactor.shield` accept a zero, negative or past limit and expire immediately (documented, tested).
 - `hecate.reactor`: a failed `Reactor:run` closes the abandoned coroutines while the reactor is still current, so their `__close` handlers can use it; the errors they raise are reported in `context.close_errors` of the raised error instead of being lost.
 - `hecate.reactor`: `listen_pipe` falls back to binding directly (then restricting) when the file system refuses the hard link of the private-directory method.

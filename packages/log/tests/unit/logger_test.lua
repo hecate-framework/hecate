@@ -186,4 +186,29 @@ function T:test_the_context_is_copied_at_construction()
   self:assert_equal(1, sink:records()[1].context.a)
 end
 
+-- Fields whose table at depth `depth` (the fields table itself is depth 1) holds a `password` entry.
+local function password_at_depth(depth)
+  local fields = { password = "p" }
+  for _ = 2, depth do fields = { child = fields } end
+  return fields
+end
+
+local function password_of(fields, depth)
+  for _ = 2, depth do fields = fields.child end
+  return fields.password
+end
+
+function T:test_redact_stops_after_sixteen_levels_of_nested_tables()
+  local logger, sink = new_logger({ redact = { "password" } })
+  for _, depth in ipairs({ 15, 16, 17 }) do
+    logger:informational("x", password_at_depth(depth))
+    local value = password_of(sink:records()[depth - 14].fields, depth)
+    if depth <= 16 then
+      self:assert_equal("p", value:reveal(), "depth " .. depth)
+    else
+      self:assert_equal("p", value, "depth " .. depth)
+    end
+  end
+end
+
 return T

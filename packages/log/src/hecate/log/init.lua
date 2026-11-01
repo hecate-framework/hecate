@@ -8,15 +8,15 @@ local ambient = require("hecate.log.internal.ambient")
 --- Structured logging: severities, records, loggers and sinks.
 ---@class hecate.log
 ---@field Severity hecate.log.Severity  the eight severities of RFC 5424, section 6.2.1
----@field Record table  the class of log records
----@field Logger table  the class of loggers
----@field Secret table  marks a value that no sink renders
----@field MemorySink table  synchronous in-memory sink
----@field JsonLinesSink table  sink writing one JSON object per line
----@field ConsoleSink table  sink writing human-readable lines
----@field FileSink table  sink appending JSON lines to a file
----@field LimitedSink table  decorator sink that samples and rate-limits records
----@field AsyncSink table  decorator sink that writes from a detached computation, never suspending the caller
+---@field Record hecate.log.Record  the class of log records
+---@field Logger hecate.log.Logger  the class of loggers
+---@field Secret hecate.log.Secret  marks a value that no sink renders
+---@field MemorySink hecate.log.MemorySink  synchronous in-memory sink
+---@field JsonLinesSink hecate.log.JsonLinesSink  sink writing one JSON object per line
+---@field ConsoleSink hecate.log.ConsoleSink  sink writing human-readable lines
+---@field FileSink hecate.log.FileSink  sink appending JSON lines to a file
+---@field LimitedSink hecate.log.LimitedSink  decorator sink that samples and rate-limits records
+---@field AsyncSink hecate.log.AsyncSink  decorator sink that writes from a detached computation, never suspending the caller
 local log = {}
 
 log.Severity = require("hecate.log.severity")

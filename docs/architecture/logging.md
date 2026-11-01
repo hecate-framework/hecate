@@ -204,8 +204,9 @@ local async = log.AsyncSink({ sink = log.FileSink({ path = "app.log" }), capacit
 
 `AsyncSink:close()`: marks the sink closed (later writes are ignored, silently), queues a stop marker, waits until
 every record queued before it has been written, waits for the drain computation to end, then calls `close()` on the
-target if it has one. A second call does nothing. A `close` of the target that raises propagates to the caller of
-`AsyncSink:close()`. A sink never written to has no drain computation: `close` only closes the target.
+target if it has one. The shutdown runs once, in a detached computation; every call to `close`, including a second one
+made while the first still waits for the drain, suspends until it ended and reports the same outcome. A `close` of
+the target that raises propagates to every caller of `AsyncSink:close()`. A sink never written to has no drain computation: `close` only closes the target.
 Call `close()` before the main computation ends: a drain computation still waiting for records is a deadlock to the
 reactor (`reactor.run: deadlock`). `FileSink:close()` is synchronous and idempotent. `MemorySink`, `ConsoleSink`,
 `JsonLinesSink` and `LimitedSink` have no `close`. The `Logger` has no `close`: it owns no resource, closing is
