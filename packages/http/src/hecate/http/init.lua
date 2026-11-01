@@ -10,6 +10,7 @@ global <const> require
 ---@field SetCookie hecate.http.SetCookie  a Set-Cookie field value
 ---@field Request hecate.http.Request  the request message
 ---@field Response hecate.http.Response  the response message
+---@field Server hecate.http.Server  the HTTP/1.1 server
 local http = {}
 
 http.Fields = require("hecate.http.fields")
@@ -19,5 +20,6 @@ http.Cookie = require("hecate.http.cookie")
 http.SetCookie = http.Cookie.SetCookie
 http.Request = require("hecate.http.request")
 http.Response = require("hecate.http.response")
+http.Server = require("hecate.http.server")
 
 return http

@@ -3,10 +3,12 @@
 
 - roadmap_item: `http`: HTTP/1.1 server (llhttp, OQ-6) and client, message model, streaming, keep-alive, limits (Phase 2)
 - status: in-progress
-- lock_until: 2026-11-01T00:00:00Z
-- last_update: 2026-11-01T13:00:00Z
+- lock_until: 2026-11-01T17:15:09Z
+- last_update: 2026-11-01T15:45:09Z
 
 ## Done
+
+- Step 3 (server, first part): `hecate.http.server` (`Server`, `serve`, `shutdown`), `tests/integration/server_test.lua` (13 cases), README and CHANGELOG. Done: keep-alive, pipelining, 100-continue, HEAD, chunked responses, Host check, 413, generic 500, graceful shutdown. `test http`, `lint`, `typecheck`, `check-boundaries`, `check-glossary`, `check-annotations`, `check-lua-constructs`, `check-package-structure` pass locally (run with `LUA_CPATH="/opt/lua-5.5/lib/lua/5.5/?.so;;"` in the cloud image so `luv` is found).
 
 - Step 2c: RFC conformance vectors (`packages/http/tests/conformance/rfc9112_test.lua`), `benchmarks/parse.lua` (numbers in the README), known limits in the README, OQ-67 (reason phrase control characters), fix of the HTTP/0.9 request line in `native.c` (test in `parser_test.lua`). Commands run: `test http`, `build-native http`, `bench http/parse`.
 - Lock released at the owner's request (the next run starts at 14:30 Paris). CI was green; typecheck fixed in 6d17b80.
@@ -20,8 +22,7 @@
 ## Next steps
 
 1. Steps 2b and 2c are done. Left: the first CI run on macOS and Windows (build, `sanitize http` in `native.yml`, `fuzz parse` for a minute; clang's libFuzzer runtime is absent in the cloud image, so the target was checked locally with an ASan/UBSan driver over 180k mutated inputs only).
-2. Step 3: server over `hecate.net` (keep-alive, pipelining, `Expect: 100-continue`, chunked, HEAD without content, one coroutine and scope per request, graceful shutdown).
-3. (also for step 3) the server answers 400 to an HTTP/1.1 request without exactly one `Host` field (review finding 3, deferred: the parser exposes the fields); it calls `Parser:close()` when a connection ends and feeds chunks no larger than its read buffer (review finding 9). Both are in the roadmap `http` item.
+2. Step 3b: TLS in the server (finding 2 of the Phase 1 review: handshake limit, `tls.accept` in a forked computation, bounded bytes), numeric-address default for `listen` (finding 3), TransportError mapping (finding 1; the handler failure is already a generic 500). Review finding 9: the server reads chunks of 16 KiB, which is within the parser read buffer (check against `max_events`/buffer size in a test with a 16 KiB pipelined burst).
 4. Step 4: limits with safe defaults (request line, field count and size, content size, read and idle deadlines; slowloris).
 5. Step 5: client (pool per origin, redirects, deadlines, TLS, streaming).
 6. Step 6: the three deferred Phase 1 findings (see docs/reviews/phase-1.md, rows deferred to `http`), multipart and URL-encoded content.
