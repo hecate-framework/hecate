@@ -123,6 +123,8 @@ function T:test_a_byte_order_mark_is_rejected()
   local err = decode_error(self, "\239\187\191[]")
   self:assert_equal("byte_order_mark", err.context.reason)
   self:assert_equal(0, err.context.offset)
+  self:assert_equal(1, err.context.line)
+  self:assert_equal(1, err.context.column)
 end
 
 function T:test_structure_errors()
@@ -211,6 +213,38 @@ function T:test_max_size_limits_the_input()
   self:assert_equal(1, json.decode("1", { max_size = 1 }))
   local err = decode_error(self, "[1]", { max_size = 2 })
   self:assert_equal("size_limit", err.context.reason)
+  -- The whole text is at fault, not a byte of it: the error has no position (README, "Inputs decode rejects").
+  self:assert_equal(nil, err.context.offset)
+  self:assert_equal(nil, err.context.line)
+  self:assert_equal(nil, err.context.column)
+  self:assert_true(err.message:find("exceeds max_size (2)", 1, true) ~= nil, err.message)
+  self:assert_true(err.message:find(" at line ", 1, true) == nil, err.message)
+end
+
+function T:test_a_failed_allocation_is_a_resource_failure_not_a_syntax_error()
+  -- Provoked in a child process with a cap on its address space (`ulimit -v`, POSIX shells only: elsewhere the test
+  -- has nothing to run). The decoder must answer `out_of_memory`, without position, never `syntax`.
+  if package.config:sub(1, 1) ~= "/" or arg == nil or arg[-1] == nil then return end
+  -- A preloaded sanitizer runtime reserves address space itself: a cap on it proves nothing (and it cannot start).
+  if os.getenv("LD_PRELOAD") or os.getenv("DYLD_INSERT_LIBRARIES") then return end
+  local script = os.tmpname()
+  local file = assert(io.open(script, "w"))
+  file:write([[
+local json = require("hecate.json")
+local text = "[" .. string.rep("1,", 20 * 1024 * 1024) .. "1]"
+local ok, err = pcall(json.decode, text, { max_size = 100 * 1024 * 1024 })
+print(ok and "decoded" or err.context.reason, err.context and err.context.offset)
+]])
+  file:close()
+  local function quote(text) return "'" .. text:gsub("'", "'\\''") .. "'" end
+  local command = ("ulimit -v 400000 && LUA_PATH=%s LUA_CPATH=%s %s %s 2>&1"):format(
+    quote(package.path), quote(package.cpath), quote(arg[-1]), quote(script))
+  local pipe = io.popen(command)
+  local output = pipe and pipe:read("a") or ""
+  if pipe then pipe:close() end
+  os.remove(script)
+  if output:find("decoded", 1, true) then return end -- the cap does not apply on this host: nothing was provoked
+  self:assert_equal("out_of_memory\tnil", output:gsub("%s+$", ""), output)
 end
 
 function T:test_arguments_are_validated()
@@ -228,6 +262,23 @@ function T:test_arguments_are_validated()
   bad("1", { max_depth = 1001 }, "invalid max_depth")
   bad("1", { max_size = -1 }, "invalid max_size")
   bad("1", { pretty = true }, 'unknown option "pretty"')
+end
+
+function T:test_a_huge_option_value_is_not_echoed_in_full()
+  local huge = string.rep("x", 100000)
+  local function message(options)
+    local err = self:assert_error(function() return json.decode("1", options) end)
+    self:assert_true(core.is_instance_of(err, core.ArgumentError), tostring(err))
+    return tostring(err)
+  end
+  local by_value = message({ max_depth = huge })
+  self:assert_true(#by_value < 400, #by_value)
+  self:assert_true(by_value:find("a string of 100000 bytes", 1, true) ~= nil, by_value)
+  local by_name = message({ [huge] = true })
+  self:assert_true(#by_name < 400, #by_name)
+  self:assert_true(by_name:find("unknown option", 1, true) ~= nil, by_name)
+  -- A short value is still echoed whole.
+  self:assert_true(message({ max_size = "abc" }):find('"abc"', 1, true) ~= nil)
 end
 
 return T

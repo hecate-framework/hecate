@@ -14,7 +14,8 @@ local JsonError = core.error_class("JsonError", "hecate.json.JsonError")
 --- `context.reason` (`hecate.json.DecodeFailureReason`) tells the kinds apart without parsing the
 --- message. `context.offset` is the number of bytes before the offending byte (0-based), `context.line`
 --- the 1-based line (lines end at a line feed) and `context.column` the 1-based column of the
---- offending character on that line, counted in characters (code points), not bytes.
+--- offending character on that line, counted in characters (code points), not bytes. The three are absent when
+--- no position can be given: `duplicate_member_name`, `size_limit` and `out_of_memory`.
 ---@class hecate.json.DecodeError : hecate.json.JsonError
 ---@field context { reason: hecate.json.DecodeFailureReason, offset?: integer, line?: integer, column?: integer }
 local DecodeError = core.error_class("DecodeError", "hecate.json.DecodeError", JsonError)
@@ -38,7 +39,8 @@ local EncodeError = core.error_class("EncodeError", "hecate.json.EncodeError", J
 ---| "duplicate_member_name"  an object has two members with the same name (section 4, I-JSON section 2.3)
 ---| "number_out_of_range"  a number that is not finite as a float
 ---| "depth_limit"  nesting deeper than `max_depth`
----| "size_limit"  input longer than `max_size`
+---| "size_limit"  input longer than `max_size` (no position: the whole text is at fault)
+---| "out_of_memory"  the decoder could not allocate the memory the text needs (a resource failure, not a defect of the text; no position)
 
 ---@alias hecate.json.EncodeFailureReason
 ---| "unsupported_type"  a function, userdata, thread or `nil` has no JSON representation

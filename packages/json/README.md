@@ -89,10 +89,11 @@ the reference):
 | `number_out_of_range` | `1e999` | It does not fit in a 64-bit float; parsers answer infinity, error or clamp. | Send the number as a string, or a value within about 1.8e308. |
 | `invalid_utf8` | a string with bytes that are not UTF-8 | The text must be UTF-8 (RFC 8259 section 8.1). | Re-encode the source as UTF-8. |
 | `syntax`, `invalid_escape`, `control_character` | a text that is not JSON, a bad escape such as `"\x"`, a raw control character in a string | RFC 8259 sections 7 and 2. | Fix the text at the source. |
-| `depth_limit`, `size_limit` | nesting beyond `max_depth`, text beyond `max_size` | Protection against hostile input. | Raise the option if the input is trusted. |
+| `depth_limit`, `size_limit` | nesting beyond `max_depth`, text beyond `max_size` | Protection against hostile input. `size_limit` has no position. | Raise the option if the input is trusted. |
+| `out_of_memory` | a text for which the decoder cannot allocate memory | A resource failure, not a defect of the text; it has no position. | Lower `max_size`, or give the process more memory. |
 
 The error message echoes at most 40 bytes of the input (a member name or a number literal), cut on a character boundary, with control characters, quotes and backslashes escaped. Errors: `DecodeError.context` has `reason`, `offset` (bytes before the offending byte, from 0),
-`line` and `column` (from 1, in characters); `EncodeError.context` has `reason` and `path` (a JSON
+`line` and `column` (from 1, in characters), the three absent for `duplicate_member_name`, `size_limit` and `out_of_memory`; `EncodeError.context` has `reason` and `path` (a JSON
 Pointer, RFC 6901).
 
 ## Inputs `encode` rejects

@@ -303,6 +303,11 @@ static int classify(lua_State *L, const char *text, size_t length, const yyjson_
   const char *msg = err->msg;
   /* An `if` chain, not a `switch`: the codes of yyjson are `static const` variables, which MSVC does not accept as
    * case labels. Every branch returns. */
+  if (err->code == YYJSON_READ_ERROR_MEMORY_ALLOCATION) {
+      /* A resource failure, not a defect of the text: it has its own reason and no position. */
+      lua_pushfstring(L, "not enough memory to decode %I bytes of input", (lua_Integer)length);
+      return push_failure(L, "out_of_memory", -1);
+  }
   if (err->code == YYJSON_READ_ERROR_EMPTY_CONTENT || err->code == YYJSON_READ_ERROR_UNEXPECTED_END) {
       /* A text cut inside a literal (`[1,tru`): the codec points at the first letter of the literal. */
       if (ends_in_string(text, length))
@@ -403,7 +408,7 @@ static int native_decode(lua_State *L) {
 
   if ((lua_Integer)length > max_size) {
     lua_pushfstring(L, "input of %I bytes exceeds max_size (%I)", (lua_Integer)length, max_size);
-    return push_failure(L, "size_limit", 0);
+    return push_failure(L, "size_limit", -1); /* a property of the whole text: no position */
   }
   if (length >= 3 && memcmp(text, "\xEF\xBB\xBF", 3) == 0)
     return fail_with(L, "byte_order_mark", 0,

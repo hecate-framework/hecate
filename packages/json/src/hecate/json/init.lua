@@ -54,8 +54,18 @@ local json = {
 local DECODE_OPTIONS = { max_depth = true, max_size = true }
 local ENCODE_OPTIONS = { pretty = true, indent = true, canonical = true, max_depth = true, max_size = true }
 
+--- Longest prefix of a string option value echoed in an `ArgumentError`: a huge value cannot flood a log.
+local MAX_ECHOED_BYTES = 40
+
+--- Describes an invalid argument for an error message: a string by a short prefix and its length, a table by its type,
+--- anything else by its text.
+---@param value any
+---@return string
 local function describe(value)
-  if type(value) == "string" then return ("%q"):format(value) end
+  if type(value) == "string" then
+    if #value <= MAX_ECHOED_BYTES then return ("%q"):format(value) end
+    return ("%s (cut, a string of %d bytes)"):format(("%q"):format(value:sub(1, MAX_ECHOED_BYTES)), #value)
+  end
   return type(value) == "table" and "a table" or tostring(value)
 end
 
@@ -116,10 +126,10 @@ end
 --- table marked with `json.array` and every object a table marked with `json.object`, so that an empty
 --- `[]` and an empty `{}` stay distinct and `encode` reproduces the text's value model.
 ---
---- Raises `hecate.json.DecodeError` (with `context.reason`, and `offset`, `line` and `column` except for `duplicate_member_name`) when the text
+--- Raises `hecate.json.DecodeError` (with `context.reason`, and `offset`, `line` and `column` except for `duplicate_member_name`, `size_limit` and `out_of_memory`) when the text
 --- is not valid: trailing content, a byte order mark, invalid UTF-8, a lone surrogate escape, a
---- duplicate member name, a number outside the float range, nesting deeper than `max_depth`, or a text
---- longer than `max_size`.
+--- duplicate member name, a number outside the float range, nesting deeper than `max_depth`, a text
+--- longer than `max_size`, or not enough memory to decode it (`out_of_memory`).
 ---@param text string
 ---@param options? hecate.json.DecodeOptions
 ---@return any value
