@@ -21,6 +21,8 @@ jobs:
     outputs:
       packages: ${{ steps.affected.outputs.packages }}
       json_native: ${{ steps.affected.outputs.json_native }}
+      http_native: ${{ steps.affected.outputs.http_native }}
+      net_native: ${{ steps.affected.outputs.net_native }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -60,6 +62,16 @@ jobs:
           json_native=$(lua tools/run.lua needs json $packages | head -n 1)
           echo "json native modules needed: $json_native"
           echo "json_native=$json_native" >> "$GITHUB_OUTPUT"
+          # hecate.http parses with the llhttp binding (ADR 0019, no Lua parser): built whenever http, or a package that
+          # depends on it, is affected.
+          http_native=$(lua tools/run.lua needs http $packages | head -n 1)
+          echo "http native module needed: $http_native"
+          echo "http_native=$http_native" >> "$GITHUB_OUTPUT"
+          # hecate.http serves HTTPS through the TLS module of net (and its tests need it): built whenever net, or a
+          # package that depends on it, is affected.
+          net_native=$(lua tools/run.lua needs net $packages | head -n 1)
+          echo "TLS native module needed: $net_native"
+          echo "net_native=$net_native" >> "$GITHUB_OUTPUT"
 
   ci:
     needs: plan
@@ -154,7 +166,7 @@ jobs:
       # dependent package is affected; the TLS tests skip silently when it is missing, so the
       # build is asserted explicitly.
       - name: Cache native build
-        if: contains(format(' {0} ', needs.plan.outputs.packages), ' net ') || needs.plan.outputs.json_native == 'true' || contains(format(' {0} ', needs.plan.outputs.packages), ' doc ')
+        if: needs.plan.outputs.net_native == 'true' || needs.plan.outputs.json_native == 'true' || contains(format(' {0} ', needs.plan.outputs.packages), ' doc ')
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: |
@@ -165,7 +177,7 @@ jobs:
           key: native-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('packages/net/native/Cargo.lock', 'packages/net/native/rust-toolchain.toml', 'packages/json/native/Cargo.lock', 'packages/doc/native/Cargo.lock') }}
 
       - name: Build the TLS native module (Linux, macOS)
-        if: runner.os != 'Windows' && contains(format(' {0} ', needs.plan.outputs.packages), ' net ')
+        if: runner.os != 'Windows' && needs.plan.outputs.net_native == 'true'
         run: |
           (cd packages/net/native && rustup toolchain install)
           lua tools/run.lua build-native net
@@ -179,6 +191,12 @@ jobs:
           lua tools/run.lua build-native json
           test -f .hecate/rocks/lib/lua/5.5/hecate/json/native.so
           test -f .hecate/rocks/lib/lua/5.5/hecate/json/encoder_native.so
+
+      - name: Build the HTTP parser native module (llhttp binding; POSIX)
+        if: runner.os != 'Windows' && needs.plan.outputs.http_native == 'true'
+        run: |
+          lua tools/run.lua build-native http
+          test -f .hecate/rocks/lib/lua/5.5/hecate/http/native.so
 
       # Markdown and highlighting of `doc` (comrak, syntect; ADR 0022): the tests of `doc` and of the
       # website build need the module, so it is built whenever `doc` is affected.
@@ -210,7 +228,7 @@ jobs:
           cargo clippy --locked --all-targets
 
       - name: Build the TLS native module (Windows)
-        if: runner.os == 'Windows' && contains(format(' {0} ', needs.plan.outputs.packages), ' net ')
+        if: runner.os == 'Windows' && needs.plan.outputs.net_native == 'true'
         shell: pwsh
         run: |
           Push-Location packages/net/native
@@ -237,6 +255,17 @@ jobs:
           lua tools/run.lua build-native json
           if (-not (Test-Path .hecate/rocks/lib/lua/5.5/hecate/json/native.dll)) { throw 'native.dll missing' }
           if (-not (Test-Path .hecate/rocks/lib/lua/5.5/hecate/json/encoder_native.dll)) { throw 'encoder_native.dll missing' }
+
+      - name: Build the HTTP parser native module (Windows)
+        if: runner.os == 'Windows' && needs.plan.outputs.http_native == 'true'
+        shell: pwsh
+        run: |
+          $tc = (Join-Path $env:GITHUB_WORKSPACE '.hecate/toolchain') -replace '\\', '/'
+          $env:LUA_LIB_NAME = 'lua55'
+          $env:LUA_LIB = "$tc/lib"
+          $env:LUA_INC = "$tc/include"
+          lua tools/run.lua build-native http
+          if (-not (Test-Path .hecate/rocks/lib/lua/5.5/hecate/http/native.dll)) { throw 'native.dll missing' }
 
       - name: Build the documentation native module (Windows)
         if: runner.os == 'Windows' && contains(format(' {0} ', needs.plan.outputs.packages), ' doc ')
@@ -275,7 +304,7 @@ jobs:
           PACKAGES: ${{ needs.plan.outputs.packages }}
           # The TLS tests fail, instead of skipping, when the native module is missing.
           HECATE_NETWORK_TESTS: "1"
-          HECATE_REQUIRE_TLS: ${{ contains(format(' {0} ', needs.plan.outputs.packages), ' net ') && '1' || '' }}
+          HECATE_REQUIRE_TLS: ${{ needs.plan.outputs.net_native == 'true' && '1' || '' }}
         run: |
           set -e
           for task in check-versions check-rockspecs check-package-structure check-docs-examples check-licenses check-lua-constructs check-boundaries check-glossary check-annotations check-adr-index format-check typecheck; do

@@ -50,13 +50,17 @@ end
 --- Command line that builds and runs one C libFuzzer target (clang with the fuzzer, AddressSanitizer and
 --- UndefinedBehaviorSanitizer runtimes), linked against the static Lua library: the harness includes the module's
 --- own source. `seeds` is read-only input; findings of the run grow `corpus`; a crash is written to `artifacts`.
----@param spec {cc: string, include: string, lib: string, source: string, binary: string, corpus: string, seeds: string, artifacts: string}
+---@param spec {cc: string, include: string, lib: string, source: string, binary: string, corpus: string, seeds: string, artifacts: string, extra?: string[]}
 ---@param seconds integer
 ---@return string
 function M.c_command(spec, seconds)
   local q = util.quote
+  -- Further sources compiled and linked with the target (a vendored library that cannot share one translation unit).
+  local extra = {}
+  for _, path in ipairs(spec.extra or {}) do extra[#extra + 1] = q(path) end
+  local sources = table.concat({ q(spec.source), table.unpack(extra) }, " ")
   return ("%s -std=c11 -O1 -g -fno-omit-frame-pointer -fsanitize=fuzzer,address,undefined -I%s -o %s %s %s -lm -ldl && "
-    .. "%s %s %s -artifact_prefix=%s/ -max_total_time=%d"):format(spec.cc, q(spec.include), q(spec.binary), q(spec.source),
+    .. "%s %s %s -artifact_prefix=%s/ -max_total_time=%d"):format(spec.cc, q(spec.include), q(spec.binary), sources,
     q(spec.lib), q(spec.binary), q(spec.corpus), q(spec.seeds), q(spec.artifacts), seconds)
 end
 

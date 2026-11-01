@@ -1,8 +1,9 @@
--- fuzz <target> [--seconds n]: runs one libFuzzer target for a bounded time. `fuzz --list` prints the targets.
+-- fuzz <target> [--seconds n]: runs one libFuzzer target for a bounded time. `fuzz --list` prints the targets. Linux only
+-- (libFuzzer with the sanitizers, and the cloud and CI images that have clang's runtime).
 -- Rust targets (cargo-fuzz, nightly toolchain) live in packages/<name>/native/fuzz/fuzz_targets/<target>.rs;
 -- C targets (clang with libFuzzer, ASan and UBSan; needs the Lua headers and liblua.a: LUA_INC and LUA_LIB, or next
 -- to the interpreter or in the bootstrapped toolchain) in packages/<name>/csrc/fuzz/<target>.c, with their seed inputs
--- in the `seeds` directory beside them.
+-- in the `seeds` directory beside them; `extra_sources.txt` lists further sources to link.
 local util = require("lib.util")
 local fuzz = require("lib.fuzz")
 
@@ -43,9 +44,16 @@ local function run_c(ctx, target, seconds)
   local corpus, artifacts = work .. "/corpus", package_dir .. "/artifacts"
   util.mkdir(corpus)
   util.mkdir(artifacts)
+  -- `extra_sources.txt` beside the targets: one source per line, relative to the package, compiled with every target.
+  local extra = {}
+  local list = io.open(package_dir .. "/extra_sources.txt", "rb")
+  if list then
+    for line in list:read("a"):gmatch("[^\r\n]+") do extra[#extra + 1] = ctx.root .. "/packages/" .. target.package .. "/" .. line end
+    list:close()
+  end
   local command = fuzz.c_command({
     cc = os.getenv("CC") or "clang", include = include, lib = libdir .. "/liblua.a", source = package_dir .. "/" .. target.name .. ".c",
-    binary = work .. "/fuzzer", corpus = corpus, seeds = package_dir .. "/seeds", artifacts = artifacts,
+    binary = work .. "/fuzzer", corpus = corpus, seeds = package_dir .. "/seeds", artifacts = artifacts, extra = extra,
   }, seconds)
   local out, ok = util.capture(command .. " 2>&1")
   if not ok then return { ok = false, problems = { "fuzzing " .. target.name .. " failed to build or found a crash (last 80 lines):\n" .. fuzz.tail(out, 80) } } end

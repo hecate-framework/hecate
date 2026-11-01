@@ -69,6 +69,10 @@ jobs:
             if [ "$package" = doc ]; then lua tools/run.lua build-native doc --spec; fi
           done
 
+      # The tests of `http` need the llhttp binding too (a C module: no Rust toolchain).
+      - name: Build the HTTP parser native module
+        run: lua tools/run.lua build-native http
+
       - name: Download the test data
         run: |
           lua tools/run.lua fetch-fixtures json
@@ -129,6 +133,10 @@ jobs:
             lua tools/run.lua build-native "$package"
             if [ "$package" = doc ]; then lua tools/run.lua build-native doc --spec; fi
           done
+
+      # The tests of `http` need the llhttp binding too (a C module: no Rust toolchain).
+      - name: Build the HTTP parser native module
+        run: lua tools/run.lua build-native http
 
       - name: Download the test data
         run: |

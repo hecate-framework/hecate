@@ -26,7 +26,7 @@ HTTP/1.1 server and client with a message model following RFC 9110 semantics.
 ## Invariants (must hold after every change)
 
 - request smuggling defences (conflicting Content-Length/Transfer-Encoding rejected)
-- every limit has a safe default
+- every limit has a documented default; a default of none is allowed only when another mechanism bounds the resource (`max_connections`: the file-descriptor limit of the process, `idle_timeout` and `head_timeout`)
 - one coroutine and one scope per request
 
 ## Test strategy

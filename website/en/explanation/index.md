@@ -17,5 +17,7 @@ the [how-to guides](../how-to/index.md) do.
   verifier, what cannot be disabled, and the platform caveats.
 - [Multi-process serving](multi-process-serving.md): share-nothing workers, listening strategies
   and the message pipe, and which parts exist today.
+- [The HTTP model](http-model.md): messages, the life of a connection, and why the limits have
+  their defaults.
 
 The vocabulary is defined in the [glossary](../reference/glossary.md).

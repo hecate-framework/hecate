@@ -69,7 +69,7 @@ for public APIs, documentation and internal code.
 | inversion of control | The framework calls user code | Fowler (2004) | — |
 | container | Object that resolves and constructs dependencies | Fowler (2004) | service locator (an anti-pattern, not a synonym) |
 | service | An object registered in the container and resolved by it | Fowler (2004) | bean, provider |
-| action | The controller method or function that a route invokes; what filters wrap. "Handler" is reserved for I/O completion handlers of the reactor | `http-and-routing.md` | handler |
+| action | The function that serves a request: a controller method, a route function, or the function given to `http.Server`; what filters wrap. "Handler" is reserved for I/O completion handlers of the reactor | `http-and-routing.md` | handler |
 | controller, route module, feature module | The two route declaration styles (a class of actions, or `hecate.routes(name)`) and the kernel's grouping of them into a feature module ([ADR 0006](adr/0006-declarative-routes-as-runtime-data.md)) | ADR 0006; `http-and-routing.md` | router group, blueprint, plugin; "module" alone, which is ambiguous with a Lua module |
 | chain of responsibility | Ordered handlers around an action | Gamma et al. (1994) | middleware stack |
 | filter | One element of the chain around an action | — | middleware |
@@ -129,6 +129,15 @@ Terms from RFC 9110 are used as defined: *resource*, *representation*, *method*,
 *status code*, *field* (header field), *content* (message body), *media type*.
 Errors are *problem details* (RFC 9457; `hecate.problem.*` is the namespace). Path parameters follow URI Template syntax
 (RFC 6570, level 1 subset).
+
+| Term | Meaning | Source | Instead of |
+|---|---|---|---|
+| origin | The scheme, host and port of a URL: the key of the client's connection pool and the unit of the same-origin rule for redirects | RFC 6454; RFC 9110 section 4.3.1 | site, domain |
+| head | The start line and the fields of a message, up to and including the empty line (a request head, a response head) | RFC 9112 section 2.1 ("message head") | header (the word names a single field only in prose about fields), preamble |
+| persistent connection | A connection kept open for several messages (keep-alive) | RFC 9112 section 9.3 | keep-alive connection (acceptable in prose) |
+| pipelining | Several requests sent on a connection without waiting for the responses, answered in request order | RFC 9112 section 9.3.2 | batching |
+| lease | The right to use one connection of a pool for one exchange, held until its response content is read or closed | Gray and Cheriton (1989) | ticket, checkout token |
+| grace period | The time `Server:shutdown` lets requests in flight finish before cancelling them | [ADR 0023](adr/0023-multi-process-serving.md) | drain timeout (that is the unread-content drain of a response) |
 
 ## Logging
 

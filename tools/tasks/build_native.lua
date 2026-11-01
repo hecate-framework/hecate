@@ -2,7 +2,7 @@
 -- the project-local tree `.hecate/rocks`, where the test harness and the bootstrap look for native
 -- modules. `net` is Rust (ADR 0021, needs a Rust toolchain); `json` is both: C (ADR 0020: yyjson
 -- binding, needs a C compiler and the Lua headers: LUA_INC, or next to the interpreter, or /usr/include)
--- and Rust (ADR 0021: the encoder); `doc` is Rust (ADR 0022: comrak and syntect).
+-- and Rust (ADR 0021: the encoder); `doc` is Rust (ADR 0022: comrak and syntect); `http` is C (ADR 0019: llhttp binding).
 --
 -- Windows: mlua-sys and the C modules need the Lua 5.5 import library; set LUA_LIB_NAME (for example lua55),
 -- LUA_LIB and LUA_INC before running (TLS spike OQ-4). macOS link flags are
@@ -20,6 +20,11 @@ local modules = {
 -- C modules: package -> { sources (relative to the package), installed module path }
 local c_modules = {
   json = { sources = { "csrc/native.c", "csrc/vendor/yyjson.c" }, target = "hecate/json/native" },
+  http = {
+    sources = { "csrc/native.c", "csrc/vendor/llhttp/api.c", "csrc/vendor/llhttp/http.c", "csrc/vendor/llhttp/llhttp.c" },
+    target = "hecate/http/native",
+    hidden = true, -- -fvisibility=hidden: only luaopen_* is exported (the llhttp symbols stay private)
+  },
 }
 
 local function lua_include_dir(ctx)
@@ -93,6 +98,7 @@ local function build_c(ctx, name, m)
     local own = not source:find("/vendor/", 1, true)
     local object = ("%s/%d.o"):format(build_dir, index)
     local flags = own and "-std=c11 -O2 -Wall -Wextra -Werror" or "-O2 -w"
+    if m.hidden then flags = flags .. " -fvisibility=hidden" end
     if sanitized then flags = flags .. " " .. sanitize.cflags() end
     local out, ok = util.capture(("%s -c -fPIC %s -I%s %s -o %s 2>&1"):format(
       cc, flags, util.quote(include), util.quote(package_dir .. "/" .. source), util.quote(object)))

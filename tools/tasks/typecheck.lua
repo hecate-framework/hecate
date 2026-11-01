@@ -8,7 +8,16 @@ return {
     local probe = util.is_windows() and "where lua-language-server 2>nul" or "command -v lua-language-server"
     local located, found = util.capture(probe)
     if not found then
-      return { ok = false, problems = { "lua-language-server not found on PATH" } }
+      -- the copy installed by `setup-luals`
+      local local_exe = ctx.root .. "/spikes/luals/bin/lua-language-server" .. (util.is_windows() and ".exe" or "")
+      local f = io.open(local_exe, "rb")
+      if f then
+        f:close()
+        located, found = local_exe, true
+      end
+    end
+    if not found then
+      return { ok = false, problems = { "lua-language-server not found on PATH; run `lua tools/run.lua setup-luals`" } }
     end
     -- Launch by full path: on Windows LuaLS spawns a child from its own location.
     local exe = located:match("[^\r\n]+") or "lua-language-server"

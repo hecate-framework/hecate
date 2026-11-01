@@ -35,6 +35,9 @@ at all times. Specification: `docs/architecture/ai-assisted-development.md#relay
 ## 3. Work in small, pushed steps
 
 - Follow `/implement-task` for the item, but split it into steps of at most ~30 minutes.
+- Before **each** push (agents you delegate to included, name it in their brief): `lua tools/run.lua setup-luals`
+  once per session, then `lua tools/run.lua typecheck` (it finds the LuaLS under `spikes/luals`). CI fails on
+  every typecheck warning; never push without it, and never accept a report that says it was not run.
 - After **each** step: update `HANDOFF.md` (done, next steps, decisions taken, open
   doubts, commands to re-run), refresh `lock_until`, commit and push. Never keep more
   than one step of unpushed work.
@@ -77,7 +80,7 @@ and its steps are the four checks of the roadmap: completeness, it works, cohere
   `docs/open-questions.md`, so it is not forgotten. Give each row of the review its disposition (fixed with the
   commit, or deferred to which item). Never edit an Accepted ADR; make an undecided choice conservatively and record
   it in `docs/open-questions.md` for confirmation. Use one specialist agent per package for the fixes, and run
-  `typecheck` (LuaLS: install the release pinned in `.github/workflows/ci.yml` under `spikes/`, checking its sha256)
+  `typecheck` (`lua tools/run.lua setup-luals` installs the pinned LuaLS under `spikes/`, checking its sha256)
   before pushing.
 - Fix a small gap in the pull request. Add a larger one as a new unticked roadmap item placed
   before the gate, and stop: the gate stays unticked.

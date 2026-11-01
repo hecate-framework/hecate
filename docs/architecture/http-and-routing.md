@@ -13,10 +13,27 @@ Packages: `http`, `router`, `kernel`. Status: specification.
   100-continue`, chunked transfer coding in both directions.
 - Limits, all configurable with safe defaults: request line length, field count and
   size, content length, read and idle deadlines per connection.
-- Content is streamed: `request:content()` reads fully (bounded by the limit),
-  `request:reader()` streams; responses accept strings, tables (serialised) or
+- Content is streamed: `request:read_content()` reads fully (bounded by the limit),
+  `request:stream_content()` streams (a `ContentStream`: `read()`, `read_all(limit?)`); responses accept strings, tables (serialised) or
   writer functions.
 - Compression (gzip, br) is a later addition.
+
+### Implemented surface
+
+What exists in `hecate.http` (the package README has the full API and the limits table):
+
+- `Request` and `Response` with `Fields`, `MediaType`, `Cookie` and `SetCookie`; a request has `method`, `target`, `path`,
+  `query` (both RAW: not percent-decoded, not normalised; the router decodes), `fields`, `peer_address()`, `cookies()`,
+  `media_type()`, `read_content()`, `stream_content()`, `read_form()` and `stream_parts()`; its `content` attribute is nil
+  for a request from the server (the kernel sets the validated content).
+- `Server`: `listen()`, `serve(listener?)`, `shutdown(grace_timeout?)` and `is_stopping()`. The `host` must be a NUMERIC
+  address (default `127.0.0.1`: a name would bind every address it resolves to), with split timeouts (`head_timeout`,
+  `idle_timeout`, `content_timeout`, `request_timeout`, `write_timeout`, `drain_timeout`), `max_content`, optional
+  `max_connections`, TLS with handshake limits, and an `on_error` and a `logger` option.
+- `Client`: a pool per origin, redirects, deadlines, TLS, streaming, `read_json()`.
+- `http.problem`, `http.form`, `http.multipart`, `http.url` and the error classes `ParseError`, `ContentError` and `FormError`.
+- The answers sent before any action runs (400 malformed or without exactly one `Host`, 408, 413, 414, 417, 431, 501 for an
+  upgrade) are problem details built by `http.problem` and never reach the kernel.
 
 ### Message model
 
@@ -39,8 +56,8 @@ end
 
 ### Client
 
-The same package provides an HTTP client (connection reuse per origin, deadlines,
-TLS, redirects policy, streaming). It powers the test client's network mode and the
+The same package provides an HTTP client (`http.Client`: connection reuse per origin, deadlines,
+TLS, redirects policy, streaming; the response content is read with `response:read_content()` or `response:stream_content()`, like the server's request content). It powers the test client's network mode and the
 CLI's registry access.
 
 ## `hecate.router`

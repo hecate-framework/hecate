@@ -161,7 +161,7 @@ concurrency test suite passes; benchmark baseline recorded.
 
 ## Phase 2 — HTTP and framework kernel
 
-- [ ] `http`: HTTP/1.1 server (llhttp, OQ-6) and client, message model, streaming,
+- [x] `http`: HTTP/1.1 server (llhttp, OQ-6) and client, message model, streaming,
       keep-alive, limits. **Carries three findings deferred from the Phase 1 gate review** (security review,
       [report](reviews/phase-1.md)): (1) map `reactor.TransportError` to a generic RFC 9457 `detail` and never
       forward `context.attempts` or resolved addresses to a client (the `net.connect` error lists every resolved
@@ -169,13 +169,20 @@ concurrency test suite passes; benchmark baseline recorded.
       `tls.accept` in a forked computation per connection (a silent client holds a handshake for up to 60 s), and
       bounds the bytes read during a handshake; (3) a production listener passes a numeric address (`net.listen` on
       a name binds every address the resolver lists): decide the default of the `listen` setting and document it.
-- [ ] `router`: radix tree, URI template subset, 404/405, reverse routing.
+      **Also carries two items of the llhttp binding review (step 2b)**: (4) the server answers 400 to an HTTP/1.1
+      request without exactly one `Host` field (RFC 9112 section 3.2; the parser only exposes the fields); (5) the
+      server calls `Parser:close()` when a connection ends, and feeds the parser chunks no larger than its read buffer
+      (`feed` returns every event of the chunk in one list).
+- [ ] `router`: radix tree, URI template subset, 404/405, reverse routing. **Also:** percent-decode each path segment (so `%2F` is not a separator) and resolve dot segments: `request.path` of `http` is raw (OQ-75).
 - [ ] `schema`: refinement types, composition, coercion, validation with JSON Pointer
       error paths, JSON Schema 2020-12 emission.
 - [ ] `container`: IoC container, lifetimes, cycle detection at boot; write its specification section in `docs/architecture/` (OQ-62).
 - [ ] `config`: layered configuration validated by schemas; write its specification section in `docs/architecture/`, including the logging keys (OQ-62).
 - [ ] `kernel`: application, modules, controllers, route modules, filters, problem
-      details, lifecycle, multi-process workers, graceful shutdown.
+      details, lifecycle, multi-process workers, graceful shutdown. **First step (from the `http` reviews):** split
+      `packages/http` `server.lua` (options, response writer, connection) and `client.lua` (pool, redirect) with no API
+      change; build the in-process dispatch seam (OQ-78, with OQ-76 a), the `on_response` hook (OQ-81) and decide OQ-79
+      (default logging of action errors) and OQ-80 (`http.json` and `http.text`); narrow the type of `Request.content`.
 - [ ] Example: `examples/hello` (JSON API with validation).
 - [ ] Benchmarks: plaintext and JSON scenarios. **Carries three performance findings deferred from the Phase 1
       gate review** ([review](reviews/phase-1-review-package.md), "Minor"): judge each with a measurement, then
@@ -209,7 +216,9 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
 
 - [ ] `openapi`: OpenAPI 3.1 assembly, served endpoint, export, contract diff.
 - [ ] `test`: test framework, runner, in-process client, fixtures, contract conformance,
-      reporters (TAP, JUnit XML), coverage.
+      reporters (TAP, JUnit XML), coverage. **Also (T2, from the `http` test review):** a hand-built `Request` whose
+      `content` is a table must be JSON-encoded or raise, not read as empty (`Request:read_content` today reads only a
+      string); the in-process client uses the dispatch seam of OQ-78.
 - [ ] `doc`: project documentation generator for user projects (OpenAPI reference,
       `hecate doc build`); the minimal generator and the code reference moved to Phase 1. **Carries deferrals
       from the Phase 1 gate review** (cross-platform review): refuse, with a `BuildError`, page ids that are not valid
@@ -225,6 +234,11 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       `shield` section of `deadlines-and-cancellation`, the `BufferedWriter:close` and 16 KiB text, the sockets
       how-to, json `out_of_memory`) and refresh every stale `source_revision` stamp (OQ-64; findings A44 and B32 of
       `docs/reviews/phase-1-coherence-findings.md`; row M1 of `docs/reviews/phase-1-review-package.md`).
+      **Also carries the French mirror of `http` (Phase 2 item, pull request 52):** translate the six English pages
+      `website/en/explanation/http-model.md` and `website/en/how-to/{serve-http, stream-http-content, use-the-http-client,
+      http-limits-timeouts-and-tls, handle-forms-and-multipart}.md` (terminology in `website/fr/glossary-terms.md`: add *origin*,
+      *head*, *persistent connection*, *pipelining*, *lease*, *grace period*, *action*), stamp their `source_revision`, and check
+      that the generated `http` reference (added to `DEFAULT_PACKAGES`) builds in both locales with `--strict`.
 - [ ] Meta-rock `hecate` (standard edition).
 - [ ] Read-only mirrors (ADR 0017): `split`, `mirrors ensure`, `check-mirrors`,
       `split.yml`; Homebrew tap and Scoop bucket repositories (resolves OQ-17).
@@ -271,7 +285,8 @@ Exit: `examples/crud` works unchanged on PostgreSQL, MySQL, MariaDB and SQLite.
 - [ ] `mongodb`: OP_MSG protocol, BSON, document mapper.
 - [ ] `sqlserver`: TDS protocol.
 - [ ] `template`: compiled templates with contextual auto-escaping.
-- [ ] `websocket` (RFC 6455).
+- [ ] `websocket` (RFC 6455). **Also:** the upgrade takeover with the parser leftover offset (OQ-76 c), together with the
+      reader restructuring of OQ-70 (a client that disconnects during an action).
 - [ ] HTTP/2.
 - [ ] Further NoSQL drivers by demand (e.g. Cassandra/ScyllaDB CQL).
 

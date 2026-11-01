@@ -72,9 +72,12 @@ jobs:
         run: lua tools/run.lua fetch-fixtures json
 
       - name: Sanitizer run
+        env:
+          # the sanitizer job builds the C modules only: the TLS tests of http skip here on purpose
+          HECATE_REQUIRE_TLS: "0"
         run: |
           (cd packages/json/native && rustup toolchain install)
-          lua tools/run.lua sanitize json
+          lua tools/run.lua sanitize json http
 
   fuzz:
     name: fuzz (short)
