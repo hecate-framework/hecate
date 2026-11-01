@@ -6,6 +6,8 @@ global <const> require, ipairs, table, string, utf8
 
 local json = require("hecate.json")
 
+--- Builder of the client-side search index.
+---@class hecate.doc.search
 local M = {}
 
 --- Version of the index format, so `theme.js` can reject an index it does not know.

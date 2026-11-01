@@ -43,7 +43,7 @@ end
 ---@field name? string  name stored in every record
 ---@field context? table  fields added to every record
 ---@field context_provider? fun(): table?  returns the ambient context of the running computation, merged under `context` (default: the fields bound by `log.bind`); if it raises or returns a non-table the call is counted in `failures()` and the record is written without it
----@field redact? string[]  field names (case-insensitive, at any depth) whose values are replaced by a `Secret`
+---@field redact? string[]  field names (case-insensitive, in the first 16 levels of nested plain tables) whose values are replaced by a `Secret`
 ---@field clock? fun(): number  seconds since the epoch (default `os.time`)
 
 --- A logger with the eight methods of RFC 5424 (`emergency` to `debug`), a severity filter and a context.
@@ -76,8 +76,25 @@ end
 function Logger:init(options)
   options = options or EMPTY
   self._severity = severities.resolve(options.severity or Severity.informational, 2, "log.Logger").ordinal
+  if options.name ~= nil and type(options.name) ~= "string" then
+    error(core.ArgumentError("log.Logger: invalid name option: expected a string"), 2)
+  end
+  if options.context ~= nil and type(options.context) ~= "table" then
+    error(core.ArgumentError("log.Logger: invalid context option: expected a table"), 2)
+  end
+  if options.sinks ~= nil and type(options.sinks) ~= "table" then
+    error(core.ArgumentError("log.Logger: invalid sinks option: expected a list of sinks"), 2)
+  end
+  if options.clock ~= nil and type(options.clock) ~= "function" then
+    error(core.ArgumentError("log.Logger: invalid clock option: expected a function"), 2)
+  end
+  if options.context_provider ~= nil and type(options.context_provider) ~= "function" then
+    error(core.ArgumentError("log.Logger: invalid context_provider option: expected a function"), 2)
+  end
   self._name = options.name
-  self._context = options.context or EMPTY
+  local context = {}
+  for key, value in pairs(options.context or EMPTY) do context[key] = value end
+  self._context = context
   self._provider = options.context_provider or ambient.fields
   self._clock = options.clock or os.time
   if options.redact ~= nil then

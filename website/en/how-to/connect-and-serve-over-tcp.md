@@ -18,8 +18,9 @@ behind this, read [The transport model](../explanation/transport-model.md).
 ## Connect
 
 `net.connect(host, port, options?)` returns a `TcpStream`. The host may be a name or a numeric
-address. A name is resolved first, and each address is tried in the order the resolver gives
-until one connects.
+address. A name is resolved first. The addresses are tried in the order the resolver gives: the next one
+starts after 250 milliseconds, or at once when an attempt fails, and the first one to connect
+wins. The attempts that lose are cancelled.
 
 The example below starts a listener on a free port and connects to it. The client sends one
 line and reads one line back.
@@ -91,8 +92,9 @@ Streams, listeners, readers and writers implement the Lua 5.5 `<close>` protocol
 as `local stream <close> = ...` and they are closed when the block ends, even on an error or a
 cancellation.
 
-`close` is idempotent and never suspends. Closing a reader or a writer does not close the stream
-under it. Closing a writer discards what it still buffers, so call `flush` first.
+`close` is idempotent. Closing a reader or a writer does not close the stream under it. Closing a
+writer flushes what it still buffers, within `close_timeout` (5 seconds by default), and raises if
+the flush fails or times out.
 
 After `close`, any use raises `reactor.TransportError` with `context.errno` set to `EBADF`.
 
@@ -108,9 +110,10 @@ a free port; `listener:local_address().port` tells you which. The options are th
 > `reactor.supports_reuseport()` first. See
 > [Multi-process serving](../explanation/multi-process-serving.md#reuseport-does-not-work-yet).
 
-> [!WARNING] Name your address
-> `net.listen("localhost", port)` binds only the first address the resolver lists, which can be
-> `127.0.0.1` or `::1`. Pass a numeric address, or `family`, when the address matters.
+> [!NOTE] One name, several addresses
+> `net.listen("localhost", port)` binds every address the resolver lists, usually `127.0.0.1` and
+> `::1`, on the same port, and `accept` takes connections from all of them. An address the machine
+> cannot bind (no IPv6, for instance) is skipped. Pass a numeric address, or `family`, to bind just one.
 
 `listener:accept()` suspends until a client connects and returns a `TcpStream`. A server loops on
 `accept` and forks one coroutine per connection, so that a slow client never delays the others.

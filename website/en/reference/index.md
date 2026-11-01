@@ -17,5 +17,6 @@ documented package.
 - [`hecate.net`](net/index.md): streams, TCP, UDP, pipes, name resolution, TLS and the buffered
   layer.
 - [`hecate.json`](json/index.md): encoding, decoding, markers and errors.
+- [`hecate.log`](log/index.md): structured records, RFC 5424 severities, context and sinks.
 
 The [glossary](glossary.md) defines the vocabulary used everywhere.

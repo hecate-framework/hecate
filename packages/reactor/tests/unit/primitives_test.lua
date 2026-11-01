@@ -181,6 +181,20 @@ function T:test_deadline_accepts_an_absolute_instant()
   end)
 end
 
+function T:test_deadline_of_zero_negative_or_past_instant_expires_immediately()
+  support.run_virtual(function()
+    reactor.sleep(4)
+    local limits = { 0, -1, reactor.at(2) }
+    for _, limit in ipairs(limits) do
+      local started = reactor.now()
+      local ok, err = pcall(reactor.deadline, limit, reactor.sleep, 10)
+      self:assert_false(ok)
+      self:assert_true(core.is_instance_of(err, core.DeadlineExceededError))
+      self:assert_equal(started, reactor.now())
+    end
+  end)
+end
+
 function T:test_deadline_cancels_forked_children()
   support.run_virtual(function()
     local child
@@ -226,6 +240,15 @@ function T:test_deadline_rejects_invalid_arguments()
     ---@diagnostic disable-next-line: param-type-mismatch  -- intentionally invalid
     ---@diagnostic disable-next-line: param-type-mismatch  -- intentionally invalid
     self:assert_true(core.is_instance_of(self:assert_error(function() reactor.deadline(1, nil) end), core.ArgumentError))
+  end)
+end
+
+function T:test_deadline_rejects_non_finite_durations()
+  support.run_virtual(function()
+    for _, bad in ipairs({ math.huge, -math.huge, 0 / 0 }) do
+      local err = self:assert_error(function() reactor.deadline(bad, function() end) end)
+      self:assert_true(core.is_instance_of(err, core.ArgumentError))
+    end
   end)
 end
 

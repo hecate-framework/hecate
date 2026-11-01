@@ -15,7 +15,7 @@ local reactor = require("hecate.reactor")
 --- the record is dropped and counted: back-pressure is loss, never waiting.
 --- The drain computation starts at the first `write`, which therefore must run inside a reactor. Call `close` before
 --- the main computation ends: a drain computation still waiting for records is a deadlock to the reactor.
----@class hecate.log.AsyncSink
+---@class hecate.log.AsyncSink : hecate.log.Sink
 ---@overload fun(options: hecate.log.AsyncSinkOptions): hecate.log.AsyncSink
 local AsyncSink = core.class("AsyncSink")
 
@@ -40,6 +40,7 @@ function AsyncSink:init(options)
   self._items = reactor.Semaphore(0) -- one unit per queued entry
   self._drain = nil
   self._closed = false
+  self._closing = nil -- future of the shutdown, set by the first `close`
   self._dropped, self._failures = 0, 0
 end
 
@@ -105,18 +106,42 @@ function AsyncSink:flush()
   wait_marker(self, false)
 end
 
---- Flushes, then stops the drain computation; later writes are ignored. Closing twice does nothing.
+--- Stops the drain computation, then closes the target. Runs detached, so that a closer that is cancelled
+--- does not leave the sink half closed.
 ---@async
-function AsyncSink:close()
-  if self._closed then return end
-  local drain_future = self._drain
-  self._closed = true
-  if drain_future then
+---@param self hecate.log.AsyncSink
+local function shut_down(self)
+  if self._drain then
     wait_marker(self, true)
-    drain_future:value()
+    self._drain:value()
   end
   local close = self._sink["close"]
   if type(close) == "function" then close(self._sink) end
+end
+
+--- Flushes, then stops the drain computation; later writes are ignored. Closing again, also while a first
+--- `close` is still waiting for the drain, suspends until the drain has ended and reports the same
+--- outcome: it returns, or raises the error raised by the `close` of the target.
+---@async
+function AsyncSink:close()
+  if not self._closing then
+    self._closed = true
+    if self._drain then
+      self._closing = reactor.detach(shut_down, self)
+    else
+      -- Nothing was ever queued: no drain to wait for, so no suspension, and this works outside a reactor.
+      local close = self._sink["close"]
+      local ok, err = true, nil
+      if type(close) == "function" then ok, err = pcall(close, self._sink) end
+      self._closing = { failure = not ok and err or nil } -- the outcome every later `close` reports
+    end
+  end
+  local closing = self._closing
+  if reactor.is_future(closing) then
+    closing:value()
+  elseif closing.failure ~= nil then
+    error(closing.failure, 0)
+  end
 end
 
 --- Returns how many records were dropped because the queue was full.

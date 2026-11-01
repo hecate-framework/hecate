@@ -1,6 +1,6 @@
 -- hecate.reactor: the reactor over libuv (luv): scheduler, futures, structured concurrency
--- (concurrency.md; ADR 0002, ADR 0003). Step 1 of the roadmap item: loop, Future, fork,
--- join, select, sleep, scope, deadline, cancellation and virtual clock.
+-- (concurrency.md; ADR 0002, ADR 0003): public entry point, re-exporting the primitives,
+-- synchronisation objects, transport, processes, `ipc` and the ambient context.
 global <const> require
 
 local core = require("hecate.core")
@@ -91,6 +91,7 @@ reactor.scope = primitives.scope
 reactor.with_ambient = primitives.with_ambient
 reactor.ambient = primitives.ambient
 reactor.deadline = primitives.deadline
+reactor.shield = primitives.shield
 reactor.now = primitives.now
 
 --- Runs `fn(...)` on a new reactor until it and everything it forked have finished.

@@ -204,8 +204,9 @@ local async = log.AsyncSink({ sink = log.FileSink({ path = "app.log" }), capacit
 
 `AsyncSink:close()`: marks the sink closed (later writes are ignored, silently), queues a stop marker, waits until
 every record queued before it has been written, waits for the drain computation to end, then calls `close()` on the
-target if it has one. A second call does nothing. A `close` of the target that raises propagates to the caller of
-`AsyncSink:close()`. A sink never written to has no drain computation: `close` only closes the target.
+target if it has one. The shutdown runs once, in a detached computation; every call to `close`, including a second one
+made while the first still waits for the drain, suspends until it ended and reports the same outcome. A `close` of
+the target that raises propagates to every caller of `AsyncSink:close()`. A sink never written to has no drain computation: `close` only closes the target.
 Call `close()` before the main computation ends: a drain computation still waiting for records is a deadlock to the
 reactor (`reactor.run: deadlock`). `FileSink:close()` is synchronous and idempotent. `MemorySink`, `ConsoleSink`,
 `JsonLinesSink` and `LimitedSink` have no `close`. The `Logger` has no `close`: it owns no resource, closing is
@@ -309,7 +310,9 @@ convenience methods (`log.Logger.informational: message must be a string, got nu
   `with_context`, `add_sink`, and the `write` of every provided sink do not suspend and do not touch the
   reactor, except `AsyncSink`, which starts its drain computation once, and only queues afterwards.
 - Everything that may suspend is annotated `---@async`: `AsyncSink:flush()` and `AsyncSink:close()`, and nothing
-  else of the package. A test checks that documented suspension matches behaviour.
+  else of the package. The suspension check of testing.md
+  (`packages/reactor/tests/unit/suspension_test.lua`) covers `hecate.reactor`; a counterpart for this package
+  is not written yet.
 - A `Logger` can be used outside a reactor, for a script or a test, with every sink except `AsyncSink`.
 - Sinks hold mutable state without locks; this is safe because computations interleave only at suspension
   points and no `write` of a provided sink has one. A custom sink whose `write` suspended would break the order

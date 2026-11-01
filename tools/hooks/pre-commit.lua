@@ -1,5 +1,5 @@
 -- pre-commit hook body: lint the packages with staged Lua sources (format-check is a
--- no-op until OQ-3 is resolved). Invoked by the shim written by install.lua.
+-- no-op: no formatter supports Lua 5.5, OQ-3). Invoked by the shim written by install.lua.
 local script = arg[0]:gsub("\\", "/")
 local hooks_dir = script:match("^(.*)/[^/]*$") or "."
 package.path = hooks_dir .. "/../?.lua;" .. hooks_dir .. "/../lib/?.lua;" .. package.path

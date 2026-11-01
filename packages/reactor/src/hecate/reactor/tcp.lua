@@ -2,7 +2,7 @@
 -- transparent I/O; ADR 0002: luv is wrapped once, here). Callbacks only record a result and
 -- wake the coroutine; the scheduler resumes it (reactor/CLAUDE.md, known pitfalls).
 --
--- Cancellation rules (reactor/CLAUDE.md invariant: cancellation runs `<close>` handlers):
+-- Cancellation rules (reactor/CLAUDE.md invariant: cancellation runs the `__close` metamethods of pending `<close>` variables):
 --   * `read` and `accept` leave the handle intact: data or connections that arrive after the
 --     coroutine was withdrawn are kept for the next call, never dropped.
 --   * `write`, `shutdown` and `connect_tcp` cannot be withdrawn from libuv. When one is
@@ -54,18 +54,20 @@ local function protected(fn, ...)
   return result, err
 end
 
-local KNOWN = { nodelay = true, keepalive = true, keepalive_delay = true, backlog = true, reuseport = true }
+local CONNECT_KEYS = { nodelay = true, keepalive = true, keepalive_delay = true }
+local LISTEN_KEYS = { nodelay = true, keepalive = true, keepalive_delay = true, backlog = true, reuseport = true }
 
 ---@param name string
 ---@param options any
+---@param known table<string, true>  the option names the call accepts
 ---@return table
-local function check_options(name, options)
+local function check_options(name, options, known)
   if options == nil then return {} end
   if type(options) ~= "table" then
     error(core.ArgumentError(("%s: expects an options table, got %s"):format(name, type(options))), 3)
   end
   for key in pairs(options) do
-    if not KNOWN[key] then
+    if not known[key] then
       error(core.ArgumentError(("%s: unknown option %s"):format(name, tostring(key))), 3)
     end
   end
@@ -338,7 +340,7 @@ function TcpStream:__close() self:close() end
 ---@return boolean
 function TcpStream:is_closed() return self._closed end
 
---- Address of the remote end.
+--- Address of the peer.
 ---@return hecate.reactor.SocketAddress
 function TcpStream:peer_address()
   require_open(self, "peer_address")
@@ -409,7 +411,7 @@ local DROPPED = { EINVAL = true, ENOTCONN = true, ECONNRESET = true, ECONNABORTE
 --- listener open; connections that arrive meanwhile stay queued. Connections are taken one
 --- per call, so a slow acceptor leaves the rest in the kernel backlog (back-pressure). A
 --- connection whose peer already reset it (the options cannot be applied: `EINVAL`, `ENOTCONN`,
---- `ECONNRESET`) is closed and skipped; any other failure is raised.
+--- `ECONNRESET`, `ECONNABORTED`) is closed and skipped; any other failure is raised.
 ---@async
 ---@return hecate.reactor.TcpStream
 function TcpListener:accept()
@@ -488,7 +490,7 @@ end
 
 core.finalise(TcpListener)
 
-local M = { TcpStream = TcpStream, TcpListener = TcpListener, fail_closed = fail_closed }
+local M = { TcpStream = TcpStream, TcpListener = TcpListener, fail_closed = fail_closed } -- annotations-ok: internal table (the public functions are documented on `hecate.reactor` below)
 
 -- Documented on `hecate.reactor` (module class completed here so that the LuaLS export lists the
 -- functions; coding-standards.md, "Annotations for the reference").
@@ -509,7 +511,7 @@ local api = {}
 ---@return hecate.reactor.TcpStream stream  the connected stream
 function api.connect_tcp(host, port, options)
   check_endpoint("reactor.connect_tcp", host, port)
-  options = check_options("reactor.connect_tcp", options)
+  options = check_options("reactor.connect_tcp", options, CONNECT_KEYS)
   uv_call.begin("reactor.connect_tcp")
   local handle = uv.new_tcp()
   local state = {}
@@ -554,7 +556,7 @@ end
 ---@return hecate.reactor.TcpListener listener  the listening socket
 function api.listen_tcp(host, port, options)
   check_endpoint("reactor.listen_tcp", host, port)
-  options = check_options("reactor.listen_tcp", options)
+  options = check_options("reactor.listen_tcp", options, LISTEN_KEYS)
   uv_call.begin("reactor.listen_tcp")
   local handle = uv.new_tcp()
   if options.reuseport and not api.supports_reuseport() then

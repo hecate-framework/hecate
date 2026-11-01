@@ -67,7 +67,7 @@ end
 --- cancelled before it completed closes the socket.
 ---@async
 ---@param host string  numeric IPv4 or IPv6 address
----@param port integer  UDP port, 1..65535
+---@param port integer  UDP port, 0..65535 (`net` refuses 0)
 ---@param data string
 function UdpSocket:send_to(host, port, data)
   if type(data) ~= "string" then

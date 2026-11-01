@@ -61,7 +61,7 @@ function T:test_typos_are_rejected_and_the_valid_options_are_listed()
   contains(self, message, "client_ca_pem")
   message = argument_error(self, ENTRY_POINTS.connect_tls({ server_nam = "x" }))
   contains(self, message, "unknown option server_nam")
-  contains(self, message, "handshake_deadline")
+  contains(self, message, "handshake_timeout")
 end
 
 function T:test_a_client_option_given_to_a_server_says_which_kind_it_belongs_to()
@@ -103,10 +103,21 @@ function T:test_alpn_is_validated_in_lua()
   argument_error(self, function() net.tls.server_config({ cert_pem = PEM, key_pem = KEY, alpn = "h2" }) end)
 end
 
+function T:test_client_crl_pem_requires_client_ca_pem()
+  local message = argument_error(self, ENTRY_POINTS.server_config({ client_crl_pem = PEM }))
+  contains(self, message, "client_crl_pem")
+  contains(self, message, "client_ca_pem")
+end
+
+function T:test_client_crl_pem_is_a_server_option()
+  contains(self, argument_error(self, ENTRY_POINTS.client_config({ client_crl_pem = PEM })), "client_crl_pem is a server option")
+end
+
 function T:test_pem_options_must_be_strings()
   contains(self, argument_error(self, ENTRY_POINTS.client_config({ ca_pem = 5 })), "ca_pem")
   contains(self, argument_error(self, ENTRY_POINTS.client_config({ cert_pem = 5, key_pem = KEY })), "cert_pem")
   contains(self, argument_error(self, ENTRY_POINTS.server_config({ client_ca_pem = 5 })), "client_ca_pem")
+  contains(self, argument_error(self, ENTRY_POINTS.server_config({ client_ca_pem = PEM, client_crl_pem = 5 })), "client_crl_pem")
   contains(self, argument_error(self, ENTRY_POINTS.server_config({ key_pem = {} })), "key_pem")
 end
 
@@ -132,16 +143,41 @@ function T:test_connect_tls_validates_host_and_port()
   contains(self, argument_error(self, function() net.connect_tls("example.org", 70000) end), "connect_tls")
 end
 
-function T:test_handshake_deadline_must_be_a_positive_number()
+function T:test_connect_and_connect_tls_reject_port_zero()
+  contains(self, argument_error(self, function() net.connect_tls("example.org", 0) end), "net.connect_tls")
+  contains(self, argument_error(self, function() net.connect("example.org", 0) end), "net.connect")
+  contains(self, argument_error(self, function() net.connect("example.org", 0) end), "1..65535")
+end
+
+function T:test_a_malformed_server_name_is_rejected_before_anything_is_resolved()
+  local resolve = require("hecate.reactor").resolve
+  require("hecate.reactor").resolve = function() error("must not resolve") end
+  local stream = { read = function() end, write = function() end, close = function() end }
+  local ok, failure = pcall(function()
+    for _, bad in ipairs({ "has space.example", "tab\there", "nul\0byte", ("a"):rep(254), "line\nbreak" }) do
+      local message = argument_error(self, function() net.connect_tls("example.org", 443, { server_name = bad }) end)
+      contains(self, message, "net.connect_tls")
+      contains(self, message, "server name")
+      message = argument_error(self, function() net.tls.connect(stream, bad, io.stdout) end)
+      contains(self, message, "net.tls.connect")
+    end
+    -- The default name is the host: a malformed host is refused the same way.
+    contains(self, argument_error(self, function() net.connect_tls("bad host", 443) end), "server name")
+  end)
+  require("hecate.reactor").resolve = resolve
+  if not ok then error(failure, 0) end
+end
+
+function T:test_handshake_timeout_must_be_a_positive_number()
   local stream = { read = function() end, write = function() end, close = function() end }
   for _, value in ipairs({ 0, -1, "5", true, math.huge, 0 / 0 }) do
-    local message = argument_error(self, ENTRY_POINTS.connect_tls({ handshake_deadline = value }))
-    contains(self, message, "handshake_deadline")
+    local message = argument_error(self, ENTRY_POINTS.connect_tls({ handshake_timeout = value }))
+    contains(self, message, "handshake_timeout")
     -- tls.connect and tls.accept take the same option (a userdata stands in for the configuration).
-    message = argument_error(self, function() net.tls.connect(stream, "localhost", io.stdout, { handshake_deadline = value }) end)
-    contains(self, message, "handshake_deadline")
+    message = argument_error(self, function() net.tls.connect(stream, "localhost", io.stdout, { handshake_timeout = value }) end)
+    contains(self, message, "handshake_timeout")
   end
-  contains(self, argument_error(self, function() net.tls.accept(stream, io.stdout, { handshake_deadline = 0 }) end), "handshake_deadline")
+  contains(self, argument_error(self, function() net.tls.accept(stream, io.stdout, { handshake_timeout = 0 }) end), "handshake_timeout")
 end
 
 function T:test_tls_connect_and_accept_reject_unknown_options_and_non_streams()

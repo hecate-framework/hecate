@@ -99,6 +99,24 @@ function T:test_two_builds_produce_the_same_files()
   if not ok then error(err, 0) end
 end
 
+function T:test_clean_refuses_an_output_directory_that_is_a_symlink()
+  if is_windows then return end
+  local uv = require("luv")
+  local root = temporary()
+  local ok, err = pcall(function()
+    doc.build({ config = load_config(), source = fixture, out = root .. "/real", fs = fs, clean = true })
+    assert(uv.fs_symlink(root .. "/real", root .. "/link"))
+    local failure = self:assert_error(function()
+      doc.build({ config = load_config(), source = fixture, out = root .. "/link", fs = fs, clean = true })
+    end)
+    self:assert_true(core.is_instance_of(failure, doc.BuildError), tostring(failure))
+    self:assert_true(tostring(failure):find("symbolic link", 1, true) ~= nil, tostring(failure))
+    self:assert_true(fs:exists(root .. "/real/en/index.html"), "the target was not cleaned")
+  end)
+  fs:remove_tree(root)
+  if not ok then error(err, 0) end
+end
+
 function T:test_the_runner_builds_a_site_and_reports()
   local out = temporary()
   local output, ok = run(("%s --out %s --strict --no-git-dates --clean"):format(quote(fixture), quote(out)))
@@ -109,6 +127,41 @@ function T:test_the_runner_builds_a_site_and_reports()
   self:assert_true(output:find("hecate.doc: %d+ files, %d+ bytes; en: 6 pages %(0 from the default locale%); fr: 6 pages %(4 from the default locale%)") ~= nil, output)
   self:assert_true(built)
   self:assert_true(sitemap:find("https://docs.example.test/en/guide/concurrency/", 1, true) ~= nil)
+end
+
+function T:test_the_runner_refuses_malformed_command_lines_with_a_usage_error()
+  local cases = {
+    { "--bogus", "unknown option --bogus" },
+    { "-x", "unknown option -x" },
+    { "--strict=yes", "takes no value" },
+    { "--out", "needs a value" },
+    { "--out --strict", "needs a value" },
+    { "--base", "needs a value" },
+    { "--strict --strict", "repeated option --strict" },
+    { "--out a --out b", "repeated option --out" },
+    { "--base /a/ --base=/b/", "repeated option --base" },
+    { "one two", "more than one source directory" },
+    { "--base //evil.test/", "invalid --base" },
+    { "--url " .. quote("javascript:alert(1)"), "invalid --url" },
+  }
+  for _, case in ipairs(cases) do
+    local output, ok = run(case[1] .. " --no-git-dates")
+    self:assert_false(ok, case[1])
+    self:assert_true(output:find(case[2], 1, true) ~= nil, case[1] .. ": " .. output)
+    self:assert_true(output:find("usage:", 1, true) ~= nil, case[1] .. ": " .. output)
+  end
+  local output, ok = run("--help")
+  self:assert_true(ok, output)
+  self:assert_true(output:find("usage:", 1, true) ~= nil)
+end
+
+function T:test_the_runner_accepts_values_with_an_equals_sign()
+  local out = temporary()
+  local output, ok = run(("%s --out=%s --base=/docs --no-git-dates"):format(quote(fixture), quote(out)))
+  local page = fs:read(out .. "/en/guide/concurrency/index.html")
+  fs:remove_tree(out)
+  self:assert_true(ok, output)
+  self:assert_true(page:find('href="/docs/assets/theme.css"', 1, true) ~= nil)
 end
 
 function T:test_the_runner_applies_a_base_path()

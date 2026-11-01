@@ -54,7 +54,7 @@ accepts and reproduces (round-trip property tests).
 ## Verification
 
 Round-trip property tests (`decode(encode(v)) == v`, which also pin the shared markers
-between the two backends); test corpus for RFC 8259 conformance, integer/float fidelity, depth limit and
+between the decoder and the encoder); test corpus for RFC 8259 conformance, integer/float fidelity, depth limit and
 invalid UTF-8; fuzzing of the binding (`fuzz` task); `native-code-reviewer` review.
 
 ## Note (2026-10-25, owner decisions of OQ-53)

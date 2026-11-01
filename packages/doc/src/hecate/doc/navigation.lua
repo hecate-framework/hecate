@@ -4,6 +4,8 @@ global <const> require, type, ipairs, pairs, table, string
 
 local config_module = require("hecate.doc.config")
 
+--- Sidebar, previous/next and top links, as pure functions.
+---@class hecate.doc.navigation
 local M = {}
 
 ---@class hecate.doc.PageInfo

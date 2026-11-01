@@ -218,6 +218,17 @@ function T:test_the_listener_is_closed_by_its_scope_and_wakes_a_pending_accept()
   end)
 end
 
+function T:test_accept_on_a_closed_listener_raises_ebadf_naming_the_listener()
+  with_listener(self, function(listener)
+    listener:close()
+    local errno, err = errno_of(self, function() listener:accept() end)
+    self:assert_equal("EBADF", errno)
+    self:assert_equal("accept", err.context.operation)
+    self:assert_true(err.message:find("net.TcpListener.accept", 1, true) ~= nil, err.message)
+    self:assert_true(err.message:find("listener is closed", 1, true) ~= nil, err.message)
+  end)
+end
+
 function T:test_a_deadline_expires_on_a_silent_peer_and_the_stream_stays_usable()
   with_listener(self, function(listener, port)
     local release = reactor.Channel(1)
@@ -385,7 +396,7 @@ function T:test_options_reach_the_transport()
   local calls = spying_on_handles(function()
     with_listener(self, function(listener, port)
       -- The acceptor is joined after the client closed: the listener must not be closed before
-      -- the accept completed (on macOS the scheduling made that race visible).
+      -- the accept completed (on macOS the scheduling made that ordering visible).
       local acceptor = reactor.fork(function() local peer <close> = listener:accept(); peer:read() end)
       do
         local client <close> = net.connect(LOOPBACK, port, { nodelay = false, keepalive = true, keepalive_delay = 30 })
@@ -675,18 +686,143 @@ function T:test_a_cancelled_connect_leaves_no_handle()
     local future = reactor.fork(net.connect, LOOPBACK, port)
     future:cancel()
     local ok, result = pcall(future.value, future)
-    if ok then result:close() end -- the connect won the race: a stream, which must close cleanly
+    if ok then result:close() end -- the connect ran first: a stream, which must close cleanly
   end)
   self:assert_equal(before, reactor.Reactor.open_handles())
 end
 
-function T:test_listen_on_a_name_binds_the_first_resolved_address_only()
+--- Runs `fn(bound)` with `reactor.resolve` answering `addresses` and `reactor.listen_tcp` replaced by
+--- `listen(ip, port, options, real)`; `bound` collects `{ ip, port }` of the calls. Restores both after.
+local function stubbing_listen(addresses, listen, fn)
+  local resolve, listen_tcp = reactor.resolve, reactor.listen_tcp
+  local bound = {}
+  reactor.resolve = function() return addresses end
+  reactor.listen_tcp = function(ip, port, options)
+    bound[#bound + 1] = { ip = ip, port = port }
+    return listen(ip, port, options, listen_tcp)
+  end
+  local ok, err = pcall(fn, bound)
+  reactor.resolve, reactor.listen_tcp = resolve, listen_tcp
+  if not ok then error(err, 0) end
+end
+
+local function unsupported(ip, errno)
+  error(reactor.TransportError({
+    message = ("bind %s: %s"):format(ip, errno),
+    context = { operation = "bind " .. ip, errno = errno },
+  }), 0)
+end
+
+local function real_listen(ip, port, options, real) return real(ip, port, options) end
+
+--- A second loopback address that can be bound here: `::1`, else `127.0.0.2` (Linux), else nil.
+local function second_loopback()
+  for _, candidate in ipairs({ { ip = "::1", family = "inet6" }, { ip = "127.0.0.2", family = "inet" } }) do
+    if pcall(reactor.run, function() net.listen(candidate.ip, 0):close() end) then return candidate end
+  end
+  return nil
+end
+
+function T:test_listen_on_a_name_binds_every_resolved_address_on_one_port()
+  local second = second_loopback()
+  if not second then return end
+  local before = reactor.Reactor.open_handles()
   reactor.run(function()
-    local first = net.resolve("localhost")[1]
-    local listener <close> = net.listen("localhost", 0)
-    self:assert_equal(first.ip, listener:local_address().ip)
-    self:assert_equal(first.family, listener:local_address().family)
+    stubbing_listen({ { ip = LOOPBACK, family = "inet" }, second }, real_listen, function(bound)
+      local listener <close> = net.listen("localhost", 0)
+      local port = listener:local_address().port
+      self:assert_equal(2, #bound)
+      self:assert_equal(0, bound[1].port)
+      self:assert_equal(port, bound[2].port) -- the port chosen for the first is reused
+      self:assert_equal(LOOPBACK, listener:local_address().ip)
+      local seen = {}
+      local acceptor = reactor.fork(function()
+        for _ = 1, 2 do
+          local peer <close> = listener:accept()
+          seen[#seen + 1] = peer:reader():read_line()
+        end
+      end)
+      local a <close> = net.connect(LOOPBACK, port)
+      a:write("v4\n")
+      local b <close> = net.connect(second.ip, port)
+      b:write("v6\n")
+      acceptor:value()
+      table.sort(seen)
+      self:assert_equal("v4,v6", table.concat(seen, ","))
+    end)
   end)
+  self:assert_equal(before, reactor.Reactor.open_handles())
+end
+
+function T:test_an_address_the_host_cannot_bind_is_skipped_when_another_is_bound()
+  local before = reactor.Reactor.open_handles()
+  reactor.run(function()
+    for _, errno in ipairs({ "EAFNOSUPPORT", "EADDRNOTAVAIL" }) do
+      stubbing_listen({ { ip = "::1", family = "inet6" }, { ip = LOOPBACK, family = "inet" } },
+        function(ip, port, options, real)
+          if ip == "::1" then unsupported(ip, errno) end
+          return real(ip, port, options)
+        end,
+        function()
+          local listener <close> = net.listen("localhost", 0)
+          self:assert_equal(LOOPBACK, listener:local_address().ip)
+        end)
+    end
+  end)
+  self:assert_equal(before, reactor.Reactor.open_handles())
+end
+
+function T:test_listen_fails_when_no_address_can_be_bound()
+  reactor.run(function()
+    stubbing_listen({ { ip = "::1", family = "inet6" } }, function(ip) unsupported(ip, "EAFNOSUPPORT") end, function()
+      self:assert_equal("EAFNOSUPPORT", errno_of(self, function() net.listen("localhost", 0) end))
+    end)
+  end)
+end
+
+function T:test_another_failure_fails_the_listen_and_closes_what_was_bound()
+  local before = reactor.Reactor.open_handles()
+  reactor.run(function()
+    stubbing_listen({ { ip = LOOPBACK, family = "inet" }, { ip = "::1", family = "inet6" } },
+      function(ip, port, options, real)
+        if ip == "::1" then unsupported(ip, "EADDRINUSE") end
+        return real(ip, port, options)
+      end,
+      function()
+        self:assert_equal("EADDRINUSE", errno_of(self, function() net.listen("localhost", 0) end))
+      end)
+  end)
+  self:assert_equal(before, reactor.Reactor.open_handles())
+end
+
+function T:test_a_numeric_address_binds_just_that_address()
+  reactor.run(function()
+    stubbing_listen({ { ip = LOOPBACK, family = "inet" } }, real_listen, function(bound)
+      local listener <close> = net.listen(LOOPBACK, 0)
+      self:assert_equal(1, #bound)
+      listener:close()
+    end)
+  end)
+end
+
+function T:test_closing_a_multi_address_listener_closes_every_socket_and_wakes_accept()
+  local second = second_loopback()
+  if not second then return end
+  local before = reactor.Reactor.open_handles()
+  reactor.run(function()
+    stubbing_listen({ { ip = LOOPBACK, family = "inet" }, second }, real_listen, function()
+      local listener = net.listen("localhost", 0)
+      local waiting = reactor.fork(function() return pcall(listener.accept, listener) end)
+      reactor.sleep(0)
+      listener:close()
+      listener:close()
+      self:assert_true(listener:is_closed())
+      local ok, err = waiting:value()
+      self:assert_false(ok)
+      self:assert_true(core.is_instance_of(err, reactor.TransportError), tostring(err))
+    end)
+  end)
+  self:assert_equal(before, reactor.Reactor.open_handles())
 end
 
 -- The peer resets the connection (a socket closed while it holds unread data answers with RST) while

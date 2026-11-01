@@ -10,7 +10,7 @@ Object model (classes, traits, interfaces), error hierarchy, enumerations, value
 ## Read before changing anything
 
 - Specification: `docs/architecture/object-model.md`
-- Decisions: `docs/adr/0001-lua-5.5-as-sole-target.md`, `docs/adr/0004-academic-vocabulary.md`, `docs/adr/0007-object-model.md`
+- Decisions: `docs/adr/0001-lua-5.5-as-sole-target.md`, `docs/adr/0004-academic-vocabulary.md`, `docs/adr/0007-object-model.md`, `docs/adr/0018-error-signalling.md`
 - Glossary: `docs/glossary.md` · Coding standards: `docs/architecture/coding-standards.md`
 - This package's `README.md` (scope, dependencies, status)
 

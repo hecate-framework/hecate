@@ -106,7 +106,10 @@ local function build_c(ctx, name, m)
   return { ok = true, problems = {}, output = "installed " .. dest }
 end
 
-local function build_rust(ctx, name, m)
+--- Builds the Rust module of a package and installs it. `spec` (flag `--spec`, `doc` only) builds instead the
+--- test-only variant with the cargo feature `spec-tests` into `<crate>/target/spec`, installs nothing, and is what
+--- the CommonMark specification tests load (the unsafe renderer is not part of the shipped module, ADR 0022).
+local function build_rust(ctx, name, m, spec)
   local crate = ("%s/packages/%s/%s"):format(ctx.root, name, m.dir)
   local _, have_cargo = util.capture("cargo --version")
   if not have_cargo then return { ok = false, problems = { "cargo not found: install a Rust toolchain" } } end
@@ -115,9 +118,11 @@ local function build_rust(ctx, name, m)
   -- Cargo reads `.cargo/config.toml` from the working directory, not from the manifest's,
   -- so the macOS link flags are passed through the environment as well.
   local env = macos and "RUSTFLAGS='-C link-arg=-undefined -C link-arg=dynamic_lookup' " or ""
-  local out, ok = util.capture(("%scargo build --release --locked --manifest-path %s 2>&1"):format(
-    env, util.quote(crate .. "/Cargo.toml")))
+  local variant = spec and (" --features spec-tests --target-dir " .. util.quote(crate .. "/target/spec")) or ""
+  local out, ok = util.capture(("%scargo build --release --locked%s --manifest-path %s 2>&1"):format(
+    env, variant, util.quote(crate .. "/Cargo.toml")))
   if not ok then return { ok = false, problems = { "cargo build failed:\n" .. out } } end
+  if spec then return { ok = true, problems = {}, output = "built the spec-tests variant in " .. crate .. "/target/spec" } end
   local built = ("%s/target/release/%s%s.%s"):format(crate, windows and "" or "lib", m.lib,
     windows and "dll" or macos and "dylib" or "so")
   local version = _VERSION:match("%d+%.%d+")
@@ -143,6 +148,10 @@ return {
     if c then
       result = build_c(ctx, name, c)
       if not result.ok then return result end
+    end
+    if ctx.args[2] == "--spec" then
+      if name ~= "doc" then return { ok = false, problems = { "--spec exists for the package doc only" } } end
+      return build_rust(ctx, name, rust, true)
     end
     if rust then
       local built = build_rust(ctx, name, rust)

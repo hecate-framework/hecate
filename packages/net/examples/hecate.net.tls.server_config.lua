@@ -1,7 +1,7 @@
 -- A TLS server that requires client certificates (mutual TLS). `client_ca_pem`
 -- names the authority that signed the client certificates. The accept loop
 -- forks the handshake of each connection and bounds it with
--- `handshake_deadline`, so that one silent client cannot stall it. Needs the
+-- `handshake_timeout`, so that one silent client cannot stall it. Needs the
 -- native TLS module (`lua tools/run.lua build-native`).
 local reactor = require("hecate.reactor")
 local net = require("hecate.net")
@@ -24,7 +24,7 @@ reactor.run(function()
       local connection = listener:accept()
       reactor.fork(function()
         -- The handshake owns `connection`: it is closed if the handshake fails.
-        local ok, peer = pcall(net.tls.accept, connection, config, { handshake_deadline = 5 })
+        local ok, peer = pcall(net.tls.accept, connection, config, { handshake_timeout = 5 })
         if not ok then return end
         local reader, writer = peer:reader(), peer:writer()
         writer:write("welcome " .. reader:read_line() .. "\n")

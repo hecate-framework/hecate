@@ -28,6 +28,17 @@ produces a report, `docs/reviews/phase-<N>.md`, and checks:
    stale, are listed in the report with their context and a recommendation; an issue labelled `needs-decision`
    asks the owner. The relay never decides them.
 
+**Triage of minor findings (owner instruction, 2026-11-01).** The relay triages the minor findings of a gate (reviewer
+agents, coherence audit) itself and does not put them to the owner. For each, it asks: *does this minor belong to an item
+that must be resolved by the end of this gate?* That is, is it a defect of something the phase delivered (a bug, a
+missing check, a missing test, a security weakness, a stale or false statement)? If yes, it is fixed directly in the
+gate's pull request, test first. If no (it cannot be judged without a measurement or the work of a later phase, such as
+a performance finding, or it is a deliberate limit), it is deferred: written into the roadmap item of the later phase that
+will handle it, with a pointer to the review row and what to check, or recorded as a known limitation in
+`docs/open-questions.md`, so that it is not forgotten. Each row of the review report carries its disposition (fixed with
+the commit, or deferred to which item). Owner decisions stay the owner's: an Accepted ADR is never edited, a choice that
+nothing decides is made conservatively and recorded in `docs/open-questions.md` for confirmation.
+
 A gap found becomes a new unticked roadmap item placed before the gate (or a fix inside the gate's pull request
 when it is small). The gate is ticked only when the report shows no open gap and every open question it listed
 has an owner decision or an explicit, recorded deferral.
@@ -92,7 +103,7 @@ Exit: CI is green on all three platforms with a trivial test in every package sk
       strict link check), `website.yml` builds it on pull requests and deploys it to GitHub
       Pages from `main` (Settings > Pages > Source = GitHub Actions), hand-written how-to
       guides and explanations for `net` and the `reactor` primitives, the public glossary,
-      the French translation of those pages (13 pages; terminology in
+      the French translation of those pages (16 pages; terminology in
       `website/fr/glossary-terms.md`), and `check-docs-examples` (code blocks equal their
       tested example files). Still to come, in their own items: tutorials and the other
       packages' guides as the packages land, the translation status check, `hecate doc` for
@@ -124,7 +135,7 @@ Exit: CI is green on all three platforms with a trivial test in every package sk
       cancellation and the virtual clock; then give `log` a default context provider and a test
       that a record logged by a forked computation carries the bound context. Needed before
       `kernel` binds the request id.
-- [x] Benchmarks harness and first scenario (TCP echo); `benchmarks.yml`. Delivered: `benchmarks/scenarios/tcp-echo`, `benchmarks/run.lua`, `benchmarks/compare.lua`, `bench <scenario> [--compare=ref]`. The Lua load generator replaces `wrk2`/`oha` (no dependency); Micro-benchmarks added for `net` (`read-until`, `buffered-writer`, `tls-throughput`) and `reactor` (`scheduler`). The baseline numbers are measured by the owner on dedicated hardware, and the Phase 1 exit criterion "10 000 concurrent connections on each platform" is verified on Linux and macOS by the scenario; the ADR 0023 accept-spread scenario is the follow-up below (Windows is not a benchmark target, see the vision).
+- [x] Benchmarks harness and first scenario (TCP echo); `benchmarks.yml`. Delivered: `benchmarks/scenarios/tcp-echo`, `benchmarks/run.lua`, `benchmarks/compare.lua`, `bench <scenario> [--compare=ref]`. The Lua load generator replaces `wrk2`/`oha` (no dependency); Micro-benchmarks added for `net` (`read-until`, `buffered-writer`, `tls-throughput`) and `reactor` (`scheduler`). The baseline numbers are measured by the owner on dedicated hardware, and the Phase 1 exit criterion (10 000 concurrent connections on Linux and macOS) is verified on Linux and macOS by the scenario; the ADR 0023 accept-spread scenario is the follow-up below (Windows is not a benchmark target, see the vision).
 - [x] Benchmarks follow-up: add the multi-process accept-spread scenario of [ADR 0023](adr/0023-multi-process-serving.md) (connections per second and worker spread per strategy), and publish the first baseline measured by the owner. Delivered: `benchmarks/scenarios/accept-spread` (`round_robin`; `reuseport` reported as skipped until OQ-43); baseline measured by the owner on 2026-10-27 at `c75e403` (Ubuntu 24.04 virtual machine on an Intel Core Ultra 7 155H, `round_robin` with 8 workers, 5 000 connections/s for 20 s, 3 invocations of 5 rounds: about 4 980 connections/s, 0 errors, spread 1.00, latency p50 about 1.1 ms and p99 about 185 ms; host noise 1.056 to 1.071, slightly above the 1.05 target), details in the comment on pull request #40; `reuseport` has no baseline until OQ-43. Windows is **not** a benchmark target (owner decision, 2026-10-25: Linux is the only production target, [vision](vision.md)): the network scenarios run on Linux and macOS, and the runner keeps its POSIX shell, `taskset` and `kill`.
 - [x] Pin every third-party action of the existing workflows by commit SHA (owner request,
       2026-10-18; [automation.md](architecture/automation.md)); Dependabot keeps them current.
@@ -134,8 +145,15 @@ Exit: CI is green on all three platforms with a trivial test in every package sk
 - [x] `json` follow-up: libFuzzer C targets for the native code of `json`
       (`csrc/native.c`), run by the `fuzz` task and `nightly.yml` (coding-standards.md;
       the `sanitize` task already covers its ASan and UBSan build).
-- [ ] **Phase 1 gate**: verification of the phase, as described in [Phase gates](#phase-gates). Open
-      questions to put to the owner before Phase 2: OQ-50, OQ-47, OQ-23, OQ-24, OQ-26 (1) and OQ-22.
+- [x] `reactor` follow-up (owner decisions of 2026-10-27, OQ-23, OQ-26): `reactor.shield(limit, fn, ...)` with its own deadline, so that cleanup can suspend while its scope is cancelled and a stuck peer cannot block shutdown (the deadline argument is required, no default decided); an `on_unobserved_failure` hook (`Reactor` option) for failed detached computations, which `kernel` binds to `log`; `core.IoError` as a base class that `reactor.IoError` extends (`TransportError` stays a sibling). `BufferedWriter:close` flushing under the shield (OQ-29) moves to the `net` follow-up below.
+- [x] `net` follow-up (owner decisions of 2026-10-27, OQ-47): `BufferedWriter:close` flushes under `reactor.shield` with its own deadline (OQ-23, OQ-29; choose the default and record it); create a Unix socket inside a `0700` directory (or equivalent) instead of binding then calling `chmod`; `net.listen` binds every resolved address (supersedes OQ-32 point 3); a CRL option for client certificates, and the limit documented until then; separate handshake defaults (10 seconds for `tls.connect` and `connect_tls`, 60 seconds for `tls.accept`, both editable); keep `max_message` editable; a benchmark of the `BufferedWriter` capacity against the 4 KiB default of Go's `bufio` and other frameworks. Also Happy Eyeballs (RFC 8305) in `net.connect` (OQ-32 (2), owner decision of 2026-10-27): the next address is tried after about 250 ms in parallel, the first success wins and the others are cancelled. Delivered: every part, with three conservative choices for the owner to confirm (the `close_timeout` default of 5 seconds, the skipping of an unbindable address by `net.listen`, the PEM form of `client_crl_pem`), recorded in OQ-29, OQ-32 and OQ-47; the capacity benchmark is done (`net/buffered-writer`) and the owner chose 16 KiB as the default (2026-11-01).
+- [x] **Phase 1 gate**: verification of the phase, as described in [Phase gates](#phase-gates). Open
+      questions to put to the owner before Phase 2: OQ-50, OQ-47, OQ-23, OQ-24, OQ-26 (1) and OQ-22. Delivered:
+      [report](reviews/phase-1.md): completeness, behaviour, coherence audit (104 findings), the six questions decided by the
+      owner, the two follow-up items, the 40 minor findings triaged (31 fixed, the rest deferred into named items),
+      and a reviewer wave on the new code and the files nobody had read (security, cross-platform, native code,
+      `reactor`, `net`); CI green on the three platforms at the final head. The deferrals are carried by the Phase 2
+      benchmarks and `http` items, the Phase 3 `doc` and website items, OQ-65 and OQ-66.
 
 Exit: an echo server handles 10 000 concurrent connections on Linux and macOS (Windows is not a
 benchmark target, owner decision of 2026-10-25); structured
@@ -144,7 +162,13 @@ concurrency test suite passes; benchmark baseline recorded.
 ## Phase 2 — HTTP and framework kernel
 
 - [ ] `http`: HTTP/1.1 server (llhttp, OQ-6) and client, message model, streaming,
-      keep-alive, limits.
+      keep-alive, limits. **Carries three findings deferred from the Phase 1 gate review** (security review,
+      [report](reviews/phase-1.md)): (1) map `reactor.TransportError` to a generic RFC 9457 `detail` and never
+      forward `context.attempts` or resolved addresses to a client (the `net.connect` error lists every resolved
+      address with its errno), with a test; (2) the server owns a limit on concurrent TLS handshakes and runs
+      `tls.accept` in a forked computation per connection (a silent client holds a handshake for up to 60 s), and
+      bounds the bytes read during a handshake; (3) a production listener passes a numeric address (`net.listen` on
+      a name binds every address the resolver lists): decide the default of the `listen` setting and document it.
 - [ ] `router`: radix tree, URI template subset, 404/405, reverse routing.
 - [ ] `schema`: refinement types, composition, coercion, validation with JSON Pointer
       error paths, JSON Schema 2020-12 emission.
@@ -153,7 +177,12 @@ concurrency test suite passes; benchmark baseline recorded.
 - [ ] `kernel`: application, modules, controllers, route modules, filters, problem
       details, lifecycle, multi-process workers, graceful shutdown.
 - [ ] Example: `examples/hello` (JSON API with validation).
-- [ ] Benchmarks: plaintext and JSON scenarios.
+- [ ] Benchmarks: plaintext and JSON scenarios. **Carries three performance findings deferred from the Phase 1
+      gate review** ([review](reviews/phase-1-review-package.md), "Minor"): judge each with a measurement, then
+      keep or fix it, and note the result in the review: (RE2) three table allocations per suspend/resume on the
+      scheduler hot path (`reactor.lua`, `context.suspend`; scenario `reactor/scheduler`, then `plaintext`);
+      (J4) per-key allocation in the Rust encoder (`packages/json/native/src/lib.rs`; `bench json`); (LO4)
+      `Logger:with_context` rebuilds the severity list (`logger.lua`; `bench log/logger`).
 
 Exit: `examples/hello` runs on three platforms with N workers; invalid input yields
 RFC 9457 problem details; graceful shutdown drains in-flight requests.
@@ -173,8 +202,8 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       (resolved 2026-10-13: [report](spikes/OQ-11-doc-tooling.md), [ADR 0012](adr/0012-website-generator.md)).
 
 - [ ] **Phase 2 gate**: verification of the phase, as described in [Phase gates](#phase-gates). Open
-      questions to put to the owner before Phase 3: OQ-46, OQ-13, OQ-17, OQ-38 and the housekeeping of
-      OQ-33 to OQ-36 and OQ-40.
+      questions to put to the owner before Phase 3: OQ-46, OQ-13, OQ-17, OQ-38 and OQ-64
+      (OQ-33, OQ-35, OQ-36 and OQ-40 were resolved at the Phase 1 gate).
 
 ## Phase 3 — Contracts and tooling → `0.1.0`
 
@@ -182,13 +211,20 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
 - [ ] `test`: test framework, runner, in-process client, fixtures, contract conformance,
       reporters (TAP, JUnit XML), coverage.
 - [ ] `doc`: project documentation generator for user projects (OpenAPI reference,
-      `hecate doc build`); the minimal generator and the code reference moved to Phase 1.
+      `hecate doc build`); the minimal generator and the code reference moved to Phase 1. **Carries deferrals
+      from the Phase 1 gate review** (cross-platform review): refuse, with a `BuildError`, page ids that are not valid
+      file names on Windows (`? : * " < > |`, trailing dots or spaces, reserved names such as `CON`) and normalise
+      NFC/NFD names before the collision check, because a site is built from a tree authored elsewhere.
 - [ ] `cli` v1: self-contained executable, `new`, `install`, `add`, `remove`, `update`,
       `serve [--watch]`, `test`, `doc`, `contract`, `toolchain`, `doctor`, `version`.
 - [ ] Docker images (runtime and build variants, amd64 + arm64).
 - [ ] Website: Diátaxis structure, English source, French locale enabled, MDN-like
       theme, getting-started tutorial, reference generated from annotations, built by
       `hecate doc` (ADR 0012, after OQ-11). Pages may be drafted as Markdown earlier.
+      **Carries a deferral from the Phase 1 gate:** bring the French pages in step with the English ones (the
+      `shield` section of `deadlines-and-cancellation`, the `BufferedWriter:close` and 16 KiB text, the sockets
+      how-to, json `out_of_memory`) and refresh every stale `source_revision` stamp (OQ-64; findings A44 and B32 of
+      `docs/reviews/phase-1-coherence-findings.md`; row M1 of `docs/reviews/phase-1-review-package.md`).
 - [ ] Meta-rock `hecate` (standard edition).
 - [ ] Read-only mirrors (ADR 0017): `split`, `mirrors ensure`, `check-mirrors`,
       `split.yml`; Homebrew tap and Scoop bucket repositories (resolves OQ-17).

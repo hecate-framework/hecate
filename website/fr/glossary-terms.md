@@ -16,8 +16,8 @@ page (avec un lien vers le glossaire), puis le terme français seul.
 | spawn | `spawn` ; « lancer / démarrer un processus » | jamais pour une coroutine |
 | join | `join` | |
 | select | `select` | |
-| deadline | échéance | `reactor.deadline`, `handshake_deadline` en code |
-| timeout | délai | durée relative |
+| deadline | échéance | `reactor.deadline` en code ; un instant, ou une durée pour `reactor.deadline` |
+| timeout | délai | durée relative ; `handshake_timeout` en code |
 | stream | flux | |
 | back-pressure | contre-pression | |
 | half-close | fermeture partielle | |
@@ -27,9 +27,15 @@ page (avec un lien vers le glossaire), puis le terme français seul.
 | listening strategy | stratégie d’écoute | |
 | cancellation | annulation | |
 | scope | portée | `reactor.scope` en code |
+| ambient context | contexte ambiant | `reactor.with_ambient` et `reactor.ambient` en code |
+| ambient binding | liaison ambiante | |
+| ambient key | clé ambiante | |
+| logger context | contexte du journaliseur | `Logger:with_context` en code |
+| bound log fields | champs de journal liés | `log.bind` en code |
+| request context | contexte de requête | prévu, pas encore implémenté |
 | channel | canal | |
 | semaphore, monitor | sémaphore, moniteur | |
-| handshake | poignée de main | TLS ; `handshake_deadline` en code |
+| handshake | poignée de main | TLS ; `handshake_timeout` en code |
 | callback | rappel | |
 | buffer, buffered | tampon, tamponné | |
 | poisoned writer | écrivain empoisonné | |

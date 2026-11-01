@@ -96,4 +96,13 @@ function T:test_value_lookup_is_a_plain_table_read()
   self:assert_equal("table", type(getmetatable(Status).__index))
 end
 
+function T:test_values_of_same_named_enumerations_are_not_equal()
+  local First = core.enumeration("Status", { "active", "disabled" })
+  local Second = core.enumeration("Status", { "active", "disabled" })
+  self:assert_true(First.active == First.active)
+  self:assert_false(First.active == Second.active)
+  self:assert_true(First.active ~= Second.active)
+  self:assert_false(First:contains(Second.active))
+end
+
 return T

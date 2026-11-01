@@ -268,6 +268,7 @@ function T:test_arguments_are_validated()
   bad({ max_depth = 0 }, "invalid max_depth")
   bad({ max_depth = 1001 }, "invalid max_depth")
   bad({ max_size = "big" }, "invalid max_size")
+  bad({ indent = string.rep(" ", 100000) }, "a string of 100000 bytes")
 end
 
 return T

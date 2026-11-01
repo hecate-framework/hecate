@@ -27,6 +27,13 @@ use syntect::html::{ClassStyle, ClassedHTMLGenerator};
 use syntect::parsing::SyntaxSet;
 use syntect::util::LinesWithEndings;
 
+/// The most block containers (`>` quotes and list items) that one line may open. Comrak parses and
+/// formats iteratively and caps list nesting itself (100), so this is not what keeps the stack
+/// safe: it is a documented bound on what one page may ask of the renderer (without it a run of
+/// 100000 `>` takes tens of seconds, quadratic in the depth) that stays far above real
+/// documentation, which rarely nests beyond five levels.
+pub const MAX_NESTING: usize = 100;
+
 /// Class prefix of every highlighted token.
 const CLASS_PREFIX: &str = "hl-";
 
@@ -81,6 +88,57 @@ pub struct Rendered {
     pub links: Vec<String>,
 }
 
+/// Checks that no line opens more than [`MAX_NESTING`] block containers. The container markers of
+/// a line are read from its leading prefix: spaces, `>`, a bullet (`-`, `+`, `*`) followed by a
+/// space or tab, or an ordered marker (1 to 9 digits, `.` or `)`, then a space or tab; CommonMark
+/// 0.31.2, sections 5.1, 5.2 and 5.3). The scan is conservative: it ignores code fences, so a
+/// fenced block that quotes a deeply nested line is refused too.
+///
+/// # Errors
+///
+/// A message naming the first offending line (1-based).
+pub fn check_nesting(markdown: &str) -> Result<(), String> {
+    for (index, line) in markdown.split('\n').enumerate() {
+        let bytes = line.as_bytes();
+        let (mut at, mut depth) = (0, 0);
+        while at < bytes.len() {
+            match bytes[at] {
+                b' ' | b'\t' | b'\r' => at += 1,
+                b'>' => {
+                    depth += 1;
+                    at += 1;
+                }
+                b'-' | b'+' | b'*' if matches!(bytes.get(at + 1), Some(b' ' | b'\t')) => {
+                    depth += 1;
+                    at += 2;
+                }
+                b'0'..=b'9' => {
+                    let digits = bytes[at..]
+                        .iter()
+                        .take_while(|b| b.is_ascii_digit())
+                        .count();
+                    let end = at + digits;
+                    let marker = matches!(bytes.get(end), Some(b'.' | b')'))
+                        && matches!(bytes.get(end + 1), Some(b' ' | b'\t'));
+                    if digits > 9 || !marker {
+                        break;
+                    }
+                    depth += 1;
+                    at = end + 2;
+                }
+                _ => break,
+            }
+            if depth > MAX_NESTING {
+                return Err(format!(
+                    "line {} nests more than {MAX_NESTING} block containers (quotes and list items)",
+                    index + 1
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
 fn escape(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     for c in text.chars() {
@@ -96,16 +154,17 @@ fn escape(text: &str) -> String {
     out
 }
 
+/// Appends the plain text of `node` and its descendants, in document order. Iterative: a document
+/// nests to any depth, and a native stack overflow cannot be caught.
 fn text_of<'a>(node: &'a AstNode<'a>, out: &mut String) {
-    match &node.data.borrow().value {
-        NodeValue::Text(t) => out.push_str(t),
-        NodeValue::Code(c) => out.push_str(&c.literal),
-        NodeValue::CodeBlock(c) => out.push_str(&c.literal),
-        NodeValue::SoftBreak | NodeValue::LineBreak => out.push(' '),
-        _ => {}
-    }
-    for child in node.children() {
-        text_of(child, out);
+    for node in node.descendants() {
+        match &node.data.borrow().value {
+            NodeValue::Text(t) => out.push_str(t),
+            NodeValue::Code(c) => out.push_str(&c.literal),
+            NodeValue::CodeBlock(c) => out.push_str(&c.literal),
+            NodeValue::SoftBreak | NodeValue::LineBreak => out.push(' '),
+            _ => {}
+        }
     }
 }
 
@@ -562,7 +621,10 @@ fn rendered_to_lua(lua: &Lua, rendered: Rendered) -> LuaResult<LuaTable> {
 /// Renders with the options of the specifications: raw HTML kept and, when `extension` names one of the
 /// GFM extensions of the specification (`table`, `strikethrough`, `autolink`), that
 /// extension only; none by default (CommonMark). It exists so that the specification examples can
-/// run through this module (OQ-37); the site never uses it.
+/// run through this module (OQ-37); the site never uses it. This is the unsafe renderer: it is
+/// compiled only with the `spec-tests` feature, so the shipped module exposes the safe renderer
+/// alone.
+#[cfg(feature = "spec-tests")]
 pub fn commonmark(markdown: &str, extension: Option<&str>) -> String {
     let mut options = Options::default();
     options.render.r#unsafe = true;
@@ -582,6 +644,10 @@ fn module(lua: &Lua) -> LuaResult<LuaTable> {
         "render",
         lua.create_function(|lua, (markdown, options): (LuaString, Option<LuaTable>)| {
             let markdown = markdown.to_str()?;
+            // A refusal is `nil, message`; the Lua wrapper raises it as an argument error.
+            if let Err(message) = check_nesting(&markdown) {
+                return (LuaNil, message).into_lua_multi(lua);
+            }
             let (config, resolve) = config_from(options)?;
             let mut failure: Option<LuaError> = None;
             let rendered = render(&markdown, &config, &mut |href| match &resolve {
@@ -592,11 +658,12 @@ fn module(lua: &Lua) -> LuaResult<LuaTable> {
                 }),
             });
             match rendered {
-                Ok(rendered) => rendered_to_lua(lua, rendered),
+                Ok(rendered) => rendered_to_lua(lua, rendered)?.into_lua_multi(lua),
                 Err(message) => Err(failure.unwrap_or_else(|| LuaError::runtime(message))),
             }
         })?,
     )?;
+    #[cfg(feature = "spec-tests")]
     exports.set(
         "commonmark",
         lua.create_function(|_, (markdown, extension): (LuaString, Option<LuaString>)| {
@@ -734,6 +801,22 @@ mod tests {
         .expect("renders");
         assert!(r.html.contains("local x &lt;const&gt; = 1"));
         assert!(!r.html.contains("hl-"));
+    }
+
+    #[test]
+    fn nesting_is_bounded_per_line() {
+        assert!(check_nesting(&format!("{} x", "> ".repeat(MAX_NESTING))).is_ok());
+        let err = check_nesting(&format!("a\n{} x", "- ".repeat(MAX_NESTING + 1))).unwrap_err();
+        assert!(err.starts_with("line 2 "), "{err}");
+        assert!(check_nesting(&format!("a {}", "> ".repeat(500))).is_ok());
+        assert!(check_nesting(&format!("{}x", "1. ".repeat(MAX_NESTING + 1))).is_err());
+        assert!(check_nesting(&format!("{}x", ">".repeat(200_000))).is_err());
+    }
+
+    #[test]
+    fn plain_text_of_deep_documents_does_not_recurse() {
+        let r = run(&format!("{}x *a _b_ c*\n", "> ".repeat(MAX_NESTING)));
+        assert_eq!(r.sections[0].text, "x a b c");
     }
 
     #[test]

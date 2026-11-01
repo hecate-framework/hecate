@@ -26,14 +26,14 @@ A cancellation from elsewhere, for example from an enclosing `reactor.scope`, ra
 local stream <close> = reactor.deadline(5, net.connect, "example.org", 80)
 ```
 
-A cancellation stops `connect` at once. It does not try the next address. The half-open
-connection is closed, so nothing leaks.
+A cancellation stops `connect` at once and cancels every attempt in flight. It does not try the
+next address. The half-open connections are closed, so nothing leaks.
 
 `connect_tls` has two bounds. The `reactor.deadline` you wrap around it covers resolution and the TCP
-connect. The option `handshake_deadline` (10 seconds by default) covers the TLS handshake only:
+connect. The option `handshake_timeout` (10 seconds by default) covers the TLS handshake only:
 
 ```lua
-local stream <close> = reactor.deadline(5, net.connect_tls, host, 443, { handshake_deadline = 5 })
+local stream <close> = reactor.deadline(5, net.connect_tls, host, 443, { handshake_timeout = 5 })
 ```
 
 ## Bound a read
@@ -97,7 +97,7 @@ nobody knows how many were sent. They close the object instead of leaving it in 
 | `net.connect`, `net.connect_pipe` | The half-open connection is closed. No other address is tried. |
 | `UdpSocket:send_to` | The socket is closed. |
 | `writer:flush`, and a `writer:write` that flushes | The writer is poisoned and the stream is closed. |
-| TLS handshake that outlasts `handshake_deadline` | The stream is closed. |
+| TLS handshake that outlasts `handshake_timeout` | The stream is closed. |
 
 ## Know the poisoned writer
 
@@ -115,15 +115,36 @@ end
 Reading from the same stream is not an option either, since the cancelled write closed it.
 Treat a cancelled write as the end of the connection.
 
-## Do not rely on `close` to wait
+## Let `close` flush a writer
 
-`close` never suspends, so it can run inside a `<close>` block while the coroutine is being
-cancelled. It does not wait for buffered data. To end a conversation cleanly, `flush` the
-writer and call `shutdown` before the block ends. See
+`BufferedWriter:close` flushes the bytes it still holds under `reactor.shield`, so it completes
+inside a `<close>` block even while the coroutine is being cancelled. The writer option
+`close_timeout` (5 seconds by default) bounds it: if the peer is stuck, `close` raises
+`DeadlineExceededError`, the writer is closed anyway and the unsent bytes are dropped. `close` does
+not shut the stream down: to end a conversation cleanly, call `shutdown` too. See
 [The transport model](../explanation/transport-model.md).
+
+## Run cleanup while the scope is cancelled
+
+Once a scope is cancelled, every suspension point inside it raises again, so a cleanup step that
+must wait (flush a buffer, send a closing message) would fail at once. Run it with
+`reactor.shield`, which keeps the cancellation of the enclosing scopes out of its body and has a
+deadline of its own, so that a stuck peer cannot block shutdown:
+
+```lua
+local ok = pcall(reactor.shield, 5, function()
+  writer:flush()
+  stream:shutdown()
+end)
+-- A deadline of 5 seconds bounds the cleanup. ok is false if it expired or failed.
+```
+
+The cancellation that arrived meanwhile is raised again at the first suspension point after the
+shield.
 
 ## See also
 
 - [Connect and serve over TCP](connect-and-serve-over-tcp.md)
 - [`reactor.deadline`](../reference/reactor/functions/deadline.md),
+  [`reactor.shield`](../reference/reactor/functions/shield.md),
   [`BufferedWriter`](../reference/net/BufferedWriter.md)

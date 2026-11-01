@@ -1,3 +1,4 @@
+---@diagnostic disable: missing-fields, param-type-mismatch, assign-type-mismatch  -- the tests pass invalid options and arguments on purpose
 local test = require("harness.test")
 local json = require("hecate.json")
 local log = require("hecate.log")
@@ -79,6 +80,30 @@ function T:test_a_message_that_is_not_utf8_is_kept_with_its_bytes_escaped()
   local object = json.decode(lines[1])
   self:assert_equal("bad \\xff byte", object.message)
   self:assert_not_nil(object.encoding_error)
+end
+
+-- A table nested `levels` deep below the fields, holding a secret at its bottom.
+local function nested_secret(levels)
+  local leaf = { password = log.Secret("hunter2") }
+  for _ = 1, levels do leaf = { child = leaf } end
+  return leaf
+end
+
+function T:test_a_secret_is_never_rendered_around_the_depth_limit()
+  for _, levels in ipairs({ 14, 15, 16, 17, 40 }) do
+    local logger, lines = new_logger()
+    logger:error("deep", nested_secret(levels))
+    self:assert_nil(lines[1]:find("hunter2", 1, true), "secret rendered at " .. levels .. " levels")
+  end
+end
+
+function T:test_a_table_deeper_than_the_limit_is_truncated_and_a_shallower_one_is_redacted()
+  local logger, lines = new_logger()
+  logger:error("shallow", nested_secret(14))
+  self:assert_not_nil(lines[1]:find("[redacted]", 1, true))
+  self:assert_nil(lines[1]:find("[truncated]", 1, true))
+  logger:error("deep", nested_secret(17))
+  self:assert_not_nil(lines[2]:find("[truncated]", 1, true))
 end
 
 return T

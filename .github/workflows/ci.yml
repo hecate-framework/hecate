@@ -188,6 +188,9 @@ jobs:
           (cd packages/doc/native && rustup toolchain install)
           lua tools/run.lua build-native doc
           test -f .hecate/rocks/lib/lua/5.5/hecate/doc/native.so
+          # The CommonMark specification tests need the test-only variant with the unsafe renderer, which the
+          # shipped module no longer exports (ADR 0022): it is built apart and never installed.
+          lua tools/run.lua build-native doc --spec
 
       - name: Download the specification examples (Markdown)
         if: contains(format(' {0} ', needs.plan.outputs.packages), ' doc ')
@@ -248,6 +251,7 @@ jobs:
           $env:LUA_INC = "$tc/include"
           lua tools/run.lua build-native doc
           if (-not (Test-Path .hecate/rocks/lib/lua/5.5/hecate/doc/native.dll)) { throw 'native.dll missing' }
+          lua tools/run.lua build-native doc --spec
 
       - name: Lint the documentation native module (Linux)
         if: runner.os == 'Linux' && contains(format(' {0} ', needs.plan.outputs.packages), ' doc ')
@@ -274,7 +278,7 @@ jobs:
           HECATE_REQUIRE_TLS: ${{ contains(format(' {0} ', needs.plan.outputs.packages), ' net ') && '1' || '' }}
         run: |
           set -e
-          for task in check-versions check-rockspecs check-package-structure check-docs-examples check-licenses typecheck; do
+          for task in check-versions check-rockspecs check-package-structure check-docs-examples check-licenses check-lua-constructs check-boundaries check-glossary check-annotations check-adr-index format-check typecheck; do
             echo "::group::$task"
             lua tools/run.lua "$task"
             echo "::endgroup::"

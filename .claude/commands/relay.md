@@ -69,6 +69,16 @@ and its steps are the four checks of the roadmap: completeness, it works, cohere
 - Write the report `docs/reviews/phase-<n>.md`: for each ticked item, the evidence that it is
   delivered and works (command, result, file), then the gaps found, then the open questions
   with their context and a recommendation.
+- Triage every minor finding yourself, never by asking the owner (owner instruction, 2026-11-01): *does this minor
+  belong to an item that must be resolved by the end of this gate?* If yes (a defect of something the phase delivered),
+  fix it in the gate's pull request, test first. If no (it needs a measurement or a later phase to be judged, such as
+  a performance finding, or it is a deliberate limit), defer it: write it into the roadmap item of the later phase that
+  will handle it, with a pointer to the review row and what to check, or record it as a known limitation in
+  `docs/open-questions.md`, so it is not forgotten. Give each row of the review its disposition (fixed with the
+  commit, or deferred to which item). Never edit an Accepted ADR; make an undecided choice conservatively and record
+  it in `docs/open-questions.md` for confirmation. Use one specialist agent per package for the fixes, and run
+  `typecheck` (LuaLS: install the release pinned in `.github/workflows/ci.yml` under `spikes/`, checking its sha256)
+  before pushing.
 - Fix a small gap in the pull request. Add a larger one as a new unticked roadmap item placed
   before the gate, and stop: the gate stays unticked.
 - Put the open questions to the owner: update `docs/open-questions.md` and open (or update)

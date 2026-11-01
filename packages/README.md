@@ -12,7 +12,7 @@ agent in `.claude/agents/pkg-<name>.md`.
 | [`json`](json) | `hecate-json` | 1 — Runtime | 1 | alpha | Fast, correct JSON codec (RFC 8259) with integer/float fidelity, explicit null and array markers, and precise error positions. |
 | [`log`](log) | `hecate-log` | 1 — Runtime | 1 | alpha | Structured logging with RFC 5424 severities, per-scope context and pluggable sinks. |
 | [`net`](net) | `hecate-net` | 1 — Runtime | 1 | alpha | TCP/UDP streams, DNS resolution, buffered readers/writers and TLS, all suspending transparently. |
-| [`reactor`](reactor) | `hecate-reactor` | 1 — Runtime | 1 | alpha | The reactor over libuv (luv): coroutine scheduler, futures, structured concurrency, synchronisation primitives, timers, signals, processes, file system. |
+| [`reactor`](reactor) | `hecate-reactor` | 1 — Runtime | 1 | alpha | The reactor over libuv (luv): coroutine scheduler, futures, structured concurrency, synchronisation primitives, timers, signals, processes, file system, network transport (TCP, UDP, pipes, name resolution), ambient context. |
 | [`http`](http) | `hecate-http` | 2 — Protocol | 2 | specified | HTTP/1.1 server and client with a message model following RFC 9110 semantics. |
 | [`router`](router) | `hecate-router` | 2 — Protocol | 2 | specified | Radix-tree router over URI templates (RFC 6570 level-1 subset) with 404/405 handling and reverse routing. |
 | [`schema`](schema) | `hecate-schema` | 2 — Protocol | 2 | specified | Refinement types, composition, coercion and validation with JSON Pointer error paths; emits JSON Schema 2020-12. |

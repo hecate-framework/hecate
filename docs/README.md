@@ -18,6 +18,7 @@ in [`../website`](../website).
 - [overview.md](architecture/overview.md) — layers, packages, dependency rules, request lifecycle
 - [object-model.md](architecture/object-model.md) — classes, traits, interfaces, errors
 - [concurrency.md](architecture/concurrency.md) — reactor, coroutines, structured concurrency
+- [networking.md](architecture/networking.md) — streams, buffered layer, TCP, UDP, pipes, name resolution, TLS
 - [http-and-routing.md](architecture/http-and-routing.md) — HTTP stack, router, kernel, filters
 - [schemas-and-contracts.md](architecture/schemas-and-contracts.md) — refinement types, validation, OpenAPI
 - [data-access.md](architecture/data-access.md) — SQL interfaces, drivers, query builder, ORM, migrations

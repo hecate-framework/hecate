@@ -30,5 +30,5 @@ other languages.
 ## Verification
 
 `check-glossary` task: a deny-list of discouraged identifiers (`promise`, `spawn`,
-`middleware`, `race`, ...) scanned in `packages/**/src`; the `terminology-reviewer`
+`middleware`, ...; the list is `M.denied` in `tools/lib/glossary.lua`) scanned in `packages/**/src`; the `terminology-reviewer`
 agent reviews pull requests.

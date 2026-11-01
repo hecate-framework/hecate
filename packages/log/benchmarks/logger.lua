@@ -31,7 +31,7 @@ run("enabled call, 3 fields", function() logger:informational("shown", { id = 1,
 local child = logger:with_context({ request = "r-1" })
 run("enabled call, child context + 3 fields", function() child:informational("shown", { id = 1, route = "/x", ms = 4 }) end)
 
--- Through an AsyncSink: queueing only, the drain task is outside the timed section. The queue holds
+-- Through an AsyncSink: queueing only, the drain computation is outside the timed section. The queue holds
 -- every record until the end, so fewer calls than above keep the memory small.
 local QUEUED = 100000
 reactor.Reactor():run(function()

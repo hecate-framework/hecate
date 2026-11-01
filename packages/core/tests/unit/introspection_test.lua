@@ -78,4 +78,24 @@ function T:test_name_of_unknown_value_is_an_error()
   self:assert_equal("hecate.core.ArgumentError", err.code)
 end
 
+function T:test_is_instance_of_requires_a_class_as_second_argument()
+  local Base = core.class("Base")
+  core.finalise(Base)
+  local Tr = core.trait("Tr", { m = function() end })
+  for _, not_a_class in ipairs({ {}, Tr, "Base", 42, true }) do
+    local err = self:assert_error(function() return core.is_instance_of(Base(), not_a_class) end)
+    self:assert_equal("hecate.core.ArgumentError", err.code)
+  end
+  local err = self:assert_error(function() return core.is_instance_of(Base(), nil) end)
+  self:assert_equal("hecate.core.ArgumentError", err.code)
+end
+
+function T:test_is_instance_of_gives_false_for_a_value_of_any_type()
+  local Base = core.class("Base")
+  core.finalise(Base)
+  for _, value in ipairs({ 1, "s", true, {}, print, Base }) do
+    self:assert_false(core.is_instance_of(value, Base))
+  end
+end
+
 return T

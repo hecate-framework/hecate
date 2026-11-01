@@ -268,7 +268,7 @@ function T:test_data_arriving_as_the_read_is_cancelled_is_kept()
     -- The writer sends and the canceller cancels in the same turn: libuv may deliver the
     -- data after the reader was withdrawn.
     reactor.fork(function() peer:write("kept"); reader:cancel() end)
-    -- Either the read won the race and returned the data, or it was withdrawn and the data
+    -- Either the read ran first and returned the data, or it was withdrawn and the data
     -- stays available: in both cases it is delivered exactly once.
     local ok, value = pcall(reader.value, reader)
     if ok then
@@ -319,6 +319,16 @@ function T:test_write_to_a_reset_peer_raises_a_transport_error()
     -- Windows reports the aborted connection as ECONNABORTED or ECANCELED.
     self:assert_true(errno == "EPIPE" or errno == "ECONNRESET" or errno == "ECONNABORTED"
       or errno == "ECANCELED", tostring(errno))
+  end)
+end
+
+function T:test_connect_rejects_the_options_of_a_listener()
+  ---@diagnostic disable: param-type-mismatch  -- the options are invalid on purpose
+  reactor.run(function()
+    for _, options in ipairs({ { backlog = 10 }, { reuseport = true } }) do
+      local err = self:assert_error(function() reactor.connect_tcp(LOOPBACK, 1, options) end)
+      self:assert_true(core.is_instance_of(err, core.ArgumentError), tostring(err))
+    end
   end)
 end
 

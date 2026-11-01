@@ -242,19 +242,207 @@ function T:test_failed_flush_poisons_the_writer_so_no_partial_write_leaks()
   end)
 end
 
-function T:test_close_discards_unflushed_bytes_and_keeps_the_stream_open()
+function T:test_close_flushes_buffered_bytes_and_keeps_the_stream_open()
   run(function()
     local stream = fake_stream({})
     do
       local writer <close> = net.BufferedWriter(stream)
-      writer:write("lost")
+      writer:write("kept")
     end
-    self:assert_equal(0, #stream.sent)
+    self:assert_equal("kept", table.concat(stream.sent))
     self:assert_false(stream.closed)
     local writer = net.BufferedWriter(stream)
     writer:close(); writer:close()
+    self:assert_true(writer:is_closed())
     self:assert_true(core.is_instance_of(self:assert_error(function() writer:write("x") end), reactor.TransportError))
   end)
+end
+
+function T:test_the_default_capacity_is_16_kib_one_tls_record()
+  run(function()
+    local stream = fake_stream({})
+    local writer = net.BufferedWriter(stream)
+    writer:write(("x"):rep(16383))
+    self:assert_equal(16383, writer:buffered())
+    self:assert_equal(0, #stream.sent) -- nothing sent below the capacity
+    writer:write("y") -- reaches 16384 bytes: flushed
+    self:assert_equal(0, writer:buffered())
+    self:assert_equal(16384, #table.concat(stream.sent))
+  end)
+end
+
+function T:test_closing_an_empty_writer_needs_no_reactor()
+  local writer = net.BufferedWriter(fake_stream({}))
+  writer:close()
+  self:assert_true(writer:is_closed())
+end
+
+function T:test_close_flushes_while_the_scope_is_cancelled()
+  local stream = fake_stream({})
+  stream.write = function(self, data) reactor.sleep(1); self.sent[#self.sent + 1] = data end
+  reactor.Reactor({ clock = "virtual" }):run(function()
+    reactor.scope(function(scope)
+      scope:fork(function()
+        local writer <close> = net.BufferedWriter(stream)
+        writer:write("last words")
+        pcall(reactor.sleep, 100) -- cancelled below
+      end)
+      reactor.sleep(2)
+      scope:cancel()
+    end)
+  end)
+  self:assert_equal("last words", table.concat(stream.sent))
+end
+
+function T:test_an_uncaught_cancellation_still_flushes_and_the_scope_absorbs_it()
+  local stream = fake_stream({})
+  stream.write = function(self, data) reactor.sleep(1); self.sent[#self.sent + 1] = data end
+  reactor.Reactor({ clock = "virtual" }):run(function()
+    reactor.scope(function(scope)
+      scope:fork(function()
+        local writer <close> = net.BufferedWriter(stream)
+        writer:write("last words")
+        reactor.sleep(100) -- not caught: the cancellation unwinds through the `<close>`
+      end)
+      reactor.sleep(2)
+      scope:cancel()
+    end)
+  end)
+  self:assert_equal("last words", table.concat(stream.sent))
+end
+
+function T:test_a_failed_flush_while_unwinding_does_not_replace_the_deadline()
+  local stream = fake_stream({})
+  stream.write_failure = core.NetworkError("reset")
+  reactor.Reactor({ clock = "virtual" }):run(function()
+    local err = self:assert_error(function()
+      reactor.deadline(1, function()
+        local writer <close> = net.BufferedWriter(stream)
+        writer:write("x")
+        reactor.sleep(100)
+      end)
+    end)
+    self:assert_true(core.is_instance_of(err, core.DeadlineExceededError), tostring(err))
+  end)
+end
+
+function T:test_a_failed_flush_while_unwinding_does_not_cancel_siblings()
+  local stream = fake_stream({})
+  stream.write_failure = core.NetworkError("reset")
+  local sibling_done = false
+  reactor.Reactor({ clock = "virtual" }):run(function()
+    local err = self:assert_error(function()
+      reactor.scope(function(scope)
+        scope:fork(function() reactor.sleep(5); sibling_done = true end)
+        scope:fork(function()
+          local writer <close> = net.BufferedWriter(stream)
+          writer:write("x")
+          error(core.ArgumentError("boom"), 0)
+        end)
+      end)
+    end)
+    self:assert_true(core.is_instance_of(err, core.ArgumentError), tostring(err))
+  end)
+  -- The scope cancels the sibling when a child fails; the writer's own failed flush added nothing to it.
+  self:assert_false(sibling_done)
+end
+
+function T:test_a_normal_exit_still_raises_a_failed_flush()
+  local stream = fake_stream({})
+  stream.write_failure = core.NetworkError("reset")
+  run(function()
+    local err = self:assert_error(function()
+      local writer <close> = net.BufferedWriter(stream)
+      writer:write("x")
+    end)
+    self:assert_true(core.is_instance_of(err, core.NetworkError))
+  end)
+end
+
+function T:test_a_write_accepted_while_close_flushes_raises_ebadf()
+  local stream = fake_stream({})
+  stream.write = function(self, data) reactor.sleep(1); self.sent[#self.sent + 1] = data end
+  reactor.Reactor({ clock = "virtual" }):run(function()
+    local writer = net.BufferedWriter(stream)
+    writer:write("first")
+    reactor.scope(function(scope)
+      scope:fork(function() writer:close() end)
+      reactor.sleep(0.5) -- close is flushing
+      for _, operation in ipairs({ "write", "flush" }) do
+        local err = self:assert_error(function()
+          if operation == "write" then writer:write("late") else writer:flush() end
+        end)
+        self:assert_true(core.is_instance_of(err, reactor.TransportError), tostring(err))
+        self:assert_equal("EBADF", err.context.errno)
+        self:assert_equal(operation, err.context.operation)
+      end
+    end)
+    self:assert_equal("first", table.concat(stream.sent))
+  end)
+end
+
+function T:test_a_poisoned_then_closed_writer_raises_ebadf()
+  local stream = fake_stream({})
+  stream.write_failure = core.NetworkError("reset")
+  run(function()
+    local writer = net.BufferedWriter(stream)
+    writer:write("data")
+    self:assert_error(function() writer:flush() end)
+    writer:close()
+    for _, operation in ipairs({ "write", "flush" }) do
+      local err = self:assert_error(function()
+        if operation == "write" then writer:write("x") else writer:flush() end
+      end)
+      self:assert_true(core.is_instance_of(err, reactor.TransportError), tostring(err))
+      self:assert_equal("EBADF", err.context.errno)
+      self:assert_equal(operation, err.context.operation)
+    end
+  end)
+end
+
+function T:test_a_stuck_stream_cannot_block_close_longer_than_close_timeout()
+  local stream = fake_stream({})
+  stream.write = function() reactor.sleep(100) end
+  reactor.Reactor({ clock = "virtual" }):run(function()
+    local writer = net.BufferedWriter(stream, { close_timeout = 2 })
+    writer:write("data")
+    local err = self:assert_error(function() writer:close() end)
+    self:assert_true(core.is_instance_of(err, core.DeadlineExceededError), tostring(err))
+    self:assert_equal(2, reactor.now())
+    self:assert_true(writer:is_closed())
+    self:assert_equal(0, writer:buffered())
+  end)
+end
+
+function T:test_close_raises_a_failed_flush_and_still_closes()
+  local stream = fake_stream({})
+  stream.write_failure = core.NetworkError("reset")
+  run(function()
+    local writer = net.BufferedWriter(stream)
+    writer:write("data")
+    self:assert_error(function() writer:close() end)
+    self:assert_true(writer:is_closed())
+    writer:close() -- idempotent: the failure is reported once
+  end)
+end
+
+function T:test_closing_a_poisoned_writer_discards_without_raising()
+  local stream = fake_stream({})
+  stream.write_failure = core.NetworkError("reset")
+  run(function()
+    local writer = net.BufferedWriter(stream)
+    writer:write("data")
+    self:assert_error(function() writer:flush() end)
+    writer:close()
+    self:assert_true(writer:is_closed())
+  end)
+end
+
+function T:test_close_timeout_is_validated()
+  for _, bad in ipairs({ 0, -1, "1", 0/0, math.huge }) do
+    local err = self:assert_error(function() net.BufferedWriter(fake_stream({}), { close_timeout = bad }) end)
+    self:assert_true(core.is_instance_of(err, core.ArgumentError), tostring(bad))
+  end
 end
 
 function T:test_concurrent_flushes_keep_byte_order()
@@ -540,6 +728,44 @@ function T:test_concurrent_direct_and_buffered_writes_keep_byte_order()
     writer:flush()
     self:assert_equal("0123456789ab", table.concat(stream.sent))
   end)
+end
+
+-- A reader closed while a read is suspended on the stream: the chunk that arrives afterwards is
+-- dropped and the read raises the closed error (EBADF, stable operation), never returns data.
+function T:test_a_reader_closed_during_a_suspended_read_raises_and_returns_no_chunk()
+  local cases = {
+    { "read_line", function(reader) return reader:read_line() end },
+    { "read_until", function(reader) return reader:read_until("\n") end },
+    { "read_exact", function(reader) return reader:read_exact(3) end },
+    { "read_some", function(reader) return reader:read_some() end },
+  }
+  for _, case in ipairs(cases) do
+    run(function()
+      local arrived = reactor.Channel(1)
+      local parked = reactor.Channel(1)
+      local stream = { closed = false }
+      function stream:read()
+        parked:send(true)
+        return arrived:receive()
+      end
+      function stream:close() self.closed = true end
+      local reader = net.BufferedReader(stream)
+      local outcome = {}
+      local read = reactor.fork(function()
+        outcome.ok, outcome.value = pcall(case[2], reader)
+      end)
+      parked:receive() -- the read is now parked on the stream
+      reader:close()
+      arrived:send("abc\n") -- the chunk arrives after the close
+      read:value()
+      self:assert_false(outcome.ok, case[1] .. ": returned " .. tostring(outcome.value))
+      local err = outcome.value
+      self:assert_true(core.is_instance_of(err, reactor.TransportError), case[1] .. ": " .. tostring(err))
+      self:assert_equal("EBADF", err.context.errno, case[1])
+      self:assert_equal(case[1], err.context.operation)
+      self:assert_equal(0, reader:buffered(), case[1])
+    end)
+  end
 end
 
 return T

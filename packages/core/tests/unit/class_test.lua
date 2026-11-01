@@ -268,4 +268,38 @@ function T:test_fallback_provides_must_be_a_list_of_names()
   self:assert_equal("hecate.core.ArgumentError", err.code)
 end
 
+function T:test_gc_metamethod_runs_for_instances_and_is_inherited()
+  local collected = {}
+  local Base = core.class("Base")
+  function Base:init(label) self.label = label end
+  function Base:__gc() collected[#collected + 1] = self.label end
+  core.finalise(Base)
+  local Derived = core.class("Derived", Base)
+  core.finalise(Derived)
+  do
+    local _ = Base("base")
+    local _ = Derived("derived")
+  end
+  collectgarbage()
+  collectgarbage()
+  table.sort(collected)
+  self:assert_equal(2, #collected)
+  self:assert_equal("base", collected[1])
+  self:assert_equal("derived", collected[2])
+end
+
+function T:test_gc_metamethod_runs_for_value_objects()
+  local collected = 0
+  local Point = core.value_class("Point")
+  function Point:init(x) self.x = x end
+  function Point:__gc() collected = collected + 1 end
+  core.finalise(Point)
+  do
+    local _ = Point(1)
+  end
+  collectgarbage()
+  collectgarbage()
+  self:assert_equal(1, collected)
+end
+
 return T

@@ -28,7 +28,8 @@ for public APIs, documentation and internal code.
 | spawn | Start an operating-system process (`reactor.spawn`); never a coroutine, which is a `fork` | POSIX `posix_spawn`; ADR 0023 | spawn for a coroutine |
 | join | Wait for one or several futures | Conway (1963) | await all, gather, Promise.all |
 | select | Wait for the first of several alternatives to become ready | Hoare, CSP (1978); Dijkstra, guarded commands (1975) | race, any |
-| deadline | Absolute bound on the completion of a computation | — | timeout (a timeout is a relative duration; both may be accepted as arguments) |
+| deadline | Absolute bound on the completion of a computation. `reactor.deadline` accepts a deadline as an instant (`reactor.at`) or as a relative duration | — | timeout, for an instant |
+| timeout | Relative duration in seconds that bounds an operation. An option or argument that takes only a duration is named `…_timeout` (`handshake_timeout`), never `…_deadline` | — | deadline, for a duration |
 | stream | Ordered sequence of bytes read, written and closed in order, over a file, a connection or another stream | Ritchie, *A Stream Input-Output System* (1984) | socket (for transports that are not sockets), channel (a channel carries values between coroutines) |
 | back-pressure | A producer suspends while its consumer is slower, instead of buffering without bound | *Reactive Streams* specification (2015) | throttling, rate limiting |
 | half-close | Ending one direction of a connection while the other stays usable (`shutdown`) | RFC 9293, section 3.6 | — |
@@ -38,10 +39,16 @@ for public APIs, documentation and internal code.
 | peer | The remote end of a connection (`peer_address`) or of a message pipe (`Peer`) | RFC 9293 | remote (in "remote address"), client (when the role is unknown) |
 | listening strategy | How the workers obtain connections: `reuseport` or `round_robin` ([ADR 0023](adr/0023-multi-process-serving.md)) | — | cluster mode |
 | computation | A running unit of the scheduler: a coroutine started by `fork` or `detach`, or the main coroutine; what a scope owns and a future stands for | `concurrency.md` | task |
-| suspension point (suspend) | A call at which the running coroutine yields to the reactor: every I/O operation and every primitive of `hecate.reactor`. A suspended call does not block the reactor | `concurrency.md` | blocking, async |
+| suspension point (suspend) | A call at which the running coroutine yields to the reactor: every I/O operation and every waiting primitive of `hecate.reactor` (`join`, `select`, `sleep`, `scope`, `deadline`, channel and lock operations; `fork`, `detach`, `with_ambient` and `ambient` only require a managed coroutine). A suspended call does not block the reactor | `concurrency.md` | blocking, async |
 | cancellation | Cooperative request to stop a computation | — | abort, kill |
 | scope | Structured-concurrency region owning forked computations | Sústrik (2016); Smith, *nursery* (2018) | task group, nursery |
-| channel | Typed communication between coroutines | Hoare, CSP (1978) | queue (when used for communication) |
+| ambient context | The immutable key-value bindings visible to a running computation and inherited, as they are at the moment of the call, by the computations it forks or detaches (`reactor.with_ambient`, `reactor.ambient`). An exception to explicit passing, for cross-cutting values | [ADR 0025](adr/0025-ambient-context.md); Swift task-local values; Java `ScopedValue` | thread-local, context variable, MDC |
+| ambient binding | One key bound to one value while a call to `with_ambient` runs; it shadows an outer binding of the same key and disappears when the call returns or raises | ADR 0025 | — |
+| ambient key | The identity of a binding: any non-nil value, a module-private table by convention, so that two packages cannot collide | ADR 0025 | — |
+| logger context | The fields a `Logger` adds to every record (`context` option, `with_context`); it wins over the ambient context | `logging.md` | MDC |
+| bound log fields | The fields bound by `log.bind` in the ambient context, which the default `context_provider` of a logger reads | `logging.md`; ADR 0025 | — |
+| request context | The values bound in the ambient context around the serving of one request: the request id (`kernel`, with `log.bind`), possibly the principal (`security`) and a deadline budget; planned, not implemented | ADR 0025 | — |
+| channel | Communication of values between coroutines | Hoare, CSP (1978) | queue (when used for communication) |
 | semaphore | Counting synchronisation primitive | Dijkstra (1965) | limiter |
 | mutex | Mutual exclusion lock | Dijkstra (1965) | lock (acceptable in prose) |
 | monitor | Mutex with condition variables | Hoare (1974); Brinch Hansen (1973) | — |

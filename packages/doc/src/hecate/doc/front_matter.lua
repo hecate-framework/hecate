@@ -1,29 +1,51 @@
 -- Front matter: a block of `key: value` lines between two `---` lines at the very start
 -- of a page. This is the flat subset of YAML 1.2 that pages need: scalars (plain, single
 -- or double quoted, integers, booleans), inline lists (`[a, "b"]`) and block lists
--- (`key:` followed by `- item` lines). Nested mappings are not supported.
+-- (`key:` followed by `- item` lines). Nested mappings are not supported. Double-quoted scalars
+-- accept the escapes \\ \" \n \t only; any other backslash sequence is an error (YAML 1.2, 7.3.1).
 global <const> string, table, tonumber, require, type, error, ipairs, pairs, next
 
 local errors = require("hecate.doc.errors")
 
+--- Parser of the front matter of a Markdown page.
+---@class hecate.doc.front_matter
 local M = {}
 
+---@return nil
 local function fail(message, path, line)
   error(errors.BuildError({
-    message = ("invalid front matter%s: %s"):format(line and (" at line " .. line) or "", message),
+    message = ("doc.front_matter.parse: invalid front matter%s: %s"):format(line and (" at line " .. line) or "", message),
     context = { path = path, line = line },
   }), 0)
 end
 
 local ESCAPES = { n = "\n", t = "\t", ['"'] = '"', ["\\"] = "\\" }
 
-local function parse_scalar(text, path, line)
-  local quoted = text:match('^"(.*)"$')
-  if quoted then
-    if quoted:find('[^\\]"') or quoted:find('^"') then fail("unescaped quote in " .. text, path, line) end
-    return (quoted:gsub("\\(.)", function(char) return ESCAPES[char] or ("\\" .. char) end))
+-- A double-quoted scalar (YAML 1.2, 7.3.1, restricted to the escapes of ESCAPES): a backslash must be followed
+-- by one of them, a bare quote ends the string, and nothing may follow the closing quote.
+local function parse_double_quoted(text, path, line)
+  local parts, index = {}, 2
+  while index <= #text do
+    local char = text:sub(index, index)
+    if char == "\\" then
+      local escaped = ESCAPES[text:sub(index + 1, index + 1)]
+      if not escaped then fail("invalid escape `" .. text:sub(index, index + 1) .. "` in " .. text, path, line) end
+      parts[#parts + 1] = escaped
+      index = index + 2
+    elseif char == '"' then
+      if index ~= #text then fail("unexpected text after the closing quote in " .. text, path, line) end
+      return table.concat(parts)
+    else
+      parts[#parts + 1] = char
+      index = index + 1
+    end
   end
-  quoted = text:match("^'(.*)'$")
+  fail("unterminated string " .. text, path, line)
+end
+
+local function parse_scalar(text, path, line)
+  if text:sub(1, 1) == '"' then return parse_double_quoted(text, path, line) end
+  local quoted = text:match("^'(.*)'$")
   if quoted then return (quoted:gsub("''", "'")) end
   if text == "true" then return true end
   if text == "false" then return false end
@@ -33,11 +55,17 @@ local function parse_scalar(text, path, line)
 end
 
 local function split_list(inside)
-  local items, current, quote = {}, {}, nil
+  local items, current, quote, escaped = {}, {}, nil, false
   for char in inside:gmatch(".") do
     if quote then
       current[#current + 1] = char
-      if char == quote then quote = nil end
+      if escaped then
+        escaped = false
+      elseif char == "\\" and quote == '"' then
+        escaped = true
+      elseif char == quote then
+        quote = nil
+      end
     elseif char == '"' or char == "'" then
       quote = char
       current[#current + 1] = char
@@ -79,7 +107,7 @@ function M.parse(source, path)
   end
   if not body_start then
     error(errors.BuildError({
-      message = "invalid front matter at line 1: missing closing `---` line", context = { path = path, line = 1 },
+      message = "doc.front_matter.parse: invalid front matter at line 1: missing closing `---` line", context = { path = path, line = 1 },
     }), 0)
   end
   local meta, list_key = {}, nil

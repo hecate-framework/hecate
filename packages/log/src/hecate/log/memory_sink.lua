@@ -4,7 +4,7 @@ global <const> require, error, tostring, table, math
 local core = require("hecate.core")
 
 --- A sink that keeps records in memory. `write` never suspends.
----@class hecate.log.MemorySink
+---@class hecate.log.MemorySink : hecate.log.Sink
 ---@overload fun(options?: hecate.log.MemorySinkOptions): hecate.log.MemorySink
 local MemorySink = core.class("MemorySink")
 

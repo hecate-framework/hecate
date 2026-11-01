@@ -4,6 +4,7 @@ global <const> type, ipairs, setmetatable, rawequal, tostring, require
 
 local registry = require("hecate.core.internal.registry")
 local raise = require("hecate.core.internal.raise")
+local validate = require("hecate.core.internal.validate")
 
 -- Documented on `hecate.core` (module class completed here so that the LuaLS export lists the
 -- function; coding-standards.md, "Annotations for the reference").
@@ -27,14 +28,17 @@ local interface_metatable = { -- hecate: raw-metatable opaque handle
 
 --- Declares an interface: a set of method names a class must provide to implement it.
 ---
---- Raises `hecate.core.ArgumentError` if `name` is not a string or `methods` is not a list of names.
+--- Raises `hecate.core.ArgumentError` if `name` is not a non-empty string or `methods` is not a list of names
+--- (a sequence of strings, with no other key).
 ---@param name string  interface name, used in messages
 ---@param methods string[]  names of the required methods
 ---@param options? hecate.core.InterfaceOptions  extended interfaces
 ---@return table interface  the new interface
 function M.interface(name, methods, options)
-  if type(name) ~= "string" then raise.argument("interface name must be a string, got " .. type(name)) end
-  if type(methods) ~= "table" then raise.argument("interface " .. name .. ": methods must be a list of names") end
+  validate.name("interface", name)
+  if not validate.is_sequence(methods) then
+    raise.argument("interface " .. name .. ": methods must be a list of names")
+  end
   local record = { name = name, required = {}, order = {}, extends = {} }
   local function add(method, origin)
     if record.required[method] == nil then

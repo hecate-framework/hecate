@@ -15,13 +15,13 @@ local M = {}
 --- Connects to a Unix-domain socket path (`\\.\pipe\name` on Windows). Bound it with
 --- `reactor.deadline`.
 ---
---- Raises `hecate.reactor.TransportError` when the connection fails and
+--- Raises `hecate.reactor.TransportError` when the connection fails (`context.path` names the path) and
 --- `hecate.core.ArgumentError` for a malformed path.
 ---@async
 ---@param path string  socket path
 ---@return hecate.net.PipeStream stream  the connected stream
 function M.connect_pipe(path)
-  return PipeStream(errors.delegate("net.connect_pipe", reactor.connect_pipe, path))
+  return PipeStream(errors.delegate_in("net.connect_pipe", { path = path }, reactor.connect_pipe, path))
 end
 
 --- Binds and listens on a Unix-domain socket path, which must not exist. Does not suspend. Options:
@@ -30,13 +30,13 @@ end
 --- Windows). A Windows pipe name is limited to 256 characters, a Unix socket path to the platform's
 --- `sun_path` (at most 107 bytes on Linux, 103 on macOS, excluding the terminating NUL): a longer one raises `ArgumentError`.
 ---
---- Raises `hecate.reactor.TransportError` when binding or listening fails and
+--- Raises `hecate.reactor.TransportError` when binding or listening fails (`context.path` names the path) and
 --- `hecate.core.ArgumentError` for a malformed path or option.
 ---@param path string  socket path
 ---@param options? hecate.reactor.PipeListenOptions  `backlog` and `mode`
 ---@return hecate.net.PipeListener listener  the listening pipe
 function M.listen_pipe(path, options)
-  return PipeListener(errors.delegate("net.listen_pipe", reactor.listen_pipe, path, options))
+  return PipeListener(errors.delegate_in("net.listen_pipe", { path = path }, reactor.listen_pipe, path, options))
 end
 
 return M

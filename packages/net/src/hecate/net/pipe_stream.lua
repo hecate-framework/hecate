@@ -47,6 +47,7 @@ function PipeStream:close() self._inner:close() end
 --- Closes at the end of a `<close>` scope, including on cancellation.
 function PipeStream:__close() self._inner:close() end
 
+--- Returns whether the stream is closed.
 ---@return boolean
 function PipeStream:is_closed() return self._inner:is_closed() end
 

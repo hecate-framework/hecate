@@ -1,8 +1,11 @@
 -- Site configuration: validation and defaults for the table returned by `site.lua`.
-global <const> require, type, ipairs, pairs, error, tostring, table, string
+global <const> require, type, ipairs, pairs, next, error, tostring, table, string, math
 
 local core = require("hecate.core")
+local html = require("hecate.doc.internal.html")
 
+--- Validation and defaults of the site configuration.
+---@class hecate.doc.config
 local M = {}
 
 ---@class hecate.doc.Locale
@@ -40,7 +43,7 @@ local M = {}
 
 local function invalid(field, message)
   error(core.ConfigurationError({
-    message = ("invalid site configuration `%s`: %s"):format(field, message),
+    message = ("doc.config: invalid site configuration `%s`: %s"):format(field, message),
     context = { field = field },
   }), 0)
 end
@@ -55,6 +58,65 @@ local function check_text(field, value)
   end
 end
 
+local function check_list(field, value, check_item)
+  if type(value) ~= "table" then invalid(field, "expected a list") end
+  for index in pairs(value) do
+    if math.type(index) ~= "integer" or index < 1 then invalid(field, "expected a list (integer keys from 1)") end
+  end
+  for index, item in ipairs(value) do check_item(("%s[%d]"):format(field, index), item) end
+  if next(value) ~= nil and value[#value] == nil then invalid(field, "expected a list without holes") end
+end
+
+local function check_items(field, items)
+  check_list(field, items, function(name, item)
+    if type(item) == "string" then return end
+    if type(item) ~= "table" then invalid(name, "expected a page path or { text, link, items }") end
+    check_text(name .. ".text", item.text)
+    if item.link ~= nil and type(item.link) ~= "string" then invalid(name .. ".link", "expected a page path") end
+    if item.items ~= nil then check_items(name .. ".items", item.items) end
+  end)
+end
+
+local function check_sidebar(value)
+  if type(value) ~= "table" then invalid("sidebar", "expected a table of lists per top-level section") end
+  for section, items in pairs(value) do
+    if type(section) ~= "string" then invalid("sidebar", "expected section names as keys") end
+    check_items("sidebar." .. section, items)
+  end
+end
+
+local function check_strings(value)
+  if type(value) ~= "table" then invalid("strings", "expected a table of interface strings per locale") end
+  for code, overrides in pairs(value) do
+    if type(code) ~= "string" then invalid("strings", "expected locale codes as keys") end
+    local field = "strings." .. code
+    if type(overrides) ~= "table" then invalid(field, "expected a table of interface strings") end
+    for key, text in pairs(overrides) do
+      if type(key) ~= "string" or type(text) ~= "string" then
+        invalid(key and (field .. "." .. tostring(key)) or field, "expected a string")
+      end
+    end
+  end
+end
+
+-- A public origin: http or https, a host, no whitespace or control characters (RFC 3986, 3.1 and 3.2).
+local function check_origin(value)
+  if type(value) ~= "string" or value:find("[%c%s\\]") or not value:lower():find("^https?://[^/?#]+") then
+    invalid("url", "expected an origin such as https://example.org")
+  end
+end
+
+-- The path the site is served under: absolute, not protocol-relative (RFC 3986, 4.2: a reference starting with
+-- `//` is a network-path reference that names another host), made of unreserved characters, sub-delimiters
+-- and percent-encodings only.
+local function check_base(value)
+  if type(value) ~= "string" or not value:find("^/") then invalid("base", "expected a path starting with /") end
+  if value:find("^//") then invalid("base", "expected a path starting with a single / (a protocol-relative base names another host)") end
+  if value:find("[^%w%-._~!$&'()*+,;=:@/%%]") then
+    invalid("base", "expected a path without spaces, backslashes, `?`, `#` or control characters")
+  end
+end
+
 --- Validates a configuration table and fills in the defaults. Raises
 --- `hecate.core.ConfigurationError` (with `context.field`) on the first problem.
 ---@param raw hecate.doc.SiteConfig
@@ -64,6 +126,29 @@ function M.normalise(raw)
   if type(raw.title) ~= "string" or raw.title == "" then invalid("title", "expected a non-empty string") end
   check_text("description", raw.description)
   check_text("footer", raw.footer)
+  if raw.repository ~= nil and (type(raw.repository) ~= "string" or not html.is_safe_url(raw.repository)) then
+    invalid("repository", "expected a URL with a safe scheme (http, https)")
+  end
+  if raw.url ~= nil then check_origin(raw.url) end
+  if raw.exclude ~= nil then
+    check_list("exclude", raw.exclude, function(name, item)
+      if type(item) ~= "string" or item == "" or item:find("/", 1, true) then
+        invalid(name, "expected a file name without a directory part")
+      end
+    end)
+  end
+  if raw.outline ~= nil then
+    check_list("outline", raw.outline, function(_, level)
+      if math.type(level) ~= "integer" or level < 1 or level > 6 then invalid("outline", "expected heading levels 1 to 6") end
+    end)
+  end
+  if raw.sidebar ~= nil then check_sidebar(raw.sidebar) end
+  if raw.strings ~= nil then check_strings(raw.strings) end
+  for _, key in ipairs({ "edit_link", "source_edit_link" }) do
+    if raw[key] ~= nil and type(raw[key]) ~= "string" then invalid(key, "expected a pattern containing {path}") end
+  end
+  if raw.default_locale ~= nil and type(raw.default_locale) ~= "string" then invalid("default_locale", "expected a locale code") end
+  if raw.locales ~= nil and type(raw.locales) ~= "table" then invalid("locales", "expected a list of { code, label, lang }") end
   local config = {
     title = raw.title,
     description = raw.description,
@@ -77,9 +162,11 @@ function M.normalise(raw)
     exclude = raw.exclude or { "README.md" },
     outline = raw.outline or { 2, 3 },
   }
-  local base = raw.base or "/"
-  if type(base) ~= "string" or not base:find("^/") then invalid("base", "expected a path starting with /") end
-  config.base = base:gsub("/*$", "/")
+  local base = raw.base
+  if base == nil then base = "/" end
+  check_base(base)
+  ---@cast base string
+  config.base = (base:gsub("/*$", "/"))
   config.default_locale = raw.default_locale or "en"
   local locales = raw.locales or { { code = config.default_locale, label = config.default_locale } }
   config.locales = {}
@@ -90,6 +177,8 @@ function M.normalise(raw)
     end
     if seen[locale.code] then invalid("locales[" .. index .. "].code", "duplicate locale " .. locale.code) end
     seen[locale.code] = true
+    if locale.label ~= nil and type(locale.label) ~= "string" then invalid("locales[" .. index .. "].label", "expected a string") end
+    if locale.lang ~= nil and type(locale.lang) ~= "string" then invalid("locales[" .. index .. "].lang", "expected a BCP 47 tag") end
     config.locales[index] = {
       code = locale.code,
       label = locale.label or locale.code,
@@ -107,6 +196,7 @@ function M.normalise(raw)
       if type(entry) ~= "table" or type(entry.link) ~= "string" then
         invalid("nav[" .. index .. "]", "expected { text = ..., link = \"path/\" }")
       end
+      if not html.is_safe_url(entry.link) then invalid("nav[" .. index .. "].link", "unsafe URL scheme") end
       check_text("nav[" .. index .. "].text", entry.text)
       config.nav[index] = { text = entry.text, link = entry.link }
     end
@@ -116,9 +206,6 @@ function M.normalise(raw)
   end
   if config.source_edit_link and not config.source_edit_link:find("{path}", 1, true) then
     invalid("source_edit_link", "expected a pattern containing {path}")
-  end
-  for _, level in ipairs(config.outline) do
-    if type(level) ~= "number" or level < 1 or level > 6 then invalid("outline", "expected heading levels 1 to 6") end
   end
   return config
 end

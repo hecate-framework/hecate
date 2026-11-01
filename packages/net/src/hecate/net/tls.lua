@@ -19,7 +19,8 @@ local BUILD_HINT = "the native TLS module hecate.net.tls_native is not built (ru
   .. " installed rocks will ship the module once distribution lands)"
 
 --- Default time allowed for a TLS handshake, in seconds.
-local DEFAULT_HANDSHAKE_DEADLINE = 10
+local CONNECT_HANDSHAKE_TIMEOUT = 10 -- seconds, `tls.connect` and `connect_tls` (owner decision on OQ-47)
+local ACCEPT_HANDSHAKE_TIMEOUT = 60 -- seconds, `tls.accept`: a server tolerates slower clients than a client its server
 
 --- TLS configuration and handshakes.
 ---@class hecate.net.tls
@@ -45,10 +46,11 @@ local M = {}
 ---@field key_pem string  private key
 ---@field alpn? string[]  accepted application protocols, in preference order
 ---@field client_ca_pem? string  require and verify client certificates against these anchors
+---@field client_crl_pem? string  certificate revocation lists (PEM, one or more `X509 CRL` blocks) checked for the client certificates; needs `client_ca_pem`. Not refreshed: build a new configuration to load a newer list
 
 --- Options of `tls.connect` and `tls.accept`.
 ---@class hecate.net.TlsHandshakeOptions
----@field handshake_deadline? number  seconds allowed for the whole handshake (positive, default 10)
+---@field handshake_timeout? number  seconds allowed for the whole handshake (positive; default 10 for `connect`, 60 for `accept`)
 
 --- Options of `net.connect_tls`: the client options, the transport options of `net.connect`
 --- and the connect path's own.
@@ -56,7 +58,7 @@ local M = {}
 ---@field server_name? string  SNI and certificate identity (RFC 6125); default `host`
 ---@field tls_config? hecate.net.TlsClientConfig  a prebuilt `tls.client_config`; excludes the client options
 ---@field family? "inet"|"inet6"  address family used to resolve `host`
----@field handshake_deadline? number  seconds allowed for the TLS handshake (positive, default 10); the TCP connect is bounded by the caller
+---@field handshake_timeout? number  seconds allowed for the TLS handshake (positive, default 10); the TCP connect is bounded by the caller
 
 --- Why a TLS operation failed, as `TlsError.context.reason`.
 ---@alias hecate.net.TlsFailureReason
@@ -99,8 +101,8 @@ local function set(list)
 end
 
 local CLIENT_KEYS = set({ "ca_pem", "system_roots", "alpn", "cert_pem", "key_pem" })
-local SERVER_KEYS = set({ "cert_pem", "key_pem", "alpn", "client_ca_pem" })
-local HANDSHAKE_KEYS = set({ "handshake_deadline" })
+local SERVER_KEYS = set({ "cert_pem", "key_pem", "alpn", "client_ca_pem", "client_crl_pem" })
+local HANDSHAKE_KEYS = set({ "handshake_timeout" })
 local TRANSPORT_KEYS = set({ "nodelay", "keepalive", "keepalive_delay", "family" })
 local CONNECT_KEYS = {}
 for _, keys in ipairs({ CLIENT_KEYS, HANDSHAKE_KEYS, TRANSPORT_KEYS, set({ "server_name", "tls_config" }) }) do
@@ -136,6 +138,8 @@ local function reject_unknown(name, options, allowed, kind)
   elseif kind ~= "server" and key == "client_ca_pem" then
     message = message .. " (client_ca_pem is a server option: it requires clients to present a certificate;"
       .. " to verify the server use ca_pem and system_roots)"
+  elseif kind ~= "server" and key == "client_crl_pem" then
+    message = message .. " (client_crl_pem is a server option: it lists the revoked client certificates)"
   elseif VERIFICATION_SWITCHES[key] then
     message = message .. " (certificate verification cannot be disabled)"
   else
@@ -186,12 +190,12 @@ local function check_trust(name, options)
   end
 end
 
---- Validates `handshake_deadline` (a positive, finite number of seconds).
-local function check_deadline(name, options)
-  local seconds = options.handshake_deadline
+--- Validates `handshake_timeout` (a positive, finite number of seconds).
+local function check_timeout(name, options)
+  local seconds = options.handshake_timeout
   if seconds == nil then return end
   if type(seconds) ~= "number" or seconds ~= seconds or seconds <= 0 or seconds == math.huge then
-    error(core.ArgumentError(("%s: option handshake_deadline must be a positive number of seconds, got %s"):format(name, tostring(seconds))), 4)
+    error(core.ArgumentError(("%s: option handshake_timeout must be a positive number of seconds, got %s"):format(name, tostring(seconds))), 4)
   end
 end
 
@@ -215,6 +219,20 @@ end
 local function check_table(name, options)
   if type(options) ~= "table" then
     error(core.ArgumentError(("%s: expects an options table, got %s"):format(name, type(options))), 3)
+  end
+end
+
+--- Validates a server name syntactically (the identity checked is RFC 6125 section 6; this only rejects what can
+--- never be a name): a non-empty string of at most 253 bytes (RFC 1035 section 2.3.4) with no control character
+--- or space. Raised before anything is resolved or connected.
+---@param name string  the public function, for the message
+---@param server_name any
+---@param level integer
+local function check_server_name(name, server_name, level)
+  if type(server_name) ~= "string" or server_name == "" or #server_name > 253 or server_name:find("[%c ]") then
+    local shown = type(server_name) == "string" and #server_name > 40 and (server_name:sub(1, 40) .. "...") or tostring(server_name)
+    error(core.ArgumentError(("%s: invalid server name %q: expected a non-empty string of at most 253 bytes without spaces or control characters"):format(
+      name, shown)), level)
   end
 end
 
@@ -256,25 +274,34 @@ function M.server_config(options)
       error(core.ArgumentError(("net.tls.server_config: option %s is required (a PEM string)"):format(key)), 3)
     end
   end
-  check_values("net.tls.server_config", options, { "client_ca_pem" })
+  check_values("net.tls.server_config", options, { "client_ca_pem", "client_crl_pem" })
+  if options.client_crl_pem ~= nil and options.client_ca_pem == nil then
+    error(core.ArgumentError("net.tls.server_config: option client_crl_pem needs client_ca_pem: revocation lists are checked for client certificates"), 3)
+  end
   require_native("net.tls.server_config")
   local ok, config = pcall(native.server_config, options)
   if not ok then error(native_error(config, "net.tls.server_config"), 0) end
   return config
 end
 
---- Runs `tls.handshake` under the handshake deadline; on any failure (expiry and cancellation
+--- Runs `tls.handshake` under the handshake timeout; on any failure (expiry and cancellation
 --- included) closes the stream and rethrows.
 ---@async
 ---@param stream hecate.net.Stream
 ---@param session userdata
 ---@param options hecate.net.TlsHandshakeOptions
 ---@param call string  the public call, for the message
-local function handshake(stream, session, options, call)
+---@param default_timeout number  seconds allowed when `options.handshake_timeout` is absent
+local function handshake(stream, session, options, call, default_timeout)
   local tls = TlsStream(stream, session)
-  local done, failure = pcall(reactor.deadline, options.handshake_deadline or DEFAULT_HANDSHAKE_DEADLINE, tls.handshake, tls)
+  local seconds = options.handshake_timeout or default_timeout
+  local done, failure = pcall(reactor.deadline, seconds, tls.handshake, tls)
   if not done then
     tls:close()
+    if core.is_instance_of(failure, core.DeadlineExceededError) and failure.message == "reactor.deadline: deadline exceeded" then
+      -- Our own handshake limit, not a deadline of the caller: name the public call and the option.
+      failure.message = ("%s: the TLS handshake did not finish within handshake_timeout (%s seconds)"):format(call, tostring(seconds))
+    end
     error(errors.qualify(failure, call), 0)
   end
   return tls
@@ -283,8 +310,9 @@ end
 --- Runs a TLS client handshake over `stream`, which the result owns: it is closed when the native
 --- session or the handshake fails (a deadline included), and left to the caller when an argument
 --- is malformed. `server_name` is sent as SNI and the certificate must match it (RFC 6125).
---- The handshake must finish within `options.handshake_deadline` seconds (default 10); on expiry
---- `hecate.core.DeadlineExceededError` is raised.
+--- The handshake must finish within `options.handshake_timeout` seconds (default 10); on expiry
+--- `hecate.core.DeadlineExceededError` is raised, its message naming `net.tls.connect` and the option (a
+--- deadline of the caller keeps the message of `reactor.deadline`).
 --- This is the low-level step for a stream you already hold (any `Stream`); to open a TCP connection and
 --- secure it, call `net.connect_tls`, the client entry point.
 ---@async
@@ -295,13 +323,11 @@ end
 ---@return hecate.net.TlsStream
 function M.connect(stream, server_name, config, options)
   check_stream("net.tls.connect", stream)
-  if type(server_name) ~= "string" or server_name == "" then
-    error(core.ArgumentError("net.tls.connect: expects a server name"), 2)
-  end
+  check_server_name("net.tls.connect", server_name, 3)
   options = options or {}
   check_table("net.tls.connect", options)
   reject_unknown("net.tls.connect", options, HANDSHAKE_KEYS, "handshake")
-  check_deadline("net.tls.connect", options)
+  check_timeout("net.tls.connect", options)
   if type(config) ~= "userdata" then
     error(core.ArgumentError("net.tls.connect: expects a configuration from tls.client_config"), 2)
   end
@@ -311,13 +337,17 @@ function M.connect(stream, server_name, config, options)
     stream:close()
     error(native_error(session, "net.tls.connect"), 0)
   end
-  return handshake(stream, session, options, "net.tls.connect")
+  return handshake(stream, session, options, "net.tls.connect", CONNECT_HANDSHAKE_TIMEOUT)
 end
 
 --- Runs a TLS server handshake over an accepted `stream`, which the result owns: it is closed when
 --- the session or the handshake fails (a deadline included), and left to the caller when an
---- argument is malformed. The handshake must finish within `options.handshake_deadline` seconds
---- (default 10); on expiry `hecate.core.DeadlineExceededError` is raised.
+--- argument is malformed. The handshake must finish within `options.handshake_timeout` seconds
+--- (default 60); on expiry `hecate.core.DeadlineExceededError` is raised, its message naming `net.tls.accept`.
+---
+--- Run it in a forked computation, never in the accept loop itself: a client that connects and stays silent
+--- holds the call up to `handshake_timeout` (60 seconds by default), and a loop that handshakes inline
+--- serves nobody else meanwhile.
 ---@async
 ---@param stream hecate.net.Stream
 ---@param config hecate.net.TlsServerConfig|userdata  from `server_config`
@@ -328,7 +358,7 @@ function M.accept(stream, config, options)
   options = options or {}
   check_table("net.tls.accept", options)
   reject_unknown("net.tls.accept", options, HANDSHAKE_KEYS, "handshake")
-  check_deadline("net.tls.accept", options)
+  check_timeout("net.tls.accept", options)
   if type(config) ~= "userdata" then
     error(core.ArgumentError("net.tls.accept: expects a configuration from tls.server_config"), 2)
   end
@@ -338,7 +368,7 @@ function M.accept(stream, config, options)
     stream:close()
     error(native_error(session, "net.tls.accept"), 0)
   end
-  return handshake(stream, session, options, "net.tls.accept")
+  return handshake(stream, session, options, "net.tls.accept", ACCEPT_HANDSHAKE_TIMEOUT)
 end
 
 -- Default client configurations (system roots, no `ca_pem`, no client certificate), one per ALPN
@@ -378,14 +408,14 @@ end
 --- (trust anchors added to the system store, for a private CA), `system_roots` (false trusts only
 --- `ca_pem`), `alpn`, `cert_pem` and `key_pem` (mutual TLS), `server_name` (default `host`: SNI
 --- and certificate identity), `tls_config` (a prebuilt `tls.client_config`, reusable across
---- connections) and `handshake_deadline` (seconds, default 10, TLS handshake only: bound the
+--- connections) and `handshake_timeout` (seconds, default 10, TLS handshake only: bound the
 --- TCP connect with `reactor.deadline`). Certificate verification cannot be disabled and an unknown
 --- option raises `ArgumentError`. Every option is validated before any name is resolved and
 --- before the configuration is built. The default configuration (system roots, no `ca_pem`) is built
 --- once per ALPN list and reused; pass `tls_config` to share any other configuration.
 ---
 --- Raises `hecate.net.TlsError` for a failed handshake or verification,
---- `hecate.core.DeadlineExceededError` when the handshake outlasts `handshake_deadline`,
+--- `hecate.core.DeadlineExceededError` when the handshake outlasts `handshake_timeout`,
 --- `hecate.reactor.TransportError` for a TCP failure, `hecate.core.ArgumentError` for a malformed option.
 ---@async
 ---@param host string
@@ -400,12 +430,12 @@ function M.connect_tls(host, port, options)
   if type(host) ~= "string" or host == "" then
     error(core.ArgumentError(("net.connect_tls: expects a host name or address, got %s"):format(tostring(host))), 2)
   end
-  if math.type(port) ~= "integer" or port < 0 or port > 65535 then
-    error(core.ArgumentError(("net.connect_tls: expects a port in 0..65535, got %s"):format(tostring(port))), 2)
+  if math.type(port) ~= "integer" or port < 1 or port > 65535 then
+    error(core.ArgumentError(("net.connect_tls: expects a port in 1..65535, got %s"):format(tostring(port))), 2)
   end
   reject_unknown("net.connect_tls", options, CONNECT_KEYS, "connect")
   check_transport("net.connect_tls", options)
-  check_deadline("net.connect_tls", options)
+  check_timeout("net.connect_tls", options)
   local config = options.tls_config
   if config ~= nil then
     if options.ca_pem ~= nil or options.system_roots ~= nil or options.cert_pem ~= nil or options.key_pem ~= nil
@@ -422,6 +452,7 @@ function M.connect_tls(host, port, options)
   if options.server_name ~= nil and (type(options.server_name) ~= "string" or options.server_name == "") then
     error(core.ArgumentError("net.connect_tls: option server_name must be a non-empty string"), 2)
   end
+  check_server_name("net.connect_tls", options.server_name or host, 2) -- before any resolution or connection
   require_native("net.connect_tls")
   if config == nil then
     if options.ca_pem == nil and options.system_roots ~= false and options.cert_pem == nil then
@@ -435,8 +466,8 @@ function M.connect_tls(host, port, options)
   end
   local transport = {}
   for key in pairs(TRANSPORT_KEYS) do transport[key] = options[key] end
-  local stream = tcp.connect(host, port, transport)
-  local ok, result = pcall(M.connect, stream, options.server_name or host, config, { handshake_deadline = options.handshake_deadline })
+  local stream = tcp.connect_for("net.connect_tls", host, port, transport)
+  local ok, result = pcall(M.connect, stream, options.server_name or host, config, { handshake_timeout = options.handshake_timeout })
   if ok then return result end
   local failure = errors.qualify(result, "net.connect_tls") --[[@as hecate.core.Error]]
   -- An unknown issuer is the usual failure of a system trust store that lacks the server's CA.

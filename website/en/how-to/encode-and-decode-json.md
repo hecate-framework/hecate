@@ -53,7 +53,9 @@ For signing or hashing, `canonical = "rfc8785"` writes the full JSON Canonicaliz
 `decode` rejects some texts that RFC 8259 permits, because parsers disagree on them: duplicate
 member names, lone surrogates, a byte order mark and numbers outside the double range. The
 `DecodeError` says why and where: `context.reason`, and the position as `offset`, `line` and
-`column`. A duplicate member name has no position: the parser (yyjson) does not keep one.
+`column`. A duplicate member name has no position: the parser (yyjson) does not keep one. Nor do `size_limit`
+(the whole text is too long) and `out_of_memory` (the decoder could not allocate memory: a resource failure,
+not a defect of the text).
 
 <!-- example: packages/json/examples/hecate.json.DecodeError.lua -->
 ```lua

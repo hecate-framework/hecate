@@ -7,5 +7,5 @@
 # checks them whenever the reference has been generated. The French pages link to the same paths: they
 # exist only as the fallback to the English pages, again at build time.
 exclude = [
-  '^file://.*/website/(en|fr)/reference/(core|reactor|net|json)/',
+  '^file://.*/website/(en|fr)/reference/(core|reactor|net|json|log)/',
 ]

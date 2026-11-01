@@ -1,4 +1,6 @@
+---@diagnostic disable: missing-fields, param-type-mismatch, assign-type-mismatch  -- the tests pass invalid options and arguments on purpose
 local test = require("harness.test")
+local core = require("hecate.core")
 local reactor = require("hecate.reactor")
 local log = require("hecate.log")
 local T = test.Case("AsyncSinkTest")
@@ -14,6 +16,24 @@ local function setup(options)
   local async = log.AsyncSink(options)
   local logger = log.Logger({ sinks = { async }, clock = function() return 0 end })
   return logger, memory, async
+end
+
+function T:test_closing_a_sink_that_was_never_written_needs_no_reactor()
+  local closed = 0
+  local target = { write = function() end, close = function() closed = closed + 1 end }
+  local async = log.AsyncSink({ sink = target })
+  async:close()
+  async:close() -- idempotent
+  self:assert_equal(1, closed)
+end
+
+function T:test_closing_a_never_written_sink_whose_target_raises_reports_the_error_to_every_closer()
+  local target = { write = function() end, close = function() error(core.Error("target failed"), 0) end }
+  local async = log.AsyncSink({ sink = target })
+  for _ = 1, 2 do
+    local err = self:assert_error(function() async:close() end)
+    self:assert_equal("target failed", err.message)
+  end
 end
 
 function T:test_write_does_not_suspend_and_flush_delivers_in_order()
@@ -103,6 +123,72 @@ function T:test_flush_after_close_returns_instead_of_waiting_forever()
     async:flush()
   end)
   self:assert_equal(1, #memory:records())
+end
+
+function T:test_a_raising_target_close_is_raised_to_every_closer_after_the_drain_ended()
+  local memory = log.MemorySink()
+  local target = { write = function(_, r) memory:write(r) end, close = function() error("close boom", 0) end }
+  local logger, _, async = setup({ sink = target })
+  local first_ok, second_ok, second_err
+  run(function()
+    logger:informational("a")
+    first_ok = pcall(async.close, async)
+    second_ok, second_err = pcall(async.close, async)
+  end)
+  self:assert_false(first_ok)
+  self:assert_false(second_ok)
+  self:assert_equal("close boom", second_err)
+  self:assert_equal(1, #memory:records())
+end
+
+function T:test_a_second_concurrent_close_waits_for_the_drain_and_reports_the_same_outcome()
+  local gate = reactor.Semaphore(0)
+  local written, closed = {}, 0
+  local target = {
+    write = function(_, record) gate:acquire(); written[#written + 1] = record.message end,
+    close = function() closed = closed + 1; error("close boom", 0) end,
+  }
+  local logger, _, async = setup({ sink = target })
+  local seen_by_second, results = nil, {}
+  run(function()
+    logger:informational("a")
+    local first = reactor.fork(function() results.first = { pcall(async.close, async) } end)
+    local second = reactor.fork(function()
+      results.second = { pcall(async.close, async) }
+      seen_by_second = #written
+    end)
+    reactor.sleep(0) -- both closers are now waiting for the drain, which waits for the gate
+    self:assert_equal(0, #written)
+    self:assert_nil(results.second)
+    gate:release()
+    reactor.join(first, second)
+  end)
+  self:assert_equal(1, seen_by_second)
+  self:assert_equal(1, closed)
+  self:assert_false(results.first[1])
+  self:assert_false(results.second[1])
+  self:assert_equal("close boom", results.first[2])
+  self:assert_equal("close boom", results.second[2])
+end
+
+function T:test_a_target_without_close_is_closed_without_error_and_never_written_sink_closes()
+  local _, _, never_written = setup()
+  local _, _, plain = setup({ sink = { write = function() end } })
+  run(function()
+    never_written:close()
+    plain:close()
+  end)
+  self:assert_equal(0, never_written:pending())
+end
+
+function T:test_the_stop_marker_after_a_raising_write_still_ends_the_drain()
+  local failing = { write = function() error("boom") end }
+  local logger, _, async = setup({ sink = failing })
+  run(function()
+    logger:informational("a")
+    async:close()
+  end)
+  self:assert_equal(1, async:failures())
 end
 
 return T

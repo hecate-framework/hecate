@@ -1,7 +1,7 @@
 -- Monitor and Condition: a mutex with condition variables (Hoare 1974; Brinch Hansen 1973).
 -- Discipline: a coroutine enters the monitor, tests its predicate in a loop and waits on a
 -- condition; the wait leaves the monitor, suspends, and re-enters it before returning.
--- Signalling follows Mesa semantics (Lampson and Redell 1980): the signaller keeps the
+-- Notification follows Mesa semantics (Lampson and Redell 1980): the notifier keeps the
 -- monitor and the woken waiter re-enters behind the coroutines already queued, so a waiter
 -- must re-test its predicate (OQ-25). A cancelled wait re-enters the monitor (uncancellably)
 -- before raising, so the cleanup of the enclosing `<close>` permit runs inside the monitor.
@@ -37,6 +37,9 @@ function Monitor:enter()
   self._inner = self._mutex:lock()
   self._owner = computation
   return Permit(function()
+    -- A permit released while its holder waits on a condition (the monitor was left, and another
+    -- coroutine may have entered since) must not free a monitor it no longer holds.
+    if self._owner ~= computation then return end
     self._owner = nil
     self._inner:release()
   end)

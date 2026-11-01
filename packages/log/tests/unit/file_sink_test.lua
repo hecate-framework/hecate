@@ -1,3 +1,4 @@
+---@diagnostic disable: missing-fields, param-type-mismatch, assign-type-mismatch  -- the tests pass invalid options and arguments on purpose
 local test = require("harness.test")
 local json = require("hecate.json")
 local log = require("hecate.log")
@@ -25,6 +26,16 @@ function T:test_records_are_appended_as_json_lines()
   self:assert_equal(2, #lines)
   self:assert_equal("one", lines[1].message)
   self:assert_equal("two", lines[2].message)
+end
+
+function T:test_a_record_is_readable_while_the_file_is_open()
+  local path = os.tmpname()
+  local sink = log.FileSink({ path = path })
+  log.Logger({ sinks = { sink } }):error("visible")
+  local text = read(path)
+  sink:close()
+  os.remove(path)
+  self:assert_true(text:find("visible", 1, true) ~= nil)
 end
 
 function T:test_writes_after_close_are_ignored()

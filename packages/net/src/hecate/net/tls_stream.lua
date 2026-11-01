@@ -51,6 +51,7 @@ function TlsStream:init(inner, session)
   self._session = session --[[@as hecate.net.TlsSession]]
   self._pending = nil -- received ciphertext not yet accepted by the session
   self._closed = false
+  self._closed_by_caller = false -- `close` was called (as opposed to the stream failing)
   self._shut = false -- `shutdown` ran: close_notify is queued or sent
   self._reading = false -- one reader at a time, as on `TcpStream`
   self._wrote = false -- the running `write` handed bytes to the session
@@ -160,7 +161,7 @@ function TlsStream:_feed(data)
     local ok, consumed = pcall(self._session.feed, self._session, data)
     if not ok then
       local alerted, interruption = pcall(self._flush_queued, self)
-      self:close()
+      self:_abort()
       if not alerted and is_cancellation(interruption) then error(interruption, 0) end
       error(tls_error(consumed), 0)
     end
@@ -183,7 +184,7 @@ function TlsStream:_receive()
     self:_feed(pending)
     if self._pending == pending then
       -- Nothing consumed and nothing readable: the session cannot make progress.
-      self:close()
+      self:_abort()
       error(errors.tls_failure("the TLS session made no progress", "stalled"), 0)
     end
     return
@@ -218,7 +219,7 @@ end
 function TlsStream:handshake()
   local ok, failure = pcall(self._handshake, self)
   if not ok then
-    self:close()
+    self:_abort()
     error(errors.qualify(failure, "net.TlsStream.handshake"), 0)
   end
 end
@@ -241,7 +242,10 @@ function TlsStream:read(max)
   self._reading = true
   local ok, result = pcall(self._read, self, max)
   self._reading = false
-  if not ok then error(errors.qualify(result, "net.TlsStream.read"), 0) end
+  if not ok then
+    if self._closed_by_caller then self:_check("read") end -- closed under the suspended read
+    error(errors.qualify(result, "net.TlsStream.read"), 0)
+  end
   return result
 end
 
@@ -270,10 +274,14 @@ end
 --- time: concurrent writes run one after the other, each intact. A write that fails after the
 --- session accepted bytes (a cancellation included) closes the stream and the inner stream, since
 --- the bytes sent are unknown; one cancelled while waiting its turn changes nothing. Raises
---- `TransportError` (EBADF) on a closed stream and (EPIPE) after `shutdown`.
+--- `TransportError` (EBADF) on a closed stream and (EPIPE) after `shutdown`, and
+--- `hecate.core.ArgumentError` when `data` is not a string.
 ---@async
 ---@param data string
 function TlsStream:write(data)
+  if type(data) ~= "string" then
+    error(core.ArgumentError(("net.TlsStream.write: expects a string, got %s"):format(type(data))), 2)
+  end
   self:_check("write")
   local lock <close> = self._send:lock()
   self:_check("write") -- closed while waiting for the turn
@@ -286,7 +294,7 @@ function TlsStream:write(data)
   self._wrote = false
   local ok, failure = pcall(self._write, self, data)
   if not ok then
-    if self._wrote then self:close() end
+    if self._wrote then self:_abort() end
     error(errors.qualify(failure, "net.TlsStream.write"), 0)
   end
 end
@@ -323,7 +331,7 @@ function TlsStream:shutdown()
   self._shut = true
   local ok, failure = pcall(self._shutdown_locked, self)
   if not ok then
-    self:close()
+    self:_abort()
     error(errors.qualify(failure, "net.TlsStream.shutdown"), 0)
   end
 end
@@ -338,12 +346,23 @@ function TlsStream:_shutdown_locked()
   if inner.shutdown then inner:shutdown() end
 end
 
---- Closes the inner stream and drops the session state. Idempotent, never suspends. It cannot
---- send `close_notify` (that needs a write): call `shutdown` first for an orderly end.
-function TlsStream:close()
+--- Closes the stream after a failure (not a call of the caller): same effect as `close`, but a
+--- read suspended on the transport then raises the failure itself and not the closed error.
+---@private
+function TlsStream:_abort()
   self._closed = true
-  self._inner:close()
-  self._session:close()
+  local ok, failure = pcall(self._inner.close, self._inner)
+  self._session:close() -- the native session is released even when the inner close raised
+  if not ok then error(failure, 0) end
+end
+
+--- Closes the inner stream and drops the session state. Idempotent, never suspends. It cannot
+--- send `close_notify` (that needs a write): call `shutdown` first for an orderly end. The session
+--- is closed even when closing the inner stream raises (the error is then raised). A read suspended
+--- on the stream raises `TransportError` (EBADF) as any read on a closed stream.
+function TlsStream:close()
+  self._closed_by_caller = true
+  self:_abort()
 end
 
 --- Closes at the end of a `<close>` scope, including on cancellation.
@@ -357,22 +376,24 @@ function TlsStream:is_closed()
   return type(inner.is_closed) == "function" and inner:is_closed()
 end
 
---- The negotiated application protocol (ALPN, RFC 7301), or nil.
+--- The negotiated application protocol (ALPN, RFC 7301), or nil (also on a closed stream: the session
+--- state is dropped, and the accessors of the session never raise).
 ---@return string?
-function TlsStream:alpn() return self._session:alpn() end
+function TlsStream:alpn() if self._closed then return nil end return self._session:alpn() end
 
 --- The server name (SNI, RFC 6066 section 3) the client sent, on a stream accepted by a
---- server; nil on a client stream, whose own server name is the argument it connected with.
+--- server; nil on a client stream, whose own server name is the argument it connected with, and on a closed stream.
 ---@return string?
-function TlsStream:requested_server_name() return self._session:server_name() end
+function TlsStream:requested_server_name() if self._closed then return nil end return self._session:server_name() end
 
---- The protocol version, `"TLSv1.3"` or `"TLSv1.2"`.
+--- The protocol version, `"TLSv1.3"` or `"TLSv1.2"`; nil on a closed stream.
 ---@return string?
-function TlsStream:version() return self._session:version() end
+function TlsStream:version() if self._closed then return nil end return self._session:version() end
 
---- DER of the peer's end-entity certificate, once verified.
+--- DER of the peer's end-entity certificate, once verified; nil before the handshake completed and on a
+--- closed stream.
 ---@return string?
-function TlsStream:peer_certificate() return self._session:peer_certificate() end
+function TlsStream:peer_certificate() if self._closed then return nil end return self._session:peer_certificate() end
 
 --- The peer's address, from the inner stream (the stream must have one, as `TcpStream` does).
 ---@return hecate.reactor.SocketAddress

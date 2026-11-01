@@ -13,6 +13,7 @@ global <const> type, tostring, pairs, ipairs, next, rawget, rawset, setmetatable
 
 local registry = require("hecate.core.internal.registry")
 local raise = require("hecate.core.internal.raise")
+local validate = require("hecate.core.internal.validate")
 local trait_module = require("hecate.core.trait")
 local interface_module = require("hecate.core.interface")
 
@@ -75,9 +76,7 @@ end
 ---@param options? hecate.core.ClassOptions  traits, interfaces and fallback of the class
 ---@return table class  the new, not yet finalised class
 function M.class(name, superclass, options)
-  if type(name) ~= "string" or name == "" then
-    raise.argument("class name must be a non-empty string, got " .. tostring(name))
-  end
+  validate.name("class", name)
   if superclass ~= nil and classes[superclass] == nil then
     raise.argument(("class %s: superclass must be a class created with core.class"):format(name))
   end

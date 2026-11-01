@@ -3,10 +3,34 @@
 -- module with the options of the specification (no extension, raw HTML kept; OQ-37). The output is compared
 -- as the specification asks: modulo whitespace between tags and inside them.
 local test = require("harness.test")
-local native = require("hecate.doc.native")
 local T = test.Case("CommonMarkSpecTest")
 
 local here = debug.getinfo(1, "S").source:match("^@(.*)[/\\][^/\\]*$") or "."
+
+-- The unsafe renderer (`commonmark`, raw HTML kept) is not part of the shipped native module: it is compiled
+-- only with the cargo feature `spec-tests` (packages/doc/native/Cargo.toml). The examples run against a
+-- separate build, `lua tools/run.lua build-native doc --spec` (cargo build --release --features spec-tests
+-- --target-dir target/spec in packages/doc/native), or the library named by HECATE_DOC_SPEC_LIB; without it these
+-- tests are skipped locally, and fail in CI (CI=1) where the build is a step of the workflow.
+local function spec_native()
+  local shipped = require("hecate.doc.native")
+  if shipped.commonmark then return shipped end
+  local library = os.getenv("HECATE_DOC_SPEC_LIB")
+  if not library then
+    for _, name in ipairs({ "libhecate_doc_native.so", "libhecate_doc_native.dylib", "hecate_doc_native.dll" }) do
+      local candidate = here .. "/../../native/target/spec/release/" .. name
+      local file = io.open(candidate, "rb")
+      if file then
+        file:close()
+        library = candidate
+        break
+      end
+    end
+  end
+  local loader = library and package.loadlib(library, "luaopen_hecate_doc_native")
+  return loader and loader() or nil
+end
+local native = spec_native()
 local fixtures = here .. "/../../../../.hecate/fixtures/doc/"
 local path = fixtures .. "commonmark-spec/spec.txt"
 
@@ -50,6 +74,11 @@ local function normalise(html)
 end
 
 local function present(self, list, what)
+  if not native then
+    if os.getenv("CI") then self:fail("the spec-tests build of the native module is missing (lua tools/run.lua build-native doc --spec)") end
+    io.stderr:write("# skipped: the spec-tests build of the native module is missing (lua tools/run.lua build-native doc --spec)\n")
+    return false
+  end
   if list then return true end
   if os.getenv("CI") then self:fail("the " .. what .. " specification is missing (lua tools/run.lua fetch-fixtures doc)") end
   io.stderr:write("# skipped: the " .. what .. " specification is missing (lua tools/run.lua fetch-fixtures doc)\n")
@@ -63,6 +92,7 @@ local function differences(list, only_tagged)
     local extension = example.tag ~= "" and example.tag ~= "disabled" and example.tag ~= "tagfilter" and example.tag or nil
     if not only_tagged or extension then
       run = run + 1
+      ---@cast native -nil
       local actual = native.commonmark(example.markdown, extension)
       if normalise(actual) ~= normalise(example.html) and not DEVIATIONS[(only_tagged and "gfm" or "cm") .. number] then
         failures[#failures + 1] = ("example %d: %q gave %q, expected %q"):format(number, example.markdown, actual, example.html)

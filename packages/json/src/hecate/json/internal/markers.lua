@@ -1,5 +1,5 @@
--- The value model shared by every backend (ADR 0020, "One public API"): the `null` sentinel and the
--- metatables that mark a table as a JSON array or a JSON object. Backends receive these exact
+-- The value model shared by the decoder and the encoder (ADR 0020, "One public API"): the `null` sentinel and the
+-- metatables that mark a table as a JSON array or a JSON object. The native modules receive these exact
 -- objects; identity (`==` on `null`, `rawequal` on metatables) is the contract.
 global <const> setmetatable, error
 

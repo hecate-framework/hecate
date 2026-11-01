@@ -112,11 +112,74 @@ function T:test_env_is_added_to_the_inherited_environment()
   self:assert_equal("unset", values[2])
 end
 
+function T:test_run_process_reaps_the_child_it_kills_on_cancellation()
+  if is_windows then return end
+  local before = reactor.Reactor.open_handles()
+  reactor.run(function()
+    local inside = reactor.Reactor.open_handles() -- the run holds a timer and a signal handle of its own
+    local started = reactor.now()
+    local ok, err = pcall(reactor.deadline, 0.05, reactor.run_process, "sleep", { "30" })
+    self:assert_false(ok)
+    self:assert_true(core.is_instance_of(err, core.DeadlineExceededError), tostring(err))
+    self:assert_true(reactor.now() - started < 5, "the cancellation waited for the child to end by itself")
+    -- The child was reaped before the call raised: its process handle is already closing.
+    self:assert_equal(inside, reactor.Reactor.open_handles())
+  end)
+  self:assert_equal(before, reactor.Reactor.open_handles())
+end
+
+function T:test_an_embedded_nul_in_a_program_name_or_argument_is_rejected()
+  ---@diagnostic disable: param-type-mismatch, assign-type-mismatch  -- the arguments are invalid on purpose
+  reactor.run(function()
+    for _, call in ipairs({
+      function() reactor.run_process("a\0b") end,
+      function() reactor.spawn("a\0b") end,
+      function() reactor.run_process("x", { "a\0b" }) end,
+      function() reactor.spawn("x", { "a\0b" }) end,
+    }) do
+      local err = self:assert_error(call)
+      self:assert_true(core.is_instance_of(err, core.ArgumentError), tostring(err))
+    end
+  end)
+end
+
+function T:test_arguments_of_a_process_are_validated_alike_for_run_process_and_spawn()
+  ---@diagnostic disable: param-type-mismatch, assign-type-mismatch  -- the arguments are invalid on purpose
+  reactor.run(function()
+    for _, call in ipairs({
+      function() reactor.run_process("") end,
+      function() reactor.spawn("") end,
+      function() reactor.run_process("x", "not a list") end,
+      function() reactor.run_process("x", { 1 }) end,
+      function() reactor.run_process("x", { "a", false }) end,
+      function() reactor.spawn("x", { {} }) end,
+      function() reactor.spawn("x", { "a", 2 }) end,
+    }) do
+      local err = self:assert_error(call)
+      self:assert_true(core.is_instance_of(err, core.ArgumentError), tostring(err))
+    end
+  end)
+end
+
+function T:test_the_user_environment_cannot_override_the_message_pipe_marker()
+  local name = require("hecate.reactor.ipc").child_marker()
+  local value = run(self, function()
+    local process = child("env", { ipc = true, env = { [name] = "12345" } })
+    local received = process.ipc:receive()
+    process.ipc:close()
+    process:wait()
+    return received
+  end)
+  self:assert_equal("unset", value) -- the child reached its message pipe: the marker was ours
+end
+
 function T:test_unknown_program_raises_io_error()
   local err = self:assert_error(function()
     reactor.run(function() reactor.spawn("hecate-no-such-program-xyz") end)
   end)
   self:assert_true(core.is_instance_of(err, reactor.IoError))
+  self:assert_true(core.is_instance_of(err, core.IoError), "reactor.IoError extends core.IoError")
+  self:assert_false(core.is_instance_of(err, core.NetworkError))
 end
 
 function T:test_argument_validation()
@@ -227,6 +290,11 @@ function T:test_send_validation()
     local closed = reactor.connect_tcp("127.0.0.1", listener:local_address().port)
     closed:close()
     refused("m", closed)
+    local path = is_windows and ("\\\\.\\pipe\\hecate-send-" .. uv.os_getpid())
+      or (uv.os_tmpdir() .. "/hecate-send-" .. uv.os_getpid() .. ".sock")
+    local pipe_listener <close> = reactor.listen_pipe(path)
+    local pipe_stream <close> = reactor.connect_pipe(path)
+    refused("m", pipe_stream) -- only a TCP handle can be passed
     peer:close()
     process:wait()
   end)

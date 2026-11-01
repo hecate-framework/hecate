@@ -7,7 +7,7 @@ source = {
 }
 
 description = {
-  summary = "The reactor over libuv (luv): coroutine scheduler, futures, structured concurrency, synchronisation primitives, timers, signals, processes, file system.",
+  summary = "The reactor over libuv (luv): coroutine scheduler, futures, structured concurrency, synchronisation primitives, timers, signals, processes, file system, network transport (TCP, UDP, pipes, name resolution), ambient context.",
   homepage = "https://github.com/hecate-framework/hecate",
   license = "MIT",
 }

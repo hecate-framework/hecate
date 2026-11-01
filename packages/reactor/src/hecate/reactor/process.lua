@@ -1,5 +1,5 @@
 -- Child processes as a suspending call over libuv (concurrency.md; reactor README).
-global <const> type, error, require, table, pcall, tostring, pairs, ipairs, package
+global <const> type, error, require, table, pcall, tostring, pairs, ipairs, package, math
 
 local core = require("hecate.core")
 local uv = require("luv")
@@ -32,6 +32,41 @@ local function guard_descriptor(stdio)
   return guard
 end
 
+--- Validates the program name: a non-empty string without NUL (libuv would truncate it there).
+---@param name string  the public call, for the message
+---@param program any
+local function check_program(name, program)
+  if type(program) ~= "string" or program == "" then
+    error(core.ArgumentError(("%s: expects a program name, got %s"):format(name, tostring(program))), 3)
+  end
+  if program:find("\0", 1, true) then
+    error(core.ArgumentError(("%s: the program name contains a NUL byte"):format(name)), 3)
+  end
+end
+
+--- Validates the argument list: a sequence of strings without NUL.
+---@param name string  the public call, for the message
+---@param args any
+local function check_args(name, args)
+  if args == nil then return end
+  if type(args) ~= "table" then
+    error(core.ArgumentError(("%s: expects an argument list, got %s"):format(name, type(args))), 3)
+  end
+  local count = 0
+  for key, value in pairs(args) do
+    count = count + 1
+    if math.type(key) ~= "integer" or key < 1 or key > #args or type(value) ~= "string" then
+      error(core.ArgumentError(("%s: the argument list must be a sequence of strings"):format(name)), 3)
+    end
+    if value:find("\0", 1, true) then
+      error(core.ArgumentError(("%s: argument %d contains a NUL byte"):format(name, key)), 3)
+    end
+  end
+  if count ~= #args then
+    error(core.ArgumentError(("%s: the argument list must be a sequence of strings"):format(name)), 3)
+  end
+end
+
 -- Documented on `hecate.reactor` (module class completed here so that the LuaLS export lists the
 -- function; coding-standards.md, "Annotations for the reference").
 
@@ -50,23 +85,25 @@ local M = {}
 --- `Process:kill`. `args` excludes the program name. The child inherits the environment of this
 --- process, without the marker of its own message pipe, and does not inherit that pipe.
 ---
---- Raises `hecate.core.ArgumentError` if `program` is not a string, and
---- `hecate.reactor.IoError` if the program cannot be started.
+--- On cancellation the call waits, uncancellably, for the killed child to be reaped (bounded by the
+--- kill) before it raises, so no process handle outlives it.
+---
+--- Raises `hecate.core.ArgumentError` if `program` is not a non-empty string, `args` is not a sequence
+--- of strings, or either contains a NUL byte, and `hecate.reactor.IoError` if the program cannot be started.
 ---@async
 ---@param program string  the program to run
 ---@param args? string[]  its arguments, without the program name
 ---@return hecate.reactor.ProcessResult result  the exit status and the captured output
 function M.run_process(program, args)
-  if type(program) ~= "string" then
-    error(core.ArgumentError(("reactor.run_process: expects a program name, got %s"):format(type(program))), 2)
-  end
+  check_program("reactor.run_process", program)
+  check_args("reactor.run_process", args)
   uv_call.begin("reactor.run_process")
   local out, err = uv.new_pipe(false), uv.new_pipe(false)
   local chunks = { out = {}, err = {} }
   local process
   local pending = 3 -- exit, stdout end, stderr end
   local exit_code, exit_signal
-  local wake_main
+  local wake_main, wake_exit
   local function done()
     pending = pending - 1
     if pending == 0 and wake_main then wake_main() end
@@ -89,6 +126,7 @@ function M.run_process(program, args)
     function(code, signal)
       exit_code, exit_signal = code, signal
       if process and not process:is_closing() then process:close() end
+      if wake_exit then wake_exit() end
       done()
     end)
   if guard then guard:close() end
@@ -104,8 +142,17 @@ function M.run_process(program, args)
     return function() wake_main = nil end
   end)
   if not ok then
-    -- Cancelled: stop the child and let its handles close.
-    if exit_code == nil and process and not process:is_closing() then process:kill("sigkill") end
+    -- Cancelled: stop the child, wait for it to be reaped (uncancellable, bounded by the kill) and let
+    -- its handles close.
+    if exit_code == nil and process and not process:is_closing() then
+      local killed, kill_error = process:kill("sigkill")
+      if (killed or tostring(kill_error):match("^ESRCH")) and exit_code == nil then
+        pcall(context.suspend, function(wake)
+          wake_exit = wake
+          if exit_code ~= nil then wake() end
+        end, true)
+      end
+    end
     if not out:is_closing() then out:close() end
     if not err:is_closing() then err:close() end
     error(failure, 0)
@@ -263,12 +310,8 @@ end
 ---@param options? hecate.reactor.SpawnOptions
 ---@return hecate.reactor.Process process  the running child
 function M.spawn(program, args, options) -- glossary-ok: starts an operating-system process (ADR 0023), not a coroutine
-  if type(program) ~= "string" or program == "" then
-    error(core.ArgumentError(("reactor.spawn: expects a program name, got %s"):format(tostring(program))), 2)
-  end
-  if args ~= nil and type(args) ~= "table" then
-    error(core.ArgumentError(("reactor.spawn: expects an argument list, got %s"):format(type(args))), 2)
-  end
+  check_program("reactor.spawn", program)
+  check_args("reactor.spawn", args)
   options = check_start_options(options)
   uv_call.begin("reactor.spawn")
   local added = options.env or {}
@@ -276,8 +319,12 @@ function M.spawn(program, args, options) -- glossary-ok: starts an operating-sys
   if options.ipc then
     ipc_pipe = uv.new_pipe(true)
     local name, value = ipc.child_marker()
-    added = { [name] = value }
-    for key, entry in pairs(options.env or {}) do added[key] = entry end
+    added = {}
+    for key, entry in pairs(options.env or {}) do
+      -- The marker wins over the caller's environment (names compare without case on Windows).
+      if not (key == name or (IS_WINDOWS and key:lower() == name:lower())) then added[key] = entry end
+    end
+    added[name] = value
   end
   -- luv takes the number of entries from the largest integer key and maps an absent entry to
   -- "ignore" and an integer to "inherit that descriptor". The table is built key by key: a

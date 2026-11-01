@@ -84,6 +84,28 @@ function T:test_echo_with_sni_alpn_and_buffered_lines()
   self:assert_equal(before, reactor.Reactor.open_handles())
 end
 
+function T:test_handshake_defaults_are_10_seconds_to_connect_and_60_to_accept()
+  local limits = {}
+  local original = reactor.deadline
+  reactor.deadline = function(limit, fn, ...)
+    if fn ~= nil and type(limit) == "number" then limits[#limits + 1] = limit end
+    return original(limit, fn, ...)
+  end
+  local ok, err = pcall(run, self, function()
+    local listener <close> = net.listen("127.0.0.1", 0)
+    local port = listener:local_address().port
+    local outcome = serve_once(listener, net.tls.server_config(server_options()), function(tls) tls:shutdown() end)
+    local client <close> = net.connect_tls("127.0.0.1", port, { system_roots = false, ca_pem = CA, server_name = "localhost" })
+    outcome.future:value()
+  end)
+  reactor.deadline = original
+  self:assert_true(ok, tostring(err))
+  -- The server handshake is the first to start (the accepting coroutine), the client's follows.
+  table.sort(limits)
+  self:assert_equal(10, limits[1])
+  self:assert_equal(60, limits[#limits])
+end
+
 function T:test_large_payload_round_trip()
   run(self, function()
     local listener <close> = net.listen("127.0.0.1", 0)
@@ -373,6 +395,48 @@ function T:test_mutual_tls_rejects_a_client_without_a_certificate()
     outcome.future:value()
     self:assert_false(outcome.ok) -- the server side failed its handshake too
   end)
+end
+
+local function revocation_exchange(self, client_name, crl_pem)
+  local worked, failure
+  run(self, function()
+    local listener <close> = net.listen("127.0.0.1", 0)
+    local port = listener:local_address().port
+    local config = net.tls.server_config(server_options({ client_ca_pem = fixture("revocation_ca.pem"), client_crl_pem = crl_pem }))
+    local outcome = serve_once(listener, config, function(tls)
+      tls:write(tls:reader():read_line() .. "!")
+      tls:shutdown()
+    end)
+    -- With TLS 1.3 the rejection of the client certificate may only surface on the first read.
+    worked, failure = pcall(function()
+      local client <close> = net.connect_tls("127.0.0.1", port, {
+        system_roots = false, ca_pem = CA, server_name = "localhost",
+        cert_pem = fixture(client_name .. ".pem"), key_pem = fixture(client_name .. ".key"),
+      })
+      client:write("crl\n")
+      local reply = client:read()
+      outcome.future:value() -- the server finished while this side is still open
+      return reply == "crl!"
+    end)
+    outcome.future:value()
+    if worked then self:assert_true(outcome.ok, tostring(outcome.value)) else self:assert_false(outcome.ok) end
+  end)
+  return worked, failure
+end
+
+function T:test_a_crl_rejects_a_revoked_client_certificate_and_accepts_the_others()
+  local crl = fixture("revoked.crl.pem")
+  local ok, err = revocation_exchange(self, "valid_client", crl)
+  self:assert_true(ok, tostring(err))
+  local revoked_ok, failure = revocation_exchange(self, "revoked_client", crl)
+  self:assert_false(revoked_ok)
+  local core = require("hecate.core")
+  self:assert_true(core.is_instance_of(failure, net.TlsError) or core.is_instance_of(failure, core.NetworkError), tostring(failure))
+end
+
+function T:test_without_a_crl_a_revoked_client_certificate_is_accepted_the_documented_limit()
+  local ok, err = revocation_exchange(self, "revoked_client", nil)
+  self:assert_true(ok, tostring(err))
 end
 
 function T:test_the_server_identity_can_be_an_ip_address()

@@ -1,5 +1,5 @@
 -- Translates a byte offset in a text into the line and column reported by `DecodeError`, so that
--- every backend reports the offset only and the positions are computed once, in one place.
+-- the native modules report the offset only and the positions are computed once, in one place.
 global <const> math, string
 
 local find, sub, gsub = string.find, string.sub, string.gsub

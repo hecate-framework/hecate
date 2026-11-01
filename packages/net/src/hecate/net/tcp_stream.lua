@@ -61,6 +61,7 @@ function TcpStream:__close()
   self._inner:close()
 end
 
+--- Returns whether the stream is closed.
 ---@return boolean
 function TcpStream:is_closed() return self._inner:is_closed() end
 
@@ -78,7 +79,7 @@ function TcpStream:set_nodelay(enabled) self._inner:set_nodelay(enabled) end
 
 --- Enables or disables keep-alive probes; `delay` is the idle time in seconds before the first.
 ---@param enabled boolean
----@param delay? number
+---@param delay? integer
 function TcpStream:set_keepalive(enabled, delay) self._inner:set_keepalive(enabled, delay) end
 
 --- A `BufferedReader` over this stream (which it does not own).

@@ -1,5 +1,5 @@
 -- Reactor: the scheduler over libuv (Schmidt, "Reactor", 1995). One reactor runs on one
--- thread; every unit of work is a coroutine ("coroutine") resumed by the scheduler only, never
+-- thread; every computation is a coroutine resumed by the scheduler only, never
 -- from inside a libuv callback (reactor/CLAUDE.md, known pitfalls). Completions and
 -- timers merely mark coroutines ready; `Reactor:run` resumes them in FIFO order.
 --
@@ -20,6 +20,7 @@ local CANCELLED = {} -- value a cancelled suspension is resumed with
 ---@class hecate.reactor.ReactorOptions
 ---@field clock? "real"|"virtual"  default "real"
 ---@field start? number  initial reading of a virtual clock, default 0
+---@field on_unobserved_failure? fun(err: any, future: hecate.reactor.Future)  called when a detached computation fails while nothing waits for its future (OQ-26 (1)); an error it raises is discarded
 
 --- The scheduler: runs a main computation and everything it forks over libuv, on a real or a virtual clock.
 ---@class hecate.reactor.Reactor
@@ -34,6 +35,11 @@ function Reactor:init(options)
   if clock ~= "real" and clock ~= "virtual" then
     error(core.ArgumentError(("reactor.Reactor: invalid clock %s: expected \"real\" or \"virtual\""):format(tostring(clock))), 2)
   end
+  local hook = options.on_unobserved_failure
+  if hook ~= nil and type(hook) ~= "function" then
+    error(core.ArgumentError(("reactor.Reactor: on_unobserved_failure must be a function, got %s"):format(type(hook))), 2)
+  end
+  self._on_unobserved_failure = hook
   self._virtual = clock == "virtual"
   self._virtual_now = options.start or 0
   self._origin = 0
@@ -44,6 +50,7 @@ function Reactor:init(options)
   self._sequence = 0
   self._computations = {}
   self._live = 0
+  self._tearing_down = false
   self._uv_timer = nil
   self._sigpipe_guard = nil
   self._root = nil
@@ -161,11 +168,14 @@ local function wake_computation(computation, id, ...)
 end
 
 --- Returns the cancellation pending for a coroutine: its own, or that of any enclosing scope.
+--- A shielded scope (`reactor.shield`) stops the search: the cancellation of what encloses it,
+--- and a cancellation requested on the shielded computation itself, wait until the shield ends.
 local function pending_cancel(computation)
-  if computation.cancel_error ~= nil then return computation.cancel_error end
+  if computation.cancel_error ~= nil and not computation.shielded then return computation.cancel_error end
   local scope = computation.scope
   while scope do
     if scope._cancel_error ~= nil then return scope._cancel_error end
+    if scope._shielded then return nil end
     scope = scope.parent
   end
   return nil
@@ -222,7 +232,15 @@ function context.suspend(register, uncancellable, operation)
   computation.cancellable = not uncancellable
   local undo
   if register then
-    undo = register(function(...) return wake_computation(computation, id, ...) end)
+    local registered, result = pcall(register, function(...) return wake_computation(computation, id, ...) end)
+    if not registered then
+      -- The coroutine never suspended: leave it running and not cancellable, so that no cancellation
+      -- schedules a resumption of a coroutine that is already running.
+      computation.state = "running"
+      computation.cancellable = false
+      error(result, 0)
+    end
+    undo = result
   end
   local resumed = table.pack(coroutine.yield(YIELD))
   computation.cancellable = false
@@ -239,7 +257,11 @@ local function finish(self, computation, state, results, err)
   self._computations[computation.co] = nil
   self._live = self._live - 1
   computation.state = "dead"
-  computation.future:_settle(state, results, err)
+  local future = computation.future
+  local hook = self._on_unobserved_failure
+  local unobserved = hook ~= nil and state == "failed" and computation.detached and not future:_has_watchers()
+  future:_settle(state, results, err)
+  if unobserved then pcall(hook, err, future) end
   if computation.home then computation.home:_child_done(computation, state, err) end
 end
 
@@ -254,9 +276,9 @@ local function step(self, computation)
     outcome = table.pack(coroutine.resume(computation.co))
   end
   if not outcome[1] then
-    -- An errored coroutine has not unwound: closing it runs the pending `<close>` handlers
-    -- (reactor/CLAUDE.md invariant: cancellation runs `<close>` handlers). An error raised by
-    -- a handler replaces the original one.
+    -- An errored coroutine has not unwound: closing it runs the `__close` metamethods of its
+    -- pending `<close>` variables (reactor/CLAUDE.md invariant). An error raised by one of
+    -- them replaces the original one.
     local closed, err = coroutine.close(computation.co)
     if closed then err = outcome[2] end
     local state = core.is_instance_of(err, core.CancellationError) and "cancelled" or "failed"
@@ -277,6 +299,9 @@ end
 ---@return hecate.reactor.Future
 ---@private
 function Reactor:_create_computation(scope, fn, args)
+  if self._tearing_down then
+    error(core.Error("reactor: cannot start a coroutine while the run is being torn down"), 0)
+  end
   local future = Future()
   local computation = {
     reactor = self, state = "ready", wait_id = 0, cancellable = false,
@@ -284,7 +309,14 @@ function Reactor:_create_computation(scope, fn, args)
   }
   local creator = self._computations[coroutine.running()]
   if creator then computation.ambient = creator.ambient end -- ambient context (ADR 0025)
-  computation.co = coroutine.create(function() return fn(table.unpack(args, 1, args.n)) end)
+  -- The body runs under `pcall` inside the coroutine: an error unwinds to it with the pending `<close>` variables
+  -- closed there, in a yieldable context, so a close handler may suspend (under `reactor.shield`, OQ-23). Left
+  -- uncaught, the error would end the coroutine and `coroutine.close` would run the handlers where nothing can yield.
+  computation.co = coroutine.create(function()
+    local outcome = table.pack(pcall(fn, table.unpack(args, 1, args.n)))
+    if not outcome[1] then error(outcome[2], 0) end
+    return table.unpack(outcome, 2, outcome.n)
+  end)
   future._computation = computation
   self._computations[computation.co] = computation
   self._live = self._live + 1
@@ -335,7 +367,7 @@ local function loop(self, main)
     else
       local timer = peek_timer(self)
       if timer then
-        local delay = math.max(0, math.ceil((timer.when - self:now()) * 1000))
+        local delay = math.min(2 ^ 31 - 1, math.max(0, math.ceil((timer.when - self:now()) * 1000)))
         uv_timer:start(delay, 0, function() end)
       end
       local alive = uv.run("once")
@@ -383,6 +415,33 @@ function Reactor:run(fn, ...)
     end)
   end, { n = 0 })
   local ok, failure = pcall(loop, self, main)
+  -- Abandon what is left while the reactor is still current: closing a suspended coroutine runs
+  -- the `__close` metamethods of its pending variables, and a handler may use the reactor. The
+  -- errors they raise are collected, not lost (`coroutine.close` returns them instead of raising).
+  local close_errors = {}
+  -- The teardown always completes: whatever a `__close` handler does, the reactor stops being current and
+  -- its libuv handles are released. The coroutines are snapshotted first (a handler must not change the
+  -- table being walked), and each one is marked dead before it is closed, so a handler cannot resume
+  -- it, wake it or start a computation next to it (`_create_computation` refuses while `_tearing_down`).
+  local teardown_ok, teardown_error = pcall(function()
+    if ok then return end
+    self._tearing_down = true
+    local pending = {}
+    for co, computation in pairs(self._computations) do pending[#pending + 1] = { co = co, computation = computation } end
+    for i = 1, #pending do
+      local co, computation = pending[i].co, pending[i].computation
+      computation.state = "dead"
+      self._computations[co] = nil
+      local closed, close_error = coroutine.close(co)
+      if not closed then close_errors[#close_errors + 1] = close_error end
+    end
+  end)
+  if not teardown_ok then close_errors[#close_errors + 1] = teardown_error end
+  self._tearing_down = false
+  if not ok then
+    self._computations, self._live = {}, 0
+    self._ready, self._head, self._tail = {}, 1, 0
+  end
   context.reactor = nil
   self._root = nil
   if self._uv_timer then
@@ -395,12 +454,11 @@ function Reactor:run(fn, ...)
     uv.run("nowait") -- lets libuv finish closing the handles
   end
   if not ok then
-    -- Abandon what is left: closing a suspended coroutine runs its `<close>` handlers.
-    for co, computation in pairs(self._computations) do
-      coroutine.close(co)
-      computation.state = "dead"
+    -- The failure of the run stays the error raised; the errors of the `__close` handlers ride along.
+    if #close_errors > 0 and core.is_instance_of(failure, core.Error) then
+      ---@cast failure hecate.core.Error
+      failure.context.close_errors = close_errors
     end
-    self._computations, self._live = {}, 0
     error(failure, 0)
   end
   if main._state == "completed" then

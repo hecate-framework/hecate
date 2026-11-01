@@ -1,6 +1,6 @@
 # Concurrency (`hecate.reactor`)
 
-Status: specification; decisions in [ADR 0002](../adr/0002-libuv-via-luv.md) and
+Status: implemented in Phase 1 (`offload`: Phase 2); decisions in [ADR 0002](../adr/0002-libuv-via-luv.md) and
 [ADR 0003](../adr/0003-transparent-structured-concurrency.md) (both Accepted).
 
 ## Model
@@ -16,21 +16,27 @@ Status: specification; decisions in [ADR 0002](../adr/0002-libuv-via-luv.md) and
 
 ## Primitives
 
-All primitives live in `hecate.reactor`. Names follow [the glossary](../glossary.md).
+All primitives live in `hecate.reactor`. Names follow [the glossary](../glossary.md). The table lists the
+concurrency primitives; transport, name resolution, `fs`, `wait_signal`, `run_process`, `spawn`, `Scope` and
+`Permit` are specified in the sections below, and the complete list with signatures is in
+[the package README](../../packages/reactor/README.md).
 
 | Primitive | Semantics |
 |---|---|
 | `fork(fn, ...) → Future` | Start `fn` in a new coroutine in the current scope. |
 | `join(f1, f2, ...) → v1, v2, ...` | Wait for all futures; if one fails, cancel the others in the same `join` and raise the first error. |
-| `select(f1, f2, ...) → index, value` | Wait for the first future to complete; cancel the others. |
-| `deadline(seconds_or_instant, fn, ...)` | Run `fn`; raise `DeadlineExceededError` and cancel it if it does not finish in time. Accepts a relative duration or an absolute instant. |
+| `select(f1, f2, ...) → index, value` | Wait for the first future to complete; cancel the others. If several are already ready, the first in argument order wins: the arguments are a priority order, not a random choice (a caller that wants fairness rotates them). |
+| `deadline(seconds_or_instant, fn, ...)` | Run `fn`; raise `DeadlineExceededError` and cancel it if it does not finish in time. Accepts a relative duration or an absolute instant; a duration of zero or less, or an instant already past, is allowed and expires immediately (the body is cancelled at its first suspension point). Non-finite values raise `ArgumentError`. |
+| `shield(seconds_or_instant, fn, ...)` | Run `fn` shielded from cancellation (see rule 4): the cancellation of the enclosing scopes is not delivered inside `fn`, so cleanup can suspend. The shield has its own deadline (required: no default is decided); on expiry it is cancelled and raises `DeadlineExceededError`; as for `deadline`, a zero, negative or past limit expires immediately. The caller owns the bound (no cap on the limit); nested shields each keep their own deadline and bound their own body only; a deadline is delivered at suspension points, so a body that never suspends is not bounded. |
 | `sleep(seconds)` | Suspend the current coroutine. |
+| `detach(fn, ...) → Future` | Start `fn` in the application scope, outside the current scope; its failure is seen only through its future (rule 2). |
 | `scope(fn)` | Open a structured-concurrency scope: returns only when every computation forked inside has completed or been cancelled. |
 | `with_ambient(key, value, fn, ...) → ...` | Run `fn` with `key` bound to `value` in the running computation and in what it forks or detaches meanwhile (see "Ambient context"). |
 | `ambient(key) → value` | The value bound to `key`, or `nil`. |
 | `Future` | `:value()` (suspends until ready), `:cancel()`, `:done()`, `:state()`. |
 | `Channel(capacity)` | `:send(v)`, `:receive()`, `:close()`; capacity 0 is a rendezvous channel. Usable in `select`. |
-| `Semaphore(n)`, `Mutex()`, `Monitor()`, `Condition` | Classical synchronisation. `Mutex` and `Semaphore` permits are `<close>`-able. |
+| `Semaphore(n)`, `Mutex()`, `Monitor()`, `Condition` | Classical synchronisation. `Mutex` and `Semaphore` permits are `<close>`-able. A `Monitor` follows Mesa semantics: `Condition:notify` does not hand over the monitor, so a woken waiter re-enters later and must wait in a `while` loop that re-tests its predicate. |
+| `now()`, `at(seconds)`, `Instant` | Reading of the running clock; absolute instants for `deadline`. |
 | `offload(fn, ...)` | (Phase 2, not yet implemented; OQ-27.) Run a pure function on the libuv thread pool (no access to Lua state other than its arguments; see "Blocking work"). |
 
 ## Structured concurrency
@@ -41,11 +47,19 @@ the test framework opens one per test. Rules:
 1. A scope does not complete before all of its children have completed.
 2. If a child fails, the scope cancels its siblings and propagates the error (unless the
    child was explicitly detached into the application scope, an operation that must be
-   visible in code: `reactor.detach(fn)`).
+   visible in code: `reactor.detach(fn)`). A detached failure that nothing waits for when
+   it happens is reported to the `on_unobserved_failure(err, future)` hook of the reactor
+   (OQ-26 (1)), which `kernel` binds to `log`; without a hook it stays silent. The hook
+   is not called for a cancelled computation, and an error it raises is discarded.
 3. When a request is aborted (client disconnect, deadline), its scope is cancelled.
 4. Cancellation is **cooperative**: it is delivered as a `CancellationError` raised at
-   the next suspension point of the cancelled coroutine. `<close>` variables and
-   `finally`-style cleanup run normally.
+   the next suspension point of the cancelled coroutine, and again at every later suspension
+   point of the cancelled scope (level-triggered, OQ-23). Cleanup in `<close>` variables runs
+   normally but cannot suspend while its scope is cancelled, unless it runs in `reactor.shield(limit, fn)`:
+   inside a shield no cancellation of the enclosing scopes (nor of the running computation) is delivered, the
+   shield's own deadline bounds it, and a cancellation that arrived meanwhile is raised again at the first
+   suspension point after it. Computations forked inside a shield belong to the shield's scope and are not cancelled
+   by the outer one.
 
 This removes the classic leak where background work outlives the request that started it.
 
@@ -72,8 +86,11 @@ function needs to do its work.
 ## Suspension points and shared state
 
 Because suspension is invisible in code, the documentation must state precisely which
-calls may suspend: **every I/O operation, every primitive above, and nothing else**.
-Pure computations never yield.
+calls may suspend: **every I/O operation, `join`, `select`, `sleep`, `scope`, `deadline`, and the
+channel and lock operations, and nothing else**. `fork`, `detach`, `with_ambient` and `ambient` do not
+suspend; they only require a managed coroutine.
+Pure computations never yield. A test (`packages/reactor/tests/unit/suspension_test.lua`) checks that the
+`---@async` tags of `hecate.reactor` match the calls that actually yield.
 
 Guidance for users (to appear in the website's "Explanation" section):
 
@@ -98,7 +115,7 @@ and `resolve` suspend the calling coroutine and return streams, listeners and so
 `read`, `write`, `accept`, `receive_from`, `send_to`, `shutdown` and `close`.
 
 - A failure of the transport raises `TransportError`, a `NetworkError` (with `errno` and
-  `operation` in its context); `IoError` stays for the file system and processes.
+  `operation` in its context); `IoError` (a subclass of `core.IoError`) stays for the file system and processes.
 - A cancelled `read`, `accept` or `receive_from` leaves the object usable and loses no data. A
   cancelled `write`, `send_to`, `shutdown` or `connect` closes it, because how much was sent
   is unknown. `close` is idempotent, never suspends and wakes every coroutine waiting on it.
@@ -135,7 +152,7 @@ Accepted in [ADR 0023](../adr/0023-multi-process-serving.md), measured in
   constrained by what another platform needs.
 - The primary supervises workers (readiness, restart on crash with exponential backoff and a
   crash-loop limit) over a control message pipe that exists on every platform and carries `ready`,
-  `stop(deadline)` and `reload`; a worker whose control message pipe closes drains and exits.
+  `stop(deadline)`, `reload` and counters; a worker whose control message pipe closes drains and exits.
 - Graceful shutdown: stop accepting, drain in-flight requests up to a configurable deadline,
   then cancel remaining scopes. A rolling reload starts the replacement before stopping the old
   worker.

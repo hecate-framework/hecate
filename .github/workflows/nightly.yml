@@ -66,6 +66,7 @@ jobs:
           for package in net json doc; do
             (cd "packages/$package/native" && rustup toolchain install)
             lua tools/run.lua build-native "$package"
+            if [ "$package" = doc ]; then lua tools/run.lua build-native doc --spec; fi
           done
 
       - name: Download the test data
@@ -126,6 +127,7 @@ jobs:
           for package in net json doc; do
             (cd "packages/$package/native" && rustup toolchain install)
             lua tools/run.lua build-native "$package"
+            if [ "$package" = doc ]; then lua tools/run.lua build-native doc --spec; fi
           done
 
       - name: Download the test data

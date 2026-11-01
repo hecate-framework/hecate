@@ -301,8 +301,16 @@ static int ends_in_string(const char *text, size_t length) {
 static int classify(lua_State *L, const char *text, size_t length, const yyjson_read_err *err) {
   size_t pos = err->pos;
   const char *msg = err->msg;
+  /* yyjson may report a position past the end for some errors; every read of text[pos - n] below relies on this. No
+   * input provoking it is known (the fuzz and fixture tests never found one): the clamp is a guard, not a decision. */
+  if (pos > length) pos = length;
   /* An `if` chain, not a `switch`: the codes of yyjson are `static const` variables, which MSVC does not accept as
    * case labels. Every branch returns. */
+  if (err->code == YYJSON_READ_ERROR_MEMORY_ALLOCATION) {
+      /* A resource failure, not a defect of the text: it has its own reason and no position. */
+      lua_pushfstring(L, "not enough memory to decode %I bytes of input", (lua_Integer)length);
+      return push_failure(L, "out_of_memory", -1);
+  }
   if (err->code == YYJSON_READ_ERROR_EMPTY_CONTENT || err->code == YYJSON_READ_ERROR_UNEXPECTED_END) {
       /* A text cut inside a literal (`[1,tru`): the codec points at the first letter of the literal. */
       if (ends_in_string(text, length))
@@ -403,7 +411,7 @@ static int native_decode(lua_State *L) {
 
   if ((lua_Integer)length > max_size) {
     lua_pushfstring(L, "input of %I bytes exceeds max_size (%I)", (lua_Integer)length, max_size);
-    return push_failure(L, "size_limit", 0);
+    return push_failure(L, "size_limit", -1); /* a property of the whole text: no position */
   }
   if (length >= 3 && memcmp(text, "\xEF\xBB\xBF", 3) == 0)
     return fail_with(L, "byte_order_mark", 0,
@@ -435,12 +443,19 @@ static int native_decode(lua_State *L) {
   }
   lua_settop(L, top);
   if (c.duplicate != NULL) {
+    /* Every Lua API call below may raise (out of memory) and longjmp past this function: the document must be freed
+     * first. push_excerpt reads at most EXCERPT_LIMIT + 1 bytes (the extra one decides the cut on a character
+     * boundary), so that much of the name is copied out of the document before it goes. */
+    char name[EXCERPT_LIMIT + 1];
+    size_t name_length = yyjson_get_len(c.duplicate);
+    if (name_length > sizeof name) name_length = sizeof name;
+    memcpy(name, yyjson_get_str(c.duplicate), name_length);
+    yyjson_doc_free(doc);
     lua_pushstring(L, "duplicate member name ");
-    push_excerpt(L, yyjson_get_str(c.duplicate), yyjson_get_len(c.duplicate));
+    push_excerpt(L, name, name_length);
     lua_pushstring(L, ": RFC 8259 allows it but parsers disagree on which value wins, so it is rejected (I-JSON, RFC 7493 "
                       "section 2.3)");
     lua_concat(L, 3);
-    yyjson_doc_free(doc);
     return push_failure(L, "duplicate_member_name", -1);
   }
   yyjson_doc_free(doc);

@@ -8,7 +8,7 @@
 | Rock | `hecate-doc` |
 | Layer | Tooling |
 | Roadmap phase | 3 |
-| Status | alpha — minimal slice done (Phase 1 roadmap item), package still in progress for Phase 3: Markdown rendering and highlighting by the native module (comrak, syntect), site model (locales with fallback, sidebar, previous/next), original theme on the brand kit, search index, `build` and the LuaLS code reference (reference generator, `gen-reference`) implemented; OpenAPI reference, versioned documentation, development server, runnable examples, `hecate doc build` for user projects and the prebuilt binary rocks of the native module pending (Phase 3) |
+| Status | alpha — minimal slice done (Phase 1 roadmap item); the roadmap phase stays 3 because the package is still in progress for it: Markdown rendering and highlighting by the native module (comrak, syntect), site model (locales with fallback, sidebar, previous/next), original theme on the brand kit, search index, `build` and the LuaLS code reference (reference generator, `gen-reference`) implemented; OpenAPI reference, versioned documentation, development server, runnable examples, `hecate doc build` for user projects and the prebuilt binary rocks of the native module pending (Phase 3) |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |
 | Depends on | [`core`](../core), [`reactor`](../reactor), [`openapi`](../openapi), [`schema`](../schema), [`json`](../json) |
 | Used by | `cli` |
@@ -46,23 +46,24 @@ All names are fields of `require "hecate.doc"`. Direction recorded by the owner 
 (ADR 0012, Accepted): `hecate.doc` is our own static site generator with a
 VitePress-like presentation and the Hecate brand kit. Same day, the owner asked for
 third-party dependencies wherever they save time (complete GFM, highlighting for many
-languages, no new JavaScript development tool); the first slice below has none, and the
-candidates are measured in [spike OQ-39](../../docs/spikes/OQ-39-doc-dependencies.md) and
+languages, no new JavaScript development tool); ADR 0022 (Accepted) lists them; the
+measurements are in [spike OQ-39](../../docs/spikes/OQ-39-doc-dependencies.md) and
 decided in [ADR 0022](../../docs/adr/0022-doc-dependencies.md).
 
 | Name | Description |
 |---|---|
 | `build(options)` | Reads `<source>/<locale>/**/*.md`, renders every page of every locale, writes pages, search indexes, theme files and static files to `options.out`, returns a `BuildReport` (`files`, `bytes`, `locales`, `problems`). Options: `config`, `source`, `out`, `fs`, `clean`, `strict`, `last_updated`. Output is deterministic. |
 | `load_config(path, fs)` | Loads a `site.lua` (data only: it runs with an empty environment). |
-| `normalise_config(raw)` | Validates a site configuration and fills the defaults; raises `core.ConfigurationError` with `context.field`. |
+| `normalise_config(raw)` | Validates every key of a site configuration (type and shape; `base` must be an absolute path and not protocol-relative, `url` an http(s) origin) and fills the defaults; raises `core.ConfigurationError` with `context.field` naming the offending key. |
 | `Site(options)` | The site model: `load()`, `pages(locale)`, `page(locale, id)`, `emit(write)`, `problems`. |
 | `Page` | One page in one locale: `id`, `url`, `title`, `html`, `headings`, `sections`, `fallback`, `meta`. |
-| `FileSystem` | Interface (`read`, `write`, `list`, `exists`, `remove_tree`) the builder reads and writes through. |
+| `FileSystem` | Interface (`read`, `write`, `list`, `exists`, `remove_tree`; optional `is_link`) the builder reads and writes through. `remove_tree` unlinks a symbolic link at its path, never its target; `build` with `clean` refuses an output directory that is a symbolic link. |
 | `MemoryFileSystem(files?)` | In-memory implementation (tests, embedders). |
 | `SystemFileSystem()` | Real file system over `hecate.reactor.fs`; every method suspends, so call it inside `reactor.run` (OQ-33). |
-| `BuildError` | `hecate.doc.BuildError` (a `core.Error`): malformed front matter, unreadable source, clashing URLs, `strict` problems. |
-| `markdown.render(source, options?)` | Markdown to HTML (`html`, `title`, `headings`, `sections`, `links`); escaping is the default. |
-| `front_matter.parse(source, path?)` | Splits front matter (flat YAML subset) from the body. |
+| `BuildError` | `hecate.doc.BuildError` (a `core.Error`): malformed front matter, unreadable source, clashing URLs, `strict` problems, a file system failure (`SystemFileSystem`), a failed LuaLS export, a page that is not valid UTF-8, a file of `public/` that collides with a generated file, two output files whose paths differ only by case (one file on macOS and Windows). |
+| `markdown.render(source, options?)` | Markdown to HTML (`html`, `title`, `headings`, `sections`, `links`); safe mode only (raw HTML is not passed through); a source that is not valid UTF-8, or in which a line opens more than 100 block containers (`>` quotes and list items; the nesting limit), raises `core.ArgumentError`. |
+| `front_matter.parse(source, path?)` | Splits front matter (flat YAML subset) from the body; double-quoted scalars accept only the escapes `\\`, `\"`, `\n`, `\t` (any other backslash sequence is a `BuildError`). |
+| `luals` (`hecate.doc.luals`) | `locate()`, `version(executable)`, `export(executable, source, options)` (output in a private directory removed afterwards: `mktemp -d` on POSIX; on Windows a new directory below `TEMP`/`TMP` with an unpredictable name, never reused if it exists: `windows_temporary_directory(getenv, parts)`, `claim_directory(fs, path)`), `command_line(...)` and `quote(path, windows?)` (pure; shell quoting for POSIX and `cmd.exe`). |
 | `highlight.render(language, code)` | Syntax highlighting by syntect (two-face syntaxes, `hl-` classes); an unknown language is escaped and left plain. |
 | `navigation` | `sidebar`, `reading_order`, `neighbours`, `top_links`, `section_of` (pure functions). |
 | `search.build(locale, pages)`, `search.encode(index)` | The client-side search index. |
@@ -112,7 +113,7 @@ are the tested files `packages/<package>/examples/<symbol>.lua`. The pages are n
 ### Content
 
 `<source>/<locale>/` holds Markdown pages with front matter; `<source>/public/` is copied to
-the site root. `en` is the default locale; a page missing in another locale is built from the
+the site root (hidden files excepted). A file of `public/` that has the path of a generated file (a page, `404.html`, `index.html`, `sitemap.xml`, `assets/...`) is a `BuildError`: generated files are never overwritten, and never overwrite hand-made ones silently. Page paths are percent-encoded in URLs (RFC 3986), files keep their real names on disk. `en` is the default locale; a page missing in another locale is built from the
 default locale with a visible notice. The page title is the single `#` heading of the body; front matter `title` is an optional
 override of the label used in navigation, search and `<title>` (OQ-35). Front matter keys: `title`, `description`, `order`
 (sidebar order), `hecate` and `lua` (the "written for" line), `layout: home` with
@@ -124,6 +125,14 @@ is not supported (shown as text, comments are dropped). Conventions: OQ-35. Site
 `footer`, `outline`, `strings`, `exclude`; see
 `hecate.doc.SiteConfig` and [website/site.lua](../../website/site.lua).
 
+`bin/build.lua` parses its command line strictly: an unknown option, an option without value, a repeated option or a second source directory is a usage error (exit code 2); `--flag=value` is accepted; `--base` and `--url` are validated like the configuration keys.
+
+### Native module and the specification examples
+
+Nesting limit: a native stack overflow cannot be caught, so the module refuses a line that opens more than 100 block containers (`MAX_NESTING` in `native/src/lib.rs`, the list depth that comrak caps itself) before parsing; real documentation rarely nests beyond five levels. The scan reads the leading `>` and list markers of each line and ignores code fences, so it is conservative. Parsing, formatting and the extraction of plain text are iterative, so inline nesting (emphasis, links, images) has no limit; `tests/unit/markdown_nesting_test.lua` runs the pathological inputs in a child process.
+
+The shipped native module exports `render` and `highlight` only (safe mode). The unsafe renderer that runs the CommonMark and GFM specification examples (OQ-37) is compiled only with the cargo feature `spec-tests`: `cargo build --release --features spec-tests --target-dir target/spec` in `native/` (or point `HECATE_DOC_SPEC_LIB` at the library); without that build `commonmark_spec_test.lua` skips.
+
 ### Theme
 
 One stylesheet built on the brand-kit tokens (light and dark, system preference plus a
@@ -133,7 +142,7 @@ search, locale switch, theme toggle and repository link, sidebar, "On this page"
 previous/next cards, edit link, last updated, callouts, responsive down to 390 px. Pages are
 readable without JavaScript. Vendored material: [THIRD_PARTY_NOTICES](../../THIRD_PARTY_NOTICES).
 
-### Limits of this first slice
+### Limits of the current implementation
 
 Not implemented: OpenAPI reference, error-code and configuration references, translations of generated pages keyed by symbol, `llms.txt`,
 versioned documentation, development server, runnable examples, translation status report,

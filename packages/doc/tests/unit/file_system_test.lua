@@ -86,4 +86,32 @@ function T:test_system_file_system_reports_unwritable_paths_as_build_errors()
   self:assert_true(core.is_instance_of(err, doc.BuildError))
 end
 
+local is_windows = package.config:sub(1, 1) == "\\"
+
+local function temporary_root()
+  local base = (os.getenv("TMPDIR") or os.getenv("TEMP") or os.getenv("TMP") or "/tmp"):gsub("\\", "/"):gsub("/+$", "")
+  return ("%s/hecate-doc-link-%d-%d"):format(base, math.random(1, 1e9), os.time())
+end
+
+function T:test_remove_tree_unlinks_a_symlink_and_never_touches_its_target()
+  if is_windows then return end
+  local uv = require("luv")
+  local root = temporary_root()
+  local fs = doc.SystemFileSystem()
+  reactor.run(function()
+    local ok, err = pcall(function()
+      fs:write(root .. "/target/keep.txt", "precious")
+      assert(uv.fs_symlink(root .. "/target", root .. "/link"))
+      self:assert_true(fs:is_link(root .. "/link"))
+      self:assert_false(fs:is_link(root .. "/target"))
+      self:assert_false(fs:is_link(root .. "/nowhere"))
+      fs:remove_tree(root .. "/link/")
+      self:assert_false(fs:exists(root .. "/link"), "the link is gone")
+      self:assert_equal("precious", fs:read(root .. "/target/keep.txt"), "the target is intact")
+    end)
+    fs:remove_tree(root)
+    if not ok then error(err, 0) end
+  end)
+end
+
 return T

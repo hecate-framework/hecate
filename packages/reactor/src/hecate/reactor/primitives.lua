@@ -35,13 +35,16 @@ end
 --- returns after every computation forked inside has completed or been cancelled.
 ---@param fn fun(scope: hecate.reactor.Scope): ...
 ---@param deadline_at? number  clock reading at which the scope is cancelled
+---@param shielded? boolean  the scope ignores the cancellation of what encloses it (`reactor.shield`)
 ---@return any ...
-local function scope_run(fn, deadline_at)
+local function scope_run(fn, deadline_at, shielded)
   local computation = context.current_computation("reactor.scope")
   local reactor = computation.reactor
   local scope = Scope(computation, computation.scope)
   if scope.parent then scope.parent:_add_subscope(scope) end
   computation.scope = scope
+  local depth = computation.shielded
+  if shielded then scope._shielded, computation.shielded = true, true end
   local timer
   if deadline_at ~= nil then
     timer = reactor:_add_timer(deadline_at, function()
@@ -74,13 +77,16 @@ local function scope_run(fn, deadline_at)
   scope._closed = true
   if timer then reactor:_cancel_timer(timer) end
   computation.scope = scope.parent
+  computation.shielded = depth
   if scope.parent then scope.parent:_remove_subscope(scope) end
 
   if scope._failed then error(scope._failure, 0) end
   if body[1] then return table.unpack(body, 2, body.n) end
   -- The body ended with this scope's own cancellation: the scope absorbs it.
   if scope._deadline_hit then
-    error(core.DeadlineExceededError({ message = "reactor.deadline: deadline exceeded", context = { at = deadline_at } }), 0)
+    error(core.DeadlineExceededError({
+      message = (shielded and "reactor.shield" or "reactor.deadline") .. ": deadline exceeded", context = { at = deadline_at },
+    }), 0)
   end
 end
 context.scope_run = scope_run
@@ -100,11 +106,11 @@ function M.scope(fn)
   return scope_run(fn)
 end
 
---- Starts `fn(...)` in a new coroutine of the current scope and returns its future.
+--- Starts `fn(...)` in a new coroutine of the current scope and returns its future. Does not suspend;
+--- it needs a managed coroutine (hence no `---@async` tag).
 ---
 --- Raises `hecate.core.ArgumentError` if `fn` is not a function and
 --- `hecate.core.NonYieldableContextError` outside a managed coroutine.
----@async
 ---@param fn fun(...): ...  the computation to run
 ---@param ... any  the arguments passed to `fn`
 ---@return hecate.reactor.Future future  the future of the computation
@@ -118,12 +124,12 @@ end
 
 --- Starts `fn(...)` in the application scope (the root scope of the running reactor), so it
 --- may outlive the scope of the caller. Its failure is observable only through its future
---- and does not cancel the application scope (concurrency.md, rule 2; OQ-26).
+--- and does not cancel the application scope (concurrency.md, rule 2; OQ-26). Does not suspend; it needs a
+--- managed coroutine (hence no `---@async` tag).
 ---
 --- Raises `hecate.core.ArgumentError` if `fn` is not a function, `hecate.core.Error` if the
 --- application scope is not running, and `hecate.core.NonYieldableContextError` outside a
 --- managed coroutine.
----@async
 ---@param fn fun(...): ...  the computation to run
 ---@param ... any  the arguments passed to `fn`
 ---@return hecate.reactor.Future future  the future of the computation
@@ -144,11 +150,10 @@ end
 --- Runs `fn(...)` with `key` bound to `value` for the running computation and for the computations
 --- it forks or detaches while the binding exists (ADR 0025). A binding is immutable; a nested
 --- binding of the same key shadows the outer one until `fn` returns. The binding is removed when
---- `fn` returns or raises.
+--- `fn` returns or raises. Suspends only if `fn` does; it needs a managed coroutine (hence no `---@async` tag).
 ---
 --- Raises `hecate.core.ArgumentError` if `key` is `nil` or `fn` is not a function,
 --- `hecate.core.NonYieldableContextError` outside a managed coroutine, and the error of `fn`.
----@async
 ---@param key any  what identifies the binding; a module-private table avoids collisions
 ---@param value any  the value bound to `key`
 ---@param fn fun(...): ...  the function run with the binding
@@ -170,13 +175,13 @@ function M.with_ambient(key, value, fn, ...)
   return table.unpack(results, 2, results.n)
 end
 
---- Returns the value bound to `key` in the running computation, or `nil` (ADR 0025).
+--- Returns the value bound to `key` in the running computation, or `nil` (ADR 0025). Does not suspend; it
+--- needs a managed coroutine (hence no `---@async` tag).
 ---
 --- Raises `hecate.core.ArgumentError` if `key` is `nil` and
 --- `hecate.core.NonYieldableContextError` outside a managed coroutine.
----@async
 ---@param key any  the key given to `with_ambient`
----@return any value  the bound value, or `nil`
+---@return any? value  the bound value, or `nil`
 function M.ambient(key)
   if key == nil then
     error(core.ArgumentError("reactor.ambient: expects a key that is not nil"), 2)
@@ -317,7 +322,11 @@ function M.select(...)
         end
       else
         ---@diagnostic disable-next-line: invisible  -- friend class
-        local completed, value = item:_try()
+        local tried, completed, value = pcall(item._try, item) -- raises for a closed channel
+        if not tried then
+          cancel_futures(items)
+          error(completed, 0)
+        end
         if completed then
           cancel_futures(items)
           return i, value
@@ -335,8 +344,25 @@ function M.select(...)
   end
 end
 
+--- Returns the clock reading of a deadline given as finite seconds or an `Instant`.
+---@param name string  the public call, for the error message
+---@param limit any
+---@return number at
+local function resolve_limit(name, limit)
+  local computation = context.current_computation(name)
+  if type(limit) == "number" and limit == limit and limit ~= math.huge and limit ~= -math.huge then
+    return computation.reactor:now() + limit
+  elseif core.is_instance_of(limit, Instant) then
+    return limit.seconds
+  end
+  error(core.ArgumentError(("%s: invalid deadline %s: expected finite seconds or an Instant"):format(name, tostring(limit))), 3)
+end
+
 --- Runs `fn(...)`; cancels it and raises `DeadlineExceededError` if it does not finish
---- in time. `limit` is a relative duration in seconds, or a `hecate.reactor.Instant`.
+--- in time. `limit` is a relative duration in finite seconds, or a `hecate.reactor.Instant`.
+--- A limit of zero or less, or an instant already past, is allowed and means immediate expiry:
+--- `fn` is cancelled at its first suspension point and `DeadlineExceededError` is raised. A
+--- non-finite number is an `ArgumentError`.
 ---
 --- Raises `hecate.core.DeadlineExceededError` when the limit expires, `hecate.core.ArgumentError`
 --- if `limit` is neither seconds nor an instant or `fn` is not a function, and
@@ -350,18 +376,41 @@ function M.deadline(limit, fn, ...)
   if type(fn) ~= "function" then
     error(core.ArgumentError(("reactor.deadline: expects a function, got %s"):format(type(fn))), 2)
   end
-  local computation = context.current_computation("reactor.deadline")
-  local at
-  if type(limit) == "number" and limit == limit then
-    at = computation.reactor:now() + limit
-  elseif core.is_instance_of(limit, Instant) then
-    at = limit.seconds
-  else
-    error(core.ArgumentError(("reactor.deadline: invalid deadline %s: expected seconds or an Instant")
-      :format(tostring(limit))), 2)
-  end
+  local at = resolve_limit("reactor.deadline", limit)
   local args = table.pack(...)
   return scope_run(function() return fn(table.unpack(args, 1, args.n)) end, at)
+end
+
+--- Runs `fn(...)` shielded from cancellation: the cancellation of the enclosing scopes, and a
+--- cancellation requested on the running computation, are not delivered inside `fn`, so cleanup
+--- can suspend (flush a buffer, send a close frame) while its scope is cancelled (OQ-23). The
+--- shield has its own deadline, so a stuck peer cannot block shutdown: when `limit` expires
+--- the shield is cancelled and raises `DeadlineExceededError`. A cancellation that arrived meanwhile
+--- is raised again at the first suspension point after the shield (level-triggered). Shields nest;
+--- the innermost deadline applies to its own body. As for `deadline`, a limit of zero or less, or a
+--- past instant, expires the shield immediately (at the body's first suspension point).
+---
+--- The caller owns the bound: there is no cap on `limit` (a large one defeats the purpose of the shield).
+--- Nested shields each keep their own deadline and bound their own body only: the deadline of an
+--- outer shield is not delivered inside an inner one, so the inner body runs until its own deadline
+--- (the outer cancellation is raised at the first suspension point after the inner shield). A deadline
+--- is delivered at suspension points: a body that never suspends is not bounded.
+---
+--- Raises `hecate.core.DeadlineExceededError` when the limit expires, `hecate.core.ArgumentError`
+--- if `limit` is neither finite seconds nor an instant or `fn` is not a function, and
+--- `hecate.core.NonYieldableContextError` outside a managed coroutine.
+---@async
+---@param limit number|hecate.reactor.Instant  the shield's own deadline, in seconds or as an instant
+---@param fn fun(...): ...  the cleanup to protect
+---@param ... any  the arguments passed to `fn`
+---@return any ...  the results of `fn`
+function M.shield(limit, fn, ...)
+  if type(fn) ~= "function" then
+    error(core.ArgumentError(("reactor.shield: expects a function, got %s"):format(type(fn))), 2)
+  end
+  local at = resolve_limit("reactor.shield", limit)
+  local args = table.pack(...)
+  return scope_run(function() return fn(table.unpack(args, 1, args.n)) end, at, true)
 end
 
 --- Returns the reading of the running reactor's clock, in seconds.

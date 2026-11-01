@@ -8,6 +8,7 @@ local core = require("hecate.core")
 local uv = require("luv")
 local uv_call = require("hecate.reactor.internal.uv_call")
 local tcp = require("hecate.reactor.tcp")
+local pipe = require("hecate.reactor.pipe")
 
 --- File descriptor of the message pipe in a child (the fourth standard stream).
 local PIPE_FD = 3
@@ -81,7 +82,7 @@ end
 --- stream arrived waits for an acknowledgement message from the receiver before it exits.
 ---
 --- Raises `hecate.core.ArgumentError` for a message that is not a string, larger than the
---- `max_message` of the peer (16 MiB by default), or a `handle` that is not an open `TcpStream`,
+--- `max_message` of the peer (16 MiB by default), or a `handle` that is not an open `TcpStream` (a `PipeStream` is refused: only TCP handles can be passed),
 --- and `hecate.reactor.TransportError` when the message pipe is closed (`EBADF`) or broken
 --- (`EPIPE`).
 ---@async
@@ -96,6 +97,9 @@ function Peer:send(message, handle)
   end
   if handle ~= nil and not core.is_instance_of(handle, tcp.TcpStream) then
     error(core.ArgumentError("reactor.Peer.send: only a TcpStream can be handed over"), 2)
+  end
+  if handle ~= nil and core.is_instance_of(handle, pipe.PipeStream) then
+    error(core.ArgumentError("reactor.Peer.send: only a TcpStream can be handed over, not a PipeStream"), 2)
   end
   if handle ~= nil and handle:is_closed() then
     error(core.ArgumentError("reactor.Peer.send: the stream to hand over is closed"), 2)

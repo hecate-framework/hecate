@@ -363,6 +363,20 @@ function T:test_select_raises_when_a_channel_is_closed()
   self:assert_true(core.is_instance_of(err_waiting, core.ClosedChannelError))
 end
 
+function T:test_select_cancels_the_futures_when_a_channel_operation_raises()
+  local state
+  support.run_virtual(function()
+    local closed = reactor.Channel()
+    closed:close()
+    local slow = reactor.fork(function() reactor.sleep(100) end)
+    local err = self:assert_error(function() reactor.select(slow, closed:receive_op()) end)
+    self:assert_true(core.is_instance_of(err, core.ClosedChannelError))
+    reactor.sleep(1)
+    state = slow:state()
+  end)
+  self:assert_equal("cancelled", state)
+end
+
 function T:test_select_rejects_other_values()
   support.run_virtual(function()
     local err = self:assert_error(function()

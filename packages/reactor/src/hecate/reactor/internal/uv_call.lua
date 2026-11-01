@@ -1,11 +1,11 @@
 -- Bridges libuv request callbacks to suspending calls. The callback only wakes the coroutine;
 -- the coroutine is resumed by the scheduler (reactor/CLAUDE.md, known pitfalls).
-global <const> type, error, require, select, table
+global <const> type, error, require, select, table, tostring
 
 local core = require("hecate.core")
 local context = require("hecate.reactor.internal.context")
 
-local IoError = core.error_class("IoError", "hecate.reactor.IoError")
+local IoError = core.error_class("IoError", "hecate.reactor.IoError", core.IoError)
 
 -- A failure of TCP or name resolution is a network failure (owner decision on OQ-32 (5)):
 -- it derives from `core.NetworkError` so that `catch` on `NetworkError` sees it. `IoError`
@@ -61,7 +61,7 @@ end
 ---@async
 ---@param qualified string  the public call, for messages
 ---@param operation string  the `context.operation`
----@param start fun(callback: fun(err: string?, ...))
+---@param start fun(callback: fun(err: string?, ...)): any, string?  returns the request, or nil and an error string when libuv refused to start it (the callback is then never called)
 ---@return any ...
 function M.request(qualified, operation, start)
   M.begin(qualified)
@@ -70,10 +70,15 @@ function M.request(qualified, operation, start)
   -- Uncancellable: a started request cannot be withdrawn, so the coroutine waits for its
   -- completion (file-system requests are short).
   context.suspend(function(wake)
-    start(function(e, ...)
+    local started, start_err = start(function(e, ...)
       err, results = e, pack(...)
       wake()
     end)
+    if not started then
+      -- libuv refused the request synchronously and never calls back: record the failure and wake.
+      err, results = tostring(start_err), pack()
+      wake()
+    end
   end, true)
   if err then M.fail(qualified, operation, err) end
   return table.unpack(results --[[@as table]], 1, results.n)

@@ -38,55 +38,87 @@ end
 local doc = require("hecate.doc")
 local reactor = require("hecate.reactor")
 local reference_site = require("hecate.doc.reference_site")
+local doc_config = require("hecate.doc.config")
 
 local function usage(stream)
   stream:write("usage: lua build.lua [source] [--config file] [--out dir] [--base /path/] [--url origin] "
     .. "[--clean] [--strict] [--no-git-dates] [--reference] [--root dir] [--packages a,b]\n")
 end
 
+local function usage_error(message)
+  io.stderr:write("hecate.doc: ", message, "\n")
+  usage(io.stderr)
+  os.exit(2)
+end
+
+local VALUE_FLAGS = { config = true, out = true, base = true, url = true, root = true, packages = true }
+local SWITCHES = { clean = true, strict = true, ["no-git-dates"] = true, reference = true }
+
+-- Strict parsing: an unknown flag, a flag without a value (the next word is missing or is another flag), a
+-- repeated flag, a second source directory and `--flag=value` on a switch are usage errors (exit code 2).
 local options = { source = "website" }
 local flags = {}
 do
+  local seen_source = false
   local i = 1
   while i <= #arg do
     local value = arg[i]
-    if value == "--config" or value == "--out" or value == "--base" or value == "--url" or value == "--root"
-        or value == "--packages" then
-      options[value:sub(3)] = arg[i + 1]
-      if not arg[i + 1] then usage(io.stderr) os.exit(2) end
-      i = i + 1
-    elseif value:sub(1, 2) == "--" then
-      flags[value:sub(3)] = true
-    elseif value == "-h" then
+    if value == "-h" or value == "--help" then
       usage(io.stdout)
       os.exit(0)
+    elseif value:sub(1, 2) == "--" then
+      local name, inline = value:match("^%-%-([^=]+)=(.*)$")
+      name = name or value:sub(3)
+      if VALUE_FLAGS[name] then
+        if options[name] ~= nil then usage_error("repeated option --" .. name) end
+        local operand = inline
+        if operand == nil then
+          operand = arg[i + 1]
+          if operand == nil or operand:sub(1, 2) == "--" then usage_error("option --" .. name .. " needs a value") end
+          i = i + 1
+        end
+        if operand == "" then usage_error("option --" .. name .. " needs a non-empty value") end
+        options[name] = operand
+      elseif SWITCHES[name] then
+        if inline ~= nil then usage_error("option --" .. name .. " takes no value") end
+        if flags[name] then usage_error("repeated option --" .. name) end
+        flags[name] = true
+      else
+        usage_error("unknown option --" .. name)
+      end
+    elseif value:sub(1, 1) == "-" and #value > 1 then
+      usage_error("unknown option " .. value)
     else
+      if seen_source then usage_error("more than one source directory: " .. value) end
+      seen_source = true
       options.source = value
     end
     i = i + 1
   end
 end
-for name in pairs(flags) do
-  if name ~= "clean" and name ~= "strict" and name ~= "no-git-dates" and name ~= "help" and name ~= "reference" then
-    io.stderr:write("unknown option --" .. name .. "\n")
-    usage(io.stderr)
-    os.exit(2)
+
+-- `--base` and `--url` go through the same validation as the configuration file (a protocol-relative base is refused).
+for _, name in ipairs({ "base", "url" }) do
+  if options[name] then
+    local candidate = { title = "hecate.doc", [name] = options[name] }
+    local valid, checked = pcall(doc_config.normalise, candidate)
+    if not valid then usage_error("invalid --" .. name .. ": " .. tostring(checked)) end
+    options[name] = checked[name]
   end
 end
-if flags.help then usage(io.stdout) os.exit(0) end
 
 local is_windows = package.config:sub(1, 1) == "\\"
 
-local function quote(path)
-  if is_windows then return '"' .. path:gsub("/", "\\"):gsub('"', '""') .. '"' end
-  return "'" .. path:gsub("'", "'\\''") .. "'"
-end
+local quote = require("hecate.doc.luals").quote
 
 --- Date of the last commit that touched a file (`git log --format=%cs`), or nil.
 local function git_date(path)
   local directory, name = path:match("^(.*)/([^/]*)$")
   if not directory then directory, name = ".", path end
-  local command = ("git -C %s log -1 --format=%%cs -- %s 2>%s"):format(quote(directory), quote(name),
+  -- A path that cannot be quoted for the shell (Windows: `"` or `%`) has no date.
+  local quoted, quoted_directory, quoted_name = pcall(function() return quote(directory), quote(name) end)
+  if not quoted then return nil end
+  local command = ("git -C %s log -1 --format=%%cs -- %s 2>%s"):format(quoted_directory, quoted_name,
     is_windows and "nul" or "/dev/null")
   if is_windows then command = '"' .. command .. '"' end
   local pipe = io.popen(command, "r")
@@ -100,7 +132,7 @@ local function run()
   local fs = doc.SystemFileSystem()
   local config = doc.load_config(options.config or (options.source .. "/site.lua"), fs)
   if options.base then config.base = options.base end
-  if options.url then config.url = options.url:gsub("/+$", "") end
+  if options.url then config.url = options.url end
   local generated = {}
   if flags.reference then
     local report = reference_site.run({

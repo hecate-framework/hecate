@@ -51,7 +51,12 @@ local function split_options(name, host, options, allowed)
   local known = {}
   for _, key in ipairs(allowed) do known[key] = true end
   local transport = {}
-  for key, value in pairs(options) do
+  -- Sorted, so that with several mistakes the message is the same on every run (`pairs` order is not).
+  local keys = {}
+  for key in pairs(options) do keys[#keys + 1] = key end
+  table.sort(keys, function(a, b) return tostring(a) < tostring(b) end)
+  for _, key in ipairs(keys) do
+    local value = options[key]
     if not known[key] then
       error(core.ArgumentError(("%s: unknown option %s (options: %s)"):format(
         name, tostring(key), table.concat(allowed, ", "))), 3)
@@ -68,9 +73,11 @@ end
 --- Validates a port before any resolution is paid for.
 ---@param name string
 ---@param port any
-local function check_port(name, port)
-  if math.type(port) ~= "integer" or port < 0 or port > 65535 then
-    error(core.ArgumentError(("%s: expects a port in 0..65535, got %s"):format(name, tostring(port))), 3)
+---@param allow_zero boolean  port 0 asks the system for a free port: meaningful to listen, not to connect
+local function check_port(name, port, allow_zero)
+  local lowest = allow_zero and 0 or 1
+  if math.type(port) ~= "integer" or port < lowest or port > 65535 then
+    error(core.ArgumentError(("%s: expects a port in %d..65535, got %s"):format(name, lowest, tostring(port))), 3)
   end
 end
 
@@ -130,15 +137,26 @@ local function rewrap(failure, call, action, extra, suffix)
   })
 end
 
+--- Seconds before the next address is tried while an attempt is still pending (RFC 8305 section 5,
+--- "Connection Attempt Delay": the recommended value). Not an option: a caller bounds the whole call.
+local CONNECTION_ATTEMPT_DELAY = 0.25
+
+-- Addresses of the resolver's list `connect` tries at most; the rest is ignored.
+local MAX_CONNECT_ADDRESSES = 16
+
 --- Connects to `host:port`. A host name is resolved first and its addresses are tried in the
---- resolver's order until one connects (no parallel attempts, OQ-32). Options: `nodelay` (default
+--- resolver's order, Happy Eyeballs style (RFC 8305, OQ-32 (2)): the first attempt starts at once, the
+--- next one 250 ms later if none has finished, or at once when the previous one fails; attempts run in
+--- parallel, the first to connect wins and the others are cancelled (a connection that completes after
+--- the winner is closed). Options: `nodelay` (default
 --- true), `keepalive` (default false), `keepalive_delay` (positive integer, seconds, default 60),
---- `family` (`"inet"` or `"inet6"`). There is no timeout option: bound the whole call, resolution
---- included, with `reactor.deadline(seconds, net.connect, host, port)`.
+--- `family` (`"inet"` or `"inet6"`). At most the first 16 addresses of the resolver's list are tried; the rest
+--- is ignored. There is no timeout option: bound the whole call, resolution
+--- included, with `reactor.deadline(seconds, net.connect, host, port)`, which cancels every pending attempt.
 ---
---- Raises `hecate.reactor.TransportError` (the last failure, rewrapped with the endpoint in its
---- message, `context.host`, `context.port`, the `context.errno` of the failure and its `cause`)
---- when no address connects. `context.attempts` lists `{ address, errno }` of every attempt (the
+--- Raises `hecate.reactor.TransportError` (the failure of the last address, rewrapped with the endpoint in
+--- its message, `context.host`, `context.port`, the `context.errno` of the failure and its `cause`)
+--- when no address connects. `context.attempts` lists `{ address, errno }` of every attempt in address order (the
 --- first failures are otherwise lost). A malformed host, port or option raises
 --- `hecate.core.ArgumentError` before anything is resolved. Cancellation, and a deadline, propagate
 --- at once instead of trying the next address.
@@ -148,32 +166,126 @@ end
 ---@param options? hecate.reactor.TcpOptions | { family?: "inet"|"inet6" }  transport options and address family
 ---@return hecate.net.TcpStream stream  the connected stream
 function M.connect(host, port, options)
-  local transport, family = split_options("net.connect", host, options, CONNECT_OPTIONS)
-  check_port("net.connect", port)
-  local addresses = dns.resolve_for("net.connect", host, { family = family })
+  return M.connect_for("net.connect", host, port, options)
+end
+
+--- Internal: `connect` under the name of the public call that the caller wrote (messages).
+---@async
+---@param call string  qualified name of the public call, for messages
+---@param host string
+---@param port integer
+---@param options? table
+---@return hecate.net.TcpStream
+function M.connect_for(call, host, port, options)
+  local transport, family = split_options(call, host, options, CONNECT_OPTIONS)
+  check_port(call, port, false)
+  local addresses = dns.resolve_for(call, host, { family = family })
+  if #addresses > MAX_CONNECT_ADDRESSES then
+    -- Bounded work and sockets for a name with a huge list; `context.attempts` lists what was tried.
+    addresses = table.move(addresses, 1, MAX_CONNECT_ADDRESSES, 1, {})
+  end
+  local count = #addresses
+  if count == 1 then
+    local ok, result = pcall(reactor.connect_tcp, addresses[1].ip, port, transport)
+    if ok then return TcpStream(result) end
+    if not core.is_instance_of(result, reactor.TransportError) then error(errors.rename(result, call), 0) end
+    local failure = result --[[@as hecate.core.Error]]
+    error(rewrap(failure, call, "connect to " .. endpoint(host, port),
+      { host = host, port = port, attempts = { { address = addresses[1].ip, errno = failure.context and failure.context.errno } } }), 0)
+  end
+
+  -- Several addresses: attempts are children of a scope that ends only when every one of them is done,
+  -- so no attempt outlives the call and a connection that arrives late can be closed.
+  ---@type table<integer, { ok: boolean, result: any }>
+  local outcomes = {} -- by address index: { ok, result }
+  local winner, misuse
+  local scope_ok, scope_err = pcall(reactor.scope, function(scope)
+    local finished = reactor.Channel(count) -- capacity `count`: a finishing attempt never waits
+    local futures = {}
+    local started = 0
+    local function start()
+      started = started + 1
+      local index = started
+      futures[index] = scope:fork(function()
+        local ok, result = pcall(reactor.connect_tcp, addresses[index].ip, port, transport)
+        outcomes[index] = { ok = ok, result = result }
+        finished:send(index)
+      end)
+    end
+    start()
+    local done = 0
+    while done < count do
+      local index
+      if started < count then
+        local timer = scope:fork(reactor.sleep, CONNECTION_ATTEMPT_DELAY)
+        local which, value = reactor.select(finished:receive_op(), timer)
+        if which == 1 then
+          timer:cancel()
+          index = value
+        else
+          start() -- nothing finished in time: try the next address as well
+        end
+      else
+        index = finished:receive()
+      end
+      if index then
+        done = done + 1
+        local outcome = outcomes[index]
+        if outcome.ok then
+          winner = index
+          break
+        elseif not core.is_instance_of(outcome.result, reactor.TransportError) then
+          misuse = outcome.result -- cancellation or misuse: no further attempt
+          break
+        elseif started < count then
+          start() -- a failure does not wait for the delay (RFC 8305 section 5)
+        end
+      end
+    end
+    for _, future in ipairs(futures) do future:cancel() end
+  end)
+  -- Every attempt is done. A connection that completed and is not the winner is closed.
+  for index, outcome in pairs(outcomes) do
+    if outcome.ok and index ~= winner then outcome.result:close() end
+  end
+  if not scope_ok then
+    if winner then outcomes[winner].result:close() end
+    error(errors.rename(scope_err, call), 0)
+  end
+  if winner then return TcpStream(outcomes[winner].result) end
+  if misuse then error(errors.rename(misuse, call), 0) end
   ---@type hecate.core.Error?
   local last
   local attempts = {}
   local tried = {}
-  for i = 1, #addresses do
-    local ok, result = pcall(reactor.connect_tcp, addresses[i].ip, port, transport)
-    if ok then return TcpStream(result) end
-    -- Only a failed attempt moves on to the next address; cancellation and misuse propagate.
-    if not core.is_instance_of(result, reactor.TransportError) then error(errors.rename(result, "net.connect"), 0) end
-    local failure = result --[[@as hecate.core.Error]]
-    attempts[#attempts + 1] = { address = addresses[i].ip, errno = failure.context and failure.context.errno }
-    tried[#tried + 1] = addresses[i].ip
-    last = failure
+  for i = 1, count do
+    ---@type hecate.core.Error|false
+    local failure = outcomes[i] and not outcomes[i].ok and outcomes[i].result
+    if failure then
+      attempts[#attempts + 1] = { address = addresses[i].ip, errno = failure.context and failure.context.errno }
+      tried[#tried + 1] = addresses[i].ip
+      last = failure
+    end
   end
   ---@cast last hecate.core.Error
-  error(rewrap(last, "net.connect", "connect to " .. endpoint(host, port), { host = host, port = port, attempts = attempts },
+  error(rewrap(last, call, "connect to " .. endpoint(host, port), { host = host, port = port, attempts = attempts },
     #tried > 1 and (" (tried %s)"):format(table.concat(tried, ", ")) or nil), 0)
 end
 
+-- Attempts `listen` makes with port 0 and several addresses when the port chosen for the first one is busy on a later one.
+local LISTEN_ATTEMPTS = 5
+
 --- Binds and listens on `host:port` (port 0 picks a free port, see `TcpListener:local_address`).
---- A host name is resolved and only its first address is bound: `listen("localhost", ...)` listens
---- on whichever of `127.0.0.1` and `::1` the resolver lists first. Pass a numeric address, or the
---- `family` option, when the address matters. Suspends only for the resolution.
+--- A host name is resolved and every address it gives is bound, on the same port (the one chosen for
+--- the first when `port` is 0): `listen("localhost", ...)` listens on `127.0.0.1` and on `::1`, and
+--- `accept` takes connections from all of them. An address the host cannot bind at all
+--- (`EAFNOSUPPORT`, `EADDRNOTAVAIL`: no IPv6, for instance) is skipped as long as another one is
+--- bound; any other failure fails the call and closes the sockets bound so far. With port 0, a port the
+--- system chose for the first address may be busy on a later one (`EADDRINUSE`): the sockets bound so far are
+--- closed and the whole set is bound again with a new port, up to 5 attempts, then the call raises.
+--- A name that binds every address it lists widens the listening surface (`localhost` may list more
+--- than loopback on an unusual resolver configuration): production services pass a numeric address, or the
+--- `family` option, to bind just one. Suspends only for the resolution.
 --- Options: those of `connect` plus `backlog` (default 128) and `reuseport`
 --- (see `reactor.supports_reuseport`).
 ---
@@ -187,12 +299,52 @@ end
 ---@return hecate.net.TcpListener listener  the listening socket
 function M.listen(host, port, options)
   local transport, family = split_options("net.listen", host, options, LISTEN_OPTIONS)
-  check_port("net.listen", port)
+  check_port("net.listen", port, true)
   local addresses = dns.resolve_for("net.listen", host, { family = family })
-  local ok, result = pcall(reactor.listen_tcp, addresses[1].ip, port, transport)
-  if ok then return TcpListener(result) end
-  if not core.is_instance_of(result, reactor.TransportError) then error(errors.rename(result, "net.listen"), 0) end
-  error(rewrap(result --[[@as hecate.core.Error]], "net.listen", "listen on " .. endpoint(host, port), { host = host, port = port }), 0)
+  for attempt = 1, LISTEN_ATTEMPTS do
+    local sockets = {}
+    local chosen = port
+    ---@type hecate.core.Error?
+    local last
+    local retry = false
+    local function close_bound() for _, socket in ipairs(sockets) do socket:close() end end
+    for i = 1, #addresses do
+      local ok, result = pcall(reactor.listen_tcp, addresses[i].ip, chosen, transport)
+      if ok then
+        sockets[#sockets + 1] = result
+        if chosen == 0 then -- one port for every address
+          local located, address = pcall(result.local_address, result)
+          if not located then
+            close_bound()
+            error(errors.rename(address, "net.listen"), 0)
+          end
+          chosen = address.port
+        end
+      else
+        local failure = result --[[@as hecate.core.Error]]
+        local transport_failure = core.is_instance_of(failure, reactor.TransportError)
+        local errno = transport_failure and failure.context and failure.context.errno
+        if errno == "EADDRINUSE" and port == 0 and chosen ~= 0 and attempt < LISTEN_ATTEMPTS then
+          -- The port the system chose for an earlier address is taken on this one: start over with a new port.
+          close_bound()
+          retry = true
+          break
+        end
+        if not (errno == "EAFNOSUPPORT" or errno == "EADDRNOTAVAIL") then
+          close_bound()
+          if not transport_failure then error(errors.rename(failure, "net.listen"), 0) end
+          error(rewrap(failure, "net.listen", "listen on " .. endpoint(host, port), { host = host, port = port }), 0)
+        end
+        last = failure
+      end
+    end
+    if not retry then
+      if #sockets > 0 then return TcpListener(sockets) end
+      ---@cast last hecate.core.Error
+      error(rewrap(last, "net.listen", "listen on " .. endpoint(host, port), { host = host, port = port }), 0)
+    end
+  end
+  error("unreachable", 0)
 end
 
 return M

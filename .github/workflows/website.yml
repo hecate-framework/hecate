@@ -116,7 +116,7 @@ jobs:
 
       - name: Check that the reference was generated
         run: |
-          for package in core reactor net; do
+          for package in core reactor net json log; do
             test -f "website/dist/en/reference/$package/index.html" || { echo "missing reference of $package" >&2; exit 1; }
           done
 

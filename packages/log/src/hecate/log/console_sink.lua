@@ -8,7 +8,7 @@ local Secret = require("hecate.log.secret")
 local MAX_VALUE = 200
 
 --- A sink that writes `timestamp severity [logger] message key=value ...` lines to a function.
----@class hecate.log.ConsoleSink
+---@class hecate.log.ConsoleSink : hecate.log.Sink
 ---@overload fun(options: hecate.log.ConsoleSinkOptions): hecate.log.ConsoleSink
 local ConsoleSink = core.class("ConsoleSink")
 
