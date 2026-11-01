@@ -155,7 +155,12 @@ concurrency test suite passes; benchmark baseline recorded.
 - [ ] `kernel`: application, modules, controllers, route modules, filters, problem
       details, lifecycle, multi-process workers, graceful shutdown.
 - [ ] Example: `examples/hello` (JSON API with validation).
-- [ ] Benchmarks: plaintext and JSON scenarios.
+- [ ] Benchmarks: plaintext and JSON scenarios. **Carries three performance findings deferred from the Phase 1
+      gate review** ([review](reviews/phase-1-review-package.md), "Minor"): judge each with a measurement, then
+      keep or fix it, and note the result in the review: (RE2) three table allocations per suspend/resume on the
+      scheduler hot path (`reactor.lua`, `context.suspend`; scenario `reactor/scheduler`, then `plaintext`);
+      (J4) per-key allocation in the Rust encoder (`packages/json/native/src/lib.rs`; `bench json`); (LO4)
+      `Logger:with_context` rebuilds the severity list (`logger.lua`; `bench log/logger`).
 
 Exit: `examples/hello` runs on three platforms with N workers; invalid input yields
 RFC 9457 problem details; graceful shutdown drains in-flight requests.

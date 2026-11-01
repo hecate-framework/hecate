@@ -356,6 +356,9 @@ end
 
 --- Runs `fn(...)`; cancels it and raises `DeadlineExceededError` if it does not finish
 --- in time. `limit` is a relative duration in finite seconds, or a `hecate.reactor.Instant`.
+--- A limit of zero or less, or an instant already past, is allowed and means immediate expiry:
+--- `fn` is cancelled at its first suspension point and `DeadlineExceededError` is raised. A
+--- non-finite number is an `ArgumentError`.
 ---
 --- Raises `hecate.core.DeadlineExceededError` when the limit expires, `hecate.core.ArgumentError`
 --- if `limit` is neither seconds nor an instant or `fn` is not a function, and
@@ -380,7 +383,8 @@ end
 --- shield has its own deadline, so a stuck peer cannot block shutdown: when `limit` expires
 --- the shield is cancelled and raises `DeadlineExceededError`. A cancellation that arrived meanwhile
 --- is raised again at the first suspension point after the shield (level-triggered). Shields nest;
---- the innermost deadline applies to its own body.
+--- the innermost deadline applies to its own body. As for `deadline`, a limit of zero or less, or a
+--- past instant, expires the shield immediately (at the body's first suspension point).
 ---
 --- Raises `hecate.core.DeadlineExceededError` when the limit expires, `hecate.core.ArgumentError`
 --- if `limit` is neither finite seconds nor an instant or `fn` is not a function, and

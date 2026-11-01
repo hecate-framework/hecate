@@ -74,6 +74,41 @@ function T:test_deadlock_is_reported_and_pending_closes_run()
   self:assert_equal(0, instance:live_coroutines())
 end
 
+function T:test_a_close_handler_can_use_the_reactor_while_the_run_is_torn_down()
+  local seen_now
+  local instance = reactor.Reactor({ clock = "virtual" })
+  local err = self:assert_error(function()
+    instance:run(function()
+      local guard <close> = setmetatable({}, { -- hecate: test-only
+        __close = function() seen_now = reactor.now() end,
+      })
+      local waiting
+      waiting = reactor.fork(function() return waiting:value() end)
+      return waiting:value()
+    end)
+  end)
+  self:assert_true(err.message:find("reactor.run: deadlock", 1, true) == 1, err.message)
+  self:assert_equal(0, seen_now)
+end
+
+function T:test_an_error_raised_by_a_close_handler_during_teardown_is_reported()
+  local instance = reactor.Reactor({ clock = "virtual" })
+  local err = self:assert_error(function()
+    instance:run(function()
+      local guard <close> = setmetatable({}, { -- hecate: test-only
+        __close = function() error("close failed", 0) end,
+      })
+      local waiting
+      waiting = reactor.fork(function() return waiting:value() end)
+      return waiting:value()
+    end)
+  end)
+  self:assert_true(err.message:find("reactor.run: deadlock", 1, true) == 1, err.message)
+  self:assert_equal(1, #err.context.close_errors)
+  self:assert_equal("close failed", err.context.close_errors[1])
+  self:assert_equal(0, instance:live_coroutines())
+end
+
 function T:test_nested_run_is_rejected()
   reactor.run(function()
     local err = self:assert_error(function() reactor.run(function() end) end)

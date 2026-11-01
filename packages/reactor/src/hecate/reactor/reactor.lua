@@ -396,6 +396,18 @@ function Reactor:run(fn, ...)
     end)
   end, { n = 0 })
   local ok, failure = pcall(loop, self, main)
+  -- Abandon what is left while the reactor is still current: closing a suspended coroutine runs
+  -- the `__close` metamethods of its pending variables, and a handler may use the reactor. The
+  -- errors they raise are collected, not lost (`coroutine.close` returns them instead of raising).
+  local close_errors = {}
+  if not ok then
+    for co, computation in pairs(self._computations) do
+      local closed, close_error = coroutine.close(co)
+      if not closed then close_errors[#close_errors + 1] = close_error end
+      computation.state = "dead"
+    end
+    self._computations, self._live = {}, 0
+  end
   context.reactor = nil
   self._root = nil
   if self._uv_timer then
@@ -408,12 +420,10 @@ function Reactor:run(fn, ...)
     uv.run("nowait") -- lets libuv finish closing the handles
   end
   if not ok then
-    -- Abandon what is left: closing a suspended coroutine runs the `__close` metamethods of its pending variables.
-    for co, computation in pairs(self._computations) do
-      coroutine.close(co)
-      computation.state = "dead"
+    -- The failure of the run stays the error raised; the errors of the `__close` handlers ride along.
+    if #close_errors > 0 and core.is_instance_of(failure, core.Error) then
+      failure.context.close_errors = close_errors
     end
-    self._computations, self._live = {}, 0
     error(failure, 0)
   end
   if main._state == "completed" then

@@ -179,6 +179,27 @@ function T:test_the_socket_is_bound_inside_a_private_directory_never_at_the_fina
   assert(uv.fs_rmdir(directory))
 end
 
+function T:test_a_filesystem_that_refuses_the_link_falls_back_to_bind_then_chmod()
+  if is_windows then return end
+  local directory = private_directory()
+  local path = directory .. "/s"
+  local link = uv.fs_link
+  uv.fs_link = function() return nil, "EPERM: operation not permitted" end
+  local ok, err = pcall(reactor.run, function()
+    local listener <close> = reactor.listen_pipe(path)
+    self:assert_equal(path, listener:path())
+    local stat = assert(uv.fs_stat(path))
+    self:assert_equal(tonumber("600", 8), stat.mode & tonumber("777", 8))
+    local client <close> = reactor.connect_pipe(path)
+    reactor.fork(function() local peer <close> = listener:accept(); peer:write("ok") end)
+    self:assert_equal("ok", client:read())
+  end)
+  uv.fs_link = link
+  self:assert_true(ok, tostring(err))
+  self:assert_equal("", table.concat(entries(directory), ",")) -- no private directory left, the socket was removed on close
+  assert(uv.fs_rmdir(directory))
+end
+
 function T:test_a_stale_file_at_the_path_is_still_eaddrinuse_and_nothing_is_left_behind()
   if is_windows then return end
   local directory = private_directory()

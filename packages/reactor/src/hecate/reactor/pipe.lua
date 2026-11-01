@@ -184,19 +184,20 @@ local function path_limit() return (uv.os_uname().sysname == "Darwin" and 104 or
 --- Binds `handle` so that the socket file is never visible at `path` with permissions other than
 --- the requested ones (owner decision on OQ-47 (4)): it is bound inside a fresh directory that only
 --- the owner can enter (libuv creates it `0700`), given its final permissions there, then linked to
---- `path`; the link fails if `path` exists, as a bind would. Returns `true` when `path` is bound this way,
---- `false` when the private directory cannot be used (path too long once the directory is added, or the
---- directory cannot be created), in which case the caller binds directly and restricts afterwards.
---- A failure that is not about the directory raises `TransportError` and closes `handle`.
+--- `path`; the link fails if `path` exists, as a bind would. Returns `"linked"` when `path` is bound this
+--- way; `"unused"` when the private directory cannot be used (path too long once the directory is added, or
+--- the directory cannot be created) and `handle` is untouched; `"retry"` when the file system refused the
+--- link (some network and virtual file systems have no hard links), `handle` is closed and the caller binds
+--- a new one directly, then restricts afterwards. Any other failure raises `TransportError` and closes `handle`.
 ---@param handle table
 ---@param path string
 ---@param mode string
----@return boolean linked
+---@return "linked"|"unused"|"retry" outcome
 local function bind_private(handle, path, mode)
   local parent = path:match("^(.*)/[^/]*$")
   if parent == nil then parent = "." elseif parent == "" then parent = "/" end
   local private = uv.fs_mkdtemp((parent == "/" and "" or parent) .. "/.hs-XXXXXX")
-  if not private then return false end
+  if not private then return "unused" end
   local private_path = private .. "/s"
   local function discard()
     uv.fs_unlink(private_path)
@@ -204,7 +205,7 @@ local function bind_private(handle, path, mode)
   end
   if #private_path > path_limit() then
     discard()
-    return false
+    return "unused"
   end
   local bound, bind_err = handle:bind(private_path)
   if not bound then
@@ -223,17 +224,20 @@ local function bind_private(handle, path, mode)
   if not linked then
     handle:close()
     -- An existing file is what a direct bind reports as EADDRINUSE.
-    if tostring(link_err):sub(1, 7) == "EEXIST:" then link_err = "EADDRINUSE: address already in use" end
-    uv_call.fail_transport("reactor.listen_pipe", "bind " .. path, tostring(link_err))
+    if tostring(link_err):sub(1, 7) == "EEXIST:" then
+      uv_call.fail_transport("reactor.listen_pipe", "bind " .. path, "EADDRINUSE: address already in use")
+    end
+    return "retry" -- the file system has no hard links for sockets: bind directly
   end
-  return true
+  return "linked"
 end
 
 --- Binds and listens on a Unix-domain socket path. Does not suspend. The path must not exist
 --- (`EADDRINUSE` otherwise). Option `mode` says who may connect: `"owner"` (default) restricts the
 --- socket file to its owner, `"readable"`, `"writable"` and `"readwrite"` open it to every user
 --- with that access. The socket is bound in a private `0700` directory next to `path` and linked to
---- it with its final permissions, so it is never visible with wider ones. `mode` has no effect on Windows, where the default security
+--- it with its final permissions, so it is never visible with wider ones. When the file system refuses the
+--- link, or the private directory cannot be used, the socket is bound directly and restricted right after. `mode` has no effect on Windows, where the default security
 --- of the named pipe applies; `backlog` is ignored there too. On Windows the pipe name after
 --- `\\.\pipe\` is limited to 256 characters.
 ---
@@ -249,7 +253,9 @@ function api.listen_pipe(path, options)
   local handle = uv.new_pipe(false)
   local owns_file = false
   if not IS_WINDOWS and path:sub(1, 1) ~= "\0" then -- an abstract socket has no file to protect
-    owns_file = bind_private(handle, path, options.mode or "owner")
+    local outcome = bind_private(handle, path, options.mode or "owner")
+    owns_file = outcome == "linked"
+    if outcome == "retry" then handle = uv.new_pipe(false) end -- the first one was bound to the private path and closed
   end
   if not owns_file then
     local bound, bind_err = handle:bind(path)

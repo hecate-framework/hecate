@@ -11,6 +11,9 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- `hecate.reactor`: `reactor.deadline` and `reactor.shield` accept a zero, negative or past limit and expire immediately (documented, tested).
+- `hecate.reactor`: a failed `Reactor:run` closes the abandoned coroutines while the reactor is still current, so their `__close` handlers can use it; the errors they raise are reported in `context.close_errors` of the raised error instead of being lost.
+- `hecate.reactor`: `listen_pipe` falls back to binding directly (then restricting) when the file system refuses the hard link of the private-directory method.
 - Benchmarks: `net/buffered-writer` sweeps the `BufferedWriter` capacity (4 KiB, Go's `bufio` default, to 64 KiB) over TCP and TLS (OQ-47 (7)); the default stays 8 KiB until the owner measures.
 - `hecate.net`: `net.connect` tries a host name's addresses Happy Eyeballs style (RFC 8305): the next attempt after 250 ms, or at once after a failure, in parallel; the first success wins and the others are cancelled (OQ-32 (2)). The resolver's order is kept.
 - `hecate.net`: `tls.server_config` option `client_crl_pem` (PEM, one or more certificate revocation lists) rejects revoked client certificates (OQ-47 (6)); read once, no refresh. Test fixtures for a revocation CA, a revoked and a valid client certificate and the CRL.

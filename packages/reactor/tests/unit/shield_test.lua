@@ -22,6 +22,20 @@ function T:test_cleanup_can_suspend_while_its_scope_is_cancelled()
   self:assert_equal(3, flushed_at)
 end
 
+function T:test_shield_of_zero_negative_or_past_instant_expires_immediately()
+  run_virtual(function()
+    reactor.sleep(4)
+    local limits = { 0, -1, reactor.at(2) }
+    for _, limit in ipairs(limits) do
+      local started = reactor.now()
+      local ok, err = pcall(reactor.shield, limit, reactor.sleep, 10)
+      self:assert_false(ok)
+      self:assert_true(core.is_instance_of(err, core.DeadlineExceededError))
+      self:assert_equal(started, reactor.now())
+    end
+  end)
+end
+
 function T:test_shield_returns_the_results_of_fn()
   local a, b = run_virtual(function() return reactor.shield(1, function(x, y) return x + y, "ok" end, 1, 2) end)
   self:assert_equal(3, a)
