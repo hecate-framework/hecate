@@ -41,7 +41,7 @@ function Response:init(status, options)
     error(core.ArgumentError("http.Response: the status must be an integer from 100 to 599"), 3)
   end
   if options.content ~= nil and Status.forbids_content(status) then
-    error(core.ArgumentError("http.Response: status " .. status .. " never has content (RFC 9110, section 6.4.1)"), 3)
+    error(core.ArgumentError("http.Response: status " .. status .. " never has content (RFC 9110, section 6.4.1); return a Response without content"), 3)
   end
   self.status = status
   self.reason = options.reason or Status.reason(status) or ""

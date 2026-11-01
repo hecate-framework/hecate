@@ -68,7 +68,8 @@ http.Client = optional("hecate.http.client")
 ---@return string? reason
 function http.available()
   if http.Parser ~= nil then return true end
-  return false, native_failure
+  local first = string.match(native_failure or "", "^[^\n]*")
+  return false, first .. " (run `lua tools/run.lua build-native http`)"
 end
 
 return http

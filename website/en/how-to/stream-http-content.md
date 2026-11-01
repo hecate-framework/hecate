@@ -8,7 +8,7 @@ order: 9
 # Stream HTTP content
 
 This guide shows how to read the content of a request and write the content of a response
-without holding it all in memory. It is written for hecate 0.x and Lua 5.5. It assumes you know
+without holding it all in memory. It assumes you know
 [how to serve HTTP](serve-http.md).
 
 Streaming relies on [back-pressure](../reference/glossary.md#concurrency). A client that sends
@@ -43,9 +43,10 @@ end
 ```
 
 What the action leaves unread is drained after the response, up to `max_content` and within
-`drain_timeout` (5 seconds), so the next request on the connection can be parsed. An action that
-never reads makes the server close the connection after its answer when the request waited for
-`100 Continue`.
+`drain_timeout` (5 seconds), so the next request on the connection can be parsed. A client may send
+`Expect: 100-continue` and wait before it sends the content. The server answers `100 Continue` when
+the action first reads. If the action answers without reading, the content was never asked for, so
+the server closes the connection after its answer, and the client must open a new one.
 
 ## Stream a response
 

@@ -8,15 +8,15 @@ order: 11
 # Handle forms and multipart
 
 This guide shows how to read `application/x-www-form-urlencoded` and `multipart/form-data`
-content in an action, and how to send both with the client. It is written for hecate 0.x and
-Lua 5.5. It assumes you know [how to serve HTTP](serve-http.md).
+content in an action, and how to send both with the client. It assumes you know [how to serve HTTP](serve-http.md).
 
 The form parsers are pure Lua. They need no native module.
 
 ## Read a urlencoded form
 
 `request:read_form(limits?)` reads the content and returns a `Form`. It raises a `FormError` with
-status 415 when the `Content-Type` is not urlencoded.
+status 415 when the `Content-Type` is not urlencoded. The content is bounded by `max_content` of the server (1 MiB by default): a larger form is a 413 `ContentError`
+while it is read, and `limits.max_size` can only lower that bound.
 
 A `Form` has `get(name)` (the first value, or `nil`), `get_all(name)` (every value, in order),
 `count()` and `pairs()`. Names can repeat.
@@ -151,11 +151,11 @@ content. `Content-Transfer-Encoding` is ignored.
 A `FormError` carries `context.reason` and `context.status`. In an action you can let it escape:
 the server answers with problem details that echo nothing of the input.
 
-| Kind | Status |
+| Reason | Status |
 |---|---|
 | `unsupported_media_type` | 415 |
-| `bad_boundary`, `bad_part_header`, `missing_name`, `truncated` | 400 |
-| `too_many_parts`, `part_header_too_large`, `total_too_large` | 413 |
+| `bad_boundary`, `bad_part_fields`, `missing_name`, `truncated` | 400 |
+| `too_many_parts`, `part_fields_too_large`, `total_too_large` | 413 |
 | `bad_percent_encoding`, `invalid_utf8`, `nul_in_value` | 400 |
 | `too_many_pairs`, `too_large` | 413 |
 

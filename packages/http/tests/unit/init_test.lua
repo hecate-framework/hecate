@@ -31,6 +31,8 @@ function T:test_the_message_model_loads_without_the_native_module()
   self:assert_equal("1", fields)
   self:assert_false(available)
   self:assert_equal("string", type(reason))
+  self:assert_nil(reason:find("\n"), "one line")
+  self:assert_not_nil(reason:find("lua tools/run.lua build-native http", 1, true), "the command that fixes it")
   self:assert_not_nil(parse_error)
 end
 

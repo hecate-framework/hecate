@@ -7,9 +7,43 @@ order: 10
 
 # Use the HTTP client
 
-This guide shows how to call an HTTP server with `http.Client`. It is written for hecate 0.x and
-Lua 5.5. Run the calls inside `reactor.run`: each one *suspends* the running
+This guide shows how to call an HTTP server with `http.Client`. Run the calls inside `reactor.run`: each one *suspends* the running
 [coroutine](../reference/glossary.md#concurrency).
+
+## Call a JSON API
+
+Five lines are the whole job: create the client, get, decode, use. Against a real API only the URL
+changes, for example `client:get("https://api.example.org/users/42")`. The example below runs against a
+local server so that it can be tested.
+
+<!-- example: packages/http/examples/hecate.http.Client.json.lua -->
+```lua
+-- Call a JSON API and decode the answer. The API is a local server here; with a real one only the URL changes.
+local reactor = require("hecate.reactor")
+local http = require("hecate.http")
+
+local function action(request)
+  return http.Response(200, { content = { id = 42, name = "Ada" } })
+end
+
+reactor.run(function()
+  local server = http.Server(action, { port = 0 })
+  local listener = server:listen()
+  local serving = reactor.fork(server.serve, server, listener)
+  local client <close> = http.Client()
+  local response = client:get("http://127.0.0.1:" .. listener:local_address().port .. "/users/42")
+  local user = response:read_json()
+  print(response.status .. " " .. user.name)
+  server:shutdown()
+  reactor.join(serving)
+end)
+-- Prints: 200 Ada
+```
+
+`response:read_json(limit?)` reads the content (bounded like `read_content`) and decodes it. Content
+that is not JSON raises a `core.ProtocolError` whose `context.reason` is `invalid_json`; the message
+never holds the content. `response:media_type()` returns the parsed `Content-Type` (`nil` when absent
+or malformed), so you can check it before decoding.
 
 ## Send requests
 
@@ -61,7 +95,8 @@ and `options` (`client:get(url, options?)`), and `post`, `put` and `patch`
 (`client:post(url, content?, options?)`).
 
 The URL must be absolute, `http` or `https`, without userinfo. Anything else raises an
-`ArgumentError`. The client sends the `Host` field from the URL and sets `Content-Length` or
+`ArgumentError` that says why, for example `http.Client:request: invalid URL: userinfo in a URL is
+refused (RFC 9110 section 4.2.4)`. The client sends the `Host` field from the URL and sets `Content-Length` or
 `Transfer-Encoding` itself.
 
 ## Send content
@@ -73,8 +108,11 @@ The content of a request is one of:
 - a function `content(write)`, streamed with the chunked coding, and never replayed.
 
 The per-request `options` are `fields` (a table or a `Fields` object), `content`, `form`,
-`multipart`, `redirects`, `cross_origin_redirects`, `expect_continue` and `request_timeout`. `content`,
-`form` and `multipart` exclude each other. Forms are in
+`multipart`, `redirects`, `cross_origin_redirects`, `expect_continue`, `request_timeout`,
+`head_timeout`, `content_timeout`, `max_content` and `max_redirects`. Any other key is an
+`ArgumentError` that suggests the nearest name. `content`, `form` and `multipart` exclude each other.
+`strip_on_redirect` and the other settings belong to the client (see
+[`ClientOptions`](../reference/http/ClientOptions.md)). Forms are in
 [Handle forms and multipart](handle-forms-and-multipart.md).
 
 ```lua
@@ -86,8 +124,9 @@ local response = client:put(base .. "/items/7", { name = "pencil" }, {
 
 ## Read the response
 
-A call returns when the response head has arrived: `response.status`, `response.fields`. The
-content is read lazily:
+A call returns when the response head has arrived: `response.status`, `response.fields`. A 404 or a
+500 is a normal return, not an error: test `response:is_successful()` (a 2xx) or the status. Only a
+failure of the exchange raises. The content is read lazily:
 
 - `response:read_content(limit?)` returns the whole content. The default bound is 10 MiB
   (`max_content`). Over it, it raises `http.ContentError`.
@@ -100,7 +139,7 @@ and zero-length content give their connection back at once.
 
 ## The pool
 
-The client keeps connections per origin (scheme, host and port):
+The client keeps connections per [origin](../reference/glossary.md#http) (scheme, host and port):
 
 - At most 8 per origin (`max_connections_per_origin`), in use or idle. The next request waits.
 - At most 64 idle connections in all (`max_idle_connections`).
@@ -159,9 +198,23 @@ Errors are core error objects. The ones you will catch:
 > private, loopback and link-local addresses itself. A redirect can lead there. Pass
 > `redirects = false` and validate each `Location`. The client has no `connect` hook yet (OQ-74).
 
+```lua
+local ok, err = pcall(function() return client:get(url):read_json() end)
+if not ok then
+  if core.is_instance_of(err, core.DeadlineExceededError) then
+    -- too slow
+  elseif core.is_instance_of(err, http.ParseError) or core.is_instance_of(err, core.ProtocolError) then
+    -- the server answered something that is not valid, or a redirect went wrong: err.context.reason says which
+  else
+    error(err, 0) -- a transport or TLS failure, or a bug
+  end
+end
+```
+
 For https, the client trusts the system store and cannot be told to skip verification. See
 [Set limits, timeouts and TLS on the HTTP server](http-limits-timeouts-and-tls.md#tls) for the
-client options. Not available yet: HTTP proxies, compression, a cookie jar and HTTP/2.
+client options. Not available: HTTP proxies, compression, a cookie jar, HTTP/2, `Retry-After` and retries of
+your own (only a request on a pooled connection that died is repeated once, as described above).
 
 ## Next steps
 

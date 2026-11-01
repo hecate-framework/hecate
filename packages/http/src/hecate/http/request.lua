@@ -39,7 +39,7 @@ local Request = core.class("Request")
 --- whitespace or control characters.
 ---@param options hecate.http.RequestOptions
 function Request:init(options)
-  if type(options) ~= "table" then error(core.ArgumentError("http.Request: expected an options table"), 3) end
+  if type(options) ~= "table" then error(core.ArgumentError("http.Request: expected an options table, as in http.Request({ method = \"GET\", target = \"/\" })"), 3) end
   local method = options.method or "GET"
   if not grammar.is_token(method) then error(core.ArgumentError("http.Request: the method must be a token"), 3) end
   local target = options.target

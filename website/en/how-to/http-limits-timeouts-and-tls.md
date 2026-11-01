@@ -8,8 +8,9 @@ order: 12
 # Set limits, timeouts and TLS on the HTTP server
 
 This guide shows how to tighten or relax the bounds of `http.Server`, and how to serve and call
-HTTPS. It is written for hecate 0.x and Lua 5.5. Every limit is an option of the server, and
-every option has a default, so a server is never unbounded by accident. For the reasons behind
+HTTPS. Every limit is an option of the server, and
+every option has a default, so a server is never unbounded by accident. This page is also the list of every
+limit; the explanation says why each one exists. For the reasons behind
 the values, read [The HTTP model](../explanation/http-model.md#why-these-defaults).
 
 ## Set limits
@@ -72,7 +73,7 @@ the table says otherwise.
 | From the end of the head to the last byte of content | `request_timeout` | 300 s | 408 |
 | Draining unread content after the response | `drain_timeout` | 5 s | the connection closes |
 | One write to the client | `write_timeout` | 60 s | the connection closes |
-| Connections served at once | `max_connections` | none | the excess waits in the backlog |
+| Connections served at once | `max_connections` | none | the excess waits in the backlog (there is no 503: once the backlog is full, further clients time out) |
 | Pending connections in the kernel | `backlog` | 128 | the kernel refuses |
 
 > [!WARNING] `max_connections` has no limit by default
@@ -92,10 +93,6 @@ A few rules help when you choose values:
   `idle_timeout`.
 - Pipelining needs no option: the server reads at most 16 KiB at a time, and only after it has
   answered every request already parsed.
-
-When the accept loop meets descriptor exhaustion (`EMFILE`, `ENFILE`) or any other accept
-failure, connections in service keep being served. The loop backs off from 50 ms to 1 s,
-resumes by itself and reports the burst once to `logger` and `on_error`.
 
 ## Deadline for an action
 
@@ -118,20 +115,42 @@ Pass the `tls` option to serve HTTPS. It takes the options of `net.tls.server_co
 configuration built by it. The ALPN protocol list defaults to `http/1.1`. TLS needs the TLS native
 module of `hecate.net`.
 
+The example serves HTTPS with the throwaway keys of the `net` tests and calls it with a client that trusts
+their authority. Use your own certificate and key.
+
+<!-- example: packages/http/examples/hecate.http.Server.tls.lua -->
 ```lua
-local function read(path)
-  local file = assert(io.open(path, "rb"))
+-- Serve HTTPS with the throwaway keys of the net tests (use your own certificate and key) and call it
+-- with a client that trusts their CA. The paths are relative to the root of the repository.
+local reactor = require("hecate.reactor")
+local http = require("hecate.http")
+
+local function read(name)
+  local file = assert(io.open("packages/net/tests/fixtures/" .. name, "rb"))
   local text = file:read("a")
   file:close()
   return text
 end
 
-local server = http.Server(action, {
-  host = "0.0.0.0",
-  port = 8443,
-  tls = { cert_pem = read("server.pem"), key_pem = read("server.key") },
-})
+local function action() return http.Response(200, { content = "secure" }) end
+
+reactor.run(function()
+  local server = http.Server(action, { port = 0, tls = { cert_pem = read("server.pem"), key_pem = read("server.key") } })
+  local listener = server:listen()
+  local serving = reactor.fork(server.serve, server, listener)
+  local client <close> = http.Client({ tls = { ca_pem = read("ca.pem"), system_roots = false } })
+  print(client:get("https://127.0.0.1:" .. listener:local_address().port .. "/"):read_content())
+  server:shutdown()
+  reactor.join(serving)
+end)
+-- Prints: secure
 ```
+
+To make a certificate for local work: `openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes -days 30
+-keyout server.key -out server.pem -subj "/CN=localhost" -addext "subjectAltName=DNS:localhost,IP:127.0.0.1"`. Then
+`curl --cacert server.pem https://localhost:8443/` trusts it. A client that does not know the
+authority, such as `http.Client()` with only the system store, raises a `net.TlsError` (its
+`context.reason` is `untrusted_issuer`): the certificate is refused, and there is no option to skip the check.
 
 Each accepted connection handshakes in its own computation, never in the accept loop. A client
 that stays silent holds nothing but its own slot. Three options bound handshakes. They need `tls`:

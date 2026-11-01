@@ -14,6 +14,7 @@ local Status = require("hecate.http.status")
 local ContentStream = require("hecate.http.content")
 local grammar = require("hecate.http.grammar")
 local url = require("hecate.http.url")
+local option_text = require("hecate.http.options")
 local form = require("hecate.http.form")
 local multipart = require("hecate.http.multipart")
 local wire = require("hecate.http.wire")
@@ -98,7 +99,7 @@ local KNOWN <const> = {
 }
 
 local function bad(name, expected, value)
-  error(core.ArgumentError(("http.Client: invalid %s: expected %s"):format(name, expected)), 4)
+  error(core.ArgumentError(("http.Client: invalid %s %s: expected %s"):format(name, option_text.show(value), expected)), 4)
 end
 
 --- Creates a client. Nothing is connected until the first request.
@@ -109,7 +110,7 @@ function Client:init(options)
   options = options or {}
   if type(options) ~= "table" then error(core.ArgumentError("http.Client: options must be a table"), 3) end
   for key in pairs(options) do
-    if not KNOWN[key] then error(core.ArgumentError(("http.Client: unknown option %s"):format(tostring(key))), 3) end
+    if not KNOWN[key] then error(core.ArgumentError(option_text.unknown("http.Client", key, KNOWN)), 3) end
   end
   ---@return number
   local function seconds(name)
@@ -626,7 +627,7 @@ function Client:request(method, target, options)
   if type(options) ~= "table" then error(core.ArgumentError("http.Client:request: options must be a table"), 2) end
   if not grammar.is_token(method) then error(core.ArgumentError("http.Client:request: the method must be a token"), 2) end
   for key in pairs(options) do
-    if not REQUEST_OPTIONS[key] then error(core.ArgumentError(("http.Client:request: unknown option %s"):format(tostring(key))), 2) end
+    if not REQUEST_OPTIONS[key] then error(core.ArgumentError(option_text.unknown("http.Client:request", key, REQUEST_OPTIONS)), 2) end
   end
   local parts, reason = url.parse(target)
   if parts == nil then error(core.ArgumentError("http.Client:request: invalid URL: " .. tostring(reason)), 2) end

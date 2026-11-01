@@ -173,13 +173,16 @@ concurrency test suite passes; benchmark baseline recorded.
       request without exactly one `Host` field (RFC 9112 section 3.2; the parser only exposes the fields); (5) the
       server calls `Parser:close()` when a connection ends, and feeds the parser chunks no larger than its read buffer
       (`feed` returns every event of the chunk in one list).
-- [ ] `router`: radix tree, URI template subset, 404/405, reverse routing.
+- [ ] `router`: radix tree, URI template subset, 404/405, reverse routing. **Also:** percent-decode each path segment (so `%2F` is not a separator) and resolve dot segments: `request.path` of `http` is raw (OQ-75).
 - [ ] `schema`: refinement types, composition, coercion, validation with JSON Pointer
       error paths, JSON Schema 2020-12 emission.
 - [ ] `container`: IoC container, lifetimes, cycle detection at boot; write its specification section in `docs/architecture/` (OQ-62).
 - [ ] `config`: layered configuration validated by schemas; write its specification section in `docs/architecture/`, including the logging keys (OQ-62).
 - [ ] `kernel`: application, modules, controllers, route modules, filters, problem
-      details, lifecycle, multi-process workers, graceful shutdown.
+      details, lifecycle, multi-process workers, graceful shutdown. **First step (from the `http` reviews):** split
+      `packages/http` `server.lua` (options, response writer, connection) and `client.lua` (pool, redirect) with no API
+      change; build the in-process dispatch seam (OQ-78, with OQ-76 a), the `on_response` hook (OQ-81) and decide OQ-79
+      (default logging of action errors) and OQ-80 (`http.json` and `http.text`); narrow the type of `Request.content`.
 - [ ] Example: `examples/hello` (JSON API with validation).
 - [ ] Benchmarks: plaintext and JSON scenarios. **Carries three performance findings deferred from the Phase 1
       gate review** ([review](reviews/phase-1-review-package.md), "Minor"): judge each with a measurement, then
@@ -213,7 +216,9 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
 
 - [ ] `openapi`: OpenAPI 3.1 assembly, served endpoint, export, contract diff.
 - [ ] `test`: test framework, runner, in-process client, fixtures, contract conformance,
-      reporters (TAP, JUnit XML), coverage.
+      reporters (TAP, JUnit XML), coverage. **Also (T2, from the `http` test review):** a hand-built `Request` whose
+      `content` is a table must be JSON-encoded or raise, not read as empty (`Request:read_content` today reads only a
+      string); the in-process client uses the dispatch seam of OQ-78.
 - [ ] `doc`: project documentation generator for user projects (OpenAPI reference,
       `hecate doc build`); the minimal generator and the code reference moved to Phase 1. **Carries deferrals
       from the Phase 1 gate review** (cross-platform review): refuse, with a `BuildError`, page ids that are not valid
@@ -280,7 +285,8 @@ Exit: `examples/crud` works unchanged on PostgreSQL, MySQL, MariaDB and SQLite.
 - [ ] `mongodb`: OP_MSG protocol, BSON, document mapper.
 - [ ] `sqlserver`: TDS protocol.
 - [ ] `template`: compiled templates with contextual auto-escaping.
-- [ ] `websocket` (RFC 6455).
+- [ ] `websocket` (RFC 6455). **Also:** the upgrade takeover with the parser leftover offset (OQ-76 c), together with the
+      reader restructuring of OQ-70 (a client that disconnects during an action).
 - [ ] HTTP/2.
 - [ ] Further NoSQL drivers by demand (e.g. Cassandra/ScyllaDB CQL).
 

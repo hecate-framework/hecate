@@ -6,14 +6,17 @@ local core = require("hecate.core")
 --- The content of a form could not be accepted: an unsupported media type, malformed or too large. `context.reason` is a
 --- stable identifier (`unsupported_media_type`, `bad_percent_encoding`, `invalid_utf8`, `nul_in_value`, `too_many_pairs`,
 --- `too_large`, `bad_boundary`, `bad_part_fields`, `missing_name`, `too_many_parts`, `part_fields_too_large`,
---- `total_too_large`, `truncated`, `malformed`) and `context.status` the status code to answer with (400, 413 or 415).
+--- `total_too_large`, `truncated`; `form.REASONS` lists them with their status) and `context.status` the status code to answer with (400, 413 or 415).
 --- The message never holds input bytes.
 ---@class hecate.http.FormError : hecate.core.ProtocolError
 ---@field context { reason: string, status: integer }
 local FormError = core.error_class("FormError", "hecate.http.FormError", core.ProtocolError)
 
-local STATUS_OF_REASON <const> = {
+--- Every reason of a `FormError` and the status to answer with: the single list the code and the documentation follow.
+local REASONS <const> = {
   unsupported_media_type = 415,
+  bad_boundary = 400, bad_part_fields = 400, missing_name = 400, truncated = 400,
+  bad_percent_encoding = 400, invalid_utf8 = 400, nul_in_value = 400,
   too_many_pairs = 413, too_large = 413, too_many_parts = 413, part_fields_too_large = 413, total_too_large = 413,
 }
 
@@ -22,7 +25,8 @@ local STATUS_OF_REASON <const> = {
 ---@param message string
 ---@return hecate.http.FormError
 local function failure(reason, message)
-  return FormError({ message = "http.form: " .. message, context = { reason = reason, status = STATUS_OF_REASON[reason] or 400 } })
+  if REASONS[reason] == nil then error(core.Error("http.form: unknown failure reason"), 2) end
+  return FormError({ message = "http.form: " .. message, context = { reason = reason, status = REASONS[reason] } })
 end
 
 --- An ordered multi-map of form pairs: names repeat, order is kept.
@@ -84,7 +88,8 @@ Form = core.finalise(Form)
 ---@class hecate.http.forms
 ---@field Form hecate.http.Form
 ---@field FormError hecate.http.FormError
-local form = { Form = Form, FormError = FormError, failure = failure }
+---@field REASONS table<string, integer>  every reason of a `FormError` and its status
+local form = { Form = Form, FormError = FormError, failure = failure, REASONS = REASONS }
 
 --- Limits of the urlencoded parser, with their defaults.
 ---@class hecate.http.form.UrlencodedLimits

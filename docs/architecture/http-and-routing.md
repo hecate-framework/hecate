@@ -18,6 +18,23 @@ Packages: `http`, `router`, `kernel`. Status: specification.
   writer functions.
 - Compression (gzip, br) is a later addition.
 
+### Implemented surface
+
+What exists in `hecate.http` (the package README has the full API and the limits table):
+
+- `Request` and `Response` with `Fields`, `MediaType`, `Cookie` and `SetCookie`; a request has `method`, `target`, `path`,
+  `query` (both RAW: not percent-decoded, not normalised; the router decodes), `fields`, `peer_address()`, `cookies()`,
+  `media_type()`, `read_content()`, `stream_content()`, `read_form()` and `stream_parts()`; its `content` attribute is nil
+  for a request from the server (the kernel sets the validated content).
+- `Server`: `listen()`, `serve(listener?)`, `shutdown(grace_timeout?)` and `is_stopping()`. The `host` must be a NUMERIC
+  address (default `127.0.0.1`: a name would bind every address it resolves to), with split timeouts (`head_timeout`,
+  `idle_timeout`, `content_timeout`, `request_timeout`, `write_timeout`, `drain_timeout`), `max_content`, optional
+  `max_connections`, TLS with handshake limits, and an `on_error` and a `logger` option.
+- `Client`: a pool per origin, redirects, deadlines, TLS, streaming, `read_json()`.
+- `http.problem`, `http.form`, `http.multipart`, `http.url` and the error classes `ParseError`, `ContentError` and `FormError`.
+- The answers sent before any action runs (400 malformed or without exactly one `Host`, 408, 413, 414, 417, 431, 501 for an
+  upgrade) are problem details built by `http.problem` and never reach the kernel.
+
 ### Message model
 
 `Request` and `Response` are classes from the shared object model. A request exposes

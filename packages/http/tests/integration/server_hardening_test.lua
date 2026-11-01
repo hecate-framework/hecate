@@ -116,4 +116,61 @@ function T:test_a_response_the_server_cannot_send_is_a_500_that_is_reported()
   end)
 end
 
+function T:test_the_server_logs_where_it_listens_and_hints_at_loopback()
+  local log = require("hecate.log")
+  local sink = log.MemorySink()
+  local logger = log.Logger({ sinks = { sink }, severity = "debug" })
+  with_server(self, ok_action, { logger = logger }, function(port)
+    healthy(self, port)
+  end)
+  local record
+  for _, r in ipairs(sink:records()) do
+    if r.message:find("listening on", 1, true) then record = r end
+  end
+  self:assert_not_nil(record, "a record at serve start")
+  self:assert_equal("http.Server: listening on 127.0.0.1:" .. tostring(record.message:match(":(%d+)")) .. " (loopback only)", record.message)
+  self:assert_not_nil(record.fields.hint:find("0.0.0.0", 1, true))
+  self:assert_equal("informational", record.severity.name or tostring(record.severity))
+end
+
+function T:test_option_errors_name_the_value_and_a_way_out_and_suggest_the_nearest_name()
+  local function message(options) return tostring(self:assert_error(function() http.Server(ok_action, options) end)) end
+  local host = message({ host = "localhost" })
+  self:assert_not_nil(host:find('invalid host "localhost": expected a numeric address. Use "127.0.0.1" (this machine only), "0.0.0.0" (every IPv4 interface) or "::" (every IPv6 interface)', 1, true), host)
+  self:assert_not_nil(message({ port = 70000 }):find("invalid port 70000: expected an integer from 0 to 65535", 1, true))
+  self:assert_not_nil(message({ head_timeout = "slow" }):find('invalid head_timeout "slow"', 1, true))
+  self:assert_not_nil(message({ max_content = ("x"):rep(100) }):find('"' .. ("x"):rep(40) .. '..."', 1, true), "a long value is cut")
+  self:assert_nil(message({ host = "a\nb\rc" }):find("[\r\n]"), "control characters are not printed")
+  self:assert_not_nil(message({ max_contents = 5 }):find("did you mean max_content?", 1, true))
+  self:assert_not_nil(message({ head_timout = 5 }):find("did you mean head_timeout?", 1, true))
+  self:assert_nil(message({ zzzzzzzz = 5 }):find("did you mean", 1, true), "nothing close: no suggestion")
+  local client = tostring(self:assert_error(function() http.Client({ max_redirect = 3 }) end))
+  self:assert_not_nil(client:find("did you mean max_redirects?", 1, true), client)
+  self:assert_not_nil(tostring(self:assert_error(function() http.Client({ head_timeout = -1 }) end)):find("invalid head_timeout -1", 1, true))
+  local request = tostring(self:assert_error(function() http.Client():get("http://127.0.0.1/", { head_timout = 1 }) end))
+  self:assert_not_nil(request:find("did you mean head_timeout?", 1, true), request)
+end
+
+function T:test_a_few_messages_say_what_to_do_next()
+  self:assert_not_nil(tostring(self:assert_error(function() Response(204, { content = "x" }) end)):find("return a Response without content", 1, true))
+  self:assert_not_nil(tostring(self:assert_error(function() http.Request("x") end)):find("http.Request({", 1, true))
+  local seen
+  reactor.run(function()
+    local server = http.Server(ok_action, { port = 0 })
+    local listener = server:listen()
+    local serving = reactor.fork(server.serve, server, listener)
+    reactor.sleep(0)
+    seen = tostring(select(2, pcall(server.serve, server, listener)))
+    server:shutdown(1)
+    serving:value()
+  end)
+  self:assert_not_nil(seen:find("call shutdown first", 1, true), seen)
+end
+
+function T:test_http_available_reports_one_line_and_the_build_command()
+  local available, reason = http.available()
+  self:assert_true(available)
+  self:assert_nil(reason)
+end
+
 return T

@@ -18,6 +18,7 @@ local problem = require("hecate.http.problem")
 local wire = require("hecate.http.wire")
 local Status = require("hecate.http.status")
 local Fields = require("hecate.http.fields")
+local option_text = require("hecate.http.options")
 local HandshakeStream = require("hecate.http.handshake_stream")
 
 local ContentError = ContentStream.ContentError
@@ -45,7 +46,7 @@ local READ_SIZE <const> = 16384
 ---@field max_handshakes? integer  TLS handshakes in progress at once (default 64); the other connections wait in the backlog; needs `tls`
 ---@field max_handshake_bytes? integer  bytes read from a client during its handshake (default 65536; over it the connection is dropped); needs `tls`
 ---@field logger? hecate.log.Logger  receives the failed handshakes, with the peer address (default: none)
----@field on_error? fun(err: any)  called with the failure of a action or a connection (the client only sees generic problem details)
+---@field on_error? fun(err: any)  called with the failure of an action or a connection (the client only sees generic problem details)
 
 --- Defaults of the settings, exported so that documentation and tests read one source.
 --- The defaults of the server's settings. Settings without an entry have no default value: `max_connections` (no limit; the
@@ -111,12 +112,12 @@ local function is_numeric_address(host)
 end
 
 local function bad(name, expected, value)
-  error(core.ArgumentError(("http.Server: invalid %s: expected %s"):format(name, expected)), 4)
+  error(core.ArgumentError(("http.Server: invalid %s %s: expected %s"):format(name, option_text.show(value), expected)), 4)
 end
 
 --- Creates a server; nothing is bound until `listen` or `serve`.
 ---
---- Raises `hecate.core.ArgumentError` for a action that is not a function, an unknown or invalid option, or a host
+--- Raises `hecate.core.ArgumentError` for an action that is not a function, an unknown or invalid option, or a host
 --- that is not a numeric address (a name would bind every address the resolver lists, networking.md "TCP").
 ---@param action fun(request: hecate.http.Request): hecate.http.Response  runs in its own scope, once per request
 ---@param options? hecate.http.ServerOptions
@@ -125,12 +126,12 @@ function Server:init(action, options)
   options = options or {}
   if type(options) ~= "table" then error(core.ArgumentError("http.Server: options must be a table"), 3) end
   for key in pairs(options) do
-    if not KNOWN[key] then error(core.ArgumentError(("http.Server: unknown option %s"):format(tostring(key))), 3) end
+    if not KNOWN[key] then error(core.ArgumentError(option_text.unknown("http.Server", key, KNOWN)), 3) end
   end
   local host = options.host
   if host == nil then host = DEFAULTS.host end
   if type(host) ~= "string" or not is_numeric_address(host) then
-    bad("host", "a numeric IPv4 or IPv6 address (a name binds every address it resolves to; use \"0.0.0.0\" or \"::\" to serve every interface)", host)
+    bad("host", "a numeric address. Use \"127.0.0.1\" (this machine only), \"0.0.0.0\" (every IPv4 interface) or \"::\" (every IPv6 interface); a name would bind every address it resolves to", host)
   end
   ---@return integer
   local function integer(name, minimum, maximum)
@@ -307,7 +308,7 @@ end
 local HOP_BY_HOP <const> = { "Connection", "Keep-Alive", "Proxy-Connection", "Transfer-Encoding", "Content-Length" }
 
 
---- The response a action produced, or the problem details for what went wrong. A action must return a `Response`
+--- The response an action produced, or the problem details for what went wrong. An action must return a `Response`
 --- with a final status (200 to 599) and content that is nil, a string, a table (serialised as JSON) or a function.
 ---@param ok boolean
 ---@param result any
@@ -740,10 +741,19 @@ end
 ---@async
 ---@param listener? hecate.net.TcpListener  any net listener whose `accept` returns a stream with `reader`, `writer`, `shutdown` and `close` (a `PipeListener` is expected to work and is not tested)
 function Server:serve(listener)
-  if self._serving then error(core.ArgumentError("http.Server:serve: the server is already serving"), 2) end
+  if self._serving then error(core.ArgumentError("http.Server:serve: the server is already serving; call shutdown first"), 2) end
   listener = listener or self:listen()
   self._listener = listener
   self._serving = true
+  if self._logger ~= nil then
+    local known, address = pcall(listener.local_address, listener)
+    if known and type(address) == "table" then
+      local loopback = address.ip == "127.0.0.1" or address.ip == "::1"
+      pcall(self._logger.log, self._logger, "informational",
+        ("http.Server: listening on %s:%s%s"):format(tostring(address.ip), tostring(address.port), loopback and " (loopback only)" or ""),
+        { hint = loopback and 'a container or another machine reaches the server only with host = "0.0.0.0" (or "::")' or nil })
+    end
+  end
   local ok, err = pcall(reactor.scope, function(scope)
     self._scope = scope
     if self._stopping then return end

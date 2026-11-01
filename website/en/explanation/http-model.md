@@ -8,7 +8,7 @@ order: 4
 # The HTTP model
 
 This page explains how `hecate.http` represents messages, how a connection lives, and why the
-limits and defaults are what they are. It is written for hecate 0.x and Lua 5.5. For recipes, see
+limits and defaults are what they are. For recipes, see
 [Serve HTTP](../how-to/serve-http.md).
 
 `hecate.http` is a protocol layer built on [`hecate.net`](transport-model.md). It speaks
@@ -55,15 +55,15 @@ The server turns each layer of the work into a computation of a
    scope, so a slow client delays nobody.
 2. With TLS, the handshake runs in the connection's own computation, never in the accept loop.
 3. The connection reads from the stream in chunks of at most 16 KiB and feeds an incremental
-   parser (llhttp, chosen in ADR 0019). It gets events: a head, data, the end of a
+   parser (llhttp, chosen in ADR 0019). It gets events: a [head](../reference/glossary.md#http), data, the end of a
    message.
 4. Each request gets its own scope and one coroutine that runs the action. Cancelling the scope
    cancels the action and what it forked.
 5. The server writes the response, drains the content the action left unread, and turns to the
-   next request. Keep-alive is the default for HTTP/1.1.
+   next request. Keep-alive (a [persistent connection](../reference/glossary.md#http)) is the default for HTTP/1.1.
 6. The connection ends on `Connection: close`, an error, a timeout or a shutdown.
 
-A connection serves its requests one at a time. When a client pipelines several requests, the
+A connection serves its requests one at a time. When a client [pipelines](../reference/glossary.md#http) several requests, the
 responses come in request order, as RFC 9112 requires. Concurrency comes from connections, not
 from requests inside one.
 
@@ -82,12 +82,12 @@ data about your server.
 ### Graceful shutdown
 
 `shutdown(grace_timeout)` stops accepting, closes the connections that wait for a request and lets each
-request in flight finish, with `Connection: close`. Only when the grace period expires are the remaining
+request in flight finish, with `Connection: close`. Only when the [grace period](../reference/glossary.md#http) expires are the remaining
 requests cancelled. Nothing is cut in the middle of an answer unless it is late.
 
 ## The client's connection pool
 
-A client keeps idle connections per origin, because opening one costs a round trip, and a TLS
+A client keeps idle connections per [origin](../reference/glossary.md#http), because opening one costs a round trip, and a TLS
 handshake costs more. It follows a few rules that make reuse safe:
 
 - An idle connection expires after 30 seconds, before the server's 75, so the client is the one
@@ -125,9 +125,13 @@ process, which the deployment sets, and on whether a proxy caps connections upst
 guess, the server stays bounded by the descriptor limit, `idle_timeout` and `head_timeout`, and
 the guide says to set it.
 
+When the accept loop meets descriptor exhaustion (`EMFILE`, `ENFILE`) or any other accept
+failure, connections in service keep being served. The loop backs off from 50 ms to 1 s,
+resumes by itself and reports the burst once to `logger` and `on_error`.
+
 ### Why these defaults
 
-The values were chosen on 2026-11-01 after comparing nginx, Apache, Node and Go:
+The values follow what common servers (nginx, Apache, Node, Go) choose:
 
 - `max_content` is 1 MiB. An action that needs more asks for it, so no endpoint accepts
   uploads by accident.
@@ -153,7 +157,7 @@ instead of being guessed at.
 The `Host` field must be a single valid host and port. An absolute-form target is accepted only
 when its authority equals `Host`.
 
-## What does not exist yet
+## What the server and the client do not do
 
 - No per-request timeout for actions. An action that never returns holds its connection.
 - A client that disconnects while its action runs is not detected until the next write.
