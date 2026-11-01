@@ -1,6 +1,6 @@
 -- multipart/form-data (RFC 7578), with the delimiters of RFC 2046 section 5.1 and the parameters of RFC 6266 and RFC 8187.
 -- A streaming parser: it pulls chunks from a content stream only when a consumer asks, keeps at most one chunk, the
--- header block of a part and the tail of a possible delimiter in memory, and finds delimiters with a plain search
+-- header fields of a part and the tail of a possible delimiter in memory, and finds delimiters with a plain search
 -- (CRLF "--" boundary), so a boundary inside content is content unless a line break and a valid ending frame it.
 global <const> require, type, error, pcall, string, table, math, ipairs, pairs, tostring, tonumber, utf8, io
 
@@ -15,7 +15,7 @@ local failure = form.failure
 --- Limits of the multipart parser, with their defaults.
 ---@class hecate.http.multipart.Limits
 ---@field max_parts? integer  parts in a message (default 100; over it: 413)
----@field max_header_size? integer  bytes of the header block of one part (default 8192; over it: 413)
+---@field max_part_fields_size? integer  bytes of the header fields of one part (default 8192; over it: 413)
 ---@field max_part_size? integer  bytes of the content of one part (default 1048576; over it: 413 `ContentError`)
 ---@field max_total_size? integer  bytes of the whole message (default 1048576; over it: 413). The `max_content` of the
 ---  server applies first.
@@ -25,7 +25,7 @@ local failure = form.failure
 local multipart = {}
 
 --- Defaults of the limits.
-multipart.DEFAULTS = { max_parts = 100, max_header_size = 8192, max_part_size = 1048576, max_total_size = 1048576 }
+multipart.DEFAULTS = { max_parts = 100, max_part_fields_size = 8192, max_part_size = 1048576, max_total_size = 1048576 }
 
 local MAX_PADDING <const> = 64 -- transport padding after a delimiter (RFC 2046 section 5.1.1), bounded
 
@@ -147,7 +147,7 @@ function Reader:init(source, boundary, limits)
   self._total = 0
   self._eof = false
   self._parts = 0
-  self._phase = "preamble" -- preamble, delimiter (just after one), headers, body, done
+  self._phase = "preamble" -- preamble, delimiter (just after one), fields, content, done
   self._current = nil
   self._failure = nil
 end
@@ -218,7 +218,7 @@ function Reader:_consume_follow(kind, after)
   else
     local padding = string.match(buffer, "^[ \t]*", after)
     self._buffer = string.sub(buffer, after + #padding + 2)
-    self._phase = "headers"
+    self._phase = "fields"
   end
 end
 
@@ -262,38 +262,38 @@ local function parse_headers(block)
   if block ~= "" then
     for line in string.gmatch(block .. "\r\n", "(.-)\r\n") do
       local name, value = string.match(line, "^([^:]+):(.*)$")
-      if name == nil or string.find(line, "[\r\n%z]") then error(failure("bad_part_header", "a part has a malformed header field"), 0) end
+      if name == nil or string.find(line, "[\r\n%z]") then error(failure("bad_part_fields", "a part has a malformed header field line"), 0) end
       local ok = pcall(fields.add, fields, name, value)
-      if not ok then error(failure("bad_part_header", "a part has a malformed header field"), 0) end
+      if not ok then error(failure("bad_part_fields", "a part has a malformed header field line"), 0) end
     end
   end
   local disposition = fields:get("Content-Disposition")
   if disposition == nil then error(failure("missing_name", "a part has no Content-Disposition"), 0) end
   local parameters = parse_disposition(disposition)
-  if parameters == nil then error(failure("bad_part_header", "a part is not form-data"), 0) end
+  if parameters == nil then error(failure("bad_part_fields", "a part is not form-data"), 0) end
   local name = parameters.name
   if name == nil then error(failure("missing_name", "a part has no name"), 0) end
   local filename = parameters.filename
   if parameters["filename*"] ~= nil then filename = decode_extended(parameters["filename*"]) or filename end
   for _, text in ipairs({ name, filename or "" }) do
-    if string.find(text, "%z") then error(failure("bad_part_header", "a part name holds a NUL byte"), 0) end
+    if string.find(text, "%z") then error(failure("bad_part_fields", "a part name holds a NUL byte"), 0) end
   end
   return name, filename, fields
 end
 
 ---@async
 function Reader:_read_headers()
-  local limit = self._limits.max_header_size
+  local limit = self._limits.max_part_fields_size
   while true do
     local buffer = self._buffer
     if string.sub(buffer, 1, 2) == "\r\n" then return "" end -- no header fields; the CRLF is the separator of the content
     local stop = string.find(buffer, "\r\n\r\n", 1, true)
     if stop ~= nil then
-      if stop - 1 > limit then error(failure("part_header_too_large", "a part header block exceeds its size limit"), 0) end
+      if stop - 1 > limit then error(failure("part_fields_too_large", "the header fields of a part exceed their size limit"), 0) end
       self._buffer = string.sub(buffer, stop + 2) -- the last CRLF stays: it separates the header fields from the content
       return string.sub(buffer, 1, stop - 1)
     end
-    if #buffer > limit + 3 then error(failure("part_header_too_large", "a part header block exceeds its size limit"), 0) end
+    if #buffer > limit + 3 then error(failure("part_fields_too_large", "the header fields of a part exceed their size limit"), 0) end
     if not self:_more() then error(truncated(), 0) end
   end
 end
@@ -335,8 +335,8 @@ end
 --- The next part, or nil after the last one. A part the caller did not read to its end is skipped (within
 --- `max_part_size`). Any failure is sticky.
 ---
---- Raises `hecate.http.FormError` (see `context.kind`): `truncated`, `bad_part_header`, `missing_name`,
---- `too_many_parts`, `part_header_too_large`, `total_too_large`; `hecate.http.ContentError` for a part over
+--- Raises `hecate.http.FormError` (see `context.reason`): `truncated`, `bad_part_fields`, `missing_name`,
+--- `too_many_parts`, `part_fields_too_large`, `total_too_large`; `hecate.http.ContentError` for a part over
 --- `max_part_size`; and what the source raises (a deadline, a transport failure).
 ---@async
 ---@return hecate.http.multipart.Part?
@@ -358,7 +358,7 @@ function Reader:next_part()
     local stream = ContentStream(function() return self:_pull_content() end, { limit = self._limits.max_part_size })
     state.stream = stream
     self._current = state
-    self._phase = "body"
+    self._phase = "content"
     return Part(name, filename, fields, stream)
   end)
   if not ok then
@@ -426,7 +426,7 @@ end
 ---@return string|fun(write: fun(chunk: string)) content
 ---@return string content_type
 function multipart.build(parts)
-  if type(parts) ~= "table" then error(core.ArgumentError("http.multipart.build expects a list of parts"), 2) end
+  if type(parts) ~= "table" then error(core.ArgumentError("http.multipart.build: expected a list of parts"), 2) end
   local heads, streaming = {}, false
   for i, part in ipairs(parts) do
     if type(part) ~= "table" then error(core.ArgumentError("http.multipart.build: a part is a table"), 2) end

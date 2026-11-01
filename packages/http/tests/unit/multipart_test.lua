@@ -62,7 +62,7 @@ local function expect_error(self, chunks, kind, status, boundary, limits)
   local out, err = parse_all(chunks, boundary, limits)
   self:assert_nil(out, "expected a failure of kind " .. kind)
   self:assert_true(core.is_instance_of(err, core.ProtocolError), tostring(err))
-  self:assert_equal(kind, err.context.kind or err.context.reason, tostring(err))
+  self:assert_equal(kind, err.context.reason, tostring(err))
   if status then self:assert_equal(status, err.context.status) end
   return err
 end
@@ -145,7 +145,7 @@ function T:test_bare_line_feeds_are_refused()
   local text = ("--" .. B .. "\n" .. disp("a") .. "\n\nx\n--" .. B .. "--\n")
   expect_error(self, { text }, "truncated", 400)
   local mixed = "--" .. B .. "\r\n" .. disp("a") .. "\r\nX-Odd: a\nb\r\n\r\nx\r\n--" .. B .. "--"
-  expect_error(self, { mixed }, "bad_part_header", 400)
+  expect_error(self, { mixed }, "bad_part_fields", 400)
 end
 
 function T:test_part_headers_that_inject_or_hide_are_refused()
@@ -161,7 +161,7 @@ function T:test_part_headers_that_inject_or_hide_are_refused()
     "Content-Disposition: form-data; name=\"a\0b\"",
     disp("a", "f\0.txt"),
   }) do
-    expect_error(self, { with(header) }, "bad_part_header", 400)
+    expect_error(self, { with(header) }, "bad_part_fields", 400)
   end
   expect_error(self, { with("Content-Type: text/plain") }, "missing_name", 400)
   expect_error(self, { "--" .. B .. "\r\n\r\nx\r\n--" .. B .. "--" }, "missing_name", 400)
@@ -204,15 +204,15 @@ function T:test_limits_have_a_kind_and_a_status()
   expect_error(self, { body(many) }, "too_many_parts", 413, nil, { max_parts = 4 })
   self:assert_equal(5, #parse_all({ body(many) }, nil, { max_parts = 5 }))
   local big_header = body({ { disp("a") .. "\r\nX-Big: " .. ("h"):rep(300), "x" } })
-  expect_error(self, split(big_header, 50), "part_header_too_large", 413, nil, { max_header_size = 200 })
+  expect_error(self, split(big_header, 50), "part_fields_too_large", 413, nil, { max_part_fields_size = 200 })
   local long_header_no_end = "--" .. B .. "\r\n" .. disp("a") .. "\r\nX: " .. ("h"):rep(500)
-  expect_error(self, split(long_header_no_end, 64), "part_header_too_large", 413, nil, { max_header_size = 200 })
+  expect_error(self, split(long_header_no_end, 64), "part_fields_too_large", 413, nil, { max_part_fields_size = 200 })
   local err = select(2, parse_all({ body({ { disp("a"), ("x"):rep(100) } }) }, nil, { max_part_size = 50 }))
   self:assert_true(core.is_instance_of(err, http.ContentError))
   self:assert_equal(413, err.context.status)
   expect_error(self, split(body({ { disp("a"), ("x"):rep(100) }, { disp("b"), ("y"):rep(100) } }), 30), "total_too_large", 413, nil, { max_total_size = 150 })
   self:assert_equal(100, multipart.DEFAULTS.max_parts)
-  self:assert_equal(8192, multipart.DEFAULTS.max_header_size)
+  self:assert_equal(8192, multipart.DEFAULTS.max_part_fields_size)
   self:assert_equal(1048576, multipart.DEFAULTS.max_part_size)
   self:assert_equal(1048576, multipart.DEFAULTS.max_total_size)
 end
@@ -252,7 +252,7 @@ function T:test_boundaries_follow_rfc_2046()
   multipart.Reader(source({}), ("a"):rep(70))
   multipart.Reader(source({}), "0aZ'()+_,-./:=?")
   local err = self:assert_error(function() multipart.Reader(source({}), ("a"):rep(71)) end)
-  self:assert_equal("bad_boundary", err.context.kind)
+  self:assert_equal("bad_boundary", err.context.reason)
 end
 
 function T:test_the_boundary_comes_from_the_media_type_and_other_types_are_415()
@@ -262,7 +262,7 @@ function T:test_the_boundary_comes_from_the_media_type_and_other_types_are_415()
   local function kind(text)
     local err = self:assert_error(function() multipart.boundary_of(media(text)) end)
     self:assert_true(core.is_instance_of(err, form.FormError))
-    return err.context.kind, err.context.status
+    return err.context.reason, err.context.status
   end
   self:assert_equal("unsupported_media_type", (kind("application/json")))
   self:assert_equal(415, select(2, kind("multipart/mixed; boundary=abc")))

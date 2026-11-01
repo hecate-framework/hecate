@@ -4,9 +4,12 @@ local http = require("hecate.http")
 local wire = require("hecate.http.wire")
 local T = test.Case("WireTest")
 
-function T:test_http_date_is_imf_fixdate_whatever_the_locale()
+function T:test_http_date_is_imf_fixdate_by_arithmetic_so_no_locale_is_involved()
   self:assert_equal("Thu, 01 Jan 1970 00:00:00 GMT", wire.http_date(0))
   self:assert_equal("Sun, 06 Nov 1994 08:49:37 GMT", wire.http_date(784111777)) -- RFC 9110, section 5.6.7
+  self:assert_equal("Tue, 29 Feb 2000 23:59:59 GMT", wire.http_date(951868799)) -- a leap day
+  self:assert_equal("Tue, 19 Jan 2038 03:14:07 GMT", wire.http_date(2147483647 + 0 * 1)) -- past 2^31 seconds is not a limit here
+  self:assert_equal(wire.http_date(784111777), require("hecate.http.date").imf_fixdate(784111777), "one function for Set-Cookie and Date")
 end
 
 function T:test_head_lists_the_fields_in_order()

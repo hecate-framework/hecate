@@ -80,7 +80,7 @@ local function drain(stream)
 end
 
 --- Runs `fn(port, server, records)` with a TLS server on port 0; `records()` lists what the server logged.
-local function with_tls_server(self, handler, options, fn)
+local function with_tls_server(self, action, options, fn)
   options = options or {}
   options.port = 0
   options.tls = options.tls or TLS
@@ -88,7 +88,7 @@ local function with_tls_server(self, handler, options, fn)
   options.logger = log.Logger({ sinks = { sink }, severity = "debug" })
   local before = reactor.Reactor.open_handles()
   reactor.run(function()
-    local server = Server(handler, options)
+    local server = Server(action, options)
     local listener = server:listen()
     local serving = reactor.fork(server.serve, server, listener)
     local ok, err = pcall(reactor.deadline, 30, fn, listener:local_address().port, server, function() return sink:records() end)
@@ -99,12 +99,12 @@ local function with_tls_server(self, handler, options, fn)
   self:assert_equal(before, reactor.Reactor.open_handles(), "libuv handles left open")
 end
 
-local function text_handler(request)
+local function text_action(request)
   return Response(200, { content = request.method .. " " .. request.path .. " " .. tostring(request:peer_address().ip) })
 end
 
 function T:test_an_https_request_is_answered_and_the_connection_stays_alive()
-  with_tls_server(self, text_handler, nil, function(port)
+  with_tls_server(self, text_action, nil, function(port)
     local client <close> = connect_tls(port)
     self:assert_equal("GET /a 127.0.0.1", client:request(get("/a")).content)
     self:assert_equal("GET /b 127.0.0.1", client:request(get("/b")).content)
@@ -112,7 +112,7 @@ function T:test_an_https_request_is_answered_and_the_connection_stays_alive()
 end
 
 function T:test_a_silent_client_does_not_block_others_and_is_dropped_at_the_handshake_deadline()
-  with_tls_server(self, text_handler, { handshake_timeout = 1 }, function(port)
+  with_tls_server(self, text_action, { handshake_timeout = 1 }, function(port)
     local silent <close> = net.connect("127.0.0.1", port)
     local dropped = reactor.fork(function()
       silent:read() -- nil when the server closes
@@ -127,7 +127,7 @@ end
 
 function T:test_the_handshake_limit_queues_the_excess_until_a_slot_is_free()
   local order = {}
-  with_tls_server(self, text_handler, { handshake_timeout = 1, max_handshakes = 1 }, function(port)
+  with_tls_server(self, text_action, { handshake_timeout = 1, max_handshakes = 1 }, function(port)
     local silent <close> = net.connect("127.0.0.1", port) -- takes the only slot
     local first = reactor.fork(function()
       silent:read()
@@ -145,7 +145,7 @@ function T:test_the_handshake_limit_queues_the_excess_until_a_slot_is_free()
 end
 
 function T:test_plain_text_sent_to_a_tls_port_is_dropped_without_detail_and_logged_server_side()
-  with_tls_server(self, text_handler, nil, function(port, _, records)
+  with_tls_server(self, text_action, nil, function(port, _, records)
     local raw <close> = net.connect("127.0.0.1", port)
     local local_port = raw:local_address().port
     raw:write("GET / HTTP/1.1\r\nHost: localhost\r\n\r\n")
@@ -165,7 +165,7 @@ function T:test_plain_text_sent_to_a_tls_port_is_dropped_without_detail_and_logg
 end
 
 function T:test_a_hello_beyond_the_byte_budget_is_dropped()
-  with_tls_server(self, text_handler, { max_handshake_bytes = 2048 }, function(port, _, records)
+  with_tls_server(self, text_action, { max_handshake_bytes = 2048 }, function(port, _, records)
     local raw <close> = net.connect("127.0.0.1", port)
     -- A handshake record header announcing 8192 bytes, then more than the budget.
     pcall(raw.write, raw, "\22\3\1\32\0" .. ("a"):rep(6000))
@@ -182,7 +182,7 @@ function T:test_a_hello_beyond_the_byte_budget_is_dropped()
 end
 
 function T:test_shutdown_drops_connections_still_in_their_handshake()
-  with_tls_server(self, text_handler, { handshake_timeout = 20 }, function(port, server)
+  with_tls_server(self, text_action, { handshake_timeout = 20 }, function(port, server)
     local silent <close> = net.connect("127.0.0.1", port)
     local dropped = reactor.fork(function() silent:read() return true end)
     reactor.sleep(0.1)
@@ -196,7 +196,7 @@ function T:test_defaults_and_settings_of_tls()
   self:assert_equal(10, d.handshake_timeout)
   self:assert_equal(64, d.max_handshakes)
   self:assert_equal(65536, d.max_handshake_bytes)
-  local function bad(options) self:assert_error(function() Server(text_handler, options) end) end
+  local function bad(options) self:assert_error(function() Server(text_action, options) end) end
   bad({ handshake_timeout = 5 }) -- no tls: nothing to handshake
   bad({ max_handshakes = 4 })
   bad({ max_handshake_bytes = 4096 })
@@ -206,8 +206,8 @@ function T:test_defaults_and_settings_of_tls()
   bad({ tls = TLS, handshake_timeout = 0 })
   bad({ tls = { cert_pem = TLS.cert_pem } }) -- no key
   bad({ logger = "log" })
-  Server(text_handler, { tls = TLS, max_handshakes = 2, handshake_timeout = 1 })
-  Server(text_handler, { tls = net.tls.server_config(TLS) })
+  Server(text_action, { tls = TLS, max_handshakes = 2, handshake_timeout = 1 })
+  Server(text_action, { tls = net.tls.server_config(TLS) })
 end
 
 return T

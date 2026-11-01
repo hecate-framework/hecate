@@ -12,8 +12,8 @@ local support = dofile(dir .. "/../fixtures/client.lua")
 local connect, get, with_server = support.connect, support.get, support.with_server
 local Response = http.Response
 
-local function ok_handler(request) return Response(200, { content = "ok " .. request.path }) end
-local function echo_handler(request) return Response(200, { content = request:read_content() }) end
+local function ok_action(request) return Response(200, { content = "ok " .. request.path }) end
+local function echo_action(request) return Response(200, { content = request:read_content() }) end
 
 --- The server still answers a new connection.
 local function healthy(self, port)
@@ -33,7 +33,7 @@ local PARSER_CASES = {
 
 for _, case in ipairs(PARSER_CASES) do
   T["test_the_parser_limit_on_" .. case.name:gsub(" ", "_") .. "_is_enforced_and_the_server_stays_healthy"] = function(self)
-    with_server(self, ok_handler, { parser = case.limits }, function(port)
+    with_server(self, ok_action, { parser = case.limits }, function(port)
       local client <close> = connect(port)
       local response = client:request(case.text)
       self:assert_equal(case.status, response.status)
@@ -46,20 +46,20 @@ end
 
 -- Content size ----------------------------------------------------------------------------------------------------------
 
-function T:test_content_size_with_a_length_is_refused_before_the_handler_and_the_server_stays_healthy()
+function T:test_content_size_with_a_length_is_refused_before_the_action_and_the_server_stays_healthy()
   local called = 0
-  with_server(self, function(request) called = called + 1; return ok_handler(request) end, { max_content = 8 }, function(port)
+  with_server(self, function(request) called = called + 1; return ok_action(request) end, { max_content = 8 }, function(port)
     local client <close> = connect(port)
     self:assert_equal(413, client:request("POST /e HTTP/1.1\r\nHost: t\r\nContent-Length: 9\r\n\r\n").status)
     healthy(self, port)
   end)
-  self:assert_equal(1, called, "only the health check reached the handler")
+  self:assert_equal(1, called, "only the health check reached the action")
 end
 
 function T:test_chunked_content_size_is_enforced_and_the_server_stays_healthy()
   with_server(self, function(request)
-    if request.path == "/health" then return ok_handler(request) end
-    return echo_handler(request)
+    if request.path == "/health" then return ok_action(request) end
+    return echo_action(request)
   end, { max_content = 8 }, function(port)
     local client <close> = connect(port)
     self:assert_equal(413, client:request("POST /e HTTP/1.1\r\nHost: t\r\nTransfer-Encoding: chunked\r\n\r\n5\r\nabcde\r\n5\r\nfghij\r\n0\r\n\r\n").status)
@@ -70,7 +70,7 @@ end
 -- Deadlines ------------------------------------------------------------------------------------------------------------
 
 function T:test_a_head_dripped_one_byte_at_a_time_is_cut_at_the_head_timeout()
-  with_server(self, ok_handler, { head_timeout = 1, idle_timeout = 30 }, function(port)
+  with_server(self, ok_action, { head_timeout = 1, idle_timeout = 30 }, function(port)
     local client <close> = connect(port)
     client:send("GET / HTTP/1.1\r\nHost: t\r\nX-Slow: ")
     local dripping = true
@@ -89,7 +89,7 @@ function T:test_a_head_dripped_one_byte_at_a_time_is_cut_at_the_head_timeout()
 end
 
 function T:test_a_head_arriving_in_pieces_after_a_pipelined_request_is_held_to_the_head_timeout()
-  with_server(self, ok_handler, { head_timeout = 1, idle_timeout = 30 }, function(port)
+  with_server(self, ok_action, { head_timeout = 1, idle_timeout = 30 }, function(port)
     local client <close> = connect(port)
     client:send(get("/a") .. "GET /b HTTP/1.1\r\nHo") -- the second head never completes
     self:assert_equal("ok /a", client:read_response().content)
@@ -99,7 +99,7 @@ function T:test_a_head_arriving_in_pieces_after_a_pipelined_request_is_held_to_t
 end
 
 function T:test_a_silent_connection_is_closed_at_the_idle_timeout()
-  with_server(self, ok_handler, { idle_timeout = 1 }, function(port)
+  with_server(self, ok_action, { idle_timeout = 1 }, function(port)
     local client <close> = connect(port)
     self:assert_equal(200, client:request(get("/a")).status)
     self:assert_nil(client:read_response(), "closed without an answer")
@@ -109,8 +109,8 @@ end
 
 function T:test_content_stalling_between_reads_is_cut_at_the_content_timeout()
   with_server(self, function(request)
-    if request.path == "/health" then return ok_handler(request) end
-    return echo_handler(request)
+    if request.path == "/health" then return ok_action(request) end
+    return echo_action(request)
   end, { content_timeout = 1 }, function(port)
     local client <close> = connect(port)
     client:send("POST /e HTTP/1.1\r\nHost: t\r\nContent-Length: 100\r\n\r\nabc")
@@ -119,11 +119,11 @@ function T:test_content_stalling_between_reads_is_cut_at_the_content_timeout()
   end)
 end
 
-function T:test_content_dripped_within_the_between_reads_timeout_is_cut_by_the_total_content_deadline()
+function T:test_content_dripped_within_the_between_reads_timeout_is_cut_by_the_total_request_timeout()
   with_server(self, function(request)
-    if request.path == "/health" then return ok_handler(request) end
-    return echo_handler(request)
-  end, { content_timeout = 30, content_deadline = 1 }, function(port)
+    if request.path == "/health" then return ok_action(request) end
+    return echo_action(request)
+  end, { content_timeout = 30, request_timeout = 1 }, function(port)
     local client <close> = connect(port)
     client:send("POST /e HTTP/1.1\r\nHost: t\r\nContent-Length: 100000\r\n\r\n")
     local dripping = true
@@ -141,10 +141,10 @@ function T:test_content_dripped_within_the_between_reads_timeout_is_cut_by_the_t
   end)
 end
 
-function T:test_a_reader_that_never_reads_a_large_response_hits_the_write_timeout_and_the_handler_is_cancelled()
+function T:test_a_reader_that_never_reads_a_large_response_hits_the_write_timeout_and_the_action_is_cancelled()
   local outcome = {}
   with_server(self, function(request)
-    if request.path == "/health" then return ok_handler(request) end
+    if request.path == "/health" then return ok_action(request) end
     return Response(200, { content = function(write)
       local chunk = ("x"):rep(1 << 20)
       local ok, err = pcall(function()
@@ -166,7 +166,7 @@ end
 -- Connections and pipelining -------------------------------------------------------------------------------------
 
 function T:test_max_connections_is_enforced_when_set_and_the_server_stays_healthy()
-  with_server(self, ok_handler, { max_connections = 2 }, function(port)
+  with_server(self, ok_action, { max_connections = 2 }, function(port)
     local first <close> = connect(port)
     local second <close> = connect(port)
     self:assert_equal(200, first:request(get("/a")).status)

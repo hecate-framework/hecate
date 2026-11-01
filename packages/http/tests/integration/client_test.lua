@@ -16,7 +16,7 @@ local Response, Client = http.Response, http.Client
 
 local function base(port, path) return "http://127.0.0.1:" .. port .. (path or "/") end
 
---- A handler that describes the request it got.
+--- A action that describes the request it got.
 local function describe(request)
   local fields = {}
   for name, value in request.fields:lines() do fields[#fields + 1] = { name, value } end
@@ -351,8 +351,8 @@ end
 function T:test_credentials_are_stripped_on_a_cross_origin_redirect_and_kept_on_the_same_origin()
   local seen = {}
   run(self, function()
-    local function start(handler)
-      local server = http.Server(handler, { port = 0 })
+    local function start(action)
+      local server = http.Server(action, { port = 0 })
       local listener = server:listen()
       return listener:local_address().port, server, reactor.fork(server.serve, server, listener)
     end
@@ -428,10 +428,10 @@ function T:test_the_total_timeout_covers_the_whole_request()
   with_server(self, function()
     return Response(200, { content = function(write) for _ = 1, 100 do write("x"); reactor.sleep(0.05) end end })
   end, nil, function(port)
-    local client <close> = Client({ timeout = 0.5 })
+    local client <close> = Client({ request_timeout = 0.5 })
     local err = self:assert_error(function() client:get(base(port)):read_content() end)
     self:assert_true(core.is_instance_of(err, core.DeadlineExceededError))
-    self:assert_error(function() Client():get(base(port), { timeout = 0 }) end)
+    self:assert_error(function() Client():get(base(port), { request_timeout = 0 }) end)
   end)
 end
 
@@ -550,7 +550,7 @@ function T:test_defaults_and_validation()
   bad({ tls = "x" })
   bad({ allow_downgrade = "yes" })
   bad({ parser = { max_fields = 0 } })
-  bad({ timeout = -1 })
+  bad({ request_timeout = -1 })
 end
 
 -- Security review ----------------------------------------------------------------------------------------------------
@@ -693,6 +693,51 @@ function T:test_a_connection_with_bytes_left_after_the_response_is_not_pooled()
     self:assert_equal(2, server.accepted, "the first connection was not reused")
     server.stop(); server.loop:cancel()
   end)
+end
+
+-- Per-request options and the content of a response --------------------------------------------------------------------
+
+function T:test_per_request_options_override_the_client_and_unknown_keys_are_refused()
+  with_server(self, function(request)
+    if request.path == "/slow" then reactor.sleep(30) end
+    if request.path == "/json" then return Response(200, { content = { id = 42 } }) end
+    if request.path == "/broken" then return Response(200, { content = "{not json", fields = http.Fields({ { "Content-Type", "application/json; charset=utf-8" } }) }) end
+    if request.path == "/chain" then return Response(302, { fields = http.Fields({ { "Location", "/chain?" .. tostring((tonumber(request.query) or 0) + 1) } }) }) end
+    return Response(200, { content = ("x"):rep(1000) })
+  end, nil, function(port)
+    local client <close> = Client({ head_timeout = 30 })
+    self:assert_error(function() client:get(base(port), { head_timeouts = 1 }) end)
+    self:assert_error(function() client:get(base(port), { max_content = -1 }) end)
+    self:assert_error(function() client:get(base(port), { head_timeout = 0 }) end)
+    local err = self:assert_error(function() client:get(base(port, "/slow"), { head_timeout = 0.3 }) end)
+    self:assert_true(core.is_instance_of(err, core.DeadlineExceededError))
+    local chain = self:assert_error(function() client:get(base(port, "/chain"), { max_redirects = 1 }) end)
+    self:assert_equal("too_many_redirects", chain.context.reason)
+    local big = client:get(base(port, "/x"), { max_content = 100 })
+    local stream_err = self:assert_error(function() big:stream_content():read_all() end)
+    self:assert_true(core.is_instance_of(stream_err, http.ContentError), "max_content applies to the stream too")
+    big:close()
+    local json_response = client:get(base(port, "/json"))
+    self:assert_equal("application/json", json_response:media_type():essence())
+    self:assert_equal(42, json_response:read_json().id)
+    local broken = client:get(base(port, "/broken"))
+    self:assert_equal("utf-8", broken:media_type().parameters.charset)
+    local bad = self:assert_error(function() broken:read_json() end)
+    self:assert_true(core.is_instance_of(bad, core.ProtocolError))
+    self:assert_equal("invalid_json", bad.context.reason)
+    self:assert_nil(tostring(bad):find("not json", 1, true), "the content is not echoed")
+    self:assert_nil(client:head(base(port, "/x")):media_type())
+  end)
+end
+
+function T:test_error_messages_do_not_echo_option_values_or_peer_text()
+  local function message(fn) return tostring(self:assert_error(fn)) end
+  self:assert_nil(message(function() Client({ user_agent = "agent\r\nSECRET-ONE" }) end):find("SECRET", 1, true))
+  self:assert_nil(message(function() Client({ head_timeout = "SECRET-TWO" }) end):find("SECRET", 1, true))
+  self:assert_nil(message(function() http.Fields():add("X-SECRET-THREE", "a\1b") end):find("SECRET", 1, true))
+  self:assert_nil(message(function() http.Fields():add("Bad Name SECRET-FOUR", "v") end):find("SECRET", 1, true))
+  self:assert_nil(message(function() http.Server(function() return http.Response(200) end, { host = "SECRET-FIVE" }) end):find("SECRET", 1, true))
+  self:assert_nil(message(function() Client():get("http://user:SECRET-SIX@example.org/") end):find("SECRET", 1, true))
 end
 
 return T

@@ -1,5 +1,5 @@
--- sanitize [package...]: builds the C modules of the named packages (default: json, the only package with C
--- code) with ASan and UBSan into the rocks tree and runs their tests against it. Linux (GCC or Clang) and macOS
+-- sanitize [package...]: builds the C modules of the named packages (default: json; http has C code too:
+-- `sanitize http`) with ASan and UBSan into the rocks tree and runs their tests against it. Linux (GCC or Clang) and macOS
 -- (Clang): the interpreter is not instrumented, so the ASan runtime is preloaded (LD_PRELOAD, or
 -- DYLD_INSERT_LIBRARIES on macOS). The Rust code is not covered (it is memory-safe outside `unsafe`; the
 -- cargo-fuzz targets exercise its boundary).

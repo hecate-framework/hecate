@@ -3,6 +3,8 @@
 -- characters, RFC 9110 section 5.5). Every malformed message must end in a ParseError, never in a request.
 -- The native module is required at run time: a module that is not built fails the file with the build command.
 local test = require("harness.test")
+local core = require("hecate.core")
+local function core_is(err, name) return core.is_instance_of(err, core[name]) end
 local T = test.Case("ParserTest")
 
 local built, parser_module = pcall(require, "hecate.http.parser")
@@ -121,7 +123,7 @@ end
 
 function T:test_a_head_response_has_no_body()
   local p = Parser.response()
-  p:skip_body()
+  p:skip_content()
   local events, err = p:feed("HTTP/1.1 200 OK\r\nContent-Length: 10\r\n\r\n")
   self:assert_nil(err)
   self:assert_equal("head,complete", kinds(events))
@@ -286,7 +288,7 @@ end
 
 function T:test_chunked_in_http_1_0_is_rejected()
   local err = self:reject("POST / HTTP/1.0\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n\r\n")
-  self:assert_equal("chunked_in_http_1_0", err.context.kind)
+  self:assert_equal("chunked_in_http_1_0", err.context.reason)
 end
 
 function T:test_only_http_1_0_and_1_1_are_accepted()
@@ -298,7 +300,7 @@ end
 
 function T:test_rtsp_and_ice_requests_are_refused()
   local err = self:reject("DESCRIBE rtsp://h/x RTSP/1.0\r\nCSeq: 1\r\n\r\n")
-  self:assert_equal("unsupported_method", err.context.kind)
+  self:assert_equal("unsupported_method", err.context.reason)
   self:reject("SETUP / HTTP/1.1\r\nHost: h\r\n\r\n")
   self:reject("PLAY / HTTP/1.1\r\nHost: h\r\n\r\n")
   self:reject("SOURCE /mount ICE/1.0\r\nHost: h\r\n\r\n")
@@ -320,7 +322,7 @@ function T:test_the_head_budget_counts_raw_bytes_not_only_values()
   local fields = {}
   for i = 1, 30 do fields[i] = "X-" .. i .. ":" .. (" "):rep(3000) .. "v\r\n" end
   local err = self:reject("GET / HTTP/1.1\r\n" .. table.concat(fields) .. "\r\n", 431)
-  self:assert_equal("head_too_large", err.context.kind)
+  self:assert_equal("head_too_large", err.context.reason)
 end
 
 function T:test_a_flood_of_empty_lines_before_the_request_line_hits_the_head_budget()
@@ -336,7 +338,7 @@ end
 
 function T:test_a_long_reason_phrase_is_bounded()
   local _, err = Parser.response():feed("HTTP/1.1 200 " .. ("r"):rep(9000) .. "\r\n\r\n")
-  self:assert_equal("reason_too_long", err.context.kind)
+  self:assert_equal("reason_too_long", err.context.reason)
   self:assert_equal(400, err.context.status, "a response has nothing to answer: the generic status")
 end
 
@@ -364,9 +366,9 @@ function T:test_pipelined_requests_do_not_share_a_head_budget()
   self:assert_equal(100, #events)
 end
 
-function T:test_skip_body_is_consumed_by_a_final_status_only()
+function T:test_skip_content_is_consumed_by_a_final_status_only()
   local p = Parser.response()
-  p:skip_body()
+  p:skip_content()
   local events, err = p:feed("HTTP/1.1 100 Continue\r\n\r\nHTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\n")
   self:assert_nil(err)
   self:assert_equal("head,complete,head,complete", kinds(events))
@@ -393,10 +395,10 @@ function T:test_feed_and_finish_after_an_upgrade_are_explicit_errors()
   self:assert_nil(err)
   self:assert_equal("upgrade", events[#events].type)
   local again, e1 = p:feed("GET / HTTP/1.1\r\nHost: h\r\n\r\n")
-  self:assert_equal("upgraded", e1.context.kind)
+  self:assert_equal("upgraded", e1.context.reason)
   self:assert_equal("", kinds(again))
   local _, e2 = p:finish()
-  self:assert_equal("upgraded", e2.context.kind)
+  self:assert_equal("upgraded", e2.context.reason)
 end
 
 function T:test_the_error_position_is_that_of_the_failing_call()
@@ -446,7 +448,7 @@ function T:test_options_are_integers_within_the_ceiling_and_known()
   self:assert_true(core.is_instance_of(err, core.ArgumentError))
 end
 
-function T:test_failures_carry_a_machine_readable_kind()
+function T:test_failures_carry_a_stable_reason()
   local cases = {
     { "GET /" .. ("a"):rep(9000) .. " HTTP/1.1\r\n\r\n", "target_too_long" },
     { "GET / HTTP/1.1\r\nX-A: " .. ("a"):rep(9000) .. "\r\n\r\n", "field_value_too_large" },
@@ -454,13 +456,15 @@ function T:test_failures_carry_a_machine_readable_kind()
   }
   for _, case in ipairs(cases) do
     local err = select(2, parse(case[1]))
-    self:assert_equal(case[2], err.context.kind)
+    self:assert_equal(case[2], err.context.reason)
   end
   local plain = select(2, parse("GET / HTTP/1.1\r\nA: b\0c\r\n\r\n"))
-  self:assert_nil(plain.context.kind, "an llhttp rejection has no kind of ours")
+  self:assert_equal("invalid_header_token", plain.context.reason, "llhttp's own rejection: its error code, lowercase, without HPE_")
+  self:assert_equal("string", type(plain.context.detail), "llhttp's text is the detail")
+  self:assert_true(core_is(plain, "ProtocolError"))
   local many = {}
   for i = 1, 101 do many[i] = "X-" .. i .. ": v\r\n" end
-  self:assert_equal("too_many_fields", select(2, parse("GET / HTTP/1.1\r\n" .. table.concat(many) .. "\r\n")).context.kind)
+  self:assert_equal("too_many_fields", select(2, parse("GET / HTTP/1.1\r\n" .. table.concat(many) .. "\r\n")).context.reason)
 end
 
 function T:test_close_releases_the_parser()
@@ -476,7 +480,7 @@ end
 -- calls its version callback; RFC 9112 section 3 requires the HTTP-version.
 function T:test_a_request_line_without_a_version_is_rejected()
   local err = self:reject("GET /\r\nHost: h\r\n\r\n")
-  self:assert_equal("unsupported_version", err.context.kind)
+  self:assert_equal("unsupported_version", err.context.reason)
   self:reject("POST /x\r\nHost: h\r\nContent-Length: 3\r\n\r\nabc")
 end
 
@@ -508,14 +512,14 @@ function T:test_a_native_call_that_makes_no_progress_is_a_terminal_internal_erro
   local events, err = p:feed("GET / HTTP/1.1\r\n")
   self:assert_equal(0, #events)
   self:assert_not_nil(err)
-  self:assert_equal("no_progress", err.context.kind)
+  self:assert_equal("no_progress", err.context.reason)
   self:assert_equal(500, err.context.status)
   local before = calls
   local _, again = p:feed("more")
-  self:assert_equal("no_progress", again.context.kind)
+  self:assert_equal("no_progress", again.context.reason)
   self:assert_equal(before, calls, "terminal: the native parser is not called again")
   local _, finishing = p:finish()
-  self:assert_equal("no_progress", finishing.context.kind)
+  self:assert_equal("no_progress", finishing.context.reason)
 end
 
 return T

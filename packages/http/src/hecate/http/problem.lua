@@ -10,7 +10,7 @@ local Response = require("hecate.http.response")
 local Status = require("hecate.http.status")
 local ContentError = require("hecate.http.content").ContentError
 local FormError = require("hecate.http.form").FormError
-local Parser = nil -- loaded on first use: the parser needs the native module
+local ParseError = require("hecate.http.errors").ParseError
 
 --- Builds problem details responses and maps errors to them.
 ---@class hecate.http.problem
@@ -61,8 +61,7 @@ end
 ---@return integer status
 ---@return string detail
 function problem.of_error(err)
-  Parser = Parser or require("hecate.http.parser")
-  if core.is_instance_of(err, Parser.ParseError) or core.is_instance_of(err, ContentError) or core.is_instance_of(err, FormError) then
+  if core.is_instance_of(err, ParseError) or core.is_instance_of(err, ContentError) or core.is_instance_of(err, FormError) then
     local status = err.context and err.context.status
     if DETAIL_BY_STATUS[status] ~= nil and status ~= 500 then return status, DETAIL_BY_STATUS[status] end
     return 400, DETAIL_BY_STATUS[400]

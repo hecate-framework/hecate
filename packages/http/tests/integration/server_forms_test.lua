@@ -12,7 +12,7 @@ local Response, Client = http.Response, http.Client
 
 local function url(port, path) return "http://127.0.0.1:" .. port .. (path or "/") end
 
-local function forms_handler(options)
+local function forms_action(options)
   return function(request)
     if request.path == "/urlencoded" then
       local f = request:read_form(options and options.form)
@@ -32,7 +32,7 @@ local function forms_handler(options)
 end
 
 function T:test_the_client_sends_urlencoded_pairs_and_the_server_reads_them_back()
-  with_server(self, forms_handler(), nil, function(port)
+  with_server(self, forms_action(), nil, function(port)
     local client <close> = Client()
     local response = client:post(url(port, "/urlencoded"), nil, { form = { { "a", "1" }, { "b", "two words & é" }, { "a", "3" } } })
     local info = json.decode(response:read_content())
@@ -43,7 +43,7 @@ function T:test_the_client_sends_urlencoded_pairs_and_the_server_reads_them_back
 end
 
 function T:test_the_client_sends_multipart_with_a_streamed_file_and_the_server_reads_the_parts()
-  with_server(self, forms_handler(), nil, function(port)
+  with_server(self, forms_action(), nil, function(port)
     local client <close> = Client()
     local response = client:post(url(port, "/multipart"), nil, { multipart = {
       { name = "title", content = "hello" },
@@ -60,7 +60,7 @@ function T:test_the_client_sends_multipart_with_a_streamed_file_and_the_server_r
 end
 
 function T:test_content_exclusion_in_the_client()
-  with_server(self, forms_handler(), nil, function(port)
+  with_server(self, forms_action(), nil, function(port)
     local client <close> = Client()
     self:assert_error(function() client:post(url(port), "x", { form = { { "a", "1" } } }) end)
     self:assert_error(function() client:post(url(port), nil, { form = { { "a", "1" } }, multipart = {} }) end)
@@ -73,7 +73,7 @@ local function status_of(client, text)
 end
 
 function T:test_refusals_have_their_status_and_echo_nothing_of_the_input()
-  with_server(self, forms_handler({ form = { max_pairs = 2 }, parts = { max_parts = 2 } }), nil, function(port)
+  with_server(self, forms_action({ form = { max_pairs = 2 }, parts = { max_parts = 2 } }), nil, function(port)
     local function post(path, content_type, content)
       local client <close> = connect(port)
       return status_of(client, ("POST %s HTTP/1.1\r\nHost: t\r\nContent-Type: %s\r\nContent-Length: %d\r\n\r\n%s"):format(path, content_type, #content, content))
@@ -89,7 +89,7 @@ function T:test_refusals_have_their_status_and_echo_nothing_of_the_input()
     local body = "--b\r\nContent-Disposition: form-data; name=\"a\"\r\n\r\nx\r\n"
     self:assert_equal(400, (post("/multipart", "multipart/form-data; boundary=b", body)), "no final boundary")
     local many = "--b\r\nContent-Disposition: form-data; name=\"a\"\r\n\r\nx\r\n"
-    self:assert_equal(413, (post("/multipart", "multipart/form-data; boundary=b", many:rep(3) .. "--b--\r\n")), "max_parts is 2 in this handler")
+    self:assert_equal(413, (post("/multipart", "multipart/form-data; boundary=b", many:rep(3) .. "--b--\r\n")), "max_parts is 2 in this action")
     local healthy <close> = connect(port)
     self:assert_equal(200, (status_of(healthy, "POST /urlencoded HTTP/1.1\r\nHost: t\r\nContent-Type: application/x-www-form-urlencoded\r\nContent-Length: 3\r\n\r\na=1")))
   end)
@@ -118,7 +118,7 @@ function T:test_a_large_part_is_streamed_in_bounded_chunks_and_content_over_the_
     self:assert_equal(tostring(size), response:read_content())
     self:assert_true(largest <= 20000, "chunks stay near one read: " .. largest)
   end)
-  with_server(self, forms_handler(), { max_content = 1000 }, function(port)
+  with_server(self, forms_action(), { max_content = 1000 }, function(port)
     local client <close> = Client()
     local response = client:post(url(port, "/multipart"), nil, { multipart = { { name = "a", content = ("x"):rep(5000) } } })
     self:assert_equal(413, response.status)

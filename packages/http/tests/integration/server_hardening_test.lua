@@ -1,6 +1,6 @@
 ---@diagnostic disable: missing-fields, param-type-mismatch, need-check-nil, assign-type-mismatch  -- the tests pass invalid arguments on purpose
 -- Findings of the security review of the server: pending-head detection for bare CRLF, a finite total content deadline and a
--- bounded drain, Host validation, absolute-form targets and the validation of the response a handler returns.
+-- bounded drain, Host validation, absolute-form targets and the validation of the response a action returns.
 local test = require("harness.test")
 local reactor = require("hecate.reactor")
 local http = require("hecate.http")
@@ -11,14 +11,14 @@ local support = dofile(dir .. "/../fixtures/client.lua")
 local connect, get, with_server = support.connect, support.get, support.with_server
 local Response = http.Response
 
-local function ok_handler(request) return Response(200, { content = "ok " .. request.path }) end
+local function ok_action(request) return Response(200, { content = "ok " .. request.path }) end
 local function healthy(self, port)
   local client <close> = connect(port)
   self:assert_equal("ok /health", client:request(get("/health")).content)
 end
 
 function T:test_bare_line_breaks_before_a_head_do_not_escape_the_head_timeout()
-  with_server(self, ok_handler, { head_timeout = 1, idle_timeout = 30 }, function(port)
+  with_server(self, ok_action, { head_timeout = 1, idle_timeout = 30 }, function(port)
     local client <close> = connect(port)
     local dripping = true
     local dripper = reactor.fork(function()
@@ -35,14 +35,14 @@ function T:test_bare_line_breaks_before_a_head_do_not_escape_the_head_timeout()
   end)
 end
 
-function T:test_the_total_content_deadline_and_the_drain_have_finite_defaults()
-  self:assert_equal(300, http.Server.DEFAULTS.content_deadline)
+function T:test_the_total_request_timeout_and_the_drain_have_finite_defaults()
+  self:assert_equal(300, http.Server.DEFAULTS.request_timeout)
   self:assert_equal(5, http.Server.DEFAULTS.drain_timeout)
-  self:assert_equal(300, http.Client.DEFAULTS.timeout)
+  self:assert_equal(300, http.Client.DEFAULTS.request_timeout)
 end
 
 function T:test_unread_content_trickled_after_the_response_is_cut_at_the_drain_timeout()
-  with_server(self, ok_handler, { drain_timeout = 1, content_timeout = 30, content_deadline = 30 }, function(port)
+  with_server(self, ok_action, { drain_timeout = 1, content_timeout = 30, request_timeout = 30 }, function(port)
     local client <close> = connect(port)
     client:send("POST /x HTTP/1.1\r\nHost: t\r\nContent-Length: 1000000\r\n\r\n")
     local dripping = true
@@ -62,7 +62,7 @@ end
 
 function T:test_a_host_field_must_be_one_host_with_an_optional_port()
   local seen = {}
-  with_server(self, function(request) seen[#seen + 1] = request.path return ok_handler(request) end, nil, function(port)
+  with_server(self, function(request) seen[#seen + 1] = request.path return ok_action(request) end, nil, function(port)
     for _, host in ipairs({ "a, b", "a/b", "user@h", "h:abc", "h:123456", "h h", "h?x", "[::1", "", "h:80:80", "h\\" }) do
       local client <close> = connect(port)
       local response = client:request("GET / HTTP/1.1\r\nHost: " .. host .. "\r\n\r\n")
@@ -79,7 +79,7 @@ function T:test_an_absolute_form_target_is_accepted_when_it_names_the_host_and_r
   local paths = {}
   with_server(self, function(request)
     paths[#paths + 1] = { request.path, request.query }
-    return ok_handler(request)
+    return ok_action(request)
   end, nil, function(port)
     local client <close> = connect(port)
     self:assert_equal(200, client:request("GET http://Example.org:8080/p/q?x=1 HTTP/1.1\r\nHost: example.org:8080\r\n\r\n").status)

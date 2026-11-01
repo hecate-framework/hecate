@@ -2,26 +2,14 @@
 -- llhttp runs in strict mode and no lenient flag is reachable. The parser turns bytes into events (a head, data,
 -- the end of the message, trailers, an upgrade) and never raises for malformed input: it returns a ParseError, which
 -- the server answers with `context.status` and a closed connection (RFC 9112 section 9.6 and 11.2).
-global <const> require, type, error, ipairs, pcall, tostring
+global <const> require, type, error, ipairs, pcall, tostring, string
 
 local core = require("hecate.core")
 local Fields = require("hecate.http.fields")
+local errors = require("hecate.http.errors")
 local native = require("hecate.http.native")
 
---- A message that is not valid HTTP/1.1, or that exceeds a limit of the parser.
----
---- `context.reason` is the llhttp reason (or the limit that was exceeded), `context.code` the llhttp error name,
---- `context.kind` a stable identifier for the failures of the binding itself (`target_too_long`, `field_name_too_large`,
---- `field_value_too_large`, `reason_too_long`, `head_too_large`, `too_many_fields`, `chunked_in_http_1_0`,
---- `unsupported_version`, `unsupported_method`, `unsupported_protocol`, `out_of_memory`, `no_progress` (an internal failure: the
---- native parser consumed nothing and reported nothing; status 500, the parser is terminal), `upgraded`; absent for llhttp's own
---- rejections), `context.position` the 0-based offset in the chunk of the call that failed, and `context.status` the status code to
---- answer with: 414 for a request target over its limit, 431 for a field, a head or a field count over its limit,
---- 400 otherwise (RFC 9110 sections 15.5.1, 15.5.15 and 15.5.32). After an upgrade, `feed` and `finish` return a
---- ParseError of kind `upgraded`: the bytes after the upgrade are not HTTP.
----@class hecate.http.ParseError : hecate.core.Error
----@field context { reason: string, code: string, kind?: string, position: integer, status: integer }
-local ParseError = core.error_class("ParseError", "hecate.http.ParseError")
+local ParseError = errors.ParseError
 
 --- The head of a message (request line or status line, and its fields).
 ---@class hecate.http.parser.Head
@@ -78,7 +66,7 @@ function Parser:init(handle, kind)
   self._kind = kind
 end
 
--- Status to answer with, by the `kind` of a failure of the binding (never by matching its text).
+-- Status to answer with, by the stable identifier of a failure of the binding (never by matching its text).
 local STATUS_OF_KIND = {
   target_too_long = 414,
   field_name_too_large = 431,
@@ -91,11 +79,11 @@ local STATUS_OF_KIND = {
 
 local function failure(raw)
   return ParseError({
-    message = "HTTP message rejected: " .. raw.reason,
+    message = "http.Parser:feed: message rejected: " .. raw.reason,
     context = {
-      reason = raw.reason,
+      reason = raw.kind or (raw.code and string.lower((string.gsub(raw.code, "^HPE_", ""))) or "parse_error"),
+      detail = raw.reason,
       code = raw.code,
-      kind = raw.kind,
       position = raw.position,
       status = STATUS_OF_KIND[raw.kind] or 400,
     },
@@ -117,8 +105,8 @@ local function convert(events)
       local ok, fields = pcall(to_fields, flat)
       if not ok then
         return ParseError({
-          message = "HTTP message rejected: field refused by the message model",
-          context = { reason = "invalid field", code = "HPE_INVALID_HEADER_TOKEN", position = 0, status = 400 },
+          message = "http.Parser:feed: message rejected: field refused by the message model",
+          context = { reason = "invalid_field", detail = "invalid field", code = "HPE_INVALID_HEADER_TOKEN", position = 0, status = 400 },
         })
       end
       if event.fields then event.fields = fields else event.trailers = fields end
@@ -155,13 +143,13 @@ end
 ---@return hecate.http.Parser
 function Parser.new(kind, options)
   if kind ~= "request" and kind ~= "response" then
-    error(core.ArgumentError("http.Parser: kind must be \"request\" or \"response\""), 2)
+    error(core.ArgumentError("http.Parser.new: kind must be \"request\" or \"response\""), 2)
   end
   if options ~= nil and type(options) ~= "table" then
-    error(core.ArgumentError("http.Parser: options must be a table"), 2)
+    error(core.ArgumentError("http.Parser.new: options must be a table"), 2)
   end
   local ok, handle = pcall(native.new, kind, options)
-  if not ok then error(core.ArgumentError("http.Parser: " .. tostring(handle)), 2) end
+  if not ok then error(core.ArgumentError("http.Parser.new: " .. tostring(handle)), 2) end
   return Parser(handle, kind)
 end
 
@@ -185,7 +173,7 @@ function Parser.response(options) return Parser.new("response", options) end
 ---@return hecate.http.ParseError? err
 function Parser:feed(chunk)
   if type(chunk) ~= "string" then
-    error(core.ArgumentError("http.Parser:feed expects a string, got " .. type(chunk)), 2)
+    error(core.ArgumentError("http.Parser:feed: expected a string, got " .. type(chunk)), 2)
   end
   local handle = self._handle
   if self._terminal ~= nil then return {}, self._terminal end
@@ -221,9 +209,9 @@ end
 --- Declares that the next final response (status 200 or above) has no content whatever its fields say: the response to
 --- a HEAD request or a 304 (RFC 9112 section 6.3, rule 1). An interim response (1xx) does not consume it.
 --- Raises `hecate.core.ArgumentError` on a parser of requests.
-function Parser:skip_body()
-  if self._kind ~= "response" then error(core.ArgumentError("http.Parser:skip_body is for a parser of responses"), 2) end
-  self._handle:skip_body()
+function Parser:skip_content()
+  if self._kind ~= "response" then error(core.ArgumentError("http.Parser:skip_content is for a parser of responses"), 2) end
+  self._handle:skip_content()
 end
 
 --- Reports whether a message has begun and not yet ended: the bytes of a head, or of content, are still expected. After a
@@ -233,7 +221,7 @@ function Parser:in_message()
   return self._handle:in_message()
 end
 
---- Releases the memory of the parser. Calling `feed`, `finish` or `skip_body` afterwards raises; closing twice is
+--- Releases the memory of the parser. Calling `feed`, `finish` or `skip_content` afterwards raises; closing twice is
 --- harmless. A parser that is not closed is released when it is collected.
 function Parser:close()
   self._handle:close()

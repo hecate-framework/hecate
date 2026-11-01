@@ -487,7 +487,12 @@ static const char *const option_names[] = {"max_target_size", "max_field_size", 
 
 /* Reads the options table at `index`: integers between 1 and LIMIT_CEILING, known names only. */
 static void read_options(lua_State *L, int index, parser *p) {
-  size_t *targets[] = {&p->max_target, &p->max_field, &p->max_head, &p->max_fields, &p->max_events};
+  size_t *targets[5];
+  targets[0] = &p->max_target;
+  targets[1] = &p->max_field;
+  targets[2] = &p->max_head;
+  targets[3] = &p->max_fields;
+  targets[4] = &p->max_events;
   lua_pushnil(L);
   while (lua_next(L, index) != 0) {
     int found = -1;
@@ -748,7 +753,7 @@ static int parser_in_message(lua_State *L) {
  * an interim response (1xx) does not consume it. For a parser of responses only. */
 static int parser_skip_body(lua_State *L) {
   parser *p = open_parser(L);
-  if (p->request) return luaL_error(L, "skip_body is for a parser of responses");
+  if (p->request) return luaL_error(L, "skip_content is for a parser of responses");
   p->skip_body = 1;
   return 0;
 }
@@ -763,7 +768,7 @@ static int parser_skip_body(lua_State *L) {
 
 HECATE_EXPORT int luaopen_hecate_http_native(lua_State *L) {
   static const luaL_Reg methods[] = {
-      {"execute", parser_execute}, {"finish", parser_finish}, {"skip_body", parser_skip_body}, {"in_message", parser_in_message},
+      {"execute", parser_execute}, {"finish", parser_finish}, {"skip_content", parser_skip_body}, {"in_message", parser_in_message},
       {"close", parser_close},
       {NULL, NULL}};
   static const luaL_Reg meta[] = {{"__gc", parser_close}, {"__close", parser_close}, {NULL, NULL}};

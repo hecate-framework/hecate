@@ -11,10 +11,10 @@ local multipart = require("hecate.http.multipart")
 
 --- A request. The server builds it from the wire; a client or a test builds it by hand.
 ---@class hecate.http.Request
----@field method string  an uppercase-sensitive token, for example "GET" (RFC 9110, section 9.1)
+---@field method string  a case-sensitive token, for example "GET" (RFC 9110, section 9.1)
 ---@field target string  the raw request-target, for example "/users/42?expand=orders" (RFC 9112, section 3.2)
----@field path string  the path component of the target, "/users/42"
----@field query string?  the raw query component without `?`, or nil when the target has none
+---@field path string  the path component of the target, "/users/42": RAW, as received (not percent-decoded, not normalised: dot segments stay)
+---@field query string?  the raw query component without `?` (not decoded), or nil when the target has none
 ---@field version string  protocol version, "HTTP/1.1" by default
 ---@field fields hecate.http.Fields
 ---@field content? string|table|function  the content; the server reads it from the stream
@@ -101,7 +101,7 @@ function Request:read_form(limits)
 end
 
 --- Reads a `multipart/form-data` request part by part (see `hecate.http.multipart`): the parts are read lazily from the
---- content stream, with `limits` (parts, header size, part size, total size; defaults in `multipart.DEFAULTS`).
+--- content stream, with `limits` (parts, part header fields size, part size, total size; defaults in `multipart.DEFAULTS`).
 ---
 --- Raises `hecate.http.FormError` (`unsupported_media_type`, 415; `bad_boundary`, 400) at once; the reader raises the
 --- others as the parts are read.

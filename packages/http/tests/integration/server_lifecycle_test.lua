@@ -80,14 +80,14 @@ local function get(path, extra)
 end
 
 --- Runs `fn(port, server)` in the reactor with a serving server; shuts down at the end and checks the serve ended.
---- `options.handler` is the handler; the other keys are the options of the server.
+--- `options.action` is the action; the other keys are the options of the server.
 local function with_server(self, options, fn)
-  local handler = options.handler
-  options.handler = nil
+  local action = options.action
+  options.action = nil
   options.port = 0
   local before = reactor.Reactor.open_handles()
   reactor.run(function()
-    local server = Server(handler, options)
+    local server = Server(action, options)
     local listener = server:listen()
     local serving = reactor.fork(server.serve, server, listener)
     local ok, err = pcall(reactor.deadline, 20, fn, listener:local_address().port, server)
@@ -98,7 +98,7 @@ local function with_server(self, options, fn)
   self:assert_equal(before, reactor.Reactor.open_handles(), "libuv handles left open")
 end
 
-local function text_handler(request)
+local function text_action(request)
   return Response(200, { content = request.method .. " " .. request.path })
 end
 
@@ -107,7 +107,7 @@ end
 function T:test_the_request_carries_target_fields_peer_and_its_own_scope()
   local seen = {}
   with_server(self, {
-    handler = function(request)
+    action = function(request)
       seen[#seen + 1] = {
         target = request.target, query = request.query, host = request.fields:get("Host"), scope = request.scope,
         peer = request:peer_address(), version = request.version, thread = coroutine.running(),
@@ -129,10 +129,10 @@ function T:test_the_request_carries_target_fields_peer_and_its_own_scope()
   self:assert_true(seen[1].thread ~= seen[2].thread, "one coroutine per request")
 end
 
-function T:test_a_forked_computation_of_a_handler_is_owned_by_the_request_scope()
+function T:test_a_forked_computation_of_a_action_is_owned_by_the_request_scope()
   local order = {}
   with_server(self, {
-    handler = function()
+    action = function()
       reactor.fork(function()
         reactor.sleep(0.05)
         order[#order + 1] = "child"
@@ -149,7 +149,7 @@ function T:test_a_forked_computation_of_a_handler_is_owned_by_the_request_scope(
 end
 
 function T:test_keep_alive_serves_several_requests_then_connection_close_ends_it()
-  with_server(self, { handler = text_handler }, function(port)
+  with_server(self, { action = text_action }, function(port)
     local client <close> = connect(port)
     self:assert_equal("GET /a", client:request(get("/a")).content)
     self:assert_equal("GET /b", client:request(get("/b")).content)
@@ -160,7 +160,7 @@ function T:test_keep_alive_serves_several_requests_then_connection_close_ends_it
 end
 
 function T:test_http_1_0_closes_unless_keep_alive_is_asked()
-  with_server(self, { handler = text_handler }, function(port)
+  with_server(self, { action = text_action }, function(port)
     local closing <close> = connect(port)
     local response = closing:request("GET /a HTTP/1.0\r\n\r\n")
     self:assert_equal(200, response.status) -- HTTP/1.0 needs no Host
@@ -176,7 +176,7 @@ end
 -- Host and malformed requests ---------------------------------------------------------------------------------------
 
 function T:test_a_malformed_request_is_a_400_problem_without_the_parser_text()
-  with_server(self, { handler = text_handler }, function(port)
+  with_server(self, { action = text_action }, function(port)
     local client <close> = connect(port)
     local response = client:request("GET / HTTP/1.1\r\nHost: a\r\nContent-Length: 1\r\nTransfer-Encoding: chunked\r\n\r\n")
     self:assert_equal(400, response.status)
@@ -187,7 +187,7 @@ function T:test_a_malformed_request_is_a_400_problem_without_the_parser_text()
 end
 
 function T:test_limits_of_the_parser_map_to_414_and_431()
-  with_server(self, { handler = text_handler, parser = { max_target_size = 64, max_field_size = 64 } }, function(port)
+  with_server(self, { action = text_action, parser = { max_target_size = 64, max_field_size = 64 } }, function(port)
     local long = connect(port)
     self:assert_equal(414, long:request(get("/" .. ("a"):rep(200))).status)
     long:close()
@@ -198,7 +198,7 @@ function T:test_limits_of_the_parser_map_to_414_and_431()
 end
 
 function T:test_a_request_with_an_upgrade_is_refused_with_501()
-  with_server(self, { handler = text_handler }, function(port)
+  with_server(self, { action = text_action }, function(port)
     local client <close> = connect(port)
     local response = client:request(get("/ws", "Connection: Upgrade\r\nUpgrade: websocket\r\n"))
     self:assert_equal(501, response.status)
@@ -208,14 +208,14 @@ end
 
 -- Content ---------------------------------------------------------------------------------------------------------
 
-local function echo_handler(request)
+local function echo_action(request)
   return Response(200, { content = request:read_content() })
 end
 
 function T:test_chunked_request_content_is_read_whole_and_streamed()
   local chunks = {}
   with_server(self, {
-    handler = function(request)
+    action = function(request)
       local reader = request:stream_content()
       while true do
         local chunk = reader:read()
@@ -235,11 +235,11 @@ function T:test_chunked_request_content_is_read_whole_and_streamed()
   end)
 end
 
-function T:test_content_over_the_limit_is_a_413_before_the_handler_runs()
+function T:test_content_over_the_limit_is_a_413_before_the_action_runs()
   local called = false
   with_server(self, {
     max_content = 10,
-    handler = function() called = true; return Response(200) end,
+    action = function() called = true; return Response(200) end,
   }, function(port)
     local client <close> = connect(port)
     local response = client:request("POST /e HTTP/1.1\r\nHost: t\r\nContent-Length: 11\r\n\r\n")
@@ -249,8 +249,8 @@ function T:test_content_over_the_limit_is_a_413_before_the_handler_runs()
   self:assert_false(called)
 end
 
-function T:test_chunked_content_over_the_limit_is_a_413_from_the_handler_read()
-  with_server(self, { max_content = 4, handler = echo_handler }, function(port)
+function T:test_chunked_content_over_the_limit_is_a_413_from_the_action_read()
+  with_server(self, { max_content = 4, action = echo_action }, function(port)
     local client <close> = connect(port)
     local response = client:request("POST /e HTTP/1.1\r\nHost: t\r\nTransfer-Encoding: chunked\r\n\r\n5\r\nabcde\r\n0\r\n\r\n")
     self:assert_equal(413, response.status)
@@ -260,7 +260,7 @@ function T:test_chunked_content_over_the_limit_is_a_413_from_the_handler_read()
 end
 
 function T:test_unread_content_is_drained_so_the_next_request_is_served()
-  with_server(self, { handler = text_handler }, function(port)
+  with_server(self, { action = text_action }, function(port)
     local client <close> = connect(port)
     client:send("POST /a HTTP/1.1\r\nHost: t\r\nContent-Length: 4\r\n\r\nabcd" .. get("/b"))
     self:assert_equal("POST /a", client:read_response().content)
@@ -268,8 +268,8 @@ function T:test_unread_content_is_drained_so_the_next_request_is_served()
   end)
 end
 
-function T:test_expect_100_continue_is_sent_when_the_handler_reads()
-  with_server(self, { handler = echo_handler }, function(port)
+function T:test_expect_100_continue_is_sent_when_the_action_reads()
+  with_server(self, { action = echo_action }, function(port)
     local client <close> = connect(port)
     client:send("POST /e HTTP/1.1\r\nHost: t\r\nContent-Length: 3\r\nExpect: 100-continue\r\n\r\n")
     local interim = client:read_response()
@@ -281,8 +281,8 @@ function T:test_expect_100_continue_is_sent_when_the_handler_reads()
   end)
 end
 
-function T:test_expect_100_continue_is_not_sent_when_the_handler_does_not_read_and_the_connection_closes()
-  with_server(self, { handler = text_handler }, function(port)
+function T:test_expect_100_continue_is_not_sent_when_the_action_does_not_read_and_the_connection_closes()
+  with_server(self, { action = text_action }, function(port)
     local client <close> = connect(port)
     client:send("POST /e HTTP/1.1\r\nHost: t\r\nContent-Length: 3\r\nExpect: 100-continue\r\n\r\n")
     local response = client:read_response()
@@ -295,7 +295,7 @@ end
 
 function T:test_a_function_without_length_is_sent_chunked()
   with_server(self, {
-    handler = function()
+    action = function()
       return Response(200, { content = function(write, flush_content)
         write("one,")
         flush_content()
@@ -315,7 +315,7 @@ end
 
 function T:test_a_function_with_a_declared_length_is_sent_raw()
   with_server(self, {
-    handler = function()
+    action = function()
       local fields = http.Fields({ { "Content-Length", "6" } })
       return Response(200, { fields = fields, content = function(write, flush_content) write("abc"); write("def") end })
     end,
@@ -330,7 +330,7 @@ end
 
 function T:test_a_writer_that_breaks_its_declared_length_closes_the_connection()
   with_server(self, {
-    handler = function()
+    action = function()
       return Response(200, { fields = http.Fields({ { "Content-Length", "6" } }), content = function(write, flush_content) write("abc") end })
     end,
   }, function(port)
@@ -342,7 +342,7 @@ function T:test_a_writer_that_breaks_its_declared_length_closes_the_connection()
 end
 
 function T:test_a_table_is_serialised_as_json()
-  with_server(self, { handler = function() return Response(200, { content = { id = 42 } }) end }, function(port)
+  with_server(self, { action = function() return Response(200, { content = { id = 42 } }) end }, function(port)
     local client <close> = connect(port)
     local response = client:request(get("/"))
     self:assert_equal("application/json", response.fields:get("Content-Type"))
@@ -351,9 +351,9 @@ function T:test_a_table_is_serialised_as_json()
 end
 
 function T:test_head_has_no_content_but_the_length_of_the_representation()
-  with_server(self, { handler = function() return Response(200, { content = "hello" }) end }, function(port)
+  with_server(self, { action = function() return Response(200, { content = "hello" }) end }, function(port)
     local client <close> = connect(port)
-    client.parser:skip_body()
+    client.parser:skip_content()
     local response = client:request("HEAD / HTTP/1.1\r\nHost: t\r\n\r\n")
     self:assert_equal("5", response.fields:get("Content-Length"))
     self:assert_equal("", response.content)
@@ -363,7 +363,7 @@ end
 
 function T:test_204_and_304_carry_neither_content_nor_framing_of_their_own()
   with_server(self, {
-    handler = function(request)
+    action = function(request)
       if request.path == "/204" then return Response(204) end
       local response = Response(304)
       response.content = "must not be sent"
@@ -384,9 +384,9 @@ function T:test_204_and_304_carry_neither_content_nor_framing_of_their_own()
   end)
 end
 
-function T:test_a_handler_cannot_inject_framing_fields_or_a_reason_with_line_breaks()
+function T:test_a_action_cannot_inject_framing_fields_or_a_reason_with_line_breaks()
   with_server(self, {
-    handler = function()
+    action = function()
       local response = Response(200, { content = "ok", reason = "OK\r\nX-Evil: 1" })
       response.fields:set("Content-Length", "999")
       response.fields:set("Transfer-Encoding", "chunked")
@@ -403,9 +403,9 @@ end
 
 -- Errors ----------------------------------------------------------------------------------------------------------
 
-function T:test_a_handler_error_is_a_generic_problem_and_the_connection_stays_usable()
+function T:test_a_action_error_is_a_generic_problem_and_the_connection_stays_usable()
   with_server(self, {
-    handler = function(request)
+    action = function(request)
       if request.path == "/boom" then error("database password is hunter2 at /srv/app/secret.lua:12") end
       return Response(200, { content = "fine" })
     end,
@@ -420,9 +420,9 @@ function T:test_a_handler_error_is_a_generic_problem_and_the_connection_stays_us
   end)
 end
 
-function T:test_a_transport_error_of_a_handler_never_reaches_the_client()
+function T:test_a_transport_error_of_a_action_never_reaches_the_client()
   with_server(self, {
-    handler = function()
+    action = function()
       error(reactor.TransportError({
         message = "net.connect: connect to db.internal:5432 failed: ECONNREFUSED (tried 10.1.2.3, 10.1.2.4)",
         context = { errno = "ECONNREFUSED", host = "db.internal", port = 5432,
@@ -441,9 +441,9 @@ function T:test_a_transport_error_of_a_handler_never_reaches_the_client()
   end)
 end
 
-function T:test_a_handler_that_returns_nothing_or_a_string_is_a_500()
+function T:test_a_action_that_returns_nothing_or_a_string_is_a_500()
   with_server(self, {
-    handler = function(request)
+    action = function(request)
       if request.path == "/string" then return "text" end
     end,
   }, function(port)
@@ -456,7 +456,7 @@ end
 -- Timeouts, limits of connections and shutdown ---------------------------------------------------------------------
 
 function T:test_an_idle_connection_is_closed_after_the_idle_timeout()
-  with_server(self, { handler = text_handler, idle_timeout = 0.1 }, function(port)
+  with_server(self, { action = text_action, idle_timeout = 0.1 }, function(port)
     local client <close> = connect(port)
     self:assert_equal(200, client:request(get("/")).status)
     self:assert_nil(client:read_response()) -- closed by the server, without a response
@@ -464,7 +464,7 @@ function T:test_an_idle_connection_is_closed_after_the_idle_timeout()
 end
 
 function T:test_a_head_that_does_not_complete_is_a_408_after_the_head_timeout()
-  with_server(self, { handler = text_handler, head_timeout = 0.1 }, function(port)
+  with_server(self, { action = text_action, head_timeout = 0.1 }, function(port)
     local client <close> = connect(port)
     client:send("GET / HTTP/1.1\r\nHost: t\r\nX-Slow: ")
     local response = client:read_response()
@@ -474,7 +474,7 @@ function T:test_a_head_that_does_not_complete_is_a_408_after_the_head_timeout()
 end
 
 function T:test_stalled_request_content_is_a_408_after_the_content_timeout()
-  with_server(self, { handler = echo_handler, content_timeout = 0.1 }, function(port)
+  with_server(self, { action = echo_action, content_timeout = 0.1 }, function(port)
     local client <close> = connect(port)
     client:send("POST /e HTTP/1.1\r\nHost: t\r\nContent-Length: 10\r\n\r\nabc")
     self:assert_equal(408, client:read_response().status)
@@ -485,7 +485,7 @@ function T:test_connections_beyond_the_maximum_wait_in_the_backlog()
   local started = {}
   with_server(self, {
     max_connections = 1,
-    handler = function(request)
+    action = function(request)
       started[#started + 1] = request.path
       return Response(200, { content = request.path })
     end,
@@ -505,7 +505,7 @@ function T:test_shutdown_stops_accepting_closes_idle_connections_and_drains_requ
   local release = reactor.Semaphore(0)
   local order = {}
   with_server(self, {
-    handler = function(request)
+    action = function(request)
       if request.path == "/slow" then
         order[#order + 1] = "start"
         release:acquire()
@@ -540,7 +540,7 @@ end
 function T:test_shutdown_cancels_requests_still_running_after_the_grace()
   local cancelled = false
   with_server(self, {
-    handler = function()
+    action = function()
       local ok, err = pcall(reactor.sleep, 30)
       cancelled = not ok and core.is_instance_of(err, core.CancellationError)
       error(err, 0)
@@ -566,7 +566,7 @@ function T:test_the_parser_is_closed_when_the_connection_ends_and_fed_chunks_wit
     if parser._kind == "request" and #chunk > largest then largest = #chunk end
     return feed(parser, chunk)
   end
-  local ok, err = pcall(with_server, self, { handler = echo_handler, max_content = 1 << 20 }, function(port)
+  local ok, err = pcall(with_server, self, { action = echo_action, max_content = 1 << 20 }, function(port)
     for _ = 1, 2 do
       local client <close> = connect(port)
       local content = ("x"):rep(200000)
@@ -582,7 +582,7 @@ function T:test_the_parser_is_closed_when_the_connection_ends_and_fed_chunks_wit
 end
 
 function T:test_a_burst_of_pipelined_requests_filling_the_read_buffer_is_answered_in_order()
-  with_server(self, { handler = function(request) return Response(200, { content = request.path }) end }, function(port)
+  with_server(self, { action = function(request) return Response(200, { content = request.path }) end }, function(port)
     local client <close> = connect(port)
     local burst, count = {}, 499 -- about 16 KiB: one read of the server holds hundreds of messages
     for i = 1, count do burst[i] = get("/" .. i) end
@@ -637,7 +637,7 @@ function T:test_the_accept_loop_survives_descriptor_exhaustion_and_logs_once_per
     local real = net.listen("127.0.0.1", 0)
     -- Burst of 3 failures before the first connection, then 2 before the second.
     fake = flaky(real, { 3, 2 })
-    local server = Server(text_handler, { logger = log.Logger({ sinks = { sink }, severity = "debug" }) })
+    local server = Server(text_action, { logger = log.Logger({ sinks = { sink }, severity = "debug" }) })
     local serving = reactor.fork(server.serve, server, fake)
     local port = real:local_address().port
     local started = reactor.now()
@@ -665,7 +665,7 @@ end
 
 function T:test_the_default_host_is_numeric_loopback()
   reactor.run(function()
-    local server = Server(text_handler, { port = 0 })
+    local server = Server(text_action, { port = 0 })
     local listener = server:listen()
     self:assert_equal("127.0.0.1", listener:local_address().ip)
     listener:close()
@@ -673,7 +673,7 @@ function T:test_the_default_host_is_numeric_loopback()
 end
 
 function T:test_settings_are_validated()
-  local function bad(options) self:assert_error(function() Server(text_handler, options) end) end
+  local function bad(options) self:assert_error(function() Server(text_action, options) end) end
   self:assert_error(function() Server() end)
   self:assert_error(function() Server("no") end)
   bad({ host = "localhost" })
@@ -689,9 +689,9 @@ function T:test_settings_are_validated()
   bad({ parser = { max_fields = 0 } })
   bad({ unknown = true })
   bad({ tls = {} })
-  Server(text_handler, { host = "::1" })
-  Server(text_handler, { host = "0.0.0.0" })
-  Server(text_handler, { host = "::" })
+  Server(text_action, { host = "::1" })
+  Server(text_action, { host = "0.0.0.0" })
+  Server(text_action, { host = "::" })
 end
 
 return T

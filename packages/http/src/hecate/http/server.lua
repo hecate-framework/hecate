@@ -1,7 +1,7 @@
 -- The HTTP/1.1 server over hecate.net streams (RFC 9110, RFC 9112; ADR 0003; ADR 0019).
 --
 -- Shape: `serve` accepts connections in a scope; each connection is one computation of that scope, and each request
--- one scope of its own with one computation running the handler (concurrency.md, "Structured concurrency"). A
+-- one scope of its own with one computation running the action (concurrency.md, "Structured concurrency"). A
 -- connection serves its requests one after the other, so the responses of pipelined requests come in request order
 -- (RFC 9112, section 9.3.2). The parser is fed chunks of at most READ_SIZE bytes and closed when the connection ends.
 global <const> require, type, error, pcall, pairs, ipairs, math, string, tostring, os
@@ -36,8 +36,8 @@ local READ_SIZE <const> = 16384
 ---@field head_timeout? number  seconds to receive a request head once its first byte arrived (default 60; counted from the first byte of the head to its end, not between reads; then 408)
 ---@field idle_timeout? number  seconds a connection may wait for the next request (default 75; then closed silently)
 ---@field content_timeout? number  seconds between two reads of request content (default 60; a timeout between two reads, not a limit on the whole content; then 408)
----@field content_deadline? number  seconds from the end of a head to the last byte of its content (default 300; then 408); `content_timeout` still applies between reads
----@field drain_timeout? number  seconds to drain content the handler left unread after the response (default 5; then the connection closes)
+---@field request_timeout? number  seconds from the end of a head to the last byte of its content (default 300; then 408); `content_timeout` still applies between reads
+---@field drain_timeout? number  seconds to drain content the action left unread after the response (default 5; then the connection closes)
 ---@field write_timeout? number  seconds a write to the client may take (default 60; then the connection is closed)
 ---@field parser? hecate.http.parser.Options  limits of the message parser (target, field, head size, field count)
 ---@field tls? hecate.net.TlsServerOptions|hecate.net.TlsServerConfig  serve HTTPS: the options of `net.tls.server_config` (ALPN defaults to `http/1.1`), or a configuration built by it
@@ -45,9 +45,28 @@ local READ_SIZE <const> = 16384
 ---@field max_handshakes? integer  TLS handshakes in progress at once (default 64); the other connections wait in the backlog; needs `tls`
 ---@field max_handshake_bytes? integer  bytes read from a client during its handshake (default 65536; over it the connection is dropped); needs `tls`
 ---@field logger? hecate.log.Logger  receives the failed handshakes, with the peer address (default: none)
----@field on_error? fun(err: any)  called with the failure of a handler or a connection (the client only sees generic problem details)
+---@field on_error? fun(err: any)  called with the failure of a action or a connection (the client only sees generic problem details)
 
 --- Defaults of the settings, exported so that documentation and tests read one source.
+--- The defaults of the server's settings. Settings without an entry have no default value: `max_connections` (no limit; the
+--- process descriptor limit and the timeouts bound it), `tls` (plain HTTP), `parser` (the parser's own limits), `logger`
+--- and `on_error` (none).
+---@class hecate.http.ServerDefaults
+---@field host string
+---@field port integer
+---@field backlog integer
+---@field max_content integer
+---@field head_timeout number
+---@field idle_timeout number
+---@field content_timeout number
+---@field write_timeout number
+---@field request_timeout number
+---@field drain_timeout number
+---@field handshake_timeout number
+---@field max_handshakes integer
+---@field max_handshake_bytes integer
+
+---@type hecate.http.ServerDefaults
 local DEFAULTS <const> = {
   host = "127.0.0.1",
   port = 8080,
@@ -58,23 +77,23 @@ local DEFAULTS <const> = {
   idle_timeout = 75,
   content_timeout = 60,
   write_timeout = 60,
-  content_deadline = 300,
+  request_timeout = 300,
   drain_timeout = 5,
   handshake_timeout = 10,
   max_handshakes = 64,
   max_handshake_bytes = 65536,
 }
 
---- An HTTP/1.1 server: `serve` accepts connections from a listener and answers each request with the handler.
+--- An HTTP/1.1 server: `serve` accepts connections from a listener and answers each request with the action.
 ---@class hecate.http.Server
----@field DEFAULTS table<string, any>  the defaults of the settings
----@overload fun(handler: (fun(request: hecate.http.Request): hecate.http.Response), options?: hecate.http.ServerOptions): hecate.http.Server
+---@field DEFAULTS hecate.http.ServerDefaults  the defaults of the settings
+---@overload fun(action: (fun(request: hecate.http.Request): hecate.http.Response), options?: hecate.http.ServerOptions): hecate.http.Server
 local Server = core.class("Server")
 Server.DEFAULTS = DEFAULTS
 
 local KNOWN <const> = {
   host = true, port = true, backlog = true, max_connections = true, max_content = true, head_timeout = true,
-  idle_timeout = true, content_timeout = true, content_deadline = true, drain_timeout = true, write_timeout = true, parser = true, on_error = true,
+  idle_timeout = true, content_timeout = true, request_timeout = true, drain_timeout = true, write_timeout = true, parser = true, on_error = true,
   tls = true, handshake_timeout = true, max_handshakes = true, max_handshake_bytes = true, logger = true,
 }
 
@@ -92,17 +111,17 @@ local function is_numeric_address(host)
 end
 
 local function bad(name, expected, value)
-  error(core.ArgumentError(("http.Server: invalid %s %s: expected %s"):format(name, tostring(value), expected)), 4)
+  error(core.ArgumentError(("http.Server: invalid %s: expected %s"):format(name, expected)), 4)
 end
 
 --- Creates a server; nothing is bound until `listen` or `serve`.
 ---
---- Raises `hecate.core.ArgumentError` for a handler that is not a function, an unknown or invalid option, or a host
+--- Raises `hecate.core.ArgumentError` for a action that is not a function, an unknown or invalid option, or a host
 --- that is not a numeric address (a name would bind every address the resolver lists, networking.md "TCP").
----@param handler fun(request: hecate.http.Request): hecate.http.Response  runs in its own scope, once per request
+---@param action fun(request: hecate.http.Request): hecate.http.Response  runs in its own scope, once per request
 ---@param options? hecate.http.ServerOptions
-function Server:init(handler, options)
-  if type(handler) ~= "function" then error(core.ArgumentError("http.Server: the handler must be a function"), 3) end
+function Server:init(action, options)
+  if type(action) ~= "function" then error(core.ArgumentError("http.Server: the action must be a function"), 3) end
   options = options or {}
   if type(options) ~= "table" then error(core.ArgumentError("http.Server: options must be a table"), 3) end
   for key in pairs(options) do
@@ -140,7 +159,7 @@ function Server:init(handler, options)
   if options.logger ~= nil and (type(options.logger) ~= "table" or type(options.logger.log) ~= "function") then
     bad("logger", "a hecate.log.Logger", options.logger)
   end
-  self._handler = handler
+  self._action = action
   self._host = host
   self._port = integer("port", 0, 65535)
   self._backlog = integer("backlog", 1, 65535)
@@ -150,7 +169,7 @@ function Server:init(handler, options)
   self._idle_timeout = seconds("idle_timeout")
   self._content_timeout = seconds("content_timeout")
   self._write_timeout = seconds("write_timeout")
-  self._content_deadline = seconds("content_deadline")
+  self._request_timeout = seconds("request_timeout")
   self._drain_timeout = seconds("drain_timeout")
   self._handshake_timeout = seconds("handshake_timeout")
   self._max_handshakes = integer("max_handshakes", 1, 1000000)
@@ -182,13 +201,13 @@ function Server:init(handler, options)
   self._finished = reactor.Semaphore(0)
 end
 
---- Reports a failure to `on_error` (an error of the callback is discarded).
+--- Reports a failure to `on_error` (an error of that function is discarded).
 ---@param message string
 ---@param err any
 function Server:_report(message, err)
-  local callback = self._on_error
-  if callback ~= nil then
-    pcall(callback, core.is_instance_of(err, core.Error) and err or core.Error({ message = message .. ": " .. tostring(err) }))
+  local report = self._on_error
+  if report ~= nil then
+    pcall(report, core.is_instance_of(err, core.Error) and err or core.Error({ message = message .. ": " .. tostring(err) }))
   end
 end
 
@@ -198,7 +217,8 @@ function Server:local_address()
   return self._listener and self._listener:local_address() or nil
 end
 
---- Whether `shutdown` was called.
+--- Whether `shutdown` was called (public: a kernel can refuse new work while the server drains). There is no `Server:close()`:
+--- stopping suspends (it waits for the requests in flight), so the only stop is `shutdown`, which a `<close>` scope cannot do.
 ---@return boolean
 function Server:is_stopping() return self._stopping end
 
@@ -217,7 +237,7 @@ local function read_chunk(self, conn)
   local limit
   if conn.in_content then
     limit = self._content_timeout
-    if conn.content_deadline ~= nil then limit = math.min(limit, math.max(0, conn.content_deadline - reactor.now())) end
+    if conn.request_timeout ~= nil then limit = math.min(limit, math.max(0, conn.request_timeout - reactor.now())) end
   elseif conn.head_deadline ~= nil then
     limit = math.max(0, conn.head_deadline - reactor.now())
   else
@@ -287,7 +307,7 @@ end
 local HOP_BY_HOP <const> = { "Connection", "Keep-Alive", "Proxy-Connection", "Transfer-Encoding", "Content-Length" }
 
 
---- The response a handler produced, or the problem details for what went wrong. A handler must return a `Response`
+--- The response a action produced, or the problem details for what went wrong. A action must return a `Response`
 --- with a final status (200 to 599) and content that is nil, a string, a table (serialised as JSON) or a function.
 ---@param ok boolean
 ---@param result any
@@ -296,24 +316,24 @@ local HOP_BY_HOP <const> = { "Connection", "Keep-Alive", "Proxy-Connection", "Tr
 local function response_of(ok, result)
   if not ok then return problem.from_error(result), result end
   if not core.is_instance_of(result, Response) then
-    return problem.response(500), core.Error("http.Server: the handler returned " .. type(result) .. " instead of a Response")
+    return problem.response(500), core.Error("http.Server: the action returned " .. type(result) .. " instead of a Response")
   end
   local content = result.content
   local kind = type(content)
   if not Status.is_valid(result.status) or not core.is_instance_of(result.fields, Fields) or type(result.reason) ~= "string" then
-    return problem.response(500), core.Error("http.Server: the handler returned a response with an invalid status, reason or fields")
+    return problem.response(500), core.Error("http.Server: the action returned a response with an invalid status, reason or fields")
   end
   if result.status < 200 or not (content == nil or kind == "string" or kind == "table" or kind == "function") then
-    return problem.response(500), core.Error("http.Server: the handler returned a response the server cannot send")
+    return problem.response(500), core.Error("http.Server: the action returned a response the server cannot send")
   end
   return result, nil
 end
 
----@param handler function
+---@param action function
 ---@param request hecate.http.Request
 ---@return table outcome  `{ ok, result }`
-local function call_handler(handler, request)
-  local ok, result = pcall(handler, request)
+local function call_action(action, request)
+  local ok, result = pcall(action, request)
   if not ok and is_cancellation(result) then error(result, 0) end
   return { ok, result }
 end
@@ -323,12 +343,12 @@ end
 --- server (bytes still owed under a declared length, or nil).
 local function content_writer(server, conn, mode, remaining)
   local function write(data)
-    if type(data) ~= "string" then error(core.ArgumentError("http: a chunk of content must be a string"), 2) end
+    if type(data) ~= "string" then error(core.ArgumentError("http.Server: a chunk of content must be a string"), 2) end
     if data == "" then return end
     if remaining ~= nil then
       remaining = remaining - #data
       if remaining < 0 then
-        error(core.ArgumentError("http: more bytes written than the declared Content-Length"), 2)
+        error(core.ArgumentError("http.Server: more bytes written than the declared Content-Length"), 2)
       end
       send(server, conn, data)
     elseif mode == "chunked" then
@@ -344,7 +364,7 @@ end
 --- Chooses how the content is framed (RFC 9112, section 6): the mode, and its text (the content, or the length).
 ---@param status integer
 ---@param content any
----@param declared string?  a Content-Length the handler set
+---@param declared string?  a Content-Length the action set
 ---@param version string  protocol version of the request
 ---@return string mode  none, declared_only, length, declared, chunked or close_delimited
 ---@return string? text
@@ -365,7 +385,7 @@ end
 --- Sends `response` as the answer to the request described by `info` (`method`, `version`, `keep_alive`) and returns
 --- whether the connection stays open. HEAD and the statuses 1xx, 204 and 304 never carry content (RFC 9110, sections
 --- 9.3.2, 15.2, 15.3.5 and 15.4.5); a function without a declared length is sent chunked (RFC 9112, section 7.1), or
---- delimited by the close for HTTP/1.0. The framing fields of the handler are replaced by the server's own.
+--- delimited by the close for HTTP/1.0. The framing fields of the action are replaced by the server's own.
 ---@async
 ---@param info { method?: string, version: string, keep_alive: boolean }
 ---@param response hecate.http.Response
@@ -492,7 +512,7 @@ local function valid_host(value)
   return rest == "" or string.find(rest, "^:%d?%d?%d?%d?%d?$") ~= nil
 end
 
---- The status and detail to answer a head with before any handler runs, or nil when the request may be handled.
+--- The status and detail to answer a head with before any action runs, or nil when the request may be handled.
 ---@param head hecate.http.parser.Head
 ---@return integer? status
 ---@return string? detail
@@ -529,7 +549,7 @@ local function refuse(self, head)
   return nil
 end
 
---- Serves one request from its head: one scope, one computation running the handler. Returns whether the connection
+--- Serves one request from its head: one scope, one computation running the action. Returns whether the connection
 --- stays open.
 ---@async
 ---@param head hecate.http.parser.Head
@@ -561,14 +581,14 @@ local function serve_request(self, conn, head)
   end
   return reactor.scope(function(scope)
     request.scope = scope
-    local outcome = scope:fork(call_handler, self._handler, request):value()
+    local outcome = scope:fork(call_action, self._action, request):value()
     local response, failure = response_of(outcome[1], outcome[2])
-    if failure ~= nil then self:_report("the handler failed", failure) end
-    -- A client that expects 100 Continue may still send the content the handler never asked for: close (RFC 9110, 10.1.1).
+    if failure ~= nil then self:_report("the action failed", failure) end
+    -- A client that expects 100 Continue may still send the content the action never asked for: close (RFC 9110, 10.1.1).
     local abandoned = expecting and not reader:is_started()
     local keep = send_response(self, conn, info, response, abandoned)
     if not keep or conn.broken or abandoned then return false end
-    -- The handler left content unread: drain it (bounded by the content limit) so the next request can be parsed.
+    -- The action left content unread: drain it (bounded by the content limit) so the next request can be parsed.
     local drained = pcall(reactor.deadline, self._drain_timeout, function()
       while not reader:is_finished() do reader:read() end
     end)
@@ -601,7 +621,7 @@ local function serve_connection(self, conn)
     end
     if event.type ~= "head" then return end
     conn.head_deadline = nil
-    conn.content_deadline = reactor.now() + self._content_deadline
+    conn.request_timeout = reactor.now() + self._request_timeout
     local keep = serve_request(self, conn, event)
     if not keep or self._stopping then return end
   end
@@ -718,7 +738,7 @@ end
 --- Raises `hecate.core.ArgumentError` when already serving, a `TransportError` when binding fails, and the
 --- cancellation of the caller.
 ---@async
----@param listener? hecate.net.TcpListener
+---@param listener? hecate.net.TcpListener  any net listener whose `accept` returns a stream with `reader`, `writer`, `shutdown` and `close` (a `PipeListener` is expected to work and is not tested)
 function Server:serve(listener)
   if self._serving then error(core.ArgumentError("http.Server:serve: the server is already serving"), 2) end
   listener = listener or self:listen()
@@ -742,16 +762,16 @@ local function wait_finished(self)
 end
 
 --- Stops accepting, closes the connections that wait for a request, lets the requests in flight finish (each answer
---- carries `Connection: close`), and returns when `serve` has returned. When `grace` seconds pass first, the remaining
---- requests are cancelled. Calling it again waits for the same end.
+--- carries `Connection: close`), and returns when `serve` has returned. When `grace_timeout` seconds pass first, the
+--- remaining requests are cancelled (the grace period of ADR 0023). Calling it again waits for the same end.
 ---
---- Raises `hecate.core.ArgumentError` for a `grace` that is not a non-negative finite number.
+--- Raises `hecate.core.ArgumentError` for a `grace_timeout` that is not a non-negative finite number of seconds.
 ---@async
----@param grace? number  seconds to let requests finish (default 30)
-function Server:shutdown(grace)
-  if grace == nil then grace = 30 end
-  if type(grace) ~= "number" or grace ~= grace or grace < 0 or grace == math.huge then
-    error(core.ArgumentError("http.Server:shutdown: grace must be a non-negative finite number of seconds"), 2)
+---@param grace_timeout? number  seconds to let requests finish (default 30)
+function Server:shutdown(grace_timeout)
+  if grace_timeout == nil then grace_timeout = 30 end
+  if type(grace_timeout) ~= "number" or grace_timeout ~= grace_timeout or grace_timeout < 0 or grace_timeout == math.huge then
+    error(core.ArgumentError("http.Server:shutdown: grace_timeout must be a non-negative finite number of seconds"), 2)
   end
   if not self._stopping then
     self._stopping = true
@@ -763,7 +783,7 @@ function Server:shutdown(grace)
     for limited in pairs(self._handshaking) do limited:close() end
   end
   if not self._serving then return end
-  local ok, err = pcall(reactor.deadline, grace, wait_finished, self)
+  local ok, err = pcall(reactor.deadline, grace_timeout, wait_finished, self)
   if ok then return end
   if not is_deadline(err) then error(err, 0) end
   self._forced = true

@@ -1,4 +1,5 @@
--- fuzz <target> [--seconds n]: runs one libFuzzer target for a bounded time. `fuzz --list` prints the targets.
+-- fuzz <target> [--seconds n]: runs one libFuzzer target for a bounded time. `fuzz --list` prints the targets. Linux only
+-- (libFuzzer with the sanitizers, and the cloud and CI images that have clang's runtime).
 -- Rust targets (cargo-fuzz, nightly toolchain) live in packages/<name>/native/fuzz/fuzz_targets/<target>.rs;
 -- C targets (clang with libFuzzer, ASan and UBSan; needs the Lua headers and liblua.a: LUA_INC and LUA_LIB, or next
 -- to the interpreter or in the bootstrapped toolchain) in packages/<name>/csrc/fuzz/<target>.c, with their seed inputs

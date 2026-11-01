@@ -108,7 +108,7 @@ local function outcome(chunks, limits)
     end
   end)
   if ok then return "ok:" .. table.concat(result, "\n"), nil end
-  return "error:" .. tostring(err.context and (err.context.kind or err.context.reason)), err
+  return "error:" .. tostring(err.context and (err.context.reason)), err
 end
 
 local function check(self, text, rand, limits)
@@ -143,7 +143,7 @@ end
 function T:test_limits_do_not_change_between_whole_and_pieces()
   local rand = generator(99)
   for _ = 1, 150 do
-    check(self, mutate(rand, random_message(rand)), rand, { max_parts = 2, max_header_size = 80, max_part_size = 30 })
+    check(self, mutate(rand, random_message(rand)), rand, { max_parts = 2, max_part_fields_size = 80, max_part_size = 30 })
   end
 end
 

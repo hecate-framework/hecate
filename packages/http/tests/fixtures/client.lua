@@ -74,15 +74,15 @@ end
 --- Runs `fn(port, server)` with a serving server on port 0 in the reactor, shuts it down, and asserts that no libuv
 --- handle is left open.
 ---@param case table  the test case (for the assertion)
----@param handler function
+---@param action function
 ---@param options? table
 ---@param fn function
-function support.with_server(case, handler, options, fn)
+function support.with_server(case, action, options, fn)
   options = options or {}
   options.port = 0
   local before = reactor.Reactor.open_handles()
   reactor.run(function()
-    local server = Server(handler, options)
+    local server = Server(action, options)
     local listener = server:listen()
     local serving = reactor.fork(server.serve, server, listener)
     local ok, err = pcall(reactor.deadline, 25, fn, listener:local_address().port, server)

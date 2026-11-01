@@ -5,8 +5,12 @@ local core = require("hecate.core")
 local Fields = require("hecate.http.fields")
 local Status = require("hecate.http.status")
 local ContentStream = require("hecate.http.content")
+local MediaType = require("hecate.http.media_type")
+local json = require("hecate.json")
 
---- A response. `content` is a string, a table (serialised by the kernel) or a writer function.
+--- A response. `content` is a string, a table (the server serialises it as JSON; a content negotiation by the kernel may
+--- replace that, OQ-76) or a function that streams (`content(write, flush)`). A response of the client has no `content`: it
+--- is read with `read_content`, `read_json` or `stream_content`.
 ---@class hecate.http.Response
 ---@field status integer  100..599
 ---@field reason string  the reason phrase; defaults to the registered one, or "" (RFC 9112, section 4)
@@ -20,9 +24,9 @@ local Response = core.class("Response")
 ---@field fields? hecate.http.Fields
 ---@field content? string|table|function
 ---@field reason? string
----@field content_stream? hecate.http.ContentStream  the content read lazily (the client passes one)
----@field discard? fun()  called by `close` when the content was not read to its end (the client drops the connection)
----@field max_content? integer  default limit of `read_content` for a stream
+---@field content_stream? hecate.http.ContentStream  INTERNAL, do not use: the content read lazily (the client passes one)
+---@field discard? fun()  INTERNAL, do not use: called by `close` when the content was not read to its end (the client drops the connection)
+---@field max_content? integer  INTERNAL, do not use: default limit of `read_content` for a stream
 
 --- Initialises a response.
 ---
@@ -74,6 +78,30 @@ function Response:read_content(limit)
     error(content, 0)
   end
   return content
+end
+
+--- Returns the media type of the content from `Content-Type`, or nil when absent or malformed.
+---@return hecate.http.MediaType?
+function Response:media_type()
+  local value = self.fields:get("Content-Type")
+  if value == nil then return nil end
+  return (MediaType.parse(value))
+end
+
+--- Reads the whole content (bounded like `read_content`) and decodes it as JSON.
+---
+--- Raises `hecate.core.ProtocolError` with the reason `invalid_json` when the content is not valid JSON (the message holds
+--- none of it), and what `read_content` raises.
+---@async
+---@param limit? integer  bytes
+---@return any value
+function Response:read_json(limit)
+  local text = self:read_content(limit)
+  local ok, value = pcall(json.decode, text)
+  if not ok then
+    error(core.ProtocolError({ message = "http.Response:read_json: the content is not valid JSON", context = { reason = "invalid_json" } }), 2)
+  end
+  return value
 end
 
 --- Gives the connection back: a response whose content was not read to its end drops the connection (it cannot be

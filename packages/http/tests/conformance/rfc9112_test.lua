@@ -292,7 +292,7 @@ function T:test_rule_1_responses_without_content()
   events, err = response("HTTP/1.1 100 Continue", "")
   self:assert_nil(err)
   self:assert_equal("head,complete", table.concat((function() local t = {} for _, e in ipairs(events) do t[#t + 1] = e.type end return t end)(), ","))
-  events, err = response("HTTP/1.1 200 OK", "Content-Length: 5\r\n", function(p) p:skip_body() end)
+  events, err = response("HTTP/1.1 200 OK", "Content-Length: 5\r\n", function(p) p:skip_content() end)
   self:assert_nil(err)
   self:assert_equal("", body_of(events))
   self:assert_equal("complete", events[#events].type)
@@ -370,7 +370,7 @@ end
 function T:test_rule_3_transfer_encoding_in_http_1_0()
   local _, err = self:run("request", "POST / HTTP/1.0\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n\r\n")
   self:assert_equal(400, err.context.status)
-  self:assert_equal("chunked_in_http_1_0", err.context.kind)
+  self:assert_equal("chunked_in_http_1_0", err.context.reason)
 end
 
 -- Rule 3 and section 6.1 and 11.2: both Content-Length and Transfer-Encoding. The RFC allows a server to process the

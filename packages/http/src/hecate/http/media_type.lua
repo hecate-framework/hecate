@@ -41,7 +41,7 @@ end
 ---@param value string
 function MediaType:set_parameter(name, value)
   if not grammar.is_token(name) or not grammar.is_field_value(value) then
-    error(core.ArgumentError("http.MediaType: invalid parameter " .. tostring(name)), 2)
+    error(core.ArgumentError("http.MediaType: invalid parameter name or value"), 2)
   end
   name = string.lower(name)
   if self.parameters[name] == nil then self.order[#self.order + 1] = name end

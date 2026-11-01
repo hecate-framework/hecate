@@ -8,7 +8,7 @@ local function kind_of(self, text, limits)
   local err = self:assert_error(function() form.parse_urlencoded(text, limits) end)
   self:assert_true(core.is_instance_of(err, form.FormError), tostring(err))
   self:assert_true(core.is_instance_of(err, core.ProtocolError))
-  return err.context.kind, err.context.status, err
+  return err.context.reason, err.context.status, err
 end
 
 function T:test_pairs_are_decoded_in_order_with_repeated_names()

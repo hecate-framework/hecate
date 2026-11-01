@@ -2,7 +2,14 @@
 -- platform, read from that file so there is a single pin) into `spikes/luals/` (git-ignored), after
 -- checking the sha256 of the download. `typecheck` finds it there when `lua-language-server` is not on PATH.
 -- Needs network access to github.com. Idempotent: does nothing when the pinned version is installed.
+-- Only three platforms are pinned: Linux-x64, macOS-arm64 and Windows-x64 (the runners of ci.yml); any other host gets an
+-- explicit error, and `typecheck` then needs a `lua-language-server` on PATH.
 local util = require("lib.util")
+
+--- A path with the separators of Windows, for the commands of the system (certutil, tar.exe).
+---@param path string
+---@return string
+local function windows_path(path) return (path:gsub("/", "\\")) end
 
 local function read(path)
   local f = io.open(path, "rb")
@@ -60,7 +67,7 @@ return {
     local data = read(archive)
     local digest
     if util.is_windows() then
-      digest = util.capture(("certutil -hashfile %s SHA256"):format(util.quote(archive))):match("\n(%x[%x ]+)\r?\n")
+      digest = util.capture(("certutil -hashfile %s SHA256"):format(util.quote(windows_path(archive)))):match("\n(%x[%x ]+)\r?\n")
       digest = digest and digest:gsub(" ", "")
     else
       digest = util.capture(("(sha256sum %s || shasum -a 256 %s) 2>/dev/null")
@@ -71,7 +78,12 @@ return {
       return { ok = false, problems = { ("sha256 mismatch for %s: expected %s, got %s"):format(file, sha, tostring(digest)) } }
     end
 
-    out, ok = util.capture(("tar -xf %s -C %s 2>&1"):format(util.quote(archive), util.quote(dir)))
+    -- On Windows the system's own bsdtar: a `tar` found first on PATH may be another program (Git for Windows' GNU tar
+    -- cannot read a zip and misreads `C:` as a remote host).
+    local tar = "tar"
+    if util.is_windows() then tar = util.quote((os.getenv("SystemRoot") or "C:\\Windows") .. "\\System32\\tar.exe") end
+    out, ok = util.capture(("%s -xf %s -C %s 2>&1"):format(tar, util.quote(util.is_windows() and windows_path(archive) or archive),
+      util.quote(util.is_windows() and windows_path(dir) or dir)))
     os.remove(archive)
     if not ok then return { ok = false, problems = { "extraction failed: " .. out } } end
     local f = assert(io.open(stamp, "wb"))

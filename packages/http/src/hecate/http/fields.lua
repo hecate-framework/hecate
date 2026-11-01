@@ -12,13 +12,13 @@ local grammar = require("hecate.http.grammar")
 local Fields = core.class("Fields")
 
 local function invalid(what, value, rule)
-  error(core.ArgumentError(("http.Fields: invalid %s %q: %s"):format(what, tostring(value), rule)), 3)
+  error(core.ArgumentError(("http.Fields: invalid %s: %s"):format(what, rule)), 3)
 end
 
 local function check(name, value)
   if not grammar.is_token(name) then invalid("field name", name, "expected a token (RFC 9110, section 5.6.2)") end
   if not grammar.is_field_value(value) then
-    invalid("field value", value, "expected a string without CR, LF or NUL (RFC 9110, section 5.5)")
+    invalid("field value", value, "expected a string without control characters other than HTAB (RFC 9110, section 5.5)")
   end
 end
 

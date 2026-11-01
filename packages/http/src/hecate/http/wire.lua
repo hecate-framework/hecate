@@ -1,22 +1,18 @@
 -- Serialisation of HTTP/1.1 response messages (RFC 9112, sections 4, 5 and 7.1; RFC 9110, section 5.6.7).
-global <const> require, os, string, table, type
+global <const> require, string, table, type
 
 local Status = require("hecate.http.status")
+local date = require("hecate.http.date")
 
 --- Pure helpers that turn a response into bytes.
 ---@class hecate.http.wire
 local wire = {}
 
-local DAYS <const> = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" }
-local MONTHS <const> = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" }
-
---- Formats an instant as an HTTP-date (RFC 9110, section 5.6.7: IMF-fixdate), independent of the locale.
+--- Formats an instant as an HTTP-date (RFC 9110, section 5.6.7: IMF-fixdate), by arithmetic: no `os.date`, so no locale and
+--- no time zone database. The same function as `Set-Cookie` uses (`hecate.http.date`).
 ---@param time integer  seconds since the epoch
 ---@return string
-function wire.http_date(time)
-  local t = os.date("!*t", time)
-  return string.format("%s, %02d %s %04d %02d:%02d:%02d GMT", DAYS[t.wday], t.day, MONTHS[t.month], t.year, t.hour, t.min, t.sec)
-end
+function wire.http_date(time) return date.imf_fixdate(time) end
 
 --- A reason phrase that is safe to emit: no control character (RFC 9112, section 4 allows HTAB, SP, VCHAR and obs-text); anything else
 --- replaces the phrase by the registered one for the status, or by the empty phrase.

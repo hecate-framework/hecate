@@ -3,26 +3,26 @@ global <const> require, type, error, string, table, math, ipairs, pairs, tostrin
 
 local core = require("hecate.core")
 
---- The content of a form could not be accepted: an unsupported media type, malformed or too large. `context.kind` is a
+--- The content of a form could not be accepted: an unsupported media type, malformed or too large. `context.reason` is a
 --- stable identifier (`unsupported_media_type`, `bad_percent_encoding`, `invalid_utf8`, `nul_in_value`, `too_many_pairs`,
---- `too_large`, `bad_boundary`, `bad_part_header`, `missing_name`, `too_many_parts`, `part_header_too_large`,
+--- `too_large`, `bad_boundary`, `bad_part_fields`, `missing_name`, `too_many_parts`, `part_fields_too_large`,
 --- `total_too_large`, `truncated`, `malformed`) and `context.status` the status code to answer with (400, 413 or 415).
 --- The message never holds input bytes.
 ---@class hecate.http.FormError : hecate.core.ProtocolError
----@field context { kind: string, status: integer }
+---@field context { reason: string, status: integer }
 local FormError = core.error_class("FormError", "hecate.http.FormError", core.ProtocolError)
 
-local STATUS_OF_KIND <const> = {
+local STATUS_OF_REASON <const> = {
   unsupported_media_type = 415,
-  too_many_pairs = 413, too_large = 413, too_many_parts = 413, part_header_too_large = 413, total_too_large = 413,
+  too_many_pairs = 413, too_large = 413, too_many_parts = 413, part_fields_too_large = 413, total_too_large = 413,
 }
 
---- Builds a `FormError` of `kind` (its status follows from the kind, 400 unless listed above).
----@param kind string
+--- Builds a `FormError` with the stable identifier `reason` (its status follows from it, 400 unless listed above).
+---@param reason string
 ---@param message string
 ---@return hecate.http.FormError
-local function failure(kind, message)
-  return FormError({ message = "http.form: " .. message, context = { kind = kind, status = STATUS_OF_KIND[kind] or 400 } })
+local function failure(reason, message)
+  return FormError({ message = "http.form: " .. message, context = { reason = reason, status = STATUS_OF_REASON[reason] or 400 } })
 end
 
 --- An ordered multi-map of form pairs: names repeat, order is kept.
@@ -134,7 +134,7 @@ end
 ---@param limits? hecate.http.form.Limits
 ---@return hecate.http.Form
 function form.parse_urlencoded(text, limits)
-  if type(text) ~= "string" then error(core.ArgumentError("http.form.parse_urlencoded expects a string"), 2) end
+  if type(text) ~= "string" then error(core.ArgumentError("http.form.parse_urlencoded: expected a string"), 2) end
   local max_pairs, max_size = check_limits(limits)
   if #text > max_size then error(failure("too_large", "the form exceeds its size limit"), 2) end
   local result = Form()
@@ -159,7 +159,7 @@ end
 function form.encode_urlencoded(pairs_)
   local list = pairs_
   if type(pairs_) == "table" and core.is_instance_of(pairs_, Form) then list = pairs_._pairs end
-  if type(list) ~= "table" then error(core.ArgumentError("http.form.encode_urlencoded expects a list of { name, value } pairs"), 2) end
+  if type(list) ~= "table" then error(core.ArgumentError("http.form.encode_urlencoded: expected a list of { name, value } pairs"), 2) end
   local out = {}
   for _, pair in ipairs(list) do
     if type(pair) ~= "table" or type(pair[1]) ~= "string" or type(pair[2]) ~= "string" then

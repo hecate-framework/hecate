@@ -13,12 +13,12 @@ local function echo(request)
   return http.Response(200, { content = request.method .. " " .. request.target .. " " .. request:read_content() })
 end
 
--- Runs a server with `handler`, calls fn(port, server), then shuts down.
-local function with_server(handler, options, fn)
+-- Runs a server with `action`, calls fn(port, server), then shuts down.
+local function with_server(action, options, fn)
   reactor.run(function()
     local listener = net.listen("127.0.0.1", 0)
     local port = listener:local_address().port
-    local server = http.Server(handler, options)
+    local server = http.Server(action, options)
     local serving = reactor.fork(function() server:serve(listener) end)
     local ok, err = pcall(fn, port, server)
     server:shutdown()
@@ -105,20 +105,20 @@ function T:test_head_has_no_content()
 end
 
 function T:test_function_content_is_chunked()
-  local handler = function()
+  local action = function()
     return http.Response(200, { content = function(write) write("ab"); write("cde") end })
   end
-  with_server(handler, nil, function(port)
+  with_server(action, nil, function(port)
     local out = exchange(port, "GET / HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n")
     self:assert_match("Transfer%-Encoding: chunked\r\n", out)
     self:assert_match("\r\n2\r\nab\r\n3\r\ncde\r\n0\r\n\r\n$", out)
   end)
 end
 
-function T:test_handler_failure_is_a_generic_500()
+function T:test_action_failure_is_a_generic_500()
   local seen
-  local handler = function() error("secret detail 10.0.0.1") end
-  with_server(handler, { on_error = function(err) seen = err end }, function(port)
+  local action = function() error("secret detail 10.0.0.1") end
+  with_server(action, { on_error = function(err) seen = err end }, function(port)
     local out = exchange(port, "GET / HTTP/1.1\r\nHost: x\r\n\r\n")
     self:assert_match("^HTTP/1.1 500 ", out)
     self:assert_nil(string.find(out, "secret", 1, true))

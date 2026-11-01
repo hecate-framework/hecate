@@ -26,7 +26,7 @@ local READ_SIZE <const> = 16384
 ---@field head_timeout? number  seconds from the end of the request to the end of the response head (default 30)
 ---@field content_timeout? number  seconds between two reads of response content (default 60)
 ---@field write_timeout? number  seconds a write to the server may take (default 60)
----@field timeout? number  seconds for the whole request, redirects and content included (default 300; overridden per request; a streaming download longer than that sets a larger value)
+---@field request_timeout? number  seconds for the whole exchange, redirects and content included (default 300; overridden per request; a streaming download longer than that sets a larger value)
 ---@field max_content? integer  bytes `response:read_content()` accepts (default 10485760, 10 MiB)
 ---@field max_redirects? integer  redirects followed per request (default 10)
 ---@field allow_downgrade? boolean  follow a redirect from https to http (default false)
@@ -40,6 +40,25 @@ local READ_SIZE <const> = 16384
 ---@field tls? { ca_pem?: string, system_roots?: boolean, cert_pem?: string, key_pem?: string }  trust and client certificate for https (ADR 0024: the system store by default; `ca_pem` adds an anchor)
 ---@field parser? hecate.http.parser.Options  limits on the response head (target is unused; field size, head size, field count)
 
+--- The defaults of the client's settings. Settings without an entry have no default value: `tls` (the system trust store),
+--- `strip_on_redirect` (only the built-in list) and `parser` (the parser's own limits).
+---@class hecate.http.ClientDefaults
+---@field connect_timeout number
+---@field head_timeout number
+---@field content_timeout number
+---@field write_timeout number
+---@field request_timeout number
+---@field max_content integer
+---@field max_redirects integer
+---@field allow_downgrade boolean
+---@field max_connections_per_origin integer
+---@field max_idle_connections integer
+---@field cross_origin_redirects boolean
+---@field idle_timeout number
+---@field expect_timeout number
+---@field user_agent string
+
+---@type hecate.http.ClientDefaults
 local DEFAULTS <const> = {
   connect_timeout = 10,
   head_timeout = 30,
@@ -50,7 +69,7 @@ local DEFAULTS <const> = {
   allow_downgrade = false,
   max_connections_per_origin = 8,
   max_idle_connections = 64,
-  timeout = 300,
+  request_timeout = 300,
   cross_origin_redirects = false,
   idle_timeout = 30,
   expect_timeout = 1,
@@ -59,20 +78,27 @@ local DEFAULTS <const> = {
 
 --- An HTTP/1.1 client with a pool of connections per origin.
 ---@class hecate.http.Client
----@field DEFAULTS table<string, any>
+---@field DEFAULTS hecate.http.ClientDefaults
 ---@overload fun(options?: hecate.http.ClientOptions): hecate.http.Client
 local Client = core.class("Client")
 Client.DEFAULTS = DEFAULTS
 
+-- The options of one request (the other settings belong to the client).
+local REQUEST_OPTIONS <const> = {
+  fields = true, content = true, form = true, multipart = true, redirects = true, expect_continue = true,
+  cross_origin_redirects = true, request_timeout = true, head_timeout = true, content_timeout = true, max_content = true,
+  max_redirects = true,
+}
+
 local KNOWN <const> = {
-  connect_timeout = true, head_timeout = true, content_timeout = true, write_timeout = true, timeout = true,
+  connect_timeout = true, head_timeout = true, content_timeout = true, write_timeout = true, request_timeout = true,
   max_content = true, max_redirects = true, allow_downgrade = true, max_connections_per_origin = true,
   idle_timeout = true, expect_timeout = true, user_agent = true, tls = true, parser = true,
   max_idle_connections = true, cross_origin_redirects = true, strip_on_redirect = true,
 }
 
 local function bad(name, expected, value)
-  error(core.ArgumentError(("http.Client: invalid %s %s: expected %s"):format(name, tostring(value), expected)), 4)
+  error(core.ArgumentError(("http.Client: invalid %s: expected %s"):format(name, expected)), 4)
 end
 
 --- Creates a client. Nothing is connected until the first request.
@@ -109,7 +135,7 @@ function Client:init(options)
   self._write_timeout = seconds("write_timeout")
   self._idle_timeout = seconds("idle_timeout")
   self._expect_timeout = seconds("expect_timeout")
-  self._timeout = seconds("timeout")
+  self._request_timeout = seconds("request_timeout")
   self._max_content = integer("max_content", 0, 1099511627776)
   self._max_redirects = integer("max_redirects", 0, 100)
   self._max_per_origin = integer("max_connections_per_origin", 1, 10000)
@@ -135,9 +161,13 @@ function Client:init(options)
   if agent == nil then agent = DEFAULTS.user_agent end
   if not grammar.is_field_value(agent) or agent == "" then bad("user_agent", "a non-empty string without CR, LF or NUL", agent) end
   self._user_agent = agent
-  if options.tls ~= nil and type(options.tls) ~= "table" then bad("tls", "a table of TLS client options", options.tls) end
-  self._tls_options = options.tls
-  self._tls_config = nil
+  -- A table of `net.tls.client_config` options, or a configuration that function built (a native userdata: `net` offers
+  -- no class to test an instance against, and checks the same way).
+  if options.tls ~= nil and type(options.tls) ~= "table" and type(options.tls) ~= "userdata" then
+    bad("tls", "a table of TLS client options or a configuration built by net.tls.client_config", options.tls)
+  end
+  self._tls_options = type(options.tls) == "table" and options.tls or nil
+  self._tls_config = type(options.tls) == "userdata" and options.tls or nil
   if options.parser ~= nil then Parser.response(options.parser):close() end -- validates the limits now
   self._limits = options.parser
   self._origins = {}
@@ -255,7 +285,8 @@ local function origin_of(self, origin)
 end
 
 --- A pooled connection is usable when it is open, has not idled too long, and nothing arrived on it (a closed peer shows
---- as the end of stream; bytes nobody asked for are a protocol violation). Never suspends.
+--- as the end of stream; bytes nobody asked for are a protocol violation). It tries a read that expires at once, so it
+--- belongs to the computations that may suspend.
 ---@async
 local function alive(self, conn)
   if conn.stream:is_closed() or conn.eof or conn.failure ~= nil then return false end
@@ -416,7 +447,7 @@ local function write_request(self, conn, state, method, parts, fields, content)
         conn.reusable = false
         return
       else
-        error(protocol_error("unexpected data while waiting for 100 Continue", "unexpected"), 0)
+        error(protocol_error("unexpected data while waiting for 100 Continue", "unexpected_data"), 0)
       end
     end
     text = ""
@@ -439,7 +470,7 @@ end
 --- Reads the response head, skipping interim responses.
 ---@async
 local function read_head(self, conn, state, method)
-  local limit = reactor.now() + self._head_timeout
+  local limit = reactor.now() + state.head_timeout
   local skip_complete = false
   while true do
     local event, err
@@ -473,7 +504,7 @@ local function read_head(self, conn, state, method)
     elseif event.type == "upgrade" then
       error(core.ProtocolError({ message = "http.Client: the response switches protocols", context = { reason = "upgrade" } }), 0)
     else
-      error(core.ProtocolError({ message = "http.Client: unexpected data before the response head", context = { reason = "unexpected" } }), 0)
+      error(core.ProtocolError({ message = "http.Client: unexpected data before the response head", context = { reason = "unexpected_data" } }), 0)
     end
   end
 end
@@ -494,7 +525,7 @@ local function make_response(self, conn, state, head, final_url)
   local function pull()
     if finished then return nil end
     while true do
-      local ok, event, err = pcall(next_event, conn, bounded(state, self._content_timeout))
+      local ok, event, err = pcall(next_event, conn, bounded(state, state.content_timeout))
       if not ok then
         drop(conn)
         finished = true
@@ -513,12 +544,12 @@ local function make_response(self, conn, state, head, final_url)
       end
       drop(conn)
       finished = true
-      error(core.ProtocolError({ message = "http.Client: unexpected event in the response content", context = { reason = "unexpected" } }), 0)
+      error(core.ProtocolError({ message = "http.Client: unexpected event in the response content", context = { reason = "unexpected_event" } }), 0)
     end
   end
-  local stream = ContentStream(pull)
+  local stream = ContentStream(pull, { limit = state.max_content }) -- max_content bounds `read_content` and `stream_content` alike
   local response = Response(head.status, {
-    reason = head.reason, fields = head.fields, content_stream = stream, max_content = self._max_content,
+    reason = head.reason, fields = head.fields, content_stream = stream, max_content = state.max_content,
     discard = function()
       if not finished then
         finished = true
@@ -548,7 +579,7 @@ function Client:_exchange(parts, method, fields, content, state, final_url)
     local conn, reused = self:_checkout(parts, state)
     state.fields = fields
     conn.received = 0 -- counts the bytes of this exchange: a failure before any is safe to retry
-    if method == "HEAD" then conn.parser:skip_body() end
+    if method == "HEAD" then conn.parser:skip_content() end
     if wire.has_connection_option(fields:combined("Connection"), "close") then conn.reusable = false end
     local ok, result = pcall(function()
       write_request(self, conn, state, method, parts, fields, content)
@@ -575,24 +606,28 @@ local ENTITY_FIELDS <const> = { "Content-Type", "Content-Length", "Content-Encod
 --- `options`: `cross_origin_redirects` (this request may repeat its content to another origin on a 307 or 308), `form` (pairs, sent as `application/x-www-form-urlencoded`), `multipart` (parts for `multipart.build`, sent as
 --- `multipart/form-data` with a random boundary; a function part streams the message, which is then not replayable), `fields` (a `Fields`, or a table for `Fields`), `content` (a string, sent with its length; a function
 --- `content(write)`, streamed chunked and never replayed; a table, serialised as JSON), `redirects` (false: return the 3xx
---- response), `expect_continue` (send `Expect: 100-continue` and wait before the content; default false), `timeout`
---- (this request's total seconds, overrides the client's).
+--- response), `expect_continue` (send `Expect: 100-continue` and wait before the content; default false), `request_timeout`
+--- (this request's total seconds, overrides the client's), and `head_timeout`, `content_timeout`, `max_content` and `max_redirects`
+--- (this request's values of those settings). An unknown key is an `ArgumentError`.
 ---
 --- Raises `hecate.core.ArgumentError` for an invalid method, URL (relative, userinfo, whitespace, control characters),
 --- field or option; `hecate.reactor.TransportError` (as `net` raises it: its message and context may name the addresses
---- the name resolved to, so never forward them to a remote party), `hecate.core.DeadlineExceededError`,
+--- the name resolved to, so never forward them to a peer), `hecate.core.DeadlineExceededError`,
 --- `hecate.net.EndOfStreamError`, `hecate.http.ParseError` and `hecate.core.ProtocolError` (a refused reason phrase,
 --- too many redirects, a redirect loop, a downgrade to http) for failures.
 ---@async
 ---@param method string
 ---@param target string  an absolute http or https URL
----@param options? { fields?: hecate.http.Fields|table, content?: string|table|function, form?: string[][], multipart?: table[], cross_origin_redirects?: boolean, redirects?: boolean, expect_continue?: boolean, timeout?: number }
+---@param options? { fields?: hecate.http.Fields|table, content?: string|table|function, form?: string[][], multipart?: table[], cross_origin_redirects?: boolean, head_timeout?: number, content_timeout?: number, max_content?: integer, max_redirects?: integer, redirects?: boolean, expect_continue?: boolean, request_timeout?: number }
 ---@return hecate.http.Response
 function Client:request(method, target, options)
   if self._closed then error(core.Error("http.Client:request: the client is closed"), 2) end
   options = options or {}
   if type(options) ~= "table" then error(core.ArgumentError("http.Client:request: options must be a table"), 2) end
   if not grammar.is_token(method) then error(core.ArgumentError("http.Client:request: the method must be a token"), 2) end
+  for key in pairs(options) do
+    if not REQUEST_OPTIONS[key] then error(core.ArgumentError(("http.Client:request: unknown option %s"):format(tostring(key))), 2) end
+  end
   local parts, reason = url.parse(target)
   if parts == nil then error(core.ArgumentError("http.Client:request: invalid URL: " .. tostring(reason)), 2) end
   local fields
@@ -620,13 +655,28 @@ function Client:request(method, target, options)
   elseif content ~= nil and type(content) ~= "string" and type(content) ~= "function" then
     error(core.ArgumentError("http.Client:request: content must be a string, a table or a function"), 2)
   end
-  local total = options.timeout or self._timeout
-  if total ~= nil and (type(total) ~= "number" or total ~= total or total <= 0 or total == math.huge) then
-    error(core.ArgumentError("http.Client:request: timeout must be a positive finite number of seconds"), 2)
+  local function per_request(name, kind)
+    local value = options[name]
+    if value == nil then return self["_" .. name] end
+    if kind == "seconds" and (type(value) ~= "number" or value ~= value or value <= 0 or value == math.huge) then
+      error(core.ArgumentError(("http.Client:request: %s must be a positive finite number of seconds"):format(name)), 3)
+    end
+    if kind == "count" and (math.type(value) ~= "integer" or value < 0) then
+      error(core.ArgumentError(("http.Client:request: %s must be a non-negative integer"):format(name)), 3)
+    end
+    return value
   end
-  local state = { deadline_at = total ~= nil and (reactor.now() + total) or nil, expect = options.expect_continue == true }
+  local total = options.request_timeout or self._request_timeout
+  if total ~= nil and (type(total) ~= "number" or total ~= total or total <= 0 or total == math.huge) then
+    error(core.ArgumentError("http.Client:request: request_timeout must be a positive finite number of seconds"), 2)
+  end
+  local state = {
+    deadline_at = total ~= nil and (reactor.now() + total) or nil, expect = options.expect_continue == true,
+    head_timeout = per_request("head_timeout", "seconds"), content_timeout = per_request("content_timeout", "seconds"),
+    max_content = per_request("max_content", "count"), max_redirects = per_request("max_redirects", "count"),
+  }
   local visited = {}
-  for hop = 0, self._max_redirects do
+  for hop = 0, state.max_redirects do
     local response = self:_exchange(parts, method, fields, content, state, parts.origin .. parts.target)
     local status = response.status
     local location = response.fields:get("Location")
@@ -635,9 +685,9 @@ function Client:request(method, target, options)
     if not follows then return response end
     -- 307 and 308 repeat the request: only when the content can be sent again.
     if (status == 307 or status == 308) and type(content) == "function" then return response end
-    if hop == self._max_redirects then
+    if hop == state.max_redirects then
       response:close()
-      error(protocol_error("more than " .. self._max_redirects .. " redirects", "too_many_redirects"), 0)
+      error(protocol_error("more than " .. state.max_redirects .. " redirects", "too_many_redirects"), 0)
     end
     local absolute, why = url.resolve(parts, location)
     local nxt = absolute and url.parse(absolute)

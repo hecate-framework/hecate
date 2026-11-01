@@ -28,10 +28,10 @@ local CA = fixture("ca.pem")
 local TLS = { cert_pem = fixture("server.pem"), key_pem = fixture("server.key") }
 local Response = http.Response
 
-local function with_https(self, handler, fn)
+local function with_https(self, action, fn)
   local before = reactor.Reactor.open_handles()
   reactor.run(function()
-    local server = http.Server(handler, { port = 0, tls = TLS })
+    local server = http.Server(action, { port = 0, tls = TLS })
     local listener = server:listen()
     local serving = reactor.fork(server.serve, server, listener)
     local ok, err = pcall(reactor.deadline, 25, fn, listener:local_address().port)
@@ -68,6 +68,14 @@ function T:test_a_redirect_from_https_to_http_is_refused_unless_allowed()
     local err = self:assert_error(function() client:get("https://127.0.0.1:" .. port .. "/") end)
     self:assert_true(core.is_instance_of(err, core.ProtocolError))
     self:assert_equal("downgrade", err.context.reason)
+  end)
+end
+
+function T:test_a_prebuilt_tls_configuration_is_accepted()
+  with_https(self, function() return Response(200, { content = "secure" }) end, function(port)
+    local config = net.tls.client_config({ ca_pem = CA, system_roots = false, alpn = { "http/1.1" } })
+    local client <close> = http.Client({ tls = config })
+    self:assert_equal("secure", client:get("https://127.0.0.1:" .. port .. "/"):read_content())
   end)
 end
 
