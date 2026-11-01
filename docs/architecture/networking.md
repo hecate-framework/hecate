@@ -6,8 +6,7 @@ contract; decisions in [ADR 0002](../adr/0002-libuv-via-luv.md) (luv wrapped onc
 [ADR 0018](../adr/0018-error-signalling.md) (errors), [ADR 0021](../adr/0021-rust-native-modules.md) (native modules)
 and [ADR 0024](../adr/0024-tls-trust-store.md) (TLS trust store, Accepted); the choices of the first implementation
 are recorded in [OQ-29, OQ-30, OQ-32, OQ-41, OQ-42 and OQ-47](../open-questions.md). Where a statement describes
-something that is decided but not implemented, it says so, and the "Decided, not yet implemented" section lists
-them (the `net` follow-up of the [roadmap](../roadmap.md)).
+something that is decided but not implemented, it says so.
 
 ## Scope and layering
 
@@ -117,10 +116,14 @@ Rules:
   With nothing buffered `close` does not suspend. The stream stays open.
 - Flushes are serialised by a `reactor.Mutex`, which keeps bytes in order.
 - Flush a writer before `shutdown`.
-- The default `capacity` is **8192 bytes**, below one TLS record (16 KiB of plaintext). *Decided, not
-  implemented:* a benchmark decides the default, compared with other frameworks (Go's `bufio` uses 4 KiB); the
-  micro-benchmark `buffered-writer` exists (OQ-47 (7), owner answer of 2026-10-27). Until then 8 KiB stays and
-  `{ capacity = n }` overrides it.
+- The default `capacity` is **8192 bytes**, below one TLS record (16 KiB of plaintext). A benchmark
+  decides the default (OQ-47 (7), owner answer of 2026-10-27): the micro-benchmark `buffered-writer` sweeps the capacity
+  (4096, Go's `bufio` default, 8192, 16384, 32768, 65536) for 64 B and 512 B writes over TCP, and 64 B writes over
+  TLS. One indicative run on a shared cloud virtual machine (Lua 5.5, loopback, a single round, not a measurement:
+  the owner measures on dedicated hardware) gave, for 64 B writes over TCP, 33, 72, 115, 161 and 184 MB/s, and over
+  TLS 42, 99, 120, 136 and 104 MB/s: a larger buffer is faster up to about 16 to 32 KiB, and 4 KiB is clearly slower
+  than 8 KiB. The default is **not changed** (that is the owner's decision after measuring); `{ capacity = n }`
+  overrides it.
 
 ## Addresses and name resolution
 
@@ -402,28 +405,13 @@ local ok, err = pcall(reactor.deadline, 2, function() return reader:read_line() 
 | Reader chunk | 16 KiB | `BufferedReader` |
 | `BufferedWriter` `capacity` | 8192 bytes (to be benchmarked, see above) | |
 | TCP read-ahead | 64 KiB | `TcpStream` |
-| Handshake timeout | 10 s; 60 s for `tls.accept` is decided, not implemented | TLS |
+| Handshake timeout | 10 s; 60 s for `tls.accept` | TLS |
 | `alpn` protocol | 1 to 255 bytes | TLS |
 | Cached default client configurations | 16 | `connect_tls` |
 | Unix socket path | 107 bytes (103 on macOS) | `sun_path` |
 | Windows pipe name | 256 characters | |
 | `max_message` | 16 MiB, editable per peer | `reactor.ipc`, not `net` |
 | Resolver threads | 4 (libuv default) | `getaddrinfo` |
-
-## Decided, not yet implemented
-
-The `net` follow-up of the [roadmap](../roadmap.md) (owner decisions of 2026-10-27, OQ-47):
-
-1. ~~`net.listen` binds every resolved address (supersedes OQ-32 (3)).~~ Done.
-2. ~~A Unix socket is created inside a `0700` directory, or equivalent, instead of binding then calling `chmod`.~~ Done.
-3. ~~A CRL option for client certificates; the limit is documented above until then.~~ Done (`client_crl_pem`).
-4. ~~Handshake defaults split: 10 s for `tls.connect` and `connect_tls`, 60 s for `tls.accept`, both editable.~~ Done.
-5. A benchmark of the `BufferedWriter` capacity against Go's 4 KiB `bufio` and other frameworks, which decides the
-   default.
-6. ~~`BufferedWriter:close` flushing under `reactor.shield` (OQ-23).~~ Done (`close_timeout`, default 5 seconds, to be confirmed by the owner).
-7. ~~Happy Eyeballs (RFC 8305) in `net.connect`.~~ Done.
-
-Not decided and not planned: see "Non-goals".
 
 ## Testing guidance
 

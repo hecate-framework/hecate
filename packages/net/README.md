@@ -127,4 +127,4 @@ examples/                 one tested file per documented symbol (hecate.net.<sym
 native/                   Rust crate of the TLS module (Cargo.lock committed)
 ```
 
-Micro-benchmarks (`benchmarks/`, run with `lua tools/run.lua bench net`): `read-until` (`read_line` over many small chunks), `buffered-writer` (small coalesced writes and 1 MiB payloads) and `tls-throughput` (one TLS stream, needs the native module). The network scenario `tcp-echo` of the repository-level harness exercises `net` and the reactor under 10 000 connections (`lua tools/run.lua bench tcp-echo`).
+Micro-benchmarks (`benchmarks/`, run with `lua tools/run.lua bench net`): `read-until` (`read_line` over many small chunks), `buffered-writer` (small coalesced writes at several buffer capacities, over TCP and TLS, and 1 MiB payloads) and `tls-throughput` (one TLS stream, needs the native module). The network scenario `tcp-echo` of the repository-level harness exercises `net` and the reactor under 10 000 connections (`lua tools/run.lua bench tcp-echo`).
