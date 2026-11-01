@@ -177,14 +177,18 @@ end
 -- Pool ----------------------------------------------------------------------------------------------------------------
 
 function T:test_a_connection_is_reused_while_idle_and_not_after_the_idle_timeout()
-  with_server(self, describe, nil, function(port)
-    local client <close> = Client({ idle_timeout = 0.3 })
-    local first = json.decode(client:get(base(port)):read_content()).peer_port
-    local second = json.decode(client:get(base(port)):read_content()).peer_port
-    self:assert_equal(first, second, "reused")
-    reactor.sleep(0.6)
-    local third = json.decode(client:get(base(port)):read_content()).peer_port
-    self:assert_true(third ~= first, "the idle connection expired")
+  run(self, function()
+    local server = scripted(function(stream)
+      while read_head(stream) do stream:write(support.ok("x")) end
+    end)
+    local client <close> = Client({ idle_timeout = 1 })
+    client:get(base(server.port)):read_content()
+    client:get(base(server.port)):read_content()
+    self:assert_equal(1, server.accepted, "reused")
+    reactor.sleep(1.5)
+    client:get(base(server.port)):read_content()
+    self:assert_equal(2, server.accepted, "the idle connection expired")
+    server.stop()
   end)
 end
 
@@ -446,13 +450,15 @@ function T:test_the_total_timeout_covers_the_whole_request()
 end
 
 function T:test_cancelling_the_request_drops_its_connection()
+  local entered = reactor.Semaphore(0)
   with_server(self, function()
+    entered:release()
     reactor.sleep(30)
     return Response(200)
   end, nil, function(port)
     local client <close> = Client()
     local request = reactor.fork(function() client:get(base(port)) end)
-    reactor.sleep(0.1)
+    entered:acquire() -- the action runs: the request waits for its head
     request:cancel()
     pcall(function() request:value() end)
     self:assert_equal("cancelled", request:state())
@@ -593,10 +599,10 @@ end
 
 function T:test_expired_idle_connections_of_other_origins_are_swept_at_every_checkout()
   with_server(self, describe, nil, function(port)
-    local client <close> = Client({ idle_timeout = 0.2 })
+    local client <close> = Client({ idle_timeout = 1 })
     client:get(base(port, "/a")):read_content()
     self:assert_equal(1, client:pool_stats().idle)
-    reactor.sleep(0.5)
+    reactor.sleep(1.5)
     -- a request to another origin (same server, other name) sweeps the expired one
     client:get("http://localhost:" .. port .. "/b"):read_content()
     self:assert_true(client:pool_stats().idle <= 1, "the expired connection was closed")

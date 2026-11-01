@@ -227,7 +227,7 @@ function T:test_chunked_request_content_is_read_whole_and_streamed()
   }, function(port)
     local client <close> = connect(port)
     client:send("POST /e HTTP/1.1\r\nHost: t\r\nTransfer-Encoding: chunked\r\n\r\n3\r\nabc\r\n")
-    reactor.sleep(0.02)
+    reactor.sleep(0) -- the server reads the first chunk before the rest is sent
     client:send("2\r\nde\r\n0\r\n\r\n")
     local response = client:read_response()
     self:assert_equal(200, response.status)
@@ -456,7 +456,7 @@ end
 -- Timeouts, limits of connections and shutdown ---------------------------------------------------------------------
 
 function T:test_an_idle_connection_is_closed_after_the_idle_timeout()
-  with_server(self, { action = text_action, idle_timeout = 0.1 }, function(port)
+  with_server(self, { action = text_action, idle_timeout = 1 }, function(port)
     local client <close> = connect(port)
     self:assert_equal(200, client:request(get("/")).status)
     self:assert_nil(client:read_response()) -- closed by the server, without a response
@@ -503,11 +503,13 @@ end
 
 function T:test_shutdown_stops_accepting_closes_idle_connections_and_drains_requests_in_flight()
   local release = reactor.Semaphore(0)
+  local entered = reactor.Semaphore(0) -- released when the slow action has started
   local order = {}
   with_server(self, {
     action = function(request)
       if request.path == "/slow" then
         order[#order + 1] = "start"
+        entered:release()
         release:acquire()
         order[#order + 1] = "finish"
       end
@@ -518,9 +520,9 @@ function T:test_shutdown_stops_accepting_closes_idle_connections_and_drains_requ
     self:assert_equal(200, idle:request(get("/idle")).status)
     local busy <close> = connect(port)
     busy:send(get("/slow"))
-    while order[1] == nil do reactor.sleep(0.01) end
+    entered:acquire() -- the action runs
     local stopping = reactor.fork(server.shutdown, server, 5)
-    reactor.sleep(0.05)
+    reactor.sleep(0) -- the shutdown starts
     self:assert_true(server:is_stopping())
     self:assert_nil(idle:read_response(), "an idle connection is closed at once")
     local refused = pcall(function()
@@ -539,8 +541,10 @@ end
 
 function T:test_shutdown_cancels_requests_still_running_after_the_grace()
   local cancelled = false
+  local entered = reactor.Semaphore(0)
   with_server(self, {
     action = function()
+      entered:release()
       local ok, err = pcall(reactor.sleep, 30)
       cancelled = not ok and core.is_instance_of(err, core.CancellationError)
       error(err, 0)
@@ -548,7 +552,7 @@ function T:test_shutdown_cancels_requests_still_running_after_the_grace()
   }, function(port, server)
     local client <close> = connect(port)
     client:send(get("/"))
-    reactor.sleep(0.05)
+    entered:acquire()
     local started = reactor.now()
     server:shutdown(0.1)
     self:assert_true(reactor.now() - started < 3)
@@ -573,8 +577,7 @@ function T:test_the_parser_is_closed_when_the_connection_ends_and_fed_chunks_wit
       client:send("POST /e HTTP/1.1\r\nHost: t\r\nContent-Length: " .. #content .. "\r\n\r\n" .. content)
       self:assert_equal(#content, #client:read_response().content)
     end
-    reactor.sleep(0.05)
-  end)
+  end) -- `with_server` returns when every connection has ended, so the parsers are closed by now
   Parser.close, Parser.feed = close, feed
   if not ok then error(err, 0) end
   self:assert_true(largest > 0 and largest <= 16384, "largest chunk fed: " .. largest)

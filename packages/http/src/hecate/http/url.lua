@@ -88,6 +88,7 @@ function url.resolve(base, reference)
   local prefix = base.scheme .. "://" .. base.authority
   if string.sub(reference, 1, 2) == "//" then return base.scheme .. ":" .. reference end
   reference = string.gsub(reference, "#.*$", "")
+  if reference == "" then return prefix .. base.target end -- a fragment only: the same document (RFC 3986 section 5.2.2)
   if string.sub(reference, 1, 1) == "?" then return prefix .. base.path .. reference end
   if string.sub(reference, 1, 1) == "/" then return prefix .. url.normalise_path(reference) end
   local directory = string.match(base.path, "^(.*/)") or "/"
