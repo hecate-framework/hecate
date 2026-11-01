@@ -5,7 +5,7 @@ global <const> type, error, require, select, table
 local core = require("hecate.core")
 local context = require("hecate.reactor.internal.context")
 
-local IoError = core.error_class("IoError", "hecate.reactor.IoError")
+local IoError = core.error_class("IoError", "hecate.reactor.IoError", core.IoError)
 
 -- A failure of TCP or name resolution is a network failure (owner decision on OQ-32 (5)):
 -- it derives from `core.NetworkError` so that `catch` on `NetworkError` sees it. `IoError`

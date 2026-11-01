@@ -107,7 +107,7 @@ and `resolve` suspend the calling coroutine and return streams, listeners and so
 `read`, `write`, `accept`, `receive_from`, `send_to`, `shutdown` and `close`.
 
 - A failure of the transport raises `TransportError`, a `NetworkError` (with `errno` and
-  `operation` in its context); `IoError` stays for the file system and processes.
+  `operation` in its context); `IoError` (a subclass of `core.IoError`) stays for the file system and processes.
 - A cancelled `read`, `accept` or `receive_from` leaves the object usable and loses no data. A
   cancelled `write`, `send_to`, `shutdown` or `connect` closes it, because how much was sent
   is unknown. `close` is idempotent, never suspends and wakes every coroutine waiting on it.

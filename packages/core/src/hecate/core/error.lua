@@ -123,6 +123,10 @@ errors.ClosedChannelError = error_class("ClosedChannelError", "hecate.core.Close
 --- The failures of a network transport, such as a refused or reset connection.
 ---@class hecate.core.NetworkError : hecate.core.Error
 errors.NetworkError = error_class("NetworkError", "hecate.core.NetworkError")
+--- The failures of the file system and of child processes. Base class of `hecate.reactor.IoError`;
+--- a sibling of `NetworkError`, not a subclass of it (OQ-26 (2), OQ-32 (5)).
+---@class hecate.core.IoError : hecate.core.Error
+errors.IoError = error_class("IoError", "hecate.core.IoError")
 --- Raised when a peer breaks the protocol that is being spoken.
 ---@class hecate.core.ProtocolError : hecate.core.Error
 errors.ProtocolError = error_class("ProtocolError", "hecate.core.ProtocolError")

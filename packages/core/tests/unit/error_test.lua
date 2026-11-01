@@ -36,13 +36,19 @@ end
 function T:test_hierarchy()
   for _, name in ipairs({
     "ConfigurationError", "ConformanceError", "ArgumentError", "CancellationError",
-    "DeadlineExceededError", "NonYieldableContextError", "ClosedChannelError", "NetworkError", "ProtocolError", "ValidationError", "DatabaseError",
+    "DeadlineExceededError", "NonYieldableContextError", "ClosedChannelError", "NetworkError", "IoError", "ProtocolError", "ValidationError", "DatabaseError",
   }) do
     local class = core[name]
     self:assert_true(core.superclass(class) == core.Error, name)
     self:assert_equal("hecate.core." .. name, class.code)
     self:assert_true(core.is_instance_of(class("x"), core.Error))
   end
+end
+
+function T:test_io_error_is_a_base_class_for_file_system_failures()
+  local Derived = core.error_class("DerivedIoError", "test.DerivedIoError", core.IoError)
+  self:assert_true(core.is_instance_of(Derived("x"), core.IoError))
+  self:assert_false(core.is_instance_of(core.IoError("x"), core.NetworkError))
 end
 
 function T:test_database_error_carries_sqlstate()
