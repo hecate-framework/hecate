@@ -16,6 +16,8 @@ local Response = require("hecate.http.response")
 local ContentStream = require("hecate.http.content")
 local problem = require("hecate.http.problem")
 local wire = require("hecate.http.wire")
+local Status = require("hecate.http.status")
+local Fields = require("hecate.http.fields")
 local HandshakeStream = require("hecate.http.handshake_stream")
 
 local ContentError = ContentStream.ContentError
@@ -34,7 +36,8 @@ local READ_SIZE <const> = 16384
 ---@field head_timeout? number  seconds to receive a request head once its first byte arrived (default 60; counted from the first byte of the head to its end, not between reads; then 408)
 ---@field idle_timeout? number  seconds a connection may wait for the next request (default 75; then closed silently)
 ---@field content_timeout? number  seconds between two reads of request content (default 60; a timeout between two reads, not a limit on the whole content; then 408)
----@field content_deadline? number  seconds from the end of a head to the last byte of its content (default: none; then 408); `content_timeout` still applies between reads
+---@field content_deadline? number  seconds from the end of a head to the last byte of its content (default 300; then 408); `content_timeout` still applies between reads
+---@field drain_timeout? number  seconds to drain content the handler left unread after the response (default 5; then the connection closes)
 ---@field write_timeout? number  seconds a write to the client may take (default 60; then the connection is closed)
 ---@field parser? hecate.http.parser.Options  limits of the message parser (target, field, head size, field count)
 ---@field tls? hecate.net.TlsServerOptions|hecate.net.TlsServerConfig  serve HTTPS: the options of `net.tls.server_config` (ALPN defaults to `http/1.1`), or a configuration built by it
@@ -55,6 +58,8 @@ local DEFAULTS <const> = {
   idle_timeout = 75,
   content_timeout = 60,
   write_timeout = 60,
+  content_deadline = 300,
+  drain_timeout = 5,
   handshake_timeout = 10,
   max_handshakes = 64,
   max_handshake_bytes = 65536,
@@ -69,7 +74,7 @@ Server.DEFAULTS = DEFAULTS
 
 local KNOWN <const> = {
   host = true, port = true, backlog = true, max_connections = true, max_content = true, head_timeout = true,
-  idle_timeout = true, content_timeout = true, content_deadline = true, write_timeout = true, parser = true, on_error = true,
+  idle_timeout = true, content_timeout = true, content_deadline = true, drain_timeout = true, write_timeout = true, parser = true, on_error = true,
   tls = true, handshake_timeout = true, max_handshakes = true, max_handshake_bytes = true, logger = true,
 }
 
@@ -145,7 +150,8 @@ function Server:init(handler, options)
   self._idle_timeout = seconds("idle_timeout")
   self._content_timeout = seconds("content_timeout")
   self._write_timeout = seconds("write_timeout")
-  self._content_deadline = options.content_deadline ~= nil and seconds("content_deadline") or nil
+  self._content_deadline = seconds("content_deadline")
+  self._drain_timeout = seconds("drain_timeout")
   self._handshake_timeout = seconds("handshake_timeout")
   self._max_handshakes = integer("max_handshakes", 1, 1000000)
   self._max_handshake_bytes = integer("max_handshake_bytes", 1, 16777216)
@@ -250,7 +256,9 @@ local function next_event(self, conn)
     if err ~= nil and chunk ~= nil then conn.failure = err end
     -- The first byte of a head has arrived: its deadline starts now (a head that follows a pipelined request is timed
     -- when the connection turns to it, see `serve_connection`).
-    conn.partial = conn.parser:in_message()
+    -- Bytes that began no message (bare CRLF before a head, which llhttp skips) count as a pending head as well: a chunk that
+    -- produced no event and left no message open still absorbed bytes.
+    conn.partial = conn.parser:in_message() or (chunk ~= nil and #events == 0)
     if conn.waiting and conn.partial and conn.head_deadline == nil then conn.head_deadline = reactor.now() + self._head_timeout end
   end
 end
@@ -292,6 +300,9 @@ local function response_of(ok, result)
   end
   local content = result.content
   local kind = type(content)
+  if not Status.is_valid(result.status) or not core.is_instance_of(result.fields, Fields) or type(result.reason) ~= "string" then
+    return problem.response(500), core.Error("http.Server: the handler returned a response with an invalid status, reason or fields")
+  end
   if result.status < 200 or not (content == nil or kind == "string" or kind == "table" or kind == "function") then
     return problem.response(500), core.Error("http.Server: the handler returned a response the server cannot send")
   end
@@ -466,14 +477,44 @@ local function open_content(self, conn, head, expecting)
   return ContentStream(pull, { limit = self._max_content })
 end
 
+--- Whether `value` is `uri-host [ ":" port ]` (RFC 3986 sections 3.2.2 and 3.2.3), conservatively: a registered name of
+--- unreserved characters and percent sequences, an IPv4 address, or an IPv6 literal in brackets; a port of at most five digits.
+---@param value string
+---@return boolean
+local function valid_host(value)
+  local host, rest
+  if string.sub(value, 1, 1) == "[" then
+    host, rest = string.match(value, "^(%[[%x:%.]+%])(.*)$")
+  else
+    host, rest = string.match(value, "^([%w%-%._~%%]+)(.*)$")
+  end
+  if host == nil then return false end
+  return rest == "" or string.find(rest, "^:%d?%d?%d?%d?%d?$") ~= nil
+end
+
 --- The status and detail to answer a head with before any handler runs, or nil when the request may be handled.
 ---@param head hecate.http.parser.Head
 ---@return integer? status
 ---@return string? detail
 local function refuse(self, head)
   -- RFC 9112, section 3.2: a server MUST answer 400 to an HTTP/1.1 request without exactly one Host field.
-  if head.version == "HTTP/1.1" and #head.fields:get_all("Host") ~= 1 then
+  local hosts = head.fields:get_all("Host")
+  if head.version == "HTTP/1.1" and #hosts ~= 1 then
     return 400, "The request needs exactly one Host field."
+  end
+  -- The field is `uri-host [ ":" port ]` and nothing else: no list, path, userinfo or blank (RFC 9112 section 3.2).
+  if #hosts == 1 and not valid_host(hosts[1]) then
+    return 400, "The Host field is not a host and an optional port."
+  end
+  -- An absolute-form target (RFC 9112 section 3.2.2) is accepted only when its authority is the Host: a server that
+  -- routed on one and a proxy on the other would disagree about the request.
+  if string.find(head.target, "^%a[%w+.-]*://") then
+    local scheme, authority = string.match(head.target, "^(%a[%w+.-]*)://([^/?#]*)")
+    local lower = string.lower(scheme)
+    if (lower ~= "http" and lower ~= "https") or string.find(authority, "@", 1, true) or string.find(head.target, "#", 1, true)
+      or hosts[1] == nil or string.lower(authority) ~= string.lower(hosts[1]) then
+      return 400, "The request target does not match its Host field."
+    end
   end
   if head.upgrade then
     return 501, "The server does not switch protocols."
@@ -511,6 +552,13 @@ local function serve_request(self, conn, head)
     send_problem(self, conn, info, 400, nil)
     return false
   end
+  if string.find(head.target, "^%a[%w+.-]*://") then
+    -- absolute-form (accepted only for the Host): the path and query are those of the target after the authority
+    local rest = string.match(head.target, "^%a[%w+.-]*://[^/?#]*(.*)$")
+    local path, query = string.match(rest, "^([^?]*)%??(.*)$")
+    request.path = path == "" and "/" or path
+    request.query = string.find(rest, "?", 1, true) and query or nil
+  end
   return reactor.scope(function(scope)
     request.scope = scope
     local outcome = scope:fork(call_handler, self._handler, request):value()
@@ -521,7 +569,7 @@ local function serve_request(self, conn, head)
     local keep = send_response(self, conn, info, response, abandoned)
     if not keep or conn.broken or abandoned then return false end
     -- The handler left content unread: drain it (bounded by the content limit) so the next request can be parsed.
-    local drained = pcall(function()
+    local drained = pcall(reactor.deadline, self._drain_timeout, function()
       while not reader:is_finished() do reader:read() end
     end)
     return drained and not conn.broken
@@ -553,7 +601,7 @@ local function serve_connection(self, conn)
     end
     if event.type ~= "head" then return end
     conn.head_deadline = nil
-    conn.content_deadline = self._content_deadline ~= nil and (reactor.now() + self._content_deadline) or nil
+    conn.content_deadline = reactor.now() + self._content_deadline
     local keep = serve_request(self, conn, event)
     if not keep or self._stopping then return end
   end

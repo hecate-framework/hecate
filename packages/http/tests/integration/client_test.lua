@@ -553,4 +553,146 @@ function T:test_defaults_and_validation()
   bad({ timeout = -1 })
 end
 
+-- Security review ----------------------------------------------------------------------------------------------------
+
+function T:test_the_pool_stays_bounded_across_many_origins_and_leaves_no_handle()
+  local before = reactor.Reactor.open_handles()
+  reactor.run(function()
+    local servers = {}
+    for i = 1, 12 do
+      local server = http.Server(function(request) return Response(200, { content = request.path }) end, { port = 0 })
+      local listener = server:listen()
+      servers[i] = { server = server, port = listener:local_address().port, serving = reactor.fork(server.serve, server, listener) }
+    end
+    local client <close> = Client({ max_idle_connections = 4 })
+    for i = 1, 12 do
+      self:assert_equal("/x", client:get(base(servers[i].port, "/x")):read_content())
+      local stats = client:pool_stats()
+      self:assert_true(stats.idle <= 4, "idle " .. stats.idle .. " after origin " .. i)
+    end
+    self:assert_equal(4, client:pool_stats().idle)
+    self:assert_true(client:pool_stats().origins <= 5, "origins without idle connections are forgotten: " .. client:pool_stats().origins)
+    client:close()
+    self:assert_equal(0, client:pool_stats().idle)
+    for _, entry in ipairs(servers) do
+      entry.server:shutdown(2)
+      entry.serving:value()
+    end
+  end)
+  self:assert_equal(before, reactor.Reactor.open_handles(), "libuv handles left open")
+end
+
+function T:test_expired_idle_connections_of_other_origins_are_swept_at_every_checkout()
+  with_server(self, describe, nil, function(port)
+    local client <close> = Client({ idle_timeout = 0.2 })
+    client:get(base(port, "/a")):read_content()
+    self:assert_equal(1, client:pool_stats().idle)
+    reactor.sleep(0.5)
+    -- a request to another origin (same server, other name) sweeps the expired one
+    client:get("http://localhost:" .. port .. "/b"):read_content()
+    self:assert_true(client:pool_stats().idle <= 1, "the expired connection was closed")
+  end)
+end
+
+local function redirecting_to(location_of)
+  return function(request)
+    if request.path == "/start" then return Response(307, { fields = http.Fields({ { "Location", location_of() } }) }) end
+    return Response(200, { content = request.method .. ":" .. request:read_content() })
+  end
+end
+
+function T:test_a_cross_origin_307_that_would_replay_content_is_returned_not_followed()
+  run(self, function()
+    local target = http.Server(redirecting_to(function() return "/x" end), { port = 0 })
+    local target_listener = target:listen()
+    local target_port = target_listener:local_address().port
+    local target_serving = reactor.fork(target.serve, target, target_listener)
+    local origin = http.Server(redirecting_to(function() return base(target_port, "/landing") end), { port = 0 })
+    local origin_listener = origin:listen()
+    local origin_port = origin_listener:local_address().port
+    local origin_serving = reactor.fork(origin.serve, origin, origin_listener)
+    local client <close> = Client()
+    local response = client:post(base(origin_port, "/start"), "secret body")
+    self:assert_equal(307, response.status, "not replayed to another origin")
+    response:close()
+    local get_response = client:request("GET", base(origin_port, "/start"))
+    self:assert_equal(200, get_response.status, "no content to replay: followed")
+    get_response:close()
+    local allowing <close> = Client({ cross_origin_redirects = true })
+    self:assert_equal("POST:secret body", allowing:post(base(origin_port, "/start"), "secret body"):read_content())
+    local per_request = client:post(base(origin_port, "/start"), "x", { cross_origin_redirects = true })
+    self:assert_equal("POST:x", per_request:read_content())
+    client:close()
+    allowing:close()
+    target:shutdown(2); origin:shutdown(2); target_serving:value(); origin_serving:value()
+  end)
+end
+
+function T:test_more_credential_fields_are_stripped_on_an_origin_change_and_the_list_extends()
+  local seen = {}
+  run(self, function()
+    local target = http.Server(function(request)
+      local names = {}
+      for name in request.fields:lines() do names[#names + 1] = string.lower(name) end
+      seen[#seen + 1] = names
+      return Response(200, { content = "t" })
+    end, { port = 0 })
+    local target_listener = target:listen()
+    local target_port = target_listener:local_address().port
+    local target_serving = reactor.fork(target.serve, target, target_listener)
+    local origin = http.Server(function() return Response(302, { fields = http.Fields({ { "Location", base(target_port, "/t") } }) }) end, { port = 0 })
+    local origin_listener = origin:listen()
+    local origin_port = origin_listener:local_address().port
+    local origin_serving = reactor.fork(origin.serve, origin, origin_listener)
+    local client <close> = Client({ strip_on_redirect = { "X-Custom-Secret" } })
+    client:get(base(origin_port, "/"), { fields = {
+      ["X-Api-Key"] = "k", ["X-Auth-Token"] = "t", ["Proxy-Authorization"] = "p", Authorization = "a", Cookie = "c",
+      ["X-Custom-Secret"] = "s", ["X-Keep"] = "kept",
+    } }):read_content()
+    local names = table.concat(seen[1], ",")
+    for _, gone in ipairs({ "x-api-key", "x-auth-token", "proxy-authorization", "authorization", "cookie", "x-custom-secret" }) do
+      self:assert_nil(names:find(gone, 1, true), gone .. " was forwarded: " .. names)
+    end
+    self:assert_not_nil(names:find("x-keep", 1, true))
+    client:close()
+    target:shutdown(2); origin:shutdown(2); target_serving:value(); origin_serving:value()
+  end)
+end
+
+function T:test_the_expect_wait_skips_other_interim_responses_and_fails_on_a_closed_connection()
+  run(self, function()
+    local server = scripted(function(stream)
+      local head = read_head(stream)
+      stream:write("HTTP/1.1 102 Processing\r\n\r\nHTTP/1.1 100 Continue\r\n\r\n")
+      local length = tonumber(head:match("Content%-Length: (%d+)"))
+      local received = head:match("\r\n\r\n(.*)$")
+      while #received < length do received = received .. stream:read() end
+      stream:write("HTTP/1.1 200 OK\r\nContent-Length: " .. #received .. "\r\n\r\n" .. received)
+    end)
+    local client <close> = Client()
+    self:assert_equal("data", client:post(base(server.port), "data", { expect_continue = true }):read_content())
+    server.stop(); server.loop:cancel()
+    local closing = scripted(function(stream) read_head(stream) end) -- closes without any interim response
+    local other <close> = Client({ expect_timeout = 5 })
+    local err = self:assert_error(function() other:post(base(closing.port), "data", { expect_continue = true }) end)
+    self:assert_true(core.is_instance_of(err, core.NetworkError), tostring(err))
+    closing.stop(); closing.loop:cancel()
+  end)
+end
+
+function T:test_a_connection_with_bytes_left_after_the_response_is_not_pooled()
+  run(self, function()
+    local server = scripted(function(stream)
+      while read_head(stream) do
+        stream:write("HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nokHTTP/1.1 2") -- the start of another response
+      end
+    end)
+    local client <close> = Client()
+    self:assert_equal("ok", client:get(base(server.port)):read_content())
+    self:assert_equal("ok", client:get(base(server.port)):read_content())
+    self:assert_equal(2, server.accepted, "the first connection was not reused")
+    server.stop(); server.loop:cancel()
+  end)
+end
+
 return T

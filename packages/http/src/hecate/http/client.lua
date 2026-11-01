@@ -26,11 +26,14 @@ local READ_SIZE <const> = 16384
 ---@field head_timeout? number  seconds from the end of the request to the end of the response head (default 30)
 ---@field content_timeout? number  seconds between two reads of response content (default 60)
 ---@field write_timeout? number  seconds a write to the server may take (default 60)
----@field timeout? number  seconds for the whole request, redirects and content included (default: none)
+---@field timeout? number  seconds for the whole request, redirects and content included (default 300; overridden per request; a streaming download longer than that sets a larger value)
 ---@field max_content? integer  bytes `response:read_content()` accepts (default 10485760, 10 MiB)
 ---@field max_redirects? integer  redirects followed per request (default 10)
 ---@field allow_downgrade? boolean  follow a redirect from https to http (default false)
 ---@field max_connections_per_origin? integer  connections to one origin, in use or idle (default 8)
+---@field max_idle_connections? integer  idle connections in the whole pool (default 64; the least recently used is closed beyond it)
+---@field cross_origin_redirects? boolean  follow a 307 or 308 to another origin when it would send the request content again (default false)
+---@field strip_on_redirect? string[]  more field names removed when a redirect changes the origin (always removed: Authorization, Cookie, Proxy-Authorization, X-Api-Key, X-Auth-Token)
 ---@field idle_timeout? number  seconds a pooled connection may idle (default 30: shorter than the 75 s of `http.Server`)
 ---@field expect_timeout? number  seconds to wait for `100 Continue` when a request asks for it (default 1)
 ---@field user_agent? string  the `User-Agent` field (default "hecate-http")
@@ -46,6 +49,9 @@ local DEFAULTS <const> = {
   max_redirects = 10,
   allow_downgrade = false,
   max_connections_per_origin = 8,
+  max_idle_connections = 64,
+  timeout = 300,
+  cross_origin_redirects = false,
   idle_timeout = 30,
   expect_timeout = 1,
   user_agent = "hecate-http",
@@ -62,6 +68,7 @@ local KNOWN <const> = {
   connect_timeout = true, head_timeout = true, content_timeout = true, write_timeout = true, timeout = true,
   max_content = true, max_redirects = true, allow_downgrade = true, max_connections_per_origin = true,
   idle_timeout = true, expect_timeout = true, user_agent = true, tls = true, parser = true,
+  max_idle_connections = true, cross_origin_redirects = true, strip_on_redirect = true,
 }
 
 local function bad(name, expected, value)
@@ -102,10 +109,24 @@ function Client:init(options)
   self._write_timeout = seconds("write_timeout")
   self._idle_timeout = seconds("idle_timeout")
   self._expect_timeout = seconds("expect_timeout")
-  self._timeout = options.timeout ~= nil and seconds("timeout") or nil
+  self._timeout = seconds("timeout")
   self._max_content = integer("max_content", 0, 1099511627776)
   self._max_redirects = integer("max_redirects", 0, 100)
   self._max_per_origin = integer("max_connections_per_origin", 1, 10000)
+  self._max_idle = integer("max_idle_connections", 0, 100000)
+  for _, name in ipairs({ "cross_origin_redirects" }) do
+    if options[name] ~= nil and type(options[name]) ~= "boolean" then bad(name, "a boolean", options[name]) end
+  end
+  self._cross_origin_redirects = options.cross_origin_redirects or false
+  local strip = { "Authorization", "Cookie", "Proxy-Authorization", "X-Api-Key", "X-Auth-Token" }
+  if options.strip_on_redirect ~= nil then
+    if type(options.strip_on_redirect) ~= "table" then bad("strip_on_redirect", "a list of field names", options.strip_on_redirect) end
+    for _, name in ipairs(options.strip_on_redirect) do
+      if not grammar.is_token(name) then bad("strip_on_redirect", "a list of field names (tokens)", tostring(name)) end
+      strip[#strip + 1] = name
+    end
+  end
+  self._strip_on_redirect = strip
   if options.allow_downgrade ~= nil and type(options.allow_downgrade) ~= "boolean" then
     bad("allow_downgrade", "a boolean", options.allow_downgrade)
   end
@@ -239,17 +260,20 @@ end
 local function alive(self, conn)
   if conn.stream:is_closed() or conn.eof or conn.failure ~= nil then return false end
   if reactor.now() - conn.last_used > self._idle_timeout then return false end
-  if conn.tail >= conn.position then return false end
+  if conn.tail >= conn.position or conn.parser:in_message() then return false end -- bytes nobody asked for
   local ok, chunk = pcall(reactor.deadline, 0, conn.stream.read, conn.stream, 1)
   if ok then return false end -- the end of the stream, or stray bytes
   return core.is_instance_of(chunk, core.DeadlineExceededError) -- nothing arrived: alive
 end
+
+local sweep -- defined below, with the pool's other bookkeeping
 
 --- Takes a lease on the origin (waits when `max_connections_per_origin` are leased), then a pooled connection or a new one.
 ---@async
 ---@return hecate.http.client.Connection conn
 ---@return boolean reused
 function Client:_checkout(parts, state)
+  sweep(self)
   local entry = origin_of(self, parts.origin)
   local wait = remaining(state)
   if wait == math.huge then
@@ -273,24 +297,62 @@ function Client:_checkout(parts, state)
   return conn, reused
 end
 
+--- Closes the idle connections that expired or were closed, in every origin; forgets the origins that have no idle
+--- connection and no lease; then closes the least recently used idle connections beyond `max_idle_connections`.
+function sweep(self)
+  local now, count = reactor.now(), 0
+  for origin, entry in pairs(self._origins) do
+    local keep = {}
+    for _, conn in ipairs(entry.idle) do
+      if now - conn.last_used > self._idle_timeout or conn.stream:is_closed() or conn.dead then discard(conn) else keep[#keep + 1] = conn end
+    end
+    entry.idle = keep
+    count = count + #keep
+    if #keep == 0 and entry.leases:available() == self._max_per_origin and entry.leases:waiting() == 0 then
+      self._origins[origin] = nil
+    end
+  end
+  while count > self._max_idle do
+    local oldest, holder
+    for _, entry in pairs(self._origins) do
+      for _, conn in ipairs(entry.idle) do
+        if oldest == nil or conn.last_used < oldest.last_used then oldest, holder = conn, entry end
+      end
+    end
+    if oldest == nil then break end
+    for i, conn in ipairs(holder.idle) do
+      if conn == oldest then table.remove(holder.idle, i) break end
+    end
+    discard(oldest)
+    count = count - 1
+  end
+end
+
 --- Returns a connection after its response was read: pooled when reusable, dropped otherwise; releases the lease.
 local function checkin(self, conn)
   local entry = conn.lease_entry
   conn.lease_entry = nil
   if entry == nil then return end
   conn.last_used = reactor.now()
-  if conn.reusable and not self._closed and not conn.dead and not conn.eof and conn.failure == nil and conn.tail < conn.position then
-    -- Expired idle connections of the origin are dropped now, so the pool does not keep dead weight.
-    local keep = {}
-    for _, other in ipairs(entry.idle) do
-      if reactor.now() - other.last_used > self._idle_timeout or other.stream:is_closed() then discard(other) else keep[#keep + 1] = other end
-    end
-    keep[#keep + 1] = conn
-    entry.idle = keep
+  if conn.reusable and not self._closed and not conn.dead and not conn.eof and conn.failure == nil and conn.tail < conn.position
+    and not conn.parser:in_message() then
+    entry.idle[#entry.idle + 1] = conn
   else
     discard(conn)
   end
   entry.leases:release()
+  sweep(self)
+end
+
+--- The size of the pool: `idle` connections and the `origins` it keeps an entry for.
+---@return { idle: integer, origins: integer }
+function Client:pool_stats()
+  local idle, origins = 0, 0
+  for _, entry in pairs(self._origins) do
+    idle = idle + #entry.idle
+    origins = origins + 1
+  end
+  return { idle = idle, origins = origins }
 end
 
 local function drop(conn)
@@ -303,6 +365,10 @@ end
 -- One exchange ----------------------------------------------------------------------------------------------------
 
 local IDEMPOTENT <const> = { GET = true, HEAD = true, PUT = true, DELETE = true, OPTIONS = true, TRACE = true }
+
+local function protocol_error(message, reason)
+  return core.ProtocolError({ message = "http.Client: " .. message, context = { reason = reason } })
+end
 
 ---@async
 local function write(self, conn, state, data)
@@ -327,18 +393,31 @@ local function write_request(self, conn, state, method, parts, fields, content)
   local expecting = state.expect and content ~= nil
   if expecting then
     write(self, conn, state, text)
-    -- RFC 9110 section 10.1.1: wait for 100 Continue, or a final status that makes the content useless, or give up.
-    local ok, event = pcall(next_event, conn, bounded(state, self._expect_timeout))
-    if ok and event ~= nil and event.type == "head" then
-      if event.status == 100 then
+    -- RFC 9110 section 10.1.1: wait for 100 Continue, or a final status that makes the content useless, or give up. Other
+    -- interim responses (102, 103) are skipped; a connection that ends meanwhile is a failure.
+    local give_up = reactor.now() + self._expect_timeout
+    while true do
+      local ok, event, err = pcall(next_event, conn, bounded(state, math.max(0, give_up - reactor.now())))
+      if not ok then
+        if core.is_instance_of(event, core.DeadlineExceededError) then break end
+        error(event, 0)
+      end
+      if event == nil then
+        if err == "eof" then error(end_of_stream("the connection closed before the request content was sent"), 0) end
+        error(err, 0)
+      end
+      if event.type == "head" and event.status == 100 then
         next_event(conn, bounded(state, self._expect_timeout)) -- its `complete`
-      else
+        break
+      elseif event.type == "head" and event.status < 200 then
+        next_event(conn, bounded(state, self._expect_timeout)) -- skip it and its `complete`
+      elseif event.type == "head" then
         conn.early = event -- a final answer: the content is not sent and the connection not reused
         conn.reusable = false
         return
+      else
+        error(protocol_error("unexpected data while waiting for 100 Continue", "unexpected"), 0)
       end
-    elseif not ok and not core.is_instance_of(event, core.DeadlineExceededError) then
-      error(event, 0)
     end
     text = ""
   end
@@ -487,18 +566,13 @@ end
 
 -- Requests and redirects ------------------------------------------------------------------------------------------
 
-local CREDENTIAL_FIELDS <const> = { "Authorization", "Cookie", "Proxy-Authorization" }
 local ENTITY_FIELDS <const> = { "Content-Type", "Content-Length", "Content-Encoding", "Content-Language", "Content-Location", "Transfer-Encoding", "Expect" }
-
-local function protocol_error(message, reason)
-  return core.ProtocolError({ message = "http.Client: " .. message, context = { reason = reason } })
-end
 
 --- Sends a request and returns the response once its head has arrived; the content is read through
 --- `response:read_content()` or `response:stream_content()`. The response holds its connection until the content is read
 --- to its end or the response is closed. Redirects (301, 302, 303, 307, 308) are followed up to `max_redirects`.
 ---
---- `options`: `form` (pairs, sent as `application/x-www-form-urlencoded`), `multipart` (parts for `multipart.build`, sent as
+--- `options`: `cross_origin_redirects` (this request may repeat its content to another origin on a 307 or 308), `form` (pairs, sent as `application/x-www-form-urlencoded`), `multipart` (parts for `multipart.build`, sent as
 --- `multipart/form-data` with a random boundary; a function part streams the message, which is then not replayable), `fields` (a `Fields`, or a table for `Fields`), `content` (a string, sent with its length; a function
 --- `content(write)`, streamed chunked and never replayed; a table, serialised as JSON), `redirects` (false: return the 3xx
 --- response), `expect_continue` (send `Expect: 100-continue` and wait before the content; default false), `timeout`
@@ -512,7 +586,7 @@ end
 ---@async
 ---@param method string
 ---@param target string  an absolute http or https URL
----@param options? { fields?: hecate.http.Fields|table, content?: string|table|function, form?: string[][], multipart?: table[], redirects?: boolean, expect_continue?: boolean, timeout?: number }
+---@param options? { fields?: hecate.http.Fields|table, content?: string|table|function, form?: string[][], multipart?: table[], cross_origin_redirects?: boolean, redirects?: boolean, expect_continue?: boolean, timeout?: number }
 ---@return hecate.http.Response
 function Client:request(method, target, options)
   if self._closed then error(core.Error("http.Client:request: the client is closed"), 2) end
@@ -575,6 +649,12 @@ function Client:request(method, target, options)
       response:close()
       error(protocol_error("a redirect from https to http is refused", "downgrade"), 0)
     end
+    -- A 307 or 308 repeats the request, content included: to another origin only when the caller said so (the content
+    -- may be a secret that the first server chose to hand over, not the second).
+    if (status == 307 or status == 308) and content ~= nil and nxt.origin ~= parts.origin
+      and not (options.cross_origin_redirects or self._cross_origin_redirects) then
+      return response
+    end
     local new_method = method
     if status == 303 and method ~= "GET" and method ~= "HEAD" then
       new_method = "GET"
@@ -586,7 +666,7 @@ function Client:request(method, target, options)
       for _, name in ipairs(ENTITY_FIELDS) do fields:remove(name) end
     end
     if nxt.origin ~= parts.origin then
-      for _, name in ipairs(CREDENTIAL_FIELDS) do fields:remove(name) end
+      for _, name in ipairs(self._strip_on_redirect) do fields:remove(name) end
     end
     local key = new_method .. " " .. nxt.origin .. nxt.target
     if visited[key] then

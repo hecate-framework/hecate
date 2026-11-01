@@ -334,4 +334,28 @@ function T:test_a_boundary_found_in_a_string_part_is_never_used()
   self:assert_equal(2, #parse_all({ content }, used))
 end
 
+function T:test_basename_is_conservative_for_windows_and_long_names()
+  local cases = {
+    ['a<b>:c"d|e?f*g.txt'] = "abcdefg.txt", ["name. "] = "name", ["name..."] = "name", ["CON"] = nil, ["con.txt"] = nil,
+    ["NUL.tar.gz"] = nil, ["COM1"] = nil, ["lpt9.log"] = nil, ["COM10"] = "COM10", ["console.txt"] = "console.txt",
+    ["aux"] = nil, ["Prn.x"] = nil, [" . "] = nil,
+  }
+  for input, expected in pairs(cases) do self:assert_equal(expected, multipart.basename(input), input) end
+  local long = multipart.basename(("a"):rep(300) .. ".txt")
+  self:assert_true(#long <= 255, "length " .. #long)
+  local multibyte = multipart.basename(("é"):rep(200))
+  self:assert_true(#multibyte <= 255 and utf8.len(multibyte) ~= nil, "a cut never splits a character")
+end
+
+function T:test_boundaries_differ_between_messages()
+  local seen = {}
+  for _ = 1, 200 do
+    local _, content_type = multipart.build({ { name = "a", content = "x" } })
+    local boundary = content_type:match("boundary=(.+)$")
+    self:assert_equal(7 + 32, #boundary)
+    self:assert_nil(seen[boundary])
+    seen[boundary] = true
+  end
+end
+
 return T

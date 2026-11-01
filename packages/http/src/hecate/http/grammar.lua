@@ -15,12 +15,13 @@ function grammar.is_token(text)
   return type(text) == "string" and string.find(text, grammar.TOKEN) ~= nil
 end
 
---- Reports whether `text` is a valid field value for emission: no CR, LF or NUL, so that a value
+--- Reports whether `text` is a valid field value for emission: no control character other than HTAB, and no DEL (RFC 9110,
+--- section 5.5 allows HTAB, SP, VCHAR and obs-text; CR, LF and NUL in particular), so that a value
 --- can never split a message (RFC 9110, section 5.5; RFC 9112, section 11).
 ---@param text any
 ---@return boolean
 function grammar.is_field_value(text)
-  return type(text) == "string" and string.find(text, "[%z\r\n]") == nil
+  return type(text) == "string" and string.find(text, "[%z\1-\8\10-\31\127]") == nil
 end
 
 return grammar

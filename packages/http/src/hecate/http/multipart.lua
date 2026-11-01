@@ -2,7 +2,7 @@
 -- A streaming parser: it pulls chunks from a content stream only when a consumer asks, keeps at most one chunk, the
 -- header block of a part and the tail of a possible delimiter in memory, and finds delimiters with a plain search
 -- (CRLF "--" boundary), so a boundary inside content is content unless a line break and a valid ending frame it.
-global <const> require, type, error, pcall, string, table, math, ipairs, pairs, tostring, tonumber, utf8
+global <const> require, type, error, pcall, string, table, math, ipairs, pairs, tostring, tonumber, utf8, io
 
 local core = require("hecate.core")
 local Fields = require("hecate.http.fields")
@@ -50,17 +50,30 @@ function multipart.boundary_of(media)
   return boundary
 end
 
---- A name that is safe to use as the last element of a path, from a filename a client sent: directories (both `/` and
---- `\`), control characters and leading dots are removed. Returns nil when nothing is left. The package never opens a
---- file by this name or any other: the caller decides, and should still not use a client's name as a path.
+local RESERVED <const> = { CON = true, PRN = true, AUX = true, NUL = true }
+
+--- A conservative file name component from a filename a client sent: directories (`/` and `\`), control characters,
+--- the characters `< > : " | ? *`, leading dots and trailing dots and spaces are removed, the length is cut to 255 bytes
+--- (never inside a UTF-8 character), and a Windows device name (`CON`, `PRN`, `AUX`, `NUL`, `COM1` to `COM9`, `LPT1` to
+--- `LPT9`, with or without an extension) gives nil, as does an empty result. It reduces the risk of a path trick, it does
+--- not make a client's name trustworthy: prefer a name you generate, and no code of this package opens a file by it.
 ---@param filename string?
 ---@return string?
 function multipart.basename(filename)
   if type(filename) ~= "string" then return nil end
   local name = string.match(filename, "([^/\\]*)$")
-  name = string.gsub(name, "[%c\127]", "")
+  name = string.gsub(name, '[%c\127<>:"|?*]', "")
   name = string.gsub(name, "^%.+", "")
+  name = string.gsub(name, "[%. ]+$", "")
+  if #name > 255 then
+    name = string.sub(name, 1, 255)
+    while #name > 0 and not utf8.len(name) do name = string.sub(name, 1, -2) end
+  end
+  name = string.gsub(name, "^ +", "")
   if name == "" then return nil end
+  local stem = string.upper((string.match(name, "^([^.]*)")))
+  stem = string.gsub(stem, " +$", "")
+  if RESERVED[stem] or string.find(stem, "^COM[1-9]$") or string.find(stem, "^LPT[1-9]$") then return nil end
   return name
 end
 
@@ -382,10 +395,23 @@ local function quote(text, what)
   end))
 end
 
-local function random_boundary()
+-- 16 random bytes as hexadecimal. The operating system's source is used where there is one (`/dev/urandom` on POSIX); no
+-- Lua or reactor primitive offers a CSPRNG (OQ-73), so elsewhere `math.random` (seeded at start-up by Lua) stands in, with
+-- extra entropy mixed in. A guessable boundary only matters for a function part (string parts are verified).
+local function random_hex()
+  local file = io.open("/dev/urandom", "rb")
+  if file ~= nil then
+    local bytes = file:read(16)
+    file:close()
+    if bytes ~= nil and #bytes == 16 then return (string.gsub(bytes, ".", function(c) return string.format("%02x", string.byte(c)) end)) end
+  end
   local out = {}
   for i = 1, 32 do out[i] = string.format("%x", math.random(0, 15)) end
-  return "hecate-" .. table.concat(out)
+  return table.concat(out)
+end
+
+local function random_boundary()
+  return "hecate-" .. random_hex()
 end
 
 --- Builds a multipart/form-data message from a list of parts `{ name, filename?, content_type?, content }`, where

@@ -112,13 +112,14 @@ end
 --- (the WHATWG parser keeps it literally; a server that guesses is a request-smuggling aid), and so are a result that
 --- is not valid UTF-8 and a NUL byte.
 local function decode(text)
+  -- A plus is a space, an encoded plus (%2B) stays a plus: the plus signs are replaced BEFORE the percent sequences.
+  text = string.gsub(text, "%+", " ")
   if string.find(text, "%%") then
     if string.find(text, "%%%x?[^%x]") or string.find(text, "%%%x?$") then
       error(failure("bad_percent_encoding", "malformed percent-encoding in a form"), 0)
     end
     text = string.gsub(text, "%%(%x%x)", function(hex) return string.char(tonumber(hex, 16)) end)
   end
-  text = string.gsub(text, "%+", " ")
   if string.find(text, "%z") then error(failure("nul_in_value", "a NUL byte in a form value"), 0) end
   if not utf8.len(text) then error(failure("invalid_utf8", "a form value is not valid UTF-8"), 0) end
   return text

@@ -75,4 +75,14 @@ function T:test_map_initialiser()
   self:assert_equal("h", f:get("host"))
 end
 
+function T:test_control_characters_other_than_tab_are_refused_in_values()
+  local f = http.Fields()
+  f:add("X-Tab", "a\tb")
+  self:assert_equal("a\tb", f:get("X-Tab"))
+  for _, value in ipairs({ "a\1b", "a\27[31m", "a\127b", "a\0b", "a\rb", "a\nb", "a\31b" }) do
+    self:assert_error(function() f:add("X-Bad", value) end)
+  end
+  self:assert_error(function() http.MediaType.parse("text/plain; charset=a"):set_parameter("x", "a\1b") end)
+end
+
 return T

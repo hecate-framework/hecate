@@ -496,4 +496,26 @@ function T:test_in_message_tells_whether_a_message_is_open()
   p:close()
 end
 
+function T:test_a_native_call_that_makes_no_progress_is_a_terminal_internal_error()
+  local calls = 0
+  local fake = {
+    execute = function() calls = calls + 1; return {}, nil, 0 end, -- consumed nothing, no failure, no error
+    finish = function() return {}, nil, 0 end,
+    in_message = function() return false end,
+    close = function() end,
+  }
+  local p = Parser(fake, "request")
+  local events, err = p:feed("GET / HTTP/1.1\r\n")
+  self:assert_equal(0, #events)
+  self:assert_not_nil(err)
+  self:assert_equal("no_progress", err.context.kind)
+  self:assert_equal(500, err.context.status)
+  local before = calls
+  local _, again = p:feed("more")
+  self:assert_equal("no_progress", again.context.kind)
+  self:assert_equal(before, calls, "terminal: the native parser is not called again")
+  local _, finishing = p:finish()
+  self:assert_equal("no_progress", finishing.context.kind)
+end
+
 return T

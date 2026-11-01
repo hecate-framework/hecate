@@ -13,7 +13,8 @@ local native = require("hecate.http.native")
 --- `context.reason` is the llhttp reason (or the limit that was exceeded), `context.code` the llhttp error name,
 --- `context.kind` a stable identifier for the failures of the binding itself (`target_too_long`, `field_name_too_large`,
 --- `field_value_too_large`, `reason_too_long`, `head_too_large`, `too_many_fields`, `chunked_in_http_1_0`,
---- `unsupported_version`, `unsupported_method`, `unsupported_protocol`, `out_of_memory`, `upgraded`; absent for llhttp's own
+--- `unsupported_version`, `unsupported_method`, `unsupported_protocol`, `out_of_memory`, `no_progress` (an internal failure: the
+--- native parser consumed nothing and reported nothing; status 500, the parser is terminal), `upgraded`; absent for llhttp's own
 --- rejections), `context.position` the 0-based offset in the chunk of the call that failed, and `context.status` the status code to
 --- answer with: 414 for a request target over its limit, 431 for a field, a head or a field count over its limit,
 --- 400 otherwise (RFC 9110 sections 15.5.1, 15.5.15 and 15.5.32). After an upgrade, `feed` and `finish` return a
@@ -85,6 +86,7 @@ local STATUS_OF_KIND = {
   head_too_large = 431,
   too_many_fields = 431,
   out_of_memory = 500,
+  no_progress = 500,
 }
 
 local function failure(raw)
@@ -186,15 +188,24 @@ function Parser:feed(chunk)
     error(core.ArgumentError("http.Parser:feed expects a string, got " .. type(chunk)), 2)
   end
   local handle = self._handle
-  local all, start, raw = {}, 0, nil
+  if self._terminal ~= nil then return {}, self._terminal end
+  local all, start, raw, stalled = {}, 0, nil, false
   for _ = 1, #chunk + 2 do
     local events, failed, consumed = handle:execute(chunk, start)
     for _, event in ipairs(events) do all[#all + 1] = event end
     raw = failed
-    if failed ~= nil or consumed >= #chunk or consumed <= start then break end
+    if failed ~= nil or consumed >= #chunk then break end
+    if consumed <= start then
+      -- No progress and no failure: a defect of the binding. Never loop on it: fail, and stay failed.
+      raw = { reason = "the native parser made no progress", code = "HPE_INTERNAL", kind = "no_progress", position = start }
+      stalled = true
+      break
+    end
     start = consumed
   end
-  return result(all, raw)
+  local events, err = result(all, raw)
+  if stalled then self._terminal = err end
+  return events, err
 end
 
 --- Tells the parser that the peer closed the connection. Returns the events that closing completes (a response
@@ -202,6 +213,7 @@ end
 ---@return hecate.http.parser.Event[] events
 ---@return hecate.http.ParseError? err
 function Parser:finish()
+  if self._terminal ~= nil then return {}, self._terminal end
   local events, failed = self._handle:finish()
   return result(events, failed)
 end

@@ -69,4 +69,14 @@ function T:test_encoding_round_trips_and_escapes_everything_else()
   self:assert_error(function() form.encode_urlencoded("a=1") end)
 end
 
+function T:test_a_plus_is_a_space_but_an_encoded_plus_stays_a_plus()
+  local f = form.parse_urlencoded("a=b%2Bc&d=e+f&g=%2b&h=a+b%2Bc%20d&i%2Bj=k+l")
+  self:assert_equal("b+c", f:get("a"))
+  self:assert_equal("e f", f:get("d"))
+  self:assert_equal("+", f:get("g"))
+  self:assert_equal("a b+c d", f:get("h"))
+  self:assert_equal("k l", f:get("i+j"))
+  self:assert_equal("1+2 3", form.parse_urlencoded(form.encode_urlencoded({ { "x", "1+2 3" } })):get("x"), "round trip")
+end
+
 return T
