@@ -74,7 +74,9 @@ function T:test_every_example_runs_and_prints_what_it_says()
     file:close()
     local skip = name:find("tls$") and not net.tls.available()
     if skip then
-      if os.getenv("HECATE_REQUIRE_TLS") == "1" or os.getenv("CI") then self:fail(path .. " needs the TLS module") end
+      -- same rule as the TLS tests: fail on CI unless the job opts out (HECATE_REQUIRE_TLS=0, the sanitizer job)
+      local required = os.getenv("HECATE_REQUIRE_TLS")
+      if required == "1" or (required ~= "0" and os.getenv("CI")) then self:fail(path .. " needs the TLS module") end
       print("# SKIP " .. name .. ": the TLS module is not built")
     elseif source:match("\n%-%- Answers: ") then
       run_serving(self, path, source, source:match("\n%-%- Answers: ([^\n]*)"))
