@@ -229,6 +229,11 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       `shield` section of `deadlines-and-cancellation`, the `BufferedWriter:close` and 16 KiB text, the sockets
       how-to, json `out_of_memory`) and refresh every stale `source_revision` stamp (OQ-64; findings A44 and B32 of
       `docs/reviews/phase-1-coherence-findings.md`; row M1 of `docs/reviews/phase-1-review-package.md`).
+      **Also carries the French mirror of `http` (Phase 2 item, pull request 52):** translate the six English pages
+      `website/en/explanation/http-model.md` and `website/en/how-to/{serve-http, stream-http-content, use-the-http-client,
+      http-limits-timeouts-and-tls, handle-forms-and-multipart}.md` (terminology in `website/fr/glossary-terms.md`: add *origin*,
+      *head*, *persistent connection*, *pipelining*, *lease*, *grace period*, *action*), stamp their `source_revision`, and check
+      that the generated `http` reference (added to `DEFAULT_PACKAGES`) builds in both locales with `--strict`.
 - [ ] Meta-rock `hecate` (standard edition).
 - [ ] Read-only mirrors (ADR 0017): `split`, `mirrors ensure`, `check-mirrors`,
       `split.yml`; Homebrew tap and Scoop bucket repositories (resolves OQ-17).

@@ -31,6 +31,7 @@ website/en/reference/reactor/
 website/en/reference/net/
 website/en/reference/json/
 website/en/reference/log/
+website/en/reference/http/
 
 # Editors and OS
 .vscode/

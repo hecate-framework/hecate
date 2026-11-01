@@ -18,5 +18,6 @@ documented package.
   layer.
 - [`hecate.json`](json/index.md): encoding, decoding, markers and errors.
 - [`hecate.log`](log/index.md): structured records, RFC 5424 severities, context and sinks.
+- [`hecate.http`](http/index.md): the HTTP/1.1 server and client, messages, content streams, forms and problem details.
 
 The [glossary](glossary.md) defines the vocabulary used everywhere.

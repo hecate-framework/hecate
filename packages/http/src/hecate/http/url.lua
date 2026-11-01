@@ -17,7 +17,7 @@ local core = require("hecate.core")
 ---@field origin string  `scheme://authority`, the key of a connection pool
 
 --- Strict parsing and resolution of http and https URLs.
----@class hecate.http.url
+---@class hecate.http.urls
 local url = {}
 
 local DEFAULT_PORT <const> = { http = 80, https = 443 }

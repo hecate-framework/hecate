@@ -16,11 +16,11 @@ global <const> require, type, pcall, error, string
 ---@field Client? hecate.http.Client  the HTTP/1.1 client (needs the native module)
 ---@field Parser? hecate.http.Parser  the llhttp parser (needs the native module)
 ---@field ParseError hecate.http.ParseError  a message llhttp refused or a parser limit exceeded (a `ProtocolError`)
----@field form hecate.http.form  application/x-www-form-urlencoded
+---@field form hecate.http.forms  application/x-www-form-urlencoded
 ---@field multipart hecate.http.multipart  multipart/form-data
 ---@field Form hecate.http.Form  an ordered multi-map of form pairs
 ---@field FormError hecate.http.FormError  form content refused (400, 413, 415)
----@field url hecate.http.url  URL parsing and resolution
+---@field url hecate.http.urls  URL parsing and resolution
 ---@field ContentStream hecate.http.ContentStream  message content as a stream
 ---@field ContentError hecate.http.ContentError  content over its limit, truncated, malformed or stalled
 ---@field problem hecate.http.problem  RFC 9457 problem details responses

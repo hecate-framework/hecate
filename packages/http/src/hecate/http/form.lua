@@ -81,13 +81,13 @@ end
 Form = core.finalise(Form)
 
 --- Form content: urlencoded parsing and encoding, and the error of every form format.
----@class hecate.http.form
+---@class hecate.http.forms
 ---@field Form hecate.http.Form
 ---@field FormError hecate.http.FormError
 local form = { Form = Form, FormError = FormError, failure = failure }
 
 --- Limits of the urlencoded parser, with their defaults.
----@class hecate.http.form.Limits
+---@class hecate.http.form.UrlencodedLimits
 ---@field max_pairs? integer  pairs (default 1000; over it: 413)
 ---@field max_size? integer  bytes of the text (default 1048576; over it: 413)
 
@@ -131,7 +131,7 @@ end
 --- Raises `hecate.http.FormError` for text beyond `limits.max_size` or more than `limits.max_pairs` pairs (413), a
 --- malformed percent sequence, invalid UTF-8 or a NUL byte (400). Raises `hecate.core.ArgumentError` for bad arguments.
 ---@param text string
----@param limits? hecate.http.form.Limits
+---@param limits? hecate.http.form.UrlencodedLimits
 ---@return hecate.http.Form
 function form.parse_urlencoded(text, limits)
   if type(text) ~= "string" then error(core.ArgumentError("http.form.parse_urlencoded: expected a string"), 2) end

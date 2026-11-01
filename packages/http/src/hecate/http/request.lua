@@ -89,7 +89,7 @@ end
 --- `invalid_utf8` and `nul_in_value` (400), `too_many_pairs` and `too_large` (413); `hecate.http.ContentError` (413) beyond
 --- the size limit while reading. The server answers all of them with problem details that echo nothing of the input.
 ---@async
----@param limits? hecate.http.form.Limits
+---@param limits? hecate.http.form.UrlencodedLimits
 ---@return hecate.http.Form
 function Request:read_form(limits)
   local media = self:media_type()
@@ -105,7 +105,7 @@ end
 ---
 --- Raises `hecate.http.FormError` (`unsupported_media_type`, 415; `bad_boundary`, 400) at once; the reader raises the
 --- others as the parts are read.
----@param limits? hecate.http.multipart.Limits
+---@param limits? hecate.http.multipart.MultipartLimits
 ---@return hecate.http.multipart.Reader
 function Request:stream_parts(limits)
   return multipart.parts(self:stream_content(), self:media_type(), limits)

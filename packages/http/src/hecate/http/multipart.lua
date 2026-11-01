@@ -13,7 +13,7 @@ local form = require("hecate.http.form")
 local failure = form.failure
 
 --- Limits of the multipart parser, with their defaults.
----@class hecate.http.multipart.Limits
+---@class hecate.http.multipart.MultipartLimits
 ---@field max_parts? integer  parts in a message (default 100; over it: 413)
 ---@field max_part_fields_size? integer  bytes of the header fields of one part (default 8192; over it: 413)
 ---@field max_part_size? integer  bytes of the content of one part (default 1048576; over it: 413 `ContentError`)
@@ -119,7 +119,7 @@ Part = core.finalise(Part)
 
 --- A reader of the parts of a message, over a content stream.
 ---@class hecate.http.multipart.Reader
----@overload fun(source: hecate.http.ContentStream, boundary: string, limits?: hecate.http.multipart.Limits): hecate.http.multipart.Reader
+---@overload fun(source: hecate.http.ContentStream, boundary: string, limits?: hecate.http.multipart.MultipartLimits): hecate.http.multipart.Reader
 local Reader = core.class("MultipartReader")
 
 --- Creates a reader. `source` is a `ContentStream` (`request:stream_content()`); nothing is read yet.
@@ -128,7 +128,7 @@ local Reader = core.class("MultipartReader")
 --- `hecate.core.ArgumentError` for bad limits.
 ---@param source hecate.http.ContentStream
 ---@param boundary string
----@param limits? hecate.http.multipart.Limits
+---@param limits? hecate.http.multipart.MultipartLimits
 function Reader:init(source, boundary, limits)
   if not valid_boundary(boundary) then error(failure("bad_boundary", "the boundary is missing or not valid"), 3) end
   if limits ~= nil and type(limits) ~= "table" then error(core.ArgumentError("http.multipart.Reader: limits must be a table"), 3) end
@@ -372,7 +372,7 @@ end
 --- Creates a reader over `source` for the media type of the request (`multipart.boundary_of` then `Reader`).
 ---@param source hecate.http.ContentStream
 ---@param media hecate.http.MediaType?
----@param limits? hecate.http.multipart.Limits
+---@param limits? hecate.http.multipart.MultipartLimits
 ---@return hecate.http.multipart.Reader
 function multipart.parts(source, media, limits)
   return Reader(source, multipart.boundary_of(media), limits)
