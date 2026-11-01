@@ -39,8 +39,8 @@ end
 
 ### Client
 
-The same package provides an HTTP client (connection reuse per origin, deadlines,
-TLS, redirects policy, streaming). It powers the test client's network mode and the
+The same package provides an HTTP client (`http.Client`: connection reuse per origin, deadlines,
+TLS, redirects policy, streaming; the response content is read with `response:read_content()` or `response:stream_content()`, like the server's request content). It powers the test client's network mode and the
 CLI's registry access.
 
 ## `hecate.router`
