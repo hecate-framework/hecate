@@ -67,5 +67,5 @@ To DEFER (record in OQ-83 as limits/candidates, owner to confirm):
 
 Fixed with tests: `route(name)` type check, `routes` map rejected, `Match.route` wording, spec wording, README handler warning,
 pass-through and long-path tests. Stack levels: table errors take no position and the traceback skips only core frames, so
-nothing to fix (recorded in OQ-83). Deferred items recorded in OQ-83. Still to do: test-engineer, performance, terminology,
+nothing to fix (recorded in OQ-83). Deferred items recorded in OQ-83. Reviews done and triaged (architect, terminology, test, performance; fixes pushed, rest in OQ-83 and the roadmap benchmark item). Still to do (old line): test-engineer, performance, terminology,
 architect reviews; French page (`translator-fr`); then tick, delete this file, ready for review.

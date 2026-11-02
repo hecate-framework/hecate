@@ -142,8 +142,9 @@ end
 local function instructions(fn)
   local count = 0
   debug.sethook(function() count = count + 1 end, "", 1)
-  fn()
+  local ok, err = pcall(fn)
   debug.sethook()
+  if not ok then error(err, 0) end
   return count
 end
 
@@ -163,6 +164,20 @@ function T:test_the_cost_of_matching_a_static_path_does_not_depend_on_the_number
   self:assert_equal(cost(small), cost(large), "the same instructions for 11 and 10001 routes")
   local function miss(r) return instructions(function() r:match("GET", "/api/v1/nothing/42/items/last") end) end
   self:assert_equal(miss(small), miss(large))
+end
+
+function T:test_the_cost_does_not_depend_on_the_siblings_of_the_matched_node()
+  local function table_of(size)
+    local list = { { method = "GET", path = "/api/v1/target/{id}" } }
+    for i = 1, size do list[#list + 1] = { method = "GET", path = ("/api/v1/res%d/{id}"):format(i) } end
+    return router.Router(list)
+  end
+  local small, large = table_of(5), table_of(5000)
+  local function hit(r) return instructions(function() r:match("GET", "/api/v1/target/42") end) end
+  local function wrong_method(r) return instructions(function() r:match("POST", "/api/v1/target/42") end) end
+  hit(small); hit(large)
+  self:assert_equal(hit(small), hit(large), "a hit under a wide fan-out")
+  self:assert_equal(wrong_method(small), wrong_method(large), "a 405 under a wide fan-out")
 end
 
 function T:test_the_cost_grows_with_the_path_length()

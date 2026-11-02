@@ -23,7 +23,8 @@ local tree = {}
 function tree.new() return {} end
 
 --- Adds `entry` for `method` under the segments of `parsed`. Returns the entry that already serves the same method at
---- the same position when there is one (the table is ambiguous), after leaving the tree unchanged.
+--- the same position when there is one (the table is ambiguous); the tree is then left as it was for this method, and the
+--- caller abandons the whole table.
 ---@param root hecate.router.Node
 ---@param parsed hecate.router.Template
 ---@param method string
