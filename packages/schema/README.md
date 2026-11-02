@@ -8,7 +8,7 @@
 | Rock | `hecate-schema` |
 | Layer | 2 — Protocol |
 | Roadmap phase | 2 |
-| Status | specified — no code yet |
+| Status | in progress (phase 2, step 1): type model and validation; coercion, JSON Schema emission and instances to come |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |
 | Depends on | [`core`](../core), [`json`](../json) |
 | Used by | `cli`, `config`, `doc`, `hecate`, `kernel`, `openapi`, `orm`, `security`, `test` |
@@ -39,13 +39,27 @@
 
 ## Public API
 
-*To be filled during implementation: list every exported class and function with a one-line
-description, linking to the generated reference.*
+Declarations (`local schema = require("hecate.schema")`); every schema is an immutable value (`schema.Schema`):
+
+- `schema.string{ min_length, max_length, pattern }`, `schema.integer{ minimum, maximum }`, `schema.number{ minimum, maximum }`, `schema.boolean()`: base types and refinements.
+- `schema.literal(value)`, `schema.enumeration(values)`: constants (JSON Schema `const` and `enum`).
+- `schema.object(properties, { additional_properties })`: product type; undeclared properties are rejected by default.
+- `schema.array(item, { min_items, max_items })`: sequences, 0-based pointer indices.
+- `schema.optional(s)` (property may be absent), `schema.nullable(s)` (accepts `json.null`), `schema.union(list)`.
+
+Validation:
+
+- `s:validate(value)` returns `true`, or `false` and the list of every `schema.Violation` (`path` as an RFC 6901 JSON Pointer, `code`, `message`, `context`).
+- `s:check(value)` returns the value or raises `core.ValidationError` with `context.violations`.
+
+Choices taken conservatively (Lua pattern for `pattern`, `integer` refuses `1.0`, and others) are in OQ-85.
 
 ## Layout (once implemented)
 
 ```text
 src/hecate/schema/init.lua   public entry point
+src/hecate/schema/schema.lua  Schema class and constructors, compiled validators
+src/hecate/schema/violation.lua  Violation, JSON Pointer escaping
 tests/unit/  tests/integration/  tests/fixtures/
 examples/    benchmarks/
 ```
