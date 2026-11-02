@@ -6,6 +6,14 @@ which the owner decides.
 When resolved, record the outcome (ADR or specification update) and move the entry to
 "Resolved" with a link.
 
+This file is the source of truth. Every entry is mirrored by a GitHub issue labelled
+`open-question` (and `oq:decision`, `oq:research`, `oq:spike` or `oq:limitation`, plus
+`package:*`) whose title starts with the OQ number, created from the "Open question" issue
+template: the issue is for discussion and tracking, and resolved entries have a closed issue.
+When an entry is resolved, record only the final answer here (not the discussion), then close
+its issue with a link to the pull request. These issues never carry `needs-decision` or
+`blocked`, which the relay reads as a blocked roadmap item.
+
 | ID | Type | Question | Blocks |
 |---|---|---|---|
 | OQ-7 | decision | Publishing Lua 5.4 artefacts: same rock names with a lowered build, or suffixed rocks (`hecate-core-lua54`)? Depends on how LuaRocks selects versions by `lua` dependency. | Phase 6 |
