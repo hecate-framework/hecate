@@ -42,6 +42,12 @@ at all times. Specification: `docs/architecture/ai-assisted-development.md#relay
   doubts, commands to re-run), refresh `lock_until`, commit and push. Never keep more
   than one step of unpushed work.
 - Spikes end with a report and a recommendation; never decide in the owner's place.
+- When you add an open question to `docs/open-questions.md`, also open its mirror issue from the template
+  `.github/ISSUE_TEMPLATE/open-question.md`: title `OQ-<n>: <short title>`, labels `open-question`,
+  `oq:<type>` and the `package:*` labels, the full text of the entry as the body. Never label it
+  `needs-decision` or `blocked` (the relay reads those as a blocked roadmap item). The file stays the source of
+  truth. When an entry is resolved, record only the final answer in the file and close its issue with a link
+  to the pull request.
 - Build and run third-party code only inside the repository, under
   `spikes/<OQ-id>/` (git-ignored), never in `/tmp`. One command per call, no
   `cd … &&` chains, so the repository's permission rules apply. For example:
