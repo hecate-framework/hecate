@@ -3,8 +3,8 @@
 
 - roadmap_item: `schema`: refinement types, composition, coercion, validation with JSON Pointer error paths, JSON Schema 2020-12 emission.
 - status: in-progress            <!-- in-progress | waiting-ci | waiting-owner -->
-- lock_until: 2026-11-02T17:21:23Z
-- last_update: 2026-11-02T15:51:23Z
+- lock_until: 2026-11-02T20:30:00Z
+- last_update: 2026-11-02T19:00:00Z
 
 ## Done
 
@@ -12,13 +12,14 @@
 
 - Step 2a (JSON Schema emission of the current types): `Schema:to_json_schema()` in `schema.lua`, tests in `packages/schema/tests/unit/emit_test.lua` (structural unit tests plus differential tests against an independent checker of the emitted keywords). OQ-85 points 10 to 13 (pattern refused, `1.0` gap documented, shapes of `nullable`/`optional`, `json.null` no longer an array/object). README and CHANGELOG updated.
 
+- Step 3 (coercion): `Schema:coerce` with compiled `coercer` closures, tests in `packages/schema/tests/unit/coerce_test.lua`, OQ-85 points 14 to 17, README and CHANGELOG updated. typecheck, lint, test schema pass (needs `build-native json`).
+
 ## Next steps
 
-1. Coercion of textual inputs (path, query, fields; OpenAPI style/explode).
-2. (2b) Remaining emission work: official JSON Schema test suite (supported subset), a regex subset for `pattern` (needs an ADR), owner confirmation of the `1.0` gap; add map, tagged_union, named, format, exclusive bounds, multiple_of, unique_items, default, core enumeration support, recursive schemas.
-3. Class-bound instances and the presence set `schema.sent(instance, name)` (OQ-50), HTTP-method relaxation (PATCH).
-4. Docs: website pages, tested examples, glossary check, reference generation (`DEFAULT_PACKAGES`).
-5. Benchmarks (`benchmarks/`) for compiled validators.
+1. (2b) Remaining emission work: official JSON Schema test suite (supported subset), a regex subset for `pattern` (needs an ADR), owner confirmation of the `1.0` gap; add map, tagged_union, named, format, exclusive bounds, multiple_of, unique_items, default, core enumeration support, recursive schemas.
+2. Class-bound instances and the presence set `schema.sent(instance, name)` (OQ-50), HTTP-method relaxation (PATCH).
+3. Docs: website pages, tested examples, glossary check, reference generation (`DEFAULT_PACKAGES`).
+4. Benchmarks (`benchmarks/`) for compiled validators.
 
 ## Decisions taken (and where they are recorded)
 

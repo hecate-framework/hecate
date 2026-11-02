@@ -8,7 +8,7 @@
 | Rock | `hecate-schema` |
 | Layer | 2 — Protocol |
 | Roadmap phase | 2 |
-| Status | in progress (phase 2, steps 1 and 2a): type model, validation and JSON Schema emission of the current types; coercion and instances to come |
+| Status | in progress (phase 2, steps 1, 2a and 3): type model, validation, JSON Schema emission and coercion of textual inputs; instances to come |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |
 | Depends on | [`core`](../core), [`json`](../json) |
 | Used by | `cli`, `config`, `doc`, `hecate`, `kernel`, `openapi`, `orm`, `security`, `test` |
@@ -22,7 +22,6 @@
 
 - base types and refinement types (`integer { minimum = 1 }`, `string { format = "email" }`)
 - product types (`object`), sum types (`union`, tagged union), `array`, `map`, `literal`, `enumeration`, `optional`, `nullable`
-- coercion of textual inputs (path, query, fields)
 - validation with all errors collected, JSON Pointer paths
 - JSON Schema emission and `---@meta` generation for LuaLS
 - generators for property-based testing (used by `test`)

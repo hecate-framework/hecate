@@ -2,7 +2,7 @@
 --
 -- A schema is an immutable value (a core value class). Its constructor compiles a validator closure once, at
 -- declaration time; validating never walks the schema description (package invariants).
-global <const> require, type, pairs, ipairs, next, table, string, math, utf8, pcall, tostring, error
+global <const> require, type, pairs, ipairs, next, table, string, math, utf8, pcall, tostring, tonumber, error
 
 local core = require("hecate.core")
 local json = require("hecate.json")
@@ -28,6 +28,10 @@ core.finalise(Record)
 --- A validator: appends the violations of `value` (at JSON Pointer `path`) to `out`.
 ---@alias hecate.schema.Validator fun(value: any, path: string, out: hecate.schema.RawViolation[])
 
+--- A coercer: returns `value` converted from its textual form to the type of the schema; appends a `coercion`
+--- violation to `out` when a text cannot be converted. Values that are not text pass through unchanged.
+---@alias hecate.schema.Coercer fun(value: any, path: string, out: hecate.schema.RawViolation[]): any
+
 --- A violation as collected during validation, before it becomes a `Violation`.
 ---@class hecate.schema.RawViolation
 ---@field [1] string  path
@@ -43,6 +47,8 @@ core.finalise(Record)
 ---@field members fun(self: hecate.schema.Schema): any[]  the alternatives of a `union` or the constants of an `enumeration`, as a new list (empty for other kinds)
 ---@field item? hecate.schema.Schema  element schema of an `array`, wrapped schema of `optional` and `nullable`
 ---@field validator hecate.schema.Validator  compiled validator closure
+---@field coercer hecate.schema.Coercer  compiled coercion closure (textual input to typed value)
+---@field coerce fun(self: hecate.schema.Schema, value: any): boolean, any  see `Schema:coerce`
 ---@field to_json_schema fun(self: hecate.schema.Schema): table  the JSON Schema 2020-12 document of the schema
 ---@overload fun(kind: string, parts: table): hecate.schema.Schema
 local Schema = core.value_class("Schema")
@@ -58,6 +64,7 @@ function Schema:init(kind, parts)
   -- A closure over a private list, so that nothing a caller holds can change the schema.
   self.members = function() return { table.unpack(list) } end
   self.validator = parts.validator
+  self.coercer = parts.coercer or function(value) return value end
 end
 
 local function refuse(message, context)
@@ -149,6 +156,47 @@ function M.string(options)
   return Schema("string", { options = o, validator = validator })
 end
 
+local function coercion_violation(path, expected, out)
+  out[#out + 1] = { path, "coercion", "the text is not " .. expected, { expected = expected } }
+end
+
+--- Converts a decimal text to an integer; nil when it is not one or does not fit.
+local function text_to_integer(text)
+  if not text:find("^-?%d+$") then return nil end
+  local number = tonumber(text)
+  if math_type(number) == "integer" then return number end
+  return nil
+end
+
+--- Converts a text in the JSON number grammar to a Lua number (integer when written without fraction or exponent).
+local function text_to_number(text)
+  local integer = text_to_integer(text)
+  if integer then return integer end
+  if text:find("^-?%d+$") then return nil end -- an integer too large for Lua: no silent loss of precision
+  if text:find("^-?%d+%.%d+$") or text:find("^-?%d+%.?%d*[eE][+-]?%d+$") then
+    local number = tonumber(text)
+    if number and number == number and number ~= math.huge and number ~= -math.huge then return number end
+  end
+  return nil
+end
+
+local function text_to_boolean(text)
+  if text == "true" then return true elseif text == "false" then return false end
+  return nil
+end
+
+local function scalar_coercer(convert, expected)
+  return function(value, path, out)
+    if type(value) ~= "string" then return value end
+    local converted = convert(value)
+    if converted == nil then
+      coercion_violation(path, expected, out)
+      return value
+    end
+    return converted
+  end
+end
+
 local function numeric(kind, accepts, expected, options)
   local o = read_options(kind, options, { minimum = "number", maximum = "number" })
   check_range(kind, o, "minimum", "maximum")
@@ -162,7 +210,8 @@ local function numeric(kind, accepts, expected, options)
       out[#out + 1] = { path, "maximum", "the value is greater than " .. maximum, { maximum = maximum } }
     end
   end
-  return Schema(kind, { options = o, validator = validator })
+  local coercer = scalar_coercer(kind == "integer" and text_to_integer or text_to_number, "a" .. (kind == "integer" and "n integer" or " number"))
+  return Schema(kind, { options = o, validator = validator, coercer = coercer })
 end
 
 --- Declares an integer type: only Lua integers conform, `1.0` does not (OQ-85).
@@ -185,7 +234,7 @@ end
 function M.boolean()
   return Schema("boolean", { validator = function(value, path, out)
     if type(value) ~= "boolean" then return type_violation(path, "boolean", out) end
-  end })
+  end, coercer = scalar_coercer(text_to_boolean, "a boolean (true or false)") })
 end
 
 --- Same type and, for numbers, same Lua subtype: `1` and `1.0` are different constants.
@@ -202,16 +251,36 @@ local function require_constant(constructor, value)
   end
 end
 
+--- Builds the coercer of a list of constants: a text converts to the constant whose textual form it is.
+local function constants_coercer(constants)
+  local count = #constants
+  return function(value, path, out)
+    if type(value) ~= "string" then return value end
+    for i = 1, count do
+      local constant = constants[i]
+      local t = type(constant)
+      local converted
+      if t == "string" then converted = value == constant and value or nil
+      elseif t == "boolean" then converted = text_to_boolean(value)
+      elseif t == "number" then converted = text_to_number(value)
+      elseif value == "null" then converted = null end
+      if converted ~= nil and same_constant(converted, constant) then return converted end
+    end
+    return value -- the validator reports the constant that was expected
+  end
+end
+
 --- Declares a type with exactly one value (JSON Schema `const`).
 ---@param value string|number|boolean|hecate.json.Null
 ---@return hecate.schema.Schema
 function M.literal(value)
   require_constant("literal", value)
-  return Schema("literal", { options = { value = value }, validator = function(v, path, out)
-    if not same_constant(v, value) then
-      out[#out + 1] = { path, "literal", "the value is not the expected constant", { value = value } }
-    end
-  end })
+  return Schema("literal", { options = { value = value }, coercer = constants_coercer({ value }),
+    validator = function(v, path, out)
+      if not same_constant(v, value) then
+        out[#out + 1] = { path, "literal", "the value is not the expected constant", { value = value } }
+      end
+    end })
 end
 
 --- Declares a type whose values are the members of a list of constants (JSON Schema `enum`).
@@ -225,7 +294,7 @@ function M.enumeration(values)
     copy[i] = value
   end
   local count = #copy
-  return Schema("enumeration", { members = copy, validator = function(v, path, out)
+  return Schema("enumeration", { members = copy, coercer = constants_coercer(copy), validator = function(v, path, out)
     for i = 1, count do
       if same_constant(v, copy[i]) then return end
     end
@@ -240,7 +309,7 @@ end
 function M.optional(inner)
   require_schema("optional", inner)
   if inner.kind == "optional" then refuse("optional: already optional") end
-  return Schema("optional", { item = inner, validator = inner.validator })
+  return Schema("optional", { item = inner, validator = inner.validator, coercer = inner.coercer })
 end
 
 --- Accepts JSON null (`hecate.json.null`) in addition to the values of `inner`. Lua `nil` is absence, never null.
@@ -249,7 +318,8 @@ end
 function M.nullable(inner)
   require_schema("nullable", inner)
   local validate_inner = inner.validator
-  return Schema("nullable", { item = inner, validator = function(value, path, out)
+  -- A text is never coerced to null: the textual forms of a missing value are not agreed (OQ-86).
+  return Schema("nullable", { item = inner, coercer = inner.coercer, validator = function(value, path, out)
     if value == null then return end
     return validate_inner(value, path, out)
   end })
@@ -261,11 +331,35 @@ end
 ---@return hecate.schema.Schema
 function M.array(item, options)
   require_schema("array", item)
-  local o = read_options("array", options, { min_items = "integer", max_items = "integer" })
+  local o = read_options("array", options, { min_items = "integer", max_items = "integer", delimiter = "string" })
+  if o.delimiter == "" then refuse("array: option delimiter must not be empty", { option = "delimiter" }) end
   check_range("array", o, "min_items", "max_items")
   local min_items, max_items = o.min_items, o.max_items
   local validate_item = item.validator
-  return Schema("array", { options = o, item = item, validator = function(value, path, out)
+  local coerce_item = item.coercer
+  local delimiter = o.delimiter or ","
+  local coercer = function(value, path, out)
+    if type(value) == "string" then
+      -- OpenAPI `style: form, explode: false` (delimiter "," by default; " " and "|" for the other styles).
+      local parts, start = {}, 1
+      if value ~= "" then
+        while true do
+          local from, to = value:find(delimiter, start, true)
+          if not from then parts[#parts + 1] = value:sub(start) break end
+          parts[#parts + 1] = value:sub(start, from - 1)
+          start = to + 1
+        end
+      end
+      value = parts
+    elseif type(value) ~= "table" or value == null then
+      return value
+    end
+    local result = {}
+    for i = 1, #value do result[i] = coerce_item(value[i], path .. "/" .. (i - 1), out) end
+    if #result ~= #value then return value end
+    return result
+  end
+  return Schema("array", { options = o, item = item, coercer = coercer, validator = function(value, path, out)
     if type(value) ~= "table" or value == null then return type_violation(path, "array", out) end
     local length = #value
     local count = 0
@@ -310,7 +404,19 @@ function M.object(properties, options)
   end
   local declared = {}
   for i = 1, count do declared[names[i]] = true end
-  return Schema("object", { options = o, properties = copy, validator = function(value, path, out)
+  local coercers = {}
+  for i = 1, count do coercers[i] = copy[names[i]].coercer end
+  local coercer = function(value, path, out)
+    if type(value) ~= "table" or value == null then return value end
+    local result = {}
+    for key, member in next, value do result[key] = member end
+    for i = 1, count do
+      local member = value[names[i]]
+      if member ~= nil then result[names[i]] = coercers[i](member, path .. tokens[i], out) end
+    end
+    return result
+  end
+  return Schema("object", { options = o, properties = copy, coercer = coercer, validator = function(value, path, out)
     if type(value) ~= "table" or value == null then return type_violation(path, "object", out) end
     for i = 1, count do
       local member = value[names[i]]
@@ -355,7 +461,21 @@ function M.union(alternatives)
     validators[i] = alternative.validator
   end
   local count = #copy
-  return Schema("union", { members = copy, validator = function(value, path, out)
+  -- The first alternative that accepts the coerced value wins; when none does, the value is left as it is and
+  -- the validator reports the union.
+  local coercer = function(value, path)
+    for i = 1, count do
+      local scratch = {}
+      local converted = copy[i].coercer(value, path, scratch)
+      if #scratch == 0 then
+        local found = {}
+        validators[i](converted, path, found)
+        if #found == 0 then return converted end
+      end
+    end
+    return value
+  end
+  return Schema("union", { members = copy, coercer = coercer, validator = function(value, path, out)
     local failures = {}
     for i = 1, count do
       local found = {}
@@ -439,6 +559,25 @@ function Schema:validate(value)
   local raw = {}
   self.validator(value, "", raw)
   if #raw == 0 then return true end
+  local violations = {}
+  for i, v in ipairs(raw) do violations[i] = Violation(v[1], v[2], v[3], v[4]) end
+  return false, violations
+end
+
+--- Converts a value read from text (path, query or header fields: strings, lists of strings for repeated keys,
+--- tables of them) to the type of the schema, then validates the result. Texts convert as follows: `integer` and
+--- `number` read the JSON number grammar, `boolean` reads `true` or `false`, `array` splits a text on its
+--- `delimiter` option (default ",") or takes a list, `object` converts its declared properties, `union` takes the
+--- first alternative that accepts the converted value. Values that are not texts are validated as they are, and
+--- the input is never modified. A text that cannot be converted yields a `coercion` violation.
+---@param value any
+---@return boolean ok  true when the value converted and conforms
+---@return any result  the converted value when `ok`, else a list of `hecate.schema.Violation`
+function Schema:coerce(value)
+  local raw = {}
+  local converted = self.coercer(value, "", raw)
+  if #raw == 0 then self.validator(converted, "", raw) end
+  if #raw == 0 then return true, converted end
   local violations = {}
   for i, v in ipairs(raw) do violations[i] = Violation(v[1], v[2], v[3], v[4]) end
   return false, violations
