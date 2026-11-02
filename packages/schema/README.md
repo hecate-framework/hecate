@@ -8,7 +8,7 @@
 | Rock | `hecate-schema` |
 | Layer | 2 — Protocol |
 | Roadmap phase | 2 |
-| Status | in progress (phase 2, step 1): type model and validation; coercion, JSON Schema emission and instances to come |
+| Status | in progress (phase 2, steps 1 and 2a): type model, validation and JSON Schema emission of the current types; coercion and instances to come |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |
 | Depends on | [`core`](../core), [`json`](../json) |
 | Used by | `cli`, `config`, `doc`, `hecate`, `kernel`, `openapi`, `orm`, `security`, `test` |
@@ -51,6 +51,10 @@ Validation:
 
 - `s:validate(value)` returns `true`, or `false` and the list of every `schema.Violation` (`path` as an RFC 6901 JSON Pointer, `code`, `message`, `context`).
 - `s:check(value)` returns the value or raises `core.ValidationError` with `context.violations`.
+
+Emission:
+
+- `s:to_json_schema()` returns a JSON Schema 2020-12 document (plain values, `$schema` on the root). `pattern` raises `ArgumentError` (a Lua pattern has no exact ECMA-262 translation); `integer` and constants also accept float-valued numbers (`1.0`), which JSON Schema cannot exclude. Both are recorded in OQ-85.
 
 Choices taken conservatively (Lua pattern for `pattern`, `integer` refuses `1.0`, and others) are in OQ-85.
 

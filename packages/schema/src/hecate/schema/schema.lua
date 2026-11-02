@@ -43,6 +43,7 @@ core.finalise(Record)
 ---@field members fun(self: hecate.schema.Schema): any[]  the alternatives of a `union` or the constants of an `enumeration`, as a new list (empty for other kinds)
 ---@field item? hecate.schema.Schema  element schema of an `array`, wrapped schema of `optional` and `nullable`
 ---@field validator hecate.schema.Validator  compiled validator closure
+---@field to_json_schema fun(self: hecate.schema.Schema): table  the JSON Schema 2020-12 document of the schema
 ---@overload fun(kind: string, parts: table): hecate.schema.Schema
 local Schema = core.value_class("Schema")
 
@@ -265,7 +266,7 @@ function M.array(item, options)
   local min_items, max_items = o.min_items, o.max_items
   local validate_item = item.validator
   return Schema("array", { options = o, item = item, validator = function(value, path, out)
-    if type(value) ~= "table" then return type_violation(path, "array", out) end
+    if type(value) ~= "table" or value == null then return type_violation(path, "array", out) end
     local length = #value
     local count = 0
     for _ in next, value do count = count + 1 end
@@ -310,7 +311,7 @@ function M.object(properties, options)
   local declared = {}
   for i = 1, count do declared[names[i]] = true end
   return Schema("object", { options = o, properties = copy, validator = function(value, path, out)
-    if type(value) ~= "table" then return type_violation(path, "object", out) end
+    if type(value) ~= "table" or value == null then return type_violation(path, "object", out) end
     for i = 1, count do
       local member = value[names[i]]
       if member == nil then
@@ -366,6 +367,68 @@ function M.union(alternatives)
     end
     out[#out + 1] = { path, "union", "the value matches none of the alternatives", { alternatives = failures } }
   end })
+end
+
+local DIALECT = "https://json-schema.org/draft/2020-12/schema"
+
+--- Emits the JSON Schema 2020-12 subschema of `s` (no `$schema`). Every construct has an exact emission, or the
+--- emission is refused (schemas-and-contracts.md, "JSON Schema").
+---@param s hecate.schema.Schema
+---@return table
+local function emit(s)
+  local kind = s.kind
+  local o = s.options --[[@as table]]
+  if kind == "string" then
+    if o.pattern ~= nil then
+      -- A Lua pattern has no exact ECMA-262 translation (OQ-85, point 1); a wrong `pattern` would break
+      -- "emitted JSON Schema validates exactly what Lua validation accepts".
+      refuse("to_json_schema: a Lua pattern cannot be emitted as a JSON Schema pattern (OQ-85)", { option = "pattern" })
+    end
+    return { type = "string", minLength = o.min_length, maxLength = o.max_length }
+  elseif kind == "integer" or kind == "number" then
+    return { type = kind, minimum = o.minimum, maximum = o.maximum }
+  elseif kind == "boolean" then
+    return { type = "boolean" }
+  elseif kind == "literal" then
+    return { const = o.value }
+  elseif kind == "enumeration" then
+    return { enum = s:members() }
+  elseif kind == "array" then
+    return { type = "array", items = emit(s.item), minItems = o.min_items, maxItems = o.max_items }
+  elseif kind == "optional" then
+    return emit(s.item) -- absence is expressed by the parent's `required`
+  elseif kind == "nullable" then
+    return { anyOf = { emit(s.item), { type = "null" } } }
+  elseif kind == "union" then
+    local alternatives = {}
+    for i, alternative in ipairs(s:members()) do alternatives[i] = emit(alternative) end
+    return { anyOf = alternatives }
+  elseif kind == "object" then
+    local properties, required = {}, {}
+    for name, property in pairs(s.properties) do
+      properties[name] = emit(property)
+      if property.kind ~= "optional" then required[#required + 1] = name end
+    end
+    table.sort(required)
+    return {
+      type = "object",
+      properties = properties,
+      required = #required > 0 and required or nil,
+      additionalProperties = o.additional_properties == true,
+    }
+  end
+  error(core.ArgumentError("to_json_schema: unknown kind " .. tostring(kind)))
+end
+
+--- Emits the schema as a JSON Schema 2020-12 document (a new table of plain values, encodable with `hecate.json`).
+--- The emission accepts what Lua validation accepts, with these documented differences (OQ-85): JSON Schema does
+--- not tell `1` from `1.0`, so `integer` and the constants also accept float-valued numbers. A `pattern` option
+--- raises `ArgumentError`, because a Lua pattern has no exact ECMA-262 translation.
+---@return table document  the root carries `$schema`
+function Schema:to_json_schema()
+  local document = emit(self)
+  document["$schema"] = DIALECT
+  return document
 end
 
 --- Validates `value` and collects every violation, in the order of the declaration (properties by name).

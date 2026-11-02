@@ -192,6 +192,12 @@ function T:test_invalid_declarations_are_argument_errors()
   refused(function() return schema.optional(schema.optional(schema.string())) end)
 end
 
+function T:test_json_null_is_neither_an_array_nor_an_object()
+  self:assert_equal(" type", codes(schema.array(schema.string()), json.null)[1])
+  self:assert_equal(" type", codes(schema.object({}), json.null)[1])
+  self:assert_true((schema.nullable(schema.array(schema.string())):validate(json.null)))
+end
+
 function T:test_violation_formats()
   local _, violations = schema.integer({ minimum = 1 }):validate(0)
   self:assert_equal('"": minimum: ' .. violations[1].message, tostring(violations[1]))
