@@ -29,7 +29,7 @@
 
 ## Doubts and questions for the owner
 
-- OQ-85: the owner confirmed points (2) to (9) and (11) to (17). Point (10) is only a stop-gap: build the `pattern` translator now and remove the `pattern` refusal in `to_json_schema` (and its test `test_pattern_is_refused`, replaced by translation tests).
+- OQ-85 is resolved (moved to "Resolved" in `docs/open-questions.md`): the owner confirmed every point. Remaining work for it: write the specification section of the `pattern` subset, then build the translator and remove the stop-gap refusal in `to_json_schema` (and its test `test_pattern_is_refused`, replaced by translation tests).
 
 ## Commands to re-run
 
