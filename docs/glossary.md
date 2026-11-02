@@ -137,6 +137,9 @@ Errors are *problem details* (RFC 9457; `hecate.problem.*` is the namespace). Pa
 | persistent connection | A connection kept open for several messages (keep-alive) | RFC 9112 section 9.3 | keep-alive connection (acceptable in prose) |
 | pipelining | Several requests sent on a connection without waiting for the responses, answered in request order | RFC 9112 section 9.3.2 | batching |
 | lease | The right to use one connection of a pool for one exchange, held until its response content is read or closed | Gray and Cheriton (1989) | ticket, checkout token |
+| path template | A route's path with parameters: literal segments, parameters `{id}` (a whole segment, or one expression with literal text around it) and a last-segment wildcard `{path...}`; a subset of RFC 6570 level 1 | RFC 6570 section 1.2 | route pattern, URL pattern |
+| route table | The list of route declarations a router compiles at boot, and that introspection gives back | [ADR 0006](adr/0006-declarative-routes-as-runtime-data.md) | routing table, URL map |
+| dot segment | A path segment `.` or `..`, resolved before routing | RFC 3986 section 3.3, section 5.2.4 | relative segment |
 | grace period | The time `Server:shutdown` lets requests in flight finish before cancelling them | [ADR 0023](adr/0023-multi-process-serving.md) | drain timeout (that is the unread-content drain of a response) |
 
 ## Logging

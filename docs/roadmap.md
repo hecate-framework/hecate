@@ -173,7 +173,7 @@ concurrency test suite passes; benchmark baseline recorded.
       request without exactly one `Host` field (RFC 9112 section 3.2; the parser only exposes the fields); (5) the
       server calls `Parser:close()` when a connection ends, and feeds the parser chunks no larger than its read buffer
       (`feed` returns every event of the chunk in one list).
-- [ ] `router`: radix tree, URI template subset, 404/405, reverse routing. **Also:** percent-decode each path segment (so `%2F` is not a separator) and resolve dot segments: `request.path` of `http` is raw (OQ-75).
+- [x] `router`: radix tree, URI template subset, 404/405, reverse routing. **Also:** percent-decode each path segment (so `%2F` is not a separator) and resolve dot segments: `request.path` of `http` is raw (OQ-75).
 - [ ] `schema`: refinement types, composition, coercion, validation with JSON Pointer
       error paths, JSON Schema 2020-12 emission.
 - [ ] `container`: IoC container, lifetimes, cycle detection at boot; write its specification section in `docs/architecture/` (OQ-62).
@@ -189,7 +189,12 @@ concurrency test suite passes; benchmark baseline recorded.
       keep or fix it, and note the result in the review: (RE2) three table allocations per suspend/resume on the
       scheduler hot path (`reactor.lua`, `context.suspend`; scenario `reactor/scheduler`, then `plaintext`);
       (J4) per-key allocation in the Rust encoder (`packages/json/native/src/lib.rs`; `bench json`); (LO4)
-      `Logger:with_context` rebuilds the severity list (`logger.lua`; `bench log/logger`).
+      `Logger:with_context` rebuilds the severity list (`logger.lua`; `bench log/logger`). **Also the `router` findings** of
+      the 2026-11-02 review (performance-engineer, minor): at least four table allocations per match (segments, values,
+      parameters, result), a second tree walk with a set and a list on 404/405 (cache the `Allow` lists per method set),
+      the 9-argument recursive `tree.walk`, `rest_of` rescanning segments, the `%%(.?.?)` decode pattern; judge each with
+      `packages/router/benchmarks/match.lua` (add a wide fan-out under the matched prefix; static matching drops about
+      30 % at 30 000 routes, probably cache effects) and the `plaintext` scenario.
 
 Exit: `examples/hello` runs on three platforms with N workers; invalid input yields
 RFC 9457 problem details; graceful shutdown drains in-flight requests.

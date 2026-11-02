@@ -35,6 +35,8 @@ read the matching page of the [explanation](../explanation/index.md) section.
   untrusted filenames.
 - [Set limits, timeouts and TLS on the HTTP server](http-limits-timeouts-and-tls.md): every
   bound, its default, and HTTPS.
+- [Route requests](route-requests.md): path templates, precedence, 404 and 405 with `Allow`,
+  percent-decoding and dot segments, reverse routing.
 
 ## Performance
 

@@ -19,5 +19,6 @@ chaque paquet documenté.
   tamponnée.
 - [`hecate.json`](json/index.md) : encodage, décodage, marqueurs et erreurs.
 - [`hecate.log`](log/index.md) : enregistrements structurés, gravités de la RFC 5424, contexte et puits.
+- [`hecate.router`](router/index.md) : le routeur à arbre radix, les gabarits de chemin, l’appariement, le routage inverse et les erreurs de table de routes.
 
 Le [glossaire](glossary.md) définit le vocabulaire utilisé partout.

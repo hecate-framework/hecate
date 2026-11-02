@@ -62,15 +62,31 @@ CLI's registry access.
 
 ## `hecate.router`
 
-- Compiled **radix tree** per method set; static segments, parameter segments
+- One compiled **radix tree** over decoded segments, the methods stored per node; static segments, parameter segments
   (`{id}`) and a trailing wildcard (`{path...}`). Path templates are a subset of
   RFC 6570 level 1.
-- Matching cost proportional to path length, independent of the number of routes.
+- Matching cost is bounded by the length of the path times the length of the longest template, and independent of the number of routes.
 - Ambiguous or conflicting routes are detected at compile time.
 - 404 when no path matches; 405 with an `Allow` field when the path matches but the
   method does not; automatic `HEAD` and `OPTIONS` handling (configurable).
 - Reverse routing: `router:url_for("users.show", { id = 42 })`.
 - Routes are plain data: method(s), path template, name, schemas, metadata, action.
+
+### Implemented surface
+
+What exists in `hecate.router` (the package README has the API; choices taken are recorded in OQ-83, resolved):
+
+- `Router(routes, options)` compiles a route table once; `match(method, raw_path)` returns a `Match` (200, 204 for the
+  automatic `OPTIONS`, 400 for an unreadable path, 404, 405 with a sorted `Allow`); `url_for`, `routes()`, `route(name)`.
+- The tree is a radix tree over whole decoded segments: a static child is one hash lookup, so a step costs the same for
+  any number of routes. Precedence is static, parameter with literal text (longest first), plain parameter, wildcard, with backtracking, and a route that does not serve
+  the method is skipped for a lower-precedence one that does.
+- The path is read as OQ-75 asks: `http.Request.path` is raw, the router percent-decodes each segment on its own
+  (`%2F` is data, RFC 3986 section 2.1) and resolves dot segments first (section 5.2.4; `%2E` is a dot).
+- Gaps to RFC 6570 and RFC 3986 are allowed only for security or major performance reasons, and each is documented in
+  the guide `how-to/route-requests.md` ("Differences from the standards"); OQ-83 (resolved) records them.
+- Ambiguous tables are `RouteTableError` at boot (`ambiguous_route` names both routes), as are invalid templates,
+  duplicate names and invalid methods.
 
 ## Route declaration
 

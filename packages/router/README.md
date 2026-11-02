@@ -8,7 +8,7 @@
 | Rock | `hecate-router` |
 | Layer | 2 — Protocol |
 | Roadmap phase | 2 |
-| Status | specified — no code yet |
+| Status | implemented (phase 2): templates, matching, 404/405, reverse routing, introspection |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |
 | Depends on | [`core`](../core) |
 | Used by | `hecate`, `kernel`, `openapi` |
@@ -37,13 +37,60 @@
 
 ## Public API
 
-*To be filled during implementation: list every exported class and function with a one-line
-description, linking to the generated reference.*
+`local router = require("hecate.router")`. The reference is generated from the annotations
+(`website/en/reference/router/`); the guide is [Route requests](../../website/en/how-to/route-requests.md).
 
-## Layout (once implemented)
+- `router.Router(routes, options?)`: compiles a route table once, at boot.
+  - `Router:match(method, raw_path)`: returns a `Match` (`status` 200, 204, 400, 404 or 405, `route`, `parameters`,
+    `allow`, `allow_field`, `reason`). `raw_path` is `http.Request.path`.
+  - `Router:url_for(name, parameters?)`: reverse routing.
+  - `Router:routes()` and `Router:route(name)`: route table introspection.
+  - options: `trailing_slash` (`"ignore"` default, or `"strict"`), `automatic_head` (default `true`),
+    `automatic_options` (default `true`).
+- `router.RouteTableError`: a `ConfigurationError` raised at boot; `context.reason` is `invalid_route`,
+  `invalid_method`, `invalid_template`, `duplicate_name` or `ambiguous_route`.
+- `router.template`: `parse(text, trailing_slash)` and `expand(template, parameters)`.
+- `router.path`: `split(raw, trailing_slash)`, `decode(text)` and `encode(text, keep_delimiters?)`.
+
+### Behaviour
+
+- A path template is a subset of RFC 6570 level 1: literal segments, parameters `{id}` (alone or with literal text around
+  them, as in `{id}.json` and `v{major}`, one expression per segment) and a last-segment wildcard `{path...}` (the
+  notation is the router's own). Several expressions in one segment (`{a}-{b}`) are refused.
+- Precedence is static, then parameter with literal text (longest text first), then plain parameter, then wildcard,
+  segment by segment, with backtracking. A route that does not serve
+  the method is skipped for a lower-precedence one that does.
+- 404 when no route has the path; 405 with a sorted `Allow` when the path exists for other methods; `HEAD` falls back to
+  `GET` and `OPTIONS` answers 204 with `Allow`, unless a route is declared or the option is off.
+- The request path is read as OQ-75 asks: each segment is percent-decoded on its own (`%2F` is data), dot segments are
+  resolved first (RFC 3986 section 5.2.4; `%2E` is a dot), a malformed percent sequence or `%00` is status 400, and a
+  wildcard never matches a segment whose decoded text holds `/`.
+- `/a` and `/a/` are the same path by default (`trailing_slash = "ignore"`, a documented gap to RFC 3986; `"strict"` follows
+  it); the router never redirects.
+- Ambiguous tables (the same method for the same paths) are rejected at boot, naming both routes.
+
+### Gaps to the standards
+
+Every gap, with its reason (security or major performance only), is listed in the guide
+[Route requests](../../website/en/how-to/route-requests.md#differences-from-the-standards-and-from-common-expectations):
+RFC 6570 level 1 only, one expression per segment, the router's own wildcard notation, no empty values, wildcards
+refuse an encoded slash, status 400 for an unreadable path, `url_for` refuses dot-segment and NUL values, no UTF-8
+check, no redirect, and `/a` = `/a/` by default.
+
+### Security note for actions
+
+A `{param}` binds the *decoded* segment, so it may hold `/` or `\` (from `%2F`, `%5C`); a wildcard rejects segments holding `/`.
+An action that maps a parameter to a file must resolve it against a root, reject `\` and `:`, and never trust it as a path.
+
+## Layout
 
 ```text
-src/hecate/router/init.lua   public entry point
-tests/unit/  tests/integration/  tests/fixtures/
-examples/    benchmarks/
+src/hecate/router/init.lua      public entry point
+src/hecate/router/router.lua    Router
+src/hecate/router/tree.lua      compiled radix tree over segments
+src/hecate/router/template.lua  path templates
+src/hecate/router/path.lua      request path decoding and dot segments
+src/hecate/router/errors.lua    RouteTableError
+tests/unit/                     unit, property (oracle) and example tests
+examples/  benchmarks/match.lua
 ```

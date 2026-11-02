@@ -63,3 +63,7 @@ page (avec un lien vers le glossaire), puis le terme français seul.
 | service | service | objet enregistré dans le conteneur |
 | local stream socket (`PipeStream`) | socket Unix, tube nommé (Windows) | à distinguer du « tube de messages » |
 | severity | gravité | RFC 5424 ; option `severity` de `hecate.log.Logger` ; jamais « niveau » ni « sévérité » |
+| path template | gabarit de chemin | RFC 6570, sous-ensemble de niveau 1 ; jamais « motif d’URL » |
+| route table | table de routes | liste des déclarations compilée au démarrage |
+| dot segment | segment point | `.` ou `..` ; RFC 3986 section 3.3 |
+| trailing slash | barre oblique finale | politique `trailing_slash` du routeur |

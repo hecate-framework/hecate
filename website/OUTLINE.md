@@ -37,6 +37,7 @@ written is listed with its file in `website/en/`.
 - Use the HTTP client: pool, redirects, deadlines, failures (P2; `how-to/use-the-http-client.md`)
 - Handle forms and multipart: urlencoded, uploads, untrusted filenames (P2; `how-to/handle-forms-and-multipart.md`)
 - Set limits, timeouts and TLS on the HTTP server: every bound and its default, HTTPS (P2; `how-to/http-limits-timeouts-and-tls.md`)
+- Route requests: templates, precedence, 404 and 405, percent-decoding, reverse routing (P2; `how-to/route-requests.md`)
 - Measure performance (P1; `how-to/measure-performance.md`)
 - Contracts: exporting, linting, diffing in CI (P3)
 - Documentation of a project with `hecate doc` (P3)
