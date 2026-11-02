@@ -3,7 +3,7 @@
 
 - roadmap_item: `router`: radix tree, URI template subset, 404/405, reverse routing (+ percent-decode segments, dot segments; OQ-75)
 - status: in-progress
-- lock_until: 2026-11-02T07:00:00Z
+- lock_until: 2026-11-02T08:30:00Z
 - last_update: 2026-11-02T06:50:00Z
 
 ## Done
@@ -52,6 +52,7 @@ lua packages/router/benchmarks/match.lua
 ## Review triage (2026-11-02, api-reviewer + security-reviewer, report-only; none major)
 
 To FIX in this PR (test first), next run:
+
 - Error stack levels point inside router (router.lua:46,52; template.lua:88): fix levels + test position.
 - `Router:route(name)` lacks string check (router.lua:221); `routes` as map silently empty (router.lua:85,104): raise RouteTableError/ArgumentError.
 - Wording: `Match.route` is "the route as declared" (router.lua:30, 209); soften spec line "cost proportional to path length" to "bounded by longest template" (docs/architecture/http-and-routing.md).
@@ -59,6 +60,7 @@ To FIX in this PR (test first), next run:
 - Tests to add: `%2e` last segment with trailing_slash=ignore; `{id}` accepting `..%2F..`; `%5C`, `%0D%0A` pass-through; mixed-case `%2E%2e` via match; 405/204 path uses dot-segment resolution; adversarial backtracking table; very long path / many segments; float/table values in url_for wildcard; decode(encode(x))==x property.
 
 To DEFER (record in OQ-83 as limits/candidates, owner to confirm):
+
 - Input limits (max_segments, template length/route count caps): http layer bounds request line; candidate router option.
 - Option `reject_encoded_slash`; expose resolved path on `Match` (OQ-75 raw/resolved divergence for middleware).
 - `allow_field` redundant with `allow`; `route()` vs `routes()` naming; option-style consistency.

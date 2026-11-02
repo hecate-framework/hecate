@@ -155,5 +155,5 @@ entiers et sont encodées en pourcentage ; la valeur d’un segment générique 
 pourrait porter (vide, `.`, `..`, un octet NUL). `routes:routes()` énumère les routes déclarées dans l’ordre et
 `routes:route(name)` en trouve une par son nom, pour la génération OpenAPI et la documentation.
 
-Pour les raisons de cette conception, voir [Le modèle HTTP](../../en/explanation/http-model.md) (page encore non traduite) et la référence de code de
+Pour les raisons de cette conception, voir « Le modèle HTTP » (`explanation/http-model`, page encore non traduite) et la référence de code de
 [`hecate.router`](../reference/router/index.md).
