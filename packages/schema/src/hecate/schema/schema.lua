@@ -120,6 +120,7 @@ local function type_violation(path, expected, out)
   out[#out + 1] = { path, "type", "expected " .. expected, { expected = expected } }
 end
 
+---@class hecate.schema
 local M = {}
 
 --- Declares a string type.
@@ -645,6 +646,7 @@ end
 
 core.finalise(Schema)
 
+---@diagnostic disable-next-line: assign-type-mismatch
 M.Schema = Schema
 M.is_schema = is_schema
 return M
