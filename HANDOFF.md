@@ -69,3 +69,9 @@ Fixed with tests: `route(name)` type check, `routes` map rejected, `Match.route`
 pass-through and long-path tests. Stack levels: table errors take no position and the traceback skips only core frames, so
 nothing to fix (recorded in OQ-83). Deferred items recorded in OQ-83. Reviews done and triaged (architect, terminology, test, performance; fixes pushed, rest in OQ-83 and the roadmap benchmark item). Still to do (old line): test-engineer, performance, terminology,
 architect reviews; French page (`translator-fr`); then tick, delete this file, ready for review.
+
+## Update (French page)
+
+`website/fr/how-to/route-requests.md` and the two French index lines are done. Remaining: add path template, route table,
+dot segment, trailing slash to `website/fr/glossary-terms.md`; wait for CI green on 3 platforms; then tick the roadmap item,
+delete this file, mark ready, ask for review.

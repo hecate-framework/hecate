@@ -25,6 +25,11 @@ raisons d’une recette, lisez la page correspondante de la section
 - [Lancer des processus enfants et se passer des connexions](run-processes-and-pass-connections.md) :
   `run_process`, `spawn`, le tube de messages et le transfert d’une connexion à un enfant.
 
+## HTTP
+
+- [Acheminer les requêtes](route-requests.md) : gabarits de chemin, précédence, 404 et 405 avec
+  `Allow`, décodage des pourcentages et segments point, routage inverse.
+
 ## Performances
 
 - [Mesurer les performances](measure-performance.md) : exécuter le benchmark d’écho TCP, lire ses
