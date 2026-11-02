@@ -3,8 +3,8 @@
 
 - roadmap_item: `router`: radix tree, URI template subset, 404/405, reverse routing (+ percent-decode segments, dot segments; OQ-75)
 - status: in-progress
-- lock_until: 2026-11-02T05:30:00Z
-- last_update: 2026-11-02T00:41:19Z
+- lock_until: 2026-11-02T07:00:00Z
+- last_update: 2026-11-02T06:50:00Z
 
 ## Done
 
@@ -75,3 +75,8 @@ architect reviews; French page (`translator-fr`); then tick, delete this file, r
 `website/fr/how-to/route-requests.md` and the two French index lines are done. Remaining: add path template, route table,
 dot segment, trailing slash to `website/fr/glossary-terms.md`; wait for CI green on 3 platforms; then tick the roadmap item,
 delete this file, mark ready, ask for review.
+
+## Update (French glossary)
+
+French glossary terms added and pushed. Only remaining: confirm CI green on 3 platforms for the latest commit (no check runs
+were reported yet at 06:50Z), then tick the roadmap item, delete this file, mark ready, ask the owner for review.
