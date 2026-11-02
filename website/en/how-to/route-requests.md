@@ -71,13 +71,14 @@ print(routes:url_for("users.show", { id = "Ada Lovelace" }))
 Templates are a subset of RFC 6570 level 1:
 
 - `/users` is a literal path. Literal segments are case-sensitive and may hold percent-encoded bytes.
-- `{id}` is a whole segment that binds one non-empty value. `/users/{id}.json` is refused: a parameter is a whole
-  segment.
+- `{id}` binds one non-empty segment. Literal text may surround the expression inside a segment: `/files/{name}.json`
+  binds `name` to `data` for `/files/data.json`, and `v{major}` binds `major` to `2` for `/v2`. A segment holds one
+  expression only, so `{a}-{b}` is refused.
 - `{path...}` as the last segment binds the rest of the path (at least one segment) as one string whose `/` separate
   the segments. The notation `...` is the router's own, it is not RFC 6570.
 
-When several routes could serve a path, a static segment wins over a parameter, and a parameter over a wildcard,
-segment by segment, going back to a lower-precedence branch when the preferred one has no route for the method.
+When several routes could serve a path, a static segment wins over a parameter with literal text around it
+(the longer text first), that over a plain parameter, and a plain parameter over a wildcard, segment by segment, going back to a lower-precedence branch when the preferred one has no route for the method.
 Matching costs a few table accesses per segment, whatever the number of routes.
 
 ## The request path
@@ -115,6 +116,23 @@ print(bad.status, bad.reason)
 - Empty segments are kept: `/a//b` does not match `/a/{x}/b`.
 - A malformed percent sequence and an encoded NUL byte give status 400.
 
+## Differences from the standards and from common expectations
+
+The router follows RFC 6570 (templates), RFC 3986 (paths) and RFC 9110 (methods, `Allow`). Where it does not, the gap is
+listed here with its reason. Only security and major performance reasons justify a gap.
+
+| Gap | What the router does | Reason |
+|---|---|---|
+| RFC 6570 levels 2 to 4 | Only level 1 expressions: no `{+path}`, `{/path*}`, `{?query}`, no modifiers. | Matching a request back to a template is not defined by RFC 6570, and the query is not part of the route (`schema` validates it). Level 1 is what a radix tree can match without ambiguity. |
+| Several expressions in one segment | `{a}-{b}` is refused at boot (`mixed_segment`). | The split of `x-y-z` between `a` and `b` is ambiguous, and a matcher that tries them all costs more than a table access per segment (performance). |
+| Wildcard | `{path...}` is the router's own notation, last segment only, one or more segments. | RFC 6570 has no notation to match several segments. The notation is not an RFC 6570 expression. |
+| Empty value | `{id}` never matches an empty segment: `/a//b` does not match `/a/{x}/b`, and `/files/.json` binds `name` to nothing, so it does not match `/files/{name}.json`. | RFC 6570 allows an empty expansion. An empty identifier is not a value users expect a route to bind, and an empty segment is a classic way to confuse path checks (security). |
+| Encoded slash in a wildcard | A wildcard refuses a segment whose decoded text holds `/` (404 or 405). A `{id}` accepts it. | RFC 3986 says `%2F` is data. Accepting it in a wildcard lets `..%2F..%2Fsecret` look like a path a file action then trusts (security, hardening that other frameworks apply to their wildcards too). |
+| Unreadable path | A malformed percent sequence or `%00` gives status 400, not 404. | RFC 3986 section 2.1 makes it malformed. NUL truncates strings in C code and filesystems (security). |
+| `url_for` values | It refuses an empty value, a NUL byte, and a value that forms the dot segment `.` or `..`. | Matching would never read them back, and a dot segment is resolved away by clients and by this router (security). RFC 6570 expansion accepts them. |
+| Invalid UTF-8 | A decoded value is bytes, not checked. | RFC 3986 percent-encodes octets and requires no encoding. Validation belongs to `schema`. |
+| Redirect | A missing or extra trailing slash is a 404, never a redirect. | `/a` and `/a/` are different URIs (RFC 3986 section 6.2.3). A redirect policy is the application's (`kernel`), not the router's. |
+
 ## Trailing slash, HEAD and OPTIONS
 
 By default `/users` and `/users/` are two different paths (`trailing_slash = "strict"`). With
@@ -145,7 +163,7 @@ the other route (`context.other_index`):
 
 `routes:url_for(name, parameters)` builds the path of a named route. Values are strings or integers and are
 percent-encoded; a wildcard value keeps its `/`. It raises `ArgumentError` for an unknown name, a missing or unknown
-parameter, and a value no request path could carry (empty, `.`, `..`, a NUL byte). `routes:routes()` lists the
+parameter, and a value no request path could carry (empty, a NUL byte, or a value that makes the segment `.` or `..`). `routes:routes()` lists the
 declared routes in order and `routes:route(name)` finds one by name, for OpenAPI generation and documentation.
 
 For the reasons behind the design, see [The HTTP model](../explanation/http-model.md) and the code reference of

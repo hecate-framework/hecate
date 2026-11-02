@@ -74,8 +74,8 @@ Les gabarits sont un sous-ensemble du niveau 1 de la RFC 6570 :
 
 - `/users` est un chemin littéral. Les segments littéraux distinguent les majuscules des minuscules et peuvent
   contenir des octets encodés en pourcentage.
-- `{id}` est un segment entier qui lie une valeur non vide. `/users/{id}.json` est refusé : un paramètre est un
-  segment entier.
+- `{id}` lie un segment non vide. Du texte littéral peut entourer l’expression dans un segment : `/files/{name}.json`
+  lie `name` à `data` pour `/files/data.json`. Un segment ne contient qu’une expression : `{a}-{b}` est refusé.
 - `{path...}` en dernier segment lie le reste du chemin (au moins un segment) sous la forme d’une seule chaîne dont
   les `/` séparent les segments. La notation `...` est propre au routeur, elle ne vient pas de la RFC 6570.
 

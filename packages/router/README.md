@@ -54,9 +54,11 @@
 
 ### Behaviour
 
-- A path template is a subset of RFC 6570 level 1: literal segments, whole-segment parameters `{id}` and a last-segment
-  wildcard `{path...}` (the notation is the router's own). Mixed segments such as `{id}.json` are refused.
-- Precedence is static, then parameter, then wildcard, segment by segment, with backtracking. A route that does not serve
+- A path template is a subset of RFC 6570 level 1: literal segments, parameters `{id}` (alone or with literal text around
+  them, as in `{id}.json` and `v{major}`, one expression per segment) and a last-segment wildcard `{path...}` (the
+  notation is the router's own). Several expressions in one segment (`{a}-{b}`) are refused.
+- Precedence is static, then parameter with literal text (longest text first), then plain parameter, then wildcard,
+  segment by segment, with backtracking. A route that does not serve
   the method is skipped for a lower-precedence one that does.
 - 404 when no route has the path; 405 with a sorted `Allow` when the path exists for other methods; `HEAD` falls back to
   `GET` and `OPTIONS` answers 204 with `Allow`, unless a route is declared or the option is off.
@@ -65,6 +67,14 @@
   wildcard never matches a segment whose decoded text holds `/`.
 - The trailing slash is significant by default; the router never redirects.
 - Ambiguous tables (the same method for the same paths) are rejected at boot, naming both routes.
+
+### Gaps to the standards
+
+Every gap, with its reason (security or major performance only), is listed in the guide
+[Route requests](../../website/en/how-to/route-requests.md#differences-from-the-standards-and-from-common-expectations):
+RFC 6570 level 1 only, one expression per segment, the router's own wildcard notation, no empty values, wildcards
+refuse an encoded slash, status 400 for an unreadable path, `url_for` refuses dot-segment and NUL values, no UTF-8
+check, no redirect.
 
 ### Security note for actions
 

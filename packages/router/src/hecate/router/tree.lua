@@ -11,9 +11,15 @@ global <const> pairs, ipairs, string, table
 
 ---@class hecate.router.Node
 ---@field static? table<string, hecate.router.Node>
+---@field affixed? hecate.router.Affixed[]  parameters with literal text around them, longest text first
 ---@field param? hecate.router.Node
 ---@field terminal? table<string, hecate.router.Entry>
 ---@field wild? table<string, hecate.router.Entry>
+
+---@class hecate.router.Affixed
+---@field prefix string
+---@field suffix string
+---@field node hecate.router.Node
 
 --- Insertion and lookup in the compiled tree.
 ---@class hecate.router.trees
@@ -38,6 +44,25 @@ function tree.insert(root, parsed, method, entry)
       node.static = node.static or {}
       local child = node.static[segment.value]
       if child == nil then child = {}; node.static[segment.value] = child end
+      node = child
+    elseif segment.kind == "affixed" then
+      local list = node.affixed
+      if list == nil then list = {}; node.affixed = list end
+      local child
+      for _, candidate in ipairs(list) do
+        if candidate.prefix == segment.prefix and candidate.suffix == segment.suffix then child = candidate.node end
+      end
+      if child == nil then
+        child = {}
+        list[#list + 1] = { prefix = segment.prefix, suffix = segment.suffix, node = child }
+        -- the longest literal text first: `{x}.json` before `{x}`-like shorter ones; a stable order for equal lengths
+        table.sort(list, function(a, b)
+          local la, lb = #a.prefix + #a.suffix, #b.prefix + #b.suffix
+          if la ~= lb then return la > lb end
+          if a.prefix ~= b.prefix then return a.prefix < b.prefix end
+          return a.suffix < b.suffix
+        end)
+      end
       node = child
     elseif segment.kind == "parameter" then
       local child = node.param
@@ -76,7 +101,7 @@ local function rest_of(segments, i, n)
   return table.concat(segments, "/", i, n)
 end
 
---- Walks the tree in the order static, parameter, wildcard, backtracking when a branch ends without serving `method`.
+--- Walks the tree in the order static, affixed parameter, parameter, wildcard, backtracking when a branch ends without serving `method`.
 --- With `set`, nothing is returned: every method served at a position the path reaches is added to `set` (the `Allow`
 --- field of a 405).
 ---@param node hecate.router.Node
@@ -105,6 +130,22 @@ local function walk(node, segments, i, n, values, depth, method, head, set)
     if child then
       local found = walk(child, segments, i + 1, n, values, depth, method, head, set)
       if found then return found end
+    end
+  end
+  local affixed = node.affixed
+  if affixed then
+    local size = #segment
+    for k = 1, #affixed do
+      local candidate = affixed[k]
+      local prefix, suffix = candidate.prefix, candidate.suffix
+      local lp, ls = #prefix, #suffix
+      if size > lp + ls
+        and (lp == 0 or string.sub(segment, 1, lp) == prefix)
+        and (ls == 0 or string.sub(segment, size - ls + 1) == suffix) then
+        values[depth + 1] = string.sub(segment, lp + 1, size - ls)
+        local found = walk(candidate.node, segments, i + 1, n, values, depth + 1, method, head, set)
+        if found then return found end
+      end
     end
   end
   local param = node.param

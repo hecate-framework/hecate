@@ -292,12 +292,12 @@ end
 
 function T:test_an_invalid_template_is_rejected_with_its_reason_and_route()
   local err = raises(self, router.RouteTableError, function()
-    Router(routes({ method = "GET", path = "/ok" }, { method = "GET", path = "/x{id}" }))
+    Router(routes({ method = "GET", path = "/ok" }, { method = "GET", path = "/x{id...}" }))
   end)
   self:assert_equal("invalid_template", err.context.reason)
   self:assert_equal("mixed_segment", err.context.template_reason)
   self:assert_equal(2, err.context.index)
-  self:assert_true(err.message:find("/x{id}", 1, true) ~= nil, err.message)
+  self:assert_true(err.message:find("/x{id...}", 1, true) ~= nil, err.message)
 end
 
 function T:test_invalid_routes_are_rejected()
@@ -435,6 +435,83 @@ function T:test_a_very_long_path_matches_without_trouble()
   local r = Router(routes({ method = "GET", path = "/{a}/{b}/{rest...}" }))
   local long = "/x/y" .. string.rep("/seg", 20000)
   self:assert_equal(200, r:match("GET", long).status)
+end
+
+
+-- A parameter inside a segment (RFC 6570 level 1: literal text around one expression) ---------------------------------
+
+local function affixed_router()
+  return Router(routes(
+    { method = "GET", path = "/files/{name}.json", name = "json" },
+    { method = "GET", path = "/files/{name}.xml", name = "xml" },
+    { method = "GET", path = "/files/{name}", name = "plain" },
+    { method = "GET", path = "/files/report.json", name = "report" },
+    { method = "GET", path = "/v{major}", name = "version" },
+    { method = "GET", path = "/u/x{id}y", name = "both" },
+    { method = "POST", path = "/files/{name}.json", name = "post" }))
+end
+
+function T:test_a_parameter_with_literal_text_around_it_binds_the_rest_of_the_segment()
+  local r = affixed_router()
+  local m = r:match("GET", "/files/data.json")
+  self:assert_equal("json", m.route.name)
+  self:assert_equal("data", m.parameters.name)
+  self:assert_equal("xml", r:match("GET", "/files/a.b.xml").route.name)
+  self:assert_equal("a.b", r:match("GET", "/files/a.b.xml").parameters.name)
+  self:assert_equal("2", r:match("GET", "/v2").parameters.major)
+  self:assert_equal("42", r:match("GET", "/u/x42y").parameters.id)
+end
+
+function T:test_precedence_is_static_then_affixed_then_parameter()
+  local r = affixed_router()
+  self:assert_equal("report", r:match("GET", "/files/report.json").route.name)
+  self:assert_equal("plain", r:match("GET", "/files/data.txt").route.name)
+  self:assert_equal("plain", r:match("GET", "/files/data.jsonx").route.name)
+end
+
+function T:test_an_affixed_parameter_needs_a_non_empty_value()
+  local r = affixed_router()
+  self:assert_equal("plain", r:match("GET", "/files/.json").route.name)
+  self:assert_equal(404, r:match("GET", "/v").status)
+  self:assert_equal(404, r:match("GET", "/u/xy").status)
+  self:assert_equal(404, r:match("GET", "/u/x").status)
+end
+
+function T:test_the_value_of_an_affixed_parameter_is_decoded()
+  local r = affixed_router()
+  self:assert_equal("a/b", r:match("GET", "/files/a%2Fb.json").parameters.name)
+  self:assert_equal("data", r:match("GET", "/files/data%2Ejson").parameters.name)
+end
+
+function T:test_an_affixed_route_that_does_not_serve_the_method_falls_through_and_feeds_allow()
+  local r = affixed_router()
+  self:assert_equal("post", r:match("POST", "/files/x.json").route.name)
+  local m = r:match("DELETE", "/files/x.json")
+  self:assert_equal(405, m.status)
+  self:assert_equal("GET, HEAD, OPTIONS, POST", m.allow_field)
+end
+
+function T:test_url_for_expands_text_around_a_parameter()
+  local r = affixed_router()
+  self:assert_equal("/files/a%20b.json", r:url_for("json", { name = "a b" }))
+  self:assert_equal("/v2", r:url_for("version", { major = 2 }))
+  self:assert_equal("/u/x7y", r:url_for("both", { id = 7 }))
+  self:assert_equal("/files/..json", r:url_for("json", { name = "." }))
+  local round = r:match("GET", r:url_for("json", { name = "a/b" }))
+  self:assert_equal("a/b", round.parameters.name)
+end
+
+function T:test_url_for_refuses_a_value_that_would_form_a_dot_segment()
+  local r = Router(routes({ method = "GET", path = "/.{x}", name = "dot" }))
+  raises(self, core.ArgumentError, function() r:url_for("dot", { x = "." }) end)
+  self:assert_equal("/.a", r:url_for("dot", { x = "a" }))
+end
+
+function T:test_identical_affixed_templates_are_ambiguous()
+  local err = raises(self, router.RouteTableError, function()
+    Router(routes({ method = "GET", path = "/a/{x}.json" }, { method = "GET", path = "/a/{y}.json" }))
+  end)
+  self:assert_equal("ambiguous_route", err.context.reason)
 end
 
 return T
