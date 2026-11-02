@@ -65,7 +65,7 @@ CLI's registry access.
 - Compiled **radix tree** per method set; static segments, parameter segments
   (`{id}`) and a trailing wildcard (`{path...}`). Path templates are a subset of
   RFC 6570 level 1.
-- Matching cost proportional to path length, independent of the number of routes.
+- Matching cost is bounded by the length of the path times the length of the longest template, and independent of the number of routes.
 - Ambiguous or conflicting routes are detected at compile time.
 - 404 when no path matches; 405 with an `Allow` field when the path matches but the
   method does not; automatic `HEAD` and `OPTIONS` handling (configurable).

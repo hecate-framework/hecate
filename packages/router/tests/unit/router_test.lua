@@ -407,4 +407,34 @@ function T:test_url_for_refuses_what_it_cannot_build()
   raises(self, core.ArgumentError, function() r:url_for("u", "42") end)
 end
 
+-- Review follow-ups -------------------------------------------------------------------------------------------------
+
+function T:test_route_and_a_map_of_routes_are_checked()
+  local r = Router(routes({ method = "GET", path = "/a", name = "a" }))
+  raises(self, core.ArgumentError, function() r:route(1) end)
+  raises(self, core.ArgumentError, function() Router({ home = { method = "GET", path = "/" } }) end)
+end
+
+function T:test_encoded_slash_and_backslash_stay_data_in_a_parameter()
+  local r = Router(routes({ method = "GET", path = "/f/{id}" }))
+  local m = r:match("GET", "/f/..%2F..")
+  self:assert_equal(200, m.status)
+  self:assert_equal("../..", m.parameters.id)
+  self:assert_equal("a\\b", r:match("GET", "/f/a%5Cb").parameters.id)
+  self:assert_equal("a\r\nb", r:match("GET", "/f/a%0D%0Ab").parameters.id)
+end
+
+function T:test_a_wildcard_never_takes_an_encoded_slash_as_a_separator_and_dots_resolve_before_matching()
+  local r = Router(routes({ method = "GET", path = "/s/{p...}" }, { method = "GET", path = "/x" }))
+  self:assert_equal(200, r:match("GET", "/s/a/%2e%2E/../x").status)
+  self:assert_equal(405, r:match("POST", "/s/a/../../x").status)
+  self:assert_equal("/x", r:match("GET", "/s/%2E%2e/x").route.path)
+end
+
+function T:test_a_very_long_path_matches_without_trouble()
+  local r = Router(routes({ method = "GET", path = "/{a}/{b}/{rest...}" }))
+  local long = "/x/y" .. string.rep("/seg", 20000)
+  self:assert_equal(200, r:match("GET", long).status)
+end
+
 return T

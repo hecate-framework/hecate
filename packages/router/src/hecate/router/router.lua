@@ -27,7 +27,7 @@ local RouteTableError = errors.RouteTableError
 ---@class hecate.router.Match
 ---@field status 200|204|400|404|405  200: `route` serves the request; 204: automatic `OPTIONS`; 400: the path is
 ---  unreadable (`reason`); 404: no route has this path; 405: the path exists, not for this method
----@field route? hecate.router.Route  the route table as declared (status 200)
+---@field route? hecate.router.Route  the route as declared, the same table that was given at construction (status 200)
 ---@field parameters? table<string, string>  path parameter name to decoded value (status 200)
 ---@field allow? string[]  the methods the path serves, sorted (status 204 and 405)
 ---@field allow_field? string  `allow` as the value of the `Allow` field: `GET, HEAD, OPTIONS` (status 204 and 405)
@@ -103,6 +103,7 @@ end
 ---@param options? hecate.router.RouterOptions
 function Router:init(routes, options)
   if type(routes) ~= "table" then argument_error("routes must be a list of route tables") end
+  if next(routes) ~= nil and routes[1] == nil then argument_error("routes must be a list (a table with keys 1..n), not a map") end
   local settings = check_options(options)
   self._trailing_slash = settings.trailing_slash
   self._head = settings.automatic_head
@@ -219,6 +220,7 @@ end
 ---@param name string
 ---@return hecate.router.Route?
 function Router:route(name)
+  if type(name) ~= "string" then error(core.ArgumentError("router.Router:route: the route name must be a string"), 2) end
   local named = self._by_name[name]
   return named and self._routes[named.index] or nil
 end

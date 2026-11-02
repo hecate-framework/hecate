@@ -3,7 +3,7 @@
 
 - roadmap_item: `router`: radix tree, URI template subset, 404/405, reverse routing (+ percent-decode segments, dot segments; OQ-75)
 - status: in-progress
-- lock_until: 2026-11-02T00:43:20Z
+- lock_until: 2026-11-02T05:30:00Z
 - last_update: 2026-11-02T00:41:19Z
 
 ## Done
@@ -62,3 +62,10 @@ To DEFER (record in OQ-83 as limits/candidates, owner to confirm):
 - Input limits (max_segments, template length/route count caps): http layer bounds request line; candidate router option.
 - Option `reject_encoded_slash`; expose resolved path on `Match` (OQ-75 raw/resolved divergence for middleware).
 - `allow_field` redundant with `allow`; `route()` vs `routes()` naming; option-style consistency.
+
+## Update 2026-11-02 (resume run)
+
+Fixed with tests: `route(name)` type check, `routes` map rejected, `Match.route` wording, spec wording, README handler warning,
+pass-through and long-path tests. Stack levels: table errors take no position and the traceback skips only core frames, so
+nothing to fix (recorded in OQ-83). Deferred items recorded in OQ-83. Still to do: test-engineer, performance, terminology,
+architect reviews; French page (`translator-fr`); then tick, delete this file, ready for review.
