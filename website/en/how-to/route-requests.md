@@ -15,8 +15,8 @@ The router depends only on `hecate.core`. It needs no native module.
 
 ## Declare and match
 
-A route is a table with a `method` (or a list of methods), a path `template` in `path`, an optional `name`, and any
-metadata you want back. The router keeps the table you gave it.
+A route is a table with a `method` (or a list of methods), a [path template](../reference/glossary.md#http) in `path`, an optional `name`, and any
+metadata you want back. The router keeps the table you gave it; the list of routes is the [route table](../reference/glossary.md#http).
 
 <!-- example: packages/router/examples/hecate.router.Router.lua -->
 ```lua

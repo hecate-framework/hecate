@@ -66,10 +66,10 @@
 - The trailing slash is significant by default; the router never redirects.
 - Ambiguous tables (the same method for the same paths) are rejected at boot, naming both routes.
 
-### Security note for handlers
+### Security note for actions
 
 A `{param}` binds the *decoded* segment, so it may hold `/` or `\` (from `%2F`, `%5C`); a wildcard rejects segments holding `/`.
-A handler that maps a parameter to a file must resolve it against a root, reject `\` and `:`, and never trust it as a path.
+An action that maps a parameter to a file must resolve it against a root, reject `\` and `:`, and never trust it as a path.
 
 ## Layout
 

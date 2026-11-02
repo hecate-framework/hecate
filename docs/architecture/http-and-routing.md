@@ -62,7 +62,7 @@ CLI's registry access.
 
 ## `hecate.router`
 
-- Compiled **radix tree** per method set; static segments, parameter segments
+- One compiled **radix tree** over decoded segments, the methods stored per node; static segments, parameter segments
   (`{id}`) and a trailing wildcard (`{path...}`). Path templates are a subset of
   RFC 6570 level 1.
 - Matching cost is bounded by the length of the path times the length of the longest template, and independent of the number of routes.
