@@ -2,9 +2,9 @@
 # Handoff
 
 - roadmap_item: `router`: radix tree, URI template subset, 404/405, reverse routing (+ percent-decode segments, dot segments; OQ-75)
-- status: waiting-ci            <!-- in-progress | waiting-owner | waiting-ci -->
-- lock_until: 2026-11-01T23:37:38Z
-- last_update: 2026-11-01T22:07:38Z
+- status: in-progress
+- lock_until: 2026-11-02T02:11:19Z
+- last_update: 2026-11-02T00:41:19Z
 
 ## Done
 
@@ -20,7 +20,7 @@
 
 ## Next steps
 
-1. Follow CI on the three platforms of the draft PR; fix failures.
+1. CI green on 3 platforms (checked 2026-11-02). Reviews running (step 4).
 2. Run the reviewers (`/review-package router`: architect, terminology, api, test-engineer, security, performance), triage.
 3. `translator-fr`: French page of `how-to/route-requests.md` and the reference index line (not done here).
 4. Only when CI is green and reviews are triaged: tick the roadmap item, delete this file, mark the PR ready.
