@@ -3,7 +3,7 @@
 
 - roadmap_item: `router`: radix tree, URI template subset, 404/405, reverse routing (+ percent-decode segments, dot segments; OQ-75)
 - status: in-progress
-- lock_until: 2026-11-02T02:11:19Z
+- lock_until: 2026-11-02T00:43:20Z
 - last_update: 2026-11-02T00:41:19Z
 
 ## Done
@@ -21,7 +21,7 @@
 ## Next steps
 
 1. CI green on 3 platforms (checked 2026-11-02). Reviews running (step 4).
-2. Run the reviewers (`/review-package router`: architect, terminology, api, test-engineer, security, performance), triage.
+2. (DONE: api + security reviews, triage below; test-engineer, performance, terminology, architect not yet run) Run the reviewers (`/review-package router`: architect, terminology, api, test-engineer, security, performance), triage.
 3. `translator-fr`: French page of `how-to/route-requests.md` and the reference index line (not done here).
 4. Only when CI is green and reviews are triaged: tick the roadmap item, delete this file, mark the PR ready.
 
@@ -48,3 +48,17 @@ lua tools/run.lua check-links
 lua tools/run.lua check-changelog
 lua packages/router/benchmarks/match.lua
 ```
+
+## Review triage (2026-11-02, api-reviewer + security-reviewer, report-only; none major)
+
+To FIX in this PR (test first), next run:
+- Error stack levels point inside router (router.lua:46,52; template.lua:88): fix levels + test position.
+- `Router:route(name)` lacks string check (router.lua:221); `routes` as map silently empty (router.lua:85,104): raise RouteTableError/ArgumentError.
+- Wording: `Match.route` is "the route as declared" (router.lua:30, 209); soften spec line "cost proportional to path length" to "bounded by longest template" (docs/architecture/http-and-routing.md).
+- Document return-vs-raise split of path/template modules; document `Match.status` meaning; README warning that `{id}` accepts decoded `/` and `\`, wildcard rejects `/` (file-serving handlers must root-resolve, reject `\`, `:`).
+- Tests to add: `%2e` last segment with trailing_slash=ignore; `{id}` accepting `..%2F..`; `%5C`, `%0D%0A` pass-through; mixed-case `%2E%2e` via match; 405/204 path uses dot-segment resolution; adversarial backtracking table; very long path / many segments; float/table values in url_for wildcard; decode(encode(x))==x property.
+
+To DEFER (record in OQ-83 as limits/candidates, owner to confirm):
+- Input limits (max_segments, template length/route count caps): http layer bounds request line; candidate router option.
+- Option `reject_encoded_slash`; expose resolved path on `Match` (OQ-75 raw/resolved divergence for middleware).
+- `allow_field` redundant with `allow`; `route()` vs `routes()` naming; option-style consistency.
