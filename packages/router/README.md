@@ -45,7 +45,7 @@
     `allow`, `allow_field`, `reason`). `raw_path` is `http.Request.path`.
   - `Router:url_for(name, parameters?)`: reverse routing.
   - `Router:routes()` and `Router:route(name)`: route table introspection.
-  - options: `trailing_slash` (`"strict"` default, or `"ignore"`), `automatic_head` (default `true`),
+  - options: `trailing_slash` (`"ignore"` default, or `"strict"`), `automatic_head` (default `true`),
     `automatic_options` (default `true`).
 - `router.RouteTableError`: a `ConfigurationError` raised at boot; `context.reason` is `invalid_route`,
   `invalid_method`, `invalid_template`, `duplicate_name` or `ambiguous_route`.
@@ -65,7 +65,8 @@
 - The request path is read as OQ-75 asks: each segment is percent-decoded on its own (`%2F` is data), dot segments are
   resolved first (RFC 3986 section 5.2.4; `%2E` is a dot), a malformed percent sequence or `%00` is status 400, and a
   wildcard never matches a segment whose decoded text holds `/`.
-- The trailing slash is significant by default; the router never redirects.
+- `/a` and `/a/` are the same path by default (`trailing_slash = "ignore"`, a documented gap to RFC 3986; `"strict"` follows
+  it); the router never redirects.
 - Ambiguous tables (the same method for the same paths) are rejected at boot, naming both routes.
 
 ### Gaps to the standards
@@ -74,7 +75,7 @@ Every gap, with its reason (security or major performance only), is listed in th
 [Route requests](../../website/en/how-to/route-requests.md#differences-from-the-standards-and-from-common-expectations):
 RFC 6570 level 1 only, one expression per segment, the router's own wildcard notation, no empty values, wildcards
 refuse an encoded slash, status 400 for an unreadable path, `url_for` refuses dot-segment and NUL values, no UTF-8
-check, no redirect.
+check, no redirect, and `/a` = `/a/` by default.
 
 ### Security note for actions
 

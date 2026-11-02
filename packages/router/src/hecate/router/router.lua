@@ -19,7 +19,7 @@ local RouteTableError = errors.RouteTableError
 
 --- Options of a router.
 ---@class hecate.router.RouterOptions
----@field trailing_slash? "strict"|"ignore"  `strict` (default): `/a` and `/a/` are different paths; `ignore`: both are `/a`
+---@field trailing_slash? "strict"|"ignore"  `ignore` (default): `/a` and `/a/` are the same path; `strict`: they are different paths
 ---@field automatic_head? boolean  default `true`: `HEAD` is served by the `GET` route unless a `HEAD` route exists
 ---@field automatic_options? boolean  default `true`: `OPTIONS` answers 204 with `Allow` unless an `OPTIONS` route exists
 
@@ -59,14 +59,14 @@ local function describe(route)
 end
 
 local function check_options(options)
-  if options == nil then return { trailing_slash = "strict", automatic_head = true, automatic_options = true } end
+  if options == nil then return { trailing_slash = "ignore", automatic_head = true, automatic_options = true } end
   if type(options) ~= "table" then argument_error("options must be a table") end
   for key in pairs(options) do
     local known = false
     for _, name in ipairs(OPTION_NAMES) do if name == key then known = true end end
     if not known then argument_error(("unknown option %s (known: %s)"):format(tostring(key), table.concat(OPTION_NAMES, ", "))) end
   end
-  local slash = options.trailing_slash or "strict"
+  local slash = options.trailing_slash or "ignore"
   if slash ~= "strict" and slash ~= "ignore" then argument_error("option trailing_slash must be \"strict\" or \"ignore\"") end
   for _, flag in ipairs({ "automatic_head", "automatic_options" }) do
     if options[flag] ~= nil and type(options[flag]) ~= "boolean" then argument_error(("option %s must be a boolean"):format(flag)) end

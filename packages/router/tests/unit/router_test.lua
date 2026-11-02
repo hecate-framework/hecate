@@ -184,8 +184,9 @@ end
 
 -- Trailing slash ---------------------------------------------------------------------------------------------------
 
-function T:test_the_trailing_slash_is_significant_by_default()
-  local r = Router(routes({ method = "GET", path = "/a", name = "a" }, { method = "GET", path = "/b/", name = "b" }, { method = "GET", path = "/", name = "root" }))
+function T:test_the_strict_policy_makes_the_trailing_slash_significant()
+  local r = Router(routes({ method = "GET", path = "/a", name = "a" }, { method = "GET", path = "/b/", name = "b" }, { method = "GET", path = "/", name = "root" }),
+    { trailing_slash = "strict" })
   self:assert_equal("a", r:match("GET", "/a").route.name)
   self:assert_equal(404, r:match("GET", "/a/").status)
   self:assert_equal("b", r:match("GET", "/b/").route.name)
@@ -193,19 +194,18 @@ function T:test_the_trailing_slash_is_significant_by_default()
   self:assert_equal("root", r:match("GET", "/").route.name)
 end
 
-function T:test_the_ignore_policy_serves_both_forms()
-  local r = Router(routes({ method = "GET", path = "/a", name = "a" }, { method = "GET", path = "/b/", name = "b" }, { method = "GET", path = "/", name = "root" }),
-    { trailing_slash = "ignore" })
+function T:test_by_default_both_forms_of_a_path_are_served()
+  local r = Router(routes({ method = "GET", path = "/a", name = "a" }, { method = "GET", path = "/b/", name = "b" }, { method = "GET", path = "/", name = "root" }))
   for _, path in ipairs({ "/a", "/a/" }) do self:assert_equal("a", r:match("GET", path).route.name) end
   for _, path in ipairs({ "/b", "/b/" }) do self:assert_equal("b", r:match("GET", path).route.name) end
   self:assert_equal("root", r:match("GET", "/").route.name)
 end
 
-function T:test_two_templates_that_differ_by_a_trailing_slash_conflict_under_ignore()
+function T:test_two_templates_that_differ_by_a_trailing_slash_conflict_by_default()
   raises(self, router.RouteTableError, function()
-    Router(routes({ method = "GET", path = "/a" }, { method = "GET", path = "/a/" }), { trailing_slash = "ignore" })
+    Router(routes({ method = "GET", path = "/a" }, { method = "GET", path = "/a/" }))
   end)
-  Router(routes({ method = "GET", path = "/a" }, { method = "GET", path = "/a/" }))
+  Router(routes({ method = "GET", path = "/a" }, { method = "GET", path = "/a/" }), { trailing_slash = "strict" })
 end
 
 -- Path normalisation (OQ-75) ---------------------------------------------------------------------------------------

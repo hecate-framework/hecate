@@ -20,6 +20,7 @@ local path = require("hecate.router.path")
 ---@class hecate.router.Template
 ---@field text string  the template as declared
 ---@field segments hecate.router.TemplateSegment[]  after the trailing slash policy
+---@field slash boolean  whether the declared path ends with a slash that the `ignore` policy dropped from `segments`
 ---@field names string[]  the parameter names in order of appearance; the wildcard, if any, is last
 
 --- Parsing and expansion of path templates.
@@ -108,8 +109,12 @@ function template.parse(text, trailing_slash)
     position = slash + 1
   end
   local final = segments[#segments]
-  if trailing_slash == "ignore" and final.kind == "static" and final.value == "" then segments[#segments] = nil end
-  return { text = text, segments = segments, names = names }
+  local slash = false
+  if trailing_slash == "ignore" and final.kind == "static" and final.value == "" then
+    segments[#segments] = nil
+    slash = #segments > 0
+  end
+  return { text = text, segments = segments, names = names, slash = slash }
 end
 
 local function refuse(message) error(core.ArgumentError("router.url_for: " .. message), 4) end
@@ -170,7 +175,7 @@ function template.expand(parsed, parameters)
       end
     end
   end
-  return "/" .. table.concat(out, "/")
+  return "/" .. table.concat(out, "/") .. (parsed.slash and "/" or "")
 end
 
 return template

@@ -131,13 +131,14 @@ listed here with its reason. Only security and major performance reasons justify
 | Unreadable path | A malformed percent sequence or `%00` gives status 400, not 404. | RFC 3986 section 2.1 makes it malformed. NUL truncates strings in C code and filesystems (security). |
 | `url_for` values | It refuses an empty value, a NUL byte, and a value that forms the dot segment `.` or `..`. | Matching would never read them back, and a dot segment is resolved away by clients and by this router (security). RFC 6570 expansion accepts them. |
 | Invalid UTF-8 | A decoded value is bytes, not checked. | RFC 3986 percent-encodes octets and requires no encoding. Validation belongs to `schema`. |
-| Redirect | A missing or extra trailing slash is a 404, never a redirect. | `/a` and `/a/` are different URIs (RFC 3986 section 6.2.3). A redirect policy is the application's (`kernel`), not the router's. |
+| Trailing slash | By default `/a` and `/a/` are the same path (`trailing_slash = "ignore"`). RFC 3986 treats them as different URIs; `trailing_slash = "strict"` follows it. | Not a security or performance reason: it is the behaviour users expect of a router, and the owner's choice of default. The strict policy stays one option away. |
+| Redirect | The router never redirects, for example from `/a/` to `/a`. | One path, one answer, with no second request. A redirect policy is the application's (`kernel`), not the router's. |
 
 ## Trailing slash, HEAD and OPTIONS
 
-By default `/users` and `/users/` are two different paths (`trailing_slash = "strict"`). With
-`trailing_slash = "ignore"` they are the same path, and two routes that differ only by the slash are ambiguous. The
-router never redirects.
+By default `/users` and `/users/` are the same path (`trailing_slash = "ignore"`), whichever form the route declares,
+and two routes that differ only by the slash are ambiguous. `url_for` keeps the form the route declares. With
+`trailing_slash = "strict"` they are two different paths, as RFC 3986 has it. The router never redirects.
 
 `HEAD` is served by the `GET` route unless you declare a `HEAD` route (`automatic_head = false` turns this off).
 `OPTIONS` answers status 204 with `Allow` unless you declare an `OPTIONS` route (`automatic_options = false` turns

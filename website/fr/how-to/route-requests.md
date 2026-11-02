@@ -122,9 +122,10 @@ print(bad.status, bad.reason)
 
 ## Barre oblique finale, HEAD et OPTIONS
 
-Par défaut, `/users` et `/users/` sont deux chemins différents (`trailing_slash = "strict"`). Avec
-`trailing_slash = "ignore"`, ils sont le même chemin, et deux routes qui ne diffèrent que par la barre oblique sont
-ambiguës. Le routeur ne redirige jamais.
+Par défaut, `/users` et `/users/` sont le même chemin (`trailing_slash = "ignore"`), quelle que soit la forme déclarée
+par la route, et deux routes qui ne diffèrent que par la barre oblique sont ambiguës. `url_for` garde la forme déclarée
+par la route. Avec `trailing_slash = "strict"`, ce sont deux chemins différents, comme dans la RFC 3986. Le routeur ne
+redirige jamais.
 
 `HEAD` est servi par la route `GET` sauf si vous déclarez une route `HEAD` (`automatic_head = false` désactive ce
 comportement). `OPTIONS` répond par le statut 204 avec `Allow` sauf si vous déclarez une route `OPTIONS`

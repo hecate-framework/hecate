@@ -39,7 +39,7 @@ Plus, for every change: unit tests for public behaviour, LuaLS annotations on pu
 ## Known pitfalls
 
 - percent-encoding and normalisation
-- trailing slash policy (explicit, configurable)
+- trailing slash policy (default `ignore`, `strict` available, documented)
 
 ## Standards
 
