@@ -18,7 +18,7 @@
 
 ## Next steps
 
-1. (2b) Remaining emission work: official JSON Schema test suite (supported subset), a regex subset for `pattern` (needs an ADR), owner confirmation of the `1.0` gap; add map, tagged_union, named, format, multiple_of, default, core enumeration support, recursive schemas.
+1. (2b) Remaining emission work: official JSON Schema test suite (supported subset), the `pattern` translator Lua pattern -> ECMA-262 decided by the owner in OQ-85 (2026-11-02): subset translator written in Lua, refuses `%b`/`%f` at emission, warning log at declaration, ASCII-only literals, ASCII-pinned classes, documented rewrites (write the spec section or ADR first); the `1.0` gap is confirmed; add map, tagged_union, named, format, multiple_of, default, core enumeration support, recursive schemas.
 2. Class-bound instances and the presence set `schema.sent(instance, name)` (OQ-50), HTTP-method relaxation (PATCH).
 3. Docs: website pages, tested examples, glossary check, reference generation (`DEFAULT_PACKAGES`).
 4. Benchmarks (`benchmarks/`) for compiled validators.
@@ -28,6 +28,8 @@
 - Validation-core choices (Lua pattern, `integer` refuses 1.0, nullable is json.null only, union is anyOf, ...): OQ-85.
 
 ## Doubts and questions for the owner
+
+- OQ-85 points (10) to (17) (emission and coercion choices) are not yet reviewed by the owner.
 
 ## Commands to re-run
 
