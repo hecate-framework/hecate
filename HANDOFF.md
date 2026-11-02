@@ -29,7 +29,7 @@
 
 ## Doubts and questions for the owner
 
-- OQ-85 points (10) to (17) (emission and coercion choices) are not yet reviewed by the owner.
+- OQ-85: the owner confirmed points (2) to (9), (11) to (13), (15) and (17); (14) number grammar and (16) null coercion are under discussion. Point (10) is only a stop-gap: build the `pattern` translator now and remove the `pattern` refusal in `to_json_schema` (and its test `test_pattern_is_refused`, replaced by translation tests).
 
 ## Commands to re-run
 
