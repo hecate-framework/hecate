@@ -56,10 +56,19 @@ local function conforms(emitted, value)
   if type(value) == "number" then
     if emitted.minimum and value < emitted.minimum then return false end
     if emitted.maximum and value > emitted.maximum then return false end
+    if emitted.exclusiveMinimum and value <= emitted.exclusiveMinimum then return false end
+    if emitted.exclusiveMaximum and value >= emitted.exclusiveMaximum then return false end
   end
   if emitted.type == "array" then
     if emitted.minItems and #value < emitted.minItems then return false end
     if emitted.maxItems and #value > emitted.maxItems then return false end
+    if emitted.uniqueItems then
+      for i = 2, #value do
+        for j = 1, i - 1 do
+          if same_json(value[i], value[j]) then return false end
+        end
+      end
+    end
     if emitted.items then
       for i = 1, #value do
         if not conforms(emitted.items, value[i]) then return false end
@@ -197,6 +206,8 @@ function T:test_differential_base_and_refinements()
   differential(self, "string length", schema.string({ min_length = 2, max_length = 3 }))
   differential(self, "integer", schema.integer({ minimum = 1, maximum = 3 }))
   differential(self, "number", schema.number({ minimum = 1.5 }))
+  differential(self, "exclusive", schema.number({ exclusive_minimum = 1, exclusive_maximum = 3 }))
+  differential(self, "unique", schema.array(schema.integer(), { unique_items = true }))
   differential(self, "boolean", schema.boolean())
   differential(self, "literal", schema.literal("abc"))
   differential(self, "literal null", schema.literal(null))

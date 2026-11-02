@@ -46,6 +46,21 @@ function T:test_minimum_and_maximum_are_inclusive()
   self:assert_equal(" maximum", codes(s, 4)[1])
 end
 
+function T:test_exclusive_bounds_reject_the_bound_itself()
+  local s = schema.number({ exclusive_minimum = 1, exclusive_maximum = 3 })
+  self:assert_true((s:validate(2)))
+  self:assert_equal(" exclusive_minimum", codes(s, 1)[1])
+  self:assert_equal(" exclusive_maximum", codes(s, 3)[1])
+  self:assert_error(function() schema.integer({ exclusive_minimum = 3, exclusive_maximum = 1 }) end)
+end
+
+function T:test_unique_items_reports_the_first_duplicate()
+  local s = schema.array(schema.object({ a = schema.integer() }), { unique_items = true })
+  self:assert_true((s:validate({ { a = 1 }, { a = 2 } })))
+  self:assert_equal("/1 unique_items", codes(s, { { a = 1 }, { a = 1 }, { a = 1 } })[1])
+  self:assert_true((schema.array(schema.integer()):validate({ 1, 1 })))
+end
+
 function T:test_string_length_counts_code_points()
   local s = schema.string({ min_length = 2, max_length = 3 })
   self:assert_true((s:validate("\u{e9}\u{e9}")))

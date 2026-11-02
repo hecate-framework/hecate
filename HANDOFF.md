@@ -3,8 +3,8 @@
 
 - roadmap_item: `schema`: refinement types, composition, coercion, validation with JSON Pointer error paths, JSON Schema 2020-12 emission.
 - status: in-progress            <!-- in-progress | waiting-ci | waiting-owner -->
-- lock_until: 2026-11-02T20:30:00Z
-- last_update: 2026-11-02T19:00:00Z
+- lock_until: 2026-11-02T23:30:00Z
+- last_update: 2026-11-02T22:00:00Z
 
 ## Done
 
@@ -14,9 +14,11 @@
 
 - Step 3 (coercion): `Schema:coerce` with compiled `coercer` closures, tests in `packages/schema/tests/unit/coerce_test.lua`, OQ-85 points 14 to 17, README and CHANGELOG updated. typecheck, lint, test schema pass (needs `build-native json`).
 
+- Step 2b-1: `exclusive_minimum`/`exclusive_maximum` on integer and number, `unique_items` on array (validation, emission, differential tests). Needs `lua tools/run.lua build-native json` before `test schema`.
+
 ## Next steps
 
-1. (2b) Remaining emission work: official JSON Schema test suite (supported subset), a regex subset for `pattern` (needs an ADR), owner confirmation of the `1.0` gap; add map, tagged_union, named, format, exclusive bounds, multiple_of, unique_items, default, core enumeration support, recursive schemas.
+1. (2b) Remaining emission work: official JSON Schema test suite (supported subset), a regex subset for `pattern` (needs an ADR), owner confirmation of the `1.0` gap; add map, tagged_union, named, format, multiple_of, default, core enumeration support, recursive schemas.
 2. Class-bound instances and the presence set `schema.sent(instance, name)` (OQ-50), HTTP-method relaxation (PATCH).
 3. Docs: website pages, tested examples, glossary check, reference generation (`DEFAULT_PACKAGES`).
 4. Benchmarks (`benchmarks/`) for compiled validators.

@@ -198,9 +198,12 @@ local function scalar_coercer(convert, expected)
 end
 
 local function numeric(kind, accepts, expected, options)
-  local o = read_options(kind, options, { minimum = "number", maximum = "number" })
+  local o = read_options(kind, options, { minimum = "number", maximum = "number",
+    exclusive_minimum = "number", exclusive_maximum = "number" })
   check_range(kind, o, "minimum", "maximum")
+  check_range(kind, o, "exclusive_minimum", "exclusive_maximum")
   local minimum, maximum = o.minimum, o.maximum
+  local exclusive_minimum, exclusive_maximum = o.exclusive_minimum, o.exclusive_maximum
   local validator = function(value, path, out)
     if not accepts(value) then return type_violation(path, expected, out) end
     if minimum and value < minimum then
@@ -208,6 +211,14 @@ local function numeric(kind, accepts, expected, options)
     end
     if maximum and value > maximum then
       out[#out + 1] = { path, "maximum", "the value is greater than " .. maximum, { maximum = maximum } }
+    end
+    if exclusive_minimum and value <= exclusive_minimum then
+      out[#out + 1] = { path, "exclusive_minimum", "the value is not greater than " .. exclusive_minimum,
+        { exclusive_minimum = exclusive_minimum } }
+    end
+    if exclusive_maximum and value >= exclusive_maximum then
+      out[#out + 1] = { path, "exclusive_maximum", "the value is not less than " .. exclusive_maximum,
+        { exclusive_maximum = exclusive_maximum } }
     end
   end
   local coercer = scalar_coercer(kind == "integer" and text_to_integer or text_to_number, "a" .. (kind == "integer" and "n integer" or " number"))
@@ -325,16 +336,41 @@ function M.nullable(inner)
   end })
 end
 
+--- Structural equality of decoded JSON values; `1` and `1.0` are equal numbers, as in JSON Schema.
+local function json_equal(a, b)
+  if a == b then return true end
+  if type(a) ~= "table" or type(b) ~= "table" or a == null or b == null then return false end
+  local count = 0
+  for key, member in next, a do
+    if not json_equal(member, b[key]) then return false end
+    count = count + 1
+  end
+  for _ in next, b do count = count - 1 end
+  return count == 0
+end
+
+--- Index of the first item equal to an earlier one, or nil.
+local function first_duplicate(list, length)
+  for i = 2, length do
+    for j = 1, i - 1 do
+      if json_equal(list[i], list[j]) then return i end
+    end
+  end
+  return nil
+end
+
 --- Declares a sequence type with a schema for every element. Paths use 0-based indices (RFC 6901 section 4).
 ---@param item hecate.schema.Schema
----@param options? { min_items?: integer, max_items?: integer }
+---@param options? { min_items?: integer, max_items?: integer, delimiter?: string, unique_items?: boolean }
 ---@return hecate.schema.Schema
 function M.array(item, options)
   require_schema("array", item)
-  local o = read_options("array", options, { min_items = "integer", max_items = "integer", delimiter = "string" })
+  local o = read_options("array", options, { min_items = "integer", max_items = "integer", delimiter = "string",
+    unique_items = "boolean" })
   if o.delimiter == "" then refuse("array: option delimiter must not be empty", { option = "delimiter" }) end
   check_range("array", o, "min_items", "max_items")
   local min_items, max_items = o.min_items, o.max_items
+  local unique_items = o.unique_items == true
   local validate_item = item.validator
   local coerce_item = item.coercer
   local delimiter = o.delimiter or ","
@@ -373,6 +409,13 @@ function M.array(item, options)
     end
     for i = 1, length do
       validate_item(value[i], path .. "/" .. (i - 1), out)
+    end
+    if unique_items then
+      local duplicate = first_duplicate(value, length)
+      if duplicate then
+        out[#out + 1] = { path .. "/" .. (duplicate - 1), "unique_items", "the item duplicates an earlier one",
+          { index = duplicate - 1 } }
+      end
     end
   end })
 end
@@ -506,7 +549,8 @@ local function emit(s)
     end
     return { type = "string", minLength = o.min_length, maxLength = o.max_length }
   elseif kind == "integer" or kind == "number" then
-    return { type = kind, minimum = o.minimum, maximum = o.maximum }
+    return { type = kind, minimum = o.minimum, maximum = o.maximum,
+      exclusiveMinimum = o.exclusive_minimum, exclusiveMaximum = o.exclusive_maximum }
   elseif kind == "boolean" then
     return { type = "boolean" }
   elseif kind == "literal" then
@@ -514,7 +558,8 @@ local function emit(s)
   elseif kind == "enumeration" then
     return { enum = s:members() }
   elseif kind == "array" then
-    return { type = "array", items = emit(s.item), minItems = o.min_items, maxItems = o.max_items }
+    return { type = "array", items = emit(s.item), minItems = o.min_items, maxItems = o.max_items,
+      uniqueItems = o.unique_items }
   elseif kind == "optional" then
     return emit(s.item) -- absence is expressed by the parent's `required`
   elseif kind == "nullable" then
