@@ -3,8 +3,8 @@
 
 - roadmap_item: `schema`: refinement types, composition, coercion, validation with JSON Pointer error paths, JSON Schema 2020-12 emission.
 - status: in-progress            <!-- in-progress | waiting-ci | waiting-owner -->
-- lock_until: 2026-11-03T08:30:00Z
-- last_update: 2026-11-03T07:00:00Z
+- lock_until: 2026-11-03T11:30:00Z
+- last_update: 2026-11-03T10:00:00Z
 
 ## Done
 
@@ -22,9 +22,11 @@
 
 - Step 2b-4: `tagged_union` and `default` (validation, coercion, emission, differential tests), OQ-88 added (mirror issue still to create from the template). typecheck, lint, test schema pass.
 
+- Step 2b-5: `named` (`$defs`/`$ref`), `any`, `null`; OQ-89 added (mirror issue still to create). typecheck, lint, test schema pass.
+
 ## Next steps
 
-1. (2b) Remaining emission work: official JSON Schema test suite (supported subset), the `1.0` gap is confirmed; (pattern translator done); add named, format, core enumeration support, recursive schemas.
+1. (2b) Remaining emission work: official JSON Schema test suite (supported subset), the `1.0` gap is confirmed; (pattern translator done); add format, core enumeration support, recursive schemas (named done).
 2. Class-bound instances and the presence set `schema.sent(instance, name)` (OQ-50), HTTP-method relaxation (PATCH).
 3. Docs: website pages, tested examples, glossary check, reference generation (`DEFAULT_PACKAGES`).
 4. Benchmarks (`benchmarks/`) for compiled validators.

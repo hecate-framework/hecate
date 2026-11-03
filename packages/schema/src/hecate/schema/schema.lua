@@ -43,7 +43,7 @@ core.finalise(Record)
 
 --- A type declaration: base type, refinement, product, collection or sum.
 ---@class hecate.schema.Schema
----@field kind string  "string", "integer", "number", "boolean", "literal", "enumeration", "object", "array", "map", "optional", "nullable", "union", "default" or "tagged_union"
+---@field kind string  "string", "integer", "number", "boolean", "literal", "enumeration", "object", "array", "map", "optional", "nullable", "union", "default", "tagged_union", "any", "null" or "named"
 ---@field options hecate.schema.Record  the declared refinements (read-only)
 ---@field properties? hecate.schema.Record  property name to schema (variant name to derived `object` schema for a `tagged_union`)
 ---@field members fun(self: hecate.schema.Schema): any[]  the alternatives of a `union` or the constants of an `enumeration`, as a new list (empty for other kinds)
@@ -684,7 +684,39 @@ function M.tagged_union(tag, variants)
     end })
 end
 
+--- Accepts every JSON value. Emitted as the empty schema `{}`.
+---@return hecate.schema.Schema
+function M.any()
+  return Schema("any", { validator = function() end })
+end
+
+--- Accepts JSON null only (`hecate.json.null`); Lua `nil` is absence.
+---@return hecate.schema.Schema
+function M.null()
+  return Schema("null", { validator = function(value, path, out)
+    if value ~= null then return type_violation(path, "null", out) end
+  end })
+end
+
+--- Gives a schema a name. The name is the key of the definition in the emission (`$defs`, referenced by `$ref`),
+--- and becomes an OpenAPI component. A name is made of letters, digits, `_`, `.` and `-`; two different schemas
+--- with the same name in one emission raise `ArgumentError` (OQ-89). Validation and coercion are those of `inner`.
+---@param name string
+---@param inner hecate.schema.Schema
+---@return hecate.schema.Schema
+function M.named(name, inner)
+  if type(name) ~= "string" or not name:find("^[%w_.%-]+$") then
+    refuse("named: the name is a non-empty string of letters, digits, '_', '.' and '-'")
+  end
+  require_schema("named", inner)
+  if inner.kind == "named" then refuse("named: the schema already has the name " .. (inner.options --[[@as table]]).name) end
+  return Schema("named", { options = { name = name }, item = inner, validator = inner.validator, coercer = inner.coercer })
+end
+
 local DIALECT = "https://json-schema.org/draft/2020-12/schema"
+
+--- Definitions collected by the emission in progress (`named` schemas), by name.
+local defs
 
 --- Emits the JSON Schema 2020-12 subschema of `s` (no `$schema`). Every construct has an exact emission, or the
 --- emission is refused (schemas-and-contracts.md, "JSON Schema").
@@ -693,7 +725,20 @@ local DIALECT = "https://json-schema.org/draft/2020-12/schema"
 local function emit(s)
   local kind = s.kind
   local o = s.options --[[@as table]]
-  if kind == "string" then
+  if kind == "any" then
+    return {}
+  elseif kind == "null" then
+    return { type = "null" }
+  elseif kind == "named" then
+    local name = o.name
+    local body = emit(s.item)
+    local previous = defs[name]
+    if previous == nil then defs[name] = body
+    elseif not json_equal(previous, body) then
+      error(core.ArgumentError("to_json_schema: two different schemas are named " .. name, { context = { name = name } }))
+    end
+    return { ["$ref"] = "#/$defs/" .. name }
+  elseif kind == "string" then
     return { type = "string", minLength = o.min_length, maxLength = o.max_length,
       pattern = o.pattern ~= nil and pattern_to_ecma(o.pattern) or nil }
   elseif kind == "integer" or kind == "number" then
@@ -750,7 +795,12 @@ end
 --- is translated to ECMA-262 by `hecate.schema.pattern`; a construct outside its subset raises `ArgumentError`.
 ---@return table document  the root carries `$schema`
 function Schema:to_json_schema()
-  local document = emit(self)
+  defs = {}
+  local ok, document = pcall(emit, self)
+  local collected = defs
+  defs = nil
+  if not ok then error(document, 0) end
+  if next(collected) ~= nil then document["$defs"] = collected end
   document["$schema"] = DIALECT
   return document
 end
