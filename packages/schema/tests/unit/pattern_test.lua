@@ -190,4 +190,18 @@ function T:test_emission_uses_the_translator()
   self:assert_true(core.is_instance_of(err, core.ArgumentError))
 end
 
+function T:test_declaration_warns_through_the_given_logger()
+  local warnings = {}
+  local logger = { warning = function(_, message, fields) warnings[#warnings + 1] = { message, fields } end }
+  schema.string({ pattern = "^%d+$", logger = logger })
+  self:assert_equal(0, #warnings)
+  local s = schema.string({ pattern = "%bxy", logger = logger })
+  self:assert_equal(1, #warnings)
+  self:assert_equal("%bxy", warnings[1][2].pattern)
+  self:assert_equal(nil, s.options.logger)
+  self:assert_false(pcall(function() return s:to_json_schema() end))
+  -- without a logger nothing is reported and declaration succeeds
+  schema.string({ pattern = "%bxy" })
+end
+
 return T

@@ -127,14 +127,27 @@ local M = {}
 
 --- Declares a string type.
 --- `pattern` is a Lua pattern for now (OQ-85); lengths count Unicode code points (JSON Schema 2020-12 section 6.3.1).
----@param options? { min_length?: integer, max_length?: integer, pattern?: string }
+--- A `pattern` that `to_json_schema` cannot translate (`%b`, `%f`, ...) is reported at declaration with
+--- `logger:warning(message, fields)` when a `logger` (any object with that method, for example a `hecate.log` logger) is given
+--- (OQ-85, point 1); the schema stays valid for Lua validation and emission refuses it.
+---@param options? { min_length?: integer, max_length?: integer, pattern?: string, logger?: { warning: fun(self: table, message: string, fields?: table) } }
 ---@return hecate.schema.Schema
 function M.string(options)
-  local o = read_options("string", options, { min_length = "integer", max_length = "integer", pattern = "string" })
+  local o = read_options("string", options,
+    { min_length = "integer", max_length = "integer", pattern = "string", logger = "table" })
+  local logger = o.logger
+  o.logger = nil
   check_range("string", o, "min_length", "max_length")
   local min_length, max_length, pattern = o.min_length, o.max_length, o.pattern
   if pattern ~= nil and not pcall(string.find, "", pattern) then
     refuse("string: option pattern is not a valid pattern", { option = "pattern" })
+  end
+  if pattern ~= nil and logger ~= nil then
+    local translated, err = pcall(pattern_to_ecma, pattern)
+    if not translated then
+      logger:warning("schema: the pattern cannot be emitted as a JSON Schema pattern",
+        { pattern = pattern, reason = err.message })
+    end
   end
   local checks_length = min_length ~= nil or max_length ~= nil
   local validator = function(value, path, out)

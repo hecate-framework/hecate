@@ -77,9 +77,12 @@ Refused: `%b`, `%f`, the position capture `()`, any non-ASCII byte, a malformed 
 unfinished set or escape), `%` followed by another alphanumeric character. Characters ordinary in Lua but special in a
 regular expression (braces, vertical bar, slash) are escaped.
 
-Known gap (OQ-86): Lua matches **bytes**, ECMA-262 matches UTF-16 code units, so `.`, negated sets and negated
+Declaring a `string` with a `logger` option (an object with `warning(message, fields)`) reports a pattern that cannot be
+translated at declaration; emission refuses it.
+
+Lua matches **bytes**, ECMA-262 matches UTF-16 code units, so `.`, negated sets and negated
 classes differ from the emitted expression on non-ASCII input (for example `^.$` rejects `"é"` in Lua and accepts it in
-ECMA-262). The emitted expression is exact for ASCII input.
+ECMA-262). The emitted expression is exact for ASCII input (the ASCII-pinned classes of OQ-85, point 1).
 
 ### Generation
 
