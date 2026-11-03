@@ -11,6 +11,7 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- `hecate.schema`: `schema.of(Class)` (or of a module name), the schema of a class declared by its class-level `schema()` (OQ-50): lazy, memoized resolution, so classes may refer to themselves or to each other; validation, coercion and emission close cycles (`$defs`/`$ref` named after the class). The `schema()` interface, `schema.sent` and instance construction are still to do.
 - `hecate.schema`: website how-to "Validate values with schemas" with two tested examples (step 3 of the docs work), and `schema` added to the generated reference packages.
 - `hecate.schema`: the `format` option of `string` (step 2b-6 of the `schema` item): `uuid`, `date`, `date-time` (RFC 3339) and `email` (conservative subset), checked by `validate` (code `format`) and emitted as `format`; an unknown format is refused at declaration. Further formats (`uri`, `ipv4`, ...) stay to be added.
 - `hecate.schema`: `named(name, inner)`, `any()` and `null()` (step 2b-5 of the `schema` item): named schemas are emitted once in `$defs` and referenced with `$ref` (a name clash between different schemas is refused); the choices are in OQ-89.

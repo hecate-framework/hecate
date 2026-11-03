@@ -3,8 +3,8 @@
 
 - roadmap_item: `schema`: refinement types, composition, coercion, validation with JSON Pointer error paths, JSON Schema 2020-12 emission.
 - status: in-progress            <!-- in-progress | waiting-ci | waiting-owner -->
-- lock_until: 2026-11-03T20:30:00Z
-- last_update: 2026-11-03T15:50:00Z
+- lock_until: 2026-11-03T23:40:00Z
+- last_update: 2026-11-03T22:10:00Z
 
 ## Done
 
@@ -30,10 +30,12 @@
 
 - Docs step: `website/en/how-to/validate-with-schemas.md` with two tested examples (`packages/schema/examples/`, `examples_test.lua`), reference index entry, `schema` in `DEFAULT_PACKAGES`. typecheck, lint, test schema, check-docs-examples, check-links pass. French page (translator-fr) and generated reference pages not done (`test doc` needs `build-native doc`, Rust).
 
+- Step 4a: `schema.of(Class|module name)` (lazy memoized, cycles via `$ref`; tests `of_test.lua`: self, mutual, 3-cycle, lazy, refusal). typecheck, lint, test schema, check-boundaries pass.
+
 ## Next steps
 
 1. (2b) Remaining emission work: official JSON Schema test suite (supported subset), the `1.0` gap is confirmed; (pattern translator done); more formats (uri), core enumeration support, recursive schemas (named done).
-2. Class-bound schemas (OQ-50, resolved 2026-11-03, see the Resolved row for the full decision): an interface requiring a class-level `schema()`, `schema.of(Class)` (and of a module name string), lazy memoized resolution with cycle closing through `$defs`/`$ref` (this also delivers recursive schemas), the presence set `schema.sent(instance, name)`, instance construction convention (to settle conservatively and record in a new OQ), HTTP-method relaxation (PATCH) derived by the validator. Tests: self reference, mutual pair, cycle of three classes (validation, coercion, emission); check the json decoder depth limit.
+2. Class-bound schemas, remaining (OQ-50): an interface requiring a class-level `schema()` (core.interface checks instance methods; verify it fits class-level, else record in an OQ), the presence set `schema.sent(instance, name)`, instance construction convention (to settle conservatively and record in a new OQ), HTTP-method relaxation (PATCH) derived by the validator. Tests: self reference, mutual pair, cycle of three classes (validation, coercion, emission); check the json decoder depth limit.
 3. Docs: website pages, tested examples, glossary check, reference generation (`DEFAULT_PACKAGES`).
 4. Benchmarks (`benchmarks/`) for compiled validators.
 

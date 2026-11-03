@@ -47,7 +47,7 @@ Declarations (`local schema = require("hecate.schema")`); every schema is an imm
 - `schema.optional(s)` (property may be absent), `schema.nullable(s)` (accepts `json.null`), `schema.union(list)`.
 - `schema.tagged_union(tag, variants)`: discriminated sum; `variants` maps a name to an `object` schema, and the property `tag` holds the name (emitted as `oneOf`).
 - `schema.default(s, value)`: property that may be absent; `s:coerce` supplies a copy of `value`, `validate` does not; emitted as `default`. Both are recorded in OQ-88.
-- `schema.named(name, s)`: gives `s` a name; emitted once in `$defs` and referenced with `$ref`. `schema.any()` accepts every JSON value, `schema.null()` only `json.null`. Recorded in OQ-89.
+- `schema.of(Class|module)`: the schema of a class from its class-level `schema()`, resolved lazily; cycles close with `$ref` (recursive schemas). `schema.named(name, s)`: gives `s` a name; emitted once in `$defs` and referenced with `$ref`. `schema.any()` accepts every JSON value, `schema.null()` only `json.null`. Recorded in OQ-89.
 
 Validation:
 

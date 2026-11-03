@@ -26,6 +26,7 @@ local violation = require("hecate.schema.violation")
 ---@field any fun(): hecate.schema.Schema
 ---@field null fun(): hecate.schema.Schema
 ---@field named fun(name: string, inner: hecate.schema.Schema): hecate.schema.Schema
+---@field of fun(target: table|string): hecate.schema.Schema
 ---@field is_schema fun(value: any): boolean
 local M = {
   ---@diagnostic disable-next-line: assign-type-mismatch  -- class constructor exported as its class
@@ -49,6 +50,7 @@ local M = {
   any = schema.any,
   null = schema.null,
   named = schema.named,
+  of = schema.of,
   is_schema = schema.is_schema,
 }
 

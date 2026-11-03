@@ -43,7 +43,7 @@ core.finalise(Record)
 
 --- A type declaration: base type, refinement, product, collection or sum.
 ---@class hecate.schema.Schema
----@field kind string  "string", "integer", "number", "boolean", "literal", "enumeration", "object", "array", "map", "optional", "nullable", "union", "default", "tagged_union", "any", "null" or "named"
+---@field kind string  "string", "integer", "number", "boolean", "literal", "enumeration", "object", "array", "map", "optional", "nullable", "union", "default", "tagged_union", "any", "null", "named" or "class"
 ---@field options hecate.schema.Record  the declared refinements (read-only)
 ---@field properties? hecate.schema.Record  property name to schema (variant name to derived `object` schema for a `tagged_union`)
 ---@field members fun(self: hecate.schema.Schema): any[]  the alternatives of a `union` or the constants of an `enumeration`, as a new list (empty for other kinds)
@@ -781,10 +781,48 @@ function M.named(name, inner)
   return Schema("named", { options = { name = name }, item = inner, validator = inner.validator, coercer = inner.coercer })
 end
 
+--- The schema of a class: `target` is a class that declares a class-level function `schema()` returning its schema,
+--- or the name of a module returning such a class (loaded at first use, so that two modules can refer to each other).
+--- Resolution is lazy and memoized: `schema()` is called at first validation, coercion or emission, never at
+--- declaration, so classes may refer to each other, or to themselves. The emission closes a cycle with a `$ref` to the
+--- `$defs` entry named after the class (OQ-50). The result of `schema()` is emitted under the class name.
+---@param target table|string  a class, or a module name
+---@return hecate.schema.Schema
+function M.of(target)
+  if type(target) ~= "table" and type(target) ~= "string" then
+    refuse("of: expects a class or a module name, got " .. type(target))
+  end
+  local resolved, resolving
+  local function resolve()
+    if resolved ~= nil then return resolved end
+    if resolving then error(core.ArgumentError("schema.of: the schema() of a class refers to itself while being resolved; use schema.of(Class) inside it, not Class.schema()")) end
+    resolving = true
+    local ok, result = pcall(function()
+      local class = target
+      if type(class) == "string" then class = require(class) end
+      if type(class) ~= "table" or type(class.schema) ~= "function" then
+        refuse("of: the class must declare a class-level function schema()")
+      end
+      local inner = class.schema()
+      require_schema("of", inner)
+      if inner.kind == "named" then return inner end
+      return M.named(core.name(class), inner)
+    end)
+    resolving = false
+    if not ok then error(result, 0) end
+    resolved = result
+    return resolved
+  end
+  return Schema("class", { options = { resolve = resolve },
+    validator = function(value, path, out) return resolve().validator(value, path, out) end,
+    coercer = function(value, path, out) return resolve().coercer(value, path, out) end })
+end
+
 local DIALECT = "https://json-schema.org/draft/2020-12/schema"
 
 --- Definitions collected by the emission in progress (`named` schemas), by name.
 local defs
+local PENDING = {}
 
 --- Emits the JSON Schema 2020-12 subschema of `s` (no `$schema`). Every construct has an exact emission, or the
 --- emission is refused (schemas-and-contracts.md, "JSON Schema").
@@ -797,10 +835,16 @@ local function emit(s)
     return {}
   elseif kind == "null" then
     return { type = "null" }
+  elseif kind == "class" then
+    return emit(o.resolve())
   elseif kind == "named" then
     local name = o.name
-    local body = emit(s.item)
+    if defs[name] == PENDING then return { ["$ref"] = "#/$defs/" .. name } end -- a cycle: closed by the reference
     local previous = defs[name]
+    defs[name] = PENDING
+    local ok, body = pcall(emit, s.item)
+    defs[name] = previous
+    if not ok then error(body, 0) end
     if previous == nil then defs[name] = body
     elseif not json_equal(previous, body) then
       error(core.ArgumentError("to_json_schema: two different schemas are named " .. name, { context = { name = name } }))
