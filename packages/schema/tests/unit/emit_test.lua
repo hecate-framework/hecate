@@ -275,4 +275,8 @@ function T:test_documented_superset_for_float_valued_integers()
   self:assert_equal("float", math_type(1.0))
 end
 
+function T:test_format_is_emitted()
+  self:assert_equal("uuid", schema.string({ format = "uuid" }):to_json_schema().format)
+end
+
 return T

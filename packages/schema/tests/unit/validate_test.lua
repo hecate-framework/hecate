@@ -244,4 +244,31 @@ function T:test_map()
   self:assert_equal(1, converted.a)
 end
 
+function T:test_format_uuid_date_date_time_email()
+  local cases = {
+    uuid = { "123e4567-e89b-12d3-a456-426614174000", "123E4567-E89B-12D3-A456-426614174000" },
+    date = { "2026-11-03", "2024-02-29" },
+    ["date-time"] = { "2026-11-03T12:00:00Z", "2026-11-03t12:00:00.5+01:00" },
+    email = { "a@b.co", "first.last+tag@example.org" },
+  }
+  local bad = {
+    uuid = { "123e4567e89b12d3a456426614174000", "123e4567-e89b-12d3-a456-42661417400g" },
+    date = { "2026-13-01", "2025-02-29", "2026-1-1", "2026-11-31" },
+    ["date-time"] = { "2026-11-03", "2026-11-03T25:00:00Z", "2026-11-03T12:00:00" },
+    email = { "a", "@b.co", "a@", "a b@c.d", "a@b@c" },
+  }
+  for format, good in pairs(cases) do
+    local s = schema.string({ format = format })
+    for _, v in ipairs(good) do self:assert_true((s:validate(v)), format .. " " .. v) end
+    for _, v in ipairs(bad[format]) do self:assert_equal(" format", codes(s, v)[1], format .. " " .. v) end
+    self:assert_equal(" type", codes(s, 1)[1])
+  end
+end
+
+function T:test_format_unknown_is_refused()
+  local ok, err = pcall(schema.string, { format = "nope" })
+  self:assert_false(ok)
+  self:assert_true(core.is_instance_of(err, core.ArgumentError))
+end
+
 return T

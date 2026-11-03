@@ -125,20 +125,64 @@ end
 ---@class hecate.schema
 local M = {}
 
+--- Checks of the `format` option of `string` (JSON Schema 2020-12 section 7.3). Conservative subsets: `uuid` (RFC 9562 text
+--- form), `date` and `date-time` (RFC 3339), `email` (one `@`, non-empty local part and dotted domain, no whitespace).
+local function days_in_month(year, month)
+  if month == 2 then return (year % 4 == 0 and (year % 100 ~= 0 or year % 400 == 0)) and 29 or 28 end
+  return (month == 4 or month == 6 or month == 9 or month == 11) and 30 or 31
+end
+
+local function is_date(text)
+  local y, m, d = text:match("^(%d%d%d%d)-(%d%d)-(%d%d)$")
+  if not y then return false end
+  y, m, d = tonumber(y), tonumber(m), tonumber(d)
+  return m >= 1 and m <= 12 and d >= 1 and d <= days_in_month(y, m)
+end
+
+local FORMATS = {
+  uuid = function(text)
+    return text:find("^%x%x%x%x%x%x%x%x%-%x%x%x%x%-%x%x%x%x%-%x%x%x%x%-%x%x%x%x%x%x%x%x%x%x%x%x$") ~= nil
+  end,
+  date = is_date,
+  ["date-time"] = function(text)
+    local date, time = text:match("^(%d%d%d%d%-%d%d%-%d%d)[Tt](.+)$")
+    if not date or not is_date(date) then return false end
+    local h, mi, s, rest = time:match("^(%d%d):(%d%d):(%d%d)(.*)$")
+    if not h or tonumber(h) > 23 or tonumber(mi) > 59 or tonumber(s) > 60 then return false end
+    rest = rest:gsub("^%.%d+", "")
+    if rest == "Z" or rest == "z" then return true end
+    local oh, om = rest:match("^[+-](%d%d):(%d%d)$")
+    return oh ~= nil and tonumber(oh) <= 23 and tonumber(om) <= 59
+  end,
+  email = function(text)
+    if text:find("[%s]") then return false end
+    local local_part, domain = text:match("^([^@]+)@([^@]+)$")
+    return local_part ~= nil and domain:find("^[^.]+%.[^.]+") ~= nil and not domain:find("%.%.")
+      and not domain:find("^%.") and not domain:find("%.$")
+  end,
+}
+
 --- Declares a string type.
 --- `pattern` is a Lua pattern for now (OQ-85); lengths count Unicode code points (JSON Schema 2020-12 section 6.3.1).
 --- A `pattern` that `to_json_schema` cannot translate (`%b`, `%f`, ...) is reported at declaration with
 --- `logger:warning(message, fields)` when a `logger` (any object with that method, for example a `hecate.log` logger) is given
 --- (OQ-85, point 1); the schema stays valid for Lua validation and emission refuses it.
----@param options? { min_length?: integer, max_length?: integer, pattern?: string, logger?: { warning: fun(self: table, message: string, fields?: table) } }
+---@param options? { min_length?: integer, max_length?: integer, pattern?: string, format?: string, logger?: { warning: fun(self: table, message: string, fields?: table) } }
 ---@return hecate.schema.Schema
 function M.string(options)
   local o = read_options("string", options,
-    { min_length = "integer", max_length = "integer", pattern = "string", logger = "table" })
+    { min_length = "integer", max_length = "integer", pattern = "string", format = "string", logger = "table" })
   local logger = o.logger
   o.logger = nil
   check_range("string", o, "min_length", "max_length")
   local min_length, max_length, pattern = o.min_length, o.max_length, o.pattern
+  local check_format = nil
+  if o.format ~= nil then
+    check_format = FORMATS[o.format]
+    if check_format == nil then
+      refuse("string: unknown format " .. o.format, { option = "format" })
+    end
+  end
   if pattern ~= nil and not pcall(string.find, "", pattern) then
     refuse("string: option pattern is not a valid pattern", { option = "pattern" })
   end
@@ -167,6 +211,9 @@ function M.string(options)
     end
     if pattern and not value:find(pattern) then
       out[#out + 1] = { path, "pattern", "the string does not match the pattern", { pattern = pattern } }
+    end
+    if check_format and not check_format(value) then
+      out[#out + 1] = { path, "format", "the string is not a valid " .. o.format, { format = o.format } }
     end
   end
   return Schema("string", { options = o, validator = validator })
@@ -753,7 +800,7 @@ local function emit(s)
     return { ["$ref"] = "#/$defs/" .. name }
   elseif kind == "string" then
     return { type = "string", minLength = o.min_length, maxLength = o.max_length,
-      pattern = o.pattern ~= nil and pattern_to_ecma(o.pattern) or nil }
+      pattern = o.pattern ~= nil and pattern_to_ecma(o.pattern) or nil, format = o.format }
   elseif kind == "integer" or kind == "number" then
     return { type = kind, minimum = o.minimum, maximum = o.maximum,
       exclusiveMinimum = o.exclusive_minimum, exclusiveMaximum = o.exclusive_maximum, multipleOf = o.multiple_of }
