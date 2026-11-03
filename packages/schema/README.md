@@ -8,7 +8,7 @@
 | Rock | `hecate-schema` |
 | Layer | 2 — Protocol |
 | Roadmap phase | 2 |
-| Status | in progress (phase 2, steps 1, 2a and 3): type model, validation, JSON Schema emission (with the `pattern` translator, Lua pattern to ECMA-262) and coercion of textual inputs; instances to come |
+| Status | in progress (phase 2, steps 1, 2a, 2b and 3): type model, validation, JSON Schema emission (with the `pattern` translator, Lua pattern to ECMA-262) and coercion of textual inputs; instances to come |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |
 | Depends on | [`core`](../core), [`json`](../json) |
 | Used by | `cli`, `config`, `doc`, `hecate`, `kernel`, `openapi`, `orm`, `security`, `test` |

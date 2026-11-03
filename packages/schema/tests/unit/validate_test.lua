@@ -219,4 +219,29 @@ function T:test_violation_formats()
   self:assert_equal(1, violations[1].context.minimum)
 end
 
+function T:test_multiple_of()
+  local s = schema.integer({ multiple_of = 3 })
+  self:assert_true((s:validate(6)))
+  self:assert_equal(" multiple_of", codes(s, 7)[1])
+  self:assert_error(function() schema.integer({ multiple_of = 0 }) end)
+  self:assert_error(function() schema.number({ multiple_of = -1 }) end)
+end
+
+function T:test_map()
+  local s = schema.map(schema.integer({ minimum = 0 }), { max_properties = 3 })
+  self:assert_true((s:validate({})))
+  self:assert_true((s:validate({ a = 1, b = 2 })))
+  self:assert_equal("/a~1b minimum", codes(s, { ["a/b"] = -1 })[1])
+  self:assert_equal("/x type", codes(s, { x = "s" })[1])
+  self:assert_equal(" max_properties", codes(s, { a = 1, b = 1, c = 1, d = 1 })[1])
+  self:assert_equal(" type", codes(s, { 1, 2 })[1])
+  self:assert_equal(" type", codes(s, json.null)[1])
+  self:assert_equal(" type", codes(s, "x")[1])
+  self:assert_error(function() schema.map(1) end)
+  self:assert_error(function() schema.map(schema.string(), { min_properties = 2, max_properties = 1 }) end)
+  local ok, converted = schema.map(schema.integer()):coerce({ a = "1" })
+  self:assert_true(ok)
+  self:assert_equal(1, converted.a)
+end
+
 return T

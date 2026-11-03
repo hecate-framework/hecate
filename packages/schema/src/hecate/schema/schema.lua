@@ -42,7 +42,7 @@ core.finalise(Record)
 
 --- A type declaration: base type, refinement, product, collection or sum.
 ---@class hecate.schema.Schema
----@field kind string  "string", "integer", "number", "boolean", "literal", "enumeration", "object", "array", "optional", "nullable" or "union"
+---@field kind string  "string", "integer", "number", "boolean", "literal", "enumeration", "object", "array", "map", "optional", "nullable" or "union"
 ---@field options hecate.schema.Record  the declared refinements (read-only)
 ---@field properties? hecate.schema.Record  property name to schema
 ---@field members fun(self: hecate.schema.Schema): any[]  the alternatives of a `union` or the constants of an `enumeration`, as a new list (empty for other kinds)
@@ -201,11 +201,15 @@ end
 
 local function numeric(kind, accepts, expected, options)
   local o = read_options(kind, options, { minimum = "number", maximum = "number",
-    exclusive_minimum = "number", exclusive_maximum = "number" })
+    exclusive_minimum = "number", exclusive_maximum = "number", multiple_of = "number" })
+  if o.multiple_of ~= nil and o.multiple_of <= 0 then
+    refuse(kind .. ": option multiple_of must be greater than zero", { option = "multiple_of" })
+  end
   check_range(kind, o, "minimum", "maximum")
   check_range(kind, o, "exclusive_minimum", "exclusive_maximum")
   local minimum, maximum = o.minimum, o.maximum
   local exclusive_minimum, exclusive_maximum = o.exclusive_minimum, o.exclusive_maximum
+  local multiple_of = o.multiple_of
   local validator = function(value, path, out)
     if not accepts(value) then return type_violation(path, expected, out) end
     if minimum and value < minimum then
@@ -221,6 +225,10 @@ local function numeric(kind, accepts, expected, options)
     if exclusive_maximum and value >= exclusive_maximum then
       out[#out + 1] = { path, "exclusive_maximum", "the value is not less than " .. exclusive_maximum,
         { exclusive_maximum = exclusive_maximum } }
+    end
+    -- Exact remainder (math.fmod is exact for floats): 0.3 is not a multiple of 0.1, as in IEEE 754 arithmetic.
+    if multiple_of and math.fmod(value, multiple_of) ~= 0 then
+      out[#out + 1] = { path, "multiple_of", "the value is not a multiple of " .. multiple_of, { multiple_of = multiple_of } }
     end
   end
   local coercer = scalar_coercer(kind == "integer" and text_to_integer or text_to_number, "a" .. (kind == "integer" and "n integer" or " number"))
@@ -492,6 +500,48 @@ function M.object(properties, options)
   end })
 end
 
+--- Declares a dictionary type: any string keys, every value conforming to `value_schema`. Paths use the key as
+--- the reference token. A table with non-string keys is not a map.
+---@param value_schema hecate.schema.Schema
+---@param options? { min_properties?: integer, max_properties?: integer }
+---@return hecate.schema.Schema
+function M.map(value_schema, options)
+  require_schema("map", value_schema)
+  local o = read_options("map", options, { min_properties = "integer", max_properties = "integer" })
+  check_range("map", o, "min_properties", "max_properties")
+  local min_properties, max_properties = o.min_properties, o.max_properties
+  local validate_value, coerce_value = value_schema.validator, value_schema.coercer
+  local coercer = function(value, path, out)
+    if type(value) ~= "table" or value == null then return value end
+    local result = {}
+    for key, member in next, value do
+      result[key] = type(key) == "string" and coerce_value(member, path .. "/" .. escape_token(key), out) or member
+    end
+    return result
+  end
+  return Schema("map", { options = o, item = value_schema, coercer = coercer, validator = function(value, path, out)
+    if type(value) ~= "table" or value == null then return type_violation(path, "object", out) end
+    local keys = {}
+    for key in next, value do
+      if type(key) ~= "string" then return type_violation(path, "object", out) end
+      keys[#keys + 1] = key
+    end
+    table.sort(keys) -- a stable order of violations
+    local count = #keys
+    if min_properties and count < min_properties then
+      out[#out + 1] = { path, "min_properties", "the object has fewer than " .. min_properties .. " properties",
+        { min_properties = min_properties } }
+    end
+    if max_properties and count > max_properties then
+      out[#out + 1] = { path, "max_properties", "the object has more than " .. max_properties .. " properties",
+        { max_properties = max_properties } }
+    end
+    for i = 1, count do
+      validate_value(value[keys[i]], path .. "/" .. escape_token(keys[i]), out)
+    end
+  end })
+end
+
 --- Declares a sum type: a value conforms when at least one alternative accepts it (JSON Schema `anyOf`).
 --- On failure one violation is reported at the union itself; the violations of every alternative are in
 --- `context.alternatives`, in declaration order.
@@ -548,7 +598,7 @@ local function emit(s)
       pattern = o.pattern ~= nil and pattern_to_ecma(o.pattern) or nil }
   elseif kind == "integer" or kind == "number" then
     return { type = kind, minimum = o.minimum, maximum = o.maximum,
-      exclusiveMinimum = o.exclusive_minimum, exclusiveMaximum = o.exclusive_maximum }
+      exclusiveMinimum = o.exclusive_minimum, exclusiveMaximum = o.exclusive_maximum, multipleOf = o.multiple_of }
   elseif kind == "boolean" then
     return { type = "boolean" }
   elseif kind == "literal" then
@@ -558,6 +608,9 @@ local function emit(s)
   elseif kind == "array" then
     return { type = "array", items = emit(s.item), minItems = o.min_items, maxItems = o.max_items,
       uniqueItems = o.unique_items }
+  elseif kind == "map" then
+    return { type = "object", additionalProperties = emit(s.item), minProperties = o.min_properties,
+      maxProperties = o.max_properties }
   elseif kind == "optional" then
     return emit(s.item) -- absence is expressed by the parent's `required`
   elseif kind == "nullable" then

@@ -58,6 +58,7 @@ local function conforms(emitted, value)
     if emitted.maximum and value > emitted.maximum then return false end
     if emitted.exclusiveMinimum and value <= emitted.exclusiveMinimum then return false end
     if emitted.exclusiveMaximum and value >= emitted.exclusiveMaximum then return false end
+    if emitted.multipleOf and math.fmod(value, emitted.multipleOf) ~= 0 then return false end
   end
   if emitted.type == "array" then
     if emitted.minItems and #value < emitted.minItems then return false end
@@ -79,14 +80,20 @@ local function conforms(emitted, value)
     for _, name in ipairs(emitted.required or {}) do
       if value[name] == nil then return false end
     end
+    local count = 0
     for key, member in pairs(value) do
+      count = count + 1
       local property = emitted.properties and emitted.properties[key]
       if property then
         if not conforms(property, member) then return false end
       elseif emitted.additionalProperties == false then
         return false
+      elseif type(emitted.additionalProperties) == "table" and not conforms(emitted.additionalProperties, member) then
+        return false
       end
     end
+    if emitted.minProperties and count < emitted.minProperties then return false end
+    if emitted.maxProperties and count > emitted.maxProperties then return false end
   end
   return true
 end
@@ -196,6 +203,10 @@ function T:test_differential_base_and_refinements()
   differential(self, "integer", schema.integer({ minimum = 1, maximum = 3 }))
   differential(self, "number", schema.number({ minimum = 1.5 }))
   differential(self, "exclusive", schema.number({ exclusive_minimum = 1, exclusive_maximum = 3 }))
+  differential(self, "multiple", schema.integer({ multiple_of = 2 }))
+  differential(self, "multiple number", schema.number({ multiple_of = 0.5 }))
+  differential(self, "map", schema.map(schema.integer()))
+  differential(self, "map bounds", schema.map(schema.string(), { min_properties = 1, max_properties = 1 }))
   differential(self, "unique", schema.array(schema.integer(), { unique_items = true }))
   differential(self, "boolean", schema.boolean())
   differential(self, "literal", schema.literal("abc"))
