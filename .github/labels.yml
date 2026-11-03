@@ -194,3 +194,31 @@
 - name: "oq:limitation"
   color: "D4C5F9"
   description: "Known limitation recorded as an open question"
+
+- name: "due:phase-2"
+  color: "FEF2C0"
+  description: "Open question to resolve before the end of Phase 2 (HTTP and framework kernel)"
+
+- name: "due:phase-3"
+  color: "FEF2C0"
+  description: "Open question to resolve before the end of Phase 3 (contracts and tooling, 0.1.0)"
+
+- name: "due:phase-4"
+  color: "FEF2C0"
+  description: "Open question to resolve before the end of Phase 4 (data access, 0.2.0)"
+
+- name: "due:phase-5"
+  color: "FEF2C0"
+  description: "Open question to resolve before the end of Phase 5 (ecosystem expansion)"
+
+- name: "due:phase-6"
+  color: "FEF2C0"
+  description: "Open question to resolve before the end of Phase 6 (Lua 5.4 support)"
+
+- name: "due:phase-7"
+  color: "FEF2C0"
+  description: "Open question to resolve before the end of Phase 7 (review and quality pass)"
+
+- name: "due:none"
+  color: "FEF2C0"
+  description: "No deadline: a known limitation or an optimisation without a blocked item"

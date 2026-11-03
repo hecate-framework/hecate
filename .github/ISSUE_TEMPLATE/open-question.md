@@ -5,22 +5,33 @@ labels: open-question
 ---
 
 <!--
-`docs/open-questions.md` is the source of truth for open questions. Open this issue to
-discuss and track one; a maintainer (or the relay) adds the matching entry to the file with
-the next free OQ number and links it here. Do not use the labels `needs-decision` or `blocked`
-for an open question: the relay treats an open issue carrying them as a blocked roadmap item.
+`docs/open-questions.md` is the source of truth for open questions. Open this issue to discuss and
+track one; the matching entry of the file gets the next free OQ number and links here. Title:
+`OQ-<n>: <short title>`. Labels: `open-question`, one `oq:<type>`, the `package:*` labels, and one
+`due:*` label (the phase before whose end the question must be resolved, `due:none` if it blocks
+nothing). Never use `needs-decision` or `blocked`: the relay reads them as a blocked roadmap item.
+Write each section as short prose or a table, not as a long list.
 -->
 
+**ID:** OQ-
 **Type:** decision | research | spike | limitation
+**Package(s):**
+**Blocks:** <!-- roadmap items or phases that cannot be finished without the answer -->
+**Resolve before:** <!-- the roadmap item or gate where it becomes a problem, and why (what breaks or is redone if it stays open) -->
+**Status:** open
 
-**Area / package:**
+## Question
 
-**Blocks (roadmap item or phase):**
+<!-- What must be decided, in one or two sentences, then the points to settle. -->
 
-**Question:**
+## Context
 
-**Context (specifications, ADRs, reviews, code):**
+<!-- Specifications, ADRs, reviews, code; what is known and what was measured. -->
 
-**Options you see, with a recommendation:**
+## Options and recommendation
 
-**Conservative default meanwhile (what is implemented if nothing is decided):**
+<!-- One row per option: what it costs, what it breaks, which one you recommend. A table is welcome. -->
+
+## Conservative default meanwhile
+
+<!-- What is implemented if nothing is decided. -->
