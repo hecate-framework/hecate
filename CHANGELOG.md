@@ -11,6 +11,7 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- `hecate.schema`: website how-to "Validate values with schemas" with two tested examples (step 3 of the docs work), and `schema` added to the generated reference packages.
 - `hecate.schema`: the `format` option of `string` (step 2b-6 of the `schema` item): `uuid`, `date`, `date-time` (RFC 3339) and `email` (conservative subset), checked by `validate` (code `format`) and emitted as `format`; an unknown format is refused at declaration. Further formats (`uri`, `ipv4`, ...) stay to be added.
 - `hecate.schema`: `named(name, inner)`, `any()` and `null()` (step 2b-5 of the `schema` item): named schemas are emitted once in `$defs` and referenced with `$ref` (a name clash between different schemas is refused); the choices are in OQ-89.
 - `hecate.schema`: `tagged_union(tag, variants)` and `default(inner, value)` (step 2b-4 of the `schema` item): discriminated sums (the tag is the literal of the variant name, violations at the tag property or of the selected variant, coercion by the tag, emission as `oneOf`) and defaults (the property is optional, `coerce` supplies a copy of the value, emission as `default`, no `required`); the choices are in OQ-88.

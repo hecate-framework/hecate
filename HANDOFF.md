@@ -3,7 +3,7 @@
 
 - roadmap_item: `schema`: refinement types, composition, coercion, validation with JSON Pointer error paths, JSON Schema 2020-12 emission.
 - status: in-progress            <!-- in-progress | waiting-ci | waiting-owner -->
-- lock_until: 2026-11-03T17:20:00Z
+- lock_until: 2026-11-03T20:30:00Z
 - last_update: 2026-11-03T15:50:00Z
 
 ## Done
@@ -27,6 +27,8 @@
 - Step 2b-6: `format` option of `string` (uuid, date, date-time, email); typecheck, lint, test schema pass. Further formats (uri, ...) not done.
 
 - Step 2b-7: `ipv4` format (validation, emission passes through); typecheck, lint, test schema pass.
+
+- Docs step: `website/en/how-to/validate-with-schemas.md` with two tested examples (`packages/schema/examples/`, `examples_test.lua`), reference index entry, `schema` in `DEFAULT_PACKAGES`. typecheck, lint, test schema, check-docs-examples, check-links pass. French page (translator-fr) and generated reference pages not done (`test doc` needs `build-native doc`, Rust).
 
 ## Next steps
 
