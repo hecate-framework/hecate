@@ -9,6 +9,7 @@ local json = require("hecate.json")
 local violation_module = require("hecate.schema.violation")
 local pattern_to_ecma = require("hecate.schema.pattern").to_ecma
 
+local copy_value
 local Violation = violation_module.Violation
 local escape_token = violation_module.escape_token
 local math_type = math.type
@@ -42,9 +43,9 @@ core.finalise(Record)
 
 --- A type declaration: base type, refinement, product, collection or sum.
 ---@class hecate.schema.Schema
----@field kind string  "string", "integer", "number", "boolean", "literal", "enumeration", "object", "array", "map", "optional", "nullable" or "union"
+---@field kind string  "string", "integer", "number", "boolean", "literal", "enumeration", "object", "array", "map", "optional", "nullable", "union", "default" or "tagged_union"
 ---@field options hecate.schema.Record  the declared refinements (read-only)
----@field properties? hecate.schema.Record  property name to schema
+---@field properties? hecate.schema.Record  property name to schema (variant name to derived `object` schema for a `tagged_union`)
 ---@field members fun(self: hecate.schema.Schema): any[]  the alternatives of a `union` or the constants of an `enumeration`, as a new list (empty for other kinds)
 ---@field item? hecate.schema.Schema  element schema of an `array`, wrapped schema of `optional` and `nullable`
 ---@field validator hecate.schema.Validator  compiled validator closure
@@ -330,6 +331,7 @@ end
 function M.optional(inner)
   require_schema("optional", inner)
   if inner.kind == "optional" then refuse("optional: already optional") end
+  if inner.kind == "default" then refuse("optional: a property with a default is already optional") end
   return Schema("optional", { item = inner, validator = inner.validator, coercer = inner.coercer })
 end
 
@@ -344,6 +346,16 @@ function M.nullable(inner)
     if value == null then return end
     return validate_inner(value, path, out)
   end })
+end
+
+--- A deep copy of a decoded JSON value (markers of `hecate.json` are kept), so that a default is never shared.
+function copy_value(value)
+  if type(value) ~= "table" or value == null then return value end
+  local copy = {}
+  for key, member in next, value do copy[key] = copy_value(member) end
+  if json.is_array(value) then return json.array(copy) end
+  if json.is_object(value) then return json.object(copy) end
+  return copy
 end
 
 --- Structural equality of decoded JSON values; `1` and `1.0` are equal numbers, as in JSON Schema.
@@ -453,19 +465,27 @@ function M.object(properties, options)
     local property = copy[names[i]]
     tokens[i] = "/" .. escape_token(names[i])
     validators[i] = property.validator
-    optional[i] = property.kind == "optional"
+    optional[i] = property.kind == "optional" or property.kind == "default"
   end
   local declared = {}
   for i = 1, count do declared[names[i]] = true end
-  local coercers = {}
-  for i = 1, count do coercers[i] = copy[names[i]].coercer end
+  local coercers, defaults = {}, {}
+  for i = 1, count do
+    local property = copy[names[i]]
+    coercers[i] = property.coercer
+    if property.kind == "default" then defaults[i] = property.options.value end
+  end
   local coercer = function(value, path, out)
     if type(value) ~= "table" or value == null then return value end
     local result = {}
     for key, member in next, value do result[key] = member end
     for i = 1, count do
       local member = value[names[i]]
-      if member ~= nil then result[names[i]] = coercers[i](member, path .. tokens[i], out) end
+      if member ~= nil then
+        result[names[i]] = coercers[i](member, path .. tokens[i], out)
+      elseif defaults[i] ~= nil then
+        result[names[i]] = copy_value(defaults[i]) -- an absent property takes its default
+      end
     end
     return result
   end
@@ -584,6 +604,86 @@ function M.union(alternatives)
   end })
 end
 
+--- Gives a property a default: the property may be absent, and `coerce` then supplies `value` (a deep copy).
+--- Validation never supplies it (it validates the value it is given), and JSON Schema emits it as the `default`
+--- annotation (section 9.2), which does not change what is valid. The default must conform to `inner` (OQ-88).
+---@param inner hecate.schema.Schema
+---@param value any  a JSON value that conforms to `inner`
+---@return hecate.schema.Schema
+function M.default(inner, value)
+  require_schema("default", inner)
+  if inner.kind == "optional" or inner.kind == "default" then refuse("default: the property is already optional") end
+  if value == nil then refuse("default: a default value is required (use json.null for null)") end
+  local raw = {}
+  inner.validator(value, "", raw)
+  if #raw > 0 then refuse("default: the value does not conform to the schema", { code = raw[1][2] }) end
+  local stored = copy_value(value)
+  local coerce_inner = inner.coercer
+  return Schema("default", { options = { value = stored }, item = inner, validator = inner.validator,
+    coercer = function(v, path, out)
+      if v == nil then return copy_value(stored) end
+      return coerce_inner(v, path, out)
+    end })
+end
+
+--- Declares a discriminated sum type: `tag` names the property that selects the variant among `variants` (name to
+--- `object` schema). Every variant gains a property `tag` that is the literal of its name, so the variants exclude
+--- one another and the emission is `oneOf` (section 10.2.1.3). A variant must not declare `tag` itself.
+--- On failure a missing tag is a `required` violation, an unknown one a `tagged_union` violation (both at the tag
+--- property); otherwise the violations are those of the selected variant (OQ-88).
+---@param tag string
+---@param variants table<string, hecate.schema.Schema>
+---@return hecate.schema.Schema
+function M.tagged_union(tag, variants)
+  if type(tag) ~= "string" or tag == "" then refuse("tagged_union: the tag is a non-empty string") end
+  if type(variants) ~= "table" or next(variants) == nil then refuse("tagged_union: expects a non-empty table of variants") end
+  local names, derived, validators, coercers = {}, {}, {}, {}
+  for name in pairs(variants) do
+    if type(name) ~= "string" then refuse("tagged_union: variant names are strings, got " .. type(name)) end
+    names[#names + 1] = name
+  end
+  table.sort(names)
+  for _, name in ipairs(names) do
+    local variant = variants[name]
+    require_schema("tagged_union", variant)
+    if variant.kind ~= "object" then refuse("tagged_union: variant " .. name .. " is not an object schema") end
+    local properties = {}
+    for property_name, property in pairs(variant.properties --[[@as table]]) do
+      if property_name == tag then
+        refuse("tagged_union: variant " .. name .. " declares the tag property " .. tag, { variant = name })
+      end
+      properties[property_name] = property
+    end
+    properties[tag] = M.literal(name)
+    local object = M.object(properties, { additional_properties = (variant.options --[[@as table]]).additional_properties })
+    derived[name], validators[name], coercers[name] = object, object.validator, object.coercer
+  end
+  local token = "/" .. escape_token(tag)
+  return Schema("tagged_union", { options = { tag = tag }, properties = derived, members = names,
+    coercer = function(value, path, out)
+      if type(value) ~= "table" or value == null then return value end
+      local name = value[tag]
+      local coerce = type(name) == "string" and coercers[name]
+      if not coerce then return value end -- the validator reports the tag
+      return coerce(value, path, out)
+    end,
+    validator = function(value, path, out)
+      if type(value) ~= "table" or value == null then return type_violation(path, "object", out) end
+      local name = value[tag]
+      if name == nil then
+        out[#out + 1] = { path .. token, "required", "the property is required", { property = tag } }
+        return
+      end
+      local validate = type(name) == "string" and validators[name]
+      if not validate then
+        out[#out + 1] = { path .. token, "tagged_union", "the value is not the name of a variant",
+          { tag = tag, values = { table.unpack(names) } } }
+        return
+      end
+      return validate(value, path, out)
+    end })
+end
+
 local DIALECT = "https://json-schema.org/draft/2020-12/schema"
 
 --- Emits the JSON Schema 2020-12 subschema of `s` (no `$schema`). Every construct has an exact emission, or the
@@ -613,6 +713,14 @@ local function emit(s)
       maxProperties = o.max_properties }
   elseif kind == "optional" then
     return emit(s.item) -- absence is expressed by the parent's `required`
+  elseif kind == "default" then
+    local emitted = emit(s.item)
+    emitted.default = copy_value(o.value)
+    return emitted
+  elseif kind == "tagged_union" then
+    local alternatives = {}
+    for i, name in ipairs(s:members()) do alternatives[i] = emit(s.properties[name]) end
+    return { oneOf = alternatives }
   elseif kind == "nullable" then
     return { anyOf = { emit(s.item), { type = "null" } } }
   elseif kind == "union" then
@@ -623,7 +731,7 @@ local function emit(s)
     local properties, required = {}, {}
     for name, property in pairs(s.properties) do
       properties[name] = emit(property)
-      if property.kind ~= "optional" then required[#required + 1] = name end
+      if property.kind ~= "optional" and property.kind ~= "default" then required[#required + 1] = name end
     end
     table.sort(required)
     return {

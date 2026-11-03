@@ -8,7 +8,7 @@
 | Rock | `hecate-schema` |
 | Layer | 2 — Protocol |
 | Roadmap phase | 2 |
-| Status | in progress (phase 2, steps 1, 2a, 2b and 3): type model, validation, JSON Schema emission (with the `pattern` translator, Lua pattern to ECMA-262) and coercion of textual inputs; instances to come |
+| Status | in progress (phase 2, steps 1, 2a, 2b and 3, plus `tagged_union` and `default`): type model, validation, JSON Schema emission (with the `pattern` translator, Lua pattern to ECMA-262) and coercion of textual inputs; instances to come |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |
 | Depends on | [`core`](../core), [`json`](../json) |
 | Used by | `cli`, `config`, `doc`, `hecate`, `kernel`, `openapi`, `orm`, `security`, `test` |
@@ -45,6 +45,8 @@ Declarations (`local schema = require("hecate.schema")`); every schema is an imm
 - `schema.object(properties, { additional_properties })`: product type; undeclared properties are rejected by default.
 - `schema.array(item, { min_items, max_items })`: sequences, 0-based pointer indices.
 - `schema.optional(s)` (property may be absent), `schema.nullable(s)` (accepts `json.null`), `schema.union(list)`.
+- `schema.tagged_union(tag, variants)`: discriminated sum; `variants` maps a name to an `object` schema, and the property `tag` holds the name (emitted as `oneOf`).
+- `schema.default(s, value)`: property that may be absent; `s:coerce` supplies a copy of `value`, `validate` does not; emitted as `default`. Both are recorded in OQ-88.
 
 Validation:
 

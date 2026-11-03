@@ -34,6 +34,13 @@ end
 local function same_json(a, b) return a == b end
 
 local function conforms(emitted, value)
+  if emitted.oneOf then -- section 10.2.1.3: exactly one subschema
+    local matches = 0
+    for _, alternative in ipairs(emitted.oneOf) do
+      if conforms(alternative, value) then matches = matches + 1 end
+    end
+    return matches == 1
+  end
   if emitted.anyOf then
     for _, alternative in ipairs(emitted.anyOf) do
       if conforms(alternative, value) then return true end
@@ -103,7 +110,8 @@ local VALUES = {
   {}, { 1 }, { 1, 2 }, { 1, 2, 3 }, { "a", "b" }, { "a", 1 }, { null }, { { 1 } },
   { name = "x" }, { name = "x", age = 3 }, { name = "x", age = 3.5 }, { name = 1 }, { age = 3 },
   { name = "x", nick = null }, { name = "x", nick = "n" }, { name = "x", extra = true }, { name = "x", tags = { "a" } },
-  { name = "x", tags = { 1 } }, { a = { b = 1 } }, { a = { b = "s" } }, { [1] = "a", x = 1 },
+  { name = "x", tags = { 1 } }, { kind = "a", x = 1 }, { kind = "a", x = "s" }, { kind = "b" }, { kind = "b", y = 1 },
+  { kind = "c" }, { kind = 1 }, { x = 1 }, { name = "x", level = 2 }, { name = "x", level = "2" }, { a = { b = 1 } }, { a = { b = "s" } }, { [1] = "a", x = 1 },
 }
 
 local function differential(self, label, s)
@@ -230,6 +238,34 @@ function T:test_differential_composites()
   differential(self, "object empty", schema.object({}))
   differential(self, "nested", schema.object({ a = schema.object({ b = schema.integer() }) }))
   differential(self, "array of objects", schema.array(person))
+end
+
+function T:test_differential_tagged_union_and_default()
+  local shape = schema.tagged_union("kind", {
+    a = schema.object({ x = schema.integer() }),
+    b = schema.object({ y = schema.optional(schema.integer()) }, { additional_properties = true }),
+  })
+  differential(self, "tagged union", shape)
+  differential(self, "array of tagged unions", schema.array(shape))
+  differential(self, "default property", schema.object({ name = schema.string(), level = schema.default(schema.integer(), 1) }))
+end
+
+function T:test_tagged_union_emission()
+  local emitted = schema.tagged_union("kind", {
+    b = schema.object({}), a = schema.object({ x = schema.integer() }),
+  }):to_json_schema()
+  self:assert_equal(2, #emitted.oneOf)
+  self:assert_equal("a", emitted.oneOf[1].properties.kind.const)
+  self:assert_equal("b", emitted.oneOf[2].properties.kind.const)
+  self:assert_equal("kind", emitted.oneOf[1].required[1])
+  self:assert_equal("x", emitted.oneOf[1].required[2])
+end
+
+function T:test_default_emission()
+  local emitted = schema.object({ level = schema.default(schema.integer(), 3) }):to_json_schema()
+  self:assert_equal(3, emitted.properties.level.default)
+  self:assert_equal("integer", emitted.properties.level.type)
+  self:assert_equal(nil, emitted.required)
 end
 
 function T:test_documented_superset_for_float_valued_integers()
