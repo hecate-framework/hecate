@@ -169,17 +169,6 @@ function T:test_nullable_and_union_are_any_of()
   self:assert_equal("integer", u.anyOf[2].type)
 end
 
-function T:test_pattern_is_refused()
-  local ok, err = pcall(function() return schema.string({ pattern = "^%d+$" }):to_json_schema() end)
-  self:assert_false(ok)
-  self:assert_true(core.is_instance_of(err, core.ArgumentError))
-  -- also when nested
-  local nested = pcall(function()
-    return schema.object({ a = schema.array(schema.string({ pattern = "x" })) }):to_json_schema()
-  end)
-  self:assert_false(nested)
-end
-
 function T:test_emission_is_encodable_and_stable()
   local s = schema.object({
     name = schema.string({ min_length = 1 }),

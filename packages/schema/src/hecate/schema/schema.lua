@@ -7,6 +7,7 @@ global <const> require, type, pairs, ipairs, next, table, string, math, utf8, pc
 local core = require("hecate.core")
 local json = require("hecate.json")
 local violation_module = require("hecate.schema.violation")
+local pattern_to_ecma = require("hecate.schema.pattern").to_ecma
 
 local Violation = violation_module.Violation
 local escape_token = violation_module.escape_token
@@ -543,12 +544,8 @@ local function emit(s)
   local kind = s.kind
   local o = s.options --[[@as table]]
   if kind == "string" then
-    if o.pattern ~= nil then
-      -- A Lua pattern has no exact ECMA-262 translation (OQ-85, point 1); a wrong `pattern` would break
-      -- "emitted JSON Schema validates exactly what Lua validation accepts".
-      refuse("to_json_schema: a Lua pattern cannot be emitted as a JSON Schema pattern (OQ-85)", { option = "pattern" })
-    end
-    return { type = "string", minLength = o.min_length, maxLength = o.max_length }
+    return { type = "string", minLength = o.min_length, maxLength = o.max_length,
+      pattern = o.pattern ~= nil and pattern_to_ecma(o.pattern) or nil }
   elseif kind == "integer" or kind == "number" then
     return { type = kind, minimum = o.minimum, maximum = o.maximum,
       exclusiveMinimum = o.exclusive_minimum, exclusiveMaximum = o.exclusive_maximum }
@@ -589,7 +586,7 @@ end
 --- Emits the schema as a JSON Schema 2020-12 document (a new table of plain values, encodable with `hecate.json`).
 --- The emission accepts what Lua validation accepts, with these documented differences (OQ-85): JSON Schema does
 --- not tell `1` from `1.0`, so `integer` and the constants also accept float-valued numbers. A `pattern` option
---- raises `ArgumentError`, because a Lua pattern has no exact ECMA-262 translation.
+--- is translated to ECMA-262 by `hecate.schema.pattern`; a construct outside its subset raises `ArgumentError`.
 ---@return table document  the root carries `$schema`
 function Schema:to_json_schema()
   local document = emit(self)

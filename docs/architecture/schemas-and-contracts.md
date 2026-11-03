@@ -51,6 +51,36 @@ are exposed, renamed or computed).
 `schema:to_json_schema()` produces JSON Schema 2020-12. Every construct must have an
 exact emission; constructs that cannot be expressed in JSON Schema are not allowed.
 
+### The `pattern` option
+
+`pattern` is a **Lua pattern**, not a regular expression (OQ-85, point 1). Validation in Lua uses it as written.
+Emission translates it to an ECMA-262 regular expression (JSON Schema 2020-12 section 6.3.3) with
+`hecate.schema.pattern`, a translator written in Lua. The translation is exact for the subset below and
+**refuses** everything else with an `ArgumentError`; it never approximates.
+
+| Lua pattern | ECMA-262 |
+|---|---|
+| a literal ASCII character | the character, escaped when it is special (`^ $ \ . * + ? ( ) [ ] { } \| /`) |
+| `.` | `[\s\S]` |
+| `%a %c %d %g %l %p %s %u %w %x` | the ASCII range set (`%a` is `[A-Za-z]`, `%d` is `[0-9]`, `%s` is `[ \t\n\x0B\f\r]`, ...) |
+| `%A %C %D %G %L %P %S %U %W %X` | the negated range set |
+| `%` followed by a non-alphanumeric character | that character, as a literal |
+| `[set]`, `[^set]` | a class of ASCII ranges; ranges `a-z`; classes `%a`... inside; complemented classes (`%S`) inside a set are refused |
+| `*`, `+`, `?` after a single-character item | the same quantifier |
+| `-` after a single-character item | `*?` (lazy) |
+| `^` at the start, `$` at the end | `^`, `$` |
+| `^` or `$` elsewhere, a quantifier character where an item is expected, `-` where an item is expected | a literal, escaped |
+| `( ... )` | a capturing group `( ... )`; a quantifier after `)` is a literal, as in Lua |
+| `%1` to `%9` | `(?:\1)` |
+
+Refused: `%b`, `%f`, the position capture `()`, any non-ASCII byte, a malformed pattern (unbalanced capture,
+unfinished set or escape), `%` followed by another alphanumeric character. Characters ordinary in Lua but special in a
+regular expression (braces, vertical bar, slash) are escaped.
+
+Known gap (OQ-86): Lua matches **bytes**, ECMA-262 matches UTF-16 code units, so `.`, negated sets and negated
+classes differ from the emitted expression on non-ASCII input (for example `^.$` rejects `"é"` in Lua and accepts it in
+ECMA-262). The emitted expression is exact for ASCII input.
+
 ### Generation
 
 `schema:generate(seed)` produces valid sample values (for documentation examples and

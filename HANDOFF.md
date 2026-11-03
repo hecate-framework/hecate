@@ -3,8 +3,8 @@
 
 - roadmap_item: `schema`: refinement types, composition, coercion, validation with JSON Pointer error paths, JSON Schema 2020-12 emission.
 - status: in-progress            <!-- in-progress | waiting-ci | waiting-owner -->
-- lock_until: 2026-11-02T23:30:00Z
-- last_update: 2026-11-02T22:00:00Z
+- lock_until: 2026-11-03T02:15:20Z
+- last_update: 2026-11-03T00:45:20Z
 
 ## Done
 
@@ -16,9 +16,11 @@
 
 - Step 2b-1: `exclusive_minimum`/`exclusive_maximum` on integer and number, `unique_items` on array (validation, emission, differential tests). Needs `lua tools/run.lua build-native json` before `test schema`.
 
+- Step 2b-2 (`pattern` translator): spec section "The `pattern` option" in `schemas-and-contracts.md`, `packages/schema/src/hecate/schema/pattern.lua`, tests `pattern_test.lua` (incl. differential matcher), emission uses it, OQ-86 added (byte vs code point gap, no declaration-time warning because `schema` does not depend on `log`). typecheck, lint, test schema, check-boundaries, check-glossary pass.
+
 ## Next steps
 
-1. (2b) Remaining emission work: official JSON Schema test suite (supported subset), the `pattern` translator Lua pattern -> ECMA-262 decided by the owner in OQ-85 (2026-11-02): subset translator written in Lua, refuses `%b`/`%f` at emission, warning log at declaration, ASCII-only literals, ASCII-pinned classes, documented rewrites (write the spec section or ADR first); the `1.0` gap is confirmed; add map, tagged_union, named, format, multiple_of, default, core enumeration support, recursive schemas.
+1. (2b) Remaining emission work: official JSON Schema test suite (supported subset), the `1.0` gap is confirmed; (pattern translator done); add map, tagged_union, named, format, multiple_of, default, core enumeration support, recursive schemas.
 2. Class-bound instances and the presence set `schema.sent(instance, name)` (OQ-50), HTTP-method relaxation (PATCH).
 3. Docs: website pages, tested examples, glossary check, reference generation (`DEFAULT_PACKAGES`).
 4. Benchmarks (`benchmarks/`) for compiled validators.
