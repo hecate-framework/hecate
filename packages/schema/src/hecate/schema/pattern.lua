@@ -24,6 +24,7 @@ local CLASS_BODY <const> = {
 --- Characters escaped with a backslash outside a character class.
 local SYNTAX <const> = "^$\\.*+?()[]{}|/"
 
+---@class hecate.schema.pattern
 local M = {}
 
 ---@param pattern string
