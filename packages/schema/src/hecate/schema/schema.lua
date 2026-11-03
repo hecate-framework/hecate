@@ -126,7 +126,7 @@ end
 local M = {}
 
 --- Checks of the `format` option of `string` (JSON Schema 2020-12 section 7.3). Conservative subsets: `uuid` (RFC 9562 text
---- form), `date` and `date-time` (RFC 3339), `email` (one `@`, non-empty local part and dotted domain, no whitespace).
+--- form), `date` and `date-time` (RFC 3339), `email` (one `@`, non-empty local part and dotted domain, no whitespace), `ipv4` (dotted quad, RFC 2673 section 3.2, no leading zeros).
 local function days_in_month(year, month)
   if month == 2 then return (year % 4 == 0 and (year % 100 ~= 0 or year % 400 == 0)) and 29 or 28 end
   return (month == 4 or month == 6 or month == 9 or month == 11) and 30 or 31
@@ -153,6 +153,14 @@ local FORMATS = {
     if rest == "Z" or rest == "z" then return true end
     local oh, om = rest:match("^[+-](%d%d):(%d%d)$")
     return oh ~= nil and tonumber(oh) <= 23 and tonumber(om) <= 59
+  end,
+  ipv4 = function(text)
+    local a, b, c, d = text:match("^(%d+)%.(%d+)%.(%d+)%.(%d+)$")
+    if not a then return false end
+    for _, part in ipairs({ a, b, c, d }) do
+      if #part > 3 or (#part > 1 and part:sub(1, 1) == "0") or tonumber(part) > 255 then return false end
+    end
+    return true
   end,
   email = function(text)
     if text:find("[%s]") then return false end
