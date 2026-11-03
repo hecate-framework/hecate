@@ -198,7 +198,7 @@ function T:test_declaration_warns_through_the_given_logger()
   local s = schema.string({ pattern = "%bxy", logger = logger })
   self:assert_equal(1, #warnings)
   self:assert_equal("%bxy", warnings[1][2].pattern)
-  self:assert_equal(nil, s.options.logger)
+  self:assert_equal(nil, (s.options --[[@as table]]).logger)
   self:assert_false(pcall(function() return s:to_json_schema() end))
   -- without a logger nothing is reported and declaration succeeds
   schema.string({ pattern = "%bxy" })

@@ -146,7 +146,7 @@ function M.string(options)
     local translated, err = pcall(pattern_to_ecma, pattern)
     if not translated then
       logger:warning("schema: the pattern cannot be emitted as a JSON Schema pattern",
-        { pattern = pattern, reason = err.message })
+        { pattern = pattern, reason = tostring(err) })
     end
   end
   local checks_length = min_length ~= nil or max_length ~= nil
