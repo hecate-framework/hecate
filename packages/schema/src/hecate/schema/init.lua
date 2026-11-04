@@ -1,5 +1,5 @@
 -- hecate.schema: refinement types, composition and validation with JSON Pointer error paths
--- (docs/architecture/schemas-and-contracts.md). Coercion, JSON Schema emission and class-bound instances come later.
+-- (docs/architecture/schemas-and-contracts.md). 
 global <const> require
 
 local schema = require("hecate.schema.schema")
@@ -27,6 +27,7 @@ local violation = require("hecate.schema.violation")
 ---@field null fun(): hecate.schema.Schema
 ---@field named fun(name: string, inner: hecate.schema.Schema): hecate.schema.Schema
 ---@field of fun(target: table|string): hecate.schema.Schema
+---@field sent fun(instance: table, name: string): boolean
 ---@field is_schema fun(value: any): boolean
 local M = {
   ---@diagnostic disable-next-line: assign-type-mismatch  -- class constructor exported as its class
@@ -51,6 +52,7 @@ local M = {
   null = schema.null,
   named = schema.named,
   of = schema.of,
+  sent = schema.sent,
   is_schema = schema.is_schema,
 }
 

@@ -8,7 +8,7 @@
 | Rock | `hecate-schema` |
 | Layer | 2 — Protocol |
 | Roadmap phase | 2 |
-| Status | in progress (phase 2, steps 1, 2a, 2b and 3, plus `tagged_union`, `default`, `named`, `any` and `null`): type model, validation, JSON Schema emission (with the `pattern` translator, Lua pattern to ECMA-262) and coercion of textual inputs; instances to come |
+| Status | in progress (phase 2, steps 1, 2a, 2b and 3, plus `tagged_union`, `default`, `named`, `any` and `null`): type model, validation, JSON Schema emission (with the `pattern` translator, Lua pattern to ECMA-262) and coercion of textual inputs; class-bound instances (`build`, `sent`, PATCH) |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |
 | Depends on | [`core`](../core), [`json`](../json) |
 | Used by | `cli`, `config`, `doc`, `hecate`, `kernel`, `openapi`, `orm`, `security`, `test` |
@@ -53,6 +53,11 @@ Validation:
 
 - `s:validate(value)` returns `true`, or `false` and the list of every `schema.Violation` (`path` as an RFC 6901 JSON Pointer, `code`, `message`, `context`).
 - `s:check(value)` returns the value or raises `core.ValidationError` with `context.violations`.
+
+Instances (OQ-50, recorded in OQ-90):
+
+- `s:build(content, { method })` validates decoded content (no text conversion) and returns `true, value`, or `false` and the violations. A class-bound part (`schema.of(Class)`) becomes an instance of its class (`Class()` with no argument, then the attributes are assigned); an absent or `null` attribute is nil. `method` is `"POST"`/`"PUT"` (strict, default) or `"PATCH"` (required properties of the top-level object may be absent; `null` fails unless nullable).
+- `schema.sent(instance, name)`: true when the attribute was present in the content, explicit `null` included; stored under a private non-string key of the instance (OQ-90).
 
 Emission:
 

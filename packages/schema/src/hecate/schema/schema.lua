@@ -2,14 +2,14 @@
 --
 -- A schema is an immutable value (a core value class). Its constructor compiles a validator closure once, at
 -- declaration time; validating never walks the schema description (package invariants).
-global <const> require, type, pairs, ipairs, next, table, string, math, utf8, pcall, tostring, tonumber, error
+global <const> require, rawget, type, pairs, ipairs, next, table, string, math, utf8, pcall, tostring, tonumber, error
 
 local core = require("hecate.core")
 local json = require("hecate.json")
 local violation_module = require("hecate.schema.violation")
 local pattern_to_ecma = require("hecate.schema.pattern").to_ecma
 
-local copy_value
+local copy_value, remark
 local Violation = violation_module.Violation
 local escape_token = violation_module.escape_token
 local math_type = math.type
@@ -34,6 +34,9 @@ core.finalise(Record)
 --- violation to `out` when a text cannot be converted. Values that are not text pass through unchanged.
 ---@alias hecate.schema.Coercer fun(value: any, path: string, out: hecate.schema.RawViolation[]): any
 
+--- A builder: returns the conforming `value` with every class-bound part replaced by an instance of its class.
+---@alias hecate.schema.Builder fun(value: any): any
+
 --- A violation as collected during validation, before it becomes a `Violation`.
 ---@class hecate.schema.RawViolation
 ---@field [1] string  path
@@ -50,6 +53,8 @@ core.finalise(Record)
 ---@field item? hecate.schema.Schema  element schema of an `array`, wrapped schema of `optional` and `nullable`
 ---@field validator hecate.schema.Validator  compiled validator closure
 ---@field coercer hecate.schema.Coercer  compiled coercion closure (textual input to typed value)
+---@field relaxed_validator hecate.schema.Validator  validator of PATCH content: the required properties of the top-level object may be absent
+---@field builder hecate.schema.Builder  compiled builder of instances (see `Schema:build`)
 ---@field coerce fun(self: hecate.schema.Schema, value: any): boolean, any  see `Schema:coerce`
 ---@field to_json_schema fun(self: hecate.schema.Schema): table  the JSON Schema 2020-12 document of the schema
 ---@overload fun(kind: string, parts: table): hecate.schema.Schema
@@ -67,6 +72,8 @@ function Schema:init(kind, parts)
   self.members = function() return { table.unpack(list) } end
   self.validator = parts.validator
   self.coercer = parts.coercer or function(value) return value end
+  self.relaxed_validator = parts.relaxed_validator or parts.validator
+  self.builder = parts.builder or function(value) return value end
 end
 
 local function refuse(message, context)
@@ -118,12 +125,24 @@ local function require_schema(constructor, value)
   if not is_schema(value) then refuse(constructor .. ": expected a schema, got " .. type(value)) end
 end
 
+--- Gives `result` the JSON array or object marker of `value`, so that an empty one still encodes as it was sent.
+function remark(value, result)
+  if json.is_array(value) then return json.array(result) end
+  if json.is_object(value) then return json.object(result) end
+  return result
+end
+
 local function type_violation(path, expected, out)
   out[#out + 1] = { path, "type", "expected " .. expected, { expected = expected } }
 end
 
 ---@class hecate.schema
 local M = {}
+
+--- Key of the presence set inside an instance built by `Schema:build` (OQ-90). A private table, never a string, so that
+--- the set cannot clash with an attribute and does not appear among the string keys of the instance. (A weak-keyed table
+--- would need a raw `setmetatable`, reserved to `hecate.core` by `check-boundaries`.)
+local PRESENCE = {}
 
 --- Checks of the `format` option of `string` (JSON Schema 2020-12 section 7.3). Conservative subsets: `uuid` (RFC 9562 text
 --- form), `date` and `date-time` (RFC 3339), `email` (one `@`, non-empty local part and dotted domain, no whitespace), `ipv4` (dotted quad, RFC 2673 section 3.2, no leading zeros).
@@ -400,7 +419,7 @@ function M.optional(inner)
   require_schema("optional", inner)
   if inner.kind == "optional" then refuse("optional: already optional") end
   if inner.kind == "default" then refuse("optional: a property with a default is already optional") end
-  return Schema("optional", { item = inner, validator = inner.validator, coercer = inner.coercer })
+  return Schema("optional", { item = inner, validator = inner.validator, coercer = inner.coercer, builder = inner.builder })
 end
 
 --- Accepts JSON null (`hecate.json.null`) in addition to the values of `inner`. Lua `nil` is absence, never null.
@@ -410,7 +429,10 @@ function M.nullable(inner)
   require_schema("nullable", inner)
   local validate_inner = inner.validator
   -- A text is never coerced to null: the textual forms of a missing value are not agreed (OQ-86).
-  return Schema("nullable", { item = inner, coercer = inner.coercer, validator = function(value, path, out)
+  local build_inner = inner.builder
+  return Schema("nullable", { item = inner, coercer = inner.coercer,
+    builder = function(value) if value == null then return value end return build_inner(value) end,
+    validator = function(value, path, out)
     if value == null then return end
     return validate_inner(value, path, out)
   end })
@@ -464,6 +486,12 @@ function M.array(item, options)
   local validate_item = item.validator
   local coerce_item = item.coercer
   local delimiter = o.delimiter or ","
+  local build_item = item.builder
+  local builder = function(value)
+    local result = {}
+    for i = 1, #value do result[i] = build_item(value[i]) end
+    return remark(value, result)
+  end
   local coercer = function(value, path, out)
     if type(value) == "string" then
       -- OpenAPI `style: form, explode: false` (delimiter "," by default; " " and "|" for the other styles).
@@ -485,7 +513,7 @@ function M.array(item, options)
     if #result ~= #value then return value end
     return result
   end
-  return Schema("array", { options = o, item = item, coercer = coercer, validator = function(value, path, out)
+  return Schema("array", { options = o, item = item, coercer = coercer, builder = builder, validator = function(value, path, out)
     if type(value) ~= "table" or value == null then return type_violation(path, "array", out) end
     local length = #value
     local count = 0
@@ -543,6 +571,17 @@ function M.object(properties, options)
     coercers[i] = property.coercer
     if property.kind == "default" then defaults[i] = property.options.value end
   end
+  local builders = {}
+  for i = 1, count do builders[i] = copy[names[i]].builder end
+  local builder = function(value)
+    local result = {}
+    for key, member in next, value do result[key] = member end
+    for i = 1, count do
+      local member = value[names[i]]
+      if member ~= nil then result[names[i]] = builders[i](member) end
+    end
+    return remark(value, result)
+  end
   local coercer = function(value, path, out)
     if type(value) ~= "table" or value == null then return value end
     local result = {}
@@ -557,12 +596,13 @@ function M.object(properties, options)
     end
     return result
   end
-  return Schema("object", { options = o, properties = copy, coercer = coercer, validator = function(value, path, out)
+  --- `relax`: the PATCH variant, where an absent property means unchanged (OQ-90).
+  local function make_validator(relax) return function(value, path, out)
     if type(value) ~= "table" or value == null then return type_violation(path, "object", out) end
     for i = 1, count do
       local member = value[names[i]]
       if member == nil then
-        if not optional[i] then
+        if not (relax or optional[i]) then
           out[#out + 1] = { path .. tokens[i], "required", "the property is required", { property = names[i] } }
         end
       else
@@ -585,7 +625,9 @@ function M.object(properties, options)
           "the property is not declared", { property = key } }
       end
     end
-  end })
+  end end
+  return Schema("object", { options = o, properties = copy, coercer = coercer, validator = make_validator(false),
+    relaxed_validator = make_validator(true), builder = builder })
 end
 
 --- Declares a dictionary type: any string keys, every value conforming to `value_schema`. Paths use the key as
@@ -599,6 +641,12 @@ function M.map(value_schema, options)
   check_range("map", o, "min_properties", "max_properties")
   local min_properties, max_properties = o.min_properties, o.max_properties
   local validate_value, coerce_value = value_schema.validator, value_schema.coercer
+  local build_value = value_schema.builder
+  local builder = function(value)
+    local result = {}
+    for key, member in next, value do result[key] = build_value(member) end
+    return remark(value, result)
+  end
   local coercer = function(value, path, out)
     if type(value) ~= "table" or value == null then return value end
     local result = {}
@@ -607,7 +655,7 @@ function M.map(value_schema, options)
     end
     return result
   end
-  return Schema("map", { options = o, item = value_schema, coercer = coercer, validator = function(value, path, out)
+  return Schema("map", { options = o, item = value_schema, coercer = coercer, builder = builder, validator = function(value, path, out)
     if type(value) ~= "table" or value == null then return type_violation(path, "object", out) end
     local keys = {}
     for key in next, value do
@@ -658,7 +706,15 @@ function M.union(alternatives)
     end
     return value
   end
-  return Schema("union", { members = copy, coercer = coercer, validator = function(value, path, out)
+  local builder = function(value)
+    for i = 1, count do
+      local found = {}
+      validators[i](value, "", found)
+      if #found == 0 then return copy[i].builder(value) end
+    end
+    return value
+  end
+  return Schema("union", { members = copy, coercer = coercer, builder = builder, validator = function(value, path, out)
     local failures = {}
     for i = 1, count do
       local found = {}
@@ -687,7 +743,7 @@ function M.default(inner, value)
   if #raw > 0 then refuse("default: the value does not conform to the schema", { code = raw[1][2] }) end
   local stored = copy_value(value)
   local coerce_inner = inner.coercer
-  return Schema("default", { options = { value = stored }, item = inner, validator = inner.validator,
+  return Schema("default", { options = { value = stored }, item = inner, validator = inner.validator, builder = inner.builder,
     coercer = function(v, path, out)
       if v == nil then return copy_value(stored) end
       return coerce_inner(v, path, out)
@@ -728,6 +784,7 @@ function M.tagged_union(tag, variants)
   end
   local token = "/" .. escape_token(tag)
   return Schema("tagged_union", { options = { tag = tag }, properties = derived, members = names,
+    builder = function(value) return derived[value[tag]].builder(value) end,
     coercer = function(value, path, out)
       if type(value) ~= "table" or value == null then return value end
       local name = value[tag]
@@ -778,7 +835,8 @@ function M.named(name, inner)
   end
   require_schema("named", inner)
   if inner.kind == "named" then refuse("named: the schema already has the name " .. (inner.options --[[@as table]]).name) end
-  return Schema("named", { options = { name = name }, item = inner, validator = inner.validator, coercer = inner.coercer })
+  return Schema("named", { options = { name = name }, item = inner, validator = inner.validator, coercer = inner.coercer,
+    relaxed_validator = inner.relaxed_validator, builder = inner.builder })
 end
 
 --- The schema of a class: `target` is a class that declares a class-level function `schema()` returning its schema,
@@ -792,7 +850,7 @@ function M.of(target)
   if type(target) ~= "table" and type(target) ~= "string" then
     refuse("of: expects a class or a module name, got " .. type(target))
   end
-  local resolved, resolving
+  local resolved, resolving, bound_class
   local function resolve()
     if resolved ~= nil then return resolved end
     if resolving then error(core.ArgumentError("schema.of: the schema() of a class refers to itself while being resolved; use schema.of(Class) inside it, not Class.schema()")) end
@@ -803,6 +861,7 @@ function M.of(target)
       if type(class) ~= "table" or type(class.schema) ~= "function" then
         refuse("of: the class must declare a class-level function schema()")
       end
+      bound_class = class
       local inner = class.schema()
       require_schema("of", inner)
       if inner.kind == "named" then return inner end
@@ -813,9 +872,39 @@ function M.of(target)
     resolved = result
     return resolved
   end
+  --- Builds an instance: the attributes are the declared properties, an explicit null leaves the attribute nil, and the
+  --- presence set records which properties were sent (OQ-90). The class is instantiated with no argument.
+  local function build(value)
+    local named = resolve()
+    local object = named.item --[[@as hecate.schema.Schema]]
+    local fields = named.builder(value)
+    if object.kind ~= "object" then return fields end
+    local instance, present = bound_class(), {}
+    for name in pairs(object.properties --[[@as table]]) do
+      local member = value[name]
+      if member ~= nil then
+        present[name] = true
+        if member ~= null then instance[name] = fields[name] end
+      end
+    end
+    instance[PRESENCE] = present
+    return instance
+  end
   return Schema("class", { options = { resolve = resolve },
+    builder = build,
+    relaxed_validator = function(value, path, out) return resolve().relaxed_validator(value, path, out) end,
     validator = function(value, path, out) return resolve().validator(value, path, out) end,
     coercer = function(value, path, out) return resolve().coercer(value, path, out) end })
+end
+
+--- Tells whether the attribute `name` was present in the content an instance was built from. An explicit
+--- `null` counts as sent; an instance that was not built by `Schema:build` has sent nothing.
+---@param instance table
+---@param name string
+---@return boolean
+function M.sent(instance, name)
+  local present = type(instance) == "table" and rawget(instance, PRESENCE)
+  return present and present[name] == true or false
 end
 
 local DIALECT = "https://json-schema.org/draft/2020-12/schema"
@@ -944,6 +1033,34 @@ function Schema:coerce(value)
   local converted = self.coercer(value, "", raw)
   if #raw == 0 then self.validator(converted, "", raw) end
   if #raw == 0 then return true, converted end
+  local violations = {}
+  for i, v in ipairs(raw) do violations[i] = Violation(v[1], v[2], v[3], v[4]) end
+  return false, violations
+end
+
+local METHODS = { POST = false, PUT = false, PATCH = true }
+
+--- Validates decoded content (no text conversion) and builds the value it describes: every class-bound part (see
+--- `schema.of`) becomes an instance of its class, whose attributes are the properties of its schema. An absent
+--- attribute is nil, an explicit `null` is nil too and `schema.sent` tells them apart. `options.method` is the HTTP
+--- method the content arrived with (OQ-50): `"POST"` and `"PUT"` (the default) are strict; `"PATCH"` lets the
+--- required properties of the top-level object be absent (unchanged), while `null` still fails unless nullable.
+---@param value any  decoded content
+---@param options? { method?: "POST"|"PUT"|"PATCH" }
+---@return boolean ok  true when the content conforms
+---@return any result  the built value when `ok`, else a list of `hecate.schema.Violation`
+function Schema:build(value, options)
+  local relax = false
+  if options ~= nil then
+    local o = read_options("build", options, { method = "string" })
+    if o.method ~= nil then
+      relax = METHODS[o.method]
+      if relax == nil then refuse("build: method must be POST, PUT or PATCH, got " .. o.method, { option = "method" }) end
+    end
+  end
+  local raw = {}
+  ;(relax and self.relaxed_validator or self.validator)(value, "", raw)
+  if #raw == 0 then return true, self.builder(value) end
   local violations = {}
   for i, v in ipairs(raw) do violations[i] = Violation(v[1], v[2], v[3], v[4]) end
   return false, violations
