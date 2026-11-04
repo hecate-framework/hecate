@@ -3,8 +3,8 @@
 
 - roadmap_item: `schema`: refinement types, composition, coercion, validation with JSON Pointer error paths, JSON Schema 2020-12 emission.
 - status: in-progress            <!-- in-progress | waiting-ci | waiting-owner -->
-- lock_until: 2026-11-04T08:20:00Z
-- last_update: 2026-11-04T06:50:00Z
+- lock_until: 2026-11-04T11:15:00Z
+- last_update: 2026-11-04T09:45:00Z
 
 ## Done
 
@@ -37,6 +37,8 @@
 - CI fix: markdownlint failed on the OQ-90 row of `docs/open-questions.md` (missing last cell); fixed. Run `npx markdownlint-cli2 "**/*.md" "#spikes" "#.hecate"` before pushing docs.
 
 - Run 2026-11-04 06:50Z: resumed after lock expiry; CI green on the three platforms; created mirror issue #143 for OQ-90. No code change (toolchain not built in this session: `.hecate/toolchain` absent).
+
+- Run 2026-11-04 09:45Z: toolchain rebuilt, `test schema` green. Verified that `json.encode` refuses an instance holding the presence key (EncodeError); recorded in OQ-90 (owner choice: encoder rule or side table), not decided. Next-steps item 2 'encoder skipping the private key' is blocked on that choice.
 
 ## Next steps
 
