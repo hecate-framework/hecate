@@ -181,8 +181,8 @@ concurrency test suite passes; benchmark baseline recorded.
 - [ ] `kernel`: application, modules, controllers, route modules, filters, problem
       details, lifecycle, multi-process workers, graceful shutdown. **First step (from the `http` reviews):** split
       `packages/http` `server.lua` (options, response writer, connection) and `client.lua` (pool, redirect) with no API
-      change; build the in-process dispatch seam (OQ-78, with OQ-76 a), the `on_response` hook (OQ-81) and decide OQ-79
-      (default logging of action errors) and OQ-80 (`http.json` and `http.text`); narrow the type of `Request.content`.
+      change; build the in-process dispatch seam (OQ-78, with OQ-76 a), the `on_response` hook (OQ-81) remove the JSON fallback of `Server` for a table (OQ-76 a: an error, a generic 500 and a log entry; OQ-80 decided: no `http.json` or `http.text`) and build the default
+      logger of OQ-79 (`log.default()`, console sink on the standard error stream, used by `http` when no `logger` is given); narrow the type of `Request.content`.
 - [ ] Example: `examples/hello` (JSON API with validation).
 - [ ] Benchmarks: plaintext and JSON scenarios. **Carries three performance findings deferred from the Phase 1
       gate review** ([review](reviews/phase-1-review-package.md), "Minor"): judge each with a measurement, then
@@ -290,8 +290,9 @@ Exit: `examples/crud` works unchanged on PostgreSQL, MySQL, MariaDB and SQLite.
 - [ ] `mongodb`: OP_MSG protocol, BSON, document mapper.
 - [ ] `sqlserver`: TDS protocol.
 - [ ] `template`: compiled templates with contextual auto-escaping.
-- [ ] `websocket` (RFC 6455). **Also:** the upgrade takeover with the parser leftover offset (OQ-76 c), together with the
-      reader restructuring of OQ-70 (a client that disconnects during an action).
+- [ ] `websocket` (RFC 6455). **Also:** the upgrade takeover with the parser leftover offset, as decided in OQ-76 c (including
+      `Connection: close` when an upgrade request is not upgraded, and a security review of that path); the reader
+      restructuring of OQ-70 (a client that disconnects during an action) is separate work, not needed by upgrades.
 - [ ] HTTP/2.
 - [ ] Further NoSQL drivers by demand (e.g. Cassandra/ScyllaDB CQL).
 
