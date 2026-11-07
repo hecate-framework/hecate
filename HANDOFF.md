@@ -52,12 +52,13 @@
 
 ## Next steps
 
-1. OQ-87 resolved: refuse a non-integer `multiple_of` at declaration (clear message, tests, emission unchanged for integers); document why in the schema reference and the how-to, with the alternatives: integers in minor units, or a string with a `pattern` for a fixed number of decimals (JSON Schema has no keyword for decimal places), and a future decimal type.
-2. OQ-92 resolved: `schema` reads its depth guard default and ceiling from `json` (expose the cap and default in `hecate.json` if not already, then replace the constant in `schema.lua`; the work budget of OQ-91 stays a separate internal constant). The `limits.max_depth` configuration key belongs to the kernel item.
-3. (2b) Remaining emission work: official JSON Schema test suite (supported subset), the `1.0` gap is confirmed; (pattern translator done); more formats (uri), core enumeration support, recursive schemas (named done).
-4. Class-bound schemas, remaining: `value_class`, coerce-then-build. (Done: interface, sent, PATCH, construction, `core.allocate` and weak side table switch.)
-5. Docs: website pages, tested examples, glossary check, reference generation (`DEFAULT_PACKAGES`).
-6. Benchmarks (`benchmarks/`) for compiled validators.
+1. OQ-89 resolved: class-bound schemas own the schema names (`schema.of(Class)` is named after its class by default); `named` stays as an explicit opt-in for inline DTOs, presented as the secondary way. Tests first: an inline name equal to a class name with a different body raises `ArgumentError` (a clear message naming both), with the same body they share one definition; update README, the how-to and schemas-and-contracts.md so that classes are the primary way and `named` is described as inline DTOs.
+2. OQ-87 resolved: refuse a non-integer `multiple_of` at declaration (clear message, tests, emission unchanged for integers); document why in the schema reference and the how-to, with the alternatives: integers in minor units, or a string with a `pattern` for a fixed number of decimals (JSON Schema has no keyword for decimal places), and a future decimal type.
+3. OQ-92 resolved: `schema` reads its depth guard default and ceiling from `json` (expose the cap and default in `hecate.json` if not already, then replace the constant in `schema.lua`; the work budget of OQ-91 stays a separate internal constant). The `limits.max_depth` configuration key belongs to the kernel item.
+4. (2b) Remaining emission work: official JSON Schema test suite (supported subset), the `1.0` gap is confirmed; (pattern translator done); more formats (uri), core enumeration support, recursive schemas (named done).
+5. Class-bound schemas, remaining: `value_class`, coerce-then-build. (Done: interface, sent, PATCH, construction, `core.allocate` and weak side table switch.)
+6. Docs: website pages, tested examples, glossary check, reference generation (`DEFAULT_PACKAGES`).
+7. Benchmarks (`benchmarks/`) for compiled validators.
 
 ## Open question issues
 

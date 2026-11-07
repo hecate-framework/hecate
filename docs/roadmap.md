@@ -298,6 +298,8 @@ Exit: `examples/crud` works unchanged on PostgreSQL, MySQL, MariaDB and SQLite.
 
 - [ ] `schema`: a decimal type for exact decimal numbers such as money, with a limit on decimal places (OQ-87: `multiple_of` takes integer divisors only; until then integers in minor units, or a string with a pattern).
 
+- [ ] `schema`: a lazy form of `named` for a recursive schema without a class, only if someone needs it (OQ-89: `schema.of(Class)` already closes cycles).
+
 - [ ] **Phase 5 gate**: verification of the phase, as described in [Phase gates](#phase-gates). Open
       questions to put to the owner before Phase 6: OQ-7.
 
