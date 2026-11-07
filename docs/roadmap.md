@@ -177,7 +177,7 @@ concurrency test suite passes; benchmark baseline recorded.
 - [ ] `schema`: refinement types, composition, coercion, validation with JSON Pointer
       error paths, JSON Schema 2020-12 emission.
 - [ ] `container`: IoC container, lifetimes, cycle detection at boot; write its specification section in `docs/architecture/` (OQ-62).
-- [ ] `config`: layered configuration validated by schemas; write its specification section in `docs/architecture/`, including the logging keys (OQ-62).
+- [ ] `config`: layered configuration validated by schemas; write its specification section in `docs/architecture/`, including the logging keys (OQ-62) and the `limits.max_depth` key that lowers the nesting depth of `json` and `schema` together (OQ-92).
 - [ ] `kernel`: application, modules, controllers, route modules, filters, problem
       details, lifecycle, multi-process workers, graceful shutdown. **First step (from the `http` reviews):** split
       `packages/http` `server.lua` (options, response writer, connection) and `client.lua` (pool, redirect) with no API
@@ -295,6 +295,8 @@ Exit: `examples/crud` works unchanged on PostgreSQL, MySQL, MariaDB and SQLite.
       restructuring of OQ-70 (a client that disconnects during an action) is separate work, not needed by upgrades.
 - [ ] HTTP/2.
 - [ ] Further NoSQL drivers by demand (e.g. Cassandra/ScyllaDB CQL).
+
+- [ ] `schema`: a decimal type for exact decimal numbers such as money, with a limit on decimal places (OQ-87: `multiple_of` takes integer divisors only; until then integers in minor units, or a string with a pattern).
 
 - [ ] **Phase 5 gate**: verification of the phase, as described in [Phase gates](#phase-gates). Open
       questions to put to the owner before Phase 6: OQ-7.
