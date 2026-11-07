@@ -176,9 +176,35 @@ local function spend(path, out)
   return false
 end
 
+--- Memoisation of unions (OQ-91). Within one call, a union visited again on the same table node answers from what it
+--- learned the first time: whether an alternative accepts it (validation) and its converted value (coercion). Work is
+--- then proportional to the nodes times the unions, whatever the shape of the alternatives. Only union visits touch
+--- it; only tables are keys; it is created on first use, dropped by each public entry point (like `depth`, so an error
+--- never leaves it stale), and nothing is stored once the budget is spent. The work budget stays as the backstop.
+---@type { verdicts: table<table, table<table, boolean>>, converted: table<table, table<table, any>> }?
+local memo = nil
+
+--- The table in which a union keeps its answers of `kind` ("verdicts" or "converted"), keyed by `owner`.
+---@param kind "verdicts"|"converted"
+---@param owner table  identity of the union (a table it owns)
+---@return table
+local function memo_of(kind, owner)
+  local store = memo
+  if store == nil then
+    store = { verdicts = {}, converted = {} }
+    memo = store
+  end
+  local answers = store[kind][owner]
+  if answers == nil then
+    answers = {}
+    store[kind][owner] = answers
+  end
+  return answers
+end
+
 --- Resets the counters of a public entry point.
 local function reset_work()
-  depth, steps, budget_violation, fast, detailing = 0, 0, nil, false, 0
+  depth, steps, budget_violation, fast, detailing, memo = 0, 0, nil, false, 0, nil
 end
 
 --- Raw violations to `Violation`s; a spent budget is reported exactly once, even if the violation was collected in
@@ -864,14 +890,21 @@ function M.union(alternatives)
   -- the validator reports the union. A single candidate is taken without a second validation of its subtree (the
   -- validator of the whole call checks the result once).
   local coercer = function(value, path, out)
+    local answers = nil
+    if type(value) == "table" then answers = memo_of("converted", validators) end
+    if answers ~= nil and answers[value] ~= nil then return answers[value] end
     local list = candidates(value)
     for _, i in ipairs(list) do
       if not spend(path, out) then return value end
       local scratch = {}
       local converted = copy[i].coercer(value, path, scratch)
       if budget_violation ~= nil then return value end
-      if #scratch == 0 and (#list == 1 or accepts(validators[i], converted, path)) then return converted end
+      if #scratch == 0 and (#list == 1 or accepts(validators[i], converted, path)) then
+        if answers ~= nil then answers[value] = converted end
+        return converted
+      end
     end
+    if answers ~= nil and budget_violation == nil then answers[value] = value end
     return value
   end
   -- The value has been validated by the validator of the call: with one candidate there is nothing to decide.
@@ -884,13 +917,25 @@ function M.union(alternatives)
     return value
   end
   return Schema("union", { members = copy, coercer = coercer, builder = builder, validator = function(value, path, out)
-    for i = 1, count do
+    local verdicts = nil
+    if type(value) == "table" then verdicts = memo_of("verdicts", validators) end
+    local known = nil
+    if verdicts ~= nil then known = verdicts[value] end
+    if known == true then return end
+    -- A rejected node is not tried again; only the report below is still to be made.
+    local last = count
+    if known == false then last = 0 end
+    for i = 1, last do
       if not spend(path, out) then return end
       if fast then
         local found = {}
         validators[i](value, path, found)
-        if found[1] == nil and budget_violation == nil then return end
+        if found[1] == nil and budget_violation == nil then
+          if verdicts ~= nil then verdicts[value] = true end
+          return
+        end
       elseif accepts(validators[i], value, path) then
+        if verdicts ~= nil then verdicts[value] = true end
         return
       end
       if budget_violation ~= nil then
@@ -898,6 +943,7 @@ function M.union(alternatives)
         return
       end
     end
+    if verdicts ~= nil then verdicts[value] = false end
     local failures = {}
     if not fast and detailing == 0 then
       -- Every alternative failed: only now are their violations computed, once, in full mode.

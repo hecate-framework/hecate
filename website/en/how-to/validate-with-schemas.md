@@ -42,9 +42,10 @@ otherwise.
 When the alternatives of a sum differ by a property that holds a constant (a `type` or `kind`
 field), declare a `tagged_union`: the validator reads the tag once and validates only the selected
 variant, with no re-validation. A `union` decides each alternative in turn (stopping at the first
-violation, literal properties first), which is linear for discriminated alternatives but is only
-bounded, not cheap, for alternatives that nothing tells apart: a call that needs more than
-1,000,000 steps ends with a `complexity_limit` violation at the path where it stopped. A failed
+violation, literal properties first) and remembers its answer for each table of the content during
+one call, so the work is proportional to the tables times the unions. As a backstop, a call that
+needs more than 1,000,000 steps ends with a `complexity_limit` violation at the path where it
+stopped. A failed
 `union` reports the violations of its alternatives in `context.alternatives` only at the
 outermost union.
 

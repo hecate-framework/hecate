@@ -3,8 +3,8 @@
 
 - roadmap_item: `schema`: refinement types, composition, coercion, validation with JSON Pointer error paths, JSON Schema 2020-12 emission.
 - status: in-progress            <!-- in-progress | waiting-ci | waiting-owner -->
-- lock_until: 2026-11-07T22:15:00Z
-- last_update: 2026-11-07T20:45:00Z
+- lock_until: 2026-11-07T22:39:11Z
+- last_update: 2026-11-07T21:09:11Z
 
 ## Done
 
@@ -46,9 +46,11 @@
 
 - OQ-91 (security): `union_cost_test.lua`; fail-fast alternatives with literal properties first, lazy `context.alternatives` for the outermost failed union, work budget `complexity_limit` (1,000,000 steps, shared by validate, coerce and build, reset on entry), literal prefilter for union coercion and build. Measured before/after: depth 13 0.339 s then 0.002 s; depth 1000 validate 0.15 s, coerce 0.02 s, build 0.02 s; depth 20 was out of memory. No schema benchmark exists yet (step 4 of next steps).
 
+- OQ-91 memoisation (option b, confirmed by the owner): a `union` memoises, within one `validate`, `coerce` or `build` call, its validation verdict and its coerced value per table node (cache created on first union visit, dropped by `reset_work`, nothing stored once the budget is spent; non-union schemas never touch it). Measured on two classes of identical shape, `next = optional(union(P, Q))`, invalid innermost value: before, depth 12 0.002 s and depth 20 to 30 about 0.4 to 0.7 s ending in `complexity_limit` (budget), depth 1000 0.85 s with `complexity_limit`; after, depth 30 0.0004 s and depth 1000 0.009 s, a `union` violation with no `complexity_limit`. Tests in `union_cost_test.lua`: linear cost for validate, coerce and build (below 0.05 s at depths 30 and 1000, fail before the change), identical violations, paths and top-level-only `context.alternatives` (checked equal on the revision before the change at depth 12), shared nodes and no stale cache across calls, failed `coerce` shape. Failed `coerce` shape check against `b67dfde^`: no real difference. A plain union (including objects with literal tags) reports one `union` violation at the union path with the alternatives, as before; only `tagged_union` reports the selected variant (OQ-88 point 2, as the owner's wording of the task suggested for literal-tag unions, but that rule belongs to `tagged_union`, not to a plain `union`). The two budget tests now lower `max_steps` to 100 because the old adversarial schema is linear.
+
 ## Next steps
 
-1. OQ-91 (security), owner confirmed on 2026-11-07 to implement memoisation too: remember the result per pair of union schema and value node during one call (cache reset on entry like the counters; the work budget stays as a backstop), tests first (an adversarial schema of two identically shaped classes and an invalid innermost value must be linear, under 0.05 s at depth 1000); plus a test that a failed `coerce` returns violations in the same shape as before the union change of b67dfde (a failure picked by literal tags reports the selected variant's own violations); document it. Then resolve OQ-91 (move the row to Resolved with the final answer, close issue #144).
+1. OQ-91: owner confirmation of the memoisation, then move the OQ-91 row of `docs/open-questions.md` to Resolved with the final answer and close issue #144 (done by the owner).
 2. OQ-88 resolved: `build` applies `default` for JSON content for every method except PATCH (deep copy, the input is never modified, an explicit null stays null and never takes the default, `schema.sent` false for a defaulted attribute, confirmed by the owner); `coerce` already supplies defaults for texts and `validate` stays pure. Tests first (POST, PUT, PATCH, null, nested objects, arrays of defaulted objects, class-bound instances); README, how-to and CHANGELOG.
 3. OQ-87 resolved: refuse a non-integer `multiple_of` at declaration (clear message, tests, emission unchanged for integers); document why in the schema reference and the how-to, with the alternatives: integers in minor units, or a string with a `pattern` for a fixed number of decimals (JSON Schema has no keyword for decimal places), and a future decimal type.
 4. OQ-92 resolved: `schema` reads its depth guard default and ceiling from `json` (expose the cap and default in `hecate.json` if not already, then replace the constant in `schema.lua`; the work budget of OQ-91 stays a separate internal constant). The `limits.max_depth` configuration key belongs to the kernel item.
