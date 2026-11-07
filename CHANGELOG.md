@@ -11,6 +11,7 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- `hecate.core`: `core.allocate(class)` (an empty instance of a finalised class without calling `init`; refuses a non-class and a `value_class`) and `core.weak_table(mode?)` (a table with weak keys, values or both), for the instances of class-bound schemas and their presence set (OQ-90).
 - `hecate.schema`: instances of class-bound schemas (OQ-50, step 2c): `Schema:build(content, { method })` validates decoded content and builds instances of the classes (nested, in arrays, maps and unions, cycles included), `schema.sent(instance, name)` is the presence set (explicit `null` counts as sent, absent and null are nil), and `method = "PATCH"` relaxes the required properties of the top-level object (POST and PUT stay strict). Choices in OQ-90.
 - `hecate.schema`: `schema.of(Class)` (or of a module name), the schema of a class declared by its class-level `schema()` (OQ-50): lazy, memoized resolution, so classes may refer to themselves or to each other; validation, coercion and emission close cycles (`$defs`/`$ref` named after the class).
 - `hecate.schema`: website how-to "Validate values with schemas" with two tested examples (step 3 of the docs work), and `schema` added to the generated reference packages.

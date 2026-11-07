@@ -82,6 +82,15 @@ anything on reads.
 A subclass of a value class stays a value class: freezing and the structural `__eq`
 are inherited, even when the subclass is declared with `core.class`.
 
+## Allocation without `init`
+
+`core.allocate(Class)` returns an empty instance of a finalised class without calling `init`.
+Code that fills the attributes from data it has already validated (the schema `build`, the ORM
+building entities from rows) uses it instead of `Class(...)`; it is the only function that
+creates an instance with `setmetatable` outside `Class(...)`. A `value_class` is refused
+(`ArgumentError`): its instances are frozen after `init`. `core.weak_table(mode?)` creates a table
+with weak keys (default), values or both, for side tables keyed by instance.
+
 ## Errors
 
 A single hierarchy rooted at `hecate.core.Error`:

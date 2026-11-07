@@ -3,8 +3,8 @@
 
 - roadmap_item: `schema`: refinement types, composition, coercion, validation with JSON Pointer error paths, JSON Schema 2020-12 emission.
 - status: in-progress            <!-- in-progress | waiting-ci | waiting-owner -->
-- lock_until: 2026-11-04T11:15:00Z
-- last_update: 2026-11-04T09:45:00Z
+- lock_until: 2026-11-07T21:27:26Z
+- last_update: 2026-11-07T19:57:26Z
 
 ## Done
 
@@ -39,9 +39,11 @@
 - Run 2026-11-04 06:50Z: resumed after lock expiry; CI green on the three platforms; created mirror issue #143 for OQ-90. No code change (toolchain not built in this session: `.hecate/toolchain` absent).
 
 - Run 2026-11-04 09:45Z: toolchain rebuilt, `test schema` green. Verified that `json.encode` refuses an instance holding the presence key (EncodeError); recorded in OQ-90 (owner choice: encoder rule or side table), not decided. Decided 2026-11-07 (OQ-90 resolved): the presence set moves to a weak-keyed side table behind a new `core` helper for weak tables (so the encoder needs no change), and a class-bound instance is allocated without `init` through one `core` allocation function that calls `setmetatable`.
+- Core step (OQ-90): `core.allocate(class)` (instance without `init`, the only `setmetatable` for instances; ArgumentError for a non-class or a `value_class`, ConformanceError for a class not finalised, like `Class()`) and `core.weak_table(mode?)` ("k" default, "v", "kv"), tests `packages/core/tests/unit/allocate_test.lua`, README, object-model.md, CHANGELOG. typecheck, lint, check-annotations, check-boundaries, check-glossary, check-changelog, check-links, test core pass; markdownlint-cli2 not available offline.
 
 ## Next steps
 
+0. Switch `Schema:build` to `core.allocate` and `schema.sent` to a `core.weak_table()` side table (remove the private presence key and the `Class()`-without-argument requirement); test `json.encode` of a built instance and `pairs` yielding only attributes.
 1. (2b) Remaining emission work: official JSON Schema test suite (supported subset), the `1.0` gap is confirmed; (pattern translator done); more formats (uri), core enumeration support, recursive schemas (named done).
 2. Class-bound schemas, remaining (OQ-90 decisions): add the `core` weak-table helper and the `core` allocation function (tests first, in `packages/core`, annotated, README and changelog), switch `build` and `schema.sent` to them (remove the private presence key; test that `json.encode` of a built instance works and `pairs` yields only attributes), `value_class`, json decoder depth limit check, coerce-then-build. (Done: interface, sent, PATCH, construction.) Old text: an interface requiring a class-level `schema()` (core.interface checks instance methods; verify it fits class-level, else record in an OQ), the presence set `schema.sent(instance, name)`, instance construction convention (to settle conservatively and record in a new OQ), HTTP-method relaxation (PATCH) derived by the validator. Tests: self reference, mutual pair, cycle of three classes (validation, coercion, emission); check the json decoder depth limit.
 3. Docs: website pages, tested examples, glossary check, reference generation (`DEFAULT_PACKAGES`).

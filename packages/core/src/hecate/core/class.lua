@@ -252,4 +252,31 @@ function M.finalise(target)
   return target
 end
 
-return { class = M.class, finalise = M.finalise, NOT_INHERITED = NOT_INHERITED }
+--- Allocates an empty instance of a finalised class WITHOUT calling `init`: the instance has the
+--- metatable of the class, so methods, inherited members and metamethods work, `core.class_of`
+--- and `core.is_instance_of` answer for it, and no attribute is set. For code that fills the
+--- attributes itself from data it has already validated (the schema `build`, the ORM). It is the
+--- only function of the framework that creates an instance with `setmetatable` outside
+--- `Class(...)`.
+---
+--- Raises `hecate.core.ArgumentError` if `class` is not a class created with `core.class` or if
+--- it is a value class (its instances are frozen after `init`; not supported), and
+--- `hecate.core.ConformanceError` if the class is not finalised (as `Class(...)` does).
+---@param class any  a finalised class created with `core.class`
+---@return table instance  a new instance with no attribute
+function M.allocate(class)
+  local record = classes[class]
+  if record == nil then raise.argument("allocate expects a class created with core.class") end
+  ---@cast record -?
+  if record.freeze ~= nil then
+    raise.argument(("allocate does not support value class %s: its instances are frozen after init"):format(record.name),
+      { class = record.name })
+  end
+  if not record.finalised then
+    raise.conformance(("%s is not finalised; call core.finalise before allocating it"):format(describe(class)),
+      { class = record.name })
+  end
+  return setmetatable({}, class) -- hecate: raw-metatable instance of a class
+end
+
+return { class = M.class, finalise = M.finalise, allocate = M.allocate, NOT_INHERITED = NOT_INHERITED }

@@ -62,6 +62,8 @@ core.finalise(Money)
 |---|---|
 | `class(name, superclass?, options?)` | Declares a class; options `traits`, `implements`, `fallback_provides` (names an `__index` fallback provides; they satisfy conformance checks). Instantiate with `Class(...)` after finalisation (calls `init`). |
 | `finalise(class)` | Resolves traits and interfaces, flattens members into the class table; one `ConformanceError` lists every problem. Idempotent. |
+| `allocate(class)` | Returns a new empty instance of a finalised class without calling `init` (metatable set, so methods, inherited members, metamethods, `class_of` and `is_instance_of` work). The only way to create an instance without `Class(...)`, for code that fills attributes from data it has validated (schema `build`, ORM). `ArgumentError` for a non-class or a `value_class` (frozen instances, not supported); `ConformanceError` for a class not finalised, as `Class(...)`. |
+| `weak_table(mode?)` | New empty table with weak keys (`"k"`, default), weak values (`"v"`) or both (`"kv"`); raw `setmetatable` is reserved to core. For side tables keyed by instance (presence set, identity map). `ArgumentError` for another mode. |
 | `trait(name, methods, options?)` | Declares a trait; options `traits` (composition), `requires`. A trait entry of a class may be `{ trait, exclude = {...}, alias = { old = "new" } }`; an alias that collides with another method of the same trait is a `ConformanceError`, a malformed `exclude` or `alias` an `ArgumentError`. |
 | `interface(name, methods, options?)` | Declares an interface; option `extends`. |
 | `value_class(name, superclass?, options?)` | Like `class`; instances are frozen after `init`, compared structurally by `__eq`. |
@@ -81,8 +83,8 @@ defines the member or one entry excludes it.
 ## Layout
 
 ```text
-src/hecate/core/init.lua   public entry point (class, trait, interface, introspection,
-                           error, value_class, enumeration, compat; internal/)
+src/hecate/core/init.lua   public entry point (class, allocate, weak_table, trait, interface,
+                           introspection, error, value_class, enumeration, compat; internal/)
 tests/unit/
 examples/    benchmarks/dispatch.lua
 ```
