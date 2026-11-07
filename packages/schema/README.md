@@ -56,8 +56,8 @@ Validation:
 
 Instances (OQ-50, recorded in OQ-90):
 
-- `s:build(content, { method })` validates decoded content (no text conversion) and returns `true, value`, or `false` and the violations. A class-bound part (`schema.of(Class)`) becomes an instance of its class (`Class()` with no argument, then the attributes are assigned); an absent or `null` attribute is nil. `method` is `"POST"`/`"PUT"` (strict, default) or `"PATCH"` (required properties of the top-level object may be absent; `null` fails unless nullable).
-- `schema.sent(instance, name)`: true when the attribute was present in the content, explicit `null` included; stored under a private non-string key of the instance (OQ-90).
+- `s:build(content, { method })` validates decoded content (no text conversion) and returns `true, value`, or `false` and the violations. A class-bound part (`schema.of(Class)`) becomes an instance of its class (allocated with `core.allocate`, so `init` is not called and may require arguments; then the declared attributes are assigned); an absent or `null` attribute is nil. `method` is `"POST"`/`"PUT"` (strict, default) or `"PATCH"` (required properties of the top-level object may be absent; `null` fails unless nullable).
+- `schema.sent(instance, name)`: true when the attribute was present in the content, explicit `null` included; kept in a weak-keyed side table outside the instance, so `pairs` and `json.encode` see only the attributes, and false (never raising) for a value not built by `build` (OQ-90).
 
 Emission:
 

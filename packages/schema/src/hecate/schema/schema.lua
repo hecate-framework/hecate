@@ -139,10 +139,10 @@ end
 ---@class hecate.schema
 local M = {}
 
---- Key of the presence set inside an instance built by `Schema:build` (OQ-90). A private table, never a string, so that
---- the set cannot clash with an attribute and does not appear among the string keys of the instance. (A weak-keyed table
---- would need a raw `setmetatable`, reserved to `hecate.core` by `check-boundaries`.)
-local PRESENCE = {}
+--- Presence sets of the instances built by `Schema:build` (OQ-90): instance -> set of the property names that were sent.
+--- Weak-keyed, so that the set does not keep a dead instance alive, and kept outside the instance, so that `pairs` and
+--- `json.encode` see only the attributes.
+local presence_sets = core.weak_table("k")
 
 --- Checks of the `format` option of `string` (JSON Schema 2020-12 section 7.3). Conservative subsets: `uuid` (RFC 9562 text
 --- form), `date` and `date-time` (RFC 3339), `email` (one `@`, non-empty local part and dotted domain, no whitespace), `ipv4` (dotted quad, RFC 2673 section 3.2, no leading zeros).
@@ -873,13 +873,14 @@ function M.of(target)
     return resolved
   end
   --- Builds an instance: the attributes are the declared properties, an explicit null leaves the attribute nil, and the
-  --- presence set records which properties were sent (OQ-90). The class is instantiated with no argument.
+  --- presence set records which properties were sent (OQ-90). The instance is allocated with `core.allocate`: `init` is
+  --- not called, so it may require arguments.
   local function build(value)
     local named = resolve()
     local object = named.item --[[@as hecate.schema.Schema]]
     local fields = named.builder(value)
     if object.kind ~= "object" then return fields end
-    local instance, present = bound_class(), {}
+    local instance, present = core.allocate(bound_class), {}
     for name in pairs(object.properties --[[@as table]]) do
       local member = value[name]
       if member ~= nil then
@@ -887,7 +888,7 @@ function M.of(target)
         if member ~= null then instance[name] = fields[name] end
       end
     end
-    instance[PRESENCE] = present
+    presence_sets[instance] = present
     return instance
   end
   return Schema("class", { options = { resolve = resolve },
@@ -903,7 +904,7 @@ end
 ---@param name string
 ---@return boolean
 function M.sent(instance, name)
-  local present = type(instance) == "table" and rawget(instance, PRESENCE)
+  local present = type(instance) == "table" and presence_sets[instance]
   return present and present[name] == true or false
 end
 

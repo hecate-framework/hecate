@@ -16,7 +16,7 @@ end
 local function keys(t)
   local list = {}
   for key in pairs(t) do
-    if type(key) == "string" then list[#list + 1] = key end -- the presence set has a private, non-string key
+    list[#list + 1] = tostring(key)
   end
   table.sort(list)
   return list
@@ -78,6 +78,58 @@ function T:test_presence_set_tells_null_from_absent_without_polluting()
   self:assert_false(schema.sent(user, "age"))
   self:assert_equal("name", table.concat(keys(user), ","))
   self:assert_false(schema.sent(User(), "name")) -- not built: nothing was sent
+end
+
+function T:test_build_does_not_call_init()
+  local calls = 0
+  local Account = core.class("Account")
+  function Account.init(self, id, secret) calls = calls + 1; self.id = assert(id); self.secret = assert(secret) end
+  function Account.schema() return schema.object({ id = schema.integer(), label = schema.optional(schema.string()) }) end
+  core.finalise(Account)
+  local ok, account = schema.of(Account):build({ id = 7, label = "x" })
+  self:assert_true(ok)
+  self:assert_equal(0, calls)
+  self:assert_true(core.is_instance_of(account, Account))
+  self:assert_equal(7, account.id)
+  self:assert_nil(account.secret)
+end
+
+function T:test_instance_holds_only_attributes()
+  local ok, user = schema.of(user_class()):build({ name = "ada", age = 3, nick = json.null })
+  self:assert_true(ok)
+  local seen = {}
+  for key in pairs(user) do seen[#seen + 1] = key end
+  table.sort(seen)
+  self:assert_equal("age,name", table.concat(seen, ","))
+  self:assert_equal("age,name", table.concat(keys(user), ","))
+end
+
+function T:test_json_encode_of_a_built_instance_yields_the_attributes()
+  local ok, user = schema.of(user_class()):build({ name = "ada", age = 3 })
+  self:assert_true(ok)
+  local text = json.encode(user)
+  local back = json.decode(text)
+  self:assert_equal("ada", back.name)
+  self:assert_equal(3, back.age)
+  local count = 0
+  for _ in pairs(back) do count = count + 1 end
+  self:assert_equal(2, count)
+end
+
+function T:test_sent_is_false_and_never_raises_for_other_values()
+  self:assert_false(schema.sent({}, "name"))
+  self:assert_false(schema.sent(nil, "name"))
+  self:assert_false(schema.sent("text", "name"))
+end
+
+function T:test_presence_set_does_not_keep_a_dead_instance_alive()
+  local ok, user = schema.of(user_class()):build({ name = "ada" })
+  self:assert_true(ok)
+  local watcher = setmetatable({ user }, { __mode = "v" })
+  user = nil
+  collectgarbage()
+  collectgarbage()
+  self:assert_nil(watcher[1])
 end
 
 function T:test_patch_relaxes_required_attributes()
