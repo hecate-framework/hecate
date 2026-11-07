@@ -152,6 +152,8 @@ local depth = 0
 --- violation at the path where it stopped (`context.max_steps`) and visits nothing more. One counter is shared by
 --- `validate`, `coerce` and `build`, and each public entry point resets it, like `depth`.
 local limits = { max_steps = 1000000 }
+--- Set by `Schema:build` for a PATCH: an absent attribute means unchanged, so no default applies (OQ-88).
+local without_defaults = false
 local steps = 0
 local budget_violation = nil -- the `complexity_limit` violation of the call in progress, once the budget is spent
 
@@ -734,7 +736,11 @@ function M.object(properties, options)
     for key, member in next, value do result[key] = member end
     for i = 1, count do
       local member = value[names[i]]
-      if member ~= nil then result[names[i]] = builders[i](member) end
+      if member ~= nil then
+        result[names[i]] = builders[i](member)
+      elseif defaults[i] ~= nil and not without_defaults then
+        result[names[i]] = builders[i](copy_value(defaults[i])) -- an absent property takes a fresh copy of its default (OQ-88)
+      end
     end
     return remark(value, result)
   end
@@ -964,7 +970,8 @@ function M.union(alternatives)
   end })
 end
 
---- Gives a property a default: the property may be absent, and `coerce` then supplies `value` (a deep copy).
+--- Gives a property a default: the property may be absent, and `coerce` (texts) and `build` (JSON content, except
+--- PATCH) then supply `value` (a deep copy).
 --- Validation never supplies it (it validates the value it is given), and JSON Schema emits it as the `default`
 --- annotation (section 9.2), which does not change what is valid. The default must conform to `inner` (OQ-88).
 ---@param inner hecate.schema.Schema
@@ -1123,6 +1130,8 @@ function M.of(target)
       if member ~= nil then
         present[name] = true
         if member ~= null then instance[name] = fields[name] end
+      elseif fields[name] ~= nil then
+        instance[name] = fields[name] -- supplied by a default: the attribute is set but not sent (OQ-88)
       end
     end
     presence_sets[instance] = present
@@ -1283,7 +1292,10 @@ local METHODS = { POST = false, PUT = false, PATCH = true }
 
 --- Validates decoded content (no text conversion) and builds the value it describes: every class-bound part (see
 --- `schema.of`) becomes an instance of its class, whose attributes are the properties of its schema. An absent
---- attribute is nil, an explicit `null` is nil too and `schema.sent` tells them apart. `options.method` is the HTTP
+--- attribute is nil, an explicit `null` is nil too and `schema.sent` tells them apart. An absent property declared
+--- with `default` takes a fresh deep copy of its default (the content is never modified, and `schema.sent` stays false
+--- for it), for every method except PATCH, where an absent attribute means unchanged and no default applies; an
+--- explicit `null` never takes the default (OQ-88). `options.method` is the HTTP
 --- method the content arrived with (OQ-50): `"POST"` and `"PUT"` (the default) are strict; `"PATCH"` lets the
 --- required properties of the top-level object be absent (unchanged), while `null` still fails unless nullable.
 ---@param value any  decoded content
@@ -1301,6 +1313,9 @@ function Schema:build(value, options)
   end
   local raw = {}
   reset_work()
+  without_defaults = relax == true
+  -- A top-level `default` replaces an absent value, as in `coerce`, except for a PATCH.
+  if value == nil and not relax and self.kind == "default" then value = copy_value((self.options --[[@as table]]).value) end
   ;(relax and self.relaxed_validator or self.validator)(value, "", raw)
   if #raw == 0 and budget_violation == nil then
     local built = self.builder(value)

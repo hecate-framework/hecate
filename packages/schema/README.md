@@ -46,7 +46,7 @@ Declarations (`local schema = require("hecate.schema")`); every schema is an imm
 - `schema.array(item, { min_items, max_items })`: sequences, 0-based pointer indices.
 - `schema.optional(s)` (property may be absent), `schema.nullable(s)` (accepts `json.null`), `schema.union(list)`.
 - `schema.tagged_union(tag, variants)`: discriminated sum (prefer it to a `union` of objects that differ by a literal: one dispatch on the tag, no re-validation); `variants` maps a name to an `object` schema, and the property `tag` holds the name (emitted as `oneOf`).
-- `schema.default(s, value)`: property that may be absent; `s:coerce` supplies a copy of `value`, `validate` does not; emitted as `default`. Both are recorded in OQ-88.
+- `schema.default(s, value)`: property that may be absent; `s:coerce` (texts) and `s:build` (JSON content, every method except PATCH) supply a fresh deep copy of `value` for an absent property, also in nested objects, arrays, maps, unions and class-bound instances; an explicit `null` never takes it, `schema.sent` stays false for it and `validate` never supplies it; emitted as `default`. Recorded in OQ-88.
 - `schema.of(Class|module)`: the schema of a class from its class-level `schema()`, resolved lazily; cycles close with `$ref` (recursive schemas). `schema.named(name, s)`: gives `s` a name; emitted once in `$defs` and referenced with `$ref`. `schema.any()` accepts every JSON value, `schema.null()` only `json.null`. Recorded in OQ-89.
 
 Validation:

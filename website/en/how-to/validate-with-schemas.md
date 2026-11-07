@@ -68,5 +68,15 @@ print(("%s %d"):format(document.type, #document.required))
 -- Prints: object 1
 ```
 
+## Defaults
+
+`schema.default(inner, value)` makes a property optional. `coerce` (path, query and header texts)
+and `build` (JSON content) give an absent property a fresh copy of the default, so no table is
+shared between requests and the content you passed is never modified. `build` applies defaults for
+POST and PUT but never for PATCH, where an absent attribute means unchanged. An explicit `null`
+stays `null` and never takes the default. `schema.sent(instance, name)` stays false for an
+attribute filled by a default, so an action can tell what the client really sent. `validate` never
+supplies a value.
+
 Choices taken conservatively (for example, `integer` refuses `1.0`) are listed in the package
 README and in the open questions.

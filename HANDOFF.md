@@ -3,8 +3,8 @@
 
 - roadmap_item: `schema`: refinement types, composition, coercion, validation with JSON Pointer error paths, JSON Schema 2020-12 emission.
 - status: in-progress            <!-- in-progress | waiting-ci | waiting-owner -->
-- lock_until: 2026-11-07T22:39:11Z
-- last_update: 2026-11-07T21:09:11Z
+- lock_until: 2026-11-07T22:46:26Z
+- last_update: 2026-11-07T21:16:26Z
 
 ## Done
 
@@ -48,15 +48,16 @@
 
 - OQ-91 memoisation (option b, confirmed by the owner): a `union` memoises, within one `validate`, `coerce` or `build` call, its validation verdict and its coerced value per table node (cache created on first union visit, dropped by `reset_work`, nothing stored once the budget is spent; non-union schemas never touch it). Measured on two classes of identical shape, `next = optional(union(P, Q))`, invalid innermost value: before, depth 12 0.002 s and depth 20 to 30 about 0.4 to 0.7 s ending in `complexity_limit` (budget), depth 1000 0.85 s with `complexity_limit`; after, depth 30 0.0004 s and depth 1000 0.009 s, a `union` violation with no `complexity_limit`. Tests in `union_cost_test.lua`: linear cost for validate, coerce and build (below 0.05 s at depths 30 and 1000, fail before the change), identical violations, paths and top-level-only `context.alternatives` (checked equal on the revision before the change at depth 12), shared nodes and no stale cache across calls, failed `coerce` shape. Failed `coerce` shape check against `b67dfde^`: no real difference. A plain union (including objects with literal tags) reports one `union` violation at the union path with the alternatives, as before; only `tagged_union` reports the selected variant (OQ-88 point 2, as the owner's wording of the task suggested for literal-tag unions, but that rule belongs to `tagged_union`, not to a plain `union`). The two budget tests now lower `max_steps` to 100 because the old adversarial schema is linear.
 
+- Step 4c (OQ-88): `Schema:build` applies `default` for JSON content except PATCH (fresh deep copy, null stays null, `schema.sent` false for defaulted attributes, nested, unions, class-bound, top-level default); tests `defaults_build_test.lua`; README, architecture, how-to, CHANGELOG.
+
 ## Next steps
 
-1. OQ-88 resolved: `build` applies `default` for JSON content for every method except PATCH (deep copy, the input is never modified, an explicit null stays null and never takes the default, `schema.sent` false for a defaulted attribute, confirmed by the owner); `coerce` already supplies defaults for texts and `validate` stays pure. Tests first (POST, PUT, PATCH, null, nested objects, arrays of defaulted objects, class-bound instances); README, how-to and CHANGELOG.
-2. OQ-87 resolved: refuse a non-integer `multiple_of` at declaration (clear message, tests, emission unchanged for integers); document why in the schema reference and the how-to, with the alternatives: integers in minor units, or a string with a `pattern` for a fixed number of decimals (JSON Schema has no keyword for decimal places), and a future decimal type.
-3. OQ-92 resolved: `schema` reads its depth guard default and ceiling from `json` (expose the cap and default in `hecate.json` if not already, then replace the constant in `schema.lua`; the work budget of OQ-91 stays a separate internal constant). The `limits.max_depth` configuration key belongs to the kernel item.
-4. (2b) Remaining emission work: official JSON Schema test suite (supported subset), the `1.0` gap is confirmed; (pattern translator done); more formats (uri), core enumeration support, recursive schemas (named done).
-5. Class-bound schemas, remaining: `value_class`, coerce-then-build. (Done: interface, sent, PATCH, construction, `core.allocate` and weak side table switch.)
-6. Docs: website pages, tested examples, glossary check, reference generation (`DEFAULT_PACKAGES`).
-7. Benchmarks (`benchmarks/`) for compiled validators.
+1. OQ-87 resolved: refuse a non-integer `multiple_of` at declaration (clear message, tests, emission unchanged for integers); document why in the schema reference and the how-to, with the alternatives: integers in minor units, or a string with a `pattern` for a fixed number of decimals (JSON Schema has no keyword for decimal places), and a future decimal type.
+2. OQ-92 resolved: `schema` reads its depth guard default and ceiling from `json` (expose the cap and default in `hecate.json` if not already, then replace the constant in `schema.lua`; the work budget of OQ-91 stays a separate internal constant). The `limits.max_depth` configuration key belongs to the kernel item.
+3. (2b) Remaining emission work: official JSON Schema test suite (supported subset), the `1.0` gap is confirmed; (pattern translator done); more formats (uri), core enumeration support, recursive schemas (named done).
+4. Class-bound schemas, remaining: `value_class`, coerce-then-build. (Done: interface, sent, PATCH, construction, `core.allocate` and weak side table switch.)
+5. Docs: website pages, tested examples, glossary check, reference generation (`DEFAULT_PACKAGES`).
+6. Benchmarks (`benchmarks/`) for compiled validators.
 
 ## Open question issues
 

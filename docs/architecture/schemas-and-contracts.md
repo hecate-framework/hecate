@@ -37,6 +37,7 @@ coercion (except where explicitly allowed).
   machine-readable code and a human message.
 - Schemas compile to validator closures at boot; validation must not walk the schema
   description at request time.
+- `default(schema, value)`: `coerce` (texts) and `build` (JSON content, except PATCH) give an absent property a fresh copy of the value; an explicit `null` and a PATCH never take it, `validate` never supplies it, and `sent` stays false for a defaulted attribute (OQ-88).
 - Unknown properties (`additional_properties`): rejected by default for request content (configurable per schema).
 - Members of an `object` schema are *properties* (the JSON Schema term); *fields* are HTTP header fields only.
 
