@@ -50,14 +50,13 @@
 
 ## Next steps
 
-1. OQ-91: owner confirmation of the memoisation, then move the OQ-91 row of `docs/open-questions.md` to Resolved with the final answer and close issue #144 (done by the owner).
-2. OQ-88 resolved: `build` applies `default` for JSON content for every method except PATCH (deep copy, the input is never modified, an explicit null stays null and never takes the default, `schema.sent` false for a defaulted attribute, confirmed by the owner); `coerce` already supplies defaults for texts and `validate` stays pure. Tests first (POST, PUT, PATCH, null, nested objects, arrays of defaulted objects, class-bound instances); README, how-to and CHANGELOG.
-3. OQ-87 resolved: refuse a non-integer `multiple_of` at declaration (clear message, tests, emission unchanged for integers); document why in the schema reference and the how-to, with the alternatives: integers in minor units, or a string with a `pattern` for a fixed number of decimals (JSON Schema has no keyword for decimal places), and a future decimal type.
-4. OQ-92 resolved: `schema` reads its depth guard default and ceiling from `json` (expose the cap and default in `hecate.json` if not already, then replace the constant in `schema.lua`; the work budget of OQ-91 stays a separate internal constant). The `limits.max_depth` configuration key belongs to the kernel item.
-5. (2b) Remaining emission work: official JSON Schema test suite (supported subset), the `1.0` gap is confirmed; (pattern translator done); more formats (uri), core enumeration support, recursive schemas (named done).
-6. Class-bound schemas, remaining: `value_class`, coerce-then-build. (Done: interface, sent, PATCH, construction, `core.allocate` and weak side table switch.)
-7. Docs: website pages, tested examples, glossary check, reference generation (`DEFAULT_PACKAGES`).
-8. Benchmarks (`benchmarks/`) for compiled validators.
+1. OQ-88 resolved: `build` applies `default` for JSON content for every method except PATCH (deep copy, the input is never modified, an explicit null stays null and never takes the default, `schema.sent` false for a defaulted attribute, confirmed by the owner); `coerce` already supplies defaults for texts and `validate` stays pure. Tests first (POST, PUT, PATCH, null, nested objects, arrays of defaulted objects, class-bound instances); README, how-to and CHANGELOG.
+2. OQ-87 resolved: refuse a non-integer `multiple_of` at declaration (clear message, tests, emission unchanged for integers); document why in the schema reference and the how-to, with the alternatives: integers in minor units, or a string with a `pattern` for a fixed number of decimals (JSON Schema has no keyword for decimal places), and a future decimal type.
+3. OQ-92 resolved: `schema` reads its depth guard default and ceiling from `json` (expose the cap and default in `hecate.json` if not already, then replace the constant in `schema.lua`; the work budget of OQ-91 stays a separate internal constant). The `limits.max_depth` configuration key belongs to the kernel item.
+4. (2b) Remaining emission work: official JSON Schema test suite (supported subset), the `1.0` gap is confirmed; (pattern translator done); more formats (uri), core enumeration support, recursive schemas (named done).
+5. Class-bound schemas, remaining: `value_class`, coerce-then-build. (Done: interface, sent, PATCH, construction, `core.allocate` and weak side table switch.)
+6. Docs: website pages, tested examples, glossary check, reference generation (`DEFAULT_PACKAGES`).
+7. Benchmarks (`benchmarks/`) for compiled validators.
 
 ## Open question issues
 
