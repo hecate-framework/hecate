@@ -37,6 +37,17 @@ print(("%s %d %s %s"):format(tostring(ok), #violations, violations[1].path, viol
 same list. Undeclared properties of an `object` are rejected unless `additional_properties` says
 otherwise.
 
+## Choose between `union` and `tagged_union`
+
+When the alternatives of a sum differ by a property that holds a constant (a `type` or `kind`
+field), declare a `tagged_union`: the validator reads the tag once and validates only the selected
+variant, with no re-validation. A `union` decides each alternative in turn (stopping at the first
+violation, literal properties first), which is linear for discriminated alternatives but is only
+bounded, not cheap, for alternatives that nothing tells apart: a call that needs more than
+1,000,000 steps ends with a `complexity_limit` violation at the path where it stopped. A failed
+`union` reports the violations of its alternatives in `context.alternatives` only at the
+outermost union.
+
 ## Emit JSON Schema
 
 `to_json_schema()` returns a JSON Schema 2020-12 document as plain values.

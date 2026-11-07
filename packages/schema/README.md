@@ -45,7 +45,7 @@ Declarations (`local schema = require("hecate.schema")`); every schema is an imm
 - `schema.object(properties, { additional_properties })`: product type; undeclared properties are rejected by default.
 - `schema.array(item, { min_items, max_items })`: sequences, 0-based pointer indices.
 - `schema.optional(s)` (property may be absent), `schema.nullable(s)` (accepts `json.null`), `schema.union(list)`.
-- `schema.tagged_union(tag, variants)`: discriminated sum; `variants` maps a name to an `object` schema, and the property `tag` holds the name (emitted as `oneOf`).
+- `schema.tagged_union(tag, variants)`: discriminated sum (prefer it to a `union` of objects that differ by a literal: one dispatch on the tag, no re-validation); `variants` maps a name to an `object` schema, and the property `tag` holds the name (emitted as `oneOf`).
 - `schema.default(s, value)`: property that may be absent; `s:coerce` supplies a copy of `value`, `validate` does not; emitted as `default`. Both are recorded in OQ-88.
 - `schema.of(Class|module)`: the schema of a class from its class-level `schema()`, resolved lazily; cycles close with `$ref` (recursive schemas). `schema.named(name, s)`: gives `s` a name; emitted once in `$defs` and referenced with `$ref`. `schema.any()` accepts every JSON value, `schema.null()` only `json.null`. Recorded in OQ-89.
 
@@ -53,6 +53,7 @@ Validation:
 
 - `s:validate(value)` returns `true`, or `false` and the list of every `schema.Violation` (`path` as an RFC 6901 JSON Pointer, `code`, `message`, `context`).
 - Nesting is bounded to 1000 levels, the maximum of `json.decode` and `json.encode`: a deeper value (only a hand-built table can be) yields a `depth_limit` violation at the path where validation stopped, never a stack overflow.
+- Cost is bounded (OQ-91): the alternatives of a `union` are decided in a fail-fast mode (first violation, literal properties first), so a recursive `union` of discriminated containers costs linear work; `context.alternatives` is filled for the outermost failed union only (a union nested in an alternative has an empty list). Whatever the schema, a call spends at most 1,000,000 steps (one per container visited or alternative tried, shared by `validate`, `coerce` and `build`, reset on entry); beyond it the call ends with a `complexity_limit` violation (`context.max_steps`) at the path where it stopped. Alternatives that nothing discriminates can still cost up to that budget (about 0.4 s); use `tagged_union`.
 - `s:check(value)` returns the value or raises `core.ValidationError` with `context.violations`.
 
 Instances (OQ-50, recorded in OQ-90):

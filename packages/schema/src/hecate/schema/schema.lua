@@ -55,6 +55,7 @@ core.finalise(Record)
 ---@field coercer hecate.schema.Coercer  compiled coercion closure (textual input to typed value)
 ---@field relaxed_validator hecate.schema.Validator  validator of PATCH content: the required properties of the top-level object may be absent
 ---@field builder hecate.schema.Builder  compiled builder of instances (see `Schema:build`)
+---@field prefilter? fun(value: any): boolean  cheap necessary condition for a value to conform (false: it cannot); absent when there is none
 ---@field coerce fun(self: hecate.schema.Schema, value: any): boolean, any  see `Schema:coerce`
 ---@field to_json_schema fun(self: hecate.schema.Schema): table  the JSON Schema 2020-12 document of the schema
 ---@overload fun(kind: string, parts: table): hecate.schema.Schema
@@ -74,6 +75,7 @@ function Schema:init(kind, parts)
   self.coercer = parts.coercer or function(value) return value end
   self.relaxed_validator = parts.relaxed_validator or parts.validator
   self.builder = parts.builder or function(value) return value end
+  self.prefilter = parts.prefilter
 end
 
 local function refuse(message, context)
@@ -144,14 +146,72 @@ end
 local MAX_DEPTH = 1000
 local depth = 0
 
---- Wraps the function of a container (a validator or a coercer) with the nesting guard. A refused coercer returns
---- its value unchanged (`keep`).
+--- Work budget (OQ-91). A recursive `union` of containers can cost two to the power of the depth when nothing
+--- discriminates its alternatives, and the depth guard does not bound that. Every container visited and every
+--- alternative tried is a step; a call that spends more than `limits.max_steps` ends with a `complexity_limit`
+--- violation at the path where it stopped (`context.max_steps`) and visits nothing more. One counter is shared by
+--- `validate`, `coerce` and `build`, and each public entry point resets it, like `depth`.
+local limits = { max_steps = 1000000 }
+local steps = 0
+local budget_violation = nil -- the `complexity_limit` violation of the call in progress, once the budget is spent
+
+--- Fail-fast mode: set while an alternative of a union is tried, only to learn whether it accepts. Validators then
+--- stop at the first violation, check discriminating properties (literals) first and build no detail.
+local fast = false
+--- Nesting of the detail pass of a failed union (`context.alternatives`): only the outermost one carries it.
+local detailing = 0
+
+--- Counts one step. Returns false, after leaving the `complexity_limit` violation in `out`, when the budget is spent.
+---@param path string
+---@param out hecate.schema.RawViolation[]
+---@return boolean
+local function spend(path, out)
+  if budget_violation == nil then
+    steps = steps + 1
+    if steps <= limits.max_steps then return true end
+    budget_violation = { path, "complexity_limit", "the work needed exceeds " .. limits.max_steps .. " steps",
+      { max_steps = limits.max_steps } }
+  end
+  if out[#out] ~= budget_violation then out[#out + 1] = budget_violation end
+  return false
+end
+
+--- Resets the counters of a public entry point.
+local function reset_work()
+  depth, steps, budget_violation, fast, detailing = 0, 0, nil, false, 0
+end
+
+--- Raw violations to `Violation`s; a spent budget is reported exactly once, even if the violation was collected in
+--- a scratch list that was discarded.
+---@param raw hecate.schema.RawViolation[]
+---@return hecate.schema.Violation[]
+local function to_violations(raw)
+  local violations, seen = {}, false
+  for _, v in ipairs(raw) do
+    if v ~= budget_violation or not seen then
+      violations[#violations + 1] = Violation(v[1], v[2], v[3], v[4])
+      seen = seen or v == budget_violation
+    end
+  end
+  if budget_violation ~= nil and not seen then
+    local v = budget_violation
+    violations[#violations + 1] = Violation(v[1], v[2], v[3], v[4])
+  end
+  return violations
+end
+
+--- Wraps the function of a container (a validator or a coercer) with the nesting guard and the work budget. A
+--- refused coercer returns its value unchanged (`keep`).
 ---@generic F: function
 ---@param inner F
 ---@param keep? boolean
 ---@return F
 local function guarded(inner, keep)
   return function(value, path, out)
+    if not spend(path, out) then
+      if keep then return value end
+      return
+    end
     if depth >= MAX_DEPTH then
       out[#out + 1] = { path, "depth_limit", "the value is nested deeper than " .. MAX_DEPTH .. " levels",
         { max_depth = MAX_DEPTH } }
@@ -165,8 +225,22 @@ local function guarded(inner, keep)
   end
 end
 
+--- Tells whether `validate` accepts `value`, in fail-fast mode.
+---@param validate hecate.schema.Validator
+---@param value any
+---@param path string
+---@return boolean
+local function accepts(validate, value, path)
+  local previous, found = fast, {}
+  fast = true
+  validate(value, path, found)
+  fast = previous
+  return found[1] == nil and budget_violation == nil
+end
+
 ---@class hecate.schema
 local M = {}
+M.limits = limits
 
 --- Presence sets of the instances built by `Schema:build` (OQ-90): instance -> set of the property names that were sent.
 --- Weak-keyed, so that the set does not keep a dead instance alive, and kept outside the instance, so that `pairs` and
@@ -448,7 +522,8 @@ function M.optional(inner)
   require_schema("optional", inner)
   if inner.kind == "optional" then refuse("optional: already optional") end
   if inner.kind == "default" then refuse("optional: a property with a default is already optional") end
-  return Schema("optional", { item = inner, validator = inner.validator, coercer = inner.coercer, builder = inner.builder })
+  return Schema("optional", { item = inner, validator = inner.validator, coercer = inner.coercer, builder = inner.builder,
+    prefilter = inner.prefilter })
 end
 
 --- Accepts JSON null (`hecate.json.null`) in addition to the values of `inner`. Lua `nil` is absence, never null.
@@ -555,8 +630,10 @@ function M.array(item, options)
       out[#out + 1] = { path, "max_items", "the array has more than " .. max_items .. " items", { max_items = max_items } }
     end
     for i = 1, length do
+      if fast and out[1] ~= nil then return end
       validate_item(value[i], path .. "/" .. (i - 1), out)
     end
+    if fast and out[1] ~= nil then return end
     if unique_items then
       local duplicate = first_duplicate(value, length)
       if duplicate then
@@ -602,6 +679,30 @@ function M.object(properties, options)
   end
   local builders = {}
   for i = 1, count do builders[i] = copy[names[i]].builder end
+  -- Discriminating properties (literals, so the tag of a `tagged_union` variant) come first in fail-fast mode.
+  local fast_order, literals = {}, {}
+  for i = 1, count do
+    if copy[names[i]].kind == "literal" then
+      fast_order[#fast_order + 1] = i
+      literals[#literals + 1] = i
+    end
+  end
+  for i = 1, count do
+    if copy[names[i]].kind ~= "literal" then fast_order[#fast_order + 1] = i end
+  end
+  --- A necessary condition for a value to conform, after coercion: it is an object whose literal properties are
+  --- present and hold their constant (a text counts when it coerces to it). Costs one step per literal, no descent.
+  local prefilter = function(value)
+    if type(value) ~= "table" or value == null then return false end
+    for _, i in ipairs(literals) do
+      local member = value[names[i]]
+      if member == nil then return false end
+      local found = {}
+      validators[i](coercers[i](member, "", found), "", found)
+      if found[1] ~= nil then return false end
+    end
+    return true
+  end
   local builder = function(value)
     local result = {}
     for key, member in next, value do result[key] = member end
@@ -628,6 +729,31 @@ function M.object(properties, options)
   --- `relax`: the PATCH variant, where an absent property means unchanged (OQ-90).
   local function make_validator(relax) return guarded(function(value, path, out)
     if type(value) ~= "table" or value == null then return type_violation(path, "object", out) end
+    if fast then
+      for k = 1, count do
+        local i = fast_order[k]
+        local member = value[names[i]]
+        if member == nil then
+          if not (relax or optional[i]) then
+            out[#out + 1] = { path .. tokens[i], "required", "the property is required", { property = names[i] } }
+            return
+          end
+        else
+          validators[i](member, path .. tokens[i], out)
+          if out[1] ~= nil then return end
+        end
+      end
+      for key in next, value do
+        if type(key) ~= "string" then
+          return type_violation(path, "object", out)
+        elseif not declared[key] and not allow_additional then
+          out[#out + 1] = { path .. "/" .. escape_token(key), "additional_property",
+            "the property is not declared", { property = key } }
+          return
+        end
+      end
+      return
+    end
     for i = 1, count do
       local member = value[names[i]]
       if member == nil then
@@ -656,7 +782,7 @@ function M.object(properties, options)
     end
   end) end
   return Schema("object", { options = o, properties = copy, coercer = coercer, validator = make_validator(false),
-    relaxed_validator = make_validator(true), builder = builder })
+    relaxed_validator = make_validator(true), builder = builder, prefilter = prefilter })
 end
 
 --- Declares a dictionary type: any string keys, every value conforming to `value_schema`. Paths use the key as
@@ -702,6 +828,7 @@ function M.map(value_schema, options)
         { max_properties = max_properties } }
     end
     for i = 1, count do
+      if fast and out[1] ~= nil then return end
       validate_value(value[keys[i]], path .. "/" .. escape_token(keys[i]), out)
     end
   end) })
@@ -709,7 +836,10 @@ end
 
 --- Declares a sum type: a value conforms when at least one alternative accepts it (JSON Schema `anyOf`).
 --- On failure one violation is reported at the union itself; the violations of every alternative are in
---- `context.alternatives`, in declaration order.
+--- `context.alternatives`, in declaration order, for the outermost failed union only (OQ-91: a union nested in an
+--- alternative, or in the fail-fast mode that decides the alternatives, has an empty list).
+--- Alternatives are decided in fail-fast mode, discriminating properties first, so that a recursive union costs
+--- linear work when its alternatives are discriminated (`tagged_union` always is), and the work budget bounds the rest.
 ---@param alternatives hecate.schema.Schema[]
 ---@return hecate.schema.Schema
 function M.union(alternatives)
@@ -721,37 +851,68 @@ function M.union(alternatives)
     validators[i] = alternative.validator
   end
   local count = #copy
-  -- The first alternative that accepts the coerced value wins; when none does, the value is left as it is and
-  -- the validator reports the union.
-  local coercer = function(value, path)
+  --- The alternatives a value may match: those whose cheap prefilter does not rule it out.
+  local function candidates(value)
+    local list = {}
     for i = 1, count do
+      local prefilter = copy[i].prefilter
+      if prefilter == nil or prefilter(value) then list[#list + 1] = i end
+    end
+    return list
+  end
+  -- The first alternative that accepts the coerced value wins; when none does, the value is left as it is and
+  -- the validator reports the union. A single candidate is taken without a second validation of its subtree (the
+  -- validator of the whole call checks the result once).
+  local coercer = function(value, path, out)
+    local list = candidates(value)
+    for _, i in ipairs(list) do
+      if not spend(path, out) then return value end
       local scratch = {}
       local converted = copy[i].coercer(value, path, scratch)
-      if #scratch == 0 then
-        local found = {}
-        validators[i](converted, path, found)
-        if #found == 0 then return converted end
-      end
+      if budget_violation ~= nil then return value end
+      if #scratch == 0 and (#list == 1 or accepts(validators[i], converted, path)) then return converted end
     end
     return value
   end
+  -- The value has been validated by the validator of the call: with one candidate there is nothing to decide.
   local builder = function(value)
-    for i = 1, count do
-      local found = {}
-      validators[i](value, "", found)
-      if #found == 0 then return copy[i].builder(value) end
+    local list = candidates(value)
+    if #list == 1 then return copy[list[1]].builder(value) end
+    for _, i in ipairs(list) do
+      if accepts(validators[i], value, "") then return copy[i].builder(value) end
     end
     return value
   end
   return Schema("union", { members = copy, coercer = coercer, builder = builder, validator = function(value, path, out)
-    local failures = {}
     for i = 1, count do
-      local found = {}
-      validators[i](value, path, found)
-      if #found == 0 then return end
-      local converted = {}
-      for j, raw in ipairs(found) do converted[j] = Violation(raw[1], raw[2], raw[3], raw[4]) end
-      failures[i] = converted
+      if not spend(path, out) then return end
+      if fast then
+        local found = {}
+        validators[i](value, path, found)
+        if found[1] == nil and budget_violation == nil then return end
+      elseif accepts(validators[i], value, path) then
+        return
+      end
+      if budget_violation ~= nil then
+        out[#out + 1] = budget_violation
+        return
+      end
+    end
+    local failures = {}
+    if not fast and detailing == 0 then
+      -- Every alternative failed: only now are their violations computed, once, in full mode.
+      detailing = 1
+      for i = 1, count do
+        local found = {}
+        validators[i](value, path, found)
+        if budget_violation ~= nil then break end
+        failures[i] = to_violations(found)
+      end
+      detailing = 0
+      if budget_violation ~= nil then
+        out[#out + 1] = budget_violation
+        return
+      end
     end
     out[#out + 1] = { path, "union", "the value matches none of the alternatives", { alternatives = failures } }
   end })
@@ -865,6 +1026,7 @@ function M.named(name, inner)
   require_schema("named", inner)
   if inner.kind == "named" then refuse("named: the schema already has the name " .. (inner.options --[[@as table]]).name) end
   return Schema("named", { options = { name = name }, item = inner, validator = inner.validator, coercer = inner.coercer,
+    prefilter = inner.prefilter,
     relaxed_validator = inner.relaxed_validator, builder = inner.builder })
 end
 
@@ -922,6 +1084,10 @@ function M.of(target)
   end
   return Schema("class", { options = { resolve = resolve },
     builder = build,
+    prefilter = function(value)
+      local prefilter = resolve().prefilter
+      return prefilter == nil or prefilter(value)
+    end,
     relaxed_validator = function(value, path, out) return resolve().relaxed_validator(value, path, out) end,
     validator = function(value, path, out) return resolve().validator(value, path, out) end,
     coercer = function(value, path, out) return resolve().coercer(value, path, out) end })
@@ -1042,12 +1208,10 @@ end
 ---@return hecate.schema.Violation[]? violations  present only when `ok` is false
 function Schema:validate(value)
   local raw = {}
-  depth = 0
+  reset_work()
   self.validator(value, "", raw)
-  if #raw == 0 then return true end
-  local violations = {}
-  for i, v in ipairs(raw) do violations[i] = Violation(v[1], v[2], v[3], v[4]) end
-  return false, violations
+  if #raw == 0 and budget_violation == nil then return true end
+  return false, to_violations(raw)
 end
 
 --- Converts a value read from text (path, query or header fields: strings, lists of strings for repeated keys,
@@ -1061,14 +1225,12 @@ end
 ---@return any result  the converted value when `ok`, else a list of `hecate.schema.Violation`
 function Schema:coerce(value)
   local raw = {}
-  depth = 0
+  reset_work()
   local converted = self.coercer(value, "", raw)
   depth = 0
-  if #raw == 0 then self.validator(converted, "", raw) end
-  if #raw == 0 then return true, converted end
-  local violations = {}
-  for i, v in ipairs(raw) do violations[i] = Violation(v[1], v[2], v[3], v[4]) end
-  return false, violations
+  if #raw == 0 and budget_violation == nil then self.validator(converted, "", raw) end
+  if #raw == 0 and budget_violation == nil then return true, converted end
+  return false, to_violations(raw)
 end
 
 local METHODS = { POST = false, PUT = false, PATCH = true }
@@ -1092,12 +1254,14 @@ function Schema:build(value, options)
     end
   end
   local raw = {}
-  depth = 0
+  reset_work()
   ;(relax and self.relaxed_validator or self.validator)(value, "", raw)
-  if #raw == 0 then return true, self.builder(value) end
-  local violations = {}
-  for i, v in ipairs(raw) do violations[i] = Violation(v[1], v[2], v[3], v[4]) end
-  return false, violations
+  if #raw == 0 and budget_violation == nil then
+    local built = self.builder(value)
+    if budget_violation ~= nil then return false, to_violations(raw) end
+    return true, built
+  end
+  return false, to_violations(raw)
 end
 
 --- Returns `value` when it conforms; raises `hecate.core.ValidationError` otherwise, with every violation in

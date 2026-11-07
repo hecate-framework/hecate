@@ -3,8 +3,8 @@
 
 - roadmap_item: `schema`: refinement types, composition, coercion, validation with JSON Pointer error paths, JSON Schema 2020-12 emission.
 - status: in-progress            <!-- in-progress | waiting-ci | waiting-owner -->
-- lock_until: 2026-11-07T21:40:00Z
-- last_update: 2026-11-07T20:10:00Z
+- lock_until: 2026-11-07T22:15:00Z
+- last_update: 2026-11-07T20:45:00Z
 
 ## Done
 
@@ -44,9 +44,11 @@
 
 - Depth check (OQ-50): verified with `deep_test.lua` that a recursive schema validates, coerces and builds a decoded tree of exactly 1000 levels, that `json.decode` refuses 1001 levels before `schema` sees them, and that a hand-built table of 200000 levels would exhaust memory without a guard; added a 1000-level nesting guard (`depth_limit` violation with the JSON Pointer where it stopped) in the container validators and coercers.
 
+- OQ-91 (security): `union_cost_test.lua`; fail-fast alternatives with literal properties first, lazy `context.alternatives` for the outermost failed union, work budget `complexity_limit` (1,000,000 steps, shared by validate, coerce and build, reset on entry), literal prefilter for union coercion and build. Measured before/after: depth 13 0.339 s then 0.002 s; depth 1000 validate 0.15 s, coerce 0.02 s, build 0.02 s; depth 20 was out of memory. No schema benchmark exists yet (step 4 of next steps).
+
 ## Next steps
 
-0. SECURITY, first: OQ-91 (recursive `union` of containers costs 2 to the power of the depth; measured 0.34 s at depth 13, memory exhausted at 20). Write the failing test (bounded depth, with a time and memory budget) first, then add the conservative guards of OQ-91 (fail-fast alternatives, discriminating properties first, a work budget per call giving a `complexity_limit` violation); measure again; document `tagged_union` as the way to dispatch. Then ask for the owner's confirmation. The probe used two classes A and B with a literal tag and `next = optional(union of schema.of(A), schema.of(B))`.
+0. OQ-91 (security) awaits the owner's confirmation (row updated, mirror issue #144 not edited). Remaining only if wanted: (b) memoisation per (schema, value node) pair, not implemented because it was not needed for discriminated alternatives; alternatives that nothing discriminates still cost up to the budget (1,000,000 steps, about 0.4 s, then `complexity_limit`), so (b) would be the next step if the owner wants that case linear too. Known behaviour changes: a union nested in an alternative has an empty `context.alternatives`; the coercer of a union with a single candidate (after the literal prefilter) is not re-validated per level, so a converted but invalid value is returned converted and the final validation reports it.
 0b. OQ-87 resolved (2026-11-07): refuse a non-integer `multiple_of` at declaration (clear message, tests, emission unchanged for integers); document why in the schema reference and the how-to, and the alternatives (integers in minor units; a string with a `pattern` for a fixed number of decimals, since JSON Schema has no keyword for decimal places).
 1. (2b) Remaining emission work: official JSON Schema test suite (supported subset), the `1.0` gap is confirmed; (pattern translator done); more formats (uri), core enumeration support, recursive schemas (named done).
 2. Class-bound schemas, remaining: `value_class`, coerce-then-build. (Done: interface, sent, PATCH, construction, `core.allocate` and weak side table switch.)

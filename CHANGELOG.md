@@ -11,6 +11,7 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- `hecate.schema`: bounded cost of a recursive `union` of containers (OQ-91, security): alternatives are decided in a fail-fast mode with literal properties checked first (a recursive union of discriminated alternatives validates, coerces and builds in linear work instead of two to the power of the depth), `context.alternatives` is computed lazily for the outermost failed union only, and a work budget of 1,000,000 steps per `validate`, `coerce` or `build` call ends it with a `complexity_limit` violation (`context.max_steps`). `tagged_union` is recommended for discriminated alternatives.
 - `hecate.schema`: nesting guard (OQ-50): validation, coercion and build refuse a value nested deeper than 1000 levels (the `json` maximum) with a `depth_limit` violation at the path where they stopped, so a hand-built table cannot overflow the Lua stack; content decoded by `json.decode` is already bounded by its `max_depth`. Tested at exactly 1000 levels.
 - `hecate.core`: `core.allocate(class)` (an empty instance of a finalised class without calling `init`; refuses a non-class and a `value_class`) and `core.weak_table(mode?)` (a table with weak keys, values or both), for the instances of class-bound schemas and their presence set (OQ-90).
 - `hecate.schema`: `Schema:build` allocates class-bound instances with `core.allocate` (no `init` call) and the presence set lives in a weak-keyed side table, so `pairs` and `json.encode` of a built instance see only the attributes (OQ-90).
