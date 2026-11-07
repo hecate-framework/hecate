@@ -424,6 +424,11 @@ local function numeric(kind, accepts, expected, options)
   if o.multiple_of ~= nil and o.multiple_of <= 0 then
     refuse(kind .. ": option multiple_of must be greater than zero", { option = "multiple_of" })
   end
+  if o.multiple_of ~= nil and math_type(o.multiple_of) ~= "integer" and o.multiple_of ~= math.floor(o.multiple_of) then
+    -- Binary floats cannot express decimal steps (0.1 is not exact), and JSON Schema has no decimal-places keyword (OQ-87).
+    refuse(kind .. ": option multiple_of must be a whole number; use integers in minor units, or a string with a pattern"
+      .. " for a fixed number of decimals", { option = "multiple_of" })
+  end
   check_range(kind, o, "minimum", "maximum")
   check_range(kind, o, "exclusive_minimum", "exclusive_maximum")
   local minimum, maximum = o.minimum, o.maximum

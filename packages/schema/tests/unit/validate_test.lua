@@ -225,6 +225,9 @@ function T:test_multiple_of()
   self:assert_equal(" multiple_of", codes(s, 7)[1])
   self:assert_error(function() schema.integer({ multiple_of = 0 }) end)
   self:assert_error(function() schema.number({ multiple_of = -1 }) end)
+  self:assert_error(function() schema.number({ multiple_of = 0.1 }) end)
+  self:assert_error(function() schema.integer({ multiple_of = 2.5 }) end)
+  self:assert_equal(true, schema.number({ multiple_of = 5.0 }):validate(10.0))
 end
 
 function T:test_map()

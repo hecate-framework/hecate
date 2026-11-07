@@ -23,6 +23,8 @@ generation.
 | Enumeration | `enumeration(core_enumeration)` |
 | Custom | `refine(base, predicate, description)` — predicate must also be describable for docs |
 
+`multiple_of` takes a whole-number divisor greater than zero; a fractional divisor such as `0.01` is refused at declaration (OQ-87), because binary floats cannot express decimal steps and JSON Schema has no keyword for decimal places. Use integers in minor units (cents), or a string with a `pattern` for a fixed number of decimals; a decimal type is planned (roadmap).
+
 Lua integers and floats are distinguished (`integer` rejects `1.5`; `number` accepts both).
 
 Names: class-bound schemas own the schema names. A schema without a class and without `named` is inlined.

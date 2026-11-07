@@ -11,6 +11,7 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- `hecate.schema`: `multiple_of` refuses a fractional divisor at declaration (OQ-87), with the alternatives in the message and in the architecture specification.
 - `hecate.schema`: the name collision error of `to_json_schema` says whether each of the two names comes from a class (`schema.of`) or from `named`; classes are documented as the primary way to name schemas and `named` as the opt-in for inline DTOs (OQ-89).
 - `hecate.schema`: `Schema:build` applies `default` for JSON content (OQ-88): for every method except PATCH an absent property declared with a default takes a fresh deep copy of it (nested objects, arrays, maps, unions, tagged unions, class-bound instances, and a top-level `default` for an absent value); the content is never modified, an explicit `null` stays null, `schema.sent` stays false for a defaulted attribute, a PATCH applies no default, and `validate` stays pure.
 - `hecate.schema`: bounded cost of a recursive `union` of containers (OQ-91, security): alternatives are decided in a fail-fast mode with literal properties checked first (a recursive union of discriminated alternatives validates, coerces and builds in linear work instead of two to the power of the depth), `context.alternatives` is computed lazily for the outermost failed union only, and a work budget of 1,000,000 steps per `validate`, `coerce` or `build` call ends it with a `complexity_limit` violation (`context.max_steps`). `tagged_union` is recommended for discriminated alternatives.
