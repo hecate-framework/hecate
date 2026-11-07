@@ -3,8 +3,8 @@
 
 - roadmap_item: `schema`: refinement types, composition, coercion, validation with JSON Pointer error paths, JSON Schema 2020-12 emission.
 - status: in-progress            <!-- in-progress | waiting-ci | waiting-owner -->
-- lock_until: 2026-11-07T21:28:35Z
-- last_update: 2026-11-07T19:58:35Z
+- lock_until: 2026-11-07T21:40:00Z
+- last_update: 2026-11-07T20:10:00Z
 
 ## Done
 
@@ -42,10 +42,12 @@
 - Core step (OQ-90): `core.allocate(class)` (instance without `init`, the only `setmetatable` for instances; ArgumentError for a non-class or a `value_class`, ConformanceError for a class not finalised, like `Class()`) and `core.weak_table(mode?)` ("k" default, "v", "kv"), tests `packages/core/tests/unit/allocate_test.lua`, README, object-model.md, CHANGELOG. typecheck, lint, check-annotations, check-boundaries, check-glossary, check-changelog, check-links, test core pass; markdownlint-cli2 not available offline.
 - Schema switch (OQ-90): `Schema:build` uses `core.allocate`, presence set in `core.weak_table("k")` side table, tests in `build_test.lua` (init with arguments, pairs, json.encode, weak liveness, sent on foreign values), README and CHANGELOG updated.
 
+- Depth check (OQ-50): verified with `deep_test.lua` that a recursive schema validates, coerces and builds a decoded tree of exactly 1000 levels, that `json.decode` refuses 1001 levels before `schema` sees them, and that a hand-built table of 200000 levels would exhaust memory without a guard; added a 1000-level nesting guard (`depth_limit` violation with the JSON Pointer where it stopped) in the container validators and coercers.
+
 ## Next steps
 
 1. (2b) Remaining emission work: official JSON Schema test suite (supported subset), the `1.0` gap is confirmed; (pattern translator done); more formats (uri), core enumeration support, recursive schemas (named done).
-2. Class-bound schemas, remaining: `value_class`, json decoder depth limit check, coerce-then-build. (Done: interface, sent, PATCH, construction, `core.allocate` and weak side table switch.)
+2. Class-bound schemas, remaining: `value_class`, coerce-then-build. (Done: interface, sent, PATCH, construction, `core.allocate` and weak side table switch.)
 3. Docs: website pages, tested examples, glossary check, reference generation (`DEFAULT_PACKAGES`).
 4. Benchmarks (`benchmarks/`) for compiled validators.
 

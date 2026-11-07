@@ -136,6 +136,35 @@ local function type_violation(path, expected, out)
   out[#out + 1] = { path, "type", "expected " .. expected, { expected = expected } }
 end
 
+--- Nesting guard (OQ-50). Content decoded by `json.decode` is at most `max_depth` (1000) levels deep, but a table built
+--- by hand is not bounded, and a recursive schema (`named`, `of`) would recurse as deep as the value: a raw Lua stack
+--- overflow, and a path that grows quadratically. Every container validator and coercer counts its nesting and, beyond
+--- `MAX_DEPTH` (the same maximum as `json`), reports a `depth_limit` violation at the path where it stopped and does
+--- not descend further. The counter is reset by each public entry point, so an error never leaves it stale.
+local MAX_DEPTH = 1000
+local depth = 0
+
+--- Wraps the function of a container (a validator or a coercer) with the nesting guard. A refused coercer returns
+--- its value unchanged (`keep`).
+---@generic F: function
+---@param inner F
+---@param keep? boolean
+---@return F
+local function guarded(inner, keep)
+  return function(value, path, out)
+    if depth >= MAX_DEPTH then
+      out[#out + 1] = { path, "depth_limit", "the value is nested deeper than " .. MAX_DEPTH .. " levels",
+        { max_depth = MAX_DEPTH } }
+      if keep then return value end
+      return
+    end
+    depth = depth + 1
+    local result = inner(value, path, out)
+    depth = depth - 1
+    return result
+  end
+end
+
 ---@class hecate.schema
 local M = {}
 
@@ -492,7 +521,7 @@ function M.array(item, options)
     for i = 1, #value do result[i] = build_item(value[i]) end
     return remark(value, result)
   end
-  local coercer = function(value, path, out)
+  local coercer = guarded(function(value, path, out)
     if type(value) == "string" then
       -- OpenAPI `style: form, explode: false` (delimiter "," by default; " " and "|" for the other styles).
       local parts, start = {}, 1
@@ -512,8 +541,8 @@ function M.array(item, options)
     for i = 1, #value do result[i] = coerce_item(value[i], path .. "/" .. (i - 1), out) end
     if #result ~= #value then return value end
     return result
-  end
-  return Schema("array", { options = o, item = item, coercer = coercer, builder = builder, validator = function(value, path, out)
+  end, true)
+  return Schema("array", { options = o, item = item, coercer = coercer, builder = builder, validator = guarded(function(value, path, out)
     if type(value) ~= "table" or value == null then return type_violation(path, "array", out) end
     local length = #value
     local count = 0
@@ -535,7 +564,7 @@ function M.array(item, options)
           { index = duplicate - 1 } }
       end
     end
-  end })
+  end) })
 end
 
 --- Declares a product type: named properties, each with a schema. Required unless wrapped in `optional`.
@@ -582,7 +611,7 @@ function M.object(properties, options)
     end
     return remark(value, result)
   end
-  local coercer = function(value, path, out)
+  local coercer = guarded(function(value, path, out)
     if type(value) ~= "table" or value == null then return value end
     local result = {}
     for key, member in next, value do result[key] = member end
@@ -595,9 +624,9 @@ function M.object(properties, options)
       end
     end
     return result
-  end
+  end, true)
   --- `relax`: the PATCH variant, where an absent property means unchanged (OQ-90).
-  local function make_validator(relax) return function(value, path, out)
+  local function make_validator(relax) return guarded(function(value, path, out)
     if type(value) ~= "table" or value == null then return type_violation(path, "object", out) end
     for i = 1, count do
       local member = value[names[i]]
@@ -625,7 +654,7 @@ function M.object(properties, options)
           "the property is not declared", { property = key } }
       end
     end
-  end end
+  end) end
   return Schema("object", { options = o, properties = copy, coercer = coercer, validator = make_validator(false),
     relaxed_validator = make_validator(true), builder = builder })
 end
@@ -647,15 +676,15 @@ function M.map(value_schema, options)
     for key, member in next, value do result[key] = build_value(member) end
     return remark(value, result)
   end
-  local coercer = function(value, path, out)
+  local coercer = guarded(function(value, path, out)
     if type(value) ~= "table" or value == null then return value end
     local result = {}
     for key, member in next, value do
       result[key] = type(key) == "string" and coerce_value(member, path .. "/" .. escape_token(key), out) or member
     end
     return result
-  end
-  return Schema("map", { options = o, item = value_schema, coercer = coercer, builder = builder, validator = function(value, path, out)
+  end, true)
+  return Schema("map", { options = o, item = value_schema, coercer = coercer, builder = builder, validator = guarded(function(value, path, out)
     if type(value) ~= "table" or value == null then return type_violation(path, "object", out) end
     local keys = {}
     for key in next, value do
@@ -675,7 +704,7 @@ function M.map(value_schema, options)
     for i = 1, count do
       validate_value(value[keys[i]], path .. "/" .. escape_token(keys[i]), out)
     end
-  end })
+  end) })
 end
 
 --- Declares a sum type: a value conforms when at least one alternative accepts it (JSON Schema `anyOf`).
@@ -1013,6 +1042,7 @@ end
 ---@return hecate.schema.Violation[]? violations  present only when `ok` is false
 function Schema:validate(value)
   local raw = {}
+  depth = 0
   self.validator(value, "", raw)
   if #raw == 0 then return true end
   local violations = {}
@@ -1031,7 +1061,9 @@ end
 ---@return any result  the converted value when `ok`, else a list of `hecate.schema.Violation`
 function Schema:coerce(value)
   local raw = {}
+  depth = 0
   local converted = self.coercer(value, "", raw)
+  depth = 0
   if #raw == 0 then self.validator(converted, "", raw) end
   if #raw == 0 then return true, converted end
   local violations = {}
@@ -1060,6 +1092,7 @@ function Schema:build(value, options)
     end
   end
   local raw = {}
+  depth = 0
   ;(relax and self.relaxed_validator or self.validator)(value, "", raw)
   if #raw == 0 then return true, self.builder(value) end
   local violations = {}

@@ -11,6 +11,7 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- `hecate.schema`: nesting guard (OQ-50): validation, coercion and build refuse a value nested deeper than 1000 levels (the `json` maximum) with a `depth_limit` violation at the path where they stopped, so a hand-built table cannot overflow the Lua stack; content decoded by `json.decode` is already bounded by its `max_depth`. Tested at exactly 1000 levels.
 - `hecate.core`: `core.allocate(class)` (an empty instance of a finalised class without calling `init`; refuses a non-class and a `value_class`) and `core.weak_table(mode?)` (a table with weak keys, values or both), for the instances of class-bound schemas and their presence set (OQ-90).
 - `hecate.schema`: `Schema:build` allocates class-bound instances with `core.allocate` (no `init` call) and the presence set lives in a weak-keyed side table, so `pairs` and `json.encode` of a built instance see only the attributes (OQ-90).
 - `hecate.schema`: instances of class-bound schemas (OQ-50, step 2c): `Schema:build(content, { method })` validates decoded content and builds instances of the classes (nested, in arrays, maps and unions, cycles included), `schema.sent(instance, name)` is the presence set (explicit `null` counts as sent, absent and null are nil), and `method = "PATCH"` relaxes the required properties of the top-level object (POST and PUT stay strict). Choices in OQ-90.

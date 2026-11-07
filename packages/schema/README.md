@@ -52,6 +52,7 @@ Declarations (`local schema = require("hecate.schema")`); every schema is an imm
 Validation:
 
 - `s:validate(value)` returns `true`, or `false` and the list of every `schema.Violation` (`path` as an RFC 6901 JSON Pointer, `code`, `message`, `context`).
+- Nesting is bounded to 1000 levels, the maximum of `json.decode` and `json.encode`: a deeper value (only a hand-built table can be) yields a `depth_limit` violation at the path where validation stopped, never a stack overflow.
 - `s:check(value)` returns the value or raises `core.ValidationError` with `context.violations`.
 
 Instances (OQ-50, recorded in OQ-90):
