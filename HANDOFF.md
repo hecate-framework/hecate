@@ -53,6 +53,8 @@
 
 - Every entry of `docs/open-questions.md` has a mirror issue (labels `open-question`, `oq:*`, `package:*`; see the note at the top of the file and `.github/ISSUE_TEMPLATE/open-question.md`). When this branch adds an open question (for example for the `pattern` translator), create its issue from the template, never with `needs-decision` or `blocked`. OQ-85 is #131 (closed). The template and labels reach `main` with this pull request.
 
+- OQ-86 resolved (2026-11-07): the declaration warning falls back to `log.default()` only when `hecate.log` is already in `package.loaded` (no dependency on `log`); implement this fallback in `schema.string` when `log.default()` exists (kernel first step); until then only the `logger` option works.
+
 ## Decisions taken (and where they are recorded)
 
 - Validation-core choices (Lua pattern, `integer` refuses 1.0, nullable is json.null only, union is anyOf, ...): OQ-85.
