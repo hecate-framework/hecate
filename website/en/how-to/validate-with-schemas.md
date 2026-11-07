@@ -49,6 +49,23 @@ stopped. A failed
 `union` reports the violations of its alternatives in `context.alternatives` only at the
 outermost union.
 
+## Name and reuse schemas
+
+A class owns the name of its schema. Declare a class-level function `schema()` that returns the schema, and
+use `schema.of(Class)` wherever the class is a part of another schema. The emission puts the body once in the
+root `$defs` under the name of the class and uses a `$ref` at each use. Nothing else is declared, and classes
+may refer to each other or to themselves.
+
+A schema that has neither a class nor a call to `named` is inlined and never receives a name.
+
+For a data transfer object that has no class, `schema.named("User", body)` is the explicit opt-in: it
+validates and coerces like `body`, and the emission names it in the same way. A name is made of letters,
+digits, `_`, `.` and `-`.
+
+Two different bodies under one name in one emission raise an `ArgumentError` that names the colliding name
+and says where each comes from: a class, or `named`. This covers an inline name equal to the name of a
+class. Equal bodies share one definition.
+
 ## Emit JSON Schema
 
 `to_json_schema()` returns a JSON Schema 2020-12 document as plain values.

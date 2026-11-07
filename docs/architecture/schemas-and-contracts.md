@@ -18,11 +18,16 @@ generation.
 | Collections | `array(item, { min_items, max_items, unique_items })`, `map(key, value)` |
 | Sum | `union { a, b }`, `tagged_union("kind", { variant = schema })` |
 | Literal | `literal "ok"` |
-| Named | `named("User", schema)` — becomes an OpenAPI component |
+| Class-bound | `of(Class)` — the primary way to name and reuse a schema; becomes an OpenAPI component named after the class |
+| Named | `named("User", schema)` — opt-in for an inline DTO without a class; becomes an OpenAPI component |
 | Enumeration | `enumeration(core_enumeration)` |
 | Custom | `refine(base, predicate, description)` — predicate must also be describable for docs |
 
 Lua integers and floats are distinguished (`integer` rejects `1.5`; `number` accepts both).
+
+Names: class-bound schemas own the schema names. A schema without a class and without `named` is inlined.
+Two different bodies under one name in one emission raise `ArgumentError`, whose message names the colliding
+name and says whether each comes from a class or from `named`; equal bodies share one definition.
 
 ### Coercion
 

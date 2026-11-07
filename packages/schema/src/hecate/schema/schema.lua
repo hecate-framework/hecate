@@ -1066,6 +1066,8 @@ function M.null()
   end })
 end
 
+local make_named
+
 --- Gives a schema a name. The name is the key of the definition in the emission (`$defs`, referenced by `$ref`),
 --- and becomes an OpenAPI component. A name is made of letters, digits, `_`, `.` and `-`; two different schemas
 --- with the same name in one emission raise `ArgumentError` (OQ-89). Validation and coercion are those of `inner`.
@@ -1073,12 +1075,21 @@ end
 ---@param inner hecate.schema.Schema
 ---@return hecate.schema.Schema
 function M.named(name, inner)
+  return make_named(name, inner, false)
+end
+
+--- The shared constructor of `named` and of the class-bound schemas; `from_class` records where the name comes from.
+---@param name string
+---@param inner hecate.schema.Schema
+---@param from_class boolean
+---@return hecate.schema.Schema
+function make_named(name, inner, from_class)
   if type(name) ~= "string" or not name:find("^[%w_.%-]+$") then
     refuse("named: the name is a non-empty string of letters, digits, '_', '.' and '-'")
   end
   require_schema("named", inner)
   if inner.kind == "named" then refuse("named: the schema already has the name " .. (inner.options --[[@as table]]).name) end
-  return Schema("named", { options = { name = name }, item = inner, validator = inner.validator, coercer = inner.coercer,
+  return Schema("named", { options = { name = name, from_class = from_class or nil }, item = inner, validator = inner.validator, coercer = inner.coercer,
     prefilter = inner.prefilter,
     relaxed_validator = inner.relaxed_validator, builder = inner.builder })
 end
@@ -1109,7 +1120,7 @@ function M.of(target)
       local inner = class.schema()
       require_schema("of", inner)
       if inner.kind == "named" then return inner end
-      return M.named(core.name(class), inner)
+      return make_named(core.name(class), inner, true)
     end)
     resolving = false
     if not ok then error(result, 0) end
@@ -1162,6 +1173,8 @@ local DIALECT = "https://json-schema.org/draft/2020-12/schema"
 
 --- Definitions collected by the emission in progress (`named` schemas), by name.
 local defs
+--- Where each name of `defs` comes from in the emission in progress: "class" or "named".
+local origins
 local PENDING = {}
 
 --- Emits the JSON Schema 2020-12 subschema of `s` (no `$schema`). Every construct has an exact emission, or the
@@ -1181,13 +1194,19 @@ local function emit(s)
     local name = o.name
     if defs[name] == PENDING then return { ["$ref"] = "#/$defs/" .. name } end -- a cycle: closed by the reference
     local previous = defs[name]
+    local origin = o.from_class and "class" or "named"
     defs[name] = PENDING
     local ok, body = pcall(emit, s.item)
     defs[name] = previous
     if not ok then error(body, 0) end
-    if previous == nil then defs[name] = body
+    if previous == nil then
+      defs[name] = body
+      origins[name] = origin
     elseif not json_equal(previous, body) then
-      error(core.ArgumentError("to_json_schema: two different schemas are named " .. name, { context = { name = name } }))
+      local detail = origins[name] == origin and ("both come from " .. (origin == "class" and "classes" or "named"))
+        or "one comes from a class (schema.of) and one from named"
+      error(core.ArgumentError("to_json_schema: two different schemas are named " .. name .. ": " .. detail
+        .. "; give one of them another name", { context = { name = name } }))
     end
     return { ["$ref"] = "#/$defs/" .. name }
   elseif kind == "string" then
@@ -1247,10 +1266,10 @@ end
 --- is translated to ECMA-262 by `hecate.schema.pattern`; a construct outside its subset raises `ArgumentError`.
 ---@return table document  the root carries `$schema`
 function Schema:to_json_schema()
-  defs = {}
+  defs, origins = {}, {}
   local ok, document = pcall(emit, self)
   local collected = defs
-  defs = nil
+  defs, origins = nil, nil
   if not ok then error(document, 0) end
   if next(collected) ~= nil then document["$defs"] = collected end
   document["$schema"] = DIALECT

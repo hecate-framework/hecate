@@ -1,6 +1,7 @@
 ---@diagnostic disable: need-check-nil, param-type-mismatch  -- the tests index violations they just asserted exist
 local test = require("harness.test")
 local json = require("hecate.json")
+local core = require("hecate.core")
 local schema = require("hecate.schema")
 local T = test.Case("SchemaNamedTest")
 
@@ -35,6 +36,59 @@ function T:test_two_names_may_share_a_definition_only_when_equal()
   local ok = pcall(function() return schema.object({ a = a, b = b }):to_json_schema() end)
   self:assert_false(ok)
   self:assert_true(pcall(function() return schema.object({ a = a, b = schema.named("T", schema.string()) }):to_json_schema() end))
+end
+
+--- A class `name` whose schema() returns `body`.
+local function class_named(name, body)
+  local C = core.class(name)
+  function C.schema() return body end
+  core.finalise(C)
+  return C
+end
+
+function T:test_inline_name_equal_to_a_class_name_with_another_body_is_refused()
+  local User = class_named("User", schema.object({ email = schema.string() }))
+  local s = schema.object({ inline = user(), bound = schema.of(User) })
+  local ok, err = pcall(function() return s:to_json_schema() end)
+  self:assert_false(ok)
+  self:assert_true(core.is_instance_of(err, core.ArgumentError))
+  self:assert_true(err.message:find("User", 1, true) ~= nil)
+  self:assert_true(err.message:find("one comes from a class", 1, true) ~= nil)
+  self:assert_true(err.message:find("one from named", 1, true) ~= nil)
+  self:assert_equal("User", err.context.name)
+end
+
+function T:test_inline_name_equal_to_a_class_name_with_the_same_body_shares_one_definition()
+  local body = schema.object({ id = schema.integer(), name = schema.string() })
+  local User = class_named("User", body)
+  local doc = schema.object({ inline = user(), bound = schema.of(User) }):to_json_schema()
+  self:assert_equal("#/$defs/User", doc.properties.inline["$ref"])
+  self:assert_equal("#/$defs/User", doc.properties.bound["$ref"])
+  local count = 0
+  for _ in pairs(doc["$defs"]) do count = count + 1 end
+  self:assert_equal(1, count)
+end
+
+function T:test_a_class_is_emitted_under_its_class_name_without_declaration()
+  local Pet = class_named("Pet", schema.object({ name = schema.string() }))
+  local doc = schema.of(Pet):to_json_schema()
+  self:assert_equal("#/$defs/Pet", doc["$ref"])
+  self:assert_equal("object", doc["$defs"].Pet.type)
+end
+
+function T:test_a_schema_without_name_and_class_is_inlined()
+  local doc = schema.object({ a = schema.object({ b = schema.string() }), c = schema.array(schema.integer()) }):to_json_schema()
+  self:assert_equal(nil, doc["$defs"])
+  self:assert_equal("object", doc.properties.a.type)
+  self:assert_equal("integer", doc.properties.c.items.type)
+end
+
+function T:test_the_collision_message_for_two_named_says_so()
+  local ok, err = pcall(function()
+    return schema.object({ a = schema.named("T", schema.string()), b = schema.named("T", schema.integer()) }):to_json_schema()
+  end)
+  self:assert_false(ok)
+  self:assert_true(err.message:find("both come from named", 1, true) ~= nil)
 end
 
 function T:test_named_declaration_is_checked()
