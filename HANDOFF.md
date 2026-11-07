@@ -3,8 +3,8 @@
 
 - roadmap_item: `schema`: refinement types, composition, coercion, validation with JSON Pointer error paths, JSON Schema 2020-12 emission.
 - status: in-progress            <!-- in-progress | waiting-ci | waiting-owner -->
-- lock_until: 2026-11-07T23:07:30Z
-- last_update: 2026-11-07T21:37:30Z
+- lock_until: 2026-11-07T21:38:35Z
+- last_update: 2026-11-07T21:38:35Z
 
 ## Done
 
@@ -73,7 +73,7 @@
 
 ## Doubts and questions for the owner
 
-- OQ-85 is resolved (moved to "Resolved" in `docs/open-questions.md`): the owner confirmed every point. Remaining work for it: write the specification section of the `pattern` subset, then build the translator and remove the stop-gap refusal in `to_json_schema` (and its test `test_pattern_is_refused`, replaced by translation tests).
+- None open for the owner on this item. The questions OQ-85 to OQ-92 are all resolved (rows in the Resolved table of `docs/open-questions.md`, mirror issues closed); the remaining open questions belong to other packages and must not be resolved by this run.
 
 ## Commands to re-run
 
