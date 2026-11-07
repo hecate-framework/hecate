@@ -46,6 +46,8 @@
 
 ## Next steps
 
+0. SECURITY, first: OQ-91 (recursive `union` of containers costs 2 to the power of the depth; measured 0.34 s at depth 13, memory exhausted at 20). Write the failing test (bounded depth, with a time and memory budget) first, then add the conservative guards of OQ-91 (fail-fast alternatives, discriminating properties first, a work budget per call giving a `complexity_limit` violation); measure again; document `tagged_union` as the way to dispatch. Then ask for the owner's confirmation. The probe used two classes A and B with a literal tag and `next = optional(union of schema.of(A), schema.of(B))`.
+0b. OQ-87 resolved (2026-11-07): refuse a non-integer `multiple_of` at declaration (clear message, tests, emission unchanged for integers); document why in the schema reference and the how-to, and the alternatives (integers in minor units; a string with a `pattern` for a fixed number of decimals, since JSON Schema has no keyword for decimal places).
 1. (2b) Remaining emission work: official JSON Schema test suite (supported subset), the `1.0` gap is confirmed; (pattern translator done); more formats (uri), core enumeration support, recursive schemas (named done).
 2. Class-bound schemas, remaining: `value_class`, coerce-then-build. (Done: interface, sent, PATCH, construction, `core.allocate` and weak side table switch.)
 3. Docs: website pages, tested examples, glossary check, reference generation (`DEFAULT_PACKAGES`).
