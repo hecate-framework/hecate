@@ -70,15 +70,21 @@
 
 - French mirror of the schema pages (translator-fr): `website/fr/how-to/validate-with-schemas.md` and `website/fr/explanation/schemas-and-contracts.md` (examples copied verbatim under the same markers), links added to the French how-to, explanation and reference indexes, terms in `website/fr/glossary-terms.md` only. `source_revision` is the full hash of the last commit of the English page (135eb4535b8734db2bc5ef6c3f7faf77ac8299ea for both pages; the indexes carry the last commit of their English index), as the router item did. No CHANGELOG line (the router item had none for its French page). check-glossary, check-links, check-docs-examples, check-changelog, lint, typecheck pass.
 
+- Fix pass B of the review (API, documentation, terminology; owner-driven session): commits 3130f07 (code, tests `review_b_test.lua`), 116ae90 (specification, README, how-to, explanation, glossary) and fdae972 (French pages, CHANGELOG). Violation code `additional_property` is now `additional_properties`, with the "Violation codes" table and `hecate.schema.ViolationCode`; `schema.HasSchema`; `Schema:members()` method; option classes; internals `---@field package`; return overloads; messages (accepted options and formats, received type, pattern refusal, logger text, `default`); how-to reordered with the tested `Schema.check` example; keyword limits and "planned, not implemented" notes; glossary rows; `Record` renamed `Options`; the two French pages refreshed (`source_revision` 116ae90).
+
 ## Doubts (OQ-95, conservative choices taken)
 
 - The name `represent` is kept: the glossary defines the term representation (Fielding, RFC 9110), and the specification speaks of representations.
 - A value of the wrong shape (not a table for an object, array or map), an unknown tag, a non-member for an enumeration and an unmatched union raise `ValidationError` (codes `type`, `tagged_union`, `enum`, `union`) instead of producing garbage.
 - Map keys that are not strings are copied as they are (the encoder then refuses them); `any` deep-copies and keeps the markers, and stops at the depth guard.
 
-## Doubts (French mirror)
+## Doubts (fix pass B)
 
-- French pages to refresh after fix pass A (English changed): `website/fr/how-to/validate-with-schemas.md` (anchored patterns and the 65536-byte ceiling in the strings section, the null round trip in the represent section) and `website/fr/explanation/schemas-and-contracts.md` (same two points).
+- The interface is named `HasSchema` (the provisional name): the glossary has no term for it, and the other interfaces of the repository (`FileSystem`, `Stream`) are nouns, so a rename such as `Schematic` remains possible. `schema.of` keeps requiring the function and accepts classes that do not declare the interface.
+- The coercion message already read "the text is not an integer"; only a test pins it now. `context.expected` of a `coercion` violation keeps the phrase ("an integer"), unlike a `type` violation ("integer").
+- `x2`: the `Class.representation` and implicit represent text of `docs/developer-experience.md` is left to the routes item. The public glossary pages (`website/*/reference/glossary.md`) are not updated, as before.
+
+## Doubts (French mirror)
 
 - French renderings chosen conservatively, listed in `website/fr/glossary-terms.md`: violation, schéma lié à une classe, ensemble de présence, budget de travail, unités mineures, « à échec rapide », objet de transfert de données. The public French glossary page is not updated (the English one is not either).
 - The French indexes carry the English index revision although they do not list the untranslated HTTP pages.
@@ -91,10 +97,9 @@ The owner asked on 2026-11-08 to finish this pull request the same day; an inter
 
 Only open work is listed here; finished steps move to Done (never keep a DONE line in this list). Findings, ids and statuses are in `docs/reviews/schema-review-package.md`; fix test first and record the commit of each fix there.
 
-1. Fix pass B (API, documentation, terminology): S5 (violation code table, an alias type, the rename to `additional_properties` decided in OQ-96), S6, S7, S8, a1, a2, t1 to t5, S9 and S10 (not yet implemented notes, keyword limits documented in the README, the explanation page and the French mirror), x3 (the shared interface, provisional name `HasSchema`), S11, S12, S13, x1, x2 and the refresh of the two French pages listed under Doubts.
-2. Fix pass C (tests): S14, S15, S16, q1 (seeded property-based differential, step-count growth tests in place of clock bounds, tighter gap logic and guards in the suite runner, table-driven bad options, seeded tests of the pattern translator and the format validators).
-3. Fix pass D (performance): P1, P2, P3 and the benchmark scenarios of P4, judged by `bench schema/validate` before and after; keep the guards of OQ-50 and OQ-91.
-4. Finish: delete `HANDOFF.md`, tick the roadmap item, CI green on the three platforms, mark the pull request ready and ask for the owner's review.
+1. Fix pass C (tests): S14, S15, S16, q1 (seeded property-based differential, step-count growth tests in place of clock bounds, tighter gap logic and guards in the suite runner, table-driven bad options, seeded tests of the pattern translator and the format validators).
+2. Fix pass D (performance): P1, P2, P3 and the benchmark scenarios of P4, judged by `bench schema/validate` before and after; keep the guards of OQ-50 and OQ-91.
+3. Finish: delete `HANDOFF.md`, tick the roadmap item, CI green on the three platforms, mark the pull request ready and ask for the owner's review.
 
 ## Open question issues
 
