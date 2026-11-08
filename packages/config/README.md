@@ -44,7 +44,7 @@
 - `config.variable_name(prefix, segments)`: the environment variable of a key. `config.SEVERITIES`, `config.MAX_DEPTH_CEILING`: constants of the framework keys.
 - Framework keys, declared by every configuration: `logging.severity`, `logging.severities`, `logging.sinks`, `logging.file.path`, `logging.async`, `logging.redact`, and `limits.max_depth` (1 to 1000).
 
-Limits: `limits.max_depth` is validated and exposed but has no effect on `hecate.json` and `hecate.schema` until the kernel item adds a setter to both (OQ-101). Stray environment variables cannot be detected (Lua cannot list the environment). `config` applies no logging key itself: the kernel does.
+Environment: the `environment` option, else `HECATE_ENV` (`<PREFIX>_ENV`), else `production`; `config/production.lua` may be absent when the environment is implicit. Limits: `limits.max_depth` is validated and exposed but has no effect on `hecate.json` and `hecate.schema` until the kernel item adds a setter to both (OQ-101, kernel handoff). Stray environment variables cannot be detected (Lua cannot list the environment). `config` applies no logging key itself: the kernel does.
 
 Documentation: the how-to [Configure an application](../../website/en/how-to/configure-an-application.md) and the tested example in `examples/`.
 

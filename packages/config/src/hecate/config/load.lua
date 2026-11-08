@@ -17,7 +17,7 @@ local OPTIONS = {
 
 ---@class hecate.config.LoadOptions
 ---@field properties table<string, hecate.schema.Schema>  the keys of the application (`logging` and `limits` are declared by `config`)
----@field environment? string  name of the environment (default: the variable `<PREFIX>_ENV`, else `development`)
+---@field environment? string  name of the environment (default: the variable `<PREFIX>_ENV`, else `production`)
 ---@field directory? string  directory of the files (default `config`)
 ---@field env_prefix? string  prefix of the environment variables (default `HECATE`)
 ---@field secrets? string[]  dotted paths of the leaves whose values are secrets
@@ -247,7 +247,7 @@ return function(options)
       end
       environment = named
     else
-      environment = "development"
+      environment = "production"
     end
   end
 

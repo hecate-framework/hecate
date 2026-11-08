@@ -10,7 +10,7 @@ Layered configuration (defaults, environment files, environment variables, secre
 ## Read before changing anything
 
 - Specification: `docs/architecture/configuration.md` (boot sequence in `docs/architecture/overview.md`)
-- Decisions: none specific; conservative choices in OQ-101 (`docs/open-questions.md`)
+- Decisions: none specific; choices confirmed in OQ-101; default environment `production` (`docs/open-questions.md`)
 - Glossary: `docs/glossary.md` · Coding standards: `docs/architecture/coding-standards.md`
 - This package's `README.md` (scope, dependencies, status)
 

@@ -99,7 +99,7 @@ function Configuration:values()
   return self._root
 end
 
---- The name of the environment the configuration was loaded for.
+--- The name of the environment the configuration was loaded for (the `environment` option, else `<PREFIX>_ENV`, else `production`).
 ---@return string
 function Configuration:environment()
   return self._environment

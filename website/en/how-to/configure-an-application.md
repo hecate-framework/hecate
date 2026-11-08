@@ -15,7 +15,7 @@ immutable; the specification is [configuration.md](../../../docs/architecture/co
 
 Declare the keys of your application as schemas, then call `config.load`. The layers, from the weakest
 to the strongest, are the defaults of the schema, `config/default.lua`, `config/<environment>.lua`,
-environment variables and secret files. The environment is `HECATE_ENV` (default `development`).
+environment variables and secret files. The environment is `HECATE_ENV` (default `production`).
 
 <!-- example: packages/config/examples/hecate.config.load.lua -->
 ```lua

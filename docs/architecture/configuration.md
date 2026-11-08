@@ -1,7 +1,7 @@
 # Configuration (`hecate.config`)
 
 Package: `config` (layer 3, Framework). Status: specification, implemented in phase 2. Decisions: none specific; the choices
-that no ADR settles were taken conservatively and are recorded in [OQ-101](../open-questions.md). Standard: The Twelve-Factor
+that no ADR settles were taken conservatively and confirmed by the owner, see [OQ-101](../open-questions.md). Standard: The Twelve-Factor
 App, factor III ("Config"): configuration that varies between deploys is kept apart from the code and read from the
 environment. Vocabulary: [glossary](../glossary.md), section "Configuration".
 
@@ -50,7 +50,8 @@ is reviewed with the code (the environment file is a committed per-deploy profil
 
 The *environment* is the name of the deployment profile: `development`, `test`, `production` or any name that matches
 `^[a-z][a-z0-9_]*$` (the pattern keeps a name from escaping the directory). It is the `environment` option, else the environment
-variable `<PREFIX>_ENV` (for the default prefix, `HECATE_ENV`), else `development`. The last case is the only implicit one.
+variable `<PREFIX>_ENV` (for the default prefix, `HECATE_ENV`), else `production` (the safer profile: a process that is not told otherwise never runs with
+development settings). The last case is the only implicit one, so an absent `config/production.lua` does not stop the boot.
 `Configuration:environment()` returns it.
 
 ### Merging

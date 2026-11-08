@@ -10,7 +10,7 @@ function T:test_schema_defaults_alone()
   local configuration = fixture.load({})
   self:assert_equal("localhost", configuration:get("database.host"))
   self:assert_equal(5432, configuration:get("database.port"))
-  self:assert_equal("development", configuration:environment())
+  self:assert_equal("production", configuration:environment())
   self:assert_equal("schema default", configuration:source("database.port"))
 end
 
@@ -71,13 +71,28 @@ function T:test_arrays_are_replaced_and_maps_are_merged()
   self:assert_equal("4", labels.c)
 end
 
-function T:test_environment_comes_from_the_variable_then_defaults_to_development()
+function T:test_environment_comes_from_the_variable()
   local configuration = fixture.load({
-    env = { HECATE_ENV = "production" },
-    files = { ["config/production.lua"] = "return { name = 'prod' }" },
+    env = { HECATE_ENV = "development" },
+    files = { ["config/development.lua"] = "return { name = 'dev' }" },
   })
+  self:assert_equal("development", configuration:environment())
+  self:assert_equal("dev", configuration:get("name"))
+end
+
+function T:test_environment_defaults_to_production_without_option_or_variable()
+  local configuration = fixture.load({ files = { ["config/production.lua"] = "return { name = 'prod' }" } })
   self:assert_equal("production", configuration:environment())
   self:assert_equal("prod", configuration:get("name"))
+end
+
+function T:test_option_development_wins_over_the_default()
+  local configuration = fixture.load({
+    files = { ["config/development.lua"] = "return { name = 'dev' }" },
+    options = { environment = "development" },
+  })
+  self:assert_equal("development", configuration:environment())
+  self:assert_equal("dev", configuration:get("name"))
 end
 
 function T:test_option_wins_over_the_environment_variable_for_the_environment()

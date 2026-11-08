@@ -39,7 +39,7 @@ end
 function T:test_message_names_path_code_and_source()
   local err = fixture.failure({ env = { HECATE_DATABASE__PORT = "abc" } })
   local text = tostring(err)
-  self:assert_true(text:find("config.load: invalid configuration (1 problem, environment development)", 1, true) ~= nil, text)
+  self:assert_true(text:find("config.load: invalid configuration (1 problem, environment production)", 1, true) ~= nil, text)
   self:assert_true(text:find("/database/port: the text is not an integer [coercion] (environment variable HECATE_DATABASE__PORT)", 1, true) ~= nil, text)
 end
 
