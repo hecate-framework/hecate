@@ -75,9 +75,10 @@ The owner asked on 2026-11-08 to finish this pull request the same day; an inter
 3. DONE OQ-93 (2), decided by the owner: `Schema:build(content, { method, coerce = true })` converts texts with the rules of `coerce`, then builds; defaults apply once, `schema.sent` records only what was provided.
 4. DONE The official JSON Schema test suite (supported subset): a pinned entry in `packages/schema/tests/external.lua` fetched by `fetch-fixtures` like the data of `json` (skipped locally without network, enforced in CI), a runner with an explicit list of the unsupported cases and the reason of each.
 5. DONE Schemas from `core` enumerations (a `schema.enumeration` taking a `core.enumeration`).
-6. DONE (English) Docs: tested examples, an explanation page, the glossary check, the generated reference. The French pages are a separate step (translator-fr).
-7. Definition-of-done check and `/review-package` with the reviewer agents, then fix the findings.
-8. Finish: delete `HANDOFF.md`, tick the roadmap item, CI green on the three platforms, mark the pull request ready and ask for the owner's review.
+6. OQ-95, decided by the owner: `Schema:represent(value)` (provisional name), the conversion of an instance to plain JSON-ready values for responses: enumeration members become names, only declared attributes are kept, nested class-bound parts, arrays, maps and unions are converted, bounded by the depth guard and the work budget; nil attributes are omitted, `json.null` stays null, no defaults, no validation; a cycle ends with the depth limit error. Tests first (including `json.encode` of the result, value classes, enumerations, undeclared attributes dropped, tagged union and union), README, how-to, explanation page, CHANGELOG.
+7. DONE (English) Docs: tested examples, an explanation page, the glossary check, the generated reference. The French pages are a separate step (translator-fr).
+8. Definition-of-done check and `/review-package` with the reviewer agents, then fix the findings.
+9. Finish: delete `HANDOFF.md`, tick the roadmap item, CI green on the three platforms, mark the pull request ready and ask for the owner's review.
 
 ## Open question issues
 
