@@ -174,8 +174,9 @@ concurrency test suite passes; benchmark baseline recorded.
       server calls `Parser:close()` when a connection ends, and feeds the parser chunks no larger than its read buffer
       (`feed` returns every event of the chunk in one list).
 - [x] `router`: radix tree, URI template subset, 404/405, reverse routing. **Also:** percent-decode each path segment (so `%2F` is not a separator) and resolve dot segments: `request.path` of `http` is raw (OQ-75).
-- [ ] `schema`: refinement types, composition, coercion, validation with JSON Pointer
-      error paths, JSON Schema 2020-12 emission.
+- [x] `schema`: refinement types, composition, coercion, validation with JSON Pointer
+      error paths, JSON Schema 2020-12 emission. Decisions OQ-50 and OQ-85 to OQ-96 (OQ-97, `refine`, stays open); review and
+      fixes in [the review](reviews/schema-review-package.md).
 - [ ] `container`: IoC container, lifetimes, cycle detection at boot; write its specification section in `docs/architecture/` (OQ-62).
 - [ ] `config`: layered configuration validated by schemas; write its specification section in `docs/architecture/`, including the logging keys (OQ-62) and the `limits.max_depth` key that lowers the nesting depth of `json` and `schema` together (OQ-92).
 - [ ] `kernel`: application, modules, controllers, route modules, filters, problem
