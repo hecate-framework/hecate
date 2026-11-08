@@ -3,8 +3,8 @@
 
 - roadmap_item: `schema`: refinement types, composition, coercion, validation with JSON Pointer error paths, JSON Schema 2020-12 emission.
 - status: waiting-owner          <!-- in-progress | waiting-ci | waiting-owner -->
-- lock_until: 2026-11-08T08:20:00Z
-- last_update: 2026-11-08T06:42:00Z
+- lock_until: 2026-11-08T12:17:24Z
+- last_update: 2026-11-08T08:17:24Z
 
 ## Done
 
@@ -57,6 +57,10 @@
 - Step 2b-8 (run 2026-11-08 06:42Z): `uri` format (RFC 3986 with scheme, conservative); typecheck, lint, test schema, check-changelog pass. Remaining formats: none planned beyond `uri`.
 
 - Run 2026-11-08 08:15Z (resumed after lock expiry; CI green on the three platforms; json native built, `test schema` green). No code change: the remaining items (`value_class` binding, coerce-then-build, official JSON Schema test suite) have no specification text, so inventing them would deviate from CLAUDE.md. Owner: please say whether the schema item may be ticked as is (deferring these three to new roadmap items) or give the intended semantics.
+
+## Owner-driven session
+
+The owner asked on 2026-11-08 to finish this pull request the same day; an interactive session holds the lock until `lock_until` and drives the remaining steps, then releases it. A relay run must skip this pull request while the lock is in the future.
 
 ## Next steps
 
