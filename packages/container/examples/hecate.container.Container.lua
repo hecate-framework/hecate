@@ -24,8 +24,8 @@ print(c:resolve("clock") == request:resolve("clock"))
 
 -- A mistake in the composition is found at boot, with every problem at once.
 local broken = container.Container()
-broken:bind("a", function() end, { requires = { "b" } })
-broken:bind("b", function() end, { requires = { "a", "missing" } })
+broken:bind("a", function() end, { lifetime = "transient", requires = { "b" } })
+broken:bind("b", function() end, { lifetime = "transient", requires = { "a", "missing" } })
 local ok, err = pcall(function() broken:validate() end)
 ---@cast err hecate.container.GraphError
 print(ok, err.context.problems[1].context.path[1], #err.context.problems)

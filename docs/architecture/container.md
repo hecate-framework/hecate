@@ -3,7 +3,7 @@
 Package: `container` (layer 3, Framework). Status: implemented. Decisions:
 [ADR 0007](../adr/0007-object-model.md) (object model, which services build on),
 [ADR 0018](../adr/0018-error-signalling.md) (errors), [ADR 0025](../adr/0025-ambient-context.md) (ambient
-context). Undecided points are open questions OQ-104 to OQ-108 in [open-questions.md](../open-questions.md); each
+context). Undecided points are open questions OQ-104 to OQ-109 in [open-questions.md](../open-questions.md); each
 statement below that depends on one says so. The package depends on `core` only: it knows nothing of `reactor`,
 `http` or `kernel`.
 
@@ -57,11 +57,11 @@ c:bind(UserRepository, function(clock) return PgUserRepository(clock) end,
 
 `bind(key, definition, options?) → Container` (chainable). The `definition` is a finalised class, constructed
 as `definition(dependency1, dependency2, ...)`, or a function (a **factory**), called with the same arguments.
-The arguments are the resolved services of `options.requires`, in order. `options.lifetime` defaults to
-`"transient"`, the most conservative choice because it shares no state (OQ-104 asks the owner whether the
-default should instead be required). Dependencies are declared explicitly, never inferred (Fowler, "Forms of
+The arguments are the resolved services of `options.requires`, in order. `options.lifetime` is
+**required**: there is no default, so that the sharing of every service is stated where it is bound (owner decision
+on OQ-104 (a); omitting it raises `core.ArgumentError` naming the three lifetimes). Dependencies are declared explicitly, never inferred (Fowler, "Forms of
 Dependency Injection": constructor injection makes them visible in one place). An argument error (`key` neither
-a non-empty string nor an interface, `definition` neither a class nor a function, unknown lifetime, `requires`
+a non-empty string nor an interface, `definition` neither a class nor a function, missing or unknown lifetime, `requires`
 not a list of keys) raises `core.ArgumentError`.
 
 `hecate.container.Lifetime` is a `core.enumeration` with `singleton`, `scoped`, `transient`; options accept the
@@ -125,8 +125,12 @@ It detects, for every binding:
    object would be kept alive by a process-wide one (the "captive dependency", Seemann). A `transient` may
    depend on anything and be depended on by anything; a `scoped` service may depend on `singleton` and `scoped`
    services. `LifetimeError`, with `context.key` (the singleton), `context.dependency` (the scoped service)
-   and `context.path`. A `singleton` that depends on a `transient` is accepted: the transient is built once and
-   kept (OQ-104 asks whether a warning is wanted).
+   and `context.path`. A `singleton` that depends on a `transient` is accepted, with a **warning** (owner decision
+   on OQ-104 (b)): the transient is built once and lives as long as the process. Only direct dependencies are
+   reported (a singleton in between is checked on its own, so nothing is reported twice). A warning is a plain table
+   `{ code = "singleton_over_transient", key, dependency, path, message }` (keys rendered as in the errors); it never
+   fails the validation. `validate` returns the container and the list of warnings (the same list on a later call);
+   the package has no logger, the `kernel` reports them.
 4. **Conformance**: a class bound under an interface key that does not implement it (`core.ConformanceError`).
 
 `validate` collects every problem, not only the first, and raises one `GraphError` (a `ContainerError`) whose
@@ -165,7 +169,8 @@ override cannot introduce a cycle or a lifetime violation unnoticed. `Container:
 binds an existing object as a `singleton` with no dependencies, the usual way to inject a fake.
 
 An override is an ordinary binding in every other respect. There is no "test mode": the same method works in
-production, and the same rules apply (OQ-104 notes the option of refusing it once a container is started).
+production, and the same rules apply (OQ-104 (c): the owner chose no test mode; `override` is already refused after `validate`). Without `options`
+the lifetime and `requires` of the replaced binding are kept; with `options`, the lifetime is required as for `bind`.
 
 ## Errors
 

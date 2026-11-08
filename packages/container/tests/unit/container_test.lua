@@ -30,13 +30,49 @@ end
 
 -- Binding arguments ------------------------------------------------------------------------------------------------
 
-function T:test_bind_is_chainable_and_defaults_to_transient()
+function T:test_bind_is_chainable()
   local Clock = service_class("Clock")
   local c = container.Container()
-  self:assert_true(c:bind("clock", Clock) == c)
+  self:assert_true(c:bind("clock", Clock, { lifetime = "transient" }) == c)
   c:validate()
   self:assert_false(c:resolve("clock") == c:resolve("clock"))
   self:assert_equal(2, Clock.count)
+end
+
+function T:test_bind_without_a_lifetime_raises_an_argument_error_naming_the_lifetimes()
+  local c = container.Container()
+  for _, fn in ipairs({
+    function() c:bind("a", function() return {} end) end,
+    function() c:bind("a", function() return {} end, {}) end,
+    function() c:bind("a", function() return {} end, { requires = { "b" } }) end,
+  }) do
+    local err = raises(self, core.ArgumentError, fn)
+    for _, name in ipairs({ "lifetime", "singleton", "scoped", "transient" }) do
+      self:assert_true(tostring(err.message):find(name, 1, true) ~= nil, name)
+    end
+  end
+  -- Nothing was bound by the refused calls.
+  c:bind("a", function() return {} end, { lifetime = "singleton" })
+end
+
+function T:test_override_with_options_without_a_lifetime_raises_an_argument_error()
+  local c = container.Container():bind("a", function() return {} end, { lifetime = "singleton" })
+  raises(self, core.ArgumentError, function() c:override("a", function() return {} end, {}) end)
+  raises(self, core.ArgumentError, function() c:override("a", function() return {} end, { requires = { "b" } }) end)
+end
+
+function T:test_override_without_options_keeps_the_lifetime_and_requires()
+  local c = container.Container()
+  c:bind("dep", function() return {} end, { lifetime = "singleton" })
+  c:bind("a", function(dep) return { dep = dep, id = "real" } end, { lifetime = "scoped", requires = { "dep" } })
+  c:override("a", function(dep) return { dep = dep, id = "fake" } end)
+  c:validate()
+  local scope = c:open_scope()
+  local first = scope:resolve("a")
+  self:assert_equal("fake", first.id)
+  self:assert_true(first.dep == c:resolve("dep"))
+  self:assert_true(first == scope:resolve("a"))
+  scope:close()
 end
 
 function T:test_bind_refuses_wrong_arguments()
@@ -49,9 +85,9 @@ function T:test_bind_refuses_wrong_arguments()
     function() c:bind("a", Open) end,
     function() c:bind("a", function() end, { lifetime = "forever" }) end,
     function() c:bind("a", function() end, { lifetime = 3 }) end,
-    function() c:bind("a", function() end, { requires = "b" }) end,
-    function() c:bind("a", function() end, { requires = { "b", 3 } }) end,
-    function() c:bind("a", function() end, { requires = { x = "b" } }) end,
+    function() c:bind("a", function() end, { lifetime = "transient", requires = "b" }) end,
+    function() c:bind("a", function() end, { lifetime = "transient", requires = { "b", 3 } }) end,
+    function() c:bind("a", function() end, { lifetime = "transient", requires = { x = "b" } }) end,
     function() c:bind("a", function() end, { requirements = {} }) end,
     function() c:bind("a", function() end, 7) end,
     function() c:resolve({}) end,
@@ -70,8 +106,8 @@ function T:test_a_lifetime_is_given_as_a_member_or_its_name()
 end
 
 function T:test_binding_a_bound_key_raises_duplicate_binding_error()
-  local c = container.Container():bind("a", function() return {} end)
-  local err = raises(self, container.DuplicateBindingError, function() c:bind("a", function() return {} end) end)
+  local c = container.Container():bind("a", function() return {} end, { lifetime = "transient" })
+  local err = raises(self, container.DuplicateBindingError, function() c:bind("a", function() return {} end, { lifetime = "transient" }) end)
   self:assert_equal("a", err.context.key)
   self:assert_equal("hecate.container.DuplicateBindingError", err.code)
 end
@@ -90,8 +126,8 @@ function T:test_dependencies_are_passed_in_the_order_of_requires()
   local User = service_class("User")
   local c = ready(function(c)
     c:bind("a", A, { lifetime = "singleton" })
-    c:bind("b", B)
-    c:bind("user", User, { requires = { "b", "a" } })
+    c:bind("b", B, { lifetime = "transient" })
+    c:bind("user", User, { lifetime = "transient", requires = { "b", "a" } })
   end)
   local user = c:resolve("user")
   self:assert_true(core.is_instance_of(user.dependencies[1], B))
@@ -103,7 +139,7 @@ function T:test_a_factory_receives_the_same_arguments()
   local c = ready(function(c)
     c:bind("clock", function() return { now = 1 } end, { lifetime = "singleton" })
     c:bind("users", function(clock, extra) received = { clock, extra }; return { clock = clock } end,
-      { requires = { "clock" } })
+      { lifetime = "transient", requires = { "clock" } })
   end)
   local users = c:resolve("users")
   self:assert_true(users.clock == c:resolve("clock"))
@@ -117,7 +153,7 @@ function T:test_an_interface_is_a_key_like_a_name()
   core.finalise(Pg)
   local c = ready(function(c)
     c:bind(Repo, Pg, { lifetime = "singleton" })
-    c:bind("consumer", function(repo) return { repo = repo } end, { requires = { Repo } })
+    c:bind("consumer", function(repo) return { repo = repo } end, { lifetime = "transient", requires = { Repo } })
   end)
   self:assert_equal("row", c:resolve("consumer").repo:find())
   self:assert_true(c:resolve(Repo) == c:resolve(Repo))
@@ -125,12 +161,12 @@ end
 
 function T:test_a_factory_product_is_checked_against_an_interface_key_at_first_construction()
   local Repo = core.interface("Repo", { "find" })
-  local c = ready(function(c) c:bind(Repo, function() return {} end) end)
+  local c = ready(function(c) c:bind(Repo, function() return {} end, { lifetime = "transient" }) end)
   raises(self, core.ConformanceError, function() c:resolve(Repo) end)
 end
 
 function T:test_a_constructor_returning_nil_is_a_construction_error()
-  local c = ready(function(c) c:bind("a", function() end) end)
+  local c = ready(function(c) c:bind("a", function() end, { lifetime = "transient" }) end)
   raises(self, container.ConstructionError, function() c:resolve("a") end)
 end
 
@@ -149,8 +185,8 @@ function T:test_a_scoped_service_is_shared_inside_a_scope_and_distinct_across_sc
   local R = service_class("R")
   local c = ready(function(c)
     c:bind("r", R, { lifetime = "scoped" })
-    c:bind("a", function(r) return { r = r } end, { requires = { "r" } })
-    c:bind("b", function(r) return { r = r } end, { requires = { "r" } })
+    c:bind("a", function(r) return { r = r } end, { lifetime = "transient", requires = { "r" } })
+    c:bind("b", function(r) return { r = r } end, { lifetime = "transient", requires = { "r" } })
   end)
   local one, two = c:open_scope(), c:open_scope()
   self:assert_true(one:resolve("r") == one:resolve("r"))
@@ -171,7 +207,7 @@ end
 
 function T:test_a_transient_is_never_cached_even_inside_a_scope()
   local Tr = service_class("Tr")
-  local c = ready(function(c) c:bind("t", Tr) end)
+  local c = ready(function(c) c:bind("t", Tr, { lifetime = "transient" }) end)
   local scope = c:open_scope()
   self:assert_false(scope:resolve("t") == scope:resolve("t"))
 end
@@ -179,9 +215,9 @@ end
 function T:test_resolving_a_scoped_service_from_the_root_raises_a_lifetime_error_before_building_anything()
   local Before = service_class("Before")
   local c = ready(function(c)
-    c:bind("before", Before)
+    c:bind("before", Before, { lifetime = "transient" })
     c:bind("r", service_class("R"), { lifetime = "scoped" })
-    c:bind("t", function() end, { requires = { "before", "r" } })
+    c:bind("t", function() end, { lifetime = "transient", requires = { "before", "r" } })
   end)
   local err = raises(self, container.LifetimeError, function() c:resolve("r") end)
   self:assert_equal("r", err.context.key)
@@ -195,7 +231,7 @@ end
 function T:test_a_root_resolvable_transient_over_singletons_resolves_from_the_root()
   local c = ready(function(c)
     c:bind("s", function() return {} end, { lifetime = "singleton" })
-    c:bind("t", function(s) return { s = s } end, { requires = { "s" } })
+    c:bind("t", function(s) return { s = s } end, { lifetime = "transient", requires = { "s" } })
   end)
   self:assert_true(c:resolve("t").s == c:resolve("s"))
 end
@@ -212,8 +248,8 @@ end
 function T:test_a_constructor_error_is_wrapped_with_key_path_and_cause()
   local failure = core.Error("boom")
   local c = ready(function(c)
-    c:bind("top", function() return {} end, { requires = { "bad" } })
-    c:bind("bad", function() error(failure) end)
+    c:bind("top", function() return {} end, { lifetime = "transient", requires = { "bad" } })
+    c:bind("bad", function() error(failure) end, { lifetime = "transient" })
   end)
   local err = raises(self, container.ConstructionError, function() c:resolve("top") end)
   self:assert_equal("bad", err.context.key)
@@ -222,7 +258,7 @@ function T:test_a_constructor_error_is_wrapped_with_key_path_and_cause()
 end
 
 function T:test_a_string_error_is_wrapped_too()
-  local c = ready(function(c) c:bind("bad", function() error("plain", 0) end) end)
+  local c = ready(function(c) c:bind("bad", function() error("plain", 0) end, { lifetime = "transient" }) end)
   local err = raises(self, container.ConstructionError, function() c:resolve("bad") end)
   self:assert_equal("plain", err.cause)
 end
@@ -230,7 +266,7 @@ end
 function T:test_cancellation_and_deadline_errors_are_not_wrapped()
   for _, class in ipairs({ core.CancellationError, core.DeadlineExceededError }) do
     local original = class("stop")
-    local c = ready(function(c) c:bind("a", function() error(original) end) end)
+    local c = ready(function(c) c:bind("a", function() error(original) end, { lifetime = "transient" }) end)
     local err = self:assert_error(function() c:resolve("a") end)
     self:assert_true(err == original)
   end
@@ -312,7 +348,7 @@ end
 function T:test_a_transient_is_not_tracked_for_disposal()
   local log = {}
   local Tr = closing_class("Tr", log)
-  local c = ready(function(c) c:bind("t", Tr) end)
+  local c = ready(function(c) c:bind("t", Tr, { lifetime = "transient" }) end)
   local scope = c:open_scope()
   scope:resolve("t")
   scope:close()
@@ -367,7 +403,7 @@ function T:test_scope_and_container_support_to_be_closed_variables()
 end
 
 function T:test_a_closed_scope_or_container_refuses_to_resolve()
-  local c = ready(function(c) c:bind("a", function() return {} end) end)
+  local c = ready(function(c) c:bind("a", function() return {} end, { lifetime = "transient" }) end)
   local scope = c:open_scope()
   scope:close()
   raises(self, container.ContainerError, function() scope:resolve("a") end)
@@ -376,7 +412,7 @@ function T:test_a_closed_scope_or_container_refuses_to_resolve()
   raises(self, container.ContainerError, function() c:resolve("a") end)
   raises(self, container.ContainerError, function() other:resolve("a") end)
   raises(self, container.ContainerError, function() c:open_scope() end)
-  raises(self, container.ContainerError, function() c:bind("b", function() return {} end) end)
+  raises(self, container.ContainerError, function() c:bind("b", function() return {} end, { lifetime = "transient" }) end)
 end
 
 -- Overrides ----------------------------------------------------------------------------------------------------------------
@@ -402,7 +438,7 @@ end
 
 function T:test_override_with_options_replaces_both()
   local c = container.Container()
-  c:bind("dep", function() return {} end)
+  c:bind("dep", function() return {} end, { lifetime = "transient" })
   c:bind("a", function() return { id = "real" } end, { lifetime = "singleton", requires = { "dep" } })
   c:override("a", function(...) return { n = select("#", ...) } end, { lifetime = "transient" })
   c:validate()
@@ -411,9 +447,9 @@ function T:test_override_with_options_replaces_both()
 end
 
 function T:test_override_keeps_the_position_in_the_registration_order()
-  local c = container.Container():bind("a", function() return {} end, { requires = { "x" } })
-  c:bind("b", function() return {} end, { requires = { "y" } })
-  c:override("a", function() return {} end, { requires = { "z" } })
+  local c = container.Container():bind("a", function() return {} end, { lifetime = "transient", requires = { "x" } })
+  c:bind("b", function() return {} end, { lifetime = "transient", requires = { "y" } })
+  c:override("a", function() return {} end, { lifetime = "transient", requires = { "z" } })
   local err = self:assert_error(function() c:validate() end)
   self:assert_equal("z", err.context.problems[1].context.key)
   self:assert_equal("y", err.context.problems[2].context.key)
@@ -424,14 +460,14 @@ function T:test_override_instance_injects_a_fake_as_a_singleton()
   local c = container.Container()
   c:bind("clock", function() return {} end, { lifetime = "scoped", requires = { "ghost" } })
   c:override_instance("clock", fake)
-  c:bind("user", function(clock) return { clock = clock } end, { requires = { "clock" } })
+  c:bind("user", function(clock) return { clock = clock } end, { lifetime = "transient", requires = { "clock" } })
   c:validate()
   self:assert_true(c:resolve("user").clock == fake)
-  raises(self, core.ArgumentError, function() container.Container():bind("a", function() return {} end):override_instance("a", nil) end)
+  raises(self, core.ArgumentError, function() container.Container():bind("a", function() return {} end, { lifetime = "transient" }):override_instance("a", nil) end)
 end
 
 function T:test_override_after_validate_raises_container_error()
-  local c = container.Container():bind("a", function() return {} end):validate()
+  local c = container.Container():bind("a", function() return {} end, { lifetime = "transient" }):validate()
   raises(self, container.ContainerError, function() c:override("a", function() return {} end) end)
   raises(self, container.ContainerError, function() c:override_instance("a", {}) end)
 end

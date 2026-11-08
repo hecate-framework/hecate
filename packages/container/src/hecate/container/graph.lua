@@ -58,12 +58,23 @@ local function find_captive(bindings, binding, path, visited, found)
   end
 end
 
---- Checks every binding, in registration order, and returns the problems found (error instances, possibly none).
+--- A finding of `validate` that does not fail it.
+---@class hecate.container.Warning
+---@field code "singleton_over_transient"
+---@field key string  the singleton
+---@field dependency string  the transient it requires
+---@field path string[]  `{ key, dependency }`
+---@field message string
+
+--- Checks every binding, in registration order, and returns the problems found (error instances, possibly none) and
+--- the warnings (plain tables, possibly none; they never fail the validation).
 ---@param bindings table<any, hecate.container.Binding>
 ---@param order (string|table)[]  keys in registration order
 ---@return hecate.core.Error[] problems
+---@return hecate.container.Warning[] warnings
 function graph.check(bindings, order)
   local problems = {}
+  local warnings = {}
   local state, stack, position = {}, {}, {}
 
   local function visit(key)
@@ -109,6 +120,17 @@ function graph.check(bindings, order)
     if binding.lifetime == Lifetime.singleton then
       local found = {}
       find_captive(bindings, binding, { key }, {}, found)
+      -- Only direct dependencies: a singleton in between is checked on its own, so nothing is reported twice.
+      for _, dependency in ipairs(binding.requires) do
+        local target = bindings[dependency]
+        if target ~= nil and target.lifetime == Lifetime.transient then
+          local path = render_path({ key, dependency })
+          warnings[#warnings + 1] = {
+            code = "singleton_over_transient", key = path[1], dependency = path[2], path = path,
+            message = ("container: singleton %q depends on transient %q: the transient is built once and lives as long as the process"):format(path[1], path[2]),
+          }
+        end
+      end
       for _, item in ipairs(found) do
         local path = render_path(item.path)
         problems[#problems + 1] = errors.LifetimeError(
@@ -119,7 +141,7 @@ function graph.check(bindings, order)
     end
     if state[key] == nil then visit(key) end
   end
-  return problems
+  return problems, warnings
 end
 
 --- Marks each binding of a graph that `check` accepted: does constructing it need a service scope, and through which

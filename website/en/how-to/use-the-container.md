@@ -45,8 +45,8 @@ print(c:resolve("clock") == request:resolve("clock"))
 
 -- A mistake in the composition is found at boot, with every problem at once.
 local broken = container.Container()
-broken:bind("a", function() end, { requires = { "b" } })
-broken:bind("b", function() end, { requires = { "a", "missing" } })
+broken:bind("a", function() end, { lifetime = "transient", requires = { "b" } })
+broken:bind("b", function() end, { lifetime = "transient", requires = { "a", "missing" } })
 local ok, err = pcall(function() broken:validate() end)
 ---@cast err hecate.container.GraphError
 print(ok, err.context.problems[1].context.path[1], #err.context.problems)
@@ -65,8 +65,8 @@ print(ok, err.context.problems[1].context.path[1], #err.context.problems)
   factory) called with the same arguments. It must run to completion without suspending.
 - `requires` lists the keys of the dependencies, in the order of the constructor arguments. Dependencies are declared,
   never guessed from parameter names.
-- `lifetime` is `"singleton"`, `"scoped"` or `"transient"` (or a member of `container.Lifetime`). The default is
-  `"transient"`, the one that shares nothing.
+- `lifetime` is `"singleton"`, `"scoped"` or `"transient"` (or a member of `container.Lifetime`). It is required:
+  binding without it raises `ArgumentError`, so that what a service shares is always written where it is bound.
 
 When the key is an interface, a class definition must implement it; `validate` reports it otherwise. A factory
 product is checked when it is first built.
@@ -103,6 +103,11 @@ It reports:
 It collects every problem and raises one `GraphError`; `err.context.problems` lists them in the order of binding. A
 validated graph raises none of these at request time: what can still fail is the code of a constructor.
 
+`validate` also returns the container and a list of **warnings**, which never fail it: a singleton that directly
+depends on a transient gets `code = "singleton_over_transient"`, with `key`, `dependency`, `path` and a `message`,
+because that transient is built once and lives as long as the process. The container has no logger; the kernel
+reports the warnings.
+
 ## Disposal
 
 A service whose class defines `__close` is closed by its owner: a scoped service when its service scope closes, a
@@ -119,7 +124,7 @@ An error raised by a constructor or factory becomes a `ConstructionError` whose 
 ## Replace a service in a test
 
 `override(key, definition, options?)` replaces a binding before `validate`; without `options` it keeps the lifetime and
-`requires` of the replaced binding. A key that is not bound raises `MissingBindingError`, so a misspelt key cannot
+`requires` of the replaced binding; with `options`, `lifetime` is required as for `bind`. A key that is not bound raises `MissingBindingError`, so a misspelt key cannot
 create a service by accident. `override_instance(key, value)` binds an existing object as a singleton without
 dependencies, the usual way to inject a fake. The new graph is validated as a whole, so an override cannot add a cycle
 or a captive dependency unnoticed.

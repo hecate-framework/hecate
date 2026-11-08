@@ -14,7 +14,7 @@ local render = graph.render
 
 --- Options of `bind` and `override`.
 ---@class hecate.container.BindOptions
----@field lifetime? hecate.core.EnumerationValue|"singleton"|"scoped"|"transient"  default `transient`
+---@field lifetime? hecate.core.EnumerationValue|"singleton"|"scoped"|"transient"  required
 ---@field requires? (string|table)[]  keys of the services passed to the constructor or factory, in order
 
 local OPTION_NAMES <const> = { "lifetime", "requires" }
@@ -52,7 +52,10 @@ local function read_options(method, options, fallback)
   end
   local lifetime = options.lifetime
   if lifetime == nil then
-    lifetime = fallback and fallback.lifetime or Lifetime.transient
+    if fallback == nil then
+      argument_error(method, "option lifetime is required: singleton (one per process), scoped (one per request) or transient (a new one each time)")
+    end
+    lifetime = fallback.lifetime
   elseif type(lifetime) == "string" then
     lifetime = Lifetime:find(lifetime)
     if lifetime == nil then argument_error(method, "option lifetime must be singleton, scoped or transient") end
@@ -118,6 +121,7 @@ function Container:init()
   self._owned = {}
   self._constructing = {}
   self._validated = false
+  self._warnings = {}
   self._closed = false
 end
 
@@ -165,7 +169,7 @@ function Container:bind(key, definition, options)
 end
 
 --- Replaces the binding of `key`, for tests. When `options` is omitted the lifetime and `requires` of the replaced
---- binding are kept; when given, it replaces both (defaults as for `bind`). The new graph is checked by `validate`.
+--- binding are kept; when given, it replaces both (the lifetime is required, as for `bind`). The new graph is checked by `validate`.
 ---
 --- Raises `hecate.container.MissingBindingError` if `key` is not bound, `hecate.container.ContainerError` after
 --- `validate` or `close`, and `hecate.core.ArgumentError` for a wrong argument.
@@ -177,8 +181,12 @@ function Container:override(key, definition, options)
   check_key("override", key, "key")
   check_definition("override", definition)
   local previous = self._bindings[key]
-  local lifetime, requires = read_options("override", options, nil)
-  if options == nil and previous ~= nil then lifetime, requires = previous.lifetime, previous.requires end
+  local lifetime, requires
+  if options == nil and previous ~= nil then
+    lifetime, requires = previous.lifetime, previous.requires
+  elseif options ~= nil then
+    lifetime, requires = read_options("override", options, nil)
+  end
   check_unfrozen(self, "override")
   if previous == nil then
     error(errors.MissingBindingError(("container: cannot override %q, it is not bound"):format(render(key)),
@@ -203,18 +211,23 @@ end
 --- class that does not implement its interface key. It may be called again once it succeeded.
 ---
 --- Raises `hecate.container.GraphError`; `context.problems` lists the individual errors in the order of binding.
+--- Returns the container and the warnings: a singleton that directly depends on a transient (`code =
+--- "singleton_over_transient"`: the transient is built once and lives as long as the process). Warnings never fail the
+--- validation; the caller (the kernel) reports them. Every later call returns the same list.
 ---@return hecate.container.Container self
+---@return hecate.container.Warning[] warnings
 function Container:validate()
   check_open(self, "validate")
-  if self._validated then return self end
-  local problems = graph.check(self._bindings, self._order)
+  if self._validated then return self, self._warnings end
+  local problems, warnings = graph.check(self._bindings, self._order)
   if #problems > 0 then
     error(errors.GraphError(("container: the graph has %d problem%s; first: %s"):format(
       #problems, #problems == 1 and "" or "s", problems[1].message), { context = { problems = problems } }), 2)
   end
   graph.annotate(self._bindings, self._order)
   self._validated = true
-  return self
+  self._warnings = warnings
+  return self, warnings
 end
 
 --- Builds the service of `binding` from its resolved dependencies.

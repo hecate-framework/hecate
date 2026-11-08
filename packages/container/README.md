@@ -42,9 +42,9 @@ Nothing here suspends, so nothing is `---@async`.
 
 - `container.Container()`: bindings, validation and resolution.
   - `bind(key, definition, options?)`: `key` is a name or an interface, `definition` a finalised class or a factory,
-    `options.lifetime` (default `"transient"`) and `options.requires` (keys, in constructor order). Chainable.
+    `options.lifetime` (required) and `options.requires` (keys, in constructor order). Chainable.
   - `override(key, definition, options?)` and `override_instance(key, value)`: replace a bound key (tests).
-  - `validate()`: checks the whole graph, raises one `GraphError`, then freezes the container.
+  - `validate()`: checks the whole graph, raises one `GraphError`, then freezes the container. Returns the container and a list of warnings (`code = "singleton_over_transient"`: a singleton directly depends on a transient); warnings never fail it, the kernel logs them.
   - `resolve(key)`: singletons and transients that need no scoped service. `open_scope()`: a `ServiceScope`.
   - `close()` (also `<close>`): closes the singletons that define `__close`.
 - `container.ServiceScope`: `resolve(key)` and `close()` (also `<close>`).

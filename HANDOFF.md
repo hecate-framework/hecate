@@ -3,8 +3,8 @@
 
 - roadmap_item: `container`: IoC container, lifetimes, cycle detection at boot; write its specification section in `docs/architecture/` (OQ-62).
 - status: waiting-ci
-- lock_until: 2026-11-08T14:35:36Z
-- last_update: 2026-11-08T13:05:36Z
+- lock_until: 2026-11-08T23:41:14Z
+- last_update: 2026-11-08T22:11:14Z
 
 ## Done
 
