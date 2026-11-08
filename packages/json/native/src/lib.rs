@@ -19,7 +19,13 @@
 //!
 //! A table whose metatable defines `__pairs` as a function (a frozen value object, any user proxy: OQ-94) is read through
 //! it, by the standard iteration protocol; every other table is read raw. The entries then follow the same rules
-//! (array, object, holes, keys, limits). An error raised by `__pairs` or its iterator surfaces unchanged from `encode`.
+//! (array, object, holes, keys, limits). The value an iteration raises (`error(value)`: a table, a `hecate.core` error
+//! instance, a string, a number, `nil`) is the value `json.encode` raises, the same value and not a conversion: both calls
+//! go through a Lua `pcall` (the helper `PROTECTED_KEY`, loaded once by `bind`), so that the value itself is
+//! recovered (an `mlua` error would wrap it with a message and a traceback); `encode` returns it in a failure of reason
+//! `raised` and `hecate.json` rethrows it with `error(value, 0)`. The entries of all the tables of one encoding share a
+//! budget of about `max_size / 2` entries (`Outcome::budget`), so that nested or self-referencing proxies cannot make
+//! the ancestors hold more than that; the closing value that `__pairs` may return is ignored, unlike `pairs`.
 //!
 //! Nothing here is `unsafe`; the Lua boundary is `mlua`.
 
@@ -31,6 +37,9 @@ use serde::ser::{Error as _, Serialize, SerializeMap, SerializeSeq, Serializer};
 use serde_json::ser::{CompactFormatter, Formatter, PrettyFormatter};
 
 const MARKERS_KEY: &str = "hecate.json.encoder_native.markers";
+/// Registry name of the Lua function `function(f, a, b) return pcall(f, a, b) end`, created once by `bind` from the
+/// `pcall` of that moment.
+const PROTECTED_KEY: &str = "hecate.json.encoder_native.protected";
 const HOLE_SLACK: i64 = 16;
 /// The deepest nesting walked, whatever `max_depth` says: the walk recurses on the native stack (1 MiB for the main
 /// thread of a Windows process). It equals the highest `max_depth` that the public module accepts.
@@ -68,10 +77,21 @@ struct Failure {
 /// The failure of the encoding in progress, shared by the walk (a `Serialize` cannot return more than an error).
 struct Outcome {
     failure: RefCell<Option<Failure>>,
-    /// The error raised by a `__pairs` metamethod or its iterator: it surfaces unchanged from `encode`.
-    raised: RefCell<Option<LuaError>>,
-    /// Set when an iteration yielded more entries than `max_size` can hold (it is a `size_limit` failure).
+    /// What a `__pairs` metamethod or its iterator raised: `json.encode` raises it again.
+    raised: RefCell<Option<Raised>>,
+    /// Set when the iterations yielded more entries than the budget holds (it is a `size_limit` failure).
     too_many: Cell<bool>,
+    /// Entries that the iterations of the whole encoding may still collect: at most this many are held at once,
+    /// whatever the nesting (an entry takes at least two bytes of output: `0,`).
+    budget: Cell<usize>,
+}
+
+/// An error raised while following `__pairs`.
+enum Raised {
+    /// The exact value passed to `error` (possibly `nil`), recovered through `pcall`.
+    Value(LuaValue),
+    /// A failure of ours or of `mlua` (no iterator function, memory), raised as a Lua error.
+    Internal(LuaError),
 }
 
 impl Outcome {
@@ -333,6 +353,7 @@ impl Serialize for Name<'_> {
 
 /// A Lua value seen as a `Serialize`: the walk that carries the value model of the codec.
 struct Node<'a> {
+    lua: &'a Lua,
     value: &'a LuaValue,
     level: usize,
     markers: &'a Markers,
@@ -396,32 +417,63 @@ fn raw_entries(table: &LuaTable) -> LuaResult<Vec<(LuaValue, LuaValue)>> {
     table.pairs::<LuaValue, LuaValue>().collect()
 }
 
+/// Calls `function(a, b)` through the protected-call helper: the values it returns, or what it raised, as the exact
+/// value (an `mlua` error would wrap it in a message and a traceback).
+fn protected_call(
+    lua: &Lua,
+    function: &LuaFunction,
+    args: (LuaValue, LuaValue),
+) -> Result<Vec<LuaValue>, Raised> {
+    let protected: LuaFunction = lua
+        .named_registry_value(PROTECTED_KEY)
+        .map_err(Raised::Internal)?;
+    let mut returned = protected
+        .call::<LuaMultiValue>((function, args.0, args.1))
+        .map_err(Raised::Internal)?
+        .into_vec()
+        .into_iter();
+    match returned.next() {
+        Some(LuaValue::Boolean(true)) => Ok(returned.collect()),
+        _ => Err(Raised::Value(returned.next().unwrap_or(LuaValue::Nil))),
+    }
+}
+
 /// The entries of a table that defines `__pairs`, collected through the standard iteration protocol: the metamethod
 /// is called with the table and returns the iterator, its state and its initial control value (a fourth, closing value
-/// is ignored); the iterator is then called until it returns `nil`. Stops with `None` once the entries could not fit in
-/// `max_size` bytes of output (an entry takes at least two bytes: `0,`), so that an endless iterator ends.
+/// is ignored, so a to-be-closed object is never closed); the iterator is then called until it returns `nil`. Each
+/// entry takes one unit of `budget`; `None` once it is spent, so that an endless iterator ends.
 fn pairs_entries(
+    lua: &Lua,
     table: &LuaTable,
     pairs: &LuaFunction,
-    max_size: usize,
-) -> LuaResult<Option<Vec<(LuaValue, LuaValue)>>> {
-    let (iterator, state, mut control): (LuaValue, LuaValue, LuaValue) = pairs.call(table)?;
+    budget: &Cell<usize>,
+) -> Result<Option<Vec<(LuaValue, LuaValue)>>, Raised> {
+    let mut returned =
+        protected_call(lua, pairs, (LuaValue::Table(table.clone()), LuaValue::Nil))?.into_iter();
+    let iterator = returned.next().unwrap_or(LuaValue::Nil);
+    let state = returned.next().unwrap_or(LuaValue::Nil);
+    let mut control = returned.next().unwrap_or(LuaValue::Nil);
     let LuaValue::Function(iterator) = iterator else {
-        return Err(LuaError::runtime(format!(
+        return Err(Raised::Internal(LuaError::runtime(format!(
             "__pairs must return an iterator function, got {}",
             type_name(&iterator)
-        )));
+        ))));
     };
     let mut entries = Vec::new();
     loop {
-        let (key, value): (LuaValue, LuaValue) = iterator.call((&state, &control))?;
+        let mut step =
+            protected_call(lua, &iterator, (state.clone(), control.clone()))?.into_iter();
+        let key = step.next().unwrap_or(LuaValue::Nil);
         if key.is_nil() {
             return Ok(Some(entries));
         }
-        entries.push((key.clone(), value));
-        if entries.len().saturating_mul(2) > max_size.saturating_add(1) {
+        let value = step.next().unwrap_or(LuaValue::Nil);
+        let left = budget.get();
+        if left == 0 {
             return Ok(None);
         }
+        budget.set(left - 1);
+        entries.push((key.clone(), value));
         control = key;
     }
 }
@@ -469,14 +521,14 @@ impl Node<'_> {
         };
         let entries = match pairs {
             None => raw_entries(table).map_err(S::Error::custom)?,
-            Some(pairs) => match pairs_entries(table, &pairs, self.options.max_size) {
+            Some(pairs) => match pairs_entries(self.lua, table, &pairs, &outcome.budget) {
                 Ok(Some(entries)) => entries,
                 Ok(None) => {
                     outcome.too_many.set(true);
                     return Err(S::Error::custom("max_size"));
                 }
-                Err(error) => {
-                    *outcome.raised.borrow_mut() = Some(error);
+                Err(raised) => {
+                    *outcome.raised.borrow_mut() = Some(raised);
                     return Err(S::Error::custom("raised"));
                 }
             },
@@ -578,6 +630,7 @@ impl Node<'_> {
     /// A node for a value one level below `self`'s container (`self.level` is already the container's).
     fn child_of<'b>(&'b self, value: &'b LuaValue) -> Node<'b> {
         Node {
+            lua: self.lua,
             value,
             level: self.level,
             markers: self.markers,
@@ -675,9 +728,11 @@ fn encode(
         failure: RefCell::new(None),
         raised: RefCell::new(None),
         too_many: Cell::new(false),
+        budget: Cell::new(options.max_size.saturating_add(1) / 2),
     };
     // The top-level value is at depth 0: its container is level 1.
     let node = Node {
+        lua,
         value: &value,
         level: 0,
         markers: &markers,
@@ -707,11 +762,16 @@ fn encode(
             let message = format!("output exceeds max_size ({} bytes)", options.max_size);
             Ok((None, Some(failure_table(lua, "size_limit", &message, b"")?)))
         }
-        Err(Some("raised")) => Err(outcome
-            .raised
-            .borrow_mut()
-            .take()
-            .unwrap_or_else(|| LuaError::runtime("encoder lost a raised error"))),
+        Err(Some("raised")) => match outcome.raised.borrow_mut().take() {
+            Some(Raised::Value(value)) => {
+                // The exact value travels in a failure of reason `raised`; `hecate.json` raises it again.
+                let failure = failure_table(lua, "raised", "an iteration raised an error", b"")?;
+                failure.set("error", value)?;
+                Ok((None, Some(failure)))
+            }
+            Some(Raised::Internal(error)) => Err(error),
+            None => Err(LuaError::runtime("encoder lost a raised error")),
+        },
         Err(Some(other)) => Err(LuaError::runtime(format!(
             "hecate.json.encoder_native: {other} error while encoding"
         ))),
@@ -726,6 +786,10 @@ fn bind(lua: &Lua, markers: LuaTable) -> LuaResult<()> {
             )));
         }
     }
+    let protected: LuaFunction = lua
+        .load("local pcall = pcall; return function(f, a, b) return pcall(f, a, b) end")
+        .eval()?;
+    lua.set_named_registry_value(PROTECTED_KEY, protected)?;
     lua.set_named_registry_value(MARKERS_KEY, markers)
 }
 

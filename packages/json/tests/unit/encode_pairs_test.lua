@@ -99,18 +99,55 @@ function T:test_a_table_without_pairs_but_with_a_metatable_is_read_raw()
   self:assert_equal('{"a":1}', json.encode(non_function))
 end
 
-function T:test_an_error_raised_by_pairs_is_the_original_error()
-  local value = setmetatable({}, { __pairs = function() error("boom from pairs", 0) end })
-  local err = self:assert_error(function() return json.encode(value) end)
-  self:assert_true(tostring(err):find("boom from pairs", 1, true) ~= nil, tostring(err))
+--- Throws `thrown` from `__pairs` (where = "pairs") or from its iterator (where = "iterator") and returns what
+--- `json.encode` raised.
+local function raised_by(where, thrown)
+  local metatable
+  if where == "pairs" then
+    metatable = { __pairs = function() error(thrown, 0) end }
+  else
+    metatable = { __pairs = function() return function() error(thrown, 0) end, nil, nil end }
+  end
+  local ok, err = pcall(json.encode, { setmetatable({}, metatable) })
+  assert(not ok, "json.encode must raise")
+  return err
 end
 
-function T:test_an_error_raised_by_the_iterator_is_the_original_error()
-  local value = setmetatable({}, {
-    __pairs = function() return function() error("boom from iterator", 0) end, nil, nil end,
-  })
-  local err = self:assert_error(function() return json.encode({ value }) end)
-  self:assert_true(tostring(err):find("boom from iterator", 1, true) ~= nil, tostring(err))
+local WHERES = { "pairs", "iterator" }
+
+function T:test_a_table_raised_by_pairs_or_its_iterator_is_the_same_table()
+  for _, where in ipairs(WHERES) do
+    local thrown = { code = 7 }
+    self:assert_true(rawequal(thrown, raised_by(where, thrown)), where)
+  end
+end
+
+function T:test_a_core_error_instance_raised_by_pairs_keeps_its_identity_and_context()
+  local Boom = core.error_class("PairsBoom", "test.PairsBoom", core.Error)
+  for _, where in ipairs(WHERES) do
+    local thrown = Boom({ message = "boom", context = { where = where } })
+    local err = raised_by(where, thrown)
+    self:assert_true(rawequal(thrown, err), where)
+    self:assert_true(core.is_instance_of(err, Boom), where)
+    self:assert_equal(where, thrown.context.where)
+  end
+end
+
+function T:test_a_string_raised_by_pairs_arrives_without_traceback_or_prefix()
+  for _, where in ipairs(WHERES) do
+    self:assert_equal("x", raised_by(where, "x"))
+  end
+end
+
+function T:test_nil_and_a_number_raised_by_pairs_arrive_as_they_were_thrown()
+  -- Lua 5.5 itself turns `error(nil)` into a message: whatever a plain `pcall` sees is what `encode` must raise.
+  local plain = select(2, pcall(error, nil))
+  for _, where in ipairs(WHERES) do
+    self:assert_equal(plain, raised_by(where, nil))
+    local number = raised_by(where, 42)
+    self:assert_equal(42, number)
+    self:assert_equal("number", type(number))
+  end
 end
 
 function T:test_a_pairs_that_does_not_return_a_function_is_an_error_not_a_crash()
@@ -145,6 +182,23 @@ function T:test_many_entries_beyond_max_size_are_refused_and_within_it_are_writt
   local value = proxy(entries)
   self:assert_equal("string", type(json.encode(value)))
   fails(self, value, "size_limit", { max_size = 100 })
+end
+
+function T:test_the_entries_of_all_tables_share_one_budget()
+  -- Each table is far below the budget (about max_size / 2 = 500 entries), the whole tree is above it.
+  local child_entries = {}
+  for i = 1, 40 do child_entries[i] = 1 end
+  local children = {}
+  for i = 1, 30 do children[i] = proxy(child_entries) end
+  fails(self, children, "size_limit", { max_size = 1000 })
+  self:assert_equal("string", type(json.encode(children)))
+end
+
+function T:test_a_self_referencing_proxy_tree_is_bounded_by_the_shared_budget()
+  local tree = {}
+  local entries = { a = 1, b = 2, c = 3, d = 4, e = 5, f = 6, g = 7, h = 8, tree = tree }
+  setmetatable(tree, { __pairs = function() return next, entries, nil end })
+  fails(self, tree, "size_limit", { max_size = 1000 })
 end
 
 function T:test_a_cycle_through_a_proxy_is_stopped_by_max_depth()

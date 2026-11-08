@@ -153,14 +153,19 @@ beyond +-2^53 refused) and the **failures**: it returns `nil` and a table `{ rea
 and message of `EncodeFailureReason`, the JSON Pointer of the offending value), found where the walk meets the
 problem, with the path built on the way out so that a successful encoding records nothing. A table whose metatable has a **function** `__pairs` (a frozen `value_class` instance, any proxy you build) is read through it by
 the standard iteration protocol (OQ-94): `__pairs(t)` returns the iterator, its state and its first control value (a
-closing value is ignored), and the iterator is called until it returns `nil`; the entries are then
+fourth, closing value is ignored: a to-be-closed object is never closed, unlike with `pairs`), and the iterator is called until it returns `nil`; the entries are then
 encoded by the same rules as the entries of a raw table (an array when every key is a positive index, with the same hole
 rule; an object when every key is a string; `ambiguous_table` otherwise; `canonical` and `pretty` apply). A table with no metatable,
 with a marker, or with a metatable without a function `__pairs` is read raw (`__index` and `__len` are never consulted),
-and a table with no metatable pays no extra cost. Bounds: an iteration that yields more entries than `max_size` could hold
-(an entry takes at least two bytes) stops with a `size_limit` failure, a cycle through a proxy ends with `depth_limit`; an
-iterator that never returns and never yields cannot be interrupted. An error raised by `__pairs` or by its iterator, or a
-`__pairs` that returns no iterator function, is not an `EncodeError`: it surfaces from `json.encode` as the Lua error it is.
+and a table with no metatable pays no extra cost. `core.Enumeration` also defines `__pairs`, so encoding one follows that
+function. Bounds: the entries collected by all the iterations of one `json.encode` share a budget of about `max_size / 2`
+(an entry takes at least two bytes), so nested or self-referencing proxies hold no more than that at once; going over it
+stops with a `size_limit` failure, a cycle through a proxy ends with `depth_limit`; an
+iterator that never returns and never yields cannot be interrupted. A value raised by `__pairs` or by its iterator (`error(value)`: a table, a
+`hecate.core` error instance, a string, a number) is not converted to an `EncodeError`: `json.encode` raises that same
+value again (the identical table or instance, a string without position or traceback). Lua 5.5 itself turns `error(nil)`
+into a message, and that message is what arrives. A `__pairs` that returns no iterator function is a Lua error raised with
+a message.
 The message of NaN says
 `nan` whatever its sign (the sign of `0/0` differs between processors). The work of the encoder is bounded by the
 size of the output (`max_size`), not by the size of the value: a value that shares substructure is written in full

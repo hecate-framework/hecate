@@ -165,7 +165,7 @@ end
 --- positive integers (a hole is written as `null`, while the table stays dense: highest index at most twice the
 --- number of entries plus 16), an object when all its keys are strings, and **an object when it is empty**; any
 --- other table raises. Tables are read raw, except a table whose metatable has a function `__pairs` (a frozen value
---- object, a proxy), which is read through it with the same rules (OQ-94). Object members are written in no defined order unless `canonical` is set.
+--- object, a proxy), which is read through it with the same rules (OQ-94): the closing value it may return is ignored, the entries of one `encode` are bounded by about `max_size / 2` in all, and a value raised by `__pairs` or its iterator (`error(value)`) is raised again by `encode` as that same value, not as an `EncodeError`. Object members are written in no defined order unless `canonical` is set.
 ---
 --- Raises `hecate.json.EncodeError` (with `context.reason` and the JSON Pointer `context.path` of the
 --- offending value) for NaN, an infinity, a function, userdata, thread or `nil` value, a string that
@@ -193,6 +193,7 @@ function json.encode(value, options)
   }
   local text, failure = backend.get().encode(value, resolved)
   if failure ~= nil then
+    if failure.reason == "raised" then error(failure.error, 0) end -- what `__pairs` or its iterator raised, as it was
     local path = failure.path
     local shown = #path > 120 and (path:sub(1, 117) .. "...") or path -- the whole pointer is in `context.path`
     error(errors.EncodeError({
