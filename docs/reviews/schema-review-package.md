@@ -11,10 +11,10 @@ reproduces the failure first.
 
 | Id | Lens | Finding | Fix | Status |
 |---|---|---|---|---|
-| S1 | security | `unique_items` is quadratic and outside the work budget: 20000 distinct integers (about 110 KB) took 11.3 s of CPU; no default `max_items` | Hash scalar items, compare tables pairwise, charge the budget per comparison | open |
-| S2 | security | The Lua `pattern` runs on unbounded input even when `max_length` or `invalid_utf8` already failed; `%w+@` on 20000 letters took 2.5 s | Skip pattern and format once a length or encoding violation is recorded; bound the length a pattern sees; document anchoring | open |
-| S3 | security | Declaration-time pattern check is incomplete: `string({pattern="ab%"})` is accepted, then `validate` raises a raw Lua error (a 500) | Probe with a subject that walks the whole pattern, and wrap the match in `pcall` reporting a violation | open |
-| S4 | security | Violation lists are unbounded: 50000 undeclared keys gave 50000 violations, each echoing the key twice | Cap violations per call (for example 100 then one truncation entry); truncate the echoed key | open |
+| S1 | security | `unique_items` is quadratic and outside the work budget: 20000 distinct integers (about 110 KB) took 11.3 s of CPU; no default `max_items` | Hash scalar items, compare tables pairwise, charge the budget per comparison | fixed (5cf3b69) |
+| S2 | security | The Lua `pattern` runs on unbounded input even when `max_length` or `invalid_utf8` already failed; `%w+@` on 20000 letters took 2.5 s | Skip pattern and format once a length or encoding violation is recorded; bound the length a pattern sees; document anchoring | fixed (5cf3b69) |
+| S3 | security | Declaration-time pattern check is incomplete: `string({pattern="ab%"})` is accepted, then `validate` raises a raw Lua error (a 500) | Probe with a subject that walks the whole pattern, and wrap the match in `pcall` reporting a violation | fixed (5cf3b69) |
+| S4 | security | Violation lists are unbounded: 50000 undeclared keys gave 50000 violations, each echoing the key twice | Cap violations per call (for example 100 then one truncation entry); truncate the echoed key | fixed (5cf3b69) |
 | S5 | API | Violation codes have no stable documented list; `additional_property` is singular while the option is `additional_properties`; the short code and the dotted error code are different namespaces | Add a violation code table to the specification, an alias type for the codes, decide the rename now | open (rename: owner decision) |
 | S6 | API | Internals annotated as public fields (`validator`, `coercer`, `relaxed_validator`, `builder`, `representer`, `prefilter`, `_limits`); `coerce` and `to_json_schema` documented twice; `members` annotated as a field | Mark internals private, remove the duplicated field forms, make `members` a real method | open |
 | S7 | API | `coerce` and `build` return `true, value` or `false, violations` annotated as `any`; `validate` returns another shape | Add return overloads and document the convention once | open |
@@ -32,10 +32,10 @@ reproduces the failure first.
 
 | Id | Lens | Finding | Fix | Status |
 |---|---|---|---|---|
-| s1 | security | A `default` table is shared and mutable through `schema.options.value`, which changes it for every later request (breaks immutability) | Keep it in a closure and hand out copies | open |
-| s2 | security | `represent` and `build` collide with class members: a declared property named like a method represents the method (function, then an encode error) and a client string can overwrite a method on a built instance | Refuse declared names that resolve to a class member in `of`; skip function values in `represent` | open |
-| s3 | security | Boolean `false` is lost: coercing `"false"` in a map is refused and a top-level `default(boolean, false)` returns nil (both fail closed) | Explicit if and else instead of and-or | open |
-| s4 | security | `email` accepts control characters and any length | Reject control characters, maximum 254 bytes | open |
+| s1 | security | A `default` table is shared and mutable through `schema.options.value`, which changes it for every later request (breaks immutability) | Keep it in a closure and hand out copies | fixed (5cf3b69) |
+| s2 | security | `represent` and `build` collide with class members: a declared property named like a method represents the method (function, then an encode error) and a client string can overwrite a method on a built instance | Refuse declared names that resolve to a class member in `of`; skip function values in `represent` | fixed (5cf3b69) |
+| s3 | security | Boolean `false` is lost: coercing `"false"` in a map is refused and a top-level `default(boolean, false)` returns nil (both fail closed) | Explicit if and else instead of and-or | fixed (5cf3b69) |
+| s4 | security | `email` accepts control characters and any length | Reject control characters, maximum 254 bytes | fixed (5cf3b69) |
 | s5 | security | Lua matches bytes and ECMA without the u flag matches UTF-16 units: the invariant holds for ASCII input only | Document it in the README and the explanation page | open |
 | s6 | security | Per-call state is module state; a yielding `__index` during `represent` or `build` in a coroutine could interleave two calls | Document it | open |
 | s7 | security | The encoder entry budget could hold hundreds of MB at 8M entries; a repeated key from an iterator encodes duplicate keys | Tighter budget; refuse or deduplicate a repeated key | open (json) |
@@ -70,6 +70,14 @@ less is noise. Absolute figures must come from the owner hardware (`benchmarks/R
 The encoder `__pairs` check costs about 6 percent on a document made only of marked containers (the output of
 `represent`) and nothing for a plain table: not a finding. The roadmap Benchmarks item carries no schema finding; add
 P1 to P3 as a schema entry of that item, to be judged with the `plaintext` and `validation` scenarios.
+
+## Fix pass A (2026-11-08)
+
+Fixed in commit 5cf3b69 with tests in `packages/schema/tests/unit/hardening_test.lua` and `represent_test.lua`: S1 to S4 and
+s1 to s4, and the round trip of an explicit null (test q1, item 2). Owner decision of 2026-11-08 on the null round trip:
+`represent` consults the presence set, so a nullable attribute that is nil on an instance made by `build` and sent as null is
+represented as null; an instance that was not built still omits a nil attribute; a hand-set `json.null` stays null. The
+second union pass of `represent` is memoised per alternative.
 
 ## Owner decisions raised by the review
 

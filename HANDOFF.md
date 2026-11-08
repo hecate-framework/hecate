@@ -64,6 +64,8 @@
 - The review findings of OQ-94 were fixed (the value raised by `__pairs` or its iterator is raised again as the same value; one shared entry budget per encode).
 - Docs step (English, owner-driven session): tested examples in `packages/schema/examples/` (`string`, `integer` with `multiple_of`, `map`, `enumeration`, `tagged_union`, `of`, `Schema.build`, `default`, `sent`) run and asserted by `examples_test.lua`; the how-to `validate-with-schemas.md` reorganised (validate, constrain, name, build, defaults and PATCH, emit); new explanation page `website/en/explanation/schemas-and-contracts.md`; glossary rows violation, class-bound schema, presence set, work budget (in `docs/glossary.md` only, like the router item; the public copy `website/en/reference/glossary.md` is not updated); README status; CHANGELOG. The generated reference pages are not built here.
 
+- Fix pass A of the review (S1 to S4, s1 to s4, null round trip, memoised second union pass of `represent`): commit 5cf3b69, tests `hardening_test.lua` and `represent_test.lua`; internal bounds `limits.max_violations` (100) and `limits.max_pattern_bytes` (65536); `copy_default` replaces `options.value` (no longer exposed); `schema.of` refuses a property named like a class member; `pattern.check` is the structural check of a Lua pattern. Owner decision 2026-11-08: `represent` emits `null` for a nullable attribute that was sent as `null` on a built instance.
+
 - Step OQ-95 (owner-driven session): `Schema:represent(value)` in `schema.lua` (compiled `representer` closure per schema, made at declaration like the validators, wrapped by the shared depth guard and work budget; `reset_work` on entry), tests `represent_test.lua`, example `hecate.schema.Schema.represent`, README, architecture, how-to, explanation page, CHANGELOG. Errors are `ValidationError` with one violation in `context.violations`, as `check` does.
 
 - French mirror of the schema pages (translator-fr): `website/fr/how-to/validate-with-schemas.md` and `website/fr/explanation/schemas-and-contracts.md` (examples copied verbatim under the same markers), links added to the French how-to, explanation and reference indexes, terms in `website/fr/glossary-terms.md` only. `source_revision` is the full hash of the last commit of the English page (135eb4535b8734db2bc5ef6c3f7faf77ac8299ea for both pages; the indexes carry the last commit of their English index), as the router item did. No CHANGELOG line (the router item had none for its French page). check-glossary, check-links, check-docs-examples, check-changelog, lint, typecheck pass.
@@ -71,12 +73,12 @@
 ## Doubts (OQ-95, conservative choices taken)
 
 - The name `represent` is kept: the glossary defines the term representation (Fielding, RFC 9110), and the specification speaks of representations.
-- A built attribute that was an explicit `null` is nil in the instance (OQ-90), so `represent` omits it, and the rebuilt content then fails `required` for a nullable attribute that is not optional. Only an attribute set to `json.null` by hand is represented as null. If a round trip of explicit nulls matters, an owner decision is needed (for example keeping `json.null` in the instance, or using the presence set).
-- A union first tries the alternatives on the value as it is (linear, memoised), and only if none accepts it represents it with each alternative and validates the plain result (needed when an instance holds an enumeration member, which the alternative's validator only accepts as a name). That second pass is bounded by the work budget, not memoised per alternative.
 - A value of the wrong shape (not a table for an object, array or map), an unknown tag, a non-member for an enumeration and an unmatched union raise `ValidationError` (codes `type`, `tagged_union`, `enum`, `union`) instead of producing garbage.
 - Map keys that are not strings are copied as they are (the encoder then refuses them); `any` deep-copies and keeps the markers, and stops at the depth guard.
 
 ## Doubts (French mirror)
+
+- French pages to refresh after fix pass A (English changed): `website/fr/how-to/validate-with-schemas.md` (anchored patterns and the 65536-byte ceiling in the strings section, the null round trip in the represent section) and `website/fr/explanation/schemas-and-contracts.md` (same two points).
 
 - French renderings chosen conservatively, listed in `website/fr/glossary-terms.md`: violation, schéma lié à une classe, ensemble de présence, budget de travail, unités mineures, « à échec rapide », objet de transfert de données. The public French glossary page is not updated (the English one is not either).
 - The French indexes carry the English index revision although they do not list the untranslated HTTP pages.
@@ -89,7 +91,7 @@ The owner asked on 2026-11-08 to finish this pull request the same day; an inter
 
 Only open work is listed here; finished steps move to Done (never keep a DONE line in this list).
 
-1. Fix the findings of the `schema` review (the seven reviewers, 2026-11-08): the list with its dispositions is in `docs/reviews/schema-review-package.md`; fix test first, one specialist per package, then update the review file with the commit of each fix.
+1. Fix the remaining findings of the `schema` review (the seven reviewers, 2026-11-08; S1 to S4 and s1 to s4 are fixed): the list with its dispositions is in `docs/reviews/schema-review-package.md`; API annotations, documentation, performance and test-suite items are separate passes; fix test first, then update the review file with the commit of each fix.
 2. Finish: delete `HANDOFF.md`, tick the roadmap item, CI green on the three platforms, mark the pull request ready and ask for the owner's review.
 
 ## Open question issues
