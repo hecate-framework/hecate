@@ -254,12 +254,14 @@ function T:test_format_uuid_date_date_time_email()
     ["date-time"] = { "2026-11-03T12:00:00Z", "2026-11-03t12:00:00.5+01:00" },
     email = { "a@b.co", "first.last+tag@example.org" },
     ipv4 = { "0.0.0.0", "192.168.1.255" },
+    uri = { "https://example.org/a?b=c#d", "mailto:a@b.co", "urn:isbn:0451450523", "http://x/%C3%A9" },
   }
   local bad = {
     uuid = { "123e4567e89b12d3a456426614174000", "123e4567-e89b-12d3-a456-42661417400g" },
     date = { "2026-13-01", "2025-02-29", "2026-1-1", "2026-11-31" },
     ["date-time"] = { "2026-11-03", "2026-11-03T25:00:00Z", "2026-11-03T12:00:00" },
     email = { "a", "@b.co", "a@", "a b@c.d", "a@b@c" },
+    uri = { "example.org", "/relative", "http://x/a b", "http://x/%zz", "http://x/%4", "1http://x", "http://x/é" },
     ipv4 = { "1.2.3", "1.2.3.4.5", "256.1.1.1", "01.2.3.4", "1.2.3.-4", "1..2.3", "a.b.c.d" },
   }
   for format, good in pairs(cases) do
