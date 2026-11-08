@@ -18,10 +18,10 @@ generation.
 | Collections | `array(item, { min_items, max_items, delimiter, unique_items })`, `map(value, { min_properties, max_properties })` (string keys only, no key schema, OQ-87) |
 | Sum | `union { a, b }`, `tagged_union("kind", { variant = schema })` |
 | Literal | `literal "ok"` |
-| Class-bound | `of(Class)` — the primary way to name and reuse a schema; becomes an OpenAPI component named after the class. The interface `HasSchema` requires the class-level `schema()` |
+| Class-bound | `of(Class)` — the primary way to name and reuse a schema; becomes an OpenAPI component named after the class. The interface `Representable` requires the class-level `schema()`, and `of` refuses a class that does not declare it |
 | Named | `named("User", schema)` — opt-in for an inline schema without a class; becomes an OpenAPI component |
 | Enumeration | `enumeration(core_enumeration)`, `enumeration({ "a", "b" })` |
-| Custom | `refine(base, predicate, description)` — predicate must also be describable for docs. **Not yet implemented, planned** (OQ-97) |
+| Custom | `refine(base, predicate, description)` is not offered: a predicate cannot be emitted as JSON Schema, so the emitted contract would be looser than the validator (OQ-97, until a consumer needs it) |
 
 `enumeration(core_enumeration)` accepts the names of the enumeration, in declaration order: a member object is not a JSON
 value, whereas its name survives `json.encode` and `json.decode` unchanged. Coercion of a text reads the name, a violation has
@@ -30,6 +30,12 @@ member. A default is given as a name. The names are read once, at declaration. T
 
 `multiple_of` takes a whole-number divisor greater than zero; a fractional divisor such as `0.01` is refused at declaration (OQ-87), because binary floats cannot express decimal steps and JSON Schema has no keyword for decimal places. Use integers in minor units (cents), or a string with a `pattern` for a fixed number of decimals; a decimal type is planned (roadmap).
 
+A union must not contain null (OQ-99): `nullable` is the only way for a property to accept null. `union(alternatives)` therefore
+refuses at declaration, with `ArgumentError`, every alternative that accepts null (OQ-100): `null()`, a `nullable` schema, `literal(json.null)` and an `enumeration` whose
+constants contain `json.null`, directly or under `named`, `optional` or `default`, and the message names the kind and tells to write `nullable(union(...))`. This is a declaration error, not a violation
+code: no value is involved. A literal null or such an enumeration stays allowed as a plain property. `any()` is not refused, it accepts every value, null included, by an explicit choice; the variants of a
+`tagged_union` are objects and are unaffected.
+
 Lua integers and floats are distinguished (`integer` rejects `1.5` and `1.0`; `number` accepts both).
 
 Parameter names follow the role: `item` is the element schema of an `array`, `value` the value schema of a `map`, `inner` the
@@ -37,9 +43,12 @@ schema wrapped by `optional`, `nullable`, `default` and `named`, and `alternativ
 option class (`StringOptions`, `IntegerOptions`, `NumberOptions`, `ArrayOptions`, `MapOptions`, `ObjectOptions`), and a `string` takes
 `min_length`, `max_length`, `pattern`, `format` and an optional `logger`.
 
-`HasSchema` is the interface of a class that owns a schema: it requires the class-level function `schema()` that `of` calls. A
-class that declares it (`implements = { schema.HasSchema }`) and has no `schema` raises `ConformanceError` at finalisation; `of` still
-accepts any class that has `schema()` without declaring the interface.
+`Representable` is the interface of a class whose instances have a representation (RFC 9110 section 3.2), declared once by the
+class-level function `schema()` that `of` calls. A class that declares it (`implements = { schema.Representable }`) and has no
+`schema` raises `ConformanceError` at finalisation. `of` refuses a class that does not declare the interface, even when it has a
+`schema` function: the declaration is the contract. The check runs at declaration when the class is already finalised, otherwise at
+the first use, and also applies to the module name form (after the module is loaded). The refusal is an `ArgumentError` that names
+the class and the interface and says how to fix it.
 
 #### Return conventions
 

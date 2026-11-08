@@ -86,35 +86,42 @@ print(user:check({ name = "Ada", age = 36 }).name)
 
 A class owns the name of its schema. Declare a class-level function `schema()` that returns the schema,
 and use `schema.of(Class)` wherever the class is a part of another schema. To make the rule checkable,
-declare the interface `schema.HasSchema`, which requires `schema`: `finalise` then raises a `ConformanceError` for a
-class that declares it without a `schema` function. Declaring it is optional, and `schema.of` accepts any class that
-has `schema()`. The emission puts the definition once in the root `$defs` under the name of the class and uses a
+declare the interface `schema.Representable`, which requires `schema`: `finalise` then raises a `ConformanceError` for a
+class that declares it without a `schema` function. Declaring it is mandatory: `schema.of` refuses a class that does
+not declare it, even when it has `schema()`, with an `ArgumentError` that names the class and the interface. The
+refusal comes at declaration for a class that is already finalised, otherwise at first use. The emission puts the definition once in the root `$defs` under the name of the class and uses a
 `$ref` at each use. Classes may refer to each other or to themselves.
 
 <!-- example: packages/schema/examples/hecate.schema.of.lua -->
 ```lua
--- A class owns the schema of its instances: the interface `schema.HasSchema` requires a class-level `schema()`, and
+-- A class owns the schema of its instances: the interface `schema.Representable` requires a class-level `schema()`, and
 -- `schema.of(Class)` uses the class wherever it is a part of another schema.
 local core = require("hecate.core")
 local schema = require("hecate.schema")
 
-local HasSchema = schema.HasSchema
+local Representable = schema.Representable
 
-local Address = core.class("Address", nil, { implements = { HasSchema } })
+local Address = core.class("Address", nil, { implements = { Representable } })
 function Address.schema()
   return schema.object({ street = schema.string(), city = schema.string() })
 end
 core.finalise(Address)
 
-local User = core.class("User", nil, { implements = { HasSchema } })
+local User = core.class("User", nil, { implements = { Representable } })
 function User.schema()
   return schema.object({ name = schema.string(), address = schema.of(Address) })
 end
 core.finalise(User)
 
 -- A class that declares the interface without `schema()` cannot be finalised.
-local Incomplete = core.class("Incomplete", nil, { implements = { HasSchema } })
+local Incomplete = core.class("Incomplete", nil, { implements = { Representable } })
 print((pcall(core.finalise, Incomplete)))
+
+-- `schema.of` refuses a class that does not declare the interface, even when it has a `schema` function.
+local Plain = core.class("Plain")
+function Plain.schema() return schema.object({}) end
+core.finalise(Plain)
+print((pcall(schema.of, Plain)))
 
 local ok, user = schema.of(User):build({ name = "Ada", address = { street = "1 Main St", city = "Paris" } })
 print(ok, core.is_instance_of(user, User), core.is_instance_of(user.address, Address))
@@ -123,6 +130,7 @@ print(ok, core.is_instance_of(user, User), core.is_instance_of(user.address, Add
 local document = schema.of(User):to_json_schema()
 print(document["$ref"], document["$defs"].User.properties.address["$ref"])
 -- Prints: false
+-- false
 -- true	true	true
 -- #/$defs/User	#/$defs/Address
 ```
@@ -150,7 +158,7 @@ at the same path, as `coerce`. Defaults apply once, in the conversion, and never
 local core = require("hecate.core")
 local schema = require("hecate.schema")
 
-local Filter = core.class("Filter")
+local Filter = core.class("Filter", nil, { implements = { schema.Representable } })
 function Filter.schema()
   return schema.object({
     status = schema.default(schema.string(), "open"),
@@ -190,7 +198,7 @@ you passed is never modified. The default must conform to `inner`, checked at de
 local core = require("hecate.core")
 local schema = require("hecate.schema")
 
-local Article = core.class("Article")
+local Article = core.class("Article", nil, { implements = { schema.Representable } })
 function Article.schema()
   return schema.object({
     title = schema.string(),
@@ -236,7 +244,7 @@ local core = require("hecate.core")
 local json = require("hecate.json")
 local schema = require("hecate.schema")
 
-local Profile = core.class("Profile")
+local Profile = core.class("Profile", nil, { implements = { schema.Representable } })
 function Profile.schema()
   return schema.object({
     name = schema.string(),
@@ -296,7 +304,7 @@ local schema = require("hecate.schema")
 
 local Status = core.enumeration("AccountStatus", { "active", "disabled" })
 
-local Account = core.class("Account")
+local Account = core.class("Account", nil, { implements = { schema.Representable } })
 function Account.schema()
   return schema.object({
     name = schema.string(),
@@ -315,7 +323,7 @@ print(plain.status, plain.password, core.is_instance_of(plain, Account))
 print(json.encode(plain.tags), json.encode(plain.name))
 
 -- A cycle in the object graph ends with an error that names the limit, instead of a hang.
-local Node = core.class("Node")
+local Node = core.class("Node", nil, { implements = { schema.Representable } })
 function Node.schema() return schema.object({ next = schema.optional(schema.of(Node)) }) end
 core.finalise(Node)
 
@@ -541,6 +549,39 @@ print(#shape:to_json_schema().oneOf)
 -- /kind	required
 -- 2
 ```
+
+A union never accepts null on its own: `nullable` is the only way for a property to accept
+`json.null`. `schema.union` refuses at declaration (an `ArgumentError`) every alternative that accepts null:
+`schema.null()`, a `nullable` schema, `schema.literal(json.null)` or an enumeration containing `json.null`, also
+under `named`, `optional` or `default`. Wrap the union instead,
+as `nullable(union(...))`:
+
+<!-- example: packages/schema/examples/hecate.schema.union.lua -->
+```lua
+-- A union never accepts null on its own: `nullable` is the only way for a property to accept null.
+local json = require("hecate.json")
+local schema = require("hecate.schema")
+
+local plain = schema.union({ schema.string(), schema.integer() })
+print((plain:validate(json.null)))
+
+-- A `null` or `nullable` alternative is refused at declaration, with a hint.
+local ok, err = pcall(schema.union, { schema.string(), schema.null() })
+print(ok, (err --[[@as table]]).code)
+
+-- Wrap the union instead.
+local identifier = schema.nullable(plain)
+print((identifier:validate(json.null)), (identifier:validate("a1")), (identifier:validate(true)))
+
+-- `any` is different: it accepts every value, null included, by an explicit choice.
+print((schema.union({ schema.string(), schema.any() }):validate(json.null)))
+-- Prints: false
+-- false	hecate.core.ArgumentError
+-- true	true	false
+-- true
+```
+
+`schema.any()` is not refused: it accepts every value, null included, as an explicit, different choice.
 
 A `union` decides each alternative in turn (stopping at the first violation, literal properties first) and
 remembers its answer for each table of the content during one call, so the work is proportional to the

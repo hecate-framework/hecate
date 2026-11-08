@@ -124,6 +124,7 @@ This table appears at the top of the `query` and `orm` reference pages.
 | work budget | The fixed number of steps one `validate`, `coerce` or `build` call may spend before it ends with a `complexity_limit` violation | OQ-91 | timeout, for a count of steps |
 | validator | The compiled check of a schema, a closure made at declaration that appends violations; internal, never the name of a type or of a public object | package invariant of `schema` | a synonym of refinement type or schema |
 | build | `Schema:build`: validate decoded content, then make the instance of each class-bound part (without calling `init`) | OQ-50, OQ-90 | construct, hydrate, deserialise |
+| Representable | Interface of a class whose instances have a representation, declared once by the class-level `schema()` that the interface requires (`schema.Representable`); `schema.of` refuses a class that does not declare it | Fielding (2000); RFC 9110 | DTO, view model |
 | represent | `Schema:represent`: convert an instance to the plain values of its representation, to be encoded as JSON | OQ-95; RFC 9110 | serialise |
 | fail-fast mode | The mode in which a validator stops at its first violation and builds no detail; a `union` uses it to decide its alternatives | OQ-91 | short-circuit mode |
 | minor units | The smallest unit of a currency (cents), held in an integer instead of a decimal fraction | ISO 4217 | decimals, for money |

@@ -91,7 +91,7 @@ default, so an action can tell what the client really sent.
 ## Why classes own schema names
 
 An API contract has components with names. Someone has to own the names. In hecate the class does. A class
-declares a class-level `schema()`, and the interface `schema.HasSchema` can require it. Another schema or a route names the
+declares a class-level `schema()`, and the interface `schema.Representable` requires it, and `schema.of` refuses a class that does not declare that interface. Another schema or a route names the
 class itself with `schema.of(Class)`, never a string.
 
 This gives one place for each name and one function for each type. Validation, coercion, build and
@@ -134,12 +134,23 @@ them, and it never approximates silently.
   `context.reason` set to `too_long_for_pattern`).
 - **Bytes and code points.** `min_length` and `max_length` count code points, as JSON Schema does, and
   a string that is not well-formed UTF-8 is a violation. `pattern` matches bytes.
+- **Deep hand-built tables.** The structural equality of `unique_items` stops at the depth guard (1,000
+  levels): two tables still different below it are treated as different, never by a stack overflow.
+  Decoded content cannot reach that depth.
 - **`1.0` and integer.** `integer` accepts only Lua integers. JSON Schema cannot tell `1` from `1.0`, so
   the emitted `integer`, `const` and `enum` also accept `1.0`. This is the one documented gap between
   validator and contract, pinned by a test.
 - **Binary floats and `multiple_of`.** Binary floats cannot express a decimal step: the remainder of
   `19.99` by `0.01` is not zero. `multiple_of` therefore takes whole-number divisors only. For decimal
   places, use integers in minor units or a string with a pattern.
+- **Per-call state.** The validators, coercers, builders and representers keep their counters and caches in
+  module-level state that each public call resets at its start. A metamethod of a user object (an `__index`
+  or `__pairs`) that yields during a call could interleave two calls running in different coroutines. Such
+  metamethods must not suspend.
+- **Null and unions.** A union must not contain null: `nullable` is the only way for a property to accept
+  null, so `union` refuses at declaration (an `ArgumentError`, not a violation) every alternative that accepts
+  null (`null`, `nullable`, a literal null, an enumeration containing null) and asks for
+  `nullable(union(...))`. `any` is not refused, it accepts every value by an explicit choice.
 - **Unsupported constructs.** A construct that JSON Schema cannot express exactly is not allowed.
 - **Keywords outside the emitted subset.** The emission covers `type`, `enum`, `const`, the numeric, string,
   array and object refinements, `properties`, `required`, `additionalProperties`, `items`, `anyOf`, `oneOf`,
@@ -148,9 +159,10 @@ them, and it never approximates silently.
   `dependentSchemas`, `dependentRequired`, `unevaluatedProperties`, `unevaluatedItems`, `$id`, anchors,
   `$dynamicRef`, remote `$ref` and the `content` keywords. They are out of scope until a consumer needs them.
   `oneOf` is emitted only by `tagged_union`: a `union` is `anyOf`.
-- **Planned, not implemented.** `refine` (a custom predicate), the generators of sample values (`generate`,
-  `generate_invalid`, carried by the `test` package) and the generation of `---@meta` files for LuaLS (carried
-  by `doc` or `cli`) do not exist yet.
+- **Planned, not implemented.** The generators of sample values (`generate`, `generate_invalid`, carried by the
+  `test` package) and the generation of `---@meta` files for LuaLS (carried by `doc` or `cli`) do not exist yet.
+- **Not offered.** `refine` (a custom predicate): a predicate cannot be emitted as JSON Schema, so the emitted
+  contract would be looser than the validator.
 
 ## Related reading
 

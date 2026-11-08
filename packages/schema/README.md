@@ -25,8 +25,8 @@
 - validation with all errors collected, JSON Pointer paths
 - JSON Schema emission
 
-Planned, not implemented here: `refine`, `---@meta` generation for LuaLS (carried by `doc` or `cli`) and generators for
-property-based testing (carried by `test`).
+Planned, not implemented here: `---@meta` generation for LuaLS (carried by `doc` or `cli`) and generators for
+property-based testing (carried by `test`). `refine` is not offered (OQ-97).
 
 ## Non-goals
 
@@ -48,12 +48,12 @@ Declarations (`local schema = require("hecate.schema")`); every schema is an imm
 - `schema.enumeration(core_enumeration)`: the same constructor, which takes a list of constants or a `core.enumeration`. The JSON representation of a value is its name (a member object is not JSON, a name round-trips through `json.encode` and `json.decode`): `validate` and `coerce` accept exactly the names (code `enum`, the names in `context.values`), the emission is `type` string with `enum`, and `build` replaces a name by the member (also inside objects, arrays, maps, unions, nullables and defaults; a default is given as a name). It is inlined; `schema.named` makes it a definition. The names are read once at declaration. A member object is never accepted as content.
 - `schema.object(properties, { additional_properties })`: product type; undeclared properties are rejected by default (violation `additional_properties`).
 - `schema.array(item, { min_items, max_items, delimiter, unique_items })`: sequences, 0-based pointer indices; `delimiter` (default `","`, not empty) is how `coerce` splits a text, `unique_items` refuses two equal items (violation `unique_items`).
-- `schema.optional(inner)` (property may be absent), `schema.nullable(inner)` (accepts `json.null`), `schema.union(alternatives)` (`anyOf`). Parameter names follow the role: `item`, `value`, `inner`, `alternatives`.
+- `schema.optional(inner)` (property may be absent), `schema.nullable(inner)` (accepts `json.null`), `schema.union(alternatives)` (`anyOf`). A union must not contain null: `nullable` is the only way for a property to accept null, so `union` refuses at declaration, with `ArgumentError`, every alternative that accepts null: `schema.null()`, a `nullable` schema, `schema.literal(json.null)` and an `schema.enumeration` whose constants contain `json.null`, also under `named`, `optional` or `default`; write `nullable(union(...))` instead (OQ-99, OQ-100). A literal null or such an enumeration stays allowed as a plain property. It is a declaration error, not a violation code. `schema.any()` is not refused: it accepts every value, null included, by an explicit choice. Parameter names follow the role: `item`, `value`, `inner`, `alternatives`.
 - `schema.tagged_union(tag, variants)`: discriminated sum (prefer it to a `union` of objects that differ by a literal: one dispatch on the tag, no re-validation); `variants` maps a name to an `object` schema, and the property `tag` holds the name (emitted as `oneOf`).
 - `schema.default(inner, value)`: property that may be absent; `s:coerce` (texts) and `s:build` (JSON content, every method except PATCH) supply a fresh deep copy of `value` for an absent property, also in nested objects, arrays, maps, unions and class-bound instances; an explicit `null` never takes it, `schema.sent` stays false for it and `validate` never supplies it; emitted as `default`. Recorded in OQ-88. The stored value lives in a closure: `s.options` does not expose it, and only copies are handed out.
 - `schema.of(Class|module)`: the primary way to name and reuse a schema. It is the schema of a class from its class-level `schema()`, resolved lazily; it is emitted once in `$defs` under the class name with a `$ref` at each use, with no declaration, and cycles close with `$ref` (recursive schemas). `schema.named(name, inner)`: the secondary way, an explicit opt-in for an inline schema that has no class; emitted like a class. A schema with neither a class nor `named` is inlined, never given a name. Two different definitions under one name in one emission (two `named`, or a `named` and a class) raise `ArgumentError` saying where each name comes from; equal bodies share one definition. A declared property whose name is a member of the class (a method, an inherited method, a name starting with `__`) is refused with `ArgumentError` at first use, naming the class and the property: the instance and `represent` would confuse them. A plain field on the class (a prototype value) is allowed, but it is never represented. `schema.any()` accepts every JSON value, `schema.null()` only `json.null`. Recorded in OQ-89.
 
-- `schema.HasSchema`: the interface of a class that owns a schema; it requires the class-level `schema()`. A class that declares it (`implements = { schema.HasSchema }`) without `schema` raises `ConformanceError` at finalisation. Declaring it is optional: `schema.of` accepts any class that has `schema()`.
+- `schema.Representable`: the interface of a class whose instances have a representation; it requires the class-level `schema()`. A class that declares it (`implements = { schema.Representable }`) without `schema` raises `ConformanceError` at finalisation. `schema.of` refuses a class that does not declare it, even one that has `schema()`: `ArgumentError` naming the class and the interface, raised at declaration for a finalised class and at first use otherwise (also for the module name form).
 
 Return conventions: `validate` returns `true`, or `false` and the violations; `coerce` and `build` return `true, value` or `false, violations` (never raise for content that does not conform); `check` is the raising form of `validate` only.
 
@@ -77,9 +77,14 @@ Emission:
 
 - `s:to_json_schema()` returns a JSON Schema 2020-12 document (plain values, `$schema` on the root). `pattern` is translated to ECMA-262; a pattern outside the exact subset raises `ArgumentError`. `integer` and constants also accept float-valued numbers (`1.0`), which JSON Schema cannot exclude (OQ-85, point 11).
 
+Limits:
+
+- `unique_items` compares tables structurally down to the depth guard (`json.DEFAULT_MAX_DEPTH`, 1000 levels); two tables still different tables below that depth, which only a hand-built value can reach, are treated as different, never by a Lua stack overflow (OQ-99).
+- Per-call state: the validators, coercers, builders and representers keep their counters and caches (depth, work budget, memoisation) in module-level state that each public call resets at its start. A metamethod of a user object (an `__index` or `__pairs`) that yields during a call could therefore interleave two calls running in different coroutines. Such metamethods must not suspend (OQ-99).
+
 JSON Schema keywords outside the emitted subset are a deliberate limit, out of scope until a consumer needs them: `allOf`, `not`, `if`, `then` and `else`, `contains`, `prefixItems`, `patternProperties`, `propertyNames`, `dependentSchemas`, `dependentRequired`, `unevaluatedProperties`, `unevaluatedItems`, `$id`, anchors, `$dynamicRef`, remote `$ref` and the `content` keywords. `oneOf` is emitted only by `tagged_union`; a `union` is `anyOf`.
 
-Not yet implemented, planned: `refine(base, predicate, description)` (OQ-97), `generate` and `generate_invalid` (property-based generators, carried by `test`) and `---@meta` generation for LuaLS (carried by `doc` or `cli`).
+Not offered: `refine(base, predicate, description)` (OQ-97). Not yet implemented, planned: `generate` and `generate_invalid` (property-based generators, carried by `test`) and `---@meta` generation for LuaLS (carried by `doc` or `cli`).
 
 Documentation: the how-to [Validate values with schemas](../../website/en/how-to/validate-with-schemas.md), the explanation [Schemas and contracts](../../website/en/explanation/schemas-and-contracts.md) and the tested examples in `examples/`.
 
