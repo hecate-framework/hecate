@@ -77,5 +77,6 @@ page (avec un lien vers le glossaire), puis le terme français seul.
 | fail-fast | à échec rapide | unions qui s’arrêtent à la première violation |
 | validator (internal) | validateur (fonction de validation compilée) | interne à `hecate.schema`, jamais le nom d’un type |
 | build (of an instance) | construire (une instance) | `Schema:build` en code ; jamais « hydrater » |
+| Representable | Représentable | interface `schema.Representable` en code ; classe dont les instances ont une représentation ; jamais « contrat » |
 | represent | représenter | `Schema:represent` en code |
 | union (sum type) | union (type somme) | `schema.union` ; à distinguer de l’union relationnelle (`UNION` SQL) |

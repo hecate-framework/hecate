@@ -3,7 +3,7 @@ description: Déclarer des schémas avec hecate.schema, valider et convertir des
 hecate: "0.x"
 lua: "5.5"
 order: 7
-source_revision: 116ae908aeaefad8e0404a64f574f53f59605f19
+source_revision: 73912587a7b3ba66207e40b62b745ba832ae80f8
 ---
 
 # Valider des valeurs avec des schémas
@@ -89,35 +89,42 @@ print(user:check({ name = "Ada", age = 36 }).name)
 
 Une classe possède le nom de son schéma. Déclarez une fonction de niveau classe `schema()` qui renvoie le schéma, et
 utilisez `schema.of(Class)` partout où la classe est une partie d’un autre schéma. Pour rendre la règle vérifiable,
-déclarez l’interface `schema.HasSchema`, qui exige `schema` : `finalise` lève alors une `ConformanceError` pour une
-classe qui la déclare sans fonction `schema`. La déclarer est facultatif, et `schema.of` accepte toute classe qui a
-`schema()`. L’émission place la définition une seule fois dans le `$defs` racine sous le nom de la classe et utilise un `$ref` à
+déclarez l’interface `schema.Representable`, qui exige `schema` : `finalise` lève alors une `ConformanceError` pour une
+classe qui la déclare sans fonction `schema`. La déclarer est obligatoire : `schema.of` refuse une classe qui ne la
+déclare pas, même si elle a `schema()`, avec une `ArgumentError` qui nomme la classe et l’interface. Le refus a lieu à la
+déclaration pour une classe déjà finalisée, sinon au premier emploi. L’émission place la définition une seule fois dans le `$defs` racine sous le nom de la classe et utilise un `$ref` à
 chaque emploi. Les classes peuvent se référencer mutuellement ou elles-mêmes.
 
 <!-- example: packages/schema/examples/hecate.schema.of.lua -->
 ```lua
--- A class owns the schema of its instances: the interface `schema.HasSchema` requires a class-level `schema()`, and
+-- A class owns the schema of its instances: the interface `schema.Representable` requires a class-level `schema()`, and
 -- `schema.of(Class)` uses the class wherever it is a part of another schema.
 local core = require("hecate.core")
 local schema = require("hecate.schema")
 
-local HasSchema = schema.HasSchema
+local Representable = schema.Representable
 
-local Address = core.class("Address", nil, { implements = { HasSchema } })
+local Address = core.class("Address", nil, { implements = { Representable } })
 function Address.schema()
   return schema.object({ street = schema.string(), city = schema.string() })
 end
 core.finalise(Address)
 
-local User = core.class("User", nil, { implements = { HasSchema } })
+local User = core.class("User", nil, { implements = { Representable } })
 function User.schema()
   return schema.object({ name = schema.string(), address = schema.of(Address) })
 end
 core.finalise(User)
 
 -- A class that declares the interface without `schema()` cannot be finalised.
-local Incomplete = core.class("Incomplete", nil, { implements = { HasSchema } })
+local Incomplete = core.class("Incomplete", nil, { implements = { Representable } })
 print((pcall(core.finalise, Incomplete)))
+
+-- `schema.of` refuses a class that does not declare the interface, even when it has a `schema` function.
+local Plain = core.class("Plain")
+function Plain.schema() return schema.object({}) end
+core.finalise(Plain)
+print((pcall(schema.of, Plain)))
 
 local ok, user = schema.of(User):build({ name = "Ada", address = { street = "1 Main St", city = "Paris" } })
 print(ok, core.is_instance_of(user, User), core.is_instance_of(user.address, Address))
@@ -126,6 +133,7 @@ print(ok, core.is_instance_of(user, User), core.is_instance_of(user.address, Add
 local document = schema.of(User):to_json_schema()
 print(document["$ref"], document["$defs"].User.properties.address["$ref"])
 -- Prints: false
+-- false
 -- true	true	true
 -- #/$defs/User	#/$defs/Address
 ```
@@ -155,7 +163,7 @@ conversion, et jamais pour un PATCH. `schema.sent` n’enregistre que les attrib
 local core = require("hecate.core")
 local schema = require("hecate.schema")
 
-local Filter = core.class("Filter")
+local Filter = core.class("Filter", nil, { implements = { schema.Representable } })
 function Filter.schema()
   return schema.object({
     status = schema.default(schema.string(), "open"),
@@ -196,7 +204,7 @@ défaut. `validate` ne fournit jamais de valeur.
 local core = require("hecate.core")
 local schema = require("hecate.schema")
 
-local Article = core.class("Article")
+local Article = core.class("Article", nil, { implements = { schema.Representable } })
 function Article.schema()
   return schema.object({
     title = schema.string(),
@@ -242,7 +250,7 @@ local core = require("hecate.core")
 local json = require("hecate.json")
 local schema = require("hecate.schema")
 
-local Profile = core.class("Profile")
+local Profile = core.class("Profile", nil, { implements = { schema.Representable } })
 function Profile.schema()
   return schema.object({
     name = schema.string(),
@@ -301,7 +309,7 @@ local schema = require("hecate.schema")
 
 local Status = core.enumeration("AccountStatus", { "active", "disabled" })
 
-local Account = core.class("Account")
+local Account = core.class("Account", nil, { implements = { schema.Representable } })
 function Account.schema()
   return schema.object({
     name = schema.string(),
@@ -320,7 +328,7 @@ print(plain.status, plain.password, core.is_instance_of(plain, Account))
 print(json.encode(plain.tags), json.encode(plain.name))
 
 -- A cycle in the object graph ends with an error that names the limit, instead of a hang.
-local Node = core.class("Node")
+local Node = core.class("Node", nil, { implements = { schema.Representable } })
 function Node.schema() return schema.object({ next = schema.optional(schema.of(Node)) }) end
 core.finalise(Node)
 
@@ -545,6 +553,39 @@ print(#shape:to_json_schema().oneOf)
 -- /kind	required
 -- 2
 ```
+
+Une union n’accepte jamais null d’elle-même : `nullable` est le seul moyen pour une propriété d’accepter
+`json.null`. `schema.union` refuse à la déclaration (une `ArgumentError`) toute alternative qui accepte null :
+`schema.null()`, un schéma `nullable`, `schema.literal(json.null)` ou une énumération contenant `json.null`, y compris
+sous `named`, `optional` ou `default`. Enveloppez plutôt l’union, sous la forme
+`nullable(union(...))` :
+
+<!-- example: packages/schema/examples/hecate.schema.union.lua -->
+```lua
+-- A union never accepts null on its own: `nullable` is the only way for a property to accept null.
+local json = require("hecate.json")
+local schema = require("hecate.schema")
+
+local plain = schema.union({ schema.string(), schema.integer() })
+print((plain:validate(json.null)))
+
+-- A `null` or `nullable` alternative is refused at declaration, with a hint.
+local ok, err = pcall(schema.union, { schema.string(), schema.null() })
+print(ok, (err --[[@as table]]).code)
+
+-- Wrap the union instead.
+local identifier = schema.nullable(plain)
+print((identifier:validate(json.null)), (identifier:validate("a1")), (identifier:validate(true)))
+
+-- `any` is different: it accepts every value, null included, by an explicit choice.
+print((schema.union({ schema.string(), schema.any() }):validate(json.null)))
+-- Prints: false
+-- false	hecate.core.ArgumentError
+-- true	true	false
+-- true
+```
+
+`schema.any()` n’est pas refusé : il accepte toutes les valeurs, null compris, par un choix explicite et différent.
 
 Une `union` décide chaque alternative à tour de rôle (en s’arrêtant à la première violation, propriétés littérales
 d’abord) et mémorise sa réponse pour chaque table du contenu pendant un appel, de sorte que le travail est

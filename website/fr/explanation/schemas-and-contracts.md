@@ -3,7 +3,7 @@ description: Pourquoi hecate.schema décrit les types comme des données d’ex�
 hecate: "0.x"
 lua: "5.5"
 order: 5
-source_revision: 116ae908aeaefad8e0404a64f574f53f59605f19
+source_revision: 73912587a7b3ba66207e40b62b745ba832ae80f8
 ---
 
 # Schémas et contrats
@@ -94,7 +94,7 @@ attribut rempli par une valeur par défaut, de sorte qu’une action peut savoir
 ## Pourquoi les classes possèdent les noms de schémas
 
 Un contrat d’API a des composants nommés. Quelqu’un doit posséder les noms. Dans hecate, c’est la classe. Une classe
-déclare une fonction de niveau classe `schema()`, et l’interface `schema.HasSchema` peut l’exiger. Un autre schéma ou une route nomme la
+déclare une fonction de niveau classe `schema()`, et l’interface `schema.Representable` l’exige, et `schema.of` refuse une classe qui ne déclare pas cette interface. Un autre schéma ou une route nomme la
 classe elle-même avec `schema.of(Class)`, jamais une chaîne.
 
 Cela donne un seul endroit pour chaque nom et une seule fonction pour chaque type. La validation, la coercition, le
@@ -137,12 +137,23 @@ cacher, et n’approxime jamais en silence.
   jamais appariée (violation `pattern` avec `context.reason` valant `too_long_for_pattern`).
 - **Octets et points de code.** `min_length` et `max_length` comptent des points de code, comme le fait JSON Schema, et
   une chaîne qui n’est pas de l’UTF-8 bien formé est une violation. `pattern` apparie des octets.
+- **Tables construites à la main, très profondes.** L’égalité structurelle de `unique_items` s’arrête à la garde de
+  profondeur (1000 niveaux) : deux tables encore différentes en dessous sont traitées comme différentes, jamais par un
+  débordement de pile. Un contenu décodé ne peut pas atteindre cette profondeur.
 - **`1.0` et integer.** `integer` n’accepte que des entiers Lua. JSON Schema ne distingue pas `1` de `1.0`, donc les
   `integer`, `const` et `enum` émis acceptent aussi `1.0`. C’est le seul écart documenté entre validateur et contrat,
   verrouillé par un test.
 - **Flottants binaires et `multiple_of`.** Les flottants binaires ne savent pas exprimer un pas décimal : le reste de
   `19.99` par `0.01` n’est pas nul. `multiple_of` ne prend donc que des diviseurs entiers. Pour des décimales,
   utilisez des entiers en unités mineures ou une chaîne avec un motif.
+- **État par appel.** Les validateurs, convertisseurs, constructeurs et représenteurs gardent leurs compteurs et leurs
+  caches dans un état de module que chaque appel public réinitialise à son début. Une métaméthode d’un objet
+  utilisateur (un `__index` ou un `__pairs`) qui cède la main pendant un appel pourrait entrelacer deux appels exécutés
+  dans des coroutines différentes. Ces métaméthodes ne doivent pas suspendre.
+- **Null et unions.** Une union ne doit pas contenir null : `nullable` est le seul moyen pour une propriété d’accepter
+  null, donc `union` refuse à la déclaration (une `ArgumentError`, pas une violation) toute alternative qui accepte
+  null (`null`, `nullable`, un littéral null ou une énumération contenant null) et demande
+  `nullable(union(...))`. `any` n’est pas refusé : il accepte toutes les valeurs par un choix explicite.
 - **Constructions non prises en charge.** Une construction que JSON Schema ne peut pas exprimer exactement n’est pas
   autorisée.
 - **Mots-clés hors du sous-ensemble émis.** L’émission couvre `type`, `enum`, `const`, les raffinements numériques, de
@@ -152,9 +163,10 @@ cacher, et n’approxime jamais en silence.
   `dependentRequired`, `unevaluatedProperties`, `unevaluatedItems`, `$id`, les ancres, `$dynamicRef`, le `$ref` distant
   et les mots-clés `content`. Ils sont hors du périmètre tant qu’aucun consommateur n’en a besoin. `oneOf` n’est émis
   que par `tagged_union` : une `union` est un `anyOf`.
-- **Prévu, non implémenté.** `refine` (un prédicat personnalisé), les générateurs de valeurs d’exemple (`generate`,
-  `generate_invalid`, portés par le paquet `test`) et la génération de fichiers `---@meta` pour LuaLS (portée par `doc`
-  ou `cli`) n’existent pas encore.
+- **Prévu, non implémenté.** Les générateurs de valeurs d’exemple (`generate`, `generate_invalid`, portés par le
+  paquet `test`) et la génération de fichiers `---@meta` pour LuaLS (portée par `doc` ou `cli`) n’existent pas encore.
+- **Non proposé.** `refine` (un prédicat personnalisé) : un prédicat ne peut pas être émis en JSON Schema, le contrat
+  émis serait donc plus permissif que le validateur.
 
 ## Lectures associées
 
