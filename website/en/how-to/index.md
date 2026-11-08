@@ -37,6 +37,8 @@ read the matching page of the [explanation](../explanation/index.md) section.
   bound, its default, and HTTPS.
 - [Route requests](route-requests.md): path templates, precedence, 404 and 405 with `Allow`,
   percent-decoding and dot segments, reverse routing.
+- [Validate values with schemas](validate-with-schemas.md): declare schemas, collect violations with
+  JSON Pointer paths, emit JSON Schema.
 
 ## Application structure
 

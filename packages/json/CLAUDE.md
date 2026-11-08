@@ -28,6 +28,7 @@ Fast, correct JSON codec (RFC 8259) with integer/float fidelity, explicit null a
 - round-trip stability for every value it can encode
 - never produces invalid UTF-8
 - depth and size limits configurable, with safe defaults
+- a table whose metatable has a function `__pairs` is encoded through it (OQ-94), a table without one is read raw; the closing value of `__pairs` is ignored; the entries collected by all the `__pairs` iterations of one encoding share a budget of about `max_size / 2`, and an endless iteration ends with `size_limit`; an iterator that yields a string key or an integer key twice is refused with `duplicate_key` (path of the object or array, key not echoed; string keys are tracked by hash and verified on a match, never copied); a value raised by `__pairs` or its iterator is raised again by `encode` as the very same value (no `EncodeError`, no traceback)
 
 ## Test strategy
 

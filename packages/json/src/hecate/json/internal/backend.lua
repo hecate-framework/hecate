@@ -13,6 +13,9 @@
 --   decode(text, options) -> value | nil, failure     options: { max_depth, max_size }
 --   encode(value, options) -> text | nil, failure     options: { max_depth, max_size, indent?, canonical, rfc8785 }
 --
+-- An encoder failure of reason `raised` carries the value that `__pairs` or its iterator raised in `failure.error`
+-- (possibly nil); `hecate.json` raises that value again unchanged.
+--
 -- `rfc8785` (implies `canonical`, never combined with `indent`) selects RFC 8785 (JCS): every number is written as
 -- an IEEE double in the ECMAScript format, and an integer beyond +-2^53 is a failure. A `failure` is
 -- `{ reason, message, offset? }` for decoding (offset: bytes before the offending byte; absent for a duplicate member

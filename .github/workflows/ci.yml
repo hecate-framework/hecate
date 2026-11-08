@@ -80,6 +80,9 @@ jobs:
     # A hung test must fail the job within minutes, not after the default six hours. The harness
     # watchdog (HECATE_TEST_TIMEOUT) names the test; this is the backstop for a blocking call.
     timeout-minutes: 30
+    env:
+      # The single LuaLS pin: read by this job (cache key and download) and by tools/tasks/setup_luals.lua.
+      LUALS_VERSION: 3.19.1
     strategy:
       fail-fast: false
       matrix:
@@ -125,10 +128,16 @@ jobs:
         shell: cmd
         run: cl 2>&1 | findstr /C:"Version" && cmake --version
 
+      # The archive is cached per platform and version (the checksum below is verified on every run, from the
+      # cache or from the download), so a transient 5xx of the release endpoint only matters on a cold cache.
+      - name: Cache LuaLS archive
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: ~/.cache/luals
+          key: luals-${{ runner.os }}-${{ runner.arch }}-${{ env.LUALS_VERSION }}
+
       - name: Install LuaLS
         shell: bash
-        env:
-          LUALS_VERSION: 3.19.1
         run: |
           case "$RUNNER_OS-$RUNNER_ARCH" in
             Linux-X64) asset=linux-x64.tar.gz; sha=e9235d2d72ef55bc41cf8c99cda2ed64777682024b4bb81f5dea425060c5cbb8 ;;
@@ -137,12 +146,18 @@ jobs:
             *) echo "no pinned LuaLS for $RUNNER_OS-$RUNNER_ARCH" >&2; exit 1 ;;
           esac
           file="lua-language-server-$LUALS_VERSION-$asset"
-          curl -fsSL -o "$RUNNER_TEMP/$file" "https://github.com/LuaLS/lua-language-server/releases/download/$LUALS_VERSION/$file"
-          echo "$sha  $RUNNER_TEMP/$file" | (sha256sum -c - 2>/dev/null || shasum -a 256 -c -)
+          archive="$HOME/.cache/luals/$file"
+          verify() { echo "$sha  $archive" | (sha256sum -c - 2>/dev/null || shasum -a 256 -c -); }
+          mkdir -p "$HOME/.cache/luals"
+          if [ ! -f "$archive" ] || ! verify; then
+            rm -f "$archive"
+            curl -fsSL --retry 5 --retry-all-errors --retry-delay 5 -o "$archive" "https://github.com/LuaLS/lua-language-server/releases/download/$LUALS_VERSION/$file"
+            verify
+          fi
           mkdir -p "$RUNNER_TEMP/luals"
           case "$file" in
-            *.zip) unzip -q "$RUNNER_TEMP/$file" -d "$RUNNER_TEMP/luals" ;;
-            *) tar -xzf "$RUNNER_TEMP/$file" -C "$RUNNER_TEMP/luals" ;;
+            *.zip) unzip -q "$archive" -d "$RUNNER_TEMP/luals" ;;
+            *) tar -xzf "$archive" -C "$RUNNER_TEMP/luals" ;;
           esac
           echo "$RUNNER_TEMP/luals/bin" >> "$GITHUB_PATH"
 
@@ -219,6 +234,11 @@ jobs:
         if: contains(format(' {0} ', needs.plan.outputs.packages), ' json ')
         shell: bash
         run: lua tools/run.lua fetch-fixtures json
+
+      - name: Download the JSON Schema test suite
+        if: contains(format(' {0} ', needs.plan.outputs.packages), ' schema ')
+        shell: bash
+        run: lua tools/run.lua fetch-fixtures schema
 
       - name: Lint the JSON encoder (Linux)
         if: runner.os == 'Linux' && contains(format(' {0} ', needs.plan.outputs.packages), ' json ')

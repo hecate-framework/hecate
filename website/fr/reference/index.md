@@ -4,7 +4,7 @@ description: La référence de hecate : la référence de code générée de ch
 hecate: "0.x"
 lua: "5.5"
 order: 0
-source_revision: 258a819
+source_revision: 9c2e1670e2e08b919db0b4399100c4b46c00a2a0
 ---
 
 # Référence
@@ -20,5 +20,6 @@ chaque paquet documenté.
 - [`hecate.json`](json/index.md) : encodage, décodage, marqueurs et erreurs.
 - [`hecate.log`](log/index.md) : enregistrements structurés, gravités de la RFC 5424, contexte et puits.
 - [`hecate.router`](router/index.md) : le routeur à arbre radix, les gabarits de chemin, l’appariement, le routage inverse et les erreurs de table de routes.
+- [`hecate.schema`](schema/index.md) : types raffinés, validation, coercition et émission de JSON Schema.
 
 Le [glossaire](glossary.md) définit le vocabulaire utilisé partout.

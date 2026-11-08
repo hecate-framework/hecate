@@ -17,9 +17,23 @@
 //! A failure is found by the walk where it happens and carries its path on the way out: every container that the
 //! error crosses adds its own step, so that a successful encoding records nothing.
 //!
+//! A table whose metatable defines `__pairs` as a function (a frozen value object, any user proxy: OQ-94) is read through
+//! it, by the standard iteration protocol; every other table is read raw. The entries then follow the same rules
+//! (array, object, holes, keys, limits). The value an iteration raises (`error(value)`: a table, a `hecate.core` error
+//! instance, a string, a number, `nil`) is the value `json.encode` raises, the same value and not a conversion: both calls
+//! go through a Lua `pcall` (the helper `PROTECTED_KEY`, loaded once by `bind`), so that the value itself is
+//! recovered (an `mlua` error would wrap it with a message and a traceback); `encode` returns it in a failure of reason
+//! `raised` and `hecate.json` rethrows it with `error(value, 0)`. The entries of all the tables of one encoding share a
+//! budget of about `max_size / 2` entries (`Outcome::budget`), so that nested or self-referencing proxies cannot make
+//! the ancestors hold more than that; the closing value that `__pairs` may return is ignored, unlike `pairs`. An
+//! iteration that yields a string key twice would write a duplicate member name, and one that yields an integer key twice
+//! would lose a value: both are a `duplicate_key` failure at the path of the object or array, without the key.
+//!
 //! Nothing here is `unsafe`; the Lua boundary is `mlua`.
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
+use std::collections::{HashMap, HashSet};
+use std::hash::{BuildHasher, BuildHasherDefault, DefaultHasher};
 use std::io::{self, Write};
 
 use mlua::prelude::*;
@@ -27,6 +41,9 @@ use serde::ser::{Error as _, Serialize, SerializeMap, SerializeSeq, Serializer};
 use serde_json::ser::{CompactFormatter, Formatter, PrettyFormatter};
 
 const MARKERS_KEY: &str = "hecate.json.encoder_native.markers";
+/// Registry name of the Lua function `function(f, a, b) return pcall(f, a, b) end`, created once by `bind` from the
+/// `pcall` of that moment.
+const PROTECTED_KEY: &str = "hecate.json.encoder_native.protected";
 const HOLE_SLACK: i64 = 16;
 /// The deepest nesting walked, whatever `max_depth` says: the walk recurses on the native stack (1 MiB for the main
 /// thread of a Windows process). It equals the highest `max_depth` that the public module accepts.
@@ -64,6 +81,21 @@ struct Failure {
 /// The failure of the encoding in progress, shared by the walk (a `Serialize` cannot return more than an error).
 struct Outcome {
     failure: RefCell<Option<Failure>>,
+    /// What a `__pairs` metamethod or its iterator raised: `json.encode` raises it again.
+    raised: RefCell<Option<Raised>>,
+    /// Set when the iterations yielded more entries than the budget holds (it is a `size_limit` failure).
+    too_many: Cell<bool>,
+    /// Entries that the iterations of the whole encoding may still collect: at most this many are held at once,
+    /// whatever the nesting (an entry takes at least two bytes of output: `0,`).
+    budget: Cell<usize>,
+}
+
+/// An error raised while following `__pairs`.
+enum Raised {
+    /// The exact value passed to `error` (possibly `nil`), recovered through `pcall`.
+    Value(LuaValue),
+    /// A failure of ours or of `mlua` (no iterator function, memory), raised as a Lua error.
+    Internal(LuaError),
 }
 
 impl Outcome {
@@ -325,6 +357,7 @@ impl Serialize for Name<'_> {
 
 /// A Lua value seen as a `Serialize`: the walk that carries the value model of the codec.
 struct Node<'a> {
+    lua: &'a Lua,
     value: &'a LuaValue,
     level: usize,
     markers: &'a Markers,
@@ -388,6 +421,148 @@ fn raw_entries(table: &LuaTable) -> LuaResult<Vec<(LuaValue, LuaValue)>> {
     table.pairs::<LuaValue, LuaValue>().collect()
 }
 
+/// Calls `function(a, b)` through the protected-call helper: the values it returns, or what it raised, as the exact
+/// value (an `mlua` error would wrap it in a message and a traceback).
+fn protected_call(
+    lua: &Lua,
+    function: &LuaFunction,
+    args: (LuaValue, LuaValue),
+) -> Result<Vec<LuaValue>, Raised> {
+    let protected: LuaFunction = lua
+        .named_registry_value(PROTECTED_KEY)
+        .map_err(Raised::Internal)?;
+    let mut returned = protected
+        .call::<LuaMultiValue>((function, args.0, args.1))
+        .map_err(Raised::Internal)?
+        .into_vec()
+        .into_iter();
+    match returned.next() {
+        Some(LuaValue::Boolean(true)) => Ok(returned.collect()),
+        _ => Err(Raised::Value(returned.next().unwrap_or(LuaValue::Nil))),
+    }
+}
+
+/// How the iteration of a `__pairs` metamethod ended.
+enum Collected {
+    Entries(Vec<(LuaValue, LuaValue)>),
+    /// The shared budget was spent: a `size_limit` failure.
+    OutOfBudget,
+    /// The iterator yielded a string key or an integer key a second time: a `duplicate_key` failure.
+    DuplicateKey,
+}
+
+/// The entries already collected whose key has a given hash: almost always one.
+enum Bucket {
+    One(usize),
+    Many(Vec<usize>),
+}
+
+/// The string keys yielded so far by one iteration, as a hash per entry and nothing else: a key is never copied (a proxy
+/// may yield keys of megabytes). A key is a repeat only when an entry with the same hash also has the same bytes, which
+/// `same` checks on the entries already collected, so that a collision between two different keys is never reported as
+/// a repeat. The hasher only buckets: it is the `BuildHasher` parameter so that a test can force every key to collide.
+struct SeenKeys<B: BuildHasher> {
+    build: B,
+    buckets: HashMap<u64, Bucket>,
+}
+
+impl<B: BuildHasher> SeenKeys<B> {
+    fn new(build: B) -> Self {
+        SeenKeys {
+            build,
+            buckets: HashMap::new(),
+        }
+    }
+
+    /// Records `key`, which will be the entry number `index`, and tells whether it is new: `same(i)` says whether the
+    /// entry `i` collected earlier has this very key.
+    fn insert(&mut self, key: &[u8], index: usize, same: impl Fn(usize) -> bool) -> bool {
+        let hash = self.build.hash_one(key);
+        match self.buckets.get_mut(&hash) {
+            None => {
+                self.buckets.insert(hash, Bucket::One(index));
+                true
+            }
+            Some(Bucket::One(first)) => {
+                if same(*first) {
+                    return false;
+                }
+                let first = *first;
+                self.buckets.insert(hash, Bucket::Many(vec![first, index]));
+                true
+            }
+            Some(Bucket::Many(indices)) => {
+                if indices.iter().any(|i| same(*i)) {
+                    return false;
+                }
+                indices.push(index);
+                true
+            }
+        }
+    }
+}
+
+/// The entries of a table that defines `__pairs`, collected through the standard iteration protocol: the metamethod
+/// is called with the table and returns the iterator, its state and its initial control value (a fourth, closing value
+/// is ignored, so a to-be-closed object is never closed); the iterator is then called until it returns `nil`. Each
+/// entry takes one unit of `budget`; `OutOfBudget` once it is spent, so that an endless iterator ends. A string key
+/// yielded twice ends the iteration with `DuplicateKey` (RFC 8259 section 4: the names within an object SHOULD be
+/// unique; RFC 7493 section 2.3 requires it), and so does an integer key yielded twice (two values for one index of an
+/// array: the later would silently replace the earlier): a raw table cannot repeat a key, an iterator can. A float key
+/// is not an index for the array rule (`array_length`), so it never collides with an integer key: it makes the table
+/// ambiguous. The keys seen live for this one iteration (`SeenKeys`: a hash per string key, verified on a match; the
+/// integers themselves), so every lookup is O(1) on average and a table without `__pairs` pays nothing.
+fn pairs_entries(
+    lua: &Lua,
+    table: &LuaTable,
+    pairs: &LuaFunction,
+    budget: &Cell<usize>,
+) -> Result<Collected, Raised> {
+    let mut returned =
+        protected_call(lua, pairs, (LuaValue::Table(table.clone()), LuaValue::Nil))?.into_iter();
+    let iterator = returned.next().unwrap_or(LuaValue::Nil);
+    let state = returned.next().unwrap_or(LuaValue::Nil);
+    let mut control = returned.next().unwrap_or(LuaValue::Nil);
+    let LuaValue::Function(iterator) = iterator else {
+        return Err(Raised::Internal(LuaError::runtime(format!(
+            "__pairs must return an iterator function, got {}",
+            type_name(&iterator)
+        ))));
+    };
+    let mut entries = Vec::new();
+    let mut seen_names = SeenKeys::new(BuildHasherDefault::<DefaultHasher>::default());
+    let mut seen_indices: HashSet<i64> = HashSet::new();
+    loop {
+        let mut step =
+            protected_call(lua, &iterator, (state.clone(), control.clone()))?.into_iter();
+        let key = step.next().unwrap_or(LuaValue::Nil);
+        if key.is_nil() {
+            return Ok(Collected::Entries(entries));
+        }
+        let value = step.next().unwrap_or(LuaValue::Nil);
+        match &key {
+            LuaValue::String(name) => {
+                let bytes = name.as_bytes();
+                let same = |i: usize| matches!(&entries[i], (LuaValue::String(other), _) if *other.as_bytes() == *bytes);
+                if !seen_names.insert(&bytes, entries.len(), same) {
+                    return Ok(Collected::DuplicateKey);
+                }
+            }
+            LuaValue::Integer(index) if !seen_indices.insert(*index) => {
+                return Ok(Collected::DuplicateKey);
+            }
+            _ => {}
+        }
+        let left = budget.get();
+        if left == 0 {
+            return Ok(Collected::OutOfBudget);
+        }
+        budget.set(left - 1);
+        entries.push((key.clone(), value));
+        control = key;
+    }
+}
+
 /// The length of a table written as an array: its highest index. A hole is written as `null`; holes are accepted while the
 /// table stays dense enough (highest index at most twice the number of entries plus 16), so that a stray `t[1e9] = x`
 /// cannot make the encoder write a billion nulls. `None` when a key is not a positive index or the table is too sparse.
@@ -417,8 +592,39 @@ impl Node<'_> {
                 format!("nesting deeper than max_depth ({max_depth})"),
             ));
         }
-        let entries = raw_entries(table).map_err(S::Error::custom)?;
         let metatable = table.metatable();
+        // A table with no metatable (the common case) is read raw at no extra cost. A metatable other than the markers
+        // is asked for `__pairs`, read raw too (no `__index` chain): a function there is the iteration to follow.
+        let pairs = match &metatable {
+            Some(m) if *m != self.markers.array && *m != self.markers.object => {
+                match m.raw_get::<LuaValue>("__pairs") {
+                    Ok(LuaValue::Function(f)) => Some(f),
+                    _ => None,
+                }
+            }
+            _ => None,
+        };
+        let entries = match pairs {
+            None => raw_entries(table).map_err(S::Error::custom)?,
+            Some(pairs) => match pairs_entries(self.lua, table, &pairs, &outcome.budget) {
+                Ok(Collected::Entries(entries)) => entries,
+                Ok(Collected::OutOfBudget) => {
+                    outcome.too_many.set(true);
+                    return Err(S::Error::custom("max_size"));
+                }
+                Ok(Collected::DuplicateKey) => {
+                    // The key is not echoed: it is attacker-controlled text; the path names the object.
+                    return Err(outcome.fail(
+                        "duplicate_key",
+                        "an iteration yielded the same key twice: the member names of an object and the indices of an array must be unique".to_owned(),
+                    ));
+                }
+                Err(raised) => {
+                    *outcome.raised.borrow_mut() = Some(raised);
+                    return Err(S::Error::custom("raised"));
+                }
+            },
+        };
         let marked_array = metatable.as_ref().is_some_and(|m| *m == self.markers.array);
         let marked_object = metatable
             .as_ref()
@@ -516,6 +722,7 @@ impl Node<'_> {
     /// A node for a value one level below `self`'s container (`self.level` is already the container's).
     fn child_of<'b>(&'b self, value: &'b LuaValue) -> Node<'b> {
         Node {
+            lua: self.lua,
             value,
             level: self.level,
             markers: self.markers,
@@ -566,7 +773,9 @@ fn run<F: Formatter>(
     let mut serializer = serde_json::Serializer::with_formatter(&mut writer, floats);
     match node.serialize(&mut serializer) {
         Ok(()) => Ok(writer.out),
+        Err(_) if node.outcome.raised.borrow().is_some() => Err(Some("raised")),
         Err(_) if node.outcome.failure.borrow().is_some() => Err(None),
+        Err(_) if node.outcome.too_many.get() => Err(Some("size_limit")),
         Err(_) if writer.overflowed => Err(Some("size_limit")),
         Err(_) => Err(Some("internal")),
     }
@@ -609,9 +818,13 @@ fn encode(
     let options = read_options(&options)?;
     let outcome = Outcome {
         failure: RefCell::new(None),
+        raised: RefCell::new(None),
+        too_many: Cell::new(false),
+        budget: Cell::new(options.max_size.saturating_add(1) / 2),
     };
     // The top-level value is at depth 0: its container is level 1.
     let node = Node {
+        lua,
         value: &value,
         level: 0,
         markers: &markers,
@@ -641,6 +854,16 @@ fn encode(
             let message = format!("output exceeds max_size ({} bytes)", options.max_size);
             Ok((None, Some(failure_table(lua, "size_limit", &message, b"")?)))
         }
+        Err(Some("raised")) => match outcome.raised.borrow_mut().take() {
+            Some(Raised::Value(value)) => {
+                // The exact value travels in a failure of reason `raised`; `hecate.json` raises it again.
+                let failure = failure_table(lua, "raised", "an iteration raised an error", b"")?;
+                failure.set("error", value)?;
+                Ok((None, Some(failure)))
+            }
+            Some(Raised::Internal(error)) => Err(error),
+            None => Err(LuaError::runtime("encoder lost a raised error")),
+        },
         Err(Some(other)) => Err(LuaError::runtime(format!(
             "hecate.json.encoder_native: {other} error while encoding"
         ))),
@@ -655,6 +878,10 @@ fn bind(lua: &Lua, markers: LuaTable) -> LuaResult<()> {
             )));
         }
     }
+    let protected: LuaFunction = lua
+        .load("local pcall = pcall; return function(f, a, b) return pcall(f, a, b) end")
+        .eval()?;
+    lua.set_named_registry_value(PROTECTED_KEY, protected)?;
     lua.set_named_registry_value(MARKERS_KEY, markers)
 }
 
@@ -664,4 +891,83 @@ fn module(lua: &Lua) -> LuaResult<LuaTable> {
     t.set("bind", lua.create_function(bind)?)?;
     t.set("encode", lua.create_function(encode)?)?;
     Ok(t)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::hash::Hasher;
+
+    /// A hasher that gives every key the same hash: every pair of different keys collides.
+    #[derive(Default)]
+    struct Constant;
+
+    impl Hasher for Constant {
+        fn finish(&self) -> u64 {
+            7
+        }
+        fn write(&mut self, _bytes: &[u8]) {}
+    }
+
+    /// Inserts the keys in order, as `pairs_entries` does, and returns the index of the first repeat.
+    fn first_repeat<B: BuildHasher>(build: B, keys: &[&[u8]]) -> Option<usize> {
+        let mut seen = SeenKeys::new(build);
+        for (index, key) in keys.iter().enumerate() {
+            if !seen.insert(key, index, |i| keys[i] == *key) {
+                return Some(index);
+            }
+        }
+        None
+    }
+
+    #[test]
+    fn colliding_different_keys_are_not_repeats() {
+        let keys: [&[u8]; 4] = [b"a", b"b", b"ab", b""];
+        assert_eq!(
+            first_repeat(BuildHasherDefault::<Constant>::default(), &keys),
+            None
+        );
+    }
+
+    #[test]
+    fn a_repeat_is_found_among_colliding_keys() {
+        let keys: [&[u8]; 5] = [b"a", b"b", b"c", b"d", b"c"];
+        assert_eq!(
+            first_repeat(BuildHasherDefault::<Constant>::default(), &keys),
+            Some(4)
+        );
+        let keys: [&[u8]; 3] = [b"a", b"b", b"a"];
+        assert_eq!(
+            first_repeat(BuildHasherDefault::<Constant>::default(), &keys),
+            Some(2)
+        );
+        let keys: [&[u8]; 2] = [b"a", b"a"];
+        assert_eq!(
+            first_repeat(BuildHasherDefault::<Constant>::default(), &keys),
+            Some(1)
+        );
+    }
+
+    #[test]
+    fn the_default_hasher_agrees_with_the_constant_one() {
+        let keys: [&[u8]; 6] = [b"x", b"y", b"", b"xy", b"yx", b"y"];
+        let default = BuildHasherDefault::<DefaultHasher>::default();
+        assert_eq!(first_repeat(default, &keys), Some(5));
+        let constant = BuildHasherDefault::<Constant>::default();
+        assert_eq!(first_repeat(constant, &keys), Some(5));
+    }
+
+    #[test]
+    fn long_keys_sharing_a_prefix_are_different() {
+        let prefix = vec![b'p'; 4096];
+        let (a, b) = (
+            [prefix.clone(), vec![b'a']].concat(),
+            [prefix, vec![b'b']].concat(),
+        );
+        let keys: [&[u8]; 2] = [&a, &b];
+        assert_eq!(
+            first_repeat(BuildHasherDefault::<DefaultHasher>::default(), &keys),
+            None
+        );
+    }
 }

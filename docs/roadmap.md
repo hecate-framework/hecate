@@ -174,15 +174,16 @@ concurrency test suite passes; benchmark baseline recorded.
       server calls `Parser:close()` when a connection ends, and feeds the parser chunks no larger than its read buffer
       (`feed` returns every event of the chunk in one list).
 - [x] `router`: radix tree, URI template subset, 404/405, reverse routing. **Also:** percent-decode each path segment (so `%2F` is not a separator) and resolve dot segments: `request.path` of `http` is raw (OQ-75).
-- [ ] `schema`: refinement types, composition, coercion, validation with JSON Pointer
-      error paths, JSON Schema 2020-12 emission.
+- [x] `schema`: refinement types, composition, coercion, validation with JSON Pointer
+      error paths, JSON Schema 2020-12 emission. Decisions OQ-50 and OQ-85 to OQ-97 (OQ-98 lists the choices still to confirm); review and
+      fixes in [the review](reviews/schema-review-package.md).
 - [ ] `container`: IoC container, lifetimes, cycle detection at boot; write its specification section in `docs/architecture/` (OQ-62).
-- [ ] `config`: layered configuration validated by schemas; write its specification section in `docs/architecture/`, including the logging keys (OQ-62).
+- [ ] `config`: layered configuration validated by schemas; write its specification section in `docs/architecture/`, including the logging keys (OQ-62) and the `limits.max_depth` key that lowers the nesting depth of `json` and `schema` together (OQ-92).
 - [ ] `kernel`: application, modules, controllers, route modules, filters, problem
-      details, lifecycle, multi-process workers, graceful shutdown. **First step (from the `http` reviews):** split
+      details, lifecycle, multi-process workers, graceful shutdown. **Also (from the `schema` review, OQ-98 item 7):** settle how a route names the schema of its response (`docs/developer-experience.md` shows `Class.representation` and an implicit represent; `schema` offers `schema.of(Class):represent(instance)`). **First step (from the `http` reviews):** split
       `packages/http` `server.lua` (options, response writer, connection) and `client.lua` (pool, redirect) with no API
-      change; build the in-process dispatch seam (OQ-78, with OQ-76 a), the `on_response` hook (OQ-81) and decide OQ-79
-      (default logging of action errors) and OQ-80 (`http.json` and `http.text`); narrow the type of `Request.content`.
+      change; build the in-process dispatch seam (OQ-78, with OQ-76 a), the `on_response` hook (OQ-81) remove the JSON fallback of `Server` for a table (OQ-76 a: an error, a generic 500 and a log entry; OQ-80 decided: no `http.json` or `http.text`) and build the default
+      logger of OQ-79 (`log.default()`, console sink on the standard error stream, used by `http` when no `logger` is given, and by `schema` through `package.loaded` when `hecate.log` is already loaded, OQ-86); narrow the type of `Request.content`.
 - [ ] Example: `examples/hello` (JSON API with validation).
 - [ ] Benchmarks: plaintext and JSON scenarios. **Carries three performance findings deferred from the Phase 1
       gate review** ([review](reviews/phase-1-review-package.md), "Minor"): judge each with a measurement, then
@@ -195,6 +196,11 @@ concurrency test suite passes; benchmark baseline recorded.
       the 9-argument recursive `tree.walk`, `rest_of` rescanning segments, the `%%(.?.?)` decode pattern; judge each with
       `packages/router/benchmarks/match.lua` (add a wide fan-out under the matched prefix; static matching drops about
       30 % at 30 000 routes, probably cache effects) and the `plaintext` scenario.
+      **Also two `schema` findings** of the 2026-11-08 review ([review](reviews/schema-review-package.md), Performance,
+      deferred after fix pass D): (P5) a class-bound build costs about 75 % more than a plain object build (three tables
+      and one weak-table insertion; fill the instance directly); (P6) `format` validators cost 0.6 to 1.1 microseconds per
+      call. Judge each with `packages/schema/benchmarks/validate.lua` (`build class-bound`, `validate string-email`) and
+      the `validation` scenario, on a realistic mix, before touching them.
 
 Exit: `examples/hello` runs on three platforms with N workers; invalid input yields
 RFC 9457 problem details; graceful shutdown drains in-flight requests.
@@ -223,12 +229,12 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
 - [ ] `test`: test framework, runner, in-process client, fixtures, contract conformance,
       reporters (TAP, JUnit XML), coverage. **Also (T2, from the `http` test review):** a hand-built `Request` whose
       `content` is a table must be JSON-encoded or raise, not read as empty (`Request:read_content` today reads only a
-      string); the in-process client uses the dispatch seam of OQ-78.
+      string); the in-process client uses the dispatch seam of OQ-78. **Also (from the `schema` review, OQ-96):** property-based generators derived from `hecate.schema` types (`generate`, `generate_invalid`, shrinking), which `schema` does not implement.
 - [ ] `doc`: project documentation generator for user projects (OpenAPI reference,
       `hecate doc build`); the minimal generator and the code reference moved to Phase 1. **Carries deferrals
       from the Phase 1 gate review** (cross-platform review): refuse, with a `BuildError`, page ids that are not valid
       file names on Windows (`? : * " < > |`, trailing dots or spaces, reserved names such as `CON`) and normalise
-      NFC/NFD names before the collision check, because a site is built from a tree authored elsewhere.
+      NFC/NFD names before the collision check, because a site is built from a tree authored elsewhere. **Also (from the `schema` review, OQ-96):** the `---@meta` file generation for LuaLS from the schemas of a project (carried here or by `cli`, to settle when `cli` is specified), which `schema` does not implement.
 - [ ] `cli` v1: self-contained executable, `new`, `install`, `add`, `remove`, `update`,
       `serve [--watch]`, `test`, `doc`, `contract`, `toolchain`, `doctor`, `version`.
 - [ ] Docker images (runtime and build variants, amd64 + arm64).
@@ -273,7 +279,7 @@ in under five minutes; tutorial reproducible verbatim.
 - [ ] `mysql`: MySQL and MariaDB protocol, `caching_sha2_password`, TLS.
 - [ ] `redis`: RESP3, pipelining, publish/subscribe, transactions.
 - [ ] `migration`: versioned, reversible migrations, CLI integration.
-- [ ] `orm`: data mapper, unit of work, identity map, associations, repositories.
+- [ ] `orm`: data mapper, unit of work, identity map, associations, repositories. **Also (from the `schema` review, OQ-99):** lazy associations must work with `Schema:represent`, which reads the own fields of an instance only and would lose a lazy `__index` field.
 - [ ] Example: `examples/crud` (PostgreSQL), integration tests against every driver in CI
       (service containers).
 - [ ] Benchmarks: database scenarios (single query, multiple queries, updates), compared
@@ -290,10 +296,15 @@ Exit: `examples/crud` works unchanged on PostgreSQL, MySQL, MariaDB and SQLite.
 - [ ] `mongodb`: OP_MSG protocol, BSON, document mapper.
 - [ ] `sqlserver`: TDS protocol.
 - [ ] `template`: compiled templates with contextual auto-escaping.
-- [ ] `websocket` (RFC 6455). **Also:** the upgrade takeover with the parser leftover offset (OQ-76 c), together with the
-      reader restructuring of OQ-70 (a client that disconnects during an action).
+- [ ] `websocket` (RFC 6455). **Also:** the upgrade takeover with the parser leftover offset, as decided in OQ-76 c (including
+      `Connection: close` when an upgrade request is not upgraded, and a security review of that path); the reader
+      restructuring of OQ-70 (a client that disconnects during an action) is separate work, not needed by upgrades.
 - [ ] HTTP/2.
 - [ ] Further NoSQL drivers by demand (e.g. Cassandra/ScyllaDB CQL).
+
+- [ ] `schema`: a decimal type for exact decimal numbers such as money, with a limit on decimal places (OQ-87: `multiple_of` takes integer divisors only; until then integers in minor units, or a string with a pattern).
+
+- [ ] `schema`: a lazy form of `named` for a recursive schema without a class, only if someone needs it (OQ-89: `schema.of(Class)` already closes cycles).
 
 - [ ] **Phase 5 gate**: verification of the phase, as described in [Phase gates](#phase-gates). Open
       questions to put to the owner before Phase 6: OQ-7.
@@ -307,6 +318,7 @@ Exit: `examples/crud` works unchanged on PostgreSQL, MySQL, MariaDB and SQLite.
 
 ## Phase 7 — Code review and quality pass
 
+- [ ] Sweep the weak assertions of the older `schema` tests (several only assert that a call returned ok; the newer tests cover the same ground more strongly, OQ-99).
 - [ ] Review all code, including `tools/`, for readability and quality: naming, function and
       module size, duplication, dead code, comment accuracy, consistency with
       [coding-standards.md](architecture/coding-standards.md) and the glossary.

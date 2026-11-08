@@ -118,6 +118,17 @@ This table appears at the top of the `query` and `orm` reference pages.
 | product type | Record of named components | — | — |
 | coercion | Conversion of a textual input to a typed value | — | casting, parsing (when coercion is meant) |
 | schema | Declaration of a type usable for validation, coercion and contract emission | JSON Schema 2020-12 | model, DTO |
+| violation | One reason a value does not conform to a schema, with its JSON Pointer path, a code and a message; `validate` collects them all | RFC 6901 | error (for one reason), failure |
+| class-bound schema | The schema of a class, returned by its class-level `schema()` and named by `schema.of(Class)`; the class owns the schema name, and `build` makes an instance of it | [ADR 0006](adr/0006-declarative-routes-as-runtime-data.md); OQ-50 | model, DTO |
+| presence set | The names of the attributes that were present in the content from which an instance was built, explicit `null` included (`schema.sent`); it tells unchanged from cleared in a PATCH | OQ-50, OQ-90 | dirty flags, `json.null` as an attribute value |
+| work budget | The fixed number of steps one `validate`, `coerce` or `build` call may spend before it ends with a `complexity_limit` violation | OQ-91 | timeout, for a count of steps |
+| validator | The compiled check of a schema, a closure made at declaration that appends violations; internal, never the name of a type or of a public object | package invariant of `schema` | a synonym of refinement type or schema |
+| build | `Schema:build`: validate decoded content, then make the instance of each class-bound part (without calling `init`) | OQ-50, OQ-90 | construct, hydrate, deserialise |
+| Representable | Interface of a class whose instances have a representation, declared once by the class-level `schema()` that the interface requires (`schema.Representable`); `schema.of` refuses a class that does not declare it | Fielding (2000); RFC 9110 | DTO, view model |
+| represent | `Schema:represent`: convert an instance to the plain values of its representation, to be encoded as JSON | OQ-95; RFC 9110 | serialise |
+| fail-fast mode | The mode in which a validator stops at its first violation and builds no detail; a `union` uses it to decide its alternatives | OQ-91 | short-circuit mode |
+| minor units | The smallest unit of a currency (cents), held in an integer instead of a decimal fraction | ISO 4217 | decimals, for money |
+| union (sum type) | The `union` constructor of `schema` is a sum type (`anyOf`); it is not the relational `UNION` of the query builder (see the SQL table above), and the context says which is meant | JSON Schema 2020-12 section 10.2.1.2 | — |
 
 Schema keywords follow JSON Schema 2020-12 vocabulary in `snake_case`: `minimum`,
 `maximum`, `exclusive_minimum`, `multiple_of`, `min_length`, `max_length`, `pattern`,

@@ -67,3 +67,16 @@ page (avec un lien vers le glossaire), puis le terme français seul.
 | route table | table de routes | liste des déclarations compilée au démarrage |
 | dot segment | segment point | `.` ou `..` ; RFC 3986 section 3.3 |
 | trailing slash | barre oblique finale | politique `trailing_slash` du routeur |
+| violation | violation (féminin) | un motif de non-conformité avec chemin JSON Pointer, code et message ; `context.violations` en code |
+| class-bound schema | schéma lié à une classe | `schema.of(Class)` en code |
+| presence set | ensemble de présence | `schema.sent` en code |
+| work budget | budget de travail | nombre d’étapes d’un appel ; violation `complexity_limit` ; jamais « délai » |
+| sum type, product type | type somme, type produit | `union` et `tagged_union` ; `object` |
+| representation (of an instance) | représentation | `Schema:represent` en code ; RFC 9110 |
+| minor units | unités mineures | centimes pour l’argent |
+| fail-fast | à échec rapide | unions qui s’arrêtent à la première violation |
+| validator (internal) | validateur (fonction de validation compilée) | interne à `hecate.schema`, jamais le nom d’un type |
+| build (of an instance) | construire (une instance) | `Schema:build` en code ; jamais « hydrater » |
+| Representable | Représentable | interface `schema.Representable` en code ; classe dont les instances ont une représentation ; jamais « contrat » |
+| represent | représenter | `Schema:represent` en code |
+| union (sum type) | union (type somme) | `schema.union` ; à distinguer de l’union relationnelle (`UNION` SQL) |

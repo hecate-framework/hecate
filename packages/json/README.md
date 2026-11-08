@@ -44,6 +44,7 @@ local json = require("hecate.json")
 | Name | Description |
 |---|---|
 | `json.encode(value, options?)` | Encodes a Lua value as JSON text that is always valid UTF-8. Options: `pretty`, `indent` (0 to 16 spaces, or a string of at most 16 spaces and tabs; not with `pretty = false`, not with `rfc8785`), `canonical` (`true`: members in RFC 8785 order, UTF-16 code units; `"rfc8785"`: the full JSON Canonicalization Scheme), `max_depth` (default 1000, at most 1000, the same as `decode`), `max_size` (default 16 MiB). |
+| `json.DEFAULT_MAX_DEPTH`, `json.MAX_DEPTH_CEILING` | The default (1000) and the highest (1000) `max_depth` of `decode` and `encode`, read by `hecate.schema` for its nesting guard. |
 | `json.decode(text, options?)` | Decodes JSON text (RFC 8259). Options: `max_depth` (default 1000, at most 1000), `max_size` (default 16 MiB): the same two limits, with the same defaults and bounds, as `encode`; a text nested deeper is a `depth_limit` error. |
 | `json.null` | The value of JSON `null` (unique, immutable, never `nil`). |
 | `json.array(t?)`, `json.object(t?)` | Mark a table as a JSON array or object (a new empty table without argument); return the table. |
@@ -108,6 +109,7 @@ Pointer, RFC 6901).
 | `sparse_array` | a marked array with a key that is not a positive integer, or with too many holes (highest index above twice the entries plus 16) | Keep the array dense; write `json.null` for a missing item. |
 | `integer_out_of_range` | an integer beyond +-2^53 with `canonical = "rfc8785"` | Send it as a string. |
 | `invalid_utf8` | a string or key that is not UTF-8 | Re-encode it as UTF-8. |
+| `duplicate_key` | an iterator returned by `__pairs` that yields the same string key or the same integer key twice | Make the keys of the iteration unique. The `path` is that of the object or array, and the key is not echoed. |
 | `depth_limit`, `size_limit` | nesting (or a cycle) beyond `max_depth`, output beyond `max_size` | Raise the option if the input is trusted; break the cycle. |
 
 ## Native modules
@@ -150,7 +152,27 @@ encoding contract: markers, the rules for arrays, objects and holes, `canonical`
 format (the fewest of 15 to 17 digits, or the ECMAScript format of RFC 8785 for `canonical = "rfc8785"`, integers
 beyond +-2^53 refused) and the **failures**: it returns `nil` and a table `{ reason, message, path }` (the reason
 and message of `EncodeFailureReason`, the JSON Pointer of the offending value), found where the walk meets the
-problem, with the path built on the way out so that a successful encoding records nothing. The message of NaN says
+problem, with the path built on the way out so that a successful encoding records nothing. A table whose metatable has a **function** `__pairs` (a frozen `value_class` instance, any proxy you build) is read through it by
+the standard iteration protocol (OQ-94): `__pairs(t)` returns the iterator, its state and its first control value (a
+fourth, closing value is ignored: a to-be-closed object is never closed, unlike with `pairs`), and the iterator is called until it returns `nil`; the entries are then
+encoded by the same rules as the entries of a raw table (an array when every key is a positive index, with the same hole
+rule; an object when every key is a string; `ambiguous_table` otherwise; `canonical` and `pretty` apply). An iterator
+that yields the same string key twice would write a duplicate member name (RFC 8259 section 4, RFC 7493 section 2.3),
+and one that yields the same integer key twice would silently lose a value of the array: the encoder refuses both with
+`duplicate_key`, at the path of the object or array and without echoing the key (a raw table cannot repeat a key, so only
+this path checks; string keys are compared by a hash per entry, verified on a match, so a key is never copied). A float
+key is never an index: it makes the table `ambiguous_table`. A table with no metatable,
+with a marker, or with a metatable without a function `__pairs` is read raw (`__index` and `__len` are never consulted),
+and a table with no metatable pays no extra cost. `core.Enumeration` also defines `__pairs`, so encoding one follows that
+function. Bounds: the entries collected by all the iterations of one `json.encode` share a budget of about `max_size / 2`
+(an entry takes at least two bytes), so nested or self-referencing proxies hold no more than that at once; going over it
+stops with a `size_limit` failure, a cycle through a proxy ends with `depth_limit`; an
+iterator that never returns and never yields cannot be interrupted. A value raised by `__pairs` or by its iterator (`error(value)`: a table, a
+`hecate.core` error instance, a string, a number) is not converted to an `EncodeError`: `json.encode` raises that same
+value again (the identical table or instance, a string without position or traceback). Lua 5.5 itself turns `error(nil)`
+into a message, and that message is what arrives. A `__pairs` that returns no iterator function is a Lua error raised with
+a message.
+The message of NaN says
 `nan` whatever its sign (the sign of `0/0` differs between processors). The work of the encoder is bounded by the
 size of the output (`max_size`), not by the size of the value: a value that shares substructure is written in full
 (OQ-54). It recurses on the native stack, about 450 to 700 bytes a level, so the ceiling of 1000 levels takes at most
