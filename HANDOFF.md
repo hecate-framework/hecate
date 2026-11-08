@@ -72,6 +72,8 @@
 
 - Fix pass B of the review (API, documentation, terminology; owner-driven session): commits 3130f07 (code, tests `review_b_test.lua`), 116ae90 (specification, README, how-to, explanation, glossary) and fdae972 (French pages, CHANGELOG). Violation code `additional_property` is now `additional_properties`, with the "Violation codes" table and `hecate.schema.ViolationCode`; `schema.HasSchema`; `Schema:members()` method; option classes; internals `---@field package`; return overloads; messages (accepted options and formats, received type, pattern refusal, logger text, `default`); how-to reordered with the tested `Schema.check` example; keyword limits and "planned, not implemented" notes; glossary rows; `Record` renamed `Options`; the two French pages refreshed (`source_revision` 116ae90).
 
+- Fix pass C of the review (tests; owner-driven session): commits d460c46, 5e3e8f2, 9801f4d, 89b076e, 386e5d3, ec05efc. Seeded differential of `validate` against the emitted schema (`differential_test.lua`, 3200 pairs, `tests/support/prng.lua`, `HECATE_TEST_SEED`), the pin that `format` is only an annotation when emitted, the round trip `roundtrip_test.lua` (POST and PATCH), the suite runner with position-aware gaps and pinned counts (`HECATE_TEST_VERBOSE` prints them), step counts in place of every `os.clock` bound (private `schema._steps()`), hostile chains of 20000 nodes, `options_test.lua`, `violation_codes_test.lua` (parses the specification table), `robustness_test.lua`, and limits restored through `tests/support/protected.lua`. Details and the findings of the new tests are in the review, "Fix pass C".
+
 ## Doubts (OQ-95, conservative choices taken)
 
 - The name `represent` is kept: the glossary defines the term representation (Fielding, RFC 9110), and the specification speaks of representations.
@@ -97,9 +99,8 @@ The owner asked on 2026-11-08 to finish this pull request the same day; an inter
 
 Only open work is listed here; finished steps move to Done (never keep a DONE line in this list). Findings, ids and statuses are in `docs/reviews/schema-review-package.md`; fix test first and record the commit of each fix there.
 
-1. Fix pass C (tests): S14, S15, S16, q1 (seeded property-based differential, step-count growth tests in place of clock bounds, tighter gap logic and guards in the suite runner, table-driven bad options, seeded tests of the pattern translator and the format validators).
-2. Fix pass D (performance): P1, P2, P3 and the benchmark scenarios of P4, judged by `bench schema/validate` before and after; keep the guards of OQ-50 and OQ-91.
-3. Finish: delete `HANDOFF.md`, tick the roadmap item, CI green on the three platforms, mark the pull request ready and ask for the owner's review.
+1. Fix pass D (performance): P1, P2, P3 and the benchmark scenarios of P4, judged by `bench schema/validate` before and after; keep the guards of OQ-50 and OQ-91.
+2. Finish: delete `HANDOFF.md`, tick the roadmap item, CI green on the three platforms, mark the pull request ready and ask for the owner's review.
 
 ## Open question issues
 

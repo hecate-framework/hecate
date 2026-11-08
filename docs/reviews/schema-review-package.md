@@ -24,9 +24,9 @@ reproduces the failure first.
 | S11 | DX | A doc comment says undeclared properties are allowed by default for request content, while the code and how-to say they are rejected | Fix the comment (it feeds the generated reference) | fixed (3130f07, 116ae90) |
 | S12 | DX | Pattern refusal and warning say what is wrong but not that Lua validation still works nor how to rewrite; the logger warning carries pattern and reason only in fields | One actionable clause in the message; pattern and reason in the warning text | fixed (3130f07, 116ae90) |
 | S13 | DX | The how-to starts with edge cases and never shows turning `check` violations into a client-readable error | Reorder (declare, validate, class, build, PATCH, represent, then edge cases) and add a violations-to-client example | fixed (116ae90, fdae972) |
-| S14 | tests | The invariant emitted schema equals Lua validation is checked on 48 fixed values and 30 hand-picked schemas; `format` and `pattern` are not in the differential; no test pins that `format` is only an annotation when emitted | Seeded property-based differential (print the seed), a pinning test for `format` | open |
-| S15 | tests | The suite runner excuses any disagreement once a whole float appears anywhere, and a fractional `multipleOf` excuses the group; no minimum on emission agreement, no cap on gaps | Allow the gap only where Lua says invalid and the official says valid at an integer position; add guards and pinned skip counts | open |
-| S16 | tests | Timing assertions (0.5 s to 2 s on `os.clock`, wall time on Windows) are fragile on slow runners; two 200000-node hostile chains are heavy | Assert step counts growth, widen or drop clock bounds, reduce chains to about 20000 | open |
+| S14 | tests | The invariant emitted schema equals Lua validation is checked on 48 fixed values and 30 hand-picked schemas; `format` and `pattern` are not in the differential; no test pins that `format` is only an annotation when emitted | Seeded property-based differential (print the seed), a pinning test for `format` | fixed (d460c46, ec05efc) |
+| S15 | tests | The suite runner excuses any disagreement once a whole float appears anywhere, and a fractional `multipleOf` excuses the group; no minimum on emission agreement, no cap on gaps | Allow the gap only where Lua says invalid and the official says valid at an integer position; add guards and pinned skip counts | fixed (5e3e8f2) |
+| S16 | tests | Timing assertions (0.5 s to 2 s on `os.clock`, wall time on Windows) are fragile on slow runners; two 200000-node hostile chains are heavy | Assert step counts growth, widen or drop clock bounds, reduce chains to about 20000 | fixed (9801f4d) |
 
 ## Minor
 
@@ -49,7 +49,7 @@ reproduces the failure first.
 | x1 | DX | Declaration messages do not list valid choices (`unknown format`, `unknown option`), the pattern check message is circular, type messages do not name the received type | List choices, show the underlying error, name the received Lua type | fixed (3130f07, 116ae90) |
 | x2 | DX | Snippet style differs (call with parentheses versus braces only); `docs/developer-experience.md` shows `Class.representation` and implicit represent, which the package does not have | Pick one style; routes item settles the response mapping | snippet style fixed (116ae90); the `Class.representation` text of `docs/developer-experience.md` stays open (routes item) |
 | x3 | DX | No shipped interface for a class that has a schema: each user declares their own | Ship one in `hecate.schema` | fixed (3130f07, 116ae90) (`schema.HasSchema`) |
-| q1 | tests | Several weak assertions (only ok), a manually restored limit without protection, missing coverage of every bad option, no round trip decode build represent encode, no seeded test of the pattern translator and format validators | Write the seven tests listed by the reviewer | open |
+| q1 | tests | Several weak assertions (only ok), a manually restored limit without protection, missing coverage of every bad option, no round trip decode build represent encode, no seeded test of the pattern translator and format validators | Write the seven tests listed by the reviewer | fixed (d460c46, 9801f4d, 89b076e, 386e5d3) except the weak assertions of older tests (see Fix pass C) |
 
 ## Performance
 
@@ -87,6 +87,29 @@ fdae972 (French pages, changelog): S5 to S13, a1, a2, t1 to t5, x1, x3 and the s
 alias `hecate.schema.ViolationCode`, the option classes `StringOptions`, `IntegerOptions`, `NumberOptions`, `ArrayOptions`, `MapOptions`,
 `ObjectOptions` and `BuildOptions`, the internal `hecate.schema.Options` (was `Record`), `hecate.core.WeakMode`. Parameter convention:
 `item` (array), `value` (map), `inner` (wrappers), `alternatives` (union).
+
+## Fix pass C (2026-11-08)
+
+Tests only, plus one private accessor, `schema._steps()` (the steps of the last call, next to `schema._limits`). Commits d460c46
+(seeded differential, round trip, `tests/support/prng.lua` and `protected.lua`), 5e3e8f2 (suite runner), 9801f4d (step counts in
+place of clocks), 89b076e (bad options, violation codes), 386e5d3 (robustness of the translator and the formats), ec05efc
+(typecheck, changelog). No production bug was found by the new tests. Findings of the new tests that stay as they are:
+
+- The order of the `additional_properties` violations for undeclared properties follows `next`, so it changes from run to run
+  (the declared properties are in name order). It is documented nowhere as stable; the tests do not depend on it.
+- The refusal of `NaN` or an infinite number for an option says "must be a number, got number" (the received type is not
+  informative there). Cosmetic.
+- `schema.of` with a module name or a table that does not resolve is accepted at declaration and refused when the schema is
+  used (it is lazy for cycles); the test pins that behaviour.
+- The official suite runner depended on `pairs` order for the reason a group is skipped (a different bucket from run to run);
+  the keys are now visited in sorted order, and the 42 skip reasons are pinned with their counts.
+- The test matcher of ECMA expressions read `[\s\S]` (the translation of `.`) as the two letters `s` and `S`; it now handles the
+  two classes inside a set. The earlier differential passed only by coincidence for `.-z`.
+
+Not done, with the reason: the weak assertions of older tests (several tests only assert that `ok` is true) were not rewritten
+one by one; the new tests cover the same ground more strongly (round trip, differential, codes) and a sweep would touch most
+files for little gain. The generator of the differential never produces `pattern`, `format`, a whole float where an integer is
+expected, a fractional `multiple_of` or invalid UTF-8 (each documented in `differential_test.lua`).
 
 ## Owner decisions raised by the review
 
