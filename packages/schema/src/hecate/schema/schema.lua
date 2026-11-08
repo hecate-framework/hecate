@@ -661,7 +661,7 @@ function M.array(item, options)
     return result
   end, true)
   return Schema("array", { options = o, item = item, coercer = coercer, builder = builder, validator = guarded(function(value, path, out)
-    if type(value) ~= "table" or value == null then return type_violation(path, "array", out) end
+    if type(value) ~= "table" or value == null or json.is_object(value) then return type_violation(path, "array", out) end
     local length = #value
     local count = 0
     for _ in next, value do count = count + 1 end
@@ -780,7 +780,7 @@ function M.object(properties, options)
   end, true)
   --- `relax`: the PATCH variant, where an absent property means unchanged (OQ-90).
   local function make_validator(relax) return guarded(function(value, path, out)
-    if type(value) ~= "table" or value == null then return type_violation(path, "object", out) end
+    if type(value) ~= "table" or value == null or json.is_array(value) then return type_violation(path, "object", out) end
     if fast then
       for k = 1, count do
         local i = fast_order[k]
@@ -863,7 +863,7 @@ function M.map(value_schema, options)
     return result
   end, true)
   return Schema("map", { options = o, item = value_schema, coercer = coercer, builder = builder, validator = guarded(function(value, path, out)
-    if type(value) ~= "table" or value == null then return type_violation(path, "object", out) end
+    if type(value) ~= "table" or value == null or json.is_array(value) then return type_violation(path, "object", out) end
     local keys = {}
     for key in next, value do
       if type(key) ~= "string" then return type_violation(path, "object", out) end

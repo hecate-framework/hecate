@@ -76,6 +76,7 @@ jobs:
       - name: Download the test data
         run: |
           lua tools/run.lua fetch-fixtures json
+          lua tools/run.lua fetch-fixtures schema
           lua tools/run.lua fetch-fixtures doc
 
       - name: Leak detection
@@ -141,6 +142,7 @@ jobs:
       - name: Download the test data
         run: |
           lua tools/run.lua fetch-fixtures json
+          lua tools/run.lua fetch-fixtures schema
           lua tools/run.lua fetch-fixtures doc
 
       - name: Coverage and thresholds

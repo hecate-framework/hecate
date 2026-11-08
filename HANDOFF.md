@@ -60,6 +60,8 @@
 
 - Steps 1 and 2 of OQ-93 (owner-driven session): `core.instantiate_value(class, fields)` (frozen instance of a value class from a table of attributes, no `init`; `ArgumentError` for a non-value-class or non-table, `ConformanceError` if not finalised, table copied) and `core.is_value_class(class)`, tests in `allocate_test.lua`; `Schema:build` uses it for class-bound parts whose class is a value class (`value_build_test.lua`); `Schema:build(content, { method, coerce = true })` converts texts then builds, defaults once, `sent` only for provided attributes, PATCH without defaults (`coerce_build_test.lua`); READMEs, object-model, schemas-and-contracts, how-to, CHANGELOG updated.
 
+- Next step 3 (official JSON Schema test suite): `tests/external.lua` pins JSON-Schema-Test-Suite at 245a45a (2026-11-08, MIT), `json_schema_suite_test.lua` with an explicit skip table, shared checker moved to `tests/support/conforms.lua` (deep equality, `$ref`, `type` arrays), CI and nightly download it. Real bug found and fixed: `object` and `map` accepted a decoded array, `array` accepted a decoded object (`validate_test.lua`). Doubt: the `1.0` and fractional `multipleOf` cases are counted as documented gaps only when Lua disagrees and the data or schema holds the trigger.
+
 ## Owner-driven session
 
 The owner asked on 2026-11-08 to finish this pull request the same day; an interactive session holds the lock until `lock_until` and drives the remaining steps, then releases it. A relay run must skip this pull request while the lock is in the future.
@@ -68,7 +70,7 @@ The owner asked on 2026-11-08 to finish this pull request the same day; an inter
 
 1. DONE OQ-93 (1), decided by the owner: a `core` primitive that builds a frozen instance of a `value_class` from a table of attributes without calling `init`, next to `core.allocate`; `schema` uses it for class-bound parts whose class is a `value_class`. Tests first in `packages/core` and `packages/schema`.
 2. DONE OQ-93 (2), decided by the owner: `Schema:build(content, { method, coerce = true })` converts texts with the rules of `coerce`, then builds; defaults apply once, `schema.sent` records only what was provided.
-3. The official JSON Schema test suite (supported subset): a pinned entry in `packages/schema/tests/external.lua` fetched by `fetch-fixtures` like the data of `json` (skipped locally without network, enforced in CI), a runner with an explicit list of the unsupported cases and the reason of each.
+3. DONE The official JSON Schema test suite (supported subset): a pinned entry in `packages/schema/tests/external.lua` fetched by `fetch-fixtures` like the data of `json` (skipped locally without network, enforced in CI), a runner with an explicit list of the unsupported cases and the reason of each.
 4. Schemas from `core` enumerations (a `schema.enumeration` taking a `core.enumeration`).
 5. Docs: tested examples, an explanation page, the glossary check, the generated reference, the French pages.
 6. Definition-of-done check and `/review-package` with the reviewer agents, then fix the findings.

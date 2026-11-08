@@ -220,6 +220,11 @@ jobs:
         shell: bash
         run: lua tools/run.lua fetch-fixtures json
 
+      - name: Download the JSON Schema test suite
+        if: contains(format(' {0} ', needs.plan.outputs.packages), ' schema ')
+        shell: bash
+        run: lua tools/run.lua fetch-fixtures schema
+
       - name: Lint the JSON encoder (Linux)
         if: runner.os == 'Linux' && contains(format(' {0} ', needs.plan.outputs.packages), ' json ')
         working-directory: packages/json/native

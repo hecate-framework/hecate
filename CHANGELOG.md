@@ -11,6 +11,8 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- `hecate.schema`: the official JSON Schema test suite (2020-12, pinned in `packages/schema/tests/external.lua`, `lua tools/run.lua fetch-fixtures schema`) runs over the supported subset against the independent checker of the emission, `Schema:validate` and the emitted schema; fix found by it: an `object` or `map` no longer accepts a decoded array and an `array` no longer accepts a decoded object.
+
 - `hecate.core`: `core.instantiate_value(class, fields)` builds a frozen instance of a `value_class` from a table of attributes without calling `init`, with the same freezing as construction (OQ-93); `core.is_value_class(class)` tells whether a class is one.
 
 - `hecate.schema`: `Schema:build` builds the instances of class-bound parts whose class is a `value_class` with `core.instantiate_value` (children before parents), and `Schema:build(content, { method, coerce = true })` converts path, query and header texts with the rules of `coerce` and then builds, applying defaults once and recording in `schema.sent` only the attributes provided (OQ-93).

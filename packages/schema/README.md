@@ -74,6 +74,12 @@ Choices taken conservatively (Lua pattern for `pattern`, `integer` refuses `1.0`
 src/hecate/schema/init.lua   public entry point
 src/hecate/schema/schema.lua  Schema class and constructors, compiled validators
 src/hecate/schema/violation.lua  Violation, JSON Pointer escaping
-tests/unit/  tests/integration/  tests/fixtures/
+tests/unit/  tests/support/  tests/external.lua
 examples/    benchmarks/
 ```
+
+## Tests
+
+- `tests/unit/` holds the unit tests and the differential tests (Lua validation against the emitted JSON Schema, read by the independent checker in `tests/support/conforms.lua`).
+- `tests/unit/json_schema_suite_test.lua` runs the official JSON Schema test suite (dialect 2020-12, pinned in `tests/external.lua`, downloaded with `lua tools/run.lua fetch-fixtures schema`) over the supported subset, in three checks: the checker against the official `valid`, `Schema:validate` against it for the schemas that translate mechanically into a Hecate schema, and the emitted schema against `Schema:validate` on the official data. Groups outside the subset are skipped for an explicit reason listed in the file header, and the counts are printed on failure. The documented gaps are the `1.0` versus `integer` gap (OQ-85 point 11) and binary-float `multipleOf` with a fractional divisor; `pattern` and `format` groups are not run.
+- Without the download the suite skips with a message on a developer machine and fails when the `CI` variable is set.

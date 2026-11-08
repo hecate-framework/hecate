@@ -278,4 +278,24 @@ function T:test_format_unknown_is_refused()
   self:assert_true(core.is_instance_of(err, core.ArgumentError))
 end
 
+-- JSON Schema `type: object` and `type: array` exclude each other (official suite, `type.json`): a decoded array is
+-- not an object and a decoded object is not an array, even when empty or when additional properties are allowed.
+function T:test_marked_arrays_and_objects_are_not_confused()
+  local open_object = schema.object({}, { additional_properties = true })
+  local list = schema.array(schema.any())
+  local map = schema.map(schema.any())
+  for _, array in ipairs({ json.decode("[]"), json.decode("[1,2]") }) do
+    self:assert_false((open_object:validate(array)))
+    self:assert_false((map:validate(array)))
+    self:assert_true((list:validate(array)))
+  end
+  for _, object in ipairs({ json.decode("{}"), json.decode('{"a":1}') }) do
+    self:assert_true((open_object:validate(object)))
+    self:assert_true((map:validate(object)))
+    self:assert_false((list:validate(object)))
+  end
+  self:assert_true((open_object:validate({})))
+  self:assert_true((list:validate({})))
+end
+
 return T

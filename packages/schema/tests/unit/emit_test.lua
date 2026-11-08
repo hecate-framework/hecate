@@ -8,102 +8,10 @@ local T = test.Case("SchemaEmitTest")
 local null = json.null
 local math_type = math.type
 
--- An independent, structural checker of the JSON Schema 2020-12 subset the emission produces: it reads only the
--- emitted keywords (sections 6.1 to 6.5 of the validation vocabulary, 10.2.1.2 `anyOf`), never a Lua schema.
-local function json_type_is(value, name)
-  if name == "null" then return value == null end
-  if name == "boolean" then return type(value) == "boolean" end
-  if name == "string" then return type(value) == "string" end
-  if name == "number" then return type(value) == "number" and value == value and math.abs(value) ~= math.huge end
-  if name == "integer" then -- section 6.1.1: any number with a zero fractional part
-    return type(value) == "number" and value == value and math.abs(value) ~= math.huge and value == math.floor(value)
-  end
-  if name == "array" or name == "object" then
-    if type(value) ~= "table" or value == null then return false end
-    local length, count = #value, 0
-    for key in next, value do
-      count = count + 1
-      if name == "object" and type(key) ~= "string" then return false end
-    end
-    if name == "array" then return count == length end
-    return true
-  end
-  return false
-end
-
-local function same_json(a, b) return a == b end
-
-local function conforms(emitted, value)
-  if emitted.oneOf then -- section 10.2.1.3: exactly one subschema
-    local matches = 0
-    for _, alternative in ipairs(emitted.oneOf) do
-      if conforms(alternative, value) then matches = matches + 1 end
-    end
-    return matches == 1
-  end
-  if emitted.anyOf then
-    for _, alternative in ipairs(emitted.anyOf) do
-      if conforms(alternative, value) then return true end
-    end
-    return false
-  end
-  if emitted.const ~= nil and not same_json(emitted.const, value) then return false end
-  if emitted.enum then
-    local found = false
-    for _, c in ipairs(emitted.enum) do found = found or same_json(c, value) end
-    if not found then return false end
-  end
-  if emitted.type and not json_type_is(value, emitted.type) then return false end
-  if type(value) == "string" and emitted.type == "string" then
-    local length = utf8.len(value)
-    if length == nil then return false end
-    if emitted.minLength and length < emitted.minLength then return false end
-    if emitted.maxLength and length > emitted.maxLength then return false end
-  end
-  if type(value) == "number" then
-    if emitted.minimum and value < emitted.minimum then return false end
-    if emitted.maximum and value > emitted.maximum then return false end
-    if emitted.exclusiveMinimum and value <= emitted.exclusiveMinimum then return false end
-    if emitted.exclusiveMaximum and value >= emitted.exclusiveMaximum then return false end
-    if emitted.multipleOf and math.fmod(value, emitted.multipleOf) ~= 0 then return false end
-  end
-  if emitted.type == "array" then
-    if emitted.minItems and #value < emitted.minItems then return false end
-    if emitted.maxItems and #value > emitted.maxItems then return false end
-    if emitted.uniqueItems then
-      for i = 2, #value do
-        for j = 1, i - 1 do
-          if same_json(value[i], value[j]) then return false end
-        end
-      end
-    end
-    if emitted.items then
-      for i = 1, #value do
-        if not conforms(emitted.items, value[i]) then return false end
-      end
-    end
-  end
-  if emitted.type == "object" then
-    for _, name in ipairs(emitted.required or {}) do
-      if value[name] == nil then return false end
-    end
-    local count = 0
-    for key, member in pairs(value) do
-      count = count + 1
-      local property = emitted.properties and emitted.properties[key]
-      if property then
-        if not conforms(property, member) then return false end
-      elseif emitted.additionalProperties == false then
-        return false
-      elseif type(emitted.additionalProperties) == "table" and not conforms(emitted.additionalProperties, member) then
-        return false
-      end
-    end
-    if emitted.minProperties and count < emitted.minProperties then return false end
-    if emitted.maxProperties and count > emitted.maxProperties then return false end
-  end
-  return true
-end
+-- The independent checker of the emitted keywords (tests/support/conforms.lua), itself validated against the official
+-- JSON Schema test suite in `json_schema_suite_test.lua`.
+local here = debug.getinfo(1, "S").source:match("^@(.*)[/\\][^/\\]*$") or "."
+local conforms = dofile(here .. "/../support/conforms.lua").conforms
 
 local VALUES = {
   "", "a", "abc", "abcd", "\u{e9}\u{e9}", "\u{1F600}", 0, 1, 2, 3, 4, -1, 1.5, 2.5, true, false, null,
