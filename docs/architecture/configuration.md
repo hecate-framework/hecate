@@ -100,7 +100,7 @@ Some keys hold values that must never reach a log: passwords, signing keys, toke
   return a **secret object** with the semantics of `hecate.log.Secret` (`tostring` returns `[redacted]`, `reveal()` returns the
   value, and the logging sinks render it as `[redacted]`). The raw value is reachable only through `reveal()`. This is the
   invariant "secrets are never logged": `describe()`, the diagnostics and every error message print `[redacted]` in place of the
-  value (a violation of a secret key says what is wrong, never the value).
+  value (a violation says what is wrong, never the value: the messages of `hecate.schema` do not contain it).
 - `hecate.config` cannot depend on `hecate.log` (layering). The wrapper is the `secret` option, a function that takes a value and
   returns the secret object; the kernel passes `hecate.log.Secret`, which the sinks recognise. Without the option, `config` uses
   `package.loaded["hecate.log"].Secret` when that module is already loaded (the same look-up, with no dependency, as OQ-86 for the
@@ -155,8 +155,8 @@ local port = configuration:get("database.port")
 
   ```text
   config.load: invalid configuration (2 problems, environment production)
-    /database/port: expected an integer, got "abc" [coercion] (environment variable HECATE_DATABASE__PORT)
-    /databse: additional property is not allowed [additional_properties] (config/production.lua)
+    /database/port: the text is not an integer [coercion] (environment variable HECATE_DATABASE__PORT)
+    /databse: the property is not declared [additional_properties] (config/production.lua)
   ```
 
   Each line is the JSON Pointer of the key (RFC 6901), the message of the violation, its stable code in brackets and the layer
