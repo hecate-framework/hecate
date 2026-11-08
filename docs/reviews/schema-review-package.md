@@ -53,7 +53,23 @@ reproduces the failure first.
 
 ## Performance
 
-Pending (the performance reviewer had not reported when this file was written).
+Measured on a Linux VM (4 cores, `bench schema/validate`, 5 runs, noise 4 to 20 percent): validate record 331k per
+second, array of 100 items 3.1k, union 413k; coerce about half of validate because it copies every object then
+validates; build record 190k. Each experiment below was run on a patched copy, 10 percent or more counts, 5 percent or
+less is noise. Absolute figures must come from the owner hardware (`benchmarks/README.md`).
+
+| Id | Finding | Fix | Status |
+|---|---|---|---|
+| P1 | Path strings are built on every successful visit (object, array, map validators, coercers, representers); removing the concatenations gave record +25 to 30 percent and array of 100 +30 percent (upper bound) | Pass the parent path, a token and a parent link, and join the path only where a violation is appended; or keep one reusable segment stack | open |
+| P2 | The memoisation store (3 tables plus one per union) is allocated even when no union is nested; disabling it for the benchmark union gave validate +35 to 45 percent and coerce +35 percent | Use the memo only where a node can be revisited (inside an alternative attempt), create the answers table lazily; keep the OQ-91 bound (test the exponential case before and after) | open |
+| P3 | The `guarded` wrapper costs an extra closure call, the budget call, a table read and two global writes per container; replacing it by the inner function gave record +13 to 26 percent | Keep it (it enforces OQ-50 and OQ-91) but make it cheaper: cache the limits in upvalues, inline the step test, fold it into the object and array closures | open |
+| P4 | The benchmark has no represent, class build, tagged union, recursive union, failing input, string with `min_length` or `format`, or `build` with `coerce` | Add these scenarios before optimising P2 and P3 | open |
+| P5 | Class build costs about 75 percent more than a plain object build (3 tables plus one weak-table insertion) | Fill the instance directly; only if `plaintext` or `json` show it | deferred (Benchmarks item) |
+| P6 | `format` validators cost 0.6 to 1.1 microseconds per call; `utf8.len` about 85 nanoseconds per string | Measure with a realistic mix before touching | deferred (Benchmarks item) |
+
+The encoder `__pairs` check costs about 6 percent on a document made only of marked containers (the output of
+`represent`) and nothing for a plain table: not a finding. The roadmap Benchmarks item carries no schema finding; add
+P1 to P3 as a schema entry of that item, to be judged with the `plaintext` and `validation` scenarios.
 
 ## Owner decisions raised by the review
 
