@@ -20,8 +20,13 @@ generation.
 | Literal | `literal "ok"` |
 | Class-bound | `of(Class)` — the primary way to name and reuse a schema; becomes an OpenAPI component named after the class |
 | Named | `named("User", schema)` — opt-in for an inline DTO without a class; becomes an OpenAPI component |
-| Enumeration | `enumeration(core_enumeration)` |
+| Enumeration | `enumeration(core_enumeration)`, `enumeration({ "a", "b" })` |
 | Custom | `refine(base, predicate, description)` — predicate must also be describable for docs |
+
+`enumeration(core_enumeration)` accepts the names of the enumeration, in declaration order: a member object is not a JSON
+value, whereas its name survives `json.encode` and `json.decode` unchanged. Coercion of a text reads the name, a violation has
+the code `enum` with the names in `context.values`, the emission is `type` string with `enum`, and `build` turns a name into the
+member. A default is given as a name. The names are read once, at declaration. The schema is inlined unless wrapped in `named`.
 
 `multiple_of` takes a whole-number divisor greater than zero; a fractional divisor such as `0.01` is refused at declaration (OQ-87), because binary floats cannot express decimal steps and JSON Schema has no keyword for decimal places. Use integers in minor units (cents), or a string with a `pattern` for a fixed number of decimals; a decimal type is planned (roadmap).
 

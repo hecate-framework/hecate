@@ -72,7 +72,7 @@ The owner asked on 2026-11-08 to finish this pull request the same day; an inter
 2. DONE OQ-93 (1), decided by the owner: a `core` primitive that builds a frozen instance of a `value_class` from a table of attributes without calling `init`, next to `core.allocate`; `schema` uses it for class-bound parts whose class is a `value_class`. Tests first in `packages/core` and `packages/schema`.
 3. DONE OQ-93 (2), decided by the owner: `Schema:build(content, { method, coerce = true })` converts texts with the rules of `coerce`, then builds; defaults apply once, `schema.sent` records only what was provided.
 4. DONE The official JSON Schema test suite (supported subset): a pinned entry in `packages/schema/tests/external.lua` fetched by `fetch-fixtures` like the data of `json` (skipped locally without network, enforced in CI), a runner with an explicit list of the unsupported cases and the reason of each.
-5. Schemas from `core` enumerations (a `schema.enumeration` taking a `core.enumeration`).
+5. DONE Schemas from `core` enumerations (a `schema.enumeration` taking a `core.enumeration`).
 6. Docs: tested examples, an explanation page, the glossary check, the generated reference, the French pages.
 7. Definition-of-done check and `/review-package` with the reviewer agents, then fix the findings.
 8. Finish: delete `HANDOFF.md`, tick the roadmap item, CI green on the three platforms, mark the pull request ready and ask for the owner's review.
@@ -89,6 +89,7 @@ The owner asked on 2026-11-08 to finish this pull request the same day; an inter
 
 ## Doubts and questions for the owner
 
+- `schema.enumeration(core_enumeration)` represents a value by its name (the specification does not say; a member object is not JSON). A name is accepted, a member object never is; `build` returns the member, but `json.encode` of a member (a frozen value) writes its attributes `name`, `ordinal` and `enumeration`, not the name, so a built instance does not round-trip to the content it came from. The owner may want the member to encode as its name, or the underlying ordinal accepted. The violation code is `enum`, the one of the existing literal set (not a new `enumeration` code). The enumeration is inlined, not a definition, unless wrapped in `named`; the emission carries `type` string for a core enumeration only.
 - OQ-94 implemented: the encoder follows a function `__pairs`; an error raised by `__pairs` or its iterator surfaces as the original Lua error (not an `EncodeError`), a `__pairs` returning no iterator function is a Lua error, a closing value is ignored, an iteration that never yields cannot be interrupted, and an iteration of more than about `max_size / 2` entries is a `size_limit` failure even when keys repeat. Conservative choices; the owner may prefer an `EncodeError` for the raised errors.
 - Name chosen: `core.instantiate_value`, as proposed (glossary has no term for it); an extra predicate `core.is_value_class` was added so that `schema` can choose the path without a trial call.
 - Otherwise none open for the owner on this item. The questions OQ-85 to OQ-92 are all resolved (rows in the Resolved table of `docs/open-questions.md`, mirror issues closed); the remaining open questions belong to other packages and must not be resolved by this run.

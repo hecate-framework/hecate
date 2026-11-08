@@ -11,6 +11,8 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- `hecate.schema`: `schema.enumeration(core_enumeration)` declares a type over a `core.enumeration`: it accepts the names (code `enum`, emitted as `type` string with `enum`), `coerce` reads a name from text and `build` replaces a name by the member.
+
 - `hecate.json`: the native encoder follows the `__pairs` metamethod of a table that defines one (a frozen `value_class` instance, any user proxy), so `json.encode` of a value object writes an object of its attributes instead of `{}`; a table without `__pairs` is still read raw at no extra cost; the entries follow the usual rules, an endless iteration is bounded by `max_size`, an error raised by `__pairs` surfaces unchanged (OQ-94).
 
 - `hecate.schema`: the official JSON Schema test suite (2020-12, pinned in `packages/schema/tests/external.lua`, `lua tools/run.lua fetch-fixtures schema`) runs over the supported subset against the independent checker of the emission, `Schema:validate` and the emitted schema; fix found by it: an `object` or `map` no longer accepts a decoded array and an `array` no longer accepts a decoded object.

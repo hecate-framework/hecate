@@ -42,6 +42,7 @@ Declarations (`local schema = require("hecate.schema")`); every schema is an imm
 
 - `schema.string{ min_length, max_length, pattern }`, `schema.integer{ minimum, maximum }`, `schema.number{ minimum, maximum }`, `schema.boolean()`: base types and refinements.
 - `schema.literal(value)`, `schema.enumeration(values)`: constants (JSON Schema `const` and `enum`).
+- `schema.enumeration(core_enumeration)`: the same constructor over a `core.enumeration`. The JSON representation of a value is its name (a member object is not JSON, a name round-trips through `json.encode` and `json.decode`): `validate` and `coerce` accept exactly the names (code `enum`, the names in `context.values`), the emission is `type` string with `enum`, and `build` replaces a name by the member (also inside objects, arrays, maps, unions, nullables and defaults; a default is given as a name). It is inlined; `schema.named` makes it a definition. The names are read once at declaration. A member object is never accepted as content.
 - `schema.object(properties, { additional_properties })`: product type; undeclared properties are rejected by default.
 - `schema.array(item, { min_items, max_items })`: sequences, 0-based pointer indices.
 - `schema.optional(s)` (property may be absent), `schema.nullable(s)` (accepts `json.null`), `schema.union(list)`.

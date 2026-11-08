@@ -538,10 +538,19 @@ function M.literal(value)
     end })
 end
 
---- Declares a type whose values are the members of a list of constants (JSON Schema `enum`).
----@param values (string|number|boolean|hecate.json.Null)[]
+--- Declares a type whose values are the members of a list of constants (JSON Schema `enum`), or the values of a
+--- `core.enumeration`. For a `core.enumeration` the JSON representation of a value is its name (a member object is not
+--- JSON, and a name round-trips through `json.encode` and `json.decode`): the schema accepts exactly the names of the
+--- enumeration, in JSON Schema `{ type = "string", enum = names }`, and `build` replaces a name by the member. The names
+--- are read once, here; an enumeration is closed, so they cannot change afterwards.
+---@param values (string|number|boolean|hecate.json.Null)[]|table  the constants, or a `core.enumeration`
 ---@return hecate.schema.Schema
 function M.enumeration(values)
+  local source = nil
+  if core.is_enumeration(values) then
+    source = values
+    values = source:names() -- a fresh list, in declaration order
+  end
   if type(values) ~= "table" or #values == 0 then refuse("enumeration: expects a non-empty list of constants") end
   local copy = {}
   for i, value in ipairs(values) do
@@ -549,12 +558,19 @@ function M.enumeration(values)
     copy[i] = value
   end
   local count = #copy
-  return Schema("enumeration", { members = copy, coercer = constants_coercer(copy), validator = function(v, path, out)
-    for i = 1, count do
-      if same_constant(v, copy[i]) then return end
-    end
-    out[#out + 1] = { path, "enum", "the value is not one of the allowed values", { values = { table.unpack(copy) } } }
-  end })
+  local builder = nil
+  local options = nil
+  if source ~= nil then
+    options = { enumeration = source.__name }
+    builder = function(value) return source:find(value) end
+  end
+  return Schema("enumeration", { options = options, members = copy, coercer = constants_coercer(copy), builder = builder,
+    validator = function(v, path, out)
+      for i = 1, count do
+        if same_constant(v, copy[i]) then return end
+      end
+      out[#out + 1] = { path, "enum", "the value is not one of the allowed values", { values = { table.unpack(copy) } } }
+    end })
 end
 
 --- Marks a property of an `object` as allowed to be absent. Only meaningful as a property schema.
@@ -1246,6 +1262,7 @@ local function emit(s)
   elseif kind == "literal" then
     return { const = o.value }
   elseif kind == "enumeration" then
+    if o.enumeration ~= nil then return { type = "string", enum = s:members() } end -- names of a core enumeration
     return { enum = s:members() }
   elseif kind == "array" then
     return { type = "array", items = emit(s.item), minItems = o.min_items, maxItems = o.max_items,
