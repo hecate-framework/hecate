@@ -3,8 +3,8 @@
 
 - roadmap_item: `config`: layered configuration validated by schemas; write its specification section in `docs/architecture/`, including the logging keys (OQ-62) and the `limits.max_depth` key that lowers the nesting depth of `json` and `schema` together (OQ-92).
 - status: in-progress
-- lock_until: 2026-11-08T23:00:00Z
-- last_update: 2026-11-08T21:50:00Z
+- lock_until: 2026-11-08T22:52:39Z
+- last_update: 2026-11-08T22:52:39Z
 
 ## Done
 
@@ -13,6 +13,7 @@
 - Tests and implementation, CHANGELOG (8e329e0).
 - README, how-to page, tested example (f686433).
 - Local: `test config`, `typecheck` ok.
+- Owner answers on OQ-101 applied (6d2292c): default environment is `production`, OQ-101 resolved, kernel handoffs added to the roadmap. No lock is held (owner request): the next relay run may resume.
 
 ## Next steps
 
