@@ -3,8 +3,8 @@
 
 - roadmap_item: `schema`: refinement types, composition, coercion, validation with JSON Pointer error paths, JSON Schema 2020-12 emission.
 - status: in-progress            <!-- in-progress | waiting-ci | waiting-owner -->
-- lock_until: 2026-11-08T02:12:43Z
-- last_update: 2026-11-08T00:42:43Z
+- lock_until: 2026-11-08T05:15:00Z
+- last_update: 2026-11-08T03:45:00Z
 
 ## Done
 
@@ -52,6 +52,8 @@
 
 - Step OQ-89 (names): the collision error of `to_json_schema` says where each name comes from (class or `named`); tests in `named_test.lua`; README, architecture, how-to and CHANGELOG present classes as primary and `named` as the inline-DTO opt-in.
 
+- Step 6 (benchmark): `packages/schema/benchmarks/validate.lua` (`bench schema/validate`), CHANGELOG. Measured on this VM: validate record ~470k/s, array of 100 ~4.4k/s, union ~580k/s; coerce about half. Numbers to be published by the owner on dedicated hardware.
+
 ## Next steps
 
 1. (DONE 2026-11-07, run 21:41Z: refusal, tests, architecture note, CHANGELOG; how-to note not added) OQ-87 resolved: refuse a non-integer `multiple_of` at declaration (clear message, tests, emission unchanged for integers); document why in the schema reference and the how-to, with the alternatives: integers in minor units, or a string with a `pattern` for a fixed number of decimals (JSON Schema has no keyword for decimal places), and a future decimal type.
@@ -59,7 +61,7 @@
 3. (2b) Remaining emission work: official JSON Schema test suite (supported subset), the `1.0` gap is confirmed; (pattern translator done); more formats (uri), core enumeration support, recursive schemas (named done).
 4. Class-bound schemas, remaining: `value_class`, coerce-then-build. (Done: interface, sent, PATCH, construction, `core.allocate` and weak side table switch.)
 5. Docs: website pages, tested examples, glossary check, reference generation (`DEFAULT_PACKAGES`).
-6. Benchmarks (`benchmarks/`) for compiled validators.
+6. (DONE 2026-11-08) Benchmarks for compiled validators.
 
 ## Open question issues
 

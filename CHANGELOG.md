@@ -11,6 +11,8 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- `schema`: micro-benchmark `schema/validate` (`lua tools/run.lua bench schema/validate`) of the compiled validators: `validate`, `coerce` and `build` on a record, an array of 100 records and a union.
+
 - `hecate.json`: `json.DEFAULT_MAX_DEPTH` and `json.MAX_DEPTH_CEILING` expose the nesting limits of `decode` and `encode`; `hecate.schema` reads its depth guard from them (OQ-92).
 - `hecate.schema`: `multiple_of` refuses a fractional divisor at declaration (OQ-87), with the alternatives in the message and in the architecture specification.
 - `hecate.schema`: the name collision error of `to_json_schema` says whether each of the two names comes from a class (`schema.of`) or from `named`; classes are documented as the primary way to name schemas and `named` as the opt-in for inline DTOs (OQ-89).
