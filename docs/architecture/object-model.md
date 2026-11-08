@@ -88,7 +88,12 @@ are inherited, even when the subclass is declared with `core.class`.
 Code that fills the attributes from data it has already validated (the schema `build`, the ORM
 building entities from rows) uses it instead of `Class(...)`; it is the only function that
 creates an instance with `setmetatable` outside `Class(...)`. A `value_class` is refused
-(`ArgumentError`): its instances are frozen after `init`. `core.weak_table(mode?)` creates a table
+(`ArgumentError`): its instances are frozen after `init`; `core.instantiate_value(ValueClass, fields)`
+is the counterpart for a `value_class`: it builds the frozen instance directly from a table of
+attributes (copied, not adopted) without calling `init`, with the same freezing as construction,
+and refuses anything but a finalised value class (`ArgumentError`, `ConformanceError`).
+`core.is_value_class(class)` is the kind predicate for value classes.
+`core.weak_table(mode?)` creates a table
 with weak keys (default), values or both, for side tables keyed by instance.
 
 ## Errors

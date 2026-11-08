@@ -279,4 +279,34 @@ function M.allocate(class)
   return setmetatable({}, class) -- hecate: raw-metatable instance of a class
 end
 
-return { class = M.class, finalise = M.finalise, allocate = M.allocate, NOT_INHERITED = NOT_INHERITED }
+--- Builds a frozen instance of a finalised value class directly from a table of attributes,
+--- WITHOUT calling `init`, with the same freezing as construction (hidden fields table,
+--- per-instance metatable): fields read normally, writes are refused, structural equality,
+--- `core.class_of` and `core.is_instance_of` work. For code that has already validated the
+--- attributes (the schema `build`). The table is copied, never adopted.
+---
+--- Raises `hecate.core.ArgumentError` if `class` is not a value class (an ordinary class, a
+--- trait, an interface or a non-class) or `fields` is not a table, and
+--- `hecate.core.ConformanceError` if the class is not finalised (as `Class(...)` does).
+---@param class any  a finalised class created with `core.value_class`
+---@param fields table  attributes of the instance, by name
+---@return table instance  a new frozen instance
+function M.instantiate_value(class, fields)
+  local record = classes[class]
+  if record == nil or record.freeze == nil then
+    raise.argument("instantiate_value expects a class created with core.value_class",
+      record and { class = record.name } or nil)
+  end
+  ---@cast record -?
+  if type(fields) ~= "table" then raise.argument("instantiate_value expects a table of attributes") end
+  if not record.finalised then
+    raise.conformance(("%s is not finalised; call core.finalise before instantiating it"):format(describe(class)),
+      { class = record.name })
+  end
+  local object = setmetatable({}, class) -- hecate: raw-metatable instance of a class
+  for key, value in next, fields do object[key] = value end
+  record.freeze(object, class, record)
+  return object
+end
+
+return { class = M.class, finalise = M.finalise, allocate = M.allocate, instantiate_value = M.instantiate_value, NOT_INHERITED = NOT_INHERITED }

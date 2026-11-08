@@ -93,4 +93,82 @@ function T:test_weak_table_is_a_clean_table()
   self:assert_equal(1, n)
 end
 
+local function vpoint()
+  local V = core.value_class("VPoint")
+  function V:init(x, y) self.x = x; self.y = y; self.initialised = true end
+  function V:sum() return self.x + self.y end
+  core.finalise(V)
+  return V
+end
+
+function T:test_instantiate_value_builds_a_frozen_instance_without_init()
+  local V = vpoint()
+  local p = core.instantiate_value(V, { x = 1, y = 2 })
+  self:assert_equal(1, p.x)
+  self:assert_equal(3, p:sum())
+  self:assert_equal(nil, p.initialised)
+  self:assert_true(core.is_instance_of(p, V))
+  self:assert_true(core.class_of(p) == V)
+  local err = self:assert_error(function() p.x = 5 end)
+  self:assert_equal("hecate.core.ConformanceError", err.code)
+  local err2 = self:assert_error(function() p.z = 5 end)
+  self:assert_equal("hecate.core.ConformanceError", err2.code)
+end
+
+function T:test_instantiate_value_equality_is_structural()
+  local V = vpoint()
+  local a = core.instantiate_value(V, { x = 1, y = 2 })
+  local b = core.instantiate_value(V, { x = 1, y = 2 })
+  local c = core.instantiate_value(V, { x = 1, y = 3 })
+  self:assert_true(a == b)
+  self:assert_true(a ~= c)
+  self:assert_true(a == V(1, 2) or a ~= V(1, 2)) -- init sets a marker field: not equal
+  self:assert_true(a ~= V(1, 2))
+end
+
+function T:test_instantiate_value_copies_the_table()
+  local V = vpoint()
+  local fields = { x = 1, y = 2 }
+  local p = core.instantiate_value(V, fields)
+  fields.x = 99
+  self:assert_equal(1, p.x)
+  self:assert_equal(2, p.y)
+  local seen = 0
+  for _ in pairs(p) do seen = seen + 1 end
+  self:assert_equal(2, seen)
+end
+
+function T:test_instantiate_value_refuses_what_is_not_a_value_class()
+  local Ordinary = core.class("Ordinary")
+  core.finalise(Ordinary)
+  for _, value in ipairs({ 1, "A", {}, Ordinary, core.interface("I", { "m" }), core.trait("Tr", {}) }) do
+    local err = self:assert_error(function() return core.instantiate_value(value, {}) end)
+    self:assert_equal("hecate.core.ArgumentError", err.code)
+  end
+end
+
+function T:test_instantiate_value_refuses_a_class_not_finalised()
+  local V = core.value_class("VNotFinal")
+  local err = self:assert_error(function() return core.instantiate_value(V, {}) end)
+  self:assert_equal("hecate.core.ConformanceError", err.code)
+end
+
+function T:test_instantiate_value_refuses_a_non_table()
+  local V = vpoint()
+  local bad = 3 ---@type any
+  local err = self:assert_error(function() return core.instantiate_value(V, bad) end)
+  self:assert_equal("hecate.core.ArgumentError", err.code)
+end
+
+function T:test_is_value_class()
+  local V = core.value_class("VK")
+  local Sub = core.class("VKSub", V)
+  local Plain = core.class("PlainK")
+  self:assert_true(core.is_value_class(V))
+  self:assert_true(core.is_value_class(Sub))
+  self:assert_false(core.is_value_class(Plain))
+  self:assert_false(core.is_value_class(core.trait("TrK", {})))
+  self:assert_false(core.is_value_class(3))
+end
+
 return T

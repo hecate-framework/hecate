@@ -20,6 +20,15 @@ function introspection.is_class(value)
   return type(value) == "table" and registry.classes[value] ~= nil
 end
 
+--- Returns true when `value` is a value class (declared with `core.value_class`, or a subclass of one):
+--- its instances are frozen and `core.instantiate_value` accepts it.
+---@param value any  the value to test
+---@return boolean result  `true` for a value class
+function introspection.is_value_class(value)
+  local record = type(value) == "table" and registry.classes[value] or nil
+  return record ~= nil and record.freeze ~= nil
+end
+
 --- Returns true when `value` is a trait created with `core.trait`.
 ---@param value any  the value to test
 ---@return boolean result  `true` for a trait
