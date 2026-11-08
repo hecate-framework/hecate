@@ -24,8 +24,11 @@
 --   without `type`, which a Hecate type cannot ignore), `oneOf` (a Hecate `union` is `anyOf`), type arrays, boolean
 --   schemas, recursive references, constants that are arrays or objects (a Hecate `literal` is a scalar), whole
 --   floats for `integer` (the documented gap of OQ-85 point 11: Lua `integer` refuses `1.0`, JSON Schema accepts it;
---   it is counted per case as `gap: 1.0`, and only when the data or the schema holds a whole float and Lua disagrees);
---   the checker's binary-float `multipleOf` with a fractional divisor is counted as a gap the same way.
+--   it is counted per case as `gap: 1.0`, only where Lua says invalid, the suite says valid, and a whole float sits at a
+--   position where an integer type, a `const` or an `enum` applies, in the data or as the constant);
+--   the checker's binary-float `multipleOf` with a fractional divisor is counted per case as a gap, only where the checker
+--   disagrees with the suite and a number meets such a divisor;
+-- - the number of cases per gap, per run and per skip reason is pinned below (MAX_GAPS, EXPECTED_RUN, EXPECTED_SKIPS).
 local test = require("harness.test")
 local json = require("hecate.json")
 local schema = require("hecate.schema")
@@ -94,6 +97,14 @@ local GROUP_SKIPS = {
   contentSchema = "content keywords are annotations",
 }
 
+--- The keys of a decoded object in a fixed order, so that the reason a group is skipped never depends on `pairs`.
+local function sorted_keys(node)
+  local keys = {}
+  for key in pairs(node) do keys[#keys + 1] = key end
+  table.sort(keys)
+  return keys
+end
+
 local function skip_reason_of_group(node, root)
   if type(node) == "boolean" then return nil end
   if type(node) ~= "table" then return "a schema that is not an object" end
@@ -109,8 +120,8 @@ local function skip_reason_of_group(node, root)
       local target = support.resolve(root, value)
       if target == nil then return "$ref that is not a JSON Pointer to a location of the document" end
     elseif SCHEMA_MAPS[key] then
-      for _, sub in pairs(value) do
-        local reason = skip_reason_of_group(sub, root)
+      for _, name in ipairs(sorted_keys(value)) do
+        local reason = skip_reason_of_group(value[name], root)
         if reason then return reason end
       end
     elseif SCHEMA_LISTS[key] then
@@ -149,7 +160,8 @@ local ANNOTATIONS = { default = true, description = true, title = true, ["$comme
 
 local function options_of(node, kind)
   local options = {}
-  for key, value in pairs(node) do
+  for _, key in ipairs(sorted_keys(node)) do
+    local value = node[key]
     local option = LIMITS[kind][key]
     if option then
       options[option] = value
@@ -169,7 +181,7 @@ local function is_scalar(value) return value == null or type(value) == "string" 
 function translate(node, root, stack)
   if type(node) == "boolean" then skip("boolean schema") end
   if node["$ref"] then
-    for key in pairs(node) do
+    for _, key in ipairs(sorted_keys(node)) do
       if key ~= "$ref" and not ANNOTATIONS[key] then skip("$ref with sibling keywords") end
     end
     local target = support.resolve(root, node["$ref"])
@@ -180,7 +192,7 @@ function translate(node, root, stack)
     return result
   end
   if node.enum or node.const ~= nil then
-    for key in pairs(node) do
+    for _, key in ipairs(sorted_keys(node)) do
       if key ~= "enum" and key ~= "const" and not ANNOTATIONS[key] then skip("enum or const combined with: " .. key) end
     end
     if node.const ~= nil then
@@ -195,7 +207,7 @@ function translate(node, root, stack)
   end
   if node.oneOf then skip("oneOf (a Hecate union is anyOf)") end
   if node.anyOf then
-    for key in pairs(node) do
+    for _, key in ipairs(sorted_keys(node)) do
       if key ~= "anyOf" and not ANNOTATIONS[key] then skip("anyOf combined with: " .. key) end
     end
     local list = {}
@@ -204,7 +216,7 @@ function translate(node, root, stack)
   end
   local kind = node.type
   if kind == nil then
-    for key in pairs(node) do
+    for _, key in ipairs(sorted_keys(node)) do
       if not ANNOTATIONS[key] then skip("untyped or inapplicable keyword: " .. key) end
     end
     return schema.any()
@@ -232,8 +244,8 @@ function translate(node, root, stack)
     if node.minProperties or node.maxProperties then skip("minProperties or maxProperties on an object with properties") end
     if type(additional) == "table" then skip("additionalProperties schema next to properties") end
     local declared = {}
-    for name, property in pairs(properties) do
-      local inner = translate(property, root, stack)
+    for _, name in ipairs(sorted_keys(properties)) do
+      local inner = translate(properties[name], root, stack)
       declared[name] = required[name] and inner or schema.optional(inner)
     end
     for name in pairs(required) do
@@ -244,23 +256,92 @@ function translate(node, root, stack)
   skip("unknown type " .. tostring(kind))
 end
 
-local function has_whole_float(value)
-  if math.type(value) == "float" and value == math.floor(value) then return true end
-  if type(value) == "table" and value ~= null then
-    for _, member in pairs(value) do
-      if has_whole_float(member) then return true end
+local function is_whole_float(value) return math.type(value) == "float" and value == math.floor(value) end
+
+local function resolve_node(node, root)
+  local guard = 0
+  while type(node) == "table" and node["$ref"] and guard < 20 do
+    node = support.resolve(root, node["$ref"])
+    guard = guard + 1
+  end
+  return node
+end
+
+local function allows_integer(type_keyword)
+  if type_keyword == "integer" then return true end
+  if type(type_keyword) == "table" then
+    for _, name in ipairs(type_keyword) do
+      if name == "integer" then return true end
     end
   end
   return false
 end
 
--- Whether a schema document has a fractional `multipleOf`: the suite expects decimal arithmetic, the checker (and
--- Lua) divide binary floats (`0.0075` is not a multiple of `0.0001` in binary).
-local function has_fractional_multiple(node)
-  if type(node) ~= "table" or node == null then return false end
-  if type(node.multipleOf) == "number" and node.multipleOf ~= math.floor(node.multipleOf) then return true end
-  for _, member in pairs(node) do
-    if has_fractional_multiple(member) then return true end
+--- Whether a whole float sits in `data` at a position where an integer type, a `const` or an `enum` applies (through
+--- `$ref`, `anyOf` and `oneOf`, `items`, `properties` and `additionalProperties`), or a whole float written as the `const`
+--- or in the `enum` that applies to a number: the only place where the documented gap
+--- of OQ-85 point 11 (Lua `integer` refuses `1.0`, JSON Schema section 6.1.1 accepts it) can change a verdict. A whole float
+--- elsewhere (under `number`, `any`, a string schema) is no excuse.
+local function whole_float_at_integer_position(node, data, root)
+  node = resolve_node(node, root)
+  if type(node) ~= "table" then return false end
+  if is_whole_float(data) then
+    if allows_integer(node.type) or node.const ~= nil or node.enum ~= nil then return true end
+  end
+  if type(data) == "number" then -- the whole float is the constant of the schema (`const: -2.0`, data `-2`)
+    if is_whole_float(node.const) then return true end
+    for _, constant in ipairs(node.enum or {}) do
+      if is_whole_float(constant) then return true end
+    end
+  end
+  for _, keyword in ipairs({ "anyOf", "oneOf" }) do
+    for _, alternative in ipairs(node[keyword] or {}) do
+      if whole_float_at_integer_position(alternative, data, root) then return true end
+    end
+  end
+  if type(data) == "table" and data ~= null then
+    if json.is_array(data) or (#data > 0) then
+      if node.items ~= nil then
+        for _, member in ipairs(data) do
+          if whole_float_at_integer_position(node.items, member, root) then return true end
+        end
+      end
+    else
+      for key, member in pairs(data) do
+        local property = node.properties and node.properties[key]
+        local inner = property
+        if inner == nil then inner = node.additionalProperties end
+        if inner ~= nil and whole_float_at_integer_position(inner, member, root) then return true end
+      end
+    end
+  end
+  return false
+end
+
+--- Whether a number of `data` meets, at its position, a schema whose `multipleOf` is not a whole number: the suite expects
+--- decimal arithmetic, the checker (and Lua) divide binary floats (`0.0075` is not a multiple of `0.0001` in binary).
+local function fractional_divisor_at(node, data, root)
+  node = resolve_node(node, root)
+  if type(node) ~= "table" then return false end
+  if type(data) == "number" and type(node.multipleOf) == "number" and node.multipleOf ~= math.floor(node.multipleOf) then
+    return true
+  end
+  for _, keyword in ipairs({ "anyOf", "oneOf" }) do
+    for _, alternative in ipairs(node[keyword] or {}) do
+      if fractional_divisor_at(alternative, data, root) then return true end
+    end
+  end
+  if type(data) == "table" and data ~= null then
+    if node.items ~= nil then
+      for _, member in ipairs(data) do
+        if fractional_divisor_at(node.items, member, root) then return true end
+      end
+    end
+    for key, member in pairs(data) do
+      local inner = node.properties and node.properties[key]
+      if inner == nil then inner = node.additionalProperties end
+      if inner ~= nil and fractional_divisor_at(inner, member, root) then return true end
+    end
   end
   return false
 end
@@ -304,7 +385,7 @@ local function run_suite()
           increment(report.counts, "run: checker on the official schema")
           if support.conforms(root, case.data) == case.valid then
             increment(report.counts, "run: checker agrees")
-          elseif has_fractional_multiple(root) then
+          elseif fractional_divisor_at(root, case.data, root) then
             increment(report.counts, "gap: fractional multipleOf in binary floats, checker")
           else
             report.failures[#report.failures + 1] = "checker disagrees with the suite: " .. case_label
@@ -313,17 +394,18 @@ local function run_suite()
             increment(report.counts, "skipped (Hecate schema): " .. skipped)
           else
             local lua_valid = translated:validate(case.data)
-            local gap = has_whole_float(case.data) or has_whole_float(root)
+            -- The gap has one direction only: Lua says invalid, the suite says valid, at an integer position.
+            local gap = whole_float_at_integer_position(root, case.data, root)
             if lua_valid == case.valid then
               increment(report.counts, "run: Schema:validate")
-            elseif gap then
+            elseif gap and not lua_valid and case.valid then
               increment(report.counts, "gap: 1.0 (OQ-85 point 11), validate")
             else
               report.failures[#report.failures + 1] = "Schema:validate disagrees with the suite: " .. case_label
             end
             if support.conforms(emitted, case.data) == lua_valid then
               increment(report.counts, "run: emitted schema agrees with Schema:validate")
-            elseif gap then
+            elseif gap and not lua_valid then -- the emitted schema (the checker) accepts the whole float Lua refuses
               increment(report.counts, "gap: 1.0 (OQ-85 point 11), emission")
             else
               report.failures[#report.failures + 1] = "emission disagrees with Schema:validate: " .. case_label
@@ -336,15 +418,96 @@ local function run_suite()
   return report
 end
 
+-- Pinned counts of the pinned suite revision (tests/external.lua). A new gap fails the test (the upper bounds have no
+-- slack), a group that moves into a skip bucket, or out of one, changes a pinned total and fails it too: update the
+-- numbers on purpose, after reading why, when the suite revision changes.
+local MAX_GAPS = {
+  ["gap: 1.0 (OQ-85 point 11), validate"] = 7,
+  ["gap: 1.0 (OQ-85 point 11), emission"] = 7,
+  ["gap: fractional multipleOf in binary floats, checker"] = 2,
+}
+local EXPECTED_RUN = {
+  ["run: checker on the official schema"] = 460,
+  ["run: checker agrees"] = 458,
+  ["run: Schema:validate"] = 133,
+  ["run: emitted schema agrees with Schema:validate"] = 133,
+}
+local EXPECTED_SKIPS = {
+  ["skipped (Hecate schema): anyOf combined with: type"] = 3,
+  ["skipped (Hecate schema): boolean schema"] = 22,
+  ["skipped (Hecate schema): const that is an array or an object"] = 19,
+  ["skipped (Hecate schema): empty enum"] = 6,
+  ["skipped (Hecate schema): enum with an array or an object"] = 20,
+  ["skipped (Hecate schema): multipleOf that is not a whole number (Hecate refuses it)"] = 2,
+  ["skipped (Hecate schema): oneOf (a Hecate union is anyOf)"] = 27,
+  ["skipped (Hecate schema): type array"] = 19,
+  ["skipped (Hecate schema): untyped or inapplicable keyword: additionalProperties"] = 10,
+  ["skipped (Hecate schema): untyped or inapplicable keyword: exclusiveMaximum"] = 4,
+  ["skipped (Hecate schema): untyped or inapplicable keyword: exclusiveMinimum"] = 4,
+  ["skipped (Hecate schema): untyped or inapplicable keyword: items"] = 9,
+  ["skipped (Hecate schema): untyped or inapplicable keyword: maxItems"] = 6,
+  ["skipped (Hecate schema): untyped or inapplicable keyword: maxLength"] = 7,
+  ["skipped (Hecate schema): untyped or inapplicable keyword: maxProperties"] = 10,
+  ["skipped (Hecate schema): untyped or inapplicable keyword: maximum"] = 8,
+  ["skipped (Hecate schema): untyped or inapplicable keyword: minItems"] = 6,
+  ["skipped (Hecate schema): untyped or inapplicable keyword: minLength"] = 7,
+  ["skipped (Hecate schema): untyped or inapplicable keyword: minProperties"] = 10,
+  ["skipped (Hecate schema): untyped or inapplicable keyword: minimum"] = 15,
+  ["skipped (Hecate schema): untyped or inapplicable keyword: multipleOf"] = 11,
+  ["skipped (Hecate schema): untyped or inapplicable keyword: properties"] = 47,
+  ["skipped (Hecate schema): untyped or inapplicable keyword: required"] = 9,
+  ["skipped (Hecate schema): untyped or inapplicable keyword: uniqueItems"] = 39,
+  ["skipped (group): $ref that is not a JSON Pointer to a location of the document"] = 1,
+  ["skipped (group): Hecate declares no allOf (an intersection of schemas)"] = 88,
+  ["skipped (group): Hecate declares no contains"] = 70,
+  ["skipped (group): Hecate declares no dependent keywords"] = 48,
+  ["skipped (group): Hecate declares no if/then/else"] = 56,
+  ["skipped (group): Hecate declares no not"] = 42,
+  ["skipped (group): Hecate declares no patternProperties"] = 67,
+  ["skipped (group): Hecate declares no propertyNames"] = 26,
+  ["skipped (group): Hecate declares no tuple (prefixItems)"] = 70,
+  ["skipped (group): Hecate declares no unevaluated keywords"] = 63,
+  ["skipped (group): anchors are not emitted"] = 13,
+  ["skipped (group): content keywords are annotations"] = 18,
+  ["skipped (group): dynamic references are not emitted"] = 32,
+  ["skipped (group): format is an annotation in 2020-12 (section 7.2.1)"] = 133,
+  ["skipped (group): identifiers and base URIs are not emitted (one document, local references)"] = 59,
+  ["skipped (group): pattern: ECMA-262 expression (the checker has no engine, a Hecate pattern is a Lua pattern, OQ-85)"] = 12,
+  ["skipped (group): percent-encoded JSON Pointer fragment"] = 8,
+  ["skipped (group): remote or non-fragment $ref"] = 34,
+}
+
 function T:test_the_official_cases_agree_with_the_checker_validation_and_emission()
   if not present(self) then return end
   local report = run_suite()
   local shown = {}
   for i = 1, math.min(#report.failures, 15) do shown[i] = report.failures[i] end
   self:assert_equal(0, #report.failures, table.concat(shown, "\n") .. "\n" .. summary(report))
+  local counts = report.counts
   -- Guards against a runner that silently runs nothing.
-  self:assert_true((report.counts["run: checker agrees"] or 0) >= 150, summary(report))
-  self:assert_true((report.counts["run: Schema:validate"] or 0) >= 100, summary(report))
+  self:assert_true((counts["run: checker agrees"] or 0) >= 150, summary(report))
+  self:assert_true((counts["run: Schema:validate"] or 0) >= 100, summary(report))
+  -- The gaps are bounded by what is observed: a new one is a failure.
+  for key, maximum in pairs(MAX_GAPS) do
+    self:assert_true((counts[key] or 0) <= maximum, ("%s: %d > %d\n%s"):format(key, counts[key] or 0, maximum, summary(report)))
+  end
+  for key, count in pairs(counts) do
+    if key:find("^gap:") and not MAX_GAPS[key] then self:fail("an unlisted gap: " .. key .. "\n" .. summary(report)) end
+  end
+  -- Emission agreement and the other runs keep at least 90 percent of what is observed.
+  for key, observed in pairs(EXPECTED_RUN) do
+    self:assert_true((counts[key] or 0) >= observed * 9 // 10, ("%s: %d < 90%% of %d\n%s"):format(key, counts[key] or 0, observed, summary(report)))
+  end
+  -- The skipped cases, per reason, are pinned exactly.
+  for key, expected in pairs(EXPECTED_SKIPS) do
+    self:assert_equal(expected, counts[key] or 0, ("%s\n%s"):format(key, summary(report)))
+  end
+  for key, count in pairs(counts) do
+    if key:find("^skipped") and not EXPECTED_SKIPS[key] then
+      self:fail(("a new skip reason: %s (%d cases)\n%s"):format(key, count, summary(report)))
+    end
+  end
+  if os.getenv("HECATE_TEST_VERBOSE") then io.stderr:write("# json_schema_suite: " .. summary(report) .. "\n") end
 end
 
 return T
