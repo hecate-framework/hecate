@@ -8,6 +8,7 @@ local core = require("hecate.core")
 local errors = require("hecate.container.errors")
 local Lifetime = require("hecate.container.lifetime")
 
+---@class hecate.container.graph
 local graph = {}
 
 --- A key as a diagnostic shows it: a name as it is, an interface by its `core.name`, never by address.

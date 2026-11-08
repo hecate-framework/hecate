@@ -114,6 +114,7 @@ local Container = core.class("Container")
 ---@overload fun(container: hecate.container.Container): hecate.container.ServiceScope
 local ServiceScope = core.class("ServiceScope")
 
+--- Make an empty container.
 function Container:init()
   self._bindings = {}
   self._order = {}
