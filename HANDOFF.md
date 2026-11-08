@@ -66,6 +66,8 @@
 
 - Step OQ-95 (owner-driven session): `Schema:represent(value)` in `schema.lua` (compiled `representer` closure per schema, made at declaration like the validators, wrapped by the shared depth guard and work budget; `reset_work` on entry), tests `represent_test.lua`, example `hecate.schema.Schema.represent`, README, architecture, how-to, explanation page, CHANGELOG. Errors are `ValidationError` with one violation in `context.violations`, as `check` does.
 
+- French mirror of the schema pages (translator-fr): `website/fr/how-to/validate-with-schemas.md` and `website/fr/explanation/schemas-and-contracts.md` (examples copied verbatim under the same markers), links added to the French how-to, explanation and reference indexes, terms in `website/fr/glossary-terms.md` only. `source_revision` is the full hash of the last commit of the English page (135eb4535b8734db2bc5ef6c3f7faf77ac8299ea for both pages; the indexes carry the last commit of their English index), as the router item did. No CHANGELOG line (the router item had none for its French page). check-glossary, check-links, check-docs-examples, check-changelog, lint, typecheck pass.
+
 ## Doubts (OQ-95, conservative choices taken)
 
 - The name `represent` is kept: the glossary defines the term representation (Fielding, RFC 9110), and the specification speaks of representations.
@@ -73,6 +75,11 @@
 - A union first tries the alternatives on the value as it is (linear, memoised), and only if none accepts it represents it with each alternative and validates the plain result (needed when an instance holds an enumeration member, which the alternative's validator only accepts as a name). That second pass is bounded by the work budget, not memoised per alternative.
 - A value of the wrong shape (not a table for an object, array or map), an unknown tag, a non-member for an enumeration and an unmatched union raise `ValidationError` (codes `type`, `tagged_union`, `enum`, `union`) instead of producing garbage.
 - Map keys that are not strings are copied as they are (the encoder then refuses them); `any` deep-copies and keeps the markers, and stops at the depth guard.
+
+## Doubts (French mirror)
+
+- French renderings chosen conservatively, listed in `website/fr/glossary-terms.md`: violation, schéma lié à une classe, ensemble de présence, budget de travail, unités mineures, « à échec rapide », objet de transfert de données. The public French glossary page is not updated (the English one is not either).
+- The French indexes carry the English index revision although they do not list the untranslated HTTP pages.
 
 ## Owner-driven session
 
@@ -86,7 +93,7 @@ The owner asked on 2026-11-08 to finish this pull request the same day; an inter
 4. DONE The official JSON Schema test suite (supported subset): a pinned entry in `packages/schema/tests/external.lua` fetched by `fetch-fixtures` like the data of `json` (skipped locally without network, enforced in CI), a runner with an explicit list of the unsupported cases and the reason of each.
 5. DONE Schemas from `core` enumerations (a `schema.enumeration` taking a `core.enumeration`).
 6. DONE OQ-95, decided by the owner: `Schema:represent(value)` (provisional name), the conversion of an instance to plain JSON-ready values for responses: enumeration members become names, only declared attributes are kept, nested class-bound parts, arrays, maps and unions are converted, bounded by the depth guard and the work budget; nil attributes are omitted, `json.null` stays null, no defaults, no validation; a cycle ends with the depth limit error. Tests first (including `json.encode` of the result, value classes, enumerations, undeclared attributes dropped, tagged union and union), README, how-to, explanation page, CHANGELOG.
-7. DONE (English) Docs: tested examples, an explanation page, the glossary check, the generated reference. The French pages are a separate step (translator-fr).
+7. DONE (English and French) Docs: tested examples, an explanation page, the glossary check, the generated reference. The French pages are done (translator-fr).
 8. Definition-of-done check and `/review-package` with the reviewer agents, then fix the findings.
 9. Finish: delete `HANDOFF.md`, tick the roadmap item, CI green on the three platforms, mark the pull request ready and ask for the owner's review.
 
