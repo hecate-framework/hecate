@@ -9,7 +9,7 @@ Inversion-of-control container: bindings, lifetimes (singleton, scoped, transien
 
 ## Read before changing anything
 
-- Specification: `docs/architecture/http-and-routing.md`
+- Specification: `docs/architecture/container.md`, `docs/architecture/http-and-routing.md`
 - Decisions: `docs/adr/0007-object-model.md`
 - Glossary: `docs/glossary.md` · Coding standards: `docs/architecture/coding-standards.md`
 - This package's `README.md` (scope, dependencies, status)

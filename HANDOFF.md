@@ -3,16 +3,17 @@
 
 - roadmap_item: `container`: IoC container, lifetimes, cycle detection at boot; write its specification section in `docs/architecture/` (OQ-62).
 - status: in-progress
-- lock_until: 2026-11-08T14:10:00Z
-- last_update: 2026-11-08T12:42:00Z
+- lock_until: 2026-11-08T14:45:00Z
+- last_update: 2026-11-08T13:10:00Z
 
 ## Done
 
 - Claimed the item (branch `claude/relay-container`, from `main`). PR #54 (`schema`) is complete and waits for the owner.
+- Step 1: specification section `docs/architecture/container.md`, README/CHANGELOG/open-questions updated.
 
 ## Next steps
 
-1. Read ADR 0007, `packages/container/README.md`, `docs/architecture/overview.md`; write the specification section in `docs/architecture/` (OQ-62).
+1. DONE: specification written (`docs/architecture/container.md`, OQ-85 to OQ-89 open). Next: step 2 below.
 2. Tests first, then implement bindings, lifetimes, boot validation, overrides.
 3. Docs, README, CHANGELOG, roadmap tick.
 

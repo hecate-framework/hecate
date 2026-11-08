@@ -22,6 +22,7 @@ in [`../website`](../website).
 - [http-and-routing.md](architecture/http-and-routing.md) — HTTP stack, router, kernel, filters
 - [schemas-and-contracts.md](architecture/schemas-and-contracts.md) — refinement types, validation, OpenAPI
 - [data-access.md](architecture/data-access.md) — SQL interfaces, drivers, query builder, ORM, migrations
+- [container.md](architecture/container.md) — bindings, lifetimes, constructor injection, boot validation, overrides
 - [logging.md](architecture/logging.md) — severities, loggers, records, sinks, ambient context
 - [testing.md](architecture/testing.md) — test framework and contract testing
 - [documentation.md](architecture/documentation.md) — website, i18n, generated references

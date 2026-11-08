@@ -13,7 +13,7 @@
 | Depends on | [`core`](../core) |
 | Used by | `hecate`, `kernel` |
 | Native code | none |
-| Specification | [http-and-routing.md](../../docs/architecture/http-and-routing.md) |
+| Specification | [container.md](../../docs/architecture/container.md), [http-and-routing.md](../../docs/architecture/http-and-routing.md) |
 | Decisions | [ADR 0007](../../docs/adr/0007-object-model.md) |
 | Agent | [`pkg-container`](../../.claude/agents/pkg-container.md) |
 | Repository | read-only mirror `hecate-framework/hecate-container`, generated from this directory (ADR 0017) |
