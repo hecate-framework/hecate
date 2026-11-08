@@ -209,6 +209,7 @@ Each release heading states the supported Lua version.
 
 ### Fixed
 
+- `hecate.schema`: `map(boolean()):coerce({ a = "false" })` and a top-level `default(boolean(), false)` no longer lose the `false`; `represent` emits `null` for a nullable attribute that `build` received as `null` (owner decision 2026-11-08), so the content round-trips through decode, build, represent and encode; the union pass of `represent` that tries each alternative is memoised per alternative.
 - `hecate.http`: the parser refuses a request line without a version (`GET /`), which llhttp read as HTTP/0.9 without calling its version callback; the head is refused with kind `unsupported_version` (found by the conformance vectors).
 - `hecate.net`: `TlsStream:write` raises `ArgumentError` for a non-string argument without closing the stream (Phase 1 gate review). `hecate.log`: the `redact` annotation states the real depth bound (16 levels).
 - `hecate.doc` theme: the page footer sits at the bottom of the window when a page is shorter than the screen (the page is a flex column); the navigation drawer on small screens spans the whole height below the header and scrolls (a grid item aligned to `start` was not stretched between `top` and `bottom`); on large screens the sidebar column no longer forces the page to be a full screen plus the footer tall: the column stretches and only its navigation sticks.
@@ -227,5 +228,7 @@ Each release heading states the supported Lua version.
 - `hecate.doc`: the reference generator no longer crashes or renames members when a class has undocumented bare fields (the result depended on hash order); `tools`: `check-links` ignores links into a code reference that is not generated.
 
 ### Security
+
+- `hecate.schema` hardening (review of the `schema` item): `unique_items` hashes scalar items and compares tables by signature bucket under the work budget (20000 distinct integers took 11 s); `pattern` and `format` are skipped after an `invalid_utf8` or `max_length` violation and not run on a string over 65536 bytes without `max_length` (`context.reason = "too_long_for_pattern"`); a malformed `pattern` is refused at declaration and a match that fails at validation time is a `pattern` violation (`malformed_pattern`), never a raw error; a call keeps at most 100 violations (then one `too_many_violations`, `context.max = 100`) and echoes at most 64 bytes of a property name; the stored `default` is no longer reachable through `options`; `schema.of` refuses a property named like a class member and `represent` never reads a method or prototype field; `email` rejects control characters and texts over 254 bytes.
 
 - Every third-party GitHub Action of the workflows is pinned by commit SHA (tag kept as a comment); Dependabot keeps them current.

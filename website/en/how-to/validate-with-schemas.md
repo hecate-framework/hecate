@@ -43,7 +43,9 @@ otherwise.
 
 `format` checks a well-known format: `uuid`, `date`, `date-time`, `email`, `ipv4` or `uri`. `pattern`
 is a Lua pattern, not a regular expression. Validation uses it as written. The emission translates it
-to an ECMA-262 regular expression for the contract.
+to an ECMA-262 regular expression for the contract. Lua patterns can backtrack, so anchor them with `^` and `$` and
+declare `max_length`: without it, a string longer than 65536 bytes is not matched and gets a `pattern` violation with
+`context.reason` set to `too_long_for_pattern`. A malformed pattern such as `ab%` is refused when you declare it.
 
 <!-- example: packages/schema/examples/hecate.schema.string.lua -->
 ```lua
@@ -436,7 +438,9 @@ Nested parts, arrays, maps, unions and tagged unions convert recursively, and an
 
 `represent` does not validate: it trusts the value, because a response that does not conform is a bug of the
 server (call `validate` where you want to check it). An absent attribute is omitted, `json.null` stays null, and
-a default is never applied. The input is not modified and the result shares no table with it. A union uses the
+a default is never applied. An attribute that was sent as `null` (an instance made by `build`) comes back as `null`,
+so the content round-trips. A method or a prototype field of the class never appears. The input is not modified and the
+result shares no table with it. A union uses the
 alternative that accepts the value, and raises `ValidationError` when none does. The nesting guard and the work
 budget apply as for `validate`: a cycle in the object graph raises `ValidationError` whose violation has the code
 `depth_limit` and the JSON Pointer where it stopped.

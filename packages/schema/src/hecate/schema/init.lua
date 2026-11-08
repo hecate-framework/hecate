@@ -29,7 +29,7 @@ local violation = require("hecate.schema.violation")
 ---@field of fun(target: table|string): hecate.schema.Schema
 ---@field sent fun(instance: table, name: string): boolean
 ---@field is_schema fun(value: any): boolean
----@field _limits { max_steps: integer }  internal: the work budget of a call (read by tests, not public API)
+---@field _limits { max_steps: integer, max_violations: integer, max_pattern_bytes: integer }  internal: the bounds of a call (read by tests, not public API)
 local M = {
   ---@diagnostic disable-next-line: assign-type-mismatch  -- class constructor exported as its class
   Schema = schema.Schema,

@@ -63,7 +63,8 @@ names, nested parts, arrays, maps and unions converted recursively. The kernel t
 with `json.encode`, so an instance goes to plain values, then to JSON, and `hecate.json` stays unaware of
 classes. `represent` does not validate, since a response that does not conform is a bug of the server, and it
 is bounded by the same depth guard and work budget as the other operations, so a cycle in the object graph
-ends with a `depth_limit` error.
+ends with a `depth_limit` error. An attribute that was sent as `null` is represented as `null`, so that decode,
+build, represent and encode give back the same content.
 
 ## The presence set and PATCH
 
@@ -128,7 +129,9 @@ them, and it never approximates silently.
 - **Lua patterns and ECMA-262.** `pattern` is a Lua pattern, not a regular expression. The emission
   translates a defined ASCII subset exactly and refuses the rest (`%b`, `%f`, non-ASCII bytes). Lua
   matches bytes and ECMA-262 matches UTF-16 code units, so `.` and negated sets can disagree on non-ASCII
-  input. For ASCII input the two agree.
+  input. For ASCII input the two agree. Lua patterns can also backtrack, so patterns should be anchored, and
+  a string longer than 65536 bytes without a `max_length` is never matched (a `pattern` violation with
+  `context.reason` set to `too_long_for_pattern`).
 - **Bytes and code points.** `min_length` and `max_length` count code points, as JSON Schema does, and
   a string that is not well-formed UTF-8 is a violation. `pattern` matches bytes.
 - **`1.0` and integer.** `integer` accepts only Lua integers. JSON Schema cannot tell `1` from `1.0`, so

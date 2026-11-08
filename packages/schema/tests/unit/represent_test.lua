@@ -62,7 +62,7 @@ function T:test_ordinary_instance_becomes_a_plain_table()
   self:assert_equal(false, core.is_instance_of(plain.address, core.class_of(user.address)))
   self:assert_equal(20, plain.limit) -- filled by the default at build, represented as an attribute
   self:assert_nil(plain.nickname)
-  self:assert_nil(plain.note) -- an explicit null leaves a built attribute nil (OQ-90): absent, so omitted
+  self:assert_equal(json.null, plain.note) -- sent as null: the presence set brings the null back (owner decision 2026-11-08)
 end
 
 function T:test_value_instance_becomes_a_plain_table()
@@ -334,6 +334,71 @@ function T:test_a_value_that_is_not_a_table_is_a_clean_error()
   local err = self:assert_error(function() schema.object({}):represent(5) end)
   self:assert_equal("hecate.core.ValidationError", err.code)
   self:assert_equal("type", err.context.violations[1].code)
+end
+
+--- Deep equality of decoded content (the encoder does not order keys, so texts are compared by value).
+local function same(a, b)
+  if type(a) ~= "table" or type(b) ~= "table" or a == json.null or b == json.null then return a == b end
+  for key, member in pairs(a) do if not same(member, b[key]) then return false end end
+  for key in pairs(b) do if a[key] == nil then return false end end
+  return true
+end
+
+-- Round trip of the content (q1, owner decision 2026-11-08): decode, build, represent, encode gives the canonical input.
+local function round_trip_classes()
+  local Colour = core.enumeration("RtColour", { "red", "green" })
+  local Inner = define("RtInner", function() return schema.object({ city = schema.string() }) end)
+  local Outer = define("RtOuter", function()
+    return schema.object({
+      name = schema.string(),
+      nick = schema.nullable(schema.string()), -- required, sent as null
+      email = schema.optional(schema.string()), -- absent
+      note = schema.optional(schema.nullable(schema.string())), -- sent as null
+      limit = schema.default(schema.integer(), 20), -- filled by the default
+      colour = schema.enumeration(Colour),
+      home = schema.of(Inner),
+      spare = schema.nullable(schema.of(Inner)), -- nullable class, sent as null
+    })
+  end)
+  return schema.of(Outer), Outer
+end
+
+function T:test_content_round_trips_through_build_and_represent()
+  local s = round_trip_classes()
+  local text = '{"colour":"green","home":{"city":"Paris"},"limit":20,"name":"Ada","nick":null,"note":null,"spare":null}'
+  local ok, instance = s:build(json.decode(text))
+  self:assert_true(ok)
+  self:assert_nil(instance.nick)
+  self:assert_true(same(json.decode(text), json.decode(json.encode(s:represent(instance)))), json.encode(s:represent(instance)))
+  -- the default fills an absent attribute, and the result is then a fixed point
+  local input = '{"colour":"green","home":{"city":"Paris"},"name":"Ada","nick":null,"note":null,"spare":null}'
+  local _, filled = s:build(json.decode(input))
+  self:assert_true(same(json.decode(text), json.decode(json.encode(s:represent(filled)))))
+  local _, again = s:build(json.decode(text))
+  self:assert_true(same(json.decode(text), json.decode(json.encode(s:represent(again)))))
+end
+
+function T:test_an_instance_that_was_not_built_omits_a_nil_nullable_attribute()
+  local s, Outer = round_trip_classes()
+  local instance = core.allocate(Outer)
+  instance.name = "Ada"
+  instance.colour = "red"
+  instance.home = core.allocate(Outer)
+  local plain = s:represent(instance)
+  self:assert_nil(plain.nick)
+  self:assert_nil(plain.spare)
+  local sentless = core.allocate(Outer)
+  sentless.name, sentless.colour, sentless.home, sentless.nick = "Ada", "red", {}, json.null
+  self:assert_equal(json.null, s:represent(sentless).nick) -- a hand-set null stays null
+end
+
+function T:test_a_value_class_round_trips_an_explicit_null()
+  local Thing = define("RtValueThing", function() return schema.object({ a = schema.nullable(schema.string()), b = schema.optional(schema.string()) }) end, true)
+  local s = schema.of(Thing)
+  local _, thing = s:build(json.decode('{"a":null}'))
+  self:assert_equal('{"a":null}', json.encode(s:represent(thing)))
+  local _, sent = s:build(json.decode('{"a":"x","b":"y"}'))
+  self:assert_true(same(json.decode('{"a":"x","b":"y"}'), json.decode(json.encode(s:represent(sent)))))
 end
 
 return T

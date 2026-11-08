@@ -54,6 +54,85 @@ local function set_literal(c)
   return format("\\x%02X", byte(c))
 end
 
+--- Checks the structure of a Lua pattern the way `string.find` reads it, without a subject, and returns the reason it is
+--- malformed, or nil. Lua reports these errors only when a match reaches them ("malformed pattern (ends with '%')",
+--- "missing ']'", "invalid capture index", "unfinished capture", "invalid pattern capture", "missing '[' after '%f'",
+--- "missing arguments to '%b'", "too many captures": lstrlib.c `match`, `classEnd`, `check_capture`), so a probe with
+--- a subject cannot find them all. A well-formed pattern that the translator refuses (`%b`, `%f`) is not malformed.
+---@param pattern string
+---@return string? reason
+function M.check(pattern)
+  local n = #pattern
+  local started, depth = 0, 0 -- captures started, captures still open
+  local closed = {}
+  local open = {}
+  local i = 1
+  if sub(pattern, 1, 1) == "^" then i = 2 end
+
+  --- Index after the set that starts at `i` (a `[`), or nil when it is not closed.
+  local function set_end(from)
+    local q = from + 1
+    if sub(pattern, q, q) == "^" then q = q + 1 end
+    repeat
+      if q > n then return nil end
+      local c = sub(pattern, q, q)
+      q = q + 1
+      if c == "%" then
+        if q > n then return nil end
+        q = q + 1
+      end
+    until q <= n and sub(pattern, q, q) == "]"
+    return q + 1
+  end
+
+  while i <= n do
+    local c = sub(pattern, i, i)
+    if c == "(" then
+      if started >= 32 then return "too many captures" end
+      started = started + 1
+      if sub(pattern, i + 1, i + 1) == ")" then
+        closed[started] = true
+        i = i + 2
+      else
+        depth = depth + 1
+        open[depth] = started
+        i = i + 1
+      end
+    elseif c == ")" then
+      if depth == 0 then return "invalid pattern capture (unbalanced ')')" end
+      closed[open[depth]] = true
+      depth = depth - 1
+      i = i + 1
+    elseif c == "%" then
+      local e = sub(pattern, i + 1, i + 1)
+      if e == "" then return "malformed pattern (ends with '%')" end
+      if e == "b" then
+        if i + 3 > n then return "malformed pattern (missing arguments to '%b')" end
+        i = i + 4
+      elseif e == "f" then
+        if sub(pattern, i + 2, i + 2) ~= "[" then return "missing '[' after '%f' in pattern" end
+        local after = set_end(i + 2)
+        if after == nil then return "malformed pattern (missing ']')" end
+        i = after
+      elseif find(e, "^%d$") then
+        local index = tonumber(e)
+        if index == 0 or index > started or not closed[index] then return "invalid capture index %" .. e end
+        i = i + 2
+      else
+        i = i + 2
+      end
+    elseif c == "[" then
+      local after = set_end(i)
+      if after == nil then return "malformed pattern (missing ']')" end
+      i = after
+    else
+      i = i + 1
+    end
+  end
+  if depth > 0 then return "unfinished capture" end
+  return nil
+end
+
 --- Translates a Lua pattern to an ECMA-262 regular expression.
 --- Raises `ArgumentError` for a construct outside the supported subset.
 ---@param pattern string

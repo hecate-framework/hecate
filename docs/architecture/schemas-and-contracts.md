@@ -52,6 +52,7 @@ coercion (except where explicitly allowed).
 - `default(schema, value)`: `coerce` (texts) and `build` (JSON content, except PATCH) give an absent property a fresh copy of the value; an explicit `null` and a PATCH never take it, `validate` never supplies it, and `sent` stays false for a defaulted attribute (OQ-88).
 - `build(content, { method, coerce })`: a class-bound part whose class is a `value_class` is built with `core.instantiate_value` from its validated attributes, children first (no `init` call). With `coerce = true` the texts of a request (path, query, headers) are converted with the rules of `coerce` and then built in one call: defaults apply once, in the conversion and never for a PATCH, `sent` records only the attributes provided, and a failed conversion returns the `coercion` violations of `coerce` (OQ-93).
 - Unknown properties (`additional_properties`): rejected by default for request content (configurable per schema).
+- Bounded output: a call keeps at most 100 violations; the 101st is replaced by one `too_many_violations` violation (`context.max = 100`), validators stop descending, and a property name echoed in a violation (path and `context.property`) is cut to 64 bytes. `unique_items` hashes scalars and compares tables by signature bucket, and spends the work budget per item and per comparison.
 - Members of an `object` schema are *properties* (the JSON Schema term); *fields* are HTTP header fields only.
 
 ### Classes and schemas
@@ -67,7 +68,7 @@ never leaks; enumeration members become their names; nested class-bound parts, a
 unions convert recursively, in fresh tables. An absent attribute is omitted, `json.null` stays null, defaults are
 not applied and the value is not validated (a response that does not conform is a bug of the server), except to
 choose the alternative of a union. The depth guard and the work budget of validation apply; a cycle in the object
-graph ends with a `depth_limit` error.
+graph ends with a `depth_limit` error. Only the fields of the instance itself are read, never a method or a prototype field of its class (`schema.of` refuses a declared property named like a class member), and a function value is skipped. A nullable attribute that is nil on an instance made by `build` and was sent as `null` is represented as `null`, so that the content round-trips; an instance that was not built omits its nil attributes.
 
 ### Emission
 
@@ -99,6 +100,8 @@ Emission translates it to an ECMA-262 regular expression (JSON Schema 2020-12 se
 Refused: `%b`, `%f`, the position capture `()`, any non-ASCII byte, a malformed pattern (unbalanced capture,
 unfinished set or escape), `%` followed by another alphanumeric character. Characters ordinary in Lua but special in a
 regular expression (braces, vertical bar, slash) are escaped.
+
+A malformed pattern (the faults Lua reports only when a match reaches them: a trailing `%`, an unclosed set or capture, an invalid capture index, `%f` without a set, `%b` without two characters) is refused at declaration with `ArgumentError`, and a match that still fails at validation time ("pattern too complex") is a `pattern` violation with `context.reason = "malformed_pattern"`. Pattern matching can backtrack, so patterns should be anchored. `pattern` and `format` are skipped for a value with an `invalid_utf8` or `max_length` violation, and, without `max_length`, a string longer than 65536 bytes is not matched: it gets a `pattern` (or `format`) violation with `context.reason = "too_long_for_pattern"`.
 
 Declaring a `string` with a `logger` option (an object with `warning(message, fields)`) reports a pattern that cannot be
 translated at declaration; emission refuses it.
