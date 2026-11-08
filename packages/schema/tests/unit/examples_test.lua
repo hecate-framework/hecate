@@ -8,6 +8,7 @@ local here = debug.getinfo(1, "S").source:sub(2):gsub("\\", "/")
 local directory = here:match("^(.*)/tests/unit/") .. "/examples"
 local NAMES = {
   "hecate.schema.validate",
+  "hecate.schema.Schema.check",
   "hecate.schema.to_json_schema",
   "hecate.schema.string",
   "hecate.schema.integer",

@@ -15,13 +15,13 @@ generation.
 | Base types | `boolean`, `integer`, `number`, `string`, `null`, `any` |
 | Refinement keywords | `minimum`, `maximum`, `exclusive_minimum`, `exclusive_maximum`, `multiple_of`, `min_length`, `max_length`, `pattern`, `format` (`email`, `uri`, `uuid`, `date`, `date-time`, ...), `enum`, `const` |
 | Product | `object { property = schema, ... }` with `optional`, `nullable`, `default`, `additional_properties` |
-| Collections | `array(item, { min_items, max_items, unique_items })`, `map(key, value)` |
+| Collections | `array(item, { min_items, max_items, delimiter, unique_items })`, `map(value, { min_properties, max_properties })` (string keys only, no key schema, OQ-87) |
 | Sum | `union { a, b }`, `tagged_union("kind", { variant = schema })` |
 | Literal | `literal "ok"` |
-| Class-bound | `of(Class)` — the primary way to name and reuse a schema; becomes an OpenAPI component named after the class |
-| Named | `named("User", schema)` — opt-in for an inline DTO without a class; becomes an OpenAPI component |
+| Class-bound | `of(Class)` — the primary way to name and reuse a schema; becomes an OpenAPI component named after the class. The interface `HasSchema` requires the class-level `schema()` |
+| Named | `named("User", schema)` — opt-in for an inline schema without a class; becomes an OpenAPI component |
 | Enumeration | `enumeration(core_enumeration)`, `enumeration({ "a", "b" })` |
-| Custom | `refine(base, predicate, description)` — predicate must also be describable for docs |
+| Custom | `refine(base, predicate, description)` — predicate must also be describable for docs. **Not yet implemented, planned** (OQ-97) |
 
 `enumeration(core_enumeration)` accepts the names of the enumeration, in declaration order: a member object is not a JSON
 value, whereas its name survives `json.encode` and `json.decode` unchanged. Coercion of a text reads the name, a violation has
@@ -30,11 +30,62 @@ member. A default is given as a name. The names are read once, at declaration. T
 
 `multiple_of` takes a whole-number divisor greater than zero; a fractional divisor such as `0.01` is refused at declaration (OQ-87), because binary floats cannot express decimal steps and JSON Schema has no keyword for decimal places. Use integers in minor units (cents), or a string with a `pattern` for a fixed number of decimals; a decimal type is planned (roadmap).
 
-Lua integers and floats are distinguished (`integer` rejects `1.5`; `number` accepts both).
+Lua integers and floats are distinguished (`integer` rejects `1.5` and `1.0`; `number` accepts both).
+
+Parameter names follow the role: `item` is the element schema of an `array`, `value` the value schema of a `map`, `inner` the
+schema wrapped by `optional`, `nullable`, `default` and `named`, and `alternatives` the list of a `union`. Each constructor has one
+option class (`StringOptions`, `IntegerOptions`, `NumberOptions`, `ArrayOptions`, `MapOptions`, `ObjectOptions`), and a `string` takes
+`min_length`, `max_length`, `pattern`, `format` and an optional `logger`.
+
+`HasSchema` is the interface of a class that owns a schema: it requires the class-level function `schema()` that `of` calls. A
+class that declares it (`implements = { schema.HasSchema }`) and has no `schema` raises `ConformanceError` at finalisation; `of` still
+accepts any class that has `schema()` without declaring the interface.
+
+#### Return conventions
+
+`validate` returns `true`, or `false` and the list of violations. `coerce` and `build` return two values: `true` and the converted or
+built value, or `false` and the list of violations; they never raise for content that does not conform. `check` is the raising form
+of `validate` only: it returns the value or raises `ValidationError` with `context.violations`. `represent` returns the plain
+value and raises `ValidationError` when it cannot represent it. A declaration that is wrong raises `ArgumentError`.
 
 Names: class-bound schemas own the schema names. A schema without a class and without `named` is inlined.
 Two different bodies under one name in one emission raise `ArgumentError`, whose message names the colliding
 name and says whether each comes from a class or from `named`; equal bodies share one definition.
+
+### Violation codes
+
+Every violation has a `path` (a JSON Pointer), a `code`, a `message` and a `context`. The codes are **stable**: a code is never
+renamed or removed without a major version, and a client may switch on it. The `message` is for people and may be reworded; it
+never contains a value sent by the client. There are two namespaces: the short violation codes below (`minimum`, `required`), and the
+dotted codes of errors such as `hecate.core.ValidationError`, which wraps the violations in `context.violations`.
+
+| Code | Context fields | Emitted by |
+|---|---|---|
+| `type` | `expected`, `received` | every kind, when the value has another type (`integer` also refuses a whole float) |
+| `required` | `property` | `object`, and `tagged_union` for a missing tag |
+| `additional_properties` | `property` | `object`, for an undeclared property |
+| `minimum`, `maximum` | `minimum`, `maximum` | `integer`, `number` |
+| `exclusive_minimum`, `exclusive_maximum` | `exclusive_minimum`, `exclusive_maximum` | `integer`, `number` |
+| `multiple_of` | `multiple_of` | `integer`, `number` |
+| `min_length`, `max_length` | `min_length`, `max_length` | `string` |
+| `invalid_utf8` | none | `string`, when a length is declared and the text is not UTF-8 |
+| `pattern` | `pattern`, and `reason`, `max_bytes` | `string` |
+| `format` | `format`, and `reason`, `max_bytes` | `string` |
+| `literal` | `value` | `literal` |
+| `enum` | `values` | `enumeration` |
+| `min_items`, `max_items` | `min_items`, `max_items` | `array` |
+| `unique_items` | `index` | `array` |
+| `min_properties`, `max_properties` | `min_properties`, `max_properties` | `map` |
+| `union` | `alternatives` | `union` |
+| `tagged_union` | `tag`, `values` | `tagged_union`, for an unknown tag |
+| `coercion` | `expected` | `coerce`, and `build` with `coerce = true`, for a text that cannot be converted |
+| `depth_limit` | `max_depth` | every container, beyond 1000 levels |
+| `complexity_limit` | `max_steps` | any call that spends more than 1,000,000 steps |
+| `too_many_violations` | `max` | the call, once 100 violations are kept; it replaces the 101st |
+
+`context.reason` of `pattern` and `format` is `too_long_for_pattern` (the string is longer than 65536 bytes and no `max_length` is
+declared; `context.max_bytes` is the ceiling) or, for `pattern` only, `malformed_pattern` (Lua gave up on the match: "pattern too
+complex"). The codes are the type `hecate.schema.ViolationCode` in the annotations; `Violation.code` has that type.
 
 ### Coercion
 
@@ -51,7 +102,7 @@ coercion (except where explicitly allowed).
   description at request time.
 - `default(schema, value)`: `coerce` (texts) and `build` (JSON content, except PATCH) give an absent property a fresh copy of the value; an explicit `null` and a PATCH never take it, `validate` never supplies it, and `sent` stays false for a defaulted attribute (OQ-88).
 - `build(content, { method, coerce })`: a class-bound part whose class is a `value_class` is built with `core.instantiate_value` from its validated attributes, children first (no `init` call). With `coerce = true` the texts of a request (path, query, headers) are converted with the rules of `coerce` and then built in one call: defaults apply once, in the conversion and never for a PATCH, `sent` records only the attributes provided, and a failed conversion returns the `coercion` violations of `coerce` (OQ-93).
-- Unknown properties (`additional_properties`): rejected by default for request content (configurable per schema).
+- Unknown properties (`additional_properties` option): rejected by default (violation `additional_properties`), configurable per schema.
 - Bounded output: a call keeps at most 100 violations; the 101st is replaced by one `too_many_violations` violation (`context.max = 100`), validators stop descending, and a property name echoed in a violation (path and `context.property`) is cut to 64 bytes. `unique_items` hashes scalars and compares tables by signature bucket, and spends the work budget per item and per comparison.
 - Members of an `object` schema are *properties* (the JSON Schema term); *fields* are HTTP header fields only.
 
@@ -104,17 +155,28 @@ regular expression (braces, vertical bar, slash) are escaped.
 A malformed pattern (the faults Lua reports only when a match reaches them: a trailing `%`, an unclosed set or capture, an invalid capture index, `%f` without a set, `%b` without two characters) is refused at declaration with `ArgumentError`, and a match that still fails at validation time ("pattern too complex") is a `pattern` violation with `context.reason = "malformed_pattern"`. Pattern matching can backtrack, so patterns should be anchored. `pattern` and `format` are skipped for a value with an `invalid_utf8` or `max_length` violation, and, without `max_length`, a string longer than 65536 bytes is not matched: it gets a `pattern` (or `format`) violation with `context.reason = "too_long_for_pattern"`.
 
 Declaring a `string` with a `logger` option (an object with `warning(message, fields)`) reports a pattern that cannot be
-translated at declaration; emission refuses it.
+translated at declaration, as `schema: pattern "%bxy" cannot be emitted: %b has no exact translation` (the pattern and the reason
+are also in `fields`); emission refuses it with an `ArgumentError` whose message says that Lua validation is unaffected and how to
+rewrite the pattern: with sets, classes, `format`, `min_length` or `enum`.
 
 Lua matches **bytes**, ECMA-262 matches UTF-16 code units, so `.`, negated sets and negated
 classes differ from the emitted expression on non-ASCII input (for example `^.$` rejects `"é"` in Lua and accepts it in
 ECMA-262). The emitted expression is exact for ASCII input (the ASCII-pinned classes of OQ-85, point 1).
 
-### Generation
+### JSON Schema outside the emitted subset
 
-`schema:generate(seed)` produces valid sample values (for documentation examples and
-property-based tests); `schema:generate_invalid(seed)` produces values violating exactly
-one constraint, with the expected violation.
+The emission covers `type`, `enum`, `const`, the numeric, string, array and object refinements, `properties`, `required`,
+`additionalProperties`, `items`, `anyOf`, `oneOf`, `default`, `format`, `$defs` and local `$ref`. These keywords are **deliberately
+not emitted**, and are out of scope until a consumer needs them: `allOf`, `not`, `if`, `then` and `else`, `contains`, `prefixItems`,
+`patternProperties`, `propertyNames`, `dependentSchemas`, `dependentRequired`, `unevaluatedProperties`, `unevaluatedItems`, `$id`,
+anchors, `$dynamicRef`, remote `$ref` and the `content` keywords. `oneOf` is emitted only by `tagged_union`; a `union` is `anyOf`.
+
+### Generation (not yet implemented, planned)
+
+`schema:generate(seed)` would produce valid sample values (for documentation examples and
+property-based tests); `schema:generate_invalid(seed)` would produce values violating exactly
+one constraint, with the expected violation. Neither exists yet; the `test` package carries them. The same holds for the
+generation of `---@meta` files for LuaLS, carried by `doc` or `cli`.
 
 ## `hecate.openapi`
 

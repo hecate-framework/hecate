@@ -21,7 +21,7 @@ types to read, so the declaration itself is the type.
 This is what makes hecate contract-first. One value drives every use of a type:
 
 - validation of decoded content,
-- coercion of the texts of a path, a query string or a header,
+- coercion of the texts of a path, a query string or the header fields,
 - the instances an action receives,
 - the JSON Schema 2020-12 document of the contract.
 
@@ -40,7 +40,7 @@ Three operations read a value against a schema. They answer different questions.
 | Operation | Input | Answer |
 |---|---|---|
 | `validate` | decoded JSON content | does the value conform? Changes nothing |
-| `coerce` | the texts of a path, query or header | the typed value, with defaults supplied |
+| `coerce` | the texts of a path, query or header fields | the typed value, with defaults supplied |
 | `build` | decoded JSON content, or texts with `coerce = true` | an instance of the class of each part |
 
 `validate` is pure. It returns every violation, each with a JSON Pointer path, a code and a message,
@@ -91,7 +91,7 @@ default, so an action can tell what the client really sent.
 ## Why classes own schema names
 
 An API contract has components with names. Someone has to own the names. In hecate the class does. A class
-declares a class-level `schema()` and an interface can require it. Another schema or a route names the
+declares a class-level `schema()`, and the interface `schema.HasSchema` can require it. Another schema or a route names the
 class itself with `schema.of(Class)`, never a string.
 
 This gives one place for each name and one function for each type. Validation, coercion, build and
@@ -99,8 +99,8 @@ emission all call the same function, and the result is cached because it is immu
 writes each class once in `$defs` and refers to it. Recursive types work because the resolution is lazy,
 and a cycle closes with a `$ref`.
 
-A schema without a class is inlined and never named. `named` is the explicit opt-in for a data transfer
-object that has no class. Two different bodies under one name are an error, not a silent merge, so a
+A schema without a class is inlined and never named. `named` is the explicit opt-in for an inline schema
+that has no class. Two different definitions under one name are an error, not a silent merge, so a
 contract never changes meaning because of the order of declarations.
 
 ## Safety bounds
@@ -141,6 +141,16 @@ them, and it never approximates silently.
   `19.99` by `0.01` is not zero. `multiple_of` therefore takes whole-number divisors only. For decimal
   places, use integers in minor units or a string with a pattern.
 - **Unsupported constructs.** A construct that JSON Schema cannot express exactly is not allowed.
+- **Keywords outside the emitted subset.** The emission covers `type`, `enum`, `const`, the numeric, string,
+  array and object refinements, `properties`, `required`, `additionalProperties`, `items`, `anyOf`, `oneOf`,
+  `default`, `format`, `$defs` and local `$ref`. These keywords are not emitted, as a deliberate limit:
+  `allOf`, `not`, `if`, `then` and `else`, `contains`, `prefixItems`, `patternProperties`, `propertyNames`,
+  `dependentSchemas`, `dependentRequired`, `unevaluatedProperties`, `unevaluatedItems`, `$id`, anchors,
+  `$dynamicRef`, remote `$ref` and the `content` keywords. They are out of scope until a consumer needs them.
+  `oneOf` is emitted only by `tagged_union`: a `union` is `anyOf`.
+- **Planned, not implemented.** `refine` (a custom predicate), the generators of sample values (`generate`,
+  `generate_invalid`, carried by the `test` package) and the generation of `---@meta` files for LuaLS (carried
+  by `doc` or `cli`) do not exist yet.
 
 ## Related reading
 

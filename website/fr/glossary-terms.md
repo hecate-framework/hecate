@@ -75,4 +75,7 @@ page (avec un lien vers le glossaire), puis le terme français seul.
 | representation (of an instance) | représentation | `Schema:represent` en code ; RFC 9110 |
 | minor units | unités mineures | centimes pour l’argent |
 | fail-fast | à échec rapide | unions qui s’arrêtent à la première violation |
-| data transfer object | objet de transfert de données | `schema.named` en code |
+| validator (internal) | validateur (fonction de validation compilée) | interne à `hecate.schema`, jamais le nom d’un type |
+| build (of an instance) | construire (une instance) | `Schema:build` en code ; jamais « hydrater » |
+| represent | représenter | `Schema:represent` en code |
+| union (sum type) | union (type somme) | `schema.union` ; à distinguer de l’union relationnelle (`UNION` SQL) |
