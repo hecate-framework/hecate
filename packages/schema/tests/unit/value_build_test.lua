@@ -115,18 +115,17 @@ function T:test_value_class_nested_in_a_value_class_and_equality()
   self:assert_true(a == b)
 end
 
---- The native encoder reads tables raw, and a frozen value object keeps its attributes in a hidden table behind
---- `__pairs`: encoding the instance itself is not possible (open point for the owner); a copy made with `pairs` encodes.
-function T:test_pairs_of_a_built_value_instance_sees_only_the_attributes_and_a_copy_encodes()
+--- A frozen value object keeps its attributes in a hidden table behind `__pairs`; the native encoder follows `__pairs`
+--- (OQ-94), so the built instance encodes directly (no copy made with `pairs`), as an object of its attributes.
+function T:test_pairs_of_a_built_value_instance_sees_only_the_attributes_and_it_encodes_directly()
   local Point = point_class()
   local _, p = schema.of(Point):build({ x = 1, y = 2 })
-  local copy = {}
-  for key, value in pairs(p) do copy[key] = value end
-  local decoded = json.decode(json.encode(copy))
+  self:assert_equal('{"x":1,"y":2}', json.encode(p, { canonical = true }))
+  local decoded = json.decode(json.encode(p))
   self:assert_equal(1, decoded.x)
   self:assert_equal(2, decoded.y)
   local count = 0
-  for _ in pairs(copy) do count = count + 1 end
+  for _ in pairs(p) do count = count + 1 end
   self:assert_equal(2, count)
 end
 

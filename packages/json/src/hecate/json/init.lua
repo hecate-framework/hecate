@@ -164,7 +164,8 @@ end
 --- array, one marked with `json.object` an object. An unmarked table is an array when its keys are
 --- positive integers (a hole is written as `null`, while the table stays dense: highest index at most twice the
 --- number of entries plus 16), an object when all its keys are strings, and **an object when it is empty**; any
---- other table raises. Object members are written in no defined order unless `canonical` is set.
+--- other table raises. Tables are read raw, except a table whose metatable has a function `__pairs` (a frozen value
+--- object, a proxy), which is read through it with the same rules (OQ-94). Object members are written in no defined order unless `canonical` is set.
 ---
 --- Raises `hecate.json.EncodeError` (with `context.reason` and the JSON Pointer `context.path` of the
 --- offending value) for NaN, an infinity, a function, userdata, thread or `nil` value, a string that

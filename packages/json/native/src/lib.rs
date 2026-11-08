@@ -17,9 +17,13 @@
 //! A failure is found by the walk where it happens and carries its path on the way out: every container that the
 //! error crosses adds its own step, so that a successful encoding records nothing.
 //!
+//! A table whose metatable defines `__pairs` as a function (a frozen value object, any user proxy: OQ-94) is read through
+//! it, by the standard iteration protocol; every other table is read raw. The entries then follow the same rules
+//! (array, object, holes, keys, limits). An error raised by `__pairs` or its iterator surfaces unchanged from `encode`.
+//!
 //! Nothing here is `unsafe`; the Lua boundary is `mlua`.
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::io::{self, Write};
 
 use mlua::prelude::*;
@@ -64,6 +68,10 @@ struct Failure {
 /// The failure of the encoding in progress, shared by the walk (a `Serialize` cannot return more than an error).
 struct Outcome {
     failure: RefCell<Option<Failure>>,
+    /// The error raised by a `__pairs` metamethod or its iterator: it surfaces unchanged from `encode`.
+    raised: RefCell<Option<LuaError>>,
+    /// Set when an iteration yielded more entries than `max_size` can hold (it is a `size_limit` failure).
+    too_many: Cell<bool>,
 }
 
 impl Outcome {
@@ -388,6 +396,36 @@ fn raw_entries(table: &LuaTable) -> LuaResult<Vec<(LuaValue, LuaValue)>> {
     table.pairs::<LuaValue, LuaValue>().collect()
 }
 
+/// The entries of a table that defines `__pairs`, collected through the standard iteration protocol: the metamethod
+/// is called with the table and returns the iterator, its state and its initial control value (a fourth, closing value
+/// is ignored); the iterator is then called until it returns `nil`. Stops with `None` once the entries could not fit in
+/// `max_size` bytes of output (an entry takes at least two bytes: `0,`), so that an endless iterator ends.
+fn pairs_entries(
+    table: &LuaTable,
+    pairs: &LuaFunction,
+    max_size: usize,
+) -> LuaResult<Option<Vec<(LuaValue, LuaValue)>>> {
+    let (iterator, state, mut control): (LuaValue, LuaValue, LuaValue) = pairs.call(table)?;
+    let LuaValue::Function(iterator) = iterator else {
+        return Err(LuaError::runtime(format!(
+            "__pairs must return an iterator function, got {}",
+            type_name(&iterator)
+        )));
+    };
+    let mut entries = Vec::new();
+    loop {
+        let (key, value): (LuaValue, LuaValue) = iterator.call((&state, &control))?;
+        if key.is_nil() {
+            return Ok(Some(entries));
+        }
+        entries.push((key.clone(), value));
+        if entries.len().saturating_mul(2) > max_size.saturating_add(1) {
+            return Ok(None);
+        }
+        control = key;
+    }
+}
+
 /// The length of a table written as an array: its highest index. A hole is written as `null`; holes are accepted while the
 /// table stays dense enough (highest index at most twice the number of entries plus 16), so that a stray `t[1e9] = x`
 /// cannot make the encoder write a billion nulls. `None` when a key is not a positive index or the table is too sparse.
@@ -417,8 +455,32 @@ impl Node<'_> {
                 format!("nesting deeper than max_depth ({max_depth})"),
             ));
         }
-        let entries = raw_entries(table).map_err(S::Error::custom)?;
         let metatable = table.metatable();
+        // A table with no metatable (the common case) is read raw at no extra cost. A metatable other than the markers
+        // is asked for `__pairs`, read raw too (no `__index` chain): a function there is the iteration to follow.
+        let pairs = match &metatable {
+            Some(m) if *m != self.markers.array && *m != self.markers.object => {
+                match m.raw_get::<LuaValue>("__pairs") {
+                    Ok(LuaValue::Function(f)) => Some(f),
+                    _ => None,
+                }
+            }
+            _ => None,
+        };
+        let entries = match pairs {
+            None => raw_entries(table).map_err(S::Error::custom)?,
+            Some(pairs) => match pairs_entries(table, &pairs, self.options.max_size) {
+                Ok(Some(entries)) => entries,
+                Ok(None) => {
+                    outcome.too_many.set(true);
+                    return Err(S::Error::custom("max_size"));
+                }
+                Err(error) => {
+                    *outcome.raised.borrow_mut() = Some(error);
+                    return Err(S::Error::custom("raised"));
+                }
+            },
+        };
         let marked_array = metatable.as_ref().is_some_and(|m| *m == self.markers.array);
         let marked_object = metatable
             .as_ref()
@@ -566,7 +628,9 @@ fn run<F: Formatter>(
     let mut serializer = serde_json::Serializer::with_formatter(&mut writer, floats);
     match node.serialize(&mut serializer) {
         Ok(()) => Ok(writer.out),
+        Err(_) if node.outcome.raised.borrow().is_some() => Err(Some("raised")),
         Err(_) if node.outcome.failure.borrow().is_some() => Err(None),
+        Err(_) if node.outcome.too_many.get() => Err(Some("size_limit")),
         Err(_) if writer.overflowed => Err(Some("size_limit")),
         Err(_) => Err(Some("internal")),
     }
@@ -609,6 +673,8 @@ fn encode(
     let options = read_options(&options)?;
     let outcome = Outcome {
         failure: RefCell::new(None),
+        raised: RefCell::new(None),
+        too_many: Cell::new(false),
     };
     // The top-level value is at depth 0: its container is level 1.
     let node = Node {
@@ -641,6 +707,11 @@ fn encode(
             let message = format!("output exceeds max_size ({} bytes)", options.max_size);
             Ok((None, Some(failure_table(lua, "size_limit", &message, b"")?)))
         }
+        Err(Some("raised")) => Err(outcome
+            .raised
+            .borrow_mut()
+            .take()
+            .unwrap_or_else(|| LuaError::runtime("encoder lost a raised error"))),
         Err(Some(other)) => Err(LuaError::runtime(format!(
             "hecate.json.encoder_native: {other} error while encoding"
         ))),
