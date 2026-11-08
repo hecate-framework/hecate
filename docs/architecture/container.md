@@ -1,9 +1,9 @@
 # Container (`hecate.container`)
 
-Package: `container` (layer 3, Framework). Status: specification, no code yet. Decisions:
+Package: `container` (layer 3, Framework). Status: implemented. Decisions:
 [ADR 0007](../adr/0007-object-model.md) (object model, which services build on),
 [ADR 0018](../adr/0018-error-signalling.md) (errors), [ADR 0025](../adr/0025-ambient-context.md) (ambient
-context). Undecided points are open questions OQ-85 to OQ-89 in [open-questions.md](../open-questions.md); each
+context). Undecided points are open questions OQ-98 to OQ-102 in [open-questions.md](../open-questions.md); each
 statement below that depends on one says so. The package depends on `core` only: it knows nothing of `reactor`,
 `http` or `kernel`.
 
@@ -28,7 +28,7 @@ Non-goals, on purpose:
 - Optional dependencies, several bindings under one key (collections of implementations), conditional
   bindings, decorators and interception, lazy proxies, named child containers.
 - Constructors that suspend. A constructor and a factory run to completion without yielding (see
-  "Construction"); opening a connection belongs to an explicit start step owned by the `kernel` (OQ-88).
+  "Construction"); opening a connection belongs to an explicit start step owned by the `kernel` (OQ-101).
 - Configuration of the container from files, binding after validation, and any cross-process sharing:
   workers are processes (concurrency.md), each has its own container and its own singletons.
 
@@ -58,7 +58,7 @@ c:bind(UserRepository, function(clock) return PgUserRepository(clock) end,
 `bind(key, definition, options?) → Container` (chainable). The `definition` is a finalised class, constructed
 as `definition(dependency1, dependency2, ...)`, or a function (a **factory**), called with the same arguments.
 The arguments are the resolved services of `options.requires`, in order. `options.lifetime` defaults to
-`"transient"`, the most conservative choice because it shares no state (OQ-85 asks the owner whether the
+`"transient"`, the most conservative choice because it shares no state (OQ-98 asks the owner whether the
 default should instead be required). Dependencies are declared explicitly, never inferred (Fowler, "Forms of
 Dependency Injection": constructor injection makes them visible in one place). An argument error (`key` neither
 a non-empty string nor an interface, `definition` neither a class nor a function, unknown lifetime, `requires`
@@ -77,7 +77,7 @@ member or its name.
 
 A **service scope** (`container.ServiceScope`) is made by `container:open_scope()`. The `kernel` opens one per
 request, and closes it when the request's reactor scope ends; `hecate.container` does not itself depend on the
-reactor, so the link between the two is the kernel's, not the container's (OQ-86). The service scope is an
+reactor, so the link between the two is the kernel's, not the container's (OQ-99). The service scope is an
 ordinary value: every computation forked during the request receives the same one when the kernel passes it,
 typically through the ambient context (ADR 0025, key owned by the kernel), so a scoped service is **shared
 across `fork`**, not duplicated per computation. A computation forked outside any request (`detach`) has no
@@ -100,7 +100,7 @@ A service whose class defines `__close` (`core` supports `__close`) is closed by
 its service scope closes, a singleton when the container closes, both in reverse order of creation, each close
 attempted even if one fails (the first error is raised after all were attempted, the others attached as
 `context.suppressed`). `ServiceScope` and `Container` themselves support `<close>` and `:close()`; closing is
-idempotent. A transient service is **not** tracked: its consumer owns it (OQ-87). A closed service scope or
+idempotent. A transient service is **not** tracked: its consumer owns it (OQ-100). A closed service scope or
 container refuses further `resolve` with `ContainerError`. Closing runs in the caller's computation, so when the
 request is cancelled the kernel closes the service scope under `reactor.shield` (concurrency.md, rule 4,
 OQ-23) if any `__close` suspends.
@@ -126,12 +126,12 @@ It detects, for every binding:
    depend on anything and be depended on by anything; a `scoped` service may depend on `singleton` and `scoped`
    services. `LifetimeError`, with `context.key` (the singleton), `context.dependency` (the scoped service)
    and `context.path`. A `singleton` that depends on a `transient` is accepted: the transient is built once and
-   kept (OQ-85 asks whether a warning is wanted).
+   kept (OQ-98 asks whether a warning is wanted).
 4. **Conformance**: a class bound under an interface key that does not implement it (`core.ConformanceError`).
 
 `validate` collects every problem, not only the first, and raises one `GraphError` (a `ContainerError`) whose
 message states the count and the first problem and whose `context.problems` is the list of the individual error
-instances above, in the order of binding. It is deterministic: bindings are checked in registration order (OQ-89 records the aggregation choice).
+instances above, in the order of binding. It is deterministic: bindings are checked in registration order (OQ-102 records the aggregation choice).
 
 **Invariant: no resolution failure can happen at request time for a validated graph.** After `validate`
 succeeds, every `resolve` of a bound key from a service scope, and of a root-resolvable key from the root,
@@ -145,7 +145,7 @@ such; the kernel never makes it.
 ## Construction
 
 - A class definition is called `Class(...)`; a factory is called with the same arguments. Both run in the
-  computation that resolves, without yielding: they must not suspend (OQ-88). Because they cannot yield, two
+  computation that resolves, without yielding: they must not suspend (OQ-101). Because they cannot yield, two
   computations never create the same singleton or scoped service twice, and no lock is needed.
 - A re-entrant resolution of a key that is being constructed (possible only through a factory that captured the
   container, which is discouraged) raises `CycleError`, a second line of defence behind validation.
@@ -165,7 +165,7 @@ override cannot introduce a cycle or a lifetime violation unnoticed. `Container:
 binds an existing object as a `singleton` with no dependencies, the usual way to inject a fake.
 
 An override is an ordinary binding in every other respect. There is no "test mode": the same method works in
-production, and the same rules apply (OQ-85 notes the option of refusing it once a container is started).
+production, and the same rules apply (OQ-98 notes the option of refusing it once a container is started).
 
 ## Errors
 

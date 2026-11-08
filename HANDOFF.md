@@ -13,6 +13,8 @@
 
 ## Next steps
 
+0. Deferred to a follow-up (conflicts with PR #54 on `DEFAULT_PACKAGES`/website.yml): register `container` in the reference site, add glossary terms (service scope, binding, lifetime).
+
 1. DONE: specification written (`docs/architecture/container.md`, OQ-85 to OQ-89 open). Next: step 2 below.
 2. Tests first, then implement bindings, lifetimes, boot validation, overrides.
 3. Docs, README, CHANGELOG, roadmap tick.
