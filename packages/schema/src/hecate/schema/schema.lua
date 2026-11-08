@@ -222,11 +222,31 @@ end
 ---@type { verdicts: table<table, table<table, boolean>>, converted: table<table, table<table, any>> }?
 local memo = nil
 
---- The table in which a union keeps its answers of `kind` ("verdicts" or "converted"), keyed by `owner`.
+--- Nesting of the alternative attempts of the coercers and representers (a union trying an alternative whose result it
+--- may reject). A node can be visited again only inside an attempt (the other alternative reaches the same node through
+--- its own nested union) or in fail-fast mode (which is always an attempt), so the memoisation answers and stores only
+--- there: a union outside any attempt, the common case, allocates nothing (P2 of the review, measured).
+local attempts = 0
+
+--- The answer of kind `kind` ("verdicts" or "converted") that the union owning `owner` stored for `node`, or nil.
 ---@param kind "verdicts"|"converted"
 ---@param owner table  identity of the union (a table it owns)
----@return table
-local function memo_of(kind, owner)
+---@param node table
+---@return any
+local function recall(kind, owner, node)
+  local store = memo
+  if store == nil then return nil end
+  local answers = store[kind][owner]
+  if answers == nil then return nil end
+  return answers[node]
+end
+
+--- Stores an answer (see `recall`); the stores and the answers table of a union are created by the first answer.
+---@param kind "verdicts"|"converted"
+---@param owner table
+---@param node table
+---@param answer any
+local function remember(kind, owner, node, answer)
   local store = memo
   if store == nil then
     store = { verdicts = {}, converted = {} }
@@ -237,12 +257,12 @@ local function memo_of(kind, owner)
     answers = {}
     store[kind][owner] = answers
   end
-  return answers
+  answers[node] = answer
 end
 
 --- Resets the counters of a public entry point.
 local function reset_work()
-  depth, steps, budget_violation, fast, detailing, memo = 0, 0, nil, false, 0, nil
+  depth, steps, budget_violation, fast, detailing, memo, attempts = 0, 0, nil, false, 0, nil, 0
   without_defaults, defaulted = false, nil
 end
 
@@ -1301,21 +1321,25 @@ function M.union(alternatives)
   -- the validator reports the union. A single candidate is taken without a second validation of its subtree (the
   -- validator of the whole call checks the result once).
   local coercer = function(value, path, out)
-    local answers = nil
-    if type(value) == "table" then answers = memo_of("converted", validators) end
-    if answers ~= nil and answers[value] ~= nil then return answers[value] end
+    local memoised = type(value) == "table" and (fast or attempts > 0)
+    if memoised then
+      local known = recall("converted", validators, value)
+      if known ~= nil then return known end
+    end
     local list = candidates(value)
     for _, i in ipairs(list) do
       if not spend(path, out) then return value end
       local scratch = {}
+      attempts = attempts + 1
       local converted = copy[i].coercer(value, path, scratch)
+      attempts = attempts - 1
       if budget_violation ~= nil then return value end
       if #scratch == 0 and (#list == 1 or accepts(validators[i], converted, path)) then
-        if answers ~= nil then answers[value] = converted end
+        if memoised then remember("converted", validators, value, converted) end
         return converted
       end
     end
-    if answers ~= nil and budget_violation == nil then answers[value] = value end
+    if memoised and budget_violation == nil then remember("converted", validators, value, value) end
     return value
   end
   -- The value has been validated by the validator of the call: with one candidate there is nothing to decide.
@@ -1333,9 +1357,11 @@ function M.union(alternatives)
   local representers, second_pass = {}, {}
   for i = 1, count do representers[i] = copy[i].representer end
   local representer = represented(function(value, path)
-    local answers = nil
-    if type(value) == "table" then answers = memo_of("converted", representers) end
-    if answers ~= nil and answers[value] ~= nil then return answers[value] end
+    local memoised = type(value) == "table" and (fast or attempts > 0)
+    if memoised then
+      local known = recall("converted", representers, value)
+      if known ~= nil then return known end
+    end
     local result, found = nil, false
     local list = candidates(value)
     for _, i in ipairs(list) do
@@ -1348,11 +1374,11 @@ function M.union(alternatives)
       -- Second pass, memoised per alternative and per node like the first (OQ-91): the plain form an alternative gives
       -- for a node, or `REJECTED` when that form is not accepted, is computed once within a call.
       local tried = nil
-      if type(value) == "table" then
-        local per_node = memo_of("converted", second_pass)
-        tried = per_node[value]
-        if tried == nil then tried = {}; per_node[value] = tried end
+      if memoised then
+        tried = recall("converted", second_pass, value)
+        if tried == nil then tried = {}; remember("converted", second_pass, value, tried) end
       end
+      attempts = attempts + 1 -- the alternatives below are attempts: a nested union reaches the same nodes again
       for _, i in ipairs(list) do
         local plain = tried and tried[i]
         if plain == nil then
@@ -1362,16 +1388,16 @@ function M.union(alternatives)
         end
         if plain ~= REJECTED then result, found = plain, true break end
       end
+      attempts = attempts - 1
     end
     if not found then stop_representation(path, "union", "the value matches none of the alternatives") end
-    if answers ~= nil then answers[value] = result end
+    if memoised then remember("converted", representers, value, result) end
     return result
   end)
   return Schema("union", { members = copy, coercer = coercer, builder = builder, representer = representer, validator = function(value, path, out)
-    local verdicts = nil
-    if type(value) == "table" then verdicts = memo_of("verdicts", validators) end
+    local memoised = fast and type(value) == "table" -- only an alternative attempt (fail-fast) can reach a node again
     local known = nil
-    if verdicts ~= nil then known = verdicts[value] end
+    if memoised then known = recall("verdicts", validators, value) end
     if known == true then return end
     -- A rejected node is not tried again; only the report below is still to be made.
     local last = count
@@ -1382,11 +1408,11 @@ function M.union(alternatives)
         local found = {}
         validators[i](value, path, found)
         if found[1] == nil and budget_violation == nil then
-          if verdicts ~= nil then verdicts[value] = true end
+          if memoised then remember("verdicts", validators, value, true) end
           return
         end
       elseif accepts(validators[i], value, path) then
-        if verdicts ~= nil then verdicts[value] = true end
+        if memoised then remember("verdicts", validators, value, true) end
         return
       end
       if budget_violation ~= nil then
@@ -1394,7 +1420,7 @@ function M.union(alternatives)
         return
       end
     end
-    if verdicts ~= nil then verdicts[value] = false end
+    if memoised then remember("verdicts", validators, value, false) end
     local failures = {}
     if not fast and detailing == 0 then
       -- Every alternative failed: only now are their violations computed, once, in full mode.
