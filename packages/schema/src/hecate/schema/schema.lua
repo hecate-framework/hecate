@@ -37,6 +37,10 @@ core.finalise(Record)
 --- A builder: returns the conforming `value` with every class-bound part replaced by an instance of its class.
 ---@alias hecate.schema.Builder fun(value: any): any
 
+--- A representer: returns the plain JSON-ready form of `value` (at JSON Pointer `path`), in fresh tables. It does not
+--- validate; it raises `ValidationError` when the nesting guard or the work budget stops it (see `Schema:represent`).
+---@alias hecate.schema.Representer fun(value: any, path: string): any
+
 --- A violation as collected during validation, before it becomes a `Violation`.
 ---@class hecate.schema.RawViolation
 ---@field [1] string  path
@@ -55,6 +59,7 @@ core.finalise(Record)
 ---@field coercer hecate.schema.Coercer  compiled coercion closure (textual input to typed value)
 ---@field relaxed_validator hecate.schema.Validator  validator of PATCH content: the required properties of the top-level object may be absent
 ---@field builder hecate.schema.Builder  compiled builder of instances (see `Schema:build`)
+---@field representer hecate.schema.Representer  compiled representer of instances (see `Schema:represent`)
 ---@field prefilter? fun(value: any): boolean  cheap necessary condition for a value to conform (false: it cannot); absent when there is none
 ---@field coerce fun(self: hecate.schema.Schema, value: any): boolean, any  see `Schema:coerce`
 ---@field to_json_schema fun(self: hecate.schema.Schema): table  the JSON Schema 2020-12 document of the schema
@@ -75,6 +80,7 @@ function Schema:init(kind, parts)
   self.coercer = parts.coercer or function(value) return value end
   self.relaxed_validator = parts.relaxed_validator or parts.validator
   self.builder = parts.builder or function(value) return value end
+  self.representer = parts.representer or function(value) return value end
   self.prefilter = parts.prefilter
 end
 
@@ -270,6 +276,63 @@ local function accepts(validate, value, path)
   fast = previous
   return found[1] == nil and budget_violation == nil
 end
+
+--- Stops a representation (`Schema:represent`) with a `ValidationError` that carries one violation: the code and the
+--- JSON Pointer where it stopped, as `Schema:check` does.
+---@param path string
+---@param code string
+---@param message string
+---@param context? table
+local function stop_representation(path, code, message, context)
+  local v = Violation(path, code, message, context)
+  error(core.ValidationError(("cannot represent: %s"):format(tostring(v)), { context = { violations = { v } } }), 0)
+end
+
+--- Wraps a representer with the nesting guard and the work budget, the counters of validation (OQ-91, OQ-92). A cycle
+--- of the object graph reaches `MAX_DEPTH` and ends here, never in a hang.
+---@param inner hecate.schema.Representer
+---@return hecate.schema.Representer
+local function represented(inner)
+  return function(value, path)
+    steps = steps + 1
+    if steps > limits.max_steps then
+      stop_representation(path, "complexity_limit", "the work needed exceeds " .. limits.max_steps .. " steps",
+        { max_steps = limits.max_steps })
+    end
+    if depth >= MAX_DEPTH then
+      stop_representation(path, "depth_limit", "the value is nested deeper than " .. MAX_DEPTH .. " levels",
+        { max_depth = MAX_DEPTH })
+    end
+    depth = depth + 1
+    local result = inner(value, path)
+    depth = depth - 1
+    return result
+  end
+end
+
+--- Tells whether `validate` accepts `value`, with a nesting count of its own (the representer is already `depth` deep).
+local function accepts_apart(validate, value, path)
+  local outer = depth
+  depth = 0
+  local ok = accepts(validate, value, path)
+  depth = outer
+  if budget_violation ~= nil then
+    local v = budget_violation
+    stop_representation(v[1], v[2], v[3], v[4])
+  end
+  return ok
+end
+
+--- A deep copy of any Lua value that JSON can hold, in fresh tables (the representer of `any`); markers are kept.
+local copy_plain
+copy_plain = represented(function(value, path)
+  if type(value) ~= "table" or value == null then return value end
+  local copy = {}
+  for key, member in pairs(value) do
+    copy[key] = copy_plain(member, type(key) == "string" and path .. "/" .. escape_token(key) or path .. "/" .. tostring(key))
+  end
+  return remark(value, copy)
+end)
 
 ---@class hecate.schema
 local M = {}
@@ -560,11 +623,20 @@ function M.enumeration(values)
   local count = #copy
   local builder = nil
   local options = nil
+  local representer = nil
   if source ~= nil then
     options = { enumeration = source.__name }
     builder = function(value) return source:find(value) end
+    -- A member becomes its name; a name (a hand-made value) stays as it is; anything else has no JSON form.
+    representer = function(value, path)
+      if type(value) == "string" then return value end
+      local name = type(value) == "table" and value.name or nil
+      if type(name) == "string" and source:find(name) == value then return name end
+      stop_representation(path, "enum", "the value is not a member of the enumeration " .. source.__name)
+    end
   end
   return Schema("enumeration", { options = options, members = copy, coercer = constants_coercer(copy), builder = builder,
+    representer = representer,
     validator = function(v, path, out)
       for i = 1, count do
         if same_constant(v, copy[i]) then return end
@@ -582,7 +654,7 @@ function M.optional(inner)
   if inner.kind == "optional" then refuse("optional: already optional") end
   if inner.kind == "default" then refuse("optional: a property with a default is already optional") end
   return Schema("optional", { item = inner, validator = inner.validator, coercer = inner.coercer, builder = inner.builder,
-    prefilter = inner.prefilter })
+    representer = inner.representer, prefilter = inner.prefilter })
 end
 
 --- Accepts JSON null (`hecate.json.null`) in addition to the values of `inner`. Lua `nil` is absence, never null.
@@ -593,7 +665,9 @@ function M.nullable(inner)
   local validate_inner = inner.validator
   -- A text is never coerced to null: the textual forms of a missing value are not agreed (OQ-86).
   local build_inner = inner.builder
+  local represent_inner = inner.representer
   return Schema("nullable", { item = inner, coercer = inner.coercer,
+    representer = function(value, path) if value == null then return value end return represent_inner(value, path) end,
     builder = function(value) if value == null then return value end return build_inner(value) end,
     validator = function(value, path, out)
     if value == null then return end
@@ -655,6 +729,13 @@ function M.array(item, options)
     for i = 1, #value do result[i] = build_item(value[i]) end
     return remark(value, result)
   end
+  local represent_item = item.representer
+  local representer = represented(function(value, path)
+    if type(value) ~= "table" or value == null then stop_representation(path, "type", "expected array", { expected = "array" }) end
+    local result = {}
+    for i = 1, #value do result[i] = represent_item(value[i], path .. "/" .. (i - 1)) end
+    return json.array(result) -- an empty array stays `[]`
+  end)
   local coercer = guarded(function(value, path, out)
     if type(value) == "string" then
       -- OpenAPI `style: form, explode: false` (delimiter "," by default; " " and "|" for the other styles).
@@ -676,7 +757,7 @@ function M.array(item, options)
     if #result ~= #value then return value end
     return result
   end, true)
-  return Schema("array", { options = o, item = item, coercer = coercer, builder = builder, validator = guarded(function(value, path, out)
+  return Schema("array", { options = o, item = item, coercer = coercer, builder = builder, representer = representer, validator = guarded(function(value, path, out)
     if type(value) ~= "table" or value == null or json.is_object(value) then return type_violation(path, "array", out) end
     local length = #value
     local count = 0
@@ -775,6 +856,19 @@ function M.object(properties, options)
     end
     return remark(value, result)
   end
+  local represent_members = {}
+  for i = 1, count do represent_members[i] = copy[names[i]].representer end
+  -- Only the declared properties are represented: an undeclared attribute never reaches a response. `value[name]`
+  -- reads the attribute of an ordinary instance and of a frozen value instance alike.
+  local representer = represented(function(value, path)
+    if type(value) ~= "table" or value == null then stop_representation(path, "type", "expected object", { expected = "object" }) end
+    local result = {}
+    for i = 1, count do
+      local member = value[names[i]]
+      if member ~= nil then result[names[i]] = represent_members[i](member, path .. tokens[i]) end
+    end
+    return json.object(result) -- an empty object stays `{}`
+  end)
   local coercer = guarded(function(value, path, out)
     if type(value) ~= "table" or value == null then return value end
     local result = {}
@@ -850,7 +944,7 @@ function M.object(properties, options)
     end
   end) end
   return Schema("object", { options = o, properties = copy, coercer = coercer, validator = make_validator(false),
-    relaxed_validator = make_validator(true), builder = builder, prefilter = prefilter })
+    relaxed_validator = make_validator(true), builder = builder, representer = representer, prefilter = prefilter })
 end
 
 --- Declares a dictionary type: any string keys, every value conforming to `value_schema`. Paths use the key as
@@ -870,6 +964,15 @@ function M.map(value_schema, options)
     for key, member in next, value do result[key] = build_value(member) end
     return remark(value, result)
   end
+  local represent_value = value_schema.representer
+  local representer = represented(function(value, path)
+    if type(value) ~= "table" or value == null then stop_representation(path, "type", "expected object", { expected = "object" }) end
+    local result = {}
+    for key, member in pairs(value) do
+      result[key] = represent_value(member, type(key) == "string" and path .. "/" .. escape_token(key) or path)
+    end
+    return json.object(result) -- an empty map stays `{}`
+  end)
   local coercer = guarded(function(value, path, out)
     if type(value) ~= "table" or value == null then return value end
     local result = {}
@@ -878,7 +981,7 @@ function M.map(value_schema, options)
     end
     return result
   end, true)
-  return Schema("map", { options = o, item = value_schema, coercer = coercer, builder = builder, validator = guarded(function(value, path, out)
+  return Schema("map", { options = o, item = value_schema, coercer = coercer, builder = builder, representer = representer, validator = guarded(function(value, path, out)
     if type(value) ~= "table" or value == null or json.is_array(value) then return type_violation(path, "object", out) end
     local keys = {}
     for key in next, value do
@@ -958,7 +1061,34 @@ function M.union(alternatives)
     end
     return value
   end
-  return Schema("union", { members = copy, coercer = coercer, builder = builder, validator = function(value, path, out)
+  -- The alternative that accepts the value represents it. A built instance can hold what its alternative does not
+  -- accept as it is (an enumeration member, where the schema wants the name): when no alternative accepts the value,
+  -- each is tried on the plain form it gives, and that form must be accepted. Both verdicts are memoised per node.
+  local representers = {}
+  for i = 1, count do representers[i] = copy[i].representer end
+  local representer = represented(function(value, path)
+    local answers = nil
+    if type(value) == "table" then answers = memo_of("converted", representers) end
+    if answers ~= nil and answers[value] ~= nil then return answers[value] end
+    local result, found = nil, false
+    local list = candidates(value)
+    for _, i in ipairs(list) do
+      if accepts_apart(validators[i], value, path) then
+        result, found = representers[i](value, path), true
+        break
+      end
+    end
+    if not found then
+      for _, i in ipairs(list) do
+        local plain = representers[i](value, path)
+        if accepts_apart(validators[i], plain, path) then result, found = plain, true break end
+      end
+    end
+    if not found then stop_representation(path, "union", "the value matches none of the alternatives") end
+    if answers ~= nil then answers[value] = result end
+    return result
+  end)
+  return Schema("union", { members = copy, coercer = coercer, builder = builder, representer = representer, validator = function(value, path, out)
     local verdicts = nil
     if type(value) == "table" then verdicts = memo_of("verdicts", validators) end
     local known = nil
@@ -1023,6 +1153,7 @@ function M.default(inner, value)
   local stored = copy_value(value)
   local coerce_inner = inner.coercer
   return Schema("default", { options = { value = stored }, item = inner, validator = inner.validator, builder = inner.builder,
+    representer = inner.representer, -- an absent value stays absent: a response never takes the default
     coercer = function(v, path, out)
       if v == nil then return not without_defaults and copy_value(stored) or nil end
       return coerce_inner(v, path, out)
@@ -1040,7 +1171,7 @@ end
 function M.tagged_union(tag, variants)
   if type(tag) ~= "string" or tag == "" then refuse("tagged_union: the tag is a non-empty string") end
   if type(variants) ~= "table" or next(variants) == nil then refuse("tagged_union: expects a non-empty table of variants") end
-  local names, derived, validators, coercers = {}, {}, {}, {}
+  local names, derived, validators, coercers, representers = {}, {}, {}, {}, {}
   for name in pairs(variants) do
     if type(name) ~= "string" then refuse("tagged_union: variant names are strings, got " .. type(name)) end
     names[#names + 1] = name
@@ -1060,10 +1191,20 @@ function M.tagged_union(tag, variants)
     properties[tag] = M.literal(name)
     local object = M.object(properties, { additional_properties = (variant.options --[[@as table]]).additional_properties })
     derived[name], validators[name], coercers[name] = object, object.validator, object.coercer
+    representers[name] = object.representer
   end
   local token = "/" .. escape_token(tag)
   return Schema("tagged_union", { options = { tag = tag }, properties = derived, members = names,
     builder = function(value) return derived[value[tag]].builder(value) end,
+    representer = represented(function(value, path)
+      local name = type(value) == "table" and value[tag] or nil
+      local represent = type(name) == "string" and representers[name] or nil
+      if represent == nil then
+        stop_representation(path .. token, "tagged_union", "the value is not the name of a variant",
+          { tag = tag, values = { table.unpack(names) } })
+      end
+      return represent--[[@as hecate.schema.Representer]](value, path)
+    end),
     coercer = function(value, path, out)
       if type(value) ~= "table" or value == null then return value end
       local name = value[tag]
@@ -1091,7 +1232,7 @@ end
 --- Accepts every JSON value. Emitted as the empty schema `{}`.
 ---@return hecate.schema.Schema
 function M.any()
-  return Schema("any", { validator = function() end })
+  return Schema("any", { validator = function() end, representer = copy_plain })
 end
 
 --- Accepts JSON null only (`hecate.json.null`); Lua `nil` is absence.
@@ -1127,7 +1268,7 @@ function make_named(name, inner, from_class)
   if inner.kind == "named" then refuse("named: the schema already has the name " .. (inner.options --[[@as table]]).name) end
   return Schema("named", { options = { name = name, from_class = from_class or nil }, item = inner, validator = inner.validator, coercer = inner.coercer,
     prefilter = inner.prefilter,
-    relaxed_validator = inner.relaxed_validator, builder = inner.builder })
+    relaxed_validator = inner.relaxed_validator, builder = inner.builder, representer = inner.representer })
 end
 
 --- The schema of a class: `target` is a class that declares a class-level function `schema()` returning its schema,
@@ -1192,6 +1333,7 @@ function M.of(target)
   end
   return Schema("class", { options = { resolve = resolve },
     builder = build,
+    representer = function(value, path) return resolve().representer(value, path) end,
     prefilter = function(value)
       local prefilter = resolve().prefilter
       return prefilter == nil or prefilter(value)
@@ -1402,6 +1544,26 @@ function Schema:build(value, options)
   end
   defaulted = nil
   return false, to_violations(raw)
+end
+
+--- Converts a value to the plain, JSON-ready form of a response, its representation: the value is passed through the
+--- schema and the result is then encoded with `hecate.json.encode`, which stays unaware of classes. A class-bound part
+--- (an instance of a class or of a `value_class`) becomes a plain table of the attributes its schema declares, and
+--- only those (an undeclared attribute never appears); an enumeration member of a `core.enumeration` becomes its
+--- name; nested parts, arrays, maps, unions (the alternative that accepts the value) and tagged unions (the tag
+--- selects the variant) convert recursively. An absent (nil) attribute is omitted, `json.null` stays null, a
+--- `default` is not applied, and the value is not validated (a response that does not conform is a bug of the server;
+--- `validate` checks it where wanted), except where a union must choose an alternative. The result is made of fresh
+--- tables (the input is not modified and never shared), arrays and objects carry the `json.array` and `json.object`
+--- markers so that an empty one encodes as `[]` or `{}`. The nesting guard of validation (`json.DEFAULT_MAX_DEPTH`)
+--- and its work budget apply: a cycle in the object graph, a table too deep or too costly raises
+--- `hecate.core.ValidationError` whose first violation (`context.violations`) has the code (`depth_limit`,
+--- `complexity_limit`, `union`, `tagged_union` or `enum`) and the JSON Pointer where it stopped.
+---@param value any
+---@return any plain
+function Schema:represent(value)
+  reset_work()
+  return self.representer(value, "")
 end
 
 --- Returns `value` when it conforms; raises `hecate.core.ValidationError` otherwise, with every violation in

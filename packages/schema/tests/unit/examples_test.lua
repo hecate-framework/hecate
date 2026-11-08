@@ -16,6 +16,7 @@ local NAMES = {
   "hecate.schema.tagged_union",
   "hecate.schema.of",
   "hecate.schema.Schema.build",
+  "hecate.schema.Schema.represent",
   "hecate.schema.default",
   "hecate.schema.sent",
 }

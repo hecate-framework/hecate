@@ -11,6 +11,8 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- `hecate.schema`: `Schema:represent(value)` converts an instance to the plain, JSON-ready values of a response (OQ-95): only the attributes the schema declares, enumeration members as names, nested parts, arrays, maps, unions and tagged unions in fresh tables (`json.array` and `json.object` markers keep `[]` and `{}`), absent attributes omitted, `json.null` kept, no default, no validation except to choose a union alternative. The depth guard and the work budget apply and raise `ValidationError` with the code and the JSON Pointer where it stopped (a cycle gives `depth_limit`). Tested example `hecate.schema.Schema.represent`.
+
 - `hecate.schema`: `schema.enumeration(core_enumeration)` declares a type over a `core.enumeration`: it accepts the names (code `enum`, emitted as `type` string with `enum`), `coerce` reads a name from text and `build` replaces a name by the member.
 
 - `hecate.json`: the native encoder follows the `__pairs` metamethod of a table that defines one (a frozen `value_class` instance, any user proxy), so `json.encode` of a value object writes an object of its attributes instead of `{}`; a table without `__pairs` is still read raw at no extra cost; the entries follow the usual rules, the entries of one encoding share a budget of about `max_size / 2`, so an endless iteration ends, and a value raised by `__pairs` or its iterator is raised again by `json.encode` as the same value (OQ-94).

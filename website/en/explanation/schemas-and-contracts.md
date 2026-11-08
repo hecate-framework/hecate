@@ -57,6 +57,14 @@ instance of that class, without calling its `init`, because validation has alrea
 attributes conform. With `coerce = true`, `build` converts texts first and then builds, so a class such as
 a list filter is built from a query string in one call.
 
+The response goes the other way. `represent` passes an instance through its schema and returns plain
+values: the attributes the schema declares (an undeclared one never leaks), enumeration members as their
+names, nested parts, arrays, maps and unions converted recursively. The kernel then encodes that plain result
+with `json.encode`, so an instance goes to plain values, then to JSON, and `hecate.json` stays unaware of
+classes. `represent` does not validate, since a response that does not conform is a bug of the server, and it
+is bounded by the same depth guard and work budget as the other operations, so a cycle in the object graph
+ends with a `depth_limit` error.
+
 ## The presence set and PATCH
 
 A POST or a PUT carries a whole resource. An absent attribute is `nil`, and validation fails only when the

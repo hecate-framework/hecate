@@ -60,6 +60,15 @@ Entities and value objects may expose a schema (`User.representation`). Conversi
 between instances and representations is explicit and declared once (which attributes
 are exposed, renamed or computed).
 
+A response goes through the same schema: `schema:represent(value)` converts an instance, or any value built
+by hand, into the plain values of its representation (OQ-95), which the kernel then encodes with `json.encode`
+(`json` stays unaware of classes). Only the attributes the schema declares are kept, so an undeclared attribute
+never leaks; enumeration members become their names; nested class-bound parts, arrays, maps, unions and tagged
+unions convert recursively, in fresh tables. An absent attribute is omitted, `json.null` stays null, defaults are
+not applied and the value is not validated (a response that does not conform is a bug of the server), except to
+choose the alternative of a union. The depth guard and the work budget of validation apply; a cycle in the object
+graph ends with a `depth_limit` error.
+
 ### Emission
 
 `schema:to_json_schema()` produces JSON Schema 2020-12. Every construct must have an

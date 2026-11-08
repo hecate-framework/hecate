@@ -424,6 +424,64 @@ print(schema.sent({ name = "Ada" }, "name"))
 -- false
 ```
 
+## Represent an instance in a response
+
+`represent(value)` is the other direction of `build`: it turns an instance into plain values that
+`json.encode` can write, its [representation](../reference/glossary.md#types-and-validation). `hecate.json` knows
+nothing about classes, so the schema does the conversion. A class-bound part becomes a plain table of the
+attributes its schema declares, and only those: an attribute the schema does not declare, such as a
+`password`, never appears, even if the instance has it. A member of a `core` enumeration becomes its name.
+Nested parts, arrays, maps, unions and tagged unions convert recursively, and an empty array still encodes as
+`[]` and an empty map as `{}`.
+
+`represent` does not validate: it trusts the value, because a response that does not conform is a bug of the
+server (call `validate` where you want to check it). An absent attribute is omitted, `json.null` stays null, and
+a default is never applied. The input is not modified and the result shares no table with it. A union uses the
+alternative that accepts the value, and raises `ValidationError` when none does. The nesting guard and the work
+budget apply as for `validate`: a cycle in the object graph raises `ValidationError` whose violation has the code
+`depth_limit` and the JSON Pointer where it stopped.
+
+<!-- example: packages/schema/examples/hecate.schema.Schema.represent.lua -->
+```lua
+-- Represent an instance for a response: declared attributes only, enumeration members as names, then encode.
+local core = require("hecate.core")
+local json = require("hecate.json")
+local schema = require("hecate.schema")
+
+local Status = core.enumeration("AccountStatus", { "active", "disabled" })
+
+local Account = core.class("Account")
+function Account.schema()
+  return schema.object({
+    name = schema.string(),
+    status = schema.enumeration(Status),
+    tags = schema.array(schema.string()),
+  })
+end
+core.finalise(Account)
+
+local accounts = schema.of(Account)
+local _, account = accounts:build({ name = "Ada", status = "active", tags = {} })
+account.password = "secret" -- not declared by the schema: it never reaches the response
+
+local plain = accounts:represent(account)
+print(plain.status, plain.password, core.is_instance_of(plain, Account))
+print(json.encode(plain.tags), json.encode(plain.name))
+
+-- A cycle in the object graph ends with an error that names the limit, instead of a hang.
+local Node = core.class("Node")
+function Node.schema() return schema.object({ next = schema.optional(schema.of(Node)) }) end
+core.finalise(Node)
+
+local node = core.allocate(Node)
+node.next = node
+local ok, err = pcall(schema.of(Node).represent, schema.of(Node), node)
+print(ok, err.context.violations[1].code)
+-- Prints: active	nil	false
+-- []	"Ada"
+-- false	depth_limit
+```
+
 ## Emit JSON Schema
 
 `to_json_schema()` returns a JSON Schema 2020-12 document as plain values.
