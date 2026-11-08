@@ -2,8 +2,8 @@
 # Handoff
 
 - roadmap_item: `schema`: refinement types, composition, coercion, validation with JSON Pointer error paths, JSON Schema 2020-12 emission.
-- status: in-progress            <!-- in-progress | waiting-ci | waiting-owner -->
-- lock_until: 2026-11-08T08:12:00Z
+- status: waiting-owner          <!-- in-progress | waiting-ci | waiting-owner -->
+- lock_until: 2026-11-08T08:20:00Z
 - last_update: 2026-11-08T06:42:00Z
 
 ## Done
@@ -55,6 +55,8 @@
 - Step 6 (benchmark): `packages/schema/benchmarks/validate.lua` (`bench schema/validate`), CHANGELOG. Measured on this VM: validate record ~470k/s, array of 100 ~4.4k/s, union ~580k/s; coerce about half. Numbers to be published by the owner on dedicated hardware.
 
 - Step 2b-8 (run 2026-11-08 06:42Z): `uri` format (RFC 3986 with scheme, conservative); typecheck, lint, test schema, check-changelog pass. Remaining formats: none planned beyond `uri`.
+
+- Run 2026-11-08 08:15Z (resumed after lock expiry; CI green on the three platforms; json native built, `test schema` green). No code change: the remaining items (`value_class` binding, coerce-then-build, official JSON Schema test suite) have no specification text, so inventing them would deviate from CLAUDE.md. Owner: please say whether the schema item may be ticked as is (deferring these three to new roadmap items) or give the intended semantics.
 
 ## Next steps
 
