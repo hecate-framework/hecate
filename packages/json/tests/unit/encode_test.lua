@@ -204,7 +204,8 @@ function T:test_max_size_limits_the_output()
 end
 
 function T:test_tables_with_metatables_are_read_raw()
-  local proxy = setmetatable({}, { __index = function() return 1 end, __len = function() return 9 end, __pairs = function() error("no") end })
+  -- `__index` and `__len` are never consulted; `__pairs` is (encode_pairs_test.lua, OQ-94).
+  local proxy = setmetatable({}, { __index = function() return 1 end, __len = function() return 9 end })
   self:assert_equal("{}", json.encode(proxy))
   local object = setmetatable({ a = 1 }, { __metatable = "locked" })
   self:assert_equal('{"a":1}', json.encode(object))

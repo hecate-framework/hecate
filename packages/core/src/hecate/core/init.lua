@@ -9,6 +9,7 @@ local value_module = require("hecate.core.value_class")
 local enumeration_module = require("hecate.core.enumeration")
 local errors = require("hecate.core.error")
 local compat = require("hecate.core.compat")
+local weak_module = require("hecate.core.weak")
 
 --- The object model of hecate: classes, traits, interfaces, enumerations and value classes,
 --- introspection, the error hierarchy and Lua-version shims.
@@ -33,11 +34,15 @@ local core = {
 }
 core.class = class_module.class
 core.finalise = class_module.finalise
+core.allocate = class_module.allocate
+core.instantiate_value = class_module.instantiate_value
+core.weak_table = weak_module.weak_table
 core.value_class = value_module.value_class
 core.enumeration = enumeration_module.enumeration
 core.trait = trait_module.trait
 core.interface = interface_module.interface
 core.is_class = introspection.is_class
+core.is_value_class = introspection.is_value_class
 core.is_trait = introspection.is_trait
 core.is_enumeration = introspection.is_enumeration
 core.is_interface = introspection.is_interface

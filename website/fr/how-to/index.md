@@ -4,7 +4,7 @@ description: Des recettes qui résolvent un problème précis avec hecate, écri
 hecate: "0.x"
 lua: "5.5"
 order: 0
-source_revision: 310648b
+source_revision: 9c2e1670e2e08b919db0b4399100c4b46c00a2a0
 ---
 
 # Guides pratiques
@@ -29,6 +29,8 @@ raisons d’une recette, lisez la page correspondante de la section
 
 - [Acheminer les requêtes](route-requests.md) : gabarits de chemin, précédence, 404 et 405 avec
   `Allow`, décodage des pourcentages et segments point, routage inverse.
+- [Valider des valeurs avec des schémas](validate-with-schemas.md) : déclarer des schémas, collecter les
+  violations avec des chemins JSON Pointer, émettre du JSON Schema.
 
 ## Performances
 

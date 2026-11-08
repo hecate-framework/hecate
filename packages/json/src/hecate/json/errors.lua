@@ -49,6 +49,7 @@ local EncodeError = core.error_class("EncodeError", "hecate.json.EncodeError", J
 ---| "invalid_utf8"  a string or key is not well-formed UTF-8
 ---| "ambiguous_table"  a table that is neither a sequence nor an object (mixed or non-string keys)
 ---| "sparse_array"  a marked array with a key that is not a positive integer, or with too many holes (highest index above twice the entries plus 16)
+---| "duplicate_key"  an iterator returned by `__pairs` yielded the same string key or the same integer key twice (the path is that of the object or array; the key is not echoed)
 ---| "depth_limit"  nesting deeper than `max_depth` (also raised for a cycle)
 ---| "size_limit"  output longer than `max_size`
 

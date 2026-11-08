@@ -280,25 +280,224 @@ end
 
 -- Reaches a public server with no option: the operating system's trust store is enough. Needs
 -- the network, so CI turns it on with HECATE_NETWORK_TESTS=1.
+--
+-- The verdict is the handshake: `net.connect_tls` succeeding without any option proves the trust
+-- store is enough (RFC 8446 section 4.4.2; service identity, RFC 6125 section 6), and a `TlsError`
+-- that is a certificate or trust failure fails the test, is never retried and never skipped. Every
+-- other step reaches an endpoint the project does not control, so a refusal, a reset, a stall or an
+-- exceeded deadline is infrastructure: it is reported as a skip, with its error class, never as a
+-- failure and never left to the harness watchdog.
+
+--- True for a failure that says nothing about trust: a deadline, a transport or network failure, a
+--- stream that ended early, or a TLS transport that ended without a verdict (RFC 8446 section 6.1).
+--- A `TlsError` of any other reason (untrusted issuer, name mismatch, expiry, an alert...) is a
+--- verdict, so it is not infrastructure.
+local function is_infrastructure(err)
+  local core = require("hecate.core")
+  if core.is_instance_of(err, net.TlsError) then
+    local reason = err.context and err.context.reason
+    return reason == "truncated" or reason == "transport_ended" or reason == "stalled"
+  end
+  return core.is_instance_of(err, core.DeadlineExceededError) or core.is_instance_of(err, core.NetworkError)
+end
+
+local function describe(err)
+  local code = type(err) == "table" and err.code or nil
+  return ("%s: %s"):format(tostring(code or "error"), (tostring(err):gsub("%s*\nstack traceback:.*$", "")))
+end
+
+--- Probes `host:port` over TLS. Must run on a reactor. Returns `{ skip = reason }` when the endpoint
+--- cannot give a verdict, otherwise `{ bonus_skip = reason }` (handshake done, the status line not
+--- read) or `{ status = line }`. Raises the `TlsError` of a failed handshake and any failure that is
+--- not infrastructure. `options`: `connect_options` (for `net.connect_tls`), `attempts` (default 2),
+--- `connect_deadline` (30 s, per attempt), `io_deadline` (10 s, for the request and the status
+--- line), `total_deadline` (seconds for the whole probe, default 90).
+local function probe_trust(host, port, options)
+  options = options or {}
+  local attempts = options.attempts or 2
+  local connect_deadline = options.connect_deadline or 30
+  local io_deadline = options.io_deadline or 10
+  local total_deadline = options.total_deadline or 90
+  local request = options.request or ("HEAD / HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n"):format(host)
+  local core = require("hecate.core")
+  local ok, result = pcall(reactor.deadline, total_deadline, function()
+    local client, last
+    for _ = 1, attempts do
+      local attempt_ok, value = pcall(reactor.deadline, connect_deadline, net.connect_tls, host, port, options.connect_options)
+      if attempt_ok then
+        client = value
+        break
+      end
+      if not is_infrastructure(value) then error(value, 0) end -- a verdict, never retried
+      last = value
+    end
+    if not client then return { skip = ("no handshake after %d attempt(s): %s"):format(attempts, describe(last)) } end
+    local stream <close> = client
+    -- The handshake succeeded: trust is proven. What follows is a bonus check.
+    local line_ok, line = pcall(reactor.deadline, io_deadline, function()
+      stream:write(request)
+      return stream:reader():read_line()
+    end)
+    if not line_ok then
+      if not is_infrastructure(line) then error(line, 0) end
+      return { bonus_skip = "no status line: " .. describe(line) }
+    end
+    if line == nil then return { bonus_skip = "no status line: the peer closed the connection" } end
+    return { status = line }
+  end)
+  if ok then return result end
+  if core.is_instance_of(result, core.DeadlineExceededError) then
+    return { skip = ("overall deadline of %s s exceeded: %s"):format(tostring(total_deadline), describe(result)) }
+  end
+  error(result, 0)
+end
+
+-- Below the watchdog of the harness (HECATE_TEST_TIMEOUT, 120 s by default) with a margin, so that the
+-- watchdog is never the one to fail the test.
+local function overall_deadline()
+  local limit = tonumber(os.getenv("HECATE_TEST_TIMEOUT")) or 120
+  return math.max(1, math.min(90, limit - 30))
+end
+
+local function report(self, outcome)
+  if outcome.skip then
+    print("# SKIP public server test: " .. outcome.skip)
+  elseif outcome.bonus_skip then
+    print("# SKIP public server test (status line only; trust proven): " .. outcome.bonus_skip)
+  else
+    self:assert_true(outcome.status:find("^HTTP/1%.1 %d%d%d") ~= nil, tostring(outcome.status))
+  end
+end
+
 function T:test_a_public_server_is_trusted_out_of_the_box()
   if os.getenv("HECATE_NETWORK_TESTS") ~= "1" then
     print("# SKIP public server test: set HECATE_NETWORK_TESTS=1")
     return
   end
   run(self, function()
-    -- One retry: a network blip is not a trust failure, a TlsError is never retried.
-    local ok, client = pcall(reactor.deadline, 30, net.connect_tls, "github.com", 443)
-    if not ok then
-      local core = require("hecate.core")
-      if not core.is_instance_of(client, core.NetworkError) or core.is_instance_of(client, net.TlsError) then
-        error(client, 0)
-      end
-      client = reactor.deadline(30, net.connect_tls, "github.com", 443)
-    end
-    local client <close> = client
-    client:write("HEAD / HTTP/1.1\r\nHost: github.com\r\nConnection: close\r\n\r\n")
-    local status = client:reader():read_line()
-    self:assert_true(status ~= nil and status:find("^HTTP/1%.1 %d%d%d") ~= nil, tostring(status))
+    report(self, probe_trust("github.com", 443, { total_deadline = overall_deadline() }))
+  end)
+end
+
+-- The bounded part of the test above, proved over loopback: stalls are skips, verdicts still fail.
+local LOOPBACK = { system_roots = false, ca_pem = CA, server_name = "localhost" }
+
+local function probe_loopback(port, extra)
+  local options = { connect_options = LOOPBACK, connect_deadline = 0.3, io_deadline = 0.3, total_deadline = 5 }
+  for k, v in pairs(extra or {}) do options[k] = v end
+  return probe_trust("127.0.0.1", port, options)
+end
+
+function T:test_probe_returns_the_status_line_after_a_handshake()
+  run(self, function()
+    local listener <close> = net.listen("127.0.0.1", 0)
+    local outcome = serve_once(listener, net.tls.server_config(server_options()), function(tls)
+      tls:read()
+      tls:write("HTTP/1.1 200 OK\r\n\r\n")
+      tls:shutdown()
+    end)
+    local result = probe_loopback(listener:local_address().port)
+    self:assert_equal("HTTP/1.1 200 OK", result.status)
+    outcome.future:value()
+  end)
+end
+
+function T:test_probe_skips_a_peer_that_accepts_and_never_answers()
+  run(self, function()
+    local listener <close> = net.listen("127.0.0.1", 0)
+    local release = reactor.Channel(1)
+    reactor.fork(function()
+      local first <close> = listener:accept()
+      local second <close> = listener:accept() -- the retry
+      release:receive()
+    end)
+    local started = reactor.now and reactor.now() or os.clock()
+    local result = probe_loopback(listener:local_address().port)
+    self:assert_not_nil(result.skip, "a stalled handshake is a skip")
+    self:assert_true(result.skip:find("DeadlineExceededError", 1, true) ~= nil, result.skip)
+    self:assert_true(result.skip:find("2 attempt", 1, true) ~= nil, result.skip)
+    self:assert_true((reactor.now and reactor.now() or os.clock()) - started < 3)
+    release:send(true)
+  end)
+end
+
+function T:test_probe_skips_a_refused_connection()
+  run(self, function()
+    local listener = net.listen("127.0.0.1", 0)
+    local port = listener:local_address().port
+    listener:close() -- nothing listens there any more
+    local result = probe_loopback(port)
+    self:assert_not_nil(result.skip, "a refused connection is infrastructure")
+  end)
+end
+
+function T:test_probe_overall_deadline_is_a_skip_not_a_failure()
+  run(self, function()
+    local listener <close> = net.listen("127.0.0.1", 0)
+    local release = reactor.Channel(1)
+    reactor.fork(function()
+      local raw <close> = listener:accept()
+      release:receive()
+    end)
+    local result = probe_loopback(listener:local_address().port, { connect_deadline = 30, total_deadline = 0.3 })
+    self:assert_not_nil(result.skip)
+    self:assert_true(result.skip:find("overall deadline", 1, true) ~= nil, result.skip)
+    release:send(true)
+  end)
+end
+
+function T:test_probe_skips_the_bonus_when_the_status_line_stalls()
+  run(self, function()
+    local listener <close> = net.listen("127.0.0.1", 0)
+    local release = reactor.Channel(1)
+    local outcome = serve_once(listener, net.tls.server_config(server_options()), function(tls)
+      release:receive() -- handshake done, then silence
+    end)
+    local started = os.time()
+    local result = probe_loopback(listener:local_address().port)
+    self:assert_nil(result.skip, "the handshake succeeded: trust is proven")
+    self:assert_not_nil(result.bonus_skip)
+    self:assert_true(os.time() - started < 4)
+    release:send(true)
+    outcome.future:value()
+  end)
+end
+
+function T:test_probe_skips_the_bonus_on_end_of_stream()
+  run(self, function()
+    local listener <close> = net.listen("127.0.0.1", 0)
+    local outcome = serve_once(listener, net.tls.server_config(server_options()), function(tls)
+      tls:shutdown()
+    end)
+    local result = probe_loopback(listener:local_address().port)
+    self:assert_nil(result.skip)
+    self:assert_not_nil(result.bonus_skip or result.status == nil and "unexpected", tostring(result.status))
+    outcome.future:value()
+  end)
+end
+
+function T:test_probe_still_fails_on_an_untrusted_certificate()
+  run(self, function()
+    local listener <close> = net.listen("127.0.0.1", 0)
+    serve_once(listener, net.tls.server_config(server_options()), function() end)
+    local err = self:assert_error(function()
+      probe_loopback(listener:local_address().port,
+        { connect_options = { system_roots = false, ca_pem = fixture("other_ca.pem"), server_name = "localhost" } })
+    end)
+    self:assert_true(require("hecate.core").is_instance_of(err, net.TlsError), tostring(err))
+    self:assert_equal("untrusted_issuer", err.context.reason)
+  end)
+end
+
+function T:test_probe_still_fails_on_a_name_mismatch()
+  run(self, function()
+    local listener <close> = net.listen("127.0.0.1", 0)
+    serve_once(listener, net.tls.server_config(server_options()), function() end)
+    local err = self:assert_error(function()
+      probe_loopback(listener:local_address().port,
+        { connect_options = { system_roots = false, ca_pem = CA, server_name = "wrong.example" } })
+    end)
+    self:assert_equal("name_mismatch", err.context.reason)
   end)
 end
 

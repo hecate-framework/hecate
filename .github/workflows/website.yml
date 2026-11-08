@@ -52,17 +52,29 @@ jobs:
         run: echo "$GITHUB_WORKSPACE/.hecate/toolchain/bin" >> "$GITHUB_PATH"
 
       # The same pinned LuaLS as ci.yml: the reference is generated from its export, and the export
-      # format changes between versions (packages/doc/CLAUDE.md).
+      # format changes between versions (packages/doc/CLAUDE.md). The archive is cached like in ci.yml.
+      - name: Cache LuaLS archive
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: ~/.cache/luals
+          key: luals-${{ runner.os }}-${{ runner.arch }}-3.19.1
+
       - name: Install LuaLS
         env:
           LUALS_VERSION: 3.19.1
         run: |
           file="lua-language-server-$LUALS_VERSION-linux-x64.tar.gz"
           sha=e9235d2d72ef55bc41cf8c99cda2ed64777682024b4bb81f5dea425060c5cbb8
-          curl -fsSL -o "$RUNNER_TEMP/$file" "https://github.com/LuaLS/lua-language-server/releases/download/$LUALS_VERSION/$file"
-          echo "$sha  $RUNNER_TEMP/$file" | sha256sum -c -
+          archive="$HOME/.cache/luals/$file"
+          verify() { echo "$sha  $archive" | sha256sum -c -; }
+          mkdir -p "$HOME/.cache/luals"
+          if [ ! -f "$archive" ] || ! verify; then
+            rm -f "$archive"
+            curl -fsSL --retry 5 --retry-all-errors --retry-delay 5 -o "$archive" "https://github.com/LuaLS/lua-language-server/releases/download/$LUALS_VERSION/$file"
+            verify
+          fi
           mkdir -p "$RUNNER_TEMP/luals"
-          tar -xzf "$RUNNER_TEMP/$file" -C "$RUNNER_TEMP/luals"
+          tar -xzf "$archive" -C "$RUNNER_TEMP/luals"
           echo "$RUNNER_TEMP/luals/bin" >> "$GITHUB_PATH"
 
       # luv gives the analysis the types the reactor annotations refer to; pinned like ci.yml.

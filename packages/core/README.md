@@ -62,13 +62,16 @@ core.finalise(Money)
 |---|---|
 | `class(name, superclass?, options?)` | Declares a class; options `traits`, `implements`, `fallback_provides` (names an `__index` fallback provides; they satisfy conformance checks). Instantiate with `Class(...)` after finalisation (calls `init`). |
 | `finalise(class)` | Resolves traits and interfaces, flattens members into the class table; one `ConformanceError` lists every problem. Idempotent. |
+| `allocate(class)` | Returns a new empty instance of a finalised class without calling `init` (metatable set, so methods, inherited members, metamethods, `class_of` and `is_instance_of` work). The only way to create an instance without `Class(...)`, for code that fills attributes from data it has validated (schema `build`, ORM). `ArgumentError` for a non-class or a `value_class` (use `instantiate_value`); `ConformanceError` for a class not finalised, as `Class(...)`. |
+| `instantiate_value(class, fields)` | Returns a frozen instance of a finalised `value_class` built from a table of attributes (copied, not adopted) without calling `init`, with the same freezing as construction: fields read normally, writes refused, structural equality, `class_of` and `is_instance_of` work. For code that has validated the attributes (schema `build`). `ArgumentError` for anything but a value class (ordinary class, trait, interface, non-class) or a non-table; `ConformanceError` for a class not finalised. |
+| `weak_table(mode?)` | New empty table with weak keys (`"k"`, default), weak values (`"v"`) or both (`"kv"`); raw `setmetatable` is reserved to core. For side tables keyed by instance (presence set, identity map). `ArgumentError` for another mode. |
 | `trait(name, methods, options?)` | Declares a trait; options `traits` (composition), `requires`. A trait entry of a class may be `{ trait, exclude = {...}, alias = { old = "new" } }`; an alias that collides with another method of the same trait is a `ConformanceError`, a malformed `exclude` or `alias` an `ArgumentError`. |
 | `interface(name, methods, options?)` | Declares an interface; option `extends`. |
 | `value_class(name, superclass?, options?)` | Like `class`; instances are frozen after `init`, compared structurally by `__eq`. |
 | `enumeration(name, names)` | Closed set of values (`Status.active`, `:values()`, `:names()`, `:contains(v)`, `:find(name)`, `:size()`). |
 | `name`, `superclass`, `traits`, `interfaces`, `class_of`, `origin` | Introspection. |
 | `is_instance_of(value, class)`, `implements(subject, interface_or_trait)` | Type tests. `value` may be of any type (a non-instance gives `false`); `class` must be a class, otherwise `ArgumentError`. |
-| `is_class`, `is_trait`, `is_interface`, `is_enumeration`, `is_finalised` | Kind predicates. |
+| `is_class`, `is_value_class`, `is_trait`, `is_interface`, `is_enumeration`, `is_finalised` | Kind predicates. |
 | `Error` and `ConfigurationError`, `ConformanceError`, `ArgumentError`, `CancellationError`, `DeadlineExceededError`, `NonYieldableContextError`, `ClosedChannelError`, `NetworkError`, `IoError`, `ProtocolError`, `ValidationError`, `DatabaseError` | Error hierarchy: `Error("message")` or `Error { message =, cause =, context =, code = }`; fields `message`, `code`, `cause`, `context`, `traceback`; `root_cause()`; `__tostring` renders the chain. |
 | `error_class(name, code, superclass?)` | Declares a finalised error subclass with a stable code. |
 | `set_debug_mode(enabled)`, `is_debug_mode()` | Traceback capture on error creation. |
@@ -81,8 +84,8 @@ defines the member or one entry excludes it.
 ## Layout
 
 ```text
-src/hecate/core/init.lua   public entry point (class, trait, interface, introspection,
-                           error, value_class, enumeration, compat; internal/)
+src/hecate/core/init.lua   public entry point (class, allocate, instantiate_value, weak_table, trait, interface,
+                           introspection, error, value_class, enumeration, compat; internal/)
 tests/unit/
 examples/    benchmarks/dispatch.lua
 ```
