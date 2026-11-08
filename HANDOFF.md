@@ -3,8 +3,8 @@
 
 - roadmap_item: `container`: IoC container, lifetimes, cycle detection at boot; write its specification section in `docs/architecture/` (OQ-62).
 - status: waiting-ci
-- lock_until: 2026-11-08T14:35:36Z
-- last_update: 2026-11-08T13:05:36Z
+- lock_until: 2026-11-08T17:12:11Z
+- last_update: 2026-11-08T15:42:11Z
 
 ## Done
 
@@ -12,6 +12,8 @@
 - Step 1: specification section `docs/architecture/container.md`, README/CHANGELOG/open-questions updated.
 
 ## Next steps
+
+(CI of ca4db95 failed: check-annotations and markdownlint on OQ-109 fixed locally, pushed in the next commit. macOS and Windows failures not yet analysed: read their logs on the new run, fix, then finish.)
 
 (Main merged at b6da106. The container open questions were renumbered OQ-104 to OQ-109 because OQ-98 to OQ-100 are now taken by `schema`; their mirror issues, if opened, must be retitled.)
 
