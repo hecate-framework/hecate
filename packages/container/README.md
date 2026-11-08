@@ -45,9 +45,9 @@ Nothing here suspends, so nothing is `---@async`.
     `options.lifetime` (required) and `options.requires` (keys, in constructor order). Chainable.
   - `override(key, definition, options?)` and `override_instance(key, value)`: replace a bound key (tests).
   - `validate()`: checks the whole graph, raises one `GraphError`, then freezes the container. Returns the container and a list of warnings (`code = "singleton_over_transient"`: a singleton directly depends on a transient); warnings never fail it, the kernel logs them.
-  - `resolve(key)`: singletons and transients that need no scoped service. `open_scope()`: a `ServiceScope`.
+  - `resolve(key)`: singletons and transients that need no scoped service, and no closable transient that a singleton does not own (`LifetimeError`). `open_scope()`: a `ServiceScope`.
   - `close()` (also `<close>`): closes the singletons that define `__close`.
-- `container.ServiceScope`: `resolve(key)` and `close()` (also `<close>`).
+- `container.ServiceScope`: `resolve(key)`, `release(instance)` (closes a tracked transient now) and `close()` (also `<close>`).
 - `container.Lifetime`: enumeration `singleton`, `scoped`, `transient`.
 - Errors, all `core.ConfigurationError`: `ContainerError`, `DuplicateBindingError`, `MissingBindingError`,
   `CycleError`, `LifetimeError`, `GraphError`, `ConstructionError`.
@@ -60,7 +60,7 @@ Nothing here suspends, so nothing is `---@async`.
 - Resolving from the container a service that needs a scoped one raises `LifetimeError` before constructing anything.
 - A constructor error becomes `ConstructionError` (cancellation and deadline errors pass through); nothing is cached
   on failure.
-- Services with `__close` are closed in reverse order of creation by their owner; transients are not tracked.
+- Services with `__close` are closed in reverse order of creation by their owner: scoped services and closable transients by the service scope that resolved them (a transient without `__close` is never tracked), singletons and the closable transients they received by the container. `Container:resolve` refuses a closable transient that no singleton owns (`LifetimeError`: resolve it through a service scope). Do not close a transient that a scope owns; use `scope:release(instance)` to close it early.
 - `override_instance` requires the key to be bound, like `override`.
 
 ## Layout

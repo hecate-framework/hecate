@@ -77,14 +77,15 @@ product is checked when it is first built.
 |---|---|---|
 | `singleton` | as long as the container | at the first resolution, then shared |
 | `scoped` | as long as one service scope | at the first resolution in that scope, then shared inside it |
-| `transient` | for the caller only | at every resolution, never cached |
+| `transient` | for the caller only (closed by its scope if it defines `__close`) | at every resolution, never cached |
 
 A service scope is made by `container:open_scope()`; the kernel opens one per request. It is an ordinary value:
 every computation that receives it sees the same scoped instances, so a scoped service is shared across `fork`, not
 copied. Close the scope when the request ends (`scope:close()` or a `<close>` variable).
 
 - `container:resolve(key)` builds singletons and transients whose dependencies are all singletons or transients. A
-  service that needs a scoped one raises `LifetimeError`, before anything is constructed: the call has no service scope.
+  service that needs a scoped one raises `LifetimeError`, before anything is constructed: the call has no service
+  scope. So does a transient that defines `__close` and that no singleton owns: resolve it with `scope:resolve`.
 - `scope:resolve(key)` builds any service.
 
 ## Validate at boot
@@ -110,10 +111,16 @@ reports the warnings.
 
 ## Disposal
 
-A service whose class defines `__close` is closed by its owner: a scoped service when its service scope closes, a
-singleton when the container closes, in reverse order of creation. Every close is attempted; the first error is raised
-afterwards and the others are in `context.suppressed`. Closing is idempotent, and a closed scope or container refuses
-`resolve`. A transient service is not tracked: whoever receives it owns it.
+A service whose instance defines `__close` is closed by its owner, in reverse order of creation: a scoped service and
+a closable transient when the service scope that resolved them closes, a singleton (and a closable transient it
+received) when the container closes. A transient without `__close` is never tracked. Every close is attempted; the first
+error is raised afterwards and the others are in `context.suppressed`. Closing is idempotent, and a closed scope or
+container refuses `resolve`.
+
+A scope that owns a transient closes it, so do not put a `<close>` on it yourself. To close it earlier, call
+`scope:release(instance)`: it closes the instance once and stops tracking it (a close error propagates as it is);
+releasing an instance the scope does not track, a second time included, raises `ContainerError`. A long-lived scope
+keeps the closable transients it resolved until it closes or you release them.
 
 ## Construction errors
 

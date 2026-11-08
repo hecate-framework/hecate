@@ -102,6 +102,21 @@ local function closeable(service)
   return type(metatable) == "table" and metatable.__close ~= nil
 end
 
+--- Whether the instances of a class definition define `__close`; the class is the metatable of its instances.
+local function class_closeable(definition)
+  return core.is_class(definition) and definition.__close ~= nil
+end
+
+--- Refuses a closable transient that no service scope and no singleton owns (container.md, "Disposal").
+local function refuse_unowned(path)
+  local rendered = {}
+  for i, entry in ipairs(path) do rendered[i] = render(entry) end
+  error(errors.LifetimeError(
+    ("container: %q is a transient with __close and no service scope owns it: resolve it through a ServiceScope made by container:open_scope()")
+      :format(rendered[#rendered]),
+    { context = { key = rendered[1], dependency = rendered[#rendered], path = rendered } }), 0)
+end
+
 --- A container: bindings, lifetimes, validation at boot and resolution by constructor injection. It is composed in one
 --- place (the composition root), validated with `validate`, then used; there is no global container and no way to
 --- reach one from a service.
@@ -257,8 +272,10 @@ local function construct(container, binding, args, count, path)
   return product
 end
 
---- `path` is the chain of keys being resolved, from the requested key.
-local function resolve_key(container, scope, key, path)
+--- `path` is the chain of keys being resolved, from the requested key. `owner` is the list that tracks the closable
+--- transients built on the way: the service scope's, the container's while a singleton is being built, or `nil` from
+--- the root, where `pending` collects what was built in this call (refused at the end, container.md, "Disposal").
+local function resolve_key(container, scope, key, path, owner, pending)
   local binding = container._bindings[key]
   path[#path + 1] = key
   if binding == nil then
@@ -282,17 +299,30 @@ local function resolve_key(container, scope, key, path)
     local rendered = { render(key), render(key) }
     error(errors.CycleError("container: re-entrant resolution of " .. rendered[1], { context = { path = rendered } }), 0)
   end
+  if lifetime == Lifetime.transient and owner == nil and class_closeable(binding.definition) then
+    refuse_unowned(path)
+  end
   local count = #binding.requires
   local args = {}
-  -- A singleton is built without a service scope: nothing request-bound can reach it.
-  local inner = lifetime == Lifetime.singleton and nil or scope
-  for i = 1, count do args[i] = resolve_key(container, inner, binding.requires[i], path) end
+  -- A singleton is built without a service scope: nothing request-bound can reach it, and the container owns the
+  -- closable transients it needs.
+  local inner, inner_owner = scope, owner
+  if lifetime == Lifetime.singleton then inner, inner_owner = nil, container._owned end
+  for i = 1, count do args[i] = resolve_key(container, inner, binding.requires[i], path, inner_owner, pending) end
   local product = construct(container, binding, args, count, path)
   if cache ~= nil then
     cache[key] = product
     if closeable(product) then
       local owned = lifetime == Lifetime.singleton and container._owned or scope._owned
       owned[#owned + 1] = product
+    end
+  elseif closeable(product) then
+    if owner ~= nil then
+      owner[#owner + 1] = product
+      if scope ~= nil and owner == scope._owned then scope._released[product] = true end
+    else
+      pending[#pending + 1] = product
+      refuse_unowned(path)
     end
   end
   path[#path] = nil
@@ -306,7 +336,11 @@ end
 --- Resolves a root-resolvable service: a singleton or a transient whose dependencies are all singletons or
 --- transients. The container must have been validated.
 ---
---- Raises `hecate.container.LifetimeError` if the service needs a scoped one (use `ServiceScope:resolve`),
+--- --- A transient whose instance defines `__close` has no owner here: it is refused, see below.
+---
+--- Raises `hecate.container.LifetimeError` if the service needs a scoped one (use `ServiceScope:resolve`), or if it
+--- would create a closable transient that no singleton owns (resolve it through `ServiceScope:resolve`; a factory
+--- product is closed again before the error is raised),
 --- `hecate.container.MissingBindingError` for an unbound key, `hecate.container.ConstructionError` if a constructor
 --- raised, and `hecate.container.ContainerError` before `validate` or after `close`.
 ---@param key string|table
@@ -323,7 +357,15 @@ function Container:resolve(key)
       ("container: %q needs the scoped service %q: resolve it from a service scope"):format(path[1], dependency),
       { context = { key = path[1], dependency = dependency, path = path } }), 2)
   end
-  return resolve_key(self, nil, key, {})
+  -- Nothing owns a closable transient built here: what was built in this call is closed again before the refusal.
+  local pending = {}
+  local ok, result = pcall(resolve_key, self, nil, key, {}, nil, pending)
+  if ok then return result end
+  if #pending > 0 then
+    local closed, failure = pcall(close_all, pending)
+    if not closed and core.is_instance_of(result, core.Error) then result.context.suppressed = { failure } end
+  end
+  error(result, 0)
 end
 
 --- Opens a service scope: the lifetime of scoped services. The container must have been validated. The caller owns
@@ -350,6 +392,7 @@ function ServiceScope:init(container)
   self._container = container
   self._instances = {}
   self._owned = {}
+  self._released = {} -- the closable transients this scope tracks, which `release` may close early
   self._closed = false
 end
 
@@ -363,14 +406,39 @@ function ServiceScope:resolve(key)
   check_key_argument("resolve", key)
   if self._closed then error(ContainerError("container: resolve on a closed service scope"), 2) end
   check_validated(self._container, "resolve")
-  return resolve_key(self._container, self, key, {})
+  return resolve_key(self._container, self, key, {}, self._owned, nil)
 end
 
---- Closes the scoped services that define `__close`, in reverse order of creation. Idempotent. Every close is
+--- Closes a closable transient now, instead of at the close of this scope, and stops tracking it. A scope that owns a
+--- transient closes it: do not close it yourself. A close error propagates as it is.
+---
+--- Raises `hecate.core.ArgumentError` if `instance` is not a table, and `hecate.container.ContainerError` if this
+--- scope does not track it (never resolved here, owned by a singleton, already released, or the scope is closed).
+---@param instance table  a closable transient resolved through this scope
+function ServiceScope:release(instance)
+  if type(instance) ~= "table" and type(instance) ~= "userdata" then
+    argument_error("release", "instance must be a table")
+  end
+  if not self._released[instance] then
+    error(ContainerError("container: release of an instance that this service scope does not track"), 2)
+  end
+  self._released[instance] = nil
+  local owned = self._owned
+  for i = #owned, 1, -1 do
+    if owned[i] == instance then
+      table.remove(owned, i)
+      break
+    end
+  end
+  getmetatable(instance).__close(instance, nil)
+end
+
+--- Closes the scoped services and the transients that define `__close`, in reverse order of creation. Idempotent. Every close is
 --- attempted; the first error is raised afterwards, the others are in `context.suppressed`.
 function ServiceScope:close()
   if self._closed then return end
   self._closed = true
+  self._released = {}
   close_all(self._owned)
 end
 

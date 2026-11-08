@@ -3,7 +3,7 @@
 Package: `container` (layer 3, Framework). Status: implemented. Decisions:
 [ADR 0007](../adr/0007-object-model.md) (object model, which services build on),
 [ADR 0018](../adr/0018-error-signalling.md) (errors), [ADR 0025](../adr/0025-ambient-context.md) (ambient
-context). Undecided points are open questions OQ-104 to OQ-109 in [open-questions.md](../open-questions.md); each
+context). Undecided points are open questions OQ-104 to OQ-109 (OQ-106 is resolved) in [open-questions.md](../open-questions.md); each
 statement below that depends on one says so. The package depends on `core` only: it knows nothing of `reactor`,
 `http` or `kernel`.
 
@@ -73,7 +73,7 @@ member or its name.
 |---|---|---|
 | `singleton` | as long as the container (the process) | at first resolution, then shared by everyone |
 | `scoped` | as long as one **service scope** | at first resolution inside that service scope, then shared inside it |
-| `transient` | for the caller only | at every resolution, never shared, never cached |
+| `transient` | for the caller only; closed by its owner if it defines `__close` ("Disposal") | at every resolution, never shared, never cached |
 
 A **service scope** (`container.ServiceScope`) is made by `container:open_scope()`. The `kernel` opens one per
 request, and closes it when the request's reactor scope ends; `hecate.container` does not itself depend on the
@@ -87,7 +87,8 @@ Resolution entry points:
 
 - `Container:resolve(key)` resolves from the root: `singleton` and `transient` services whose transitive
   dependencies are all `singleton` or `transient` (**root-resolvable**). Asking for a service that needs a
-  scoped one raises `LifetimeError` (a programming error: the call has no service scope).
+  scoped one raises `LifetimeError` (a programming error: the call has no service scope). It also raises
+  `LifetimeError` for a closable transient that no singleton owns (see "Disposal").
 - `ServiceScope:resolve(key)` resolves any service; scoped instances are cached in this service scope, singleton
   instances in the container.
 
@@ -96,14 +97,43 @@ raises `MissingBindingError`, at request time only if the container was not vali
 
 ### Disposal
 
-A service whose class defines `__close` (`core` supports `__close`) is closed by its owner: a scoped service when
-its service scope closes, a singleton when the container closes, both in reverse order of creation, each close
-attempted even if one fails (the first error is raised after all were attempted, the others attached as
-`context.suppressed`). `ServiceScope` and `Container` themselves support `<close>` and `:close()`; closing is
-idempotent. A transient service is **not** tracked: its consumer owns it (OQ-106). A closed service scope or
-container refuses further `resolve` with `ContainerError`. Closing runs in the caller's computation, so when the
-request is cancelled the kernel closes the service scope under `reactor.shield` (concurrency.md, rule 4,
-OQ-23) if any `__close` suspends.
+A service whose instance defines `__close` (`core` supports `__close`; there is no separate interface) is closed by
+its owner, in reverse order of creation, each close attempted even if one fails (the first error is raised after all
+were attempted, the others attached as `context.suppressed`):
+
+- a **scoped** service is owned by the service scope that created it and closed when that scope closes;
+- a **singleton** is owned by the container and closed when the container closes;
+- a **closable transient** (a class with `__close`, or a factory whose product has one) is owned by the service scope
+  that resolved it, tracked in the same list as the scoped services and closed with them, so the order of creation
+  is the order of the whole list. This includes a transient dependency of a transient or of a scoped service resolved in
+  that scope. A transient without `__close` is never tracked: it costs no memory. A closable transient created while a
+  singleton is being constructed (a dependency of the singleton, even when the singleton is resolved inside a service
+  scope) is owned by the container and closed with it, after the singleton that received it.
+
+Owner decision on OQ-106 (2026-11-08). A scope that owns a transient closes it: the caller does not close it itself
+(no `<close>` on it); the memory of a long-lived scope grows with the closable transients it resolved, which is the
+price of owning them.
+
+**Root resolution.** `Container:resolve(key)` has no service scope. When it would create a closable transient that no
+singleton owns, that is the requested key itself or a transient dependency of it (not a dependency of a singleton it
+builds, which the container owns), it raises `LifetimeError` with `context.key` (the requested key),
+`context.dependency` (the closable transient) and `context.path`, and a message that says to resolve it through a
+`ServiceScope` made by `container:open_scope()`. For a class definition, closability is known from the class, so the
+error is raised before that class is constructed. For a factory it is known only after construction: the product is
+closed at once, together, in reverse order of creation, with every other closable transient built in that same call,
+and then the error is raised; nothing stays tracked. An error of such a close is attached to the `LifetimeError` as
+`context.suppressed`.
+
+`ServiceScope:release(instance)` closes a transient that the scope tracks now, instead of at the close of the scope,
+and stops tracking it; it returns nothing, and a close error propagates as it is. An `instance` that is neither a table
+nor a userdata raises `core.ArgumentError`; one that this scope does not track (never resolved here, scoped, owned by a
+singleton, already released, or the scope is closed) raises `ContainerError`, so a second `release` of the same instance
+is an error, and the scope does not close a released instance again.
+
+`ServiceScope` and `Container` themselves support `<close>` and `:close()`; closing is idempotent. A closed service
+scope or container refuses further `resolve` with `ContainerError`. Closing runs in the caller's computation, so when
+the request is cancelled the kernel closes the service scope under `reactor.shield` (concurrency.md, rule 4, OQ-23) if
+any `__close` suspends.
 
 ## Boot validation
 
@@ -142,8 +172,8 @@ succeeds, every `resolve` of a bound key from a service scope, and of a root-res
 finds all its dependencies, meets no cycle and violates no lifetime rule; the structural errors above cannot
 be raised. What can still be raised is a failure inside user code: a constructor or factory that raises, which is
 wrapped in `ConstructionError` (below), and the conformance check of a factory product (above), both being
-defects of the service rather than of the graph. The only structural error left at request time is the call of
-`Container:resolve` for a service that needs a scoped one, which is a mistake of the caller and is documented as
+defects of the service rather than of the graph. The only structural errors left at request time are the call of
+`Container:resolve` for a service that needs a scoped one, or that creates a closable transient no singleton owns, which are mistakes of the caller and is documented as
 such; the kernel never makes it.
 
 ## Construction
@@ -183,7 +213,7 @@ All extend `hecate.core.Error` through `core.ConfigurationError`, since each mea
 | `DuplicateBindingError` | `ContainerError` | `bind` on a bound key | `key` |
 | `MissingBindingError` | `ContainerError` | a required or requested key has no binding; `override` of an unbound key | `key`, `path` |
 | `CycleError` | `ContainerError` | the dependency graph has a cycle | `path` |
-| `LifetimeError` | `ContainerError` | a singleton depends on a scoped service; a scoped service is requested from the root | `key`, `dependency`, `path` |
+| `LifetimeError` | `ContainerError` | a singleton depends on a scoped service; a scoped service is requested from the root; the root would create a closable transient that no singleton owns ("Disposal") | `key`, `dependency`, `path` (`suppressed` for the last case, if closing failed) |
 | `GraphError` | `ContainerError` | `validate` found one or more problems | `problems` |
 | `ConstructionError` | `ContainerError` | a constructor or factory raised | `key`, `path`; `cause` |
 
@@ -195,7 +225,7 @@ by name, an interface by its `core.name`, never by address.
 ## Public API summary
 
 `hecate.container`: `Container` (`bind`, `override`, `override_instance`, `validate`, `resolve`, `open_scope`,
-`close`), `ServiceScope` (`resolve`, `close`), `Lifetime`, and the error classes above. Every function carries
+`close`), `ServiceScope` (`resolve`, `release`, `close`), `Lifetime`, and the error classes above. Every function carries
 LuaLS annotations; none is `---@async`, because nothing here suspends.
 
 ## Tests required by the invariants
@@ -204,6 +234,6 @@ Graph validation: each of missing binding, cycle (lengths one, two, many), lifet
 a transient), interface conformance, several problems at once, registration-order determinism, freezing after
 `validate`, `resolve` before it. Scoped lifetime: one instance per service scope, shared by computations forked
 in the same request (with a virtual-clock reactor in an integration test, outside the package), distinct across
-service scopes, disposal order. Overrides: unbound key, after validation, revalidation catches a violation.
+service scopes, disposal order (scoped and closable transients mixed, a singleton-owned transient, root refusal for a class and for a factory, `release`). Overrides: unbound key, after validation, revalidation catches a violation.
 Errors: wrapping, cancellation not wrapped, the property that a validated graph yields no structural error
 (a randomised graph test).

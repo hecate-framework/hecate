@@ -345,15 +345,201 @@ function T:test_the_container_closes_its_singletons_in_reverse_order()
   self:assert_equal(2, #log)
 end
 
-function T:test_a_transient_is_not_tracked_for_disposal()
+function T:test_a_closable_transient_is_tracked_by_its_scope_and_closed_in_reverse_order_with_scoped_services()
+  local log = {}
+  local S1, T1, S2, T2 = closing_class("S1", log), closing_class("T1", log), closing_class("S2", log),
+    closing_class("T2", log)
+  local c = ready(function(c)
+    c:bind("s1", S1, { lifetime = "scoped" })
+    c:bind("t1", T1, { lifetime = "transient" })
+    c:bind("s2", S2, { lifetime = "scoped" })
+    c:bind("t2", function() return T2() end, { lifetime = "transient" })
+  end)
+  local scope = c:open_scope()
+  local first = scope:resolve("t1")
+  scope:resolve("s1")
+  scope:resolve("t1")
+  scope:resolve("s2")
+  scope:resolve("t2")
+  self:assert_false(first == scope:resolve("t1"))
+  scope:close()
+  -- created: T1, S1, T1, S2, T2, then the T1 of the comparison above
+  self:assert_equal("T1,T2,S2,T1,S1,T1", table.concat(log, ","), "reverse order of creation")
+end
+
+function T:test_a_transient_without_close_is_never_tracked()
+  local c = ready(function(c)
+    c:bind("plain", function() return {} end, { lifetime = "transient" })
+    c:bind("plain_class", service_class("Plain"), { lifetime = "transient" })
+  end)
+  local scope = c:open_scope()
+  for _ = 1, 50 do
+    scope:resolve("plain")
+    scope:resolve("plain_class")
+  end
+  self:assert_equal(0, #scope._owned)
+  self:assert_equal(0, #c._owned)
+  local instance = scope:resolve("plain")
+  raises(self, container.ContainerError, function() scope:release(instance) end)
+end
+
+function T:test_a_transient_dependency_of_a_transient_in_a_scope_is_tracked()
+  local log = {}
+  local Inner, Outer = closing_class("Inner", log), closing_class("Outer", log)
+  local c = ready(function(c)
+    c:bind("inner", Inner, { lifetime = "transient" })
+    c:bind("outer", Outer, { lifetime = "transient", requires = { "inner" } })
+    c:bind("plain", function(inner) return { inner = inner } end, { lifetime = "transient", requires = { "inner" } })
+  end)
+  local scope = c:open_scope()
+  scope:resolve("outer")
+  scope:resolve("plain")
+  scope:close()
+  -- created: Inner, Outer, Inner (for "plain"); closed in reverse
+  self:assert_equal("Inner,Outer,Inner", table.concat(log, ","))
+end
+
+function T:test_a_closable_transient_of_a_singleton_is_owned_by_the_container()
+  local log = {}
+  local Dep, Single = closing_class("Dep", log), closing_class("Single", log)
+  local c = ready(function(c)
+    c:bind("dep", Dep, { lifetime = "transient" })
+    c:bind("single", Single, { lifetime = "singleton", requires = { "dep" } })
+  end)
+  local scope = c:open_scope()
+  scope:resolve("single")
+  scope:close()
+  self:assert_equal(0, #log, "the scope does not own it")
+  c:close()
+  self:assert_equal("Single,Dep", table.concat(log, ","))
+end
+
+function T:test_a_singleton_built_from_the_root_owns_its_closable_transient_without_error()
+  local log = {}
+  local Dep = closing_class("Dep", log)
+  local c = ready(function(c)
+    c:bind("dep", function() return Dep() end, { lifetime = "transient" })
+    c:bind("single", function(dep) return { dep = dep } end, { lifetime = "singleton", requires = { "dep" } })
+  end)
+  c:resolve("single")
+  c:close()
+  self:assert_equal("Dep", table.concat(log, ","))
+end
+
+function T:test_the_root_refuses_a_closable_transient_class()
   local log = {}
   local Tr = closing_class("Tr", log)
-  local c = ready(function(c) c:bind("t", Tr, { lifetime = "transient" }) end)
+  local c = ready(function(c)
+    c:bind("t", Tr, { lifetime = "transient" })
+    c:bind("user", function(t) return { t = t } end, { lifetime = "transient", requires = { "t" } })
+  end)
+  local err = raises(self, container.LifetimeError, function() c:resolve("t") end)
+  self:assert_equal("t", err.context.key)
+  self:assert_true(tostring(err.message):find("open_scope", 1, true) ~= nil)
+  local nested = raises(self, container.LifetimeError, function() c:resolve("user") end)
+  self:assert_equal("user", nested.context.key)
+  self:assert_equal("t", nested.context.dependency)
+  self:assert_equal(0, #log, "a class is refused before it is built")
+  self:assert_equal(0, Tr.count or 0)
+end
+
+function T:test_the_root_closes_a_closable_factory_product_and_raises()
+  local log = {}
+  local A, B = closing_class("A", log), closing_class("B", log)
+  local c = ready(function(c)
+    c:bind("a", function() return A() end, { lifetime = "transient" })
+    c:bind("b", function(a) return B() end, { lifetime = "transient", requires = { "a" } })
+  end)
+  raises(self, container.LifetimeError, function() c:resolve("a") end)
+  self:assert_equal("A", table.concat(log, ","))
+  self:assert_equal(0, #c._owned)
+  log[1] = nil
+  local err = raises(self, container.LifetimeError, function() c:resolve("b") end)
+  self:assert_equal("a", err.context.dependency)
+  self:assert_equal("A", table.concat(log, ","))
+end
+
+function T:test_the_root_closes_every_product_built_in_the_call_in_reverse_order()
+  local log = {}
+  local A, B = closing_class("A", log), closing_class("B", log)
+  local c = ready(function(c)
+    c:bind("a", function() return A() end, { lifetime = "transient" })
+    c:bind("b", B, { lifetime = "transient" })
+    c:bind("top", function() return {} end, { lifetime = "transient", requires = { "a", "b" } })
+  end)
+  -- the first product is refused at once: nothing else is built
+  raises(self, container.LifetimeError, function() c:resolve("top") end)
+  self:assert_equal("A", table.concat(log, ","))
+end
+
+function T:test_release_closes_once_and_stops_tracking()
+  local log = {}
+  local Tr, Scoped = closing_class("Tr", log), closing_class("Sc", log)
+  local c = ready(function(c)
+    c:bind("t", Tr, { lifetime = "transient" })
+    c:bind("s", Scoped, { lifetime = "scoped" })
+  end)
   local scope = c:open_scope()
-  scope:resolve("t")
+  local instance = scope:resolve("t")
+  local kept = scope:resolve("t")
+  scope:resolve("s")
+  self:assert_equal(nil, scope:release(instance))
+  self:assert_equal("Tr", table.concat(log, ","))
+  raises(self, container.ContainerError, function() scope:release(instance) end)
   scope:close()
-  c:close()
+  self:assert_equal("Tr,Sc,Tr", table.concat(log, ","), "no double close; the other transient closes with the scope")
+  self:assert_true(kept ~= nil)
+end
+
+function T:test_release_refuses_what_the_scope_does_not_track()
+  local log = {}
+  local Tr, Scoped, Dep, Single = closing_class("Tr", log), closing_class("Sc", log), closing_class("Dep", log),
+    closing_class("Single", log)
+  local c = ready(function(c)
+    c:bind("t", Tr, { lifetime = "transient" })
+    c:bind("s", Scoped, { lifetime = "scoped" })
+    c:bind("dep", Dep, { lifetime = "transient" })
+    c:bind("single", Single, { lifetime = "singleton", requires = { "dep" } })
+  end)
+  local one, two = c:open_scope(), c:open_scope()
+  local instance = one:resolve("t")
+  raises(self, container.ContainerError, function() two:release(instance) end)
+  raises(self, container.ContainerError, function() one:release(one:resolve("s")) end)
+  raises(self, container.ContainerError, function() one:release({}) end)
+  raises(self, container.ContainerError, function() one:release(one:resolve("single")) end)
+  for _, bad in ipairs({ 1, "x", true }) do
+    raises(self, core.ArgumentError, function() one:release(bad) end)
+  end
+  raises(self, core.ArgumentError, function() one:release(nil) end)
   self:assert_equal(0, #log)
+end
+
+function T:test_a_close_error_in_release_propagates_as_it_is()
+  local log = {}
+  local Bad = closing_class("Bad", log, true)
+  local c = ready(function(c) c:bind("t", Bad, { lifetime = "transient" }) end)
+  local scope = c:open_scope()
+  local instance = scope:resolve("t")
+  local err = raises(self, core.Error, function() scope:release(instance) end)
+  self:assert_equal("Bad failed", err.message)
+  scope:close()
+  self:assert_equal("Bad", table.concat(log, ","), "not closed again by the scope")
+end
+
+function T:test_close_errors_of_transients_aggregate_with_the_others()
+  local log = {}
+  local Bad1, Bad2 = closing_class("Bad1", log, true), closing_class("Bad2", log, true)
+  local c = ready(function(c)
+    c:bind("one", Bad1, { lifetime = "transient" })
+    c:bind("two", Bad2, { lifetime = "scoped" })
+  end)
+  local scope = c:open_scope()
+  scope:resolve("one")
+  scope:resolve("two")
+  local err = self:assert_error(function() scope:close() end)
+  self:assert_equal("Bad2 failed", err.message)
+  self:assert_equal(1, #err.context.suppressed)
+  self:assert_equal("Bad2,Bad1", table.concat(log, ","))
 end
 
 function T:test_every_close_is_attempted_and_the_first_error_carries_the_others()
