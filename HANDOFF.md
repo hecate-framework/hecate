@@ -3,8 +3,8 @@
 
 - roadmap_item: `schema`: refinement types, composition, coercion, validation with JSON Pointer error paths, JSON Schema 2020-12 emission.
 - status: in-progress            <!-- in-progress | waiting-ci | waiting-owner -->
-- lock_until: 2026-11-08T12:17:24Z
-- last_update: 2026-11-08T08:17:24Z
+- lock_until: 2026-11-08T13:41:55Z
+- last_update: 2026-11-08T09:41:55Z
 
 ## Done
 
@@ -89,10 +89,12 @@ The owner asked on 2026-11-08 to finish this pull request the same day; an inter
 
 ## Next steps
 
-Only open work is listed here; finished steps move to Done (never keep a DONE line in this list).
+Only open work is listed here; finished steps move to Done (never keep a DONE line in this list). Findings, ids and statuses are in `docs/reviews/schema-review-package.md`; fix test first and record the commit of each fix there.
 
-1. Fix the remaining findings of the `schema` review (the seven reviewers, 2026-11-08; S1 to S4 and s1 to s4 are fixed): the list with its dispositions is in `docs/reviews/schema-review-package.md`; API annotations, documentation, performance and test-suite items are separate passes; fix test first, then update the review file with the commit of each fix.
-2. Finish: delete `HANDOFF.md`, tick the roadmap item, CI green on the three platforms, mark the pull request ready and ask for the owner's review.
+1. Fix pass B (API, documentation, terminology): S5 (violation code table, an alias type, the rename to `additional_properties` decided in OQ-96), S6, S7, S8, a1, a2, t1 to t5, S9 and S10 (not yet implemented notes, keyword limits documented in the README, the explanation page and the French mirror), x3 (the shared interface, provisional name `HasSchema`), S11, S12, S13, x1, x2 and the refresh of the two French pages listed under Doubts.
+2. Fix pass C (tests): S14, S15, S16, q1 (seeded property-based differential, step-count growth tests in place of clock bounds, tighter gap logic and guards in the suite runner, table-driven bad options, seeded tests of the pattern translator and the format validators).
+3. Fix pass D (performance): P1, P2, P3 and the benchmark scenarios of P4, judged by `bench schema/validate` before and after; keep the guards of OQ-50 and OQ-91.
+4. Finish: delete `HANDOFF.md`, tick the roadmap item, CI green on the three platforms, mark the pull request ready and ask for the owner's review.
 
 ## Open question issues
 
