@@ -19,5 +19,7 @@ the [how-to guides](../how-to/index.md) do.
   and the message pipe, and which parts exist today.
 - [The HTTP model](http-model.md): messages, the life of a connection, and why the limits have
   their defaults.
+- [Schemas and contracts](schemas-and-contracts.md): why schemas are runtime data, validation versus
+  coercion versus build, the presence set, the safety bounds and the limits to know.
 
 The vocabulary is defined in the [glossary](../reference/glossary.md).

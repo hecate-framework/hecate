@@ -8,7 +8,7 @@
 | Rock | `hecate-schema` |
 | Layer | 2 — Protocol |
 | Roadmap phase | 2 |
-| Status | in progress (phase 2, steps 1, 2a, 2b and 3, plus `tagged_union`, `default`, `named`, `any` and `null`): type model, validation, JSON Schema emission (with the `pattern` translator, Lua pattern to ECMA-262) and coercion of textual inputs; class-bound instances (`build`, `sent`, PATCH) |
+| Status | implemented (phase 2): type model, validation, coercion, JSON Schema 2020-12 emission with the `pattern` translator, `map`, `multiple_of`, `format`, `tagged_union`, `default`, `named`, `any`, `null`, class-bound instances (`of`, `build`, `sent`, PATCH, `coerce = true`), enumerations of `core`, bounded depth and cost, and the official JSON Schema test suite over the supported subset. Documented in a how-to, an explanation page and tested examples. Remaining limits: no `refine`, no `generate`, no `---@meta` generation, no lazy `named` for recursion without a class, formats limited to `uuid`, `date`, `date-time`, `email`, `ipv4` and `uri`, `multiple_of` with whole divisors only |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |
 | Depends on | [`core`](../core), [`json`](../json) |
 | Used by | `cli`, `config`, `doc`, `hecate`, `kernel`, `openapi`, `orm`, `security`, `test` |
@@ -40,7 +40,8 @@
 
 Declarations (`local schema = require("hecate.schema")`); every schema is an immutable value (`schema.Schema`):
 
-- `schema.string{ min_length, max_length, pattern }`, `schema.integer{ minimum, maximum }`, `schema.number{ minimum, maximum }`, `schema.boolean()`: base types and refinements.
+- `schema.string{ min_length, max_length, pattern, format, logger }`, `schema.integer{ minimum, maximum, exclusive_minimum, exclusive_maximum, multiple_of }`, `schema.number{ ... }`, `schema.boolean()`: base types and refinements. `pattern` is a Lua pattern, translated to ECMA-262 on emission (subset in the specification; `%b`, `%f`, `()` and non-ASCII bytes are refused). `format` is `uuid`, `date`, `date-time`, `email`, `ipv4` or `uri`. `multiple_of` takes a whole-number divisor only (OQ-87): for decimals, use integers in minor units or a string with a `pattern`.
+- `schema.map(value_schema, { min_properties, max_properties })`: string keys not declared in advance (no key schema, OQ-87).
 - `schema.literal(value)`, `schema.enumeration(values)`: constants (JSON Schema `const` and `enum`).
 - `schema.enumeration(core_enumeration)`: the same constructor over a `core.enumeration`. The JSON representation of a value is its name (a member object is not JSON, a name round-trips through `json.encode` and `json.decode`): `validate` and `coerce` accept exactly the names (code `enum`, the names in `context.values`), the emission is `type` string with `enum`, and `build` replaces a name by the member (also inside objects, arrays, maps, unions, nullables and defaults; a default is given as a name). It is inlined; `schema.named` makes it a definition. The names are read once at declaration. A member object is never accepted as content.
 - `schema.object(properties, { additional_properties })`: product type; undeclared properties are rejected by default.
@@ -65,7 +66,9 @@ Instances (OQ-50, recorded in OQ-90):
 
 Emission:
 
-- `s:to_json_schema()` returns a JSON Schema 2020-12 document (plain values, `$schema` on the root). `pattern` raises `ArgumentError` (a Lua pattern has no exact ECMA-262 translation); `integer` and constants also accept float-valued numbers (`1.0`), which JSON Schema cannot exclude. Both are recorded in OQ-85.
+- `s:to_json_schema()` returns a JSON Schema 2020-12 document (plain values, `$schema` on the root). `pattern` is translated to ECMA-262; a pattern outside the exact subset raises `ArgumentError`. `integer` and constants also accept float-valued numbers (`1.0`), which JSON Schema cannot exclude (OQ-85, point 11).
+
+Documentation: the how-to [Validate values with schemas](../../website/en/how-to/validate-with-schemas.md), the explanation [Schemas and contracts](../../website/en/explanation/schemas-and-contracts.md) and the tested examples in `examples/`.
 
 Choices taken conservatively (Lua pattern for `pattern`, `integer` refuses `1.0`, and others) are in OQ-85.
 

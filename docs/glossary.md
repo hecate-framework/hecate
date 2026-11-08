@@ -118,6 +118,10 @@ This table appears at the top of the `query` and `orm` reference pages.
 | product type | Record of named components | — | — |
 | coercion | Conversion of a textual input to a typed value | — | casting, parsing (when coercion is meant) |
 | schema | Declaration of a type usable for validation, coercion and contract emission | JSON Schema 2020-12 | model, DTO |
+| violation | One reason a value does not conform to a schema, with its JSON Pointer path, a code and a message; `validate` collects them all | RFC 6901 | error (for one reason), failure |
+| class-bound schema | The schema of a class, returned by its class-level `schema()` and named by `schema.of(Class)`; the class owns the schema name, and `build` makes an instance of it | [ADR 0006](adr/0006-declarative-routes-as-runtime-data.md); OQ-50 | model, DTO |
+| presence set | The names of the attributes that were present in the content from which an instance was built, explicit `null` included (`schema.sent`); it tells unchanged from cleared in a PATCH | OQ-50, OQ-90 | dirty flags, `json.null` as an attribute value |
+| work budget | The fixed number of steps one `validate`, `coerce` or `build` call may spend before it ends with a `complexity_limit` violation | OQ-91 | timeout, for a count of steps |
 
 Schema keywords follow JSON Schema 2020-12 vocabulary in `snake_case`: `minimum`,
 `maximum`, `exclusive_minimum`, `multiple_of`, `min_length`, `max_length`, `pattern`,

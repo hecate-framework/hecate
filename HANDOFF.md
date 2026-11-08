@@ -62,6 +62,7 @@
 
 - Next step 3 (official JSON Schema test suite): `tests/external.lua` pins JSON-Schema-Test-Suite at 245a45a (2026-11-08, MIT), `json_schema_suite_test.lua` with an explicit skip table, shared checker moved to `tests/support/conforms.lua` (deep equality, `$ref`, `type` arrays), CI and nightly download it. Real bug found and fixed: `object` and `map` accepted a decoded array, `array` accepted a decoded object (`validate_test.lua`). Doubt: the `1.0` and fractional `multipleOf` cases are counted as documented gaps only when Lua disagrees and the data or schema holds the trigger.
 - The review findings of OQ-94 were fixed (the value raised by `__pairs` or its iterator is raised again as the same value; one shared entry budget per encode).
+- Docs step (English, owner-driven session): tested examples in `packages/schema/examples/` (`string`, `integer` with `multiple_of`, `map`, `enumeration`, `tagged_union`, `of`, `Schema.build`, `default`, `sent`) run and asserted by `examples_test.lua`; the how-to `validate-with-schemas.md` reorganised (validate, constrain, name, build, defaults and PATCH, emit); new explanation page `website/en/explanation/schemas-and-contracts.md`; glossary rows violation, class-bound schema, presence set, work budget (in `docs/glossary.md` only, like the router item; the public copy `website/en/reference/glossary.md` is not updated); README status; CHANGELOG. The generated reference pages are not built here.
 
 ## Owner-driven session
 
@@ -74,7 +75,7 @@ The owner asked on 2026-11-08 to finish this pull request the same day; an inter
 3. DONE OQ-93 (2), decided by the owner: `Schema:build(content, { method, coerce = true })` converts texts with the rules of `coerce`, then builds; defaults apply once, `schema.sent` records only what was provided.
 4. DONE The official JSON Schema test suite (supported subset): a pinned entry in `packages/schema/tests/external.lua` fetched by `fetch-fixtures` like the data of `json` (skipped locally without network, enforced in CI), a runner with an explicit list of the unsupported cases and the reason of each.
 5. DONE Schemas from `core` enumerations (a `schema.enumeration` taking a `core.enumeration`).
-6. Docs: tested examples, an explanation page, the glossary check, the generated reference, the French pages.
+6. DONE (English) Docs: tested examples, an explanation page, the glossary check, the generated reference. The French pages are a separate step (translator-fr).
 7. Definition-of-done check and `/review-package` with the reviewer agents, then fix the findings.
 8. Finish: delete `HANDOFF.md`, tick the roadmap item, CI green on the three platforms, mark the pull request ready and ask for the owner's review.
 
