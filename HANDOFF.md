@@ -74,6 +74,32 @@
 
 - Fix pass C of the review (tests; owner-driven session): commits d460c46, 5e3e8f2, 9801f4d, 89b076e, 386e5d3, ec05efc. Seeded differential of `validate` against the emitted schema (`differential_test.lua`, 3200 pairs, `tests/support/prng.lua`, `HECATE_TEST_SEED`), the pin that `format` is only an annotation when emitted, the round trip `roundtrip_test.lua` (POST and PATCH), the suite runner with position-aware gaps and pinned counts (`HECATE_TEST_VERBOSE` prints them), step counts in place of every `os.clock` bound (private `schema._steps()`), hostile chains of 20000 nodes, `options_test.lua`, `violation_codes_test.lua` (parses the specification table), `robustness_test.lua`, and limits restored through `tests/support/protected.lua`. Details and the findings of the new tests are in the review, "Fix pass C".
 
+- Fix pass D of the review (performance; owner-driven session): commits 7ba31a5 (benchmark scenarios, P4), 5fc6d89 (P2, memoisation only inside alternative attempts, lazy stores), 8dca32e (P1, path stack `segments` and `path_to`, `paths_test.lua`), 00289db (map coercion violations in key order, tests). P3 (cached `max_steps`, inline step test, guard folded into the object validator) was measured and reverted: no scenario gained 10 percent. Undeclared properties were already sorted; the map coercion order was the nondeterminism. P5 and P6 are on the roadmap Benchmarks item. Details, reasons and the failing-input cost are in the review, "Fix pass D". Medians of 5 runs of `bench schema/validate --yes` on a shared VM (host not quiet, indicative only), operations per second, baseline then final with max/min in brackets:
+
+| Scenario | Baseline | Final | Change |
+|---|---|---|---|
+| validate record | 287k (1.15) | 311k (1.06) | +8% |
+| validate array of 100 | 2.75k (1.02) | 3.37k (1.05) | +22% |
+| validate union | 403k (1.06) | 574k (1.11) | +42% |
+| coerce record | 149k (1.06) | 162k (1.10) | +9% |
+| coerce array of 100 | 1.24k (1.03) | 1.69k (1.04) | +36% |
+| coerce union | 182k (1.15) | 248k (1.60) | +36% |
+| build record | 166k (1.07) | 181k (1.12) | +9% |
+| represent record | 344k (1.09) | 388k (1.37) | +13% |
+| represent array of 100 | 2.46k (1.05) | 3.79k (1.05) | +54% |
+| build class-bound | 320k (1.08) | 339k (1.06) | +6% |
+| build class-bound nested | 178k (1.14) | 189k (1.06) | +6% |
+| validate tagged union | 866k (1.22) | 868k (1.06) | 0% |
+| build tagged union | 484k (1.09) | 479k (1.15) | -1% |
+| represent tagged union | 872k (1.12) | 902k (1.12) | +3% |
+| validate twins 30 invalid | 7.16k (1.03) | 7.27k (1.03) | +1% |
+| validate twins 30 valid | 37k (1.07) | 40k (1.08) | +10% |
+| validate failing record | 33k (1.03) | 30k (1.08) | -8% |
+| validate failing union | 57k (1.04) | 56k (1.12) | -1% |
+| validate string with a format | 631k (1.11) | 680k (1.07) | +8% |
+| validate string with a length | 3.44M (1.16) | 3.86M (1.06) | +12% |
+| build with coerce, query | 120k (1.08) | 139k (1.06) | +16% |
+
 ## Doubts (OQ-95, conservative choices taken)
 
 - The name `represent` is kept: the glossary defines the term representation (Fielding, RFC 9110), and the specification speaks of representations.
@@ -99,8 +125,7 @@ The owner asked on 2026-11-08 to finish this pull request the same day; an inter
 
 Only open work is listed here; finished steps move to Done (never keep a DONE line in this list). Findings, ids and statuses are in `docs/reviews/schema-review-package.md`; fix test first and record the commit of each fix there.
 
-1. Fix pass D (performance): P1, P2, P3 and the benchmark scenarios of P4, judged by `bench schema/validate` before and after; keep the guards of OQ-50 and OQ-91.
-2. Finish: delete `HANDOFF.md`, tick the roadmap item, CI green on the three platforms, mark the pull request ready and ask for the owner's review.
+1. Finish: delete `HANDOFF.md`, tick the roadmap item, CI green on the three platforms, mark the pull request ready and ask for the owner's review.
 
 ## Open question issues
 

@@ -195,6 +195,11 @@ concurrency test suite passes; benchmark baseline recorded.
       the 9-argument recursive `tree.walk`, `rest_of` rescanning segments, the `%%(.?.?)` decode pattern; judge each with
       `packages/router/benchmarks/match.lua` (add a wide fan-out under the matched prefix; static matching drops about
       30 % at 30 000 routes, probably cache effects) and the `plaintext` scenario.
+      **Also two `schema` findings** of the 2026-11-08 review ([review](reviews/schema-review-package.md), Performance,
+      deferred after fix pass D): (P5) a class-bound build costs about 75 % more than a plain object build (three tables
+      and one weak-table insertion; fill the instance directly); (P6) `format` validators cost 0.6 to 1.1 microseconds per
+      call. Judge each with `packages/schema/benchmarks/validate.lua` (`build class-bound`, `validate string-email`) and
+      the `validation` scenario, on a realistic mix, before touching them.
 
 Exit: `examples/hello` runs on three platforms with N workers; invalid input yields
 RFC 9457 problem details; graceful shutdown drains in-flight requests.
