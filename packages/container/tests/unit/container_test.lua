@@ -607,7 +607,7 @@ function T:test_override_of_an_unbound_key_raises_missing_binding_error()
   local c = container.Container()
   local err = raises(self, container.MissingBindingError, function() c:override("typo", function() return {} end) end)
   self:assert_equal("typo", err.context.key)
-  raises(self, container.MissingBindingError, function() c:override_instance("typo", {}) end)
+  raises(self, container.MissingBindingError, function() c:override_with_instance("typo", {}) end)
 end
 
 function T:test_override_keeps_lifetime_and_requires_when_options_are_omitted()
@@ -641,21 +641,51 @@ function T:test_override_keeps_the_position_in_the_registration_order()
   self:assert_equal("y", err.context.problems[2].context.key)
 end
 
-function T:test_override_instance_injects_a_fake_as_a_singleton()
+function T:test_override_with_instance_injects_a_fake_as_a_singleton()
   local fake = { fake = true }
   local c = container.Container()
   c:bind("clock", function() return {} end, { lifetime = "scoped", requires = { "ghost" } })
-  c:override_instance("clock", fake)
+  c:override_with_instance("clock", fake)
   c:bind("user", function(clock) return { clock = clock } end, { lifetime = "transient", requires = { "clock" } })
   c:validate()
   self:assert_true(c:resolve("user").clock == fake)
-  raises(self, core.ArgumentError, function() container.Container():bind("a", function() return {} end, { lifetime = "transient" }):override_instance("a", nil) end)
+  raises(self, core.ArgumentError, function() container.Container():bind("a", function() return {} end, { lifetime = "transient" }):override_with_instance("a", nil) end)
+end
+
+function T:test_override_with_instance_checks_an_interface_key_at_the_call()
+  local Repo = core.interface("Repo", { "find" })
+  local Pg = core.class("Pg", nil, { implements = { Repo } })
+  function Pg:find() return "row" end
+  core.finalise(Pg)
+  local c = container.Container():bind(Repo, Pg, { lifetime = "singleton" })
+  raises(self, core.ConformanceError, function() c:override_with_instance(Repo, {}) end)
+  local Other = core.finalise(core.class("Other"))
+  raises(self, core.ConformanceError, function() c:override_with_instance(Repo, Other()) end)
+  c:validate()
+  self:assert_equal("row", c:resolve(Repo):find(), "the binding is unchanged after the failure")
+end
+
+function T:test_override_with_instance_accepts_a_conformant_fake()
+  local Repo = core.interface("Repo", { "find" })
+  local Fake = core.class("FakeRepo", nil, { implements = { Repo } })
+  function Fake:find() return "fake" end
+  core.finalise(Fake)
+  local fake = Fake()
+  local c = container.Container():bind(Repo, function() return fake end, { lifetime = "transient" })
+  c:override_with_instance(Repo, fake):validate()
+  self:assert_true(c:resolve(Repo) == fake)
+end
+
+function T:test_override_with_instance_checks_nothing_for_a_name_key()
+  local c = container.Container():bind("a", function() return {} end, { lifetime = "transient" })
+  c:override_with_instance("a", 42):validate()
+  self:assert_equal(42, c:resolve("a"))
 end
 
 function T:test_override_after_validate_raises_container_error()
   local c = container.Container():bind("a", function() return {} end, { lifetime = "transient" }):validate()
   raises(self, container.ContainerError, function() c:override("a", function() return {} end) end)
-  raises(self, container.ContainerError, function() c:override_instance("a", {}) end)
+  raises(self, container.ContainerError, function() c:override_with_instance("a", {}) end)
 end
 
 return T

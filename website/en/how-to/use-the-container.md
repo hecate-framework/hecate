@@ -132,8 +132,8 @@ An error raised by a constructor or factory becomes a `ConstructionError` whose 
 
 `override(key, definition, options?)` replaces a binding before `validate`; without `options` it keeps the lifetime and
 `requires` of the replaced binding; with `options`, `lifetime` is required as for `bind`. A key that is not bound raises `MissingBindingError`, so a misspelt key cannot
-create a service by accident. `override_instance(key, value)` binds an existing object as a singleton without
-dependencies, the usual way to inject a fake. The new graph is validated as a whole, so an override cannot add a cycle
+create a service by accident. `override_with_instance(key, value)` binds an existing object as a singleton without
+dependencies, the usual way to inject a fake. The key must be bound; for an interface key the value must implement it, and a fake that does not raises `core.ConformanceError` at the call. The new graph is validated as a whole, so an override cannot add a cycle
 or a captive dependency unnoticed.
 
 ## Errors

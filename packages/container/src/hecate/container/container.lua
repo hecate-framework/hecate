@@ -213,12 +213,25 @@ function Container:override(key, definition, options)
 end
 
 --- Replaces the binding of `key` by an existing object, as a singleton without dependencies: the usual way to inject
---- a fake. Like `override`, `key` must already be bound.
+--- a fake. Like `override`, `key` must already be bound. When `key` is an interface, the conformance of `value` is
+--- checked here, at the call, because its class is known (a value that is not an instance of a class does not
+--- implement the interface, as for a factory product); the binding is unchanged on failure. A name key carries no
+--- check. (container.md, "Overrides for tests"; Fowler 2004, "Forms of Dependency Injection".)
+---
+--- Raises `hecate.container.MissingBindingError` if `key` is not bound, `hecate.container.ContainerError` after
+--- `validate` or `close`, `hecate.core.ConformanceError` if `value` does not implement the interface `key`, and
+--- `hecate.core.ArgumentError` for a wrong argument.
 ---@param key string|table
 ---@param value any  the object; never `nil`
 ---@return hecate.container.Container self
-function Container:override_instance(key, value)
-  if value == nil then argument_error("override_instance", "value must not be nil") end
+function Container:override_with_instance(key, value)
+  check_key("override_with_instance", key, "key")
+  if value == nil then argument_error("override_with_instance", "value must not be nil") end
+  check_unfrozen(self, "override_with_instance")
+  if self._bindings[key] ~= nil and core.is_interface(key) and not core.implements(value, key) then
+    error(core.ConformanceError(("container: the instance for %q does not implement it"):format(render(key)),
+      { context = { key = render(key) } }), 2)
+  end
   return self:override(key, function() return value end, { lifetime = Lifetime.singleton })
 end
 

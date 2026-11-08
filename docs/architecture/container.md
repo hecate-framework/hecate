@@ -3,7 +3,7 @@
 Package: `container` (layer 3, Framework). Status: implemented. Decisions:
 [ADR 0007](../adr/0007-object-model.md) (object model, which services build on),
 [ADR 0018](../adr/0018-error-signalling.md) (errors), [ADR 0025](../adr/0025-ambient-context.md) (ambient
-context). Undecided points are open questions OQ-104 to OQ-109 (OQ-106 is resolved) in [open-questions.md](../open-questions.md); each
+context). The decisions on OQ-104 to OQ-109 are recorded in [open-questions.md](../open-questions.md); each
 statement below that depends on one says so. The package depends on `core` only: it knows nothing of `reactor`,
 `http` or `kernel`.
 
@@ -41,7 +41,7 @@ binding; `bind` on a key that is bound raises `DuplicateBindingError` (use `over
 
 When the key is an interface, the product must conform to it: for a class definition the check happens at
 `validate` (`core.implements`, a `core.ConformanceError` listed among the problems), for a factory definition
-at the first construction, because the class of the product is unknown earlier. A name key carries no check.
+at the first construction, because the class of the product is unknown earlier (`override_with_instance` checks its value at the call, "Overrides for tests"). A name key carries no check.
 
 ## Definitions
 
@@ -195,8 +195,12 @@ composition root of a test application (testing.md, "Fixtures": container overri
 `MissingBindingError` when `key` is not already bound (a misspelt key must not silently create a service), and
 `ContainerError` after `validate`. When `options` is omitted, the lifetime and `requires` of the replaced binding are kept; when it is given,
 it replaces both (defaults as for `bind`). The replaced definition is discarded and the new graph is validated as a whole by `validate`, so an
-override cannot introduce a cycle or a lifetime violation unnoticed. `Container:override_instance(key, value)`
-binds an existing object as a `singleton` with no dependencies, the usual way to inject a fake.
+override cannot introduce a cycle or a lifetime violation unnoticed. `Container:override_with_instance(key, value)`
+binds an existing object as a `singleton` with no dependencies, the usual way to inject a fake. Its key must be bound
+(`MissingBindingError` otherwise, `ContainerError` after `validate`). For an interface key the conformance check runs
+immediately, at the call, because the class of the value is known: a value that does not implement the interface raises
+`core.ConformanceError` there and the binding is unchanged; a value that is not an instance of a class (a plain table)
+does not implement it, the same rule as for a factory product. A name key carries no check. Owner decision on OQ-109.
 
 An override is an ordinary binding in every other respect. There is no "test mode": the same method works in
 production, and the same rules apply (OQ-104 (c): the owner chose no test mode; `override` is already refused after `validate`). Without `options`
@@ -224,7 +228,7 @@ by name, an interface by its `core.name`, never by address.
 
 ## Public API summary
 
-`hecate.container`: `Container` (`bind`, `override`, `override_instance`, `validate`, `resolve`, `open_scope`,
+`hecate.container`: `Container` (`bind`, `override`, `override_with_instance`, `validate`, `resolve`, `open_scope`,
 `close`), `ServiceScope` (`resolve`, `release`, `close`), `Lifetime`, and the error classes above. Every function carries
 LuaLS annotations; none is `---@async`, because nothing here suspends.
 
