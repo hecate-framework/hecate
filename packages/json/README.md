@@ -109,6 +109,7 @@ Pointer, RFC 6901).
 | `sparse_array` | a marked array with a key that is not a positive integer, or with too many holes (highest index above twice the entries plus 16) | Keep the array dense; write `json.null` for a missing item. |
 | `integer_out_of_range` | an integer beyond +-2^53 with `canonical = "rfc8785"` | Send it as a string. |
 | `invalid_utf8` | a string or key that is not UTF-8 | Re-encode it as UTF-8. |
+| `duplicate_key` | an iterator returned by `__pairs` that yields the same string key or the same integer key twice | Make the keys of the iteration unique. The `path` is that of the object or array, and the key is not echoed. |
 | `depth_limit`, `size_limit` | nesting (or a cycle) beyond `max_depth`, output beyond `max_size` | Raise the option if the input is trusted; break the cycle. |
 
 ## Native modules
@@ -155,7 +156,12 @@ problem, with the path built on the way out so that a successful encoding record
 the standard iteration protocol (OQ-94): `__pairs(t)` returns the iterator, its state and its first control value (a
 fourth, closing value is ignored: a to-be-closed object is never closed, unlike with `pairs`), and the iterator is called until it returns `nil`; the entries are then
 encoded by the same rules as the entries of a raw table (an array when every key is a positive index, with the same hole
-rule; an object when every key is a string; `ambiguous_table` otherwise; `canonical` and `pretty` apply). A table with no metatable,
+rule; an object when every key is a string; `ambiguous_table` otherwise; `canonical` and `pretty` apply). An iterator
+that yields the same string key twice would write a duplicate member name (RFC 8259 section 4, RFC 7493 section 2.3),
+and one that yields the same integer key twice would silently lose a value of the array: the encoder refuses both with
+`duplicate_key`, at the path of the object or array and without echoing the key (a raw table cannot repeat a key, so only
+this path checks; string keys are compared by a hash per entry, verified on a match, so a key is never copied). A float
+key is never an index: it makes the table `ambiguous_table`. A table with no metatable,
 with a marker, or with a metatable without a function `__pairs` is read raw (`__index` and `__len` are never consulted),
 and a table with no metatable pays no extra cost. `core.Enumeration` also defines `__pairs`, so encoding one follows that
 function. Bounds: the entries collected by all the iterations of one `json.encode` share a budget of about `max_size / 2`

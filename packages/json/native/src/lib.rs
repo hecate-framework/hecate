@@ -25,11 +25,15 @@
 //! recovered (an `mlua` error would wrap it with a message and a traceback); `encode` returns it in a failure of reason
 //! `raised` and `hecate.json` rethrows it with `error(value, 0)`. The entries of all the tables of one encoding share a
 //! budget of about `max_size / 2` entries (`Outcome::budget`), so that nested or self-referencing proxies cannot make
-//! the ancestors hold more than that; the closing value that `__pairs` may return is ignored, unlike `pairs`.
+//! the ancestors hold more than that; the closing value that `__pairs` may return is ignored, unlike `pairs`. An
+//! iteration that yields a string key twice would write a duplicate member name, and one that yields an integer key twice
+//! would lose a value: both are a `duplicate_key` failure at the path of the object or array, without the key.
 //!
 //! Nothing here is `unsafe`; the Lua boundary is `mlua`.
 
 use std::cell::{Cell, RefCell};
+use std::collections::{HashMap, HashSet};
+use std::hash::{BuildHasher, BuildHasherDefault, DefaultHasher};
 use std::io::{self, Write};
 
 use mlua::prelude::*;
@@ -438,16 +442,82 @@ fn protected_call(
     }
 }
 
+/// How the iteration of a `__pairs` metamethod ended.
+enum Collected {
+    Entries(Vec<(LuaValue, LuaValue)>),
+    /// The shared budget was spent: a `size_limit` failure.
+    OutOfBudget,
+    /// The iterator yielded a string key or an integer key a second time: a `duplicate_key` failure.
+    DuplicateKey,
+}
+
+/// The entries already collected whose key has a given hash: almost always one.
+enum Bucket {
+    One(usize),
+    Many(Vec<usize>),
+}
+
+/// The string keys yielded so far by one iteration, as a hash per entry and nothing else: a key is never copied (a proxy
+/// may yield keys of megabytes). A key is a repeat only when an entry with the same hash also has the same bytes, which
+/// `same` checks on the entries already collected, so that a collision between two different keys is never reported as
+/// a repeat. The hasher only buckets: it is the `BuildHasher` parameter so that a test can force every key to collide.
+struct SeenKeys<B: BuildHasher> {
+    build: B,
+    buckets: HashMap<u64, Bucket>,
+}
+
+impl<B: BuildHasher> SeenKeys<B> {
+    fn new(build: B) -> Self {
+        SeenKeys {
+            build,
+            buckets: HashMap::new(),
+        }
+    }
+
+    /// Records `key`, which will be the entry number `index`, and tells whether it is new: `same(i)` says whether the
+    /// entry `i` collected earlier has this very key.
+    fn insert(&mut self, key: &[u8], index: usize, same: impl Fn(usize) -> bool) -> bool {
+        let hash = self.build.hash_one(key);
+        match self.buckets.get_mut(&hash) {
+            None => {
+                self.buckets.insert(hash, Bucket::One(index));
+                true
+            }
+            Some(Bucket::One(first)) => {
+                if same(*first) {
+                    return false;
+                }
+                let first = *first;
+                self.buckets.insert(hash, Bucket::Many(vec![first, index]));
+                true
+            }
+            Some(Bucket::Many(indices)) => {
+                if indices.iter().any(|i| same(*i)) {
+                    return false;
+                }
+                indices.push(index);
+                true
+            }
+        }
+    }
+}
+
 /// The entries of a table that defines `__pairs`, collected through the standard iteration protocol: the metamethod
 /// is called with the table and returns the iterator, its state and its initial control value (a fourth, closing value
 /// is ignored, so a to-be-closed object is never closed); the iterator is then called until it returns `nil`. Each
-/// entry takes one unit of `budget`; `None` once it is spent, so that an endless iterator ends.
+/// entry takes one unit of `budget`; `OutOfBudget` once it is spent, so that an endless iterator ends. A string key
+/// yielded twice ends the iteration with `DuplicateKey` (RFC 8259 section 4: the names within an object SHOULD be
+/// unique; RFC 7493 section 2.3 requires it), and so does an integer key yielded twice (two values for one index of an
+/// array: the later would silently replace the earlier): a raw table cannot repeat a key, an iterator can. A float key
+/// is not an index for the array rule (`array_length`), so it never collides with an integer key: it makes the table
+/// ambiguous. The keys seen live for this one iteration (`SeenKeys`: a hash per string key, verified on a match; the
+/// integers themselves), so every lookup is O(1) on average and a table without `__pairs` pays nothing.
 fn pairs_entries(
     lua: &Lua,
     table: &LuaTable,
     pairs: &LuaFunction,
     budget: &Cell<usize>,
-) -> Result<Option<Vec<(LuaValue, LuaValue)>>, Raised> {
+) -> Result<Collected, Raised> {
     let mut returned =
         protected_call(lua, pairs, (LuaValue::Table(table.clone()), LuaValue::Nil))?.into_iter();
     let iterator = returned.next().unwrap_or(LuaValue::Nil);
@@ -460,17 +530,32 @@ fn pairs_entries(
         ))));
     };
     let mut entries = Vec::new();
+    let mut seen_names = SeenKeys::new(BuildHasherDefault::<DefaultHasher>::default());
+    let mut seen_indices: HashSet<i64> = HashSet::new();
     loop {
         let mut step =
             protected_call(lua, &iterator, (state.clone(), control.clone()))?.into_iter();
         let key = step.next().unwrap_or(LuaValue::Nil);
         if key.is_nil() {
-            return Ok(Some(entries));
+            return Ok(Collected::Entries(entries));
         }
         let value = step.next().unwrap_or(LuaValue::Nil);
+        match &key {
+            LuaValue::String(name) => {
+                let bytes = name.as_bytes();
+                let same = |i: usize| matches!(&entries[i], (LuaValue::String(other), _) if *other.as_bytes() == *bytes);
+                if !seen_names.insert(&bytes, entries.len(), same) {
+                    return Ok(Collected::DuplicateKey);
+                }
+            }
+            LuaValue::Integer(index) if !seen_indices.insert(*index) => {
+                return Ok(Collected::DuplicateKey);
+            }
+            _ => {}
+        }
         let left = budget.get();
         if left == 0 {
-            return Ok(None);
+            return Ok(Collected::OutOfBudget);
         }
         budget.set(left - 1);
         entries.push((key.clone(), value));
@@ -522,10 +607,17 @@ impl Node<'_> {
         let entries = match pairs {
             None => raw_entries(table).map_err(S::Error::custom)?,
             Some(pairs) => match pairs_entries(self.lua, table, &pairs, &outcome.budget) {
-                Ok(Some(entries)) => entries,
-                Ok(None) => {
+                Ok(Collected::Entries(entries)) => entries,
+                Ok(Collected::OutOfBudget) => {
                     outcome.too_many.set(true);
                     return Err(S::Error::custom("max_size"));
+                }
+                Ok(Collected::DuplicateKey) => {
+                    // The key is not echoed: it is attacker-controlled text; the path names the object.
+                    return Err(outcome.fail(
+                        "duplicate_key",
+                        "an iteration yielded the same key twice: the member names of an object and the indices of an array must be unique".to_owned(),
+                    ));
                 }
                 Err(raised) => {
                     *outcome.raised.borrow_mut() = Some(raised);
@@ -799,4 +891,83 @@ fn module(lua: &Lua) -> LuaResult<LuaTable> {
     t.set("bind", lua.create_function(bind)?)?;
     t.set("encode", lua.create_function(encode)?)?;
     Ok(t)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::hash::Hasher;
+
+    /// A hasher that gives every key the same hash: every pair of different keys collides.
+    #[derive(Default)]
+    struct Constant;
+
+    impl Hasher for Constant {
+        fn finish(&self) -> u64 {
+            7
+        }
+        fn write(&mut self, _bytes: &[u8]) {}
+    }
+
+    /// Inserts the keys in order, as `pairs_entries` does, and returns the index of the first repeat.
+    fn first_repeat<B: BuildHasher>(build: B, keys: &[&[u8]]) -> Option<usize> {
+        let mut seen = SeenKeys::new(build);
+        for (index, key) in keys.iter().enumerate() {
+            if !seen.insert(key, index, |i| keys[i] == *key) {
+                return Some(index);
+            }
+        }
+        None
+    }
+
+    #[test]
+    fn colliding_different_keys_are_not_repeats() {
+        let keys: [&[u8]; 4] = [b"a", b"b", b"ab", b""];
+        assert_eq!(
+            first_repeat(BuildHasherDefault::<Constant>::default(), &keys),
+            None
+        );
+    }
+
+    #[test]
+    fn a_repeat_is_found_among_colliding_keys() {
+        let keys: [&[u8]; 5] = [b"a", b"b", b"c", b"d", b"c"];
+        assert_eq!(
+            first_repeat(BuildHasherDefault::<Constant>::default(), &keys),
+            Some(4)
+        );
+        let keys: [&[u8]; 3] = [b"a", b"b", b"a"];
+        assert_eq!(
+            first_repeat(BuildHasherDefault::<Constant>::default(), &keys),
+            Some(2)
+        );
+        let keys: [&[u8]; 2] = [b"a", b"a"];
+        assert_eq!(
+            first_repeat(BuildHasherDefault::<Constant>::default(), &keys),
+            Some(1)
+        );
+    }
+
+    #[test]
+    fn the_default_hasher_agrees_with_the_constant_one() {
+        let keys: [&[u8]; 6] = [b"x", b"y", b"", b"xy", b"yx", b"y"];
+        let default = BuildHasherDefault::<DefaultHasher>::default();
+        assert_eq!(first_repeat(default, &keys), Some(5));
+        let constant = BuildHasherDefault::<Constant>::default();
+        assert_eq!(first_repeat(constant, &keys), Some(5));
+    }
+
+    #[test]
+    fn long_keys_sharing_a_prefix_are_different() {
+        let prefix = vec![b'p'; 4096];
+        let (a, b) = (
+            [prefix.clone(), vec![b'a']].concat(),
+            [prefix, vec![b'b']].concat(),
+        );
+        let keys: [&[u8]; 2] = [&a, &b];
+        assert_eq!(
+            first_repeat(BuildHasherDefault::<DefaultHasher>::default(), &keys),
+            None
+        );
+    }
 }

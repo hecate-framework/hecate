@@ -169,11 +169,174 @@ function T:test_an_infinite_iterator_is_bounded_by_max_size()
   fails(self, value, "size_limit")
 end
 
-function T:test_an_iterator_repeating_one_key_is_bounded_by_max_size()
+function T:test_an_iterator_repeating_one_key_is_refused_as_a_duplicate_key()
+  -- The repeat is found as soon as it is yielded, before the budget could be spent.
   local value = setmetatable({}, {
     __pairs = function() return function() return "k", 1 end, nil, nil end,
   })
-  fails(self, value, "size_limit", { max_size = 1000 })
+  fails(self, value, "duplicate_key", { max_size = 1000 })
+  fails(self, value, "duplicate_key")
+end
+
+--- An iterator that yields the given `{ key, value }` pairs in order, then ends.
+local function sequence(...)
+  local pairs_list = { ... }
+  return setmetatable({}, {
+    __pairs = function()
+      local index = 0
+      return function()
+        index = index + 1
+        local item = pairs_list[index]
+        if item then return item[1], item[2] end
+      end, nil, nil
+    end,
+  })
+end
+
+function T:test_an_iterator_repeating_a_string_key_is_refused()
+  local err = fails(self, sequence({ "a", 1 }, { "a", 2 }), "duplicate_key")
+  self:assert_equal("", err.context.path)
+end
+
+function T:test_a_repeated_key_is_not_echoed_in_the_error()
+  local secret = "s3cr3t-key"
+  local err = fails(self, sequence({ secret, 1 }, { secret, 2 }), "duplicate_key")
+  self:assert_nil(string.find(err.message, secret, 1, true))
+  self:assert_nil(string.find(err.context.path, secret, 1, true))
+  self:assert_nil(string.find(tostring(err), secret, 1, true))
+end
+
+function T:test_a_repeated_key_at_depth_reports_the_pointer_of_its_object()
+  local inner = sequence({ "x", 1 }, { "y", 2 }, { "x", 3 })
+  local err = fails(self, { a = { b = inner } }, "duplicate_key")
+  self:assert_equal("/a/b", err.context.path)
+  err = fails(self, { { 1, sequence({ "k", 1 }, { "k", 1 }) } }, "duplicate_key")
+  self:assert_equal("/0/1", err.context.path)
+  err = fails(self, { ["a/b"] = sequence({ "k", 1 }, { "k", 1 }) }, "duplicate_key")
+  self:assert_equal("/a~1b", err.context.path)
+end
+
+function T:test_the_same_key_three_times_is_refused()
+  fails(self, sequence({ "a", 1 }, { "a", 2 }, { "a", 3 }), "duplicate_key")
+end
+
+function T:test_a_repeat_that_is_not_adjacent_is_refused()
+  fails(self, sequence({ "a", 1 }, { "b", 2 }, { "a", 3 }), "duplicate_key")
+end
+
+function T:test_an_iterator_repeating_an_integer_key_is_refused_instead_of_overwriting_a_slot()
+  local err = fails(self, sequence({ 1, "a" }, { 1, "b" }), "duplicate_key")
+  self:assert_equal("", err.context.path)
+  fails(self, sequence({ 1, "a" }, { 2, "b" }, { 2, "c" }), "duplicate_key")
+  fails(self, sequence({ 1, "a" }, { 2, "b" }, { 3, "c" }, { 1, "d" }), "duplicate_key")
+  fails(self, sequence({ 3, "a" }, { 1, "b" }, { 2, "c" }, { 3, "d" }), "duplicate_key")
+  fails(self, sequence({ 2, "a" }, { 2, "b" }), "duplicate_key")
+  fails(self, sequence({ -1, "a" }, { -1, "b" }), "duplicate_key")
+end
+
+function T:test_a_repeated_integer_key_is_not_echoed_and_reports_the_pointer_of_its_array()
+  local err = fails(self, { a = { 7, sequence({ 1, "x" }, { 1, "y" }) } }, "duplicate_key")
+  self:assert_equal("/a/1", err.context.path)
+  local echoed = fails(self, sequence({ 424242, 1 }, { 424242, 2 }), "duplicate_key")
+  self:assert_equal("", echoed.context.path)
+  self:assert_nil(string.find(tostring(echoed), "424242", 1, true))
+  err = fails(self, { ["a/b"] = sequence({ 1, 1 }, { 1, 2 }) }, "duplicate_key")
+  self:assert_equal("/a~1b", err.context.path)
+end
+
+function T:test_a_repeated_integer_key_is_refused_before_the_budget_is_spent()
+  local value = setmetatable({}, {
+    __pairs = function() return function() return 1, 1 end, nil, nil end,
+  })
+  fails(self, value, "duplicate_key", { max_size = 1000 })
+  fails(self, value, "duplicate_key")
+end
+
+function T:test_a_float_key_is_never_taken_for_an_integer_slot()
+  -- The array rule reads only integer keys as indices: 1.0 is not one, so mixing it with 1 is refused as an
+  -- ambiguous table (nothing can be overwritten), the same as any float key.
+  fails(self, sequence({ 1, "a" }, { 1.0, "b" }), "ambiguous_table")
+  fails(self, sequence({ 1.0, "a" }, { 1.0, "b" }), "ambiguous_table")
+  fails(self, sequence({ 1.0, "a" }), "ambiguous_table")
+end
+
+function T:test_a_proper_sequence_from_a_proxy_is_still_an_array()
+  self:assert_equal('["a","b","c"]', json.encode(sequence({ 1, "a" }, { 2, "b" }, { 3, "c" })))
+  self:assert_equal('["c","b","a"]', json.encode(sequence({ 3, "a" }, { 2, "b" }, { 1, "c" })))
+  self:assert_equal('["a",null,"c"]', json.encode(sequence({ 1, "a" }, { 3, "c" })))
+end
+
+function T:test_mixed_integer_and_string_keys_keep_their_rules()
+  fails(self, sequence({ 1, "a" }, { "k", "b" }), "ambiguous_table")
+  fails(self, sequence({ "k", "b" }, { 1, "a" }), "ambiguous_table")
+  fails(self, sequence({ 1, "a" }, { "k", "b" }, { "k", "c" }), "duplicate_key")
+  -- A string key "1" and the integer key 1 are different keys.
+  fails(self, sequence({ 1, "a" }, { "1", "b" }), "ambiguous_table")
+end
+
+function T:test_a_huge_string_key_yielded_twice_is_refused_as_a_duplicate()
+  local huge = string.rep("k", 1024 * 1024)
+  local err = fails(self, sequence({ huge, 1 }, { huge, 2 }), "duplicate_key", { max_size = 8 * 1024 * 1024 })
+  self:assert_true(#tostring(err) < 1000, "the key is not echoed")
+  -- A repeat built apart from the first copy is the same key.
+  fails(self, sequence({ huge, 1 }, { "x", 2 }, { string.rep("k", 1024 * 1024), 3 }), "duplicate_key")
+end
+
+function T:test_two_long_keys_sharing_a_prefix_are_different_keys()
+  local prefix = string.rep("p", 4096)
+  local value = sequence({ prefix .. "a", 1 }, { prefix .. "b", 2 }, { prefix, 3 }, { prefix .. "ab", 4 })
+  local decoded = json.decode(json.encode(value))
+  self:assert_equal(1, decoded[prefix .. "a"])
+  self:assert_equal(2, decoded[prefix .. "b"])
+  self:assert_equal(3, decoded[prefix])
+  self:assert_equal(4, decoded[prefix .. "ab"])
+end
+
+function T:test_many_distinct_keys_are_accepted_and_one_late_repeat_is_found()
+  local list = {}
+  for i = 1, 20000 do list[i] = { "key" .. i, i } end
+  local function iteration(repeat_last)
+    local count = #list + (repeat_last and 1 or 0)
+    return setmetatable({}, {
+      __pairs = function()
+        local index = 0
+        return function()
+          index = index + 1
+          if index > count then return nil end
+          local item = list[index] or list[1]
+          return item[1], item[2]
+        end, nil, nil
+      end,
+    })
+  end
+  self:assert_equal("string", type(json.encode(iteration(false), { max_size = 4 * 1024 * 1024 })))
+  fails(self, iteration(true), "duplicate_key", { max_size = 4 * 1024 * 1024 })
+end
+
+function T:test_the_same_key_in_two_objects_is_not_a_duplicate()
+  local value = { sequence({ "a", 1 }), sequence({ "a", 2 }), { a = proxy({ a = 3 }) } }
+  self:assert_equal('[{"a":1},{"a":2},{"a":{"a":3}}]', json.encode(value))
+end
+
+function T:test_two_different_keys_are_fine()
+  self:assert_equal('{"a":1,"b":2}', json.encode(sequence({ "a", 1 }, { "b", 2 }), { canonical = true }))
+end
+
+function T:test_keys_that_differ_only_by_case_are_fine()
+  local value = sequence({ "a", 1 }, { "A", 2 })
+  self:assert_equal('{"A":2,"a":1}', json.encode(value, { canonical = true }))
+end
+
+function T:test_a_plain_table_cannot_repeat_a_key_and_is_unaffected()
+  self:assert_equal('{"a":1,"b":2}', json.encode({ a = 1, b = 2 }, { canonical = true }))
+  self:assert_equal('{"a":1}', json.encode(setmetatable({ a = 1 }, { __index = {} })))
+end
+
+function T:test_a_valid_proxy_still_honours_canonical_and_pretty()
+  local value = sequence({ "b", 1 }, { "a", 2 })
+  self:assert_equal('{"a":2,"b":1}', json.encode(value, { canonical = true }))
+  self:assert_equal('{\n  "a": 2,\n  "b": 1\n}', json.encode(value, { canonical = true, pretty = true }))
+  self:assert_equal('{"a":2,"b":1}', json.encode(value, { canonical = "rfc8785" }))
 end
 
 function T:test_many_entries_beyond_max_size_are_refused_and_within_it_are_written()
