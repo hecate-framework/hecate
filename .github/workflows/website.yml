@@ -59,7 +59,7 @@ jobs:
         run: |
           file="lua-language-server-$LUALS_VERSION-linux-x64.tar.gz"
           sha=e9235d2d72ef55bc41cf8c99cda2ed64777682024b4bb81f5dea425060c5cbb8
-          curl -fsSL -o "$RUNNER_TEMP/$file" "https://github.com/LuaLS/lua-language-server/releases/download/$LUALS_VERSION/$file"
+          curl -fsSL --retry 5 --retry-all-errors --retry-delay 5 -o "$RUNNER_TEMP/$file" "https://github.com/LuaLS/lua-language-server/releases/download/$LUALS_VERSION/$file"
           echo "$sha  $RUNNER_TEMP/$file" | sha256sum -c -
           mkdir -p "$RUNNER_TEMP/luals"
           tar -xzf "$RUNNER_TEMP/$file" -C "$RUNNER_TEMP/luals"
