@@ -153,6 +153,15 @@ Errors are *problem details* (RFC 9457; `hecate.problem.*` is the namespace). Pa
 | dot segment | A path segment `.` or `..`, resolved before routing | RFC 3986 section 3.3, section 5.2.4 | relative segment |
 | grace period | The time `Server:shutdown` lets requests in flight finish before cancelling them | [ADR 0023](adr/0023-multi-process-serving.md) | drain timeout (that is the unread-content drain of a response) |
 
+## Configuration
+
+| Term | Meaning | Reference | Instead of |
+|---|---|---|---|
+| configuration | The immutable, validated key-value tree a process is booted with, merged from layers (`hecate.config`) | `configuration.md`; The Twelve-Factor App, factor III | settings, options (an `options` table is an argument of a call) |
+| configuration layer | One source of the merge, in increasing precedence: schema defaults, `config/default.lua`, `config/<environment>.lua`, environment variables, secret files | `configuration.md` | profile (for a layer), override |
+| environment | The name of the deployment profile (`development`, `test`, `production`) that selects `config/<environment>.lua` | `configuration.md`; factor III | stage, mode |
+| secret file | A file that holds the value of one secret key, as a container platform mounts it | `configuration.md` | key file |
+
 ## Logging
 
 Severities follow RFC 5424: `emergency`, `alert`, `critical`, `error`, `warning`,

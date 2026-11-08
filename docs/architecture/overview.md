@@ -134,7 +134,8 @@ aborted. See [concurrency.md](concurrency.md).
 
 ## Boot sequence
 
-1. Load configuration (layers, environment), validate it against its schema.
+1. Load configuration (layers, environment), validate it against its schema
+   ([configuration.md](configuration.md)).
 2. Build the container graph; detect missing bindings and cycles.
 3. Load modules; collect controllers and route modules; build the route table.
 4. Compile schemas; verify that every route's schemas are well-formed and that every

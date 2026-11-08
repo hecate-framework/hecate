@@ -265,9 +265,11 @@ Today a logger is configured in code only. Options of `Logger`:
 
 Options of the sinks are in "Provided sinks". Option checks raise `hecate.core.ArgumentError`.
 
-`hecate.config` is not implemented and defines no key for logging yet. Keys for the severity, the sinks and
-the named severities per logger are **to be specified with `config`** (future); nothing in this document commits
-to their names.
+The keys of `hecate.config` for the default logger are specified in
+[configuration.md](configuration.md#logging-keys): `logging.severity`, `logging.severities` (a severity per logger
+name, matched exactly), `logging.sinks`, `logging.file.path`, `logging.async` and `logging.redact`. `hecate.log` reads
+no configuration itself and does not depend on `config`: the kernel reads those keys and builds the loggers with the
+options above.
 
 ## Secrets and privacy
 
@@ -335,4 +337,5 @@ convenience methods (`log.Logger.informational: message must be a string, got nu
 ## Open points
 
 - [OQ-63](../open-questions.md): two error messages do not carry a qualified prefix.
-- Keys of `hecate.config` for logging: with the `config` package (roadmap, Phase 2).
+- Keys of `hecate.config` for logging: specified in [configuration.md](configuration.md#logging-keys) ([OQ-101](../open-questions.md));
+  applied by the kernel, not yet implemented.
