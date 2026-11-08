@@ -2,9 +2,9 @@
 # Handoff
 
 - roadmap_item: `container`: IoC container, lifetimes, cycle detection at boot; write its specification section in `docs/architecture/` (OQ-62).
-- status: in-progress
+- status: waiting-ci
 - lock_until: 2026-11-08T14:45:00Z
-- last_update: 2026-11-08T13:10:00Z
+- last_update: 2026-11-08T13:40:00Z
 
 ## Done
 
@@ -12,6 +12,8 @@
 - Step 1: specification section `docs/architecture/container.md`, README/CHANGELOG/open-questions updated.
 
 ## Next steps
+
+(Implementation, docs, tests pushed at 0759c91. Next run: read CI on the three platforms, fix failures, then finish: delete HANDOFF.md, tick the roadmap item, mark ready, ask for review.)
 
 0. Deferred to a follow-up (conflicts with PR #54 on `DEFAULT_PACKAGES`/website.yml): register `container` in the reference site, add glossary terms (service scope, binding, lifetime).
 
