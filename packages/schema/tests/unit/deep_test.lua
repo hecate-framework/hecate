@@ -75,7 +75,7 @@ end
 
 function T:test_hand_built_table_far_deeper_than_the_maximum_is_a_violation()
   local s = chain()
-  local value = deep_table(200000)
+  local value = deep_table(20000) -- far above the depth guard of 1000
   local expected_path = ("/next"):rep(MAX)
   for _, method in ipairs({ "validate", "coerce", "build" }) do
     local ok, accepted, violations = pcall(s[method], s, value)

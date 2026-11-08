@@ -9,19 +9,40 @@ local T = test.Case("SchemaHardeningTest")
 
 local limits = schema._limits
 
---- Runs `fn` with `limits.max_steps` lowered to `steps`, restoring it even when `fn` raises.
-local function with_steps(steps, fn)
-  local saved = limits.max_steps
-  limits.max_steps = steps
-  local ok, err = pcall(fn)
-  limits.max_steps = saved
-  if not ok then error(err, 0) end
-end
+local here = debug.getinfo(1, "S").source:match("^@(.*)[/\\][^/\\]*$") or "."
+local protected = dofile(here .. "/../support/protected.lua")
+
+--- Runs `fn` with `limits.max_steps` lowered to `steps`, restoring it even when `fn` or an assertion in it raises.
+local function with_steps(steps, fn) protected.with_fields(limits, { max_steps = steps }, fn) end
 
 local function codes(violations)
   local list = {}
   for i, v in ipairs(violations) do list[i] = v.code end
   return list
+end
+
+-- The step counter read by the step-count tests ---------------------------------------------------------------------
+
+function T:test_the_step_counter_is_reset_by_each_call_and_grows_with_the_work()
+  local s = schema.array(schema.object({ a = schema.integer() }))
+  local function steps_for(count)
+    local items = {}
+    for i = 1, count do items[i] = { a = i } end
+    self:assert_true((s:validate(items)))
+    return schema._steps()
+  end
+  local ten, twenty = steps_for(10), steps_for(20)
+  self:assert_true(ten > 0)
+  self:assert_equal(ten, steps_for(10)) -- reset on entry, deterministic
+  self:assert_true(twenty > ten and twenty <= 2 * ten, ten .. " then " .. twenty)
+  self:assert_true((schema.integer():validate(1)))
+  self:assert_true(schema._steps() <= 1)
+end
+
+function T:test_a_lowered_limit_is_restored_when_the_body_fails()
+  local saved = limits.max_steps
+  self:assert_error(function() with_steps(7, function() self:assert_equal(7, limits.max_steps); error("boom", 0) end) end)
+  self:assert_equal(saved, limits.max_steps)
 end
 
 -- S1: unique_items ---------------------------------------------------------------------------------------------------

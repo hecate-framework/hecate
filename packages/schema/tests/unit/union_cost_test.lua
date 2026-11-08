@@ -31,60 +31,85 @@ local function content(depth, last)
   return value
 end
 
---- Runs `fn`, returns the seconds it took and the memory it left allocated (kilobytes).
+local here = debug.getinfo(1, "S").source:match("^@(.*)[/\\][^/\\]*$") or "."
+local protected = dofile(here .. "/../support/protected.lua")
+
+--- Runs `fn` and returns the steps of the work budget it spent (`schema._steps()` after the call) and the memory it left
+--- allocated, in kilobytes. No clock: the cost is the deterministic count of steps (container visits and alternatives
+--- tried), the same on every platform and every runner.
 local function measure(fn)
   collectgarbage()
   local before = collectgarbage("count")
-  local started = os.clock()
   fn()
-  local seconds = os.clock() - started
-  return seconds, collectgarbage("count") - before
+  local steps = schema._steps()
+  return steps, collectgarbage("count") - before
 end
 
-local function assert_cheap(self, fn)
-  local seconds, kilobytes = measure(fn)
-  self:assert_true(seconds < 0.5, "took " .. seconds .. " s")
-  self:assert_true(kilobytes < 100 * 1024, "kept " .. kilobytes .. " KB")
+local function verbose(label, steps, kilobytes)
+  if os.getenv("HECATE_TEST_VERBOSE") then io.stderr:write(("# union_cost %s: %d steps, %.0f KB\n"):format(label, steps, kilobytes)) end
+end
+
+--- The memory left allocated (garbage not yet collected included) is only a gross backstop: ten times what was observed
+--- on the reference run (about 60 MB at 2000 levels, mostly the path strings), far below what an exponential run would use.
+local RETAINED_KB_BACKSTOP = 600 * 1024
+
+--- Steps spent by `run` on content of 30, 1000 and 2000 levels (2000 is beyond the depth guard of validation: the call
+--- fails, and the work must still grow in proportion). Asserts that the steps per level stay within a constant factor of
+--- those of the shallow case, which is what linear work means; a quadratic or exponential run breaks the ratio at once.
+local function assert_linear(self, label, run)
+  local per_level = {}
+  for _, depth in ipairs({ 30, 1000, 2000 }) do
+    local steps, kilobytes = measure(function() run(depth) end)
+    verbose(label .. " depth " .. depth, steps, kilobytes)
+    self:assert_true(kilobytes < RETAINED_KB_BACKSTOP, ("%s depth %d kept %.0f KB"):format(label, depth, kilobytes))
+    per_level[depth] = steps / depth
+  end
+  for _, depth in ipairs({ 1000, 2000 }) do
+    local ratio = per_level[depth] / per_level[30]
+    self:assert_true(ratio <= 1.5 and ratio >= 1 / 1.5,
+      ("%s: steps per level %.2f at depth 30, %.2f at depth %d (ratio %.2f)"):format(label, per_level[30], per_level[depth], depth, ratio))
+  end
 end
 
 function T:test_recursive_union_validates_in_linear_work()
   local s = probe()
-  for _, depth in ipairs({ 30, 1000 }) do
-    local value = content(depth)
-    assert_cheap(self, function() self:assert_true((s:validate(value))) end)
-  end
+  assert_linear(self, "validate", function(depth)
+    local ok = s:validate(content(depth))
+    self:assert_equal(depth <= 1000, ok) -- beyond the depth guard the call fails
+  end)
 end
 
 function T:test_recursive_union_coerces_in_linear_work()
   local s = probe()
-  for _, depth in ipairs({ 30, 1000 }) do
-    local value = content(depth)
-    assert_cheap(self, function() self:assert_true((s:coerce(value))) end)
-  end
+  assert_linear(self, "coerce", function(depth)
+    local ok = s:coerce(content(depth))
+    self:assert_equal(depth <= 1000, ok)
+  end)
 end
 
 function T:test_recursive_union_builds_in_linear_work()
   local s = probe()
-  for _, depth in ipairs({ 30, 1000 }) do
-    local value = content(depth)
-    assert_cheap(self, function()
-      local ok, built = s:build(value)
-      self:assert_true(ok)
-      self:assert_equal("b", built.tag)
-    end)
-  end
+  assert_linear(self, "build", function(depth)
+    local ok, built = s:build(content(depth))
+    self:assert_equal(depth <= 1000, ok)
+    if ok then self:assert_equal("b", built.tag) end
+  end)
 end
+
+local FAILURE_DEEP_STEPS = 462 -- twice the 231 steps observed (a failure at depth 30 of the probe)
 
 function T:test_failure_deep_in_the_content_is_cheap_and_reported_once_at_the_top()
   local s = probe()
   local value = content(30, "c")
-  assert_cheap(self, function()
+  local steps, kilobytes = measure(function()
     local ok, violations = s:validate(value)
     self:assert_false(ok)
     self:assert_equal(1, #violations)
     self:assert_equal("/next", violations[1].path)
     self:assert_equal("union", violations[1].code)
   end)
+  verbose("failure deep", steps, kilobytes)
+  self:assert_true(steps <= FAILURE_DEEP_STEPS, steps .. " steps")
 end
 
 function T:test_the_top_union_carries_the_violations_of_every_alternative()
@@ -130,14 +155,15 @@ local function adversarial()
 end
 
 function T:test_work_budget_ends_the_call_with_complexity_limit()
-  local limits = schema._limits
-  local saved = limits.max_steps
-  limits.max_steps = 100
   local s, value = adversarial()
-  local ok, violations
-  assert_cheap(self, function() ok, violations = s:validate(value) end)
-  limits.max_steps = saved
+  local ok, violations, steps
+  protected.with_fields(schema._limits, { max_steps = 100 }, function()
+    ok, violations = s:validate(value)
+    steps = schema._steps()
+  end)
   self:assert_false(ok)
+  -- The budget is the bound: the call stops at it (one step more is counted when it is found spent), whatever the schema.
+  self:assert_true(steps <= 101, steps .. " steps for a budget of 100")
   local found
   for _, v in ipairs(violations) do if v.code == "complexity_limit" then found = v end end
   self:assert_true(found ~= nil, "no complexity_limit violation")
@@ -146,19 +172,25 @@ function T:test_work_budget_ends_the_call_with_complexity_limit()
 end
 
 function T:test_work_budget_applies_to_coerce_and_build_and_resets_on_entry()
-  local limits = schema._limits
-  local saved = limits.max_steps
-  limits.max_steps = 100
   local s, value = adversarial()
-  local ok, violations = s:coerce(value)
+  protected.with_fields(schema._limits, { max_steps = 100 }, function()
+    local ok, violations = s:coerce(value)
+    self:assert_false(ok)
+    self:assert_equal("complexity_limit", violations[#violations].code)
+    ok, violations = s:build(value)
+    self:assert_false(ok)
+    self:assert_equal("complexity_limit", violations[#violations].code)
+    -- A small call after an exhausted one is not affected: the counter is reset on entry.
+    self:assert_true((schema.object({ a = schema.integer() }):validate({ a = 1 })))
+    self:assert_true(schema._steps() <= 2, schema._steps() .. " steps for one object")
+  end)
+end
+
+function T:test_a_failing_assertion_does_not_leak_a_lowered_budget()
+  local saved = schema._limits.max_steps
+  local ok = pcall(protected.with_fields, schema._limits, { max_steps = 5 }, function() error("boom") end)
   self:assert_false(ok)
-  self:assert_equal("complexity_limit", violations[#violations].code)
-  ok, violations = s:build(value)
-  self:assert_false(ok)
-  self:assert_equal("complexity_limit", violations[#violations].code)
-  -- A small call after an exhausted one is not affected: the counter is reset on entry.
-  self:assert_true((schema.object({ a = schema.integer() }):validate({ a = 1 })))
-  limits.max_steps = saved
+  self:assert_equal(saved, schema._limits.max_steps)
 end
 
 function T:test_default_budget_is_one_million_steps()
@@ -185,27 +217,41 @@ end
 
 local DEPTH_COMPARED = 30 -- 12 when comparing with the revision before the memoisation (30 reaches its budget)
 
-local function assert_fast_and_within_budget(self, run, depth)
-  local violations
-  local seconds = measure(function() violations = run() end)
-  self:assert_true(seconds < 0.05, "depth " .. depth .. " took " .. seconds .. " s")
-  for _, v in ipairs(violations) do self:assert_true(v.code ~= "complexity_limit", "reached the work budget") end
-  self:assert_true(#violations > 0)
+--- Steps per `run` of the twins, observed on the reference run; the caps are twice that (the adversarial case needs at most
+--- this many steps with the memoisation, and the budget of one million is far above them).
+local TWINS_STEP_CAP = {
+  validate = { [30] = 462, [1000] = 15982 },
+  coerce = { [30] = 1148, [1000] = 39948 },
+  build = { [30] = 462, [1000] = 15982 },
+}
+
+local function assert_steps_of_twins(self, method)
+  local per_level = {}
+  for _, depth in ipairs({ 30, 1000 }) do
+    local s, value = twins(depth)
+    local violations
+    local steps, kilobytes = measure(function() violations = select(2, s[method](s, value)) end)
+    verbose("twins " .. method .. " depth " .. depth, steps, kilobytes)
+    for _, v in ipairs(violations) do self:assert_true(v.code ~= "complexity_limit", "reached the work budget") end
+    self:assert_true(#violations > 0)
+    self:assert_true(steps <= TWINS_STEP_CAP[method][depth], ("%s depth %d: %d steps, cap %d"):format(method, depth, steps, TWINS_STEP_CAP[method][depth]))
+    self:assert_true(kilobytes < RETAINED_KB_BACKSTOP, ("kept %.0f KB"):format(kilobytes))
+    per_level[depth] = steps / depth
+  end
+  local ratio = per_level[1000] / per_level[30]
+  self:assert_true(ratio <= 1.5 and ratio >= 1 / 1.5, ("%s: steps per level %.2f then %.2f"):format(method, per_level[30], per_level[1000]))
 end
 
 function T:test_identical_alternatives_with_an_invalid_innermost_value_are_linear_for_validate()
-  for _, depth in ipairs({ 30, 1000 }) do
-    local s, value = twins(depth)
-    assert_fast_and_within_budget(self, function() return select(2, s:validate(value)) end, depth)
-  end
+  assert_steps_of_twins(self, "validate")
 end
 
-function T:test_identical_alternatives_with_an_invalid_innermost_value_are_linear_for_coerce_and_build()
-  for _, depth in ipairs({ 30, 1000 }) do
-    local s, value = twins(depth)
-    assert_fast_and_within_budget(self, function() return select(2, s:coerce(value)) end, depth)
-    assert_fast_and_within_budget(self, function() return select(2, s:build(value)) end, depth)
-  end
+function T:test_identical_alternatives_with_an_invalid_innermost_value_are_linear_for_coerce()
+  assert_steps_of_twins(self, "coerce")
+end
+
+function T:test_identical_alternatives_with_an_invalid_innermost_value_are_linear_for_build()
+  assert_steps_of_twins(self, "build")
 end
 
 function T:test_memoisation_keeps_violations_paths_and_top_level_alternatives()

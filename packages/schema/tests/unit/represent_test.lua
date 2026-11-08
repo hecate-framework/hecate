@@ -6,6 +6,10 @@ local json = require("hecate.json")
 local schema = require("hecate.schema")
 local T = test.Case("SchemaRepresentTest")
 
+local here = debug.getinfo(1, "S").source:match("^@(.*)[/\\][^/\\]*$") or "."
+local protected = dofile(here .. "/../support/protected.lua")
+local STEP_CAP_REPRESENT_500 = 5000 -- twice the 2496 steps observed at depth 500
+
 local Status = core.enumeration("RepStatus", { "active", "disabled" })
 
 local function define(name, build, value_kind)
@@ -266,9 +270,9 @@ function T:test_a_cycle_of_two_classes_ends_with_the_depth_limit()
   local A, B = cycle_classes()
   local a, b = core.allocate(A), core.allocate(B)
   a.other, b.other = b, a
-  local started = os.clock()
   local err = self:assert_error(function() schema.of(A):represent(a) end)
-  self:assert_true(os.clock() - started < 2)
+  -- one step per container visited until the depth guard: bounded by the guard, not by a clock
+  self:assert_true(schema._steps() <= 2 * json.DEFAULT_MAX_DEPTH, schema._steps() .. " steps")
   self:assert_equal("hecate.core.ValidationError", err.code)
   local v = err.context.violations[1]
   self:assert_equal("depth_limit", v.code)
@@ -283,7 +287,7 @@ function T:test_a_hostile_deep_chain_does_not_crash()
   local root = core.allocate(A)
   local node = root
   local _, B = cycle_classes()
-  for i = 1, 200000 do
+  for i = 1, 20000 do -- far above the depth guard of 1000
     local nxt = core.allocate(i % 2 == 0 and A or B)
     node.other = nxt
     node = nxt
@@ -293,19 +297,19 @@ function T:test_a_hostile_deep_chain_does_not_crash()
   -- plain nested tables under `any`
   local plain = {}
   local cursor = plain
-  for _ = 1, 200000 do cursor.x = {}; cursor = cursor.x end
+  for _ = 1, 20000 do cursor.x = {}; cursor = cursor.x end
   local err2 = self:assert_error(function() schema.any():represent(plain) end)
   self:assert_equal("depth_limit", err2.context.violations[1].code)
 end
 
 function T:test_the_work_budget_ends_a_representation()
-  local previous = schema._limits.max_steps
-  schema._limits.max_steps = 10
-  local ok, err = pcall(function() return schema.array(schema.integer()):represent({ 1, 2, 3 }) end)
-  local items = {}
-  for i = 1, 50 do items[i] = {} end
-  local ok2, err2 = pcall(function() return schema.array(schema.object({})):represent(items) end)
-  schema._limits.max_steps = previous
+  local ok, err, ok2, err2
+  protected.with_fields(schema._limits, { max_steps = 10 }, function()
+    ok, err = pcall(function() return schema.array(schema.integer()):represent({ 1, 2, 3 }) end)
+    local items = {}
+    for i = 1, 50 do items[i] = {} end
+    ok2, err2 = pcall(function() return schema.array(schema.object({})):represent(items) end)
+  end)
   self:assert_true(ok)
   self:assert_false(ok2)
   self:assert_equal("complexity_limit", err2.context.violations[1].code)
@@ -322,12 +326,16 @@ function T:test_a_recursive_union_is_linear()
   end
   core.finalise(A)
   core.finalise(B)
-  local value = { tag = "b" }
-  for _ = 2, 500 do value = { tag = "a", next = value } end
-  local started = os.clock()
-  local plain = schema.of(A):represent(value)
-  self:assert_true(os.clock() - started < 1)
-  self:assert_equal("a", plain.tag)
+  local function steps_at(depth)
+    local value = { tag = "b" }
+    for _ = 2, depth do value = { tag = "a", next = value } end
+    self:assert_equal("a", schema.of(A):represent(value).tag)
+    return schema._steps()
+  end
+  local shallow, deep = steps_at(250), steps_at(500)
+  -- linear: doubling the depth at most doubles the steps (plus a constant), where an exponential run would square them
+  self:assert_true(deep <= 2 * shallow + 10, ("%d steps at depth 500 against %d at depth 250"):format(deep, shallow))
+  self:assert_true(deep <= STEP_CAP_REPRESENT_500, deep .. " steps at depth 500")
 end
 
 function T:test_a_value_that_is_not_a_table_is_a_clean_error()
