@@ -24,4 +24,4 @@ schema.string({ pattern = "%bxy", logger = logger })
 -- false
 -- false
 -- false
--- schema: the pattern cannot be emitted as a JSON Schema pattern
+-- schema: pattern "%bxy" cannot be emitted: %b has no exact translation

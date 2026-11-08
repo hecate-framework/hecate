@@ -28,7 +28,7 @@ function T:test_tagged_union_reports_the_variant_violations_with_paths()
   self:assert_equal("/side", violations[1].path)
   self:assert_equal("type", violations[1].code)
   self:assert_equal("/extra", violations[2].path)
-  self:assert_equal("additional_property", violations[2].code)
+  self:assert_equal("additional_properties", violations[2].code)
 end
 
 function T:test_tagged_union_reports_a_missing_or_unknown_tag()

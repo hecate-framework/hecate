@@ -256,8 +256,10 @@ end
 --- metatable of the class, so methods, inherited members and metamethods work, `core.class_of`
 --- and `core.is_instance_of` answer for it, and no attribute is set. For code that fills the
 --- attributes itself from data it has already validated (the schema `build`, the ORM). It is the
---- only function of the framework that creates an instance with `setmetatable` outside
---- `Class(...)`.
+--- function that creates an instance of a plain class without `init`; `Class(...)` and
+--- `instantiate_value` (frozen instances of a value class) also create instances, and `weak_table`
+--- creates weak tables, each with its own `setmetatable` call, because raw `setmetatable` is
+--- reserved to this package.
 ---
 --- Raises `hecate.core.ArgumentError` if `class` is not a class created with `core.class` or if
 --- it is a value class (its instances are frozen after `init`; not supported), and

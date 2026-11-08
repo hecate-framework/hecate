@@ -18,17 +18,18 @@ local escape_token = violation_module.escape_token
 local math_type = math.type
 local null = json.null
 
---- A read-only record of named values: a value class, so that writes raise `ConformanceError`.
----@class hecate.schema.Record
----@overload fun(fields: table): hecate.schema.Record
-local Record = core.value_class("Record")
+--- A read-only table of named values (the declared refinements, the properties of a schema): a value class, so that
+--- writes raise `ConformanceError`.
+---@class hecate.schema.Options
+---@overload fun(fields: table): hecate.schema.Options
+local Options = core.value_class("Options")
 
 ---@param fields table
-function Record:init(fields)
+function Options:init(fields)
   for key, value in pairs(fields) do self[key] = value end
 end
 
-core.finalise(Record)
+core.finalise(Options)
 
 --- A validator: appends the violations of `value` (at JSON Pointer `path`) to `out`.
 ---@alias hecate.schema.Validator fun(value: any, path: string, out: hecate.schema.RawViolation[])
@@ -47,39 +48,38 @@ core.finalise(Record)
 --- A violation as collected during validation, before it becomes a `Violation`.
 ---@class hecate.schema.RawViolation
 ---@field [1] string  path
----@field [2] string  code
+---@field [2] hecate.schema.ViolationCode  code
 ---@field [3] string  message
 ---@field [4] table?  context
 
---- A type declaration: base type, refinement, product, collection or sum.
+--- A type declaration: base type, refinement, product, collection or sum. `kind`, `options`, `properties` and `item`
+--- are read-only descriptions that `openapi` and `doc` may read; the compiled closures are internal to this package.
 ---@class hecate.schema.Schema
 ---@field kind string  "string", "integer", "number", "boolean", "literal", "enumeration", "object", "array", "map", "optional", "nullable", "union", "default", "tagged_union", "any", "null", "named" or "class"
----@field options hecate.schema.Record  the declared refinements (read-only)
----@field properties? hecate.schema.Record  property name to schema (variant name to derived `object` schema for a `tagged_union`)
----@field members fun(self: hecate.schema.Schema): any[]  the alternatives of a `union` or the constants of an `enumeration`, as a new list (empty for other kinds)
----@field item? hecate.schema.Schema  element schema of an `array`, wrapped schema of `optional` and `nullable`
----@field validator hecate.schema.Validator  compiled validator closure
----@field coercer hecate.schema.Coercer  compiled coercion closure (textual input to typed value)
----@field relaxed_validator hecate.schema.Validator  validator of PATCH content: the required properties of the top-level object may be absent
----@field builder hecate.schema.Builder  compiled builder of instances (see `Schema:build`)
----@field representer hecate.schema.Representer  compiled representer of instances (see `Schema:represent`)
----@field copy_default? fun(): any  internal: a fresh copy of the default of a `default` schema (the stored value is not reachable)
----@field prefilter? fun(value: any): boolean  cheap necessary condition for a value to conform (false: it cannot); absent when there is none
----@field coerce fun(self: hecate.schema.Schema, value: any): boolean, any  see `Schema:coerce`
----@field to_json_schema fun(self: hecate.schema.Schema): table  the JSON Schema 2020-12 document of the schema
+---@field options hecate.schema.Options  the declared refinements (read-only)
+---@field properties? hecate.schema.Options  property name to schema (variant name to derived `object` schema for a `tagged_union`)
+---@field item? hecate.schema.Schema  element schema of an `array` or a `map`, wrapped schema of `optional`, `nullable`, `default` and `named`
+---@field package validator hecate.schema.Validator  compiled validator closure
+---@field package coercer hecate.schema.Coercer  compiled coercion closure (textual input to typed value)
+---@field package relaxed_validator hecate.schema.Validator  validator of PATCH content: the required properties of the top-level object may be absent
+---@field package builder hecate.schema.Builder  compiled builder of instances (see `Schema:build`)
+---@field package representer hecate.schema.Representer  compiled representer of instances (see `Schema:represent`)
+---@field package copy_default? fun(): any  a fresh copy of the default of a `default` schema (the stored value is not reachable)
+---@field package prefilter? fun(value: any): boolean  cheap necessary condition for a value to conform (false: it cannot); absent when there is none
+---@field private _members fun(): any[]  a new list of the members, from a private list
 ---@overload fun(kind: string, parts: table): hecate.schema.Schema
 local Schema = core.value_class("Schema")
 
 ---@param kind string
----@param parts table  `options`, `properties`, `item`, `members` and the compiled `validator`
+---@param parts table  `options`, `properties`, `item`, `members` and the compiled closures
 function Schema:init(kind, parts)
   self.kind = kind
-  self.options = Record(parts.options or {})
-  self.properties = parts.properties and Record(parts.properties)
+  self.options = Options(parts.options or {})
+  self.properties = parts.properties and Options(parts.properties)
   self.item = parts.item
   local list = parts.members or {}
   -- A closure over a private list, so that nothing a caller holds can change the schema.
-  self.members = function() return { table.unpack(list) } end
+  self._members = function() return { table.unpack(list) } end
   self.validator = parts.validator
   self.coercer = parts.coercer or function(value) return value end
   self.relaxed_validator = parts.relaxed_validator or parts.validator
@@ -105,15 +105,19 @@ local function read_options(constructor, options, spec)
   for name, value in pairs(options) do
     local expected = spec[name]
     if expected == nil then
-      refuse(("%s: unknown option %s"):format(constructor, tostring(name)), { option = tostring(name) })
+      local accepted = {}
+      for known in pairs(spec) do accepted[#accepted + 1] = known end
+      table.sort(accepted)
+      refuse(("%s: unknown option %s; accepted options: %s"):format(constructor, tostring(name), table.concat(accepted, ", ")),
+        { option = tostring(name), accepted = accepted })
     end
     local ok
     if expected == "integer" then ok = math_type(value) == "integer"
     elseif expected == "number" then ok = type(value) == "number" and value == value and value ~= math.huge and value ~= -math.huge
     else ok = type(value) == expected end
     if not ok then
-      refuse(("%s: option %s must be %s"):format(constructor, name, expected == "integer" and "an integer" or "a " .. expected),
-        { option = name })
+      refuse(("%s: option %s must be %s, got %s"):format(constructor, name,
+        expected == "integer" and "an integer" or "a " .. expected, type(value)), { option = name })
     end
     copy[name] = value
   end
@@ -145,8 +149,19 @@ function remark(value, result)
   return result
 end
 
-local function type_violation(path, expected, out)
-  out[#out + 1] = { path, "type", "expected " .. expected, { expected = expected } }
+--- A `type` violation: names the expected type and the Lua type received (`null` for `json.null`), never the value.
+---@param path string
+---@param expected string
+---@param out hecate.schema.RawViolation[]
+---@param value any
+local function type_violation(path, expected, out, value)
+  local received = value == null and "null" or type(value)
+  local message = ("expected %s, got %s"):format(expected, received)
+  if expected == "integer" and math_type(value) == "float" and value == math.floor(value)
+    and value ~= math.huge and value ~= -math.huge then
+    message = message .. " (a whole float is refused; use an integer)"
+  end
+  out[#out + 1] = { path, "type", message, { expected = expected, received = received } }
 end
 
 --- Nesting guard (OQ-50). Content decoded by `json.decode` is at most `max_depth` (1000) levels deep, but a table built
@@ -321,7 +336,7 @@ end
 --- Stops a representation (`Schema:represent`) with a `ValidationError` that carries one violation: the code and the
 --- JSON Pointer where it stopped, as `Schema:check` does.
 ---@param path string
----@param code string
+---@param code hecate.schema.ViolationCode
 ---@param message string
 ---@param context? table
 local function stop_representation(path, code, message, context)
@@ -404,6 +419,61 @@ end)
 local M = {}
 M.limits = limits
 
+--- An object that receives the declaration warnings of `string` (for example a `hecate.log` logger).
+---@class hecate.schema.WarningLogger
+---@field warning fun(self: hecate.schema.WarningLogger, message: string, fields?: table)
+
+--- A `format` of `string`: a conservative subset of JSON Schema 2020-12 section 7.3.
+---@alias hecate.schema.Format "uuid"|"date"|"date-time"|"email"|"ipv4"|"uri"
+
+--- Options of `schema.string`.
+---@class hecate.schema.StringOptions
+---@field min_length? integer  fewest code points
+---@field max_length? integer  most code points
+---@field pattern? string  a Lua pattern (translated to ECMA-262 on emission)
+---@field format? hecate.schema.Format  a well-known string format
+---@field logger? hecate.schema.WarningLogger  receives a warning when `pattern` cannot be emitted (OQ-86)
+
+--- Options of `schema.integer`.
+---@class hecate.schema.IntegerOptions
+---@field minimum? number
+---@field maximum? number
+---@field exclusive_minimum? number
+---@field exclusive_maximum? number
+---@field multiple_of? integer  a whole-number divisor greater than zero (OQ-87)
+
+--- Options of `schema.number`.
+---@class hecate.schema.NumberOptions
+---@field minimum? number
+---@field maximum? number
+---@field exclusive_minimum? number
+---@field exclusive_maximum? number
+---@field multiple_of? integer  a whole-number divisor greater than zero (OQ-87)
+
+--- Options of `schema.array`.
+---@class hecate.schema.ArrayOptions
+---@field min_items? integer
+---@field max_items? integer
+---@field delimiter? string  how `coerce` splits a text (default ","; not empty)
+---@field unique_items? boolean  no two items are equal
+
+--- Options of `schema.map`.
+---@class hecate.schema.MapOptions
+---@field min_properties? integer
+---@field max_properties? integer
+
+--- Options of `schema.object`.
+---@class hecate.schema.ObjectOptions
+---@field additional_properties? boolean  accept undeclared properties (default false: they are rejected)
+
+--- Options of `Schema:build`.
+---@class hecate.schema.BuildOptions
+---@field method? "POST"|"PUT"|"PATCH"  the HTTP method the content arrived with (default "POST")
+---@field coerce? boolean  read the content from text (path, query, header fields) first
+
+--- A constant of a `literal` or an `enumeration`.
+---@alias hecate.schema.Constant string|number|boolean|hecate.json.Null
+
 --- Presence sets of the instances built by `Schema:build` (OQ-90): instance -> set of the property names that were sent.
 --- Weak-keyed, so that the set does not keep a dead instance alive, and kept outside the instance, so that `pairs` and
 --- `json.encode` see only the attributes.
@@ -468,7 +538,7 @@ local FORMATS = {
 --- A malformed `pattern` is refused here (`ArgumentError`). `pattern` and `format` are not run on a value that already has an
 --- `invalid_utf8` or `max_length` violation, nor, without `max_length`, on a string longer than `limits.max_pattern_bytes`
 --- (violation `reason = "too_long_for_pattern"`); a match that Lua gives up on is a `pattern` violation (`malformed_pattern`).
----@param options? { min_length?: integer, max_length?: integer, pattern?: string, format?: string, logger?: { warning: fun(self: table, message: string, fields?: table) } }
+---@param options? hecate.schema.StringOptions
 ---@return hecate.schema.Schema
 function M.string(options)
   local o = read_options("string", options,
@@ -481,7 +551,11 @@ function M.string(options)
   if o.format ~= nil then
     check_format = FORMATS[o.format]
     if check_format == nil then
-      refuse("string: unknown format " .. o.format, { option = "format" })
+      local accepted = {}
+      for name in pairs(FORMATS) do accepted[#accepted + 1] = name end
+      table.sort(accepted)
+      refuse(("string: unknown format %s; accepted formats: %s"):format(o.format, table.concat(accepted, ", ")),
+        { option = "format", accepted = accepted })
     end
   end
   if pattern ~= nil then
@@ -495,21 +569,22 @@ function M.string(options)
       end
     end
     if reason ~= nil then
-      refuse("string: option pattern is malformed (" .. reason .. "); it is a Lua pattern (OQ-85), not a regular expression",
-        { option = "pattern", reason = reason })
+      refuse(("string: option pattern %q is not a valid Lua pattern: %s (it is a Lua pattern, not a regular expression; OQ-85)")
+        :format(pattern, reason), { option = "pattern", reason = reason })
     end
   end
   if pattern ~= nil and logger ~= nil then
     local translated, err = pcall(pattern_to_ecma, pattern)
     if not translated then
-      logger:warning("schema: the pattern cannot be emitted as a JSON Schema pattern",
-        { pattern = pattern, reason = tostring(err) })
+      local reason = type(err) == "table" and type(err.context) == "table" and err.context.reason or tostring(err)
+      logger:warning(("schema: pattern %q cannot be emitted: %s"):format(pattern, reason),
+        { pattern = pattern, reason = reason })
     end
   end
   local checks_length = min_length ~= nil or max_length ~= nil
   local format_name = o.format
   local validator = function(value, path, out)
-    if type(value) ~= "string" then return type_violation(path, "string", out) end
+    if type(value) ~= "string" then return type_violation(path, "string", out, value) end
     local unreadable = false -- an encoding or a length violation: pattern and format are not run on this value (S2)
     if checks_length then
       local length = utf8.len(value)
@@ -613,7 +688,7 @@ local function numeric(kind, accepts, expected, options)
   local exclusive_minimum, exclusive_maximum = o.exclusive_minimum, o.exclusive_maximum
   local multiple_of = o.multiple_of
   local validator = function(value, path, out)
-    if not accepts(value) then return type_violation(path, expected, out) end
+    if not accepts(value) then return type_violation(path, expected, out, value) end
     if minimum and value < minimum then
       out[#out + 1] = { path, "minimum", "the value is less than " .. minimum, { minimum = minimum } }
     end
@@ -638,14 +713,14 @@ local function numeric(kind, accepts, expected, options)
 end
 
 --- Declares an integer type: only Lua integers conform, `1.0` does not (OQ-85).
----@param options? { minimum?: number, maximum?: number }
+---@param options? hecate.schema.IntegerOptions
 ---@return hecate.schema.Schema
 function M.integer(options)
   return numeric("integer", function(v) return math_type(v) == "integer" end, "integer", options)
 end
 
 --- Declares a number type: Lua integers and finite floats conform, NaN and infinities do not (JSON has none).
----@param options? { minimum?: number, maximum?: number }
+---@param options? hecate.schema.NumberOptions
 ---@return hecate.schema.Schema
 function M.number(options)
   return numeric("number", function(v) return type(v) == "number" and v == v and v ~= math.huge and v ~= -math.huge end,
@@ -656,7 +731,7 @@ end
 ---@return hecate.schema.Schema
 function M.boolean()
   return Schema("boolean", { validator = function(value, path, out)
-    if type(value) ~= "boolean" then return type_violation(path, "boolean", out) end
+    if type(value) ~= "boolean" then return type_violation(path, "boolean", out, value) end
   end, coercer = scalar_coercer(text_to_boolean, "a boolean (true or false)") })
 end
 
@@ -694,7 +769,7 @@ local function constants_coercer(constants)
 end
 
 --- Declares a type with exactly one value (JSON Schema `const`).
----@param value string|number|boolean|hecate.json.Null
+---@param value hecate.schema.Constant
 ---@return hecate.schema.Schema
 function M.literal(value)
   require_constant("literal", value)
@@ -711,7 +786,7 @@ end
 --- JSON, and a name round-trips through `json.encode` and `json.decode`): the schema accepts exactly the names of the
 --- enumeration, in JSON Schema `{ type = "string", enum = names }`, and `build` replaces a name by the member. The names
 --- are read once, here; an enumeration is closed, so they cannot change afterwards.
----@param values (string|number|boolean|hecate.json.Null)[]|table  the constants, or a `core.enumeration`
+---@param values hecate.schema.Constant[]|table  a list of constants, or a `core.enumeration` (its names are the constants)
 ---@return hecate.schema.Schema
 function M.enumeration(values)
   local source = nil
@@ -868,7 +943,7 @@ end
 
 --- Declares a sequence type with a schema for every element. Paths use 0-based indices (RFC 6901 section 4).
 ---@param item hecate.schema.Schema
----@param options? { min_items?: integer, max_items?: integer, delimiter?: string, unique_items?: boolean }
+---@param options? hecate.schema.ArrayOptions
 ---@return hecate.schema.Schema
 function M.array(item, options)
   require_schema("array", item)
@@ -919,11 +994,11 @@ function M.array(item, options)
     return result
   end, true)
   return Schema("array", { options = o, item = item, coercer = coercer, builder = builder, representer = representer, validator = guarded(function(value, path, out)
-    if type(value) ~= "table" or value == null or json.is_object(value) then return type_violation(path, "array", out) end
+    if type(value) ~= "table" or value == null or json.is_object(value) then return type_violation(path, "array", out, value) end
     local length = #value
     local count = 0
     for _ in next, value do count = count + 1 end
-    if count ~= length then return type_violation(path, "array", out) end
+    if count ~= length then return type_violation(path, "array", out, value) end
     if min_items and length < min_items then
       out[#out + 1] = { path, "min_items", "the array has fewer than " .. min_items .. " items", { min_items = min_items } }
     end
@@ -947,9 +1022,9 @@ function M.array(item, options)
 end
 
 --- Declares a product type: named properties, each with a schema. Required unless wrapped in `optional`.
---- Properties not declared are rejected unless `additional_properties = true` (the default for request content).
+--- Properties not declared are rejected (violation `additional_properties`) unless `additional_properties = true`.
 ---@param properties table<string, hecate.schema.Schema>
----@param options? { additional_properties?: boolean }
+---@param options? hecate.schema.ObjectOptions
 ---@return hecate.schema.Schema
 function M.object(properties, options)
   if type(properties) ~= "table" then refuse("object: properties must be a table, got " .. type(properties)) end
@@ -1065,7 +1140,7 @@ function M.object(properties, options)
   end, true)
   --- `relax`: the PATCH variant, where an absent property means unchanged (OQ-90).
   local function make_validator(relax) return guarded(function(value, path, out)
-    if type(value) ~= "table" or value == null or json.is_array(value) then return type_violation(path, "object", out) end
+    if type(value) ~= "table" or value == null or json.is_array(value) then return type_violation(path, "object", out, value) end
     if fast then
       for k = 1, count do
         local i = fast_order[k]
@@ -1082,10 +1157,10 @@ function M.object(properties, options)
       end
       for key in next, value do
         if type(key) ~= "string" then
-          return type_violation(path, "object", out)
+          return type_violation(path, "object", out, value)
         elseif not declared[key] and not allow_additional then
           local shown = echoed(key)
-          out[#out + 1] = { path .. "/" .. escape_token(shown), "additional_property",
+          out[#out + 1] = { path .. "/" .. escape_token(shown), "additional_properties",
             "the property is not declared", { property = shown } }
           return
         end
@@ -1106,7 +1181,7 @@ function M.object(properties, options)
     local extras
     for key in next, value do
       if type(key) ~= "string" then
-        return type_violation(path, "object", out)
+        return type_violation(path, "object", out, value)
       elseif not declared[key] and not allow_additional then
         extras = extras or {}
         extras[#extras + 1] = key
@@ -1117,7 +1192,7 @@ function M.object(properties, options)
       for _, key in ipairs(extras) do
         if overflowed(out) then return end
         local shown = echoed(key)
-        out[#out + 1] = { path .. "/" .. escape_token(shown), "additional_property",
+        out[#out + 1] = { path .. "/" .. escape_token(shown), "additional_properties",
           "the property is not declared", { property = shown } }
       end
     end
@@ -1126,13 +1201,14 @@ function M.object(properties, options)
     relaxed_validator = make_validator(true), builder = builder, representer = representer, prefilter = prefilter })
 end
 
---- Declares a dictionary type: any string keys, every value conforming to `value_schema`. Paths use the key as
+--- Declares a dictionary type: any string keys, every value conforming to the schema `value`. Paths use the key as
 --- the reference token. A table with non-string keys is not a map.
----@param value_schema hecate.schema.Schema
----@param options? { min_properties?: integer, max_properties?: integer }
+---@param value hecate.schema.Schema  the schema of every value
+---@param options? hecate.schema.MapOptions
 ---@return hecate.schema.Schema
-function M.map(value_schema, options)
-  require_schema("map", value_schema)
+function M.map(value, options)
+  require_schema("map", value)
+  local value_schema = value
   local o = read_options("map", options, { min_properties = "integer", max_properties = "integer" })
   check_range("map", o, "min_properties", "max_properties")
   local min_properties, max_properties = o.min_properties, o.max_properties
@@ -1166,10 +1242,10 @@ function M.map(value_schema, options)
     return result
   end, true)
   return Schema("map", { options = o, item = value_schema, coercer = coercer, builder = builder, representer = representer, validator = guarded(function(value, path, out)
-    if type(value) ~= "table" or value == null or json.is_array(value) then return type_violation(path, "object", out) end
+    if type(value) ~= "table" or value == null or json.is_array(value) then return type_violation(path, "object", out, value) end
     local keys = {}
     for key in next, value do
-      if type(key) ~= "string" then return type_violation(path, "object", out) end
+      if type(key) ~= "string" then return type_violation(path, "object", out, value) end
       keys[#keys + 1] = key
     end
     table.sort(keys) -- a stable order of violations
@@ -1347,7 +1423,10 @@ function M.default(inner, value)
   if value == nil then refuse("default: a default value is required (use json.null for null)") end
   local raw = {}
   inner.validator(value, "", raw)
-  if #raw > 0 then refuse("default: the value does not conform to the schema", { code = raw[1][2] }) end
+  if #raw > 0 then
+    refuse(("default: the value does not conform to the schema; first violation at %s: %s")
+      :format(raw[1][1] == "" and '""' or raw[1][1], raw[1][3]), { code = raw[1][2], path = raw[1][1] })
+  end
   -- Kept in a closure: nothing a caller holds reaches the stored table, only copies do (s1).
   local stored = copy_value(value)
   local coerce_inner = inner.coercer
@@ -1415,7 +1494,7 @@ function M.tagged_union(tag, variants)
       return coerce(value, path, out)
     end,
     validator = function(value, path, out)
-      if type(value) ~= "table" or value == null then return type_violation(path, "object", out) end
+      if type(value) ~= "table" or value == null then return type_violation(path, "object", out, value) end
       local name = value[tag]
       if name == nil then
         out[#out + 1] = { path .. token, "required", "the property is required", { property = tag } }
@@ -1441,7 +1520,7 @@ end
 ---@return hecate.schema.Schema
 function M.null()
   return Schema("null", { validator = function(value, path, out)
-    if value ~= null then return type_violation(path, "null", out) end
+    if value ~= null then return type_violation(path, "null", out, value) end
   end })
 end
 
@@ -1472,6 +1551,11 @@ function make_named(name, inner, from_class)
     prefilter = inner.prefilter,
     relaxed_validator = inner.relaxed_validator, builder = inner.builder, representer = inner.representer })
 end
+
+--- The interface of a class that owns a schema: it requires the class-level function `schema()` that `schema.of` calls.
+--- A class that declares it (`implements = { schema.HasSchema }`) and has no `schema` cannot be finalised
+--- (`ConformanceError`). Declaring it is optional: `schema.of` accepts any class that has `schema()`.
+M.HasSchema = core.interface("HasSchema", { "schema" })
 
 --- The schema of a class: `target` is a class that declares a class-level function `schema()` returning its schema,
 --- or the name of a module returning such a class (loaded at first use, so that two modules can refer to each other).
@@ -1701,6 +1785,8 @@ end
 ---@param value any
 ---@return boolean ok  true when the value converted and conforms
 ---@return any result  the converted value when `ok`, else a list of `hecate.schema.Violation`
+---@overload fun(self: hecate.schema.Schema, value: any): true, any
+---@overload fun(self: hecate.schema.Schema, value: any): false, hecate.schema.Violation[]
 function Schema:coerce(value)
   local raw = {}
   reset_work()
@@ -1709,6 +1795,14 @@ function Schema:coerce(value)
   if #raw == 0 and budget_violation == nil then self.validator(converted, "", raw) end
   if #raw == 0 and budget_violation == nil then return true, converted end
   return false, to_violations(raw)
+end
+
+--- The members of the schema, as a new list: the alternatives of a `union` (in declaration order), the variant names of
+--- a `tagged_union` (sorted), the constants of an `enumeration` (the names of a `core.enumeration`); empty for any other
+--- kind.
+---@return any[] members
+function Schema:members()
+  return self._members()
 end
 
 local METHODS = { POST = false, PUT = false, PATCH = true }
@@ -1725,9 +1819,11 @@ local METHODS = { POST = false, PUT = false, PATCH = true }
 --- method the content arrived with (OQ-50): `"POST"` and `"PUT"` (the default) are strict; `"PATCH"` lets the
 --- required properties of the top-level object be absent (unchanged), while `null` still fails unless nullable.
 ---@param value any  decoded content
----@param options? { method?: "POST"|"PUT"|"PATCH", coerce?: boolean }
+---@param options? hecate.schema.BuildOptions
 ---@return boolean ok  true when the content conforms
 ---@return any result  the built value when `ok`, else a list of `hecate.schema.Violation`
+---@overload fun(self: hecate.schema.Schema, value: any, options?: hecate.schema.BuildOptions): true, any
+---@overload fun(self: hecate.schema.Schema, value: any, options?: hecate.schema.BuildOptions): false, hecate.schema.Violation[]
 function Schema:build(value, options)
   local relax, coerce = false, false
   if options ~= nil then

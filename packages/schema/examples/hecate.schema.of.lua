@@ -1,9 +1,9 @@
--- A class owns the schema of its instances: an interface requires a class-level `schema()`, and
+-- A class owns the schema of its instances: the interface `schema.HasSchema` requires a class-level `schema()`, and
 -- `schema.of(Class)` uses the class wherever it is a part of another schema.
 local core = require("hecate.core")
 local schema = require("hecate.schema")
 
-local HasSchema = core.interface("HasSchema", { "schema" })
+local HasSchema = schema.HasSchema
 
 local Address = core.class("Address", nil, { implements = { HasSchema } })
 function Address.schema()

@@ -104,7 +104,7 @@ function T:test_missing_required_and_unknown_properties()
   local s = schema.object({ a = schema.integer(), b = schema.optional(schema.integer()) })
   local got = codes(s, { c = 1 })
   self:assert_equal("/a required", got[1])
-  self:assert_equal("/c additional_property", got[2])
+  self:assert_equal("/c additional_properties", got[2])
   self:assert_equal(2, #got)
   self:assert_true((s:validate({ a = 1 })))
 end

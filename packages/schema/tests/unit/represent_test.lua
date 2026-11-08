@@ -1,4 +1,4 @@
----@diagnostic disable: need-check-nil, param-type-mismatch, undefined-field, inject-field
+---@diagnostic disable: need-check-nil, param-type-mismatch, undefined-field, inject-field, invisible
 -- `Schema:represent` (OQ-95): the plain, JSON-ready form of an instance, for a response.
 local test = require("harness.test")
 local core = require("hecate.core")

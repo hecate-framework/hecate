@@ -1,4 +1,4 @@
----@diagnostic disable: need-check-nil, param-type-mismatch, undefined-field, inject-field
+---@diagnostic disable: need-check-nil, param-type-mismatch, undefined-field, inject-field, invisible
 -- Hardening of the validation core (review of the `schema` item, findings S1 to S4 and s1 to s4): every probe of the
 -- security review is reproduced here and bounded by a count of steps, violations or bytes, never by a clock.
 local test = require("harness.test")
@@ -175,7 +175,7 @@ function T:test_violations_are_capped_with_a_final_marker()
   local last = violations[#violations]
   self:assert_equal("too_many_violations", last.code)
   self:assert_equal(limits.max_violations, last.context.max)
-  self:assert_equal("additional_property", violations[1].code)
+  self:assert_equal("additional_properties", violations[1].code)
   self:assert_equal("/k00001", violations[1].path)
 end
 
@@ -184,7 +184,7 @@ function T:test_the_cap_is_exact()
   local ok, violations = s:validate(keys(limits.max_violations))
   self:assert_false(ok)
   self:assert_equal(limits.max_violations, #violations)
-  self:assert_equal("additional_property", violations[#violations].code)
+  self:assert_equal("additional_properties", violations[#violations].code)
   ok, violations = s:validate(keys(limits.max_violations + 1))
   self:assert_equal(limits.max_violations + 1, #violations)
   self:assert_equal("too_many_violations", violations[#violations].code)
@@ -235,7 +235,7 @@ function T:test_an_echoed_property_name_is_truncated()
   local s = schema.object({})
   local key = ("x"):rep(5000)
   local _, violations = s:validate({ [key] = 1 })
-  self:assert_equal("additional_property", violations[1].code)
+  self:assert_equal("additional_properties", violations[1].code)
   self:assert_true(#violations[1].path <= 1 + 64)
   self:assert_true(#violations[1].context.property <= 64)
   -- a cut inside a multi-byte character backs off to a boundary

@@ -7,6 +7,9 @@ local raise = require("hecate.core.internal.raise")
 ---@class hecate.core
 local M = {}
 
+--- Which references of a weak table do not keep their referents alive: keys (`"k"`), values (`"v"`) or both (`"kv"`).
+---@alias hecate.core.WeakMode "k"|"v"|"kv"
+
 local MODES = { k = true, v = true, kv = true }
 
 --- Creates an empty table with weak keys (`"k"`, the default), weak values (`"v"`) or both
@@ -14,7 +17,7 @@ local MODES = { k = true, v = true, kv = true }
 --- identity map) that must not keep the instances alive. The table carries no other metamethod.
 ---
 --- Raises `hecate.core.ArgumentError` if `mode` is not `"k"`, `"v"` or `"kv"`.
----@param mode? "k"|"v"|"kv"  which references are weak; default `"k"`
+---@param mode? hecate.core.WeakMode  which references are weak; default `"k"`
 ---@return table weak  a new empty table
 function M.weak_table(mode)
   if mode == nil then mode = "k" end

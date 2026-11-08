@@ -32,8 +32,10 @@ local M = {}
 ---@param position integer?
 local function refuse(pattern, reason, position)
   error(core.ArgumentError(
-    ("schema: the pattern %q cannot be emitted as a JSON Schema pattern: %s"):format(pattern, reason),
-    { context = { option = "pattern", pattern = pattern, position = position } }), 3)
+    ("schema: the pattern %q cannot be emitted as a JSON Schema pattern: %s. Lua validation is unaffected; to emit this"
+      .. " schema, rewrite the pattern with sets, classes, `format`, `min_length` or `enum` (specification, section"
+      .. ' "The `pattern` option")'):format(pattern, reason),
+    { context = { option = "pattern", pattern = pattern, position = position, reason = reason } }), 3)
 end
 
 --- A literal character outside a character class.

@@ -1,4 +1,4 @@
----@diagnostic disable: need-check-nil, param-type-mismatch, undefined-field, inject-field
+---@diagnostic disable: need-check-nil, param-type-mismatch, undefined-field, inject-field, invisible
 -- Algorithmic cost of a recursive `union` of container alternatives (OQ-91): the work of a call is bounded in the
 -- depth of the content (fail-fast alternatives, discriminating properties first) and, whatever the schema, by a work
 -- budget that ends the call with a `complexity_limit` violation.
