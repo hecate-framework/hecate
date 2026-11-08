@@ -419,6 +419,11 @@ end)
 local M = {}
 M.limits = limits
 
+--- Steps spent by the last public call (`validate`, `coerce`, `build` or `represent`), for the step-count tests: they assert
+--- the growth of the work instead of a clock. Internal, not public API.
+---@return integer
+function M.steps() return steps end
+
 --- An object that receives the declaration warnings of `string` (for example a `hecate.log` logger).
 ---@class hecate.schema.WarningLogger
 ---@field warning fun(self: hecate.schema.WarningLogger, message: string, fields?: table)
