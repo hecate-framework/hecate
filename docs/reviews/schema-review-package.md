@@ -1,0 +1,64 @@
+# `schema` item: `/review-package` findings
+
+Read-only review of the `schema` roadmap item (pull request 54: `packages/schema`, the small related changes of
+`core` and `json`, the documentation and the CI wiring) by seven reviewer agents (architect, API, terminology,
+security, tests, performance, developer experience with portability), run on 2026-11-08 at the head of
+`claude/relay-schema`. No blocker in code. Status column: **open** until fixed (then "fixed" with the commit) or moved
+to a roadmap item or an owner decision. Findings come from reading plus probes run by the security reviewer; each fix
+reproduces the failure first.
+
+## Major
+
+| Id | Lens | Finding | Fix | Status |
+|---|---|---|---|---|
+| S1 | security | `unique_items` is quadratic and outside the work budget: 20000 distinct integers (about 110 KB) took 11.3 s of CPU; no default `max_items` | Hash scalar items, compare tables pairwise, charge the budget per comparison | open |
+| S2 | security | The Lua `pattern` runs on unbounded input even when `max_length` or `invalid_utf8` already failed; `%w+@` on 20000 letters took 2.5 s | Skip pattern and format once a length or encoding violation is recorded; bound the length a pattern sees; document anchoring | open |
+| S3 | security | Declaration-time pattern check is incomplete: `string({pattern="ab%"})` is accepted, then `validate` raises a raw Lua error (a 500) | Probe with a subject that walks the whole pattern, and wrap the match in `pcall` reporting a violation | open |
+| S4 | security | Violation lists are unbounded: 50000 undeclared keys gave 50000 violations, each echoing the key twice | Cap violations per call (for example 100 then one truncation entry); truncate the echoed key | open |
+| S5 | API | Violation codes have no stable documented list; `additional_property` is singular while the option is `additional_properties`; the short code and the dotted error code are different namespaces | Add a violation code table to the specification, an alias type for the codes, decide the rename now | open (rename: owner decision) |
+| S6 | API | Internals annotated as public fields (`validator`, `coercer`, `relaxed_validator`, `builder`, `representer`, `prefilter`, `_limits`); `coerce` and `to_json_schema` documented twice; `members` annotated as a field | Mark internals private, remove the duplicated field forms, make `members` a real method | open |
+| S7 | API | `coerce` and `build` return `true, value` or `false, violations` annotated as `any`; `validate` returns another shape | Add return overloads and document the convention once | open |
+| S8 | API | Option annotations contradict between `schema.lua` and `init.lua` (`integer`, `number`, `string`, `array`, `enumeration` over a core enumeration); README API lines incomplete | One option class per constructor, README aligned | open |
+| S9 | architect | The specification promises `refine`, `generate`, `generate_invalid`, and the README Responsibilities list `---@meta` generation and property-based generators, with no roadmap home; the specification still shows `map(key, value)` | Mark them not yet implemented in the specification and README, add roadmap lines (`test` carries generators, `doc` or `cli` carries `---@meta`), open an entry for `refine` | open (owner decision) |
+| S10 | architect | The JSON Schema keywords outside the emitted subset (`allOf`, `not`, `if`, `contains`, tuples, `patternProperties`, `propertyNames`, `dependent`, `unevaluated`, `$id`, anchors, remote `$ref`, `content`) are recorded only in a test header | Document them as deliberate limits in the README, the explanation page and the French mirror; record the scope statement | open (owner statement) |
+| S11 | DX | A doc comment says undeclared properties are allowed by default for request content, while the code and how-to say they are rejected | Fix the comment (it feeds the generated reference) | open |
+| S12 | DX | Pattern refusal and warning say what is wrong but not that Lua validation still works nor how to rewrite; the logger warning carries pattern and reason only in fields | One actionable clause in the message; pattern and reason in the warning text | open |
+| S13 | DX | The how-to starts with edge cases and never shows turning `check` violations into a client-readable error | Reorder (declare, validate, class, build, PATCH, represent, then edge cases) and add a violations-to-client example | open |
+| S14 | tests | The invariant emitted schema equals Lua validation is checked on 48 fixed values and 30 hand-picked schemas; `format` and `pattern` are not in the differential; no test pins that `format` is only an annotation when emitted | Seeded property-based differential (print the seed), a pinning test for `format` | open |
+| S15 | tests | The suite runner excuses any disagreement once a whole float appears anywhere, and a fractional `multipleOf` excuses the group; no minimum on emission agreement, no cap on gaps | Allow the gap only where Lua says invalid and the official says valid at an integer position; add guards and pinned skip counts | open |
+| S16 | tests | Timing assertions (0.5 s to 2 s on `os.clock`, wall time on Windows) are fragile on slow runners; two 200000-node hostile chains are heavy | Assert step counts growth, widen or drop clock bounds, reduce chains to about 20000 | open |
+
+## Minor
+
+| Id | Lens | Finding | Fix | Status |
+|---|---|---|---|---|
+| s1 | security | A `default` table is shared and mutable through `schema.options.value`, which changes it for every later request (breaks immutability) | Keep it in a closure and hand out copies | open |
+| s2 | security | `represent` and `build` collide with class members: a declared property named like a method represents the method (function, then an encode error) and a client string can overwrite a method on a built instance | Refuse declared names that resolve to a class member in `of`; skip function values in `represent` | open |
+| s3 | security | Boolean `false` is lost: coercing `"false"` in a map is refused and a top-level `default(boolean, false)` returns nil (both fail closed) | Explicit if and else instead of and-or | open |
+| s4 | security | `email` accepts control characters and any length | Reject control characters, maximum 254 bytes | open |
+| s5 | security | Lua matches bytes and ECMA without the u flag matches UTF-16 units: the invariant holds for ASCII input only | Document it in the README and the explanation page | open |
+| s6 | security | Per-call state is module state; a yielding `__index` during `represent` or `build` in a coroutine could interleave two calls | Document it | open |
+| s7 | security | The encoder entry budget could hold hundreds of MB at 8M entries; a repeated key from an iterator encodes duplicate keys | Tighter budget; refuse or deduplicate a repeated key | open (json) |
+| t1 | terminology | DTO and data transfer object used for inline schemas; the French glossary row blesses it | Say inline schema; delete the French row | open |
+| t2 | terminology | body used for the declaration of a schema (collides with content) | Say definition | open |
+| t3 | terminology | header used alone where the glossary says header field | Say header fields | open |
+| t4 | terminology | validator names the compiled closure; no glossary row; build untranslated in French | Add rows (validator internal, build, fail-fast mode, minor units) | open |
+| t5 | terminology | `Record` class name for read-only options collides with the glossary meaning of record | Rename to Options (low priority) | open |
+| a1 | API | Parameter names differ for the same role (`item`, `value_schema`, `inner`); union documented as alternatives and as list | Align before 0.1 | open |
+| a2 | API | Glossary lacks represent and the union collision with the relational union; `allocate` doc comment claims to be the only `setmetatable` site; `weak_table` modes unnamed | Add one glossary sentence each, reword the comment, name the mode alias | open |
+| x1 | DX | Declaration messages do not list valid choices (`unknown format`, `unknown option`), the pattern check message is circular, type messages do not name the received type | List choices, show the underlying error, name the received Lua type | open |
+| x2 | DX | Snippet style differs (call with parentheses versus braces only); `docs/developer-experience.md` shows `Class.representation` and implicit represent, which the package does not have | Pick one style; routes item settles the response mapping | open (routes item) |
+| x3 | DX | No shipped interface for a class that has a schema: each user declares their own | Ship one in `hecate.schema` | open (owner decision) |
+| q1 | tests | Several weak assertions (only ok), a manually restored limit without protection, missing coverage of every bad option, no round trip decode build represent encode, no seeded test of the pattern translator and format validators | Write the seven tests listed by the reviewer | open |
+
+## Performance
+
+Pending (the performance reviewer had not reported when this file was written).
+
+## Owner decisions raised by the review
+
+1. Rename the violation code `additional_property` to `additional_properties` (S5): recommended before 0.1.
+2. Roadmap homes for `refine`, generators and `---@meta` generation, and an entry for `refine` (S9).
+3. Statement that JSON Schema keywords outside the emitted subset are out of scope until a consumer needs them (S10).
+4. Ship a shared interface requiring a class-level `schema()` in `hecate.schema` (x3).
+5. The `logger` option of `schema.string` follows OQ-86 (owner decision); the review only asks to document it.

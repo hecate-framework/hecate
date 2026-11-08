@@ -38,6 +38,7 @@ at all times. Specification: `docs/architecture/ai-assisted-development.md#relay
 - Before **each** push (agents you delegate to included, name it in their brief): `lua tools/run.lua setup-luals`
   once per session, then `lua tools/run.lua typecheck` (it finds the LuaLS under `spikes/luals`). CI fails on
   every typecheck warning; never push without it, and never accept a report that says it was not run.
+- Keep `HANDOFF.md` tidy: "Next steps" lists only open work; when a step is finished, move it to "Done" (with its commit) and remove it from "Next steps", never leave a `DONE` line there.
 - After **each** step: update `HANDOFF.md` (done, next steps, decisions taken, open
   doubts, commands to re-run), refresh `lock_until`, commit and push. Never keep more
   than one step of unpushed work.

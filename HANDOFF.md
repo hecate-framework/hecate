@@ -87,15 +87,10 @@ The owner asked on 2026-11-08 to finish this pull request the same day; an inter
 
 ## Next steps
 
-1. DONE OQ-94, decided by the owner: the native JSON encoder honours `__pairs` for tables that define one (frozen `value_class` instances encode as their attributes; today `json.encode` writes `{}` silently); tests first, native-code-reviewer, benchmark of the plain path; then switch the value instance encode test in `packages/schema/tests/unit/value_build_test.lua` from the `pairs` copy to a direct `json.encode` of the built instance.
-2. DONE OQ-93 (1), decided by the owner: a `core` primitive that builds a frozen instance of a `value_class` from a table of attributes without calling `init`, next to `core.allocate`; `schema` uses it for class-bound parts whose class is a `value_class`. Tests first in `packages/core` and `packages/schema`.
-3. DONE OQ-93 (2), decided by the owner: `Schema:build(content, { method, coerce = true })` converts texts with the rules of `coerce`, then builds; defaults apply once, `schema.sent` records only what was provided.
-4. DONE The official JSON Schema test suite (supported subset): a pinned entry in `packages/schema/tests/external.lua` fetched by `fetch-fixtures` like the data of `json` (skipped locally without network, enforced in CI), a runner with an explicit list of the unsupported cases and the reason of each.
-5. DONE Schemas from `core` enumerations (a `schema.enumeration` taking a `core.enumeration`).
-6. DONE OQ-95, decided by the owner: `Schema:represent(value)` (provisional name), the conversion of an instance to plain JSON-ready values for responses: enumeration members become names, only declared attributes are kept, nested class-bound parts, arrays, maps and unions are converted, bounded by the depth guard and the work budget; nil attributes are omitted, `json.null` stays null, no defaults, no validation; a cycle ends with the depth limit error. Tests first (including `json.encode` of the result, value classes, enumerations, undeclared attributes dropped, tagged union and union), README, how-to, explanation page, CHANGELOG.
-7. DONE (English and French) Docs: tested examples, an explanation page, the glossary check, the generated reference. The French pages are done (translator-fr).
-8. Definition-of-done check and `/review-package` with the reviewer agents, then fix the findings.
-9. Finish: delete `HANDOFF.md`, tick the roadmap item, CI green on the three platforms, mark the pull request ready and ask for the owner's review.
+Only open work is listed here; finished steps move to Done (never keep a DONE line in this list).
+
+1. Fix the findings of the `schema` review (the seven reviewers, 2026-11-08): the list with its dispositions is in `docs/reviews/schema-review-package.md`; fix test first, one specialist per package, then update the review file with the commit of each fix.
+2. Finish: delete `HANDOFF.md`, tick the roadmap item, CI green on the three platforms, mark the pull request ready and ask for the owner's review.
 
 ## Open question issues
 
