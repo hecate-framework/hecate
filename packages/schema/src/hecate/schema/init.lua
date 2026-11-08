@@ -9,7 +9,7 @@ local violation = require("hecate.schema.violation")
 ---@class hecate.schema
 ---@field Schema hecate.schema.Schema  the class of every schema
 ---@field Violation hecate.schema.Violation  one reason why a value does not conform
----@field HasSchema table  interface of a class that owns a schema: it requires a class-level `schema()`
+---@field Representable table  interface of a class whose instances have a representation: it requires a class-level `schema()`; `of` refuses a class without it
 ---@field string fun(options?: hecate.schema.StringOptions): hecate.schema.Schema
 ---@field integer fun(options?: hecate.schema.IntegerOptions): hecate.schema.Schema
 ---@field number fun(options?: hecate.schema.NumberOptions): hecate.schema.Schema
@@ -54,7 +54,7 @@ local M = {
   any = schema.any,
   null = schema.null,
   named = schema.named,
-  HasSchema = schema.HasSchema,
+  Representable = schema.Representable,
   of = schema.of,
   sent = schema.sent,
   is_schema = schema.is_schema,

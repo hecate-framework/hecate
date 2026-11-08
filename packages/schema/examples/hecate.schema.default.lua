@@ -3,7 +3,7 @@
 local core = require("hecate.core")
 local schema = require("hecate.schema")
 
-local Article = core.class("Article")
+local Article = core.class("Article", nil, { implements = { schema.Representable } })
 function Article.schema()
   return schema.object({
     title = schema.string(),

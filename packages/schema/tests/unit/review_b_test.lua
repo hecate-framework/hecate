@@ -1,6 +1,6 @@
 ---@diagnostic disable: need-check-nil, param-type-mismatch, undefined-field, inject-field, invisible, assign-type-mismatch
 -- Fix pass B of the review of the `schema` item: stable violation codes (S5), the `members` method (S6), actionable
--- declaration and refusal messages (S12, x1), the type messages that name the received type, and `HasSchema` (x3).
+-- declaration and refusal messages (S12, x1), the type messages that name the received type, and `Representable` (x3).
 local test = require("harness.test")
 local core = require("hecate.core")
 local json = require("hecate.json")
@@ -168,17 +168,17 @@ end
 -- x3: the interface of a class that has a schema -------------------------------------------------------------------------
 
 function T:test_has_schema_is_an_interface_requiring_a_schema_function()
-  self:assert_true(core.is_interface(schema.HasSchema))
+  self:assert_true(core.is_interface(schema.Representable))
 end
 
 function T:test_a_class_declaring_the_interface_without_schema_is_refused_at_finalisation()
-  local Incomplete = core.class("Incomplete", nil, { implements = { schema.HasSchema } })
+  local Incomplete = core.class("Incomplete", nil, { implements = { schema.Representable } })
   local err = self:assert_error(function() core.finalise(Incomplete) end)
   self:assert_true(core.is_instance_of(err, core.ConformanceError))
 end
 
 function T:test_a_class_declaring_the_interface_works_with_of()
-  local Point = core.class("Point", nil, { implements = { schema.HasSchema } })
+  local Point = core.class("Point", nil, { implements = { schema.Representable } })
   function Point.schema() return schema.object({ x = schema.integer() }) end
   core.finalise(Point)
   local ok, point = schema.of(Point):build({ x = 3 })
@@ -186,15 +186,16 @@ function T:test_a_class_declaring_the_interface_works_with_of()
   self:assert_equal(3, point.x)
 end
 
-function T:test_of_still_accepts_a_class_that_does_not_declare_the_interface()
+function T:test_of_refuses_a_class_with_a_schema_function_that_does_not_declare_the_interface()
   local Plain = core.class("PlainClass")
   function Plain.schema() return schema.object({ x = schema.integer() }) end
   core.finalise(Plain)
-  self:assert_true((schema.of(Plain):validate({ x = 3 })))
-  local NoSchema = core.class("NoSchemaClass")
-  core.finalise(NoSchema)
-  local text = message_of(function() schema.of(NoSchema):validate({}) end)
-  self:assert_true(contains(text, "schema()"), text)
+  local text = message_of(function() schema.of(Plain) end)
+  self:assert_true(contains(text, "PlainClass"), text)
+  self:assert_true(contains(text, "schema.Representable"), text)
+  local NoSchema = core.class("NoSchemaClass", nil, { implements = { schema.Representable } })
+  local failure = message_of(function() core.finalise(NoSchema) end)
+  self:assert_true(contains(failure, "schema"), failure)
 end
 
 return T

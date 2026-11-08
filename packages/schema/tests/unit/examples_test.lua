@@ -15,6 +15,7 @@ local NAMES = {
   "hecate.schema.map",
   "hecate.schema.enumeration",
   "hecate.schema.tagged_union",
+  "hecate.schema.union",
   "hecate.schema.of",
   "hecate.schema.Schema.build",
   "hecate.schema.Schema.represent",

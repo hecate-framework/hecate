@@ -13,7 +13,7 @@ local STEP_CAP_REPRESENT_500 = 5000 -- twice the 2496 steps observed at depth 50
 local Status = core.enumeration("RepStatus", { "active", "disabled" })
 
 local function define(name, build, value_kind)
-  local C = value_kind and core.value_class(name) or core.class(name)
+  local C = value_kind and core.value_class(name, nil, { implements = { schema.Representable } }) or core.class(name, nil, { implements = { schema.Representable } })
   function C.schema() return build() end
   function C:init() end
   core.finalise(C)
@@ -258,7 +258,7 @@ function T:test_input_unchanged_and_fresh_tables()
 end
 
 local function cycle_classes()
-  local A, B = core.class("RepCycleA"), core.class("RepCycleB")
+  local A, B = core.class("RepCycleA", nil, { implements = { schema.Representable } }), core.class("RepCycleB", nil, { implements = { schema.Representable } })
   function A.schema() return schema.object({ other = schema.optional(schema.of(B)) }) end
   function B.schema() return schema.object({ other = schema.optional(schema.of(A)) }) end
   core.finalise(A)
@@ -317,7 +317,7 @@ function T:test_the_work_budget_ends_a_representation()
 end
 
 function T:test_a_recursive_union_is_linear()
-  local A, B = core.class("RepCostA"), core.class("RepCostB")
+  local A, B = core.class("RepCostA", nil, { implements = { schema.Representable } }), core.class("RepCostB", nil, { implements = { schema.Representable } })
   function A.schema()
     return schema.object({ tag = schema.literal("a"), next = schema.optional(schema.union({ schema.of(A), schema.of(B) })) })
   end

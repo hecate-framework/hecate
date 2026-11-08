@@ -145,7 +145,7 @@ end
 
 function T:test_build_gives_the_member_for_class_bound_parts()
   local Status = status()
-  local Account = core.value_class("Account")
+  local Account = core.value_class("Account", nil, { implements = { schema.Representable } })
   function Account.schema()
     return schema.object({ state = schema.enumeration(Status), past = schema.optional(schema.array(schema.enumeration(Status))) })
   end

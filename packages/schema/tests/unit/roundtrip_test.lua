@@ -13,7 +13,7 @@ local T = test.Case("SchemaRoundTripTest")
 local CANONICAL = { canonical = true }
 
 local function define(name, build, value_kind)
-  local C = value_kind and core.value_class(name) or core.class(name)
+  local C = value_kind and core.value_class(name, nil, { implements = { schema.Representable } }) or core.class(name, nil, { implements = { schema.Representable } })
   function C.schema() return build() end
   function C:init() end
   core.finalise(C)

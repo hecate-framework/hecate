@@ -6,7 +6,7 @@ local schema = require("hecate.schema")
 local T = test.Case("SchemaDefaultsBuildTest")
 
 local function class_of(name, build)
-  local C = core.class(name)
+  local C = core.class(name, nil, { implements = { schema.Representable } })
   function C.schema() return build() end
   core.finalise(C)
   return C

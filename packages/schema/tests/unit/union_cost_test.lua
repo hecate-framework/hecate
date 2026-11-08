@@ -10,7 +10,7 @@ local T = test.Case("SchemaUnionCostTest")
 
 --- Two classes A and B, a literal tag and an optional `next` that is a union of both (the probe of OQ-91).
 local function probe()
-  local A, B = core.class("CostA"), core.class("CostB")
+  local A, B = core.class("CostA", nil, { implements = { schema.Representable } }), core.class("CostB", nil, { implements = { schema.Representable } })
   function A.schema()
     return schema.object({ tag = schema.literal("a"),
       next = schema.optional(schema.union({ schema.of(A), schema.of(B) })) })
@@ -137,7 +137,7 @@ end
 --- Alternatives without a discriminating property. The memoisation makes this linear, so the budget is lowered by the
 --- tests below to show that it still ends a call that spends more than it allows.
 local function adversarial()
-  local A, B = core.class("CostAdvA"), core.class("CostAdvB")
+  local A, B = core.class("CostAdvA", nil, { implements = { schema.Representable } }), core.class("CostAdvB", nil, { implements = { schema.Representable } })
   local of_a, of_b = schema.of(A), schema.of(B) -- shared, so that each class resolves once
   local function body()
     return schema.object({ value = schema.optional(schema.string()),
@@ -200,7 +200,7 @@ end
 --- Two classes of identical shape P and Q, `next = optional(union(P, Q))` at every level and no discriminating literal:
 --- the probe of the memoisation (OQ-91). The innermost value is invalid.
 local function twins(depth)
-  local P, Q = core.class("CostTwinP"), core.class("CostTwinQ")
+  local P, Q = core.class("CostTwinP", nil, { implements = { schema.Representable } }), core.class("CostTwinQ", nil, { implements = { schema.Representable } })
   local of_p, of_q = schema.of(P), schema.of(Q)
   local function body()
     return schema.object({ value = schema.optional(schema.string()),

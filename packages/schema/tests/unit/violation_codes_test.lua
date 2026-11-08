@@ -69,7 +69,7 @@ end
 
 --- A chain of `depth` nested objects of a class that holds an optional `next` of itself.
 local function chain_schema()
-  local Chain = core.class("CodesChain")
+  local Chain = core.class("CodesChain", nil, { implements = { schema.Representable } })
   function Chain.schema() return schema.object({ next = schema.optional(schema.of(Chain)) }) end
   core.finalise(Chain)
   return schema.of(Chain)

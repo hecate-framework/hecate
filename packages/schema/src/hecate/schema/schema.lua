@@ -936,13 +936,21 @@ function copy_value(value)
   return copy
 end
 
---- Structural equality of decoded JSON values; `1` and `1.0` are equal numbers, as in JSON Schema.
-local function json_equal(a, b)
+--- Structural equality of decoded JSON values; `1` and `1.0` are equal numbers, as in JSON Schema. Bounded like the
+--- depth guard (OQ-99): two tables that are still different tables below `MAX_DEPTH` levels are reported as DIFFERENT, never
+--- by a Lua stack overflow. Decoded content stops at the same depth, so only a hand-built table can reach the bound.
+---@param a any
+---@param b any
+---@param level? integer  nesting already entered (0 at the top)
+---@return boolean
+local function json_equal(a, b, level)
   if a == b then return true end
   if type(a) ~= "table" or type(b) ~= "table" or a == null or b == null then return false end
+  level = (level or 0) + 1
+  if level > MAX_DEPTH then return false end
   local count = 0
   for key, member in next, a do
-    if not json_equal(member, b[key]) then return false end
+    if not json_equal(member, b[key], level) then return false end
     count = count + 1
   end
   for _ in next, b do count = count - 1 end
@@ -1373,12 +1381,46 @@ function M.map(value, options)
   end) })
 end
 
+--- What makes `alternative` accept null, looking through the wrappers `named`, `optional` and `default`: "null",
+--- "nullable", "literal" (a literal null) or "enumeration" (constants containing null), as the name of the kind and the
+--- wording of the refusal; nil when none does. `any` is not looked for: it accepts null by an explicit choice.
+---@param alternative hecate.schema.Schema
+---@return string?
+local function accepting_null(alternative)
+  local current = alternative
+  while current ~= nil do
+    local kind = current.kind
+    if kind == "null" or kind == "nullable" then return kind end
+    if kind == "literal" then
+      ---@diagnostic disable-next-line: undefined-field -- `options` holds whatever the constructor stored: `value` for a literal
+      if current.options.value == null then return kind end
+      return nil
+    end
+    if kind == "enumeration" then
+      for _, member in ipairs(current:members()) do
+        if member == null then return kind end
+      end
+      return nil
+    end
+    if kind ~= "named" and kind ~= "optional" and kind ~= "default" then return nil end
+    current = current.item
+  end
+  return nil
+end
+
+local NULL_KIND_WORDING = {
+  null = "a null schema", nullable = "a nullable schema", literal = "a literal null", enumeration = "an enumeration containing null",
+}
+
 --- Declares a sum type: a value conforms when at least one alternative accepts it (JSON Schema `anyOf`).
 --- On failure one violation is reported at the union itself; the violations of every alternative are in
 --- `context.alternatives`, in declaration order, for the outermost failed union only (OQ-91: a union nested in an
 --- alternative, or in the fail-fast mode that decides the alternatives, has an empty list).
 --- Alternatives are decided in fail-fast mode, discriminating properties first, so that a recursive union costs
 --- linear work when its alternatives are discriminated (`tagged_union` always is), and the work budget bounds the rest.
+--- A union must not contain null (OQ-99, OQ-100): an alternative that accepts null (`null`, `nullable`, a literal null, an
+--- enumeration containing null; also under `named`, `optional` or `default`) is refused with `ArgumentError`, because `nullable` is the only way to accept null; write
+--- `nullable(union(...))`. `any` is not refused: it accepts every value, null included, by an explicit choice.
 ---@param alternatives hecate.schema.Schema[]
 ---@return hecate.schema.Schema
 function M.union(alternatives)
@@ -1386,6 +1428,11 @@ function M.union(alternatives)
   local copy, validators = {}, {}
   for i, alternative in ipairs(alternatives) do
     require_schema("union", alternative)
+    local accepted = accepting_null(alternative)
+    if accepted ~= nil then
+      refuse(("union: alternative %d is %s, and a union must not contain null: nullable is the only way to accept "
+        .. "null, so wrap the union in nullable(union(...)) instead"):format(i, NULL_KIND_WORDING[accepted]), { alternative = i, kind = accepted })
+    end
     copy[i] = alternative
     validators[i] = alternative.validator
   end
@@ -1665,12 +1712,24 @@ function make_named(name, inner, from_class)
     relaxed_validator = inner.relaxed_validator, builder = inner.builder, representer = inner.representer })
 end
 
---- The interface of a class that owns a schema: it requires the class-level function `schema()` that `schema.of` calls.
---- A class that declares it (`implements = { schema.HasSchema }`) and has no `schema` cannot be finalised
---- (`ConformanceError`). Declaring it is optional: `schema.of` accepts any class that has `schema()`.
-M.HasSchema = core.interface("HasSchema", { "schema" })
+--- The interface of a class whose instances have a representation (RFC 9110 section 3.2), declared once by the
+--- class-level function `schema()` that `schema.of` calls. A class that declares it
+--- (`implements = { schema.Representable }`) and has no `schema` cannot be finalised (`ConformanceError`).
+--- `schema.of` refuses a class that does not declare it: the declaration is the contract.
+M.Representable = core.interface("Representable", { "schema" })
 
---- The schema of a class: `target` is a class that declares a class-level function `schema()` returning its schema,
+--- Refuses a class that does not declare `Representable` (ArgumentError naming the class and the interface).
+---@param class any
+local function require_representable(class)
+  if core.is_class(class) and core.implements(class, M.Representable) then return end
+  local name = core.is_class(class) and core.name(class) or ("(not a class: " .. type(class) .. ")")
+  error(core.ArgumentError(("schema.of: class %s does not declare the interface schema.Representable; declare it with "
+    .. "`implements = { schema.Representable }` in the class options so that finalise checks its class-level schema()")
+    :format(name), { context = { class = name, interface = "Representable" } }), 0)
+end
+
+--- The schema of a class: `target` is a class that declares `schema.Representable` and a class-level function
+--- `schema()` returning its schema,
 --- or the name of a module returning such a class (loaded at first use, so that two modules can refer to each other).
 --- Resolution is lazy and memoized: `schema()` is called at first validation, coercion or emission, never at
 --- declaration, so classes may refer to each other, or to themselves. The emission closes a cycle with a `$ref` to the
@@ -1682,6 +1741,10 @@ function M.of(target)
     refuse("of: expects a class or a module name, got " .. type(target))
   end
   local resolved, resolving, bound_class
+  -- A class that is already finalised is checked at declaration; otherwise (and for a module name) at first use.
+  if type(target) == "table" and (not core.is_class(target) or core.is_finalised(target)) then
+    require_representable(target)
+  end
   local function resolve()
     if resolved ~= nil then return resolved end
     if resolving then error(core.ArgumentError("schema.of: the schema() of a class refers to itself while being resolved; use schema.of(Class) inside it, not Class.schema()")) end
@@ -1689,7 +1752,8 @@ function M.of(target)
     local ok, result = pcall(function()
       local class = target
       if type(class) == "string" then class = require(class) end
-      if type(class) ~= "table" or type(class.schema) ~= "function" then
+      require_representable(class)
+      if type(class.schema) ~= "function" then
         refuse("of: the class must declare a class-level function schema()")
       end
       bound_class = class

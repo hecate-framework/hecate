@@ -300,7 +300,7 @@ end
 -- s2: collisions with class members ---------------------------------------------------------------------------------
 
 local function class_with(name, setup, build)
-  local C = core.class(name)
+  local C = core.class(name, nil, { implements = { schema.Representable } })
   function C.schema() return build() end
   setup(C)
   core.finalise(C)
@@ -341,7 +341,7 @@ function T:test_represent_never_shows_a_prototype_field_or_a_method()
 end
 
 function T:test_represent_never_shows_a_prototype_field_of_a_value_class()
-  local C = core.value_class("PrototypedValue")
+  local C = core.value_class("PrototypedValue", nil, { implements = { schema.Representable } })
   C.role = "admin"
   function C.schema() return schema.object({ name = schema.string(), role = schema.optional(schema.string()) }) end
   core.finalise(C)

@@ -2,7 +2,7 @@
 local core = require("hecate.core")
 local schema = require("hecate.schema")
 
-local Filter = core.class("Filter")
+local Filter = core.class("Filter", nil, { implements = { schema.Representable } })
 function Filter.schema()
   return schema.object({
     status = schema.default(schema.string(), "open"),

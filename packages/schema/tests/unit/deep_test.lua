@@ -11,7 +11,7 @@ local MAX = 1000
 
 --- The schema of a class `Chain` whose instances hold an optional `next` instance (self-reference by `schema.of`).
 local function chain()
-  local Chain = core.class("Chain")
+  local Chain = core.class("Chain", nil, { implements = { schema.Representable } })
   function Chain.schema()
     return schema.object({ value = schema.optional(schema.integer()), next = schema.optional(schema.of(Chain)) })
   end
@@ -44,7 +44,7 @@ function T:test_decoded_maximum_depth_reports_the_deepest_path()
 end
 
 function T:test_decoded_maximum_depth_through_arrays_and_named()
-  local Tree = core.class("Tree")
+  local Tree = core.class("Tree", nil, { implements = { schema.Representable } })
   function Tree.schema() return schema.object({ children = schema.array(schema.of(Tree)) }) end
   core.finalise(Tree)
   local s = schema.of(Tree)

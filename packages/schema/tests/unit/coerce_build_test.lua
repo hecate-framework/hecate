@@ -5,7 +5,7 @@ local schema = require("hecate.schema")
 local T = test.Case("SchemaCoerceBuildTest")
 
 local function class_of(name, build, value)
-  local C = value and core.value_class(name) or core.class(name)
+  local C = value and core.value_class(name, nil, { implements = { schema.Representable } }) or core.class(name, nil, { implements = { schema.Representable } })
   function C.schema() return build() end
   core.finalise(C)
   return C

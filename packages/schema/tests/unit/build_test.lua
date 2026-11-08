@@ -7,7 +7,7 @@ local T = test.Case("SchemaBuildTest")
 
 --- A class `name` whose schema() is built by `build`.
 local function class_of(name, build)
-  local C = core.class(name)
+  local C = core.class(name, nil, { implements = { schema.Representable } })
   function C.schema() return build() end
   core.finalise(C)
   return C
@@ -33,10 +33,9 @@ local function user_class()
 end
 
 function T:test_interface_requires_a_class_level_schema_function()
-  local HasSchema = core.interface("HasSchema", { "schema" })
-  local Bad = core.class("Bad", nil, { implements = { HasSchema } })
+  local Bad = core.class("Bad", nil, { implements = { schema.Representable } })
   self:assert_false(pcall(core.finalise, Bad))
-  local Good = core.class("Good", nil, { implements = { HasSchema } })
+  local Good = core.class("Good", nil, { implements = { schema.Representable } })
   function Good.schema() return schema.object({}) end
   self:assert_true(pcall(core.finalise, Good))
 end
@@ -82,7 +81,7 @@ end
 
 function T:test_build_does_not_call_init()
   local calls = 0
-  local Account = core.class("Account")
+  local Account = core.class("Account", nil, { implements = { schema.Representable } })
   function Account.init(self, id, secret) calls = calls + 1; self.id = assert(id); self.secret = assert(secret) end
   function Account.schema() return schema.object({ id = schema.integer(), label = schema.optional(schema.string()) }) end
   core.finalise(Account)

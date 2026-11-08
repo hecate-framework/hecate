@@ -194,8 +194,8 @@ function T:test_a_module_or_class_that_does_not_resolve_is_refused_when_used_not
   local lazy = schema.of("hecate.no.such.module")
   local err = raised(function() return lazy:validate({}) end)
   self:assert_not_nil(err)
-  local bad = schema.of({})
-  assert_argument_error(self, raised(function() return bad:validate({}) end), "of({})")
+  -- A table that is not a class is refused at declaration.
+  assert_argument_error(self, raised(function() return schema.of({}) end), "of({})")
 end
 
 return T

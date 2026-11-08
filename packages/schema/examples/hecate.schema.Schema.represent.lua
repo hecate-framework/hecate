@@ -5,7 +5,7 @@ local schema = require("hecate.schema")
 
 local Status = core.enumeration("AccountStatus", { "active", "disabled" })
 
-local Account = core.class("Account")
+local Account = core.class("Account", nil, { implements = { schema.Representable } })
 function Account.schema()
   return schema.object({
     name = schema.string(),
@@ -24,7 +24,7 @@ print(plain.status, plain.password, core.is_instance_of(plain, Account))
 print(json.encode(plain.tags), json.encode(plain.name))
 
 -- A cycle in the object graph ends with an error that names the limit, instead of a hang.
-local Node = core.class("Node")
+local Node = core.class("Node", nil, { implements = { schema.Representable } })
 function Node.schema() return schema.object({ next = schema.optional(schema.of(Node)) }) end
 core.finalise(Node)
 

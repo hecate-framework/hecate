@@ -211,7 +211,21 @@ function translate(node, root, stack)
       if key ~= "anyOf" and not ANNOTATIONS[key] then skip("anyOf combined with: " .. key) end
     end
     local list = {}
-    for i, alternative in ipairs(node.anyOf) do list[i] = translate(alternative, root, stack) end
+    for i, alternative in ipairs(node.anyOf) do
+      list[i] = translate(alternative, root, stack)
+      local kind = list[i].kind
+      if kind == "null" or kind == "nullable" then
+        skip("anyOf with a null alternative (a Hecate union must not contain null, OQ-99)")
+      elseif kind == "literal" and list[i].options.value == json.null then
+        skip("anyOf with a const null alternative (a Hecate union must not contain null, OQ-100)")
+      elseif kind == "enumeration" then
+        for _, member in ipairs(list[i]:members()) do
+          if member == json.null then
+            skip("anyOf with an enum containing null (a Hecate union must not contain null, OQ-100)")
+          end
+        end
+      end
+    end
     return schema.union(list)
   end
   local kind = node.type
@@ -439,6 +453,9 @@ local EXPECTED_SKIPS = {
   ["skipped (Hecate schema): empty enum"] = 6,
   ["skipped (Hecate schema): enum with an array or an object"] = 20,
   ["skipped (Hecate schema): multipleOf that is not a whole number (Hecate refuses it)"] = 2,
+  ["skipped (Hecate schema): anyOf with a null alternative (a Hecate union must not contain null, OQ-99)"] = 2,
+  ["skipped (Hecate schema): anyOf with a const null alternative (a Hecate union must not contain null, OQ-100)"] = 0,
+  ["skipped (Hecate schema): anyOf with an enum containing null (a Hecate union must not contain null, OQ-100)"] = 0,
   ["skipped (Hecate schema): oneOf (a Hecate union is anyOf)"] = 27,
   ["skipped (Hecate schema): type array"] = 19,
   ["skipped (Hecate schema): untyped or inapplicable keyword: additionalProperties"] = 10,

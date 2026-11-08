@@ -7,7 +7,7 @@ local T = test.Case("SchemaValueBuildTest")
 
 --- A class `name` (value class when `value`) whose schema() is built by `build`; `init` needs arguments.
 local function class_of(name, build, value)
-  local C = value and core.value_class(name) or core.class(name)
+  local C = value and core.value_class(name, nil, { implements = { schema.Representable } }) or core.class(name, nil, { implements = { schema.Representable } })
   function C.schema() return build() end
   function C:init(a, b) self.a = a.x; self.b = b.y end -- would fail with no argument
   core.finalise(C)

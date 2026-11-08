@@ -60,6 +60,8 @@ local function gen_spec(rng, depth)
     end
     return { kind = "enumeration", values = values }
   elseif choice == 7 then
+    -- Only these kinds: a union must refuse every alternative that accepts null (OQ-99, OQ-100), so it never gets a
+    -- `null`, a `nullable`, a literal null or an enumeration containing null (those stay generated as plain properties).
     local pool = { "string", "integer", "boolean" }
     local first = rng.int(1, 3)
     local second = (first + rng.int(0, 1)) % 3 + 1 -- two scalar alternatives of different kinds

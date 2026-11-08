@@ -40,7 +40,7 @@ end
 
 --- A class `name` whose schema() returns `body`.
 local function class_named(name, body)
-  local C = core.class(name)
+  local C = core.class(name, nil, { implements = { schema.Representable } })
   function C.schema() return body end
   core.finalise(C)
   return C
