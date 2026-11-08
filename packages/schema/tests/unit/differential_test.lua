@@ -1,4 +1,4 @@
----@diagnostic disable: need-check-nil, param-type-mismatch, undefined-field, inject-field
+---@diagnostic disable: need-check-nil, param-type-mismatch, undefined-field, inject-field, assign-type-mismatch
 -- Seeded property-based differential (review finding S14): for random schemas built with the constructors and random
 -- JSON values (derived from the schema, then mutated), `Schema:validate(value)` must agree with the independent checker
 -- (`tests/support/conforms.lua`) applied to `to_json_schema()`. The seed is fixed, can be overridden by

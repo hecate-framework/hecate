@@ -1,4 +1,4 @@
----@diagnostic disable: need-check-nil, param-type-mismatch, undefined-field, inject-field, invisible
+---@diagnostic disable: need-check-nil, param-type-mismatch, undefined-field, inject-field, invisible, assign-type-mismatch, missing-parameter, redundant-parameter
 -- Bad options and bad arguments of every constructor (review finding q1): each documented option refuses a wrong-typed
 -- value with an `ArgumentError` whose `context.option` names it, an unknown option is refused the same way and lists the
 -- accepted ones, and every constructor refuses a wrong argument with an `ArgumentError`. The accepted names of each
