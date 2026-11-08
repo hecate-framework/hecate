@@ -3,7 +3,7 @@ description: Déclarer des schémas avec hecate.schema, valider et convertir des
 hecate: "0.x"
 lua: "5.5"
 order: 7
-source_revision: 135eb4535b8734db2bc5ef6c3f7faf77ac8299ea
+source_revision: 116ae908aeaefad8e0404a64f574f53f59605f19
 ---
 
 # Valider des valeurs avec des schémas
@@ -37,216 +37,71 @@ print(("%s %d %s %s"):format(tostring(ok), #violations, violations[1].path, viol
 -- Prints: false 2 /age /name
 ```
 
-`check(value)` renvoie la valeur ou lève une `ValidationError` dont `context.violations` contient la même liste. Les
-propriétés non déclarées d’un `object` sont refusées, sauf si `additional_properties` dit le contraire.
+Les propriétés non déclarées d’un `object` sont refusées (violation `additional_properties`), sauf si l’option
+`additional_properties = true` dit le contraire. Les codes de violation sont stables ; la liste est dans la
+[spécification](https://github.com/hecate-framework/hecate/blob/main/docs/architecture/schemas-and-contracts.md#violation-codes).
 
-## Contraindre les chaînes
+`check(value)` est la forme qui lève de `validate` : elle renvoie la valeur quand elle est conforme, et lève sinon une
+`ValidationError` dont `context.violations` contient la même liste. `coerce` et `build` ne lèvent pas d’erreur : elles
+renvoient deux valeurs, `true` et le résultat, ou `false` et la liste des violations.
 
-`format` vérifie un format courant : `uuid`, `date`, `date-time`, `email`, `ipv4` ou `uri`. `pattern` est un motif Lua,
-pas une expression régulière. La validation l’utilise tel qu’il est écrit. L’émission le traduit en expression
-régulière ECMA-262 pour le contrat.
+### Rapporter les violations à un client
 
-<!-- example: packages/schema/examples/hecate.schema.string.lua -->
+Un client a besoin du JSON Pointer de chaque valeur fautive, d’un code stable et d’un message, pas d’une erreur Lua.
+`check` lève une `ValidationError` ; transformez `context.violations` en la table simple d’une réponse de détails de
+problème (RFC 9457) avec une entrée par violation. Le `message` d’une violation ne contient jamais la valeur envoyée par
+le client, il peut donc être renvoyé sans risque. Le noyau (*kernel*) fait cette conversion pour vous ; l’exemple montre
+ce qu’il envoie.
+
+<!-- example: packages/schema/examples/hecate.schema.Schema.check.lua -->
 ```lua
--- `format` checks well-known string formats. `pattern` is a Lua pattern, translated to an
--- ECMA-262 regular expression when the schema is emitted.
-local schema = require("hecate.schema")
-
-print((schema.string({ format = "email" }):validate("ada@example.org")))
-
-local sku = schema.string({ pattern = "^%u%u%-%d+$" })
-print((sku:validate("AB-42")), (sku:validate("ab-42")))
-print(sku:to_json_schema().pattern)
-
--- A pattern that cannot be translated exactly is refused when emitting, never approximated:
--- `%b` and `%f`, and any non-ASCII byte.
-for _, pattern in ipairs({ "%bxy", "%f[%w]", "caf\u{e9}" }) do
-  local refused = schema.string({ pattern = pattern })
-  print((pcall(refused.to_json_schema, refused)))
-end
-
--- A `logger` reports the pattern at declaration instead.
-local logger = { warning = function(_, message) print(message) end }
-schema.string({ pattern = "%bxy", logger = logger })
--- Prints: true
--- true	false
--- ^[A-Z][A-Z]-[0-9]+$
--- false
--- false
--- false
--- schema: the pattern cannot be emitted as a JSON Schema pattern
-```
-
-La traduction est exacte pour un sous-ensemble défini et refuse le reste. Les constructions refusées sont `%b`, `%f`,
-la capture de position `()` et tout octet non ASCII dans le motif. Un schéma qui a un tel motif valide quand même en Lua,
-mais `to_json_schema()` lève une `ArgumentError`. Passez un `logger` (tout objet doté d’une méthode
-`warning(message, fields)`) pour être prévenu à la déclaration. Le sous-ensemble est décrit dans
-[la spécification](https://github.com/hecate-framework/hecate/blob/main/docs/architecture/schemas-and-contracts.md#the-pattern-option).
-
-## Limiter les nombres et les décimales
-
-`integer` n’accepte que des entiers Lua, donc `1.0` est refusé. `multiple_of` prend un diviseur entier strictement
-positif. Un diviseur fractionnaire comme `0.01` est refusé à la déclaration, parce que les flottants binaires ne savent
-pas exprimer un pas décimal : `19.99` serait rejeté pour `0.01`, alors qu’un validateur à arithmétique décimale
-l’accepte, et le contrat et le validateur ne seraient pas d’accord. Pour limiter le nombre de décimales, choisissez
-l’une de ces deux solutions.
-
-- Utilisez un entier en unités mineures, par exemple des centimes, ce qui est le bon modèle pour l’argent.
-- Utilisez une chaîne avec un `pattern`, par exemple exactement deux décimales. JSON Schema n’a pas d’autre mot-clé
-  pour un nombre de décimales.
-
-<!-- example: packages/schema/examples/hecate.schema.integer.lua -->
-```lua
--- `multiple_of` takes a whole-number divisor. For decimal places, use minor units or a string.
-local schema = require("hecate.schema")
-
-local lots = schema.integer({ multiple_of = 5 })
-print((lots:validate(15)), (lots:validate(16)))
-
--- A fractional divisor is refused at declaration: binary floats cannot express a decimal step.
-local declared, err = pcall(schema.number, { multiple_of = 0.01 })
-print(declared, tostring(err):match("ArgumentError: ([^;]+)"))
-
--- First alternative: an integer in minor units, here cents (1999 is 19.99).
-local cents = schema.integer({ minimum = 0 })
-print((cents:validate(1999)))
-
--- Second alternative: a string with exactly two decimals.
-local price = schema.string({ pattern = "^%d+%.%d%d$" })
-print((price:validate("19.99")), (price:validate("19.9")))
--- Prints: true	false
--- false	schema: number: option multiple_of must be a whole number
--- true
--- true	false
-```
-
-## Déclarer des tables associatives et des énumérations
-
-Un `map` a des clés de type chaîne qui ne sont pas connues à l’avance et un seul schéma pour toutes les valeurs. Il ne
-prend pas de schéma de clés, parce que les clés d’un objet JSON sont toujours des chaînes. `min_properties` et
-`max_properties` bornent sa taille.
-
-<!-- example: packages/schema/examples/hecate.schema.map.lua -->
-```lua
--- A map has string keys that are not declared in advance, and one schema for every value.
-local schema = require("hecate.schema")
-
-local stock = schema.map(schema.integer({ minimum = 0 }), { max_properties = 2 })
-
-print((stock:validate({ apples = 3, pears = 0 })))
-
-local _, violations = stock:validate({ apples = -1 })
-local violation = assert(violations)[1]
-print(violation.path, violation.code)
-
-_, violations = stock:validate({ apples = 1, pears = 2, plums = 3 })
-violation = assert(violations)[1]
-print(violation.path == "", violation.code)
-
--- The emission is an object whose `additionalProperties` is the schema of the values.
-print(stock:to_json_schema().additionalProperties.type)
--- Prints: true
--- /apples	minimum
--- true	max_properties
--- integer
-```
-
-`schema.enumeration` accepte aussi une énumération de `hecate.core`. La forme JSON d’un membre est son nom, donc
-`validate` et `coerce` acceptent exactement les noms et jamais un objet membre. `build` remplace un nom par le membre,
-y compris dans les objets, les tableaux et les tables associatives. Une valeur par défaut se donne sous forme de nom.
-
-<!-- example: packages/schema/examples/hecate.schema.enumeration.lua -->
-```lua
--- An enumeration of `core` is represented in JSON by the name of its members.
+-- Report violations to a client: `check` raises a `ValidationError`, and its violations become the plain
+-- table of a problem details response (the kernel does this conversion for you).
 local core = require("hecate.core")
 local schema = require("hecate.schema")
 
-local Status = core.enumeration("Status", { "active", "disabled", "pending" })
-local account = schema.object({ status = schema.enumeration(Status) })
-
-print((account:validate({ status = "active" })))
-
--- Only the names are accepted, never the member itself.
-local _, violations = account:validate({ status = "Active" })
-local violation = assert(violations)[1]
-print(violation.path, violation.code, table.concat(assert(violation.context).values, " "))
-
--- `build` replaces the name by the member.
-local _, built = account:build({ status = "disabled" })
-print(built.status == Status.disabled)
-
-local emitted = account:to_json_schema().properties.status
-print(emitted.type, #emitted.enum)
--- Prints: true
--- /status	enum	active disabled pending
--- true
--- string	3
-```
-
-## Choisir entre `union` et `tagged_union`
-
-Quand les alternatives d’une somme se distinguent par une propriété qui contient une constante (un champ `type` ou
-`kind`), déclarez une `tagged_union` : le validateur lit l’étiquette une fois et ne valide que la variante choisie,
-sans revalidation. Une violation à l’intérieur de la variante garde son propre chemin. Une étiquette absente est une
-violation `required` à la propriété d’étiquette, et une étiquette inconnue ou qui n’est pas une chaîne est une
-violation `tagged_union` qui énumère les variantes dans `context.values`.
-
-<!-- example: packages/schema/examples/hecate.schema.tagged_union.lua -->
-```lua
--- A tagged union reads the tag once and validates only the selected variant.
-local schema = require("hecate.schema")
-
-local shape = schema.tagged_union("kind", {
-  circle = schema.object({ radius = schema.number({ exclusive_minimum = 0 }) }),
-  rectangle = schema.object({ width = schema.number(), height = schema.number() }),
+local user = schema.object({
+  name = schema.string({ min_length = 1 }),
+  age = schema.integer({ minimum = 0 }),
 })
 
-print((shape:validate({ kind = "circle", radius = 2 })))
+local ok, err = pcall(user.check, user, { name = "", age = -1 })
+print(ok, core.is_instance_of(err, core.ValidationError))
 
--- The violations are those of the selected variant, at the path of the offending value.
-local _, violations = shape:validate({ kind = "circle", radius = -1 })
-local violation = assert(violations)[1]
-print(violation.path, violation.code)
+-- One entry per violation: the JSON Pointer of the value, the stable code and the message (no client value in it).
+local problem = { type = "about:blank", title = "The content is not valid", status = 400, errors = {} }
+for _, violation in ipairs(err.context.violations) do
+  problem.errors[#problem.errors + 1] = { pointer = violation.path, code = violation.code, detail = violation.message }
+end
+for _, entry in ipairs(problem.errors) do
+  print(entry.pointer, entry.code, entry.detail)
+end
 
--- An unknown tag lists the variants; a missing tag is a missing property.
-_, violations = shape:validate({ kind = "triangle" })
-violation = assert(violations)[1]
-print(violation.path, violation.code, table.concat(assert(violation.context).values, " "))
-_, violations = shape:validate({ radius = 2 })
-violation = assert(violations)[1]
-print(violation.path, violation.code)
-
--- The emission is a `oneOf` of the variants, each with the tag as a constant.
-print(#shape:to_json_schema().oneOf)
--- Prints: true
--- /radius	exclusive_minimum
--- /kind	tagged_union	circle rectangle
--- /kind	required
--- 2
+-- A conforming value is returned as it is.
+print(user:check({ name = "Ada", age = 36 }).name)
+-- Prints: false	true
+-- /age	minimum	the value is less than 0
+-- /name	min_length	the string is shorter than 1
+-- Ada
 ```
 
-Une `union` décide chaque alternative à tour de rôle (en s’arrêtant à la première violation, propriétés littérales
-d’abord) et mémorise sa réponse pour chaque table du contenu pendant un appel, de sorte que le travail est
-proportionnel au nombre de tables multiplié par le nombre d’unions. En dernier recours, un appel qui demande plus de
-1 000 000 d’étapes se termine par une violation `complexity_limit` au chemin où il s’est arrêté. Une `union` en échec
-ne rapporte les violations de ses alternatives dans `context.alternatives` que pour l’union la plus externe.
-
-## Nommer et réutiliser des schémas
+## Donner son schéma à une classe
 
 Une classe possède le nom de son schéma. Déclarez une fonction de niveau classe `schema()` qui renvoie le schéma, et
 utilisez `schema.of(Class)` partout où la classe est une partie d’un autre schéma. Pour rendre la règle vérifiable,
-déclarez une interface qui exige `schema` : `finalise` lève alors une `ConformanceError` pour une classe qui n’en a
-pas. L’émission place le corps une seule fois dans le `$defs` racine sous le nom de la classe et utilise un `$ref` à
+déclarez l’interface `schema.HasSchema`, qui exige `schema` : `finalise` lève alors une `ConformanceError` pour une
+classe qui la déclare sans fonction `schema`. La déclarer est facultatif, et `schema.of` accepte toute classe qui a
+`schema()`. L’émission place la définition une seule fois dans le `$defs` racine sous le nom de la classe et utilise un `$ref` à
 chaque emploi. Les classes peuvent se référencer mutuellement ou elles-mêmes.
 
 <!-- example: packages/schema/examples/hecate.schema.of.lua -->
 ```lua
--- A class owns the schema of its instances: an interface requires a class-level `schema()`, and
+-- A class owns the schema of its instances: the interface `schema.HasSchema` requires a class-level `schema()`, and
 -- `schema.of(Class)` uses the class wherever it is a part of another schema.
 local core = require("hecate.core")
 local schema = require("hecate.schema")
 
-local HasSchema = core.interface("HasSchema", { "schema" })
+local HasSchema = schema.HasSchema
 
 local Address = core.class("Address", nil, { implements = { HasSchema } })
 function Address.schema()
@@ -275,16 +130,6 @@ print(document["$ref"], document["$defs"].User.properties.address["$ref"])
 -- #/$defs/User	#/$defs/Address
 ```
 
-Un schéma qui n’a ni classe ni appel à `named` est mis en ligne et ne reçoit jamais de nom.
-
-Pour un objet de transfert de données (*data transfer object*) qui n’a pas de classe, `schema.named("User", body)` est
-le choix explicite : il valide et convertit comme `body`, et l’émission le nomme de la même façon. Un nom est composé
-de lettres, de chiffres, de `_`, de `.` et de `-`.
-
-Deux corps différents sous un même nom dans une même émission lèvent une `ArgumentError` qui nomme le nom en conflit et
-dit d’où vient chacun : une classe ou `named`. Cela couvre un nom en ligne égal au nom d’une classe. Des corps égaux
-partagent une seule définition.
-
 ## Construire des instances
 
 `build(content, { method })` valide un contenu JSON décodé et renvoie `true` et la valeur, ou `false` et les
@@ -296,9 +141,9 @@ figées.
 `method` vaut `"POST"` ou `"PUT"` (strict, par défaut) ou `"PATCH"`. La règle d’un PATCH est dans les sections
 suivantes.
 
-### Construire à partir de textes de chemin, de requête et d’en-tête
+### Construire à partir de textes de chemin, de requête et de champs d’en-tête
 
-Les valeurs de requête, de chemin et d’en-tête sont des textes. Passez `coerce = true` pour les convertir avec les
+Les valeurs de requête, de chemin et de champs d’en-tête sont des textes. Passez `coerce = true` pour les convertir avec les
 règles de `coerce` et construire les instances en un seul appel. Un texte qui ne peut pas être converti donne la même
 violation `coercion`, au même chemin, que `coerce`. Les valeurs par défaut s’appliquent une seule fois, dans la
 conversion, et jamais pour un PATCH. `schema.sent` n’enregistre que les attributs fournis par le client. `coerce` doit
@@ -509,3 +354,212 @@ print(("%s %d"):format(document.type, #document.required))
 
 Les choix faits de façon conservatrice (par exemple, `integer` refuse `1.0`) sont énumérés dans le README du paquet et
 dans les questions ouvertes.
+
+## Cas limites
+
+Les sections suivantes couvrent les options et les constructions qui se comportent d’une façon qui peut surprendre.
+
+### Contraindre les chaînes
+
+`format` vérifie un format courant : `uuid`, `date`, `date-time`, `email`, `ipv4` ou `uri`. `pattern` est un motif Lua,
+pas une expression régulière. La validation l’utilise tel qu’il est écrit. L’émission le traduit en expression
+régulière ECMA-262 pour le contrat.
+
+<!-- example: packages/schema/examples/hecate.schema.string.lua -->
+```lua
+-- `format` checks well-known string formats. `pattern` is a Lua pattern, translated to an
+-- ECMA-262 regular expression when the schema is emitted.
+local schema = require("hecate.schema")
+
+print((schema.string({ format = "email" }):validate("ada@example.org")))
+
+local sku = schema.string({ pattern = "^%u%u%-%d+$" })
+print((sku:validate("AB-42")), (sku:validate("ab-42")))
+print(sku:to_json_schema().pattern)
+
+-- A pattern that cannot be translated exactly is refused when emitting, never approximated:
+-- `%b` and `%f`, and any non-ASCII byte.
+for _, pattern in ipairs({ "%bxy", "%f[%w]", "caf\u{e9}" }) do
+  local refused = schema.string({ pattern = pattern })
+  print((pcall(refused.to_json_schema, refused)))
+end
+
+-- A `logger` reports the pattern at declaration instead.
+local logger = { warning = function(_, message) print(message) end }
+schema.string({ pattern = "%bxy", logger = logger })
+-- Prints: true
+-- true	false
+-- ^[A-Z][A-Z]-[0-9]+$
+-- false
+-- false
+-- false
+-- schema: pattern "%bxy" cannot be emitted: %b has no exact translation
+```
+
+La traduction est exacte pour un sous-ensemble défini et refuse le reste. Les constructions refusées sont `%b`, `%f`,
+la capture de position `()` et tout octet non ASCII dans le motif. Un schéma qui a un tel motif valide quand même en Lua,
+mais `to_json_schema()` lève une `ArgumentError` qui le dit et indique comment réécrire le motif : utilisez des
+ensembles, des classes, `format`, `min_length` ou `enum`. Passez un `logger` (tout objet doté d’une méthode
+`warning(message, fields)`) pour être prévenu à la déclaration : le texte de l’avertissement contient le motif et la
+raison, et `fields` aussi. Le sous-ensemble est décrit dans
+[la spécification](https://github.com/hecate-framework/hecate/blob/main/docs/architecture/schemas-and-contracts.md#the-pattern-option).
+
+### Limiter les nombres et les décimales
+
+`integer` n’accepte que des entiers Lua, donc `1.0` est refusé. `multiple_of` prend un diviseur entier strictement
+positif. Un diviseur fractionnaire comme `0.01` est refusé à la déclaration, parce que les flottants binaires ne savent
+pas exprimer un pas décimal : `19.99` serait rejeté pour `0.01`, alors qu’un validateur à arithmétique décimale
+l’accepte, et le contrat et le validateur ne seraient pas d’accord. Pour limiter le nombre de décimales, choisissez
+l’une de ces deux solutions.
+
+- Utilisez un entier en unités mineures, par exemple des centimes, ce qui est le bon modèle pour l’argent.
+- Utilisez une chaîne avec un `pattern`, par exemple exactement deux décimales. JSON Schema n’a pas d’autre mot-clé
+  pour un nombre de décimales.
+
+<!-- example: packages/schema/examples/hecate.schema.integer.lua -->
+```lua
+-- `multiple_of` takes a whole-number divisor. For decimal places, use minor units or a string.
+local schema = require("hecate.schema")
+
+local lots = schema.integer({ multiple_of = 5 })
+print((lots:validate(15)), (lots:validate(16)))
+
+-- A fractional divisor is refused at declaration: binary floats cannot express a decimal step.
+local declared, err = pcall(schema.number, { multiple_of = 0.01 })
+print(declared, tostring(err):match("ArgumentError: ([^;]+)"))
+
+-- First alternative: an integer in minor units, here cents (1999 is 19.99).
+local cents = schema.integer({ minimum = 0 })
+print((cents:validate(1999)))
+
+-- Second alternative: a string with exactly two decimals.
+local price = schema.string({ pattern = "^%d+%.%d%d$" })
+print((price:validate("19.99")), (price:validate("19.9")))
+-- Prints: true	false
+-- false	schema: number: option multiple_of must be a whole number
+-- true
+-- true	false
+```
+
+### Déclarer des tables associatives et des énumérations
+
+Un `map` a des clés de type chaîne qui ne sont pas connues à l’avance et un seul schéma pour toutes les valeurs. Il ne
+prend pas de schéma de clés, parce que les clés d’un objet JSON sont toujours des chaînes. `min_properties` et
+`max_properties` bornent sa taille.
+
+<!-- example: packages/schema/examples/hecate.schema.map.lua -->
+```lua
+-- A map has string keys that are not declared in advance, and one schema for every value.
+local schema = require("hecate.schema")
+
+local stock = schema.map(schema.integer({ minimum = 0 }), { max_properties = 2 })
+
+print((stock:validate({ apples = 3, pears = 0 })))
+
+local _, violations = stock:validate({ apples = -1 })
+local violation = assert(violations)[1]
+print(violation.path, violation.code)
+
+_, violations = stock:validate({ apples = 1, pears = 2, plums = 3 })
+violation = assert(violations)[1]
+print(violation.path == "", violation.code)
+
+-- The emission is an object whose `additionalProperties` is the schema of the values.
+print(stock:to_json_schema().additionalProperties.type)
+-- Prints: true
+-- /apples	minimum
+-- true	max_properties
+-- integer
+```
+
+`schema.enumeration` accepte aussi une énumération de `hecate.core`. La forme JSON d’un membre est son nom, donc
+`validate` et `coerce` acceptent exactement les noms et jamais un objet membre. `build` remplace un nom par le membre,
+y compris dans les objets, les tableaux et les tables associatives. Une valeur par défaut se donne sous forme de nom.
+
+<!-- example: packages/schema/examples/hecate.schema.enumeration.lua -->
+```lua
+-- An enumeration of `core` is represented in JSON by the name of its members.
+local core = require("hecate.core")
+local schema = require("hecate.schema")
+
+local Status = core.enumeration("Status", { "active", "disabled", "pending" })
+local account = schema.object({ status = schema.enumeration(Status) })
+
+print((account:validate({ status = "active" })))
+
+-- Only the names are accepted, never the member itself.
+local _, violations = account:validate({ status = "Active" })
+local violation = assert(violations)[1]
+print(violation.path, violation.code, table.concat(assert(violation.context).values, " "))
+
+-- `build` replaces the name by the member.
+local _, built = account:build({ status = "disabled" })
+print(built.status == Status.disabled)
+
+local emitted = account:to_json_schema().properties.status
+print(emitted.type, #emitted.enum)
+-- Prints: true
+-- /status	enum	active disabled pending
+-- true
+-- string	3
+```
+
+### Choisir entre `union` et `tagged_union`
+
+Quand les alternatives d’une somme se distinguent par une propriété qui contient une constante (un champ `type` ou
+`kind`), déclarez une `tagged_union` : le validateur lit l’étiquette une fois et ne valide que la variante choisie,
+sans revalidation. Une violation à l’intérieur de la variante garde son propre chemin. Une étiquette absente est une
+violation `required` à la propriété d’étiquette, et une étiquette inconnue ou qui n’est pas une chaîne est une
+violation `tagged_union` qui énumère les variantes dans `context.values`.
+
+<!-- example: packages/schema/examples/hecate.schema.tagged_union.lua -->
+```lua
+-- A tagged union reads the tag once and validates only the selected variant.
+local schema = require("hecate.schema")
+
+local shape = schema.tagged_union("kind", {
+  circle = schema.object({ radius = schema.number({ exclusive_minimum = 0 }) }),
+  rectangle = schema.object({ width = schema.number(), height = schema.number() }),
+})
+
+print((shape:validate({ kind = "circle", radius = 2 })))
+
+-- The violations are those of the selected variant, at the path of the offending value.
+local _, violations = shape:validate({ kind = "circle", radius = -1 })
+local violation = assert(violations)[1]
+print(violation.path, violation.code)
+
+-- An unknown tag lists the variants; a missing tag is a missing property.
+_, violations = shape:validate({ kind = "triangle" })
+violation = assert(violations)[1]
+print(violation.path, violation.code, table.concat(assert(violation.context).values, " "))
+_, violations = shape:validate({ radius = 2 })
+violation = assert(violations)[1]
+print(violation.path, violation.code)
+
+-- The emission is a `oneOf` of the variants, each with the tag as a constant.
+print(#shape:to_json_schema().oneOf)
+-- Prints: true
+-- /radius	exclusive_minimum
+-- /kind	tagged_union	circle rectangle
+-- /kind	required
+-- 2
+```
+
+Une `union` décide chaque alternative à tour de rôle (en s’arrêtant à la première violation, propriétés littérales
+d’abord) et mémorise sa réponse pour chaque table du contenu pendant un appel, de sorte que le travail est
+proportionnel au nombre de tables multiplié par le nombre d’unions. En dernier recours, un appel qui demande plus de
+1 000 000 d’étapes se termine par une violation `complexity_limit` au chemin où il s’est arrêté. Une `union` en échec
+ne rapporte les violations de ses alternatives dans `context.alternatives` que pour l’union la plus externe.
+
+### Nommer un schéma sans classe
+
+Un schéma qui n’a ni classe ni appel à `named` est mis en ligne et ne reçoit jamais de nom.
+
+Pour un schéma en ligne (*inline schema*) qui n’a pas de classe, `schema.named("User", definition)` est le choix
+explicite : il valide et convertit comme `definition`, et l’émission le nomme de la même façon. Un nom est composé
+de lettres, de chiffres, de `_`, de `.` et de `-`.
+
+Deux définitions différentes sous un même nom dans une même émission lèvent une `ArgumentError` qui nomme le nom en conflit et
+dit d’où vient chacun : une classe ou `named`. Cela couvre un nom en ligne égal au nom d’une classe. Des définitions égales
+partagent une seule définition.

@@ -3,7 +3,7 @@ description: Pourquoi hecate.schema décrit les types comme des données d’ex�
 hecate: "0.x"
 lua: "5.5"
 order: 5
-source_revision: 135eb4535b8734db2bc5ef6c3f7faf77ac8299ea
+source_revision: 116ae908aeaefad8e0404a64f574f53f59605f19
 ---
 
 # Schémas et contrats
@@ -22,7 +22,7 @@ types statiques à lire, donc la déclaration elle-même est le type.
 C’est ce qui rend hecate orienté contrat (*contract-first*). Une seule valeur pilote tous les usages d’un type :
 
 - la validation d’un contenu décodé,
-- la coercition des textes d’un chemin, d’une chaîne de requête ou d’un en-tête,
+- la coercition des textes d’un chemin, d’une chaîne de requête ou des champs d’en-tête,
 - les instances que reçoit une action,
 - le document JSON Schema 2020-12 du contrat.
 
@@ -41,7 +41,7 @@ Trois opérations lisent une valeur par rapport à un schéma. Elles répondent 
 | Opération | Entrée | Réponse |
 |---|---|---|
 | `validate` | contenu JSON décodé | la valeur est-elle conforme ? Ne change rien |
-| `coerce` | les textes d’un chemin, d’une requête ou d’un en-tête | la valeur typée, avec les valeurs par défaut fournies |
+| `coerce` | les textes d’un chemin, d’une requête ou des champs d’en-tête | la valeur typée, avec les valeurs par défaut fournies |
 | `build` | contenu JSON décodé, ou textes avec `coerce = true` | une instance de la classe de chaque partie |
 
 `validate` est pure. Elle renvoie toutes les [violations](../reference/glossary.md#types-and-validation)
@@ -65,7 +65,9 @@ de leurs noms, les parties imbriquées, les tableaux, les tables associatives et
 noyau encode ensuite ce résultat simple avec `json.encode` : une instance devient des valeurs simples, puis du JSON, et
 `hecate.json` ignore tout des classes. `represent` ne valide pas, puisqu’une réponse non conforme est un bogue du
 serveur, et elle est bornée par la même garde de profondeur et le même budget de travail que les autres opérations, de
-sorte qu’un cycle dans le graphe d’objets se termine par une erreur `depth_limit`.
+sorte qu’un cycle dans le graphe d’objets se termine par une erreur `depth_limit`. Un attribut qui a été envoyé comme
+`null` est représenté comme `null`, de sorte que le décodage, le build, `represent` et l’encodage redonnent le même
+contenu.
 
 ## L’ensemble de présence et PATCH
 
@@ -92,7 +94,7 @@ attribut rempli par une valeur par défaut, de sorte qu’une action peut savoir
 ## Pourquoi les classes possèdent les noms de schémas
 
 Un contrat d’API a des composants nommés. Quelqu’un doit posséder les noms. Dans hecate, c’est la classe. Une classe
-déclare une fonction de niveau classe `schema()` et une interface peut l’exiger. Un autre schéma ou une route nomme la
+déclare une fonction de niveau classe `schema()`, et l’interface `schema.HasSchema` peut l’exiger. Un autre schéma ou une route nomme la
 classe elle-même avec `schema.of(Class)`, jamais une chaîne.
 
 Cela donne un seul endroit pour chaque nom et une seule fonction pour chaque type. La validation, la coercition, le
@@ -100,8 +102,8 @@ build et l’émission appellent tous la même fonction, et le résultat est mis
 L’émission écrit chaque classe une seule fois dans `$defs` et y fait référence. Les types récursifs fonctionnent parce
 que la résolution est paresseuse, et un cycle se referme avec un `$ref`.
 
-Un schéma sans classe est mis en ligne et jamais nommé. `named` est le choix explicite pour un objet de transfert de
-données qui n’a pas de classe. Deux corps différents sous un même nom sont une erreur, pas une fusion silencieuse, de
+Un schéma sans classe est mis en ligne et jamais nommé. `named` est le choix explicite pour un schéma en ligne
+(*inline schema*) qui n’a pas de classe. Deux définitions différentes sous un même nom sont une erreur, pas une fusion silencieuse, de
 sorte qu’un contrat ne change jamais de sens à cause de l’ordre des déclarations.
 
 ## Bornes de sûreté
@@ -130,7 +132,9 @@ cacher, et n’approxime jamais en silence.
 - **Motifs Lua et ECMA-262.** `pattern` est un motif Lua, pas une expression régulière. L’émission traduit
   exactement un sous-ensemble ASCII défini et refuse le reste (`%b`, `%f`, octets non ASCII). Lua apparie des octets
   et ECMA-262 apparie des unités de code UTF-16, de sorte que `.` et les ensembles niés peuvent diverger sur une
-  entrée non ASCII. Pour une entrée ASCII, les deux s’accordent.
+  entrée non ASCII. Pour une entrée ASCII, les deux s’accordent. Les motifs Lua peuvent aussi revenir en arrière
+  (*backtrack*), donc les motifs doivent être ancrés, et une chaîne de plus de 65536 octets sans `max_length` n’est
+  jamais appariée (violation `pattern` avec `context.reason` valant `too_long_for_pattern`).
 - **Octets et points de code.** `min_length` et `max_length` comptent des points de code, comme le fait JSON Schema, et
   une chaîne qui n’est pas de l’UTF-8 bien formé est une violation. `pattern` apparie des octets.
 - **`1.0` et integer.** `integer` n’accepte que des entiers Lua. JSON Schema ne distingue pas `1` de `1.0`, donc les
@@ -141,6 +145,16 @@ cacher, et n’approxime jamais en silence.
   utilisez des entiers en unités mineures ou une chaîne avec un motif.
 - **Constructions non prises en charge.** Une construction que JSON Schema ne peut pas exprimer exactement n’est pas
   autorisée.
+- **Mots-clés hors du sous-ensemble émis.** L’émission couvre `type`, `enum`, `const`, les raffinements numériques, de
+  chaîne, de tableau et d’objet, `properties`, `required`, `additionalProperties`, `items`, `anyOf`, `oneOf`, `default`,
+  `format`, `$defs` et le `$ref` local. Ces mots-clés ne sont pas émis, comme limite délibérée : `allOf`, `not`, `if`,
+  `then` et `else`, `contains`, `prefixItems`, `patternProperties`, `propertyNames`, `dependentSchemas`,
+  `dependentRequired`, `unevaluatedProperties`, `unevaluatedItems`, `$id`, les ancres, `$dynamicRef`, le `$ref` distant
+  et les mots-clés `content`. Ils sont hors du périmètre tant qu’aucun consommateur n’en a besoin. `oneOf` n’est émis
+  que par `tagged_union` : une `union` est un `anyOf`.
+- **Prévu, non implémenté.** `refine` (un prédicat personnalisé), les générateurs de valeurs d’exemple (`generate`,
+  `generate_invalid`, portés par le paquet `test`) et la génération de fichiers `---@meta` pour LuaLS (portée par `doc`
+  ou `cli`) n’existent pas encore.
 
 ## Lectures associées
 
