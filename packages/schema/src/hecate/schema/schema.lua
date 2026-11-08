@@ -31,19 +31,20 @@ end
 
 core.finalise(Options)
 
---- A validator: appends the violations of `value` (at JSON Pointer `path`) to `out`.
----@alias hecate.schema.Validator fun(value: any, path: string, out: hecate.schema.RawViolation[])
+--- A validator: appends the violations of `value`, found at the node whose path has `at` reference tokens (see `path_to`),
+--- to `out`.
+---@alias hecate.schema.Validator fun(value: any, at: integer, out: hecate.schema.RawViolation[])
 
 --- A coercer: returns `value` converted from its textual form to the type of the schema; appends a `coercion`
 --- violation to `out` when a text cannot be converted. Values that are not text pass through unchanged.
----@alias hecate.schema.Coercer fun(value: any, path: string, out: hecate.schema.RawViolation[]): any
+---@alias hecate.schema.Coercer fun(value: any, at: integer, out: hecate.schema.RawViolation[]): any
 
 --- A builder: returns the conforming `value` with every class-bound part replaced by an instance of its class.
 ---@alias hecate.schema.Builder fun(value: any): any
 
---- A representer: returns the plain JSON-ready form of `value` (at JSON Pointer `path`), in fresh tables. It does not
+--- A representer: returns the plain JSON-ready form of `value` (found at the node whose path has `at` reference tokens), in fresh tables. It does not
 --- validate; it raises `ValidationError` when the nesting guard or the work budget stops it (see `Schema:represent`).
----@alias hecate.schema.Representer fun(value: any, path: string): any
+---@alias hecate.schema.Representer fun(value: any, at: integer): any
 
 --- A violation as collected during validation, before it becomes a `Violation`.
 ---@class hecate.schema.RawViolation
@@ -149,19 +150,65 @@ function remark(value, result)
   return result
 end
 
+--- Fail-fast mode: set while an alternative of a union is tried, only to learn whether it accepts. Validators then
+--- stop at the first violation, check discriminating properties (literals) first and build no detail.
+local fast = false
+
+--- The path of the node being visited, as a stack of reference tokens (P1 of the review). A path is needed only where a
+--- violation is recorded, so a visit passes `at`, the number of tokens of its own path, instead of building a string:
+--- a container sets `segments[at + 1]` to the token of the child it descends into and passes `at + 1`. A token is an
+--- integer (the 0-based index of an array item) or a string (a property name, already cut to `MAX_ECHO` for a map key),
+--- escaped by `path_to`. Only the entries below `at` are meaningful, and a visit writes only above its own `at`, so
+--- the entries of the ancestors stay valid whatever the descendants do; the stack is never cleared.
+---@type (integer|string)[]
+local segments = {}
+
+--- The escaped reference token `k` of the segment stack, with its leading slash.
+---@param k integer
+---@return string
+local function segment(k)
+  local token = segments[k]
+  if type(token) == "number" then return "/" .. token end
+  if token:find("[~/]") then return "/" .. escape_token(token) end -- only a token that needs it pays the two substitutions
+  return "/" .. token
+end
+
+--- The JSON Pointer (RFC 6901) of the node whose path has `at` tokens, joined from the segment stack.
+---@param at integer
+---@return string
+local function path_to(at)
+  if at == 0 then return "" end
+  if at == 1 then return segment(1) end
+  if at == 2 then return segment(1) .. segment(2) end
+  if at == 3 then return segment(1) .. segment(2) .. segment(3) end
+  local parts = table.create(at)
+  for k = 1, at do parts[k] = segment(k) end
+  return table.concat(parts)
+end
+
+--- The path of a violation recorded by a validator or a coercer. In fail-fast mode the violations only tell that an
+--- alternative does not accept (they are dropped, never reported), so no path is built: a failing alternative costs no
+--- join (measured: a union whose alternatives fail was five times slower with the join).
+---@param at integer
+---@return string
+local function where(at)
+  if fast then return "" end
+  return path_to(at)
+end
+
 --- A `type` violation: names the expected type and the Lua type received (`null` for `json.null`), never the value.
----@param path string
+---@param at integer
 ---@param expected string
 ---@param out hecate.schema.RawViolation[]
 ---@param value any
-local function type_violation(path, expected, out, value)
+local function type_violation(at, expected, out, value)
   local received = value == null and "null" or type(value)
   local message = ("expected %s, got %s"):format(expected, received)
   if expected == "integer" and math_type(value) == "float" and value == math.floor(value)
     and value ~= math.huge and value ~= -math.huge then
     message = message .. " (a whole float is refused; use an integer)"
   end
-  out[#out + 1] = { path, "type", message, { expected = expected, received = received } }
+  out[#out + 1] = { where(at), "type", message, { expected = expected, received = received } }
 end
 
 --- Nesting guard (OQ-50). Content decoded by `json.decode` is at most `max_depth` (1000) levels deep, but a table built
@@ -193,21 +240,18 @@ local defaulted = nil
 local steps = 0
 local budget_violation = nil -- the `complexity_limit` violation of the call in progress, once the budget is spent
 
---- Fail-fast mode: set while an alternative of a union is tried, only to learn whether it accepts. Validators then
---- stop at the first violation, check discriminating properties (literals) first and build no detail.
-local fast = false
 --- Nesting of the detail pass of a failed union (`context.alternatives`): only the outermost one carries it.
 local detailing = 0
 
 --- Counts one step. Returns false, after leaving the `complexity_limit` violation in `out`, when the budget is spent.
----@param path string
+---@param at integer
 ---@param out hecate.schema.RawViolation[]
 ---@return boolean
-local function spend(path, out)
+local function spend(at, out)
   if budget_violation == nil then
     steps = steps + 1
     if steps <= limits.max_steps then return true end
-    budget_violation = { path, "complexity_limit", "the work needed exceeds " .. limits.max_steps .. " steps",
+    budget_violation = { path_to(at), "complexity_limit", "the work needed exceeds " .. limits.max_steps .. " steps",
       { max_steps = limits.max_steps } }
   end
   if out[#out] ~= budget_violation then out[#out + 1] = budget_violation end
@@ -322,19 +366,19 @@ end
 ---@param keep? boolean
 ---@return F
 local function guarded(inner, keep)
-  return function(value, path, out)
-    if not spend(path, out) then
+  return function(value, at, out)
+    if not spend(at, out) then
       if keep then return value end
       return
     end
     if depth >= MAX_DEPTH then
-      out[#out + 1] = { path, "depth_limit", "the value is nested deeper than " .. MAX_DEPTH .. " levels",
+      out[#out + 1] = { where(at), "depth_limit", "the value is nested deeper than " .. MAX_DEPTH .. " levels",
         { max_depth = MAX_DEPTH } }
       if keep then return value end
       return
     end
     depth = depth + 1
-    local result = inner(value, path, out)
+    local result = inner(value, at, out)
     depth = depth - 1
     return result
   end
@@ -343,19 +387,19 @@ end
 --- Tells whether `validate` accepts `value`, in fail-fast mode.
 ---@param validate hecate.schema.Validator
 ---@param value any
----@param path string
+---@param at integer
 ---@return boolean
-local function accepts(validate, value, path)
+local function accepts(validate, value, at)
   local previous, found = fast, {}
   fast = true
-  validate(value, path, found)
+  validate(value, at, found)
   fast = previous
   return found[1] == nil and budget_violation == nil
 end
 
 --- Stops a representation (`Schema:represent`) with a `ValidationError` that carries one violation: the code and the
 --- JSON Pointer where it stopped, as `Schema:check` does.
----@param path string
+---@param path string  the JSON Pointer
 ---@param code hecate.schema.ViolationCode
 ---@param message string
 ---@param context? table
@@ -369,18 +413,18 @@ end
 ---@param inner hecate.schema.Representer
 ---@return hecate.schema.Representer
 local function represented(inner)
-  return function(value, path)
+  return function(value, at)
     steps = steps + 1
     if steps > limits.max_steps then
-      stop_representation(path, "complexity_limit", "the work needed exceeds " .. limits.max_steps .. " steps",
+      stop_representation(path_to(at), "complexity_limit", "the work needed exceeds " .. limits.max_steps .. " steps",
         { max_steps = limits.max_steps })
     end
     if depth >= MAX_DEPTH then
-      stop_representation(path, "depth_limit", "the value is nested deeper than " .. MAX_DEPTH .. " levels",
+      stop_representation(path_to(at), "depth_limit", "the value is nested deeper than " .. MAX_DEPTH .. " levels",
         { max_depth = MAX_DEPTH })
     end
     depth = depth + 1
-    local result = inner(value, path)
+    local result = inner(value, at)
     depth = depth - 1
     return result
   end
@@ -388,10 +432,10 @@ end
 
 local REJECTED = {} -- the memo answer for a plain form that an alternative does not accept
 --- Tells whether `validate` accepts `value`, with a nesting count of its own (the representer is already `depth` deep).
-local function accepts_apart(validate, value, path)
+local function accepts_apart(validate, value, at)
   local outer = depth
   depth = 0
-  local ok = accepts(validate, value, path)
+  local ok = accepts(validate, value, at)
   depth = outer
   if budget_violation ~= nil then
     local v = budget_violation
@@ -426,11 +470,12 @@ end
 
 --- A deep copy of any Lua value that JSON can hold, in fresh tables (the representer of `any`); markers are kept.
 local copy_plain
-copy_plain = represented(function(value, path)
+copy_plain = represented(function(value, at)
   if type(value) ~= "table" or value == null then return value end
   local copy = {}
   for key, member in pairs(value) do
-    copy[key] = copy_plain(member, type(key) == "string" and path .. "/" .. escape_token(key) or path .. "/" .. tostring(key))
+    segments[at + 1] = type(key) == "string" and key or tostring(key)
+    copy[key] = copy_plain(member, at + 1)
   end
   return remark(value, copy)
 end)
@@ -608,21 +653,21 @@ function M.string(options)
   end
   local checks_length = min_length ~= nil or max_length ~= nil
   local format_name = o.format
-  local validator = function(value, path, out)
-    if type(value) ~= "string" then return type_violation(path, "string", out, value) end
+  local validator = function(value, at, out)
+    if type(value) ~= "string" then return type_violation(at, "string", out, value) end
     local unreadable = false -- an encoding or a length violation: pattern and format are not run on this value (S2)
     if checks_length then
       local length = utf8.len(value)
       if length == nil then
         unreadable = true
-        out[#out + 1] = { path, "invalid_utf8", "the string is not well-formed UTF-8" }
+        out[#out + 1] = { where(at), "invalid_utf8", "the string is not well-formed UTF-8" }
       else
         if min_length and length < min_length then
-          out[#out + 1] = { path, "min_length", "the string is shorter than " .. min_length, { min_length = min_length } }
+          out[#out + 1] = { where(at), "min_length", "the string is shorter than " .. min_length, { min_length = min_length } }
         end
         if max_length and length > max_length then
           unreadable = true
-          out[#out + 1] = { path, "max_length", "the string is longer than " .. max_length, { max_length = max_length } }
+          out[#out + 1] = { where(at), "max_length", "the string is longer than " .. max_length, { max_length = max_length } }
         end
       end
     end
@@ -630,11 +675,11 @@ function M.string(options)
     -- Without `max_length` the input is unbounded: beyond the ceiling the match is not run (anchor patterns, README).
     if max_length == nil and #value > limits.max_pattern_bytes then
       if pattern then
-        out[#out + 1] = { path, "pattern", "the string is too long to be matched against the pattern",
+        out[#out + 1] = { where(at), "pattern", "the string is too long to be matched against the pattern",
           { pattern = pattern, reason = "too_long_for_pattern", max_bytes = limits.max_pattern_bytes } }
       end
       if check_format then
-        out[#out + 1] = { path, "format", "the string is too long to be checked as a " .. format_name,
+        out[#out + 1] = { where(at), "format", "the string is too long to be checked as a " .. format_name,
           { format = format_name, reason = "too_long_for_pattern", max_bytes = limits.max_pattern_bytes } }
       end
       return
@@ -643,20 +688,20 @@ function M.string(options)
       -- `pcall`: a pattern that Lua gives up on ("pattern too complex") is a violation, never a raw error (S3).
       local ok, matched = pcall(find, value, pattern)
       if not ok then
-        out[#out + 1] = { path, "pattern", "the pattern cannot be matched", { pattern = pattern, reason = "malformed_pattern" } }
+        out[#out + 1] = { where(at), "pattern", "the pattern cannot be matched", { pattern = pattern, reason = "malformed_pattern" } }
       elseif not matched then
-        out[#out + 1] = { path, "pattern", "the string does not match the pattern", { pattern = pattern } }
+        out[#out + 1] = { where(at), "pattern", "the string does not match the pattern", { pattern = pattern } }
       end
     end
     if check_format and not check_format(value) then
-      out[#out + 1] = { path, "format", "the string is not a valid " .. format_name, { format = format_name } }
+      out[#out + 1] = { where(at), "format", "the string is not a valid " .. format_name, { format = format_name } }
     end
   end
   return Schema("string", { options = o, validator = validator })
 end
 
-local function coercion_violation(path, expected, out)
-  out[#out + 1] = { path, "coercion", "the text is not " .. expected, { expected = expected } }
+local function coercion_violation(at, expected, out)
+  out[#out + 1] = { where(at), "coercion", "the text is not " .. expected, { expected = expected } }
 end
 
 --- Converts a decimal text to an integer; nil when it is not one or does not fit.
@@ -685,11 +730,11 @@ local function text_to_boolean(text)
 end
 
 local function scalar_coercer(convert, expected)
-  return function(value, path, out)
+  return function(value, at, out)
     if type(value) ~= "string" then return value end
     local converted = convert(value)
     if converted == nil then
-      coercion_violation(path, expected, out)
+      coercion_violation(at, expected, out)
       return value
     end
     return converted
@@ -712,25 +757,25 @@ local function numeric(kind, accepts, expected, options)
   local minimum, maximum = o.minimum, o.maximum
   local exclusive_minimum, exclusive_maximum = o.exclusive_minimum, o.exclusive_maximum
   local multiple_of = o.multiple_of
-  local validator = function(value, path, out)
-    if not accepts(value) then return type_violation(path, expected, out, value) end
+  local validator = function(value, at, out)
+    if not accepts(value) then return type_violation(at, expected, out, value) end
     if minimum and value < minimum then
-      out[#out + 1] = { path, "minimum", "the value is less than " .. minimum, { minimum = minimum } }
+      out[#out + 1] = { where(at), "minimum", "the value is less than " .. minimum, { minimum = minimum } }
     end
     if maximum and value > maximum then
-      out[#out + 1] = { path, "maximum", "the value is greater than " .. maximum, { maximum = maximum } }
+      out[#out + 1] = { where(at), "maximum", "the value is greater than " .. maximum, { maximum = maximum } }
     end
     if exclusive_minimum and value <= exclusive_minimum then
-      out[#out + 1] = { path, "exclusive_minimum", "the value is not greater than " .. exclusive_minimum,
+      out[#out + 1] = { where(at), "exclusive_minimum", "the value is not greater than " .. exclusive_minimum,
         { exclusive_minimum = exclusive_minimum } }
     end
     if exclusive_maximum and value >= exclusive_maximum then
-      out[#out + 1] = { path, "exclusive_maximum", "the value is not less than " .. exclusive_maximum,
+      out[#out + 1] = { where(at), "exclusive_maximum", "the value is not less than " .. exclusive_maximum,
         { exclusive_maximum = exclusive_maximum } }
     end
     -- Exact remainder (math.fmod is exact for floats): 0.3 is not a multiple of 0.1, as in IEEE 754 arithmetic.
     if multiple_of and math.fmod(value, multiple_of) ~= 0 then
-      out[#out + 1] = { path, "multiple_of", "the value is not a multiple of " .. multiple_of, { multiple_of = multiple_of } }
+      out[#out + 1] = { where(at), "multiple_of", "the value is not a multiple of " .. multiple_of, { multiple_of = multiple_of } }
     end
   end
   local coercer = scalar_coercer(kind == "integer" and text_to_integer or text_to_number, "a" .. (kind == "integer" and "n integer" or " number"))
@@ -755,8 +800,8 @@ end
 --- Declares a boolean type.
 ---@return hecate.schema.Schema
 function M.boolean()
-  return Schema("boolean", { validator = function(value, path, out)
-    if type(value) ~= "boolean" then return type_violation(path, "boolean", out, value) end
+  return Schema("boolean", { validator = function(value, at, out)
+    if type(value) ~= "boolean" then return type_violation(at, "boolean", out, value) end
   end, coercer = scalar_coercer(text_to_boolean, "a boolean (true or false)") })
 end
 
@@ -777,7 +822,7 @@ end
 --- Builds the coercer of a list of constants: a text converts to the constant whose textual form it is.
 local function constants_coercer(constants)
   local count = #constants
-  return function(value, path, out)
+  return function(value, at, out)
     if type(value) ~= "string" then return value end
     for i = 1, count do
       local constant = constants[i]
@@ -799,9 +844,9 @@ end
 function M.literal(value)
   require_constant("literal", value)
   return Schema("literal", { options = { value = value }, coercer = constants_coercer({ value }),
-    validator = function(v, path, out)
+    validator = function(v, at, out)
       if not same_constant(v, value) then
-        out[#out + 1] = { path, "literal", "the value is not the expected constant", { value = value } }
+        out[#out + 1] = { where(at), "literal", "the value is not the expected constant", { value = value } }
       end
     end })
 end
@@ -833,20 +878,20 @@ function M.enumeration(values)
     options = { enumeration = source.__name }
     builder = function(value) return source:find(value) end
     -- A member becomes its name; a name (a hand-made value) stays as it is; anything else has no JSON form.
-    representer = function(value, path)
+    representer = function(value, at)
       if type(value) == "string" then return value end
       local name = type(value) == "table" and value.name or nil
       if type(name) == "string" and source:find(name) == value then return name end
-      stop_representation(path, "enum", "the value is not a member of the enumeration " .. source.__name)
+      stop_representation(path_to(at), "enum", "the value is not a member of the enumeration " .. source.__name)
     end
   end
   return Schema("enumeration", { options = options, members = copy, coercer = constants_coercer(copy), builder = builder,
     representer = representer,
-    validator = function(v, path, out)
+    validator = function(v, at, out)
       for i = 1, count do
         if same_constant(v, copy[i]) then return end
       end
-      out[#out + 1] = { path, "enum", "the value is not one of the allowed values", { values = { table.unpack(copy) } } }
+      out[#out + 1] = { where(at), "enum", "the value is not one of the allowed values", { values = { table.unpack(copy) } } }
     end })
 end
 
@@ -872,11 +917,11 @@ function M.nullable(inner)
   local build_inner = inner.builder
   local represent_inner = inner.representer
   return Schema("nullable", { item = inner, coercer = inner.coercer,
-    representer = function(value, path) if value == null then return value end return represent_inner(value, path) end,
+    representer = function(value, at) if value == null then return value end return represent_inner(value, at) end,
     builder = function(value) if value == null then return value end return build_inner(value) end,
-    validator = function(value, path, out)
+    validator = function(value, at, out)
     if value == null then return end
-    return validate_inner(value, path, out)
+    return validate_inner(value, at, out)
   end })
 end
 
@@ -908,13 +953,13 @@ end
 --- integer value reads as that integer (`1` and `1.0` are equal numbers, OQ-85). One step is charged per entry; returns
 --- nil when the budget is spent.
 ---@param tbl table
----@param path string
+---@param at integer
 ---@param out hecate.schema.RawViolation[]
 ---@return string?
-local function signature(tbl, path, out)
+local function signature(tbl, at, out)
   local parts, n = {}, 0
   for key, member in next, tbl do
-    if not spend(path, out) then return nil end
+    if not spend(at, out) then return nil end
     local t = type(member)
     local text
     if t == "string" then text = "s" .. member
@@ -937,23 +982,23 @@ end
 --- the `complexity_limit` violation is in `out` and nil is returned.
 ---@param list any[]
 ---@param length integer
----@param path string
+---@param at integer
 ---@param out hecate.schema.RawViolation[]
 ---@return integer?
-local function first_duplicate(list, length, path, out)
+local function first_duplicate(list, length, at, out)
   local seen, buckets = {}, {}
   for i = 1, length do
-    if not spend(path, out) then return nil end
+    if not spend(at, out) then return nil end
     local item = list[i]
     if type(item) == "table" and item ~= null then
-      local sig = signature(item, path, out)
+      local sig = signature(item, at, out)
       if sig == nil then return nil end
       local bucket = buckets[sig]
       if bucket == nil then
         buckets[sig] = { item }
       else
         for j = 1, #bucket do
-          if not spend(path, out) then return nil end
+          if not spend(at, out) then return nil end
           if json_equal(item, bucket[j]) then return i end
         end
         bucket[#bucket + 1] = item
@@ -988,13 +1033,17 @@ function M.array(item, options)
     return remark(value, result)
   end
   local represent_item = item.representer
-  local representer = represented(function(value, path)
-    if type(value) ~= "table" or value == null then stop_representation(path, "type", "expected array", { expected = "array" }) end
+  local representer = represented(function(value, at)
+    if type(value) ~= "table" or value == null then stop_representation(path_to(at), "type", "expected array", { expected = "array" }) end
     local result = {}
-    for i = 1, #value do result[i] = represent_item(value[i], path .. "/" .. (i - 1)) end
+    local child = at + 1
+    for i = 1, #value do
+      segments[child] = i - 1
+      result[i] = represent_item(value[i], child)
+    end
     return json.array(result) -- an empty array stays `[]`
   end)
-  local coercer = guarded(function(value, path, out)
+  local coercer = guarded(function(value, at, out)
     if type(value) == "string" then
       -- OpenAPI `style: form, explode: false` (delimiter "," by default; " " and "|" for the other styles).
       local parts, start = {}, 1
@@ -1011,35 +1060,39 @@ function M.array(item, options)
       return value
     end
     local result = {}
+    local child = at + 1
     for i = 1, #value do
       if overflowed(out) then return value end
-      result[i] = coerce_item(value[i], path .. "/" .. (i - 1), out)
+      segments[child] = i - 1
+      result[i] = coerce_item(value[i], child, out)
     end
     if #result ~= #value then return value end
     return result
   end, true)
-  return Schema("array", { options = o, item = item, coercer = coercer, builder = builder, representer = representer, validator = guarded(function(value, path, out)
-    if type(value) ~= "table" or value == null or json.is_object(value) then return type_violation(path, "array", out, value) end
+  return Schema("array", { options = o, item = item, coercer = coercer, builder = builder, representer = representer, validator = guarded(function(value, at, out)
+    if type(value) ~= "table" or value == null or json.is_object(value) then return type_violation(at, "array", out, value) end
     local length = #value
     local count = 0
     for _ in next, value do count = count + 1 end
-    if count ~= length then return type_violation(path, "array", out, value) end
+    if count ~= length then return type_violation(at, "array", out, value) end
     if min_items and length < min_items then
-      out[#out + 1] = { path, "min_items", "the array has fewer than " .. min_items .. " items", { min_items = min_items } }
+      out[#out + 1] = { where(at), "min_items", "the array has fewer than " .. min_items .. " items", { min_items = min_items } }
     end
     if max_items and length > max_items then
-      out[#out + 1] = { path, "max_items", "the array has more than " .. max_items .. " items", { max_items = max_items } }
+      out[#out + 1] = { where(at), "max_items", "the array has more than " .. max_items .. " items", { max_items = max_items } }
     end
+    local child = at + 1
     for i = 1, length do
       if fast and out[1] ~= nil then return end
       if overflowed(out) then return end
-      validate_item(value[i], path .. "/" .. (i - 1), out)
+      segments[child] = i - 1
+      validate_item(value[i], child, out)
     end
     if (fast and out[1] ~= nil) or overflowed(out) or budget_violation ~= nil then return end
     if unique_items then
-      local duplicate = first_duplicate(value, length, path, out)
+      local duplicate = first_duplicate(value, length, at, out)
       if duplicate then
-        out[#out + 1] = { path .. "/" .. (duplicate - 1), "unique_items", "the item duplicates an earlier one",
+        out[#out + 1] = { where(at) .. "/" .. (duplicate - 1), "unique_items", "the item duplicates an earlier one",
           { index = duplicate - 1 } }
       end
     end
@@ -1100,7 +1153,7 @@ function M.object(properties, options)
       local member = value[names[i]]
       if member == nil then return false end
       local found = {}
-      validators[i](coercers[i](member, "", found), "", found)
+      validators[i](coercers[i](member, 0, found), 0, found)
       if found[1] ~= nil then return false end
     end
     return true
@@ -1128,8 +1181,8 @@ function M.object(properties, options)
   -- function is not JSON and is skipped. A nullable attribute that is nil on an instance made by `Schema:build` and was
   -- sent (an explicit null, OQ-90) is represented as null, so that the content round-trips; an instance that was not
   -- built has sent nothing, and its nil attributes are omitted (owner decision 2026-11-08).
-  local representer = represented(function(value, path)
-    if type(value) ~= "table" or value == null then stop_representation(path, "type", "expected object", { expected = "object" }) end
+  local representer = represented(function(value, at)
+    if type(value) ~= "table" or value == null then stop_representation(path_to(at), "type", "expected object", { expected = "object" }) end
     local result = {}
     local attributes = attributes_of(value)
     local sent = presence_sets[value]
@@ -1138,12 +1191,13 @@ function M.object(properties, options)
       if member == nil then
         if nullable[i] and sent ~= nil and sent[names[i]] then result[names[i]] = null end
       elseif type(member) ~= "function" then
-        result[names[i]] = represent_members[i](member, path .. tokens[i])
+        segments[at + 1] = names[i]
+        result[names[i]] = represent_members[i](member, at + 1)
       end
     end
     return json.object(result) -- an empty object stays `{}`
   end)
-  local coercer = guarded(function(value, path, out)
+  local coercer = guarded(function(value, at, out)
     if type(value) ~= "table" or value == null then return value end
     local result = {}
     for key, member in next, value do result[key] = member end
@@ -1151,7 +1205,8 @@ function M.object(properties, options)
       if overflowed(out) then return result end
       local member = value[names[i]]
       if member ~= nil then
-        result[names[i]] = coercers[i](member, path .. tokens[i], out)
+        segments[at + 1] = names[i]
+        result[names[i]] = coercers[i](member, at + 1, out)
       elseif defaults[i] ~= nil and not without_defaults then
         result[names[i]] = defaults[i]() -- an absent property takes its default (never for a PATCH build)
         if defaulted ~= nil then
@@ -1164,28 +1219,29 @@ function M.object(properties, options)
     return result
   end, true)
   --- `relax`: the PATCH variant, where an absent property means unchanged (OQ-90).
-  local function make_validator(relax) return guarded(function(value, path, out)
-    if type(value) ~= "table" or value == null or json.is_array(value) then return type_violation(path, "object", out, value) end
+  local function make_validator(relax) return guarded(function(value, at, out)
+    if type(value) ~= "table" or value == null or json.is_array(value) then return type_violation(at, "object", out, value) end
     if fast then
       for k = 1, count do
         local i = fast_order[k]
         local member = value[names[i]]
         if member == nil then
           if not (relax or optional[i]) then
-            out[#out + 1] = { path .. tokens[i], "required", "the property is required", { property = names[i] } }
+            out[#out + 1] = { where(at) .. tokens[i], "required", "the property is required", { property = names[i] } }
             return
           end
         else
-          validators[i](member, path .. tokens[i], out)
+          segments[at + 1] = names[i]
+          validators[i](member, at + 1, out)
           if out[1] ~= nil then return end
         end
       end
       for key in next, value do
         if type(key) ~= "string" then
-          return type_violation(path, "object", out, value)
+          return type_violation(at, "object", out, value)
         elseif not declared[key] and not allow_additional then
           local shown = echoed(key)
-          out[#out + 1] = { path .. "/" .. escape_token(shown), "additional_properties",
+          out[#out + 1] = { where(at) .. "/" .. escape_token(shown), "additional_properties",
             "the property is not declared", { property = shown } }
           return
         end
@@ -1197,16 +1253,17 @@ function M.object(properties, options)
       local member = value[names[i]]
       if member == nil then
         if not (relax or optional[i]) then
-          out[#out + 1] = { path .. tokens[i], "required", "the property is required", { property = names[i] } }
+          out[#out + 1] = { where(at) .. tokens[i], "required", "the property is required", { property = names[i] } }
         end
       else
-        validators[i](member, path .. tokens[i], out)
+        segments[at + 1] = names[i]
+        validators[i](member, at + 1, out)
       end
     end
     local extras
     for key in next, value do
       if type(key) ~= "string" then
-        return type_violation(path, "object", out, value)
+        return type_violation(at, "object", out, value)
       elseif not declared[key] and not allow_additional then
         extras = extras or {}
         extras[#extras + 1] = key
@@ -1217,7 +1274,7 @@ function M.object(properties, options)
       for _, key in ipairs(extras) do
         if overflowed(out) then return end
         local shown = echoed(key)
-        out[#out + 1] = { path .. "/" .. escape_token(shown), "additional_properties",
+        out[#out + 1] = { where(at) .. "/" .. escape_token(shown), "additional_properties",
           "the property is not declared", { property = shown } }
       end
     end
@@ -1245,48 +1302,55 @@ function M.map(value, options)
     return remark(value, result)
   end
   local represent_value = value_schema.representer
-  local representer = represented(function(value, path)
-    if type(value) ~= "table" or value == null then stop_representation(path, "type", "expected object", { expected = "object" }) end
+  local representer = represented(function(value, at)
+    if type(value) ~= "table" or value == null then stop_representation(path_to(at), "type", "expected object", { expected = "object" }) end
     local result = {}
     for key, member in pairs(value) do
-      result[key] = represent_value(member, type(key) == "string" and path .. "/" .. escape_token(echoed(key)) or path)
+      if type(key) == "string" then
+        segments[at + 1] = echoed(key)
+        result[key] = represent_value(member, at + 1)
+      else
+        result[key] = represent_value(member, at) -- not a property: the member is visited at the map itself
+      end
     end
     return json.object(result) -- an empty map stays `{}`
   end)
-  local coercer = guarded(function(value, path, out)
+  local coercer = guarded(function(value, at, out)
     if type(value) ~= "table" or value == null then return value end
     local result = {}
     for key, member in next, value do
       if overflowed(out) then return result end
       if type(key) == "string" then
-        result[key] = coerce_value(member, path .. "/" .. escape_token(echoed(key)), out)
+        segments[at + 1] = echoed(key)
+        result[key] = coerce_value(member, at + 1, out)
       else
         result[key] = member
       end
     end
     return result
   end, true)
-  return Schema("map", { options = o, item = value_schema, coercer = coercer, builder = builder, representer = representer, validator = guarded(function(value, path, out)
-    if type(value) ~= "table" or value == null or json.is_array(value) then return type_violation(path, "object", out, value) end
+  return Schema("map", { options = o, item = value_schema, coercer = coercer, builder = builder, representer = representer, validator = guarded(function(value, at, out)
+    if type(value) ~= "table" or value == null or json.is_array(value) then return type_violation(at, "object", out, value) end
     local keys = {}
     for key in next, value do
-      if type(key) ~= "string" then return type_violation(path, "object", out, value) end
+      if type(key) ~= "string" then return type_violation(at, "object", out, value) end
       keys[#keys + 1] = key
     end
     table.sort(keys) -- a stable order of violations
     local count = #keys
     if min_properties and count < min_properties then
-      out[#out + 1] = { path, "min_properties", "the object has fewer than " .. min_properties .. " properties",
+      out[#out + 1] = { where(at), "min_properties", "the object has fewer than " .. min_properties .. " properties",
         { min_properties = min_properties } }
     end
     if max_properties and count > max_properties then
-      out[#out + 1] = { path, "max_properties", "the object has more than " .. max_properties .. " properties",
+      out[#out + 1] = { where(at), "max_properties", "the object has more than " .. max_properties .. " properties",
         { max_properties = max_properties } }
     end
     for i = 1, count do
       if fast and out[1] ~= nil then return end
       if overflowed(out) then return end
-      validate_value(value[keys[i]], path .. "/" .. escape_token(echoed(keys[i])), out)
+      segments[at + 1] = echoed(keys[i])
+      validate_value(value[keys[i]], at + 1, out)
     end
   end) })
 end
@@ -1320,7 +1384,7 @@ function M.union(alternatives)
   -- The first alternative that accepts the coerced value wins; when none does, the value is left as it is and
   -- the validator reports the union. A single candidate is taken without a second validation of its subtree (the
   -- validator of the whole call checks the result once).
-  local coercer = function(value, path, out)
+  local coercer = function(value, at, out)
     local memoised = type(value) == "table" and (fast or attempts > 0)
     if memoised then
       local known = recall("converted", validators, value)
@@ -1328,13 +1392,13 @@ function M.union(alternatives)
     end
     local list = candidates(value)
     for _, i in ipairs(list) do
-      if not spend(path, out) then return value end
+      if not spend(at, out) then return value end
       local scratch = {}
       attempts = attempts + 1
-      local converted = copy[i].coercer(value, path, scratch)
+      local converted = copy[i].coercer(value, at, scratch)
       attempts = attempts - 1
       if budget_violation ~= nil then return value end
-      if #scratch == 0 and (#list == 1 or accepts(validators[i], converted, path)) then
+      if #scratch == 0 and (#list == 1 or accepts(validators[i], converted, at)) then
         if memoised then remember("converted", validators, value, converted) end
         return converted
       end
@@ -1347,7 +1411,7 @@ function M.union(alternatives)
     local list = candidates(value)
     if #list == 1 then return copy[list[1]].builder(value) end
     for _, i in ipairs(list) do
-      if accepts(validators[i], value, "") then return copy[i].builder(value) end
+      if accepts(validators[i], value, 0) then return copy[i].builder(value) end
     end
     return value
   end
@@ -1356,7 +1420,7 @@ function M.union(alternatives)
   -- each is tried on the plain form it gives, and that form must be accepted. Both verdicts are memoised per node.
   local representers, second_pass = {}, {}
   for i = 1, count do representers[i] = copy[i].representer end
-  local representer = represented(function(value, path)
+  local representer = represented(function(value, at)
     local memoised = type(value) == "table" and (fast or attempts > 0)
     if memoised then
       local known = recall("converted", representers, value)
@@ -1365,8 +1429,8 @@ function M.union(alternatives)
     local result, found = nil, false
     local list = candidates(value)
     for _, i in ipairs(list) do
-      if accepts_apart(validators[i], value, path) then
-        result, found = representers[i](value, path), true
+      if accepts_apart(validators[i], value, at) then
+        result, found = representers[i](value, at), true
         break
       end
     end
@@ -1382,19 +1446,19 @@ function M.union(alternatives)
       for _, i in ipairs(list) do
         local plain = tried and tried[i]
         if plain == nil then
-          plain = representers[i](value, path)
-          if not accepts_apart(validators[i], plain, path) then plain = REJECTED end
+          plain = representers[i](value, at)
+          if not accepts_apart(validators[i], plain, at) then plain = REJECTED end
           if tried ~= nil and budget_violation == nil then tried[i] = plain end
         end
         if plain ~= REJECTED then result, found = plain, true break end
       end
       attempts = attempts - 1
     end
-    if not found then stop_representation(path, "union", "the value matches none of the alternatives") end
+    if not found then stop_representation(path_to(at), "union", "the value matches none of the alternatives") end
     if memoised then remember("converted", representers, value, result) end
     return result
   end)
-  return Schema("union", { members = copy, coercer = coercer, builder = builder, representer = representer, validator = function(value, path, out)
+  return Schema("union", { members = copy, coercer = coercer, builder = builder, representer = representer, validator = function(value, at, out)
     local memoised = fast and type(value) == "table" -- only an alternative attempt (fail-fast) can reach a node again
     local known = nil
     if memoised then known = recall("verdicts", validators, value) end
@@ -1403,15 +1467,15 @@ function M.union(alternatives)
     local last = count
     if known == false then last = 0 end
     for i = 1, last do
-      if not spend(path, out) then return end
+      if not spend(at, out) then return end
       if fast then
         local found = {}
-        validators[i](value, path, found)
+        validators[i](value, at, found)
         if found[1] == nil and budget_violation == nil then
           if memoised then remember("verdicts", validators, value, true) end
           return
         end
-      elseif accepts(validators[i], value, path) then
+      elseif accepts(validators[i], value, at) then
         if memoised then remember("verdicts", validators, value, true) end
         return
       end
@@ -1427,7 +1491,7 @@ function M.union(alternatives)
       detailing = 1
       for i = 1, count do
         local found = {}
-        validators[i](value, path, found)
+        validators[i](value, at, found)
         if budget_violation ~= nil then break end
         failures[i] = to_violations(found)
       end
@@ -1437,7 +1501,7 @@ function M.union(alternatives)
         return
       end
     end
-    out[#out + 1] = { path, "union", "the value matches none of the alternatives", { alternatives = failures } }
+    out[#out + 1] = { where(at), "union", "the value matches none of the alternatives", { alternatives = failures } }
   end })
 end
 
@@ -1453,7 +1517,7 @@ function M.default(inner, value)
   if inner.kind == "optional" or inner.kind == "default" then refuse("default: the property is already optional") end
   if value == nil then refuse("default: a default value is required (use json.null for null)") end
   local raw = {}
-  inner.validator(value, "", raw)
+  inner.validator(value, 0, raw)
   if #raw > 0 then
     refuse(("default: the value does not conform to the schema; first violation at %s: %s")
       :format(raw[1][1] == "" and '""' or raw[1][1], raw[1][3]), { code = raw[1][2], path = raw[1][1] })
@@ -1463,12 +1527,12 @@ function M.default(inner, value)
   local coerce_inner = inner.coercer
   return Schema("default", { copy_default = function() return copy_value(stored) end, item = inner, validator = inner.validator, builder = inner.builder,
     representer = inner.representer, -- an absent value stays absent: a response never takes the default
-    coercer = function(v, path, out)
+    coercer = function(v, at, out)
       if v == nil then
         if without_defaults then return nil end
         return copy_value(stored) -- explicit: the stored default may be `false`
       end
-      return coerce_inner(v, path, out)
+      return coerce_inner(v, at, out)
     end })
 end
 
@@ -1508,36 +1572,36 @@ function M.tagged_union(tag, variants)
   local token = "/" .. escape_token(tag)
   return Schema("tagged_union", { options = { tag = tag }, properties = derived, members = names,
     builder = function(value) return derived[value[tag]].builder(value) end,
-    representer = represented(function(value, path)
+    representer = represented(function(value, at)
       local name = type(value) == "table" and value ~= null and attributes_of(value)[tag] or nil
       local represent = type(name) == "string" and representers[name] or nil
       if represent == nil then
-        stop_representation(path .. token, "tagged_union", "the value is not the name of a variant",
+        stop_representation(path_to(at) .. token, "tagged_union", "the value is not the name of a variant",
           { tag = tag, values = { table.unpack(names) } })
       end
-      return represent--[[@as hecate.schema.Representer]](value, path)
+      return represent--[[@as hecate.schema.Representer]](value, at)
     end),
-    coercer = function(value, path, out)
+    coercer = function(value, at, out)
       if type(value) ~= "table" or value == null then return value end
       local name = value[tag]
       local coerce = type(name) == "string" and coercers[name]
       if not coerce then return value end -- the validator reports the tag
-      return coerce(value, path, out)
+      return coerce(value, at, out)
     end,
-    validator = function(value, path, out)
-      if type(value) ~= "table" or value == null then return type_violation(path, "object", out, value) end
+    validator = function(value, at, out)
+      if type(value) ~= "table" or value == null then return type_violation(at, "object", out, value) end
       local name = value[tag]
       if name == nil then
-        out[#out + 1] = { path .. token, "required", "the property is required", { property = tag } }
+        out[#out + 1] = { where(at) .. token, "required", "the property is required", { property = tag } }
         return
       end
       local validate = type(name) == "string" and validators[name]
       if not validate then
-        out[#out + 1] = { path .. token, "tagged_union", "the value is not the name of a variant",
+        out[#out + 1] = { where(at) .. token, "tagged_union", "the value is not the name of a variant",
           { tag = tag, values = { table.unpack(names) } } }
         return
       end
-      return validate(value, path, out)
+      return validate(value, at, out)
     end })
 end
 
@@ -1550,8 +1614,8 @@ end
 --- Accepts JSON null only (`hecate.json.null`); Lua `nil` is absence.
 ---@return hecate.schema.Schema
 function M.null()
-  return Schema("null", { validator = function(value, path, out)
-    if value ~= null then return type_violation(path, "null", out, value) end
+  return Schema("null", { validator = function(value, at, out)
+    if value ~= null then return type_violation(at, "null", out, value) end
   end })
 end
 
@@ -1667,14 +1731,14 @@ function M.of(target)
   end
   return Schema("class", { options = { resolve = resolve },
     builder = build,
-    representer = function(value, path) return resolve().representer(value, path) end,
+    representer = function(value, at) return resolve().representer(value, at) end,
     prefilter = function(value)
       local prefilter = resolve().prefilter
       return prefilter == nil or prefilter(value)
     end,
-    relaxed_validator = function(value, path, out) return resolve().relaxed_validator(value, path, out) end,
-    validator = function(value, path, out) return resolve().validator(value, path, out) end,
-    coercer = function(value, path, out) return resolve().coercer(value, path, out) end })
+    relaxed_validator = function(value, at, out) return resolve().relaxed_validator(value, at, out) end,
+    validator = function(value, at, out) return resolve().validator(value, at, out) end,
+    coercer = function(value, at, out) return resolve().coercer(value, at, out) end })
 end
 
 --- Tells whether the attribute `name` was present in the content an instance was built from. An explicit
@@ -1802,7 +1866,7 @@ end
 function Schema:validate(value)
   local raw = {}
   reset_work()
-  self.validator(value, "", raw)
+  self.validator(value, 0, raw)
   if #raw == 0 and budget_violation == nil then return true end
   return false, to_violations(raw)
 end
@@ -1821,9 +1885,9 @@ end
 function Schema:coerce(value)
   local raw = {}
   reset_work()
-  local converted = self.coercer(value, "", raw)
+  local converted = self.coercer(value, 0, raw)
   depth = 0
-  if #raw == 0 and budget_violation == nil then self.validator(converted, "", raw) end
+  if #raw == 0 and budget_violation == nil then self.validator(converted, 0, raw) end
   if #raw == 0 and budget_violation == nil then return true, converted end
   return false, to_violations(raw)
 end
@@ -1872,7 +1936,7 @@ function Schema:build(value, options)
     -- Texts first, with the rules of `coerce` (defaults of the object coercers included, except for a PATCH); the
     -- build below then finds every default already applied and applies none a second time.
     defaulted = {}
-    value = self.coercer(value, "", raw)
+    value = self.coercer(value, 0, raw)
     depth = 0
     if #raw > 0 or budget_violation ~= nil then
       defaulted = nil
@@ -1881,7 +1945,7 @@ function Schema:build(value, options)
   end
   -- A top-level `default` replaces an absent value, as in `coerce`, except for a PATCH.
   if value == nil and not relax and self.kind == "default" then value = self.copy_default() end
-  ;(relax and self.relaxed_validator or self.validator)(value, "", raw)
+  ;(relax and self.relaxed_validator or self.validator)(value, 0, raw)
   if #raw == 0 and budget_violation == nil then
     local built = self.builder(value)
     defaulted = nil
@@ -1909,7 +1973,7 @@ end
 ---@return any plain
 function Schema:represent(value)
   reset_work()
-  return self.representer(value, "")
+  return self.representer(value, 0)
 end
 
 --- Returns `value` when it conforms; raises `hecate.core.ValidationError` otherwise, with every violation in
