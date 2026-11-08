@@ -175,12 +175,12 @@ concurrency test suite passes; benchmark baseline recorded.
       (`feed` returns every event of the chunk in one list).
 - [x] `router`: radix tree, URI template subset, 404/405, reverse routing. **Also:** percent-decode each path segment (so `%2F` is not a separator) and resolve dot segments: `request.path` of `http` is raw (OQ-75).
 - [x] `schema`: refinement types, composition, coercion, validation with JSON Pointer
-      error paths, JSON Schema 2020-12 emission. Decisions OQ-50 and OQ-85 to OQ-96 (OQ-97, `refine`, stays open); review and
+      error paths, JSON Schema 2020-12 emission. Decisions OQ-50 and OQ-85 to OQ-97 (OQ-98 lists the choices still to confirm); review and
       fixes in [the review](reviews/schema-review-package.md).
 - [ ] `container`: IoC container, lifetimes, cycle detection at boot; write its specification section in `docs/architecture/` (OQ-62).
 - [ ] `config`: layered configuration validated by schemas; write its specification section in `docs/architecture/`, including the logging keys (OQ-62) and the `limits.max_depth` key that lowers the nesting depth of `json` and `schema` together (OQ-92).
 - [ ] `kernel`: application, modules, controllers, route modules, filters, problem
-      details, lifecycle, multi-process workers, graceful shutdown. **First step (from the `http` reviews):** split
+      details, lifecycle, multi-process workers, graceful shutdown. **Also (from the `schema` review, OQ-98 item 7):** settle how a route names the schema of its response (`docs/developer-experience.md` shows `Class.representation` and an implicit represent; `schema` offers `schema.of(Class):represent(instance)`). **First step (from the `http` reviews):** split
       `packages/http` `server.lua` (options, response writer, connection) and `client.lua` (pool, redirect) with no API
       change; build the in-process dispatch seam (OQ-78, with OQ-76 a), the `on_response` hook (OQ-81) remove the JSON fallback of `Server` for a table (OQ-76 a: an error, a generic 500 and a log entry; OQ-80 decided: no `http.json` or `http.text`) and build the default
       logger of OQ-79 (`log.default()`, console sink on the standard error stream, used by `http` when no `logger` is given, and by `schema` through `package.loaded` when `hecate.log` is already loaded, OQ-86); narrow the type of `Request.content`.
@@ -279,7 +279,7 @@ in under five minutes; tutorial reproducible verbatim.
 - [ ] `mysql`: MySQL and MariaDB protocol, `caching_sha2_password`, TLS.
 - [ ] `redis`: RESP3, pipelining, publish/subscribe, transactions.
 - [ ] `migration`: versioned, reversible migrations, CLI integration.
-- [ ] `orm`: data mapper, unit of work, identity map, associations, repositories.
+- [ ] `orm`: data mapper, unit of work, identity map, associations, repositories. **Also (from the `schema` review, OQ-99):** lazy associations must work with `Schema:represent`, which reads the own fields of an instance only and would lose a lazy `__index` field.
 - [ ] Example: `examples/crud` (PostgreSQL), integration tests against every driver in CI
       (service containers).
 - [ ] Benchmarks: database scenarios (single query, multiple queries, updates), compared
@@ -304,7 +304,6 @@ Exit: `examples/crud` works unchanged on PostgreSQL, MySQL, MariaDB and SQLite.
 
 - [ ] `schema`: a decimal type for exact decimal numbers such as money, with a limit on decimal places (OQ-87: `multiple_of` takes integer divisors only; until then integers in minor units, or a string with a pattern).
 
-- [ ] `schema`: `refine(base, predicate, description)`, promised by the specification and not implemented; its design is OQ-97 (a predicate cannot be emitted as JSON Schema).
 - [ ] `schema`: a lazy form of `named` for a recursive schema without a class, only if someone needs it (OQ-89: `schema.of(Class)` already closes cycles).
 
 - [ ] **Phase 5 gate**: verification of the phase, as described in [Phase gates](#phase-gates). Open
@@ -319,6 +318,7 @@ Exit: `examples/crud` works unchanged on PostgreSQL, MySQL, MariaDB and SQLite.
 
 ## Phase 7 — Code review and quality pass
 
+- [ ] Sweep the weak assertions of the older `schema` tests (several only assert that a call returned ok; the newer tests cover the same ground more strongly, OQ-99).
 - [ ] Review all code, including `tools/`, for readability and quality: naming, function and
       module size, duplication, dead code, comment accuracy, consistency with
       [coding-standards.md](architecture/coding-standards.md) and the glossary.
