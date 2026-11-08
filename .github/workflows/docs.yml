@@ -21,11 +21,38 @@ jobs:
 
   links:
     runs-on: ubuntu-latest
+    env:
+      LYCHEE_VERSION: v0.24.2
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2
+
+      # lychee is installed here and not through lycheeverse/lychee-action: the action downloads the binary from
+      # the release endpoint, which answers HTTP 504 intermittently and cannot be given a retry. The archive is
+      # cached per version, its checksum (published next to the release asset) is verified on every run, and the
+      # download retries.
+      - name: Cache lychee archive
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
-          # Internal links only; external links are not checked yet (the nightly check is not written,
-          # see docs/architecture/automation.md).
-          args: --config lychee.toml --offline --no-progress --include-fragments "./**/*.md"
-          fail: true
+          path: ~/.cache/lychee
+          key: lychee-${{ runner.os }}-${{ env.LYCHEE_VERSION }}
+
+      - name: Install lychee
+        run: |
+          file="lychee-x86_64-unknown-linux-gnu.tar.gz"
+          sha=1f4e0ef7f6554a6ed33dd7ac144fb2e1bbed98598e7af973042fc5cd43951c9a
+          archive="$HOME/.cache/lychee/$file"
+          verify() { echo "$sha  $archive" | sha256sum -c -; }
+          mkdir -p "$HOME/.cache/lychee"
+          if [ ! -f "$archive" ] || ! verify; then
+            rm -f "$archive"
+            curl -fsSL --retry 5 --retry-all-errors --retry-delay 5 -o "$archive" "https://github.com/lycheeverse/lychee/releases/download/lychee-$LYCHEE_VERSION/$file"
+            verify
+          fi
+          mkdir -p "$RUNNER_TEMP/lychee"
+          tar -xzf "$archive" -C "$RUNNER_TEMP/lychee" --strip-components=1
+          echo "$RUNNER_TEMP/lychee" >> "$GITHUB_PATH"
+
+      # Internal links only; external links are not checked yet (the nightly check is not written,
+      # see docs/architecture/automation.md).
+      - name: Check links
+        run: lychee --config lychee.toml --offline --no-progress --include-fragments "./**/*.md"
