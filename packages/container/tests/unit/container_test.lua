@@ -1,0 +1,439 @@
+---@diagnostic disable: need-check-nil, param-type-mismatch, missing-fields, undefined-field, assign-type-mismatch, inject-field  -- the tests pass invalid arguments on purpose
+-- Binding, lifetimes, resolution, construction, disposal, overrides and errors (container.md).
+local test = require("harness.test")
+local core = require("hecate.core")
+local container = require("hecate.container")
+local T = test.Case("ContainerTest")
+
+local function raises(case, class, fn)
+  local err = case:assert_error(fn)
+  case:assert_true(core.is_instance_of(err, class), tostring(err))
+  return err
+end
+
+--- A class whose instances record their dependencies and count constructions.
+local function service_class(name)
+  local class = core.class(name)
+  class.count = 0
+  function class:init(...)
+    class.count = class.count + 1
+    self.dependencies = { ... }
+  end
+  return core.finalise(class)
+end
+
+local function ready(setup)
+  local c = container.Container()
+  setup(c)
+  return c:validate()
+end
+
+-- Binding arguments ------------------------------------------------------------------------------------------------
+
+function T:test_bind_is_chainable_and_defaults_to_transient()
+  local Clock = service_class("Clock")
+  local c = container.Container()
+  self:assert_true(c:bind("clock", Clock) == c)
+  c:validate()
+  self:assert_false(c:resolve("clock") == c:resolve("clock"))
+  self:assert_equal(2, Clock.count)
+end
+
+function T:test_bind_refuses_wrong_arguments()
+  local c = container.Container()
+  local Open = core.class("Open")
+  local bad = {
+    function() c:bind("", function() end) end,
+    function() c:bind(42, function() end) end,
+    function() c:bind("a", 42) end,
+    function() c:bind("a", Open) end,
+    function() c:bind("a", function() end, { lifetime = "forever" }) end,
+    function() c:bind("a", function() end, { lifetime = 3 }) end,
+    function() c:bind("a", function() end, { requires = "b" }) end,
+    function() c:bind("a", function() end, { requires = { "b", 3 } }) end,
+    function() c:bind("a", function() end, { requires = { x = "b" } }) end,
+    function() c:bind("a", function() end, { requirements = {} }) end,
+    function() c:bind("a", function() end, 7) end,
+    function() c:resolve({}) end,
+  }
+  for i, fn in ipairs(bad) do raises(self, core.ArgumentError, fn) end
+end
+
+function T:test_a_lifetime_is_given_as_a_member_or_its_name()
+  local Thing = service_class("Thing")
+  local c = ready(function(c)
+    c:bind("a", Thing, { lifetime = container.Lifetime.singleton })
+    c:bind("b", Thing, { lifetime = "singleton" })
+  end)
+  self:assert_true(c:resolve("a") == c:resolve("a"))
+  self:assert_true(c:resolve("b") == c:resolve("b"))
+end
+
+function T:test_binding_a_bound_key_raises_duplicate_binding_error()
+  local c = container.Container():bind("a", function() return {} end)
+  local err = raises(self, container.DuplicateBindingError, function() c:bind("a", function() return {} end) end)
+  self:assert_equal("a", err.context.key)
+  self:assert_equal("hecate.container.DuplicateBindingError", err.code)
+end
+
+function T:test_every_error_extends_the_configuration_error()
+  for _, name in ipairs({ "ContainerError", "DuplicateBindingError", "MissingBindingError", "CycleError",
+    "LifetimeError", "GraphError", "ConstructionError" }) do
+    self:assert_true(core.is_instance_of(container[name]("x"), core.ConfigurationError), name)
+  end
+end
+
+-- Constructor injection ---------------------------------------------------------------------------------------------
+
+function T:test_dependencies_are_passed_in_the_order_of_requires()
+  local A, B = service_class("A"), service_class("B")
+  local User = service_class("User")
+  local c = ready(function(c)
+    c:bind("a", A, { lifetime = "singleton" })
+    c:bind("b", B)
+    c:bind("user", User, { requires = { "b", "a" } })
+  end)
+  local user = c:resolve("user")
+  self:assert_true(core.is_instance_of(user.dependencies[1], B))
+  self:assert_true(user.dependencies[2] == c:resolve("a"))
+end
+
+function T:test_a_factory_receives_the_same_arguments()
+  local received
+  local c = ready(function(c)
+    c:bind("clock", function() return { now = 1 } end, { lifetime = "singleton" })
+    c:bind("users", function(clock, extra) received = { clock, extra }; return { clock = clock } end,
+      { requires = { "clock" } })
+  end)
+  local users = c:resolve("users")
+  self:assert_true(users.clock == c:resolve("clock"))
+  self:assert_nil(received[2])
+end
+
+function T:test_an_interface_is_a_key_like_a_name()
+  local Repo = core.interface("Repo", { "find" })
+  local Pg = core.class("Pg", nil, { implements = { Repo } })
+  function Pg:find() return "row" end
+  core.finalise(Pg)
+  local c = ready(function(c)
+    c:bind(Repo, Pg, { lifetime = "singleton" })
+    c:bind("consumer", function(repo) return { repo = repo } end, { requires = { Repo } })
+  end)
+  self:assert_equal("row", c:resolve("consumer").repo:find())
+  self:assert_true(c:resolve(Repo) == c:resolve(Repo))
+end
+
+function T:test_a_factory_product_is_checked_against_an_interface_key_at_first_construction()
+  local Repo = core.interface("Repo", { "find" })
+  local c = ready(function(c) c:bind(Repo, function() return {} end) end)
+  raises(self, core.ConformanceError, function() c:resolve(Repo) end)
+end
+
+function T:test_a_constructor_returning_nil_is_a_construction_error()
+  local c = ready(function(c) c:bind("a", function() end) end)
+  raises(self, container.ConstructionError, function() c:resolve("a") end)
+end
+
+-- Lifetimes ----------------------------------------------------------------------------------------------------------
+
+function T:test_a_singleton_is_shared_by_the_container_and_every_scope()
+  local S = service_class("S")
+  local c = ready(function(c) c:bind("s", S, { lifetime = "singleton" }) end)
+  local one, two = c:open_scope(), c:open_scope()
+  self:assert_true(c:resolve("s") == one:resolve("s"))
+  self:assert_true(one:resolve("s") == two:resolve("s"))
+  self:assert_equal(1, S.count)
+end
+
+function T:test_a_scoped_service_is_shared_inside_a_scope_and_distinct_across_scopes()
+  local R = service_class("R")
+  local c = ready(function(c)
+    c:bind("r", R, { lifetime = "scoped" })
+    c:bind("a", function(r) return { r = r } end, { requires = { "r" } })
+    c:bind("b", function(r) return { r = r } end, { requires = { "r" } })
+  end)
+  local one, two = c:open_scope(), c:open_scope()
+  self:assert_true(one:resolve("r") == one:resolve("r"))
+  self:assert_true(one:resolve("a").r == one:resolve("b").r, "consumers inside a scope share the instance")
+  self:assert_false(one:resolve("r") == two:resolve("r"))
+  self:assert_equal(2, R.count)
+end
+
+function T:test_the_scope_is_a_plain_value_so_every_holder_sees_the_same_instances()
+  -- The kernel hands one scope to every computation forked by a request; sharing across `fork` is sharing the value.
+  local R = service_class("R")
+  local c = ready(function(c) c:bind("r", R, { lifetime = "scoped" }) end)
+  local scope = c:open_scope()
+  local holders = {}
+  for i = 1, 3 do holders[i] = function() return scope:resolve("r") end end
+  self:assert_true(holders[1]() == holders[2]() and holders[2]() == holders[3]())
+end
+
+function T:test_a_transient_is_never_cached_even_inside_a_scope()
+  local Tr = service_class("Tr")
+  local c = ready(function(c) c:bind("t", Tr) end)
+  local scope = c:open_scope()
+  self:assert_false(scope:resolve("t") == scope:resolve("t"))
+end
+
+function T:test_resolving_a_scoped_service_from_the_root_raises_a_lifetime_error_before_building_anything()
+  local Before = service_class("Before")
+  local c = ready(function(c)
+    c:bind("before", Before)
+    c:bind("r", service_class("R"), { lifetime = "scoped" })
+    c:bind("t", function() end, { requires = { "before", "r" } })
+  end)
+  local err = raises(self, container.LifetimeError, function() c:resolve("r") end)
+  self:assert_equal("r", err.context.key)
+  err = raises(self, container.LifetimeError, function() c:resolve("t") end)
+  self:assert_equal("t", err.context.key)
+  self:assert_equal("r", err.context.dependency)
+  self:assert_equal("t,r", table.concat(err.context.path, ","))
+  self:assert_equal(0, Before.count, "no dependency was constructed")
+end
+
+function T:test_a_root_resolvable_transient_over_singletons_resolves_from_the_root()
+  local c = ready(function(c)
+    c:bind("s", function() return {} end, { lifetime = "singleton" })
+    c:bind("t", function(s) return { s = s } end, { requires = { "s" } })
+  end)
+  self:assert_true(c:resolve("t").s == c:resolve("s"))
+end
+
+function T:test_an_unbound_key_raises_missing_binding_error()
+  local c = ready(function() end)
+  local err = raises(self, container.MissingBindingError, function() c:resolve("ghost") end)
+  self:assert_equal("ghost", err.context.key)
+  raises(self, container.MissingBindingError, function() c:open_scope():resolve("ghost") end)
+end
+
+-- Construction ---------------------------------------------------------------------------------------------------------
+
+function T:test_a_constructor_error_is_wrapped_with_key_path_and_cause()
+  local failure = core.Error("boom")
+  local c = ready(function(c)
+    c:bind("top", function() return {} end, { requires = { "bad" } })
+    c:bind("bad", function() error(failure) end)
+  end)
+  local err = raises(self, container.ConstructionError, function() c:resolve("top") end)
+  self:assert_equal("bad", err.context.key)
+  self:assert_equal("top,bad", table.concat(err.context.path, ","))
+  self:assert_true(err.cause == failure)
+end
+
+function T:test_a_string_error_is_wrapped_too()
+  local c = ready(function(c) c:bind("bad", function() error("plain", 0) end) end)
+  local err = raises(self, container.ConstructionError, function() c:resolve("bad") end)
+  self:assert_equal("plain", err.cause)
+end
+
+function T:test_cancellation_and_deadline_errors_are_not_wrapped()
+  for _, class in ipairs({ core.CancellationError, core.DeadlineExceededError }) do
+    local original = class("stop")
+    local c = ready(function(c) c:bind("a", function() error(original) end) end)
+    local err = self:assert_error(function() c:resolve("a") end)
+    self:assert_true(err == original)
+  end
+end
+
+function T:test_a_failed_construction_caches_nothing()
+  local attempts = 0
+  local c = ready(function(c)
+    c:bind("flaky", function()
+      attempts = attempts + 1
+      if attempts == 1 then error("first time") end
+      return { attempts = attempts }
+    end, { lifetime = "singleton" })
+  end)
+  self:assert_error(function() c:resolve("flaky") end)
+  self:assert_equal(2, c:resolve("flaky").attempts)
+  self:assert_equal(2, c:resolve("flaky").attempts)
+end
+
+function T:test_a_reentrant_resolution_raises_cycle_error()
+  local c
+  c = ready(function(self_c)
+    self_c:bind("a", function() return c:resolve("a") end, { lifetime = "singleton" })
+  end)
+  local err = raises(self, container.ConstructionError, function() c:resolve("a") end)
+  self:assert_true(core.is_instance_of(err.cause, container.CycleError))
+  self:assert_equal("a,a", table.concat(err.cause.context.path, ","))
+  -- and the guard is released: the container is usable afterwards
+  raises(self, container.ConstructionError, function() c:resolve("a") end)
+end
+
+-- Disposal --------------------------------------------------------------------------------------------------------------
+
+local function closing_class(name, log, fail)
+  local class = core.class(name)
+  function class:init() self.name = name end
+  function class:__close()
+    log[#log + 1] = name
+    if fail then error(core.Error(name .. " failed")) end
+  end
+  return core.finalise(class)
+end
+
+function T:test_a_scope_closes_its_scoped_services_in_reverse_order_of_creation()
+  local log = {}
+  local First, Second, Single = closing_class("First", log), closing_class("Second", log), closing_class("Single", log)
+  local c = ready(function(c)
+    c:bind("first", First, { lifetime = "scoped" })
+    c:bind("second", Second, { lifetime = "scoped", requires = { "first" } })
+    c:bind("single", Single, { lifetime = "singleton" })
+    c:bind("plain", function() return {} end, { lifetime = "scoped" })
+  end)
+  local scope = c:open_scope()
+  scope:resolve("plain")
+  scope:resolve("second")
+  scope:resolve("single")
+  scope:close()
+  self:assert_equal("Second,First", table.concat(log, ","))
+  scope:close()
+  self:assert_equal(2, #log, "closing is idempotent")
+  c:close()
+  self:assert_equal("Second,First,Single", table.concat(log, ","))
+end
+
+function T:test_the_container_closes_its_singletons_in_reverse_order()
+  local log = {}
+  local A, B = closing_class("A", log), closing_class("B", log)
+  local c = ready(function(c)
+    c:bind("a", A, { lifetime = "singleton" })
+    c:bind("b", B, { lifetime = "singleton", requires = { "a" } })
+  end)
+  c:resolve("b")
+  c:close()
+  self:assert_equal("B,A", table.concat(log, ","))
+  c:close()
+  self:assert_equal(2, #log)
+end
+
+function T:test_a_transient_is_not_tracked_for_disposal()
+  local log = {}
+  local Tr = closing_class("Tr", log)
+  local c = ready(function(c) c:bind("t", Tr) end)
+  local scope = c:open_scope()
+  scope:resolve("t")
+  scope:close()
+  c:close()
+  self:assert_equal(0, #log)
+end
+
+function T:test_every_close_is_attempted_and_the_first_error_carries_the_others()
+  local log = {}
+  local A, B, C = closing_class("A", log, true), closing_class("B", log, true), closing_class("C", log, false)
+  local c = ready(function(c)
+    c:bind("a", A, { lifetime = "scoped" })
+    c:bind("b", B, { lifetime = "scoped" })
+    c:bind("c", C, { lifetime = "scoped" })
+  end)
+  local scope = c:open_scope()
+  scope:resolve("a"); scope:resolve("b"); scope:resolve("c")
+  local err = self:assert_error(function() scope:close() end)
+  self:assert_equal("C,B,A", table.concat(log, ","), "all were attempted")
+  self:assert_equal("B failed", err.message)
+  self:assert_equal(1, #err.context.suppressed)
+  self:assert_equal("A failed", err.context.suppressed[1].message)
+end
+
+function T:test_a_close_that_raises_a_non_error_is_wrapped()
+  local class = core.class("Raw")
+  function class:__close() error("raw", 0) end
+  core.finalise(class)
+  local c = ready(function(c) c:bind("r", class, { lifetime = "singleton" }) end)
+  c:resolve("r")
+  local err = raises(self, container.ContainerError, function() c:close() end)
+  self:assert_equal("raw", err.cause)
+end
+
+function T:test_scope_and_container_support_to_be_closed_variables()
+  local log = {}
+  local R, S = closing_class("R", log), closing_class("S", log)
+  local c = ready(function(c)
+    c:bind("r", R, { lifetime = "scoped" })
+    c:bind("s", S, { lifetime = "singleton" })
+  end)
+  do
+    local scope <close> = c:open_scope()
+    scope:resolve("r")
+    scope:resolve("s")
+  end
+  self:assert_equal("R", table.concat(log, ","))
+  do
+    local owner <close> = c
+  end
+  self:assert_equal("R,S", table.concat(log, ","))
+end
+
+function T:test_a_closed_scope_or_container_refuses_to_resolve()
+  local c = ready(function(c) c:bind("a", function() return {} end) end)
+  local scope = c:open_scope()
+  scope:close()
+  raises(self, container.ContainerError, function() scope:resolve("a") end)
+  local other = c:open_scope()
+  c:close()
+  raises(self, container.ContainerError, function() c:resolve("a") end)
+  raises(self, container.ContainerError, function() other:resolve("a") end)
+  raises(self, container.ContainerError, function() c:open_scope() end)
+  raises(self, container.ContainerError, function() c:bind("b", function() return {} end) end)
+end
+
+-- Overrides ----------------------------------------------------------------------------------------------------------------
+
+function T:test_override_of_an_unbound_key_raises_missing_binding_error()
+  local c = container.Container()
+  local err = raises(self, container.MissingBindingError, function() c:override("typo", function() return {} end) end)
+  self:assert_equal("typo", err.context.key)
+  raises(self, container.MissingBindingError, function() c:override_instance("typo", {}) end)
+end
+
+function T:test_override_keeps_lifetime_and_requires_when_options_are_omitted()
+  local c = container.Container()
+  c:bind("dep", function() return { id = "dep" } end, { lifetime = "singleton" })
+  c:bind("a", function(dep) return { dep = dep, id = "real" } end, { lifetime = "singleton", requires = { "dep" } })
+  c:override("a", function(dep) return { dep = dep, id = "fake" } end)
+  c:validate()
+  local a = c:resolve("a")
+  self:assert_equal("fake", a.id)
+  self:assert_true(a.dep == c:resolve("dep"))
+  self:assert_true(a == c:resolve("a"), "still a singleton")
+end
+
+function T:test_override_with_options_replaces_both()
+  local c = container.Container()
+  c:bind("dep", function() return {} end)
+  c:bind("a", function() return { id = "real" } end, { lifetime = "singleton", requires = { "dep" } })
+  c:override("a", function(...) return { n = select("#", ...) } end, { lifetime = "transient" })
+  c:validate()
+  self:assert_equal(0, c:resolve("a").n)
+  self:assert_false(c:resolve("a") == c:resolve("a"))
+end
+
+function T:test_override_keeps_the_position_in_the_registration_order()
+  local c = container.Container():bind("a", function() return {} end, { requires = { "x" } })
+  c:bind("b", function() return {} end, { requires = { "y" } })
+  c:override("a", function() return {} end, { requires = { "z" } })
+  local err = self:assert_error(function() c:validate() end)
+  self:assert_equal("z", err.context.problems[1].context.key)
+  self:assert_equal("y", err.context.problems[2].context.key)
+end
+
+function T:test_override_instance_injects_a_fake_as_a_singleton()
+  local fake = { fake = true }
+  local c = container.Container()
+  c:bind("clock", function() return {} end, { lifetime = "scoped", requires = { "ghost" } })
+  c:override_instance("clock", fake)
+  c:bind("user", function(clock) return { clock = clock } end, { requires = { "clock" } })
+  c:validate()
+  self:assert_true(c:resolve("user").clock == fake)
+  raises(self, core.ArgumentError, function() container.Container():bind("a", function() return {} end):override_instance("a", nil) end)
+end
+
+function T:test_override_after_validate_raises_container_error()
+  local c = container.Container():bind("a", function() return {} end):validate()
+  raises(self, container.ContainerError, function() c:override("a", function() return {} end) end)
+  raises(self, container.ContainerError, function() c:override_instance("a", {}) end)
+end
+
+return T
