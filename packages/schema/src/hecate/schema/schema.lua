@@ -143,7 +143,7 @@ end
 --- overflow, and a path that grows quadratically. Every container validator and coercer counts its nesting and, beyond
 --- `MAX_DEPTH` (the same maximum as `json`), reports a `depth_limit` violation at the path where it stopped and does
 --- not descend further. The counter is reset by each public entry point, so an error never leaves it stale.
-local MAX_DEPTH = 1000
+local MAX_DEPTH = json.DEFAULT_MAX_DEPTH
 local depth = 0
 
 --- Work budget (OQ-91). A recursive `union` of containers can cost two to the power of the depth when nothing

@@ -11,6 +11,7 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- `hecate.json`: `json.DEFAULT_MAX_DEPTH` and `json.MAX_DEPTH_CEILING` expose the nesting limits of `decode` and `encode`; `hecate.schema` reads its depth guard from them (OQ-92).
 - `hecate.schema`: `multiple_of` refuses a fractional divisor at declaration (OQ-87), with the alternatives in the message and in the architecture specification.
 - `hecate.schema`: the name collision error of `to_json_schema` says whether each of the two names comes from a class (`schema.of`) or from `named`; classes are documented as the primary way to name schemas and `named` as the opt-in for inline DTOs (OQ-89).
 - `hecate.schema`: `Schema:build` applies `default` for JSON content (OQ-88): for every method except PATCH an absent property declared with a default takes a fresh deep copy of it (nested objects, arrays, maps, unions, tagged unions, class-bound instances, and a top-level `default` for an absent value); the content is never modified, an explicit `null` stays null, `schema.sent` stays false for a defaulted attribute, a PATCH applies no default, and `validate` stays pure.

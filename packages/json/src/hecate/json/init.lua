@@ -242,4 +242,12 @@ function json.is_array(value) return type(value) == "table" and rawequal(getmeta
 ---@return boolean
 function json.is_object(value) return type(value) == "table" and rawequal(getmetatable(value), object_metatable) end
 
+--- The default `max_depth` of `decode` and `encode` (OQ-92: read by `hecate.schema` for its own nesting guard).
+---@type integer
+json.DEFAULT_MAX_DEPTH = DEFAULT_MAX_DEPTH
+
+--- The highest `max_depth` accepted by `decode` and `encode`.
+---@type integer
+json.MAX_DEPTH_CEILING = MAX_DEPTH_CEILING
+
 return json
