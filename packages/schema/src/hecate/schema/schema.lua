@@ -169,6 +169,7 @@ local segments = {}
 local function segment(k)
   local token = segments[k]
   if type(token) == "number" then return "/" .. token end
+  ---@cast token string
   if token:find("[~/]") then return "/" .. escape_token(token) end -- only a token that needs it pays the two substitutions
   return "/" .. token
 end
@@ -181,7 +182,7 @@ local function path_to(at)
   if at == 1 then return segment(1) end
   if at == 2 then return segment(1) .. segment(2) end
   if at == 3 then return segment(1) .. segment(2) .. segment(3) end
-  local parts = table.create(at)
+  local parts = {}
   for k = 1, at do parts[k] = segment(k) end
   return table.concat(parts)
 end

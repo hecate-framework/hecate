@@ -156,6 +156,7 @@ function T:test_undeclared_properties_come_in_byte_order_whatever_the_insertion_
   local names = { "zeta", "alpha", "Beta", "a~b", "a/b", "é", "a", "_x", "10", "9" }
   local expected
   for round = 1, 6 do
+    ---@type table<string, any>
     local value = { id = 1 }
     for i = 1, #names do value[names[(i * round) % #names + 1]] = true end
     for i = 1, #names do value[names[i]] = true end
@@ -202,6 +203,7 @@ function T:test_the_cap_keeps_the_first_undeclared_properties_in_byte_order()
   local s = schema.object({ id = schema.integer() })
   for _, method in ipairs({ "validate", "coerce", "build" }) do
     for _ = 1, 3 do
+      ---@type table<string, any>
       local value = { id = 1 }
       for i = 1, 150 do value[("key%03d"):format((i * 7) % 150)] = true end
       local ok, violations = s[method](s, value)
