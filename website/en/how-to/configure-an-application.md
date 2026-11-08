@@ -9,7 +9,7 @@ order: 8
 
 This guide shows how to load the configuration of a process with `hecate.config`. It is written for
 hecate 0.x and Lua 5.5. The configuration is read once at boot, validated against a schema and then
-immutable; the specification is [configuration.md](../../../docs/architecture/configuration.md).
+immutable; the specification is [configuration.md](https://github.com/hecate-framework/hecate/blob/main/docs/architecture/configuration.md).
 
 ## Declare the keys and load
 
