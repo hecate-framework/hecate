@@ -145,3 +145,10 @@ local query = schema.object({ id = schema.integer(), score = schema.number(), ac
   tags = schema.array(schema.string()) })
 report("query", query, { id = "42", score = "1.5", active = "true", tags = "a,b,c" }, "build", coerce_options,
   "build-coerce")
+
+-- A map of 20 integers read from text (the coercer of a map visits its members in key order when one fails).
+local counts = schema.map(schema.integer())
+local texts, numbers = {}, {}
+for i = 1, 20 do texts["key" .. i] = ("%d"):format(i); numbers["key" .. i] = i end
+report("map-of-20", counts, texts, "coerce")
+report("map-of-20", counts, numbers, "validate")

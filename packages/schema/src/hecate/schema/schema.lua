@@ -1318,13 +1318,30 @@ function M.map(value, options)
   local coercer = guarded(function(value, at, out)
     if type(value) ~= "table" or value == null then return value end
     local result = {}
+    local before = #out
     for key, member in next, value do
-      if overflowed(out) then return result end
+      if overflowed(out) then break end
       if type(key) == "string" then
         segments[at + 1] = echoed(key)
         result[key] = coerce_value(member, at + 1, out)
       else
         result[key] = member
+      end
+    end
+    if #out > before and budget_violation == nil then
+      -- The members were visited in `next` order, which differs from run to run, and so would the violations (and
+      -- which of them the cap keeps). A failure is the rare path: it is discarded and visited again in byte order.
+      for i = #out, before + 1, -1 do out[i] = nil end
+      result = {}
+      local keys = {}
+      for key, member in next, value do
+        if type(key) == "string" then keys[#keys + 1] = key else result[key] = member end
+      end
+      table.sort(keys)
+      for _, key in ipairs(keys) do
+        if overflowed(out) then break end
+        segments[at + 1] = echoed(key)
+        result[key] = coerce_value(value[key], at + 1, out)
       end
     end
     return result

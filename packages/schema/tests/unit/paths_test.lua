@@ -182,6 +182,38 @@ function T:test_undeclared_properties_of_a_nested_union_failure_are_ordered_too(
   self:assert_equal("/v /w /x /y /z", table.concat(got, " "))
 end
 
+function T:test_map_coercion_violations_come_in_key_order()
+  local s = schema.map(schema.integer())
+  local value = {}
+  for _, key in ipairs({ "q", "b", "z", "a", "m", "c" }) do value[key] = "x" end
+  local first
+  for _ = 1, 5 do
+    local ok, violations = s:coerce(value)
+    self:assert_false(ok)
+    local got = {}
+    for i, v in ipairs(violations) do got[i] = v.path end
+    first = first or table.concat(got, " ")
+    self:assert_equal(first, table.concat(got, " "))
+  end
+  self:assert_equal("/a /b /c /m /q /z", first)
+end
+
+function T:test_the_cap_keeps_the_first_undeclared_properties_in_byte_order()
+  local s = schema.object({ id = schema.integer() })
+  for _, method in ipairs({ "validate", "coerce", "build" }) do
+    for _ = 1, 3 do
+      local value = { id = 1 }
+      for i = 1, 150 do value[("key%03d"):format((i * 7) % 150)] = true end
+      local ok, violations = s[method](s, value)
+      self:assert_false(ok)
+      self:assert_equal(101, #violations)
+      self:assert_equal("/key000", violations[1].path)
+      self:assert_equal("/key099", violations[100].path)
+      self:assert_equal("too_many_violations", violations[101].code)
+    end
+  end
+end
+
 function T:test_json_null_and_empty_path_are_unchanged()
   local _, root = schema.integer():validate("x")
   assert_paths(self, { " type" }, root)
