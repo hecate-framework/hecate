@@ -2,7 +2,7 @@
 # Handoff
 
 - roadmap_item: `schema`: refinement types, composition, coercion, validation with JSON Pointer error paths, JSON Schema 2020-12 emission.
-- status: waiting-owner          <!-- in-progress | waiting-ci | waiting-owner -->
+- status: in-progress            <!-- in-progress | waiting-ci | waiting-owner -->
 - lock_until: 2026-11-08T12:17:24Z
 - last_update: 2026-11-08T08:17:24Z
 
@@ -64,12 +64,13 @@ The owner asked on 2026-11-08 to finish this pull request the same day; an inter
 
 ## Next steps
 
-1. (DONE 2026-11-07, run 21:41Z: refusal, tests, architecture note, CHANGELOG; how-to note not added) OQ-87 resolved: refuse a non-integer `multiple_of` at declaration (clear message, tests, emission unchanged for integers); document why in the schema reference and the how-to, with the alternatives: integers in minor units, or a string with a `pattern` for a fixed number of decimals (JSON Schema has no keyword for decimal places), and a future decimal type.
-2. (DONE 2026-11-08: `json.DEFAULT_MAX_DEPTH`/`MAX_DEPTH_CEILING` exposed, schema reads it; typecheck, lint, test schema/json pass) OQ-92 resolved: `schema` reads its depth guard default and ceiling from `json` (expose the cap and default in `hecate.json` if not already, then replace the constant in `schema.lua`; the work budget of OQ-91 stays a separate internal constant). The `limits.max_depth` configuration key belongs to the kernel item.
-3. (2b) Remaining emission work: official JSON Schema test suite (supported subset), the `1.0` gap is confirmed; (pattern translator done); more formats (uri), core enumeration support, recursive schemas (named done).
-4. Class-bound schemas, remaining: `value_class`, coerce-then-build. (Done: interface, sent, PATCH, construction, `core.allocate` and weak side table switch.)
-5. Docs: website pages, tested examples, glossary check, reference generation (`DEFAULT_PACKAGES`).
-6. (DONE 2026-11-08) Benchmarks for compiled validators.
+1. OQ-93 (1), decided by the owner: a `core` primitive that builds a frozen instance of a `value_class` from a table of attributes without calling `init`, next to `core.allocate`; `schema` uses it for class-bound parts whose class is a `value_class`. Tests first in `packages/core` and `packages/schema`.
+2. OQ-93 (2), decided by the owner: `Schema:build(content, { method, coerce = true })` converts texts with the rules of `coerce`, then builds; defaults apply once, `schema.sent` records only what was provided.
+3. The official JSON Schema test suite (supported subset): a pinned entry in `packages/schema/tests/external.lua` fetched by `fetch-fixtures` like the data of `json` (skipped locally without network, enforced in CI), a runner with an explicit list of the unsupported cases and the reason of each.
+4. Schemas from `core` enumerations (a `schema.enumeration` taking a `core.enumeration`).
+5. Docs: tested examples, an explanation page, the glossary check, the generated reference, the French pages.
+6. Definition-of-done check and `/review-package` with the reviewer agents, then fix the findings.
+7. Finish: delete `HANDOFF.md`, tick the roadmap item, CI green on the three platforms, mark the pull request ready and ask for the owner's review.
 
 ## Open question issues
 
