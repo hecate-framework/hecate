@@ -40,6 +40,11 @@ read the matching page of the [explanation](../explanation/index.md) section.
 - [Validate values with schemas](validate-with-schemas.md): declare schemas, collect violations with
   JSON Pointer paths, emit JSON Schema.
 
+## Application structure
+
+- [Use the container](use-the-container.md): bind services, choose lifetimes, validate the graph at boot,
+  resolve by constructor injection, close services and replace them in tests.
+
 ## Performance
 
 - [Measure performance](measure-performance.md): run the TCP echo benchmark, read its figures and
