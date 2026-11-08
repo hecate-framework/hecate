@@ -68,13 +68,14 @@ The owner asked on 2026-11-08 to finish this pull request the same day; an inter
 
 ## Next steps
 
-1. DONE OQ-93 (1), decided by the owner: a `core` primitive that builds a frozen instance of a `value_class` from a table of attributes without calling `init`, next to `core.allocate`; `schema` uses it for class-bound parts whose class is a `value_class`. Tests first in `packages/core` and `packages/schema`.
-2. DONE OQ-93 (2), decided by the owner: `Schema:build(content, { method, coerce = true })` converts texts with the rules of `coerce`, then builds; defaults apply once, `schema.sent` records only what was provided.
-3. DONE The official JSON Schema test suite (supported subset): a pinned entry in `packages/schema/tests/external.lua` fetched by `fetch-fixtures` like the data of `json` (skipped locally without network, enforced in CI), a runner with an explicit list of the unsupported cases and the reason of each.
-4. Schemas from `core` enumerations (a `schema.enumeration` taking a `core.enumeration`).
-5. Docs: tested examples, an explanation page, the glossary check, the generated reference, the French pages.
-6. Definition-of-done check and `/review-package` with the reviewer agents, then fix the findings.
-7. Finish: delete `HANDOFF.md`, tick the roadmap item, CI green on the three platforms, mark the pull request ready and ask for the owner's review.
+1. OQ-94, decided by the owner: the native JSON encoder honours `__pairs` for tables that define one (frozen `value_class` instances encode as their attributes; today `json.encode` writes `{}` silently); tests first, native-code-reviewer, benchmark of the plain path; then switch the value instance encode test in `packages/schema/tests/unit/value_build_test.lua` from the `pairs` copy to a direct `json.encode` of the built instance.
+2. DONE OQ-93 (1), decided by the owner: a `core` primitive that builds a frozen instance of a `value_class` from a table of attributes without calling `init`, next to `core.allocate`; `schema` uses it for class-bound parts whose class is a `value_class`. Tests first in `packages/core` and `packages/schema`.
+3. DONE OQ-93 (2), decided by the owner: `Schema:build(content, { method, coerce = true })` converts texts with the rules of `coerce`, then builds; defaults apply once, `schema.sent` records only what was provided.
+4. DONE The official JSON Schema test suite (supported subset): a pinned entry in `packages/schema/tests/external.lua` fetched by `fetch-fixtures` like the data of `json` (skipped locally without network, enforced in CI), a runner with an explicit list of the unsupported cases and the reason of each.
+5. Schemas from `core` enumerations (a `schema.enumeration` taking a `core.enumeration`).
+6. Docs: tested examples, an explanation page, the glossary check, the generated reference, the French pages.
+7. Definition-of-done check and `/review-package` with the reviewer agents, then fix the findings.
+8. Finish: delete `HANDOFF.md`, tick the roadmap item, CI green on the three platforms, mark the pull request ready and ask for the owner's review.
 
 ## Open question issues
 
