@@ -11,6 +11,10 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- `hecate.core`: `core.instantiate_value(class, fields)` builds a frozen instance of a `value_class` from a table of attributes without calling `init`, with the same freezing as construction (OQ-93); `core.is_value_class(class)` tells whether a class is one.
+
+- `hecate.schema`: `Schema:build` builds the instances of class-bound parts whose class is a `value_class` with `core.instantiate_value` (children before parents), and `Schema:build(content, { method, coerce = true })` converts path, query and header texts with the rules of `coerce` and then builds, applying defaults once and recording in `schema.sent` only the attributes provided (OQ-93).
+
 - `schema`: micro-benchmark `schema/validate` (`lua tools/run.lua bench schema/validate`) of the compiled validators: `validate`, `coerce` and `build` on a record, an array of 100 records and a union.
 
 - `hecate.json`: `json.DEFAULT_MAX_DEPTH` and `json.MAX_DEPTH_CEILING` expose the nesting limits of `decode` and `encode`; `hecate.schema` reads its depth guard from them (OQ-92).

@@ -58,14 +58,16 @@
 
 - Run 2026-11-08 08:15Z (resumed after lock expiry; CI green on the three platforms; json native built, `test schema` green). No code change: the remaining items (`value_class` binding, coerce-then-build, official JSON Schema test suite) have no specification text, so inventing them would deviate from CLAUDE.md. Owner: please say whether the schema item may be ticked as is (deferring these three to new roadmap items) or give the intended semantics.
 
+- Steps 1 and 2 of OQ-93 (owner-driven session): `core.instantiate_value(class, fields)` (frozen instance of a value class from a table of attributes, no `init`; `ArgumentError` for a non-value-class or non-table, `ConformanceError` if not finalised, table copied) and `core.is_value_class(class)`, tests in `allocate_test.lua`; `Schema:build` uses it for class-bound parts whose class is a value class (`value_build_test.lua`); `Schema:build(content, { method, coerce = true })` converts texts then builds, defaults once, `sent` only for provided attributes, PATCH without defaults (`coerce_build_test.lua`); READMEs, object-model, schemas-and-contracts, how-to, CHANGELOG updated.
+
 ## Owner-driven session
 
 The owner asked on 2026-11-08 to finish this pull request the same day; an interactive session holds the lock until `lock_until` and drives the remaining steps, then releases it. A relay run must skip this pull request while the lock is in the future.
 
 ## Next steps
 
-1. OQ-93 (1), decided by the owner: a `core` primitive that builds a frozen instance of a `value_class` from a table of attributes without calling `init`, next to `core.allocate`; `schema` uses it for class-bound parts whose class is a `value_class`. Tests first in `packages/core` and `packages/schema`.
-2. OQ-93 (2), decided by the owner: `Schema:build(content, { method, coerce = true })` converts texts with the rules of `coerce`, then builds; defaults apply once, `schema.sent` records only what was provided.
+1. DONE OQ-93 (1), decided by the owner: a `core` primitive that builds a frozen instance of a `value_class` from a table of attributes without calling `init`, next to `core.allocate`; `schema` uses it for class-bound parts whose class is a `value_class`. Tests first in `packages/core` and `packages/schema`.
+2. DONE OQ-93 (2), decided by the owner: `Schema:build(content, { method, coerce = true })` converts texts with the rules of `coerce`, then builds; defaults apply once, `schema.sent` records only what was provided.
 3. The official JSON Schema test suite (supported subset): a pinned entry in `packages/schema/tests/external.lua` fetched by `fetch-fixtures` like the data of `json` (skipped locally without network, enforced in CI), a runner with an explicit list of the unsupported cases and the reason of each.
 4. Schemas from `core` enumerations (a `schema.enumeration` taking a `core.enumeration`).
 5. Docs: tested examples, an explanation page, the glossary check, the generated reference, the French pages.
@@ -84,7 +86,9 @@ The owner asked on 2026-11-08 to finish this pull request the same day; an inter
 
 ## Doubts and questions for the owner
 
-- None open for the owner on this item. The questions OQ-85 to OQ-92 are all resolved (rows in the Resolved table of `docs/open-questions.md`, mirror issues closed); the remaining open questions belong to other packages and must not be resolved by this run.
+- `json.encode` of a built value-class instance writes an empty object: the native encoder reads tables raw (by design) and a frozen value object keeps its attributes in a hidden table behind `__pairs`. The test encodes a copy made with `pairs`. Conservative choice: no change in `json` (outside this task). Options for the owner: the encoder honours `__pairs` for value objects, or a `core` accessor for the fields. Not decided.
+- Name chosen: `core.instantiate_value`, as proposed (glossary has no term for it); an extra predicate `core.is_value_class` was added so that `schema` can choose the path without a trial call.
+- Otherwise none open for the owner on this item. The questions OQ-85 to OQ-92 are all resolved (rows in the Resolved table of `docs/open-questions.md`, mirror issues closed); the remaining open questions belong to other packages and must not be resolved by this run.
 
 ## Commands to re-run
 

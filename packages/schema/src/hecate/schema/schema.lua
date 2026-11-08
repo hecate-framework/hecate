@@ -154,6 +154,10 @@ local depth = 0
 local limits = { max_steps = 1000000 }
 --- Set by `Schema:build` for a PATCH: an absent attribute means unchanged, so no default applies (OQ-88).
 local without_defaults = false
+--- Set by `Schema:build` with `coerce = true`: the object coercers record, per converted table, the attributes whose
+--- value came from a default, so that the build does not count them as sent (OQ-93). Nil otherwise.
+---@type table<table, table<string, true>>?
+local defaulted = nil
 local steps = 0
 local budget_violation = nil -- the `complexity_limit` violation of the call in progress, once the budget is spent
 
@@ -207,6 +211,7 @@ end
 --- Resets the counters of a public entry point.
 local function reset_work()
   depth, steps, budget_violation, fast, detailing, memo = 0, 0, nil, false, 0, nil
+  without_defaults, defaulted = false, nil
 end
 
 --- Raw violations to `Violation`s; a spent budget is reported exactly once, even if the violation was collected in
@@ -762,8 +767,13 @@ function M.object(properties, options)
       local member = value[names[i]]
       if member ~= nil then
         result[names[i]] = coercers[i](member, path .. tokens[i], out)
-      elseif defaults[i] ~= nil then
-        result[names[i]] = copy_value(defaults[i]) -- an absent property takes its default
+      elseif defaults[i] ~= nil and not without_defaults then
+        result[names[i]] = copy_value(defaults[i]) -- an absent property takes its default (never for a PATCH build)
+        if defaulted ~= nil then
+          local names_of = defaulted[result]
+          if names_of == nil then names_of = {}; defaulted[result] = names_of end
+          names_of[names[i]] = true
+        end
       end
     end
     return result
@@ -998,7 +1008,7 @@ function M.default(inner, value)
   local coerce_inner = inner.coercer
   return Schema("default", { options = { value = stored }, item = inner, validator = inner.validator, builder = inner.builder,
     coercer = function(v, path, out)
-      if v == nil then return copy_value(stored) end
+      if v == nil then return not without_defaults and copy_value(stored) or nil end
       return coerce_inner(v, path, out)
     end })
 end
@@ -1145,16 +1155,22 @@ function M.of(target)
     local object = named.item --[[@as hecate.schema.Schema]]
     local fields = named.builder(value)
     if object.kind ~= "object" then return fields end
-    local instance, present = core.allocate(bound_class), {}
+    -- A value class is frozen after `init`, so its attributes are collected first and the frozen instance is made
+    -- from them (`core.instantiate_value`); the nested parts in `fields` are already built (children first).
+    local frozen = core.is_value_class(bound_class)
+    local attributes = frozen and {} or core.allocate(bound_class)
+    local present = {}
+    local from_default = defaulted ~= nil and defaulted[value] or nil
     for name in pairs(object.properties --[[@as table]]) do
       local member = value[name]
-      if member ~= nil then
+      if member ~= nil and not (from_default ~= nil and from_default[name]) then
         present[name] = true
-        if member ~= null then instance[name] = fields[name] end
+        if member ~= null then attributes[name] = fields[name] end
       elseif fields[name] ~= nil then
-        instance[name] = fields[name] -- supplied by a default: the attribute is set but not sent (OQ-88)
+        attributes[name] = fields[name] -- supplied by a default: the attribute is set but not sent (OQ-88, OQ-93)
       end
     end
+    local instance = frozen and core.instantiate_value(bound_class, attributes) or attributes
     presence_sets[instance] = present
     return instance
   end
@@ -1324,17 +1340,21 @@ local METHODS = { POST = false, PUT = false, PATCH = true }
 --- attribute is nil, an explicit `null` is nil too and `schema.sent` tells them apart. An absent property declared
 --- with `default` takes a fresh deep copy of its default (the content is never modified, and `schema.sent` stays false
 --- for it), for every method except PATCH, where an absent attribute means unchanged and no default applies; an
---- explicit `null` never takes the default (OQ-88). `options.method` is the HTTP
+--- explicit `null` never takes the default (OQ-88). With `options.coerce = true` the content is read from text (path,
+--- query and header fields) first: it is converted with the rules of `coerce` (a failed conversion gives the same
+--- `coercion` violations), defaults apply once, in that conversion, and `schema.sent` records only the attributes that
+--- were provided (OQ-93). `options.method` is the HTTP
 --- method the content arrived with (OQ-50): `"POST"` and `"PUT"` (the default) are strict; `"PATCH"` lets the
 --- required properties of the top-level object be absent (unchanged), while `null` still fails unless nullable.
 ---@param value any  decoded content
----@param options? { method?: "POST"|"PUT"|"PATCH" }
+---@param options? { method?: "POST"|"PUT"|"PATCH", coerce?: boolean }
 ---@return boolean ok  true when the content conforms
 ---@return any result  the built value when `ok`, else a list of `hecate.schema.Violation`
 function Schema:build(value, options)
-  local relax = false
+  local relax, coerce = false, false
   if options ~= nil then
-    local o = read_options("build", options, { method = "string" })
+    local o = read_options("build", options, { method = "string", coerce = "boolean" })
+    coerce = o.coerce == true
     if o.method ~= nil then
       relax = METHODS[o.method]
       if relax == nil then refuse("build: method must be POST, PUT or PATCH, got " .. o.method, { option = "method" }) end
@@ -1343,14 +1363,27 @@ function Schema:build(value, options)
   local raw = {}
   reset_work()
   without_defaults = relax == true
+  if coerce then
+    -- Texts first, with the rules of `coerce` (defaults of the object coercers included, except for a PATCH); the
+    -- build below then finds every default already applied and applies none a second time.
+    defaulted = {}
+    value = self.coercer(value, "", raw)
+    depth = 0
+    if #raw > 0 or budget_violation ~= nil then
+      defaulted = nil
+      return false, to_violations(raw)
+    end
+  end
   -- A top-level `default` replaces an absent value, as in `coerce`, except for a PATCH.
   if value == nil and not relax and self.kind == "default" then value = copy_value((self.options --[[@as table]]).value) end
   ;(relax and self.relaxed_validator or self.validator)(value, "", raw)
   if #raw == 0 and budget_violation == nil then
     local built = self.builder(value)
+    defaulted = nil
     if budget_violation ~= nil then return false, to_violations(raw) end
     return true, built
   end
+  defaulted = nil
   return false, to_violations(raw)
 end
 

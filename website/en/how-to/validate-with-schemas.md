@@ -95,5 +95,15 @@ stays `null` and never takes the default. `schema.sent(instance, name)` stays fa
 attribute filled by a default, so an action can tell what the client really sent. `validate` never
 supplies a value.
 
+## Build from path, query and header texts
+
+Query, path and header values are texts. Pass `coerce = true` to `build` to convert them with
+the rules of `coerce` and build the instances of your classes in one call, for example
+`filter_schema:build(query, { coerce = true })`. A text that cannot be converted gives the same
+`coercion` violation, at the same path, as `coerce`. Defaults apply once, in the conversion, and
+never for a PATCH. `schema.sent` records only the attributes the client provided, never a
+defaulted one. `coerce` must be a boolean. When a class is a `value_class`, its instances are
+built frozen, without calling `init`.
+
 Choices taken conservatively (for example, `integer` refuses `1.0`) are listed in the package
 README and in the open questions.

@@ -45,6 +45,7 @@ coercion (except where explicitly allowed).
 - Schemas compile to validator closures at boot; validation must not walk the schema
   description at request time.
 - `default(schema, value)`: `coerce` (texts) and `build` (JSON content, except PATCH) give an absent property a fresh copy of the value; an explicit `null` and a PATCH never take it, `validate` never supplies it, and `sent` stays false for a defaulted attribute (OQ-88).
+- `build(content, { method, coerce })`: a class-bound part whose class is a `value_class` is built with `core.instantiate_value` from its validated attributes, children first (no `init` call). With `coerce = true` the texts of a request (path, query, headers) are converted with the rules of `coerce` and then built in one call: defaults apply once, in the conversion and never for a PATCH, `sent` records only the attributes provided, and a failed conversion returns the `coercion` violations of `coerce` (OQ-93).
 - Unknown properties (`additional_properties`): rejected by default for request content (configurable per schema).
 - Members of an `object` schema are *properties* (the JSON Schema term); *fields* are HTTP header fields only.
 
