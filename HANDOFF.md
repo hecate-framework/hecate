@@ -19,7 +19,7 @@
 
 ## Next steps
 
-1. Narrow `Request.content` (OQ-76 b), then check CI of the pull request.
+1. Check CI of the pull request at bc79d89. `Request.content` (OQ-76 b): the server already leaves it nil; the type stays `string|table|function` because the kernel sets the validated content, so nothing to narrow in `http` (decide in the kernel step).
 2. OQ-101 items (a) `json.set_max_depth`, (b) logging keys, (c) `wrap_secret`.
 3. Settle how a route names its response schema (OQ-98 item 7), then the kernel proper.
 
