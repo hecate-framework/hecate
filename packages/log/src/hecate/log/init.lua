@@ -1,5 +1,5 @@
 -- hecate.log: structured logging with RFC 5424 severities, per-scope context and pluggable sinks.
-global <const> require, type, error
+global <const> require, type, error, io
 
 local core = require("hecate.core")
 local severities = require("hecate.log.internal.severity")
@@ -46,6 +46,34 @@ function log.bind(fields, fn, ...)
     error(core.ArgumentError(("log.bind: expects a table of fields, got %s"):format(type(fields))), 2)
   end
   return ambient.bind(fields, fn, ...)
+end
+
+local default_logger = nil
+
+--- Returns the process-wide default logger (OQ-79): created on first use, it writes human-readable lines
+--- through a `ConsoleSink` to the standard error stream at severity `informational`, synchronously. Packages
+--- that have something to log and were given no `logger` use it, so none builds a parallel mechanism.
+---@return hecate.log.Logger logger
+function log.default()
+  if default_logger == nil then
+    default_logger = log.Logger({
+      name = "hecate",
+      sinks = { log.ConsoleSink({ output = function(line) io.stderr:write(line) end }) },
+    })
+  end
+  return default_logger
+end
+
+--- Replaces the default logger (the kernel does so with the logging keys of its configuration); `nil`
+--- discards it, and the next `log.default()` builds the console one again.
+---
+--- Raises `hecate.core.ArgumentError` if `logger` is neither `nil` nor a `hecate.log.Logger`.
+---@param logger hecate.log.Logger?
+function log.set_default(logger)
+  if logger ~= nil and not core.is_instance_of(logger, log.Logger) then
+    error(core.ArgumentError("log.set_default: expects a Logger or nil"), 2)
+  end
+  default_logger = logger
 end
 
 --- Returns the numerical code of a severity, as in RFC 5424, section 6.2.1 (0 for `emergency` to 7 for `debug`).

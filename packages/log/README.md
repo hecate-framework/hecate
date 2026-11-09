@@ -45,6 +45,7 @@ local log = require("hecate.log")
 | `log.severity_code(severity)` | RFC 5424 numerical code, 0 to 7. |
 | `log.Logger(options?)` | Options: `severity` (default `informational`), `sinks`, `name`, `context`, `context_provider`, `redact` (field names wrapped in a `Secret`, case-insensitive, up to 16 levels deep, in fields and context), `clock`. Methods `emergency` ... `debug` `(message, fields?)`, `log(severity, message, fields?)`, `is_enabled`, `set_severity`, `severity`, `add_sink`, `with_context(fields)`, `failures()`. A call less urgent than the logger's severity builds no record; a sink that raises never fails the caller. |
 | `log.bind(fields, fn, ...)` | Runs `fn` with `fields` added to every record logged meanwhile (ambient context, below). Raises `ArgumentError` for bad arguments and `NonYieldableContextError` where the context cannot be carried. |
+| `log.default()` / `log.set_default(logger?)` | The process-wide default logger (OQ-79), built on first use: a `ConsoleSink` on the standard error stream at `informational`, synchronous. `set_default` replaces it (the kernel does); `nil` restores the lazy one. |
 | `log.Record` | What sinks receive: `severity`, `message`, `fields`, `context`, `timestamp`, `logger`. |
 | `log.MemorySink(options?)` | Keeps records (`records()`, `clear()`, `dropped()`, option `capacity`). |
 | `log.JsonLinesSink(options)` | Writes one JSON object per record to `options.output(line)`; renders secrets as `[redacted]`. |
