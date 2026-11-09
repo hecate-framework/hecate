@@ -21,5 +21,6 @@ documented package.
 - [`hecate.http`](http/index.md): the HTTP/1.1 server and client, messages, content streams, forms and problem details.
 - [`hecate.router`](router/index.md): the radix-tree router, path templates, matching, reverse routing and route table errors.
 - [`hecate.schema`](schema/index.md): refinement types, validation, coercion and JSON Schema emission.
+- [`hecate.container`](container/index.md): the inversion-of-control container, lifetimes, constructor injection, boot validation and disposal.
 
 The [glossary](glossary.md) defines the vocabulary used everywhere.
