@@ -75,7 +75,27 @@
   that is not an error) is a generic `500`. No message, context or cause of an error ever reaches a response.
 - `kernel.problems.guard(action, options?)`: wraps an action or a composed chain; returns the response (a problem for
   an error) and the failure that was caught, logs it at `error` severity when `options.logger` is given, and never
-  catches cancellation or deadline errors. Choices to confirm: OQ-112.
+  catches cancellation or deadline errors. Choices: OQ-112.
+
+- `kernel.problem`: problem classes (RFC 9457), built with the object model of `hecate.core`. `Problem` is a subclass of
+  `hecate.core.Error`, so an instance is raisable (`error(NotFound { ... })`, mapped by `problems.guard`) and returnable
+  by an action (`results.serialise` answers it as `application/problem+json`). Classes: `BadRequest` 400, `Unauthorized`
+  401, `Forbidden` 403, `NotFound` 404, `MethodNotAllowed` 405, `Conflict` 409, `Gone` 410, `UnprocessableContent` 422,
+  `TooManyRequests` 429, `InternalServerError` 500, `ServiceUnavailable` 503 (the reason phrase is the default title).
+  `NotFound { detail = "...", extensions = { ... } }` builds an instance carrying `status`, `title`, `type` (default
+  `about:blank`), `detail` (chosen by the developer, never an error message) and `extensions` (RFC 9457, section 3.2;
+  `type`, `title`, `status`, `detail` and `instance` are refused with `ArgumentError`, as is any other field). The class
+  carries `status`, `title` and `type`, which is what a route's `responses = { [404] = NotFound }` needs.
+  `problem.define(name, { status, title, type? })` declares an application's own class (`ArgumentError` unless the status
+  is 400..599, the title a non-empty string and `type` a string). `problem.is_problem(value)`, `problem.is_class(value)`.
+- `kernel.problems.from_problem(instance)`: the response of a problem instance (no `instance` member). `from_error` and
+  `guard` map a raised problem this way; `guard` logs a raised problem only from status 500.
+- `options.expose_details` (boolean, default false) of `problems.from_error` and `problems.guard`: when true, each 422
+  entry also carries the violation `message` and a generic 500 carries the extension member
+  `debug = { error = <class name>, message = <text>, traceback = <when the error has one> }`. When false, nothing of an
+  error message or context reaches a response; the `detail` and extensions of a problem are always shown, the developer
+  chose them. The kernel will bind this option to the configuration key `errors.expose_details` (OQ-112 (5)); neither
+  the key nor the boot warning exists yet (they come with the `config` integration and the `Application`).
 
 Further exports (application, controllers, route modules) arrive with later items.
 
@@ -85,6 +105,7 @@ Further exports (application, controllers, route modules) arrive with later item
 src/hecate/kernel/init.lua    public entry point
 src/hecate/kernel/chain.lua   filter chain (chain of responsibility)
 src/hecate/kernel/results.lua serialisation of results into responses
+src/hecate/kernel/problem.lua  problem classes (RFC 9457)
 src/hecate/kernel/problems.lua mapping of errors to problem details responses
 tests/unit/  tests/integration/  tests/fixtures/
 examples/    benchmarks/

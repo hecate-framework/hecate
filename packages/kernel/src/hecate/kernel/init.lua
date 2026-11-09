@@ -5,11 +5,13 @@ global <const> require
 ---@class hecate.kernel
 ---@field chain hecate.kernel.chain  composes filters around an action
 ---@field results hecate.kernel.results  serialises the result of an action into a Response
+---@field problem hecate.kernel.problem  problem classes (`NotFound`, ...) and `define`
 ---@field problems hecate.kernel.problems  maps errors and routing failures to problem details responses
 local kernel = {}
 
 kernel.chain = require("hecate.kernel.chain")
 kernel.results = require("hecate.kernel.results")
+kernel.problem = require("hecate.kernel.problem")
 kernel.problems = require("hecate.kernel.problems")
 
 return kernel

@@ -7,6 +7,8 @@ global <const> require, type, error, getmetatable, rawequal, math, string, table
 local core = require("hecate.core")
 local json = require("hecate.json")
 local http = require("hecate.http")
+local problem = require("hecate.kernel.problem")
+local problems = require("hecate.kernel.problems")
 
 --- Result of an action and its serialisation.
 ---@class hecate.kernel.results
@@ -163,6 +165,7 @@ end
 --- Serialises the result of an action into a Response.
 ---
 --- - a `hecate.http.Response` (a problem of `http.problem.response` included, RFC 9457) is returned as is;
+--- - a problem (`hecate.kernel.problem`) is answered as `problems.from_problem` does;
 --- - a result of `respond` answers with its status, represented with its own schema or the one declared for it;
 --- - nil answers `204` without content when the route declares a `204`, else `200` without content;
 --- - any other value answers `200`, or `201` when `options.created` is true or when the request is a `POST` and the
@@ -183,6 +186,8 @@ function results.serialise(result, request, route_responses, options)
   if type(result) == "table" and rawequal(getmetatable(result), nil) == false and core.is_instance_of(result, http.Response) then
     return result
   end
+  -- A returned problem is a result like a Response: always `application/problem+json` (RFC 9457, section 3).
+  if problem.is_problem(result) then return problems.from_problem(result) end
   local serialisers = options ~= nil and options.serialisers or results.serialisers
   if results.is_result(result) then
     local status = result.status

@@ -3,8 +3,8 @@
 
 - roadmap_item: `kernel`: application, modules, controllers, route modules, filters, problem details, lifecycle, multi-process workers, graceful shutdown (Phase 2, docs/roadmap.md)
 - status: in-progress
-- lock_until: 2026-11-09T23:44:49Z
-- last_update: 2026-11-09T22:14:49Z
+- lock_until: 2026-11-09T22:18:31Z
+- last_update: 2026-11-09T22:18:31Z
 
 ## Done
 
@@ -23,7 +23,7 @@
 - Step 9 (run of ~21:50Z, lock released): `hecate.kernel.problems` (`response`, `from_match`, `from_error`, `guard`), 19 tests, OQ-112 (choices to confirm; mirror issue created by the relay); typecheck, lint, `test kernel` ok. `http.serve_request` already catches errors: the Application decides which layer owns the mapping (`guard` sits just inside it).
 
 - Owner decisions on OQ-112 (2026-11-09, recorded in `docs/open-questions.md`, resolved; issue #168 closed): `errors.expose_details`, `hecate.problem.*` classes (returnable and raisable, `define`), messages in 422 entries when exposed. Roadmap kernel item (h) and (i).
-- Step 9 in progress (run of ~22:10Z, regular 90-minute lock; next relay at 00:40Z): `hecate.kernel.problem` classes (OQ-112 (i)) and `expose_details` in `problems` (OQ-112 (h), without the config key and the boot warning, which need `config` and the `Application`).
+- Step 9 (run of ~22:10Z, lock released at the end): `hecate.kernel.problem` (`Problem` subclass of `core.Error`, 11 status classes, `define`, `is_problem`, `is_class`), `problems.from_problem`, `options.expose_details` (422 entries carry `message`, a generic 500 carries `debug`); 19 tests; typecheck, lint, `test kernel` ok. Choices to confirm: `guard` does not log a raised Problem below 500; `Problem.init` accepts only `detail` and `extensions`. Left for the handoffs: the config key `errors.expose_details` and the boot warning, OpenAPI components for problem classes, the `hecate.problem` re-export.
 
 ## Next steps
 
