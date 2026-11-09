@@ -3,8 +3,8 @@
 
 - roadmap_item: `kernel`: application, modules, controllers, route modules, filters, problem details, lifecycle, multi-process workers, graceful shutdown (Phase 2, docs/roadmap.md)
 - status: in-progress
-- lock_until: 2026-11-09T21:47:06Z
-- last_update: 2026-11-09T21:47:06Z
+- lock_until: 2026-11-09T23:44:49Z
+- last_update: 2026-11-09T22:14:49Z
 
 ## Done
 
@@ -23,6 +23,7 @@
 - Step 9 (run of ~21:50Z, lock released): `hecate.kernel.problems` (`response`, `from_match`, `from_error`, `guard`), 19 tests, OQ-112 (choices to confirm; mirror issue created by the relay); typecheck, lint, `test kernel` ok. `http.serve_request` already catches errors: the Application decides which layer owns the mapping (`guard` sits just inside it).
 
 - Owner decisions on OQ-112 (2026-11-09, recorded in `docs/open-questions.md`, resolved; issue #168 closed): `errors.expose_details`, `hecate.problem.*` classes (returnable and raisable, `define`), messages in 422 entries when exposed. Roadmap kernel item (h) and (i).
+- Step 9 in progress (run of ~22:10Z, regular 90-minute lock; next relay at 00:40Z): `hecate.kernel.problem` classes (OQ-112 (i)) and `expose_details` in `problems` (OQ-112 (h), without the config key and the boot warning, which need `config` and the `Application`).
 
 ## Next steps
 
