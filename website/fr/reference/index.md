@@ -21,5 +21,6 @@ chaque paquet documenté.
 - [`hecate.log`](log/index.md) : enregistrements structurés, gravités de la RFC 5424, contexte et puits.
 - [`hecate.router`](router/index.md) : le routeur à arbre radix, les gabarits de chemin, l’appariement, le routage inverse et les erreurs de table de routes.
 - [`hecate.schema`](schema/index.md) : types raffinés, validation, coercition et émission de JSON Schema.
+- [`hecate.container`](container/index.md) : le conteneur d’inversion de contrôle, les durées de vie, l’injection par constructeur, la validation au démarrage et la libération.
 
 Le [glossaire](glossary.md) définit le vocabulaire utilisé partout.
