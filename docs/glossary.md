@@ -161,6 +161,11 @@ Errors are *problem details* (RFC 9457; `hecate.problem.*` is the namespace). Pa
 | configuration layer | One source of the merge, in increasing precedence: schema defaults, `config/default.lua`, `config/<environment>.lua`, environment variables, secret files | `configuration.md` | profile (for a layer), override |
 | environment | The name of the deployment profile (`development`, `test`, `production`) that selects `config/<environment>.lua` (default `production`) | `configuration.md`; factor III | stage, mode |
 | secret file | A file that holds the value of one secret key, as a container platform mounts it | `configuration.md` | key file |
+| environment variable | A named text value of the process environment (`HECATE_DATABASE__PORT`); layer 4 of the configuration, its name derived from the path of a leaf; `<PREFIX>_ENV` names the environment | `configuration.md`; factor III | env var, flag |
+| leaf | A declared key that is not an `object`: a scalar, an enumeration or an array; the unit that an environment variable or a secret file can supply | `configuration.md` | setting, option |
+| `Section`, `List` | The frozen values of a configuration: a `Section` holds an object or a map, a `List` an array (also when empty); a write raises `ConformanceError` | `configuration.md` | table, dict, map (for the frozen object) |
+| secret object | The wrapper of the value of a secret key (`hecate.log.Secret`, else `hecate.config.Secret`): `tostring` gives `[redacted]` and `reveal()` gives the value | `configuration.md` | masked value, sensitive string |
+| framework keys | The keys that every configuration declares, `logging.*` and `limits.max_depth`, which an application cannot redeclare | `configuration.md` | built-in settings, core options |
 
 ## Logging
 
@@ -168,3 +173,6 @@ Severities follow RFC 5424: `emergency`, `alert`, `critical`, `error`, `warning`
 `notice`, `informational`, `debug`.
 A *severity* is the urgency of a record; a logger records the severities at least as urgent as its own
 `severity` option (never "level" or "threshold").
+
+A *named severity* is an entry of `logging.severities`: the severity of the logger whose `name` is that key, matched exactly
+(`configuration.md`; never "per-logger level").

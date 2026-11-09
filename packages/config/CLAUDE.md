@@ -19,7 +19,7 @@ Layered configuration (defaults, environment files, environment variables, secre
 - Allowed dependencies: `hecate.core`, `hecate.schema`.
   Anything else requires an ADR; `check-boundaries` fails otherwise.
 - Native code: none.
-- Out of scope: remote configuration services (later, by plugin).
+- Out of scope: remote configuration services (later, by a separate package).
 - If your task needs a change in another package, stop and describe the needed change
   instead of making it (unless the task explicitly spans packages).
 

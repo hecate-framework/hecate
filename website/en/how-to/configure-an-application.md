@@ -7,15 +7,15 @@ order: 8
 
 # Configure an application
 
-This guide shows how to load the configuration of a process with `hecate.config`. It is written for
+This guide shows how to load the [configuration](../reference/glossary.md#configuration) of a process with `hecate.config`. It is written for
 hecate 0.x and Lua 5.5. The configuration is read once at boot, validated against a schema and then
 immutable; the specification is [configuration.md](https://github.com/hecate-framework/hecate/blob/main/docs/architecture/configuration.md).
 
 ## Declare the keys and load
 
-Declare the keys of your application as schemas, then call `config.load`. The layers, from the weakest
+Declare the keys of your application as schemas, then call `config.load`. The [layers](../reference/glossary.md#configuration), from the weakest
 to the strongest, are the defaults of the schema, `config/default.lua`, `config/<environment>.lua`,
-environment variables and secret files. The environment is `HECATE_ENV` (default `production`).
+environment variables and secret files. The [environment](../reference/glossary.md#configuration) is `HECATE_ENV` (default `production`).
 
 <!-- example: packages/config/examples/hecate.config.load.lua -->
 ```lua
@@ -58,7 +58,7 @@ print(tostring(select(2, pcall(function() database.port = 1 end))):match("immuta
 -- immutable
 ```
 
-A file under `config/` returns a table and is evaluated in an empty environment (no `require`, no
+A file under `config/` returns a table and is evaluated in an empty `_ENV` table (no `require`, no
 `os`). Tables merge key by key; an array of a later layer replaces the earlier one.
 
 ## Environment variables
@@ -71,23 +71,23 @@ Members of a map are configured by files only.
 
 ## Secrets
 
-List the keys that hold secrets in the `secrets` option. Their values are wrapped (`tostring` gives
+List the keys that hold [secrets](../reference/glossary.md#configuration) in the `secrets` option. Their values are wrapped (`tostring` gives
 `[redacted]`, `reveal()` gives the value) and `configuration:describe()`, the error messages and the
 logs never show them. A secret can be read from a file: `HECATE_DATABASE__PASSWORD_FILE` names it, or
-set `secrets_directory` to the directory where your platform mounts secrets. Pass `secret = log.Secret`
+set `secrets_directory` to the directory where your platform mounts secrets. Pass `wrap_secret = log.Secret`
 so that the logging sinks recognise the wrapper.
 
 ## Read and diagnose
 
-`configuration:get("database.port")` returns a typed value; a path the schema does not declare raises
-`ArgumentError`. `configuration:source(path)` tells which layer won, and `configuration:describe()` is
+`configuration:get("database.port")` returns a typed value; `get` validates the path, so a path the schema does not declare raises
+`ArgumentError`, and `configuration:values()` gives the root section to read by field. `configuration:source(path)` tells which layer won, and `configuration:describe()` is
 the text to log at boot. Unknown keys are errors at every depth, and one `ConfigurationError` lists
-every problem with its JSON Pointer, its code and its layer:
+every [violation](../reference/glossary.md#types-and-validation) with its dotted path, its code and its layer (`context.violations` also holds the JSON Pointer):
 
 ```text
 config.load: invalid configuration (2 problems, environment production)
-  /database/port: the text is not an integer [coercion] (environment variable HECATE_DATABASE__PORT)
-  /databse: the property is not declared [additional_properties] (config/production.lua)
+  database.port: the text is not an integer [coercion] (environment variable HECATE_DATABASE__PORT)
+  databse: the property is not declared [additional_properties] (config/production.lua)
 ```
 
 ## Logging and depth keys

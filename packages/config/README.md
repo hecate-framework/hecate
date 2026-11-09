@@ -27,7 +27,7 @@
 
 ## Non-goals
 
-- remote configuration services (later, by plugin)
+- remote configuration services (later, by a separate package)
 
 ## Standards and references
 
@@ -37,8 +37,8 @@
 
 `local config = require("hecate.config")`
 
-- `config.load(options)`: reads the layers (schema defaults, `config/default.lua`, `config/<environment>.lua`, environment variables, secret files), merges them, validates once and returns a `Configuration`. Options (`hecate.config.LoadOptions`): `properties` (the application keys, as schemas), `environment`, `directory`, `env_prefix`, `secrets`, `secrets_directory`, `secret`, `getenv`, `read_file`. Raises `ConfigurationError` listing every violation (`context.violations`: `path`, `code`, `message`, `source`) and `ArgumentError` for wrong options.
-- `Configuration`: `get(path)` (typed value by dotted path; undeclared path is an `ArgumentError`), `source(path)` (the layer that won), `values()` (the root `Section`), `environment()`, `describe()` (one line per leaf, secrets redacted).
+- `config.load(options)`: reads the layers (schema defaults, `config/default.lua`, `config/<environment>.lua`, environment variables, secret files), merges them, validates once and returns a `Configuration`. Options (`hecate.config.LoadOptions`): `properties` (the application keys, as schemas), `environment`, `directory`, `env_prefix`, `secrets`, `secrets_directory`, `wrap_secret`, `getenv`, `read_file` (the last two are hooks for tests and embedding). Raises `ConfigurationError` listing every violation (`context.violations`: `path` dotted, `pointer`, `code`, `message`, `source`, `hint`) and `ArgumentError` for wrong options.
+- `Configuration`: `get(path)` (typed value by dotted path; the path is validated against the schema, an undeclared path is an `ArgumentError`; use `values()` and read by field to destructure), `source(path)` (the layer that won), `values()` (the root `Section`), `environment()`, `describe()` (one line per leaf, secrets redacted).
 - `config.Section`, `config.List`: the frozen objects, maps and arrays of a configuration (writes raise `ConformanceError`).
 - `config.Secret`: fallback secret object with the interface of `hecate.log.Secret`.
 - `config.variable_name(prefix, segments)`: the environment variable of a key. `config.SEVERITIES`, `config.MAX_DEPTH_CEILING`: constants of the framework keys.
@@ -48,11 +48,11 @@ Environment: the `environment` option, else `HECATE_ENV` (`<PREFIX>_ENV`), else 
 
 Documentation: the how-to [Configure an application](../../website/en/how-to/configure-an-application.md) and the tested example in `examples/`.
 
-## Layout (once implemented)
+## Layout
 
 ```text
 src/hecate/config/init.lua   public entry point
 src/hecate/config/load.lua, declaration.lua, configuration.lua, values.lua, secret.lua
-tests/unit/  tests/support/
-examples/    benchmarks/
+tests/unit/  tests/integration/  tests/support/
+examples/
 ```

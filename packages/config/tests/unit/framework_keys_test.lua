@@ -57,15 +57,15 @@ function T:test_severity_names_are_the_eight_of_rfc_5424_and_info_does_not_exist
   end
   for _, name in ipairs({ "info", "warn", "trace", "" }) do
     local err = fixture.failure({ env = { HECATE_LOGGING__SEVERITY = name } })
-    self:assert_equal("/logging/severity", err.context.violations[1].path, name)
+    self:assert_equal("logging.severity", err.context.violations[1].path, name)
   end
   local err = fixture.failure({ files = { ["config/default.lua"] = "return { logging = { severities = { app = 'info' } } }" } })
-  self:assert_equal("/logging/severities/app", err.context.violations[1].path)
+  self:assert_equal("logging.severities.app", err.context.violations[1].path)
 end
 
 function T:test_unknown_sink_is_refused()
   local err = fixture.failure({ env = { HECATE_LOGGING__SINKS = "console,syslog" } })
-  self:assert_equal("/logging/sinks/1", err.context.violations[1].path)
+  self:assert_equal("logging.sinks.1", err.context.violations[1].path)
 end
 
 function T:test_severity_names_equal_log_severity_when_log_is_loadable()
@@ -87,7 +87,7 @@ function T:test_max_depth_can_be_lowered_never_raised()
   self:assert_equal(1, fixture.load({ env = { HECATE_LIMITS__MAX_DEPTH = "1" } }):get("limits.max_depth"))
   for _, text in ipairs({ "1001", "0", "-5", "abc", "1.5" }) do
     local err = fixture.failure({ env = { HECATE_LIMITS__MAX_DEPTH = text } })
-    self:assert_equal("/limits/max_depth", err.context.violations[1].path, text)
+    self:assert_equal("limits.max_depth", err.context.violations[1].path, text)
   end
   local err = fixture.failure({ files = { ["config/default.lua"] = "return { limits = { max_depth = 2000 } }" } })
   self:assert_equal("maximum", err.context.violations[1].code)

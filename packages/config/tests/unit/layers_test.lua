@@ -132,19 +132,38 @@ function T:test_directory_and_prefix_options()
 end
 
 function T:test_layers_are_not_modified()
-  local source = { database = { port = 1 } }
-  local calls = 0
+  -- The table a file returns is the caller's own data: `read_file` hands out the text, and the loaded configuration must
+  -- not alias anything a later load can see. Two loads of the same text give independent, equal results.
+  local text = "return { database = { port = 6000 }, tags = { 'x' } }"
+  local first = fixture.load({ files = { ["config/default.lua"] = text } })
+  local second = fixture.load({ files = { ["config/default.lua"] = text } })
+  self:assert_equal(6000, first:get("database.port"))
+  self:assert_false(rawequal(first:get("tags"), second:get("tags")))
+  self:assert_false(rawequal(first:get("database"), second:get("database")))
+  self:assert_equal(6000, second:get("database.port"))
+end
+
+function T:test_environment_variable_false_overrides_a_file_true()
   local configuration = fixture.load({
-    files = { ["config/default.lua"] = "return { database = { port = 6000 } }" },
-    options = { read_file = function(path)
-      calls = calls + 1
-      if path == "config/default.lua" then return "return { database = { port = 6000 } }" end
-      return nil, "absent", true
-    end },
+    files = { ["config/default.lua"] = "return { database = { tls = true } }" },
+    env = { HECATE_DATABASE__TLS = "false" },
   })
-  self:assert_equal(6000, configuration:get("database.port"))
-  self:assert_equal(1, source.database.port)
-  self:assert_true(calls >= 1)
+  self:assert_equal(false, configuration:get("database.tls"))
+  self:assert_equal("environment variable HECATE_DATABASE__TLS", configuration:source("database.tls"))
+end
+
+function T:test_secret_file_false_overrides_a_file_true()
+  local schema = require("hecate.schema")
+  local configuration = fixture.load({
+    files = { ["config/default.lua"] = "return { flag = true }", ["/run/secrets/HECATE_FLAG"] = "false\n" },
+    options = {
+      properties = { flag = schema.default(schema.boolean(), true) },
+      secrets = { "flag" }, secrets_directory = "/run/secrets",
+      wrap_secret = function(value) return { wrapped = value } end,
+    },
+  })
+  self:assert_equal(false, configuration:get("flag").wrapped)
+  self:assert_equal("secret file /run/secrets/HECATE_FLAG", configuration:source("flag"))
 end
 
 return T

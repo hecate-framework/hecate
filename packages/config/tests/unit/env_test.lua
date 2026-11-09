@@ -40,15 +40,15 @@ function T:test_uncoercible_text_is_a_diagnostic_with_its_variable()
   self:assert_equal("hecate.core.ConfigurationError", err.code)
   local by_path = {}
   for _, violation in ipairs(err.context.violations) do by_path[violation.path] = violation end
-  self:assert_equal("coercion", by_path["/database/port"].code)
-  self:assert_equal("environment variable HECATE_DATABASE__PORT", by_path["/database/port"].source)
-  self:assert_equal("coercion", by_path["/database/tls"].code)
+  self:assert_equal("coercion", by_path["database.port"].code)
+  self:assert_equal("environment variable HECATE_DATABASE__PORT", by_path["database.port"].source)
+  self:assert_equal("coercion", by_path["database.tls"].code)
 end
 
 function T:test_refinement_of_the_leaf_applies_to_the_text()
   local err = fixture.failure({ env = { HECATE_DATABASE__PORT = "70000" } })
   self:assert_equal("maximum", err.context.violations[1].code)
-  self:assert_equal("/database/port", err.context.violations[1].path)
+  self:assert_equal("database.port", err.context.violations[1].path)
   self:assert_equal("environment variable HECATE_DATABASE__PORT", err.context.violations[1].source)
 end
 

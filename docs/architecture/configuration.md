@@ -14,7 +14,7 @@ against a schema (`hecate.schema`) and returns an immutable `Configuration`. It 
 Its dependencies are `core` and `schema`. It does not depend on `log`, `json` or `reactor`: the logging keys are *declared* here and
 *applied* by the kernel (see "Logging keys").
 
-Non-goals: remote configuration services (later, by plugin); reloading a configuration in a running process (the configuration is
+Non-goals: remote configuration services (later, by a separate package); reloading a configuration in a running process (the configuration is
 immutable after boot, a change means a restart); writing configuration files; interpolation of one key in another; any
 configuration language other than Lua tables.
 
@@ -31,27 +31,29 @@ A configuration is the merge of up to five layers. **A later layer wins over an 
 | 5 | secret files | see "Secret files" | `secret file /run/secrets/...` |
 
 Factor III asks for the deploy-specific values to come from the environment: layers 4 and 5 are those; layers 2 and 3 hold what
-is reviewed with the code (the environment file is a committed per-deploy profile such as `production`, not a place for secrets).
+is reviewed with the code (the environment file is the committed layer of one *environment*, such as `production`, and not a place for secrets).
 
 ### Files
 
 - `config/default.lua` and `config/<environment>.lua` each return one table. The directory is the `directory` option, default
   `config`, relative to the working directory.
-- A file is evaluated with `load` in text mode in an **empty environment**, as the project manifest is
+- A file is evaluated with `load` in text mode in an **empty `_ENV` table**, as the project manifest is
   ([ADR 0009](../adr/0009-project-manifest.md)): no `require`, no `os`, no `io`, no globals. It is trusted code (it is part of
   the project), so a file that loops forever blocks the boot; the sandbox protects against accidents, not against hostile files.
 - `default.lua` may be absent (it counts as an empty table). `<environment>.lua` may be absent only when the environment was not
   chosen explicitly (below); a missing file for an explicit environment is an error, so that a typo in the name never falls back
   silently.
+- A leading UTF-8 byte order mark is ignored (in configuration files and secret files). The message of a syntax error keeps the
+  file name and the line but not the text near it, which may be a secret. A directory in place of a file is a read error.
 - A file that cannot be read, has a syntax error, raises, or does not return a table raises `hecate.core.ConfigurationError` at
   once, naming the file. A file is not partially applied.
 
 ### The environment
 
-The *environment* is the name of the deployment profile: `development`, `test`, `production` or any name that matches
+The *environment* is the name of the deployment: `development`, `test`, `production` or any name that matches
 `^[a-z][a-z0-9_]*$` (the pattern keeps a name from escaping the directory). It is the `environment` option, else the environment
-variable `<PREFIX>_ENV` (for the default prefix, `HECATE_ENV`), else `production` (the safer profile: a process that is not told otherwise never runs with
-development settings). The last case is the only implicit one, so an absent `config/production.lua` does not stop the boot.
+variable `<PREFIX>_ENV` (for the default prefix, `HECATE_ENV`), else `production` (the safer environment: a process that is not told otherwise never runs with
+development configuration). The last case is the only implicit one, so an absent `config/production.lua` does not stop the boot.
 `Configuration:environment()` returns it.
 
 ### Merging
@@ -76,14 +78,14 @@ leaf of the declared schema, the name is
 
 for example `limits.max_depth` is `HECATE_LIMITS__MAX_DEPTH`, `database.port` is `HECATE_DATABASE__PORT`. The double underscore is
 what keeps `max_depth` apart from a nested `max` / `depth` pair, and two leaves whose names collide are a `ConfigurationError` at
-load. The prefix is the `env_prefix` option (upper case letters, digits and underscores, starting with a letter).
+load. So is a leaf whose name is reserved: `<PREFIX>_ENV` (the environment) and, for each secret key, `<NAME>_FILE` (its secret file). The prefix is the `env_prefix` option (upper case letters, digits and underscores, starting with a letter).
 
 - A *leaf* is a declared property that is not an `object`: scalars, enumerations, and arrays. Properties inside a `map` and the
   members of an array are not addressable (their names are not known to the schema); a map or an object array is configured by
   files only.
 - The text is converted by the **coercion** of the leaf's schema (`Schema:coerce`): `"8080"` is an integer, `"true"` and `"false"`
-  are booleans, an array is split at its `delimiter` (default `,`), an enumeration takes a name. Coercion failures and refinement
-  failures (`minimum`, `pattern`, ...) are diagnostics (below), never silent fallbacks.
+  are booleans, an array is split at its `delimiter` (default `,`), an enumeration takes a name. Coercion violations and refinement
+  violations (`minimum`, `pattern`, ...) are diagnostics (below), never silent fallbacks.
 - A variable that is set but empty **is set**: it is the empty string for a `string`, and a coercion failure for any other
   type. It is not read as "absent".
 - A variable whose name is not derived from the schema is ignored: the environment of a process is shared with other programs, so
@@ -102,7 +104,7 @@ Some keys hold values that must never reach a log: passwords, signing keys, toke
   value, and the logging sinks render it as `[redacted]`). The raw value is reachable only through `reveal()`. This is the
   invariant "secrets are never logged": `describe()`, the diagnostics and every error message print `[redacted]` in place of the
   value (a violation says what is wrong, never the value: the messages of `hecate.schema` do not contain it).
-- `hecate.config` cannot depend on `hecate.log` (layering). The wrapper is the `secret` option, a function that takes a value and
+- `hecate.config` cannot depend on `hecate.log` (layering). The wrapper is the `wrap_secret` option, a function that takes a value and
   returns the secret object; the kernel passes `hecate.log.Secret`, which the sinks recognise. Without the option, `config` uses
   `package.loaded["hecate.log"].Secret` when that module is already loaded (the same look-up, with no dependency, as OQ-86 for the
   `schema` logger) and otherwise its own `hecate.config.Secret`, a class with the same interface that a `hecate.log` sink does not
@@ -117,7 +119,7 @@ A secret file holds one value, as container platforms mount them (a Docker or Ku
 1. if the variable `<NAME>_FILE` is set, where `<NAME>` is the derived environment variable name, its value is the path of the file;
 2. otherwise, if the `secrets_directory` option is set and a file `<secrets_directory>/<NAME>` exists, that file is read.
 
-The content is taken as bytes, with **one** trailing line end (`\n` or `\r\n`) removed, then converted like an environment
+The content is taken as bytes, without a leading UTF-8 byte order mark, with **one** trailing line end (`\n` or `\r\n`) removed, then converted like an environment
 variable (so a secret file can hold an integer). A path named by `<NAME>_FILE` that cannot be read is an error (never ignored); a
 missing file of the directory is simply no secret. Secret files exist for secret keys only: a file for any other key is not looked
 for. Secret files win over environment variables (layer 5): a mounted secret is more deliberate than an inherited variable.
@@ -150,19 +152,25 @@ local port = configuration:get("database.port")
   violation code `additional_properties`; the misspelling of a key never goes unnoticed.
 - A required property (neither `optional` nor `default`) that no layer supplies is a `required` violation: there is no implicit
   `nil`.
+- The declared schema also decides the type of the frozen result: an array is a `List` (also when empty), an object or a map is a
+  `Section`. The keys of the application are at most 16 objects deep (`ArgumentError` beyond).
 - Defaults come from the schema (`schema.default`, layer 1), so one declaration holds the type, the constraints and the default.
 - On failure `config.load` raises one `hecate.core.ConfigurationError` that reports **every** problem found, not the first. Its
   message is, for example:
 
   ```text
   config.load: invalid configuration (2 problems, environment production)
-    /database/port: the text is not an integer [coercion] (environment variable HECATE_DATABASE__PORT)
-    /databse: the property is not declared [additional_properties] (config/production.lua)
+    database.port: the text is not an integer [coercion] (environment variable HECATE_DATABASE__PORT)
+    databse: the property is not declared [additional_properties] (config/production.lua)
   ```
 
-  Each line is the JSON Pointer of the key (RFC 6901), the message of the violation, its stable code in brackets and the layer
-  that supplied the value, or `-` when no layer did (a missing required key). The error's `context.violations` is the list of
-  `{ path, code, message, source }` (the value of a secret key is never in it). The cause of a layer failure (file, secret file)
+  Each line is the dotted path of the key, the message of the violation, its stable code in brackets and the layer
+  that supplied the value, or `-` when no layer did (a missing required key; the line then ends with the way out: the files and
+  the environment variable that can supply it, and for a secret its `<NAME>_FILE`). The error's `context.violations` is the list of
+  `{ path, pointer, code, message, source, hint? }`: `path` is dotted, `pointer` is the JSON Pointer (RFC 6901) of the same key,
+  `hint` is the way out of a `required` violation. The value of a secret key is never in it: the message of a violation at a
+  secret key says that the value does not conform and not why, since a schema message may quote the value. A value that
+  fails to coerce is reported once, not also as missing. The cause of a layer failure (file, secret file)
   is its own `ConfigurationError`, with `context.file`.
 - Cross-key rules that a schema cannot express are checked by `config` after the schema and reported the same way (the only one
   today: `logging.file.path` is required when `logging.sinks` contains `file`).

@@ -57,17 +57,47 @@ function T:test_map_keys_named_like_methods_are_readable()
 end
 
 function T:test_later_changes_to_inputs_do_not_reach_the_configuration()
-  local text = "return { tags = { 'x' } }"
-  local configuration = fixture.load({ files = { ["config/default.lua"] = text } })
+  local files = { ["config/default.lua"] = "return { tags = { 'x' } }" }
+  local env = { HECATE_NAME = "before" }
+  local options = { getenv = function(name) return env[name] end,
+    read_file = function(path) return files[path], "absent", true end }
+  local configuration = require("hecate.config").load({ properties = fixture.properties(), getenv = options.getenv,
+    read_file = options.read_file })
+  files["config/default.lua"] = "return { tags = { 'changed' } }"
+  env.HECATE_NAME = "after"
   self:assert_equal("x", configuration:get("tags")[1])
-  self:assert_equal("x", fixture.load({ files = { ["config/default.lua"] = text } }):get("tags")[1])
+  self:assert_equal("before", configuration:get("name"))
+  self:assert_equal("before", configuration:values().name)
 end
 
 function T:test_defaults_are_copied_per_load()
-  local first = fixture.load({})
-  local second = fixture.load({})
+  local schema = require("hecate.schema")
+  local shared = { "a" }
+  local properties = { tags = schema.default(schema.array(schema.string()), shared) }
+  local config = require("hecate.config")
+  local first = config.load({ properties = properties, read_file = function() return nil, "absent", true end,
+    getenv = function() return nil end })
+  shared[1] = "mutated"
+  shared[2] = "more"
+  local second = config.load({ properties = properties, read_file = function() return nil, "absent", true end,
+    getenv = function() return nil end })
   self:assert_equal("a", first:get("tags")[1])
-  self:assert_equal("a", second:get("tags")[1])
+  self:assert_equal(1, #first:get("tags"))
+  self:assert_false(rawequal(first:get("tags"), second:get("tags")))
+end
+
+function T:test_empty_arrays_are_lists_and_empty_objects_are_sections()
+  local Section, List = require("hecate.config").Section, require("hecate.config").List
+  local configuration = fixture.load({ files = { ["config/default.lua"] = "return { tags = {}, labels = {} }" } })
+  self:assert_true(core.is_instance_of(configuration:get("tags"), List))
+  self:assert_true(core.is_instance_of(configuration:get("labels"), Section))
+  local values = configuration:values()
+  self:assert_true(core.is_instance_of(values.logging.sinks, List))
+  local empty = fixture.load({ files = { ["config/default.lua"] = "return { logging = { sinks = {}, redact = {} } }" } })
+  self:assert_true(core.is_instance_of(empty:get("logging.sinks"), List))
+  self:assert_true(core.is_instance_of(empty:get("logging.redact"), List))
+  self:assert_true(core.is_instance_of(empty:get("logging.severities"), Section))
+  self:assert_true(core.is_instance_of(fixture.load({}):get("logging.redact"), List))
 end
 
 function T:test_get_of_an_undeclared_path_is_an_argument_error()

@@ -12,7 +12,7 @@ local MERGE_DEPTH = 1000
 
 local OPTIONS = {
   properties = "table", environment = "string", directory = "string", env_prefix = "string", secrets = "table",
-  secrets_directory = "string", secret = "function", getenv = "function", read_file = "function",
+  secrets_directory = "string", wrap_secret = "function", getenv = "function", read_file = "function",
 }
 
 ---@class hecate.config.LoadOptions
@@ -22,7 +22,7 @@ local OPTIONS = {
 ---@field env_prefix? string  prefix of the environment variables (default `HECATE`)
 ---@field secrets? string[]  dotted paths of the leaves whose values are secrets
 ---@field secrets_directory? string  directory of secret files named like the environment variables
----@field secret? fun(value: any): any  wraps a secret value (default: `hecate.log.Secret` when loaded, else `hecate.config.Secret`)
+---@field wrap_secret? fun(value: any): any  wraps a secret value (default: `hecate.log.Secret` when loaded, else `hecate.config.Secret`)
 ---@field getenv? fun(name: string): string?  reads a variable (default `os.getenv`)
 ---@field read_file? fun(path: string): string?, string?, boolean?  content, or nil, a message and whether the file is missing
 
@@ -62,8 +62,22 @@ end
 local function default_read_file(path)
   local file, message, errno = io.open(path, "rb")
   if file == nil then return nil, message, errno == 2 end
-  local text = file:read("a")
+  local text, read_message = file:read("a")
   file:close()
+  -- A directory opens but cannot be read: `read` returns nil and the message of the system.
+  if text == nil then return nil, read_message or "the file cannot be read", false end
+  return text
+end
+
+--- Joins a directory and a file name, without doubling a separator the directory already ends with.
+local function join(directory, name)
+  if directory:find("[/\\]$") then return directory .. name end
+  return directory .. "/" .. name
+end
+
+--- Removes a leading UTF-8 byte order mark (some editors add one; Lua would read it as a syntax error).
+local function strip_bom(text)
+  if text:sub(1, 3) == "\239\187\191" then return text:sub(4) end
   return text
 end
 
@@ -139,11 +153,14 @@ local function set_path(target, segments, value)
   current[segments[#segments]] = value
 end
 
---- Evaluates a file of the configuration in an empty environment and returns the table it returns.
+--- Evaluates a file of the configuration in an empty `_ENV` table and returns the table it returns.
 local function evaluate(path, text)
   local chunk, message = load(text, "@" .. path, "t", {})
   if chunk == nil then
-    error(configuration_error(("%s: %s"):format(path, tostring(message)), { file = path }), 0)
+    -- The `near '...'` fragment of a syntax error quotes the text of the file, which may be a secret: keep the chunk
+    -- name and the line only.
+    message = tostring(message):gsub("%s+near%s.*$", "")
+    error(configuration_error(("%s: %s"):format(path, message), { file = path }), 0)
   end
   local ok, result = pcall(chunk)
   if not ok then
@@ -158,7 +175,7 @@ end
 ---@param options hecate.config.LoadOptions
 ---@return fun(value: any): any
 local function wrapper_of(options)
-  if options.secret ~= nil then return options.secret end
+  if options.wrap_secret ~= nil then return options.wrap_secret end
   local log = package.loaded["hecate.log"]
   if type(log) == "table" and log.Secret ~= nil then return log.Secret --[[@as fun(value: any): any]] end
   return Secret --[[@as fun(value: any): any]]
@@ -171,8 +188,28 @@ local function strip_line_end(text)
 end
 
 local function by_path(a, b)
-  if a.path ~= b.path then return a.path < b.path end
+  if a.pointer ~= b.pointer then return a.pointer < b.pointer end
   return a.code < b.code
+end
+
+local function unescape(segment)
+  return (segment:gsub("~1", "/"):gsub("~0", "~"))
+end
+
+--- The dotted path of a JSON Pointer (`/database/port` gives `database.port`; the root gives the empty string).
+local function dotted_of(pointer)
+  local parts = {}
+  for segment in pointer:gmatch("/([^/]*)") do parts[#parts + 1] = unescape(segment) end
+  return table.concat(parts, ".")
+end
+
+--- Whether the pointer is a secret key or a part of one.
+local function at_secret(secret_pointers, pointer)
+  while pointer ~= "" do
+    if secret_pointers[pointer] then return true end
+    pointer = pointer:match("^(.*)/[^/]*$") or ""
+  end
+  return false
 end
 
 --- The source of a violation: the layer of the longest known ancestor of its path; `-` for a missing required key.
@@ -190,8 +227,8 @@ local function report(environment, problems)
   local lines = { ("config.load: invalid configuration (%d problem%s, environment %s)"):format(
     #problems, #problems == 1 and "" or "s", environment) }
   for _, problem in ipairs(problems) do
-    lines[#lines + 1] = ("  %s: %s [%s] (%s)"):format(problem.path == "" and "(root)" or problem.path, problem.message,
-      problem.code, problem.source)
+    lines[#lines + 1] = ("  %s: %s [%s] (%s)%s"):format(problem.path == "" and "(root)" or problem.path, problem.message,
+      problem.code, problem.source, problem.hint and ("; " .. problem.hint) or "")
   end
   return core.ConfigurationError(table.concat(lines, "\n"), { context = { violations = problems, environment = environment } })
 end
@@ -200,7 +237,8 @@ end
 --- blocks: call it at boot, before the reactor runs; it never suspends.
 ---
 --- Raises `hecate.core.ConfigurationError` for an invalid configuration (every problem found is in
---- `context.violations`, each `{ path, code, message, source }`), and `hecate.core.ArgumentError` for wrong options.
+--- `context.violations`, each `{ path, pointer, code, message, source, hint? }`: `path` is dotted, `pointer` is the
+--- JSON Pointer of RFC 6901), and `hecate.core.ArgumentError` for wrong options.
 ---@param options hecate.config.LoadOptions
 ---@return hecate.config.Configuration
 return function(options)
@@ -226,13 +264,26 @@ return function(options)
   end)
 
   -- Secrets: declared leaves only.
-  local secret_paths, secret_leaf = {}, {}
-  for _, leaf in ipairs(leaves) do secret_leaf[leaf.path] = leaf end
+  local secret_paths, secret_pointers, leaf_of = {}, {}, {}
+  for _, leaf in ipairs(leaves) do leaf_of[leaf.path] = leaf end
   for _, path in ipairs(options.secrets or {}) do
-    if secret_leaf[path] == nil then
+    if leaf_of[path] == nil then
       refuse(("option secrets: %s is not a declared leaf key"):format(path), { path = path })
     end
     secret_paths[path] = true
+    secret_pointers[pointer_of(leaf_of[path].node.segments)] = true
+  end
+
+  -- Reserved variables: `<PREFIX>_ENV` and the `<NAME>_FILE` of each secret cannot also be the variable of a key.
+  local function reserve(name, role)
+    if names[name] ~= nil then
+      error(configuration_error(("key %s derives the environment variable %s, which is reserved for %s"):format(
+        names[name], name, role), { variable = name }), 0)
+    end
+  end
+  reserve(prefix .. "_ENV", "the name of the environment")
+  for _, leaf in ipairs(leaves) do
+    if secret_paths[leaf.path] then reserve(leaf.name .. "_FILE", "the secret file of " .. leaf.path) end
   end
 
   -- The environment.
@@ -254,29 +305,57 @@ return function(options)
   -- Layers 2 and 3: files.
   local merged, sources, problems = {}, {}, {}
   local function layer_file(name, required)
-    local path = directory .. "/" .. name
+    local path = join(directory, name)
     local text, message, missing = read_file(path)
     if text == nil then
       if missing and not required then return end
       error(configuration_error(("cannot read %s: %s"):format(path, tostring(message)), { file = path }), 0)
     end
-    merge(merged, evaluate(path, text), {}, path, sources, 1, path)
+    merge(merged, evaluate(path, strip_bom(text)), {}, path, sources, 1, path)
   end
   layer_file("default.lua", false)
   layer_file(environment .. ".lua", explicit)
 
-  -- A coerced text: stores it or records the violations.
+  -- How to supply a missing key: the files, the variable and, for a secret, the secret file.
+  local function way_out(path)
+    local hint = ("set it in %s or %s"):format(join(directory, "default.lua"), join(directory, environment .. ".lua"))
+    local leaf = leaf_of[path]
+    if leaf == nil then return hint end
+    hint = hint .. (", or with the environment variable " .. leaf.name)
+    if secret_paths[path] then hint = hint .. (" (or name a secret file in " .. leaf.name .. "_FILE)") end
+    return hint
+  end
+
+  -- Records one problem. The schema message of a violation at a secret key is replaced: it may quote the value.
+  local function problem(pointer, code, message, source)
+    local path = dotted_of(pointer)
+    local hint
+    if code == "required" then
+      hint = way_out(path)
+    elseif at_secret(secret_pointers, pointer) then
+      message = "the value of a secret key does not conform to its schema (it is not shown)"
+    end
+    problems[#problems + 1] = { path = path, pointer = pointer, code = code, message = message, source = source, hint = hint }
+  end
+
+  -- A coerced text: stores it or records the violations. A key that failed to coerce is not also reported missing.
+  local failed = {}
+  --- Whether a key that failed to coerce is `pointer` itself or lies inside it (its parent object is then absent too).
+  local function covered(pointers, pointer)
+    for failed_pointer in pairs(pointers) do
+      if failed_pointer == pointer or failed_pointer:sub(1, #pointer + 1) == pointer .. "/" then return true end
+    end
+    return false
+  end
   local function coerced(leaf, text, source, target)
     local ok, result = leaf.node.schema:coerce(text)
     if ok then
       set_path(target, leaf.node.segments, result)
       return
     end
+    failed[pointer_of(leaf.node.segments)] = true
     for _, violation in ipairs(result) do
-      problems[#problems + 1] = {
-        path = pointer_of(leaf.node.segments) .. violation.path, code = violation.code,
-        message = violation.message, source = source,
-      }
+      problem(pointer_of(leaf.node.segments) .. violation.path, violation.code, violation.message, source)
     end
   end
 
@@ -294,7 +373,12 @@ return function(options)
     for _, leaf in ipairs(leaves) do
       local node = layer
       for _, segment in ipairs(leaf.node.segments) do
-        node = type(node) == "table" and node[segment] or nil
+        -- not `and ... or`: a boolean `false` is a value, not an absent key
+        if type(node) ~= "table" then
+          node = nil
+          break
+        end
+        node = node[segment]
       end
       if node ~= nil then
         set_path(merged, leaf.node.segments, copy(node, 1, leaf.path))
@@ -310,13 +394,13 @@ return function(options)
     if secret_paths[leaf.path] then
       local path = getenv(leaf.name .. "_FILE")
       local named = path ~= nil
-      if not named and options.secrets_directory then path = options.secrets_directory .. "/" .. leaf.name end
+      if not named and options.secrets_directory then path = join(options.secrets_directory, leaf.name) end
       if path ~= nil then
         local text, message, missing = read_file(path)
         if text ~= nil then
           local source = "secret file " .. path
           file_source[leaf.path] = source
-          coerced(leaf, strip_line_end(text), source, from_files)
+          coerced(leaf, strip_line_end(strip_bom(text)), source, from_files)
         elseif named or not missing then
           error(configuration_error(("cannot read secret file %s: %s"):format(path, tostring(message)), { file = path }), 0)
         end
@@ -329,9 +413,9 @@ return function(options)
   local ok, built = root:build(merged)
   if not ok then
     for _, violation in ipairs(built) do
-      problems[#problems + 1] = {
-        path = violation.path, code = violation.code, message = violation.message, source = origin(sources, violation),
-      }
+      if not (violation.code == "required" and covered(failed, violation.path)) then
+        problem(violation.path, violation.code, violation.message, origin(sources, violation))
+      end
     end
   else
     -- The rule that a schema cannot express (configuration.md, "Validation").
@@ -339,10 +423,7 @@ return function(options)
     local has_file = false
     for _, sink in ipairs(logging.sinks) do has_file = has_file or sink == "file" end
     if has_file and (logging.file == nil or logging.file.path == nil) then
-      problems[#problems + 1] = {
-        path = "/logging/file/path", code = "required", source = "-",
-        message = "the property is required when logging.sinks contains file",
-      }
+      problem("/logging/file/path", "required", "the property is required when logging.sinks contains file", "-")
     end
   end
   if #problems > 0 then
@@ -350,6 +431,6 @@ return function(options)
     error(report(environment, problems), 0)
   end
 
-  local frozen = values.freeze(built, wrapper_of(options), secret_paths, "")
+  local frozen = values.freeze(built, wrapper_of(options), secret_paths, "", root)
   return Configuration(frozen, index, sources, environment)
 end
