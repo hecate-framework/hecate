@@ -8,7 +8,7 @@
 | Rock | `hecate-kernel` |
 | Layer | 3 — Framework |
 | Roadmap phase | 2 |
-| Status | in progress: filter chain, results |
+| Status | in progress: filter chain, results, problems |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |
 | Depends on | [`core`](../core), [`reactor`](../reactor), [`log`](../log), [`http`](../http), [`router`](../router), [`schema`](../schema), [`container`](../container), [`config`](../config), [`json`](../json) |
 | Used by | `cli`, `hecate`, `security`, `template`, `test` |
@@ -64,6 +64,19 @@
   `application/json`; `options.serialisers` overrides it per call. Not provided yet: `results.prepare`
   (schemas are already resolved objects, nothing is computed per request beyond `represent` and `encode`).
 
+- `kernel.problems.response(status, detail?)`: an RFC 9457 problem details response (`application/problem+json`, `type`
+  `about:blank`, `title`, `status`, `detail`) with a fixed text per status; `detail` is chosen by the caller, never an
+  error message. `ArgumentError` for a status outside 400..599.
+- `kernel.problems.from_match(match)`: the response for a failed `Router:match` (`404`, `405` with `Allow` per RFC 9110
+  section 15.5.6, `400` for an unreadable path without its reason); nil for a match that is not a failure.
+- `kernel.problems.from_error(err, options?)`: with `options.input = true`, a `ValidationError` with violations is a
+  `422` with `errors`, one `{ pointer, code }` per violation (RFC 6901 pointer, at most `problems.MAX_ERRORS` = 100);
+  an `http` error keeps its client status; anything else (a `ValidationError` about a response, a Lua error, a value
+  that is not an error) is a generic `500`. No message, context or cause of an error ever reaches a response.
+- `kernel.problems.guard(action, options?)`: wraps an action or a composed chain; returns the response (a problem for
+  an error) and the failure that was caught, logs it at `error` severity when `options.logger` is given, and never
+  catches cancellation or deadline errors. Choices to confirm: OQ-112.
+
 Further exports (application, controllers, route modules) arrive with later items.
 
 ## Layout (once implemented)
@@ -72,6 +85,7 @@ Further exports (application, controllers, route modules) arrive with later item
 src/hecate/kernel/init.lua    public entry point
 src/hecate/kernel/chain.lua   filter chain (chain of responsibility)
 src/hecate/kernel/results.lua serialisation of results into responses
+src/hecate/kernel/problems.lua mapping of errors to problem details responses
 tests/unit/  tests/integration/  tests/fixtures/
 examples/    benchmarks/
 ```

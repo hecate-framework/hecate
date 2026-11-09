@@ -11,6 +11,7 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- feat(kernel): `hecate.kernel.problems`: problem details responses (RFC 9457) for routing failures (`from_match`: 404, 405 with `Allow`, 400), input validation (`from_error` with `input`: 422 with one JSON Pointer and code per violation, at most 100), errors of `http` (their client status) and every other error (a generic 500 that names nothing); `guard` wraps an action or chain, logs the failure and never catches cancellation or deadline errors (OQ-111, OQ-112).
 - feat(kernel): `results.serialise`, `results.respond` and the `results.serialisers` table turn the result of an action into a `Response` (represent with the declared schema, JSON, minimal `Accept` negotiation with 406).
 - feat(kernel): filter chain (`hecate.kernel.chain.compose`): filters composed around an action at boot, outermost first, one closure per filter and none per request.
 - feat(log): `log.default()` redacts the field names of the new `log.DEFAULT_REDACT` list (passwords, tokens, keys, cookies, authorization headers, session identifiers; exact name, case-insensitive, never free text); a plain `Logger` is unchanged (OQ-111).
