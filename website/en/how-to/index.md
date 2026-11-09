@@ -23,6 +23,11 @@ read the matching page of the [explanation](../explanation/index.md) section.
 - [Run child processes and pass connections between processes](run-processes-and-pass-connections.md):
   `run_process`, `spawn`, the message pipe and handing a connection to a child.
 
+## Application
+
+- [Configure an application](configure-an-application.md): layers, environment variables, secrets, validation at boot,
+  the logging and depth keys.
+
 ## HTTP
 
 - [Serve HTTP](serve-http.md): start a server, write a handler, answer with JSON and problem

@@ -14,8 +14,8 @@ agent in `.claude/agents/pkg-<name>.md`.
 | [`net`](net) | `hecate-net` | 1 — Runtime | 1 | alpha | TCP/UDP streams, DNS resolution, buffered readers/writers and TLS, all suspending transparently. |
 | [`http`](http) | `hecate-http` | 2 — Protocol | 2 | implemented | HTTP/1.1 server and client with a message model following RFC 9110 semantics. |
 | [`router`](router) | `hecate-router` | 2 — Protocol | 2 | implemented | Radix-tree router over URI templates (RFC 6570 level-1 subset) with 404/405 handling and reverse routing. |
-| [`schema`](schema) | `hecate-schema` | 2 — Protocol | 2 | specified | Refinement types, composition, coercion and validation with JSON Pointer error paths; emits JSON Schema 2020-12. |
-| [`config`](config) | `hecate-config` | 3 — Framework | 2 | specified | Layered configuration (defaults, environment files, environment variables, secrets) validated by schemas at boot. |
+| [`schema`](schema) | `hecate-schema` | 2 — Protocol | 2 | implemented | Refinement types, composition, coercion and validation with JSON Pointer error paths; emits JSON Schema 2020-12. |
+| [`config`](config) | `hecate-config` | 3 — Framework | 2 | implemented | Layered configuration (defaults, environment files, environment variables, secrets) validated by schemas at boot. |
 | [`container`](container) | `hecate-container` | 3 — Framework | 2 | specified | Inversion-of-control container: bindings, lifetimes (singleton, scoped, transient), constructor injection, cycle detection at boot. |
 | [`kernel`](kernel) | `hecate-kernel` | 3 — Framework | 2 | specified | The application: feature modules, controllers, route modules, filters (chain of responsibility), problem details, lifecycle, workers and graceful shutdown. |
 | [`openapi`](openapi) | `hecate-openapi` | 3 — Framework | 3 | specified | OpenAPI 3.1 document assembly from the route table, schemas and project settings; served endpoint, export, lint and breaking-change diff. |

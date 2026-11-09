@@ -39,6 +39,7 @@ written is listed with its file in `website/en/`.
 - Set limits, timeouts and TLS on the HTTP server: every bound and its default, HTTPS (P2; `how-to/http-limits-timeouts-and-tls.md`)
 - Route requests: templates, precedence, 404 and 405, percent-decoding, reverse routing (P2; `how-to/route-requests.md`)
 - Validate values with schemas: validate, coerce, build instances, emit JSON Schema (P2; `how-to/validate-with-schemas.md`)
+- Configure an application: layers, environment variables, secrets, validation at boot, logging and depth keys (P2; `how-to/configure-an-application.md`)
 - Measure performance (P1; `how-to/measure-performance.md`)
 - Contracts: exporting, linting, diffing in CI (P3)
 - Documentation of a project with `hecate doc` (P3)

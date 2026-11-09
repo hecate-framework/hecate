@@ -45,7 +45,12 @@ at all times. Specification: `docs/architecture/ai-assisted-development.md#relay
 - Spikes end with a report and a recommendation; never decide in the owner's place.
 - When you add an open question to `docs/open-questions.md`, also open its mirror issue from the template
   `.github/ISSUE_TEMPLATE/open-question.md`: title `OQ-<n>: <short title>`, labels `open-question`,
-  `oq:<type>`, `due:phase-N` (or `due:none`) and the `package:*` labels, the full text of the entry as the body. Never label it
+  `oq:<type>`, `due:phase-N` (or `due:none`) and the `package:*` labels. The body **must** follow the template: read
+  `.github/ISSUE_TEMPLATE/open-question.md` before creating the issue (issue tools never apply a template, so a body written
+  from memory is wrong), keep all its headings in order (**ID**, **Type**, **Package(s)**, **Blocks**, **Resolve before**,
+  **Status**, `## Question`, `## Context`, `## Options and recommendation`, `## Conservative default meanwhile`), fill every
+  one from the entry (write `none` where it has nothing, never drop a heading), and drop only the HTML comments. After
+  creating it, read the issue back and fix the body if a heading is missing. Never label it
   `needs-decision` or `blocked` (the relay reads those as a blocked roadmap item). The file stays the source of
   truth. When an entry is resolved, record only the final answer in the file and close its issue with a link
   to the pull request.

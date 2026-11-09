@@ -24,6 +24,7 @@ in [`../website`](../website).
 - [data-access.md](architecture/data-access.md) — SQL interfaces, drivers, query builder, ORM, migrations
 - [container.md](architecture/container.md) — bindings, lifetimes, constructor injection, boot validation, overrides
 - [logging.md](architecture/logging.md) — severities, loggers, records, sinks, ambient context
+- [configuration.md](architecture/configuration.md) — layers, environment variables, secrets, validation at boot, logging keys, depth limit
 - [testing.md](architecture/testing.md) — test framework and contract testing
 - [documentation.md](architecture/documentation.md) — website, i18n, generated references
 - [cli-and-packaging.md](architecture/cli-and-packaging.md) — CLI, manifest, lockfile, LuaRocks, toolchains

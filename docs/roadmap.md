@@ -178,12 +178,12 @@ concurrency test suite passes; benchmark baseline recorded.
       error paths, JSON Schema 2020-12 emission. Decisions OQ-50 and OQ-85 to OQ-97 (OQ-98 lists the choices still to confirm); review and
       fixes in [the review](reviews/schema-review-package.md).
 - [x] `container`: IoC container, lifetimes, cycle detection at boot; write its specification section in `docs/architecture/` (OQ-62).
-- [ ] `config`: layered configuration validated by schemas; write its specification section in `docs/architecture/`, including the logging keys (OQ-62) and the `limits.max_depth` key that lowers the nesting depth of `json` and `schema` together (OQ-92).
+- [x] `config`: layered configuration validated by schemas; write its specification section in `docs/architecture/`, including the logging keys (OQ-62) and the `limits.max_depth` key that lowers the nesting depth of `json` and `schema` together (OQ-92).
 - [ ] `kernel`: application, modules, controllers, route modules, filters, problem
       details, lifecycle, multi-process workers, graceful shutdown. **Also (from the `schema` review, OQ-98 item 7):** settle how a route names the schema of its response (`docs/developer-experience.md` shows `Class.representation` and an implicit represent; `schema` offers `schema.of(Class):represent(instance)`). **First step (from the `http` reviews):** split
       `packages/http` `server.lua` (options, response writer, connection) and `client.lua` (pool, redirect) with no API
       change; build the in-process dispatch seam (OQ-78, with OQ-76 a), the `on_response` hook (OQ-81) remove the JSON fallback of `Server` for a table (OQ-76 a: an error, a generic 500 and a log entry; OQ-80 decided: no `http.json` or `http.text`) and build the default
-      logger of OQ-79 (`log.default()`, console sink on the standard error stream, used by `http` when no `logger` is given, and by `schema` through `package.loaded` when `hecate.log` is already loaded, OQ-86); narrow the type of `Request.content`.
+      logger of OQ-79 (`log.default()`, console sink on the standard error stream, used by `http` when no `logger` is given, and by `schema` through `package.loaded` when `hecate.log` is already loaded, OQ-86); narrow the type of `Request.content`. **Also (from the `config` item, OQ-101):** (a) add a lowering-only `json.set_max_depth(n)` (it refuses a value above `json.MAX_DEPTH_CEILING` and the value is readable back through `json.DEFAULT_MAX_DEPTH`) and make `schema` read it instead of its constant, then apply `limits.max_depth` (OQ-92); (b) apply the logging keys when building the default logger; (c) pass `hecate.log.Secret` as the `wrap_secret` option of `config.load`.
 - [ ] Example: `examples/hello` (JSON API with validation).
 - [ ] Benchmarks: plaintext and JSON scenarios. **Carries three performance findings deferred from the Phase 1
       gate review** ([review](reviews/phase-1-review-package.md), "Minor"): judge each with a measurement, then

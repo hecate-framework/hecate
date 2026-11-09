@@ -149,9 +149,27 @@ Errors are *problem details* (RFC 9457; `hecate.problem.*` is the namespace). Pa
 | lease | The right to use one connection of a pool for one exchange, held until its response content is read or closed | Gray and Cheriton (1989) | ticket, checkout token |
 | grace period | The time `Server:shutdown` lets requests in flight finish before cancelling them | ADR 0023 | drain timeout (that is the unread-content drain of a response) |
 
+## Configuration
+
+| Term | Meaning | Reference | Instead of |
+|---|---|---|---|
+| configuration | The immutable, validated key-value tree a process is booted with, merged from layers (`hecate.config`) | The Twelve-Factor App, factor III | settings, options (an `options` table is an argument of a call) |
+| configuration layer | One source of the merge, in increasing precedence: schema defaults, `config/default.lua`, `config/<environment>.lua`, environment variables, secret files | | profile (for a layer), override |
+| environment | The name of the deployment (`development`, `test`, `production`) that selects `config/<environment>.lua` (default `production`) | factor III | stage, mode |
+| secret file | A file that holds the value of one secret key, as a container platform mounts it | | key file |
+| environment variable | A named text value of the process environment (`HECATE_DATABASE__PORT`); layer 4 of the configuration, its name derived from the path of a leaf; `<PREFIX>_ENV` names the environment | factor III | env var, flag |
+| leaf | A declared key that is not an `object`: a scalar, an enumeration or an array; the unit that an environment variable or a secret file can supply |  | setting, option |
+| `Section`, `List` | The frozen values of a configuration: a `Section` holds an object or a map, a `List` an array (also when empty); a write raises `ConformanceError` |  | table, dict, map (for the frozen object) |
+| secret object | The wrapper of the value of a secret key (`hecate.log.Secret`, else `hecate.config.Secret`): `tostring` gives `[redacted]` and `reveal()` gives the value |  | masked value, sensitive string |
+| framework keys | The keys that every configuration declares, `logging.*` and `limits.max_depth`, which an application cannot redeclare |  | built-in settings, core options |
+
+
 ## Logging
 
 Severities follow RFC 5424: `emergency`, `alert`, `critical`, `error`, `warning`,
 `notice`, `informational`, `debug`.
 A *severity* is the urgency of a record; a logger records the severities at least as urgent as its own
 `severity` option (never "level" or "threshold").
+
+A *named severity* is an entry of `logging.severities`: the severity of the logger whose `name` is that key, matched exactly
+(never "per-logger level").

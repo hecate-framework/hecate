@@ -9,8 +9,8 @@ Layered configuration (defaults, environment files, environment variables, secre
 
 ## Read before changing anything
 
-- Specification: `docs/architecture/overview.md`
-- Decisions: none specific
+- Specification: `docs/architecture/configuration.md` (boot sequence in `docs/architecture/overview.md`)
+- Decisions: none specific; choices confirmed in OQ-101; default environment `production` (`docs/open-questions.md`)
 - Glossary: `docs/glossary.md` · Coding standards: `docs/architecture/coding-standards.md`
 - This package's `README.md` (scope, dependencies, status)
 
@@ -19,7 +19,7 @@ Layered configuration (defaults, environment files, environment variables, secre
 - Allowed dependencies: `hecate.core`, `hecate.schema`.
   Anything else requires an ADR; `check-boundaries` fails otherwise.
 - Native code: none.
-- Out of scope: remote configuration services (later, by plugin).
+- Out of scope: remote configuration services (later, by a separate package).
 - If your task needs a change in another package, stop and describe the needed change
   instead of making it (unless the task explicitly spans packages).
 
