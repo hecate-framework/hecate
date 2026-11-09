@@ -11,7 +11,7 @@ Versions: Phases 0–2 produce no release. Phase 3 ends with `0.1.0` (alpha), Ph
 Every phase ends with a **gate** item, so that no phase is left with holes before the next one starts
 (no "Swiss cheese"). The relay takes a gate only when every other item of its phase is ticked, and it starts no
 item of phase N+1 while the gate of phase N is unticked. A gate is a verification, not new development; it
-produces a report, `docs/reviews/phase-<N>.md`, and checks:
+produces a report, `docs/reviews/phase-<N>.md`, and checks the five points below:
 
 1. **Completeness.** Every ticked item of the phase is delivered as the item says: the code exists, the public
    API is annotated, the tests and documentation required by the definition of done in `CLAUDE.md` exist
@@ -24,7 +24,14 @@ produces a report, `docs/reviews/phase-<N>.md`, and checks:
 3. **Coherence.** Code, ADRs, specifications, package READMEs, the glossary, the roadmap, `docs/open-questions.md`,
    the website (English and French), the catalogue in `automation.md`, `llms.txt`, `README.md` and `CLAUDE.md` say
    the same thing, and nothing says a thing that is not true.
-4. **Open questions.** The questions of `docs/open-questions.md` that block the next phase, or that the phase made
+4. **Safe content (OQ-111).** What the packages of the phase put in error messages, log records, problem details
+   and generated documentation is audited (CWE-532): no secret, no credential, no offending input value and no
+   personal data, and every field that can carry one is either redacted by name (`log.DEFAULT_REDACT`) or documented
+   as never logged. The audit greps the messages and `logger:*` calls of the packages of the phase, runs the canary
+   test (a canary secret is put through an error, a log field and a configuration value, and the output is searched
+   for it) and lists what it checked in the report; it also checks the production checklist page
+   (`website/en/how-to/`) against what the phase added.
+5. **Open questions.** The questions of `docs/open-questions.md` that block the next phase, or that the phase made
    stale, are listed in the report with their context and a recommendation; an issue labelled `needs-decision`
    asks the owner. The relay never decides them.
 
@@ -184,6 +191,7 @@ concurrency test suite passes; benchmark baseline recorded.
       `packages/http` `server.lua` (options, response writer, connection) and `client.lua` (pool, redirect) with no API
       change; build the in-process dispatch seam (OQ-78, with OQ-76 a), the `on_response` hook (OQ-81) remove the JSON fallback of `Server` for a table (OQ-76 a: an error, a generic 500 and a log entry; OQ-80 decided: no `http.json` or `http.text`) and build the default
       logger of OQ-79 (`log.default()`, console sink on the standard error stream, used by `http` when no `logger` is given, and by `schema` through `package.loaded` when `hecate.log` is already loaded, OQ-86); narrow the type of `Request.content`. **Also (from the `config` item, OQ-101):** (a) add a lowering-only `json.set_max_depth(n)` (it refuses a value above `json.MAX_DEPTH_CEILING` and the value is readable back through `json.DEFAULT_MAX_DEPTH`) and make `schema` read it instead of its constant, then apply `limits.max_depth` (OQ-92); (b) apply the logging keys when building the default logger; (c) pass `hecate.log.Secret` as the `wrap_secret` option of `config.load`.
+      **Also (owner decisions of 2026-11-09):** (d) the default logger is built with `log.DEFAULT_REDACT` plus the names of `logging.redact` (OQ-111); (e) the route's response schema is named with `schema.of(Class)` (or any schema), and the kernel itself calls `represent` then encodes (OQ-98 item 7); (f) `Response` content is `string|function|nil` in `http` (the constructor refuses a table), so the kernel gets a helper to answer with a status and a value, for example `hecate.respond(201, user)`, which represents and encodes it by content negotiation; (g) once the kernel has read and validated the content of a request (`Request.content` holds the validated value), `request:stream_content()` and `read_content()` raise a clear `ContentError` ("content already validated and consumed") instead of returning nothing; a route without a body schema keeps the stream untouched.
 - [ ] Example: `examples/hello` (JSON API with validation).
 - [ ] Benchmarks: plaintext and JSON scenarios. **Carries three performance findings deferred from the Phase 1
       gate review** ([review](reviews/phase-1-review-package.md), "Minor"): judge each with a measurement, then
@@ -224,7 +232,7 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       default logger and the access log record (query strings), `logging.redact`, secrets declared in `secrets`, limits, development
       mode off. Written after the `kernel` item so that it names its real configuration keys.
 
-- [ ] **Phase 2 gate**: verification of the phase, as described in [Phase gates](#phase-gates). The gate report also audits what the packages of the phase put in their error messages and log fields (no secret, no offending value, no personal data), CWE-532. Open
+- [ ] **Phase 2 gate**: verification of the phase, as described in [Phase gates](#phase-gates). Open
       questions to put to the owner before Phase 3: OQ-46, OQ-13, OQ-17, OQ-38 and OQ-64
       (OQ-33, OQ-35, OQ-36 and OQ-40 were resolved at the Phase 1 gate).
 

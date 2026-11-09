@@ -109,7 +109,7 @@ makes every interruption harmless instead.
 - **Procedure**: `.claude/commands/relay.md` (resume an unfinished relay pull request
   first, otherwise start the next unblocked roadmap item; one item per run; never merge).
 - **Phase gates**: the last item of every phase is a verification (completeness, it works,
-  coherence, open questions) that produces `docs/reviews/phase-<n>.md`; the relay starts no
+  coherence, safe content, open questions) that produces `docs/reviews/phase-<n>.md`; the relay starts no
   item of the next phase until the gate is ticked (`docs/roadmap.md`, "Phase gates"). The relay triages the minor
   findings of a gate itself: a defect of something the phase delivered is fixed in the gate's pull request, anything
   that needs a later phase or a measurement is deferred into that phase's roadmap item, so nothing is forgotten.

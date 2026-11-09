@@ -207,7 +207,7 @@ logger (`log.default()`, boot step 1 of the `kernel` item) and the loggers of th
 | `logging.sinks` | array of `console`, `json_lines`, `file` | `{ "console" }` | the sinks of the default logger, in order; an empty array is allowed (the logger records nothing anywhere) |
 | `logging.file.path` | string | none | the file of the `file` sink (`FileSink({ path })`); required when `logging.sinks` contains `file` |
 | `logging.async` | boolean | `false` | wrap each sink in an `AsyncSink` (needs a running reactor at the first write) |
-| `logging.redact` | array of strings | `{}` | the `redact` option of the logger: field names whose values become secrets |
+| `logging.redact` | array of strings | `{}` | field names added to `log.DEFAULT_REDACT` (the built-in list of the default logger, OQ-111): their values become secrets. The list is not replaced; names are matched exactly, case-insensitively, and free text is never scrubbed |
 
 - The names are the glossary's: *severity*, never "level"; *sink*; a *named severity* belongs to a *logger name* (the `name`
   option of `Logger`). The severity enumeration is `emergency`, `alert`, `critical`, `error`, `warning`, `notice`,
