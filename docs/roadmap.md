@@ -178,7 +178,7 @@ concurrency test suite passes; benchmark baseline recorded.
       error paths, JSON Schema 2020-12 emission. Decisions OQ-50 and OQ-85 to OQ-97 (OQ-98 lists the choices still to confirm); review and
       fixes in [the review](reviews/schema-review-package.md).
 - [x] `container`: IoC container, lifetimes, cycle detection at boot; write its specification section in `docs/architecture/` (OQ-62).
-- [ ] `config`: layered configuration validated by schemas; write its specification section in `docs/architecture/`, including the logging keys (OQ-62) and the `limits.max_depth` key that lowers the nesting depth of `json` and `schema` together (OQ-92).
+- [x] `config`: layered configuration validated by schemas; write its specification section in `docs/architecture/`, including the logging keys (OQ-62) and the `limits.max_depth` key that lowers the nesting depth of `json` and `schema` together (OQ-92).
 - [ ] `kernel`: application, modules, controllers, route modules, filters, problem
       details, lifecycle, multi-process workers, graceful shutdown. **Also (from the `schema` review, OQ-98 item 7):** settle how a route names the schema of its response (`docs/developer-experience.md` shows `Class.representation` and an implicit represent; `schema` offers `schema.of(Class):represent(instance)`). **First step (from the `http` reviews):** split
       `packages/http` `server.lua` (options, response writer, connection) and `client.lua` (pool, redirect) with no API
