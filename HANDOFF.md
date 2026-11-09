@@ -3,8 +3,8 @@
 
 - roadmap_item: `config`: layered configuration validated by schemas; write its specification section in `docs/architecture/`, including the logging keys (OQ-62) and the `limits.max_depth` key that lowers the nesting depth of `json` and `schema` together (OQ-92).
 - status: in-progress
-- lock_until: 2026-11-09T00:25:06Z
-- last_update: 2026-11-08T22:55:06Z
+- lock_until: 2026-11-09T02:20:12Z
+- last_update: 2026-11-09T00:50:12Z
 
 ## Done
 
@@ -16,13 +16,13 @@
 - Owner answers on OQ-101 applied (6d2292c): default environment is `production`, OQ-101 resolved, kernel handoffs added to the roadmap. No lock is held (owner request): the next relay run may resume.
 - Website build failed on the how-to's out-of-root link; replaced by the GitHub URL (this commit). `check-links`, `typecheck` ok.
 
+- Review (architect, pkg-config, api, terminology, test-engineer) done; fixes applied: boolean false override, empty array as List, single violation per coercion failure, secret redaction in errors, BOM/directory file reading, reserved env names, `secret` option renamed `wrap_secret`, dotted violation paths with hint, glossary and doc terms. typecheck and test config ok (this commit).
+
 ## Next steps
 
-1. Wait for CI on the three platforms (the `test tools` tcp-echo failure seen in the sandbox is probably environmental; check CI).
-2. Run `/review-package config` (reviewers: architect, api-reviewer, terminology, test-engineer, security for secrets); triage findings.
-3. Known wart: empty array is exposed as an empty `Section`, not a `List`; fix or record.
-4. French mirror of the how-to is not written (check whether CI requires it).
-5. When green and reviewed: delete HANDOFF.md, tick the roadmap item, mark PR ready, ask the owner for review.
+1. Wait for CI on the three platforms for the review-fix commit.
+2. Triage deferred review items: cross-key `logging.file.path` rule skipped when build fails; `describe()` `%q` escaping; property-based tests; lone-CR and empty secret file semantics; `HECATE_ENV=""`; Windows empty-env test; French mirror of the how-to (check whether CI requires it). Record them as known limitations in `docs/open-questions.md` (or roadmap items) with a mirror issue.
+3. When green: delete HANDOFF.md, tick the roadmap item, mark PR ready, ask the owner for review.
 
 ## Decisions taken (and where they are recorded)
 

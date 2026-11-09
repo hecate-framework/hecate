@@ -77,7 +77,7 @@ local MAX_WALK_DEPTH = 16
 --- Removes `optional`, `default`, `named` and `nullable` around a schema.
 ---@param s hecate.schema.Schema
 ---@return hecate.schema.Schema
-local function unwrap(s)
+function M.unwrap(s)
   local item = s.item
   while WRAPPERS[s.kind] and item ~= nil do
     s = item
@@ -92,8 +92,13 @@ end
 ---@param depth integer
 ---@return hecate.config.Node
 local function walk(s, segments, depth)
-  local inner = unwrap(s)
-  if inner.kind == "object" and depth < MAX_WALK_DEPTH then
+  local inner = M.unwrap(s)
+  if inner.kind == "object" then
+    if depth >= MAX_WALK_DEPTH then
+      error(core.ArgumentError(("config.load: option properties: %s is nested deeper than %d levels"):format(
+        #segments == 0 and "the properties" or table.concat(segments, "."), MAX_WALK_DEPTH),
+        { context = { path = table.concat(segments, ".") } }), 0)
+    end
     local children = {}
     for name, property in pairs(inner.properties) do
       local path = { table.unpack(segments) }

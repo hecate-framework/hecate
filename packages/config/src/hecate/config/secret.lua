@@ -1,5 +1,5 @@
 -- The fallback secret object of `hecate.config` (configuration.md, "Secrets"): the same interface as `hecate.log.Secret`,
--- used when `hecate.log` is not loaded and no `secret` option is given (config cannot depend on log, layering).
+-- used when `hecate.log` is not loaded and no `wrap_secret` option is given (config cannot depend on log, layering).
 global <const> require
 
 local core = require("hecate.core")

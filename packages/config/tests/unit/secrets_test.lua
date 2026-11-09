@@ -51,7 +51,7 @@ function T:test_custom_wrapper_option_is_used()
   local wrapped
   local configuration = fixture.load({
     env = { HECATE_DATABASE__PASSWORD = VALUE },
-    options = options({ secret = function(value) wrapped = value return { marker = true } end }),
+    options = options({ wrap_secret = function(value) wrapped = value return { marker = true } end }),
   })
   self:assert_equal(VALUE, wrapped)
   self:assert_true(configuration:get("database.password").marker)
@@ -118,6 +118,62 @@ function T:test_fallback_secret_class_has_the_interface()
   self:assert_equal("[redacted]", tostring(secret))
   self:assert_equal(VALUE, secret:reveal())
   self:assert_equal("[redacted]", config.Secret.REDACTED)
+end
+
+local function without_value(self, err)
+  self:assert_nil(tostring(err):find(VALUE, 1, true), tostring(err))
+  for _, violation in ipairs(err.context.violations or {}) do
+    for _, field in pairs(violation) do self:assert_nil(tostring(field):find(VALUE, 1, true), tostring(field)) end
+  end
+end
+
+function T:test_pattern_and_enum_violations_of_a_secret_do_not_print_the_value()
+  local schema = require("hecate.schema")
+  for _, property in ipairs({ schema.string({ pattern = "^[0-9]+$" }), schema.enumeration({ "alpha", "beta" }) }) do
+    local err = fixture.failure({
+      env = { HECATE_DATABASE__PASSWORD = VALUE },
+      options = options({ properties = { database = schema.object({ password = property }) } }),
+    })
+    self:assert_equal(1, #err.context.violations)
+    without_value(self, err)
+    self:assert_equal("database.password", err.context.violations[1].path)
+  end
+end
+
+function T:test_type_violation_of_a_secret_in_a_file_does_not_print_the_value()
+  local schema = require("hecate.schema")
+  local err = fixture.failure({
+    files = { ["config/default.lua"] = "return { database = { password = { '" .. VALUE .. "' } } }" },
+    options = options({ properties = { database = schema.object({ password = schema.string() }) } }),
+  })
+  without_value(self, err)
+end
+
+function T:test_coercion_failure_of_a_secret_integer_does_not_print_the_value()
+  local schema = require("hecate.schema")
+  local err = fixture.failure({
+    env = { HECATE_PIN = VALUE },
+    options = { properties = { pin = schema.integer() }, secrets = { "pin" } },
+  })
+  self:assert_equal(1, #err.context.violations)
+  without_value(self, err)
+  local from_file = fixture.failure({
+    files = { ["/mnt/pin"] = VALUE .. "\n" }, env = { HECATE_PIN_FILE = "/mnt/pin" },
+    options = { properties = { pin = schema.integer() }, secrets = { "pin" } },
+  })
+  without_value(self, from_file)
+end
+
+function T:test_syntax_error_of_a_file_does_not_print_the_value()
+  -- The Lua message ends with `near '<token>'`, and the token is text of the file.
+  local token = "s3cr3tvalue9f2"
+  local text = "return { password = 'x' " .. token .. " }"
+  local plain = select(2, load(text, "@config/default.lua", "t", {}))
+  self:assert_true(plain:find(token, 1, true) ~= nil, "the fixture must reproduce the leak: " .. plain)
+  local err = fixture.failure({ files = { ["config/default.lua"] = text } })
+  self:assert_nil(tostring(err):find(token, 1, true), tostring(err))
+  self:assert_true(tostring(err):find("config/default.lua:1:", 1, true) ~= nil, tostring(err))
+  self:assert_equal("config/default.lua", err.context.file)
 end
 
 return T
