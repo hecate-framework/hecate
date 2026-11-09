@@ -22,6 +22,8 @@
 - Step 8 (run of ~21:11Z, lock released at the end): `hecate.kernel.results` (`serialise`, `respond`, `serialisers`, minimal `Accept` negotiation with 406); 17 tests; typecheck, lint, `test kernel` ok. Choices to confirm: plain value is 200 (201 with `created = true`, or POST with only a 201 declared); a nil result is 204 if the route declares it, else an empty 200. Not done: validation of the result against the schema in development/test (later item).
 - Step 9 (run of ~21:50Z, lock released): `hecate.kernel.problems` (`response`, `from_match`, `from_error`, `guard`), 19 tests, OQ-112 (choices to confirm; mirror issue created by the relay); typecheck, lint, `test kernel` ok. `http.serve_request` already catches errors: the Application decides which layer owns the mapping (`guard` sits just inside it).
 
+- Owner decisions on OQ-112 (2026-11-09, recorded in `docs/open-questions.md`, resolved; issue #168 closed): `errors.expose_details`, `hecate.problem.*` classes (returnable and raisable, `define`), messages in 422 entries when exposed. Roadmap kernel item (h) and (i).
+
 ## Next steps
 
 0. Kernel code after chain, results and problems: `Application` skeleton and boot validation, controllers and route modules, the `hecate.respond` re-export, response validation in development/test, then the handoffs (a) to (g) of the roadmap item.
