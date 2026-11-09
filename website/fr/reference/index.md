@@ -22,5 +22,6 @@ chaque paquet documenté.
 - [`hecate.router`](router/index.md) : le routeur à arbre radix, les gabarits de chemin, l’appariement, le routage inverse et les erreurs de table de routes.
 - [`hecate.schema`](schema/index.md) : types raffinés, validation, coercition et émission de JSON Schema.
 - [`hecate.container`](container/index.md) : le conteneur d’inversion de contrôle, les durées de vie, l’injection par constructeur, la validation au démarrage et la libération.
+- [`hecate.config`](config/index.md) : la configuration en couches validée par des schémas, les variables d’environnement, les secrets et la `Configuration` immuable.
 
 Le [glossaire](glossary.md) définit le vocabulaire utilisé partout.

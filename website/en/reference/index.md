@@ -22,5 +22,6 @@ documented package.
 - [`hecate.router`](router/index.md): the radix-tree router, path templates, matching, reverse routing and route table errors.
 - [`hecate.schema`](schema/index.md): refinement types, validation, coercion and JSON Schema emission.
 - [`hecate.container`](container/index.md): the inversion-of-control container, lifetimes, constructor injection, boot validation and disposal.
+- [`hecate.config`](config/index.md): layered configuration validated by schemas, environment variables, secrets and the immutable `Configuration`.
 
 The [glossary](glossary.md) defines the vocabulary used everywhere.
