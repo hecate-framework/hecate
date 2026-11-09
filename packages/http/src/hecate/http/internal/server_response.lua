@@ -86,7 +86,7 @@ end
 --- 9110, sections 9.3.2, 15.2, 15.3.5 and 15.4.5); a function without a declared length is chunked (RFC 9112, section
 --- 7.1), or delimited by the close for HTTP/1.0. The framing fields of the action are replaced by the server's own:
 --- `Content-Length`, `Transfer-Encoding` and `Connection` (RFC 9110, section 7.6.1), and `Date` is added (section 6.6.1).
---- Raises `hecate.core.ArgumentError` for content that is not nil, a string or a function (`serve_request` refuses it first).
+--- Raises `hecate.core.ArgumentError` for content that is not nil, a string or a function (`serve_request` refuses it first; the `Response` constructor refuses it too).
 ---@param info { method?: string, version: string, keep_alive: boolean }
 ---@param response hecate.http.Response
 ---@param close boolean  close the connection after the response (forced, or the server is stopping)

@@ -39,7 +39,11 @@ function T:test_an_error_maps_to_problem_details_by_its_class_and_is_returned()
 end
 
 function T:test_a_table_as_content_is_an_error_mapped_to_the_generic_500()
-  local got, failure = serve_request(function() return Response(200, { content = { id = 42, password = "hunter2" } }) end, request())
+  local got, failure = serve_request(function()
+    local response = Response(200)
+    response.content = { id = 42, password = "hunter2" } -- a hand-made object that bypasses the constructor
+    return response
+  end, request())
   self:assert_equal(500, got.status)
   self:assert_equal("application/problem+json", got.fields:get("Content-Type"))
   self:assert_equal("The server could not process the request.", json.decode(got.content).detail)
@@ -135,6 +139,8 @@ function T:test_normalise_decides_the_connection_option()
 end
 
 function T:test_normalise_refuses_content_that_is_not_nil_a_string_or_a_function()
-  self:assert_error(function() responses.normalise(info(), Response(200, { content = { a = 1 } }), false) end)
+  local response = Response(200)
+  response.content = { a = 1 } -- bypasses the constructor
+  self:assert_error(function() responses.normalise(info(), response, false) end)
 end
 return T

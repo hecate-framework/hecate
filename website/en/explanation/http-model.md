@@ -41,7 +41,7 @@ read on demand. A server request and a client response give a `ContentStream`: `
 one chunk at a time. `read_content(limit?)` collects the whole content within a bound.
 
 The content of a message you build is more convenient. It is nil, a string or a
-function that writes (`http` never serialises: a table is for the layer above). The function form is what makes a response a stream: the framing (chunked
+function that writes (`http` is bytes only and never serialises: the constructor refuses a table, which is for the layer above). The function form is what makes a response a stream: the framing (chunked
 coding, or the declared length) is chosen from what you give. The `Content-Length`,
 `Transfer-Encoding` and `Connection` fields are the protocol's own. The server and the client set
 them and replace yours, so an action cannot corrupt the framing of a connection.

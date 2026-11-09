@@ -8,22 +8,23 @@ local ContentStream = require("hecate.http.content")
 local MediaType = require("hecate.http.media_type")
 local json = require("hecate.json")
 
---- A response. `content` is a string or a function that streams (`content(write, flush)`). `http` never
---- serialises (OQ-76 a): a table as content is for a layer above, the kernel, that serialises it by content negotiation; a table
---- that reaches the server is an error (a generic 500 problem details response and a log entry, see `hecate.http.serve_request`). A response of the client has no `content`: it
---- is read with `read_content`, `read_json` or `stream_content`.
+--- A response. `content` is nil, a string or a function that streams (`content(write, flush)`). `http` is bytes only and
+--- never serialises (OQ-76 a): a layer above, the kernel, serialises a value by content negotiation before it builds the
+--- response, and the constructor refuses any other type. An object that bypasses the constructor and holds a table is an
+--- error at the server (a generic 500 problem details response and a log entry, see `hecate.http.serve_request`). A response
+--- of the client has no `content`: it is read with `read_content`, `read_json` or `stream_content`.
 ---@class hecate.http.Response
 ---@field status integer  100..599
 ---@field reason string  the reason phrase; defaults to the registered one, or "" (RFC 9112, section 4)
 ---@field fields hecate.http.Fields
----@field content? string|table|function
+---@field content? string|function
 ---@field url? string  the URL that answered, for a response of the client
 ---@overload fun(status?: integer, options?: hecate.http.ResponseOptions): hecate.http.Response
 local Response = core.class("Response")
 
 ---@class hecate.http.ResponseOptions
 ---@field fields? hecate.http.Fields
----@field content? string|table|function
+---@field content? string|function
 ---@field reason? string
 ---@field content_stream? hecate.http.ContentStream  INTERNAL, do not use: the content read lazily (the client passes one)
 ---@field discard? fun()  INTERNAL, do not use: called by `close` when the content was not read to its end (the client drops the connection)
@@ -31,8 +32,8 @@ local Response = core.class("Response")
 
 --- Initialises a response.
 ---
---- Raises `hecate.core.ArgumentError` for a status outside 100..599, or for content on a status
---- that never has content (1xx, 204, 304; RFC 9110, section 6.4.1).
+--- Raises `hecate.core.ArgumentError` for a status outside 100..599, for content that is not nil, a string or a function
+--- (`http` does not serialise), or for content on a status that never has content (1xx, 204, 304; RFC 9110, section 6.4.1).
 ---@param status? integer  default 200
 ---@param options? hecate.http.ResponseOptions
 function Response:init(status, options)
@@ -40,6 +41,10 @@ function Response:init(status, options)
   options = options or {}
   if not Status.is_valid(status) then
     error(core.ArgumentError("http.Response: the status must be an integer from 100 to 599"), 3)
+  end
+  local kind = type(options.content)
+  if not (kind == "nil" or kind == "string" or kind == "function") then
+    error(core.ArgumentError("http.Response: the content is a " .. kind .. ": http does not serialise; the content must be a string or a writer function (a framework that serialises, the kernel, does it before)"), 3)
   end
   if options.content ~= nil and Status.forbids_content(status) then
     error(core.ArgumentError("http.Response: status " .. status .. " never has content (RFC 9110, section 6.4.1); return a Response without content"), 3)

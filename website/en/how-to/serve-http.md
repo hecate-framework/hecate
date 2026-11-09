@@ -143,9 +143,11 @@ A `Response` is created with `http.Response(status, options?)`. The options are 
 | a string | the bytes, with `Content-Length` |
 | a function `content(write, flush)` | a stream (see [Stream HTTP content](stream-http-content.md)) |
 
-`http` never serialises. A table as content is an error: the client gets the generic 500
-problem details response and the server logs the failure. Encode the table yourself
-(`json.encode`) and set `Content-Type`, as the example does.
+`http` is bytes only and never serialises. `http.Response` raises an `ArgumentError` for content
+that is not nil, a string or a function, a table included. Encode the table yourself
+(`json.encode`) and set `Content-Type`, as the example does. (A table set on a response object that
+bypassed the constructor reaches the server as an error: the client gets the generic 500 problem
+details response and the server logs the failure.)
 
 The server never sends content for HEAD, 1xx, 204 and 304. It sets `Date`, `Content-Length`,
 `Transfer-Encoding` and `Connection` itself and replaces yours. The one exception is a streamed

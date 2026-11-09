@@ -1,4 +1,4 @@
----@diagnostic disable: missing-fields, param-type-mismatch  -- the tests pass invalid arguments on purpose
+---@diagnostic disable: missing-fields, param-type-mismatch, assign-type-mismatch  -- the tests pass invalid arguments on purpose
 -- The server over a real loopback socket, inside the reactor, with a client written here over hecate.net.
 local test = require("harness.test")
 local core = require("hecate.core")
@@ -347,11 +347,15 @@ function T:test_a_writer_that_breaks_its_declared_length_closes_the_connection()
 end
 
 function T:test_a_table_is_an_error_answered_with_the_generic_500_and_logged()
-  -- OQ-76 a: http never serialises; a table reaching the server is a failure of the action, not JSON.
+  -- OQ-76 a: http never serialises; a table reaching the server (set after construction) is a failure of the action, not JSON.
   local sink = log.MemorySink()
   local reported = {}
   with_server(self, {
-    action = function() return Response(200, { content = { id = 42, secret = "hunter2" } }) end,
+    action = function()
+      local response = Response(200)
+      response.content = { id = 42, secret = "hunter2" } -- bypasses the constructor
+      return response
+    end,
     logger = log.Logger({ sinks = { sink }, severity = "debug" }),
     on_error = function(err) reported[#reported + 1] = err end,
   }, function(port)

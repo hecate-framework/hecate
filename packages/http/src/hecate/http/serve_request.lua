@@ -1,6 +1,6 @@
 -- The in-process request-serving seam (OQ-78): runs an action on a request without a socket, checks what it returned and maps a
 -- failure to problem details. The socket `Server` calls this function, so tests, the in-process client of `test` and the
--- kernel share the code path of production. It never serialises (OQ-76 a): a table as content is an error.
+-- kernel share the code path of production. It never serialises (OQ-76 a): a table as content (only from an object that bypasses the `Response` constructor) is an error.
 -- Needs no native module.
 global <const> require, type, error, pcall
 

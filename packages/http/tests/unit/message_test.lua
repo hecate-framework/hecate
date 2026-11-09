@@ -1,4 +1,4 @@
----@diagnostic disable: missing-fields, param-type-mismatch  -- the tests pass invalid arguments on purpose
+---@diagnostic disable: missing-fields, param-type-mismatch, assign-type-mismatch  -- the tests pass invalid arguments on purpose
 local test = require("harness.test")
 local http = require("hecate.http")
 local T = test.Case("MessageTest")
@@ -37,6 +37,21 @@ function T:test_request_cookies_and_media_type()
   self:assert_equal("application/json", r:media_type():essence())
   self:assert_equal("127.0.0.1", r:peer_address().ip)
   self:assert_nil(http.Request({ target = "/" }):media_type())
+end
+
+function T:test_response_content_is_nil_a_string_or_a_function_and_http_does_not_serialise()
+  local core = require("hecate.core")
+  self:assert_nil(http.Response(200).content)
+  self:assert_equal("x", http.Response(200, { content = "x" }).content)
+  local writer = function() end
+  self:assert_true(http.Response(200, { content = writer }).content == writer)
+  for _, bad in ipairs({ {}, { id = 42 }, 42, true }) do
+    local ok, err = pcall(http.Response, 200, { content = bad })
+    self:assert_false(ok)
+    self:assert_true(core.is_instance_of(err, core.ArgumentError))
+    self:assert_not_nil(tostring(err):find("does not serialise", 1, true))
+    self:assert_not_nil(tostring(err):find("string or a writer function", 1, true))
+  end
 end
 
 function T:test_response_defaults()
