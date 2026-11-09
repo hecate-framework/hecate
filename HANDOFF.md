@@ -15,10 +15,11 @@
 
 - CI of PR #166 green on the three platforms at 34753bb.
 - Step 2a: `log.default()` / `log.set_default()` (OQ-79), tests in `packages/log/tests/unit/default_logger_test.lua`.
+- Step 3 (owner request): split `schema/schema.lua` (2081 to 109 lines) into `internal/` modules, no API change; typecheck, lint and `test schema` ok. `validation.lua` (1164 lines) stays large on purpose: shared upvalue state on the hot path. Benchmark `validate.lua` class-bound `BenchPerson` scenario fails (reported as also failing before the split; not verified by me). `test doc` needs the native module (no Rust here).
 
 ## Next steps
 
-2. (rest of step 2, `log.default()` done; wire it into `http` as the default logger) In-process dispatch seam (OQ-78, OQ-76 a), `on_response` hook (OQ-81), remove the JSON fallback of `Server` for a table (OQ-76 a), default logger (OQ-79, `log.default()`), narrow `Request.content`.
+2. (rest of the log step, `log.default()` done; wire it into `http` as the default logger) In-process dispatch seam (OQ-78, OQ-76 a), `on_response` hook (OQ-81), remove the JSON fallback of `Server` for a table (OQ-76 a), default logger (OQ-79, `log.default()`), narrow `Request.content`.
 3. OQ-101 items (a) `json.set_max_depth`, (b) logging keys, (c) `wrap_secret`.
 4. Settle how a route names its response schema (OQ-98 item 7), then the kernel proper.
 

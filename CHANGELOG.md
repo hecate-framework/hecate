@@ -212,6 +212,7 @@ Each release heading states the supported Lua version.
 ### Changed
 
 - `hecate.http`: refactor(http): `server.lua` and `client.lua` are split into internal modules under `src/hecate/http/internal/` (`server_options`, `server_response`, `server_connection`, `client_connection`, `client_pool`, `client_exchange`, `client_redirect`); first step of the `kernel` item. No public API or behaviour change; the internal modules are not public API.
+- `hecate.schema`: refactor(schema): `schema.lua` is split into internal modules under `src/hecate/schema/internal/` (`model`, `validation`, `base_types`, `tagged_union`, `classes`, `emission`, `formats`, `json_values`); the state of a call and the constructors that read it stay together in `validation` so that the hot paths keep their upvalue access. No public API or behaviour change; the internal modules are not public API.
 
 - `hecate.schema`: faster validation, coercion, build and representation (fix pass D of the review of the `schema` item, measured with `bench schema/validate`: about 8 to 54 percent on the success paths, a failing input about 8 percent slower): violation paths are joined only where a violation is recorded, and the memoisation of unions allocates only inside an alternative attempt. The coercion violations of a `map` are now reported in key order (before, the order followed `next` and changed from run to run); paths, codes and the work and depth guards are unchanged.
 
