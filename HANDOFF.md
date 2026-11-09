@@ -3,16 +3,19 @@
 
 - roadmap_item: `kernel`: application, modules, controllers, route modules, filters, problem details, lifecycle, multi-process workers, graceful shutdown (Phase 2, docs/roadmap.md)
 - status: in-progress
-- lock_until: 2026-11-09T11:49:38Z
-- last_update: 2026-11-09T10:19:38Z
+- lock_until: 2026-11-09T12:03:32Z
+- last_update: 2026-11-09T10:33:32Z
 
 ## Done
+
+- Draft PR #166 opened (labels relay, package:kernel, package:http).
+- Step 1: split http `server.lua`/`client.lua` into `internal/` modules, no API change (typecheck and `test http` ok; macOS/Windows CI and benchmarks pending).
 
 - Claimed the item (previous relay branch was already merged into main via PR #162/#165).
 
 ## Next steps
 
-1. First step of the item: split `packages/http/src/hecate/http/server.lua` (options, response writer, connection) and `client.lua` (pool, redirect) with no API change.
+1. Check CI of PR #166 on the three platforms.
 2. In-process dispatch seam (OQ-78, OQ-76 a), `on_response` hook (OQ-81), remove the JSON fallback of `Server` for a table (OQ-76 a), default logger (OQ-79, `log.default()`), narrow `Request.content`.
 3. OQ-101 items (a) `json.set_max_depth`, (b) logging keys, (c) `wrap_secret`.
 4. Settle how a route names its response schema (OQ-98 item 7), then the kernel proper.

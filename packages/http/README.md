@@ -187,6 +187,7 @@ Byte by byte costs one native call per byte; a server feeds the bytes of one rea
 
 ```text
 src/hecate/http/           the modules (init.lua is the entry point)
+src/hecate/http/internal/  modules of the server and the client, not public API (options, response writer, connections, pool, exchange, redirects)
 tests/unit/  tests/conformance/  tests/integration/  tests/fixtures/
 examples/    benchmarks/
 csrc/        the llhttp binding and its fuzz target
