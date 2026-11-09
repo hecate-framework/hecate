@@ -53,6 +53,21 @@ record. The value stays reachable through `reveal()`. To protect fields by name 
 logger `redact = { "password", "token" }`: the values of fields with these names (case-insensitive,
 up to 16 levels deep, in the fields and in the context) are wrapped in a `Secret` before any sink sees them.
 
+The default logger (`log.default()`) already does so with `log.DEFAULT_REDACT`: `password`, `passwd`,
+`secret`, `client_secret`, `token`, `access_token`, `refresh_token`, `id_token`, `api_key`, `apikey`,
+`x-api-key`, `private_key`, `authorization`, `proxy-authorization`, `cookie`, `set-cookie`, `session`,
+`sessionid` and `csrf`. Do not modify the list; to extend it, copy it and pass the copy to a logger of your own:
+
+```lua
+local names = table.move(log.DEFAULT_REDACT, 1, #log.DEFAULT_REDACT, 1, {})
+names[#names + 1] = "ssn"
+local logger = log.Logger({ redact = names })
+```
+
+A plain `Logger` without `redact` redacts nothing. Redaction is by exact field name and never covers free
+text: a secret written into a message, as in `logger:error("login failed for " .. token)`, is printed. Pass it
+as a field instead.
+
 <!-- example: packages/log/examples/hecate.log.Secret.lua -->
 ```lua
 -- A secret is never rendered by a sink, whatever the depth of the field that holds it.

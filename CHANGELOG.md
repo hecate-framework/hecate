@@ -11,6 +11,7 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- feat(log): `log.default()` redacts the field names of the new `log.DEFAULT_REDACT` list (passwords, tokens, keys, cookies, authorization headers, session identifiers; exact name, case-insensitive, never free text); a plain `Logger` is unchanged (OQ-111).
 - `hecate.json`: `json.set_max_depth(n)`, a lowering-only process-wide default depth (OQ-101); `hecate.schema` reads it for its nesting guard.
 - `hecate.http`: `http.serve_request(action, request)`, the in-process request-serving seam (OQ-78): runs an action without a socket and returns the response to send and the failure it caught; the `Server` calls the same function. The response writer is split into a pure normalisation of the frame and fields and the writing.
 - `hecate.http`: the `Server` option `on_response(info)` (OQ-81), called once after each response with `method`, `target`, `status`, `bytes`, `duration`, `failed` and `refused` (answers sent before any action runs are marked `refused`); an error of the hook is discarded.
@@ -215,6 +216,7 @@ Each release heading states the supported Lua version.
 
 ### Changed
 
+- `hecate.http`: breaking: `http` is bytes only (OQ-76 a). The `hecate.http.Response` constructor raises `hecate.core.ArgumentError` for content that is not nil, a string or a function (a table included), and `Response.content` is annotated `string|function|nil`. A framework that serialises, the kernel, encodes before it builds the response. `serve_request` and the server keep their check for a hand-made object that bypasses the constructor: the generic 500 problem details response and a log entry.
 - `hecate.http`: breaking: `http` never serialises (OQ-76 a). A table as the content of a response that reaches the `Server` is no longer sent as JSON: it is an error, answered with the generic 500 problem details response and logged at `error` severity. Encode the table and set `Content-Type` in the action (the kernel serialises by content negotiation). Tests, examples and guides that returned tables are updated.
 - `hecate.http`: refactor(http): `server.lua` and `client.lua` are split into internal modules under `src/hecate/http/internal/` (`server_options`, `server_response`, `server_connection`, `client_connection`, `client_pool`, `client_exchange`, `client_redirect`); first step of the `kernel` item. No public API or behaviour change; the internal modules are not public API.
 - `hecate.schema`: refactor(schema): `schema.lua` is split into internal modules under `src/hecate/schema/internal/` (`model`, `validation`, `base_types`, `tagged_union`, `classes`, `emission`, `formats`, `json_values`); the state of a call and the constructors that read it stay together in `validation` so that the hot paths keep their upvalue access. No public API or behaviour change; the internal modules are not public API.

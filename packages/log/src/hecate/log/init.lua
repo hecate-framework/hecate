@@ -1,5 +1,5 @@
 -- hecate.log: structured logging with RFC 5424 severities, per-scope context and pluggable sinks.
-global <const> require, type, error, io
+global <const> require, type, error, io, ipairs
 
 local core = require("hecate.core")
 local severities = require("hecate.log.internal.severity")
@@ -17,6 +17,7 @@ local ambient = require("hecate.log.internal.ambient")
 ---@field FileSink hecate.log.FileSink  sink appending JSON lines to a file
 ---@field LimitedSink hecate.log.LimitedSink  decorator sink that samples and rate-limits records
 ---@field AsyncSink hecate.log.AsyncSink  decorator sink that writes from a detached computation, never suspending the caller
+---@field DEFAULT_REDACT string[]  list of the field names the default logger redacts (do not modify it: copy it to extend it)
 local log = {}
 
 log.Severity = require("hecate.log.severity")
@@ -48,16 +49,29 @@ function log.bind(fields, fn, ...)
   return ambient.bind(fields, fn, ...)
 end
 
+--- The field names the default logger redacts: credentials, tokens, keys, session identifiers and the
+--- HTTP headers that carry them. Matching is by exact field name, case-insensitive (the `redact` option of
+--- `Logger`); it never covers free text in a message. Treat it as read-only (the default logger reads it each
+--- time it is built): to extend it, copy it, `table.move(log.DEFAULT_REDACT, 1, #log.DEFAULT_REDACT, 1, names)`,
+--- add names, and pass the result as the `redact` option of a `Logger`.
+log.DEFAULT_REDACT = {
+  "password", "passwd", "secret", "client_secret", "token", "access_token", "refresh_token", "id_token",
+  "api_key", "apikey", "x-api-key", "private_key", "authorization", "proxy-authorization", "cookie",
+  "set-cookie", "session", "sessionid", "csrf",
+}
+
 local default_logger = nil
 
 --- Returns the process-wide default logger (OQ-79): created on first use, it writes human-readable lines
---- through a `ConsoleSink` to the standard error stream at severity `informational`, synchronously. Packages
+--- through a `ConsoleSink` to the standard error stream at severity `informational`, synchronously, and
+--- redacts the field names of `log.DEFAULT_REDACT` (by exact name, never in free text). Packages
 --- that have something to log and were given no `logger` use it, so none builds a parallel mechanism.
 ---@return hecate.log.Logger logger
 function log.default()
   if default_logger == nil then
     default_logger = log.Logger({
       name = "hecate",
+      redact = log.DEFAULT_REDACT,
       sinks = { log.ConsoleSink({ output = function(line) io.stderr:write(line) end }) },
     })
   end
