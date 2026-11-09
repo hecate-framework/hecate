@@ -7,6 +7,8 @@ local json = require("hecate.json")
 local reactor = require("hecate.reactor")
 local net = require("hecate.net")
 local http = require("hecate.http")
+-- Without a logger the server writes to the standard error stream (OQ-79): tests keep it quiet.
+local QUIET <const> = require("hecate.log").Logger({ sinks = { require("hecate.log").MemorySink() }, severity = "debug" })
 local T = test.Case("ClientTest")
 
 local dir = debug.getinfo(1, "S").source:sub(2):gsub("\\", "/"):gsub("/[^/]*$", "")
@@ -16,14 +18,19 @@ local Response, Client = http.Response, http.Client
 
 local function base(port, path) return "http://127.0.0.1:" .. port .. (path or "/") end
 
+--- A response with `value` serialised as JSON (the server never does: OQ-76 a).
+local function json_response(value)
+  return Response(200, { content = json.encode(value), fields = http.Fields({ { "Content-Type", "application/json" } }) })
+end
+
 --- A action that describes the request it got.
 local function describe(request)
   local fields = {}
   for name, value in request.fields:lines() do fields[#fields + 1] = { name, value } end
-  return Response(200, { content = {
+  return json_response({
     method = request.method, target = request.target, content = request:read_content(), fields = fields,
     peer_port = request:peer_address().port,
-  } })
+  })
 end
 
 local function field(info, name)
@@ -308,7 +315,7 @@ local function redirecting(request)
   if path == "/chain" then return to(302, "/chain?" .. tostring((tonumber(request.query) or 0) + 1)) end
   last_method = request.method
   local info = { method = request.method, content = request:read_content() }
-  return Response(200, { content = info })
+  return json_response(info)
 end
 
 function T:test_redirects_change_the_method_as_rfc_9110_section_15_4_says()
@@ -366,7 +373,7 @@ function T:test_credentials_are_stripped_on_a_cross_origin_redirect_and_kept_on_
   local seen = {}
   run(self, function()
     local function start(action)
-      local server = http.Server(action, { port = 0 })
+      local server = http.Server(action, { port = 0, logger = QUIET })
       local listener = server:listen()
       return listener:local_address().port, server, reactor.fork(server.serve, server, listener)
     end
@@ -575,7 +582,7 @@ function T:test_the_pool_stays_bounded_across_many_origins_and_leaves_no_handle(
   reactor.run(function()
     local servers = {}
     for i = 1, 12 do
-      local server = http.Server(function(request) return Response(200, { content = request.path }) end, { port = 0 })
+      local server = http.Server(function(request) return Response(200, { content = request.path }) end, { port = 0, logger = QUIET })
       local listener = server:listen()
       servers[i] = { server = server, port = listener:local_address().port, serving = reactor.fork(server.serve, server, listener) }
     end
@@ -618,11 +625,11 @@ end
 
 function T:test_a_cross_origin_307_that_would_replay_content_is_returned_not_followed()
   run(self, function()
-    local target = http.Server(redirecting_to(function() return "/x" end), { port = 0 })
+    local target = http.Server(redirecting_to(function() return "/x" end), { port = 0, logger = QUIET })
     local target_listener = target:listen()
     local target_port = target_listener:local_address().port
     local target_serving = reactor.fork(target.serve, target, target_listener)
-    local origin = http.Server(redirecting_to(function() return base(target_port, "/landing") end), { port = 0 })
+    local origin = http.Server(redirecting_to(function() return base(target_port, "/landing") end), { port = 0, logger = QUIET })
     local origin_listener = origin:listen()
     local origin_port = origin_listener:local_address().port
     local origin_serving = reactor.fork(origin.serve, origin, origin_listener)
@@ -651,11 +658,11 @@ function T:test_more_credential_fields_are_stripped_on_an_origin_change_and_the_
       for name in request.fields:lines() do names[#names + 1] = string.lower(name) end
       seen[#seen + 1] = names
       return Response(200, { content = "t" })
-    end, { port = 0 })
+    end, { port = 0, logger = QUIET })
     local target_listener = target:listen()
     local target_port = target_listener:local_address().port
     local target_serving = reactor.fork(target.serve, target, target_listener)
-    local origin = http.Server(function() return Response(302, { fields = http.Fields({ { "Location", base(target_port, "/t") } }) }) end, { port = 0 })
+    local origin = http.Server(function() return Response(302, { fields = http.Fields({ { "Location", base(target_port, "/t") } }) }) end, { port = 0, logger = QUIET })
     local origin_listener = origin:listen()
     local origin_port = origin_listener:local_address().port
     local origin_serving = reactor.fork(origin.serve, origin, origin_listener)
@@ -715,7 +722,7 @@ end
 function T:test_per_request_options_override_the_client_and_unknown_keys_are_refused()
   with_server(self, function(request)
     if request.path == "/slow" then reactor.sleep(30) end
-    if request.path == "/json" then return Response(200, { content = { id = 42 } }) end
+    if request.path == "/json" then return json_response({ id = 42 }) end
     if request.path == "/broken" then return Response(200, { content = "{not json", fields = http.Fields({ { "Content-Type", "application/json; charset=utf-8" } }) }) end
     if request.path == "/chain" then return Response(302, { fields = http.Fields({ { "Location", "/chain?" .. tostring((tonumber(request.query) or 0) + 1) } }) }) end
     return Response(200, { content = ("x"):rep(1000) })

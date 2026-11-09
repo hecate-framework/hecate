@@ -3,6 +3,7 @@
 -- that no libuv handle is left open. Load with `dofile` (see server_limits_test.lua).
 local reactor = require("hecate.reactor")
 local net = require("hecate.net")
+local log = require("hecate.log")
 local Parser = require("hecate.http.parser")
 local Server = require("hecate.http.server")
 
@@ -80,6 +81,8 @@ end
 function support.with_server(case, action, options, fn)
   options = options or {}
   options.port = 0
+  -- Without a logger the server writes to the standard error stream (OQ-79): tests keep it quiet with a memory sink.
+  options.logger = options.logger or log.Logger({ sinks = { log.MemorySink() }, severity = "debug" })
   local before = reactor.Reactor.open_handles()
   reactor.run(function()
     local server = Server(action, options)

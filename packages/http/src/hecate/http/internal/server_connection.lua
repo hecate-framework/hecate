@@ -18,7 +18,7 @@ local responses = require("hecate.http.internal.server_response")
 local ContentError = ContentStream.ContentError
 local send, flush = responses.send, responses.flush
 local send_response, send_problem = responses.send_response, responses.send_problem
-local response_of, call_action = responses.response_of, responses.call_action
+local dispatch = require("hecate.http.dispatch")
 
 ---@class hecate.http.internal.server_connection
 local M = {}
@@ -212,9 +212,11 @@ local function serve_request(self, conn, head)
   end
   return reactor.scope(function(scope)
     request.scope = scope
-    local outcome = scope:fork(call_action, self._action, request):value()
-    local response, failure = response_of(outcome[1], outcome[2])
-    if failure ~= nil then self:_report("the action failed", failure) end
+    local response, failure = scope:fork(dispatch, self._action, request):value()
+    if failure ~= nil then
+      self:_log("error", "http.Server: the action failed", { method = head.method, path = request.path, error = tostring(failure) })
+      self:_report("the action failed", failure)
+    end
     -- A client that expects 100 Continue may still send the content the action never asked for: close (RFC 9110, 10.1.1).
     local abandoned = expecting and not reader:is_started()
     local keep = send_response(self, conn, info, response, abandoned)
@@ -275,10 +277,10 @@ local function handshake(self, raw)
     return result
   end
   limited:close()
-  if self._logger ~= nil and not is_cancellation(result) and not self._stopping then
+  if not is_cancellation(result) and not self._stopping then
     local failure = result --[[@as table]]
     local reason = core.is_instance_of(failure, core.Error) and ((failure.context and failure.context.reason) or failure.code) or "error"
-    pcall(self._logger.log, self._logger, "warning", "http.Server: TLS handshake failed", {
+    self:_log("warning", "http.Server: TLS handshake failed", {
       peer = known and (tostring(peer.ip) .. ":" .. tostring(peer.port)) or "unknown",
       reason = tostring(reason),
     })

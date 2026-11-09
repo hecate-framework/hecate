@@ -9,6 +9,8 @@ local http = require("hecate.http")
 local log = require("hecate.log")
 local Server = require("hecate.http.server")
 local Parser = require("hecate.http.parser")
+-- Without a logger the server writes to the standard error stream (OQ-79): tests keep it quiet.
+local QUIET <const> = require("hecate.log").Logger({ sinks = { require("hecate.log").MemorySink() }, severity = "debug" })
 local T = test.Case("ServerBehaviourTest")
 
 local Response = http.Response
@@ -85,6 +87,9 @@ local function with_server(self, options, fn)
   local action = options.action
   options.action = nil
   options.port = 0
+  local use_default = options.use_default_logger -- the one test of the default logger
+  options.use_default_logger = nil
+  if not use_default then options.logger = options.logger or QUIET end
   local before = reactor.Reactor.open_handles()
   reactor.run(function()
     local server = Server(action, options)
@@ -341,13 +346,64 @@ function T:test_a_writer_that_breaks_its_declared_length_closes_the_connection()
   end)
 end
 
-function T:test_a_table_is_serialised_as_json()
-  with_server(self, { action = function() return Response(200, { content = { id = 42 } }) end }, function(port)
+function T:test_a_table_is_an_error_answered_with_the_generic_500_and_logged()
+  -- OQ-76 a: http never serialises; a table reaching the server is a failure of the action, not JSON.
+  local sink = log.MemorySink()
+  local reported = {}
+  with_server(self, {
+    action = function() return Response(200, { content = { id = 42, secret = "hunter2" } }) end,
+    logger = log.Logger({ sinks = { sink }, severity = "debug" }),
+    on_error = function(err) reported[#reported + 1] = err end,
+  }, function(port)
     local client <close> = connect(port)
     local response = client:request(get("/"))
-    self:assert_equal("application/json", response.fields:get("Content-Type"))
-    self:assert_equal(42, json.decode(response.content).id)
+    self:assert_equal(500, response.status)
+    self:assert_equal("application/problem+json", response.fields:get("Content-Type"))
+    self:assert_nil(response.content:find("hunter2", 1, true))
+    self:assert_equal(500, client:request(get("/")).status) -- the connection stays usable
   end)
+  self:assert_equal(2, #reported)
+  local failures = {}
+  for _, record in ipairs(sink:records()) do
+    if record.message:find("the action failed", 1, true) then failures[#failures + 1] = record end
+  end
+  self:assert_equal(2, #failures)
+  self:assert_equal("error", failures[1].severity.name or tostring(failures[1].severity))
+  self:assert_equal("GET", failures[1].fields.method)
+  self:assert_equal("/", failures[1].fields.path)
+end
+
+function T:test_without_a_logger_the_server_logs_through_the_default_logger_and_an_explicit_logger_replaces_it()
+  local default_sink, own_sink = log.MemorySink(), log.MemorySink()
+  local previous = log.default()
+  log.set_default(log.Logger({ sinks = { default_sink }, severity = "debug" }))
+  local function boom() error("boom") end
+  local ok, err = pcall(function()
+    with_server(self, { action = boom, use_default_logger = true }, function(port)
+      local client <close> = connect(port)
+      self:assert_equal(500, client:request(get("/x")).status)
+    end)
+    with_server(self, { action = boom, logger = log.Logger({ sinks = { own_sink }, severity = "debug" }) }, function(port)
+      local client <close> = connect(port)
+      self:assert_equal(500, client:request(get("/y")).status)
+    end)
+  end)
+  log.set_default(previous)
+  if not ok then error(err, 0) end
+  local function messages(sink, needle)
+    local found = {}
+    for _, record in ipairs(sink:records()) do
+      if record.message:find(needle, 1, true) then found[#found + 1] = record end
+    end
+    return found
+  end
+  -- the default logger got the listening address and the error of the first server, and nothing of the second
+  self:assert_equal(1, #messages(default_sink, "listening on"))
+  local failed = messages(default_sink, "the action failed")
+  self:assert_equal(1, #failed)
+  self:assert_equal("/x", failed[1].fields.path)
+  self:assert_equal(1, #messages(own_sink, "listening on"))
+  self:assert_equal("/y", messages(own_sink, "the action failed")[1].fields.path)
 end
 
 function T:test_head_has_no_content_but_the_length_of_the_representation()
@@ -668,7 +724,7 @@ end
 
 function T:test_the_default_host_is_numeric_loopback()
   reactor.run(function()
-    local server = Server(text_action, { port = 0 })
+    local server = Server(text_action, { port = 0, logger = QUIET })
     local listener = server:listen()
     self:assert_equal("127.0.0.1", listener:local_address().ip)
     listener:close()

@@ -6,12 +6,8 @@ global <const> require, type, error, pcall, ipairs, math, string, tostring, os
 
 local core = require("hecate.core")
 local reactor = require("hecate.reactor")
-local json = require("hecate.json")
-local Response = require("hecate.http.response")
 local problem = require("hecate.http.problem")
 local wire = require("hecate.http.wire")
-local Status = require("hecate.http.status")
-local Fields = require("hecate.http.fields")
 
 ---@class hecate.http.internal.server_response
 local M = {}
@@ -40,37 +36,6 @@ end
 
 local HOP_BY_HOP <const> = { "Connection", "Keep-Alive", "Proxy-Connection", "Transfer-Encoding", "Content-Length" }
 
-
---- The response an action produced, or the problem details for what went wrong. An action must return a `Response`
---- with a final status (200 to 599) and content that is nil, a string, a table (serialised as JSON) or a function.
----@param ok boolean
----@param result any
----@return hecate.http.Response response
----@return any? failure  the error that was replaced by a problem response
-local function response_of(ok, result)
-  if not ok then return problem.from_error(result), result end
-  if not core.is_instance_of(result, Response) then
-    return problem.response(500), core.Error("http.Server: the action returned " .. type(result) .. " instead of a Response")
-  end
-  local content = result.content
-  local kind = type(content)
-  if not Status.is_valid(result.status) or not core.is_instance_of(result.fields, Fields) or type(result.reason) ~= "string" then
-    return problem.response(500), core.Error("http.Server: the action returned a response with an invalid status, reason or fields")
-  end
-  if result.status < 200 or not (content == nil or kind == "string" or kind == "table" or kind == "function") then
-    return problem.response(500), core.Error("http.Server: the action returned a response the server cannot send")
-  end
-  return result, nil
-end
-
----@param action function
----@param request hecate.http.Request
----@return table outcome  `{ ok, result }`
-local function call_action(action, request)
-  local ok, result = pcall(action, request)
-  if not ok and is_cancellation(result) then error(result, 0) end
-  return { ok, result }
-end
 
 --- Builds the functions given to a response whose content is a function: `write(chunk)` codes the chunk (or counts the
 --- bytes of a declared length) and sends it, `flush()` pushes what is buffered to the client, `remaining()` is for the
@@ -108,7 +73,6 @@ local function frame(status, content, declared, version)
   if status == 304 then return has_declared and "declared_only" or "none", declared end
   local kind = type(content)
   if kind == "string" then return "length", content end
-  if kind == "table" then return "length", json.encode(content) end
   if kind == "function" then
     if has_declared then return "declared", declared end
     return version == "HTTP/1.0" and "close_delimited" or "chunked"
@@ -116,33 +80,37 @@ local function frame(status, content, declared, version)
   return "length", ""
 end
 
---- Sends `response` as the answer to the request described by `info` (`method`, `version`, `keep_alive`) and returns
---- whether the connection stays open. HEAD and the statuses 1xx, 204 and 304 never carry content (RFC 9110, sections
---- 9.3.2, 15.2, 15.3.5 and 15.4.5); a function without a declared length is sent chunked (RFC 9112, section 7.1), or
---- delimited by the close for HTTP/1.0. The framing fields of the action are replaced by the server's own.
----@async
+--- Normalises the frame and the fields of `response` as the answer to the request described by `info` (`method`,
+--- `version`, `keep_alive`), without touching a socket. HEAD and the statuses 1xx, 204 and 304 never carry content (RFC
+--- 9110, sections 9.3.2, 15.2, 15.3.5 and 15.4.5); a function without a declared length is chunked (RFC 9112, section
+--- 7.1), or delimited by the close for HTTP/1.0. The framing fields of the action are replaced by the server's own:
+--- `Content-Length`, `Transfer-Encoding` and `Connection` (RFC 9110, section 7.6.1), and `Date` is added (section 6.6.1).
+--- Raises `hecate.core.ArgumentError` for content that is not nil, a string or a function (`dispatch` refuses it first).
 ---@param info { method?: string, version: string, keep_alive: boolean }
 ---@param response hecate.http.Response
----@param force_close boolean
----@return boolean keep_alive
-local function send_response(self, conn, info, response, force_close)
+---@param close boolean  close the connection after the response (forced, or the server is stopping)
+---@return hecate.http.Fields fields  a copy: the response is not modified
+---@return string mode  none, declared_only, length, declared, chunked or close_delimited
+---@return string? text  the content (mode length) or the declared length
+---@return boolean wants_close
+local function normalise(info, response, close)
   local status = response.status
   local fields = response.fields:copy()
-  local wants_close = force_close or not info.keep_alive or self._stopping
+  local wants_close = close or not info.keep_alive
     or wire.has_connection_option(fields:combined("Connection"), "close")
   local declared = fields:get("Content-Length")
   for _, name in ipairs(HOP_BY_HOP) do fields:remove(name) end
 
-  local mode, text = frame(status, response.content, declared, info.version)
-  local head_request = info.method == "HEAD"
-  if type(response.content) == "table" and mode == "length" and not fields:has("Content-Type") then
-    fields:set("Content-Type", "application/json")
+  local kind = type(response.content)
+  if not (response.content == nil or kind == "string" or kind == "function") then
+    error(core.ArgumentError("http.Server: content must be nil, a string or a function"), 2)
   end
+  local mode, text = frame(status, response.content, declared, info.version)
   if mode == "length" then
     fields:set("Content-Length", tostring(#(text --[[@as string]])))
   elseif mode == "declared" or mode == "declared_only" then
     fields:set("Content-Length", text --[[@as string]])
-  elseif mode == "chunked" and not head_request then
+  elseif mode == "chunked" and info.method ~= "HEAD" then
     fields:set("Transfer-Encoding", "chunked")
   elseif mode == "close_delimited" then
     wants_close = true
@@ -153,8 +121,21 @@ local function send_response(self, conn, info, response, force_close)
   elseif info.version == "HTTP/1.0" then
     fields:set("Connection", "keep-alive")
   end
+  return fields, mode, text, wants_close
+end
 
-  send(self, conn, wire.head(status, response.reason, fields))
+--- Sends `response` as the answer to the request described by `info` and returns whether the connection stays open
+--- (the frame and the fields come from `normalise`).
+---@async
+---@param info { method?: string, version: string, keep_alive: boolean }
+---@param response hecate.http.Response
+---@param force_close boolean
+---@return boolean keep_alive
+local function send_response(self, conn, info, response, force_close)
+  local fields, mode, text, wants_close = normalise(info, response, force_close or self._stopping)
+  local head_request = info.method == "HEAD"
+
+  send(self, conn, wire.head(response.status, response.reason, fields))
   if head_request or mode == "none" or mode == "declared_only" then
     flush(self, conn)
     return not wants_close
@@ -191,8 +172,7 @@ local function send_problem(self, conn, info, status, detail)
   if not ok and is_cancellation(err) then error(err, 0) end
 end
 
-M.response_of = response_of
-M.call_action = call_action
+M.normalise = normalise
 M.send = send
 M.flush = flush
 M.send_response = send_response

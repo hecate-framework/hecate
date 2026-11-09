@@ -13,6 +13,7 @@ global <const> require, type, error, pcall, pairs, math, string, tostring
 local core = require("hecate.core")
 local reactor = require("hecate.reactor")
 local net = require("hecate.net")
+local log = require("hecate.log")
 local server_options = require("hecate.http.internal.server_options")
 local connection = require("hecate.http.internal.server_connection")
 
@@ -40,13 +41,13 @@ local function is_deadline(err) return core.is_instance_of(err, core.DeadlineExc
 ---@field handshake_timeout? number  seconds a TLS handshake may take (default 10; the connection is dropped); needs `tls`
 ---@field max_handshakes? integer  TLS handshakes in progress at once (default 64); the other connections wait in the backlog; needs `tls`
 ---@field max_handshake_bytes? integer  bytes read from a client during its handshake (default 65536; over it the connection is dropped); needs `tls`
----@field logger? hecate.log.Logger  receives the failed handshakes, with the peer address (default: none)
+---@field logger? hecate.log.Logger  receives everything the server logs: an unhandled error of an action (`error`), the listening address, the failed handshakes with the peer address, accept failures (default: `log.default()`, OQ-79; an explicit logger replaces it)
 ---@field on_error? fun(err: any)  called with the failure of an action or a connection (the client only sees generic problem details)
 
 --- Defaults of the settings, exported so that documentation and tests read one source.
 --- The defaults of the server's settings. Settings without an entry have no default value: `max_connections` (no limit; the
 --- process descriptor limit and the timeouts bound it), `tls` (plain HTTP), `parser` (the parser's own limits), `logger`
---- and `on_error` (none).
+--- (`log.default()`) and `on_error` (none).
 ---@class hecate.http.ServerDefaults
 ---@field host string
 ---@field port integer
@@ -91,7 +92,7 @@ Server.DEFAULTS = DEFAULTS
 ---
 --- Raises `hecate.core.ArgumentError` for an action that is not a function, an unknown or invalid option, or a host
 --- that is not a numeric address (a name would bind every address the resolver lists, networking.md "TCP").
----@param action fun(request: hecate.http.Request): hecate.http.Response  runs in its own scope, once per request
+---@param action fun(request: hecate.http.Request): hecate.http.Response  runs in its own scope, once per request; it returns a `Response` whose content is nil, a string or a function (a table is an error: the generic 500 problem details response and a log entry, `hecate.http.dispatch`)
 ---@param options? hecate.http.ServerOptions
 function Server:init(action, options)
   local settings = server_options.validate(action, options, DEFAULTS)
@@ -137,6 +138,15 @@ function Server:_report(message, err)
   end
 end
 
+--- Logs through the `logger` option, or through `log.default()` (OQ-79) when none was given. Logging never raises.
+---@param severity string
+---@param message string
+---@param fields? table
+function Server:_log(severity, message, fields)
+  local logger = self._logger or log.default()
+  pcall(logger.log, logger, severity, message, fields)
+end
+
 --- The address the server listens on, `{ ip, port, family }`, or nil when it is not serving.
 ---@return hecate.reactor.SocketAddress?
 function Server:local_address()
@@ -167,9 +177,7 @@ local function accept_loop(self, scope)
       if failures == 1 then
         local failure = stream --[[@as table]]
         local errno = failure.context and failure.context.errno or "error"
-        if self._logger ~= nil then
-          pcall(self._logger.log, self._logger, "warning", "http.Server: accept failed", { reason = tostring(errno) })
-        end
+        self:_log("warning", "http.Server: accept failed", { reason = tostring(errno) })
         self:_report("accept failed", stream)
       end
       reactor.sleep(math.min(0.05 * 2 ^ (failures - 1), 1))
@@ -204,14 +212,12 @@ function Server:serve(listener)
   listener = listener or self:listen()
   self._listener = listener
   self._serving = true
-  if self._logger ~= nil then
-    local known, address = pcall(listener.local_address, listener)
-    if known and type(address) == "table" then
-      local loopback = address.ip == "127.0.0.1" or address.ip == "::1"
-      pcall(self._logger.log, self._logger, "informational",
-        ("http.Server: listening on %s:%s%s"):format(tostring(address.ip), tostring(address.port), loopback and " (loopback only)" or ""),
-        { hint = loopback and 'a container or another machine reaches the server only with host = "0.0.0.0" (or "::")' or nil })
-    end
+  local known, address = pcall(listener.local_address, listener)
+  if known and type(address) == "table" then
+    local loopback = address.ip == "127.0.0.1" or address.ip == "::1"
+    self:_log("informational",
+      ("http.Server: listening on %s:%s%s"):format(tostring(address.ip), tostring(address.port), loopback and " (loopback only)" or ""),
+      { hint = loopback and 'a container or another machine reaches the server only with host = "0.0.0.0" (or "::")' or nil })
   end
   local ok, err = pcall(reactor.scope, function(scope)
     self._scope = scope

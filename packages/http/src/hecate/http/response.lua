@@ -8,8 +8,9 @@ local ContentStream = require("hecate.http.content")
 local MediaType = require("hecate.http.media_type")
 local json = require("hecate.json")
 
---- A response. `content` is a string, a table (the server serialises it as JSON; a content negotiation by the kernel may
---- replace that, OQ-76) or a function that streams (`content(write, flush)`). A response of the client has no `content`: it
+--- A response. `content` is a string or a function that streams (`content(write, flush)`). `http` never
+--- serialises (OQ-76 a): a table as content is for a layer above, the kernel, that serialises it by content negotiation; a table
+--- that reaches the server is an error (a generic 500 problem details response and a log entry, see `hecate.http.dispatch`). A response of the client has no `content`: it
 --- is read with `read_content`, `read_json` or `stream_content`.
 ---@class hecate.http.Response
 ---@field status integer  100..599

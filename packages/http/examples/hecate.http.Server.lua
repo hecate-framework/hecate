@@ -1,5 +1,6 @@
--- A server on a free port. The action answers with a string, a table (sent as JSON) and a
+-- A server on a free port. The action answers with a string, JSON text (http never serialises) and a
 -- function that streams its content, then the server shuts down.
+local json = require("hecate.json")
 local reactor = require("hecate.reactor")
 local http = require("hecate.http")
 
@@ -7,7 +8,7 @@ local function action(request)
   if request.path == "/hello" then
     return http.Response(200, { content = "hello" })
   elseif request.path == "/user" then
-    return http.Response(200, { content = { name = "Ada" } })
+    return http.Response(200, { content = json.encode({ name = "Ada" }) })
   elseif request.path == "/count" then
     return http.Response(200, {
       content = function(write)

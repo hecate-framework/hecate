@@ -4,6 +4,8 @@
 local test = require("harness.test")
 local reactor = require("hecate.reactor")
 local http = require("hecate.http")
+-- Without a logger the server writes to the standard error stream (OQ-79): tests keep it quiet.
+local QUIET <const> = require("hecate.log").Logger({ sinks = { require("hecate.log").MemorySink() }, severity = "debug" })
 local T = test.Case("ServerHardeningTest")
 
 local dir = debug.getinfo(1, "S").source:sub(2):gsub("\\", "/"):gsub("/[^/]*$", "")
@@ -156,7 +158,7 @@ function T:test_a_few_messages_say_what_to_do_next()
   self:assert_not_nil(tostring(self:assert_error(function() http.Request("x") end)):find("http.Request({", 1, true))
   local seen
   reactor.run(function()
-    local server = http.Server(ok_action, { port = 0 })
+    local server = http.Server(ok_action, { port = 0, logger = QUIET })
     local listener = server:listen()
     local serving = reactor.fork(server.serve, server, listener)
     reactor.sleep(0)
