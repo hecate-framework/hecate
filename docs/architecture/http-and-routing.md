@@ -14,8 +14,8 @@ Packages: `http`, `router`, `kernel`. Status: specification.
 - Limits, all configurable with safe defaults: request line length, field count and
   size, content length, read and idle deadlines per connection.
 - Content is streamed: `request:read_content()` reads fully (bounded by the limit),
-  `request:stream_content()` streams (a `ContentStream`: `read()`, `read_all(limit?)`); responses accept strings, tables (serialised) or
-  writer functions.
+  `request:stream_content()` streams (a `ContentStream`: `read()`, `read_all(limit?)`); responses accept strings or writer functions
+  (`http` never serialises: a table as content is an error, OQ-76 a; the kernel serialises).
 - Compression (gzip, br) is a later addition.
 
 ### Implemented surface
