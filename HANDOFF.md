@@ -3,8 +3,8 @@
 
 - roadmap_item: `kernel`: application, modules, controllers, route modules, filters, problem details, lifecycle, multi-process workers, graceful shutdown (Phase 2, docs/roadmap.md)
 - status: in-progress
-- lock_until: 2026-11-09T21:09:01Z
-- last_update: 2026-11-09T21:09:01Z
+- lock_until: 2026-11-09T21:30:00Z
+- last_update: 2026-11-09T21:18:20Z
 
 ## Done
 
@@ -19,6 +19,7 @@
 - CI green at 26e4200. Step 5b: `json.set_max_depth` (OQ-101 a), `schema` reads `json.DEFAULT_MAX_DEPTH`; tests in `packages/json/tests/unit/max_depth_test.lua` and `deep_test.lua`; typecheck, lint, `test json`, `test schema` ok.
 - Step 6 (owner decisions of 2026-11-09): `dispatch` renamed `http.serve_request`; `Response` content narrowed to `string|function|nil` (the constructor refuses a table); `log.DEFAULT_REDACT` (19 names) used by `log.default()`; OQ-111 recorded (issue #167 closed); *safe content* added as check 4 of every phase gate (roadmap, relay.md, ai-assisted-development.md); a "Before going to production" page added to the roadmap. Lock released (`lock_until` = last update).
 - Step 7 (run of 21:05Z, lock released at the end): `hecate.kernel.chain.compose(filters, action)` and `chain.is_filter`, first code of `packages/kernel`; 15 tests; typecheck, lint, `test kernel` ok. Doubt: `next` called twice is not detected (it would cost an allocation per filter per request; a retry filter is legitimate); recorded as documented behaviour.
+- Step 8 in progress (run of ~21:11Z, lock until 21:30Z): kernel results and serialisation (`hecate.kernel.results`, `respond`).
 
 ## Next steps
 
