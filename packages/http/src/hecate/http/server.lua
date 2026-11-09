@@ -103,7 +103,7 @@ Server.DEFAULTS = DEFAULTS
 ---
 --- Raises `hecate.core.ArgumentError` for an action that is not a function, an unknown or invalid option, or a host
 --- that is not a numeric address (a name would bind every address the resolver lists, networking.md "TCP").
----@param action fun(request: hecate.http.Request): hecate.http.Response  runs in its own scope, once per request; it returns a `Response` whose content is nil, a string or a function (a table is an error: the generic 500 problem details response and a log entry, `hecate.http.dispatch`)
+---@param action fun(request: hecate.http.Request): hecate.http.Response  runs in its own scope, once per request; it returns a `Response` whose content is nil, a string or a function (a table is an error: the generic 500 problem details response and a log entry, `hecate.http.serve_request`)
 ---@param options? hecate.http.ServerOptions
 function Server:init(action, options)
   local settings = server_options.validate(action, options, DEFAULTS)

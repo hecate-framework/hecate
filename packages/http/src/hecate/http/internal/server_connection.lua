@@ -18,7 +18,7 @@ local responses = require("hecate.http.internal.server_response")
 local ContentError = ContentStream.ContentError
 local send, flush = responses.send, responses.flush
 local send_response, send_problem = responses.send_response, responses.send_problem
-local dispatch = require("hecate.http.dispatch")
+local serve_action = require("hecate.http.serve_request")
 
 ---@class hecate.http.internal.server_connection
 local M = {}
@@ -212,7 +212,7 @@ local function serve_request(self, conn, head)
   end
   return reactor.scope(function(scope)
     request.scope = scope
-    local response, failure = scope:fork(dispatch, self._action, request):value()
+    local response, failure = scope:fork(serve_action, self._action, request):value()
     if failure ~= nil then
       self:_log("error", "http.Server: the action failed", { method = head.method, path = request.path, error = tostring(failure) })
       self:_report("the action failed", failure)

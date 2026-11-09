@@ -14,7 +14,7 @@
 - CI of PR #166 green on the three platforms at 69069b1.
 - Step 2a: `log.default()` / `log.set_default()` (OQ-79), tests in `packages/log/tests/unit/default_logger_test.lua`.
 - Step 3 (owner request): split `schema/schema.lua` (2081 to 109 lines) into `internal/` modules, no API change; typecheck, lint and `test schema` ok. `validation.lua` (1164 lines) stays large on purpose: shared upvalue state on the hot path. Benchmark `validate.lua` class-bound `BenchPerson` scenario fails (reported as also failing before the split; not verified by me). `test doc` needs the native module (no Rust here).
-- Step 4: `http.dispatch` (OQ-78), writer split into pure `normalise` + write, JSON fallback removed (OQ-76 a), `log.default()` used by the server when no `logger` is given (OQ-79). Tests in `packages/http/tests/unit/dispatch_test.lua` and `server_lifecycle_test.lua`; typecheck, lint, `test http`, `test log` ok. No writer benchmark exists here (only `http/parse`, `http/forms`, `tcp-echo`, `accept-spread`).
+- Step 4: `http.serve_request` (OQ-78), writer split into pure `normalise` + write, JSON fallback removed (OQ-76 a), `log.default()` used by the server when no `logger` is given (OQ-79). Tests in `packages/http/tests/unit/dispatch_test.lua` and `server_lifecycle_test.lua`; typecheck, lint, `test http`, `test log` ok. No writer benchmark exists here (only `http/parse`, `http/forms`, `tcp-echo`, `accept-spread`).
 - Step 5a: `on_response` hook (OQ-81) in `server_response.lua`, tests in `server_lifecycle_test.lua`; typecheck, lint, `test http` ok (needs `build-native http json`). Website reference page for the option not yet updated.
 - CI green at 26e4200. Step 5b: `json.set_max_depth` (OQ-101 a), `schema` reads `json.DEFAULT_MAX_DEPTH`; tests in `packages/json/tests/unit/max_depth_test.lua` and `deep_test.lua`; typecheck, lint, `test json`, `test schema` ok.
 
@@ -30,7 +30,7 @@
 
 ## Doubts and questions for the owner
 
-- `dispatch` is a provisional name (OQ-78): the glossary has no such term.
+- `dispatch` was renamed `serve_request` (owner decision, uses the glossary verb "serve" of the term action): update the glossary row and OQ-78 text if needed.
 - The server logs `tostring(failure)` of an unhandled action error in the field `error`; `ConsoleSink` redacts by field name, not content, so a secret inside an error message would reach the log (the client never sees it). Not yet in `docs/open-questions.md`: decide whether to add an entry.
 - `Response(200, { content = table })` is still accepted by the `Response` constructor (only the server and `dispatch` refuse it); the kernel step decides whether to narrow it.
 

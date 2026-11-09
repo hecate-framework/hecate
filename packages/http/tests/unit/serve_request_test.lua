@@ -1,21 +1,21 @@
 ---@diagnostic disable: missing-fields, param-type-mismatch, assign-type-mismatch, need-check-nil  -- the tests pass invalid arguments on purpose
--- The in-process dispatch seam (OQ-78): no socket, no native module. And the pure normalisation of a response frame.
+-- The in-process request-serving seam (OQ-78): no socket, no native module. And the pure normalisation of a response frame.
 local test = require("harness.test")
 local core = require("hecate.core")
 local reactor = require("hecate.reactor")
 local json = require("hecate.json")
 local http = require("hecate.http")
 local responses = require("hecate.http.internal.server_response")
-local T = test.Case("DispatchTest")
+local T = test.Case("ServeRequestTest")
 
 local Response, Request, Fields = http.Response, http.Request, http.Fields
-local dispatch = http.dispatch
+local serve_request = http.serve_request
 
 local function request() return Request({ method = "GET", target = "/" }) end
 
 function T:test_a_response_passes_through_without_a_failure()
   local response = Response(200, { content = "hi" })
-  local got, failure = dispatch(function(r) return response end, request())
+  local got, failure = serve_request(function(r) return response end, request())
   self:assert_true(got == response)
   self:assert_nil(failure)
 end
@@ -23,23 +23,23 @@ end
 function T:test_the_action_receives_the_request()
   local req = request()
   local seen
-  dispatch(function(r) seen = r; return Response(204) end, req)
+  serve_request(function(r) seen = r; return Response(204) end, req)
   self:assert_true(seen == req)
 end
 
 function T:test_an_error_maps_to_problem_details_by_its_class_and_is_returned()
   local err = http.ContentError({ message = "secret detail", context = { status = 413 } })
-  local got, failure = dispatch(function() error(err, 0) end, request())
+  local got, failure = serve_request(function() error(err, 0) end, request())
   self:assert_equal(413, got.status)
   self:assert_true(failure == err)
   self:assert_nil(got.content:find("secret", 1, true))
-  local plain, failure2 = dispatch(function() error("boom") end, request())
+  local plain, failure2 = serve_request(function() error("boom") end, request())
   self:assert_equal(500, plain.status)
   self:assert_not_nil(failure2)
 end
 
 function T:test_a_table_as_content_is_an_error_mapped_to_the_generic_500()
-  local got, failure = dispatch(function() return Response(200, { content = { id = 42, password = "hunter2" } }) end, request())
+  local got, failure = serve_request(function() return Response(200, { content = { id = 42, password = "hunter2" } }) end, request())
   self:assert_equal(500, got.status)
   self:assert_equal("application/problem+json", got.fields:get("Content-Type"))
   self:assert_equal("The server could not process the request.", json.decode(got.content).detail)
@@ -49,7 +49,7 @@ end
 
 function T:test_a_result_the_server_cannot_send_is_a_500_with_a_failure()
   local function check(fn)
-    local got, failure = dispatch(fn, request())
+    local got, failure = serve_request(fn, request())
     self:assert_equal(500, got.status)
     self:assert_not_nil(failure)
   end
@@ -65,14 +65,14 @@ end
 
 function T:test_a_cancellation_is_raised_not_mapped()
   local err = core.CancellationError({ message = "cancelled" })
-  local ok, raised = pcall(dispatch, function() error(err, 0) end, request())
+  local ok, raised = pcall(serve_request, function() error(err, 0) end, request())
   self:assert_false(ok)
   self:assert_true(raised == err)
 end
 
 function T:test_the_action_may_suspend()
   reactor.run(function()
-    local got = dispatch(function() reactor.sleep(0.001); return Response(200, { content = "late" }) end, request())
+    local got = serve_request(function() reactor.sleep(0.001); return Response(200, { content = "late" }) end, request())
     self:assert_equal("late", got.content)
   end)
 end

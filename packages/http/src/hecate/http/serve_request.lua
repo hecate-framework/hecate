@@ -1,4 +1,4 @@
--- The in-process dispatch seam (OQ-78): runs an action on a request without a socket, checks what it returned and maps a
+-- The in-process request-serving seam (OQ-78): runs an action on a request without a socket, checks what it returned and maps a
 -- failure to problem details. The socket `Server` calls this function, so tests, the in-process client of `test` and the
 -- kernel share the code path of production. It never serialises (OQ-76 a): a table as content is an error.
 -- Needs no native module.
@@ -25,27 +25,27 @@ local function is_cancellation(err) return core.is_instance_of(err, core.Cancell
 ---@param request hecate.http.Request
 ---@return hecate.http.Response response
 ---@return any? failure  the error that was replaced by a problem response, or nil
-local function dispatch(action, request)
+local function serve_request(action, request)
   local ok, result = pcall(action, request)
   if not ok then
     if is_cancellation(result) then error(result, 0) end
     return problem.from_error(result), result
   end
   if not core.is_instance_of(result, Response) then
-    return problem.response(500), core.Error("http.dispatch: the action returned " .. type(result) .. " instead of a Response")
+    return problem.response(500), core.Error("http.serve_request: the action returned " .. type(result) .. " instead of a Response")
   end
   local content = result.content
   local kind = type(content)
   if not Status.is_valid(result.status) or not core.is_instance_of(result.fields, Fields) or type(result.reason) ~= "string" then
-    return problem.response(500), core.Error("http.dispatch: the action returned a response with an invalid status, reason or fields")
+    return problem.response(500), core.Error("http.serve_request: the action returned a response with an invalid status, reason or fields")
   end
   if kind == "table" then
-    return problem.response(500), core.Error("http.dispatch: the action returned a table as content: http does not serialise (serialise it before)")
+    return problem.response(500), core.Error("http.serve_request: the action returned a table as content: http does not serialise (serialise it before)")
   end
   if result.status < 200 or not (content == nil or kind == "string" or kind == "function") then
-    return problem.response(500), core.Error("http.dispatch: the action returned a response that cannot be sent")
+    return problem.response(500), core.Error("http.serve_request: the action returned a response that cannot be sent")
   end
   return result, nil
 end
 
-return dispatch
+return serve_request

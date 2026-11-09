@@ -12,7 +12,7 @@ Each release heading states the supported Lua version.
 ### Added
 
 - `hecate.json`: `json.set_max_depth(n)`, a lowering-only process-wide default depth (OQ-101); `hecate.schema` reads it for its nesting guard.
-- `hecate.http`: `http.dispatch(action, request)`, the in-process dispatch seam (OQ-78, name provisional): runs an action without a socket and returns the response to send and the failure it caught; the `Server` calls the same function. The response writer is split into a pure normalisation of the frame and fields and the writing.
+- `hecate.http`: `http.serve_request(action, request)`, the in-process request-serving seam (OQ-78): runs an action without a socket and returns the response to send and the failure it caught; the `Server` calls the same function. The response writer is split into a pure normalisation of the frame and fields and the writing.
 - `hecate.http`: the `Server` option `on_response(info)` (OQ-81), called once after each response with `method`, `target`, `status`, `bytes`, `duration`, `failed` and `refused` (answers sent before any action runs are marked `refused`); an error of the hook is discarded.
 - `hecate.http`: the server logs through `log.default()` when no `logger` option is given (OQ-79): an unhandled error of an action at `error` severity, the listening address, failed handshakes and accept failures; an explicit `logger` replaces it.
 - `hecate.log`: `log.default()` (process-wide console logger on standard error at `informational`, built on first use, OQ-79) and `log.set_default(logger?)`.
