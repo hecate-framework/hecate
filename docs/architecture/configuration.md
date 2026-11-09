@@ -234,11 +234,9 @@ This is the single project setting of [OQ-92](../open-questions.md): one number 
 `config` as a constant, because `config` does not depend on `json`, and a test compares it with `json.MAX_DEPTH_CEILING`.
 
 `config` only validates and exposes the value (`configuration:get("limits.max_depth")`, environment variable
-`HECATE_LIMITS__MAX_DEPTH`). **Applying it needs a change that is not in this package:** `json` and `schema` read their depth from
-module constants (`json.DEFAULT_MAX_DEPTH`, the local `MAX_DEPTH` of `schema.lua`) and have no setter. The kernel item has to add,
-in `json`, a process-wide `json.set_max_depth(n)` (lowering only, refusing a value above `json.MAX_DEPTH_CEILING`, reading back
-through `json.DEFAULT_MAX_DEPTH`) and make `schema` read it instead of a constant. Until then the key is validated and
-reported and has no effect on the two packages (OQ-101).
+`HECATE_LIMITS__MAX_DEPTH`). **Applying it:** `json` now has a setter and `schema` reads the value it holds (added by the `kernel` item; the kernel
+calls it at boot). The setter is a process-wide `json.set_max_depth(n)` (lowering only, refusing a value above `json.MAX_DEPTH_CEILING`, reading back
+through `json.DEFAULT_MAX_DEPTH`). Until the kernel applies the key at boot, it is validated and reported only (OQ-101).
 
 ## Errors and messages
 

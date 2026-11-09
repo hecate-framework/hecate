@@ -3,8 +3,8 @@
 
 - roadmap_item: `kernel`: application, modules, controllers, route modules, filters, problem details, lifecycle, multi-process workers, graceful shutdown (Phase 2, docs/roadmap.md)
 - status: in-progress
-- lock_until: 2026-11-09T17:20:00Z
-- last_update: 2026-11-09T15:50:00Z
+- lock_until: 2026-11-09T20:30:00Z
+- last_update: 2026-11-09T19:10:00Z
 
 ## Done
 
@@ -16,11 +16,12 @@
 - Step 3 (owner request): split `schema/schema.lua` (2081 to 109 lines) into `internal/` modules, no API change; typecheck, lint and `test schema` ok. `validation.lua` (1164 lines) stays large on purpose: shared upvalue state on the hot path. Benchmark `validate.lua` class-bound `BenchPerson` scenario fails (reported as also failing before the split; not verified by me). `test doc` needs the native module (no Rust here).
 - Step 4: `http.dispatch` (OQ-78), writer split into pure `normalise` + write, JSON fallback removed (OQ-76 a), `log.default()` used by the server when no `logger` is given (OQ-79). Tests in `packages/http/tests/unit/dispatch_test.lua` and `server_lifecycle_test.lua`; typecheck, lint, `test http`, `test log` ok. No writer benchmark exists here (only `http/parse`, `http/forms`, `tcp-echo`, `accept-spread`).
 - Step 5a: `on_response` hook (OQ-81) in `server_response.lua`, tests in `server_lifecycle_test.lua`; typecheck, lint, `test http` ok (needs `build-native http json`). Website reference page for the option not yet updated.
+- CI green at 26e4200. Step 5b: `json.set_max_depth` (OQ-101 a), `schema` reads `json.DEFAULT_MAX_DEPTH`; tests in `packages/json/tests/unit/max_depth_test.lua` and `deep_test.lua`; typecheck, lint, `test json`, `test schema` ok.
 
 ## Next steps
 
-1. Check CI of the pull request at bc79d89. `Request.content` (OQ-76 b): the server already leaves it nil; the type stays `string|table|function` because the kernel sets the validated content, so nothing to narrow in `http` (decide in the kernel step).
-2. OQ-101 items (a) `json.set_max_depth`, (b) logging keys, (c) `wrap_secret`.
+1. `Request.content` (OQ-76 b): the server already leaves it nil; the type stays `string|table|function` because the kernel sets the validated content, so nothing to narrow in `http` (decide in the kernel step).
+2. OQ-101 items (b) logging keys, (c) `wrap_secret`; (a) kernel must call `json.set_max_depth(limits.max_depth)` at boot.
 3. Settle how a route names its response schema (OQ-98 item 7), then the kernel proper.
 
 ## Decisions taken (and where they are recorded)

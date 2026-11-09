@@ -16,7 +16,7 @@ local ArgumentError = core.ArgumentError
 local tag = markers.tag
 
 --- Default nesting limit: arrays and objects nested deeper than this are rejected (OQ-48).
-local DEFAULT_MAX_DEPTH = 1000
+local default_max_depth = 1000
 --- The highest `max_depth` accepted, by `decode` and `encode` alike: deeper recursion could exhaust the C or the Lua
 --- stack (OQ-48, OQ-54). A deeper text or value is an error (`depth_limit`), not a crash.
 local MAX_DEPTH_CEILING = 1000
@@ -139,7 +139,7 @@ function json.decode(text, options)
   end
   options = check_options("decode", options, DECODE_OPTIONS)
   local resolved = {
-    max_depth = integer_option("decode", options, "max_depth", DEFAULT_MAX_DEPTH, MAX_DEPTH_CEILING),
+    max_depth = integer_option("decode", options, "max_depth", default_max_depth, MAX_DEPTH_CEILING),
     max_size = integer_option("decode", options, "max_size", DEFAULT_MAX_SIZE),
   }
   local value, failure = backend.get().decode(text, resolved)
@@ -185,7 +185,7 @@ function json.encode(value, options)
     error(ArgumentError("json.encode: canonical = \"rfc8785\" is compact by definition: drop pretty and indent"), 2)
   end
   local resolved = {
-    max_depth = integer_option("encode", options, "max_depth", DEFAULT_MAX_DEPTH, MAX_DEPTH_CEILING),
+    max_depth = integer_option("encode", options, "max_depth", default_max_depth, MAX_DEPTH_CEILING),
     max_size = integer_option("encode", options, "max_size", DEFAULT_MAX_SIZE),
     indent = indent_unit(options),
     canonical = canonical == true or canonical == "rfc8785",
@@ -246,7 +246,21 @@ function json.is_object(value) return type(value) == "table" and rawequal(getmet
 
 --- The default `max_depth` of `decode` and `encode` (OQ-92: read by `hecate.schema` for its own nesting guard).
 ---@type integer
-json.DEFAULT_MAX_DEPTH = DEFAULT_MAX_DEPTH
+json.DEFAULT_MAX_DEPTH = default_max_depth
+
+--- Lowers the default `max_depth` of `decode` and `encode` for the whole process (OQ-101: the `limits.max_depth`
+--- configuration key). It never raises it: a value above `json.MAX_DEPTH_CEILING` is refused. Read back through
+--- `json.DEFAULT_MAX_DEPTH`, which `hecate.schema` reads for its own nesting guard.
+---@param depth integer  1 to `json.MAX_DEPTH_CEILING`
+---@raise hecate.core.ArgumentError when `depth` is not an integer in that range
+function json.set_max_depth(depth)
+  if math.type(depth) ~= "integer" or depth < 1 or depth > MAX_DEPTH_CEILING then
+    error(ArgumentError(("json.set_max_depth: invalid depth %s: expected an integer in [1, %d]"):format(describe(depth),
+      MAX_DEPTH_CEILING)), 2)
+  end
+  default_max_depth = depth
+  json.DEFAULT_MAX_DEPTH = depth
+end
 
 --- The highest `max_depth` accepted by `decode` and `encode`.
 ---@type integer

@@ -91,7 +91,6 @@ end
 --- overflow, and a path that grows quadratically. Every container validator and coercer counts its nesting and, beyond
 --- `MAX_DEPTH` (the same maximum as `json`), reports a `depth_limit` violation at the path where it stopped and does
 --- not descend further. The counter is reset by each public entry point, so an error never leaves it stale.
-local MAX_DEPTH = json.DEFAULT_MAX_DEPTH
 local depth = 0
 
 --- Work budget (OQ-91). A recursive `union` of containers can cost two to the power of the depth when nothing
@@ -246,9 +245,9 @@ local function guarded(inner, keep)
       if keep then return value end
       return
     end
-    if depth >= MAX_DEPTH then
-      out[#out + 1] = { where(at), "depth_limit", "the value is nested deeper than " .. MAX_DEPTH .. " levels",
-        { max_depth = MAX_DEPTH } }
+    if depth >= json.DEFAULT_MAX_DEPTH then
+      out[#out + 1] = { where(at), "depth_limit", "the value is nested deeper than " .. json.DEFAULT_MAX_DEPTH .. " levels",
+        { max_depth = json.DEFAULT_MAX_DEPTH } }
       if keep then return value end
       return
     end
@@ -294,9 +293,9 @@ local function represented(inner)
       stop_representation(path_to(at), "complexity_limit", "the work needed exceeds " .. limits.max_steps .. " steps",
         { max_steps = limits.max_steps })
     end
-    if depth >= MAX_DEPTH then
-      stop_representation(path_to(at), "depth_limit", "the value is nested deeper than " .. MAX_DEPTH .. " levels",
-        { max_depth = MAX_DEPTH })
+    if depth >= json.DEFAULT_MAX_DEPTH then
+      stop_representation(path_to(at), "depth_limit", "the value is nested deeper than " .. json.DEFAULT_MAX_DEPTH .. " levels",
+        { max_depth = json.DEFAULT_MAX_DEPTH })
     end
     depth = depth + 1
     local result = inner(value, at)
