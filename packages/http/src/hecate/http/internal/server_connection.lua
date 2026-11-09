@@ -186,7 +186,7 @@ end
 ---@param head hecate.http.parser.Head
 ---@return boolean keep_alive
 local function serve_request(self, conn, head)
-  local info = { method = head.method, version = head.version, keep_alive = head.keep_alive }
+  local info = { method = head.method, target = head.target, version = head.version, keep_alive = head.keep_alive }
   local status, detail = refuse(self, head)
   if status ~= nil then
     send_problem(self, conn, info, status, detail)

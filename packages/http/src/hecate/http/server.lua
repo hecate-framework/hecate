@@ -42,7 +42,18 @@ local function is_deadline(err) return core.is_instance_of(err, core.DeadlineExc
 ---@field max_handshakes? integer  TLS handshakes in progress at once (default 64); the other connections wait in the backlog; needs `tls`
 ---@field max_handshake_bytes? integer  bytes read from a client during its handshake (default 65536; over it the connection is dropped); needs `tls`
 ---@field logger? hecate.log.Logger  receives everything the server logs: an unhandled error of an action (`error`), the listening address, the failed handshakes with the peer address, accept failures (default: `log.default()`, OQ-79; an explicit logger replaces it)
+---@field on_response? fun(info: hecate.http.ResponseInfo)  called once after each response, with what was sent (access logging, OQ-81); an error of the hook is discarded
 ---@field on_error? fun(err: any)  called with the failure of an action or a connection (the client only sees generic problem details)
+
+--- What `on_response` receives about one response.
+---@class hecate.http.ResponseInfo
+---@field method? string  request method (nil when the head never parsed)
+---@field target? string  request target as received, query included: it can carry secrets, redact it before logging
+---@field status integer
+---@field bytes integer  bytes written to the connection, head included
+---@field duration number  seconds from the start of the answer to its end, sending included
+---@field failed boolean  the write failed, the connection ended, or a content writer failed
+---@field refused boolean  the server answered before any action ran (400, 408, 413, 414, 417, 431, 501)
 
 --- Defaults of the settings, exported so that documentation and tests read one source.
 --- The defaults of the server's settings. Settings without an entry have no default value: `max_connections` (no limit; the
@@ -114,6 +125,7 @@ function Server:init(action, options)
   self._tls = settings.tls
   self._limits = settings.limits
   self._on_error = settings.on_error
+  self._on_response = settings.on_response
   self._action = settings.action
   self._handshaking = {}
   self._handshakes = reactor.Semaphore(self._max_handshakes)

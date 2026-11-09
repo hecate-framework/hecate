@@ -18,6 +18,7 @@ local function is_cancellation(err) return core.is_instance_of(err, core.Cancell
 ---@async
 local function send(self, conn, data)
   if data == "" then return end
+  conn.bytes = (conn.bytes or 0) + #data
   reactor.deadline(self._write_timeout, conn.writer.write, conn.writer, data)
 end
 
@@ -131,7 +132,8 @@ end
 ---@param response hecate.http.Response
 ---@param force_close boolean
 ---@return boolean keep_alive
-local function send_response(self, conn, info, response, force_close)
+---@return boolean? failed  true when a content writer failed or stopped short (the head was sent)
+local function write_response(self, conn, info, response, force_close)
   local fields, mode, text, wants_close = normalise(info, response, force_close or self._stopping)
   local head_request = info.method == "HEAD"
 
@@ -153,22 +155,47 @@ local function send_response(self, conn, info, response, force_close)
     if is_cancellation(err) then error(err, 0) end
     self:_report("a content writer failed", err)
     pcall(flush, self, conn) -- what was written reaches the client, which sees the content cut short
-    return false -- the head is sent: the client cannot be told, the connection is closed
+    return false, true -- the head is sent: the client cannot be told, the connection is closed
   end
   if mode == "declared" and remaining() ~= 0 then
     self:_report("a content writer stopped before the declared Content-Length", "short content")
     pcall(flush, self, conn)
-    return false
+    return false, true
   end
   if mode == "chunked" then send(self, conn, wire.LAST_CHUNK) end
   flush(self, conn)
   return not wants_close
 end
 
+--- Sends `response` (see `write_response`) and calls the `on_response` hook once with what happened: `method`, `target`,
+--- `status`, `bytes` written (head included), `duration` in seconds including the sending, `failed` (the write failed,
+--- the connection ended, or a content writer failed) and `refused` (an answer sent before any action ran, OQ-81). A
+--- failure of the hook is discarded; an error of the write is raised after the hook ran.
+---@async
+---@param info { method?: string, target?: string, version: string, keep_alive: boolean }
+---@param response hecate.http.Response
+---@param force_close boolean
+---@param refused? boolean
+---@return boolean keep_alive
+local function send_response(self, conn, info, response, force_close, refused)
+  local hook = self._on_response
+  if hook == nil then return (write_response(self, conn, info, response, force_close)) end
+  conn.bytes = 0
+  local started = reactor.now()
+  local ok, keep, failed = pcall(write_response, self, conn, info, response, force_close)
+  if not ok and is_cancellation(keep) then error(keep, 0) end
+  pcall(hook, {
+    method = info.method, target = info.target, status = response.status, bytes = conn.bytes,
+    duration = reactor.now() - started, failed = (not ok) or failed == true, refused = refused == true,
+  })
+  if not ok then error(keep, 0) end
+  return keep
+end
+
 --- Answers with problem details and reports that the connection must close. A failed write is ignored: the client is gone.
 ---@async
 local function send_problem(self, conn, info, status, detail)
-  local ok, err = pcall(send_response, self, conn, info, problem.response(status, detail), true)
+  local ok, err = pcall(send_response, self, conn, info, problem.response(status, detail), true, true)
   if not ok and is_cancellation(err) then error(err, 0) end
 end
 

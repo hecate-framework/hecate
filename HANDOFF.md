@@ -3,8 +3,8 @@
 
 - roadmap_item: `kernel`: application, modules, controllers, route modules, filters, problem details, lifecycle, multi-process workers, graceful shutdown (Phase 2, docs/roadmap.md)
 - status: in-progress
-- lock_until: 2026-11-09T15:30:00Z
-- last_update: 2026-11-09T14:17:44Z
+- lock_until: 2026-11-09T17:20:00Z
+- last_update: 2026-11-09T15:50:00Z
 
 ## Done
 
@@ -15,10 +15,11 @@
 - Step 2a: `log.default()` / `log.set_default()` (OQ-79), tests in `packages/log/tests/unit/default_logger_test.lua`.
 - Step 3 (owner request): split `schema/schema.lua` (2081 to 109 lines) into `internal/` modules, no API change; typecheck, lint and `test schema` ok. `validation.lua` (1164 lines) stays large on purpose: shared upvalue state on the hot path. Benchmark `validate.lua` class-bound `BenchPerson` scenario fails (reported as also failing before the split; not verified by me). `test doc` needs the native module (no Rust here).
 - Step 4: `http.dispatch` (OQ-78), writer split into pure `normalise` + write, JSON fallback removed (OQ-76 a), `log.default()` used by the server when no `logger` is given (OQ-79). Tests in `packages/http/tests/unit/dispatch_test.lua` and `server_lifecycle_test.lua`; typecheck, lint, `test http`, `test log` ok. No writer benchmark exists here (only `http/parse`, `http/forms`, `tcp-echo`, `accept-spread`).
+- Step 5a: `on_response` hook (OQ-81) in `server_response.lua`, tests in `server_lifecycle_test.lua`; typecheck, lint, `test http` ok (needs `build-native http json`). Website reference page for the option not yet updated.
 
 ## Next steps
 
-1. `on_response` hook (OQ-81), narrow `Request.content` (OQ-76 b), then check CI of the pull request.
+1. Narrow `Request.content` (OQ-76 b), then check CI of the pull request.
 2. OQ-101 items (a) `json.set_max_depth`, (b) logging keys, (c) `wrap_secret`.
 3. Settle how a route names its response schema (OQ-98 item 7), then the kernel proper.
 

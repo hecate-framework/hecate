@@ -753,4 +753,49 @@ function T:test_settings_are_validated()
   Server(text_action, { host = "::" })
 end
 
+-- on_response (OQ-81) ----------------------------------------------------------------------------------------------
+
+function T:test_on_response_reports_each_answer_with_status_bytes_and_duration()
+  local seen = {}
+  with_server(self, { action = text_action, on_response = function(info) seen[#seen + 1] = info end }, function(port)
+    local client <close> = connect(port)
+    self:assert_equal("GET /a", client:request(get("/a?token=x")).content)
+  end)
+  self:assert_equal(1, #seen)
+  self:assert_equal("GET", seen[1].method)
+  self:assert_equal("/a?token=x", seen[1].target)
+  self:assert_equal(200, seen[1].status)
+  self:assert_true(seen[1].bytes > #"GET /a")
+  self:assert_true(seen[1].duration >= 0)
+  self:assert_equal(false, seen[1].failed)
+  self:assert_equal(false, seen[1].refused)
+end
+
+function T:test_on_response_marks_the_answers_sent_before_any_action_runs()
+  local seen = {}
+  local ran = false
+  local action = function() ran = true; return Response(200) end
+  with_server(self, { action = action, on_response = function(info) seen[#seen + 1] = info end }, function(port)
+    local client <close> = connect(port)
+    client:send("GET / HTTP/1.1\r\n\r\n") -- no Host field: 400
+    client:read_response()
+  end)
+  self:assert_false(ran)
+  self:assert_equal(1, #seen)
+  self:assert_equal(400, seen[1].status)
+  self:assert_equal(true, seen[1].refused)
+end
+
+function T:test_a_failing_on_response_hook_does_not_affect_the_response()
+  with_server(self, { action = text_action, on_response = function() error("boom") end }, function(port)
+    local client <close> = connect(port)
+    self:assert_equal("GET /a", client:request(get("/a")).content)
+    self:assert_equal("GET /b", client:request(get("/b")).content)
+  end)
+end
+
+function T:test_on_response_must_be_a_function()
+  self:assert_error(function() Server(text_action, { on_response = 1 }) end)
+end
+
 return T
