@@ -8,7 +8,7 @@
 | Rock | `hecate-kernel` |
 | Layer | 3 — Framework |
 | Roadmap phase | 2 |
-| Status | specified — no code yet |
+| Status | in progress: filter chain |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |
 | Depends on | [`core`](../core), [`reactor`](../reactor), [`log`](../log), [`http`](../http), [`router`](../router), [`schema`](../schema), [`container`](../container), [`config`](../config), [`json`](../json) |
 | Used by | `cli`, `hecate`, `security`, `template`, `test` |
@@ -39,13 +39,21 @@
 
 ## Public API
 
-*To be filled during implementation: list every exported class and function with a one-line
-description, linking to the generated reference.*
+- `kernel.chain.compose(filters, action)`: composes a flat list of filters (outermost first)
+  around an action once, at boot, and returns the function that serves a request. One closure
+  per filter, none per request; an empty list returns the action itself. An element that is
+  not a filter raises `ArgumentError` at composition. Errors of filters propagate unchanged.
+  A filter may call `next` more than once; this is not detected.
+- `kernel.chain.is_filter(value)`: tells whether a value is a filter (a table with a `handle`
+  function).
+
+Further exports (application, controllers, route modules) arrive with later items.
 
 ## Layout (once implemented)
 
 ```text
-src/hecate/kernel/init.lua   public entry point
+src/hecate/kernel/init.lua    public entry point
+src/hecate/kernel/chain.lua   filter chain (chain of responsibility)
 tests/unit/  tests/integration/  tests/fixtures/
 examples/    benchmarks/
 ```

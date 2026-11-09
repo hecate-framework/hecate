@@ -11,6 +11,7 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- feat(kernel): filter chain (`hecate.kernel.chain.compose`): filters composed around an action at boot, outermost first, one closure per filter and none per request.
 - feat(log): `log.default()` redacts the field names of the new `log.DEFAULT_REDACT` list (passwords, tokens, keys, cookies, authorization headers, session identifiers; exact name, case-insensitive, never free text); a plain `Logger` is unchanged (OQ-111).
 - `hecate.json`: `json.set_max_depth(n)`, a lowering-only process-wide default depth (OQ-101); `hecate.schema` reads it for its nesting guard.
 - `hecate.http`: `http.serve_request(action, request)`, the in-process request-serving seam (OQ-78): runs an action without a socket and returns the response to send and the failure it caught; the `Server` calls the same function. The response writer is split into a pure normalisation of the frame and fields and the writing.
