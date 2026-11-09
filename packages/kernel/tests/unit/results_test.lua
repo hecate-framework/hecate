@@ -1,0 +1,154 @@
+local test = require("harness.test")
+local core = require("hecate.core")
+local json = require("hecate.json")
+local schema = require("hecate.schema")
+local http = require("hecate.http")
+local results = require("hecate.kernel.results")
+local T = test.Case("ResultsTest")
+
+local User = core.class("ResultsUser", nil, { implements = { schema.Representable } })
+function User.schema()
+  return schema.object({ name = schema.string(), age = schema.optional(schema.integer()) })
+end
+function User:init(name, age, secret)
+  self.name, self.age, self.secret = name, age, secret
+end
+core.finalise(User)
+
+local Plain = core.class("ResultsPlain")
+function Plain:init() self.x = 1 end
+core.finalise(Plain)
+
+--- The content of a response, decoded and encoded again in canonical form.
+---@param response hecate.http.Response
+---@return string
+local function canonical(response)
+  return json.encode(json.decode(response.content --[[@as string]]), { canonical = true })
+end
+
+---@param value any
+---@return any
+local function invalid(value) return value end
+
+local user_schema = schema.of(User)
+
+local function request(method, accept)
+  local fields = http.Fields()
+  if accept then fields:set("Accept", accept) end
+  return http.Request({ method = method, target = "/users", fields = fields })
+end
+
+function T:test_response_is_returned_as_is()
+  local response = http.Response(202)
+  self:assert_true(results.serialise(response, request("GET"), {}) == response)
+end
+
+function T:test_problem_response_is_returned_as_is()
+  local response = http.problem.response(404)
+  self:assert_true(results.serialise(response, request("GET"), {}) == response)
+end
+
+function T:test_value_is_represented_with_the_schema_of_200_then_encoded()
+  local response = results.serialise(User("ada", 36, "s3cret"), request("GET"), { [200] = user_schema })
+  self:assert_equal(200, response.status)
+  self:assert_equal("application/json", response.fields:get("Content-Type"))
+  self:assert_equal(json.encode({ name = "ada", age = 36 }, { canonical = true }), canonical(response))
+  self:assert_nil((response.content --[[@as string]]):find("s3cret", 1, true))
+end
+
+function T:test_post_with_only_201_declared_answers_201()
+  local response = results.serialise(User("ada"), request("POST"), { [201] = user_schema })
+  self:assert_equal(201, response.status)
+  self:assert_equal(json.encode({ name = "ada" }, { canonical = true }), canonical(response))
+end
+
+function T:test_post_with_200_declared_answers_200_unless_created()
+  local declared = { [200] = user_schema, [201] = user_schema }
+  self:assert_equal(200, results.serialise(User("a"), request("POST"), declared).status)
+  self:assert_equal(201, results.serialise(User("a"), request("GET"), declared, { created = true }).status)
+end
+
+function T:test_plain_value_without_schema_is_encoded_as_is()
+  local response = results.serialise({ a = 1 }, request("GET"), {})
+  self:assert_equal(json.encode({ a = 1 }, { canonical = true }), canonical(response))
+  self:assert_equal("\"hi\"", results.serialise("hi", request("GET"), {}).content)
+end
+
+function T:test_instance_without_schema_raises_an_error()
+  local err = self:assert_error(function() results.serialise(Plain(), request("GET"), {}) end)
+  self:assert_equal("hecate.core.ArgumentError", err.code)
+end
+
+function T:test_nil_is_204_when_declared_else_200_empty()
+  local declared = results.serialise(nil, request("DELETE"), { [204] = true })
+  self:assert_equal(204, declared.status)
+  self:assert_nil(declared.content)
+  local other = results.serialise(nil, request("GET"), { [200] = user_schema })
+  self:assert_equal(200, other.status)
+  self:assert_nil(other.content)
+end
+
+function T:test_representation_failure_propagates_without_a_response()
+  local Status = core.enumeration("ResultsStatus", { "on", "off" })
+  local err = self:assert_error(function()
+    results.serialise({ name = "s3cret" }, request("GET"), { [200] = schema.enumeration(Status) })
+  end)
+  self:assert_equal("hecate.core.ValidationError", err.code)
+end
+
+function T:test_respond_uses_the_schema_of_its_status()
+  local result = results.respond(201, User("ada", 1, "s3cret"))
+  local response = results.serialise(result, request("GET"), { [200] = schema.string(), [201] = user_schema })
+  self:assert_equal(201, response.status)
+  self:assert_equal(json.encode({ name = "ada", age = 1 }, { canonical = true }), canonical(response))
+end
+
+function T:test_respond_accepts_an_explicit_schema_and_nil_value()
+  local response = results.serialise(results.respond(202, User("a"), user_schema), request("GET"), {})
+  self:assert_equal(json.encode({ name = "a" }, { canonical = true }), canonical(response))
+  local empty = results.serialise(results.respond(204), request("GET"), {})
+  self:assert_equal(204, empty.status)
+  self:assert_nil(empty.content)
+end
+
+function T:test_respond_is_a_tagged_table_not_a_response()
+  local result = results.respond(200, { a = 1 })
+  self:assert_equal("table", type(result))
+  self:assert_true(results.is_result(result))
+  self:assert_false(results.is_result({ status = 200, value = 1 }))
+end
+
+function T:test_respond_refuses_a_bad_status()
+  self:assert_error(function() results.respond(invalid("x"), 1) end)
+  self:assert_error(function() results.respond(99, 1) end)
+end
+
+function T:test_accept_absent_star_and_json_are_served()
+  for _, accept in ipairs({ "*/*", "application/*", "application/json", "text/html, application/json;q=0.5", "application/json; charset=utf-8" }) do
+    self:assert_equal(200, results.serialise({ 1 }, request("GET", accept), {}).status, accept)
+  end
+end
+
+function T:test_unacceptable_accept_is_a_406_problem_without_detail_of_the_value()
+  local response = results.serialise({ secret = "s3cret" }, request("GET", "text/html"), {})
+  self:assert_equal(406, response.status)
+  self:assert_equal("application/problem+json", response.fields:get("Content-Type"))
+  self:assert_nil((response.content --[[@as string]]):find("s3cret", 1, true))
+  self:assert_equal(406, results.serialise({ 1 }, request("GET", "application/json;q=0"), {}).status)
+end
+
+function T:test_serialisers_table_plugs_in_a_media_type()
+  local serialisers = { ["application/json"] = results.serialisers["application/json"], ["text/plain"] = function(plain) return "plain:" .. tostring(plain.a) end }
+  local response = results.serialise({ a = 1 }, request("GET", "text/plain, application/json;q=0.1"), {}, { serialisers = serialisers })
+  self:assert_equal("text/plain", response.fields:get("Content-Type"))
+  self:assert_equal("plain:1", response.content)
+end
+
+function T:test_default_serialisers_hold_json_only()
+  self:assert_equal("function", type(results.serialisers["application/json"]))
+  local n = 0
+  for _ in pairs(results.serialisers) do n = n + 1 end
+  self:assert_equal(1, n)
+end
+
+return T

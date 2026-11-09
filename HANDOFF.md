@@ -3,8 +3,8 @@
 
 - roadmap_item: `kernel`: application, modules, controllers, route modules, filters, problem details, lifecycle, multi-process workers, graceful shutdown (Phase 2, docs/roadmap.md)
 - status: in-progress
-- lock_until: 2026-11-09T21:30:00Z
-- last_update: 2026-11-09T21:18:20Z
+- lock_until: 2026-11-09T21:23:47Z
+- last_update: 2026-11-09T21:23:47Z
 
 ## Done
 
@@ -19,11 +19,11 @@
 - CI green at 26e4200. Step 5b: `json.set_max_depth` (OQ-101 a), `schema` reads `json.DEFAULT_MAX_DEPTH`; tests in `packages/json/tests/unit/max_depth_test.lua` and `deep_test.lua`; typecheck, lint, `test json`, `test schema` ok.
 - Step 6 (owner decisions of 2026-11-09): `dispatch` renamed `http.serve_request`; `Response` content narrowed to `string|function|nil` (the constructor refuses a table); `log.DEFAULT_REDACT` (19 names) used by `log.default()`; OQ-111 recorded (issue #167 closed); *safe content* added as check 4 of every phase gate (roadmap, relay.md, ai-assisted-development.md); a "Before going to production" page added to the roadmap. Lock released (`lock_until` = last update).
 - Step 7 (run of 21:05Z, lock released at the end): `hecate.kernel.chain.compose(filters, action)` and `chain.is_filter`, first code of `packages/kernel`; 15 tests; typecheck, lint, `test kernel` ok. Doubt: `next` called twice is not detected (it would cost an allocation per filter per request; a retry filter is legitimate); recorded as documented behaviour.
-- Step 8 in progress (run of ~21:11Z, lock until 21:30Z): kernel results and serialisation (`hecate.kernel.results`, `respond`).
+- Step 8 (run of ~21:11Z, lock released at the end): `hecate.kernel.results` (`serialise`, `respond`, `serialisers`, minimal `Accept` negotiation with 406); 17 tests; typecheck, lint, `test kernel` ok. Choices to confirm: plain value is 200 (201 with `created = true`, or POST with only a 201 declared); a nil result is 204 if the route declares it, else an empty 200. Not done: validation of the result against the schema in development/test (later item).
 
 ## Next steps
 
-0. Kernel code after the chain: `Application` skeleton and boot validation, controllers and route modules (`schema.of` for responses), `hecate.respond`, problem mapping, then the handoffs (a) to (g) of the roadmap item.
+0. Kernel code after the chain and the results: `Application` skeleton and boot validation, controllers and route modules, the `hecate.respond` re-export, the mapping of errors to problems around the chain, response validation in development/test, then the handoffs (a) to (g) of the roadmap item.
 1. Kernel handoffs are in the `kernel` roadmap item, items (a) to (g): `json.set_max_depth` at boot, logging keys (default logger = `log.DEFAULT_REDACT` + `logging.redact`), `wrap_secret = log.Secret`, response schema by `schema.of`, a `hecate.respond(status, value)` helper, `ContentError` when the content was consumed by validation. Check CI of the pull request first.
 2. OQ-101 items (b) logging keys, (c) `wrap_secret`; (a) kernel must call `json.set_max_depth(limits.max_depth)` at boot.
 3. Settle how a route names its response schema (OQ-98 item 7), then the kernel proper.

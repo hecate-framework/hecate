@@ -11,6 +11,7 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- feat(kernel): `results.serialise`, `results.respond` and the `results.serialisers` table turn the result of an action into a `Response` (represent with the declared schema, JSON, minimal `Accept` negotiation with 406).
 - feat(kernel): filter chain (`hecate.kernel.chain.compose`): filters composed around an action at boot, outermost first, one closure per filter and none per request.
 - feat(log): `log.default()` redacts the field names of the new `log.DEFAULT_REDACT` list (passwords, tokens, keys, cookies, authorization headers, session identifiers; exact name, case-insensitive, never free text); a plain `Logger` is unchanged (OQ-111).
 - `hecate.json`: `json.set_max_depth(n)`, a lowering-only process-wide default depth (OQ-101); `hecate.schema` reads it for its nesting guard.
