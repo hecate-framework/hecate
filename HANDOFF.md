@@ -3,8 +3,8 @@
 
 - roadmap_item: `kernel`: application, modules, controllers, route modules, filters, problem details, lifecycle, multi-process workers, graceful shutdown (Phase 2, docs/roadmap.md)
 - status: in-progress
-- lock_until: 2026-11-09T20:39:02Z
-- last_update: 2026-11-09T20:39:02Z
+- lock_until: 2026-11-09T21:30:00Z
+- last_update: 2026-11-09T21:05:39Z
 
 ## Done
 
@@ -18,6 +18,7 @@
 - Step 5a: `on_response` hook (OQ-81) in `server_response.lua`, tests in `server_lifecycle_test.lua`; typecheck, lint, `test http` ok (needs `build-native http json`). Website reference page for the option not yet updated.
 - CI green at 26e4200. Step 5b: `json.set_max_depth` (OQ-101 a), `schema` reads `json.DEFAULT_MAX_DEPTH`; tests in `packages/json/tests/unit/max_depth_test.lua` and `deep_test.lua`; typecheck, lint, `test json`, `test schema` ok.
 - Step 6 (owner decisions of 2026-11-09): `dispatch` renamed `http.serve_request`; `Response` content narrowed to `string|function|nil` (the constructor refuses a table); `log.DEFAULT_REDACT` (19 names) used by `log.default()`; OQ-111 recorded (issue #167 closed); *safe content* added as check 4 of every phase gate (roadmap, relay.md, ai-assisted-development.md); a "Before going to production" page added to the roadmap. Lock released (`lock_until` = last update).
+- Run of 21:05Z (owner: lock must be free before 21:40Z): step 7 in progress, the filter chain of the kernel (`packages/kernel`, first code of the package).
 
 ## Next steps
 
