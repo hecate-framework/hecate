@@ -3,8 +3,8 @@
 
 - roadmap_item: `kernel`: application, modules, controllers, route modules, filters, problem details, lifecycle, multi-process workers, graceful shutdown (Phase 2, docs/roadmap.md)
 - status: in-progress
-- lock_until: 2026-11-10T23:12:00Z
-- last_update: 2026-11-10T21:42:00Z
+- lock_until: 2026-11-10T21:52:00Z
+- last_update: 2026-11-10T21:52:00Z
 
 ## Done
 
@@ -53,10 +53,11 @@
 - Step 17 (run of ~21:20Z, lock released at the end): first cut of `examples/hello` (controller with `Controller.route`, route module `/health`, 422 with `source`, 201 with `respond`, graceful shutdown, 5 in-process tests via `lua tools/run.lua test examples/hello`, README); `tools/tasks/test.lua` accepts `examples/<name>`. Single process: the Phase 2 exit criterion (N workers) and the roadmap item stay open. To do: run the example test in CI (a matrix or workflow step invoking `test examples/hello`), `hecate.project.lua` and contract checks with the CLI (Phase 3).
 
 - Step 18 (run of ~21:27Z, lock released at the end): `Application:local_address()` (public accessor, test first); the kernel tests and `examples/hello` use it instead of the private `_server`.
+- Step 19 (run of 2026-11-10T21:42Z, lock released at the end): roadmap (f): `kernel.respond`, alias of `results.respond` (test first in `results_test.lua`); `examples/hello` uses it. typecheck, lint, check-annotations, check-changelog, check-glossary, `test kernel`, `test examples/hello` ok.
 
 ## Next steps
 
-0. Kernel code still open: multi-process workers (ADR 0023: primary, `round_robin`, supervision, drain per worker; `SIGHUP` reload, OQ-115 (4)), a `kernel.respond` re-export of `results.respond` for (f), response validation in development/test, `wrap_secret = log.Secret` (c) where the kernel loads the configuration, the website reference page of `kernel`. Check CI of the pull request first.
+0. Kernel code still open: multi-process workers (ADR 0023: primary, `round_robin`, supervision, drain per worker; `SIGHUP` reload, OQ-115 (4)), response validation in development/test, `wrap_secret = log.Secret` (c) where the kernel loads the configuration, the website reference page of `kernel`. Check CI of the pull request first.
 1. Before ticking: verify handoffs (a), (b), (d), (e), (g), (h), (i), (j), (k), (l) against the roadmap text (most are done in code, see Done), then `/review-package kernel`.
 
 ## Decisions taken (and where they are recorded)

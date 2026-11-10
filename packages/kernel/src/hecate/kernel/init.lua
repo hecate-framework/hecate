@@ -1,4 +1,4 @@
--- hecate.kernel: the application. So far: the chain of responsibility, results, problems and route declarations.
+-- hecate.kernel: the application: filters, results, problems, route declarations, dispatcher and Application.
 global <const> require
 
 --- The application kernel.
@@ -7,6 +7,7 @@ global <const> require
 ---@field results hecate.kernel.results  serialises the result of an action into a Response
 ---@field problem hecate.kernel.problem  problem classes (`NotFound`, ...) and `define`
 ---@field problems hecate.kernel.problems  maps errors and routing failures to problem details responses
+---@field respond fun(status: integer, value?: any, schema?: table): hecate.kernel.results.Result  answers with a status and a value (`kernel.respond(201, user)`), alias of `results.respond`
 ---@field routes fun(name: string, options?: hecate.kernel.RouteModuleOptions): hecate.kernel.RouteModule  creates a route module (`hecate.routes "health"`)
 ---@field dispatcher hecate.kernel.dispatcher  builds the function that serves a request from a route table
 ---@field RouteModule hecate.kernel.RouteModule  the class of route modules
@@ -22,6 +23,7 @@ local kernel = {}
 kernel.chain = require("hecate.kernel.chain")
 kernel.results = require("hecate.kernel.results")
 kernel.problem = require("hecate.kernel.problem")
+kernel.respond = kernel.results.respond
 kernel.problems = require("hecate.kernel.problems")
 kernel.route = require("hecate.kernel.route")
 kernel.routing = require("hecate.kernel.routing")

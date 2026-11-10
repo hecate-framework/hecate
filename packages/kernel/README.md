@@ -62,7 +62,8 @@
   honoured, `q=0` excludes), anything else gives a `406` problem details response.
 - `kernel.results.respond(status, value?, schema?)`: a tagged result (not a `Response`) that makes
   `serialise` answer with that status, represented with `schema` or the schema the route declares for it.
-  `kernel.results.is_result(value)` tells whether a value is one.
+  `kernel.results.is_result(value)` tells whether a value is one. `kernel.respond` is the same function,
+  the short spelling for actions (`return kernel.respond(201, user)`, roadmap kernel item (f)).
 - `kernel.results.serialisers`: table of media type to serialiser (`fun(plain): string`), default
   `application/json`; `options.serialisers` overrides it per call. Not provided yet: `results.prepare`
   (schemas are already resolved objects, nothing is computed per request beyond `represent` and `encode`).

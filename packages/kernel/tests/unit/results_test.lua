@@ -151,4 +151,12 @@ function T:test_default_serialisers_hold_json_only()
   self:assert_equal(1, n)
 end
 
+function T:test_kernel_respond_is_results_respond()
+  local kernel = require("hecate.kernel")
+  self:assert_true(kernel.respond == results.respond)
+  local result = kernel.respond(201, { id = 1 })
+  self:assert_true(results.is_result(result))
+  self:assert_equal(201, result.status)
+end
+
 return T

@@ -7,7 +7,7 @@ A small JSON API run through `hecate.kernel.Application`. It is the example of P
 | Route | Shows |
 |---|---|
 | `GET /hello/{name}` | a path parameter validated by a schema (1 to 40 characters), a result represented by a response schema (`{ "message": "Hello, Ada!" }`) |
-| `POST /greetings` | JSON content validated by a schema (`name`, optional `language` defaulting to `en`), `422` problem details (RFC 9457) with `source` and a relative `pointer` for each violation, `201` through `kernel.results.respond` |
+| `POST /greetings` | JSON content validated by a schema (`name`, optional `language` defaulting to `en`), `422` problem details (RFC 9457) with `source` and a relative `pointer` for each violation, `201` through `kernel.respond` |
 | `GET /health` | a route module (`kernel.routes`), the lightweight declaration style |
 
 The two greeting routes are declared by a controller (`Controller.route`), `/health` by a route

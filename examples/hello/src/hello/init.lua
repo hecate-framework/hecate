@@ -44,7 +44,7 @@ function GreetingController:create(request)
   local content = assert(request.content, "validated content") -- set by the dispatcher before the action
   next_id = next_id + 1
   local word = GREETINGS[content.language] or GREETINGS.en
-  return kernel.results.respond(201, { id = next_id, message = ("%s, %s!"):format(word, content.name) })
+  return kernel.respond(201, { id = next_id, message = ("%s, %s!"):format(word, content.name) })
 end
 
 core.finalise(GreetingController)
