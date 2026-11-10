@@ -159,9 +159,13 @@ Accepted in [ADR 0023](../adr/0023-multi-process-serving.md), measured in
 
 ## Signals and shutdown
 
-`SIGINT`/`SIGTERM` (and Windows console control events) trigger graceful shutdown.
-`SIGHUP` reloads configuration where supported. All handled through libuv signal
-handles.
+`SIGINT`/`SIGTERM` trigger graceful shutdown on every platform (Windows delivers only
+`SIGINT`, Ctrl+C, of the two). The set is fixed: it is not configurable, and an application
+may turn the handling off. The first signal stops accepting and lets the requests in flight
+finish for the grace period (configuration key `server.grace_timeout`, default 30 seconds);
+a second signal during the drain cancels the remaining requests at once. `SIGHUP` is not
+handled by a single process: the rolling reload of the workers belongs to the multi-process
+serving of ADR 0023. All handled through libuv signal handles (OQ-115).
 
 ## Testing requirements
 
