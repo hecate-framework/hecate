@@ -70,7 +70,8 @@
 - `kernel.problems.from_match(match)`: the response for a failed `Router:match` (`404`, `405` with `Allow` per RFC 9110
   section 15.5.6, `400` for an unreadable path without its reason); nil for a match that is not a failure.
 - `kernel.problems.from_error(err, options?)`: with `options.input = true`, a `ValidationError` with violations is a
-  `422` with `errors`, one `{ pointer, code }` per violation (RFC 6901 pointer, at most `problems.MAX_ERRORS` = 100);
+  `422` with `errors`, one `{ pointer, code }` per violation (RFC 6901 pointer, at most `problems.MAX_ERRORS` = 100), plus
+  `source` when the violation carries one (the input step sets it);
   an `http` error keeps its client status; anything else (a `ValidationError` about a response, a Lua error, a value
   that is not an error) is a generic `500`. No message, context or cause of an error ever reaches a response.
 - `kernel.problems.guard(action, options?)`: wraps an action or a composed chain; returns the response (a problem for
@@ -134,11 +135,26 @@
   limit of the stream), decoded by `json.decode` (nesting ceiling `json.DEFAULT_MAX_DEPTH`), then `build` validates it
   and instantiates class-bound parts (`method = "PATCH"` for a PATCH route); `request.content` holds the result and
   `request:read_content()` and `stream_content()` raise `ContentError` (`consumed`). Failures are problem details
-  responses: `422` for violations (pointers `/query/limit` for a parameter, relative to the content for the content;
-  `problems.from_error` with `input = true`, so nothing of the offending values), `400` for malformed JSON or a bad
+  responses: `422` for violations (every entry carries `source`, one of `path`, `query`, `header` (the `fields`
+  location), `cookie` or `content`, and a `pointer` relative to the value inside that source, as in
+  `{ "pointer": "/limit", "source": "query", "code": "coercion" }`; `problems.from_error` with `input = true`, so
+  nothing of the offending values), `400` for malformed JSON or a bad
   percent-encoding, `413` over the limit, `415` for another `Content-Type`. A route that declares `content` only for
   another media type is refused at build (`RouteDeclarationError`, `unsupported_content_type`). Missing content with no
   `Content-Type` is validated as an absent value (a `default` schema accepts it, otherwise `422`).
+
+- `options.inputs` of `kernel.dispatcher.build` (`"strict"`, the default, or `"lax"`; anything else raises `ArgumentError`):
+  the policy for undeclared query parameters (OQ-114 (8)). `lax` drops them. `strict` refuses a request that carries
+  one with a `422` whose `errors` has one `{ pointer = "/<name>", source = "query", code = "additional_properties" }`
+  per undeclared name (RFC 6901 escaped, in order of appearance, at most `problems.MAX_ERRORS`; the value is never
+  echoed; `message` only with `expose_details`). The refusal comes before any coercion, and a route that declares no
+  `query` follows the policy too. Undeclared header fields and cookies are always dropped, never refused; the content
+  follows its own schema. A request without a query string pays nothing extra. The kernel will bind this option to the
+  configuration key `requests.inputs` (default `strict`, `lax` in development and test through the environment files);
+  neither the key nor a boot warning exists yet (they come with the `config` integration and the `Application`). Example:
+  `GET /users?limit=5&page=2` on a route declaring only `limit` answers `422` with the entry
+  `{ "pointer": "/page", "source": "query", "code": "additional_properties" }`.
+- `kernel.input.compile(entry, options?)`: `options.strict` (default false) is what the dispatcher sets from `inputs`.
 
 Further exports (application, feature modules) arrive with later items.
 

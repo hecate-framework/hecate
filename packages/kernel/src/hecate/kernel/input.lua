@@ -1,7 +1,7 @@
 -- Validation and coercion of the inputs of a request by the schemas of its route (http-and-routing.md "Route
 -- declaration", schemas-and-contracts.md "Coercion"). Every schema is resolved once, when the dispatcher is composed;
 -- a request then pays one `build` per declared input and nothing at all for a route that declares none.
-global <const> require, error, pcall, ipairs, pairs, next, table
+global <const> require, error, pcall, ipairs, pairs, next, table, string
 
 local core = require("hecate.core")
 local json = require("hecate.json")
@@ -16,17 +16,17 @@ local input = {}
 
 local JSON <const> = "application/json"
 local LOCATIONS <const> = { "path", "query", "fields", "cookies" }
+-- The `source` member of a 422 entry per location of `parameters` (OQ-114 (1)); the content is `content`.
+local SOURCES <const> = { path = "path", query = "query", fields = "header", cookies = "cookie" }
 
 --- The raw texts of one location, for the declared names only (an undeclared query parameter, header field or cookie is
 --- never exposed). A name sent once is its text, a repeated one a list of texts (schema `array` reads both).
 local READERS <const> = {
-  ---@param request hecate.http.Request
+  ---@param parsed hecate.http.Form?  the parsed query, nil when the request has none
   ---@param names string[]
-  query = function(request, names)
+  query = function(parsed, names)
     local raw = {}
-    if request.query == nil or request.query == "" then return raw end
-    -- The query component is `application/x-www-form-urlencoded` text (WHATWG URL Standard, section 5.1).
-    local parsed = form.parse_urlencoded(request.query)
+    if parsed == nil then return raw end
     for _, name in ipairs(names) do
       local all = parsed:get_all(name)
       if all[2] ~= nil then raw[name] = all elseif all[1] ~= nil then raw[name] = all[1] end
@@ -57,8 +57,44 @@ local function failure(violations)
   return core.ValidationError(("%d violation(s)"):format(#violations), { context = { violations = violations } })
 end
 
+--- RFC 6901, section 3: `~` becomes `~0`, then `/` becomes `~1`.
+local function escape_token(token)
+  return (token:gsub("~", "~0"):gsub("/", "~1"))
+end
+
+--- The violations of the parameters, each with its `source` and a pointer relative to the value inside that source (the
+--- schema of the whole points at `/query/limit`; the entry says `source = "query"`, `pointer = "/limit"`).
+local function with_sources(violations)
+  local mapped = {}
+  for i, violation in ipairs(violations) do
+    local location, rest = string.match(violation.path, "^/([^/]*)(.*)$")
+    mapped[i] = { path = rest or violation.path, code = violation.code, message = violation.message,
+      source = SOURCES[location] }
+  end
+  return mapped
+end
+
+--- The violations (`additional_properties`, source `query`) of the names of `parsed` that are not in `declared`, one per
+--- name, in order of appearance, at most `problems.MAX_ERRORS`. Nil when there is none. The values are never read.
+local function undeclared_names(parsed, declared)
+  local found, seen
+  for name in parsed:pairs() do
+    if declared[name] == nil then
+      seen = seen or {}
+      if not seen[name] then
+        seen[name] = true
+        found = found or {}
+        found[#found + 1] = { path = "/" .. escape_token(name), code = "additional_properties", source = "query",
+          message = "the query parameter is not declared by the route" }
+        if #found >= problems.MAX_ERRORS then break end
+      end
+    end
+  end
+  return found
+end
+
 --- Compiles the parameters of an entry: the schema of the whole (`path`, `query`, `fields`, `cookies`, each declared
---- location an `object`, so a violation points at `/query/limit`) and, per location, the names to read. Nil when the
+--- location an `object`, so a violation of the whole points at `/query/limit`; `with_sources` splits it) and, per location, the names to read. Nil when the
 --- route declares no parameter.
 ---@param entry hecate.kernel.RouteEntry
 ---@return hecate.schema.Schema? root
@@ -98,6 +134,11 @@ end
 
 local DECODE_STATUS <const> = { size_limit = 413 }
 
+--- Options of `input.compile`.
+---@class hecate.kernel.input.Options
+---@field expose_details? boolean  see `hecate.kernel.problems.Options`
+---@field strict? boolean  refuse a request that carries an undeclared query parameter (`inputs = "strict"`, OQ-114 (8)); default false here, the dispatcher passes its policy
+
 --- Builds the step of an entry that reads, coerces and validates its inputs, or nil when it declares none (such a route
 --- pays nothing). The step takes the request and returns nil when the inputs conform (it has then set
 --- `request.parameters.<location>` and `request.content`) or the problem details response to answer with: `422` for
@@ -107,13 +148,29 @@ local DECODE_STATUS <const> = { size_limit = 413 }
 ---
 --- Raises `RouteDeclarationError` (`unsupported_content_type`) for content declared only for another media type.
 ---@param entry hecate.kernel.RouteEntry
----@param options? hecate.kernel.problems.Options  `expose_details`
+---@param options? hecate.kernel.input.Options
 ---@return (fun(request: hecate.http.Request): hecate.http.Response?)?
 function input.compile(entry, options)
   local root, names = compile_parameters(entry)
   local content = compile_content(entry)
-  if root == nil and content == nil then return nil end
+  local strict = options ~= nil and options.strict == true
+  local declared_query = {}
+  if names ~= nil and names.query ~= nil then
+    for _, name in ipairs(names.query) do declared_query[name] = true end
+  end
   local problem_options = { input = true, expose_details = options ~= nil and options.expose_details or nil }
+  if root == nil and content == nil then
+    if not strict then return nil end
+    -- Strict and no declared input: the only step is the refusal of undeclared query parameters, and a request without a
+    -- query string passes it with one comparison, no allocation.
+    return function(request)
+      local text = request.query
+      if text == nil or text == "" then return nil end
+      local found = undeclared_names(form.parse_urlencoded(text), declared_query)
+      if found ~= nil then return problems.from_error(failure(found), problem_options) end
+      return nil
+    end
+  end
   -- Defaults apply to a text input whatever the method; the content schema alone follows the method (PATCH, OQ-50).
   local content_options = entry.method == "PATCH" and { method = "PATCH" } or nil
   local build_options = { coerce = true }
@@ -122,15 +179,31 @@ function input.compile(entry, options)
     ---@cast root hecate.schema.Schema
     ---@cast names table<string, string[]>
     local raw, supplied = {}, request.parameters
+    -- The query component is `application/x-www-form-urlencoded` text (WHATWG URL Standard, section 5.1), parsed once.
+    local parsed
+    if (strict or names.query ~= nil) and request.query ~= nil and request.query ~= "" then
+      parsed = form.parse_urlencoded(request.query)
+      if strict then
+        -- Undeclared names are refused first, before any coercion: one 422 that names them (OQ-114 (8)).
+        local found = undeclared_names(parsed, declared_query)
+        if found ~= nil then return problems.from_error(failure(found), problem_options) end
+      end
+    end
     for _, location in ipairs(LOCATIONS) do
       local list = names[location] --[[@as string[]?]]
       if list ~= nil then
         -- The router hands the decoded path parameters over; the other locations are read from the request.
-        raw[location] = location == "path" and supplied.path or READERS[location](request, list)
+        if location == "path" then
+          raw[location] = supplied.path
+        elseif location == "query" then
+          raw[location] = READERS.query(parsed, list)
+        else
+          raw[location] = READERS[location](request, list)
+        end
       end
     end
     local ok, built = root:build(raw, build_options)
-    if not ok then return problems.from_error(failure(built), problem_options) end
+    if not ok then return problems.from_error(failure(with_sources(built)), problem_options) end
     for location in pairs(names) do supplied[location] = built[location] end
     return nil
   end
@@ -157,7 +230,13 @@ function input.compile(entry, options)
       value = decoded
     end
     local ok, built = (content --[[@as hecate.schema.Schema]]):build(value, content_options)
-    if not ok then return problems.from_error(failure(built), problem_options) end
+    if not ok then
+      local mapped = {}
+      for i, violation in ipairs(built) do
+        mapped[i] = { path = violation.path, code = violation.code, message = violation.message, source = "content" }
+      end
+      return problems.from_error(failure(mapped), problem_options)
+    end
     request:set_validated_content(built)
     return nil
   end

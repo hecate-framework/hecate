@@ -20,6 +20,7 @@ local input = require("hecate.kernel.input")
 ---@field router? hecate.router.RouterOptions  options of the router
 ---@field expose_details? boolean  see `hecate.kernel.problems.Options`
 ---@field logger? { log: fun(self: any, severity: string, message: string, fields?: table) }  receives unhandled failures
+---@field inputs? "lax"|"strict"  policy for undeclared query parameters, default `"strict"`: a request that carries one is refused with a 422 naming each (never its value); `"lax"` drops them. Undeclared header fields and cookies are always dropped. The kernel will bind it to `requests.inputs` (OQ-114 (8))
 ---@field serialisers? table<string, fun(plain: any): string>  media type to serialiser; default `results.serialisers`
 
 --- The dispatcher.
@@ -80,7 +81,13 @@ function dispatcher.build(entries, options)
   local global_filters = options.filters or {}
   local container = options.container
   local router = router_package.Router(entries, options.router)
+  local policy = options.inputs
+  if policy == nil then policy = "strict" end
+  if policy ~= "strict" and policy ~= "lax" then
+    error(core.ArgumentError("kernel.dispatcher.build: options.inputs is \"lax\" or \"strict\""), 2)
+  end
   local problem_options = { expose_details = options.expose_details, logger = options.logger }
+  local input_options = { expose_details = options.expose_details, strict = policy == "strict" }
   local serialise_options = { serialisers = options.serialisers }
 
   -- One compiled handler per entry, indexed by the entry itself: the router hands back the table it was given.
@@ -92,7 +99,7 @@ function dispatcher.build(entries, options)
     local action = resolve_action(entry, container)
     -- The inputs are validated innermost, after the filters (authentication, rate limiting): a client refused by a filter
     -- costs no content read. A route that declares no input gets the action itself.
-    local read_input = input.compile(entry, problem_options)
+    local read_input = input.compile(entry, input_options)
     if read_input ~= nil then
       local serve_action = action
       action = function(request)

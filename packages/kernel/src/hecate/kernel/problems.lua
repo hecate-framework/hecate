@@ -77,8 +77,8 @@ function problems.from_match(match)
   return nil
 end
 
---- The violations of a `ValidationError`, as the entries of the `errors` extension: a JSON Pointer (RFC 6901) and the
---- stable code, in order. The message of a violation is not forwarded (conservative, see OQ-112).
+--- The violations of a `ValidationError`, as the entries of the `errors` extension: a JSON Pointer (RFC 6901), the `source` when the
+--- violation has one, and the stable code, in order. The message of a violation is not forwarded (conservative, see OQ-112).
 ---@param err any
 ---@param expose boolean  also forward the message of each violation (`errors.expose_details`, OQ-112 (5))
 ---@return table[]?
@@ -88,7 +88,8 @@ local function entries_of(err, expose)
   local entries = {}
   for i, violation in ipairs(violations) do
     if i > problems.MAX_ERRORS then break end
-    entries[i] = { pointer = violation.path, code = violation.code }
+    -- `source` (OQ-114 (1)) is set by the step that read the input; the pointer is then relative to the value in it.
+    entries[i] = { pointer = violation.path, source = violation.source, code = violation.code }
     if expose then entries[i].message = violation.message end
   end
   return entries

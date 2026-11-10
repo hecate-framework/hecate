@@ -41,7 +41,7 @@ function T:test_path_and_query_are_coerced_into_request_parameters()
         active = schema.optional(schema.boolean()) },
     },
     action = function(r) seen = r.parameters; return { ok = true } end,
-  })
+  }, { inputs = "lax" })
   local response = serve(request("GET", "/users/42?limit=5&tags=a,b&active=true&ignored=1"))
   self:assert_equal(200, response.status)
   self:assert_equal(42, seen.path.id)
@@ -75,8 +75,10 @@ function T:test_a_parameter_violation_is_a_422_that_points_at_the_location_and_e
   })
   local range = serve(request("GET", "/users/1?limit=500"))
   self:assert_equal(422, range.status)
-  self:assert_equal("/query/limit", json.decode(range.content).errors[1].pointer)
-  self:assert_equal("maximum", json.decode(range.content).errors[1].code)
+  local first = json.decode(range.content).errors[1]
+  self:assert_equal("/limit", first.pointer)
+  self:assert_equal("query", first.source)
+  self:assert_equal("maximum", first.code)
   local response = serve(request("GET", "/users/" .. SECRET .. "?limit=500"))
   self:assert_equal(422, response.status)
   self:assert_equal("application/problem+json", response.fields:get("Content-Type"))
@@ -84,8 +86,8 @@ function T:test_a_parameter_violation_is_a_422_that_points_at_the_location_and_e
   self:assert_nil(string.find(response.content, SECRET, 1, true))
   local body = json.decode(response.content)
   local pointers = {}
-  for _, entry in ipairs(body.errors) do pointers[entry.pointer] = entry.code; self:assert_nil(entry.message) end
-  self:assert_equal("coercion", pointers["/path/id"])
+  for _, entry in ipairs(body.errors) do pointers[entry.source .. entry.pointer] = entry.code; self:assert_nil(entry.message) end
+  self:assert_equal("coercion", pointers["path/id"])
   -- With expose_details the messages are there, still without the value.
   local exposed = serve_with("GET", "/users/{id}", { parameters = { path = { id = schema.integer() } } },
     { expose_details = true })(request("GET", "/users/" .. SECRET))
@@ -138,6 +140,116 @@ function T:test_content_with_a_plain_schema_is_validated_and_defaults_apply()
   for _, entry in ipairs(json.decode(bad.content).errors) do pointers[entry.pointer] = entry.code end
   self:assert_equal("type", pointers["/name"])
   self:assert_equal("additional_properties", pointers["/extra"])
+  for _, entry in ipairs(json.decode(bad.content).errors) do self:assert_equal("content", entry.source) end
+end
+
+local function sources_of(response)
+  local found = {}
+  for _, entry in ipairs(json.decode(response.content).errors) do found[entry.source] = entry end
+  return found
+end
+
+function T:test_every_entry_of_a_422_names_its_source_with_a_pointer_relative_to_the_value()
+  local serve = serve_with("POST", "/s/{id}", {
+    parameters = {
+      path = { id = schema.integer() }, query = { q = schema.integer() },
+      fields = { ["X-Page"] = schema.integer() }, cookies = { session = schema.integer() },
+    },
+    content = { ["application/json"] = schema.object({ name = schema.string() }) },
+  })
+  local response = serve(request("POST", "/s/x?q=y", { content = '{"name":1}',
+    fields = { ["X-Page"] = "z", Cookie = "session=w" } }))
+  self:assert_equal(422, response.status)
+  local found = sources_of(response)
+  self:assert_equal("/id", found.path.pointer)
+  self:assert_equal("/q", found.query.pointer)
+  self:assert_equal("/X-Page", found.header.pointer)
+  self:assert_equal("/session", found.cookie.pointer)
+  self:assert_nil(found.fields)
+  -- Parameters and content are read in turn: the content of this one is refused on its own.
+  local content = serve(request("POST", "/s/1?q=2", { content = '{"name":1}', fields = { ["X-Page"] = "3", Cookie = "session=4" } }))
+  self:assert_equal("/name", sources_of(content).content.pointer)
+end
+
+function T:test_expose_details_keeps_the_message_with_the_source()
+  local serve = serve_with("GET", "/x", { parameters = { query = { q = schema.integer() } } }, { expose_details = true })
+  local entry = json.decode(serve(request("GET", "/x?q=" .. SECRET)).content).errors[1]
+  self:assert_equal("query", entry.source)
+  self:assert_equal("string", type(entry.message))
+end
+
+function T:test_strict_inputs_refuse_undeclared_query_parameters_by_name_and_never_echo_the_value()
+  local ran = false
+  local serve = serve_with("GET", "/x", {
+    parameters = { query = { limit = schema.optional(schema.integer()) } },
+    action = function() ran = true end,
+  })
+  local response = serve(request("GET", "/x?limit=1&zeta=" .. SECRET .. "&a%2Fb~c=1&zeta=2&alpha"))
+  self:assert_equal(422, response.status)
+  self:assert_false(ran)
+  self:assert_nil(string.find(response.content, SECRET, 1, true))
+  local errors = json.decode(response.content).errors
+  local pointers = {}
+  for _, entry in ipairs(errors) do
+    self:assert_equal("query", entry.source)
+    self:assert_equal("additional_properties", entry.code)
+    self:assert_nil(entry.message)
+    pointers[#pointers + 1] = entry.pointer
+  end
+  self:assert_equal("/zeta,/a~1b~0c,/alpha", table.concat(pointers, ","))
+  self:assert_equal(200, serve(request("GET", "/x?limit=1")).status)
+  self:assert_equal(200, serve(request("GET", "/x")).status)
+  local exposed = serve_with("GET", "/x", {}, { expose_details = true })(request("GET", "/x?zeta=1"))
+  self:assert_equal("string", type(json.decode(exposed.content).errors[1].message))
+end
+
+function T:test_strict_is_the_default_and_applies_to_a_route_that_declares_no_query()
+  local serve = serve_with("GET", "/plain", { parameters = { fields = { ["X-Page"] = schema.optional(schema.integer()) } } })
+  self:assert_equal(422, serve(request("GET", "/plain?page=2")).status)
+  local bare = serve_with("GET", "/bare", {})
+  self:assert_equal(422, bare(request("GET", "/bare?page=2")).status)
+  self:assert_equal(200, bare(request("GET", "/bare")).status)
+  self:assert_equal(200, bare(request("GET", "/bare?")).status)
+end
+
+function T:test_lax_inputs_drop_undeclared_query_parameters()
+  local seen
+  local serve = serve_with("GET", "/x", {
+    parameters = { query = { limit = schema.optional(schema.integer()) } },
+    action = function(r) seen = r.parameters.query; return nil end,
+  }, { inputs = "lax" })
+  self:assert_equal(200, serve(request("GET", "/x?limit=3&other=1")).status)
+  self:assert_equal(3, seen.limit)
+  self:assert_nil(seen.other)
+  self:assert_equal(200, serve_with("GET", "/bare", {}, { inputs = "lax" })(request("GET", "/bare?other=1")).status)
+end
+
+function T:test_undeclared_header_fields_and_cookies_are_always_dropped()
+  for _, policy in ipairs({ "strict", "lax" }) do
+    local seen
+    local serve = serve_with("GET", "/x", {
+      parameters = { fields = { ["X-Page"] = schema.integer() }, cookies = { session = schema.string() } },
+      action = function(r) seen = r.parameters; return nil end,
+    }, { inputs = policy })
+    local response = serve(request("GET", "/x", { fields = { ["X-Page"] = "1", ["X-Other"] = "o", Cookie = "session=a; other=b" } }))
+    self:assert_equal(200, response.status)
+    self:assert_nil(seen.fields["X-Other"])
+    self:assert_nil(seen.cookies.other)
+  end
+end
+
+function T:test_the_undeclared_entries_are_capped()
+  local problems = require("hecate.kernel.problems")
+  local parts = {}
+  for i = 1, problems.MAX_ERRORS + 20 do parts[i] = "p" .. i .. "=1" end
+  local response = serve_with("GET", "/x", {})(request("GET", "/x?" .. table.concat(parts, "&")))
+  self:assert_equal(422, response.status)
+  self:assert_equal(problems.MAX_ERRORS, #json.decode(response.content).errors)
+end
+
+function T:test_an_unknown_inputs_policy_is_refused_at_build()
+  local err = self:assert_error(function() serve_with("GET", "/x", {}, { inputs = "loose" }) end)
+  self:assert_true(core.is_instance_of(err, core.ArgumentError))
 end
 
 function T:test_patch_relaxes_the_required_properties_of_the_content()

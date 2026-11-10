@@ -11,6 +11,7 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- feat(kernel)!: the 422 entries of the input validation carry a `source` (`path`, `query`, `header`, `cookie`, `content`) and a pointer relative to it (the old `/query/...` pointers are gone); the dispatcher option `inputs` (`strict` by default, or `lax`) refuses a request with undeclared query parameters, or drops them (OQ-114).
 - feat(kernel): route modules take options, `hecate.routes(name, { prefix?, filters? })`: `prefix` is prepended to every route, `filters` are the default filters of each route and a route that declares `filters` (even an empty list) replaces them (OQ-113). A prefix of a single `/` is refused, for modules and controllers (it would give `//x`).
 - feat(kernel): validation and coercion of the request path, query, header fields, cookies and JSON content by the route schemas (`request.parameters`, `request.content`; 422, 400, 413 and 415 problems), wired into the dispatcher (OQ-114). `hecate.http`: `Request:set_validated_content`, after which reading the content raises `ContentError` (reason `consumed`, a 500 problem).
 - feat(kernel): `hecate.kernel.dispatcher.build(entries, options)`: turns a route table into the function that serves a request (route match with 404, 405 and automatic `OPTIONS`, one service scope per request, controllers instantiated per request with their dependencies, global then route filters, serialisation, problem details for failures).
