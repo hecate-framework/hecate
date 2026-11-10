@@ -8,6 +8,7 @@ global <const> require
 ---@field problem hecate.kernel.problem  problem classes (`NotFound`, ...) and `define`
 ---@field problems hecate.kernel.problems  maps errors and routing failures to problem details responses
 ---@field routes fun(name: string): hecate.kernel.RouteModule  creates a route module (`hecate.routes "health"`)
+---@field dispatcher hecate.kernel.dispatcher  builds the function that serves a request from a route table
 ---@field RouteModule hecate.kernel.RouteModule  the class of route modules
 ---@field Controller hecate.kernel.Controller  the superclass of controllers
 ---@field route hecate.kernel.route  the route entry: normalisation and checks
@@ -21,6 +22,7 @@ kernel.problem = require("hecate.kernel.problem")
 kernel.problems = require("hecate.kernel.problems")
 kernel.route = require("hecate.kernel.route")
 kernel.routing = require("hecate.kernel.routing")
+kernel.dispatcher = require("hecate.kernel.dispatcher")
 ---@diagnostic disable-next-line: assign-type-mismatch  -- class constructor exported as its class
 kernel.RouteModule = require("hecate.kernel.routes")
 ---@diagnostic disable-next-line: assign-type-mismatch  -- class constructor exported as its class
