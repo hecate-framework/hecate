@@ -44,7 +44,7 @@ Message model:
 - `http.Fields`: case-insensitive, multi-valued, order-preserving fields (`add`, `set`, `get`, `get_all`, `combined`, `has`, `remove`, `count`, `lines`, `copy`); refuses CR, LF and NUL in values and non-token names.
 - `http.MediaType`: `MediaType.parse` (nil and a reason on malformed input), `format`, `essence`, `suffix`, `matches`.
 - `http.Status`: `reason`, `class`, `is_valid`, `forbids_content`.
-- `http.Request`: `method`, `target`, `path`, `query`, `fields`, `content`, `parameters`, `scope`; `peer_address()`, `cookies()`, `media_type()`.
+- `http.Request`: `method`, `target`, `path`, `query`, `fields`, `content`, `parameters`, `scope`; `peer_address()`, `cookies()`, `media_type()`, `set_validated_content(value)` (called by the kernel after it validated the content: `content` holds the value and `stream_content`, `read_content`, `read_form` and `stream_parts` raise `ContentError` with reason `consumed`).
 - `http.Response`: `status`, `reason`, `fields`, `content`; `set_cookie`, `is_successful`.
 - `http.Cookie.parse` (the `Cookie` field, RFC 6265 section 4.2.1) and `http.SetCookie` (`format`).
 

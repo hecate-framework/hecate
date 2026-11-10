@@ -11,6 +11,7 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- feat(kernel): validation and coercion of the request path, query, header fields, cookies and JSON content by the route schemas (`request.parameters`, `request.content`; 422, 400, 413 and 415 problems), wired into the dispatcher (OQ-114). `hecate.http`: `Request:set_validated_content`, after which reading the content raises `ContentError` (reason `consumed`, a 500 problem).
 - feat(kernel): `hecate.kernel.dispatcher.build(entries, options)`: turns a route table into the function that serves a request (route match with 404, 405 and automatic `OPTIONS`, one service scope per request, controllers instantiated per request with their dependencies, global then route filters, serialisation, problem details for failures).
 - feat(kernel): route declarations: route modules (`kernel.routes(name)` with `get`, `post`, `put`, `patch`, `delete`, `head`, `options`, `routes()`), the `Controller` class (`prefix`, `dependencies`, `filters`, `Controller.route`, `Controller.routes`), the single normalised route entry (`kernel.route.normalise`) that `hecate.router` compiles, `kernel.routing.collect`, and `RouteDeclarationError`; both styles produce identical route tables, checked at declaration and at boot (OQ-113).
 - feat(kernel): problem classes (`hecate.kernel.problem`: `NotFound`, `Conflict`, ..., `define`), returnable by an action and raisable from any layer; `problems.from_problem`; `options.expose_details` on `problems.from_error` and `problems.guard` (OQ-112).

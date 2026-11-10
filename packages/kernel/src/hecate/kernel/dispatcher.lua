@@ -11,6 +11,7 @@ local chain = require("hecate.kernel.chain")
 local results = require("hecate.kernel.results")
 local problems = require("hecate.kernel.problems")
 local errors = require("hecate.kernel.errors")
+local input = require("hecate.kernel.input")
 
 --- Options of `dispatcher.build`.
 ---@class hecate.kernel.DispatcherOptions
@@ -61,9 +62,10 @@ end
 --- errors still propagate (ADR 0003).
 ---
 --- Per request, in this order: the route is matched (404, 405, an unreadable path 400, and the automatic `OPTIONS` 204
---- with `Allow`); `request.parameters.path` receives the decoded path parameters as strings (coercion and validation by
---- the route's schemas are a later step of the kernel item); the service scope is opened and closed around the chain;
---- the chain runs the global filters, then those of the entry, then the action; its result is serialised by
+--- with `Allow`); `request.parameters.path` receives the decoded path parameters as strings; the service scope is opened and closed around the chain;
+--- the chain runs the global filters, then those of the entry, then the inputs are read, coerced and validated by the
+--- schemas of the route (`hecate.kernel.input`: `request.parameters` and `request.content`, or a `422`, `400`, `415`
+--- problem) and the action runs; its result is serialised by
 --- `results.serialise` against the entry's `responses`.
 ---
 --- Raises `RouteDeclarationError` (`missing_container`) for a controller with dependencies and no container, the
@@ -87,7 +89,17 @@ function dispatcher.build(entries, options)
     local filters = {}
     for _, filter in ipairs(global_filters) do filters[#filters + 1] = filter end
     for _, filter in ipairs(entry.filters) do filters[#filters + 1] = filter end
-    local composed = chain.compose(filters, resolve_action(entry, container))
+    local action = resolve_action(entry, container)
+    -- The inputs are validated innermost, after the filters (authentication, rate limiting): a client refused by a filter
+    -- costs no content read. A route that declares no input gets the action itself.
+    local read_input = input.compile(entry, problem_options)
+    if read_input ~= nil then
+      local serve_action = action
+      action = function(request)
+        return read_input(request) or serve_action(request)
+      end
+    end
+    local composed = chain.compose(filters, action)
     handlers[entry] = function(request)
       return results.serialise(composed(request), request, entry.responses, serialise_options)
     end

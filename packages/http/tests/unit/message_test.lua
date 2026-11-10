@@ -1,5 +1,6 @@
 ---@diagnostic disable: missing-fields, param-type-mismatch, assign-type-mismatch  -- the tests pass invalid arguments on purpose
 local test = require("harness.test")
+local core = require("hecate.core")
 local http = require("hecate.http")
 local T = test.Case("MessageTest")
 
@@ -18,6 +19,23 @@ end
 function T:test_request_has_the_four_parameter_keys()
   local r = http.Request({ target = "/" })
   for _, key in ipairs({ "path", "query", "fields", "cookies" }) do self:assert_equal("table", type(r.parameters[key])) end
+end
+
+function T:test_validated_content_closes_the_raw_content()
+  local request = http.Request({ method = "POST", target = "/", content = "{}",
+    fields = http.Fields({ ["Content-Type"] = "application/x-www-form-urlencoded" }) })
+  request:set_validated_content({ name = "a" })
+  self:assert_equal("a", request.content.name)
+  for _, read in ipairs({
+    function() request:stream_content() end, function() request:read_content() end,
+    function() request:read_form() end, function() request:stream_parts() end,
+  }) do
+    local err = self:assert_error(read)
+    self:assert_true(core.is_instance_of(err, http.ContentError))
+    self:assert_equal("consumed", err.context.reason)
+  end
+  -- A request that never had validated content keeps its stream.
+  self:assert_equal("{}", http.Request({ method = "POST", target = "/", content = "{}" }):read_content())
 end
 
 function T:test_request_rejects_invalid_method_and_target()

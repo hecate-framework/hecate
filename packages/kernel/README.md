@@ -8,7 +8,7 @@
 | Rock | `hecate-kernel` |
 | Layer | 3 — Framework |
 | Roadmap phase | 2 |
-| Status | in progress: filter chain, results, problems, route declarations |
+| Status | in progress: filter chain, results, problems, route declarations, dispatcher, validation of the request inputs |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |
 | Depends on | [`core`](../core), [`reactor`](../reactor), [`log`](../log), [`http`](../http), [`router`](../router), [`schema`](../schema), [`container`](../container), [`config`](../config), [`json`](../json) |
 | Used by | `cli`, `hecate`, `security`, `template`, `test` |
@@ -116,6 +116,22 @@
 - `kernel.RouteDeclarationError`: a `ConfigurationError`; `context.reason` (`unknown_field`, `invalid_method`, `invalid_path`,
   `parameter_mismatch`, `missing_action`, ...), `context.origin`, `context.field`. Choices: OQ-113.
 
+- `kernel.dispatcher.build(entries, options?)`: the function that serves a request and its router. Per route, once at
+  composition, the schemas of the inputs are resolved (`kernel.input.compile(entry, options?)`, returns nil for a route
+  that declares no input, which then pays nothing). Inside the chain, after the filters and just before the action:
+  `parameters.path`, `query`, `fields` (header fields) and `cookies` are read as texts for the declared names only
+  (the query is `application/x-www-form-urlencoded` text read with `http.form`; a repeated key is a list), coerced and
+  validated in one `build(raw, { coerce = true })` of an `object` schema, and the result replaces
+  `request.parameters.<location>`; the content, when the route declares `application/json`, is read (bounded by the
+  limit of the stream), decoded by `json.decode` (nesting ceiling `json.DEFAULT_MAX_DEPTH`), then `build` validates it
+  and instantiates class-bound parts (`method = "PATCH"` for a PATCH route); `request.content` holds the result and
+  `request:read_content()` and `stream_content()` raise `ContentError` (`consumed`). Failures are problem details
+  responses: `422` for violations (pointers `/query/limit` for a parameter, relative to the content for the content;
+  `problems.from_error` with `input = true`, so nothing of the offending values), `400` for malformed JSON or a bad
+  percent-encoding, `413` over the limit, `415` for another `Content-Type`. A route that declares `content` only for
+  another media type is refused at build (`RouteDeclarationError`, `unsupported_content_type`). Missing content with no
+  `Content-Type` is validated as an absent value (a `default` schema accepts it, otherwise `422`).
+
 Further exports (application, feature modules) arrive with later items.
 
 ## Layout (once implemented)
@@ -131,6 +147,8 @@ src/hecate/kernel/routes.lua   route modules
 src/hecate/kernel/controller.lua  controllers
 src/hecate/kernel/routing.lua  the route table of an application
 src/hecate/kernel/errors.lua   RouteDeclarationError
+src/hecate/kernel/input.lua    validation and coercion of the inputs of a request
+src/hecate/kernel/dispatcher.lua  the function that serves a request
 tests/unit/  tests/integration/  tests/fixtures/
 examples/    benchmarks/
 ```

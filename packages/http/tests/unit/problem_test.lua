@@ -56,6 +56,13 @@ function T:test_content_errors_keep_their_status_and_not_their_text()
   local timeout = http.ContentError({ message = "x", context = { status = 408, reason = "timeout" } })
   self:assert_equal(408, problem.from_error(timeout).status)
 end
+function T:test_reading_content_already_consumed_is_a_server_defect_not_a_client_error()
+  local err = http.ContentError({ message = "consumed", context = { status = 500, reason = "consumed" } })
+  local response = problem.from_error(err)
+  self:assert_equal(500, response.status)
+  self:assert_nil(response.content:find("consumed", 1, true))
+end
+
 function T:test_every_error_class_maps_to_a_status_and_a_fixed_detail_that_echoes_nothing()
   local net = require("hecate.net")
   local Parser = require("hecate.http.errors")

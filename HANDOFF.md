@@ -3,8 +3,8 @@
 
 - roadmap_item: `kernel`: application, modules, controllers, route modules, filters, problem details, lifecycle, multi-process workers, graceful shutdown (Phase 2, docs/roadmap.md)
 - status: in-progress
-- lock_until: 2026-11-10T09:27:16Z
-- last_update: 2026-11-10T07:57:16Z
+- lock_until: 2026-11-10T08:17:11Z
+- last_update: 2026-11-10T08:17:11Z
 
 ## Done
 
@@ -31,11 +31,11 @@
 
 - Step 11 (run of 2026-11-10T06:45:20Z, lock released at the end): `hecate.kernel.dispatcher.build(entries, options)` returns `serve(request)` and the router: match (404/405/400, automatic OPTIONS 204), service scope per request, controller instance per request with `dependencies` resolved in `request.scope`, global then entry filters composed once, `results.serialise`, `problems.guard`; 6 tests; typecheck, lint, check-annotations, check-boundaries, `test kernel` ok (json native built with `build-native json http`). Path parameters are given as raw decoded strings: coercion/validation by route schemas not done yet.
 
-- Step 12 in progress (run of ~08:00Z, regular 90-minute lock): validation and coercion of the request parameters and content by the route schemas, wired into the dispatcher.
+- Step 12 (run of ~08:00Z, lock released at the end): `hecate.kernel.input` (parameters path/query/fields/cookies and JSON content validated and coerced by the route schemas, wired into the dispatcher), `Request:set_validated_content` in `http` (reading consumed content raises `ContentError` `consumed`, mapped to a 500), 14 tests; typecheck, lint, check-annotations, `test kernel`, `test http` ok. Choices to confirm: OQ-114.
 
 ## Next steps
 
-0. Kernel code after the dispatcher: request parameter/content validation by the route schemas (coercion into `request.parameters`), then the `Application` skeleton and boot validation (feature modules, container wiring, `json.set_max_depth`, server binding), the `hecate.respond` re-export, response validation in development/test, then the handoffs (a) to (g) of the roadmap item.
+0. Kernel code after the input validation: the `Application` skeleton and boot validation (feature modules, container wiring, `json.set_max_depth`, server binding), the `hecate.respond` re-export, response validation in development/test, then the handoffs (a) to (g) of the roadmap item.
 1. Kernel handoffs are in the `kernel` roadmap item, items (a) to (g): `json.set_max_depth` at boot, logging keys (default logger = `log.DEFAULT_REDACT` + `logging.redact`), `wrap_secret = log.Secret`, response schema by `schema.of`, a `hecate.respond(status, value)` helper, `ContentError` when the content was consumed by validation. Check CI of the pull request first.
 2. OQ-101 items (b) logging keys, (c) `wrap_secret`; (a) kernel must call `json.set_max_depth(limits.max_depth)` at boot.
 3. Settle how a route names its response schema (OQ-98 item 7), then the kernel proper.

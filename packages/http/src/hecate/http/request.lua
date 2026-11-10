@@ -64,12 +64,31 @@ end
 
 --- Returns a reader of the content, chunk by chunk (`reader:read()` returns nil at the end). A request built by
 --- hand reads its string `content`; one without content reads nothing.
+---
+--- Raises `hecate.http.ContentError` (`context.reason` `consumed`) once `set_validated_content` was called: the
+--- content was read and validated by the kernel, `content` holds the result.
 ---@return hecate.http.ContentStream
 function Request:stream_content()
+  if self._content_validated then
+    error(ContentStream.ContentError({
+      message = "http.Request: the content was already validated and consumed",
+      context = { status = 500, reason = "consumed" },
+    }), 2)
+  end
   if self._content_stream == nil then
     self._content_stream = ContentStream.of(type(self.content) == "string" and self.content or "")
   end
   return self._content_stream
+end
+
+--- Records the validated content of the request (the kernel calls it after it has read the content and validated it
+--- with the schema of the route): `content` becomes `value`, and the raw content is closed, so that `stream_content`,
+--- `read_content`, `read_form` and `stream_parts` raise `hecate.http.ContentError` (reason `consumed`) instead of
+--- returning nothing (OQ-76 b). A route without a content schema never calls it and keeps its stream untouched.
+---@param value any
+function Request:set_validated_content(value)
+  self.content = value
+  self._content_validated = true
 end
 
 --- Reads the whole content into a string, bounded by the limit of the server (and by `limit` when it is lower).
