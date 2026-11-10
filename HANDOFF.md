@@ -3,8 +3,8 @@
 
 - roadmap_item: `kernel`: application, modules, controllers, route modules, filters, problem details, lifecycle, multi-process workers, graceful shutdown (Phase 2, docs/roadmap.md)
 - status: in-progress
-- lock_until: 2026-11-10T18:48:31Z
-- last_update: 2026-11-10T18:48:31Z
+- lock_until: 2026-11-10T22:44:01Z
+- last_update: 2026-11-10T21:14:01Z
 
 ## Done
 
@@ -46,6 +46,9 @@
 - Step 17 (run of 2026-11-10T15:40Z, lock released at the end): `config` declares `errors.expose_details` and `requests.inputs` (names reserved); `kernel.Application` option `configuration` binds them, `limits.max_depth` and the logging keys (`kernel.logging.build`, default logger installed with `log.set_default`), boot warning for `expose_details` in production; 5 tests; typecheck, lint, check-annotations, check-boundaries, check-glossary, `test kernel`, `test config` ok. Roadmap handoffs (a), (b), (h), (l) done in code; `wrap_secret` (c) not yet wired (`config.load` is called by the user, not the kernel). Doc of the generated `config/development.lua` left to the `cli` item.
 
 - Step 18 (run of 2026-11-10T18:41Z, lock released at the end): `Application:serve` watches `sigint`/`sigterm` (options `signals`, list or `false`, and `grace_timeout`, default 30) and calls `shutdown`; the signal is logged (`shutdown_signal`), an unwatchable one is a warning (`signals_unavailable`); 3 tests (signal test POSIX only, with `sigusr2`); typecheck, lint, check-annotations, check-boundaries, check-glossary, check-changelog, check-links, `test kernel` ok (after `build-native json`, `build-native http`). Choices to confirm: OQ-115 (issue #171).
+
+- OQ-115 resolved by the owner (2026-11-10, issue #171 closed): fixed signals, key `server.grace_timeout`, second signal forces the stop, SIGHUP rolling reload kept as roadmap kernel item (m); roadmap (n) lists the implementation.
+- Step 16 in progress (run of ~21:15Z, regular 90-minute lock): roadmap (n), `config` key `server.grace_timeout` then the kernel changes.
 
 ## Next steps
 
