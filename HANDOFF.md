@@ -3,8 +3,8 @@
 
 - roadmap_item: `kernel`: application, modules, controllers, route modules, filters, problem details, lifecycle, multi-process workers, graceful shutdown (Phase 2, docs/roadmap.md)
 - status: in-progress
-- lock_until: 2026-11-10T06:45:20Z
-- last_update: 2026-11-10T06:45:20Z
+- lock_until: 2026-11-10T09:27:16Z
+- last_update: 2026-11-10T07:57:16Z
 
 ## Done
 
@@ -30,6 +30,8 @@
 - CI fix (run of 2026-11-10T03:50Z, lock released at the end): CI of 085f685 failed on the three platforms at `check-annotations` (`Problem.code` had no `---@field`); added the field. `check-annotations`, typecheck ok; `test kernel` here fails only for the unbuilt json native module (no Rust). Remember to run `check-annotations` before pushing.
 
 - Step 11 (run of 2026-11-10T06:45:20Z, lock released at the end): `hecate.kernel.dispatcher.build(entries, options)` returns `serve(request)` and the router: match (404/405/400, automatic OPTIONS 204), service scope per request, controller instance per request with `dependencies` resolved in `request.scope`, global then entry filters composed once, `results.serialise`, `problems.guard`; 6 tests; typecheck, lint, check-annotations, check-boundaries, `test kernel` ok (json native built with `build-native json http`). Path parameters are given as raw decoded strings: coercion/validation by route schemas not done yet.
+
+- Step 12 in progress (run of ~08:00Z, regular 90-minute lock): validation and coercion of the request parameters and content by the route schemas, wired into the dispatcher.
 
 ## Next steps
 
