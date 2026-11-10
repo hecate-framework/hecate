@@ -33,6 +33,8 @@
 
 - Step 12 (run of ~08:00Z, lock released at the end): `hecate.kernel.input` (parameters path/query/fields/cookies and JSON content validated and coerced by the route schemas, wired into the dispatcher), `Request:set_validated_content` in `http` (reading consumed content raises `ContentError` `consumed`, mapped to a 500), 14 tests; typecheck, lint, check-annotations, `test kernel`, `test http` ok. Choices to confirm: OQ-114.
 
+- Owner answers on OQ-113 (2026-11-10): both `Controller.route(Class, spec)` and the class field `routes = {...}` (roadmap kernel item (j), to implement); (4), (5), (6), (9) agreed; (2), (3), (7), (8) still open (the owner asked for more context). The DX example now shows the `routes` field.
+
 ## Next steps
 
 0. Kernel code after the input validation: the `Application` skeleton and boot validation (feature modules, container wiring, `json.set_max_depth`, server binding), the `hecate.respond` re-export, response validation in development/test, then the handoffs (a) to (g) of the roadmap item.

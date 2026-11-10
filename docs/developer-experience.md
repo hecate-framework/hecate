@@ -82,14 +82,20 @@ local UserController = core.class("UserController", hecate.Controller)
 UserController.prefix       = "/users"
 UserController.dependencies = { repository = "users.UserRepository" }
 
-UserController:route {
-  method     = "GET",
-  path       = "/{id}",
-  summary    = "Fetch a user",
-  parameters = { path = { id = schema.integer { minimum = 1 } } },
-  responses  = { [200] = User.representation, [404] = hecate.problem.NotFound },
-  action     = "show",
+-- Routes are data, declared like the other class fields (`prefix`, `dependencies`).
+-- Validation happens when the application boots, not at the line below.
+UserController.routes = {
+  {
+    method     = "GET",
+    path       = "/{id}",
+    summary    = "Fetch a user",
+    parameters = { path = { id = schema.integer { minimum = 1 } } },
+    responses  = { [200] = schema.of(User), [404] = hecate.problem.NotFound },
+    action     = "show",
+  },
 }
+-- Equivalent: `hecate.Controller.route(UserController, { ... })` validates a declaration as soon as it
+-- is written, so an error points at the faulty line.
 
 ---@param request hecate.Request
 function UserController:show(request)
