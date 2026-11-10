@@ -3,8 +3,8 @@
 
 - roadmap_item: `kernel`: application, modules, controllers, route modules, filters, problem details, lifecycle, multi-process workers, graceful shutdown (Phase 2, docs/roadmap.md)
 - status: in-progress
-- lock_until: 2026-11-10T21:35:00Z
-- last_update: 2026-11-10T21:18:35Z
+- lock_until: 2026-11-10T21:23:37Z
+- last_update: 2026-11-10T21:23:37Z
 
 ## Done
 
@@ -50,7 +50,7 @@
 - OQ-115 resolved by the owner (2026-11-10, issue #171 closed): fixed signals, key `server.grace_timeout`, second signal forces the stop, SIGHUP rolling reload kept as roadmap kernel item (m); roadmap (n) lists the implementation.
 - Step 16 (run of ~21:15Z, lock released at the end): roadmap (n) done: `config` declares `server.grace_timeout` (default 30, `HECATE_SERVER__GRACE_TIMEOUT`, `server` reserved), `Application` binds it to `grace_timeout`, the `signals` list is removed (`false` is the only value, the set is `sigint`+`sigterm`), a second signal forces the stop (`shutdown_forced`). typecheck, lint, check-annotations, `test kernel`, `test config` ok. Still to do for (n): the generated `config/development.lua` and `config/test.lua` (CLI scaffolding, not built) must set `server.grace_timeout` low (2 s, to confirm); docs/architecture/concurrency.md "Signals and shutdown" may need the fixed set and the forced stop. Limitation: a second signal arriving between the first wait returning and the second being installed is lost.
 
-- Step 17 in progress (run of ~21:20Z, owner: next automatic run at 21:40Z, lock until 21:35Z): first cut of `examples/hello` (JSON API with validation, roadmap Phase 2), run end to end through `kernel.Application` (the `hecate` meta-rock is Phase 3, not started).
+- Step 17 (run of ~21:20Z, lock released at the end): first cut of `examples/hello` (controller with `Controller.route`, route module `/health`, 422 with `source`, 201 with `respond`, graceful shutdown, 5 in-process tests via `lua tools/run.lua test examples/hello`, README); `tools/tasks/test.lua` accepts `examples/<name>`. Single process: the Phase 2 exit criterion (N workers) and the roadmap item stay open. To do: run the example test in CI (a matrix or workflow step invoking `test examples/hello`), a public `Application:local_address()` (the test reads the private `_server`), `hecate.project.lua` and contract checks with the CLI (Phase 3).
 
 ## Next steps
 

@@ -11,6 +11,7 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- examples: `examples/hello`, a JSON API run through `kernel.Application` (path parameter validation, 422 problem details with `source`, 201 through `kernel.results.respond`, a `/health` route module, graceful shutdown), with an in-process test (`lua tools/run.lua test examples/hello`); single process only (multi-process workers are not built). tools: the `test` task accepts `examples/<name>`.
 - feat(config): framework key `server.grace_timeout` (seconds, finite, at least 0, default 30; `HECATE_SERVER__GRACE_TIMEOUT`); the name `server` is reserved (OQ-101, OQ-115). `kernel`: `Application` binds it to its `grace_timeout` option.
 - feat(kernel): `Application:serve` shuts down gracefully on `sigint` and `sigterm` (options `signals`, a list or `false`, and `grace_timeout`, default 30 s; `shutdown(grace_timeout)` defaults to the option); the signal is logged with the code `shutdown_signal` (OQ-115).
 - feat(kernel): `kernel.Application` (composition root: `boot` applies `max_depth`, orders feature modules topologically, binds services, validates the container, gathers routes, builds the dispatcher; `serve` and `shutdown` drive an `http.Server`), `kernel.modules.order` and `ModuleError` (`invalid_module`, `duplicate_module`, `missing_dependency`, `dependency_cycle`, `already_booted`).
