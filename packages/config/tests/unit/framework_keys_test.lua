@@ -104,4 +104,25 @@ function T:test_errors_and_requests_keys()
   self:assert_equal("requests.inputs", err.context.violations[1].path)
 end
 
+function T:test_grace_timeout_default_and_text_coercion()
+  self:assert_equal(30, fixture.load({}):get("server.grace_timeout"))
+  self:assert_equal(2.5, fixture.load({ env = { HECATE_SERVER__GRACE_TIMEOUT = "2.5" } }):get("server.grace_timeout"))
+  self:assert_equal(0, fixture.load({ env = { HECATE_SERVER__GRACE_TIMEOUT = "0" } }):get("server.grace_timeout"))
+  self:assert_equal("HECATE_SERVER__GRACE_TIMEOUT", config.variable_name("HECATE", { "server", "grace_timeout" }))
+  local from_file = fixture.load({ files = { ["config/default.lua"] = "return { server = { grace_timeout = 5 } }" } })
+  self:assert_equal(5, from_file:get("server.grace_timeout"))
+end
+
+function T:test_grace_timeout_must_be_a_non_negative_finite_number()
+  for _, text in ipairs({ "-1", "-0.5", "nan", "inf", "-inf", "abc", "" }) do
+    local err = fixture.failure({ env = { HECATE_SERVER__GRACE_TIMEOUT = text } })
+    self:assert_equal("server.grace_timeout", err.context.violations[1].path, text)
+  end
+  for _, literal in ipairs({ "0/0", "1e999", "-1e999", "-1", "'5'", "true" }) do
+    local err = fixture.failure({ files = { ["config/default.lua"] =
+      "return { server = { grace_timeout = " .. literal .. " } }" } })
+    self:assert_equal("server.grace_timeout", err.context.violations[1].path, literal)
+  end
+end
+
 return T

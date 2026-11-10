@@ -1,4 +1,4 @@
--- The keys that every configuration has (`logging`, `limits`, `errors`, `requests`) and the walk of a schema that derives environment
+-- The keys that every configuration has (`logging`, `limits`, `errors`, `requests`, `server`) and the walk of a schema that derives environment
 -- variables and checks paths (configuration.md, "Logging keys", "The limit on nesting depth", "Environment variables").
 global <const> require, type, pairs, ipairs, table, string, getmetatable, error
 
@@ -17,7 +17,7 @@ M.SEVERITIES = { "emergency", "alert", "critical", "error", "warning", "notice",
 --- `config` does not depend on `json`; a test compares the two.
 M.MAX_DEPTH_CEILING = 1000
 
-local FRAMEWORK = { logging = true, limits = true, errors = true, requests = true }
+local FRAMEWORK = { logging = true, limits = true, errors = true, requests = true, server = true }
 
 --- The framework properties declared by every configuration.
 ---@return table<string, hecate.schema.Schema>
@@ -37,6 +37,10 @@ function M.framework_properties()
     }), {}),
     errors = schema.default(schema.object({
       expose_details = schema.default(schema.boolean(), false),
+    }), {}),
+    -- `schema.number` is finite (it refuses NaN and infinity); the timeout is read from the environment (The Twelve-Factor App, III).
+    server = schema.default(schema.object({
+      grace_timeout = schema.default(schema.number({ minimum = 0 }), 30),
     }), {}),
     requests = schema.default(schema.object({
       inputs = schema.default(schema.enumeration({ "strict", "lax" }), "strict"),

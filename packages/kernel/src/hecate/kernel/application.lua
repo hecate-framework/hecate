@@ -15,9 +15,9 @@ local logging = require("hecate.kernel.logging")
 local log = require("hecate.log")
 local reactor = require("hecate.reactor")
 
---- The signals that start a graceful shutdown by default (concurrency.md, "Signals and shutdown"). On Windows libuv
+--- The fixed set of signals that stop `serve` (concurrency.md, "Signals and shutdown"; OQ-115). On Windows libuv
 --- delivers `sigint` for Ctrl+C; `sigterm` is accepted there and never delivered.
-local DEFAULT_SIGNALS <const> = { "sigint", "sigterm" }
+local SIGNALS <const> = { "sigint", "sigterm" }
 
 --- Options of `Application`.
 ---@class hecate.kernel.ApplicationOptions
@@ -26,14 +26,14 @@ local DEFAULT_SIGNALS <const> = { "sigint", "sigterm" }
 ---@field services? fun(container: hecate.container.Container)  binds services of the application itself, before those of the modules
 ---@field filters? hecate.kernel.Filter[]  global filters, outermost, before those of the modules
 ---@field container? hecate.container.Container  an existing container (not yet validated); default: a new one
----@field configuration? hecate.config.Configuration  binds `limits.max_depth`, `errors.expose_details`, `requests.inputs` and the logging keys; the options below override it
+---@field configuration? hecate.config.Configuration  binds `limits.max_depth`, `errors.expose_details`, `requests.inputs`, `server.grace_timeout` and the logging keys; the options below override it
 ---@field max_depth? integer  nesting depth limit of `json` and `schema` (`json.set_max_depth`, OQ-92)
 ---@field expose_details? boolean  see `hecate.kernel.DispatcherOptions`
 ---@field inputs? "lax"|"strict"  see `hecate.kernel.DispatcherOptions`
 ---@field logger? hecate.log.Logger  receives unhandled failures and the container warnings
 ---@field router? hecate.router.RouterOptions
 ---@field server? hecate.http.ServerOptions  options of the HTTP server made by `serve` (`logger` defaults to the application's)
----@field signals? string[]|false  signals that make `serve` shut down gracefully (default `{ "sigint", "sigterm" }`; `false`: none)
+---@field signals? false  `false` disables signal handling (tests, embedding); the set (`sigint`, `sigterm`) is fixed and cannot be listed
 ---@field grace_timeout? number  seconds a signal-driven shutdown lets requests in flight finish (default 30)
 
 --- The composition root.
@@ -59,14 +59,8 @@ function Application:init(options)
   for key in pairs(options) do
     if not KNOWN[key] then error(core.ArgumentError(("kernel.Application: unknown option %q"):format(tostring(key))), 2) end
   end
-  local signals = options.signals
-  if signals ~= nil and signals ~= false then
-    if type(signals) ~= "table" or #signals == 0 then
-      error(core.ArgumentError("kernel.Application: signals is a non-empty list of signal names, or false"), 2)
-    end
-    for _, name in ipairs(signals) do
-      if type(name) ~= "string" then error(core.ArgumentError("kernel.Application: signal names are strings"), 2) end
-    end
+  if options.signals ~= nil and options.signals ~= false then
+    error(core.ArgumentError("kernel.Application: the signal set is fixed (sigint, sigterm); signals = false disables signal handling"), 2)
   end
   local grace = options.grace_timeout
   if grace ~= nil and (type(grace) ~= "number" or grace ~= grace or grace < 0 or grace == math.huge) then
@@ -95,6 +89,7 @@ function Application:boot()
     if options.max_depth == nil then options.max_depth = configuration:get("limits.max_depth") end
     if options.expose_details == nil then options.expose_details = configuration:get("errors.expose_details") end
     if options.inputs == nil then options.inputs = configuration:get("requests.inputs") end
+    if options.grace_timeout == nil then options.grace_timeout = configuration:get("server.grace_timeout") end
     if options.logger == nil then
       options.logger = logging.build(configuration)
       log.set_default(options.logger)
@@ -133,14 +128,14 @@ function Application:boot()
   return serve
 end
 
---- Waits for one of `signals`, then shuts the application down gracefully. A signal the platform cannot watch is
---- logged once and the application serves without signal handling.
+--- Waits for `sigint` or `sigterm`, then shuts the application down gracefully. While that shutdown drains, a second
+--- signal forces the stop: the requests still in flight are cancelled at once (`Server:shutdown(0)`, OQ-115). A signal
+--- the platform cannot watch is logged once and the application serves without signal handling.
 ---@async
 ---@param self hecate.kernel.Application
----@param signals string[]
 ---@param logger? hecate.log.Logger
-local function watch_signals(self, signals, logger)
-  local ok, name = pcall(reactor.wait_signal, table.unpack(signals))
+local function watch_signals(self, logger)
+  local ok, name = pcall(reactor.wait_signal, table.unpack(SIGNALS))
   if not ok then
     if core.is_instance_of(name, core.CancellationError) then error(name, 0) end
     if logger ~= nil then
@@ -154,12 +149,28 @@ local function watch_signals(self, signals, logger)
     logger:notice("kernel.Application: signal received, shutting down gracefully",
       { code = "shutdown_signal", signal = name })
   end
-  self:shutdown(self._options.grace_timeout)
+  -- The drain runs in this scope's body; the child waits for the second signal and ends with the scope (ADR 0003).
+  reactor.scope(function(scope)
+    local forcer = scope:fork(function()
+      local second_ok, second = pcall(reactor.wait_signal, table.unpack(SIGNALS))
+      if not second_ok then
+        if core.is_instance_of(second, core.CancellationError) then error(second, 0) end
+        return
+      end
+      if logger ~= nil then
+        logger:warning("kernel.Application: second signal received, stopping now", { code = "shutdown_forced", signal = second })
+      end
+      self:shutdown(0)
+    end)
+    self:shutdown((self._resolved or self._options).grace_timeout)
+    forcer:cancel()
+  end)
 end
 
 --- Boots when needed, then serves HTTP until `shutdown` completes. Returns when the server has stopped; closes the
---- container afterwards. While serving, one of the `signals` option (default `sigint` and `sigterm`) starts
---- `shutdown` with the `grace_timeout` option: accepting stops and the requests in flight finish (ADR 0023).
+--- container afterwards. While serving, `sigint` or `sigterm` (unless `signals = false`) starts `shutdown` with the
+--- `grace_timeout` option: accepting stops and the requests in flight finish (ADR 0023). A second signal during that
+--- drain cancels the remaining requests at once.
 ---
 --- Raises what `boot` and `hecate.http.Server:serve` raise.
 ---@async
@@ -171,11 +182,10 @@ function Application:serve()
   if server_options.logger == nil then server_options.logger = logger end
   local server = http.Server(serve, server_options)
   self._server = server
-  local signals = self._options.signals
-  if signals == nil then signals = DEFAULT_SIGNALS end
+  local watched = self._options.signals ~= false
   local ok, err = pcall(reactor.scope, function(scope)
     local watcher
-    if signals then watcher = scope:fork(watch_signals, self, signals, logger or log.default()) end
+    if watched then watcher = scope:fork(watch_signals, self, logger or log.default()) end
     server:serve()
     -- A watcher that received its signal is inside `shutdown` and ends by itself.
     if watcher ~= nil and not self._signalled then watcher:cancel() end
@@ -190,7 +200,7 @@ end
 ---@async
 ---@param grace_timeout? number  seconds, default the `grace_timeout` option, else 30
 function Application:shutdown(grace_timeout)
-  if grace_timeout == nil then grace_timeout = self._options.grace_timeout end
+  if grace_timeout == nil then grace_timeout = (self._resolved or self._options).grace_timeout end
   if self._server ~= nil then self._server:shutdown(grace_timeout) end
 end
 

@@ -233,6 +233,17 @@ reserved like `logging` and `limits` (`ArgumentError`). `Application({ configura
 together with `limits.max_depth` and the logging keys; an explicit option of `Application` wins. The generated
 `config/development.lua` and `config/test.lua` (a `cli` task) set `expose_details = true` and `inputs = "lax"`.
 
+## The server key
+
+| Key | Type | Default | Meaning |
+|---|---|---|---|
+| `server.grace_timeout` | non-negative finite number (seconds) | `30` | seconds a graceful shutdown lets the requests in flight finish before cancelling them; it must be shorter than the stop timeout of the deployment (`docker stop` waits 10 s by default, Kubernetes 30 s) |
+
+Environment variable: `HECATE_SERVER__GRACE_TIMEOUT` (text such as `2.5` is coerced to a number). A negative value, NaN,
+infinity or a non-number is a `ConfigurationError` at load (`server.grace_timeout`). The name `server` is reserved like
+`logging`, `limits`, `errors` and `requests` (`ArgumentError`). The kernel binds the key to the `grace_timeout` option of `Application`
+([OQ-101](../open-questions.md), [OQ-115](../open-questions.md)); `config` only validates and exposes it.
+
 ## The limit on nesting depth
 
 | Key | Type | Default | Meaning |
@@ -255,7 +266,7 @@ through `json.DEFAULT_MAX_DEPTH`). Until the kernel applies the key at boot, it 
 | Class | When |
 |---|---|
 | `hecate.core.ConfigurationError` | any invalid configuration: unreadable or invalid file, unknown key, wrong type, missing required key, colliding environment variable names, a `file` sink without path |
-| `hecate.core.ArgumentError` | a wrong option of `load` (unknown option, bad `env_prefix`, `properties` that redeclare `logging` or `limits`, an unknown secret path); `get` of an undeclared path |
+| `hecate.core.ArgumentError` | a wrong option of `load` (unknown option, bad `env_prefix`, `properties` that redeclare `logging`, `limits`, `errors`, `requests` or `server`, an unknown secret path); `get` of an undeclared path |
 | `hecate.core.ConformanceError` | a write to a frozen section or list |
 
 Messages follow [coding-standards.md](coding-standards.md#errors): the qualified prefix (`config.load: ...`), the offending value and

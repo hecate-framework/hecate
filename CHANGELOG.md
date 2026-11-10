@@ -11,6 +11,7 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- feat(config): framework key `server.grace_timeout` (seconds, finite, at least 0, default 30; `HECATE_SERVER__GRACE_TIMEOUT`); the name `server` is reserved (OQ-101, OQ-115). `kernel`: `Application` binds it to its `grace_timeout` option.
 - feat(kernel): `Application:serve` shuts down gracefully on `sigint` and `sigterm` (options `signals`, a list or `false`, and `grace_timeout`, default 30 s; `shutdown(grace_timeout)` defaults to the option); the signal is logged with the code `shutdown_signal` (OQ-115).
 - feat(kernel): `kernel.Application` (composition root: `boot` applies `max_depth`, orders feature modules topologically, binds services, validates the container, gathers routes, builds the dispatcher; `serve` and `shutdown` drive an `http.Server`), `kernel.modules.order` and `ModuleError` (`invalid_module`, `duplicate_module`, `missing_dependency`, `dependency_cycle`, `already_booted`).
 - feat(config): the framework keys `errors.expose_details` and `requests.inputs` (the names `errors` and `requests` are reserved); feat(kernel): `Application` option `configuration` binds them with `limits.max_depth` and the logging keys, builds and installs the default logger, and warns at boot when `expose_details` is true in production.
@@ -228,6 +229,7 @@ Each release heading states the supported Lua version.
 
 ### Changed
 
+- kernel!: `Application` option `signals` no longer takes a list; the signal set is fixed (`sigint`, `sigterm`) and `false` is the only accepted value (opt-out). A second signal during a signal-driven graceful shutdown forces the stop: the remaining requests are cancelled at once and `shutdown_forced` is logged at `warning` (OQ-115).
 - `hecate.http`: breaking: `http` is bytes only (OQ-76 a). The `hecate.http.Response` constructor raises `hecate.core.ArgumentError` for content that is not nil, a string or a function (a table included), and `Response.content` is annotated `string|function|nil`. A framework that serialises, the kernel, encodes before it builds the response. `serve_request` and the server keep their check for a hand-made object that bypasses the constructor: the generic 500 problem details response and a log entry.
 - `hecate.http`: breaking: `http` never serialises (OQ-76 a). A table as the content of a response that reaches the `Server` is no longer sent as JSON: it is an error, answered with the generic 500 problem details response and logged at `error` severity. Encode the table and set `Content-Type` in the action (the kernel serialises by content negotiation). Tests, examples and guides that returned tables are updated.
 - `hecate.http`: refactor(http): `server.lua` and `client.lua` are split into internal modules under `src/hecate/http/internal/` (`server_options`, `server_response`, `server_connection`, `client_connection`, `client_pool`, `client_exchange`, `client_redirect`); first step of the `kernel` item. No public API or behaviour change; the internal modules are not public API.

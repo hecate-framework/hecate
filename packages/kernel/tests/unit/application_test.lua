@@ -98,6 +98,19 @@ function T:test_configuration_binds_inputs_and_exposure()
   log.set_default(nil)
 end
 
+function T:test_configuration_binds_the_grace_timeout()
+  local app = kernel.Application({ configuration = configuration({ HECATE_SERVER__GRACE_TIMEOUT = "2" }) })
+  app:boot()
+  self:assert_equal(2, app._resolved.grace_timeout)
+  local default = kernel.Application({ configuration = configuration({}) })
+  default:boot()
+  self:assert_equal(30, default._resolved.grace_timeout)
+  local explicit = kernel.Application({ grace_timeout = 5, configuration = configuration({ HECATE_SERVER__GRACE_TIMEOUT = "2" }) })
+  explicit:boot()
+  self:assert_equal(5, explicit._resolved.grace_timeout)
+  log.set_default(nil)
+end
+
 function T:test_explicit_options_override_the_configuration()
   local app = kernel.Application({ inputs = "strict", configuration = configuration({ HECATE_REQUESTS__INPUTS = "lax" }) })
   app:boot()
@@ -138,36 +151,82 @@ end
 local reactor = require("hecate.reactor")
 local uv = require("luv")
 
+-- Raises `name` on this process repeatedly (a signal sent before the watcher listens is lost) until `done()`.
+local function raise_until(name, done)
+  reactor.fork(function()
+    while not done() do
+      uv.kill(uv.os_getpid(), name)
+      reactor.sleep(0.005)
+    end
+  end)
+end
+
+local function codes(memory)
+  local found = {}
+  for _, record in ipairs(memory:records()) do
+    if record.fields and record.fields.code then found[record.fields.code] = record.fields end
+  end
+  return found
+end
+
 function T:test_a_signal_shuts_the_server_down_gracefully()
   if uv.os_uname().sysname:match("Windows") then return end -- only console signals are delivered there
   -- The guard keeps a signal sent before the watcher is installed from ending the process.
   local guard = uv.new_signal()
-  guard:start("sigusr2", function() end)
+  guard:start("sigterm", function() end)
   local memory = log.MemorySink()
-  local closed = false
   local app = kernel.Application({
-    logger = log.Logger({ sinks = { memory } }),
-    signals = { "sigusr2" }, grace_timeout = 1,
+    logger = log.Logger({ sinks = { memory } }), grace_timeout = 1,
     server = { host = "127.0.0.1", port = 0 },
-    services = function(c) c:bind("probe", function() return { close = function() closed = true end } end, { lifetime = "singleton" }) end,
   })
   reactor.run(function()
     local done = false
-    reactor.fork(function()
-      while not done do
-        uv.kill(uv.os_getpid(), "sigusr2")
-        reactor.sleep(0.005)
-      end
-    end)
+    raise_until("sigterm", function() return done end)
     reactor.deadline(5, app.serve, app)
     done = true
   end)
   guard:close()
-  local found
-  for _, record in ipairs(memory:records()) do
-    if record.fields and record.fields.code == "shutdown_signal" then found = record.fields.signal end
-  end
-  self:assert_equal("sigusr2", found)
+  local found = codes(memory)
+  self:assert_equal("sigterm", found.shutdown_signal.signal)
+  self:assert_nil(found.shutdown_forced)
+end
+
+function T:test_a_second_signal_forces_the_stop()
+  if uv.os_uname().sysname:match("Windows") then return end
+  local guard = uv.new_signal()
+  guard:start("sigterm", function() end)
+  local memory = log.MemorySink()
+  local routes = kernel.routes("slow")
+  local started, cancelled = false, false
+  routes:get("/slow", { action = function()
+    started = true
+    local ok, err = pcall(reactor.sleep, 60)
+    if not ok then cancelled = true; error(err, 0) end
+    return {}
+  end })
+  local app = kernel.Application({
+    logger = log.Logger({ sinks = { memory } }), grace_timeout = 60, routes = { routes },
+    server = { host = "127.0.0.1", port = 0 },
+  })
+  local began = uv.hrtime()
+  reactor.run(function()
+    local done = false
+    reactor.fork(function()
+      while not (app._server and app._server:local_address()) do reactor.sleep(0.005) end
+      local port = app._server:local_address().port
+      reactor.fork(function() pcall(http.Client().get, http.Client(), "http://127.0.0.1:" .. port .. "/slow") end)
+      while not started do reactor.sleep(0.005) end
+      raise_until("sigterm", function() return done or codes(memory).shutdown_forced ~= nil end)
+    end)
+    reactor.deadline(10, app.serve, app) -- a hang fails here instead of waiting for the 60 s grace
+    done = true
+  end)
+  guard:close()
+  self:assert_true((uv.hrtime() - began) / 1e9 < 10)
+  self:assert_true(cancelled)
+  local found = codes(memory)
+  self:assert_equal("sigterm", found.shutdown_signal.signal)
+  self:assert_equal("sigterm", found.shutdown_forced.signal)
 end
 
 function T:test_signals_false_serves_until_shutdown()
@@ -180,9 +239,11 @@ function T:test_signals_false_serves_until_shutdown()
 end
 
 function T:test_invalid_signal_options_are_refused()
-  self:assert_false(pcall(kernel.Application, { signals = {} }))
-  self:assert_false(pcall(kernel.Application, { signals = { 15 } }))
-  self:assert_false(pcall(kernel.Application, { signals = "sigterm" }))
+  for _, value in ipairs({ {}, { "sigint" }, { "sigusr2" }, "sigterm", true, 15 }) do
+    local ok, err = pcall(kernel.Application, { signals = value })
+    self:assert_false(ok)
+    self:assert_true(tostring(err):find("signal set is fixed", 1, true) ~= nil)
+  end
   self:assert_false(pcall(kernel.Application, { grace_timeout = -1 }))
   self:assert_false(pcall(kernel.Application, { grace_timeout = math.huge }))
 end

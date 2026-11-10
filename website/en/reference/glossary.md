@@ -161,7 +161,7 @@ Errors are *problem details* (RFC 9457; `hecate.problem.*` is the namespace). Pa
 | leaf | A declared key that is not an `object`: a scalar, an enumeration or an array; the unit that an environment variable or a secret file can supply |  | setting, option |
 | `Section`, `List` | The frozen values of a configuration: a `Section` holds an object or a map, a `List` an array (also when empty); a write raises `ConformanceError` |  | table, dict, map (for the frozen object) |
 | secret object | The wrapper of the value of a secret key (`hecate.log.Secret`, else `hecate.config.Secret`): `tostring` gives `[redacted]` and `reveal()` gives the value |  | masked value, sensitive string |
-| framework keys | The keys that every configuration declares, `logging.*` and `limits.max_depth`, which an application cannot redeclare |  | built-in settings, core options |
+| framework keys | The keys that every configuration declares, `logging.*`, `limits.max_depth` and `server.grace_timeout`, which an application cannot redeclare |  | built-in settings, core options |
 
 
 ## Logging
