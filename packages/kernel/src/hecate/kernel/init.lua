@@ -13,6 +13,9 @@ global <const> require
 ---@field Controller hecate.kernel.Controller  the superclass of controllers
 ---@field route hecate.kernel.route  the route entry: normalisation and checks
 ---@field routing hecate.kernel.routing  gathers route modules and controllers into one route table
+---@field modules hecate.kernel.modules  validation and ordering of feature modules
+---@field Application hecate.kernel.Application  the composition root
+---@field ModuleError hecate.kernel.ModuleError  an invalid application composition
 ---@field RouteDeclarationError hecate.kernel.RouteDeclarationError  an invalid route declaration
 local kernel = {}
 
@@ -27,7 +30,11 @@ kernel.dispatcher = require("hecate.kernel.dispatcher")
 kernel.RouteModule = require("hecate.kernel.routes")
 ---@diagnostic disable-next-line: assign-type-mismatch  -- class constructor exported as its class
 kernel.Controller = require("hecate.kernel.controller")
+kernel.modules = require("hecate.kernel.modules")
+---@diagnostic disable-next-line: assign-type-mismatch  -- class constructor exported as its class
+kernel.Application = require("hecate.kernel.application")
 kernel.RouteDeclarationError = require("hecate.kernel.errors").RouteDeclarationError
+kernel.ModuleError = require("hecate.kernel.errors").ModuleError
 
 --- Creates a route module: the lightweight declaration style (`local health = kernel.routes "health"`).
 --- `options` is `{ prefix?, filters? }`: see `hecate.kernel.RouteModuleOptions`.

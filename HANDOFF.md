@@ -3,8 +3,8 @@
 
 - roadmap_item: `kernel`: application, modules, controllers, route modules, filters, problem details, lifecycle, multi-process workers, graceful shutdown (Phase 2, docs/roadmap.md)
 - status: in-progress
-- lock_until: 2026-11-10T10:33:19Z
-- last_update: 2026-11-10T10:33:19Z
+- lock_until: 2026-11-10T12:50:00Z
+- last_update: 2026-11-10T12:50:00Z
 
 ## Done
 
@@ -41,9 +41,11 @@
 - OQ-114 resolved by the owner (2026-11-10, issue #170 closed): `source` member and relative pointers in 422 entries, `schema.optional` bug, `lax`/`strict` policy for undeclared query parameters (config key `requests.inputs`, roadmap kernel item (l)), per-route `max_content` deferred as a known limitation.
 - Step 15 (run of ~10:10Z, lock released at the end): kernel: 422 entries carry `source` with a relative pointer, dispatcher option `inputs` (`strict` default, `lax`) for undeclared query parameters (OQ-114 (1), (8)); schema: a top-level `optional` accepts an absent value (OQ-114 (5), root cause: only `object` knew how to skip an absent property), with a kernel regression test. typecheck, lint, check-annotations, `test kernel`, `test schema` ok. Handoff (l): declare the config key `requests.inputs` and bind it to `inputs`. Choices to confirm: in strict mode an undeclared name is refused before coercion (a request with both gets only the undeclared entries); a malformed query is a 400 in both modes.
 
+- Step 16 (run of 2026-11-10T12:41Z, lock released at the end): `kernel.Application` skeleton (`boot`, `serve`, `shutdown`), `kernel.modules.order`, `ModuleError`; 5 tests; typecheck, lint, check-annotations, check-boundaries, check-glossary, `test kernel` ok. Not yet done: graceful shutdown on signals, config binding, `hecate.respond`, response validation, website reference page.
+
 ## Next steps
 
-0. Kernel code after the input validation (item (j) done): the `Application` skeleton and boot validation (feature modules, container wiring, `json.set_max_depth`, server binding), the `hecate.respond` re-export, response validation in development/test, then the handoffs (a) to (g) of the roadmap item.
+0. Kernel code after the `Application` skeleton: signal-driven graceful shutdown, config binding (`requests.inputs`, `errors.expose_details`, `limits.max_depth`, logging keys), multi-process workers, the `hecate.respond` re-export, response validation in development/test, then the handoffs (a) to (g) of the roadmap item.
 1. Kernel handoffs are in the `kernel` roadmap item, items (a) to (g): `json.set_max_depth` at boot, logging keys (default logger = `log.DEFAULT_REDACT` + `logging.redact`), `wrap_secret = log.Secret`, response schema by `schema.of`, a `hecate.respond(status, value)` helper, `ContentError` when the content was consumed by validation. Check CI of the pull request first.
 2. OQ-101 items (b) logging keys, (c) `wrap_secret`; (a) kernel must call `json.set_max_depth(limits.max_depth)` at boot.
 3. Settle how a route names its response schema (OQ-98 item 7), then the kernel proper.

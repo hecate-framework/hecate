@@ -8,7 +8,7 @@
 | Rock | `hecate-kernel` |
 | Layer | 3 — Framework |
 | Roadmap phase | 2 |
-| Status | in progress: filter chain, results, problems, route declarations, dispatcher, validation of the request inputs |
+| Status | in progress: filter chain, results, problems, route declarations, dispatcher, validation of the request inputs, `Application` skeleton and feature modules |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |
 | Depends on | [`core`](../core), [`reactor`](../reactor), [`log`](../log), [`http`](../http), [`router`](../router), [`schema`](../schema), [`container`](../container), [`config`](../config), [`json`](../json) |
 | Used by | `cli`, `hecate`, `security`, `template`, `test` |
@@ -38,6 +38,9 @@
 - RFC 9110 (content negotiation)
 
 ## Public API
+
+- `kernel.Application(options)`: `boot()` (module order, services, container validation, route table, dispatcher; returns the `serve` function), `serve()` (async, runs an `http.Server`), `shutdown(grace)`. Options: `modules`, `routes`, `services`, `filters`, `container`, `max_depth`, `expose_details`, `inputs`, `logger`, `router`, `server`.
+- Feature module: a table `{ name, requires?, services?, routes?, filters? }`; `kernel.modules.order` sorts it after its requirements. `kernel.ModuleError` carries `context.reason`.
 
 - `kernel.chain.compose(filters, action)`: composes a flat list of filters (outermost first)
   around an action once, at boot, and returns the function that serves a request. One closure

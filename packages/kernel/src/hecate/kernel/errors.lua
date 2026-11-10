@@ -14,4 +14,11 @@ local core = require("hecate.core")
 local RouteDeclarationError = core.error_class("RouteDeclarationError", "hecate.kernel.RouteDeclarationError",
   core.ConfigurationError)
 
-return { RouteDeclarationError = RouteDeclarationError }
+--- An application composition the kernel refuses at boot. `context.reason` is the stable identifier: `invalid_module`,
+--- `duplicate_module`, `missing_dependency` (a module requires one that is not registered), `dependency_cycle`
+--- (`context.cycle` lists the module names) and `already_booted`. `context.module` names the faulty module.
+---@class hecate.kernel.ModuleError : hecate.core.ConfigurationError
+---@field context { reason: string, module?: string, cycle?: string[] }
+local ModuleError = core.error_class("ModuleError", "hecate.kernel.ModuleError", core.ConfigurationError)
+
+return { RouteDeclarationError = RouteDeclarationError, ModuleError = ModuleError }
