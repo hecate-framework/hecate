@@ -8,7 +8,7 @@
 | Rock | `hecate-kernel` |
 | Layer | 3 — Framework |
 | Roadmap phase | 2 |
-| Status | in progress: filter chain, results, problems |
+| Status | in progress: filter chain, results, problems, route declarations |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |
 | Depends on | [`core`](../core), [`reactor`](../reactor), [`log`](../log), [`http`](../http), [`router`](../router), [`schema`](../schema), [`container`](../container), [`config`](../config), [`json`](../json) |
 | Used by | `cli`, `hecate`, `security`, `template`, `test` |
@@ -97,7 +97,26 @@
   chose them. The kernel will bind this option to the configuration key `errors.expose_details` (OQ-112 (5)); neither
   the key nor the boot warning exists yet (they come with the `config` integration and the `Application`).
 
-Further exports (application, controllers, route modules) arrive with later items.
+- `kernel.routes(name)`: a route module (`kernel.RouteModule`). `module:get(path, spec)` and the curried `module:get "/x" { ... }`
+  (same for `post`, `put`, `patch`, `delete`, `head`, `options`) declare a route whose `action` is a function; the
+  declaration is validated at once and a mistake leaves the module unchanged. `module:routes()` returns the normalised
+  route list, in declaration order.
+- `kernel.Controller`: the superclass of controllers; class fields `prefix`, `dependencies` and `filters`.
+  `Controller.route(Class, spec)` declares a route whose `action` is the name of a method (validated at once; the
+  spelling `Class:route {...}` of developer-experience.md is not possible before finalisation, OQ-113), and
+  `Controller.routes(Class)` normalises a finalised class into route entries, refusing an action that is not a method.
+  The routes of a class are not inherited.
+- `kernel.route.normalise(spec, options)`, `kernel.route.METHODS`, `kernel.route.check_action(entry)`: the single route entry
+  (`hecate.kernel.RouteEntry`: `method`, `path`, `name`, `summary`, `description`, `tags`, `deprecated`, `parameters`
+  with `path`, `query`, `fields` and `cookies`, `content`, `responses`, `security`, `filters`, `action`, plus `controller`
+  and `origin`), usable as a `hecate.router.Route`. The name defaults to `<METHOD> <path>` in both styles, so equivalent
+  declarations give equal tables. The parameters of the path template and `parameters.path` must match both ways.
+- `kernel.routing.collect(sources)`: the flat route table of route modules and controller classes, ready for
+  `router.Router`.
+- `kernel.RouteDeclarationError`: a `ConfigurationError`; `context.reason` (`unknown_field`, `invalid_method`, `invalid_path`,
+  `parameter_mismatch`, `missing_action`, ...), `context.origin`, `context.field`. Choices: OQ-113.
+
+Further exports (application, feature modules) arrive with later items.
 
 ## Layout (once implemented)
 
@@ -107,6 +126,11 @@ src/hecate/kernel/chain.lua   filter chain (chain of responsibility)
 src/hecate/kernel/results.lua serialisation of results into responses
 src/hecate/kernel/problem.lua  problem classes (RFC 9457)
 src/hecate/kernel/problems.lua mapping of errors to problem details responses
+src/hecate/kernel/route.lua    the normalised route entry and its checks
+src/hecate/kernel/routes.lua   route modules
+src/hecate/kernel/controller.lua  controllers
+src/hecate/kernel/routing.lua  the route table of an application
+src/hecate/kernel/errors.lua   RouteDeclarationError
 tests/unit/  tests/integration/  tests/fixtures/
 examples/    benchmarks/
 ```

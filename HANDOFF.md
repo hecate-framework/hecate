@@ -3,8 +3,8 @@
 
 - roadmap_item: `kernel`: application, modules, controllers, route modules, filters, problem details, lifecycle, multi-process workers, graceful shutdown (Phase 2, docs/roadmap.md)
 - status: in-progress
-- lock_until: 2026-11-09T22:18:31Z
-- last_update: 2026-11-09T22:18:31Z
+- lock_until: 2026-11-10T00:48:38Z
+- last_update: 2026-11-10T00:48:38Z
 
 ## Done
 
@@ -25,9 +25,11 @@
 - Owner decisions on OQ-112 (2026-11-09, recorded in `docs/open-questions.md`, resolved; issue #168 closed): `errors.expose_details`, `hecate.problem.*` classes (returnable and raisable, `define`), messages in 422 entries when exposed. Roadmap kernel item (h) and (i).
 - Step 9 (run of ~22:10Z, lock released at the end): `hecate.kernel.problem` (`Problem` subclass of `core.Error`, 11 status classes, `define`, `is_problem`, `is_class`), `problems.from_problem`, `options.expose_details` (422 entries carry `message`, a generic 500 carries `debug`); 19 tests; typecheck, lint, `test kernel` ok. Choices to confirm: `guard` does not log a raised Problem below 500; `Problem.init` accepts only `detail` and `extensions`. Left for the handoffs: the config key `errors.expose_details` and the boot warning, OpenAPI components for problem classes, the `hecate.problem` re-export.
 
+- Step 10 (run of 2026-11-10T00:48:38Z, lock released at the end): route declaration layer in `hecate.kernel`: `routes(name)` route modules, `Controller` (`Controller.route(Class, spec)`), normalised entry `route.normalise`, `routing.collect`, `RouteDeclarationError`; 21 tests; typecheck, lint, `test kernel`, check-boundaries, check-glossary ok. Choices to confirm: OQ-113 (notably `Controller:route{}` spelling impossible before finalisation, default route name `<METHOD> <path>`).
+
 ## Next steps
 
-0. Kernel code after chain, results and problems: `Application` skeleton and boot validation, controllers and route modules, the `hecate.respond` re-export, response validation in development/test, then the handoffs (a) to (g) of the roadmap item.
+0. Kernel code after chain, results, problems and route declarations: `Application` skeleton and boot validation (resolve controller actions via the container, module/global filters, router build, `json.set_max_depth`), the `hecate.respond` re-export, response validation in development/test, then the handoffs (a) to (g) of the roadmap item.
 1. Kernel handoffs are in the `kernel` roadmap item, items (a) to (g): `json.set_max_depth` at boot, logging keys (default logger = `log.DEFAULT_REDACT` + `logging.redact`), `wrap_secret = log.Secret`, response schema by `schema.of`, a `hecate.respond(status, value)` helper, `ContentError` when the content was consumed by validation. Check CI of the pull request first.
 2. OQ-101 items (b) logging keys, (c) `wrap_secret`; (a) kernel must call `json.set_max_depth(limits.max_depth)` at boot.
 3. Settle how a route names its response schema (OQ-98 item 7), then the kernel proper.
