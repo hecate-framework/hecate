@@ -3,8 +3,8 @@
 
 - roadmap_item: `kernel`: application, modules, controllers, route modules, filters, problem details, lifecycle, multi-process workers, graceful shutdown (Phase 2, docs/roadmap.md)
 - status: in-progress
-- lock_until: 2026-11-10T00:48:38Z
-- last_update: 2026-11-10T00:48:38Z
+- lock_until: 2026-11-10T03:50:00Z
+- last_update: 2026-11-10T03:50:00Z
 
 ## Done
 
@@ -26,6 +26,8 @@
 - Step 9 (run of ~22:10Z, lock released at the end): `hecate.kernel.problem` (`Problem` subclass of `core.Error`, 11 status classes, `define`, `is_problem`, `is_class`), `problems.from_problem`, `options.expose_details` (422 entries carry `message`, a generic 500 carries `debug`); 19 tests; typecheck, lint, `test kernel` ok. Choices to confirm: `guard` does not log a raised Problem below 500; `Problem.init` accepts only `detail` and `extensions`. Left for the handoffs: the config key `errors.expose_details` and the boot warning, OpenAPI components for problem classes, the `hecate.problem` re-export.
 
 - Step 10 (run of 2026-11-10T00:48:38Z, lock released at the end): route declaration layer in `hecate.kernel`: `routes(name)` route modules, `Controller` (`Controller.route(Class, spec)`), normalised entry `route.normalise`, `routing.collect`, `RouteDeclarationError`; 21 tests; typecheck, lint, `test kernel`, check-boundaries, check-glossary ok. Choices to confirm: OQ-113 (notably `Controller:route{}` spelling impossible before finalisation, default route name `<METHOD> <path>`).
+
+- CI fix (run of 2026-11-10T03:50Z, lock released at the end): CI of 085f685 failed on the three platforms at `check-annotations` (`Problem.code` had no `---@field`); added the field. `check-annotations`, typecheck ok; `test kernel` here fails only for the unbuilt json native module (no Rust). Remember to run `check-annotations` before pushing.
 
 ## Next steps
 

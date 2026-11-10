@@ -32,6 +32,7 @@ local problem = {}
 ---@class hecate.kernel.problem.Problem : hecate.core.Error
 ---@field status integer
 ---@field title string
+---@field code string  the stable error code, `hecate.problem.<Class>`
 ---@field type string  a URI reference, `about:blank` by default (RFC 9457, section 4.2.1)
 ---@field detail? string
 ---@field extensions table<string, any>
