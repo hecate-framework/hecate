@@ -3,8 +3,8 @@
 
 - roadmap_item: `kernel`: application, modules, controllers, route modules, filters, problem details, lifecycle, multi-process workers, graceful shutdown (Phase 2, docs/roadmap.md)
 - status: in-progress
-- lock_until: 2026-11-10T12:50:00Z
-- last_update: 2026-11-10T12:50:00Z
+- lock_until: 2026-11-10T16:10:00Z
+- last_update: 2026-11-10T16:10:00Z
 
 ## Done
 
@@ -43,9 +43,11 @@
 
 - Step 16 (run of 2026-11-10T12:41Z, lock released at the end): `kernel.Application` skeleton (`boot`, `serve`, `shutdown`), `kernel.modules.order`, `ModuleError`; 5 tests; typecheck, lint, check-annotations, check-boundaries, check-glossary, `test kernel` ok. Not yet done: graceful shutdown on signals, config binding, `hecate.respond`, response validation, website reference page.
 
+- Step 17 (run of 2026-11-10T15:40Z, lock released at the end): `config` declares `errors.expose_details` and `requests.inputs` (names reserved); `kernel.Application` option `configuration` binds them, `limits.max_depth` and the logging keys (`kernel.logging.build`, default logger installed with `log.set_default`), boot warning for `expose_details` in production; 5 tests; typecheck, lint, check-annotations, check-boundaries, check-glossary, `test kernel`, `test config` ok. Roadmap handoffs (a), (b), (h), (l) done in code; `wrap_secret` (c) not yet wired (`config.load` is called by the user, not the kernel). Doc of the generated `config/development.lua` left to the `cli` item.
+
 ## Next steps
 
-0. Kernel code after the `Application` skeleton: signal-driven graceful shutdown, config binding (`requests.inputs`, `errors.expose_details`, `limits.max_depth`, logging keys), multi-process workers, the `hecate.respond` re-export, response validation in development/test, then the handoffs (a) to (g) of the roadmap item.
+0. Kernel code after the `Application` skeleton: signal-driven graceful shutdown, multi-process workers, the `hecate.respond` re-export, response validation in development/test, then the handoffs (a) to (g) of the roadmap item.
 1. Kernel handoffs are in the `kernel` roadmap item, items (a) to (g): `json.set_max_depth` at boot, logging keys (default logger = `log.DEFAULT_REDACT` + `logging.redact`), `wrap_secret = log.Secret`, response schema by `schema.of`, a `hecate.respond(status, value)` helper, `ContentError` when the content was consumed by validation. Check CI of the pull request first.
 2. OQ-101 items (b) logging keys, (c) `wrap_secret`; (a) kernel must call `json.set_max_depth(limits.max_depth)` at boot.
 3. Settle how a route names its response schema (OQ-98 item 7), then the kernel proper.

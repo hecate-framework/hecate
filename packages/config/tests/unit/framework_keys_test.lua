@@ -93,4 +93,15 @@ function T:test_max_depth_can_be_lowered_never_raised()
   self:assert_equal("maximum", err.context.violations[1].code)
 end
 
+function T:test_errors_and_requests_keys()
+  local configuration = fixture.load({})
+  self:assert_equal(false, configuration:get("errors.expose_details"))
+  self:assert_equal("strict", configuration:get("requests.inputs"))
+  local set = fixture.load({ env = { HECATE_ERRORS__EXPOSE_DETAILS = "true", HECATE_REQUESTS__INPUTS = "lax" } })
+  self:assert_equal(true, set:get("errors.expose_details"))
+  self:assert_equal("lax", set:get("requests.inputs"))
+  local err = fixture.failure({ env = { HECATE_REQUESTS__INPUTS = "loose" } })
+  self:assert_equal("requests.inputs", err.context.violations[1].path)
+end
+
 return T

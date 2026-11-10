@@ -221,6 +221,18 @@ logger (`log.default()`, boot step 1 of the `kernel` item) and the loggers of th
   `HECATE_LOGGING__ASYNC`, `HECATE_LOGGING__REDACT`. `logging.severities` is a map and is configured by files only.
 - `logging.file.path` is an ordinary string, not a secret.
 
+## Error and request keys
+
+| Key | Type | Default | Meaning |
+|---|---|---|---|
+| `errors.expose_details` | boolean | `false` | bound to the `expose_details` option of the kernel: a 422 entry carries its message and a 500 carries the member `debug` (OQ-112). The kernel logs a `warning` at boot when it is true in the environment `production` |
+| `requests.inputs` | `strict` or `lax` | `strict` | bound to the `inputs` option of the dispatcher: policy for undeclared query parameters (OQ-114) |
+
+Environment variables: `HECATE_ERRORS__EXPOSE_DETAILS`, `HECATE_REQUESTS__INPUTS`. The names `errors` and `requests` are
+reserved like `logging` and `limits` (`ArgumentError`). `Application({ configuration = configuration })` applies them,
+together with `limits.max_depth` and the logging keys; an explicit option of `Application` wins. The generated
+`config/development.lua` and `config/test.lua` (a `cli` task) set `expose_details = true` and `inputs = "lax"`.
+
 ## The limit on nesting depth
 
 | Key | Type | Default | Meaning |

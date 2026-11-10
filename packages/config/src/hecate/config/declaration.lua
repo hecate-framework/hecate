@@ -1,4 +1,4 @@
--- The keys that every configuration has (`logging`, `limits`) and the walk of a schema that derives environment
+-- The keys that every configuration has (`logging`, `limits`, `errors`, `requests`) and the walk of a schema that derives environment
 -- variables and checks paths (configuration.md, "Logging keys", "The limit on nesting depth", "Environment variables").
 global <const> require, type, pairs, ipairs, table, string, getmetatable, error
 
@@ -17,6 +17,8 @@ M.SEVERITIES = { "emergency", "alert", "critical", "error", "warning", "notice",
 --- `config` does not depend on `json`; a test compares the two.
 M.MAX_DEPTH_CEILING = 1000
 
+local FRAMEWORK = { logging = true, limits = true, errors = true, requests = true }
+
 --- The framework properties declared by every configuration.
 ---@return table<string, hecate.schema.Schema>
 function M.framework_properties()
@@ -32,6 +34,12 @@ function M.framework_properties()
     }), {}),
     limits = schema.default(schema.object({
       max_depth = schema.default(schema.integer({ minimum = 1, maximum = M.MAX_DEPTH_CEILING }), M.MAX_DEPTH_CEILING),
+    }), {}),
+    errors = schema.default(schema.object({
+      expose_details = schema.default(schema.boolean(), false),
+    }), {}),
+    requests = schema.default(schema.object({
+      inputs = schema.default(schema.enumeration({ "strict", "lax" }), "strict"),
     }), {}),
   }
 end
@@ -55,7 +63,7 @@ function M.check_properties(properties)
     if type(name) ~= "string" or name == "" then
       error(core.ArgumentError("config.load: option properties: property names must be non-empty strings"), 3)
     end
-    if name == "logging" or name == "limits" then
+    if FRAMEWORK[name] then
       error(core.ArgumentError(("config.load: option properties: %s is a key of the framework and cannot be declared"):format(name)), 3)
     end
     if not schema.is_schema(property) then

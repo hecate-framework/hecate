@@ -74,4 +74,65 @@ function T:test_filters_of_the_application_wrap_those_of_modules()
   self:assert_equal("app,module", table.concat(seen, ","))
 end
 
+local config = require("hecate.config")
+local log = require("hecate.log")
+
+local function configuration(env, environment)
+  return config.load({
+    properties = {}, environment = environment or "development",
+    getenv = function(name) return env[name] end,
+    read_file = function(path)
+      if path:match("^config/.+%.lua$") and not path:match("default") then return "return {}" end
+      return nil, "no such file: " .. path, true
+    end,
+  })
+end
+
+function T:test_configuration_binds_inputs_and_exposure()
+  local app = kernel.Application({ configuration = configuration({
+    HECATE_REQUESTS__INPUTS = "lax", HECATE_ERRORS__EXPOSE_DETAILS = "true",
+  }) })
+  app:boot()
+  self:assert_equal("lax", app._resolved.inputs)
+  self:assert_equal(true, app._resolved.expose_details)
+  log.set_default(nil)
+end
+
+function T:test_explicit_options_override_the_configuration()
+  local app = kernel.Application({ inputs = "strict", configuration = configuration({ HECATE_REQUESTS__INPUTS = "lax" }) })
+  app:boot()
+  self:assert_equal("strict", app._resolved.inputs)
+  log.set_default(nil)
+end
+
+function T:test_configuration_builds_and_installs_the_default_logger()
+  local app = kernel.Application({ configuration = configuration({
+    HECATE_LOGGING__SEVERITY = "debug", HECATE_LOGGING__SINKS = "",
+  }) })
+  app:boot()
+  self:assert_equal(app._resolved.logger, log.default())
+  log.set_default(nil)
+end
+
+function T:test_file_sink_without_path_is_refused()
+  local logging = require("hecate.kernel.logging")
+  local ok = pcall(logging.build, { get = function() return { sinks = { "file" }, redact = {}, severities = {}, severity = "debug" } end })
+  self:assert_false(ok)
+end
+
+function T:test_expose_details_in_production_warns_at_boot()
+  local memory = log.MemorySink()
+  local app = kernel.Application({
+    logger = log.Logger({ sinks = { memory } }),
+    configuration = configuration({ HECATE_ERRORS__EXPOSE_DETAILS = "true" }, "production"),
+  })
+  app:boot()
+  local found
+  for _, record in ipairs(memory:records()) do
+    if record.fields and record.fields.code == "expose_details_in_production" then found = true end
+  end
+  self:assert_true(found)
+  log.set_default(nil)
+end
+
 return T

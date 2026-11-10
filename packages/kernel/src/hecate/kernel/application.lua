@@ -11,6 +11,8 @@ local modules = require("hecate.kernel.modules")
 local routing = require("hecate.kernel.routing")
 local dispatcher = require("hecate.kernel.dispatcher")
 local errors = require("hecate.kernel.errors")
+local logging = require("hecate.kernel.logging")
+local log = require("hecate.log")
 
 --- Options of `Application`.
 ---@class hecate.kernel.ApplicationOptions
@@ -19,6 +21,7 @@ local errors = require("hecate.kernel.errors")
 ---@field services? fun(container: hecate.container.Container)  binds services of the application itself, before those of the modules
 ---@field filters? hecate.kernel.Filter[]  global filters, outermost, before those of the modules
 ---@field container? hecate.container.Container  an existing container (not yet validated); default: a new one
+---@field configuration? hecate.config.Configuration  binds `limits.max_depth`, `errors.expose_details`, `requests.inputs` and the logging keys; the options below override it
 ---@field max_depth? integer  nesting depth limit of `json` and `schema` (`json.set_max_depth`, OQ-92)
 ---@field expose_details? boolean  see `hecate.kernel.DispatcherOptions`
 ---@field inputs? "lax"|"strict"  see `hecate.kernel.DispatcherOptions`
@@ -34,7 +37,7 @@ local errors = require("hecate.kernel.errors")
 local Application = core.class("Application")
 
 local KNOWN = {
-  modules = true, routes = true, services = true, filters = true, container = true, max_depth = true,
+  modules = true, routes = true, configuration = true, services = true, filters = true, container = true, max_depth = true,
   expose_details = true, inputs = true, logger = true, router = true, server = true,
 }
 
@@ -64,7 +67,23 @@ function Application:boot()
   if self._booted then
     error(errors.ModuleError("kernel: the application is already booted", { context = { reason = "already_booted" } }), 2)
   end
-  local options = self._options
+  local options = {}
+  for key, value in pairs(self._options) do options[key] = value end
+  local configuration = options.configuration
+  if configuration ~= nil then
+    if options.max_depth == nil then options.max_depth = configuration:get("limits.max_depth") end
+    if options.expose_details == nil then options.expose_details = configuration:get("errors.expose_details") end
+    if options.inputs == nil then options.inputs = configuration:get("requests.inputs") end
+    if options.logger == nil then
+      options.logger = logging.build(configuration)
+      log.set_default(options.logger)
+    end
+    if options.expose_details and configuration:environment() == "production" then
+      options.logger:warning("errors.expose_details is true in the production environment: internal details reach clients",
+        { code = "expose_details_in_production" })
+    end
+  end
+  self._resolved = options
   if options.max_depth ~= nil then json.set_max_depth(options.max_depth) end
   local ordered = modules.order(options.modules or {})
   local container = options.container or container_package.Container()
@@ -102,7 +121,7 @@ function Application:serve()
   local serve = self._serve or self:boot()
   local server_options = {}
   for key, value in pairs(self._options.server or {}) do server_options[key] = value end
-  if server_options.logger == nil then server_options.logger = self._options.logger end
+  if server_options.logger == nil then server_options.logger = self._resolved.logger end
   local server = http.Server(serve, server_options)
   self._server = server
   local ok, err = pcall(server.serve, server)
