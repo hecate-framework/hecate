@@ -76,6 +76,10 @@ local function refuse(origin, reason, field, message)
   }))
 end
 
+--- Raises a `RouteDeclarationError` (shared with route modules, for the checks of their options).
+---@type fun(origin: string, reason: string, field: string?, message: string)
+route.refuse = refuse
+
 local function is_list(value)
   if type(value) ~= "table" then return false end
   local count = 0
@@ -111,7 +115,7 @@ end
 --- the path `/` stands for the prefix itself (`/users` and `/`: `/users`).
 local function join(origin, prefix, path)
   if prefix == nil or prefix == "" then return path end
-  if type(prefix) ~= "string" or string.byte(prefix, 1) ~= 47 or (#prefix > 1 and string.byte(prefix, -1) == 47) then
+  if type(prefix) ~= "string" or string.byte(prefix, 1) ~= 47 or string.byte(prefix, -1) == 47 then
     refuse(origin, "invalid_path", "prefix", "prefix must be empty or start with '/' and not end with '/': " .. tostring(prefix))
   end
   if path == "/" then return prefix end
@@ -288,6 +292,31 @@ function route.normalise(spec, options)
     controller = options.controller,
     origin = origin,
   }
+end
+
+--- Checks a prefix (the rule of a controller prefix, shared by the options of a route module). Raises
+--- `RouteDeclarationError` with reason `invalid_path` and field `prefix`.
+---@param origin string
+---@param prefix any
+function route.check_prefix(origin, prefix)
+  join(origin, prefix, "/")
+end
+
+--- Checks a list of filters and returns a copy of it. Raises `RouteDeclarationError` with reason `invalid_filters`.
+---@param origin string
+---@param filters any
+---@param what string  how the list is named in the message, e.g. "the default filters"
+---@return hecate.kernel.Filter[]
+function route.check_filters(origin, filters, what)
+  if not is_list(filters) then refuse(origin, "invalid_filters", "filters", what .. " must be a list of filters") end
+  local copy = {}
+  for index, filter in ipairs(filters) do
+    if not chain.is_filter(filter) then
+      refuse(origin, "invalid_filters", "filters", what .. "[" .. index .. "] is not a filter (a table with a handle function)")
+    end
+    copy[index] = filter
+  end
+  return copy
 end
 
 --- Checks that the action of a controller route names a method of the (finalised) class. Raises

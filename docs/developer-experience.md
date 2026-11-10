@@ -128,6 +128,15 @@ health:get "/health" {
 return health
 ```
 
+A route module may carry a path prefix and default filters. A route that declares its own
+`filters` replaces the defaults (`filters = {}` removes them):
+
+```lua
+local admin = hecate.routes("admin", { prefix = "/admin", filters = { RequireAuth } })
+
+admin:get "/users" { action = function(request) return {} end }   -- GET /admin/users, behind RequireAuth
+```
+
 Both styles produce the same route table, so validation, contracts and documentation
 behave identically.
 

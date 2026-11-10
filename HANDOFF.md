@@ -3,8 +3,8 @@
 
 - roadmap_item: `kernel`: application, modules, controllers, route modules, filters, problem details, lifecycle, multi-process workers, graceful shutdown (Phase 2, docs/roadmap.md)
 - status: in-progress
-- lock_until: 2026-11-10T11:24:44Z
-- last_update: 2026-11-10T09:54:44Z
+- lock_until: 2026-11-10T09:59:15Z
+- last_update: 2026-11-10T09:59:15Z
 
 ## Done
 
@@ -34,7 +34,7 @@
 - Step 12 (run of ~08:00Z, lock released at the end): `hecate.kernel.input` (parameters path/query/fields/cookies and JSON content validated and coerced by the route schemas, wired into the dispatcher), `Request:set_validated_content` in `http` (reading consumed content raises `ContentError` `consumed`, mapped to a 500), 14 tests; typecheck, lint, check-annotations, `test kernel`, `test http` ok. Choices to confirm: OQ-114.
 
 - OQ-113 resolved by the owner (2026-11-10, in `docs/open-questions.md`, issue #169 closed): both `Controller.route` and the class field `routes`, route names free (default `<METHOD> <path>`), strict parameters without shorthand, route-module options `{ prefix, filters }` with per-route default filters replaced by a route's own. Roadmap kernel items (j) and (k).
-- Step 14 in progress (run of ~10:00Z, regular 90-minute lock): the route-module options `hecate.routes(name, { prefix, filters })` (k); (j) was done by the run of 09:43Z.
+- Step 14 (run of ~10:00Z, lock released at the end): roadmap kernel item (k) done: `hecate.routes(name, { prefix, filters })`, filters are per-route defaults replaced by a route's own (an empty list removes them), controller filters unchanged; 8 new tests; a prefix of a single `/` is now refused (it gave `//x`, also for controllers). typecheck, lint, check-annotations, `test kernel` ok. Choice to confirm (in OQ-113 (8)): `filters = {}` on a route removes the defaults.
 
 - Step 13 (run of 2026-11-10T09:43Z, lock released at the end): roadmap kernel item (j) done: class field `routes = {...}` read by `Controller.routes` after `Controller.route` declarations (inherited copies ignored, non-table refused with `invalid_routes`); 2 tests; typecheck, lint, check-annotations, `test kernel` ok. CI of 94b22de was green on the three platforms.
 

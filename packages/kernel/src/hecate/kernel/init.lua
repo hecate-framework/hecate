@@ -7,7 +7,7 @@ global <const> require
 ---@field results hecate.kernel.results  serialises the result of an action into a Response
 ---@field problem hecate.kernel.problem  problem classes (`NotFound`, ...) and `define`
 ---@field problems hecate.kernel.problems  maps errors and routing failures to problem details responses
----@field routes fun(name: string): hecate.kernel.RouteModule  creates a route module (`hecate.routes "health"`)
+---@field routes fun(name: string, options?: hecate.kernel.RouteModuleOptions): hecate.kernel.RouteModule  creates a route module (`hecate.routes "health"`)
 ---@field dispatcher hecate.kernel.dispatcher  builds the function that serves a request from a route table
 ---@field RouteModule hecate.kernel.RouteModule  the class of route modules
 ---@field Controller hecate.kernel.Controller  the superclass of controllers
@@ -30,8 +30,10 @@ kernel.Controller = require("hecate.kernel.controller")
 kernel.RouteDeclarationError = require("hecate.kernel.errors").RouteDeclarationError
 
 --- Creates a route module: the lightweight declaration style (`local health = kernel.routes "health"`).
+--- `options` is `{ prefix?, filters? }`: see `hecate.kernel.RouteModuleOptions`.
 ---@param name string
+---@param options? hecate.kernel.RouteModuleOptions
 ---@return hecate.kernel.RouteModule
-function kernel.routes(name) return kernel.RouteModule(name) end
+function kernel.routes(name, options) return kernel.RouteModule(name, options) end
 
 return kernel

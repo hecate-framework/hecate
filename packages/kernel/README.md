@@ -101,6 +101,14 @@
   (same for `post`, `put`, `patch`, `delete`, `head`, `options`) declare a route whose `action` is a function; the
   declaration is validated at once and a mistake leaves the module unchanged. `module:routes()` returns the normalised
   route list, in declaration order.
+  `kernel.routes(name, options?)` takes `options = { prefix?, filters? }`, validated at once (`RouteDeclarationError`
+  for an unknown field, a non-string or malformed `prefix`, a non-list `filters` or a non-filter element). `prefix` has
+  the rule of a controller prefix and is prepended to every route, so the default name `<METHOD> <full path>` includes
+  it. `filters` are the DEFAULT filters of each route, not a layer of the chain: a route that declares `filters`
+  replaces them, it does not extend them, and an explicit empty list `filters = {}` removes them (a conservative
+  choice). The filters of a controller differ: they stay a layer, always before those of the route, never overridable.
+  A route module with defaults gives the same entries as the equivalent controller whose routes declare no own filters;
+  a route-level override has no controller equivalent.
 - `kernel.Controller`: the superclass of controllers; class fields `prefix`, `dependencies` and `filters`.
   `Controller.route(Class, spec)` declares a route whose `action` is the name of a method (validated at once; the
   spelling `Class:route {...}` of developer-experience.md is not possible before finalisation, OQ-113), and

@@ -221,6 +221,89 @@ function T:test_filters_of_a_controller_come_before_those_of_the_route()
   self:assert_true(filters[1] == outer and filters[2] == inner)
 end
 
+local function filter() return { handle = function() end } end
+
+function T:test_module_prefix_is_prepended_and_in_the_default_name()
+  local module = kernel.routes("admin", { prefix = "/admin" })
+  module:get "/users" { action = action }
+  module:get "/" { action = action }
+  local entries = module:routes()
+  self:assert_equal("/admin/users", entries[1].path)
+  self:assert_equal("GET /admin/users", entries[1].name)
+  self:assert_equal("/admin", entries[2].path)
+  self:assert_equal("GET /admin", entries[2].name)
+end
+
+function T:test_module_default_filters_apply_and_a_route_list_replaces_them()
+  local auth, audit, own = filter(), filter(), filter()
+  local module = kernel.routes("admin", { filters = { auth, audit } })
+  module:get "/a" { action = action }
+  module:get "/b" { action = action, filters = { own } }
+  module:get "/c" { action = action, filters = {} }
+  local entries = module:routes()
+  self:assert_true(#entries[1].filters == 2 and entries[1].filters[1] == auth and entries[1].filters[2] == audit)
+  self:assert_true(#entries[2].filters == 1 and entries[2].filters[1] == own)
+  self:assert_equal(0, #entries[3].filters)
+end
+
+function T:test_module_defaults_equal_the_spelled_out_declaration()
+  local auth = filter()
+  local defaults = kernel.routes("m", { prefix = "/admin", filters = { auth } })
+  defaults:get "/users/{id}" { action = action, parameters = { path = { id = Id } } }
+  local spelled = kernel.routes("m")
+  spelled:get "/admin/users/{id}" { action = action, parameters = { path = { id = Id } }, filters = { auth } }
+  same(self, defaults:routes()[1], spelled:routes()[1])
+end
+
+function T:test_module_defaults_equal_a_controller_with_the_same_prefix_and_filters()
+  local auth = filter()
+  local module = kernel.routes("users", { prefix = "/users", filters = { auth } })
+  module:get "/{id}" { action = action, parameters = { path = { id = Id } } }
+  module:post "/" { action = action }
+  local Users = core.class("UsersController", Controller)
+  Users.prefix, Users.filters = "/users", { auth }
+  Controller.route(Users, { method = "GET", path = "/{id}", action = "act", parameters = { path = { id = Id } } })
+  Controller.route(Users, { method = "POST", path = "/", action = "act" })
+  Users.act = action
+  core.finalise(Users)
+  local a, b = module:routes(), Controller.routes(Users)
+  self:assert_equal(2, #a)
+  for index = 1, 2 do same(self, a[index], b[index]) end
+end
+
+function T:test_module_defaults_do_not_change_controller_filters()
+  local outer, inner = filter(), filter()
+  local Users = core.class("UsersController", Controller)
+  Users.filters = { outer }
+  Controller.route(Users, { method = "GET", path = "/x", action = "act", filters = { inner } })
+  Users.act = action
+  core.finalise(Users)
+  local filters = Controller.routes(Users)[1].filters
+  self:assert_true(#filters == 2 and filters[1] == outer and filters[2] == inner)
+end
+
+function T:test_module_options_are_validated_at_construction()
+  refused(self, "unknown_field", function() kernel.routes("m", { prefx = "/a" }) end)
+  refused(self, "invalid_options", function() kernel.routes("m", "/a") end)
+  refused(self, "invalid_path", function() kernel.routes("m", { prefix = 3 }) end)
+  refused(self, "invalid_path", function() kernel.routes("m", { prefix = "admin" }) end)
+  refused(self, "invalid_path", function() kernel.routes("m", { prefix = "/admin/" }) end)
+  refused(self, "invalid_filters", function() kernel.routes("m", { filters = filter() }) end)
+  refused(self, "invalid_filters", function() kernel.routes("m", { filters = { {} } }) end)
+  refused(self, "invalid_filters", function() kernel.routes("m", { filters = "auth" }) end)
+  self:assert_equal(0, #kernel.routes("m", { prefix = "", filters = {} }):routes())
+  self:assert_true(core.is_instance_of(self:assert_error(function() kernel.routes("", { prefix = "/a" }) end), core.ArgumentError))
+end
+
+function T:test_module_default_filters_are_a_snapshot()
+  local auth = filter()
+  local list = { auth }
+  local module = kernel.routes("m", { filters = list })
+  list[2] = filter()
+  module:get "/x" { action = action }
+  self:assert_equal(1, #module:routes()[1].filters)
+end
+
 function T:test_controller_declared_methods_may_come_after_the_declaration()
   local Users = core.class("UsersController", Controller)
   Controller.route(Users, { method = "GET", path = "/x", action = "late" })
@@ -310,6 +393,14 @@ function T:test_collect_refuses_other_sources_and_router_refuses_duplicates()
   b:get "/x" { action = action }
   local err = self:assert_error(function() router.Router(kernel.routing.collect({ a, b })) end)
   self:assert_true(core.is_instance_of(err, router.RouteTableError))
+end
+
+function T:test_a_prefix_that_is_a_single_slash_is_refused_because_the_prefix_is_then_empty()
+  refused(self, "invalid_path", function() kernel.routes("m", { prefix = "/" }) end)
+  refused(self, "invalid_path", function() kernel.routes("m", { prefix = "/users/" }) end)
+  local module = kernel.routes("m", { prefix = "" })
+  module:get("/x", { action = action })
+  self:assert_equal("/x", module:routes()[1].path)
 end
 
 return T
