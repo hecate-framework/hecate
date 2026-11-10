@@ -1025,6 +1025,7 @@ end
 ---@return boolean ok  true when the value conforms
 ---@return hecate.schema.Violation[]? violations  present only when `ok` is false
 function Schema:validate(value)
+  if value == nil and self.kind == "optional" then return true end -- absent is what `optional` allows
   local raw = {}
   reset_work()
   self.validator(value, 0, raw)
@@ -1044,6 +1045,7 @@ end
 ---@overload fun(self: hecate.schema.Schema, value: any): true, any
 ---@overload fun(self: hecate.schema.Schema, value: any): false, hecate.schema.Violation[]
 function Schema:coerce(value)
+  if value == nil and self.kind == "optional" then return true, nil end -- absent is what `optional` allows
   local raw = {}
   reset_work()
   local converted = self.coercer(value, 0, raw)
@@ -1073,7 +1075,8 @@ local METHODS = { POST = false, PUT = false, PATCH = true }
 --- `coercion` violations), defaults apply once, in that conversion, and `schema.sent` records only the attributes that
 --- were provided (OQ-93). `options.method` is the HTTP
 --- method the content arrived with (OQ-50): `"POST"` and `"PUT"` (the default) are strict; `"PATCH"` lets the
---- required properties of the top-level object be absent (unchanged), while `null` still fails unless nullable.
+--- required properties of the top-level object be absent (unchanged), while `null` still fails unless nullable. A
+--- top-level `optional` schema accepts an absent value (nil) and yields nil, in `validate` and `coerce` too.
 ---@param value any  decoded content
 ---@param options? hecate.schema.BuildOptions
 ---@return boolean ok  true when the content conforms
@@ -1090,6 +1093,7 @@ function Schema:build(value, options)
       if relax == nil then refuse("build: method must be POST, PUT or PATCH, got " .. o.method, { option = "method" }) end
     end
   end
+  if value == nil and self.kind == "optional" then return true, nil end -- absent is what `optional` allows
   local raw = {}
   reset_work()
   without_defaults = relax == true

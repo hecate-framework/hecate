@@ -248,6 +248,7 @@ Each release heading states the supported Lua version.
 
 ### Fixed
 
+- fix(schema): a top-level `optional` schema accepts an absent value (`nil`) in `validate`, `coerce` and `build`; `null` stays a violation unless the schema is `nullable` (OQ-114 (5)).
 - `hecate.schema`: `map(boolean()):coerce({ a = "false" })` and a top-level `default(boolean(), false)` no longer lose the `false`; `represent` emits `null` for a nullable attribute that `build` received as `null` (owner decision 2026-11-08), so the content round-trips through decode, build, represent and encode; the union pass of `represent` that tries each alternative is memoised per alternative.
 - `hecate.http`: the parser refuses a request line without a version (`GET /`), which llhttp read as HTTP/0.9 without calling its version callback; the head is refused with kind `unsupported_version` (found by the conformance vectors).
 - `hecate.net`: `TlsStream:write` raises `ArgumentError` for a non-string argument without closing the stream (Phase 1 gate review). `hecate.log`: the `redact` annotation states the real depth bound (16 levels).

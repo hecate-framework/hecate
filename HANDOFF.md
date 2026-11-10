@@ -3,8 +3,8 @@
 
 - roadmap_item: `kernel`: application, modules, controllers, route modules, filters, problem details, lifecycle, multi-process workers, graceful shutdown (Phase 2, docs/roadmap.md)
 - status: in-progress
-- lock_until: 2026-11-10T11:57:45Z
-- last_update: 2026-11-10T10:27:45Z
+- lock_until: 2026-11-10T10:33:19Z
+- last_update: 2026-11-10T10:33:19Z
 
 ## Done
 
@@ -39,7 +39,7 @@
 - Step 13 (run of 2026-11-10T09:43Z, lock released at the end): roadmap kernel item (j) done: class field `routes = {...}` read by `Controller.routes` after `Controller.route` declarations (inherited copies ignored, non-table refused with `invalid_routes`); 2 tests; typecheck, lint, check-annotations, `test kernel` ok. CI of 94b22de was green on the three platforms.
 
 - OQ-114 resolved by the owner (2026-11-10, issue #170 closed): `source` member and relative pointers in 422 entries, `schema.optional` bug, `lax`/`strict` policy for undeclared query parameters (config key `requests.inputs`, roadmap kernel item (l)), per-route `max_content` deferred as a known limitation.
-- Step 15 in progress (run of ~10:10Z, regular 90-minute lock): kernel (`source`, `inputs` option) and schema (`optional` bug).
+- Step 15 (run of ~10:10Z, lock released at the end): kernel: 422 entries carry `source` with a relative pointer, dispatcher option `inputs` (`strict` default, `lax`) for undeclared query parameters (OQ-114 (1), (8)); schema: a top-level `optional` accepts an absent value (OQ-114 (5), root cause: only `object` knew how to skip an absent property), with a kernel regression test. typecheck, lint, check-annotations, `test kernel`, `test schema` ok. Handoff (l): declare the config key `requests.inputs` and bind it to `inputs`. Choices to confirm: in strict mode an undeclared name is refused before coercion (a request with both gets only the undeclared entries); a malformed query is a 400 in both modes.
 
 ## Next steps
 

@@ -287,6 +287,16 @@ function T:test_missing_content_is_decided_by_the_schema()
   self:assert_equal("anon", seen.name)
 end
 
+function T:test_an_optional_content_schema_accepts_an_absent_body()
+  local seen = "unset"
+  local optional = serve_with("POST", "/opt", {
+    content = { ["application/json"] = schema.optional(schema.of(User)) },
+    action = function(r) seen = r.content end,
+  })
+  self:assert_equal(200, optional(request("POST", "/opt")).status)
+  self:assert_nil(seen)
+end
+
 function T:test_content_over_the_limit_is_a_413()
   local serve = serve_with("POST", "/x", { content = { ["application/json"] = schema.any() } })
   local stream = http.ContentStream(coroutine.wrap(function() coroutine.yield(string.rep("a", 50)) end), { limit = 10 })
