@@ -98,6 +98,27 @@ function T:test_configuration_binds_inputs_and_exposure()
   log.set_default(nil)
 end
 
+function T:test_local_address_is_known_only_while_serving()
+  local reactor = require("hecate.reactor")
+  local app = kernel.Application({
+    logger = log.Logger({ sinks = { log.MemorySink() } }), server = { host = "127.0.0.1", port = 0 },
+    signals = false, routes = { kernel.routes("empty") },
+  })
+  self:assert_nil(app:local_address())
+  local seen
+  reactor.run(function()
+    reactor.fork(function()
+      while not app:local_address() do reactor.sleep(0.005) end
+      seen = app:local_address()
+      app:shutdown(0)
+    end)
+    reactor.deadline(10, app.serve, app)
+  end)
+  self:assert_equal("number", type(seen.port))
+  self:assert_equal("127.0.0.1", seen.ip)
+  self:assert_nil(app:local_address())
+end
+
 function T:test_configuration_binds_the_grace_timeout()
   local app = kernel.Application({ configuration = configuration({ HECATE_SERVER__GRACE_TIMEOUT = "2" }) })
   app:boot()
@@ -212,8 +233,8 @@ function T:test_a_second_signal_forces_the_stop()
   reactor.run(function()
     local done = false
     reactor.fork(function()
-      while not (app._server and app._server:local_address()) do reactor.sleep(0.005) end
-      local port = app._server:local_address().port
+      while not app:local_address() do reactor.sleep(0.005) end
+      local port = app:local_address().port
       reactor.fork(function() pcall(http.Client().get, http.Client(), "http://127.0.0.1:" .. port .. "/slow") end)
       while not started do reactor.sleep(0.005) end
       raise_until("sigterm", function() return done or codes(memory).shutdown_forced ~= nil end)

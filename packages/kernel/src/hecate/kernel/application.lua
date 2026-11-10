@@ -195,6 +195,13 @@ function Application:serve()
   if not ok then error(err, 0) end
 end
 
+--- The address the application listens on, `{ ip, port, family }`, or nil when it is not serving (with `port = 0` this
+--- is how a caller learns the port the system chose).
+---@return hecate.reactor.SocketAddress?
+function Application:local_address()
+  return self._server and self._server:local_address() or nil
+end
+
 --- Stops accepting and lets the requests in flight finish (see `hecate.http.Server:shutdown`). Does nothing when the
 --- application is not serving.
 ---@async

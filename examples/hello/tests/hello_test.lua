@@ -11,8 +11,8 @@ local function with_server(body)
   local app = hello.application({ signals = false, grace_timeout = 1, logger = log.Logger({ sinks = { log.MemorySink() } }), server = { host = "127.0.0.1", port = 0 } })
   reactor.run(function()
     reactor.fork(function()
-      while not (app._server and app._server:local_address()) do reactor.sleep(0.005) end
-      local base = "http://127.0.0.1:" .. app._server:local_address().port
+      while not app:local_address() do reactor.sleep(0.005) end
+      local base = "http://127.0.0.1:" .. app:local_address().port
       local ok, err = pcall(body, base)
       app:shutdown(1)
       if not ok then error(err, 0) end
