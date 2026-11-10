@@ -6,7 +6,9 @@ local core = require("hecate.core")
 local route = require("hecate.kernel.route")
 local errors = require("hecate.kernel.errors")
 
---- The superclass of controllers.
+--- The superclass of controllers. A class may also set the field `routes = { spec, ... }` (a list of route
+--- declarations, read by `Controller.routes` after those of `Controller.route`; errors surface at boot, not at the line).
+--- It is not annotated as a field because `Controller.routes` is the function that reads it.
 ---@class hecate.kernel.Controller
 ---@field prefix? string  path prefix of every route of the class: empty, or starts with `/` and does not end with one
 ---@field dependencies? table<string, string>  field name to the name of a container binding
@@ -70,8 +72,21 @@ function Controller.routes(class)
     error(errors.RouteDeclarationError("kernel: " .. origin .. ": the class is not finalised; call core.finalise first",
       { context = { reason = "invalid_controller", origin = origin } }))
   end
+  local specs = {}
+  for _, spec in ipairs(declarations[class] or {}) do specs[#specs + 1] = spec end
+  local field = rawget(class, "routes")
+  -- A finalised class may carry the members it inherits: the method of `Controller`, or the list of a superclass.
+  local parent = core.superclass(class)
+  if field == Controller.routes or (parent ~= nil and field == rawget(parent, "routes")) then field = nil end
+  if field ~= nil then
+    if type(field) ~= "table" then
+      error(errors.RouteDeclarationError("kernel: " .. origin .. ": `routes` is a list of route declarations",
+        { context = { reason = "invalid_routes", origin = origin } }))
+    end
+    for _, spec in ipairs(field) do specs[#specs + 1] = spec end
+  end
   local entries = {}
-  for _, spec in ipairs(declarations[class] or {}) do
+  for _, spec in ipairs(specs) do
     local entry = route.normalise(spec, {
       origin = origin, prefix = class.prefix, filters = class.filters, controller = class,
     })

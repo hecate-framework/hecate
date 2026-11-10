@@ -230,6 +230,32 @@ function T:test_controller_declared_methods_may_come_after_the_declaration()
   self:assert_equal("GET /x", Controller.routes(Users)[1].name)
 end
 
+function T:test_routes_field_after_route_declarations()
+  local Users = core.class("UsersController", Controller)
+  Users.prefix = "/users"
+  Users.routes = { { method = "GET", path = "/{id}", action = "show", parameters = { path = { id = Id } } } }
+  Controller.route(Users, { method = "GET", path = "/", action = "list" })
+  function Users:list() end
+  function Users:show() end
+  core.finalise(Users)
+  local entries = Controller.routes(Users)
+  self:assert_equal(2, #entries)
+  self:assert_equal("list", entries[1].action)
+  self:assert_equal("show", entries[2].action)
+  self:assert_equal("/users/{id}", entries[2].path)
+end
+
+function T:test_routes_field_errors_surface_at_boot()
+  local Users = core.class("UsersController", Controller)
+  Users.routes = { { method = "GET", path = "/x", action = "nothing" } }
+  core.finalise(Users)
+  refused(self, "missing_action", function() Controller.routes(Users) end)
+  local Bad = core.class("BadController", Controller)
+  Bad.routes = "nope"
+  core.finalise(Bad)
+  refused(self, "invalid_routes", function() Controller.routes(Bad) end)
+end
+
 function T:test_controller_missing_action_is_a_boot_error()
   local Users = core.class("UsersController", Controller)
   Controller.route(Users, { method = "GET", path = "/x", action = "nothing" })

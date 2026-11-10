@@ -3,8 +3,8 @@
 
 - roadmap_item: `kernel`: application, modules, controllers, route modules, filters, problem details, lifecycle, multi-process workers, graceful shutdown (Phase 2, docs/roadmap.md)
 - status: in-progress
-- lock_until: 2026-11-10T08:17:11Z
-- last_update: 2026-11-10T08:17:11Z
+- lock_until: 2026-11-10T10:10:00Z
+- last_update: 2026-11-10T10:10:00Z
 
 ## Done
 
@@ -35,9 +35,11 @@
 
 - Owner answers on OQ-113 (2026-11-10): both `Controller.route(Class, spec)` and the class field `routes = {...}` (roadmap kernel item (j), to implement); (4), (5), (6), (9) agreed; (2), (3), (7), (8) still open (the owner asked for more context). The DX example now shows the `routes` field.
 
+- Step 13 (run of 2026-11-10T09:43Z, lock released at the end): roadmap kernel item (j) done: class field `routes = {...}` read by `Controller.routes` after `Controller.route` declarations (inherited copies ignored, non-table refused with `invalid_routes`); 2 tests; typecheck, lint, check-annotations, `test kernel` ok. CI of 94b22de was green on the three platforms.
+
 ## Next steps
 
-0. Kernel code after the input validation: the `Application` skeleton and boot validation (feature modules, container wiring, `json.set_max_depth`, server binding), the `hecate.respond` re-export, response validation in development/test, then the handoffs (a) to (g) of the roadmap item.
+0. Kernel code after the input validation (item (j) done): the `Application` skeleton and boot validation (feature modules, container wiring, `json.set_max_depth`, server binding), the `hecate.respond` re-export, response validation in development/test, then the handoffs (a) to (g) of the roadmap item.
 1. Kernel handoffs are in the `kernel` roadmap item, items (a) to (g): `json.set_max_depth` at boot, logging keys (default logger = `log.DEFAULT_REDACT` + `logging.redact`), `wrap_secret = log.Secret`, response schema by `schema.of`, a `hecate.respond(status, value)` helper, `ContentError` when the content was consumed by validation. Check CI of the pull request first.
 2. OQ-101 items (b) logging keys, (c) `wrap_secret`; (a) kernel must call `json.set_max_depth(limits.max_depth)` at boot.
 3. Settle how a route names its response schema (OQ-98 item 7), then the kernel proper.
