@@ -11,6 +11,7 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- feat(kernel): `Application:serve` shuts down gracefully on `sigint` and `sigterm` (options `signals`, a list or `false`, and `grace_timeout`, default 30 s; `shutdown(grace_timeout)` defaults to the option); the signal is logged with the code `shutdown_signal` (OQ-115).
 - feat(kernel): `kernel.Application` (composition root: `boot` applies `max_depth`, orders feature modules topologically, binds services, validates the container, gathers routes, builds the dispatcher; `serve` and `shutdown` drive an `http.Server`), `kernel.modules.order` and `ModuleError` (`invalid_module`, `duplicate_module`, `missing_dependency`, `dependency_cycle`, `already_booted`).
 - feat(config): the framework keys `errors.expose_details` and `requests.inputs` (the names `errors` and `requests` are reserved); feat(kernel): `Application` option `configuration` binds them with `limits.max_depth` and the logging keys, builds and installs the default logger, and warns at boot when `expose_details` is true in production.
 - feat(kernel)!: the 422 entries of the input validation carry a `source` (`path`, `query`, `header`, `cookie`, `content`) and a pointer relative to it (the old `/query/...` pointers are gone); the dispatcher option `inputs` (`strict` by default, or `lax`) refuses a request with undeclared query parameters, or drops them (OQ-114).

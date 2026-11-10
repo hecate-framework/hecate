@@ -135,4 +135,56 @@ function T:test_expose_details_in_production_warns_at_boot()
   log.set_default(nil)
 end
 
+local reactor = require("hecate.reactor")
+local uv = require("luv")
+
+function T:test_a_signal_shuts_the_server_down_gracefully()
+  if uv.os_uname().sysname:match("Windows") then return end -- only console signals are delivered there
+  -- The guard keeps a signal sent before the watcher is installed from ending the process.
+  local guard = uv.new_signal()
+  guard:start("sigusr2", function() end)
+  local memory = log.MemorySink()
+  local closed = false
+  local app = kernel.Application({
+    logger = log.Logger({ sinks = { memory } }),
+    signals = { "sigusr2" }, grace_timeout = 1,
+    server = { host = "127.0.0.1", port = 0 },
+    services = function(c) c:bind("probe", function() return { close = function() closed = true end } end, { lifetime = "singleton" }) end,
+  })
+  reactor.run(function()
+    local done = false
+    reactor.fork(function()
+      while not done do
+        uv.kill(uv.os_getpid(), "sigusr2")
+        reactor.sleep(0.005)
+      end
+    end)
+    reactor.deadline(5, app.serve, app)
+    done = true
+  end)
+  guard:close()
+  local found
+  for _, record in ipairs(memory:records()) do
+    if record.fields and record.fields.code == "shutdown_signal" then found = record.fields.signal end
+  end
+  self:assert_equal("sigusr2", found)
+end
+
+function T:test_signals_false_serves_until_shutdown()
+  local app = kernel.Application({ signals = false, server = { host = "127.0.0.1", port = 0 } })
+  reactor.run(function()
+    reactor.fork(function() reactor.sleep(0.01); app:shutdown(1) end)
+    reactor.deadline(5, app.serve, app)
+  end)
+  self:assert_nil(app._server)
+end
+
+function T:test_invalid_signal_options_are_refused()
+  self:assert_false(pcall(kernel.Application, { signals = {} }))
+  self:assert_false(pcall(kernel.Application, { signals = { 15 } }))
+  self:assert_false(pcall(kernel.Application, { signals = "sigterm" }))
+  self:assert_false(pcall(kernel.Application, { grace_timeout = -1 }))
+  self:assert_false(pcall(kernel.Application, { grace_timeout = math.huge }))
+end
+
 return T
