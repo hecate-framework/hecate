@@ -51,9 +51,10 @@ Status column: `done` = implemented in `tools/`, `now` = workflow exists today, 
 
 | Task | Purpose | Status |
 |---|---|---|
-| `test [packages] [--integration] [--tag t]` | run tests (bootstrap harness, then `hecate.test`); a test that runs longer than `HECATE_TEST_TIMEOUT` seconds (default 120) fails its file and is named; with `CI=true` each file is announced on standard error; the CI job has a 30-minute limit | done |
+| `test [packages] [--integration] [--tag t]` | run tests (bootstrap harness, then `hecate.test`); a test that runs longer than `HECATE_TEST_TIMEOUT` seconds (default 120) fails its file and is named; with `CI=true` each file is announced on standard error; the CI job has a 30-minute limit; the files of `tests/unit/`, `tests/conformance/` and `tools/tests` run in a pool of `HECATE_TEST_JOBS` worker processes (default: the number of cores, at most 4; `1` is the serial run in file order), the files of `tests/integration/` and the examples run serially afterwards, and the report keeps a fixed order | done |
 | `coverage [packages]` | line coverage by a debug line hook in the harness (`HECATE_TEST_COVERAGE`, main thread and coroutines), LCOV report `coverage/lcov.info`, thresholds core/reactor/router/schema ≥ 90 % (executable lines are approximated from the source text) | done |
 | `affected [--base ref]` | packages affected by a diff, following reverse dependencies; used to shrink CI | done |
+| `code-changed [--from ref --to ref]` | `true` unless the diff changes only documentation (Markdown, `HANDOFF.md`, `docs/`, `website/`, `.claude/`, `.github/ISSUE_TEMPLATE/`); any doubt (no or unreachable `--from`) is `true`; CI skips the platform matrix on `false` | done The workflow skips the matrix only when the `ci-ok` verdict of the previous head is `success`: a documentation commit never hides a red, cancelled or pending code commit. |
 | `needs <package> [packages...]` | `true` when a listed package is, or depends on, `<package>`; CI builds the native modules of `json` when it says so (OQ-53: no fallback backend) | done |
 | `matrix` | emits the CI matrix (platforms × packages × services) as JSON | done |
 | `services up\|down\|status` | start database servers locally via `tools/services/compose.yaml` (same versions as CI) | P4 |
@@ -98,7 +99,7 @@ Status column: `done` = implemented in `tools/`, `now` = workflow exists today, 
 | `docs.yml` | PR, push to main (Markdown changes) | markdownlint, link check | now |
 | `pr-hygiene.yml` | PR opened/edited | Conventional Commits title, path labels | now |
 | `claude.yml` | `@claude` in issues, PR comments and reviews | Claude Code GitHub Action | now (needs `ANTHROPIC_API_KEY` secret) |
-| `ci.yml` | PR, push to main | `affected` → matrix {ubuntu, macos, windows} × affected packages: bootstrap (cached), format-check, lint, typecheck, check-versions, check-rockspecs, check-package-structure, check-docs-examples, check-licenses, check-lua-constructs, check-boundaries, check-glossary, check-adr-index (`check-links`, `check-changelog` and the `gen-* --check` tasks are not run by CI yet), unit tests; coverage runs in `nightly` | P0 |
+| `ci.yml` | PR, push to main | `plan` (`affected`, `needs`, `code-changed`) → on a push that changes code, the matrix {ubuntu, macos, windows} × affected packages: bootstrap (cached), native modules (one cache per module keyed by a hash of all its inputs, built only on a miss, then verified), and the tests (units in a worker pool, then integration tests serially); the platform-independent static checks (format-check, lint, typecheck, check-versions, check-rockspecs, check-package-structure, check-docs-examples, check-licenses, check-lua-constructs, check-boundaries, check-glossary, check-annotations, check-adr-index) and LuaLS run on Linux only (`check-links`, `check-changelog` and the `gen-* --check` tasks are not run by CI yet). A push that changes only documentation skips the matrix and runs the light `docs-checks` job instead; cancellation of a superseded run is a job-level `concurrency` of the matrix, so a documentation push never cancels a code run; `ci-ok` aggregates `plan`, `ci` and `docs-checks` (skipped counts as success). Coverage runs in `nightly` | P0 |
 | `native.yml` | PR and push to main touching `csrc/` or `native/` (and the sanitize and fuzz tools) | ASan/UBSan run of `json` (Linux with GCC and Clang, macOS with Clang), one-minute fuzzing (Linux) of every cargo-fuzz target (crashing inputs uploaded as an artefact); MSVC builds are part of `ci`; long fuzzing in `nightly` | P1 (done) |
 | `integration.yml` | PR touching data/net packages, nightly | service containers: PostgreSQL, MySQL, MariaDB, Redis, Valkey, later MongoDB, SQL Server — two most recent major versions each | P4 |
 | `benchmarks.yml` | push to main, PR labelled `performance` | GitHub-hosted runner, `bench --compare main` with interleaved A/B runs on the same runner (relative comparison only, OQ-14), repeated runs (7 rounds each side for `tcp-echo`, at least 5 are required; the table asks for more as scenarios stabilise), the **median** is the reference value (mean, min and max reported alongside, since shared runners are noisy), deltas and significance in the job summary (a PR comment and the published history come later), history published as indicative | P1 (delivered for `tcp-echo`: `benchmarks.yml`) |
@@ -114,7 +115,10 @@ Status column: `done` = implemented in `tools/`, `now` = workflow exists today, 
 Rules:
 
 - Caches: toolchain (`.hecate/toolchain`) keyed by bootstrap script hash and OS;
-  LuaRocks tree keyed by rockspecs.
+  LuaRocks tree keyed by rockspecs; each built native module keyed by the hash of all its inputs
+  (sources, build task, bootstrap scripts, `ci.yml`) and the platform, so a hit skips the build.
+  `HECATE_NATIVE_PROFILE=debug` builds the Rust modules in debug mode (default: release); CI keeps
+  release (a debug `json` encoder overflows the 1 MiB stack test, and debug builds are never benchmarked or shipped).
 - Required checks on `main`: `ci`, `docs`, `pr-hygiene`, and from their phase on,
   `native`, `integration`, `website`.
 - Third-party actions pinned by commit SHA in every workflow, with the tag as a trailing comment

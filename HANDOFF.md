@@ -3,8 +3,8 @@
 
 - roadmap_item: `kernel`: application, modules, controllers, route modules, filters, problem details, lifecycle, multi-process workers, graceful shutdown (Phase 2, docs/roadmap.md)
 - status: in-progress
-- lock_until: 2026-11-11T11:26:05Z
-- last_update: 2026-11-11T09:56:05Z
+- lock_until: 2026-11-11T10:11:06Z
+- last_update: 2026-11-11T10:11:06Z
 
 ## Done
 
@@ -69,7 +69,8 @@
 - Step 24 (run of 2026-11-11T09:41Z, lock released at the end): Phase 2 exit criterion for the example: `examples/hello/main.lua` reads `HELLO_WORKERS` (default 1) and prints only in the primary (`kernel.supervisor.worker_role()`); `examples/hello/tests/workers_test.lua` runs the application as the primary of two workers started from `main.lua` itself (`round_robin`, stopped with `Application:shutdown`, so it runs on Windows too); CI runs `test examples/hello` whenever `kernel` is in the affected packages; README and CHANGELOG. typecheck, lint, check-changelog, check-links, check-lua-constructs, check-glossary, `test examples/hello` (3 consecutive green runs) ok; manual run with `HELLO_WORKERS=2` answered and stopped cleanly on SIGTERM. CI on macOS and Windows to verify.
 - Step 25 (owner request of 2026-11-11, lock released at the end): `Supervisor:local_address()` (and so `Application:local_address()`) is nil while an ephemeral port is not bound (test `tests/unit/supervisor_test.lua` with a gated fake strategy); the primary logs through `log.default()` when no logger is given (test in `application_test.lua`); the example test no longer waits for a non-zero port. typecheck, lint, check-annotations, check-glossary, check-lua-constructs, `test kernel`, `test examples/hello` ok.
 
-- Step 24 in progress (owner request, ~09:57Z, lock 90 minutes): CI speed-up. (1) slow `http` tests (`client_retry_test` 60 s, `client_test` 16 s, `server_limits_test` 6.6 s), (2) static checks on Linux only, (3) cache of the built native artefacts, (4) parallel unit tests in `tools/tasks/test.lua` (integration tests stay serial), (5) docs-only pushes skip the matrix (no cancellation of real runs), smaller: `CARGO_INCREMENTAL=0`, debug builds in CI. Not doing: incremental `affected` (owner: not now).
+- Step 24 (owner request, run of ~09:57Z, lock released at the end): CI speed-up. `http` tests 91 s to 16 s (scripted server cancels its forks, fixture grace 0.25 s, timeouts 0.3 s); `ci.yml`: static checks on Linux only, per-module native build caches keyed by all inputs, `HECATE_TEST_JOBS` worker pool for `tests/unit`, `tests/conformance` and `tools/tests` (integration stays serial; 1m51 to 0m50 locally), documentation-only pushes skip the matrix only when the previous head's `ci-ok` is `success` (safety net added by me: otherwise a docs commit would hide a red code commit), `docs-checks` and `ci-ok` jobs, `CARGO_INCREMENTAL=0`, `HECATE_NATIVE_PROFILE=debug` supported but NOT used in CI (the 1 MiB-stack JSON encoder test segfaults in debug). UNVERIFIED until the first CI run on the three platforms: cache keys and `!` exclusions, `.dll` restore on Windows, the `if` expressions and the `ci-ok` aggregation, the 0.3 s test timeouts on Windows and macOS. Owner may make `ci-ok` the required check.
+- To fix: `Client` with `expect_continue = true` does not add `Expect: 100-continue` (`packages/http/src/hecate/http/internal/client_exchange.lua` `write_request`; the doc of `client.lua` says it does; the client waits for `expect_timeout`); fix test first and make the test at `client_test.lua` (explicit `Expect` field) strict.
 
 ## Next steps
 

@@ -7,6 +7,11 @@
 -- Windows: mlua-sys and the C modules need the Lua 5.5 import library; set LUA_LIB_NAME (for example lua55),
 -- LUA_LIB and LUA_INC before running (TLS spike OQ-4). macOS link flags are
 -- set by this task (and mirrored in packages/net/native/.cargo/config.toml).
+--
+-- Profile: the Rust modules are built in release mode (`cargo build --release`) unless HECATE_NATIVE_PROFILE=debug,
+-- which builds the debug profile (faster to compile, slower to run, and unoptimised: never for benchmarks, the
+-- sanitizers, releases or timing assertions). The installed file is the same either way, so the choice is the
+-- caller's and must be part of any cache key of the result.
 local util = require("lib.util")
 local sanitize = require("lib.sanitize")
 
@@ -124,12 +129,14 @@ local function build_rust(ctx, name, m, spec)
   -- Cargo reads `.cargo/config.toml` from the working directory, not from the manifest's,
   -- so the macOS link flags are passed through the environment as well.
   local env = macos and "RUSTFLAGS='-C link-arg=-undefined -C link-arg=dynamic_lookup' " or ""
+  local debug_profile = os.getenv("HECATE_NATIVE_PROFILE") == "debug"
+  local profile = debug_profile and "debug" or "release"
   local variant = spec and (" --features spec-tests --target-dir " .. util.quote(crate .. "/target/spec")) or ""
-  local out, ok = util.capture(("%scargo build --release --locked%s --manifest-path %s 2>&1"):format(
-    env, variant, util.quote(crate .. "/Cargo.toml")))
+  local out, ok = util.capture(("%scargo build%s --locked%s --manifest-path %s 2>&1"):format(
+    env, debug_profile and "" or " --release", variant, util.quote(crate .. "/Cargo.toml")))
   if not ok then return { ok = false, problems = { "cargo build failed:\n" .. out } } end
   if spec then return { ok = true, problems = {}, output = "built the spec-tests variant in " .. crate .. "/target/spec" } end
-  local built = ("%s/target/release/%s%s.%s"):format(crate, windows and "" or "lib", m.lib,
+  local built = ("%s/target/%s/%s%s.%s"):format(crate, profile, windows and "" or "lib", m.lib,
     windows and "dll" or macos and "dylib" or "so")
   local version = _VERSION:match("%d+%.%d+")
   local dest = ("%s/.hecate/rocks/lib/lua/%s/%s.%s"):format(ctx.root, version, m.target, windows and "dll" or "so")
