@@ -181,6 +181,124 @@ function T:test_no_accounting_warning_when_every_connection_was_accepted_or_no_c
   self:assert_nil(run_accounting(2, nil)) -- a worker that reports nothing (reuseport, or an older worker) is not judged
 end
 
+local function closable()
+  local stream = { closed = 0 }
+  function stream:close() self.closed = self.closed + 1 end
+  return stream
+end
+
+--- A worker the strategy hands `count` streams to (the n-th write fails when `failing` is n). `replies` are the messages
+--- the worker sends after the hand-over; then `ending` decides how the worker goes away: `"pipe"` (its message pipe ends),
+--- or `"killed"` (the supervisor kills it). Returns the
+--- streams, the writes `{ message, stream, options }` the peer got and the number of streams closed when the replies
+--- were read, before the worker went away (`snapshot`).
+local function run_held(count, replies, ending, failing)
+  local streams, writes, snapshot = {}, {}, nil
+  for index = 1, count do streams[index] = closable() end
+  local gate = reactor.Channel(0)
+  local delivered, stage, reply = 0, "ready", 0
+  local function closed_count()
+    local closed = 0
+    for _, stream in ipairs(streams) do closed = closed + stream.closed end
+    return closed
+  end
+  local peer = {
+    receive = function()
+      if stage == "ready" then stage = "replies" return "ready" end
+      if stage == "replies" then
+        wait_until(function() return delivered == count end)
+        reply = reply + 1
+        if replies[reply] ~= nil then return replies[reply] end
+        snapshot = closed_count()
+        stage = "gone"
+        if ending == "pipe" then return nil end
+      end
+      pcall(gate.receive, gate) -- `stop` or a kill closes the gate
+      return nil
+    end,
+    send = function(_, message, stream, options)
+      if message:find("^stop") then gate:close() return end
+      writes[#writes + 1] = { message, stream, options }
+      if failing ~= nil and #writes == failing then error("broken pipe", 0) end
+    end,
+    close = function() end,
+  }
+  local running = true
+  local process = {
+    ipc = peer, pid = 7, wait = function() return { code = 0 } end, is_running = function() return running end,
+    kill = function() running = false gate:close() end,
+  }
+  local strategy = idle_strategy()
+  strategy.run = function(_, ring)
+    local worker = ring:next()
+    for index = 1, count do
+      pcall(worker.hand_over, worker, streams[index])
+      delivered = delivered + 1
+    end
+    reactor.sleep(60)
+  end
+  with_spawn(function() return process end, function()
+    local sup = kernel.supervisor.Supervisor({
+      command = { "worker" }, count = 1, endpoint = { host = "127.0.0.1", port = 0 }, strategy = strategy,
+    })
+    reactor.run(function()
+      reactor.scope(function(scope)
+        local run = scope:fork(sup.run, sup)
+        wait_until(function() return delivered == count and snapshot ~= nil end)
+        if ending == "killed" then sup:force() else sup:stop(0.1) end
+        run:value()
+      end)
+    end)
+  end)
+  return streams, writes, snapshot
+end
+
+function T:test_the_primary_keeps_each_stream_open_until_the_worker_answers_received()
+  local streams, writes, snapshot = run_held(3, { "received", "received" }, "pipe")
+  self:assert_equal(3, #writes)
+  for index, write in ipairs(writes) do
+    self:assert_equal("connection", write[1])
+    self:assert_true(write[2] == streams[index])
+    self:assert_true(write[3].keep_open, "the write leaves the stream open")
+  end
+  self:assert_equal(2, snapshot, "one stream is closed per received, the oldest first")
+  self:assert_equal(1, streams[1].closed)
+  self:assert_equal(1, streams[2].closed)
+  self:assert_equal(1, streams[3].closed, "the one never acknowledged is closed when the pipe ends")
+end
+
+function T:test_the_oldest_held_stream_is_closed_first()
+  local streams, _, snapshot = run_held(3, { "received" }, "pipe")
+  self:assert_equal(1, snapshot)
+  self:assert_equal(1, streams[1].closed)
+  self:assert_equal(1, streams[2].closed) -- all closed at the end, each once
+  self:assert_equal(1, streams[3].closed)
+end
+
+function T:test_streams_still_held_are_closed_when_the_worker_is_killed()
+  local streams, _, snapshot = run_held(2, {}, "killed")
+  self:assert_equal(0, snapshot, "nothing was acknowledged")
+  for index, stream in ipairs(streams) do self:assert_equal(1, stream.closed, "stream " .. index) end
+end
+
+function T:test_a_received_with_nothing_held_is_ignored()
+  local streams, _, snapshot = run_held(0, { "received", "received" }, "pipe")
+  self:assert_equal(0, #streams)
+  self:assert_equal(0, snapshot)
+  local one, _, after = run_held(1, { "received", "received", "received" }, "pipe")
+  self:assert_equal(1, after)
+  self:assert_equal(1, one[1].closed, "a surplus received closes nothing twice")
+end
+
+function T:test_a_stream_whose_write_failed_is_not_held_and_does_not_shift_the_acknowledgements()
+  local streams, writes, snapshot = run_held(3, { "received", "received" }, "pipe", 2)
+  self:assert_equal(3, #writes)
+  self:assert_equal(2, snapshot)
+  self:assert_equal(1, streams[1].closed)
+  self:assert_equal(0, streams[2].closed, "the strategy closes a stream the write failed on, not the supervisor")
+  self:assert_equal(1, streams[3].closed, "the second received acknowledges the third stream")
+end
+
 function T:test_on_crash_loop_is_validated()
   local function build(value)
     return kernel.supervisor.Supervisor({
@@ -834,7 +952,7 @@ end
 --- A peer that returns the scripted `{ message, stream }` entries, then reports the end of its pipe (nil). An entry that
 --- is a function is called instead (it may raise). `peer.consumed` counts the entries read.
 local function scripted_peer(script)
-  local peer = { consumed = 0 }
+  local peer = { consumed = 0, sent = {} }
   function peer.receive()
     peer.consumed = peer.consumed + 1
     local entry = script[peer.consumed]
@@ -842,15 +960,9 @@ local function scripted_peer(script)
     if type(entry) == "function" then return entry() end
     return entry[1], entry[2]
   end
-  function peer.send() end
+  function peer.send(_, message) peer.sent[#peer.sent + 1] = message end
   function peer.close() end
   return peer
-end
-
-local function closable()
-  local stream = { closed = 0 }
-  function stream:close() self.closed = self.closed + 1 end
-  return stream
 end
 
 --- Runs `control` of a role fed by `script` and returns the grace period `on_stop` got (nil: it was not called) and the peer.
@@ -956,6 +1068,40 @@ function T:test_control_closes_a_connection_the_full_queue_cannot_take_and_logs_
   local discarded = memory:records()[2]
   self:assert_equal("hand_over_discarded", discarded.fields.code, "a queued connection closed unserved is logged")
   self:assert_equal(1, discarded.fields.count)
+end
+
+function T:test_control_answers_each_connection_with_received_whether_it_was_queued_or_refused()
+  local first, second, third = closable(), closable(), closable()
+  local _, peer = run_control({ { "connection", first }, { "connection", second }, { "connection", third }, { "stop 1" } }, 30,
+    { HECATE_WORKER_BACKLOG = "1" }) -- a queue of one: the second and the third are refused as full
+  self:assert_equal(3, #peer.sent)
+  for _, message in ipairs(peer.sent) do self:assert_equal("received", message) end
+end
+
+function T:test_control_does_not_answer_what_is_not_a_connection_with_a_stream()
+  local _, peer = run_control({ { "connection" }, { "future_message", closable() }, { "stop 1" } }, 30)
+  self:assert_equal(0, #peer.sent)
+end
+
+function T:test_control_reads_stop_without_waiting_for_the_answers_to_be_written()
+  -- A write that takes 5 s (a full pipe) must not delay the `stop` that follows the connections.
+  local peer = scripted_peer({ { "connection", closable() }, { "connection", closable() }, { "stop 3" } })
+  local written = {}
+  function peer.send(_, message)
+    reactor.sleep(5)
+    written[#written + 1] = message
+  end
+  local role = kernel.supervisor.WorkerRole(peer, worker_environment())
+  local stopped_at, grace
+  virtual(function()
+    local started = reactor.now()
+    role:control(function(seconds)
+      stopped_at, grace = reactor.now() - started, seconds
+    end, 30)
+  end)
+  self:assert_equal(0, stopped_at, "on_stop ran at once")
+  self:assert_equal(3, grace)
+  self:assert_equal(2, #written, "the answers are flushed afterwards")
 end
 
 function T:test_control_logs_a_failure_of_the_pipe()

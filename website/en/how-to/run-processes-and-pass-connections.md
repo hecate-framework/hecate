@@ -101,7 +101,7 @@ not started with a message pipe. It returns the same peer on every call and does
 
 Both ends use the same methods:
 
-- `peer:send(message, stream?)` suspends until the message is handed to the operating system.
+- `peer:send(message, stream?, options?)` suspends until the message is handed to the operating system.
 - `peer:receive()` suspends and returns `message, stream?`. It returns `nil` when the other end
   has closed the pipe, which is how a child learns that its parent is gone.
 - `peer:close()` is idempotent and never suspends. A peer is `<close>`-able.
@@ -208,7 +208,10 @@ end)
 ```
 
 The stream is closed in the sender once it is handed over: using it afterwards raises
-`TransportError` with `EBADF`.
+`TransportError` with `EBADF`. With `{ keep_open = true }` as third argument the sender keeps the
+stream open and closes it itself. A stream in flight in the message pipe is held by no process, and
+macOS may discard it when another Unix socket closes, so a sender that cannot lose a connection keeps
+the stream until the receiver acknowledged it with a message (the kernel supervisor does).
 
 > [!WARNING] Windows
 > The operating system duplicates the socket for the receiver, and the duplicate is valid only

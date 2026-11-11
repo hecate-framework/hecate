@@ -234,6 +234,45 @@ function T:test_many_streams_handed_over_in_a_row_stay_matched_with_their_messag
   end)
 end
 
+function T:test_send_closes_the_handed_stream_unless_keep_open_is_given()
+  with_pair(self, function(a, b)
+    local listener <close> = reactor.listen_tcp("127.0.0.1", 0)
+    local port = listener:local_address().port
+    local client_one = reactor.connect_tcp("127.0.0.1", port)
+    local one = listener:accept()
+    a:send("one", one)
+    self:assert_true(one:is_closed(), "closed by default")
+    local client_two = reactor.connect_tcp("127.0.0.1", port)
+    local two = listener:accept()
+    a:send("two", two, { keep_open = true })
+    self:assert_false(two:is_closed(), "left open for the caller")
+    -- The receiver gets a working stream, and the caller closes its own copy afterwards.
+    local _, first = b:receive()
+    local message, second = b:receive()
+    self:assert_equal("two", message)
+    second:write("hello")
+    self:assert_equal("hello", client_two:read())
+    two:close()
+    second:close()
+    first:close()
+    client_one:close()
+    client_two:close()
+  end)
+end
+
+function T:test_send_checks_its_options()
+  with_pair(self, function(a)
+    local function refused(options)
+      local err = self:assert_error(function() a:send("x", nil, options) end)
+      self:assert_true(core.is_instance_of(err, core.ArgumentError), tostring(err))
+    end
+    refused("keep")
+    refused({ keep_open = "yes" })
+    refused({ other = true })
+    a:send("fine", nil, { keep_open = true }) -- no stream: the option has nothing to keep
+  end)
+end
+
 function T:test_max_message_bounds_what_is_sent_and_received()
   with_pair(self, function(a, b)
     local err = self:assert_error(function() a:send(("x"):rep(11)) end)

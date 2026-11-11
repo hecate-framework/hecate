@@ -2,12 +2,16 @@
 -- the primary starts the workers, adds each to the rotation once it is ready, restarts a worker that exits with an
 -- exponential backoff and a crash-loop limit, and stops them gracefully; the worker side reads the control messages of
 -- the primary, feeds the connections it hands over to the server, and drains on `stop` or when the message pipe
--- closes (the primary died). The control messages are the same on every platform (Decision 5): `ready` and
--- `counters <requests> <connections>` (worker to primary), `stop <seconds>` and `connection` with a stream (primary to
--- worker). `counters` carries two non-negative integers in decimal, `requests` being `-` when the worker cannot count
+-- closes (the primary died). The control messages are the same on every platform (Decision 5): `ready`,
+-- `counters <requests> <connections>` and `received` (worker to primary), `stop <seconds>` and `connection` with a
+-- stream (primary to worker). The primary keeps its copy of each stream it hands over, in a FIFO per worker process,
+-- until the worker answers `received` (sent once it has taken the stream out of the frame, whether it queued or refused
+-- it); it closes what is still held when the worker's message pipe ends or the worker exits or is killed. A stream in
+-- flight in a message pipe is held by no process, and macOS discards it when another Unix socket closes (OQ-118). The
+-- number of streams held for a worker is bounded by the connections in flight to it (written, not yet acknowledged). `counters` carries two non-negative integers in decimal, `requests` being `-` when the worker cannot count
 -- them (`http.Server` has no request counter yet); a worker sends it at most once per second, only when a value
 -- changed, and once more when it has stopped serving; the primary keeps the latest values of each worker
--- (`Supervisor:counters`), ignores a malformed message, and logs `hand_over_unaccounted` when a worker exits having
+-- (`Supervisor:counters`), ignores a malformed message and a `received` with nothing held, and logs `hand_over_unaccounted` when a worker exits having
 -- accepted fewer connections than were handed over to it.
 -- A worker that does not say `ready` within `ready_timeout` seconds of its start is killed and counted as a crash. The rolling reload replaces workers
 -- by restart (a fresh process from the same command, ready before the old one is stopped), so it needs no message of its
@@ -208,7 +212,11 @@ end
 ---@field planned boolean  being replaced by a reload: its exit is not a crash
 ---@field finished boolean  has exited and been reaped
 ---@field counters? { requests: integer?, connections: integer }  the latest `counters` message
----@field handed integer  connections handed over to it
+---@field handed integer  connections handed over to it (written to its message pipe)
+---@field held hecate.reactor.TcpStream[]  streams written to it that it has not acknowledged with `received` yet, oldest first (`held_first` is the index of the oldest)
+---@field held_first integer
+---@field held_last integer
+---@field pump hecate.reactor.Future?  while a reload retires the old worker, the computation that reads the messages of this replacement; `supervise` cancels it and takes over
 ---@field done hecate.reactor.Channel  closed once it has exited
 
 --- A worker slot, the unit the supervisor keeps alive.
@@ -233,12 +241,62 @@ local function start_worker(self, slot)
   local peer = process.ipc --[[@as hecate.reactor.Peer]]
   local gen = {
     process = process, peer = peer, ready = false, planned = false, finished = false, done = reactor.Channel(0), handed = 0,
+    held = {}, held_first = 1, held_last = 0,
   }
+  -- The stream stays open in the primary until the worker answers `received` (or the worker is gone): a stream in flight
+  -- in a message pipe is held by no process, and macOS discards it when another Unix socket closes (OQ-118). It is
+  -- recorded before the write so that a fast `received` always finds it; a failed write takes it back.
   gen.target = { hand_over = function(_, stream)
-    peer:send("connection", stream)
+    local index = gen.held_last + 1
+    gen.held_last, gen.held[index] = index, stream
+    local sent, err = pcall(peer.send, peer, "connection", stream, { keep_open = true })
+    if not sent then
+      if gen.held[index] == stream then gen.held[index] = false end -- the position stays (later entries are ahead of it)
+      error(err, 0)
+    end
     gen.handed = gen.handed + 1
   end }
   return gen
+end
+
+--- Closes the oldest stream held for `gen` (the worker acknowledged it); does nothing when none is held (a stray
+--- `received` is ignored). A position emptied by a failed write is skipped. Never suspends.
+---@param gen hecate.kernel.WorkerGeneration
+local function release_oldest(gen)
+  while gen.held_first <= gen.held_last do
+    local index = gen.held_first
+    local stream = gen.held[index]
+    gen.held[index], gen.held_first = nil, index + 1
+    if stream then
+      pcall(stream.close, stream)
+      return
+    end
+  end
+end
+
+--- Closes every stream still held for `gen`: its message pipe ended, or it exited or was killed. Idempotent. Never suspends.
+---@param gen hecate.kernel.WorkerGeneration
+local function release_held(gen)
+  while gen.held_first <= gen.held_last do release_oldest(gen) end
+end
+
+--- Handles one message of a worker (`ready`, `counters`, `received`); anything else is ignored. The primary expects no
+--- stream from a worker: one that arrives is closed, not leaked (a descriptor each).
+---@param self hecate.kernel.Supervisor
+---@param gen hecate.kernel.WorkerGeneration
+---@param message string
+---@param stream hecate.reactor.TcpStream?
+local function on_message(self, gen, message, stream)
+  if stream ~= nil then pcall(stream.close, stream) end
+  if message == "ready" and not gen.ready and not gen.planned then
+    gen.ready = true
+    self._ready = self._ready + 1
+    if not self._stopping then self._ring:add(gen.target) end
+  elseif message == "received" then
+    release_oldest(gen)
+  elseif message:sub(1, 9) == "counters " then
+    gen.counters = parse_counters(message) or gen.counters -- a malformed message changes nothing
+  end
 end
 
 --- Runs one worker slot: starts the worker, reads its messages until its message pipe ends, waits for it, and
@@ -282,19 +340,12 @@ local function supervise(self, slot)
       while true do
         local ok, message, stream = pcall(peer.receive, peer)
         if not ok or message == nil then break end
-        -- The primary expects no stream from a worker: one that arrives is closed, not leaked (a descriptor each).
-        if stream ~= nil then pcall(stream.close, stream) end
-        if message == "ready" and not gen.ready and not gen.planned then
-          gen.ready = true
-          self._ready = self._ready + 1
-          if not self._stopping then self._ring:add(gen.target) end
-        elseif message:sub(1, 9) == "counters " then
-          gen.counters = parse_counters(message) or gen.counters -- a malformed message changes nothing
-        end
+        on_message(self, gen, message, stream)
       end
       if watchdog ~= nil then watchdog:cancel() end
     end)
     self._ring:remove(gen.target)
+    release_held(gen) -- the message pipe ended: whatever the worker did not acknowledge is lost for it, close our copies
     if gen.ready then self._ready = self._ready - 1 end
     -- A worker sends its final counters before it exits: connections handed over that it never accepted were lost in
     -- its message pipe or its queue (a worker that reports no count is not judged).
@@ -306,11 +357,19 @@ local function supervise(self, slot)
     end
     peer:close()
     local status = gen.process:wait()
+    release_held(gen)
     gen.finished = true
     slot.gen = nil
     gen.done:close()
     local successor = slot.next
     if gen.planned and successor ~= nil then
+      -- One reader at a time on the message pipe of the replacement: the reload's pump ends before this loop reads.
+      local pump = successor.pump
+      if pump ~= nil then
+        successor.pump = nil
+        pump:cancel()
+        pcall(pump.value, pump)
+      end
       slot.next, gen = nil, successor
     else
       local exited = gen
@@ -485,6 +544,7 @@ end
 ---@param gen hecate.kernel.WorkerGeneration
 local function discard(gen)
   pcall(gen.peer.close, gen.peer)
+  release_held(gen)
   if gen.process:is_running() then pcall(gen.process.kill, gen.process, "sigkill") end
   pcall(gen.process.wait, gen.process)
 end
@@ -556,7 +616,29 @@ local function replace(self, slot, grace, ready_timeout)
   self._ring:remove(old.target)
   fresh.ready = true
   if old.ready then old.ready = false else self._ready = self._ready + 1 end
-  retire(self, slot, old, grace)
+  -- The replacement already receives connections: its messages (`received` above all) are read while the old worker
+  -- drains, until `supervise` takes the slot over. A receive that is cancelled loses nothing.
+  reactor.scope(function(scope)
+    local pump = scope:fork(function()
+      while true do
+        local received, message, stream = pcall(fresh.peer.receive, fresh.peer)
+        if not received then
+          if core.is_instance_of(message, core.CancellationError) then error(message, 0) end
+          return
+        end
+        if message == nil then return end
+        on_message(self, fresh, message, stream)
+      end
+    end)
+    fresh.pump = pump
+    local retired, failure = pcall(retire, self, slot, old, grace)
+    if not retired then
+      fresh.pump = nil
+      pump:cancel()
+      error(failure, 0)
+    end
+    -- `supervise` cancels the pump when it takes the replacement over, which happens as soon as the old worker has exited.
+  end)
 end
 
 --- Replaces the workers one at a time with fresh processes started from the same command, so they run the code on
@@ -732,7 +814,8 @@ function WorkerRole:listener()
 end
 
 --- Reads the messages of the primary until `stop` or the end of the message pipe, then calls `on_stop` with the grace
---- period (the one of `stop`, else `default_grace`). Connections handed over go to the hand-over listener; unknown
+--- period (the one of `stop`, else `default_grace`). Connections handed over go to the hand-over listener, and each is
+--- answered with `received` (written by a computation of its own, so that reading `stop` is never delayed); unknown
 --- messages are ignored (a newer primary may send what this worker does not know).
 ---@async
 ---@param on_stop async fun(grace: number)
@@ -740,42 +823,76 @@ end
 function WorkerRole:control(on_stop, default_grace)
   local grace = default_grace
   local peer = self._peer
-  while true do
-    local ok, message, stream = pcall(peer.receive, peer)
-    if not ok then
-      if core.is_instance_of(message, core.CancellationError) then error(message, 0) end
-      -- A broken or violated message pipe ends the worker like the end of the pipe; the handles still in it are lost.
-      log.default():error("kernel.WorkerRole: the message pipe to the primary failed; the worker stops",
-        { code = "control_failed", worker = self.index, reason = tostring(message) })
-      break
-    end
-    if message == nil then break end
-    if message == "connection" and stream ~= nil then
-      local queued, reason = self._hand_over:push(stream)
-      if not queued and reason == "full" then
-        -- The primary cannot be told (the message pipe is one way here); the client sees its connection closed.
-        log.default():warning("kernel.WorkerRole: the hand-over queue is full; connection closed",
-          { code = "hand_over_queue_full", worker = self.index, capacity = self._hand_over:capacity() })
+  local unacknowledged = 0 -- `connection` frames taken out of the message pipe and not answered with `received` yet
+  local wake = reactor.Channel(1)
+  local stopped, failure
+  local cancelled ---@type any  a cancellation met by the loop: raised once the scope is left
+  reactor.scope(function(scope)
+    -- `received` is written by this computation, never by the loop below: a write may suspend (full pipe), and the loop
+    -- must stay free to read `stop`. It flushes what is left when the loop and `on_stop` are over.
+    scope:fork(function()
+      while true do
+        pcall(wake.receive, wake) -- woken by a connection, or closed at the end
+        while unacknowledged > 0 do
+          unacknowledged = unacknowledged - 1
+          local sent, err = pcall(peer.send, peer, "received")
+          if not sent then
+            if core.is_instance_of(err, core.CancellationError) then error(err, 0) end
+            return -- a failing pipe ends the control loop too
+          end
+        end
+        if wake:is_closed() then return end
       end
-    else
-      if stream ~= nil then stream:close() end
-      local seconds = message:match("^stop (.+)$")
-      if seconds ~= nil then
-        local value = tonumber(seconds)
-        if is_duration(value) then grace = value --[[@as number]] end
+    end)
+    while true do
+      local ok, message, stream = pcall(peer.receive, peer)
+      if not ok then
+        if core.is_instance_of(message, core.CancellationError) then
+          cancelled = message
+          wake:close()
+          return
+        end
+        -- A broken or violated message pipe ends the worker like the end of the pipe; the handles still in it are lost.
+        log.default():error("kernel.WorkerRole: the message pipe to the primary failed; the worker stops",
+          { code = "control_failed", worker = self.index, reason = tostring(message) })
         break
       end
+      if message == nil then break end
+      if message == "connection" and stream ~= nil then
+        local queued, reason = self._hand_over:push(stream)
+        if not queued and reason == "full" then
+          -- The client sees its connection closed; the primary is told only that the stream was taken out of the frame.
+          log.default():warning("kernel.WorkerRole: the hand-over queue is full; connection closed",
+            { code = "hand_over_queue_full", worker = self.index, capacity = self._hand_over:capacity() })
+        end
+        -- Whatever became of the stream, the primary may now close its copy (it holds it until this message).
+        unacknowledged = unacknowledged + 1
+        if wake:length() == 0 then
+          ---@diagnostic disable-next-line: await-in-sync  -- room in the buffer: does not suspend
+          wake:send(true)
+        end
+      else
+        if stream ~= nil then stream:close() end
+        local seconds = message:match("^stop (.+)$")
+        if seconds ~= nil then
+          local value = tonumber(seconds)
+          if is_duration(value) then grace = value --[[@as number]] end
+          break
+        end
+      end
     end
-  end
-  -- Nothing is pushed any more. The connections already queued are not closed here: `on_stop` lets the server take
-  -- them (`HandOverListener:drain`) before it shuts down, so a rolling reload resets none; whatever is still queued
-  -- afterwards is closed.
-  local stopped, failure = pcall(on_stop, grace)
-  local discarded = self._hand_over:close()
-  if discarded > 0 then
-    log.default():warning("kernel.WorkerRole: connections still queued at the stop were closed unserved",
-      { code = "hand_over_discarded", worker = self.index, count = discarded })
-  end
+    -- Nothing is pushed any more. The connections already queued are not closed here: `on_stop` lets the server take
+    -- them (`HandOverListener:drain`) before it shuts down, so a rolling reload resets none; whatever is still queued
+    -- afterwards is closed.
+    stopped, failure = pcall(on_stop, grace)
+    local discarded = self._hand_over:close()
+    if discarded > 0 then
+      log.default():warning("kernel.WorkerRole: connections still queued at the stop were closed unserved",
+        { code = "hand_over_discarded", worker = self.index, count = discarded })
+    end
+    wake:close()
+  end)
+  if cancelled ~= nil then error(cancelled, 0) end
   if not stopped then error(failure, 0) end
 end
 

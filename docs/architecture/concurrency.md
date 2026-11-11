@@ -152,8 +152,15 @@ Accepted in [ADR 0023](../adr/0023-multi-process-serving.md), measured in
   constrained by what another platform needs.
 - The primary supervises workers (readiness, restart on crash with exponential backoff and a
   crash-loop limit) over a control message pipe that exists on every platform and carries `ready`,
-  `stop(deadline)`, `reload` and counters; a worker whose control message pipe closes drains and exits.
-  `reload` is reserved and unused (the rolling reload replaces workers by restart). A worker sends
+  `stop(deadline)` and counters, and, with `round_robin`, `connection` (with the stream handed over)
+  from the primary and `received` from the worker; a worker whose control message pipe closes drains
+  and exits. `reload` is reserved and unused (the rolling reload replaces workers by restart). The
+  primary keeps its copy of each stream it hands over, in a FIFO per worker process, until the worker
+  answers `received` (sent from a computation of its own once the stream is out of the frame, whether
+  the worker queued or refused it), and closes what is still held when the message pipe ends or the
+  worker exits or is killed: a stream in flight in a message pipe is held by no process, and macOS
+  discards it when another Unix socket closes (OQ-118). The streams held for a worker are bounded by
+  the connections in flight to it. A worker sends
   `counters <requests> <connections>` (two non-negative decimal integers, `-` for `requests` when it
   cannot count them) at most once per second and only when a value changed, from a computation of its
   own so that `stop` is never delayed, and once more when it has stopped serving; the primary keeps the

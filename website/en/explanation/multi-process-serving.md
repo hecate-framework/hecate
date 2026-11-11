@@ -93,7 +93,8 @@ a server that reuses connections does not.
 
 Each worker has a [message pipe](../reference/glossary.md#concurrency)
 to the primary, the same on every platform and never in the data path. It carries `ready`,
-`stop(deadline)` and the counters. The name `reload` is reserved and unused.
+`stop(deadline)` and the counters, and, with `round_robin`, `connection` (with the stream handed over)
+from the primary and `received` from the worker. The name `reload` is reserved and unused.
 
 - A worker sends `counters <requests> <connections>` at most once per second, and only when a value
   changed. Today `connections` is the number of connections the worker accepted from the primary
@@ -106,7 +107,12 @@ to the primary, the same on every platform and never in the data path. It carrie
 - The primary never signals a worker directly. It sends `stop`, and kills the process after the
   deadline. That behaves the same on Windows, where POSIX signals do not exist.
 - With `round_robin`, the same pipe carries the connections: `Peer:send` hands a `TcpStream` to a
-  worker, together with a message.
+  worker, together with a message. The primary keeps its own copy of each stream open until the
+  worker answers `received` (once it has taken the stream out of the message, whether it queued or
+  refused it), and closes what is still held when the pipe ends or the worker exits or is killed.
+  A stream in flight in a message pipe is held by no process, and macOS discards it when another
+  Unix socket closes, which would reset a connection during a rolling reload. The streams held for
+  a worker are bounded by the connections in flight to it.
 
 ## Shutdown and reload
 

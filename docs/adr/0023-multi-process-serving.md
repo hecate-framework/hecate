@@ -106,8 +106,13 @@ What follows from the measurements:
    has no IPC in the data path and no dispatch loop. A change to a common abstraction needs the
    Linux benchmark of the verification section not to regress.
 5. **The control message pipe is the same on every platform and is not in the data path.** Each worker
-   has a message pipe to the primary. It carries `ready`, `stop(deadline)`, `reload` and counters.
-   A worker that sees the message pipe close (the primary died) drains and exits, which gives
+   has a message pipe to the primary. It carries `ready`, `stop(deadline)`, `counters` and, with
+   `round_robin`, `connection` (with the stream handed over) from the primary and `received` from the
+   worker; `reload` is reserved and unused. The primary keeps its copy of a stream it handed over
+   until the worker answers `received` (or the pipe ends, or the worker exits or is killed): a
+   stream in flight in a message pipe is held by no process, and macOS discards it when another
+   Unix socket closes (OQ-118). The number of streams held for a worker is bounded by the
+   connections in flight to it. A worker that sees the message pipe close (the primary died) drains and exits, which gives
    orphan protection without `PR_SET_PDEATHSIG`. The primary never signals workers directly: it
    sends `stop`, then kills the process after the deadline, which behaves the same on Windows where
    POSIX signals do not exist.
