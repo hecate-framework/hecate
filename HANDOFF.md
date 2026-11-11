@@ -3,8 +3,8 @@
 
 - roadmap_item: `kernel`: application, modules, controllers, route modules, filters, problem details, lifecycle, multi-process workers, graceful shutdown (Phase 2, docs/roadmap.md)
 - status: in-progress
-- lock_until: 2026-11-11T17:46:00Z
-- last_update: 2026-11-11T17:46:00Z
+- lock_until: 2026-11-11T20:11:00Z
+- last_update: 2026-11-11T18:41:00Z
 
 ## Done
 
@@ -82,8 +82,9 @@
 
 ## Next steps
 
-0. The kernel item is ready for the owner's review: every review finding is done or consciously declined (see the Done entry of step 31). Remaining kernel pieces, all deferred and recorded in docs/roadmap.md: request id through the ambient context, the helper that returns the reactor options with `on_unobserved_failure` bound to `log` (CLI), the generated `config/development.lua` and `config/test.lua` values (CLI, Phase 3), `reuseport` conformance (waits for the next luv release, OQ-43), the `Request` counter of `http.Server` (workers report `-` for requests).
-1. Before ticking: the handoffs (a) to (n) were verified against the roadmap text and `/review-package kernel` ran twice (step 29 and the final review of step 31); nothing blocks ticking except the owner's decision on the deferred pieces.
+0. In progress (run of 2026-11-11T18:41Z): CI of 8730be2 failed on macOS at `ApplicationWorkersTest.test_reload_replaces_the_workers_without_failing_a_request` (`expected 0, got 1`), the flaky test seen in step 30; fixing it.
+1. The kernel item is ready for the owner's review: every review finding is done or consciously declined (see the Done entry of step 31). Remaining kernel pieces, all deferred and recorded in docs/roadmap.md: request id through the ambient context, the helper that returns the reactor options with `on_unobserved_failure` bound to `log` (CLI), the generated `config/development.lua` and `config/test.lua` values (CLI, Phase 3), `reuseport` conformance (waits for the next luv release, OQ-43), the `Request` counter of `http.Server` (workers report `-` for requests).
+2. Before ticking: the handoffs (a) to (n) were verified against the roadmap text and `/review-package kernel` ran twice (step 29 and the final review of step 31); nothing blocks ticking except the owner's decision on the deferred pieces.
 
 ## Decisions taken (and where they are recorded)
 
