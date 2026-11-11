@@ -14,7 +14,7 @@
 | Used by | `cli`, `hecate`, `security`, `template`, `test` |
 | Native code | none |
 | Specification | [http-and-routing.md](../../docs/architecture/http-and-routing.md) |
-| Decisions | [ADR 0003](../../docs/adr/0003-transparent-structured-concurrency.md), [ADR 0006](../../docs/adr/0006-declarative-routes-as-runtime-data.md), [ADR 0007](../../docs/adr/0007-object-model.md) |
+| Decisions | [ADR 0003](../../docs/adr/0003-transparent-structured-concurrency.md), [ADR 0006](../../docs/adr/0006-declarative-routes-as-runtime-data.md), [ADR 0007](../../docs/adr/0007-object-model.md), [ADR 0023](../../docs/adr/0023-multi-process-serving.md) (multi-process serving), [ADR 0027](../../docs/adr/0027-kernel-depends-on-net.md) (the kernel depends on `net`); [`concurrency.md`](../../docs/architecture/concurrency.md), "Workers" and "Signals and shutdown". The kernel does not use the ambient context ([ADR 0025](../../docs/adr/0025-ambient-context.md)) yet: binding the request id is deferred (roadmap) |
 | Agent | [`pkg-kernel`](../../.claude/agents/pkg-kernel.md) |
 | Repository | read-only mirror `hecate-framework/hecate-kernel`, generated from this directory (ADR 0017) |
 
@@ -25,12 +25,14 @@
 - filters around actions; the service scope of a request (`request.services`, the scoped lifetime of the container)
 - coercion/validation of inputs, serialisation of results, response validation in development/test
 - problem details mapping of errors
-- workers (multi-process) and graceful shutdown
-- meta-module `hecate` re-exporting the framework surface
+- workers (multi-process): the primary, the supervisor, the listening strategies, the rolling reload
+- graceful shutdown on `sigint` and `sigterm`
 
 ## Non-goals
 
 - templating (later, `template`)
+- the meta-module `hecate`, which re-exports the framework surface (`hecate.respond`, `hecate.problem`, ...): it belongs to the `hecate` package, which has no code yet
+- the command line (`hecate serve --workers`), which belongs to `cli` (Phase 3)
 
 ## Standards and references
 
@@ -108,8 +110,8 @@
   entry also carries the violation `message` and a generic 500 carries the extension member
   `debug = { error = <class name>, message = <text>, traceback = <when the error has one> }`. When false, nothing of an
   error message or context reaches a response; the `detail` and extensions of a problem are always shown, the developer
-  chose them. The kernel will bind this option to the configuration key `errors.expose_details` (OQ-112 (5)); neither
-  the key nor the boot warning exists yet (they come with the `config` integration and the `Application`).
+  chose them. `Application` binds this option to the configuration key `errors.expose_details` (OQ-112 (5)) and logs the
+  boot warning `expose_details_in_production` (`warning`) when it is true in the environment `production`.
 
 - `kernel.routes(name)`: a route module (`kernel.RouteModule`). `module:get(path, spec)` and the curried `module:get "/x" { ... }`
   (same for `post`, `put`, `patch`, `delete`, `head`, `options`) declare a route whose `action` is a function; the
@@ -182,9 +184,9 @@
   per undeclared name (RFC 6901 escaped, in order of appearance, at most `problems.MAX_ERRORS`; the value is never
   echoed; `message` only with `expose_details`). The refusal comes before any coercion, and a route that declares no
   `query` follows the policy too. Undeclared header fields and cookies are always dropped, never refused; the content
-  follows its own schema. A request without a query string pays nothing extra. The kernel will bind this option to the
-  configuration key `requests.inputs` (default `strict`, `lax` in development and test through the environment files);
-  neither the key nor a boot warning exists yet (they come with the `config` integration and the `Application`). Example:
+  follows its own schema. A request without a query string pays nothing extra. `Application` binds this option to the
+  configuration key `requests.inputs` (default `strict`, `lax` in development and test through the environment files;
+  an explicit `inputs` option wins). Example:
   `GET /users?limit=5&page=2` on a route declaring only `limit` answers `422` with the entry
   `{ "pointer": "/page", "source": "query", "code": "additional_properties" }`.
 - `kernel.input.compile(entry, options?)`: `options.strict` (default false) is what the dispatcher sets from `inputs`.
@@ -207,12 +209,37 @@
 - **Problem extensions** that cannot be encoded (a cycle, a value nested too deep) answer the generic `500` and are logged
   at `error` with the code of the problem, never the value; a function or a non-finite number is refused at construction.
 
-Further exports (application, feature modules) arrive with later items.
+- `hecate.kernel.logging` (module, not a field of `kernel`): `build(configuration)` builds the default logger of an
+  `Application` from the `logging.*` keys (severity, named severities, sinks, `async`, `redact` added to
+  `log.DEFAULT_REDACT`); it raises `ArgumentError` for a `file` sink without a path.
+- `hecate.kernel.Filter` (annotation class) and `hecate.kernel.Action` (annotation alias): a filter is any table with a
+  `handle(request, next)` function, an action is `fun(request): ...any`. Both are duck-typed;
+  `kernel.chain.is_filter` tells a filter.
 
-## Layout (once implemented)
+## Limits
+
+- **Windows and signals.** Windows never delivers `sigterm` and the kernel does not watch `sighup` there. A service
+  manager that stops the primary with `TerminateProcess` gets no graceful shutdown. The workers notice that the message
+  pipe closed and drain with the default grace period. `sigint` (Ctrl+C) works.
+- **`reuseport` on Linux.** `SO_REUSEPORT` lets any process of the same user bind the same port and take a share of the
+  connections. On a shared host, `round_robin` is the safer choice.
+- **A worker swallows `sigterm` and `sigint`.** `kill <worker pid>` does nothing; only the primary stops a worker (the
+  `stop` message). A terminal sends its signals to the whole process group, hence this choice.
+- **`json.set_max_depth` is process-global.** Two `Application`s in one process share the limit.
+- **`results.serialisers` is a process-wide table.** Every application of the process shares the serialisers of a
+  media type.
+- **Global filters and `request.services`.** The service scope is opened after routing, so a global filter cannot use
+  `request.services`. Use a module, controller or route filter.
+
+## Layout
 
 ```text
 src/hecate/kernel/init.lua    public entry point
+src/hecate/kernel/application.lua  Application, the composition root, and the signals
+src/hecate/kernel/modules.lua  validation and ordering of feature modules
+src/hecate/kernel/logging.lua  the default logger built from the logging keys
+src/hecate/kernel/listening.lua  listening strategies, WorkerRing, HandOverListener
+src/hecate/kernel/supervisor.lua  Supervisor (primary), WorkerRole (worker), rolling reload
 src/hecate/kernel/chain.lua   filter chain (chain of responsibility)
 src/hecate/kernel/results.lua serialisation of results into responses
 src/hecate/kernel/problem.lua  problem classes (RFC 9457)
@@ -221,7 +248,7 @@ src/hecate/kernel/route.lua    the normalised route entry and its checks
 src/hecate/kernel/routes.lua   route modules
 src/hecate/kernel/controller.lua  controllers
 src/hecate/kernel/routing.lua  the route table of an application
-src/hecate/kernel/errors.lua   RouteDeclarationError
+src/hecate/kernel/errors.lua   RouteDeclarationError, ModuleError, SupervisorError
 src/hecate/kernel/input.lua    validation and coercion of the inputs of a request
 src/hecate/kernel/dispatcher.lua  the function that serves a request
 tests/unit/  tests/integration/  tests/fixtures/

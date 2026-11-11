@@ -11,6 +11,7 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- feat(hecate): the meta-module `hecate` re-exports the kernel surface (`Application`, `Controller`, `routes`, `respond`, `problem`, `load_configuration`, the kernel errors); no object-model entry points (OQ-57).
 - fix(http): `Server:shutdown` no longer closes a fresh connection (no request byte yet) at once; it gets up to 1 second (or the grace timeout when shorter) to send its request, served with `Connection: close`; idle keep-alive connections are still closed immediately. This fixes a request lost when a connection was handed over just before the stop.
 - fix(kernel): a worker serves the connections handed over before the `stop` message (`HandOverListener:drain`), so a rolling reload loses no request.
 - docs(doc): the generated code reference includes `hecate.kernel`; kernel annotations renamed so that no two reference pages share a case-insensitive file name (`ProblemDetails`, `CompileOptions`, `GuardOptions`, module `supervisors`).
