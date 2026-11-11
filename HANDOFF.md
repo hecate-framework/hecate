@@ -3,8 +3,8 @@
 
 - roadmap_item: `kernel`: application, modules, controllers, route modules, filters, problem details, lifecycle, multi-process workers, graceful shutdown (Phase 2, docs/roadmap.md)
 - status: in-progress
-- lock_until: 2026-11-11T12:48:48Z
-- last_update: 2026-11-11T12:48:48Z
+- lock_until: 2026-11-11T14:58:40Z
+- last_update: 2026-11-11T13:28:40Z
 
 ## Done
 
@@ -73,6 +73,8 @@
 
 - Step 25 (owner request, run of ~10:22Z, lock released at the end): (a) `Client` `expect_continue` fixed (the field is sent, the content follows the 100; 5 tests, test first); (b) `reactor.watch_signals` / `SignalWatcher` (persistent, queue of 16, 15 tests) and `reactor.supports_spawn` / `reactor.supports_handle_passing` (structural checks only), `Application` uses one watcher for the primary and the workers, the workers end-to-end test skips where the capability queries say no. typecheck, lint, check-annotations, `test reactor`, `test http`, `test kernel`, `test examples/hello` ok. The CI of step 24 is green on the three platforms (cold-cache run 4m07); the docs-only skip is exercised by the claim commit e10f52a, check its run.
 - Step 26 (run of 2026-11-11T12:42Z, lock released at the end): roadmap open item (5), response validation in development and test: `validate_responses` (option of `Application`, `dispatcher.build`, `results.serialise`) validates the representation against the schema declared for the status, a mismatch raises `core.ValidationError` (`context.status`, `context.violations`, no value in the message) and becomes a logged 500; `Application` defaults it from the environment (`development`/`test`); 11 tests (results, dispatcher, application); README, CHANGELOG; OQ-117 (issue #173) records the choices to confirm (notably no configuration key yet, candidate `responses.validate`). typecheck, lint, check-annotations, check-boundaries, check-glossary, check-lua-constructs, check-changelog, check-links, `test kernel`, `test examples/hello` ok (ddd1152).
+
+- Step 27 in progress (owner request, ~13:32Z, regular 90-minute lock): the `SIGHUP` rolling reload of the workers (roadmap kernel item (m), ADR 0023 Decision 5, OQ-115 (4)). Also done before: the markdownlint MD056 failure (OQ-117 sat in the 2-column table), pushed as 7c4d6cd.
 
 ## Next steps
 
