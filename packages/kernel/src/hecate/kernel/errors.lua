@@ -21,4 +21,11 @@ local RouteDeclarationError = core.error_class("RouteDeclarationError", "hecate.
 ---@field context { reason: string, module?: string, cycle?: string[] }
 local ModuleError = core.error_class("ModuleError", "hecate.kernel.ModuleError", core.ConfigurationError)
 
-return { RouteDeclarationError = RouteDeclarationError, ModuleError = ModuleError }
+--- The supervisor of the workers stopped on a failure (ADR 0023). `context.reason` is the stable identifier:
+--- `crash_loop` (workers kept exiting: `crash_limit` exits within `crash_window`), `start_failed` (the worker program
+--- cannot be started) and `already_run`.
+---@class hecate.kernel.SupervisorError : hecate.core.Error
+---@field context { reason: string }
+local SupervisorError = core.error_class("SupervisorError", "hecate.kernel.SupervisorError", core.Error)
+
+return { RouteDeclarationError = RouteDeclarationError, ModuleError = ModuleError, SupervisorError = SupervisorError }

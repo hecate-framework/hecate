@@ -1,0 +1,423 @@
+-- Multi-process serving, the policy half (ADR 0023, "Mechanism in `reactor`, policy in `kernel`"): the supervisor in
+-- the primary starts the workers, adds each to the rotation once it is ready, restarts a worker that exits with an
+-- exponential backoff and a crash-loop limit, and stops them gracefully; the worker side reads the control messages of
+-- the primary, feeds the connections it hands over to the server, and drains on `stop` or when the message pipe
+-- closes (the primary died). The control messages are the same on every platform (Decision 5): `ready` (worker to
+-- primary), `stop <seconds>` and `connection` with a stream (primary to worker); `reload` is reserved for the rolling
+-- reload (roadmap kernel item (m)).
+global <const> require, type, error, pcall, tostring, tonumber, math, table, ipairs, pairs, os
+
+local core = require("hecate.core")
+local reactor = require("hecate.reactor")
+local listening = require("hecate.kernel.listening")
+local errors = require("hecate.kernel.errors")
+
+---@class hecate.kernel.supervisor
+local supervisor = {}
+
+--- Environment variables the primary gives each worker (the worker role, ADR 0023 Decision 1).
+local ENV <const> = {
+  index = "HECATE_WORKER_INDEX",
+  strategy = "HECATE_WORKER_STRATEGY",
+  host = "HECATE_WORKER_HOST",
+  port = "HECATE_WORKER_PORT",
+  backlog = "HECATE_WORKER_BACKLOG",
+}
+supervisor.ENV = ENV
+
+--- Seconds after the grace period before the primary kills a worker that has not exited.
+local KILL_MARGIN <const> = 1
+
+---@param seconds any
+---@return boolean
+local function is_duration(seconds)
+  return type(seconds) == "number" and seconds == seconds and seconds >= 0 and seconds < math.huge
+end
+
+-- The primary --------------------------------------------------------------------------------------------------------
+
+--- Options of `Supervisor`.
+---@class hecate.kernel.SupervisorOptions
+---@field command string[]  the worker program and its arguments (`{ interpreter, script, ... }`): the same program as the primary, started again with the worker role
+---@field count integer  number of workers, at least 1
+---@field endpoint hecate.kernel.Endpoint  where the application listens
+---@field strategy? hecate.kernel.ListeningStrategy  default `listening.select("auto")`
+---@field env? table<string, string>  variables added to the environment of each worker
+---@field logger? hecate.log.Logger  receives worker exits, restarts and the crash loop
+---@field restart_delay? number  seconds before the first restart of a worker (default 0.1), doubled at each crash in the crash window, at most 10 s
+---@field crash_limit? integer  crashes within `crash_window` that stop the supervisor (default 5)
+---@field crash_window? number  seconds (default 60)
+
+--- The supervisor of the workers, in the primary.
+---@class hecate.kernel.Supervisor
+---@overload fun(options: hecate.kernel.SupervisorOptions): hecate.kernel.Supervisor
+local Supervisor = core.class("Supervisor")
+
+local KNOWN = {
+  command = true, count = true, endpoint = true, strategy = true, env = true, logger = true, restart_delay = true,
+  crash_limit = true, crash_window = true,
+}
+
+--- Checks the options; nothing starts until `run`.
+---
+--- Raises `hecate.core.ArgumentError` for an unknown or malformed option.
+---@param options hecate.kernel.SupervisorOptions
+function Supervisor:init(options)
+  if type(options) ~= "table" then error(core.ArgumentError("kernel.Supervisor: options is a table"), 2) end
+  for key in pairs(options) do
+    if not KNOWN[key] then error(core.ArgumentError(("kernel.Supervisor: unknown option %q"):format(tostring(key))), 2) end
+  end
+  local command = options.command
+  if type(command) ~= "table" or type(command[1]) ~= "string" then
+    error(core.ArgumentError("kernel.Supervisor: command is a list of strings, the program first"), 2)
+  end
+  for i = 1, #command do
+    if type(command[i]) ~= "string" then error(core.ArgumentError("kernel.Supervisor: command is a list of strings"), 2) end
+  end
+  if math.type(options.count) ~= "integer" or options.count < 1 then
+    error(core.ArgumentError("kernel.Supervisor: count is an integer of at least 1"), 2)
+  end
+  if type(options.endpoint) ~= "table" then error(core.ArgumentError("kernel.Supervisor: endpoint is a table"), 2) end
+  for _, key in ipairs({ "restart_delay", "crash_window" }) do
+    if options[key] ~= nil and not is_duration(options[key]) then
+      error(core.ArgumentError(("kernel.Supervisor: %s is a non-negative finite number of seconds"):format(key)), 2)
+    end
+  end
+  if options.crash_limit ~= nil and (math.type(options.crash_limit) ~= "integer" or options.crash_limit < 1) then
+    error(core.ArgumentError("kernel.Supervisor: crash_limit is an integer of at least 1"), 2)
+  end
+  self._options = options
+  self._strategy = options.strategy or listening.select("auto", { logger = options.logger })
+  self._logger = options.logger
+  self._ring = listening.WorkerRing()
+  self._slots = {}
+  self._crashes = {}
+  self._started = 0
+  self._ready = 0
+  self._stopping = false
+  self._state = "new" -- new, running, stopped
+  self._requests = reactor.Channel(1) -- the grace period of the first stop request
+  self._finished = reactor.Channel(0) -- closed once `run` has stopped every worker
+  self._failure = nil
+end
+
+---@param self hecate.kernel.Supervisor
+---@param severity string
+---@param message string
+---@param fields table
+local function note(self, severity, message, fields)
+  if self._logger ~= nil then self._logger:log(severity, "kernel.Supervisor: " .. message, fields) end
+end
+
+--- Asks `run` to stop, with `grace` seconds; only the first request counts. Never suspends.
+---@param self hecate.kernel.Supervisor
+---@param grace number
+local function request_stop(self, grace)
+  local requests = self._requests
+  if not requests:is_closed() and requests:length() == 0 then
+    ---@diagnostic disable-next-line: await-in-sync  -- room in the buffer: does not suspend
+    requests:send(grace)
+  end
+end
+
+--- The environment of a worker.
+---@param self hecate.kernel.Supervisor
+---@param index integer
+---@return table<string, string>
+local function worker_env(self, index)
+  local env = {}
+  for name, value in pairs(self._options.env or {}) do env[name] = value end
+  local endpoint, address = self._options.endpoint, self._address
+  env[ENV.index] = tostring(index)
+  env[ENV.strategy] = self._strategy.name
+  env[ENV.host] = address and address.ip or endpoint.host
+  env[ENV.port] = tostring(address and address.port or endpoint.port)
+  if endpoint.backlog ~= nil then env[ENV.backlog] = tostring(endpoint.backlog) end
+  return env
+end
+
+--- Records a crash and returns the delay before the restart, or nil when the crash-loop limit is reached.
+---@param self hecate.kernel.Supervisor
+---@return number?
+local function crash_delay(self)
+  local options = self._options
+  local window, limit = options.crash_window or 60, options.crash_limit or 5
+  local now = reactor.now()
+  local recent = {}
+  for _, at in ipairs(self._crashes) do if now - at < window then recent[#recent + 1] = at end end
+  recent[#recent + 1] = now
+  self._crashes = recent
+  if #recent >= limit then return nil end
+  return math.min((options.restart_delay or 0.1) * 2 ^ (#recent - 1), 10)
+end
+
+--- Runs one worker slot: starts the worker, reads its messages until its message pipe ends, waits for it, and
+--- restarts it unless the supervisor stops. Never raises (a failure stops the supervisor, `_failure`).
+---@async
+---@param self hecate.kernel.Supervisor
+---@param slot { index: integer, process: hecate.reactor.Process?, waiting: boolean, future: hecate.reactor.Future? }
+local function supervise(self, slot)
+  local command = self._options.command
+  local args = table.move(command, 2, #command, 1, {})
+  while not self._stopping do
+    local started, process = pcall(reactor.spawn, command[1], args, { ipc = true, env = worker_env(self, slot.index) }) -- glossary-ok: operating-system process (ADR 0023)
+    if not started then
+      self._failure = self._failure or errors.SupervisorError(("kernel.Supervisor: cannot start a worker: %s"):format(tostring(process)),
+        { context = { reason = "start_failed" } })
+      request_stop(self, 0)
+      return
+    end
+    slot.process = process
+    self._started = self._started + 1
+    local peer = process.ipc --[[@as hecate.reactor.Peer]]
+    local target = { hand_over = function(_, stream) peer:send("connection", stream) end }
+    local is_ready = false
+    while true do
+      local ok, message = pcall(peer.receive, peer)
+      if not ok or message == nil then break end
+      if message == "ready" and not is_ready then
+        is_ready = true
+        self._ready = self._ready + 1
+        if not self._stopping then self._ring:add(target) end
+      end
+    end
+    self._ring:remove(target)
+    if is_ready then self._ready = self._ready - 1 end
+    peer:close()
+    local status = process:wait()
+    slot.process = nil
+    if self._stopping then return end
+    local delay = crash_delay(self)
+    note(self, "warning", "a worker exited; restarting it", {
+      code = "worker_exited", worker = slot.index, pid = process.pid, exit_code = status.code, signal = status.signal,
+    })
+    if delay == nil then
+      self._failure = self._failure or errors.SupervisorError(
+        "kernel.Supervisor: workers keep exiting (crash loop); stopping", { context = { reason = "crash_loop" } })
+      note(self, "error", "crash loop: stopping every worker", { code = "crash_loop" })
+      request_stop(self, 0)
+      return
+    end
+    slot.waiting = true
+    local slept, err = pcall(reactor.sleep, delay)
+    slot.waiting = false
+    if not slept then
+      if self._stopping then return end
+      error(err, 0)
+    end
+  end
+end
+
+--- Stops every worker: removes them from the rotation, sends `stop` with the grace period, kills those still running
+--- after it (plus one second), and waits for every slot to end.
+---@async
+---@param self hecate.kernel.Supervisor
+---@param grace number
+local function stop_workers(self, grace)
+  self._stopping = true
+  self._strategy:close()
+  self._ring:close()
+  local message = "stop " .. tostring(grace)
+  for _, slot in ipairs(self._slots) do
+    if slot.waiting and slot.future ~= nil then slot.future:cancel() end
+    local process = slot.process
+    if process ~= nil and process.ipc ~= nil then pcall(process.ipc.send, process.ipc, message) end
+  end
+  local function wait_all()
+    for _, slot in ipairs(self._slots) do
+      if slot.future ~= nil then pcall(slot.future.value, slot.future) end
+    end
+  end
+  local in_time = pcall(reactor.deadline, grace + KILL_MARGIN, wait_all)
+  if not in_time then
+    for _, slot in ipairs(self._slots) do
+      local process = slot.process
+      if process ~= nil and process:is_running() then
+        note(self, "warning", "a worker did not stop in time; killing it", { code = "worker_killed", worker = slot.index, pid = process.pid })
+        pcall(process.kill, process, "sigkill")
+      end
+    end
+    wait_all()
+  end
+end
+
+--- Binds the endpoint (`prepare` of the strategy), starts the workers and dispatches connections to them, until
+--- `stop`. Returns once every worker has exited.
+---
+--- Raises `hecate.kernel.SupervisorError` (`context.reason`: `crash_loop` when workers kept exiting, `start_failed`
+--- when the program cannot be started, `already_run`), and what the strategy's `prepare` raises.
+---@async
+function Supervisor:run()
+  if self._state ~= "new" then
+    error(errors.SupervisorError("kernel.Supervisor: run was already called", { context = { reason = "already_run" } }), 2)
+  end
+  self._state = "running"
+  local ok, err = pcall(function()
+    self._address = self._strategy:prepare(self._options.endpoint)
+    reactor.scope(function(scope)
+      for index = 1, self._options.count do
+        local slot = { index = index, waiting = false }
+        self._slots[index] = slot
+        slot.future = scope:fork(supervise, self, slot)
+      end
+      local dispatch = scope:fork(function() self._strategy:run(self._ring) end)
+      local grace = self._requests:receive()
+      stop_workers(self, grace)
+      dispatch:cancel()
+    end)
+  end)
+  self._state = "stopped"
+  self._requests:close()
+  self._finished:close()
+  if not ok then
+    self._strategy:close()
+    error(err, 0)
+  end
+  if self._failure ~= nil then error(self._failure, 0) end
+end
+
+--- Stops the workers gracefully: each stops accepting and drains its requests for `grace_timeout` seconds, then is
+--- killed. Returns once `run` has returned. Does nothing when not running; a second call waits for the first.
+---
+--- Raises `hecate.core.ArgumentError` for a malformed `grace_timeout`.
+---@async
+---@param grace_timeout? number  seconds, default 30
+function Supervisor:stop(grace_timeout)
+  if grace_timeout ~= nil and not is_duration(grace_timeout) then
+    error(core.ArgumentError("kernel.Supervisor.stop: grace_timeout is a non-negative finite number of seconds"), 2)
+  end
+  if self._state ~= "running" then return end
+  request_stop(self, grace_timeout or 30)
+  pcall(self._finished.receive, self._finished)
+end
+
+--- The address the application listens on: the primary's socket for `round_robin`, the endpoint for `reuseport`;
+--- nil before `run` has bound it.
+---@return hecate.reactor.SocketAddress|hecate.kernel.Endpoint|nil
+function Supervisor:local_address()
+  if self._state == "new" then return nil end
+  return self._address or self._options.endpoint
+end
+
+--- Number of workers that reported `ready` and still run.
+---@return integer
+function Supervisor:ready_count() return self._ready end
+
+--- Number of worker processes started so far, restarts included.
+---@return integer
+function Supervisor:started_count() return self._started end
+
+core.finalise(Supervisor)
+supervisor.Supervisor = Supervisor
+
+-- The worker ---------------------------------------------------------------------------------------------------------
+
+--- The worker side: the control message pipe to the primary and the listener of the strategy.
+---@class hecate.kernel.WorkerRole
+---@field index integer  the worker's number, from 1
+---@field strategy string  `round_robin` or `reuseport`
+---@field endpoint hecate.kernel.Endpoint  for `round_robin`, the primary's listening address
+---@overload fun(peer: hecate.reactor.Peer, environment: table<string, string?>): hecate.kernel.WorkerRole
+local WorkerRole = core.class("WorkerRole")
+
+--- Prefer `supervisor.worker_role()`.
+---@param peer hecate.reactor.Peer
+---@param environment table<string, string?>  the `HECATE_WORKER_*` variables
+---@private
+function WorkerRole:init(peer, environment)
+  local strategy = environment[ENV.strategy]
+  if strategy ~= "round_robin" and strategy ~= "reuseport" then
+    error(core.ArgumentError(("kernel.WorkerRole: unknown strategy %q"):format(tostring(strategy))), 2)
+  end
+  local port = math.tointeger(tonumber(environment[ENV.port]))
+  if port == nil or port < 0 or port > 65535 then error(core.ArgumentError("kernel.WorkerRole: malformed port"), 2) end
+  self._peer = peer
+  self.index = math.tointeger(tonumber(environment[ENV.index])) or 0
+  self.strategy = strategy --[[@as string]]
+  self.endpoint = { host = environment[ENV.host] or "127.0.0.1", port = port,
+    backlog = math.tointeger(tonumber(environment[ENV.backlog])) }
+  local address = { ip = self.endpoint.host, port = port, family = self.endpoint.host:find(":", 1, true) and "inet6" or "inet" }
+  self._handoff = listening.HandoffListener(address)
+end
+
+--- The listener the server accepts from: the handoff listener (`round_robin`) or a socket bound with `SO_REUSEPORT`.
+---
+--- Raises `hecate.reactor.TransportError` when a `reuseport` socket cannot be bound.
+---@async
+---@return hecate.kernel.HandoffListener|hecate.net.TcpListener
+function WorkerRole:listener()
+  if self._listener == nil then
+    local strategy = self.strategy == "reuseport" and listening.ReuseportStrategy() or listening.RoundRobinStrategy()
+    self._listener = strategy:worker_listener({ endpoint = self.endpoint, handoff = self._handoff })
+  end
+  return self._listener
+end
+
+--- Reads the messages of the primary until `stop` or the end of the message pipe, then calls `on_stop` with the grace
+--- period (the one of `stop`, else `default_grace`). Connections handed over go to the handoff listener; unknown
+--- messages are ignored (a newer primary may send what this worker does not know).
+---@async
+---@param on_stop async fun(grace: number)
+---@param default_grace number
+function WorkerRole:control(on_stop, default_grace)
+  local grace = default_grace
+  local peer = self._peer
+  while true do
+    local ok, message, stream = pcall(peer.receive, peer)
+    if not ok then
+      if core.is_instance_of(message, core.CancellationError) then error(message, 0) end
+      break
+    end
+    if message == nil then break end
+    if message == "connection" and stream ~= nil then
+      self._handoff:push(stream)
+    else
+      if stream ~= nil then stream:close() end
+      local seconds = message:match("^stop (.+)$")
+      if seconds ~= nil then
+        local value = tonumber(seconds)
+        if is_duration(value) then grace = value --[[@as number]] end
+        break
+      end
+    end
+  end
+  self._handoff:close()
+  on_stop(grace)
+end
+
+--- Serves `server` as a worker: binds the listener, tells the primary it is ready, serves until `stop` or the end of
+--- the message pipe, which shut the server down gracefully. Returns when the server has stopped; closes the message
+--- pipe.
+---
+--- Raises what `hecate.http.Server:serve` raises.
+---@async
+---@param server hecate.http.Server
+---@param default_grace? number  grace period when the primary disappears without `stop` (default 30)
+function WorkerRole:serve(server, default_grace)
+  local listener = self:listener()
+  local ok, err = pcall(reactor.scope, function(scope)
+    local control = scope:fork(self.control, self, function(grace) server:shutdown(grace) end, default_grace or 30)
+    self._peer:send("ready")
+    server:serve(listener --[[@as hecate.net.TcpListener]])
+    control:cancel()
+  end)
+  self._peer:close()
+  if not ok then error(err, 0) end
+end
+
+core.finalise(WorkerRole)
+supervisor.WorkerRole = WorkerRole
+
+--- The worker role of this process, or nil when it was not started by a `Supervisor` (no message pipe to a parent, or
+--- no `HECATE_WORKER_STRATEGY`). Does not suspend.
+---@return hecate.kernel.WorkerRole?
+function supervisor.worker_role()
+  if os.getenv(ENV.strategy) == nil then return nil end
+  local peer = reactor.ipc.parent()
+  if peer == nil then return nil end
+  local environment = {}
+  for _, name in pairs(ENV) do environment[name] = os.getenv(name) end
+  return WorkerRole(peer, environment)
+end
+
+return supervisor

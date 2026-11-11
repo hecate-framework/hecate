@@ -19,6 +19,8 @@ global <const> require, type, error, pairs
 ---@field listening hecate.kernel.listening  the listening strategies of multi-process serving (ADR 0023)
 ---@field load_configuration fun(options: hecate.config.LoadOptions): hecate.config.Configuration  `config.load` with `wrap_secret = hecate.log.Secret`
 ---@field ModuleError hecate.kernel.ModuleError  an invalid application composition
+---@field SupervisorError hecate.kernel.SupervisorError  the supervisor of the workers stopped on a failure
+---@field supervisor hecate.kernel.supervisor  multi-process serving: `Supervisor` in the primary, `worker_role()` in a worker
 ---@field RouteDeclarationError hecate.kernel.RouteDeclarationError  an invalid route declaration
 local kernel = {}
 
@@ -47,6 +49,8 @@ kernel.listening = require("hecate.kernel.listening")
 kernel.Application = require("hecate.kernel.application")
 kernel.RouteDeclarationError = require("hecate.kernel.errors").RouteDeclarationError
 kernel.ModuleError = require("hecate.kernel.errors").ModuleError
+kernel.SupervisorError = require("hecate.kernel.errors").SupervisorError
+kernel.supervisor = require("hecate.kernel.supervisor")
 
 --- Creates a route module: the lightweight declaration style (`local health = kernel.routes "health"`).
 --- `options` is `{ prefix?, filters? }`: see `hecate.kernel.RouteModuleOptions`.
