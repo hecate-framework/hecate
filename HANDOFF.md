@@ -2,9 +2,9 @@
 # Handoff
 
 - roadmap_item: `kernel`: application, modules, controllers, route modules, filters, problem details, lifecycle, multi-process workers, graceful shutdown (Phase 2, docs/roadmap.md)
-- status: in-progress
-- lock_until: 2026-11-11T20:11:00Z
-- last_update: 2026-11-11T18:41:00Z
+- status: waiting-owner
+- lock_until: 2026-11-11T19:10:00Z
+- last_update: 2026-11-11T19:10:00Z
 
 ## Done
 
@@ -82,9 +82,11 @@
 
 ## Next steps
 
-0. In progress (run of 2026-11-11T18:41Z): CI of 8730be2 failed on macOS at `ApplicationWorkersTest.test_reload_replaces_the_workers_without_failing_a_request` (`expected 0, got 1`), the flaky test seen in step 30, and the CI of the claim commit 9a649f8 failed on macOS at the sibling `test_a_reload_resets_no_connection_handed_over_just_before_the_stop` (same message): one request lost per reload test, macOS only (150 runs on Linux under load: no failure). Step 32a (25a728c) pushed diagnostics: on macOS the lost request gets a clean end of stream with 0 bytes during `reload_old_stopping` (an old worker closed it unserved; macOS sends FIN, not RST, for a socket closed with unread data, which is why only macOS shows it). Step 32b: the worker logs `control_failed` (pipe broken or `EPROTO` violation, was silent) and `hand_over_discarded` (queued connections closed at the stop), to stderr through `log.default()`, so the next macOS failure names the path. Leading hypothesis to confirm with that log: `reactor.Peer:_receive` raises `EPROTO` when BSD `recvmsg` delivers descriptors differently from Linux, the worker's control loop ends and the handles left in the pipe are closed. The macOS log of 32b (93f535c) shows neither `control_failed` nor `hand_over_discarded` (verified locally that worker `log.default()` lines do reach the test output), and the primary logged no `hand_over_failed`: so the old worker's pipe did not break and its queue was empty at the stop. Step 32c: the worker sends final counters when it has stopped serving and the primary logs `hand_over_unaccounted` (handed vs accepted) at a worker's exit; the reload tests print every primary event. Next: read the macOS log of 32c. If an old worker shows handed > accepted, the connections were lost in its message pipe (sent after `stop`, or lost in transit by the macOS kernel); if not, its `http.Server` closed an accepted connection unanswered.
+0. BLOCKED on the owner, OQ-118 (issue #174): on macOS a rolling reload loses 1 to 4 handed-over connections (client gets a clean end of stream, 0 bytes); both reload tests of `application_workers_test.lua` fail there in every run since 4cb5750, so CI is red on macOS. Proven by the diagnostics of steps 32a to 32c: every connection the primary handed over was accepted by a worker's `http.Server` (no `hand_over_failed`, `control_failed`, `hand_over_discarded` or `hand_over_unaccounted`), which then read an end of stream at once. Hypothesis: the primary closes its descriptor right after writing the `connection` frame and the macOS collector of descriptors in flight in Unix sockets flushes the socket when an old worker's pipe closes. Recommended fix (a): a per-connection acknowledgement (`received`) from the worker, the primary closing its descriptor only then; it adds a message to ADR 0023 Decision 5 (Accepted) and needs `reactor.Peer:send` to keep the stream open on request, so it waits for the owner. A spike reproducing the loss with `reactor.ipc` alone on macOS would confirm the cause first.
 1. The kernel item is ready for the owner's review: every review finding is done or consciously declined (see the Done entry of step 31). Remaining kernel pieces, all deferred and recorded in docs/roadmap.md: request id through the ambient context, the helper that returns the reactor options with `on_unobserved_failure` bound to `log` (CLI), the generated `config/development.lua` and `config/test.lua` values (CLI, Phase 3), `reuseport` conformance (waits for the next luv release, OQ-43), the `Request` counter of `http.Server` (workers report `-` for requests).
 2. Before ticking: the handoffs (a) to (n) were verified against the roadmap text and `/review-package kernel` ran twice (step 29 and the final review of step 31); nothing blocks ticking except the owner's decision on the deferred pieces.
+
+- Run of 2026-11-11T18:41Z to 19:10Z (lock released at the end): steps 32a to 32c on the macOS-only reload failure. 25a728c: `helpers.get` returns why a request failed and the reload tests report reasons, times and events. 93f535c: workers log `control_failed` (message pipe broken or violated, was a silent stop) and `hand_over_discarded`; `HandOverListener:close()` returns the count. e467290: final `counters` at a worker's stop, `hand_over_unaccounted` in the primary. Tests first; typecheck, lint, check-annotations, check-glossary, check-lua-constructs, check-changelog, check-links and `test kernel` ok. OQ-118 recorded (issue #174).
 
 ## Decisions taken (and where they are recorded)
 
