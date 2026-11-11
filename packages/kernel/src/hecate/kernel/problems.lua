@@ -97,7 +97,7 @@ local function entries_of(err, expose)
 end
 
 --- Options of `from_error` and `guard`.
----@class hecate.kernel.problems.Options
+---@class hecate.kernel.problems.GuardOptions
 ---@field input? boolean  a `ValidationError` is about the request input (422); otherwise it is a defect of the server (500)
 ---@field expose_details? boolean  default false; the kernel binds it to the configuration key `errors.expose_details`: a 422 entry carries its `message`, a generic 500 carries `debug`
 ---@field logger? { log: fun(self: any, severity: string, message: string, fields?: table) }  receives the failure (`guard` only)
@@ -108,7 +108,7 @@ end
 --- Extension members the encoder refuses (a function, NaN, a cycle, a value nested too deep, mutated after construction)
 --- never escape: the failure is logged at `error` with the code of the problem (never a value) and the answer is the
 --- generic `500`.
----@param instance hecate.kernel.problem.Problem
+---@param instance hecate.kernel.problem.ProblemDetails
 ---@param logger? { log: fun(self: any, severity: string, message: string, fields?: table) }  default `log.default()`
 ---@return hecate.http.Response
 function problems.from_problem(instance, logger)
@@ -155,7 +155,7 @@ end
 --- - anything else, a `ValidationError` about a response included (OQ-95), a Lua runtime error or a value that is not
 ---   an error: a generic `500` that names nothing.
 ---@param err any
----@param options? hecate.kernel.problems.Options
+---@param options? hecate.kernel.problems.GuardOptions
 ---@return hecate.http.Response
 function problems.from_error(err, options)
   local expose = options ~= nil and options.expose_details == true
@@ -179,7 +179,7 @@ end
 --- error (a `4xx` answer, such as a `ParseError`). A problem below 500 is a normal answer and is not logged.
 --- Cancellation and deadline errors are never caught: they belong to the scope that raised them (ADR 0003).
 ---@param action fun(request: hecate.http.Request): hecate.http.Response
----@param options? hecate.kernel.problems.Options
+---@param options? hecate.kernel.problems.GuardOptions
 ---@return fun(request: hecate.http.Request): hecate.http.Response, any?
 function problems.guard(action, options)
   local logger = options ~= nil and options.logger or nil

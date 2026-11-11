@@ -20,7 +20,7 @@ global <const> require, type, error, pairs
 ---@field load_configuration fun(options: hecate.config.LoadOptions): hecate.config.Configuration  `config.load` with `wrap_secret = hecate.log.Secret`
 ---@field ModuleError hecate.kernel.ModuleError  an invalid application composition
 ---@field SupervisorError hecate.kernel.SupervisorError  the supervisor of the workers stopped on a failure
----@field supervisor hecate.kernel.supervisor  multi-process serving: `Supervisor` in the primary, `worker_role()` in a worker
+---@field supervisor hecate.kernel.supervisors  multi-process serving: `Supervisor` in the primary, `worker_role()` in a worker
 ---@field RouteDeclarationError hecate.kernel.RouteDeclarationError  an invalid route declaration
 local kernel = {}
 

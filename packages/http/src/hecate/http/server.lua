@@ -133,6 +133,7 @@ function Server:init(action, options)
   self._connections = {}
   self._stopping = false
   self._forced = false
+  self._stop_grace = nil
   self._scope = nil
   self._accepting = nil
   self._serving = false
@@ -248,8 +249,11 @@ local function wait_finished(self)
   self._finished:release() -- the next waiter
 end
 
---- Stops accepting, closes the connections that wait for a request, lets the requests in flight finish (each answer
---- carries `Connection: close`), and returns when `serve` has returned. When `grace_timeout` seconds pass first, the
+--- Stops accepting, closes the idle connections (those that served a request and wait for the next), lets the requests in
+--- flight finish (each answer carries `Connection: close`), and returns when `serve` has returned. A fresh connection (no
+--- byte of its first request head yet, e.g. handed over just before the stop) is not closed at once: it has
+--- `connection.FRESH_GRACE` (1 second, or the `grace_timeout` when shorter) to start its request, which is then served with
+--- `Connection: close`; it is closed when none starts. When `grace_timeout` seconds pass first, the
 --- remaining requests are cancelled (the grace period of ADR 0023). Calling it again waits for the same end.
 ---
 --- Raises `hecate.core.ArgumentError` for a `grace_timeout` that is not a non-negative finite number of seconds.
@@ -264,8 +268,12 @@ function Server:shutdown(grace_timeout)
     self._stopping = true
     if self._accepting ~= nil then self._accepting:cancel() end
     if self._listener ~= nil then self._listener:close() end
+    self._stop_grace = grace_timeout
     for conn in pairs(self._connections) do
-      if conn.waiting then conn.stream:close() end
+      -- A fresh connection (no byte of its first request head yet) is given a short grace, not closed: its client may have
+      -- written the request already (a connection handed over just before the stop). One that served a request is closed.
+      if conn.fresh then connection.grace_fresh(self, conn)
+      elseif conn.waiting then conn.stream:close() end
     end
     for limited in pairs(self._handshaking) do limited:close() end
   end

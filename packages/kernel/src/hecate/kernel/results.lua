@@ -26,7 +26,8 @@ results.serialisers = {
   [JSON] = function(plain) return json.encode(plain) end,
 }
 
----@class hecate.kernel.results.Result  an answer with a status, built by `respond`
+--- An answer with a status, built by `respond`.
+---@class hecate.kernel.results.Result
 ---@field status integer
 ---@field value any
 ---@field schema? table

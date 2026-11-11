@@ -26,7 +26,9 @@ What exists in `hecate.http` (the package README has the full API and the limits
   `query` (both RAW: not percent-decoded, not normalised; the router decodes), `fields`, `peer_address()`, `cookies()`,
   `media_type()`, `read_content()`, `stream_content()`, `read_form()` and `stream_parts()`; its `content` attribute is nil
   for a request from the server (the kernel sets the validated content).
-- `Server`: `listen()`, `serve(listener?)`, `shutdown(grace_timeout?)` and `is_stopping()`. The `host` must be a NUMERIC
+- `Server`: `listen()`, `serve(listener?)`, `shutdown(grace_timeout?)` and `is_stopping()`. `shutdown` closes idle keep-alive connections at once, but gives a fresh
+  connection (no byte of its first request head yet) 1 second, or the `grace_timeout` when shorter, to send its request: it
+  is then served with `Connection: close`, and closed when none starts. The `host` must be a NUMERIC
   address (default `127.0.0.1`: a name would bind every address it resolves to), with split timeouts (`head_timeout`,
   `idle_timeout`, `content_timeout`, `request_timeout`, `write_timeout`, `drain_timeout`), `max_content`, optional
   `max_connections`, TLS with handshake limits, and an `on_error` and a `logger` option.

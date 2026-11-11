@@ -138,8 +138,8 @@ end
 local DECODE_STATUS <const> = { size_limit = 413 }
 
 --- Options of `input.compile`.
----@class hecate.kernel.input.Options
----@field expose_details? boolean  see `hecate.kernel.problems.Options`
+---@class hecate.kernel.input.CompileOptions
+---@field expose_details? boolean  see `hecate.kernel.problems.GuardOptions`
 ---@field strict? boolean  refuse a request that carries an undeclared query parameter (`inputs = "strict"`, OQ-114 (8)); default false here, the dispatcher passes its policy
 
 --- Builds the step of an entry that reads, coerces and validates its inputs, or nil when it declares none (such a route
@@ -151,7 +151,7 @@ local DECODE_STATUS <const> = { size_limit = 413 }
 ---
 --- Raises `RouteDeclarationError` (`unsupported_content_type`) for content declared only for another media type.
 ---@param entry hecate.kernel.RouteEntry
----@param options? hecate.kernel.input.Options
+---@param options? hecate.kernel.input.CompileOptions
 ---@return (fun(request: hecate.http.Request): hecate.http.Response?)?
 function input.compile(entry, options)
   local root, names = compile_parameters(entry)

@@ -14,7 +14,8 @@ local log = require("hecate.log")
 local listening = require("hecate.kernel.listening")
 local errors = require("hecate.kernel.errors")
 
----@class hecate.kernel.supervisor
+--- Multi-process serving: the supervisor of the workers in the primary and the worker side.
+---@class hecate.kernel.supervisors
 local supervisor = {}
 
 --- Environment variables the primary gives each worker (the worker role, ADR 0023 Decision 1).
@@ -688,7 +689,11 @@ end
 function WorkerRole:serve(server, default_grace)
   local listener = self:listener()
   local ok, err = pcall(reactor.scope, function(scope)
-    local control = scope:fork(self.control, self, function(grace) server:shutdown(grace) end, default_grace or 30)
+    local control = scope:fork(self.control, self, function(grace)
+      -- The connections handed over before the `stop` message are served first (a rolling reload loses none).
+      if listener.drain ~= nil then listener:drain(math.min(grace, 1)) end
+      server:shutdown(grace)
+    end, default_grace or 30)
     self._peer:send("ready")
     server:serve(listener --[[@as hecate.net.TcpListener]])
     control:cancel()

@@ -27,6 +27,11 @@ local M = {}
 --- event of the chunk in one list).
 local READ_SIZE <const> = 16384
 
+--- Seconds a fresh connection (no byte of its first request head yet) is given at shutdown to send its request, before it
+--- is closed. Not a server option: a connection handed over just before the stop needs only a moment, and a silent one
+--- must not hold the shutdown (`head_timeout` defaults to 60 s, too long for that).
+M.FRESH_GRACE = 1
+
 ---@return boolean
 local function is_cancellation(err) return core.is_instance_of(err, core.CancellationError) end
 
@@ -84,6 +89,7 @@ local function next_event(self, conn)
     -- Bytes that began no message (bare CRLF before a head, which llhttp skips) count as a pending head as well: a chunk that
     -- produced no event and left no message open still absorbed bytes.
     conn.partial = conn.parser:in_message() or (chunk ~= nil and #events == 0)
+    if conn.partial then conn.fresh = false end -- the first byte of the first request head arrived
     if conn.waiting and conn.partial and conn.head_deadline == nil then conn.head_deadline = reactor.now() + self._head_timeout end
   end
 end
@@ -252,6 +258,7 @@ local function serve_connection(self, conn)
       end
       return
     end
+    conn.fresh = false
     if event.type ~= "head" then return end
     conn.head_deadline = nil
     conn.request_timeout = reactor.now() + self._request_timeout
@@ -288,6 +295,23 @@ local function handshake(self, raw)
   return nil
 end
 
+--- The grace of a fresh connection at shutdown: it is closed when no byte of a request head arrived within
+--- `FRESH_GRACE` seconds (or what is left of the grace period of `shutdown`, when shorter). Runs as a task of the server's
+--- scope and is cancelled when the connection ends, so it never holds `shutdown` longer than the connection lives.
+---@async
+local function watch_fresh(self, conn)
+  reactor.sleep(math.min(M.FRESH_GRACE, self._stop_grace or M.FRESH_GRACE))
+  if conn.fresh and self._connections[conn] then conn.stream:close() end
+end
+
+--- Starts the grace of `conn` when it is fresh and the server is stopping. Called by `shutdown` for the connections it
+--- finds, and by `run_connection` for a connection accepted just before the accept loop stopped.
+function M.grace_fresh(self, conn)
+  if not conn.fresh or conn.watcher ~= nil or self._scope == nil then return end
+  local ok, task = pcall(self._scope.fork, self._scope, watch_fresh, self, conn)
+  if ok then conn.watcher = task end
+end
+
 ---@async
 local function run_connection(self, raw)
   local stream = raw
@@ -302,13 +326,15 @@ local function run_connection(self, raw)
   end
   local conn = {
     stream = stream, writer = stream:writer(), parser = Parser.request(self._limits), queue = {}, position = 1, tail = 0,
-    waiting = false, partial = false, in_content = false, broken = false, eof = false,
+    waiting = false, fresh = true, partial = false, in_content = false, broken = false, eof = false,
   }
   local known, peer = pcall(stream.peer_address, stream)
   conn.peer = known and peer or nil
   self._connections[conn] = true
+  if self._stopping then M.grace_fresh(self, conn) end
   local ok, err = pcall(serve_connection, self, conn)
   self._connections[conn] = nil
+  if conn.watcher ~= nil then conn.watcher:cancel() end
   conn.parser:close()
   if ok and not stream:is_closed() then
     -- Half-close first, so that the last bytes are not lost to a reset when the client still sends (TLS: close_notify).

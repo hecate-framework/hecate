@@ -18,7 +18,7 @@ local input = require("hecate.kernel.input")
 ---@field filters? hecate.kernel.Filter[]  global filters, outermost of all: they wrap the routing step, so they also see requests that match no route; the filters of a module come from `entry.module_filters`
 ---@field container? hecate.container.Container  a validated container: each request opens one service scope on it, bound to `request.services` (`request.scope` stays the reactor scope `http.Server` sets); required when a controller declares `dependencies`
 ---@field router? hecate.router.RouterOptions  options of the router
----@field expose_details? boolean  see `hecate.kernel.problems.Options`
+---@field expose_details? boolean  see `hecate.kernel.problems.GuardOptions`
 ---@field logger? { log: fun(self: any, severity: string, message: string, fields?: table) }  receives unhandled failures
 ---@field inputs? "lax"|"strict"  policy for undeclared query parameters, default `"strict"`: a request that carries one is refused with a 422 naming each (never its value); `"lax"` drops them. Undeclared header fields and cookies are always dropped. The kernel will bind it to `requests.inputs` (OQ-114 (8))
 ---@field serialisers? table<string, fun(plain: any): string>  media type to serialiser; default `results.serialisers`

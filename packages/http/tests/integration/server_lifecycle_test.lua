@@ -599,6 +599,57 @@ function T:test_shutdown_stops_accepting_closes_idle_connections_and_drains_requ
   end)
 end
 
+function T:test_shutdown_serves_a_fresh_connection_whose_request_arrives_after_it_started()
+  with_server(self, { action = text_action }, function(port, server)
+    local fresh <close> = connect(port)
+    reactor.sleep(0.05) -- the server accepted it: no byte of a request yet
+    local stopping = reactor.fork(server.shutdown, server, 5)
+    reactor.sleep(0.05) -- the shutdown started
+    self:assert_true(server:is_stopping())
+    fresh:send(get("/late"))
+    local response = fresh:read_response()
+    self:assert_equal(200, response.status)
+    self:assert_equal("GET /late", response.content)
+    self:assert_equal("close", response.fields:get("Connection"))
+    stopping:value()
+  end)
+end
+
+function T:test_shutdown_closes_a_silent_fresh_connection_within_its_grace_not_the_whole_grace_period()
+  with_server(self, { action = text_action }, function(port, server)
+    local silent <close> = connect(port)
+    reactor.sleep(0.05)
+    local started = reactor.now()
+    server:shutdown(10)
+    local elapsed = reactor.now() - started
+    self:assert_true(elapsed >= 0.5, "the fresh connection had a grace: " .. elapsed)
+    self:assert_true(elapsed < 3, "and no more than the bound: " .. elapsed)
+    self:assert_nil(silent:read_response())
+  end)
+end
+
+function T:test_shutdown_grace_of_a_fresh_connection_is_capped_by_the_grace_timeout()
+  with_server(self, { action = text_action }, function(port, server)
+    local silent <close> = connect(port)
+    reactor.sleep(0.05)
+    local started = reactor.now()
+    server:shutdown(0.1)
+    self:assert_true(reactor.now() - started < 0.6)
+    self:assert_nil(silent:read_response())
+  end)
+end
+
+function T:test_shutdown_closes_an_idle_keep_alive_connection_at_once()
+  with_server(self, { action = text_action }, function(port, server)
+    local idle <close> = connect(port)
+    self:assert_equal(200, idle:request(get("/first")).status)
+    local started = reactor.now()
+    server:shutdown(10)
+    self:assert_true(reactor.now() - started < 0.5, "no grace for a connection that served a request")
+    self:assert_nil(idle:read_response())
+  end)
+end
+
 function T:test_shutdown_cancels_requests_still_running_after_the_grace()
   local cancelled = false
   local entered = reactor.Semaphore(0)

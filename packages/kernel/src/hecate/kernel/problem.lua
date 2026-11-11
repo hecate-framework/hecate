@@ -9,25 +9,25 @@ local http = require("hecate.http")
 
 --- The problem classes: `NotFound`, `Conflict`, ... for the common statuses, and `define` for an application's own.
 ---@class hecate.kernel.problem
----@field Problem hecate.kernel.problem.Problem  base class of every problem
----@field BadRequest hecate.kernel.problem.Problem  400
----@field Unauthorized hecate.kernel.problem.Problem  401
----@field Forbidden hecate.kernel.problem.Problem  403
----@field NotFound hecate.kernel.problem.Problem  404
----@field MethodNotAllowed hecate.kernel.problem.Problem  405
----@field NotAcceptable hecate.kernel.problem.Problem  406
----@field RequestTimeout hecate.kernel.problem.Problem  408
----@field Conflict hecate.kernel.problem.Problem  409
----@field Gone hecate.kernel.problem.Problem  410
----@field PreconditionFailed hecate.kernel.problem.Problem  412
----@field ContentTooLarge hecate.kernel.problem.Problem  413
----@field UnsupportedMediaType hecate.kernel.problem.Problem  415
----@field UnprocessableContent hecate.kernel.problem.Problem  422
----@field TooManyRequests hecate.kernel.problem.Problem  429
----@field InternalServerError hecate.kernel.problem.Problem  500
----@field BadGateway hecate.kernel.problem.Problem  502
----@field ServiceUnavailable hecate.kernel.problem.Problem  503
----@field GatewayTimeout hecate.kernel.problem.Problem  504
+---@field Problem hecate.kernel.problem.ProblemDetails  base class of every problem
+---@field BadRequest hecate.kernel.problem.ProblemDetails  400
+---@field Unauthorized hecate.kernel.problem.ProblemDetails  401
+---@field Forbidden hecate.kernel.problem.ProblemDetails  403
+---@field NotFound hecate.kernel.problem.ProblemDetails  404
+---@field MethodNotAllowed hecate.kernel.problem.ProblemDetails  405
+---@field NotAcceptable hecate.kernel.problem.ProblemDetails  406
+---@field RequestTimeout hecate.kernel.problem.ProblemDetails  408
+---@field Conflict hecate.kernel.problem.ProblemDetails  409
+---@field Gone hecate.kernel.problem.ProblemDetails  410
+---@field PreconditionFailed hecate.kernel.problem.ProblemDetails  412
+---@field ContentTooLarge hecate.kernel.problem.ProblemDetails  413
+---@field UnsupportedMediaType hecate.kernel.problem.ProblemDetails  415
+---@field UnprocessableContent hecate.kernel.problem.ProblemDetails  422
+---@field TooManyRequests hecate.kernel.problem.ProblemDetails  429
+---@field InternalServerError hecate.kernel.problem.ProblemDetails  500
+---@field BadGateway hecate.kernel.problem.ProblemDetails  502
+---@field ServiceUnavailable hecate.kernel.problem.ProblemDetails  503
+---@field GatewayTimeout hecate.kernel.problem.ProblemDetails  504
 local problem = {}
 
 --- The fields a problem is built from.
@@ -36,14 +36,14 @@ local problem = {}
 ---@field extensions? table<string, any>  extension members (section 3.2)
 
 --- A problem details occurrence. The class carries `status`, `title` and `type`; the instance copies them.
----@class hecate.kernel.problem.Problem : hecate.core.Error
+---@class hecate.kernel.problem.ProblemDetails : hecate.core.Error
 ---@field status integer
 ---@field title string
 ---@field code string  the stable error code, `<namespace>.problem.<Class>`: `hecate.problem.NotFound` for a built-in class, `app.problem.<Name>` by default for a class of `problem.define`
 ---@field type string  a URI reference, `about:blank` by default (RFC 9457, section 4.2.1)
 ---@field detail? string
 ---@field extensions table<string, any>
----@overload fun(fields?: hecate.kernel.problem.Fields): hecate.kernel.problem.Problem
+---@overload fun(fields?: hecate.kernel.problem.Fields): hecate.kernel.problem.ProblemDetails
 local Problem = core.class("Problem", core.Error)
 Problem.code = "hecate.problem.Problem"
 Problem.type = "about:blank"
@@ -108,7 +108,7 @@ problem.Problem = core.finalise(Problem)
 ---@param status integer
 ---@param title string
 ---@param uri string
----@return hecate.kernel.problem.Problem
+---@return hecate.kernel.problem.ProblemDetails
 local function declare(name, code, status, title, uri)
   local class = core.class(name, Problem)
   class.code = code
@@ -140,7 +140,7 @@ end
 --- non-empty string outside the `hecate.` namespace.
 ---@param name string
 ---@param spec { status: integer, title: string, type?: string, code?: string }
----@return hecate.kernel.problem.Problem
+---@return hecate.kernel.problem.ProblemDetails
 function problem.define(name, spec)
   local where = "hecate.kernel.problem.define: "
   if type(name) ~= "string" or name == "" then

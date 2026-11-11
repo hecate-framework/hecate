@@ -4,6 +4,7 @@ global <const> require, ipairs, pairs, error, io
 local core = require("hecate.core")
 local log = require("hecate.log")
 
+--- The logger of the application, built from the `logging` configuration.
 ---@class hecate.kernel.logging
 local M = {}
 

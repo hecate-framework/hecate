@@ -10,6 +10,7 @@ local reactor = require("hecate.reactor")
 local net = require("hecate.net")
 local http = require("hecate.http")
 
+--- The listening strategies of multi-process serving (`round_robin`, `reuseport`) and the endpoint the application listens on.
 ---@class hecate.kernel.listening
 local listening = {}
 
@@ -115,6 +116,21 @@ function HandOverListener:accept()
   end
   if core.is_instance_of(stream, net.TcpStream) then return stream end
   return net.TcpStream(stream)
+end
+
+--- Waits until every queued connection has been taken by `accept`, at most `timeout` seconds (default 1). Called by a
+--- worker that is asked to stop, before it closes the listener: the connections the primary handed over before the
+--- `stop` message were accepted by the primary's clients, so they are served, not reset. Returns whether the queue is
+--- empty.
+---@async
+---@param timeout? number
+---@return boolean drained
+function HandOverListener:drain(timeout)
+  local deadline = reactor.now() + (timeout or 1)
+  while self._pending:length() > 0 and not self._pending:is_closed() and reactor.now() < deadline do
+    reactor.sleep(0.005)
+  end
+  return self._pending:length() == 0
 end
 
 --- Stops accepting: a waiting `accept` fails, the queued connections are closed. Idempotent, never suspends.
