@@ -3,8 +3,8 @@
 
 - roadmap_item: `kernel`: application, modules, controllers, route modules, filters, problem details, lifecycle, multi-process workers, graceful shutdown (Phase 2, docs/roadmap.md)
 - status: in-progress
-- lock_until: 2026-11-11T08:06:34Z
-- last_update: 2026-11-11T09:30:16Z
+- lock_until: 2026-11-11T09:50:00Z
+- last_update: 2026-11-11T09:50:00Z
 
 ## Done
 
@@ -66,9 +66,11 @@
 
 - OQ-116 resolved by the owner (2026-11-11, issue #172 closed): all seven choices confirmed; the worker signal semantics are written in `docs/architecture/concurrency.md` (ADR 0023 is Accepted, not edited). OQ-43: the owner's luv pull request for TCP `reuseport` is merged in luv's main branch; when luv releases it, raise the pinned luv version (bootstrap and CI), then `auto` selects `reuseport` on Linux.
 
+- Step 24 (run of 2026-11-11T09:41Z, lock released at the end): Phase 2 exit criterion for the example: `examples/hello/main.lua` reads `HELLO_WORKERS` (default 1) and prints only in the primary (`kernel.supervisor.worker_role()`); `examples/hello/tests/workers_test.lua` runs the application as the primary of two workers started from `main.lua` itself (`round_robin`, stopped with `Application:shutdown`, so it runs on Windows too); CI runs `test examples/hello` whenever `kernel` is in the affected packages; README and CHANGELOG. typecheck, lint, check-changelog, check-links, check-lua-constructs, check-glossary, `test examples/hello` (3 consecutive green runs) ok; manual run with `HELLO_WORKERS=2` answered and stopped cleanly on SIGTERM. CI on macOS and Windows to verify.
+
 ## Next steps
 
-0. Kernel items still open, in this order (workers are wired in `Application`, OQ-116 resolved): (1) `examples/hello` with N workers on the three platforms (Phase 2 exit criterion; the example is single process today, run it with `workers = 2` through `server.workers` and add an in-process or spawned test), and run the example test in CI (a step invoking `lua tools/run.lua test examples/hello`); (2) a persistent signal handle in `reactor` (a worker that receives a signal between two `reactor.wait_signal` calls takes the default action and dies; `kernel/application.lua` loops on `wait_signal` to ignore `sigint` and `sigterm`), and a capability query for spawn and handle passing so the end-to-end test of `application_workers_test.lua` can skip where unsupported; (3) a conformance test per listening strategy (only `round_robin` is end to end; `reuseport` waits for the next luv release, OQ-43); (4) the `SIGHUP` rolling reload (roadmap (m), ADR 0023); (5) response validation in development and test; (6) the website reference page of `kernel`; (7) the generated `config/development.lua` and `config/test.lua` (CLI, Phase 3) must set `server.grace_timeout` low (2 s, to confirm). Check the CI of the pull request first.
+0. Kernel items still open, in this order (workers are wired in `Application`, OQ-116 resolved): (1) check that the CI of step 24 is green on the three platforms (the example's worker test runs there for the first time); (2) a persistent signal handle in `reactor` (a worker that receives a signal between two `reactor.wait_signal` calls takes the default action and dies; `kernel/application.lua` loops on `wait_signal` to ignore `sigint` and `sigterm`), and a capability query for spawn and handle passing so the end-to-end test of `application_workers_test.lua` can skip where unsupported; (3) a conformance test per listening strategy (only `round_robin` is end to end; `reuseport` waits for the next luv release, OQ-43); (4) the `SIGHUP` rolling reload (roadmap (m), ADR 0023); (5) response validation in development and test; (6) the website reference page of `kernel`; (7) the generated `config/development.lua` and `config/test.lua` (CLI, Phase 3) must set `server.grace_timeout` low (2 s, to confirm). Check the CI of the pull request first.
 1. Before ticking: verify handoffs (a), (b), (c), (d), (e), (g), (h), (i), (j), (k), (l) against the roadmap text (most are done in code, see Done), then `/review-package kernel`.
 
 ## Decisions taken (and where they are recorded)
@@ -85,10 +87,16 @@
 
 - The run was triggered by a bare "Retry" message with no task text; I assumed the relay routine and started the first unchecked roadmap item.
 
+- `Application:local_address()` in a primary returns the configured endpoint (port 0 when asked for an ephemeral port) until the supervisor has bound its socket; the example test waits for a non-zero port. Should it return nil until bound?
+- In a primary without a `logger` option or configuration, `workers_starting` is not logged (`serve_as_primary` uses `resolved.logger`, while the signal watcher falls back to `log.default()`); a manual run of `examples/hello` showed only the signal notice. Probably align on `log.default()` (small fix, test first).
+- `tools/lib/affected.lua` ignores changes under `examples/`, so a pull request touching only the example does not run its test in CI.
+
 ## Commands to re-run
 
 ```sh
 eval "$(luarocks path)"        # luv is only found after this (tools/cloud/README.md)
 lua tools/run.lua setup-luals   # once per session: pinned LuaLS into spikes/luals
 lua tools/run.lua typecheck     # required before every push (CI fails on any warning)
+lua tools/run.lua build-native json && lua tools/run.lua build-native http   # needed by the kernel and example tests
+lua tools/run.lua test examples/hello
 ```

@@ -338,3 +338,11 @@ jobs:
           echo "::group::test"
           lua tools/run.lua test tools $PACKAGES
           echo "::endgroup::"
+          # The Phase 2 example (examples/hello, with two worker processes) runs whenever the kernel is affected.
+          case " $PACKAGES " in
+            *" kernel "*)
+              echo "::group::test examples/hello"
+              lua tools/run.lua test examples/hello
+              echo "::endgroup::"
+              ;;
+          esac

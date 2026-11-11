@@ -29,10 +29,15 @@ modules built (`lua tools/run.lua build-native json http`, then `.hecate/rocks` 
 
 ```sh
 HELLO_PORT=8080 lua main.lua
+HELLO_PORT=8080 HELLO_WORKERS=4 lua main.lua   # four worker processes (ADR 0023)
 ```
 
-`HELLO_PORT` defaults to `8080`; the server listens on the loopback interface only. Ctrl+C
-(SIGINT) or SIGTERM stops accepting, lets the requests in flight finish (up to 10 seconds) and exits.
+`HELLO_PORT` defaults to `8080`; the server listens on the loopback interface only.
+`HELLO_WORKERS` defaults to `1` (one process serves by itself). Above 1 the process is the
+primary: it supervises that many workers, each one `main.lua` started again, and hands them the
+connections (`kernel.Application` options `workers` and `strategy`, default `auto`). Ctrl+C
+(SIGINT) or SIGTERM stops accepting, lets the requests in flight finish (up to 10 seconds) and
+exits; with workers, the primary asks each worker to drain, then exits.
 
 ## Test
 
@@ -42,12 +47,13 @@ lua tools/run.lua test examples/hello
 
 `tests/hello_test.lua` boots the application in process on an ephemeral port and calls it with
 `hecate.http.Client`: the greeting (200), invalid input (422 with `source`), creation (201), the
-health route and an unknown path (404).
+health route and an unknown path (404). `tests/workers_test.lua` runs the application as the
+primary of two workers started from `main.lua` (`round_robin`), checks the answers, then stops it
+with `Application:shutdown`. CI runs both files on Linux, macOS and Windows whenever the kernel is
+affected.
 
 ## Not built yet
 
-- **Single process only.** Multi-process workers (ADR 0023) are not built. The Phase 2 exit
-  criterion, running on three platforms with N workers, is therefore still open for this example.
 - No OpenAPI document (`contract`, later) and no `hecate.project.lua` or `hecate test` /
   `hecate contract lint` (the `cli` and `hecate` packages, Phase 3). The example is run with `lua`
   and tested by the repository harness.
