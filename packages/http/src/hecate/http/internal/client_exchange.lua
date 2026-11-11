@@ -32,6 +32,9 @@ end
 local function write_request(self, conn, state, method, parts, fields, content)
   local head = { method, " ", parts.target, " HTTP/1.1\r\nHost: ", parts.authority, "\r\n" }
   for name, value in fields:lines() do head[#head + 1] = name .. ": " .. value .. "\r\n" end
+  -- RFC 9110 section 10.1.1: ask the server for its 100 Continue (or a final status) before the content is sent; a field the
+  -- caller gave is kept as it is, never duplicated.
+  if state.expect and content ~= nil and not fields:has("Expect") then head[#head + 1] = "Expect: 100-continue\r\n" end
   if type(content) == "string" then
     head[#head + 1] = "Content-Length: " .. #content .. "\r\n"
   elseif type(content) == "function" then

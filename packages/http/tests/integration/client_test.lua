@@ -524,12 +524,117 @@ end
 
 -- Expect: 100-continue ---------------------------------------------------------------------------------------------
 
-function T:test_expect_continue_sends_the_content_after_the_interim_response()
-  with_server(self, describe, nil, function(port)
-    -- The request carries no Expect field (see the report): the client waits for the expect timeout, kept short.
-    local client <close> = Client({ expect_timeout = 0.3 })
-    local info = json.decode(client:post(base(port), "payload", { expect_continue = true }):read_content())
-    self:assert_equal("payload", info.content)
+--- A scripted server that records the request head and what follows it, optionally answering with `interim` (written at
+--- once) before reading the `Content-Length` bytes, and then with `final` (default: 200 echoing the content).
+local function expecting_server(record, interim, final)
+  return scripted(function(stream)
+    local head = read_head(stream)
+    record.head = head
+    record.with_head = head:match("\r\n\r\n(.*)$")
+    if interim ~= nil then stream:write(interim) end
+    record.after_interim = true
+    local length = tonumber(head:match("Content%-Length: (%d+)")) or 0
+    local received = record.with_head
+    while #received < length do
+      local chunk = stream:read()
+      if chunk == nil then break end
+      received = received .. chunk
+    end
+    record.received = received
+    stream:write(final or ("HTTP/1.1 200 OK\r\nContent-Length: " .. #received .. "\r\n\r\n" .. received))
+  end)
+end
+
+local function count_expect(head)
+  local count = 0
+  for _ in head:gmatch("\r\n[Ee][Xx][Pp][Ee][Cc][Tt]:") do count = count + 1 end
+  return count
+end
+
+function T:test_expect_continue_adds_the_field_and_sends_the_content_right_after_the_100()
+  run(self, function()
+    local record = {}
+    local server = scripted(function(stream)
+      local head = read_head(stream)
+      record.head = head
+      record.with_head = head:match("\r\n\r\n(.*)$")
+      -- RFC 9110 section 10.1.1: nothing but the head may arrive before the 100 Continue.
+      local ok, extra = pcall(reactor.deadline, 0.2, stream.read, stream)
+      record.before_100 = (ok and extra) or ""
+      stream:write("HTTP/1.1 100 Continue\r\n\r\n")
+      local received = ""
+      while #received < 7 do received = received .. stream:read() end
+      record.received = received
+      stream:write("HTTP/1.1 200 OK\r\nContent-Length: " .. #received .. "\r\n\r\n" .. received)
+    end)
+    -- A generous expect timeout: the 100 must be what releases the content, not the fallback.
+    local client <close> = Client({ expect_timeout = 5 })
+    local started = reactor.now()
+    self:assert_equal("payload", client:post(base(server.port), "payload", { expect_continue = true }):read_content())
+    self:assert_true(reactor.now() - started < 2.5, "the content waited for the expect timeout instead of the 100")
+    self:assert_not_nil(record.head:find("\r\nExpect: 100-continue\r\n", 1, true), record.head)
+    self:assert_equal(1, count_expect(record.head))
+    self:assert_equal("", record.with_head, "no content byte in the head packet")
+    self:assert_equal("", record.before_100, "no content byte before the 100 Continue")
+    self:assert_equal("payload", record.received)
+    server.stop(); server.loop:cancel()
+  end)
+end
+
+function T:test_expect_continue_does_not_send_the_content_when_a_final_status_answers_first()
+  for _, status in ipairs({ "417 Expectation Failed", "401 Unauthorized" }) do
+    run(self, function()
+      local record = {}
+      local server = scripted(function(stream)
+        record.head = read_head(stream)
+        stream:write("HTTP/1.1 " .. status .. "\r\nContent-Length: 0\r\n\r\n")
+        local ok, extra = pcall(reactor.deadline, 0.3, stream.read, stream)
+        record.after = (ok and extra) or ""
+      end)
+      local client <close> = Client({ expect_timeout = 5 })
+      local started = reactor.now()
+      local response = client:post(base(server.port), "payload", { expect_continue = true })
+      self:assert_equal(tonumber(status:match("^%d+")), response.status)
+      self:assert_true(reactor.now() - started < 2.5, "the client waited for the expect timeout")
+      self:assert_not_nil(record.head:find("\r\nExpect: 100-continue\r\n", 1, true), record.head)
+      response:read_content()
+      client:close()
+      reactor.sleep(0.4)
+      self:assert_equal("", record.after, "the content was sent after a final status (" .. status .. ")")
+      server.stop(); server.loop:cancel()
+    end)
+  end
+end
+
+function T:test_the_expect_field_is_sent_only_when_asked_and_with_content()
+  local cases = {
+    { "no content", function(client, port) return client:get(base(port), { expect_continue = true }) end },
+    { "expect_continue false", function(client, port) return client:post(base(port), "data", { expect_continue = false }) end },
+    { "expect_continue absent", function(client, port) return client:post(base(port), "data") end },
+  }
+  for _, case in ipairs(cases) do
+    run(self, function()
+      local record = {}
+      local server = expecting_server(record)
+      local client <close> = Client()
+      case[2](client, server.port):read_content()
+      self:assert_equal(0, count_expect(record.head), case[1] .. ": " .. record.head)
+      server.stop(); server.loop:cancel()
+    end)
+  end
+end
+
+function T:test_an_explicit_expect_field_is_not_duplicated()
+  run(self, function()
+    local record = {}
+    local server = expecting_server(record, "HTTP/1.1 100 Continue\r\n\r\n")
+    local client <close> = Client({ expect_timeout = 5 })
+    local started = reactor.now()
+    local fields = { Expect = "100-continue" }
+    self:assert_equal("data", client:post(base(server.port), "data", { expect_continue = true, fields = fields }):read_content())
+    self:assert_equal(1, count_expect(record.head), record.head)
+    self:assert_true(reactor.now() - started < 2.5, "the content waited for the expect timeout instead of the 100")
+    server.stop(); server.loop:cancel()
   end)
 end
 
