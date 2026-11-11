@@ -11,6 +11,7 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- feat(kernel): response validation in development and test: `validate_responses` (option of `Application`, `dispatcher.build` and `results.serialise`) validates each represented result against the schema declared for its status, and a mismatch becomes a logged `500`; `Application` turns it on by default when the environment of its configuration is `development` or `test` (OQ-117).
 - feat(reactor): a persistent signal watcher, `reactor.watch_signals` and `SignalWatcher`, that queues the signals delivered between two waits, and the capability queries `reactor.supports_spawn` and `reactor.supports_handle_passing` (OQ-116).
 - feat(kernel): `Application` serves with several worker processes: options `workers`, `strategy` and `worker_command` (configuration keys `server.workers` and `server.strategy`); the primary runs a `Supervisor` and stops it on SIGINT or SIGTERM (a second signal kills the workers, `Supervisor:force`), a worker boots the application and serves through `WorkerRole` (ADR 0023, OQ-116).
 - fix(kernel): `Application:local_address()` and `Supervisor:local_address()` are nil until the primary's socket is bound when an ephemeral port (`port = 0`) is requested, instead of reporting port 0; a primary without a `logger` option or configuration logs `workers_starting` (and the supervisor's events) through `log.default()`, like the signal watcher and `http.Server`.

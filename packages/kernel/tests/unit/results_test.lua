@@ -159,4 +159,53 @@ function T:test_kernel_respond_is_results_respond()
   self:assert_equal(201, result.status)
 end
 
+-- Response validation in development and test (http-and-routing.md, "Results and serialisation").
+
+local named = schema.object({ name = schema.string() })
+
+function T:test_without_validation_a_nonconforming_value_is_encoded()
+  local response = results.serialise({ name = 3 }, request("GET"), { [200] = named })
+  self:assert_equal(200, response.status)
+end
+
+function T:test_validation_refuses_a_nonconforming_value_with_a_validation_error()
+  local ok, err = pcall(results.serialise, { name = 3 }, request("GET"), { [200] = named }, { validate_responses = true })
+  self:assert_false(ok)
+  self:assert_true(core.is_instance_of(err, core.ValidationError))
+  ---@cast err -hecate.http.Response, +hecate.core.ValidationError
+  self:assert_equal(200, err.context.status)
+  self:assert_equal("/name", err.context.violations[1].path)
+  self:assert_not_nil(string.find(tostring(err), "status 200", 1, true))
+end
+
+function T:test_validation_accepts_a_conforming_representation_of_an_instance()
+  local response = results.serialise(User("ada", 36, "s3cret"), request("GET"), { [200] = user_schema },
+    { validate_responses = true })
+  self:assert_equal(200, response.status)
+  self:assert_equal(json.encode({ name = "ada", age = 36 }, { canonical = true }), canonical(response))
+end
+
+function T:test_validation_checks_a_result_of_respond_against_the_schema_of_its_status()
+  local ok, err = pcall(results.serialise, results.respond(201, { name = false }), request("POST"),
+    { [201] = named }, { validate_responses = true })
+  self:assert_false(ok)
+  ---@cast err -hecate.http.Response, +hecate.core.ValidationError
+  self:assert_equal(201, err.context.status)
+  local response = results.serialise(results.respond(201, { name = "x" }), request("POST"), { [201] = named },
+    { validate_responses = true })
+  self:assert_equal(201, response.status)
+end
+
+function T:test_validation_skips_a_status_without_schema_and_a_response()
+  self:assert_equal(200, results.serialise({ any = 1 }, request("GET"), {}, { validate_responses = true }).status)
+  self:assert_equal(204, results.serialise(nil, request("GET"), { [204] = true }, { validate_responses = true }).status)
+  local response = http.Response(202)
+  self:assert_true(results.serialise(response, request("GET"), { [202] = named }, { validate_responses = true }) == response)
+end
+
+function T:test_validation_message_never_carries_the_value()
+  local _, err = pcall(results.serialise, { name = 12345 }, request("GET"), { [200] = named }, { validate_responses = true })
+  self:assert_nil(string.find(tostring(err), "12345", 1, true))
+end
+
 return T

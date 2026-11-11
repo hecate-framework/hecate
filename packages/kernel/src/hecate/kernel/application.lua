@@ -32,6 +32,7 @@ local SIGNALS <const> = { "sigint", "sigterm" }
 ---@field max_depth? integer  nesting depth limit of `json` and `schema` (`json.set_max_depth`, OQ-92)
 ---@field expose_details? boolean  see `hecate.kernel.DispatcherOptions`
 ---@field inputs? "lax"|"strict"  see `hecate.kernel.DispatcherOptions`
+---@field validate_responses? boolean  validate each result against the schema declared for its status (see `hecate.kernel.DispatcherOptions`); default true when the environment of `configuration` is `development` or `test`, else false (OQ-117)
 ---@field logger? hecate.log.Logger  receives unhandled failures and the container warnings
 ---@field router? hecate.router.RouterOptions
 ---@field server? hecate.http.ServerOptions  options of the HTTP server made by `serve` (`logger` defaults to the application's)
@@ -52,7 +53,7 @@ local Application = core.class("Application")
 
 local KNOWN = {
   modules = true, routes = true, configuration = true, services = true, filters = true, container = true, max_depth = true,
-  expose_details = true, inputs = true, logger = true, router = true, server = true, signals = true, grace_timeout = true,
+  expose_details = true, inputs = true, validate_responses = true, logger = true, router = true, server = true, signals = true, grace_timeout = true,
   workers = true, strategy = true, worker_command = true,
 }
 
@@ -139,6 +140,10 @@ function Application:boot()
     if options.max_depth == nil then options.max_depth = configuration:get("limits.max_depth") end
     if options.expose_details == nil then options.expose_details = configuration:get("errors.expose_details") end
     if options.inputs == nil then options.inputs = configuration:get("requests.inputs") end
+    if options.validate_responses == nil then
+      local environment = configuration:environment()
+      options.validate_responses = environment == "development" or environment == "test"
+    end
     if options.grace_timeout == nil then options.grace_timeout = configuration:get("server.grace_timeout") end
     if options.workers == nil then options.workers = configuration:get("server.workers") end
     if options.strategy == nil then options.strategy = configuration:get("server.strategy") end
@@ -151,6 +156,7 @@ function Application:boot()
         { code = "expose_details_in_production" })
     end
   end
+  if options.validate_responses == nil then options.validate_responses = false end
   if options.workers == nil then options.workers = 1 end
   if options.strategy == nil then options.strategy = "auto" end
   self._resolved = options
@@ -176,7 +182,7 @@ function Application:boot()
   local entries = routing.collect(sources)
   local serve, router = dispatcher.build(entries, {
     filters = filters, container = container, router = options.router, expose_details = options.expose_details,
-    logger = logger, inputs = options.inputs,
+    logger = logger, inputs = options.inputs, validate_responses = options.validate_responses,
   })
   self.container, self.router, self._serve, self._booted = container, router, serve, true
   return serve

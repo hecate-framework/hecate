@@ -22,6 +22,7 @@ local input = require("hecate.kernel.input")
 ---@field logger? { log: fun(self: any, severity: string, message: string, fields?: table) }  receives unhandled failures
 ---@field inputs? "lax"|"strict"  policy for undeclared query parameters, default `"strict"`: a request that carries one is refused with a 422 naming each (never its value); `"lax"` drops them. Undeclared header fields and cookies are always dropped. The kernel will bind it to `requests.inputs` (OQ-114 (8))
 ---@field serialisers? table<string, fun(plain: any): string>  media type to serialiser; default `results.serialisers`
+---@field validate_responses? boolean  default false: validate each represented result against the schema declared for its status, a mismatch becomes a logged 500 (development and test, see `results.serialise`)
 
 --- The dispatcher.
 ---@class hecate.kernel.dispatcher
@@ -88,7 +89,11 @@ function dispatcher.build(entries, options)
   end
   local problem_options = { expose_details = options.expose_details, logger = options.logger }
   local input_options = { expose_details = options.expose_details, strict = policy == "strict" }
-  local serialise_options = { serialisers = options.serialisers }
+  local validate_responses = options.validate_responses
+  if validate_responses ~= nil and type(validate_responses) ~= "boolean" then
+    error(core.ArgumentError("kernel.dispatcher.build: options.validate_responses is a boolean"), 2)
+  end
+  local serialise_options = { serialisers = options.serialisers, validate_responses = validate_responses == true }
 
   -- One compiled handler per entry, indexed by the entry itself: the router hands back the table it was given.
   local handlers = {}

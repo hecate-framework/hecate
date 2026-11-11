@@ -140,8 +140,9 @@ end
 ---@param schema any
 ---@param request hecate.http.Request
 ---@param serialisers table<string, function>
+---@param validate boolean  check the representation against `schema` (development and test)
 ---@return hecate.http.Response
-local function build(status, value, schema, request, serialisers)
+local function build(status, value, schema, request, serialisers, validate)
   if value == nil or http.Status.forbids_content(status) then
     return http.Response(status)
   end
@@ -153,6 +154,18 @@ local function build(status, value, schema, request, serialisers)
   local plain
   if type(schema) == "table" and type(schema.represent) == "function" then
     plain = schema:represent(value) -- ValidationError for a wrong shape (OQ-95): propagates, the caller makes a 500
+    if validate and type(schema.validate) == "function" then
+      local ok, violations = schema:validate(plain)
+      if not ok then
+        -- A defect of the server, not of the request: the caller makes a 500. The message names the status, the
+        -- pointer and the code of the first violation, never a value (OQ-111).
+        local first = violations[1]
+        error(core.ValidationError(
+          ("results.serialise: the response for status %d does not conform to its declared schema: %d violation(s), first at '%s' (%s)")
+            :format(status, #violations, first.path, first.code),
+          { context = { status = status, violations = violations } }), 3)
+      end
+    end
   else
     refuse_unrepresentable(value)
     plain = value
@@ -177,10 +190,15 @@ end
 --- `*/*` or a matching range select it, a request nothing satisfies gets a 406 problem details Response.
 --- A failure of `represent` (a `hecate.core.ValidationError`) or of a serialiser propagates as an error: the caller
 --- maps it to a 500 without internal details.
+---
+--- With `options.validate_responses` (development and test, http-and-routing.md "Results and serialisation"), the
+--- representation of a value that has a schema declared for its status (or given to `respond`) is validated against
+--- it; a mismatch raises `hecate.core.ValidationError` with `context.status` and `context.violations` (a defect of the
+--- server: the caller maps it to a 500). A Response, a problem and a value without schema are not checked.
 ---@param result any
 ---@param request hecate.http.Request
 ---@param route_responses table<integer, any>  status -> schema (or `true` for a declared status without content)
----@param options? { created?: boolean, serialisers?: table<string, fun(plain: any): string> }
+---@param options? { created?: boolean, serialisers?: table<string, fun(plain: any): string>, validate_responses?: boolean }
 ---@return hecate.http.Response
 function results.serialise(result, request, route_responses, options)
   if type(result) == "table" and rawequal(getmetatable(result), nil) == false and core.is_instance_of(result, http.Response) then
@@ -189,16 +207,17 @@ function results.serialise(result, request, route_responses, options)
   -- A returned problem is a result like a Response: always `application/problem+json` (RFC 9457, section 3).
   if problem.is_problem(result) then return problems.from_problem(result) end
   local serialisers = options ~= nil and options.serialisers or results.serialisers
+  local validate = options ~= nil and options.validate_responses == true
   if results.is_result(result) then
     local status = result.status
-    return build(status, result.value, result.schema or route_responses[status], request, serialisers)
+    return build(status, result.value, result.schema or route_responses[status], request, serialisers, validate)
   end
   if result == nil then
     if route_responses[204] ~= nil then return http.Response(204) end
     return http.Response(200)
   end
   local status = default_status(request, route_responses, options)
-  return build(status, result, route_responses[status], request, serialisers)
+  return build(status, result, route_responses[status], request, serialisers, validate)
 end
 
 return results

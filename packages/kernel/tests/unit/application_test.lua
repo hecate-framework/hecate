@@ -132,6 +132,32 @@ function T:test_configuration_binds_the_grace_timeout()
   log.set_default(nil)
 end
 
+function T:test_responses_are_validated_in_development_and_test_only()
+  for environment, expected in pairs({ development = true, test = true, production = false, staging = false }) do
+    local app = kernel.Application({ configuration = configuration({}, environment) })
+    app:boot()
+    self:assert_equal(expected, app._resolved.validate_responses, environment)
+  end
+  local explicit = kernel.Application({ validate_responses = true, configuration = configuration({}, "production") })
+  explicit:boot()
+  self:assert_equal(true, explicit._resolved.validate_responses)
+  local bare = kernel.Application({})
+  bare:boot()
+  self:assert_equal(false, bare._resolved.validate_responses)
+  log.set_default(nil)
+end
+
+function T:test_a_booted_application_in_development_refuses_a_nonconforming_response()
+  local schema = require("hecate.schema")
+  local http = require("hecate.http")
+  local module = kernel.routes("v")
+  module:get("/v", { responses = { [200] = schema.object({ id = schema.integer() }) }, action = function() return { id = "x" } end })
+  local app = kernel.Application({ routes = { module }, configuration = configuration({}, "development") })
+  local serve = app:boot()
+  self:assert_equal(500, serve(http.Request({ method = "GET", target = "/v", fields = http.Fields() })).status)
+  log.set_default(nil)
+end
+
 function T:test_explicit_options_override_the_configuration()
   local app = kernel.Application({ inputs = "strict", configuration = configuration({ HECATE_REQUESTS__INPUTS = "lax" }) })
   app:boot()

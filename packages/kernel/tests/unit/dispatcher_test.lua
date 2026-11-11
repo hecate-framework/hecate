@@ -94,4 +94,32 @@ function T:test_a_controller_with_dependencies_and_no_container_is_refused_at_bu
   local err = self:assert_error(function() dispatcher.build(kernel.routing.collect({ Hello })) end)
   self:assert_equal("missing_container", err.context.reason)
 end
+function T:test_validate_responses_turns_a_nonconforming_result_into_a_logged_500()
+  local logged = {}
+  local options = { validate_responses = true,
+    logger = { log = function(_, severity, message) logged[#logged + 1] = severity .. ": " .. message end } }
+  local serve = serve_with(function(m)
+    m:get("/bad", { responses = { [200] = schema.object({ id = schema.integer() }) },
+      action = function() return { id = "not-an-integer" } end })
+  end, options)
+  local response = serve(request("GET", "/bad"))
+  self:assert_equal(500, response.status)
+  self:assert_nil(string.find(response.content, "not-an-integer", 1, true))
+  self:assert_equal(1, #logged)
+end
+
+function T:test_responses_are_not_validated_by_default()
+  local serve = serve_with(function(m)
+    m:get("/bad", { responses = { [200] = schema.object({ id = schema.integer() }) },
+      action = function() return { id = "x" } end })
+  end)
+  self:assert_equal(200, serve(request("GET", "/bad")).status)
+end
+
+function T:test_validate_responses_must_be_a_boolean()
+  local ok, err = pcall(dispatcher.build, {}, { validate_responses = "yes" })
+  self:assert_false(ok)
+  self:assert_true(core.is_instance_of(err, core.ArgumentError))
+end
+
 return T
