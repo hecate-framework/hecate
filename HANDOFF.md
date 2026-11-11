@@ -3,8 +3,8 @@
 
 - roadmap_item: `kernel`: application, modules, controllers, route modules, filters, problem details, lifecycle, multi-process workers, graceful shutdown (Phase 2, docs/roadmap.md)
 - status: in-progress
-- lock_until: 2026-11-11T11:51:32Z
-- last_update: 2026-11-11T10:21:32Z
+- lock_until: 2026-11-11T10:33:51Z
+- last_update: 2026-11-11T10:33:51Z
 
 ## Done
 
@@ -70,13 +70,12 @@
 - Step 25 (owner request of 2026-11-11, lock released at the end): `Supervisor:local_address()` (and so `Application:local_address()`) is nil while an ephemeral port is not bound (test `tests/unit/supervisor_test.lua` with a gated fake strategy); the primary logs through `log.default()` when no logger is given (test in `application_test.lua`); the example test no longer waits for a non-zero port. typecheck, lint, check-annotations, check-glossary, check-lua-constructs, `test kernel`, `test examples/hello` ok.
 
 - Step 24 (owner request, run of ~09:57Z, lock released at the end): CI speed-up. `http` tests 91 s to 16 s (scripted server cancels its forks, fixture grace 0.25 s, timeouts 0.3 s); `ci.yml`: static checks on Linux only, per-module native build caches keyed by all inputs, `HECATE_TEST_JOBS` worker pool for `tests/unit`, `tests/conformance` and `tools/tests` (integration stays serial; 1m51 to 0m50 locally), documentation-only pushes skip the matrix only when the previous head's `ci-ok` is `success` (safety net added by me: otherwise a docs commit would hide a red code commit), `docs-checks` and `ci-ok` jobs, `CARGO_INCREMENTAL=0`, `HECATE_NATIVE_PROFILE=debug` supported but NOT used in CI (the 1 MiB-stack JSON encoder test segfaults in debug). UNVERIFIED until the first CI run on the three platforms: cache keys and `!` exclusions, `.dll` restore on Windows, the `if` expressions and the `ci-ok` aggregation, the 0.3 s test timeouts on Windows and macOS. Owner may make `ci-ok` the required check.
-- To fix: `Client` with `expect_continue = true` does not add `Expect: 100-continue` (`packages/http/src/hecate/http/internal/client_exchange.lua` `write_request`; the doc of `client.lua` says it does; the client waits for `expect_timeout`); fix test first and make the test at `client_test.lua` (explicit `Expect` field) strict.
 
-- Step 25 in progress (owner request, ~10:22Z, regular 90-minute lock): (a) fix `Client` `expect_continue` (test first), (b) HANDOFF item (2): a persistent signal handle in `reactor` and capability queries for spawn and handle passing, then the kernel uses them. CI of step 24 is green on the three platforms (run 657, 4m07 cold caches).
+- Step 25 (owner request, run of ~10:22Z, lock released at the end): (a) `Client` `expect_continue` fixed (the field is sent, the content follows the 100; 5 tests, test first); (b) `reactor.watch_signals` / `SignalWatcher` (persistent, queue of 16, 15 tests) and `reactor.supports_spawn` / `reactor.supports_handle_passing` (structural checks only), `Application` uses one watcher for the primary and the workers, the workers end-to-end test skips where the capability queries say no. typecheck, lint, check-annotations, `test reactor`, `test http`, `test kernel`, `test examples/hello` ok. The CI of step 24 is green on the three platforms (cold-cache run 4m07); the docs-only skip is exercised by the claim commit e10f52a, check its run.
 
 ## Next steps
 
-0. Kernel items still open, in this order (workers are wired in `Application`, OQ-116 resolved): (1) check that the CI of step 24 is green on the three platforms (the example's worker test runs there for the first time); (2) a persistent signal handle in `reactor` (a worker that receives a signal between two `reactor.wait_signal` calls takes the default action and dies; `kernel/application.lua` loops on `wait_signal` to ignore `sigint` and `sigterm`), and a capability query for spawn and handle passing so the end-to-end test of `application_workers_test.lua` can skip where unsupported; (3) a conformance test per listening strategy (only `round_robin` is end to end; `reuseport` waits for the next luv release, OQ-43); (4) the `SIGHUP` rolling reload (roadmap (m), ADR 0023); (5) response validation in development and test; (6) the website reference page of `kernel`; (7) the generated `config/development.lua` and `config/test.lua` (CLI, Phase 3) must set `server.grace_timeout` low (2 s, to confirm). Check the CI of the pull request first.
+0. Kernel items still open, in this order (workers are wired in `Application`, OQ-116 resolved): (1) done (green); (2) done (step 25); (3) a conformance test per listening strategy (only `round_robin` is end to end; `reuseport` waits for the next luv release, OQ-43); (4) the `SIGHUP` rolling reload (roadmap (m), ADR 0023); (5) response validation in development and test; (6) the website reference page of `kernel`; (7) the generated `config/development.lua` and `config/test.lua` (CLI, Phase 3) must set `server.grace_timeout` low (2 s, to confirm). Check the CI of the pull request first.
 1. Before ticking: verify handoffs (a), (b), (c), (d), (e), (g), (h), (i), (j), (k), (l) against the roadmap text (most are done in code, see Done), then `/review-package kernel`.
 
 ## Decisions taken (and where they are recorded)

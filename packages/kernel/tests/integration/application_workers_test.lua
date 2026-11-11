@@ -1,7 +1,8 @@
 -- `Application` with `workers = 2` (ADR 0023): the primary runs a supervisor, the workers (tests/fixtures/
 -- application_worker.lua, the same application started again) boot it and serve through the worker role, clients are
 -- answered, a signal stops the primary and its workers cleanly. Runs where `reactor.spawn` with a message pipe works (the
--- three platforms of the CI; `reactor` has no capability query for it, a failure to start a worker fails the test).
+-- three platforms of the CI; a platform that reports no spawn or handle passing skips the tests, any other failure to
+-- start a worker fails the test).
 ---@diagnostic disable: need-check-nil, param-type-mismatch, missing-fields, undefined-field, inject-field
 local test = require("harness.test")
 local uv = require("luv")
@@ -76,7 +77,20 @@ local function wait_ready(app)
   wait_until(function() return app._supervisor ~= nil and app._supervisor:ready_count() == 2 end)
 end
 
+--- Tells whether the platform can run the workers; prints why not and lets the test return when it cannot.
+local function can_run_workers()
+  for _, query in ipairs({ reactor.supports_spawn, reactor.supports_handle_passing }) do
+    local supported, reason = query()
+    if not supported then
+      io.stderr:write("# SKIP: workers are not supported here: ", tostring(reason), "\n")
+      return false
+    end
+  end
+  return true
+end
+
 function T:test_clients_are_answered_by_both_workers_and_a_signal_stops_everything()
+  if not can_run_workers() then return end
   if uv.os_uname().sysname:match("Windows") then return end -- the signal is raised with kill; Windows delivers console signals only
   local guard = uv.new_signal() -- a signal raised before the watcher listens must not end the test process
   guard:start("sigterm", function() end)
@@ -116,6 +130,7 @@ function T:test_clients_are_answered_by_both_workers_and_a_signal_stops_everythi
 end
 
 function T:test_a_forced_stop_kills_the_workers()
+  if not can_run_workers() then return end
   local app = new_application({ signals = false })
   local ok, err
   with_lua_paths(function()

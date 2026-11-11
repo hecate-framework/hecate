@@ -187,15 +187,12 @@ end
 --- the platform cannot watch is logged once and the application serves without signal handling.
 ---@async
 ---@param self hecate.kernel.Application
+---@param watcher hecate.reactor.SignalWatcher
 ---@param logger? hecate.log.Logger
-local function watch_signals(self, logger)
-  local ok, name = pcall(reactor.wait_signal, table.unpack(SIGNALS))
+local function watch_signals(self, watcher, logger)
+  local ok, name = pcall(watcher.wait, watcher)
   if not ok then
     if core.is_instance_of(name, core.CancellationError) then error(name, 0) end
-    if logger ~= nil then
-      logger:warning("kernel.Application: signals cannot be watched; serving without graceful shutdown on signals",
-        { code = "signals_unavailable" })
-    end
     return
   end
   self._signalled = true
@@ -206,7 +203,7 @@ local function watch_signals(self, logger)
   -- The drain runs in this scope's body; the child waits for the second signal and ends with the scope (ADR 0003).
   reactor.scope(function(scope)
     local forcer = scope:fork(function()
-      local second_ok, second = pcall(reactor.wait_signal, table.unpack(SIGNALS))
+      local second_ok, second = pcall(watcher.wait, watcher)
       if not second_ok then
         if core.is_instance_of(second, core.CancellationError) then error(second, 0) end
         return
@@ -226,10 +223,11 @@ end
 --- its drain: the primary decides, and sends `stop` (ADR 0023, Decision 5). The worker therefore swallows them.
 ---@async
 ---@param self hecate.kernel.Application
+---@param watcher hecate.reactor.SignalWatcher
 ---@param logger? hecate.log.Logger
-local function swallow_signals(self, logger)
+local function swallow_signals(self, watcher, logger)
   while true do
-    local ok, name = pcall(reactor.wait_signal, table.unpack(SIGNALS))
+    local ok, name = pcall(watcher.wait, watcher)
     if not ok then
       if core.is_instance_of(name, core.CancellationError) then error(name, 0) end
       return
@@ -243,16 +241,29 @@ end
 --- Runs `body` with `watch` (the signal handling) beside it, unless `signals = false`; closes the container afterwards.
 ---@async
 ---@param self hecate.kernel.Application
----@param watch async fun(self: hecate.kernel.Application, logger?: hecate.log.Logger)
+---@param watch async fun(self: hecate.kernel.Application, watcher: hecate.reactor.SignalWatcher, logger?: hecate.log.Logger)
 ---@param body async fun()
 local function run_watched(self, watch, body)
   local logger = self._resolved.logger
   local ok, err = pcall(reactor.scope, function(scope)
-    local watcher
-    if self._options.signals ~= false then watcher = scope:fork(watch, self, logger or log.default()) end
-    body()
+    local task, watcher
+    -- One persistent watcher for the whole run: a signal delivered between two waits is queued, never lost (a worker
+    -- would take the default action and die). It is closed once the body has ended, after the task is cancelled.
+    if self._options.signals ~= false then
+      local created, handle = pcall(reactor.watch_signals, table.unpack(SIGNALS))
+      if created then
+        watcher = handle
+        task = scope:fork(watch, self, handle, logger or log.default())
+      elseif logger ~= nil then
+        logger:warning("kernel.Application: signals cannot be watched; serving without graceful shutdown on signals",
+          { code = "signals_unavailable" })
+      end
+    end
+    local body_ok, body_err = pcall(body)
     -- A watcher that received its signal is inside `shutdown` and ends by itself.
-    if watcher ~= nil and not self._signalled then watcher:cancel() end
+    if task ~= nil and not self._signalled then task:cancel() end
+    if watcher ~= nil then watcher:close() end
+    if not body_ok then error(body_err, 0) end
   end)
   self._server, self._supervisor = nil, nil
   self.container:close()
