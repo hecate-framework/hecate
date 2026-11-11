@@ -813,6 +813,25 @@ function T:test_control_closes_the_hand_over_listener_and_the_connections_still_
   self:assert_equal(1, queued.closed)
 end
 
+function T:test_control_keeps_the_queued_connections_open_while_on_stop_runs()
+  -- The connections handed over before the `stop` message must reach the server (a rolling reload resets none): the
+  -- queue is closed after `on_stop`, not before.
+  local queued = closable()
+  local open_during_stop, listener_open_during_stop
+  local peer = scripted_peer({ { "connection", queued }, { "stop 2" } })
+  local role = kernel.supervisor.WorkerRole(peer, worker_environment())
+  virtual(function()
+    role:control(function()
+      open_during_stop = queued.closed == 0
+      listener_open_during_stop = not role:listener():is_closed()
+    end, 30)
+  end)
+  self:assert_true(open_during_stop, "a queued connection is still open when on_stop runs")
+  self:assert_true(listener_open_during_stop, "the hand-over listener is still open when on_stop runs")
+  self:assert_equal(1, queued.closed, "what is still queued afterwards is closed")
+  self:assert_true(role:listener():is_closed())
+end
+
 function T:test_control_calls_on_stop_with_the_default_grace_when_the_pipe_closes()
   local grace, peer = run_control({}, 12)
   self:assert_equal(12, grace)

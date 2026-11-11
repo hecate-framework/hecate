@@ -737,8 +737,12 @@ function WorkerRole:control(on_stop, default_grace)
       end
     end
   end
+  -- Nothing is pushed any more. The connections already queued are not closed here: `on_stop` lets the server take
+  -- them (`HandOverListener:drain`) before it shuts down, so a rolling reload resets none; whatever is still queued
+  -- afterwards is closed.
+  local stopped, failure = pcall(on_stop, grace)
   self._hand_over:close()
-  on_stop(grace)
+  if not stopped then error(failure, 0) end
 end
 
 --- The counters of this worker: requests (nil: `http.Server` keeps no request counter yet) and the connections the

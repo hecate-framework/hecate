@@ -11,6 +11,7 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- fix(kernel): a worker no longer closes the connections still queued by the hand-over when it is told to stop: the server takes them first (`HandOverListener:drain`), so a rolling reload resets none; only what is still queued afterwards is closed.
 - feat(kernel): `Supervisor` and `Application` option `ready_timeout` (default 30 s): a worker that does not report `ready` after its start or restart is killed, logged `worker_not_ready` at `error` and counted as a crash.
 - feat(kernel): control-protocol counters (ADR 0023, Decision 5): workers send `counters <requests> <connections>` at most once per second; `Supervisor:counters()` lists the latest values per worker (`requests` is unknown until `http.Server` counts them); `HandOverListener:accepted()`.
 - fix(kernel): `Supervisor:stop` and the rolling reload kill a worker that ignores `stop` after the grace period plus one second (the cancellation of the deadline was swallowed, so `run` or the reload waited forever); tests for graceful shutdown with requests in flight, boot rejections, the exposure of error messages, `WorkerRole`, the restart backoff and crash window, the hand-over ring and listener, and streaming responses through filters.
