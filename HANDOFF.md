@@ -3,8 +3,8 @@
 
 - roadmap_item: `kernel`: application, modules, controllers, route modules, filters, problem details, lifecycle, multi-process workers, graceful shutdown (Phase 2, docs/roadmap.md)
 - status: in-progress
-- lock_until: 2026-11-11T07:57:27Z
-- last_update: 2026-11-11T07:57:27Z
+- lock_until: 2026-11-11T08:59:44Z
+- last_update: 2026-11-11T07:59:44Z
 
 ## Done
 
@@ -59,6 +59,8 @@
 
 - Step 21 (run of 2026-11-11T06:42Z): first part of the multi-process workers (ADR 0023): `hecate.kernel.listening` (`select`, `RoundRobinStrategy`, `ReuseportStrategy`, `WorkerRing`, `HandoffListener`), 12 tests with fake workers (no spawned process yet); `reactor.system_name()` and `reactor.available_parallelism()` (2 tests); ADR 0027 (Proposed): `kernel` depends on `net` (needed to bind listeners and wrap a stream received through `reactor.ipc` into a `net.TcpStream`; the package CLAUDE.md asks for an ADR for any new dependency). typecheck, lint, check-annotations, check-boundaries, check-glossary, check-lua-constructs, check-changelog, check-links, check-adr-index, check-rockspecs, `test kernel`, `test reactor` ok (after `build-native json`, `build-native http`). CI green on the three platforms at 969ed14; lock released at the end of the run. Choices to confirm: `auto` falling back to `round_robin` is silent (only a named strategy that is unsupported gives a reason to log); `reuseport` refuses port 0; `round_robin` tries each other worker once when a hand-over fails, then closes the connection; the strategy reads the private `_inner` of `net.TcpStream` to hand it over (ADR 0027 notes a public accessor would replace it).
 - Step 22 (run of 2026-11-11T07:45Z, lock released at the end): CI green on the three platforms at 9009375. `hecate.kernel.supervisor`: `Supervisor` (primary: spawn with `ipc`, `ready` adds to the `WorkerRing`, restart with backoff 0.1 s doubled per crash in the window up to 10 s, crash loop after 5 exits in 60 s raises `SupervisorError` `crash_loop`, `stop(grace)` sends `stop <seconds>` and kills after grace + 1 s), `worker_role()`/`WorkerRole` (worker: `HECATE_WORKER_*` variables, control loop feeding the `HandoffListener`, drain on `stop` or end of the pipe), `SupervisorError`; 5 integration tests with real worker processes (`tests/integration/supervisor_test.lua`, fixture `tests/fixtures/worker_app.lua`). typecheck, lint, check-annotations, check-boundaries, check-glossary, check-lua-constructs, check-package-structure, check-rockspecs, `test kernel` ok. Choices to confirm: the worker role is passed by environment variables (`HECATE_WORKER_INDEX`, `_STRATEGY`, `_HOST`, `_PORT`, `_BACKLOG`); control messages are plain text (`ready`, `stop <seconds>`, `connection`); no readiness timeout (a worker that never sends `ready` stays out of the rotation); counters not sent yet.
+
+- Owner accepted ADR 0027 (2026-11-11): status Accepted; `net.TcpStream:transport()` is the public accessor (test first), `kernel/listening.lua` uses it. In progress (run of ~08:05Z): fix of the markdownlint CI failure.
 
 ## Next steps
 

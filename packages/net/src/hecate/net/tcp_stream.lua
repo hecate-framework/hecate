@@ -22,6 +22,13 @@ function TcpStream:init(inner)
   inner._label = "net.TcpStream"
 end
 
+--- The `hecate.reactor` stream under this one, which is what `reactor.ipc` hands over to another process (the
+--- listening strategies of `kernel`, ADR 0027). The stream keeps ownership: closing either closes the connection.
+--- Bytes that a reader of this stream already buffered are not in the transport, so take it before any `reader()`
+--- reads, as the hand-over of a freshly accepted connection does.
+---@return hecate.reactor.TcpStream
+function TcpStream:transport() return self._inner end
+
 --- Reads at most `max` bytes; nil at end of stream (the peer shut down its side); never an
 --- empty string. Cancelling (for example by `reactor.deadline`) keeps the stream open and
 --- loses no data.

@@ -1,8 +1,8 @@
 # 0027 — `kernel` depends on `net` for the listening strategies
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-11-11
-- **Deciders:** project owner; to be accepted by the owner
+- **Deciders:** project owner (accepted 2026-11-11)
 - **Packages:** kernel, net
 - **Related:** [ADR 0023](0023-multi-process-serving.md), [concurrency.md](../architecture/concurrency.md) ("Workers"), [overview.md](../architecture/overview.md)
 
@@ -36,13 +36,15 @@ the edge goes downward and creates no cycle (`http` already depends on `net`).
 
 `hecate-kernel` declares `hecate-net` as a dependency (rockspec, `packages/kernel/CLAUDE.md`, README). Only the
 listening strategies use it: `net.listen` to bind, `net.TcpStream` to wrap a stream received from the primary, and the
-inner `reactor` stream of a `net.TcpStream` to hand it over.
+`net.TcpStream:transport()` to get the inner `reactor` stream of a `net.TcpStream` and hand it over.
+
+`net` offers that accessor as public API (owner decision, 2026-11-11): `TcpStream:transport()` returns the `hecate.reactor` stream under the buffered one. It is meant for the hand-over of a freshly accepted connection: bytes that a reader of the `net` stream already buffered are not in the transport.
 
 ## Consequences
 
 - `check-boundaries` accepts `require("hecate.net")` in `kernel`.
 - Reading the inner `reactor` stream of a `net.TcpStream` is done in one place of `kernel` (the `round_robin`
-  strategy); if `net` later offers a public accessor, the strategy uses it.
+  strategy), through the public `TcpStream:transport()`, never through a private field.
 
 ## Verification
 

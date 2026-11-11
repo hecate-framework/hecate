@@ -239,8 +239,7 @@ end
 ---@param stream hecate.net.TcpStream
 ---@return boolean continue  false once the ring is closed
 local function deliver(self, workers, stream)
-  ---@diagnostic disable-next-line: invisible  -- the inner reactor stream is what `reactor.ipc` passes (ADR 0027)
-  local inner = stream._inner
+  local inner = stream:transport() -- the reactor stream is what `reactor.ipc` passes (ADR 0027)
   local attempts = math.max(1, workers:size())
   for _ = 1, attempts do
     local worker = workers:next()
