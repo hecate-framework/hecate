@@ -146,4 +146,129 @@ function T:test_a_forced_stop_kills_the_workers()
   self:assert_false(core.is_instance_of(err, core.Error))
 end
 
+--- The sorted pids of the workers that answer `count` requests.
+local function pids_of(port, count)
+  local pids = {}
+  for _ = 1, count do
+    local body = get(port, "/whoami")
+    local pid = body and body:match('"pid"%s*:%s*(%d+)')
+    if pid then pids[pid] = true end
+  end
+  return pids
+end
+
+local function codes_of(memory)
+  local codes = {}
+  for _, record in ipairs(memory:records()) do
+    local code = record.fields and record.fields.code
+    if code then codes[#codes + 1] = code end
+  end
+  return codes
+end
+
+local function contains(list, value)
+  for _, item in ipairs(list) do if item == value then return true end end
+  return false
+end
+
+function T:test_reload_replaces_the_workers_without_failing_a_request()
+  if not can_run_workers() then return end
+  local memory = log.MemorySink()
+  local app = new_application({ logger = log.Logger({ sinks = { memory } }), signals = false })
+  local ok, err, before, after, failures, answered = nil, nil, {}, {}, 0, 0
+  with_lua_paths(function()
+    reactor.run(function()
+      reactor.fork(function()
+        wait_ready(app)
+        local port = app:local_address().port
+        before = pids_of(port, 6)
+        local reloading = true
+        local client = reactor.fork(function()
+          while reloading do
+            if get(port, "/whoami") then answered = answered + 1 else failures = failures + 1 end
+          end
+        end)
+        app:reload(5)
+        reloading = false
+        client:value()
+        after = pids_of(port, 6)
+        app:shutdown(5)
+      end)
+      ok, err = pcall(reactor.deadline, 60, app.serve, app)
+    end)
+  end)
+  self:assert_true(ok, tostring(err))
+  local function count(set) local n = 0 for _ in pairs(set) do n = n + 1 end return n end
+  self:assert_equal(2, count(before))
+  self:assert_equal(2, count(after))
+  for pid in pairs(after) do self:assert_nil(before[pid], "a worker of before the reload still answers") end
+  self:assert_equal(0, failures)
+  self:assert_true(answered > 0)
+  local codes = codes_of(memory)
+  self:assert_true(contains(codes, "reload_started"))
+  self:assert_true(contains(codes, "reload_done"))
+end
+
+function T:test_sighup_starts_the_reload_and_a_terminal_signal_during_it_stops()
+  if not can_run_workers() then return end
+  if uv.os_uname().sysname:match("Windows") then return end -- libuv delivers no sighup there
+  local guard = uv.new_signal()
+  guard:start("sigterm", function() end)
+  local memory = log.MemorySink()
+  local app = new_application({ logger = log.Logger({ sinks = { memory } }) })
+  local ok, err, before, after = nil, nil, {}, {}
+  with_lua_paths(function()
+    reactor.run(function()
+      reactor.fork(function()
+        wait_ready(app)
+        local port = app:local_address().port
+        before = pids_of(port, 6)
+        uv.kill(uv.os_getpid(), "sighup")
+        wait_until(function() return contains(codes_of(memory), "reload_done") end)
+        after = pids_of(port, 6)
+        uv.kill(uv.os_getpid(), "sigterm")
+      end)
+      ok, err = pcall(reactor.deadline, 60, app.serve, app)
+    end)
+  end)
+  guard:close()
+  self:assert_true(ok, tostring(err))
+  for pid in pairs(after) do self:assert_nil(before[pid], "a worker of before the reload still answers") end
+  self:assert_true(next(after) ~= nil)
+  local codes = codes_of(memory)
+  self:assert_true(contains(codes, "reload_started"))
+  self:assert_true(contains(codes, "shutdown_signal"))
+end
+
+function T:test_reload_needs_a_serving_primary()
+  local app = kernel.Application({ logger = log.Logger({ sinks = {} }) })
+  reactor.run(function()
+    local err = self:assert_error(function() app:reload() end)
+    self:assert_true(core.is_instance_of(err, core.ArgumentError), tostring(err))
+  end)
+end
+
+function T:test_sighup_is_ignored_by_a_single_process()
+  if uv.os_uname().sysname:match("Windows") then return end
+  local guard = uv.new_signal()
+  guard:start("sigterm", function() end)
+  local routes = kernel.routes("single")
+  routes:get("/ping", { action = function() return { pong = true } end })
+  local app = kernel.Application({ routes = { routes }, logger = log.Logger({ sinks = {} }), server = { host = "127.0.0.1", port = 0 } })
+  local ok, err, body = nil, nil, nil
+  reactor.run(function()
+    reactor.fork(function()
+      wait_until(function() return app:local_address() ~= nil end)
+      uv.kill(uv.os_getpid(), "sighup")
+      reactor.sleep(0.2)
+      body = get(app:local_address().port, "/ping")
+      uv.kill(uv.os_getpid(), "sigterm")
+    end)
+    ok, err = pcall(reactor.deadline, 30, app.serve, app)
+  end)
+  guard:close()
+  self:assert_true(ok, tostring(err))
+  self:assert_not_nil(body) -- still serving after the sighup
+end
+
 return T

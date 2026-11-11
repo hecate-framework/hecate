@@ -163,6 +163,13 @@ Accepted in [ADR 0023](../adr/0023-multi-process-serving.md), measured in
   configuration keys `server.workers` (default 1: the single process of before, with no supervisor)
   and `server.strategy`. The primary boots the application before it spawns, so a configuration or
   container error appears once.
+- Rolling reload (`Supervisor:reload`, started by `SIGHUP` in the primary or by `Application:reload`): for
+  each worker in turn the primary starts a fresh process from the same command, waits for its `ready`,
+  adds it to the rotation, then stops the old worker with the grace period; an old worker is never taken
+  out before its replacement is ready, a replacement that fails aborts the reload and leaves the old
+  worker serving, and the planned exit is not a crash. It needs no worker-side message (`reload` stays
+  reserved). With `reuseport` the connections queued in the closing socket of the old worker are reset
+  by the kernel (ADR 0023, Decision 6); `round_robin` loses none.
 
 ## Signals and shutdown
 
@@ -170,9 +177,9 @@ Accepted in [ADR 0023](../adr/0023-multi-process-serving.md), measured in
 `SIGINT`, Ctrl+C, of the two). The set is fixed: it is not configurable, and an application
 may turn the handling off. The first signal stops accepting and lets the requests in flight
 finish for the grace period (configuration key `server.grace_timeout`, default 30 seconds);
-a second signal during the drain cancels the remaining requests at once. `SIGHUP` is not
-handled by a single process: the rolling reload of the workers belongs to the multi-process
-serving of ADR 0023. All handled through libuv signal handles (OQ-115). A loop that waits repeatedly uses a
+a second signal during the drain cancels the remaining requests at once. `SIGHUP` starts the
+rolling reload of the workers in the primary of a multi-process application (not on Windows) and is
+ignored by a single process and by a worker. All handled through libuv signal handles (OQ-115). A loop that waits repeatedly uses a
 persistent `SignalWatcher`, which queues signals delivered between two waits (OQ-116).
 
 ## Testing requirements

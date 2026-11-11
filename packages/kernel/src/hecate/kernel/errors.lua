@@ -23,9 +23,11 @@ local ModuleError = core.error_class("ModuleError", "hecate.kernel.ModuleError",
 
 --- The supervisor of the workers stopped on a failure (ADR 0023). `context.reason` is the stable identifier:
 --- `crash_loop` (workers kept exiting: `crash_limit` exits within `crash_window`), `start_failed` (the worker program
---- cannot be started) and `already_run`.
+--- cannot be started), `already_run`, and for `Supervisor:reload`: `reload_failed` (`context.cause`: `start_failed`,
+--- `exited`, `not_ready`, `worker_lost` or `stopping`; `context.worker` the slot), `reload_in_progress`, `stopping` and
+--- `not_running`.
 ---@class hecate.kernel.SupervisorError : hecate.core.Error
----@field context { reason: string }
+---@field context { reason: string, cause?: string, worker?: integer }
 local SupervisorError = core.error_class("SupervisorError", "hecate.kernel.SupervisorError", core.Error)
 
 return { RouteDeclarationError = RouteDeclarationError, ModuleError = ModuleError, SupervisorError = SupervisorError }

@@ -112,6 +112,10 @@ deadline, then cancels what remains.
   stops the old one, and keeps at most one worker out of service at a time. This limit is
   documented, not hidden.
 
+The rolling reload exists in `kernel` (`Supervisor:reload`; `SIGHUP` in the primary, or
+`Application:reload`). It replaces the workers by restart, one at a time, and sends no `reload`
+message: that name stays reserved.
+
 ## What exists today
 
 | Piece | Status |

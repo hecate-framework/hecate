@@ -3,8 +3,9 @@
 -- exponential backoff and a crash-loop limit, and stops them gracefully; the worker side reads the control messages of
 -- the primary, feeds the connections it hands over to the server, and drains on `stop` or when the message pipe
 -- closes (the primary died). The control messages are the same on every platform (Decision 5): `ready` (worker to
--- primary), `stop <seconds>` and `connection` with a stream (primary to worker); `reload` is reserved for the rolling
--- reload (roadmap kernel item (m)).
+-- primary), `stop <seconds>` and `connection` with a stream (primary to worker). The rolling reload replaces workers
+-- by restart (a fresh process from the same command, ready before the old one is stopped), so it needs no message of its
+-- own: `reload` stays reserved in the protocol, unused, and a worker never sees it.
 global <const> require, type, error, pcall, tostring, tonumber, math, table, ipairs, pairs, os
 
 local core = require("hecate.core")
@@ -95,6 +96,8 @@ function Supervisor:init(options)
   self._started = 0
   self._ready = 0
   self._stopping = false
+  self._reloading = false
+  self._reload_end = nil ---@type hecate.reactor.Channel?
   self._state = "new" -- new, running, stopped
   self._requests = reactor.Channel(1) -- the grace period of the first stop request
   self._finished = reactor.Channel(0) -- closed once `run` has stopped every worker
@@ -151,65 +154,122 @@ local function crash_delay(self)
   return math.min((options.restart_delay or 0.1) * 2 ^ (#recent - 1), 10)
 end
 
---- Runs one worker slot: starts the worker, reads its messages until its message pipe ends, waits for it, and
---- restarts it unless the supervisor stops. Never raises (a failure stops the supervisor, `_failure`).
----@async
+--- One process of a worker slot: its message pipe, its place in the rotation and what the supervisor knows of it.
+---@class hecate.kernel.WorkerGeneration
+---@field process hecate.reactor.Process
+---@field peer hecate.reactor.Peer
+---@field target hecate.kernel.HandoffTarget  what the ring hands connections to
+---@field ready boolean  reported `ready` and counted in `ready_count`
+---@field planned boolean  being replaced by a reload: its exit is not a crash
+---@field finished boolean  has exited and been reaped
+---@field done hecate.reactor.Channel  closed once it has exited
+
+--- A worker slot, the unit the supervisor keeps alive.
+---@class hecate.kernel.WorkerSlot
+---@field index integer
+---@field gen hecate.kernel.WorkerGeneration?  the process in service (or starting), nil while the slot waits to restart
+---@field next hecate.kernel.WorkerGeneration?  the replacement of a reload, ready, that takes over once `gen` has exited
+---@field waiting boolean
+---@field future hecate.reactor.Future?
+
+--- Starts a worker process for `slot`; nil and the reason when the program cannot be started.
 ---@param self hecate.kernel.Supervisor
----@param slot { index: integer, process: hecate.reactor.Process?, waiting: boolean, future: hecate.reactor.Future? }
-local function supervise(self, slot)
+---@param slot hecate.kernel.WorkerSlot
+---@return hecate.kernel.WorkerGeneration? generation
+---@return any? reason
+local function start_worker(self, slot)
   local command = self._options.command
   local args = table.move(command, 2, #command, 1, {})
-  while not self._stopping do
-    local started, process = pcall(reactor.spawn, command[1], args, { ipc = true, env = worker_env(self, slot.index) }) -- glossary-ok: operating-system process (ADR 0023)
-    if not started then
-      self._failure = self._failure or errors.SupervisorError(("kernel.Supervisor: cannot start a worker: %s"):format(tostring(process)),
-        { context = { reason = "start_failed" } })
-      request_stop(self, 0)
-      return
+  local started, process = pcall(reactor.spawn, command[1], args, { ipc = true, env = worker_env(self, slot.index) }) -- glossary-ok: operating-system process (ADR 0023)
+  if not started then return nil, process end
+  self._started = self._started + 1
+  local peer = process.ipc --[[@as hecate.reactor.Peer]]
+  return {
+    process = process, peer = peer, ready = false, planned = false, finished = false, done = reactor.Channel(0),
+    target = { hand_over = function(_, stream) peer:send("connection", stream) end },
+  }
+end
+
+--- Runs one worker slot: starts the worker, reads its messages until its message pipe ends, waits for it, and
+--- restarts it unless the supervisor stops. A worker that a reload replaced (`planned`) is followed by its
+--- replacement, which the reload has started and found ready: no restart, no crash accounting. Never raises (a
+--- failure stops the supervisor, `_failure`).
+---@async
+---@param self hecate.kernel.Supervisor
+---@param slot hecate.kernel.WorkerSlot
+local function supervise(self, slot)
+  local gen ---@type hecate.kernel.WorkerGeneration?
+  while true do
+    if gen == nil then
+      if self._stopping then return end
+      local spawned, reason = start_worker(self, slot)
+      if spawned == nil then
+        self._failure = self._failure or errors.SupervisorError(("kernel.Supervisor: cannot start a worker: %s"):format(tostring(reason)),
+          { context = { reason = "start_failed" } })
+        request_stop(self, 0)
+        return
+      end
+      gen = spawned
     end
-    slot.process = process
-    self._started = self._started + 1
-    local peer = process.ipc --[[@as hecate.reactor.Peer]]
-    local target = { hand_over = function(_, stream) peer:send("connection", stream) end }
-    local is_ready = false
+    slot.gen = gen
+    local peer = gen.peer
     while true do
       local ok, message = pcall(peer.receive, peer)
       if not ok or message == nil then break end
-      if message == "ready" and not is_ready then
-        is_ready = true
+      if message == "ready" and not gen.ready and not gen.planned then
+        gen.ready = true
         self._ready = self._ready + 1
-        if not self._stopping then self._ring:add(target) end
+        if not self._stopping then self._ring:add(gen.target) end
       end
     end
-    self._ring:remove(target)
-    if is_ready then self._ready = self._ready - 1 end
+    self._ring:remove(gen.target)
+    if gen.ready then self._ready = self._ready - 1 end
     peer:close()
-    local status = process:wait()
-    slot.process = nil
-    if self._stopping then return end
-    local delay = crash_delay(self)
-    note(self, "warning", "a worker exited; restarting it", {
-      code = "worker_exited", worker = slot.index, pid = process.pid, exit_code = status.code, signal = status.signal,
-    })
-    if delay == nil then
-      self._failure = self._failure or errors.SupervisorError(
-        "kernel.Supervisor: workers keep exiting (crash loop); stopping", { context = { reason = "crash_loop" } })
-      note(self, "error", "crash loop: stopping every worker", { code = "crash_loop" })
-      request_stop(self, 0)
-      return
-    end
-    slot.waiting = true
-    local slept, err = pcall(reactor.sleep, delay)
-    slot.waiting = false
-    if not slept then
+    local status = gen.process:wait()
+    gen.finished = true
+    slot.gen = nil
+    gen.done:close()
+    local successor = slot.next
+    if gen.planned and successor ~= nil then
+      slot.next, gen = nil, successor
+    else
+      local exited = gen
+      gen = nil
       if self._stopping then return end
-      error(err, 0)
+      local delay = crash_delay(self)
+      note(self, "warning", "a worker exited; restarting it", {
+        code = "worker_exited", worker = slot.index, pid = exited.process.pid, exit_code = status.code, signal = status.signal,
+      })
+      if delay == nil then
+        self._failure = self._failure or errors.SupervisorError(
+          "kernel.Supervisor: workers keep exiting (crash loop); stopping", { context = { reason = "crash_loop" } })
+        note(self, "error", "crash loop: stopping every worker", { code = "crash_loop" })
+        request_stop(self, 0)
+        return
+      end
+      slot.waiting = true
+      local slept, err = pcall(reactor.sleep, delay)
+      slot.waiting = false
+      if not slept then
+        if self._stopping then return end
+        error(err, 0)
+      end
     end
   end
 end
 
+--- The processes of a slot that may be running: the one in service and a replacement not taken over yet.
+---@param slot hecate.kernel.WorkerSlot
+---@return hecate.kernel.WorkerGeneration[]
+local function live(slot)
+  local list = {}
+  if slot.gen ~= nil then list[#list + 1] = slot.gen end
+  if slot.next ~= nil then list[#list + 1] = slot.next end
+  return list
+end
+
 --- Stops every worker: removes them from the rotation, sends `stop` with the grace period, kills those still running
---- after it (plus one second), and waits for every slot to end.
+--- after it (plus one second), and waits for every slot to end. A replacement a reload has started is stopped too.
 ---@async
 ---@param self hecate.kernel.Supervisor
 ---@param grace number
@@ -220,21 +280,26 @@ local function stop_workers(self, grace)
   local message = "stop " .. tostring(grace)
   for _, slot in ipairs(self._slots) do
     if slot.waiting and slot.future ~= nil then slot.future:cancel() end
-    local process = slot.process
-    if process ~= nil and process.ipc ~= nil then pcall(process.ipc.send, process.ipc, message) end
+    for _, gen in ipairs(live(slot)) do pcall(gen.peer.send, gen.peer, message) end
   end
   local function wait_all()
     for _, slot in ipairs(self._slots) do
       if slot.future ~= nil then pcall(slot.future.value, slot.future) end
     end
+    local reload_end = self._reload_end -- a reload in flight ends once its replacement has exited (killed below at the latest)
+    if reload_end ~= nil then
+      local received, err = pcall(reload_end.receive, reload_end)
+      if not received and core.is_instance_of(err, core.CancellationError) then error(err, 0) end
+    end
   end
   local in_time = pcall(reactor.deadline, grace + KILL_MARGIN, wait_all)
   if not in_time then
     for _, slot in ipairs(self._slots) do
-      local process = slot.process
-      if process ~= nil and process:is_running() then
-        note(self, "warning", "a worker did not stop in time; killing it", { code = "worker_killed", worker = slot.index, pid = process.pid })
-        pcall(process.kill, process, "sigkill")
+      for _, gen in ipairs(live(slot)) do
+        if gen.process:is_running() then
+          note(self, "warning", "a worker did not stop in time; killing it", { code = "worker_killed", worker = slot.index, pid = gen.process.pid })
+          pcall(gen.process.kill, gen.process, "sigkill")
+        end
       end
     end
     wait_all()
@@ -291,6 +356,153 @@ function Supervisor:stop(grace_timeout)
   pcall(self._finished.receive, self._finished)
 end
 
+--- Asks `gen` to leave the rotation and stop with `grace` seconds, waits for it to exit, and kills it when it does not
+--- in time (as `stop` does).
+---@async
+---@param self hecate.kernel.Supervisor
+---@param slot hecate.kernel.WorkerSlot
+---@param gen hecate.kernel.WorkerGeneration
+---@param grace number
+local function retire(self, slot, gen, grace)
+  note(self, "informational", "stopping the replaced worker", { code = "reload_old_stopping", worker = slot.index, pid = gen.process.pid })
+  pcall(gen.peer.send, gen.peer, "stop " .. tostring(grace))
+  local ok, err = pcall(reactor.deadline, grace + KILL_MARGIN, function() pcall(gen.done.receive, gen.done) end)
+  if not ok then
+    if not core.is_instance_of(err, core.DeadlineExceededError) then error(err, 0) end
+    if gen.process:is_running() then
+      note(self, "warning", "a replaced worker did not stop in time; killing it", { code = "worker_killed", worker = slot.index, pid = gen.process.pid })
+      pcall(gen.process.kill, gen.process, "sigkill")
+    end
+    pcall(gen.done.receive, gen.done)
+  end
+  note(self, "informational", "the replaced worker has exited", { code = "reload_old_exited", worker = slot.index, pid = gen.process.pid })
+end
+
+--- Kills and reaps a worker nobody supervises (a failed replacement).
+---@async
+---@param gen hecate.kernel.WorkerGeneration
+local function discard(gen)
+  pcall(gen.peer.close, gen.peer)
+  if gen.process:is_running() then pcall(gen.process.kill, gen.process, "sigkill") end
+  pcall(gen.process.wait, gen.process)
+end
+
+---@param self hecate.kernel.Supervisor
+---@param slot hecate.kernel.WorkerSlot
+---@param cause string
+---@param message string
+---@return hecate.kernel.SupervisorError
+local function reload_failure(self, slot, cause, message)
+  note(self, "error", message, { code = "reload_slot_failed", worker = slot.index, cause = cause })
+  return errors.SupervisorError(("kernel.Supervisor: reload failed (worker %d): %s"):format(slot.index, message),
+    { context = { reason = "reload_failed", cause = cause, worker = slot.index } })
+end
+
+--- Replaces the worker of `slot`: starts the replacement, waits for its `ready`, puts it in the rotation, then retires
+--- the old one. The old worker is never taken out before the replacement is ready.
+---@async
+---@param self hecate.kernel.Supervisor
+---@param slot hecate.kernel.WorkerSlot
+---@param grace number
+---@param ready_timeout number
+local function replace(self, slot, grace, ready_timeout)
+  if slot.gen == nil then -- waiting to restart: its restart starts the code on disk now
+    note(self, "informational", "worker not running; its restart starts it afresh", { code = "reload_slot_skipped", worker = slot.index })
+    return
+  end
+  local fresh, reason = start_worker(self, slot)
+  if fresh == nil then error(reload_failure(self, slot, "start_failed", "cannot start a replacement: " .. tostring(reason)), 0) end
+  slot.next = fresh
+  local ok, got = pcall(reactor.deadline, ready_timeout, function()
+    while true do
+      local received, message = pcall(fresh.peer.receive, fresh.peer)
+      if not received then
+        if core.is_instance_of(message, core.CancellationError) then error(message, 0) end
+        return false
+      end
+      if message == nil then return false end
+      if message == "ready" then return true end
+    end
+  end)
+  local old = slot.gen
+  local cause, text
+  if not ok then
+    if not core.is_instance_of(got, core.DeadlineExceededError) then
+      slot.next = nil
+      discard(fresh)
+      error(got, 0)
+    end
+    cause, text = "not_ready", ("the replacement was not ready within %s s"):format(tostring(ready_timeout))
+  elseif not got then
+    cause, text = self._stopping and "stopping" or "exited", "the replacement exited before it was ready"
+  elseif self._stopping then
+    cause, text = "stopping", "the supervisor is stopping"
+  elseif old == nil or old.finished or not old.process:is_running() then
+    cause, text = "worker_lost", "the worker to replace exited meanwhile"
+  end
+  if cause ~= nil then
+    slot.next = nil
+    discard(fresh)
+    error(reload_failure(self, slot, cause, text), 0)
+  end
+  ---@cast old hecate.kernel.WorkerGeneration
+  note(self, "informational", "the replacement is ready", { code = "reload_replacement_ready", worker = slot.index, pid = fresh.process.pid })
+  -- From here to the `stop` message nothing suspends: rotation, counters and `planned` change together.
+  old.planned = true
+  self._ring:add(fresh.target)
+  self._ring:remove(old.target)
+  fresh.ready = true
+  if old.ready then old.ready = false else self._ready = self._ready + 1 end
+  retire(self, slot, old, grace)
+end
+
+--- Replaces the workers one at a time with fresh processes started from the same command, so they run the code on
+--- disk now (the rolling reload, ADR 0023 Decision 6). For each slot the replacement is started and awaited until it
+--- reports `ready`, joins the rotation, and only then the old worker leaves it and is stopped with `grace_timeout`
+--- seconds (then killed, as by `stop`): at most one worker is out of service at a time, and with `round_robin` the
+--- primary stops dispatching to the draining worker, so no connection is lost. With `reuseport` the connections queued
+--- in the socket of a closing worker are reset by the kernel: the limit of that strategy, which a reload does not
+--- hide. The number of workers does not change. A planned exit is not a crash: it does not count towards the
+--- crash-loop limit and triggers no restart. No message is sent to a worker beyond `stop`.
+---
+--- Raises `hecate.kernel.SupervisorError` with `context.reason`: `reload_failed` (`context.cause`: `start_failed`,
+--- `exited` or `not_ready`, a replacement that did not become ready, with `context.worker`; `worker_lost`, `stopping`;
+--- the old worker stays in service and the slots already replaced stay replaced), `reload_in_progress` (another reload
+--- is running), `stopping` (the supervisor is stopping) and `not_running` (not started, or stopped).
+--- Raises `hecate.core.ArgumentError` for a malformed argument.
+---@async
+---@param grace_timeout? number  seconds the old workers drain, default 30
+---@param options? { ready_timeout?: number }  `ready_timeout`: seconds a replacement may take to become ready, default 30
+function Supervisor:reload(grace_timeout, options)
+  if grace_timeout ~= nil and not is_duration(grace_timeout) then
+    error(core.ArgumentError("kernel.Supervisor.reload: grace_timeout is a non-negative finite number of seconds"), 2)
+  end
+  if options ~= nil and (type(options) ~= "table" or (options.ready_timeout ~= nil and not is_duration(options.ready_timeout))) then
+    error(core.ArgumentError("kernel.Supervisor.reload: options is { ready_timeout = seconds }"), 2)
+  end
+  local function refuse(reason, text)
+    error(errors.SupervisorError("kernel.Supervisor: cannot reload: " .. text, { context = { reason = reason } }), 3)
+  end
+  if self._state ~= "running" or #self._slots == 0 then refuse("not_running", "the supervisor is not running") end
+  if self._stopping or self._requests:length() > 0 then refuse("stopping", "the supervisor is stopping") end
+  if self._reloading then refuse("reload_in_progress", "another reload is running") end
+  self._reloading = true
+  local reload_end = reactor.Channel(0)
+  self._reload_end = reload_end
+  local grace, ready_timeout = grace_timeout or 30, options and options.ready_timeout or 30
+  local ok, err = pcall(function()
+    for _, slot in ipairs(self._slots) do
+      if self._stopping then
+        error(reload_failure(self, slot, "stopping", "the supervisor is stopping"), 0)
+      end
+      replace(self, slot, grace, ready_timeout)
+    end
+  end)
+  self._reloading, self._reload_end = false, nil
+  reload_end:close()
+  if not ok then error(err, 0) end
+end
+
 --- Kills every worker that is still running, at once, and stops the supervisor (no restart): the forced stop of a
 --- second signal. Never suspends; `run` returns once the workers have exited. Does nothing when not running.
 function Supervisor:force()
@@ -298,10 +510,11 @@ function Supervisor:force()
   self._stopping = true
   request_stop(self, 0)
   for _, slot in ipairs(self._slots) do
-    local process = slot.process
-    if process ~= nil and process:is_running() then
-      note(self, "warning", "forced stop: killing a worker", { code = "worker_killed", worker = slot.index, pid = process.pid })
-      pcall(process.kill, process, "sigkill")
+    for _, gen in ipairs(live(slot)) do
+      if gen.process:is_running() then
+        note(self, "warning", "forced stop: killing a worker", { code = "worker_killed", worker = slot.index, pid = gen.process.pid })
+        pcall(gen.process.kill, gen.process, "sigkill")
+      end
     end
   end
 end

@@ -3,8 +3,8 @@
 
 - roadmap_item: `kernel`: application, modules, controllers, route modules, filters, problem details, lifecycle, multi-process workers, graceful shutdown (Phase 2, docs/roadmap.md)
 - status: in-progress
-- lock_until: 2026-11-11T14:58:40Z
-- last_update: 2026-11-11T13:28:40Z
+- lock_until: 2026-11-11T13:50:00Z
+- last_update: 2026-11-11T13:50:00Z
 
 ## Done
 
@@ -74,11 +74,11 @@
 - Step 25 (owner request, run of ~10:22Z, lock released at the end): (a) `Client` `expect_continue` fixed (the field is sent, the content follows the 100; 5 tests, test first); (b) `reactor.watch_signals` / `SignalWatcher` (persistent, queue of 16, 15 tests) and `reactor.supports_spawn` / `reactor.supports_handle_passing` (structural checks only), `Application` uses one watcher for the primary and the workers, the workers end-to-end test skips where the capability queries say no. typecheck, lint, check-annotations, `test reactor`, `test http`, `test kernel`, `test examples/hello` ok. The CI of step 24 is green on the three platforms (cold-cache run 4m07); the docs-only skip is exercised by the claim commit e10f52a, check its run.
 - Step 26 (run of 2026-11-11T12:42Z, lock released at the end): roadmap open item (5), response validation in development and test: `validate_responses` (option of `Application`, `dispatcher.build`, `results.serialise`) validates the representation against the schema declared for the status, a mismatch raises `core.ValidationError` (`context.status`, `context.violations`, no value in the message) and becomes a logged 500; `Application` defaults it from the environment (`development`/`test`); 11 tests (results, dispatcher, application); README, CHANGELOG; OQ-117 (issue #173) records the choices to confirm (notably no configuration key yet, candidate `responses.validate`). typecheck, lint, check-annotations, check-boundaries, check-glossary, check-lua-constructs, check-changelog, check-links, `test kernel`, `test examples/hello` ok (ddd1152).
 
-- Step 27 in progress (owner request, ~13:32Z, regular 90-minute lock): the `SIGHUP` rolling reload of the workers (roadmap kernel item (m), ADR 0023 Decision 5, OQ-115 (4)). Also done before: the markdownlint MD056 failure (OQ-117 sat in the 2-column table), pushed as 7c4d6cd.
+- Step 27 (owner request, ~13:32Z, lock released at the end): the `SIGHUP` rolling reload (roadmap kernel item (m), ADR 0023 Decisions 5 and 6, OQ-115 (4)): `Supervisor:reload(grace_timeout?, {ready_timeout?})` replaces each worker by restart (replacement ready before the old one stops; failure raises `SupervisorError` `reload_failed` and keeps the old worker; planned exit is not a crash), `Application:reload`, `sighup` in the primary (ignored in a single process and a worker, not on Windows), 11 new tests (7 supervisor with real workers, 4 application). The subagent ran test kernel 3 times plus every static check green; this container had no Lua 5.5 (proxy cut the download), so verification of the commit rests on that report and on CI. Also done before: the markdownlint MD056 fix (7c4d6cd) and OQ-117 resolved (4a58e64, issue #173 closed). Not covered: killing an old worker that ignores `stop` during a reload; the worker-side ignore of `sighup` end to end. Stale: `docs/open-questions.md` OQ-115 (4) still says SIGHUP is not handled by `serve`; the "What exists today" table of `website/en/explanation/multi-process-serving.md` still says the supervisor is not implemented.
 
 ## Next steps
 
-0. Kernel items still open, in this order (workers are wired in `Application`, OQ-116 resolved): (1) done (green); (2) done (step 25); (3) a conformance test per listening strategy (only `round_robin` is end to end; `reuseport` waits for the next luv release, OQ-43); (4) the `SIGHUP` rolling reload (roadmap (m), ADR 0023); (5) done (step 26, OQ-117 to confirm); (6) the website reference page of `kernel`; (7) the generated `config/development.lua` and `config/test.lua` (CLI, Phase 3) must set `server.grace_timeout` low (2 s, to confirm). Check the CI of the pull request first.
+0. Kernel items still open, in this order (workers are wired in `Application`, OQ-116 resolved): (1) done (green); (2) done (step 25); (3) a conformance test per listening strategy (only `round_robin` is end to end; `reuseport` waits for the next luv release, OQ-43); (4) done (step 27); (5) done (step 26, OQ-117 resolved); (6) the website reference page of `kernel`; (7) the generated `config/development.lua` and `config/test.lua` (CLI, Phase 3) must set `server.grace_timeout` low (2 s, to confirm). Check the CI of the pull request first.
 1. Before ticking: verify handoffs (a), (b), (c), (d), (e), (g), (h), (i), (j), (k), (l) against the roadmap text (most are done in code, see Done), then `/review-package kernel`.
 
 ## Decisions taken (and where they are recorded)

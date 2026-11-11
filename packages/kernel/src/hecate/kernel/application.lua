@@ -1,7 +1,7 @@
 -- The application: the composition root (http-and-routing.md, "Application and feature modules"). `boot` decides
 -- everything that can be decided before the first request (module order, container graph, route table, filter chains);
 -- `serve` binds a server on the result.
-global <const> require, type, error, ipairs, pairs, tostring, pcall, table, math, arg
+global <const> require, type, error, ipairs, pairs, tostring, pcall, table, math, arg, package
 
 local core = require("hecate.core")
 local json = require("hecate.json")
@@ -21,6 +21,16 @@ local supervisor = require("hecate.kernel.supervisor")
 --- delivers `sigint` for Ctrl+C; `sigterm` is accepted there and never delivered.
 local SIGNALS <const> = { "sigint", "sigterm" }
 
+--- `sighup` starts the rolling reload in a primary and is ignored elsewhere (OQ-115 (4)); libuv does not deliver it on
+--- Windows, where it is not watched.
+local IS_WINDOWS <const> = package.config:sub(1, 1) == "\\"
+---@return string[]
+local function watched_signals()
+  local names = { table.unpack(SIGNALS) }
+  if not IS_WINDOWS then names[#names + 1] = "sighup" end
+  return names
+end
+
 --- Options of `Application`.
 ---@class hecate.kernel.ApplicationOptions
 ---@field modules? hecate.kernel.FeatureModule[]  the feature modules
@@ -36,7 +46,7 @@ local SIGNALS <const> = { "sigint", "sigterm" }
 ---@field logger? hecate.log.Logger  receives unhandled failures and the container warnings
 ---@field router? hecate.router.RouterOptions
 ---@field server? hecate.http.ServerOptions  options of the HTTP server made by `serve` (`logger` defaults to the application's)
----@field signals? false  `false` disables signal handling (tests, embedding); the set (`sigint`, `sigterm`) is fixed and cannot be listed
+---@field signals? false  `false` disables signal handling (tests, embedding); the set (`sigint`, `sigterm` stop; `sighup` reloads a primary, and is ignored elsewhere) is fixed and cannot be listed
 ---@field grace_timeout? number  seconds a signal-driven shutdown lets requests in flight finish (default 30)
 ---@field workers? integer  number of worker processes, at least 1 (default 1: the process serves by itself); above 1 the primary runs a `hecate.kernel.Supervisor` (ADR 0023)
 ---@field strategy? "auto"|"reuseport"|"round_robin"  how connections reach the workers (default `auto`, `listening.select`); used only when `workers` is above 1
@@ -188,40 +198,90 @@ function Application:boot()
   return serve
 end
 
---- Waits for `sigint` or `sigterm`, then shuts the application down gracefully. While that shutdown drains, a second
---- signal forces the stop: the requests still in flight are cancelled at once (`Server:shutdown(0)`, OQ-115). A signal
---- the platform cannot watch is logged once and the application serves without signal handling.
+--- The reason, the cause and the message of a failed reload (nil and nil for an error that is not a `SupervisorError`).
+---@param err any
+---@return string? reason
+---@return string? cause
+---@return string message
+local function describe_failure(err)
+  if core.is_instance_of(err, errors.SupervisorError) then
+    local failure = err --[[@as hecate.kernel.SupervisorError]]
+    return failure.context.reason, failure.context.cause, tostring(failure.message)
+  end
+  return nil, nil, tostring(err)
+end
+
+--- Runs a reload for `sighup`: logs, never raises (a failed reload leaves the primary serving). Not started once a
+--- shutdown began; a reload already running makes the signal a no-op with a warning.
+---@async
+---@param self hecate.kernel.Application
+---@param logger? hecate.log.Logger
+local function reload_on_signal(self, logger)
+  if self._signalled then return end
+  local ok, err = pcall(self.reload, self)
+  if ok then return end
+  if core.is_instance_of(err, core.CancellationError) then error(err, 0) end
+  local reason, _, message = describe_failure(err)
+  if logger ~= nil and (reason == "reload_in_progress" or reason == "stopping" or reason == "not_running") then
+    logger:warning("kernel.Application: reload refused: " .. message, { code = "reload_refused", reason = reason })
+  end
+end
+
+--- Waits for `sigint` or `sigterm`, then shuts the application down gracefully. `sighup` starts the rolling reload of
+--- the workers in a primary (in a task of its own, so that a stop signal during the reload is heard) and is ignored in a
+--- single process. While the shutdown drains, a second signal forces the stop: the requests still in flight are
+--- cancelled at once (`Server:shutdown(0)`, OQ-115). A signal the platform cannot watch is logged once and the
+--- application serves without signal handling.
 ---@async
 ---@param self hecate.kernel.Application
 ---@param watcher hecate.reactor.SignalWatcher
 ---@param logger? hecate.log.Logger
 local function watch_signals(self, watcher, logger)
-  local ok, name = pcall(watcher.wait, watcher)
-  if not ok then
-    if core.is_instance_of(name, core.CancellationError) then error(name, 0) end
-    return
-  end
-  self._signalled = true
-  if logger ~= nil then
-    logger:notice("kernel.Application: signal received, shutting down gracefully",
-      { code = "shutdown_signal", signal = name })
-  end
-  -- The drain runs in this scope's body; the child waits for the second signal and ends with the scope (ADR 0003).
-  reactor.scope(function(scope)
-    local forcer = scope:fork(function()
-      local second_ok, second = pcall(watcher.wait, watcher)
-      if not second_ok then
-        if core.is_instance_of(second, core.CancellationError) then error(second, 0) end
+  reactor.scope(function(reloads)
+    local name
+    while true do
+      local ok, received = pcall(watcher.wait, watcher)
+      if not ok then
+        if core.is_instance_of(received, core.CancellationError) then error(received, 0) end
         return
       end
-      if logger ~= nil then
-        logger:warning("kernel.Application: second signal received, stopping now", { code = "shutdown_forced", signal = second })
+      if received ~= "sighup" then
+        name = received
+        break
       end
-      -- The primary cannot wait for the workers' own drain any more: it kills them (`Supervisor:force`).
-      if self._supervisor ~= nil then self._supervisor:force() else self:shutdown(0) end
+      if self._supervisor ~= nil then
+        reloads:fork(reload_on_signal, self, logger)
+      elseif logger ~= nil then
+        logger:debug("kernel.Application: sighup ignored; only a primary of several workers reloads", { code = "reload_ignored" })
+      end
+    end
+    self._signalled = true
+    if logger ~= nil then
+      logger:notice("kernel.Application: signal received, shutting down gracefully",
+        { code = "shutdown_signal", signal = name })
+    end
+    -- The drain runs in this scope's body; the child waits for the second signal and ends with the scope (ADR 0003).
+    reactor.scope(function(scope)
+      local forcer = scope:fork(function()
+        while true do
+          local second_ok, second = pcall(watcher.wait, watcher)
+          if not second_ok then
+            if core.is_instance_of(second, core.CancellationError) then error(second, 0) end
+            return
+          end
+          if second ~= "sighup" then
+            if logger ~= nil then
+              logger:warning("kernel.Application: second signal received, stopping now", { code = "shutdown_forced", signal = second })
+            end
+            -- The primary cannot wait for the workers' own drain any more: it kills them (`Supervisor:force`).
+            if self._supervisor ~= nil then self._supervisor:force() else self:shutdown(0) end
+            return
+          end
+        end
+      end)
+      self:shutdown((self._resolved or self._options).grace_timeout)
+      forcer:cancel()
     end)
-    self:shutdown((self._resolved or self._options).grace_timeout)
-    forcer:cancel()
   end)
 end
 
@@ -256,7 +316,7 @@ local function run_watched(self, watch, body)
     -- One persistent watcher for the whole run: a signal delivered between two waits is queued, never lost (a worker
     -- would take the default action and die). It is closed once the body has ended, after the task is cancelled.
     if self._options.signals ~= false then
-      local created, handle = pcall(reactor.watch_signals, table.unpack(SIGNALS))
+      local created, handle = pcall(reactor.watch_signals, table.unpack(watched_signals()))
       if created then
         watcher = handle
         task = scope:fork(watch, self, handle, logger or log.default())
@@ -365,6 +425,37 @@ function Application:shutdown(grace_timeout)
   elseif self._server ~= nil then
     self._server:shutdown(grace_timeout)
   end
+end
+
+--- Replaces the workers one at a time with fresh processes that run the code on disk now (`Supervisor:reload`, the
+--- rolling reload of ADR 0023), and returns when every worker has been replaced. In a primary, `sighup` (not on Windows)
+--- starts the same reload; this method is for programmatic use. Logs `reload_started` and `reload_done` (`notice`) and
+--- `reload_failed` (`error`, with the reason); a failed reload leaves the old workers serving.
+---
+--- Raises `hecate.kernel.SupervisorError` (`reload_failed`, `reload_in_progress`, `stopping`; see `Supervisor:reload`)
+--- and `hecate.core.ArgumentError` when the application is not a primary of several workers that is serving.
+---@async
+---@param grace_timeout? number  seconds the old workers drain, default the `grace_timeout` option, else 30
+---@param options? { ready_timeout?: number }  seconds a replacement may take to become ready, default 30
+function Application:reload(grace_timeout, options)
+  local sup = self._supervisor
+  if sup == nil then
+    error(core.ArgumentError("kernel.Application.reload: only a serving primary of several workers can reload"), 2)
+  end
+  if grace_timeout == nil then grace_timeout = (self._resolved or self._options).grace_timeout end
+  local logger = (self._resolved or self._options).logger or log.default()
+  logger:notice("kernel.Application: reloading the workers", { code = "reload_started" })
+  local ok, err = pcall(sup.reload, sup, grace_timeout, options)
+  if not ok then
+    if core.is_instance_of(err, core.CancellationError) then error(err, 0) end
+    local reason, cause, message = describe_failure(err)
+    if reason ~= "reload_in_progress" and reason ~= "stopping" and reason ~= "not_running" then
+      logger:error("kernel.Application: reload failed: " .. message,
+        { code = "reload_failed", reason = reason, cause = cause })
+    end
+    error(err, 0)
+  end
+  logger:notice("kernel.Application: workers reloaded", { code = "reload_done" })
 end
 
 core.finalise(Application)
