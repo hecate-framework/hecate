@@ -1,7 +1,7 @@
 -- The application: the composition root (http-and-routing.md, "Application and feature modules"). `boot` decides
 -- everything that can be decided before the first request (module order, container graph, route table, filter chains);
 -- `serve` binds a server on the result.
-global <const> require, type, error, ipairs, pairs, tostring, pcall, table, math
+global <const> require, type, error, ipairs, pairs, tostring, pcall, table, math, arg
 
 local core = require("hecate.core")
 local json = require("hecate.json")
@@ -14,6 +14,8 @@ local errors = require("hecate.kernel.errors")
 local logging = require("hecate.kernel.logging")
 local log = require("hecate.log")
 local reactor = require("hecate.reactor")
+local listening = require("hecate.kernel.listening")
+local supervisor = require("hecate.kernel.supervisor")
 
 --- The fixed set of signals that stop `serve` (concurrency.md, "Signals and shutdown"; OQ-115). On Windows libuv
 --- delivers `sigint` for Ctrl+C; `sigterm` is accepted there and never delivered.
@@ -26,7 +28,7 @@ local SIGNALS <const> = { "sigint", "sigterm" }
 ---@field services? fun(container: hecate.container.Container)  binds services of the application itself, before those of the modules
 ---@field filters? hecate.kernel.Filter[]  global filters, outermost, before those of the modules
 ---@field container? hecate.container.Container  an existing container (not yet validated); default: a new one
----@field configuration? hecate.config.Configuration  binds `limits.max_depth`, `errors.expose_details`, `requests.inputs`, `server.grace_timeout` and the logging keys; the options below override it
+---@field configuration? hecate.config.Configuration  binds `limits.max_depth`, `errors.expose_details`, `requests.inputs`, `server.grace_timeout`, `server.workers`, `server.strategy` and the logging keys; the options below override it
 ---@field max_depth? integer  nesting depth limit of `json` and `schema` (`json.set_max_depth`, OQ-92)
 ---@field expose_details? boolean  see `hecate.kernel.DispatcherOptions`
 ---@field inputs? "lax"|"strict"  see `hecate.kernel.DispatcherOptions`
@@ -35,11 +37,15 @@ local SIGNALS <const> = { "sigint", "sigterm" }
 ---@field server? hecate.http.ServerOptions  options of the HTTP server made by `serve` (`logger` defaults to the application's)
 ---@field signals? false  `false` disables signal handling (tests, embedding); the set (`sigint`, `sigterm`) is fixed and cannot be listed
 ---@field grace_timeout? number  seconds a signal-driven shutdown lets requests in flight finish (default 30)
+---@field workers? integer  number of worker processes, at least 1 (default 1: the process serves by itself); above 1 the primary runs a `hecate.kernel.Supervisor` (ADR 0023)
+---@field strategy? "auto"|"reuseport"|"round_robin"  how connections reach the workers (default `auto`, `listening.select`); used only when `workers` is above 1
+---@field worker_command? string[]  the program and arguments that start a worker (default: the running interpreter, script and arguments, `Application.worker_command_from(arg)`)
 
 --- The composition root.
 ---@class hecate.kernel.Application
 ---@field container hecate.container.Container?  the validated container, after `boot`
 ---@field router hecate.router.Router?  the router, after `boot`
+---@field _supervisor hecate.kernel.Supervisor?  the supervisor, while serving as the primary of several workers
 ---@field _signalled boolean?  set by the signal watcher once it started `shutdown`
 ---@overload fun(options?: hecate.kernel.ApplicationOptions): hecate.kernel.Application
 local Application = core.class("Application")
@@ -47,7 +53,10 @@ local Application = core.class("Application")
 local KNOWN = {
   modules = true, routes = true, configuration = true, services = true, filters = true, container = true, max_depth = true,
   expose_details = true, inputs = true, logger = true, router = true, server = true, signals = true, grace_timeout = true,
+  workers = true, strategy = true, worker_command = true,
 }
+
+local STRATEGIES <const> = { auto = true, reuseport = true, round_robin = true }
 
 --- Creates an application; nothing is checked or built until `boot`.
 ---
@@ -66,8 +75,49 @@ function Application:init(options)
   if grace ~= nil and (type(grace) ~= "number" or grace ~= grace or grace < 0 or grace == math.huge) then
     error(core.ArgumentError("kernel.Application: grace_timeout is a non-negative finite number of seconds"), 2)
   end
+  if options.workers ~= nil and (math.type(options.workers) ~= "integer" or options.workers < 1) then
+    error(core.ArgumentError("kernel.Application: workers is an integer of at least 1"), 2)
+  end
+  if options.strategy ~= nil and not STRATEGIES[options.strategy] then
+    error(core.ArgumentError("kernel.Application: strategy is auto, reuseport or round_robin"), 2)
+  end
+  local command = options.worker_command
+  if command ~= nil then
+    local valid = type(command) == "table" and type(command[1]) == "string"
+    for i = 1, valid and #command or 0 do if type(command[i]) ~= "string" then valid = false end end
+    if not valid then error(core.ArgumentError("kernel.Application: worker_command is a list of strings, the program first"), 2) end
+  end
   self._options = options
   self._booted = false
+end
+
+--- The command that starts the running program again, from the `arg` table of the standalone interpreter: the
+--- interpreter and its options (the negative indices), the script (index 0) and the script arguments. A worker is that
+--- program started with the worker role in its environment (ADR 0023, Decision 1).
+---
+--- Raises `hecate.core.ArgumentError` when there is no script (interactive use, `-e`, embedding): give `worker_command`.
+---@param arguments? table  default the global `arg`
+---@return string[] command
+function Application.worker_command_from(arguments)
+  arguments = arguments or arg
+  local lowest = 0
+  if type(arguments) == "table" then
+    for index in pairs(arguments) do
+      if math.type(index) == "integer" and index < lowest then lowest = index end
+    end
+  end
+  if type(arguments) ~= "table" or lowest == 0 or type(arguments[0]) ~= "string" then
+    error(core.ArgumentError("kernel.Application: cannot tell how to start a worker (no script in `arg`); give the worker_command option"), 2)
+  end
+  local command = {}
+  for index = lowest, #arguments do
+    local part = arguments[index]
+    if type(part) ~= "string" then
+      error(core.ArgumentError("kernel.Application: cannot tell how to start a worker (`arg` has a gap); give the worker_command option"), 2)
+    end
+    command[#command + 1] = part
+  end
+  return command
 end
 
 --- Boots the application: applies `max_depth`, orders the modules (rejecting duplicates, missing dependencies and
@@ -90,6 +140,8 @@ function Application:boot()
     if options.expose_details == nil then options.expose_details = configuration:get("errors.expose_details") end
     if options.inputs == nil then options.inputs = configuration:get("requests.inputs") end
     if options.grace_timeout == nil then options.grace_timeout = configuration:get("server.grace_timeout") end
+    if options.workers == nil then options.workers = configuration:get("server.workers") end
+    if options.strategy == nil then options.strategy = configuration:get("server.strategy") end
     if options.logger == nil then
       options.logger = logging.build(configuration)
       log.set_default(options.logger)
@@ -99,6 +151,8 @@ function Application:boot()
         { code = "expose_details_in_production" })
     end
   end
+  if options.workers == nil then options.workers = 1 end
+  if options.strategy == nil then options.strategy = "auto" end
   self._resolved = options
   if options.max_depth ~= nil then json.set_max_depth(options.max_depth) end
   local ordered = modules.order(options.modules or {})
@@ -160,11 +214,84 @@ local function watch_signals(self, logger)
       if logger ~= nil then
         logger:warning("kernel.Application: second signal received, stopping now", { code = "shutdown_forced", signal = second })
       end
-      self:shutdown(0)
+      -- The primary cannot wait for the workers' own drain any more: it kills them (`Supervisor:force`).
+      if self._supervisor ~= nil then self._supervisor:force() else self:shutdown(0) end
     end)
     self:shutdown((self._resolved or self._options).grace_timeout)
     forcer:cancel()
   end)
+end
+
+--- In a worker the signals of the terminal (Ctrl+C reaches the whole process group) must not end the process before
+--- its drain: the primary decides, and sends `stop` (ADR 0023, Decision 5). The worker therefore swallows them.
+---@async
+---@param self hecate.kernel.Application
+---@param logger? hecate.log.Logger
+local function swallow_signals(self, logger)
+  while true do
+    local ok, name = pcall(reactor.wait_signal, table.unpack(SIGNALS))
+    if not ok then
+      if core.is_instance_of(name, core.CancellationError) then error(name, 0) end
+      return
+    end
+    if logger ~= nil then
+      logger:debug("kernel.Application: worker ignores a signal; the primary stops it", { code = "worker_signal_ignored", signal = name })
+    end
+  end
+end
+
+--- Runs `body` with `watch` (the signal handling) beside it, unless `signals = false`; closes the container afterwards.
+---@async
+---@param self hecate.kernel.Application
+---@param watch async fun(self: hecate.kernel.Application, logger?: hecate.log.Logger)
+---@param body async fun()
+local function run_watched(self, watch, body)
+  local logger = self._resolved.logger
+  local ok, err = pcall(reactor.scope, function(scope)
+    local watcher
+    if self._options.signals ~= false then watcher = scope:fork(watch, self, logger or log.default()) end
+    body()
+    -- A watcher that received its signal is inside `shutdown` and ends by itself.
+    if watcher ~= nil and not self._signalled then watcher:cancel() end
+  end)
+  self._server, self._supervisor = nil, nil
+  self.container:close()
+  if not ok then error(err, 0) end
+end
+
+--- The options of the HTTP server of this process.
+---@param self hecate.kernel.Application
+---@return hecate.http.ServerOptions
+local function server_options_of(self)
+  local server_options = {}
+  for key, value in pairs(self._options.server or {}) do server_options[key] = value end
+  if server_options.logger == nil then server_options.logger = self._resolved.logger end
+  return server_options
+end
+
+--- Serves as the primary of several workers: runs a `Supervisor` on the endpoint of the `server` option.
+---@async
+---@param self hecate.kernel.Application
+local function serve_as_primary(self)
+  local resolved, logger = self._resolved, self._resolved.logger
+  local server_options = self._options.server or {}
+  local defaults = http.Server.DEFAULTS
+  local endpoint = {
+    host = server_options.host or defaults.host, port = server_options.port or defaults.port,
+    backlog = server_options.backlog,
+  }
+  local strategy, fallback = listening.select(resolved.strategy, { logger = logger })
+  local command = resolved.worker_command or Application.worker_command_from()
+  local sup = supervisor.Supervisor({
+    command = command, count = resolved.workers, endpoint = endpoint, strategy = strategy, logger = logger,
+  })
+  self._supervisor = sup
+  if logger ~= nil then
+    if fallback ~= nil then logger:warning("kernel.Application: " .. fallback, { code = "strategy_fallback" }) end
+    logger:notice(("kernel.Application: starting %d workers (strategy %s)"):format(resolved.workers, strategy.name),
+      { code = "workers_starting", workers = resolved.workers, strategy = strategy.name, host = endpoint.host, port = endpoint.port })
+  end
+  run_watched(self, watch_signals, function() sup:run() end)
 end
 
 --- Boots when needed, then serves HTTP until `shutdown` completes. Returns when the server has stopped; closes the
@@ -172,33 +299,41 @@ end
 --- `grace_timeout` option: accepting stops and the requests in flight finish (ADR 0023). A second signal during that
 --- drain cancels the remaining requests at once.
 ---
---- Raises what `boot` and `hecate.http.Server:serve` raise.
+--- Multi-process serving (ADR 0023): with `workers` above 1 the process is the primary and runs a `Supervisor` of
+--- worker processes started from `worker_command`; the signals stop the supervisor (a second one kills the workers).
+--- A process started by a supervisor (`supervisor.worker_role()`) boots the application like any other and serves
+--- through `WorkerRole:serve`, ignoring signals (the primary sends `stop`). With `workers = 1` and no worker role
+--- nothing changes: one process, one `http.Server`.
+---
+--- Raises what `boot` and `hecate.http.Server:serve` raise, and `hecate.kernel.SupervisorError` in a primary.
 ---@async
 function Application:serve()
   local serve = self._serve or self:boot()
-  local server_options = {}
-  for key, value in pairs(self._options.server or {}) do server_options[key] = value end
-  local logger = self._resolved.logger
-  if server_options.logger == nil then server_options.logger = logger end
-  local server = http.Server(serve, server_options)
+  local role = supervisor.worker_role()
+  if role == nil and self._resolved.workers > 1 then
+    serve_as_primary(self)
+    return
+  end
+  local server = http.Server(serve, server_options_of(self))
   self._server = server
-  local watched = self._options.signals ~= false
-  local ok, err = pcall(reactor.scope, function(scope)
-    local watcher
-    if watched then watcher = scope:fork(watch_signals, self, logger or log.default()) end
-    server:serve()
-    -- A watcher that received its signal is inside `shutdown` and ends by itself.
-    if watcher ~= nil and not self._signalled then watcher:cancel() end
-  end)
-  self._server = nil
-  self.container:close()
-  if not ok then error(err, 0) end
+  if role ~= nil then
+    run_watched(self, swallow_signals, function() role:serve(server, self._resolved.grace_timeout) end)
+    return
+  end
+  run_watched(self, watch_signals, function() server:serve() end)
 end
 
 --- The address the application listens on, `{ ip, port, family }`, or nil when it is not serving (with `port = 0` this
---- is how a caller learns the port the system chose).
+--- is how a caller learns the port the system chose). In a primary it is the address its own socket is bound to
+--- (`round_robin`), or the configured endpoint (`reuseport`, where each worker binds it), once the supervisor runs.
 ---@return hecate.reactor.SocketAddress?
 function Application:local_address()
+  if self._supervisor ~= nil then
+    local address = self._supervisor:local_address()
+    if address == nil then return nil end
+    if address.ip ~= nil then return address --[[@as hecate.reactor.SocketAddress]] end
+    return { ip = address.host, port = address.port, family = address.host:find(":", 1, true) and "inet6" or "inet" }
+  end
   return self._server and self._server:local_address() or nil
 end
 
@@ -208,7 +343,11 @@ end
 ---@param grace_timeout? number  seconds, default the `grace_timeout` option, else 30
 function Application:shutdown(grace_timeout)
   if grace_timeout == nil then grace_timeout = (self._resolved or self._options).grace_timeout end
-  if self._server ~= nil then self._server:shutdown(grace_timeout) end
+  if self._supervisor ~= nil then
+    self._supervisor:stop(grace_timeout)
+  elseif self._server ~= nil then
+    self._server:shutdown(grace_timeout)
+  end
 end
 
 core.finalise(Application)

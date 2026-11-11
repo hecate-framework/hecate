@@ -301,6 +301,80 @@ function T:test_load_configuration_keeps_an_explicit_wrapper()
   self:assert_equal("s3cret", configuration:get("database.password").wrapped)
 end
 
+-- Multi-process serving (ADR 0023): options, configuration keys, the command of a worker, the primary --------------------
+
+function T:test_workers_and_strategy_are_validated()
+  local core = require("hecate.core")
+  local function refused(options)
+    local ok, err = pcall(kernel.Application, options)
+    self:assert_false(ok)
+    self:assert_true(core.is_instance_of(err, core.ArgumentError))
+  end
+  refused({ workers = 0 })
+  refused({ workers = -1 })
+  refused({ workers = 1.5 })
+  refused({ workers = "2" })
+  refused({ strategy = "fork" })
+  refused({ strategy = 1 })
+  refused({ worker_command = "lua main.lua" })
+  refused({ worker_command = {} })
+  refused({ worker_command = { "lua", 1 } })
+  self:assert_true(pcall(kernel.Application, { workers = 4, strategy = "round_robin", worker_command = { "lua", "main.lua" } }))
+end
+
+function T:test_workers_and_strategy_default_to_one_process_and_auto()
+  local app = kernel.Application({})
+  app:boot()
+  self:assert_equal(1, app._resolved.workers)
+  self:assert_equal("auto", app._resolved.strategy)
+end
+
+function T:test_configuration_binds_workers_and_strategy_and_options_win()
+  local env = { HECATE_SERVER__WORKERS = "3", HECATE_SERVER__STRATEGY = "round_robin" }
+  local app = kernel.Application({ configuration = configuration(env) })
+  app:boot()
+  self:assert_equal(3, app._resolved.workers)
+  self:assert_equal("round_robin", app._resolved.strategy)
+  local explicit = kernel.Application({ configuration = configuration(env), workers = 1, strategy = "reuseport" })
+  explicit:boot()
+  self:assert_equal(1, explicit._resolved.workers)
+  self:assert_equal("reuseport", explicit._resolved.strategy)
+end
+
+function T:test_the_worker_command_restarts_the_running_program()
+  local from = kernel.Application.worker_command_from
+  self:assert_equal("lua,main.lua,--port,80", table.concat(from({ [-1] = "lua", [0] = "main.lua", "--port", "80" }), ","))
+  self:assert_equal("lua,-W,main.lua", table.concat(from({ [-2] = "lua", [-1] = "-W", [0] = "main.lua" }), ","))
+  self:assert_false(pcall(from, { [-1] = "lua" })) -- no script (interactive, -e): the caller gives worker_command
+  self:assert_false(pcall(from, {}))
+end
+
+function T:test_a_single_process_has_no_supervisor()
+  local app = kernel.Application({ signals = false, server = { host = "127.0.0.1", port = 0 }, worker_command = { "no-such-program" } })
+  reactor.run(function()
+    reactor.fork(function() reactor.sleep(0.01); app:shutdown(1) end)
+    reactor.deadline(5, app.serve, app)
+  end)
+  self:assert_nil(app._supervisor)
+end
+
+function T:test_the_primary_runs_a_supervisor_instead_of_a_server()
+  local core = require("hecate.core")
+  local memory = log.MemorySink()
+  local app = kernel.Application({
+    workers = 2, strategy = "round_robin", signals = false, logger = log.Logger({ sinks = { memory } }),
+    server = { host = "127.0.0.1", port = 0 }, worker_command = { "hecate-no-such-program" },
+  })
+  local ok, err
+  reactor.run(function() ok, err = pcall(reactor.deadline, 10, app.serve, app) end)
+  self:assert_false(ok)
+  self:assert_true(core.is_instance_of(err, kernel.SupervisorError))
+  self:assert_equal("start_failed", err.context.reason)
+  self:assert_nil(app._server)
+  self:assert_nil(app:local_address())
+  self:assert_equal(2, codes(memory).workers_starting.workers)
+end
+
 function T:test_load_configuration_refuses_a_non_table()
   self:assert_false(pcall(kernel.load_configuration, "config"))
 end

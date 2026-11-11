@@ -41,6 +41,8 @@ function M.framework_properties()
     -- `schema.number` is finite (it refuses NaN and infinity); the timeout is read from the environment (The Twelve-Factor App, III).
     server = schema.default(schema.object({
       grace_timeout = schema.default(schema.number({ minimum = 0 }), 30),
+      workers = schema.default(schema.integer({ minimum = 1 }), 1),
+      strategy = schema.default(schema.enumeration({ "auto", "reuseport", "round_robin" }), "auto"),
     }), {}),
     requests = schema.default(schema.object({
       inputs = schema.default(schema.enumeration({ "strict", "lax" }), "strict"),

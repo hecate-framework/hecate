@@ -3,8 +3,8 @@
 
 - roadmap_item: `kernel`: application, modules, controllers, route modules, filters, problem details, lifecycle, multi-process workers, graceful shutdown (Phase 2, docs/roadmap.md)
 - status: in-progress
-- lock_until: 2026-11-11T09:30:31Z
-- last_update: 2026-11-11T08:00:31Z
+- lock_until: 2026-11-11T08:06:34Z
+- last_update: 2026-11-11T08:06:34Z
 
 ## Done
 
@@ -62,7 +62,7 @@
 
 - Owner accepted ADR 0027 (2026-11-11): status Accepted; `net.TcpStream:transport()` is the public accessor (test first), `kernel/listening.lua` uses it. In progress (run of ~08:05Z): fix of the markdownlint CI failure.
 
-- Step 23 in progress (run of ~08:00Z, regular 90-minute lock): wire `kernel.supervisor` into `Application` (`workers`, `strategy`, keys `server.workers` and `server.strategy`).
+- Step 23 (run of ~08:00Z, lock released at the end): `Application` options `workers`, `strategy`, `worker_command`, keys `server.workers` and `server.strategy` (declared in `config`), primary with `Supervisor` (signals stop it, a second one `Supervisor:force`), worker role boots the application and serves through `WorkerRole`; unit tests and one end-to-end test with 2 workers on `round_robin` (6 consecutive green runs); typecheck, lint, check-annotations, `test kernel`, `test config` ok. Choices to confirm: OQ-116. Still open: `examples/hello` with N workers (Phase 2 exit criterion), a conformance test per strategy (only `round_robin` end to end), SIGHUP reload (roadmap (m)), a persistent signal handle in `reactor` (worker race), response validation in development/test, the kernel reference page.
 
 ## Next steps
 

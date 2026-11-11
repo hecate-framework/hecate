@@ -125,4 +125,28 @@ function T:test_grace_timeout_must_be_a_non_negative_finite_number()
   end
 end
 
+function T:test_workers_and_strategy_defaults_and_text_coercion()
+  local defaults = fixture.load({})
+  self:assert_equal(1, defaults:get("server.workers"))
+  self:assert_equal("auto", defaults:get("server.strategy"))
+  local set = fixture.load({ env = { HECATE_SERVER__WORKERS = "4", HECATE_SERVER__STRATEGY = "round_robin" } })
+  self:assert_equal(4, set:get("server.workers"))
+  self:assert_equal("round_robin", set:get("server.strategy"))
+  self:assert_equal("HECATE_SERVER__WORKERS", config.variable_name("HECATE", { "server", "workers" }))
+  self:assert_equal("HECATE_SERVER__STRATEGY", config.variable_name("HECATE", { "server", "strategy" }))
+  local from_file = fixture.load({ files = { ["config/default.lua"] =
+    "return { server = { workers = 3, strategy = 'reuseport' } }" } })
+  self:assert_equal(3, from_file:get("server.workers"))
+  self:assert_equal("reuseport", from_file:get("server.strategy"))
+end
+
+function T:test_workers_and_strategy_are_validated()
+  for _, text in ipairs({ "0", "-1", "1.5", "abc", "" }) do
+    local err = fixture.failure({ env = { HECATE_SERVER__WORKERS = text } })
+    self:assert_equal("server.workers", err.context.violations[1].path, text)
+  end
+  local err = fixture.failure({ env = { HECATE_SERVER__STRATEGY = "fork" } })
+  self:assert_equal("server.strategy", err.context.violations[1].path)
+end
+
 return T

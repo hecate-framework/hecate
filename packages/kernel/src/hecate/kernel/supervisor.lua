@@ -291,6 +291,21 @@ function Supervisor:stop(grace_timeout)
   pcall(self._finished.receive, self._finished)
 end
 
+--- Kills every worker that is still running, at once, and stops the supervisor (no restart): the forced stop of a
+--- second signal. Never suspends; `run` returns once the workers have exited. Does nothing when not running.
+function Supervisor:force()
+  if self._state ~= "running" then return end
+  self._stopping = true
+  request_stop(self, 0)
+  for _, slot in ipairs(self._slots) do
+    local process = slot.process
+    if process ~= nil and process:is_running() then
+      note(self, "warning", "forced stop: killing a worker", { code = "worker_killed", worker = slot.index, pid = process.pid })
+      pcall(process.kill, process, "sigkill")
+    end
+  end
+end
+
 --- The address the application listens on: the primary's socket for `round_robin`, the endpoint for `reuseport`;
 --- nil before `run` has bound it.
 ---@return hecate.reactor.SocketAddress|hecate.kernel.Endpoint|nil

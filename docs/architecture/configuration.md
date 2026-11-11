@@ -233,15 +233,18 @@ reserved like `logging` and `limits` (`ArgumentError`). `Application({ configura
 together with `limits.max_depth` and the logging keys; an explicit option of `Application` wins. The generated
 `config/development.lua` and `config/test.lua` (a `cli` task) set `expose_details = true` and `inputs = "lax"`.
 
-## The server key
+## The server keys
 
 | Key | Type | Default | Meaning |
 |---|---|---|---|
 | `server.grace_timeout` | non-negative finite number (seconds) | `30` | seconds a graceful shutdown lets the requests in flight finish before cancelling them; it must be shorter than the stop timeout of the deployment (`docker stop` waits 10 s by default, Kubernetes 30 s) |
+| `server.workers` | integer, at least 1 | `1` | number of worker processes; `1` serves in the process itself, more runs a supervisor in the primary ([ADR 0023](../adr/0023-multi-process-serving.md)) |
+| `server.strategy` | `auto`, `reuseport` or `round_robin` | `auto` | how connections reach the workers (ADR 0023, Decision 2); only used when `server.workers` is above 1 |
 
-Environment variable: `HECATE_SERVER__GRACE_TIMEOUT` (text such as `2.5` is coerced to a number). A negative value, NaN,
-infinity or a non-number is a `ConfigurationError` at load (`server.grace_timeout`). The name `server` is reserved like
-`logging`, `limits`, `errors` and `requests` (`ArgumentError`). The kernel binds the key to the `grace_timeout` option of `Application`
+Environment variables: `HECATE_SERVER__GRACE_TIMEOUT` (text such as `2.5` is coerced to a number),
+`HECATE_SERVER__WORKERS` and `HECATE_SERVER__STRATEGY`. A negative value, NaN, infinity or a non-number is a
+`ConfigurationError` at load (`server.grace_timeout`); likewise a count below 1 or a name outside the three strategies. The name `server` is reserved like
+`logging`, `limits`, `errors` and `requests` (`ArgumentError`). The kernel binds the keys to the `grace_timeout`, `workers` and `strategy` options of `Application`
 ([OQ-101](../open-questions.md), [OQ-115](../open-questions.md)); `config` only validates and exposes it.
 
 ## The limit on nesting depth
