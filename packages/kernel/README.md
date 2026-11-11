@@ -82,7 +82,8 @@
   an `http` error keeps its client status; anything else (a `ValidationError` about a response, a Lua error, a value
   that is not an error) is a generic `500`. No message, context or cause of an error ever reaches a response.
 - `kernel.problems.guard(action, options?)`: wraps an action or a composed chain; returns the response (a problem for
-  an error) and the failure that was caught, logs it at `error` severity when `options.logger` is given, and never
+  an error) and the failure that was caught, logs it at `error` severity when `options.logger` is given (fields `error`, `method`, `path`
+  without the query, and `traceback`, taken where the error was raised), and never
   catches cancellation or deadline errors. Choices: OQ-112.
 
 - `kernel.problem`: problem classes (RFC 9457), built with the object model of `hecate.core`. `Problem` is a subclass of

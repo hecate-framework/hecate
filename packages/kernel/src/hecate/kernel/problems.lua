@@ -2,7 +2,7 @@
 -- Only the class of an error and the structured violations of a validation decide the response: the message, the
 -- context and the cause of an error never reach a client (OQ-111, invariant "internal error messages are not exposed
 -- by default"). What the client may be told is a fixed text per status.
-global <const> require, error, math, ipairs, pairs, pcall, tostring, type, getmetatable
+global <const> require, error, math, ipairs, pairs, pcall, xpcall, tostring, type, getmetatable, debug
 
 local core = require("hecate.core")
 local json = require("hecate.json")
@@ -154,20 +154,41 @@ end
 
 --- Wraps an action (or a composed chain) so that no error escapes as a response of the wrong shape: an error becomes
 --- a problem details response, and the function returns the response and the caught failure (for the caller to log).
---- With `options.logger` the failure is logged at `error` severity with its text (free text, by design of OQ-111).
+--- With `options.logger` the failure is logged at `error` severity with its text (free text, by design of OQ-111), the
+--- method, the path (never the query) and the traceback taken where the error was raised.
 --- Cancellation and deadline errors are never caught: they belong to the scope that raised them (ADR 0003).
 ---@param action fun(request: hecate.http.Request): hecate.http.Response
 ---@param options? hecate.kernel.problems.Options
 ---@return fun(request: hecate.http.Request): hecate.http.Response, any?
 function problems.guard(action, options)
   local logger = options ~= nil and options.logger or nil
+  -- The traceback is taken where the error was raised (the stack is still there in the message handler), only on the
+  -- failure path and only when the failure will be logged.
+  local traceback
+  local function capture(err)
+    if logger ~= nil then
+      if type(err) == "table" and type(err.traceback) == "string" then
+        traceback = err.traceback
+      else
+        traceback = debug.traceback(tostring(err), 2)
+      end
+    end
+    return err
+  end
   return function(request)
-    local ok, result = pcall(action, request)
+    local ok, result = xpcall(action, capture, request)
     if ok then return result end
+    local captured = traceback
+    traceback = nil
     if core.is_instance_of(result, core.CancellationError) or core.is_instance_of(result, core.DeadlineExceededError) then
       error(result, 0)
     end
-    if logger ~= nil and not (problem.is_problem(result) and result.status < 500) then logger:log("error", "unhandled error while serving a request", { error = tostring(result) }) end
+    if logger ~= nil and not (problem.is_problem(result) and result.status < 500) then
+      -- The path without the query: a query may carry a credential, the log names the route, not its arguments.
+      logger:log("error", "unhandled error while serving a request", {
+        error = tostring(result), method = request.method, path = request.path, traceback = captured,
+      })
+    end
     return problems.from_error(result, options), result
   end
 end

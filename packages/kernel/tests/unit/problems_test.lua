@@ -154,6 +154,20 @@ function T:test_guard_logs_the_failure_once()
   self:assert_equal("error", seen[1][1])
 end
 
+function T:test_guard_logs_the_method_the_path_and_a_traceback_without_the_query()
+  local seen = {}
+  local logger = { log = function(_, severity, message, fields) seen[#seen + 1] = { severity, message, fields } end }
+  local req = http.Request({ method = "POST", target = "/orders/7?token=" .. SECRET, fields = http.Fields() })
+  problems.guard(function() local x = nil; return x --[[@as table]].y end, { logger = logger })(req)
+  self:assert_equal(1, #seen)
+  local fields = seen[1][3]
+  self:assert_equal("POST", fields.method)
+  self:assert_equal("/orders/7", fields.path)
+  self:assert_equal("string", type(fields.traceback))
+  self:assert_true(fields.traceback:find("problems_test.lua", 1, true) ~= nil, fields.traceback)
+  for _, value in pairs(fields) do self:assert_nil(string.find(tostring(value), SECRET, 1, true)) end
+end
+
 function T:test_guard_never_swallows_cancellation()
   local serve = problems.guard(function() error(core.CancellationError("cancelled")) end)
   self:assert_equal("hecate.core.CancellationError", self:assert_error(function() serve(request()) end).code)
