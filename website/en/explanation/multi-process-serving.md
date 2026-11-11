@@ -123,8 +123,9 @@ message: that name stays reserved.
 | `reactor.spawn`, `Process` (`wait`, `kill`, `pid`) | Implemented. |
 | `reactor.ipc`: `Peer:send`, `Peer:receive`, handle passing, `ipc.parent()` | Implemented. |
 | TCP `reuseport` option, `reactor.supports_reuseport()` | Implemented, but see below. |
-| Supervisor: readiness, restart, graceful shutdown, rolling reload (`kernel`) | Not implemented. |
-| Strategies `reuseport` and `round_robin`, `server.workers.strategy` | Not implemented. |
+| Supervisor: readiness, restart, graceful shutdown, rolling reload (`kernel`) | Implemented. |
+| Strategy `round_robin`, configuration keys `server.workers` and `server.strategy` | Implemented. |
+| Strategy `reuseport` | Implemented, waits for luv support (see below). |
 | `hecate serve --workers` | Not implemented. |
 | Conformance suite of the strategies on three platforms | Not implemented. |
 
