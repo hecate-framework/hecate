@@ -3,8 +3,8 @@
 
 - roadmap_item: `kernel`: application, modules, controllers, route modules, filters, problem details, lifecycle, multi-process workers, graceful shutdown (Phase 2, docs/roadmap.md)
 - status: in-progress
-- lock_until: 2026-11-11T15:55:00Z
-- last_update: 2026-11-11T15:55:00Z
+- lock_until: 2026-11-11T17:30:00Z
+- last_update: 2026-11-11T16:00:00Z
 
 ## Done
 
@@ -78,6 +78,7 @@
 - Step 28 (run of 2026-11-11T15:45Z): review findings H3 and H4: `RouteModule:routes()` raises `incomplete_route` for a curried verb never given its declarations; `responses[status] = true` declares a status without content; 4 tests (test first). typecheck, lint, check-annotations, check-glossary, check-lua-constructs, check-changelog, check-links, `test kernel` ok.
 - Step 29 (same run): review finding H5: `problems.guard` uses `xpcall` and logs `method`, `path` (no query) and `traceback` with the error; 1 test (test first). typecheck, lint, check-annotations, `test kernel`, `test examples/hello` ok.
 - Step 30 (same run, lock released at the end): owner item M1: `HandoffListener(address?, capacity?)` bounded at the worker's backlog (default `http.Server.DEFAULTS.backlog`, 128), `push` returns `false, "full"` and closes the stream, `WorkerRole:control` logs `handover_queue_full` through `log.default()`; 2 tests (test first). typecheck, lint, check-annotations, check-boundaries, check-glossary, check-lua-constructs, `test kernel` (4 runs) ok. Seen once: `ApplicationWorkersTest.test_reload_replaces_the_workers_without_failing_a_request` failed (`expected 0, got 1`, a failed request during the reload), green on 3 reruns: flaky, belongs to owner item 11 (flakiness).
+- Step 31 in progress (owner: take over the review items until the branch is mergeable; lock until 17:30Z). This session has no Lua 5.5 (www.lua.org is reset by the proxy), so checks run in CI only; domain needed: `www.lua.org` (and `luarocks.org`) in the network allowlist.
 
 ## Next steps
 
