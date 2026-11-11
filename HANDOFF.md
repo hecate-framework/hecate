@@ -3,8 +3,8 @@
 
 - roadmap_item: `kernel`: application, modules, controllers, route modules, filters, problem details, lifecycle, multi-process workers, graceful shutdown (Phase 2, docs/roadmap.md)
 - status: in-progress
-- lock_until: 2026-11-11T05:16:00Z
-- last_update: 2026-11-11T03:46:00Z
+- lock_until: 2026-11-11T04:10:00Z
+- last_update: 2026-11-11T04:10:00Z
 
 ## Done
 
@@ -54,11 +54,13 @@
 
 - Step 18 (run of ~21:27Z, lock released at the end): `Application:local_address()` (public accessor, test first); the kernel tests and `examples/hello` use it instead of the private `_server`.
 - Step 19 (run of 2026-11-10T21:42Z, lock released at the end): roadmap (f): `kernel.respond`, alias of `results.respond` (test first in `results_test.lua`); `examples/hello` uses it. typecheck, lint, check-annotations, check-changelog, check-glossary, `test kernel`, `test examples/hello` ok.
+- Run of 00:42Z claimed the handoff and pushed nothing else (stopped early).
+- Step 20 (run of 2026-11-11T03:46Z, lock released at the end): roadmap (c): `kernel.load_configuration(options)` calls `config.load` with `wrap_secret` set to a function wrapping `hecate.log.Secret` (config checks the option is a function; `log.Secret` is a callable class), an explicit `wrap_secret` wins; 3 tests (one hides `package.loaded["hecate.log"]` to prove the kernel passes it, not config's fallback); README, CHANGELOG, configuration.md. typecheck, lint, check-annotations, check-boundaries, check-glossary, check-changelog, check-links, `test kernel` ok. Choice to confirm: the name and the shape (a helper the user calls, since `Application` takes an already loaded `Configuration`; the CLI-generated entry point will call it).
 
 ## Next steps
 
-0. Kernel code still open: multi-process workers (ADR 0023: primary, `round_robin`, supervision, drain per worker; `SIGHUP` reload, OQ-115 (4)), response validation in development/test, `wrap_secret = log.Secret` (c) where the kernel loads the configuration, the website reference page of `kernel`. Check CI of the pull request first.
-1. Before ticking: verify handoffs (a), (b), (d), (e), (g), (h), (i), (j), (k), (l) against the roadmap text (most are done in code, see Done), then `/review-package kernel`.
+0. Kernel code still open: multi-process workers (ADR 0023: primary, `round_robin`, supervision, drain per worker; `SIGHUP` reload, OQ-115 (4)), response validation in development/test, the website reference page of `kernel`. Check CI of the pull request first.
+1. Before ticking: verify handoffs (a), (b), (c), (d), (e), (g), (h), (i), (j), (k), (l) against the roadmap text (most are done in code, see Done), then `/review-package kernel`.
 
 ## Decisions taken (and where they are recorded)
 

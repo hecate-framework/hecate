@@ -39,6 +39,7 @@
 
 ## Public API
 
+- `kernel.load_configuration(options)`: `hecate.config.load` with `wrap_secret` set to `hecate.log.Secret` unless the options give one, so that the logging sinks render secret values `[redacted]`; pass the result as the `configuration` option of `Application`.
 - `kernel.Application(options)`: `boot()` (module order, services, container validation, route table, dispatcher; returns the `serve` function), `serve()` (async, runs an `http.Server`), `shutdown(grace)`, `local_address()` (the address while serving, else nil). Options: `configuration` (binds `limits.max_depth`, `errors.expose_details`, `requests.inputs` and the logging keys, builds and installs the default logger; explicit options win), `modules`, `routes`, `services`, `filters`, `container`, `max_depth`, `expose_details`, `inputs`, `logger`, `router`, `server`, `signals` (only `false`, which disables signal handling for tests and embedding; the signal set is fixed: `sigint` or `sigterm` makes `serve` call `shutdown(grace_timeout)`, and a second one while it drains forces the stop at once, cancelling the requests in flight and logging `shutdown_forced` at `warning`) and `grace_timeout` (seconds, default 30; bound to the configuration key `server.grace_timeout` when a `configuration` is given, an explicit option wins) (default 30 s, OQ-115).
 - Feature module: a table `{ name, requires?, services?, routes?, filters? }`; `kernel.modules.order` sorts it after its requirements. `kernel.ModuleError` carries `context.reason`.
 

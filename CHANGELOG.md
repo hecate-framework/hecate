@@ -11,6 +11,7 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- feat(kernel): `kernel.load_configuration(options)`, `config.load` with `wrap_secret` set to `hecate.log.Secret` unless given, so that every logging sink renders the secret values `[redacted]` (roadmap kernel item (c), OQ-101).
 - feat(kernel): `Application:local_address()`, the address the application listens on while it serves (nil otherwise).
 - examples: `examples/hello`, a JSON API run through `kernel.Application` (path parameter validation, 422 problem details with `source`, 201 through `kernel.respond`, a `/health` route module, graceful shutdown), with an in-process test (`lua tools/run.lua test examples/hello`); single process only (multi-process workers are not built). tools: the `test` task accepts `examples/<name>`.
 - feat(config): framework key `server.grace_timeout` (seconds, finite, at least 0, default 30; `HECATE_SERVER__GRACE_TIMEOUT`); the name `server` is reserved (OQ-101, OQ-115). `kernel`: `Application` binds it to its `grace_timeout` option.

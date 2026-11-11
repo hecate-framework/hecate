@@ -105,7 +105,7 @@ Some keys hold values that must never reach a log: passwords, signing keys, toke
   invariant "secrets are never logged": `describe()`, the diagnostics and every error message print `[redacted]` in place of the
   value (a violation says what is wrong, never the value: the messages of `hecate.schema` do not contain it).
 - `hecate.config` cannot depend on `hecate.log` (layering). The wrapper is the `wrap_secret` option, a function that takes a value and
-  returns the secret object; the kernel passes `hecate.log.Secret`, which the sinks recognise. Without the option, `config` uses
+  returns the secret object; the kernel passes `hecate.log.Secret` (`kernel.load_configuration`), which the sinks recognise. Without the option, `config` uses
   `package.loaded["hecate.log"].Secret` when that module is already loaded (the same look-up, with no dependency, as OQ-86 for the
   `schema` logger) and otherwise its own `hecate.config.Secret`, a class with the same interface that a `hecate.log` sink does not
   recognise (it still renders `[redacted]` through `tostring`).

@@ -269,4 +269,40 @@ function T:test_invalid_signal_options_are_refused()
   self:assert_false(pcall(kernel.Application, { grace_timeout = math.huge }))
 end
 
+local function secret_options(extra)
+  local options = {
+    properties = { database = require("hecate.schema").object({ password = require("hecate.schema").string() }) },
+    environment = "development", secrets = { "database.password" },
+    getenv = function(name) if name == "HECATE_DATABASE__PASSWORD" then return "s3cret" end end,
+    read_file = function(path)
+      if path == "config/development.lua" then return "return {}" end
+      return nil, "no such file: " .. path, true
+    end,
+  }
+  for key, value in pairs(extra or {}) do options[key] = value end
+  return options
+end
+
+function T:test_load_configuration_wraps_secrets_with_the_log_secret()
+  -- Hide hecate.log from config's own look-up: the kernel must pass log.Secret itself (roadmap kernel (c)).
+  local loaded = package.loaded["hecate.log"]
+  package.loaded["hecate.log"] = nil
+  local ok, result = pcall(kernel.load_configuration, secret_options())
+  package.loaded["hecate.log"] = loaded
+  self:assert_true(ok, tostring(result))
+  local password = result:get("database.password")
+  self:assert_true(require("hecate.core").is_instance_of(password, log.Secret))
+  self:assert_equal("s3cret", password:reveal())
+end
+
+function T:test_load_configuration_keeps_an_explicit_wrapper()
+  local function wrap(value) return { wrapped = value } end
+  local configuration = kernel.load_configuration(secret_options({ wrap_secret = wrap }))
+  self:assert_equal("s3cret", configuration:get("database.password").wrapped)
+end
+
+function T:test_load_configuration_refuses_a_non_table()
+  self:assert_false(pcall(kernel.load_configuration, "config"))
+end
+
 return T

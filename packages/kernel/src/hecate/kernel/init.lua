@@ -1,5 +1,5 @@
 -- hecate.kernel: the application: filters, results, problems, route declarations, dispatcher and Application.
-global <const> require
+global <const> require, type, error, pairs
 
 --- The application kernel.
 ---@class hecate.kernel
@@ -16,9 +16,17 @@ global <const> require
 ---@field routing hecate.kernel.routing  gathers route modules and controllers into one route table
 ---@field modules hecate.kernel.modules  validation and ordering of feature modules
 ---@field Application hecate.kernel.Application  the composition root
+---@field load_configuration fun(options: hecate.config.LoadOptions): hecate.config.Configuration  `config.load` with `wrap_secret = hecate.log.Secret`
 ---@field ModuleError hecate.kernel.ModuleError  an invalid application composition
 ---@field RouteDeclarationError hecate.kernel.RouteDeclarationError  an invalid route declaration
 local kernel = {}
+
+local core = require("hecate.core")
+local config = require("hecate.config")
+local log = require("hecate.log")
+
+-- `config.load` checks that `wrap_secret` is a function; `log.Secret` is a callable class.
+local function wrap_secret(value) return log.Secret(value) end
 
 kernel.chain = require("hecate.kernel.chain")
 kernel.results = require("hecate.kernel.results")
@@ -44,5 +52,22 @@ kernel.ModuleError = require("hecate.kernel.errors").ModuleError
 ---@param options? hecate.kernel.RouteModuleOptions
 ---@return hecate.kernel.RouteModule
 function kernel.routes(name, options) return kernel.RouteModule(name, options) end
+
+--- Loads the configuration with `hecate.config.load`, passing `hecate.log.Secret` as `wrap_secret` unless the options
+--- give one (configuration.md, "Secrets"): the secret values are then rendered `[redacted]` by every logging sink.
+--- Pass the result as the `configuration` option of `Application`.
+---
+--- Raises `hecate.core.ArgumentError` for invalid options and the errors of `hecate.config.load`.
+---@param options hecate.config.LoadOptions
+---@return hecate.config.Configuration
+function kernel.load_configuration(options)
+  if type(options) ~= "table" then
+    error(core.ArgumentError("kernel.load_configuration: options must be a table, got " .. type(options)), 2)
+  end
+  local copy = {}
+  for key, value in pairs(options) do copy[key] = value end
+  if copy.wrap_secret == nil then copy.wrap_secret = wrap_secret end
+  return config.load(copy)
+end
 
 return kernel
