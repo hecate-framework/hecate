@@ -5,8 +5,10 @@
 -- closes (the primary died). The control messages are the same on every platform (Decision 5): `ready` and
 -- `counters <requests> <connections>` (worker to primary), `stop <seconds>` and `connection` with a stream (primary to
 -- worker). `counters` carries two non-negative integers in decimal, `requests` being `-` when the worker cannot count
--- them (`http.Server` has no request counter yet); a worker sends it at most once per second, and only when a value
--- changed; the primary keeps the latest values of each worker (`Supervisor:counters`) and ignores a malformed message.
+-- them (`http.Server` has no request counter yet); a worker sends it at most once per second, only when a value
+-- changed, and once more when it has stopped serving; the primary keeps the latest values of each worker
+-- (`Supervisor:counters`), ignores a malformed message, and logs `hand_over_unaccounted` when a worker exits having
+-- accepted fewer connections than were handed over to it.
 -- A worker that does not say `ready` within `ready_timeout` seconds of its start is killed and counted as a crash. The rolling reload replaces workers
 -- by restart (a fresh process from the same command, ready before the old one is stopped), so it needs no message of its
 -- own: `reload` stays reserved in the protocol, unused, and a worker never sees it.
@@ -206,6 +208,7 @@ end
 ---@field planned boolean  being replaced by a reload: its exit is not a crash
 ---@field finished boolean  has exited and been reaped
 ---@field counters? { requests: integer?, connections: integer }  the latest `counters` message
+---@field handed integer  connections handed over to it
 ---@field done hecate.reactor.Channel  closed once it has exited
 
 --- A worker slot, the unit the supervisor keeps alive.
@@ -228,10 +231,14 @@ local function start_worker(self, slot)
   if not started then return nil, process end
   self._started = self._started + 1
   local peer = process.ipc --[[@as hecate.reactor.Peer]]
-  return {
-    process = process, peer = peer, ready = false, planned = false, finished = false, done = reactor.Channel(0),
-    target = { hand_over = function(_, stream) peer:send("connection", stream) end },
+  local gen = {
+    process = process, peer = peer, ready = false, planned = false, finished = false, done = reactor.Channel(0), handed = 0,
   }
+  gen.target = { hand_over = function(_, stream)
+    peer:send("connection", stream)
+    gen.handed = gen.handed + 1
+  end }
+  return gen
 end
 
 --- Runs one worker slot: starts the worker, reads its messages until its message pipe ends, waits for it, and
@@ -289,6 +296,14 @@ local function supervise(self, slot)
     end)
     self._ring:remove(gen.target)
     if gen.ready then self._ready = self._ready - 1 end
+    -- A worker sends its final counters before it exits: connections handed over that it never accepted were lost in
+    -- its message pipe or its queue (a worker that reports no count is not judged).
+    local accepted = gen.counters and gen.counters.connections
+    if accepted ~= nil and accepted < gen.handed then
+      note(self, "warning", "connections handed over to a worker were never accepted by it", {
+        code = "hand_over_unaccounted", worker = slot.index, pid = gen.process.pid, handed = gen.handed, accepted = accepted,
+      })
+    end
     peer:close()
     local status = gen.process:wait()
     gen.finished = true
@@ -815,6 +830,11 @@ function WorkerRole:serve(server, default_grace)
     server:serve(listener --[[@as hecate.net.TcpListener]])
     reporter:cancel()
     control:cancel()
+    -- The final counters, so that the primary can tell connections it handed over and this worker never accepted.
+    local requests, connections = self:counters()
+    if connections ~= nil then
+      pcall(self._peer.send, self._peer, ("counters %s %d"):format(requests ~= nil and ("%d"):format(requests) or "-", connections))
+    end
   end)
   self._peer:close()
   if not ok then error(err, 0) end

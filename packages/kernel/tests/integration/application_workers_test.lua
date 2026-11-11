@@ -146,6 +146,22 @@ local function count_request(tally, port, memory)
     reactor.now() - tally.origin, tostring(last))
 end
 
+--- The log events of the primary, in order, with the fields that tell a lost connection apart.
+local function describe_events(memory)
+  local parts = {}
+  for _, record in ipairs(memory:records()) do
+    local fields = record.fields or {}
+    if fields.code then
+      local text = tostring(fields.code)
+      if fields.worker then text = text .. "#" .. tostring(fields.worker) end
+      if fields.handed then text = ("%s(handed %s, accepted %s)"):format(text, tostring(fields.handed), tostring(fields.accepted)) end
+      if fields.reason then text = text .. "(" .. tostring(fields.reason) .. ")" end
+      parts[#parts + 1] = text
+    end
+  end
+  return table.concat(parts, ", ")
+end
+
 local function new_tally() return { answered = 0, failures = 0, reasons = {}, origin = reactor.now() } end
 
 local function contains(list, value)
@@ -183,7 +199,7 @@ function T:test_reload_replaces_the_workers_without_failing_a_request()
   self:assert_equal(2, count(before))
   self:assert_equal(2, count(after))
   for pid in pairs(after) do self:assert_nil(before[pid], "a worker of before the reload still answers") end
-  self:assert_equal(0, tally.failures, table.concat(tally.reasons, "; "))
+  self:assert_equal(0, tally.failures, table.concat(tally.reasons, "; ") .. " | events: " .. describe_events(memory))
   self:assert_true(tally.answered > 0)
   local codes = codes_of(memory)
   self:assert_true(contains(codes, "reload_started"))
@@ -224,7 +240,7 @@ function T:test_a_reload_resets_no_connection_handed_over_just_before_the_stop()
   end)
   self:assert_true(ok, tostring(err))
   self:assert_equal(2, reloads)
-  self:assert_equal(0, tally.failures, table.concat(tally.reasons, "; "))
+  self:assert_equal(0, tally.failures, table.concat(tally.reasons, "; ") .. " | events: " .. describe_events(memory))
   self:assert_true(tally.answered >= CLIENTS * 2, "the clients were served during the reloads")
 end
 

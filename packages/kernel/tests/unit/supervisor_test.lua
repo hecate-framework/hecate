@@ -120,6 +120,67 @@ function T:test_a_stream_received_from_a_worker_is_closed()
   self:assert_equal(1, closed)
 end
 
+--- A worker handed `handed` connections by a strategy, which reports `final` (a `counters` message, or nil) as its last
+--- message once told to stop. Returns the log records of the supervisor.
+local function run_accounting(handed, final)
+  local memory = log.MemorySink()
+  local gate = reactor.Channel(0)
+  local state = "ready"
+  local peer = {
+    receive = function()
+      if state == "ready" then state = "serving" return "ready" end
+      if state == "serving" then pcall(gate.receive, gate); state = "final" end -- `stop` closes the gate
+      if state == "final" then state = "ended" if final ~= nil then return final end end
+      return nil
+    end,
+    send = function(_, message, stream) if message:find("^stop") then gate:close() end end,
+    close = function() end,
+  }
+  local process = {
+    ipc = peer, pid = 7, wait = function() return { code = 0 } end, is_running = function() return false end,
+    kill = function() end,
+  }
+  local strategy = idle_strategy()
+  local delivered = 0
+  strategy.run = function(_, ring)
+    local worker = ring:next()
+    for _ = 1, handed do worker:hand_over({}); delivered = delivered + 1 end
+    reactor.sleep(60)
+  end
+  with_spawn(function() return process end, function()
+    local sup = kernel.supervisor.Supervisor({
+      command = { "worker" }, count = 1, endpoint = { host = "127.0.0.1", port = 0 }, strategy = strategy,
+      logger = log.Logger({ sinks = { memory } }),
+    })
+    reactor.run(function()
+      reactor.scope(function(scope)
+        local running = scope:fork(sup.run, sup)
+        wait_until(function() return delivered == handed end)
+        sup:stop(0.1)
+        running:value()
+      end)
+    end)
+  end)
+  local found
+  for _, record in ipairs(memory:records()) do
+    if record.fields and record.fields.code == "hand_over_unaccounted" then found = record end
+  end
+  return found
+end
+
+function T:test_connections_handed_to_a_worker_and_never_accepted_are_logged_at_its_exit()
+  local record = run_accounting(3, "counters - 1")
+  self:assert_not_nil(record, "hand_over_unaccounted is logged")
+  self:assert_equal(3, record.fields.handed)
+  self:assert_equal(1, record.fields.accepted)
+  self:assert_equal(1, record.fields.worker)
+end
+
+function T:test_no_accounting_warning_when_every_connection_was_accepted_or_no_count_was_reported()
+  self:assert_nil(run_accounting(2, "counters - 2"))
+  self:assert_nil(run_accounting(2, nil)) -- a worker that reports nothing (reuseport, or an older worker) is not judged
+end
+
 function T:test_on_crash_loop_is_validated()
   local function build(value)
     return kernel.supervisor.Supervisor({
