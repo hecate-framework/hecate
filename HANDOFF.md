@@ -3,8 +3,8 @@
 
 - roadmap_item: `kernel`: application, modules, controllers, route modules, filters, problem details, lifecycle, multi-process workers, graceful shutdown (Phase 2, docs/roadmap.md)
 - status: in-progress
-- lock_until: 2026-11-11T03:49:00Z
-- last_update: 2026-11-11T03:49:00Z
+- lock_until: 2026-11-11T08:12:00Z
+- last_update: 2026-11-11T06:42:00Z
 
 ## Done
 
