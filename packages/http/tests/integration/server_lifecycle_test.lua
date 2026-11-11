@@ -516,7 +516,7 @@ end
 -- Timeouts, limits of connections and shutdown ---------------------------------------------------------------------
 
 function T:test_an_idle_connection_is_closed_after_the_idle_timeout()
-  with_server(self, { action = text_action, idle_timeout = 1 }, function(port)
+  with_server(self, { action = text_action, idle_timeout = 0.3 }, function(port)
     local client <close> = connect(port)
     self:assert_equal(200, client:request(get("/")).status)
     self:assert_nil(client:read_response()) -- closed by the server, without a response

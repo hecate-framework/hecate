@@ -20,7 +20,7 @@ local function healthy(self, port)
 end
 
 function T:test_bare_line_breaks_before_a_head_do_not_escape_the_head_timeout()
-  with_server(self, ok_action, { head_timeout = 1, idle_timeout = 30 }, function(port)
+  with_server(self, ok_action, { head_timeout = 0.3, idle_timeout = 30 }, function(port)
     local client <close> = connect(port)
     local dripping = true
     local dripper = reactor.fork(function()
@@ -44,7 +44,7 @@ function T:test_the_total_request_timeout_and_the_drain_have_finite_defaults()
 end
 
 function T:test_unread_content_trickled_after_the_response_is_cut_at_the_drain_timeout()
-  with_server(self, ok_action, { drain_timeout = 1, content_timeout = 30, request_timeout = 30 }, function(port)
+  with_server(self, ok_action, { drain_timeout = 0.3, content_timeout = 30, request_timeout = 30 }, function(port)
     local client <close> = connect(port)
     client:send("POST /x HTTP/1.1\r\nHost: t\r\nContent-Length: 1000000\r\n\r\n")
     local dripping = true

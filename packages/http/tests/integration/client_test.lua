@@ -188,11 +188,11 @@ function T:test_a_connection_is_reused_while_idle_and_not_after_the_idle_timeout
     local server = scripted(function(stream)
       while read_head(stream) do stream:write(support.ok("x")) end
     end)
-    local client <close> = Client({ idle_timeout = 1 })
+    local client <close> = Client({ idle_timeout = 0.5 })
     client:get(base(server.port)):read_content()
     client:get(base(server.port)):read_content()
     self:assert_equal(1, server.accepted, "reused")
-    reactor.sleep(1.5)
+    reactor.sleep(0.7)
     client:get(base(server.port)):read_content()
     self:assert_equal(2, server.accepted, "the idle connection expired")
     server.stop()
@@ -526,7 +526,8 @@ end
 
 function T:test_expect_continue_sends_the_content_after_the_interim_response()
   with_server(self, describe, nil, function(port)
-    local client <close> = Client()
+    -- The request carries no Expect field (see the report): the client waits for the expect timeout, kept short.
+    local client <close> = Client({ expect_timeout = 0.3 })
     local info = json.decode(client:post(base(port), "payload", { expect_continue = true }):read_content())
     self:assert_equal("payload", info.content)
   end)
@@ -606,10 +607,10 @@ end
 
 function T:test_expired_idle_connections_of_other_origins_are_swept_at_every_checkout()
   with_server(self, describe, nil, function(port)
-    local client <close> = Client({ idle_timeout = 1 })
+    local client <close> = Client({ idle_timeout = 0.5 })
     client:get(base(port, "/a")):read_content()
     self:assert_equal(1, client:pool_stats().idle)
-    reactor.sleep(1.5)
+    reactor.sleep(0.7)
     -- a request to another origin (same server, other name) sweeps the expired one
     client:get("http://localhost:" .. port .. "/b"):read_content()
     self:assert_true(client:pool_stats().idle <= 1, "the expired connection was closed")

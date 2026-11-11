@@ -89,7 +89,9 @@ function support.with_server(case, action, options, fn)
     local listener = server:listen()
     local serving = reactor.fork(server.serve, server, listener)
     local ok, err = pcall(reactor.deadline, 25, fn, listener:local_address().port, server)
-    server:shutdown(2)
+    -- Every request of `fn` is over by now; only a handler stuck on purpose (a sleep of 30 s) is still running, and
+    -- the grace period would make the test wait for it.
+    server:shutdown(0.25)
     serving:value()
     if not ok then error(err, 0) end
   end)
@@ -125,13 +127,14 @@ end
 function support.scripted(script)
   local listener = net.listen("127.0.0.1", 0)
   local state = { accepted = 0, port = listener:local_address().port }
+  local connections = {}
   local loop = reactor.fork(function()
     while true do
       local ok, stream = pcall(listener.accept, listener)
       if not ok then return end
       state.accepted = state.accepted + 1
       local index = state.accepted
-      reactor.fork(function()
+      connections[#connections + 1] = reactor.fork(function()
         pcall(script, stream, index)
         stream:close()
       end)
@@ -140,6 +143,8 @@ function support.scripted(script)
   function state.stop()
     listener:close()
     loop:cancel()
+    -- A script still waiting (a server that never answers) must not hold the scope of the test open.
+    for _, connection in ipairs(connections) do connection:cancel() end
   end
   return state
 end
