@@ -3,8 +3,8 @@
 
 - roadmap_item: `kernel`: application, modules, controllers, route modules, filters, problem details, lifecycle, multi-process workers, graceful shutdown (Phase 2, docs/roadmap.md)
 - status: in-progress
-- lock_until: 2026-11-11T14:12:00Z
-- last_update: 2026-11-11T12:42:00Z
+- lock_until: 2026-11-11T13:20:00Z
+- last_update: 2026-11-11T13:20:00Z
 
 ## Done
 
@@ -72,10 +72,11 @@
 - Step 24 (owner request, run of ~09:57Z, lock released at the end): CI speed-up. `http` tests 91 s to 16 s (scripted server cancels its forks, fixture grace 0.25 s, timeouts 0.3 s); `ci.yml`: static checks on Linux only, per-module native build caches keyed by all inputs, `HECATE_TEST_JOBS` worker pool for `tests/unit`, `tests/conformance` and `tools/tests` (integration stays serial; 1m51 to 0m50 locally), documentation-only pushes skip the matrix only when the previous head's `ci-ok` is `success` (safety net added by me: otherwise a docs commit would hide a red code commit), `docs-checks` and `ci-ok` jobs, `CARGO_INCREMENTAL=0`, `HECATE_NATIVE_PROFILE=debug` supported but NOT used in CI (the 1 MiB-stack JSON encoder test segfaults in debug). UNVERIFIED until the first CI run on the three platforms: cache keys and `!` exclusions, `.dll` restore on Windows, the `if` expressions and the `ci-ok` aggregation, the 0.3 s test timeouts on Windows and macOS. Owner may make `ci-ok` the required check.
 
 - Step 25 (owner request, run of ~10:22Z, lock released at the end): (a) `Client` `expect_continue` fixed (the field is sent, the content follows the 100; 5 tests, test first); (b) `reactor.watch_signals` / `SignalWatcher` (persistent, queue of 16, 15 tests) and `reactor.supports_spawn` / `reactor.supports_handle_passing` (structural checks only), `Application` uses one watcher for the primary and the workers, the workers end-to-end test skips where the capability queries say no. typecheck, lint, check-annotations, `test reactor`, `test http`, `test kernel`, `test examples/hello` ok. The CI of step 24 is green on the three platforms (cold-cache run 4m07); the docs-only skip is exercised by the claim commit e10f52a, check its run.
+- Step 26 (run of 2026-11-11T12:42Z, lock released at the end): roadmap open item (5), response validation in development and test: `validate_responses` (option of `Application`, `dispatcher.build`, `results.serialise`) validates the representation against the schema declared for the status, a mismatch raises `core.ValidationError` (`context.status`, `context.violations`, no value in the message) and becomes a logged 500; `Application` defaults it from the environment (`development`/`test`); 11 tests (results, dispatcher, application); README, CHANGELOG; OQ-117 (issue #173) records the choices to confirm (notably no configuration key yet, candidate `responses.validate`). typecheck, lint, check-annotations, check-boundaries, check-glossary, check-lua-constructs, check-changelog, check-links, `test kernel`, `test examples/hello` ok (ddd1152).
 
 ## Next steps
 
-0. Kernel items still open, in this order (workers are wired in `Application`, OQ-116 resolved): (1) done (green); (2) done (step 25); (3) a conformance test per listening strategy (only `round_robin` is end to end; `reuseport` waits for the next luv release, OQ-43); (4) the `SIGHUP` rolling reload (roadmap (m), ADR 0023); (5) response validation in development and test; (6) the website reference page of `kernel`; (7) the generated `config/development.lua` and `config/test.lua` (CLI, Phase 3) must set `server.grace_timeout` low (2 s, to confirm). Check the CI of the pull request first.
+0. Kernel items still open, in this order (workers are wired in `Application`, OQ-116 resolved): (1) done (green); (2) done (step 25); (3) a conformance test per listening strategy (only `round_robin` is end to end; `reuseport` waits for the next luv release, OQ-43); (4) the `SIGHUP` rolling reload (roadmap (m), ADR 0023); (5) done (step 26, OQ-117 to confirm); (6) the website reference page of `kernel`; (7) the generated `config/development.lua` and `config/test.lua` (CLI, Phase 3) must set `server.grace_timeout` low (2 s, to confirm). Check the CI of the pull request first.
 1. Before ticking: verify handoffs (a), (b), (c), (d), (e), (g), (h), (i), (j), (k), (l) against the roadmap text (most are done in code, see Done), then `/review-package kernel`.
 
 ## Decisions taken (and where they are recorded)
