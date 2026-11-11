@@ -3,6 +3,7 @@ local core = require("hecate.core")
 local json = require("hecate.json")
 local schema = require("hecate.schema")
 local http = require("hecate.http")
+local log = require("hecate.log")
 local reactor = require("hecate.reactor")
 local problems = require("hecate.kernel.problems")
 local T = test.Case("ProblemsTest")
@@ -166,6 +167,49 @@ function T:test_guard_logs_the_method_the_path_and_a_traceback_without_the_query
   self:assert_equal("string", type(fields.traceback))
   self:assert_true(fields.traceback:find("problems_test.lua", 1, true) ~= nil, fields.traceback)
   for _, value in pairs(fields) do self:assert_nil(string.find(tostring(value), SECRET, 1, true)) end
+end
+
+function T:test_guard_logs_a_client_caused_error_at_warning()
+  local seen = {}
+  local logger = { log = function(_, severity, message, fields) seen[#seen + 1] = { severity, message, fields } end }
+  local serve = problems.guard(function() error(http.ParseError("bad request line", { context = { status = 400 } })) end,
+    { logger = logger })
+  self:assert_equal(400, (serve(request()) --[[@as hecate.http.Response]]).status)
+  self:assert_equal(1, #seen)
+  self:assert_equal("warning", seen[1][1])
+end
+
+function T:test_guard_does_not_log_a_problem_below_500()
+  local seen = {}
+  local logger = { log = function(_, severity) seen[#seen + 1] = severity end }
+  local serve = problems.guard(function() error(require("hecate.kernel.problem").NotFound()) end, { logger = logger })
+  self:assert_equal(404, (serve(request()) --[[@as hecate.http.Response]]).status)
+  self:assert_equal(0, #seen)
+end
+
+function T:test_guard_logs_the_class_and_the_code_of_a_500_apart_from_the_message()
+  local seen = {}
+  local logger = { log = function(_, severity, message, fields) seen[#seen + 1] = { severity, message, fields } end }
+  problems.guard(function() error(core.ArgumentError("boom")) end, { logger = logger })(request())
+  self:assert_equal(1, #seen)
+  self:assert_equal("error", seen[1][1])
+  local fields = seen[1][3]
+  self:assert_equal("ArgumentError", fields.error_class)
+  self:assert_equal("hecate.core.ArgumentError", fields.error_code)
+  self:assert_equal("boom", fields.error)
+end
+
+function T:test_the_console_sink_escapes_control_characters_of_a_logged_message()
+  local out = {}
+  local logger = log.Logger({ sinks = { log.ConsoleSink({ output = function(line) out[#out + 1] = line end }) } })
+  local nasty = "first\nFORGED line\r\27[31mred\0"
+  problems.guard(function() error(core.Error(nasty)) end, { logger = logger })(request())
+  self:assert_equal(1, #out)
+  local line = out[1]
+  self:assert_equal(line:sub(-1), "\n")
+  self:assert_nil(line:sub(1, -2):find("%c"), "no control character before the final newline")
+  self:assert_not_nil(line:find("\\x0a", 1, true))
+  self:assert_not_nil(line:find("\\x1b", 1, true))
 end
 
 function T:test_guard_never_swallows_cancellation()

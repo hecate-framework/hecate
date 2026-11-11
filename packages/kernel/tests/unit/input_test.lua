@@ -55,6 +55,22 @@ function T:test_path_and_query_are_coerced_into_request_parameters()
   self:assert_equal(2, #seen.query.tags)
 end
 
+function T:test_a_repeated_content_type_field_is_a_400()
+  local ran = false
+  local serve = serve_with("POST", "/x", {
+    content = { ["application/json"] = schema.object({ a = schema.optional(schema.integer()) }) },
+    action = function() ran = true; return nil end,
+  })
+  local req = request("POST", "/x", { content = "{}" })
+  req.fields:add("Content-Type", "text/plain")
+  local response = serve(req)
+  self:assert_equal(400, response.status)
+  self:assert_equal("application/problem+json", response.fields:get("Content-Type"))
+  self:assert_false(ran)
+  -- A single field still passes.
+  self:assert_equal(200, serve(request("POST", "/x", { content = "{}" })).status)
+end
+
 function T:test_header_fields_and_cookies_are_coerced()
   local seen
   local serve = serve_with("GET", "/x", {

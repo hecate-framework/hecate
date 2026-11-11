@@ -203,6 +203,22 @@ function T:test_validation_skips_a_status_without_schema_and_a_response()
   self:assert_true(results.serialise(response, request("GET"), { [202] = named }, { validate_responses = true }) == response)
 end
 
+function T:test_validation_message_names_the_code_and_never_the_pointer()
+  local _, err = pcall(results.serialise, { name = 3 }, request("GET"), { [200] = named }, { validate_responses = true })
+  local text = tostring(err)
+  self:assert_nil(string.find(text, "/name", 1, true))
+  self:assert_not_nil(string.find(text, "status 200", 1, true))
+  ---@cast err -hecate.http.Response, +hecate.core.ValidationError
+  self:assert_not_nil(string.find(text, err.context.violations[1].code, 1, true))
+end
+
+function T:test_validation_message_hides_a_map_key_of_the_data()
+  local mapped = schema.object({ tags = schema.map(schema.string()) })
+  local _, err = pcall(results.serialise, { tags = { ["ada@example.org"] = 1 } }, request("GET"), { [200] = mapped },
+    { validate_responses = true })
+  self:assert_nil(string.find(tostring(err), "ada@example.org", 1, true))
+end
+
 function T:test_validation_message_never_carries_the_value()
   local _, err = pcall(results.serialise, { name = 12345 }, request("GET"), { [200] = named }, { validate_responses = true })
   self:assert_nil(string.find(tostring(err), "12345", 1, true))

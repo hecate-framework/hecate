@@ -170,6 +170,9 @@ Accepted in [ADR 0023](../adr/0023-multi-process-serving.md), measured in
   worker serving, and the planned exit is not a crash. It needs no worker-side message (`reload` stays
   reserved). With `reuseport` the connections queued in the closing socket of the old worker are reset
   by the kernel (ADR 0023, Decision 6); `round_robin` loses none.
+  Both methods take one options table, `{ grace_timeout?, ready_timeout? }` (seconds the old worker
+  drains, default 30 or the `grace_timeout` option; seconds a replacement may take to become ready,
+  default 30).
 
 ## Signals and shutdown
 

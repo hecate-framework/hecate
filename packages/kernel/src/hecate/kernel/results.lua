@@ -157,12 +157,14 @@ local function build(status, value, schema, request, serialisers, validate)
     if validate and type(schema.validate) == "function" then
       local ok, violations = schema:validate(plain)
       if not ok then
-        -- A defect of the server, not of the request: the caller makes a 500. The message names the status, the
-        -- pointer and the code of the first violation, never a value (OQ-111).
+        -- A defect of the server, not of the request: the caller makes a 500. The message names the status (which
+        -- identifies the declared schema) and the code of the first violation, never a value (OQ-111) and never the
+        -- pointer into the data either: a key of a map can carry data of a user. `violation.path` stays in
+        -- `context.violations` for a caller that wants it; `hecate.schema` has no schema path to log (reported).
         local first = violations[1]
         error(core.ValidationError(
-          ("results.serialise: the response for status %d does not conform to its declared schema: %d violation(s), first at '%s' (%s)")
-            :format(status, #violations, first.path, first.code),
+          ("results.serialise: the response for status %d does not conform to the schema declared for that status: %d violation(s), first violation code '%s'")
+            :format(status, #violations, first.code),
           { context = { status = status, violations = violations } }), 3)
       end
     end
@@ -198,14 +200,14 @@ end
 ---@param result any
 ---@param request hecate.http.Request
 ---@param route_responses table<integer, any>  status -> schema (or `true` for a declared status without content)
----@param options? { created?: boolean, serialisers?: table<string, fun(plain: any): string>, validate_responses?: boolean }
+---@param options? { created?: boolean, serialisers?: table<string, fun(plain: any): string>, validate_responses?: boolean, logger?: { log: fun(self: any, severity: string, message: string, fields?: table) } }  `logger` receives a problem whose extension members cannot be encoded (default `log.default()`)
 ---@return hecate.http.Response
 function results.serialise(result, request, route_responses, options)
   if type(result) == "table" and rawequal(getmetatable(result), nil) == false and core.is_instance_of(result, http.Response) then
     return result
   end
   -- A returned problem is a result like a Response: always `application/problem+json` (RFC 9457, section 3).
-  if problem.is_problem(result) then return problems.from_problem(result) end
+  if problem.is_problem(result) then return problems.from_problem(result, options ~= nil and options.logger or nil) end
   local serialisers = options ~= nil and options.serialisers or results.serialisers
   local validate = options ~= nil and options.validate_responses == true
   if results.is_result(result) then

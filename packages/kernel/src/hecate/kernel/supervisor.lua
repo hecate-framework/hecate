@@ -36,6 +36,16 @@ local function is_duration(seconds)
   return type(seconds) == "number" and seconds == seconds and seconds >= 0 and seconds < math.huge
 end
 
+--- Tells whether a text looks like an IP literal (IPv4 or IPv6, hexadecimal digits, colons and dots) or like a host name
+--- (letters, digits, hyphens and dots, at most 253 characters): no space, no other character. Does not resolve anything.
+---@param host any
+---@return boolean
+local function is_host(host)
+  if type(host) ~= "string" or host == "" or #host > 253 then return false end
+  if host:find(":", 1, true) then return host:match("^[%x:%.]+$") ~= nil end
+  return host:match("^[%w][%w%.%-]*$") ~= nil
+end
+
 -- The primary --------------------------------------------------------------------------------------------------------
 
 --- Options of `Supervisor`.
@@ -49,6 +59,7 @@ end
 ---@field restart_delay? number  seconds before the first restart of a worker (default 0.1), doubled at each crash in the crash window, at most 10 s
 ---@field crash_limit? integer  crashes within `crash_window` that stop the supervisor (default 5)
 ---@field crash_window? number  seconds (default 60)
+---@field on_crash_loop? "stop"|"degrade"  what a crash loop does: `stop` (default) ends `run` with a `SupervisorError`; `degrade` keeps restarting the workers at the maximum backoff (10 s), logs `crash_loop` at `error` once per crash window, and never ends `run` by itself
 
 --- The supervisor of the workers, in the primary.
 ---@class hecate.kernel.Supervisor
@@ -57,8 +68,11 @@ local Supervisor = core.class("Supervisor")
 
 local KNOWN = {
   command = true, count = true, endpoint = true, strategy = true, env = true, logger = true, restart_delay = true,
-  crash_limit = true, crash_window = true,
+  crash_limit = true, crash_window = true, on_crash_loop = true,
 }
+
+--- The longest delay before a restart (the cap of the backoff, and the pace of a degraded crash loop).
+local MAX_BACKOFF <const> = 10
 
 --- Checks the options; nothing starts until `run`.
 ---
@@ -88,7 +102,12 @@ function Supervisor:init(options)
   if options.crash_limit ~= nil and (math.type(options.crash_limit) ~= "integer" or options.crash_limit < 1) then
     error(core.ArgumentError("kernel.Supervisor: crash_limit is an integer of at least 1"), 2)
   end
+  if options.on_crash_loop ~= nil and options.on_crash_loop ~= "stop" and options.on_crash_loop ~= "degrade" then
+    error(core.ArgumentError(("kernel.Supervisor: on_crash_loop is \"stop\" or \"degrade\", got %s"):format(
+      type(options.on_crash_loop) == "string" and ("%q"):format(options.on_crash_loop) or type(options.on_crash_loop))), 2)
+  end
   self._options = options
+  self._crash_loop_logged = nil ---@type number?  when `crash_loop` was last logged (degraded mode)
   self._strategy = options.strategy or listening.select("auto", { logger = options.logger })
   self._logger = options.logger
   self._ring = listening.WorkerRing()
@@ -152,7 +171,7 @@ local function crash_delay(self)
   recent[#recent + 1] = now
   self._crashes = recent
   if #recent >= limit then return nil end
-  return math.min((options.restart_delay or 0.1) * 2 ^ (#recent - 1), 10)
+  return math.min((options.restart_delay or 0.1) * 2 ^ (#recent - 1), MAX_BACKOFF)
 end
 
 --- One process of a worker slot: its message pipe, its place in the rotation and what the supervisor knows of it.
@@ -215,8 +234,10 @@ local function supervise(self, slot)
     slot.gen = gen
     local peer = gen.peer
     while true do
-      local ok, message = pcall(peer.receive, peer)
+      local ok, message, stream = pcall(peer.receive, peer)
       if not ok or message == nil then break end
+      -- The primary expects no stream from a worker: one that arrives is closed, not leaked (a descriptor each).
+      if stream ~= nil then pcall(stream.close, stream) end
       if message == "ready" and not gen.ready and not gen.planned then
         gen.ready = true
         self._ready = self._ready + 1
@@ -241,6 +262,15 @@ local function supervise(self, slot)
       note(self, "warning", "a worker exited; restarting it", {
         code = "worker_exited", worker = slot.index, pid = exited.process.pid, exit_code = status.code, signal = status.signal,
       })
+      if delay == nil and self._options.on_crash_loop == "degrade" then
+        -- Degraded mode: the limit is reached, the supervisor keeps trying at the slowest pace and says so once per window.
+        delay = MAX_BACKOFF
+        local now, window = reactor.now(), self._options.crash_window or 60
+        if self._crash_loop_logged == nil or now - self._crash_loop_logged >= window then
+          self._crash_loop_logged = now
+          note(self, "error", "crash loop: restarting the workers at the maximum backoff", { code = "crash_loop", delay = delay })
+        end
+      end
       if delay == nil then
         self._failure = self._failure or errors.SupervisorError(
           "kernel.Supervisor: workers keep exiting (crash loop); stopping", { context = { reason = "crash_loop" } })
@@ -416,12 +446,13 @@ local function replace(self, slot, grace, ready_timeout)
   slot.next = fresh
   local ok, got = pcall(reactor.deadline, ready_timeout, function()
     while true do
-      local received, message = pcall(fresh.peer.receive, fresh.peer)
+      local received, message, stream = pcall(fresh.peer.receive, fresh.peer)
       if not received then
         if core.is_instance_of(message, core.CancellationError) then error(message, 0) end
         return false
       end
       if message == nil then return false end
+      if stream ~= nil then pcall(stream.close, stream) end -- a worker sends no stream to the primary
       if message == "ready" then return true end
     end
   end)
@@ -472,14 +503,17 @@ end
 --- is running), `stopping` (the supervisor is stopping) and `not_running` (not started, or stopped).
 --- Raises `hecate.core.ArgumentError` for a malformed argument.
 ---@async
----@param grace_timeout? number  seconds the old workers drain, default 30
----@param options? { ready_timeout?: number }  `ready_timeout`: seconds a replacement may take to become ready, default 30
-function Supervisor:reload(grace_timeout, options)
-  if grace_timeout ~= nil and not is_duration(grace_timeout) then
+---@param options? { grace_timeout?: number, ready_timeout?: number }  `grace_timeout`: seconds the old workers drain, default 30; `ready_timeout`: seconds a replacement may take to become ready, default 30
+function Supervisor:reload(options)
+  if options ~= nil and type(options) ~= "table" then
+    error(core.ArgumentError("kernel.Supervisor.reload: options is a table { grace_timeout?, ready_timeout? }, got " .. type(options)), 2)
+  end
+  options = options or {}
+  if options.grace_timeout ~= nil and not is_duration(options.grace_timeout) then
     error(core.ArgumentError("kernel.Supervisor.reload: grace_timeout is a non-negative finite number of seconds"), 2)
   end
-  if options ~= nil and (type(options) ~= "table" or (options.ready_timeout ~= nil and not is_duration(options.ready_timeout))) then
-    error(core.ArgumentError("kernel.Supervisor.reload: options is { ready_timeout = seconds }"), 2)
+  if options.ready_timeout ~= nil and not is_duration(options.ready_timeout) then
+    error(core.ArgumentError("kernel.Supervisor.reload: ready_timeout is a non-negative finite number of seconds"), 2)
   end
   local function refuse(reason, text)
     error(errors.SupervisorError("kernel.Supervisor: cannot reload: " .. text, { context = { reason = reason } }), 3)
@@ -490,7 +524,7 @@ function Supervisor:reload(grace_timeout, options)
   self._reloading = true
   local reload_end = reactor.Channel(0)
   self._reload_end = reload_end
-  local grace, ready_timeout = grace_timeout or 30, options and options.ready_timeout or 30
+  local grace, ready_timeout = options.grace_timeout or 30, options.ready_timeout or 30
   local ok, err = pcall(function()
     for _, slot in ipairs(self._slots) do
       if self._stopping then
@@ -567,13 +601,25 @@ function WorkerRole:init(peer, environment)
   self._peer = peer
   self.index = math.tointeger(tonumber(environment[ENV.index])) or 0
   self.strategy = strategy --[[@as string]]
-  self.endpoint = { host = environment[ENV.host] or "127.0.0.1", port = port,
-    backlog = math.tointeger(tonumber(environment[ENV.backlog])) }
+  local host = environment[ENV.host] or "127.0.0.1"
+  if not is_host(host) then
+    error(core.ArgumentError(("kernel.WorkerRole: malformed %s, an IP literal or a host name without spaces expected, got %q")
+      :format(ENV.host, tostring(host))), 2)
+  end
+  local backlog
+  local raw_backlog = environment[ENV.backlog]
+  if raw_backlog ~= nil then
+    backlog = math.tointeger(tonumber(raw_backlog))
+    if backlog == nil then
+      error(core.ArgumentError(("kernel.WorkerRole: malformed %s, an integer expected (clamped to 1..65535), got %q")
+        :format(ENV.backlog, tostring(raw_backlog))), 2)
+    end
+    backlog = math.max(1, math.min(65535, backlog))
+  end
+  self.endpoint = { host = host, port = port, backlog = backlog }
   local address = { ip = self.endpoint.host, port = port, family = self.endpoint.host:find(":", 1, true) and "inet6" or "inet" }
   -- The hand-over queue is bounded like the listen backlog it stands for (default 128).
-  local capacity = self.endpoint.backlog
-  if capacity ~= nil and capacity < 1 then capacity = nil end
-  self._handoff = listening.HandoffListener(address, capacity)
+  self._handoff = listening.HandoffListener(address, self.endpoint.backlog)
 end
 
 --- The listener the server accepts from: the handoff listener (`round_robin`) or a socket bound with `SO_REUSEPORT`.

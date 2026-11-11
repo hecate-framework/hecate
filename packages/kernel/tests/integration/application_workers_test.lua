@@ -188,7 +188,7 @@ function T:test_reload_replaces_the_workers_without_failing_a_request()
             if get(port, "/whoami") then answered = answered + 1 else failures = failures + 1 end
           end
         end)
-        app:reload(5)
+        app:reload({ grace_timeout = 5 })
         reloading = false
         client:value()
         after = pids_of(port, 6)

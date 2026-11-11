@@ -210,6 +210,11 @@ function input.compile(entry, options)
 
   local function read_content(request)
     local media = request.fields:get("Content-Type")
+    -- RFC 9110, section 5.3: a field that is not a list may not be repeated; two `Content-Type` lines are ambiguous (a
+    -- proxy and the server may read different ones), so the request is refused instead of guessing.
+    if media ~= nil and request.fields:get_all("Content-Type")[2] ~= nil then
+      return problems.response(400, "The request has more than one Content-Type field.")
+    end
     if media ~= nil then
       local parsed = request:media_type()
       if parsed == nil or parsed:essence() ~= JSON then return problems.response(415) end

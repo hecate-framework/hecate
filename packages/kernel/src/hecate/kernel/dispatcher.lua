@@ -97,7 +97,7 @@ function dispatcher.build(entries, options)
   if validate_responses ~= nil and type(validate_responses) ~= "boolean" then
     error(core.ArgumentError("kernel.dispatcher.build: options.validate_responses is a boolean"), 2)
   end
-  local serialise_options = { serialisers = options.serialisers, validate_responses = validate_responses == true }
+  local serialise_options = { serialisers = options.serialisers, validate_responses = validate_responses == true, logger = options.logger }
 
   -- One compiled handler per entry, indexed by the entry itself: the router hands back the table it was given. The
   -- global filters are not part of it: they wrap the routing step (below). Layers here: module, controller, route.

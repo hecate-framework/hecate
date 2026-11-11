@@ -114,7 +114,7 @@ function T:test_each_worker_is_replaced_ready_first_one_at_a_time()
   with_running(self, 2, nil, function(sup, memory, port)
     local before = {}
     for _ = 1, 4 do before[pid_of(get(port))] = true end
-    sup:reload(5)
+    sup:reload({ grace_timeout = 5 })
     local after = {}
     for _ = 1, 4 do
       local pid = pid_of(get(port))
@@ -150,8 +150,8 @@ function T:test_a_planned_exit_is_not_a_crash()
   if not can_run_workers() then return end
   -- crash_limit is 2: two counted exits would stop the supervisor. Two reloads replace four workers.
   with_running(self, 2, nil, function(sup, memory, port)
-    sup:reload(5)
-    sup:reload(5)
+    sup:reload({ grace_timeout = 5 })
+    sup:reload({ grace_timeout = 5 })
     self:assert_equal(2, sup:ready_count())
     self:assert_equal(6, sup:started_count())
     for _, event in ipairs(events(memory)) do
@@ -167,7 +167,7 @@ function T:test_a_replacement_that_exits_aborts_the_reload_and_keeps_the_old_wor
     local before = {}
     for _ = 1, 4 do before[pid_of(get(port))] = true end
     set_flag("exit")
-    local err = self:assert_error(function() sup:reload(5) end)
+    local err = self:assert_error(function() sup:reload({ grace_timeout = 5 }) end)
     self:assert_true(core.is_instance_of(err, kernel.SupervisorError), tostring(err))
     self:assert_equal("reload_failed", err.context.reason)
     self:assert_equal("exited", err.context.cause)
@@ -178,7 +178,7 @@ function T:test_a_replacement_that_exits_aborts_the_reload_and_keeps_the_old_wor
       self:assert_true(before[pid] == true, "only the old workers serve")
     end
     set_flag(nil)
-    sup:reload(5) -- the supervisor is usable afterwards
+    sup:reload({ grace_timeout = 5 }) -- the supervisor is usable afterwards
   end)
 end
 
@@ -187,7 +187,7 @@ function T:test_a_replacement_that_is_never_ready_times_out_and_is_killed()
   with_running(self, 1, nil, function(sup, memory, port)
     local before = pid_of(get(port))
     set_flag("hang")
-    local err = self:assert_error(function() sup:reload(5, { ready_timeout = 0.5 }) end)
+    local err = self:assert_error(function() sup:reload({ grace_timeout = 5, ready_timeout = 0.5 }) end)
     self:assert_equal("reload_failed", err.context.reason)
     self:assert_equal("not_ready", err.context.cause)
     self:assert_equal(before, pid_of(get(port)))
@@ -199,9 +199,9 @@ function T:test_a_second_reload_is_refused_while_one_runs()
   if not can_run_workers() then return end
   with_running(self, 1, nil, function(sup)
     reactor.scope(function(scope)
-      local first = scope:fork(sup.reload, sup, 5)
+      local first = scope:fork(sup.reload, sup, { grace_timeout = 5 })
       reactor.sleep(0)
-      local err = self:assert_error(function() sup:reload(5) end)
+      local err = self:assert_error(function() sup:reload({ grace_timeout = 5 }) end)
       self:assert_equal("reload_in_progress", err.context.reason)
       first:value()
     end)
@@ -218,7 +218,7 @@ function T:test_a_stop_during_a_reload_ends_it_and_refuses_new_ones()
       wait_until(function() return sup:ready_count() == 1 end)
       set_flag("hang")
       local reloading = scope:fork(function()
-        local ok, err = pcall(sup.reload, sup, 5, { ready_timeout = 10 })
+        local ok, err = pcall(sup.reload, sup, { grace_timeout = 5, ready_timeout = 10 })
         failure = not ok and err or nil
       end)
       reactor.sleep(0.3) -- the replacement is started and never ready
@@ -236,9 +236,11 @@ end
 
 function T:test_reload_checks_its_arguments_and_needs_a_running_supervisor()
   local sup = new_supervisor(1)
-  local err = self:assert_error(function() sup:reload(-1) end)
+  local err = self:assert_error(function() sup:reload({ grace_timeout = -1 }) end)
   self:assert_true(core.is_instance_of(err, core.ArgumentError), tostring(err))
-  err = self:assert_error(function() sup:reload(1, { ready_timeout = ("x"):rep(1) --[[@as any]] }) end)
+  err = self:assert_error(function() sup:reload({ grace_timeout = 1, ready_timeout = "x" --[[@as any]] }) end)
+  self:assert_true(core.is_instance_of(err, core.ArgumentError), tostring(err))
+  err = self:assert_error(function() sup:reload(5 --[[@as any]]) end) -- the old positional form is refused
   self:assert_true(core.is_instance_of(err, core.ArgumentError), tostring(err))
   reactor.run(function()
     local refused = self:assert_error(function() sup:reload() end)

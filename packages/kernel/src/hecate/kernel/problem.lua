@@ -47,7 +47,8 @@ local RESERVED <const> = { type = true, title = true, status = true, detail = tr
 --- Builds a problem from `fields`.
 ---
 --- Raises `hecate.core.ArgumentError` for an unknown field, a `detail` that is not a string, or `extensions` that
---- is not a table with string keys outside the reserved names (`type`, `title`, `status`, `detail`, `instance`).
+--- is not a table with string keys outside the reserved names (`type`, `title`, `status`, `detail`, `instance`), or
+--- that holds, at its first level, a function, a thread, a userdata or a number that is not finite (NaN, infinity).
 ---@param fields? hecate.kernel.problem.Fields
 function Problem:init(fields)
   if fields == nil then fields = {} end
@@ -65,7 +66,16 @@ function Problem:init(fields)
   local extensions = fields.extensions
   if extensions ~= nil then
     if type(extensions) ~= "table" then error(core.ArgumentError("problem extensions must be a table"), 3) end
-    for key in pairs(extensions) do
+    for key, value in pairs(extensions) do
+      -- Cheap checks of what JSON cannot carry (the encoder would refuse it at the first answer): the nested values are
+      -- left to `problems.from_problem`, which never lets an encoding failure escape.
+      local kind = type(value)
+      if kind == "function" or kind == "thread" or kind == "userdata" then
+        error(core.ArgumentError(("problem extension %q is a %s, which has no JSON representation"):format(tostring(key), kind)), 3)
+      end
+      if kind == "number" and (value ~= value or value == math.huge or value == -math.huge) then
+        error(core.ArgumentError(("problem extension %q is not a finite number"):format(tostring(key))), 3)
+      end
       if type(key) ~= "string" then
         error(core.ArgumentError("problem extension names must be strings"), 3)
       end

@@ -6,6 +6,7 @@ global <const> require, error, math, ipairs, pairs, pcall, xpcall, tostring, typ
 
 local core = require("hecate.core")
 local json = require("hecate.json")
+local log = require("hecate.log")
 local http = require("hecate.http")
 local problem = require("hecate.kernel.problem")
 
@@ -103,16 +104,34 @@ end
 
 --- The problem details response of a problem instance (RFC 9457, section 3): `type`, `title`, `status`, the `detail`
 --- when the developer gave one, and the extension members (section 3.2); no `instance` member.
+---
+--- Extension members the encoder refuses (a function, NaN, a cycle, a value nested too deep, mutated after construction)
+--- never escape: the failure is logged at `error` with the code of the problem (never a value) and the answer is the
+--- generic `500`.
 ---@param instance hecate.kernel.problem.Problem
+---@param logger? { log: fun(self: any, severity: string, message: string, fields?: table) }  default `log.default()`
 ---@return hecate.http.Response
-function problems.from_problem(instance)
+function problems.from_problem(instance, logger)
   local body = {}
   for key, value in pairs(instance.extensions) do body[key] = value end
   body.type = instance.type
   body.title = instance.title
   body.status = instance.status
   body.detail = instance.detail
-  local response = http.Response(instance.status, { content = json.encode(body, { canonical = true }) })
+  local encoded, content = pcall(json.encode, body, { canonical = true })
+  if not encoded then
+    if core.is_instance_of(content, core.CancellationError) or core.is_instance_of(content, core.DeadlineExceededError) then
+      error(content, 0)
+    end
+    -- Only the class of the failure is logged: its text may quote a member name or a value.
+    local reason = type(content) == "table" and core.is_instance_of(content, core.Error) and core.name(content) or type(content)
+    local sink = logger or log.default()
+    sink:log("error", "kernel.problems: the extension members of a problem cannot be encoded; answering a generic 500", {
+      code = "problem_encoding_failed", problem = instance.code, status = instance.status, reason = reason,
+    })
+    return problems.response(500)
+  end
+  local response = http.Response(instance.status, { content = content })
   response.fields:set("Content-Type", CONTENT_TYPE)
   return response
 end
@@ -140,7 +159,7 @@ end
 ---@return hecate.http.Response
 function problems.from_error(err, options)
   local expose = options ~= nil and options.expose_details == true
-  if problem.is_problem(err) then return problems.from_problem(err) end
+  if problem.is_problem(err) then return problems.from_problem(err, options ~= nil and options.logger or nil) end
   if options ~= nil and options.input == true and core.is_instance_of(err, core.ValidationError) then
     local entries = entries_of(err, expose)
     if entries ~= nil then return build(422, DETAIL[422], { errors = entries }) end
@@ -154,8 +173,10 @@ end
 
 --- Wraps an action (or a composed chain) so that no error escapes as a response of the wrong shape: an error becomes
 --- a problem details response, and the function returns the response and the caught failure (for the caller to log).
---- With `options.logger` the failure is logged at `error` severity with its text (free text, by design of OQ-111), the
---- method, the path (never the query) and the traceback taken where the error was raised.
+--- With `options.logger` the failure is logged with its message (free text, by design of OQ-111), its class name
+--- (`error_class`) and `code` (`error_code`) as fields of their own, the method, the path (never the query) and the
+--- traceback taken where the error was raised: at `error` severity for a `5xx` answer, at `warning` for a client-caused
+--- error (a `4xx` answer, such as a `ParseError`). A problem below 500 is a normal answer and is not logged.
 --- Cancellation and deadline errors are never caught: they belong to the scope that raised them (ADR 0003).
 ---@param action fun(request: hecate.http.Request): hecate.http.Response
 ---@param options? hecate.kernel.problems.Options
@@ -183,13 +204,23 @@ function problems.guard(action, options)
     if core.is_instance_of(result, core.CancellationError) or core.is_instance_of(result, core.DeadlineExceededError) then
       error(result, 0)
     end
+    local response = problems.from_error(result, options)
     if logger ~= nil and not (problem.is_problem(result) and result.status < 500) then
       -- The path without the query: a query may carry a credential, the log names the route, not its arguments.
-      logger:log("error", "unhandled error while serving a request", {
-        error = tostring(result), method = request.method, path = request.path, traceback = captured,
-      })
+      local fields = { method = request.method, path = request.path, traceback = captured }
+      local is_error = type(result) == "table" and core.is_instance_of(result, core.Error)
+      -- The class and the code are fields of their own, apart from the free text of the message.
+      fields.error_class = is_error and core.name(result) or type(result)
+      if is_error then fields.error_code = result.code end
+      fields.error = is_error and result.message or tostring(result)
+      if response.status < 500 then
+        -- A client-caused error (a request the client got wrong) is not a defect of the server: `warning`.
+        logger:log("warning", "request refused", fields)
+      else
+        logger:log("error", "unhandled error while serving a request", fields)
+      end
     end
-    return problems.from_error(result, options), result
+    return response, result
   end
 end
 

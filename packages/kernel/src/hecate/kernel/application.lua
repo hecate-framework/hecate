@@ -1,7 +1,7 @@
 -- The application: the composition root (http-and-routing.md, "Application and feature modules"). `boot` decides
 -- everything that can be decided before the first request (module order, container graph, route table, filter chains);
 -- `serve` binds a server on the result.
-global <const> require, type, error, ipairs, pairs, tostring, pcall, table, math, arg, package
+global <const> require, type, error, ipairs, pairs, tostring, pcall, table, math, arg, package, os, io
 
 local core = require("hecate.core")
 local json = require("hecate.json")
@@ -46,17 +46,19 @@ end
 ---@field logger? hecate.log.Logger  receives unhandled failures and the container warnings
 ---@field router? hecate.router.RouterOptions
 ---@field server? hecate.http.ServerOptions  options of the HTTP server made by `serve` (`logger` defaults to the application's)
----@field signals? false  `false` disables signal handling (tests, embedding); the set (`sigint`, `sigterm` stop; `sighup` reloads a primary, and is ignored elsewhere) is fixed and cannot be listed
+---@field signals? boolean  `true` (default) handles signals, `false` disables signal handling (tests, embedding); the set (`sigint`, `sigterm` stop; `sighup` reloads a primary, and is ignored elsewhere) is fixed and cannot be listed
 ---@field grace_timeout? number  seconds a signal-driven shutdown lets requests in flight finish (default 30)
 ---@field workers? integer  number of worker processes, at least 1 (default 1: the process serves by itself); above 1 the primary runs a `hecate.kernel.Supervisor` (ADR 0023)
 ---@field strategy? "auto"|"reuseport"|"round_robin"  how connections reach the workers (default `auto`, `listening.select`); used only when `workers` is above 1
 ---@field worker_command? string[]  the program and arguments that start a worker (default: the running interpreter, script and arguments, `Application.worker_command_from(arg)`)
+---@field on_crash_loop? "stop"|"degrade"  what the primary does when its workers keep crashing (see `hecate.kernel.SupervisorOptions`); default `stop`; used only when `workers` is above 1
 
 --- The composition root.
 ---@class hecate.kernel.Application
 ---@field container hecate.container.Container?  the validated container, after `boot`
 ---@field router hecate.router.Router?  the router, after `boot`
 ---@field _supervisor hecate.kernel.Supervisor?  the supervisor, while serving as the primary of several workers
+---@field _served boolean?  set by the first `serve` that booted
 ---@field _signalled boolean?  set by the signal watcher once it started `shutdown`
 ---@overload fun(options?: hecate.kernel.ApplicationOptions): hecate.kernel.Application
 local Application = core.class("Application")
@@ -64,7 +66,7 @@ local Application = core.class("Application")
 local KNOWN = {
   modules = true, routes = true, configuration = true, services = true, filters = true, container = true, max_depth = true,
   expose_details = true, inputs = true, validate_responses = true, logger = true, router = true, server = true, signals = true, grace_timeout = true,
-  workers = true, strategy = true, worker_command = true,
+  workers = true, strategy = true, worker_command = true, on_crash_loop = true,
 }
 
 local STRATEGIES <const> = { auto = true, reuseport = true, round_robin = true }
@@ -79,8 +81,9 @@ function Application:init(options)
   for key in pairs(options) do
     if not KNOWN[key] then error(core.ArgumentError(("kernel.Application: unknown option %q"):format(tostring(key))), 2) end
   end
-  if options.signals ~= nil and options.signals ~= false then
-    error(core.ArgumentError("kernel.Application: the signal set is fixed (sigint, sigterm); signals = false disables signal handling"), 2)
+  if options.signals ~= nil and type(options.signals) ~= "boolean" then
+    error(core.ArgumentError(("kernel.Application: signals is true (default handling) or false (off), got %s; "
+      .. "the signal set is fixed (sigint, sigterm stop; sighup reloads a primary)"):format(type(options.signals))), 2)
   end
   local grace = options.grace_timeout
   if grace ~= nil and (type(grace) ~= "number" or grace ~= grace or grace < 0 or grace == math.huge) then
@@ -92,6 +95,10 @@ function Application:init(options)
   if options.strategy ~= nil and not STRATEGIES[options.strategy] then
     error(core.ArgumentError("kernel.Application: strategy is auto, reuseport or round_robin"), 2)
   end
+  if options.on_crash_loop ~= nil and options.on_crash_loop ~= "stop" and options.on_crash_loop ~= "degrade" then
+    error(core.ArgumentError(("kernel.Application: on_crash_loop is \"stop\" or \"degrade\", got %s"):format(
+      type(options.on_crash_loop) == "string" and ("%q"):format(options.on_crash_loop) or type(options.on_crash_loop))), 2)
+  end
   local command = options.worker_command
   if command ~= nil then
     local valid = type(command) == "table" and type(command[1]) == "string"
@@ -102,14 +109,48 @@ function Application:init(options)
   self._booted = false
 end
 
+--- Resolves a bare program name (no path separator) against a search path; any other name is returned unchanged.
+---@param program string
+---@param search_path? string  default the `PATH` environment variable
+---@return string
+local function resolve_interpreter(program, search_path)
+  if program:find("[/\\]") then return program end
+  search_path = search_path or os.getenv("PATH")
+  if search_path == nil or search_path == "" then return program end
+  local separator = IS_WINDOWS and ";" or ":"
+  local names = IS_WINDOWS and { program, program .. ".exe" } or { program }
+  for entry in (search_path .. separator):gmatch("([^" .. separator .. "]*)" .. separator) do
+    local directory = entry:gsub("[/\\]$", "")
+    if directory ~= "" then
+      -- Only an absolute directory yields an absolute path.
+      if directory:match("^/") or directory:match("^%a:") then
+        for _, name in ipairs(names) do
+          local candidate = directory .. "/" .. name
+          local file = io.open(candidate, "rb")
+          if file ~= nil then
+            file:close()
+            return candidate
+          end
+        end
+      end
+    end
+  end
+  return program
+end
+
 --- The command that starts the running program again, from the `arg` table of the standalone interpreter: the
 --- interpreter and its options (the negative indices), the script (index 0) and the script arguments. A worker is that
 --- program started with the worker role in its environment (ADR 0023, Decision 1).
 ---
+--- An interpreter named without a path separator (`lua`, started through the search path) is replaced by the absolute
+--- path of the first file of that name found in the search path, so that a worker does not depend on the `PATH` of the
+--- primary's children; when none is found the name is kept as it is.
+---
 --- Raises `hecate.core.ArgumentError` when there is no script (interactive use, `-e`, embedding): give `worker_command`.
 ---@param arguments? table  default the global `arg`
+---@param search_path? string  the directories to search for a bare interpreter name, separated like `PATH`; default the `PATH` environment variable
 ---@return string[] command
-function Application.worker_command_from(arguments)
+function Application.worker_command_from(arguments, search_path)
   arguments = arguments or arg
   local lowest = 0
   if type(arguments) == "table" then
@@ -128,13 +169,20 @@ function Application.worker_command_from(arguments)
     end
     command[#command + 1] = part
   end
+  command[1] = resolve_interpreter(command[1], search_path)
   return command
 end
 
---- Boots the application: applies `max_depth`, orders the modules (rejecting duplicates, missing dependencies and
---- cycles), binds the services (application first, then each module in order), validates the container graph, gathers
---- the route table and builds the function that serves a request. Container warnings go to the logger. Idempotent
---- failure: a failed boot leaves nothing half-built (call again on a new application).
+--- Boots the application: orders the modules (rejecting duplicates, missing dependencies and cycles), binds the
+--- services (application first, then each module in order), validates the container graph, gathers the route table and
+--- builds the function that serves a request; only then applies `max_depth` (`json.set_max_depth`) and, when the
+--- logger comes from `configuration`, installs it as the default logger (`log.set_default`). Container warnings go to
+--- the logger.
+---
+--- A failed boot changes no process-wide setting and leaves the application unbooted (`container`, `router` and the
+--- resolved options stay unset). What it can leave behind: the services already bound into a container given with the
+--- `container` option (a container made by `boot` is discarded), and the warnings already logged. Boot such an
+--- application again only with a new container.
 ---
 --- Raises `hecate.kernel.ModuleError` (including `already_booted`), `hecate.container.GraphError`,
 --- `hecate.kernel.RouteDeclarationError`, the errors of `hecate.router.Router` and `hecate.core.ArgumentError`.
@@ -146,6 +194,7 @@ function Application:boot()
   local options = {}
   for key, value in pairs(self._options) do options[key] = value end
   local configuration = options.configuration
+  local built_logger = false -- the logger comes from the configuration: it becomes the default once boot succeeded
   if configuration ~= nil then
     if options.max_depth == nil then options.max_depth = configuration:get("limits.max_depth") end
     if options.expose_details == nil then options.expose_details = configuration:get("errors.expose_details") end
@@ -159,7 +208,7 @@ function Application:boot()
     if options.strategy == nil then options.strategy = configuration:get("server.strategy") end
     if options.logger == nil then
       options.logger = logging.build(configuration)
-      log.set_default(options.logger)
+      built_logger = true
     end
     if options.expose_details and configuration:environment() == "production" then
       options.logger:warning("errors.expose_details is true in the production environment: internal details reach clients",
@@ -169,8 +218,6 @@ function Application:boot()
   if options.validate_responses == nil then options.validate_responses = false end
   if options.workers == nil then options.workers = 1 end
   if options.strategy == nil then options.strategy = "auto" end
-  self._resolved = options
-  if options.max_depth ~= nil then json.set_max_depth(options.max_depth) end
   local ordered = modules.order(options.modules or {})
   local container = options.container or container_package.Container()
   if options.services then options.services(container) end
@@ -198,6 +245,10 @@ function Application:boot()
     filters = filters, container = container, router = options.router, expose_details = options.expose_details,
     logger = logger, inputs = options.inputs, validate_responses = options.validate_responses,
   })
+  -- Everything succeeded: only now do the process-wide settings and the application state change.
+  if options.max_depth ~= nil then json.set_max_depth(options.max_depth) end
+  if built_logger then log.set_default(options.logger) end
+  self._resolved = options
   self.container, self.router, self._serve, self._booted = container, router, serve, true
   return serve
 end
@@ -366,6 +417,7 @@ local function serve_as_primary(self)
   local command = resolved.worker_command or Application.worker_command_from()
   local sup = supervisor.Supervisor({
     command = command, count = resolved.workers, endpoint = endpoint, strategy = strategy, logger = logger,
+    on_crash_loop = resolved.on_crash_loop,
   })
   self._supervisor = sup
   if fallback ~= nil then logger:warning("kernel.Application: " .. fallback, { code = "strategy_fallback" }) end
@@ -385,10 +437,20 @@ end
 --- through `WorkerRole:serve`, ignoring signals (the primary sends `stop`). With `workers = 1` and no worker role
 --- nothing changes: one process, one `http.Server`.
 ---
---- Raises what `boot` and `hecate.http.Server:serve` raise, and `hecate.kernel.SupervisorError` in a primary.
+--- An application is served once: `serve` closes the container when it returns, so a second call (while serving or
+--- after the shutdown) raises `hecate.kernel.ModuleError` with `context.reason = "already_served"`; build a new
+--- application to serve again. A `serve` whose `boot` failed does not count.
+---
+--- Raises what `boot` and `hecate.http.Server:serve` raise, `hecate.kernel.ModuleError` (`already_served`) and
+--- `hecate.kernel.SupervisorError` in a primary.
 ---@async
 function Application:serve()
+  if self._served then
+    error(errors.ModuleError("kernel: the application has already been served (serve runs once, the container is closed when it returns)",
+      { context = { reason = "already_served" } }), 2)
+  end
   local serve = self._serve or self:boot()
+  self._served = true
   local role = supervisor.worker_role()
   if role == nil and self._resolved.workers > 1 then
     serve_as_primary(self)
@@ -439,17 +501,21 @@ end
 --- Raises `hecate.kernel.SupervisorError` (`reload_failed`, `reload_in_progress`, `stopping`; see `Supervisor:reload`)
 --- and `hecate.core.ArgumentError` when the application is not a primary of several workers that is serving.
 ---@async
----@param grace_timeout? number  seconds the old workers drain, default the `grace_timeout` option, else 30
----@param options? { ready_timeout?: number }  seconds a replacement may take to become ready, default 30
-function Application:reload(grace_timeout, options)
+---@param options? { grace_timeout?: number, ready_timeout?: number }  `grace_timeout`: seconds the old workers drain, default the `grace_timeout` option, else 30; `ready_timeout`: seconds a replacement may take to become ready, default 30
+function Application:reload(options)
   local sup = self._supervisor
   if sup == nil then
     error(core.ArgumentError("kernel.Application.reload: only a serving primary of several workers can reload"), 2)
   end
-  if grace_timeout == nil then grace_timeout = (self._resolved or self._options).grace_timeout end
+  if options ~= nil and type(options) ~= "table" then
+    error(core.ArgumentError("kernel.Application.reload: options is a table { grace_timeout?, ready_timeout? }, got " .. type(options)), 2)
+  end
+  local given = options or {}
+  options = { grace_timeout = given.grace_timeout, ready_timeout = given.ready_timeout }
+  if options.grace_timeout == nil then options.grace_timeout = (self._resolved or self._options).grace_timeout end
   local logger = (self._resolved or self._options).logger or log.default()
   logger:notice("kernel.Application: reloading the workers", { code = "reload_started" })
-  local ok, err = pcall(sup.reload, sup, grace_timeout, options)
+  local ok, err = pcall(sup.reload, sup, options)
   if not ok then
     if core.is_instance_of(err, core.CancellationError) then error(err, 0) end
     local reason, cause, message = describe_failure(err)

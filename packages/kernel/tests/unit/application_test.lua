@@ -169,6 +169,54 @@ function T:test_configuration_binds_the_grace_timeout()
   log.set_default(nil)
 end
 
+function T:test_a_failed_boot_changes_no_process_wide_setting()
+  local json = require("hecate.json")
+  local sentinel = log.Logger({ sinks = {} })
+  log.set_default(sentinel)
+  local depth = json.DEFAULT_MAX_DEPTH
+  local missing = { { name = "a", requires = { "x" } } } -- a missing dependency fails the boot
+  local app = kernel.Application({ modules = missing, max_depth = 7, configuration = configuration({}) })
+  local ok = pcall(app.boot, app)
+  local after_depth, after_logger = json.DEFAULT_MAX_DEPTH, log.default()
+  log.set_default(nil)
+  self:assert_false(ok)
+  self:assert_equal(depth, after_depth)
+  self:assert_true(rawequal(sentinel, after_logger))
+  self:assert_nil(app.container)
+  self:assert_nil(app._resolved)
+  -- A successful boot applies both.
+  local good = kernel.Application({ max_depth = 7, configuration = configuration({}) })
+  good:boot()
+  local applied_depth, applied_logger = json.DEFAULT_MAX_DEPTH, log.default()
+  json.set_max_depth(depth)
+  log.set_default(nil)
+  self:assert_equal(7, applied_depth)
+  self:assert_true(rawequal(good._resolved.logger, applied_logger))
+end
+
+function T:test_serve_runs_once()
+  local core = require("hecate.core")
+  local reactor = require("hecate.reactor")
+  local app = kernel.Application({ signals = false, server = { host = "127.0.0.1", port = 0 } })
+  local failures = {}
+  reactor.run(function()
+    reactor.fork(function()
+      while not app:local_address() do reactor.sleep(0.005) end
+      local ok, err = pcall(app.serve, app) -- while serving
+      failures[#failures + 1] = not ok and err or false
+      app:shutdown(1)
+    end)
+    reactor.deadline(10, app.serve, app)
+    local ok, err = pcall(app.serve, app) -- after the shutdown
+    failures[#failures + 1] = not ok and err or false
+  end)
+  self:assert_equal(2, #failures)
+  for _, err in ipairs(failures) do
+    self:assert_true(core.is_instance_of(err, kernel.ModuleError), tostring(err))
+    self:assert_equal("already_served", err.context.reason)
+  end
+end
+
 function T:test_responses_are_validated_in_development_and_test_only()
   for environment, expected in pairs({ development = true, test = true, production = false, staging = false }) do
     local app = kernel.Application({ configuration = configuration({}, environment) })
@@ -323,11 +371,14 @@ function T:test_signals_false_serves_until_shutdown()
 end
 
 function T:test_invalid_signal_options_are_refused()
-  for _, value in ipairs({ {}, { "sigint" }, { "sigusr2" }, "sigterm", true, 15 }) do
+  for _, value in ipairs({ {}, { "sigint" }, { "sigusr2" }, "sigterm", 15 }) do
     local ok, err = pcall(kernel.Application, { signals = value })
     self:assert_false(ok)
-    self:assert_true(tostring(err):find("signal set is fixed", 1, true) ~= nil)
+    self:assert_true(require("hecate.core").is_instance_of(err, require("hecate.core").ArgumentError))
+    self:assert_true(tostring(err):find("true (default handling) or false (off)", 1, true) ~= nil)
   end
+  self:assert_true(pcall(kernel.Application, { signals = true }))
+  self:assert_true(pcall(kernel.Application, { signals = false }))
   self:assert_false(pcall(kernel.Application, { grace_timeout = -1 }))
   self:assert_false(pcall(kernel.Application, { grace_timeout = math.huge }))
 end
@@ -382,6 +433,10 @@ function T:test_workers_and_strategy_are_validated()
   refused({ worker_command = "lua main.lua" })
   refused({ worker_command = {} })
   refused({ worker_command = { "lua", 1 } })
+  refused({ on_crash_loop = "restart" })
+  refused({ on_crash_loop = true })
+  self:assert_true(pcall(kernel.Application, { on_crash_loop = "degrade" }))
+  self:assert_true(pcall(kernel.Application, { on_crash_loop = "stop" }))
   self:assert_true(pcall(kernel.Application, { workers = 4, strategy = "round_robin", worker_command = { "lua", "main.lua" } }))
 end
 
@@ -406,10 +461,27 @@ end
 
 function T:test_the_worker_command_restarts_the_running_program()
   local from = kernel.Application.worker_command_from
-  self:assert_equal("lua,main.lua,--port,80", table.concat(from({ [-1] = "lua", [0] = "main.lua", "--port", "80" }), ","))
-  self:assert_equal("lua,-W,main.lua", table.concat(from({ [-2] = "lua", [-1] = "-W", [0] = "main.lua" }), ","))
+  -- An empty search path keeps the interpreter name as it is.
+  self:assert_equal("lua,main.lua,--port,80", table.concat(from({ [-1] = "lua", [0] = "main.lua", "--port", "80" }, ""), ","))
+  self:assert_equal("lua,-W,main.lua", table.concat(from({ [-2] = "lua", [-1] = "-W", [0] = "main.lua" }, ""), ","))
   self:assert_false(pcall(from, { [-1] = "lua" })) -- no script (interactive, -e): the caller gives worker_command
   self:assert_false(pcall(from, {}))
+end
+
+function T:test_a_bare_interpreter_name_is_resolved_through_the_search_path()
+  local from = kernel.Application.worker_command_from
+  local file = os.tmpname()
+  local directory, name = file:match("^(.*)[/\\]([^/\\]+)$")
+  if directory == nil or directory == "" then os.remove(file) return end
+  local arguments = { [-1] = name, [0] = "main.lua" }
+  local found = from(arguments, "/no/such/directory" .. (package.config:sub(1, 1) == "\\" and ";" or ":") .. directory)
+  local missing = from({ [-1] = name .. "-absent", [0] = "main.lua" }, directory)
+  local separator_kept = from({ [-1] = "./" .. name, [0] = "main.lua" }, directory)
+  os.remove(file)
+  self:assert_equal(directory .. "/" .. name, found[1])
+  self:assert_equal("main.lua", found[2])
+  self:assert_equal(name .. "-absent", missing[1]) -- not found: kept
+  self:assert_equal("./" .. name, separator_kept[1]) -- already a path: untouched
 end
 
 function T:test_a_single_process_has_no_supervisor()

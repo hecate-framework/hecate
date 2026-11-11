@@ -66,6 +66,34 @@ function T:test_invalid_fields_are_refused()
   end
 end
 
+function T:test_extension_values_json_cannot_carry_are_refused_at_construction()
+  for _, value in ipairs({ function() end, 0 / 0, math.huge, -math.huge, coroutine.create(function() end) }) do
+    local err = self:assert_error(function() problem.NotFound({ extensions = { v = value } }) end)
+    self:assert_equal("hecate.core.ArgumentError", err.code)
+  end
+  self:assert_equal(1.5, problem.NotFound({ extensions = { v = 1.5 } }).extensions.v)
+end
+
+function T:test_an_extension_that_cannot_be_encoded_answers_a_logged_generic_500()
+  local nested = {}
+  nested.self = nested -- a cycle passes the construction check, which is shallow
+  local seen = {}
+  local logger = { log = function(_, severity, message, fields) seen[#seen + 1] = { severity, message, fields } end }
+  local p = problem.Conflict({ detail = "Taken.", extensions = { loop = nested } })
+  local response = problems.from_problem(p, logger)
+  self:assert_equal(500, response.status)
+  self:assert_equal("application/problem+json", response.fields:get("Content-Type"))
+  self:assert_nil(body(response).loop)
+  self:assert_equal(1, #seen)
+  self:assert_equal("error", seen[1][1])
+  self:assert_equal("hecate.problem.Conflict", seen[1][3].problem)
+  -- Raised as an error, through `from_error` and returned by an action, the answer is the same.
+  self:assert_equal(500, problems.from_error(p, { logger = logger }).status)
+  self:assert_equal(500, results.serialise(p, request(), {}, { logger = logger }).status)
+  self:assert_equal(3, #seen)
+  for _, entry in ipairs(seen) do self:assert_equal("hecate.problem.Conflict", entry[3].problem) end
+end
+
 function T:test_define_declares_an_own_class()
   local Teapot = problem.define("OutOfTea", { status = 418, title = "Out of tea", type = "https://example.test/out-of-tea" })
   self:assert_equal(418, Teapot.status)

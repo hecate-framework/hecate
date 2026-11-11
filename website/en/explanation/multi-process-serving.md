@@ -113,8 +113,11 @@ deadline, then cancels what remains.
   documented, not hidden.
 
 The rolling reload exists in `kernel` (`Supervisor:reload`; `SIGHUP` in the primary, or
-`Application:reload`). It replaces the workers by restart, one at a time, and sends no `reload`
+`Application:reload`, which takes one options table, `{ grace_timeout?, ready_timeout? }`). It replaces the workers by restart, one at a time, and sends no `reload`
 message: that name stays reserved.
+
+Workers inherit the whole environment of the primary, plus the `HECATE_WORKER_*` variables of their
+role. A worker refuses a malformed host or backlog in those variables.
 
 ## What exists today
 
