@@ -4,7 +4,7 @@
 - roadmap_item: `kernel`: application, modules, controllers, route modules, filters, problem details, lifecycle, multi-process workers, graceful shutdown (Phase 2, docs/roadmap.md)
 - status: in-progress
 - lock_until: 2026-11-11T08:06:34Z
-- last_update: 2026-11-11T08:06:34Z
+- last_update: 2026-11-11T09:26:10Z
 
 ## Done
 
@@ -63,6 +63,8 @@
 - Owner accepted ADR 0027 (2026-11-11): status Accepted; `net.TcpStream:transport()` is the public accessor (test first), `kernel/listening.lua` uses it. In progress (run of ~08:05Z): fix of the markdownlint CI failure.
 
 - Step 23 (run of ~08:00Z, lock released at the end): `Application` options `workers`, `strategy`, `worker_command`, keys `server.workers` and `server.strategy` (declared in `config`), primary with `Supervisor` (signals stop it, a second one `Supervisor:force`), worker role boots the application and serves through `WorkerRole`; unit tests and one end-to-end test with 2 workers on `round_robin` (6 consecutive green runs); typecheck, lint, check-annotations, `test kernel`, `test config` ok. Choices to confirm: OQ-116. Still open: `examples/hello` with N workers (Phase 2 exit criterion), a conformance test per strategy (only `round_robin` end to end), SIGHUP reload (roadmap (m)), a persistent signal handle in `reactor` (worker race), response validation in development/test, the kernel reference page.
+
+- OQ-116 resolved by the owner (2026-11-11, issue #172 closed): all seven choices confirmed; the worker signal semantics are written in `docs/architecture/concurrency.md` (ADR 0023 is Accepted, not edited). OQ-43: the owner's luv pull request for TCP `reuseport` is merged in luv's main branch; when luv releases it, raise the pinned luv version (bootstrap and CI), then `auto` selects `reuseport` on Linux.
 
 ## Next steps
 

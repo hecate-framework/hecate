@@ -156,6 +156,13 @@ Accepted in [ADR 0023](../adr/0023-multi-process-serving.md), measured in
 - Graceful shutdown: stop accepting, drain in-flight requests up to a configurable deadline,
   then cancel remaining scopes. A rolling reload starts the replacement before stopping the old
   worker.
+- Signals (OQ-116): a worker ignores `SIGINT` and `SIGTERM`, because a terminal sends them to the
+  whole process group; only the `stop` message of the primary ends a worker. The first signal in the
+  primary stops the supervisor with the grace period (`server.grace_timeout`); a second one kills the
+  workers at once. `workers` and `strategy` are the `Application` options, bound from the sibling
+  configuration keys `server.workers` (default 1: the single process of before, with no supervisor)
+  and `server.strategy`. The primary boots the application before it spawns, so a configuration or
+  container error appears once.
 
 ## Signals and shutdown
 
