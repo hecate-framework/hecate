@@ -25,6 +25,7 @@ local errors = require("hecate.kernel.errors")
 ---@field responses table<integer, hecate.schema.Schema|table|true>  schema, problem class, or `true` (declared without content) per status code
 ---@field security table[]  requirements, kept as declared (the `security` package defines their shape)
 ---@field filters hecate.kernel.Filter[]  outermost first: those of the controller, then those of the route
+---@field module_filters? hecate.kernel.Filter[]  set by `routing.collect` for a route of a feature module: the filters of that module, the second layer of the chain (after the global filters, before `filters`)
 ---@field action string|fun(request: any): any  a method name of `controller`, or an action function
 ---@field controller? table  the controller class, for a controller route
 ---@field origin string  the route module or the controller that declared it, for diagnostics

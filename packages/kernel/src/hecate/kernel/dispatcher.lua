@@ -15,7 +15,7 @@ local input = require("hecate.kernel.input")
 
 --- Options of `dispatcher.build`.
 ---@class hecate.kernel.DispatcherOptions
----@field filters? hecate.kernel.Filter[]  global filters, outermost of all, before those of a route
+---@field filters? hecate.kernel.Filter[]  global filters, outermost of all: they wrap the routing step, so they also see requests that match no route; the filters of a module come from `entry.module_filters`
 ---@field container? hecate.container.Container  a validated container: each request opens one service scope on it, bound to `request.scope`; required when a controller declares `dependencies`
 ---@field router? hecate.router.RouterOptions  options of the router
 ---@field expose_details? boolean  see `hecate.kernel.problems.Options`
@@ -63,9 +63,13 @@ end
 --- failure of a request (an error becomes a problem details response, see `problems.guard`); cancellation and deadline
 --- errors still propagate (ADR 0003).
 ---
---- Per request, in this order: the route is matched (404, 405, an unreadable path 400, and the automatic `OPTIONS` 204
---- with `Allow`); `request.parameters.path` receives the decoded path parameters as strings; the service scope is opened and closed around the chain;
---- the chain runs the global filters, then those of the entry, then the inputs are read, coerced and validated by the
+--- Per request, in this order: the global filters (they wrap the routing step, so they also see the 404, 405, 400 and
+--- automatic `OPTIONS` 204 answers; at that point `request` carries no route: `request.parameters.path` is still the
+--- empty table the request was created with and `request.scope` is not set); the guard (`problems.guard`: an error
+--- becomes a problem response that flows back through the global filters); the route is matched (404, 405, an
+--- unreadable path 400, and the automatic `OPTIONS` 204 with `Allow`); `request.parameters.path` receives the decoded
+--- path parameters as strings; the service scope is opened and closed around the chain of the entry;
+--- the chain runs the filters of the module of the entry (none for a route outside a feature module), then those of the controller and of the route, then the inputs are read, coerced and validated by the
 --- schemas of the route (`hecate.kernel.input`: `request.parameters` and `request.content`, or a `422`, `400`, `415`
 --- problem) and the action runs; its result is serialised by
 --- `results.serialise` against the entry's `responses`.
@@ -95,11 +99,12 @@ function dispatcher.build(entries, options)
   end
   local serialise_options = { serialisers = options.serialisers, validate_responses = validate_responses == true }
 
-  -- One compiled handler per entry, indexed by the entry itself: the router hands back the table it was given.
+  -- One compiled handler per entry, indexed by the entry itself: the router hands back the table it was given. The
+  -- global filters are not part of it: they wrap the routing step (below). Layers here: module, controller, route.
   local handlers = {}
   for _, entry in ipairs(entries) do
     local filters = {}
-    for _, filter in ipairs(global_filters) do filters[#filters + 1] = filter end
+    for _, filter in ipairs(entry.module_filters or {}) do filters[#filters + 1] = filter end
     for _, filter in ipairs(entry.filters) do filters[#filters + 1] = filter end
     local action = resolve_action(entry, container)
     -- The inputs are validated innermost, after the filters (authentication, rate limiting): a client refused by a filter
@@ -132,7 +137,15 @@ function dispatcher.build(entries, options)
     return handle(request)
   end
 
-  return problems.guard(serve_matched, problem_options), router
+  -- Order (http-and-routing.md, "Filters"): global filters, then the guard, then match and dispatch. The guard is inside
+  -- the global filters: an error of the routing step, of a module, controller or route filter or of the action becomes a
+  -- problem response that flows back through them (their code after `next` runs).
+  local guarded = problems.guard(serve_matched, problem_options)
+  if #global_filters == 0 then return guarded, router end
+  -- The outer guard is a safety net for an error raised by a global filter itself: `serve` never raises for a failure
+  -- of a request. It does not run for the failures the inner guard already turned into responses.
+  local filtered = chain.compose(global_filters, guarded)
+  return problems.guard(filtered, problem_options), router
 end
 
 return dispatcher

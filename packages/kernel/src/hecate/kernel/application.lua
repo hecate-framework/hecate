@@ -36,7 +36,7 @@ end
 ---@field modules? hecate.kernel.FeatureModule[]  the feature modules
 ---@field routes? (hecate.kernel.RouteModule|table)[]  route modules and controllers that belong to no feature
 ---@field services? fun(container: hecate.container.Container)  binds services of the application itself, before those of the modules
----@field filters? hecate.kernel.Filter[]  global filters, outermost, before those of the modules
+---@field filters? hecate.kernel.Filter[]  global filters, outermost: they also see the requests that match no route (404, 405, 400, automatic `OPTIONS`); the filters of a module apply to its own routes only
 ---@field container? hecate.container.Container  an existing container (not yet validated); default: a new one
 ---@field configuration? hecate.config.Configuration  binds `limits.max_depth`, `errors.expose_details`, `requests.inputs`, `server.grace_timeout`, `server.workers`, `server.strategy` and the logging keys; the options below override it
 ---@field max_depth? integer  nesting depth limit of `json` and `schema` (`json.set_max_depth`, OQ-92)
@@ -177,10 +177,11 @@ function Application:boot()
   local sources, filters = {}, {}
   for _, source in ipairs(options.routes or {}) do sources[#sources + 1] = source end
   for _, filter in ipairs(options.filters or {}) do filters[#filters + 1] = filter end
+  -- The filters of a feature module are not global: they are kept with the routes of that module (second layer).
+  local module_sources = {}
   for _, module in ipairs(ordered) do
     if module.services then module.services(container) end
-    for _, source in ipairs(module.routes or {}) do sources[#sources + 1] = source end
-    for _, filter in ipairs(module.filters or {}) do filters[#filters + 1] = filter end
+    module_sources[#module_sources + 1] = { sources = module.routes or {}, filters = module.filters }
   end
   local _, warnings = container:validate()
   local logger = options.logger
@@ -190,6 +191,9 @@ function Application:boot()
     end
   end
   local entries = routing.collect(sources)
+  for _, owned in ipairs(module_sources) do
+    for _, entry in ipairs(routing.collect(owned.sources, owned.filters)) do entries[#entries + 1] = entry end
+  end
   local serve, router = dispatcher.build(entries, {
     filters = filters, container = container, router = options.router, expose_details = options.expose_details,
     logger = logger, inputs = options.inputs, validate_responses = options.validate_responses,

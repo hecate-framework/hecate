@@ -122,8 +122,18 @@ OpenAPI term), `path` to `in: path`, `query` to `in: query` and `cookies` to `in
 Filters wrap actions. A filter is an object with `handle(request, next)`; it may
 short-circuit, transform the request, or post-process the result. Filters are attached
 globally, per module, per controller or per route, and execute in that order (outermost
-first). Typical built-in filters: request identifiers, access logging, CORS, rate
-limiting (later), authentication (from `security`).
+first). The filters of a feature module apply only to the routes of that module; the
+global filters apply to every request. Typical built-in filters: request identifiers,
+access logging, CORS, rate limiting (later), authentication (from `security`).
+
+The global filters wrap the routing step: the order is the global filters, then the guard
+(which turns an error into a problem response), then the route match and the dispatch to
+the module, controller and route filters and the action. The global filters therefore also
+see the requests that match no route: the `404`, `405` and `400` problem responses and the
+automatic `OPTIONS` answer pass through them. At that point `request` carries no route
+(`request.parameters.path` is empty, there is no service scope yet). An error raised by
+the action, or by a filter of an inner layer, becomes a problem response that flows back
+through the global filters (their code after `next` runs).
 
 ### Results and serialisation
 

@@ -10,7 +10,7 @@ local errors = require("hecate.kernel.errors")
 ---@field requires? string[]  names of the modules that must be initialised before this one
 ---@field services? fun(container: hecate.container.Container)  binds the services of the feature
 ---@field routes? (hecate.kernel.RouteModule|table)[]  route modules and controller classes, as for `routing.collect`
----@field filters? hecate.kernel.Filter[]  global filters contributed by the feature, after those of the application
+---@field filters? hecate.kernel.Filter[]  filters of the feature: they apply only to the routes of this module, after the global filters and before those of a controller and of a route
 
 --- Ordering of feature modules.
 ---@class hecate.kernel.modules

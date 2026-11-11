@@ -67,11 +67,48 @@ function T:test_filters_of_the_application_wrap_those_of_modules()
   end
   local app = kernel.Application({
     filters = { filter("app") },
-    routes = { route_module("r", "/r") },
-    modules = { { name = "m", filters = { filter("module") } } },
+    modules = { { name = "m", routes = { route_module("r", "/r") }, filters = { filter("module") } } },
   })
   get(app:boot(), "/r")
   self:assert_equal("app,module", table.concat(seen, ","))
+end
+
+function T:test_the_filters_of_a_module_apply_only_to_the_routes_of_that_module()
+  local seen = {}
+  local function filter(name)
+    return { handle = function(_, request, next) seen[#seen + 1] = name; return next(request) end }
+  end
+  local app = kernel.Application({
+    filters = { filter("app") },
+    routes = { route_module("health", "/health") },
+    modules = {
+      { name = "a", routes = { route_module("a", "/a") }, filters = { filter("a") } },
+      { name = "b", routes = { route_module("b", "/b") }, filters = { filter("b") } },
+    },
+  })
+  local serve = app:boot()
+  get(serve, "/b")
+  self:assert_equal("app,b", table.concat(seen, ","))
+  seen = {}
+  get(serve, "/a")
+  self:assert_equal("app,a", table.concat(seen, ","))
+  seen = {}
+  get(serve, "/health")
+  self:assert_equal("app", table.concat(seen, ","))
+end
+
+function T:test_global_filters_see_a_request_with_no_matching_route()
+  local statuses = {}
+  local app = kernel.Application({
+    filters = { { handle = function(_, request, next)
+      local response = next(request)
+      statuses[#statuses + 1] = response.status
+      return response
+    end } },
+    modules = { { name = "m", routes = { route_module("r", "/r") } } },
+  })
+  get(app:boot(), "/missing")
+  self:assert_equal("404", table.concat(statuses, ","))
 end
 
 local config = require("hecate.config")

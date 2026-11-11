@@ -58,6 +58,74 @@ function T:test_filters_run_global_first_then_the_route_and_wrap_the_action()
   self:assert_equal("global> route> action <route <global", table.concat(trace, " "))
 end
 
+-- A recording filter: its own trace entries, and the status of the response that comes back through it.
+local function recording(trace, name)
+  return { handle = function(_, req, next)
+    trace[#trace + 1] = name .. ">"
+    local response = next(req)
+    trace[#trace + 1] = "<" .. name .. ":" .. tostring(response.status)
+    return response
+  end }
+end
+
+function T:test_global_filters_also_see_the_routing_answers()
+  local trace = {}
+  local serve = serve_with(function(m) m:get("/a", { action = function() return nil end }) end,
+    { filters = { recording(trace, "global") } })
+  self:assert_equal(404, serve(request("GET", "/nope")).status)
+  self:assert_equal(405, serve(request("POST", "/a")).status)
+  self:assert_equal(204, serve(request("OPTIONS", "/a")).status)
+  self:assert_equal("global> <global:404 global> <global:405 global> <global:204", table.concat(trace, " "))
+end
+
+function T:test_a_global_filter_sees_no_matched_route_before_the_action()
+  local seen = {}
+  local filter = { handle = function(_, req, next)
+    local empty = true
+    for _ in pairs(req.parameters.path) do empty = false end
+    seen[#seen + 1] = empty and "empty" or "filled"
+    return next(req)
+  end }
+  local serve = serve_with(function(m) m:get("/a/{id}", { parameters = { path = { id = schema.string() } },
+    action = function() return nil end }) end, { filters = { filter } })
+  self:assert_equal(404, serve(request("GET", "/nope")).status)
+  self:assert_equal("empty", seen[1])
+end
+
+function T:test_an_error_in_an_action_flows_back_through_the_global_filters_as_a_problem()
+  local trace = {}
+  local serve = serve_with(function(m) m:get("/boom", { action = function() error("secret") end }) end,
+    { filters = { recording(trace, "global") } })
+  local response = serve(request("GET", "/boom"))
+  self:assert_equal(500, response.status)
+  self:assert_equal("global> <global:500", table.concat(trace, " "))
+end
+
+function T:test_an_error_in_a_global_filter_is_still_a_500_problem()
+  local failing = { handle = function() error("secret") end }
+  local serve = serve_with(function(m) m:get("/a", { action = function() return nil end }) end,
+    { filters = { failing } })
+  local response = serve(request("GET", "/a"))
+  self:assert_equal(500, response.status)
+  self:assert_nil(string.find(response.content, "secret", 1, true))
+end
+
+function T:test_the_layers_run_global_module_controller_route()
+  local trace = {}
+  local function filter(name)
+    return { handle = function(_, req, next) trace[#trace + 1] = name; return next(req) end }
+  end
+  local Things = core.class("LayeredController", kernel.Controller)
+  Things.prefix = "/c"
+  Things.filters = { filter("controller") }
+  kernel.Controller.route(Things, { method = "GET", path = "/", filters = { filter("route") }, action = "list" })
+  function Things:list() return nil end
+  core.finalise(Things)
+  local serve = dispatcher.build(kernel.routing.collect({ Things }, { filter("module") }), { filters = { filter("global") } })
+  serve(request("GET", "/c"))
+  self:assert_equal("global,module,controller,route", table.concat(trace, ","))
+end
+
 function T:test_an_error_in_an_action_becomes_a_500_problem_and_is_logged()
   local logged = {}
   local serve = serve_with(function(m) m:get("/boom", { action = function() error("secret") end }) end,
