@@ -11,6 +11,7 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- feat(kernel): a worker logs the connections it drops: `control_failed` (`error`) when its message pipe to the primary breaks or is violated (it was a silent stop), `hand_over_discarded` (`warning`, `count`) for the connections still queued when it stops; `HandOverListener:close()` returns how many queued connections it closed. The rolling-reload tests report why a request failed.
 - fix(kernel): a feature module whose `filters` holds a non-filter is refused at boot with `ModuleError` (`invalid_module`), also when it has no routes; `Application:serve` that fails before the run (bad `server` options, no way to start a worker) no longer marks the application served and can be served again; `Application:reload` logs `reload_started` only once the supervisor accepted the reload (a refused one logs `reload_refused` and raises); `Supervisor:reload` takes an optional `on_accepted` callback.
 - fix(kernel): a worker no longer closes the connections still queued by the hand-over when it is told to stop: the server takes them first (`HandOverListener:drain`), so a rolling reload resets none; only what is still queued afterwards is closed.
 - feat(kernel): `Supervisor` and `Application` option `ready_timeout` (default 30 s): a worker that does not report `ready` after its start or restart is killed, logged `worker_not_ready` at `error` and counted as a crash.

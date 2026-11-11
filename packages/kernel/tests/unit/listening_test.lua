@@ -172,6 +172,19 @@ function T:test_the_ring_emptied_while_waiting_goes_on_waiting()
   end)
 end
 
+function T:test_closing_the_hand_over_listener_returns_how_many_queued_connections_it_closed()
+  local closed, first, second = 0, nil, nil
+  reactor.run(function()
+    local hand_over = listening.HandOverListener(nil, 4)
+    local function stream() return { close = function() closed = closed + 1 end } end
+    hand_over:push(stream()); hand_over:push(stream())
+    first, second = hand_over:close(), hand_over:close()
+  end)
+  self:assert_equal(2, first)
+  self:assert_equal(2, closed)
+  self:assert_equal(0, second) -- idempotent: nothing left to close
+end
+
 function T:test_the_hand_over_listener_queues_wraps_and_closes()
   local accepted, queued_after_close, failure, closed_stream
   reactor.run(function()

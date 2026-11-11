@@ -892,6 +892,21 @@ function T:test_control_closes_a_connection_the_full_queue_cannot_take_and_logs_
   local record = memory:records()[1]
   self:assert_equal("hand_over_queue_full", record.fields.code)
   self:assert_equal(1, record.fields.capacity)
+  local discarded = memory:records()[2]
+  self:assert_equal("hand_over_discarded", discarded.fields.code, "a queued connection closed unserved is logged")
+  self:assert_equal(1, discarded.fields.count)
+end
+
+function T:test_control_logs_a_failure_of_the_pipe()
+  local memory = log.MemorySink()
+  local saved = log.default()
+  log.set_default(log.Logger({ sinks = { memory } }))
+  run_control({ function() error("broken pipe") end }, 9)
+  log.set_default(saved)
+  local record = memory:records()[1]
+  self:assert_not_nil(record, "the failure is logged")
+  self:assert_equal("control_failed", record.fields.code)
+  self:assert_true(tostring(record.fields.reason):find("broken pipe", 1, true) ~= nil, tostring(record.fields.reason))
 end
 
 function T:test_the_worker_role_refuses_an_unknown_strategy_and_a_malformed_port()

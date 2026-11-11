@@ -729,6 +729,9 @@ function WorkerRole:control(on_stop, default_grace)
     local ok, message, stream = pcall(peer.receive, peer)
     if not ok then
       if core.is_instance_of(message, core.CancellationError) then error(message, 0) end
+      -- A broken or violated message pipe ends the worker like the end of the pipe; the handles still in it are lost.
+      log.default():error("kernel.WorkerRole: the message pipe to the primary failed; the worker stops",
+        { code = "control_failed", worker = self.index, reason = tostring(message) })
       break
     end
     if message == nil then break end
@@ -753,7 +756,11 @@ function WorkerRole:control(on_stop, default_grace)
   -- them (`HandOverListener:drain`) before it shuts down, so a rolling reload resets none; whatever is still queued
   -- afterwards is closed.
   local stopped, failure = pcall(on_stop, grace)
-  self._hand_over:close()
+  local discarded = self._hand_over:close()
+  if discarded > 0 then
+    log.default():warning("kernel.WorkerRole: connections still queued at the stop were closed unserved",
+      { code = "hand_over_discarded", worker = self.index, count = discarded })
+  end
   if not stopped then error(failure, 0) end
 end
 

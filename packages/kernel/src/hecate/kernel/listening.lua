@@ -139,15 +139,23 @@ function HandOverListener:drain(timeout)
   return self._pending:length() == 0
 end
 
---- Stops accepting: a waiting `accept` fails, the queued connections are closed. Idempotent, never suspends.
+--- Stops accepting: a waiting `accept` fails, the queued connections are closed. Returns how many queued connections
+--- it closed (0 when already closed): each is a client that gets no answer, which the caller may log. Idempotent,
+--- never suspends.
+---@return integer closed
 function HandOverListener:close()
   local pending = self._pending
-  if pending:is_closed() then return end
+  if pending:is_closed() then return 0 end
   pending:close()
+  local closed = 0
   while pending:length() > 0 do
     local ok, stream = pcall(pending.receive, pending) -- a closed channel yields its buffered values without suspending
-    if ok then stream:close() end
+    if ok then
+      stream:close()
+      closed = closed + 1
+    end
   end
+  return closed
 end
 
 ---@return boolean
