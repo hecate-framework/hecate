@@ -184,6 +184,7 @@ function T:test_invalid_shapes_are_refused_with_a_reason()
   bad("invalid_responses", { action = action, responses = { ["200"] = User } })
   bad("invalid_responses", { action = action, responses = { [200] = {} } })
   bad("invalid_responses", { action = action, responses = { [99] = User } })
+  bad("invalid_responses", { action = action, responses = { [204] = false } })
   bad("invalid_security", { action = action, security = "bearer" })
   bad("invalid_filters", { action = action, filters = { {} } })
   refused(self, "invalid_path", function() module:get("x", { action = action }) end)
@@ -401,6 +402,36 @@ function T:test_a_prefix_that_is_a_single_slash_is_refused_because_the_prefix_is
   local module = kernel.routes("m", { prefix = "" })
   module:get("/x", { action = action })
   self:assert_equal("/x", module:routes()[1].path)
+end
+
+function T:test_a_status_declared_with_true_has_no_content_schema()
+  local module = kernel.routes("m")
+  module:delete "/x" { action = action, responses = { [204] = true, [404] = problem.NotFound } }
+  local entry = module:routes()[1]
+  self:assert_equal(true, entry.responses[204])
+  self:assert_equal(problem.NotFound, entry.responses[404])
+end
+
+function T:test_a_verb_whose_declarations_were_never_given_is_reported_by_routes()
+  local module = kernel.routes("m")
+  module:get "/a" { action = action }
+  local _ = module:get "/forgotten" -- the table of declarations is missing: the route would be dropped silently
+  local err = refused(self, "incomplete_route", function() module:routes() end)
+  self:assert_true(err.message:find("GET /forgotten", 1, true) ~= nil, err.message)
+  refused(self, "incomplete_route", function() kernel.routing.collect({ module }) end)
+end
+
+function T:test_a_curried_declaration_completed_later_is_not_incomplete()
+  local module = kernel.routes("m")
+  local pending = module:post "/later"
+  pending { action = action }
+  self:assert_equal(1, #module:routes())
+end
+
+function T:test_a_curried_declaration_that_is_refused_is_not_reported_as_incomplete()
+  local module = kernel.routes("m")
+  refused(self, "invalid_action", function() module:get "/bad" {} end)
+  self:assert_equal(0, #module:routes())
 end
 
 return T

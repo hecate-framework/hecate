@@ -108,7 +108,8 @@
 - `kernel.routes(name)`: a route module (`kernel.RouteModule`). `module:get(path, spec)` and the curried `module:get "/x" { ... }`
   (same for `post`, `put`, `patch`, `delete`, `head`, `options`) declare a route whose `action` is a function; the
   declaration is validated at once and a mistake leaves the module unchanged. `module:routes()` returns the normalised
-  route list, in declaration order.
+  route list, in declaration order; it raises `RouteDeclarationError` (`incomplete_route`) when a verb was called
+  without its table of declarations (`module:get "/x"` alone), which would otherwise drop the route silently.
   `kernel.routes(name, options?)` takes `options = { prefix?, filters? }`, validated at once (`RouteDeclarationError`
   for an unknown field, a non-string or malformed `prefix`, a non-list `filters` or a non-filter element). `prefix` has
   the rule of a controller prefix and is prepended to every route, so the default name `<METHOD> <full path>` includes
@@ -125,12 +126,13 @@
 - `kernel.route.normalise(spec, options)`, `kernel.route.METHODS`, `kernel.route.check_action(entry)`: the single route entry
   (`hecate.kernel.RouteEntry`: `method`, `path`, `name`, `summary`, `description`, `tags`, `deprecated`, `parameters`
   with `path`, `query`, `fields` and `cookies`, `content`, `responses`, `security`, `filters`, `action`, plus `controller`
-  and `origin`), usable as a `hecate.router.Route`. The name defaults to `<METHOD> <path>` in both styles, so equivalent
+  and `origin`), usable as a `hecate.router.Route`. A `responses` value is a schema, a problem class or `true`, which
+  declares a status without content (`[204] = true`). The name defaults to `<METHOD> <path>` in both styles, so equivalent
   declarations give equal tables. The parameters of the path template and `parameters.path` must match both ways.
 - `kernel.routing.collect(sources)`: the flat route table of route modules and controller classes, ready for
   `router.Router`.
 - `kernel.RouteDeclarationError`: a `ConfigurationError`; `context.reason` (`unknown_field`, `invalid_method`, `invalid_path`,
-  `parameter_mismatch`, `missing_action`, ...), `context.origin`, `context.field`. Choices: OQ-113.
+  `parameter_mismatch`, `missing_action`, `incomplete_route`, ...), `context.origin`, `context.field`. Choices: OQ-113.
 
 - `kernel.dispatcher.build(entries, options?)`: the function that serves a request and its router. Per route, once at
   composition, the schemas of the inputs are resolved (`kernel.input.compile(entry, options?)`, returns nil for a route

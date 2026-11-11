@@ -22,7 +22,7 @@ local errors = require("hecate.kernel.errors")
 ---@field deprecated boolean
 ---@field parameters hecate.kernel.RouteParameters
 ---@field content table<string, hecate.schema.Schema>  request schema per media type
----@field responses table<integer, hecate.schema.Schema|table>  schema (or problem class) per status code
+---@field responses table<integer, hecate.schema.Schema|table|true>  schema, problem class, or `true` (declared without content) per status code
 ---@field security table[]  requirements, kept as declared (the `security` package defines their shape)
 ---@field filters hecate.kernel.Filter[]  outermost first: those of the controller, then those of the route
 ---@field action string|fun(request: any): any  a method name of `controller`, or an action function
@@ -48,7 +48,7 @@ local errors = require("hecate.kernel.errors")
 ---@field deprecated? boolean
 ---@field parameters? { path?: table<string, hecate.schema.Schema>, query?: table<string, hecate.schema.Schema>, fields?: table<string, hecate.schema.Schema>, cookies?: table<string, hecate.schema.Schema> }
 ---@field content? table<string, hecate.schema.Schema>
----@field responses? table<integer, hecate.schema.Schema|table>
+---@field responses? table<integer, hecate.schema.Schema|table|true>  `true` declares a status without content (`[204] = true`)
 ---@field security? table[]
 ---@field filters? hecate.kernel.Filter[]
 ---@field action string|fun(request: any): any  a method name (controller) or a function (route module)
@@ -232,9 +232,9 @@ function route.normalise(spec, options)
       if math.type(status) ~= "integer" or status < 100 or status > 599 then
         refuse(origin, "invalid_responses", "responses", "responses keys are status codes (100..599), got " .. tostring(status))
       end
-      if not schema.is_schema(representation) and not problem.is_class(representation) then
+      if representation ~= true and not schema.is_schema(representation) and not problem.is_class(representation) then
         refuse(origin, "invalid_responses", "responses",
-          ("responses[%d] must be a schema or a problem class (hecate.kernel.problem)"):format(status))
+          ("responses[%d] must be a schema, a problem class (hecate.kernel.problem) or true (no content)"):format(status))
       end
       responses[status] = representation
     end

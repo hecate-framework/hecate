@@ -1,6 +1,6 @@
 -- Route modules: the lightweight declaration style (ADR 0006). `hecate.routes(name)` returns an object whose verbs
 -- declare routes taking an action function; the normalised route list is read back with `RouteModule:routes()`.
-global <const> require, type, error, ipairs, pairs, string, tostring
+global <const> require, type, error, ipairs, pairs, string, tostring, table
 
 local core = require("hecate.core")
 local route = require("hecate.kernel.route")
@@ -12,6 +12,7 @@ local route = require("hecate.kernel.route")
 ---@field private _entries hecate.kernel.RouteEntry[]
 ---@field private _prefix? string
 ---@field private _filters? hecate.kernel.Filter[]
+---@field private _pending table<table, string>  curried verbs whose table of declarations is not given yet
 ---@field get fun(self: hecate.kernel.RouteModule, path: string, spec?: hecate.kernel.RouteSpec): hecate.kernel.RouteModule|fun(spec: hecate.kernel.RouteSpec): hecate.kernel.RouteModule
 ---@field post fun(self: hecate.kernel.RouteModule, path: string, spec?: hecate.kernel.RouteSpec): hecate.kernel.RouteModule|fun(spec: hecate.kernel.RouteSpec): hecate.kernel.RouteModule
 ---@field put fun(self: hecate.kernel.RouteModule, path: string, spec?: hecate.kernel.RouteSpec): hecate.kernel.RouteModule|fun(spec: hecate.kernel.RouteSpec): hecate.kernel.RouteModule
@@ -43,6 +44,7 @@ function RouteModule:init(name, options)
   end
   self.name = name
   self._entries = {}
+  self._pending = {}
   local origin = "route module " .. name
   if options ~= nil then
     if type(options) ~= "table" then
@@ -99,13 +101,29 @@ for _, method in ipairs(route.METHODS) do
   --- Declares a route. Both spellings are the same: `module:get("/x", { ... })` and `module:get "/x" { ... }`.
   RouteModule[string.lower(method)] = function(self, path, spec)
     if spec ~= nil then return declare(self, method, path, spec) end
-    return function(declared) return declare(self, method, path, declared) end
+    -- `module:get "/x"` alone would drop the route silently: remember it until its declarations are given.
+    local token = {}
+    self._pending[token] = method .. " " .. tostring(path)
+    return function(declared)
+      self._pending[token] = nil
+      return declare(self, method, path, declared)
+    end
   end
 end
 
 --- The normalised route list, in declaration order. A new list on each call; the entries are shared.
+---
+--- Raises `RouteDeclarationError` with reason `incomplete_route` when a verb was called without its table of
+--- declarations (`module:get "/x"` alone), so the mistake is reported at boot instead of dropping the route.
 ---@return hecate.kernel.RouteEntry[]
 function RouteModule:routes()
+  local incomplete = {}
+  for _, label in pairs(self._pending) do incomplete[#incomplete + 1] = label end
+  if #incomplete > 0 then
+    table.sort(incomplete)
+    route.refuse("route module " .. self.name, "incomplete_route", nil, "route " .. table.concat(incomplete, ", ")
+      .. " has no table of declarations (write module:get \"/x\" { ... })")
+  end
   local list = {}
   for index, entry in ipairs(self._entries) do list[index] = entry end
   return list
