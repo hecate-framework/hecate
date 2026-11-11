@@ -3,8 +3,8 @@
 
 - roadmap_item: `kernel`: application, modules, controllers, route modules, filters, problem details, lifecycle, multi-process workers, graceful shutdown (Phase 2, docs/roadmap.md)
 - status: in-progress
-- lock_until: 2026-11-11T10:11:06Z
-- last_update: 2026-11-11T10:11:06Z
+- lock_until: 2026-11-11T11:51:32Z
+- last_update: 2026-11-11T10:21:32Z
 
 ## Done
 
@@ -71,6 +71,8 @@
 
 - Step 24 (owner request, run of ~09:57Z, lock released at the end): CI speed-up. `http` tests 91 s to 16 s (scripted server cancels its forks, fixture grace 0.25 s, timeouts 0.3 s); `ci.yml`: static checks on Linux only, per-module native build caches keyed by all inputs, `HECATE_TEST_JOBS` worker pool for `tests/unit`, `tests/conformance` and `tools/tests` (integration stays serial; 1m51 to 0m50 locally), documentation-only pushes skip the matrix only when the previous head's `ci-ok` is `success` (safety net added by me: otherwise a docs commit would hide a red code commit), `docs-checks` and `ci-ok` jobs, `CARGO_INCREMENTAL=0`, `HECATE_NATIVE_PROFILE=debug` supported but NOT used in CI (the 1 MiB-stack JSON encoder test segfaults in debug). UNVERIFIED until the first CI run on the three platforms: cache keys and `!` exclusions, `.dll` restore on Windows, the `if` expressions and the `ci-ok` aggregation, the 0.3 s test timeouts on Windows and macOS. Owner may make `ci-ok` the required check.
 - To fix: `Client` with `expect_continue = true` does not add `Expect: 100-continue` (`packages/http/src/hecate/http/internal/client_exchange.lua` `write_request`; the doc of `client.lua` says it does; the client waits for `expect_timeout`); fix test first and make the test at `client_test.lua` (explicit `Expect` field) strict.
+
+- Step 25 in progress (owner request, ~10:22Z, regular 90-minute lock): (a) fix `Client` `expect_continue` (test first), (b) HANDOFF item (2): a persistent signal handle in `reactor` and capability queries for spawn and handle passing, then the kernel uses them. CI of step 24 is green on the three platforms (run 657, 4m07 cold caches).
 
 ## Next steps
 
