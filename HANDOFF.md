@@ -2,9 +2,9 @@
 # Handoff
 
 - roadmap_item: `kernel`: application, modules, controllers, route modules, filters, problem details, lifecycle, multi-process workers, graceful shutdown (Phase 2, docs/roadmap.md)
-- status: in-progress
-- lock_until: 2026-11-11T21:15:00Z
-- last_update: 2026-11-11T19:45:00Z
+- status: waiting-owner
+- lock_until: 2026-11-11T20:45:00Z
+- last_update: 2026-11-11T20:45:00Z
 
 ## Done
 
@@ -79,7 +79,7 @@
 - Step 29 (same run): review finding H5: `problems.guard` uses `xpcall` and logs `method`, `path` (no query) and `traceback` with the error; 1 test (test first). typecheck, lint, check-annotations, `test kernel`, `test examples/hello` ok.
 - Step 30 (same run, lock released at the end): owner item M1: `HandoffListener(address?, capacity?)` bounded at the worker's backlog (default `http.Server.DEFAULTS.backlog`, 128), `push` returns `false, "full"` and closes the stream, `WorkerRole:control` logs `handover_queue_full` through `log.default()`; 2 tests (test first). typecheck, lint, check-annotations, check-boundaries, check-glossary, check-lua-constructs, `test kernel` (4 runs) ok. Seen once: `ApplicationWorkersTest.test_reload_replaces_the_workers_without_failing_a_request` failed (`expected 0, got 1`, a failed request during the reload), green on 3 reruns: flaky, belongs to owner item 11 (flakiness).
 - Step 31 (owner: take over the review items until the branch is mergeable; lock released at the end): all the owner decisions of item 0b are done and pushed: module filters per module and global filters around routing (guard inside them), boot without side effects and `already_served`, `on_crash_loop`, unencodable problem extensions, 4xx at `warning`, worker environment checks, renames (`request.services`, `Controller.entries`, hand-over stem, `chains`), uniform errors and codes, new problem classes, `hecate.kernel.Request`, controller prefix rules, `ready_timeout` and counters, a kill of a worker that ignores `stop`, a fix of the rolling-reload request loss (`http.Server:shutdown` keeps a fresh connection for up to 1 s; `HandOverListener:drain`; the queue is closed after `on_stop`), the `hecate` meta-module, `kernel` in the generated reference, French page refreshed, the test list and the flakiness fixes. Lua 5.5 was built from the owner's tarball. Final reviews (conformance, security) found no open high finding. All local checks and `typecheck` are green; `test kernel` passed 15 times in a row. Not done by decision: boot check of controller dependencies, serialisers option, `reuseport` end to end (OQ-43). Left for the owner: ADR 0023 (Accepted) still says `server.workers.strategy` (the key is `server.strategy`) and "hand-off"; tick the kernel roadmap item (deferred pieces: request id through the ambient context, `on_unobserved_failure` helper, generated `config/*.lua` values, `reuseport` conformance).
-- Step 33 in progress (owner: fix the CI before ticking; lock until 21:15Z): OQ-118, the macOS loss of connections during a rolling reload; ADR 0023 edited by the owner's leave (key `server.strategy`, wording hand-over). Plan: option (a) of OQ-118 (the worker acknowledges each `connection` with `received`, the primary closes its descriptor only then; `Peer:send` leaves the stream open on request), checked on Linux here and on macOS through CI; fall back to relaxing the two reload tests on macOS (option c) only if (a) fails there.
+- Step 33 (owner: fix the CI before ticking; lock released at the end): OQ-118 option (a): `Peer:send` takes `options.keep_open`; the primary keeps each handed-over connection open in a per-worker FIFO until the worker answers `received` (a dedicated sender computation, so `stop` is never delayed) and closes what is still held when the pipe ends or the worker exits; a pump reads the replacement's messages during a reload; ADR 0023 Decision 5 amended; OQ-118 resolved, issue #174 closed (reopen it if macOS still loses connections: then fall back to option (c), relaxing the two reload tests on macOS). Green locally: all checks, typecheck, `test reactor`, `test http`, `test kernel` 15/15. macOS is verified only by CI: the runs of 10a1c04 stayed `queued` for 25 minutes with no job created and could be neither cancelled nor re-run (GitHub side); this commit triggers new runs. Next: read the CI of this head, macOS first.
 
 ## Next steps
 
