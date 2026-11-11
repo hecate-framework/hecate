@@ -49,6 +49,16 @@ function T:test_module_errors_have_stable_reasons()
   self:assert_equal("dependency_cycle", reason({ { name = "a", requires = { "b" } }, { name = "b", requires = { "a" } } }))
   self:assert_equal("invalid_module", reason({ { name = "a", bogus = 1 } }))
   self:assert_equal("invalid_module", reason({ "a" }))
+  self:assert_equal("invalid_module", reason({ { name = "m", filters = { 42 } } })) -- no routes: still refused at boot
+  self:assert_equal("invalid_module", reason({ { name = "m", filters = { {} } } }))
+end
+
+function T:test_a_malformed_module_filter_names_the_module()
+  local ok, err = pcall(function() kernel.Application({ modules = { { name = "billing", filters = { { handle = function() end }, 42 } } } }):boot() end)
+  self:assert_false(ok)
+  self:assert_equal("invalid_module", err.context.reason)
+  self:assert_equal("billing", err.context.module)
+  self:assert_true(tostring(err.message):find("element 2", 1, true) ~= nil, tostring(err.message))
 end
 
 function T:test_a_second_boot_and_unknown_options_are_refused()
@@ -215,6 +225,90 @@ function T:test_serve_runs_once()
     self:assert_true(core.is_instance_of(err, kernel.ModuleError), tostring(err))
     self:assert_equal("already_served", err.context.reason)
   end
+end
+
+function T:test_a_serve_that_fails_before_the_run_leaves_the_application_servable()
+  local core = require("hecate.core")
+  local reactor = require("hecate.reactor")
+  local app = kernel.Application({ signals = false, server = { host = "127.0.0.1", port = 0, bogus = true } })
+  reactor.run(function()
+    local ok, err = pcall(app.serve, app)
+    self:assert_false(ok)
+    self:assert_true(core.is_instance_of(err, core.ArgumentError), tostring(err))
+    -- Not served: the same failure again, never `already_served`, and the container is still open.
+    local again, second = pcall(app.serve, app)
+    self:assert_false(again)
+    self:assert_true(core.is_instance_of(second, core.ArgumentError), tostring(second))
+    self:assert_nil(app._served)
+  end)
+  -- With corrected options (a new application: the options are fixed at creation) serving works.
+  local fixed = kernel.Application({ signals = false, server = { host = "127.0.0.1", port = 0 } })
+  reactor.run(function()
+    reactor.fork(function()
+      while not fixed:local_address() do reactor.sleep(0.005) end
+      fixed:shutdown(1)
+    end)
+    reactor.deadline(10, fixed.serve, fixed)
+  end)
+end
+
+function T:test_a_primary_that_cannot_tell_how_to_start_a_worker_stays_servable()
+  local core = require("hecate.core")
+  local reactor = require("hecate.reactor")
+  local saved = _G.arg
+  _G.arg = nil -- no main program: `worker_command_from` raises
+  local app = kernel.Application({ signals = false, workers = 2, server = { host = "127.0.0.1", port = 0 } })
+  local ok, err
+  reactor.run(function() ok, err = pcall(app.serve, app) end)
+  _G.arg = saved
+  self:assert_false(ok)
+  self:assert_true(core.is_instance_of(err, core.ArgumentError), tostring(err))
+  self:assert_nil(app._served)
+  self:assert_nil(app._supervisor)
+end
+
+--- An application that believes it serves as a primary, with a supervisor whose `reload` is `behaviour`.
+local function reloading_application(behaviour)
+  local memory = log.MemorySink()
+  local app = kernel.Application({ logger = log.Logger({ sinks = { memory } }) })
+  app._supervisor = { reload = behaviour }
+  return app, memory
+end
+
+local function codes_logged(memory)
+  local codes = {}
+  for _, record in ipairs(memory:records()) do codes[#codes + 1] = record.fields and record.fields.code end
+  return codes
+end
+
+function T:test_a_refused_reload_logs_reload_refused_and_never_reload_started()
+  local reactor = require("hecate.reactor")
+  for _, reason in ipairs({ "reload_in_progress", "stopping", "not_running" }) do
+    local app, memory = reloading_application(function()
+      error(kernel.SupervisorError("refused", { context = { reason = reason } }), 0)
+    end)
+    reactor.run(function()
+      local err = self:assert_error(function() app:reload() end)
+      self:assert_equal(reason, err.context.reason)
+    end)
+    self:assert_equal(1, #codes_logged(memory), reason)
+    self:assert_equal("reload_refused", codes_logged(memory)[1], reason)
+  end
+end
+
+function T:test_an_accepted_reload_logs_started_before_done_or_failed()
+  local reactor = require("hecate.reactor")
+  local app, memory = reloading_application(function(_, options) options.on_accepted() end)
+  reactor.run(function() app:reload() end)
+  self:assert_equal("reload_started", codes_logged(memory)[1])
+  self:assert_equal("reload_done", codes_logged(memory)[2])
+  local failing, failed = reloading_application(function(_, options)
+    options.on_accepted()
+    error(kernel.SupervisorError("failed", { context = { reason = "reload_failed", cause = "not_ready" } }), 0)
+  end)
+  reactor.run(function() self:assert_error(function() failing:reload() end) end)
+  self:assert_equal("reload_started", codes_logged(failed)[1])
+  self:assert_equal("reload_failed", codes_logged(failed)[2])
 end
 
 function T:test_responses_are_validated_in_development_and_test_only()

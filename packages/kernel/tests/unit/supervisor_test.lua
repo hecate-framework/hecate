@@ -495,6 +495,32 @@ function T:test_a_replacement_that_cannot_be_started_fails_the_reload_and_keeps_
   self:assert_true(failed)
 end
 
+function T:test_on_accepted_is_called_for_an_accepted_reload_only()
+  local world = new_world(function(n) return n == 2 and { ready = false } or {} end) -- the replacement keeps the reload busy
+  with_spawn(world.spawn, function()
+    virtual(function()
+      local sup = supervisor_for({})
+      local accepted = 0
+      local function count() accepted = accepted + 1 end
+      self:assert_error(function() sup:reload({ on_accepted = count }) end) -- not running: refused
+      self:assert_equal(0, accepted)
+      self:assert_error(function() sup:reload({ on_accepted = {} --[[@as any]] }) end)
+      reactor.scope(function(scope)
+        local running = scope:fork(sup.run, sup)
+        virtual_wait(function() return sup:ready_count() == 1 end)
+        local reloading = scope:fork(function() pcall(sup.reload, sup, { grace_timeout = 1, ready_timeout = 5, on_accepted = count }) end)
+        virtual_wait(function() return accepted == 1 end)
+        local err = self:assert_error(function() sup:reload({ on_accepted = count }) end) -- another reload runs
+        self:assert_equal("reload_in_progress", err.context.reason)
+        reloading:value()
+        self:assert_equal(1, accepted)
+        sup:stop(1)
+        running:value()
+      end)
+    end)
+  end)
+end
+
 -- The ready timeout outside a reload ------------------------------------------------------------------------------------
 
 function T:test_ready_timeout_is_validated()

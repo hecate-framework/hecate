@@ -168,6 +168,44 @@ function T:test_reload_replaces_the_workers_without_failing_a_request()
   self:assert_true(contains(codes, "reload_done"))
 end
 
+function T:test_a_reload_resets_no_connection_handed_over_just_before_the_stop()
+  if not can_run_workers() then return end
+  local app = new_application({ signals = false })
+  local ok, err, failures, answered, reloads = nil, nil, 0, 0, 0
+  local CLIENTS = 4
+  with_lua_paths(function()
+    reactor.run(function()
+      reactor.fork(function()
+        wait_ready(app)
+        local port = app:local_address().port
+        local reloading = true
+        local clients = {}
+        -- Short requests in a tight loop from several clients: some connection is always on its way to the worker that
+        -- the primary is about to stop. The reload must reset none of them.
+        for _ = 1, CLIENTS do
+          clients[#clients + 1] = reactor.fork(function()
+            while reloading do
+              if get(port, "/whoami") then answered = answered + 1 else failures = failures + 1 end
+            end
+          end)
+        end
+        for _ = 1, 2 do
+          app:reload({ grace_timeout = 5 })
+          reloads = reloads + 1
+        end
+        reloading = false
+        for _, client in ipairs(clients) do client:value() end
+        app:shutdown(5)
+      end)
+      ok, err = pcall(reactor.deadline, 90, app.serve, app)
+    end)
+  end)
+  self:assert_true(ok, tostring(err))
+  self:assert_equal(2, reloads)
+  self:assert_equal(0, failures)
+  self:assert_true(answered >= CLIENTS * 2, "the clients were served during the reloads")
+end
+
 function T:test_sighup_starts_the_reload_and_a_terminal_signal_during_it_stops()
   if not can_run_workers() then return end
   if not workers.can_raise_signals() then return end -- libuv delivers no sighup there

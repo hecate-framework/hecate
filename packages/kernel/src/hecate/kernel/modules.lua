@@ -3,6 +3,7 @@ global <const> require, type, error, ipairs, pairs, tostring, table
 
 local core = require("hecate.core")
 local errors = require("hecate.kernel.errors")
+local chain = require("hecate.kernel.chain")
 
 --- A feature module: one feature's controllers, route modules and services, with the modules it needs. A plain table.
 ---@class hecate.kernel.FeatureModule
@@ -44,6 +45,13 @@ local function check(module, index)
   for _, field in ipairs({ "routes", "filters" }) do
     if module[field] ~= nil and type(module[field]) ~= "table" then
       refuse("invalid_module", ("module %q: %s is a list"):format(name, field), name)
+    end
+  end
+  -- Checked here, as `chain.compose` does, so that a module without routes does not hide a malformed filter.
+  for position = 1, #(module.filters or {}) do
+    if not chain.is_filter(module.filters[position]) then
+      refuse("invalid_module", ("module %q: element %d of filters is not a filter (a table with a handle function), got %s"):format(
+        name, position, type(module.filters[position])), name)
     end
   end
 end

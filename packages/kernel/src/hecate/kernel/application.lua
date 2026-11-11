@@ -159,8 +159,8 @@ end
 --- program started with the worker role in its environment (ADR 0023, Decision 1).
 ---
 --- An interpreter named without a path separator (`lua`, started through the search path) is replaced by the absolute
---- path of the first file of that name found in the search path, so that a worker does not depend on the `PATH` of the
---- primary's children; when none is found the name is kept as it is.
+--- path of the first file of that name found in the search path, so that a worker does not depend on the `PATH` of
+--- the workers of the primary; when none is found the name is kept as it is.
 ---
 --- Raises `hecate.core.ArgumentError` when there is no main program (interactive use, `-e`, embedding): give `worker_command`.
 ---@param arguments? table  default the global `arg`
@@ -282,8 +282,8 @@ local function describe_failure(err)
   return nil, nil, tostring(err)
 end
 
---- Runs a reload for `sighup`: logs, never raises (a failed reload leaves the primary serving). Not started once a
---- shutdown began; a reload already running makes the signal a no-op with a warning.
+--- Runs a reload for `sighup`: `reload` logs, this never raises (a failed reload leaves the primary serving). Not
+--- started once a shutdown began; a reload already running makes the signal a no-op (`reload` logs `reload_refused`).
 ---@async
 ---@param self hecate.kernel.Application
 ---@param logger? hecate.log.Logger
@@ -292,10 +292,7 @@ local function reload_on_signal(self, logger)
   local ok, err = pcall(self.reload, self)
   if ok then return end
   if core.is_instance_of(err, core.CancellationError) then error(err, 0) end
-  local reason, _, message = describe_failure(err)
-  if logger ~= nil and (reason == "reload_in_progress" or reason == "stopping" or reason == "not_running") then
-    logger:warning("kernel.Application: reload refused: " .. message, { code = "reload_refused", reason = reason })
-  end
+  -- `reload` has already logged what failed or was refused; a signal never raises.
 end
 
 --- Waits for `sigint` or `sigterm`, then shuts the application down gracefully. `sighup` starts the rolling reload of
@@ -417,10 +414,11 @@ local function server_options_of(self)
   return server_options
 end
 
---- Serves as the primary of several workers: runs a `Supervisor` on the endpoint of the `server` option.
----@async
+--- Prepares the primary of several workers: builds the `Supervisor` for the endpoint of the `server` option and returns
+--- the function that runs it. Everything that can raise before the run happens here.
 ---@param self hecate.kernel.Application
-local function serve_as_primary(self)
+---@return fun() run  async: serves until the supervisor stops, then closes the container
+local function prepare_primary(self)
   -- Like the signal watcher and `http.Server`, the primary falls back to the default logger (OQ-79).
   local resolved, logger = self._resolved, self._resolved.logger or log.default()
   local server_options = self._options.server or {}
@@ -439,7 +437,7 @@ local function serve_as_primary(self)
   if fallback ~= nil then logger:warning("kernel.Application: " .. fallback, { code = "strategy_fallback" }) end
   logger:notice(("kernel.Application: starting %d workers (strategy %s)"):format(resolved.workers, strategy.name),
     { code = "workers_starting", workers = resolved.workers, strategy = strategy.name, host = endpoint.host, port = endpoint.port })
-  run_watched(self, watch_signals, function() sup:run() end)
+  return function() run_watched(self, watch_signals, function() sup:run() end) end
 end
 
 --- Boots when needed, then serves HTTP until `shutdown` completes. Returns when the server has stopped; closes the
@@ -455,7 +453,8 @@ end
 ---
 --- An application is served once: `serve` closes the container when it returns, so a second call (while serving or
 --- after the shutdown) raises `hecate.kernel.ModuleError` with `context.reason = "already_served"`; build a new
---- application to serve again. A `serve` whose `boot` failed does not count.
+--- application to serve again. A `serve` that fails before the run begins (a failed `boot`, bad `server` options, no way
+--- to tell how to start a worker) does not count: the application is booted and not served, and can be served again.
 ---
 --- Raises what `boot` and `hecate.http.Server:serve` raise, `hecate.kernel.ModuleError` (`already_served`) and
 --- `hecate.kernel.SupervisorError` in a primary.
@@ -466,13 +465,16 @@ function Application:serve()
       { context = { reason = "already_served" } }), 2)
   end
   local serve = self._serve or self:boot()
-  self._served = true
   local role = supervisor.worker_role()
   if role == nil and self._resolved.workers > 1 then
-    serve_as_primary(self)
+    -- Everything that can fail before the run (the supervisor, the worker command) is prepared before `_served` is set.
+    local run = prepare_primary(self)
+    self._served = true
+    run()
     return
   end
-  local server = http.Server(serve, server_options_of(self))
+  local server = http.Server(serve, server_options_of(self)) -- may raise for bad options: nothing is marked yet
+  self._served = true
   self._server = server
   if role ~= nil then
     run_watched(self, swallow_signals, function() role:serve(server, self._resolved.grace_timeout) end)
@@ -512,7 +514,9 @@ end
 --- Replaces the workers one at a time with fresh processes that run the code on disk now (`Supervisor:reload`, the
 --- rolling reload of ADR 0023), and returns when every worker has been replaced. In a primary, `sighup` (not on Windows)
 --- starts the same reload; this method is for programmatic use. Logs `reload_started` and `reload_done` (`notice`) and
---- `reload_failed` (`error`, with the reason); a failed reload leaves the old workers serving.
+--- `reload_failed` (`error`, with the reason); a failed reload leaves the old workers serving. A refused reload
+--- (`reload_in_progress`, `stopping`, `not_running`) logs only `reload_refused` (`warning`) and raises; `reload_started`
+--- is logged once the supervisor has accepted the reload.
 ---
 --- Raises `hecate.kernel.SupervisorError` (`reload_failed`, `reload_in_progress`, `stopping`; see `Supervisor:reload`)
 --- and `hecate.core.ArgumentError` when the application is not a primary of several workers that is serving.
@@ -527,15 +531,20 @@ function Application:reload(options)
     error(core.ArgumentError("hecate.kernel.application.reload: options must be a table { grace_timeout?, ready_timeout? }, got " .. type(options)), 2)
   end
   local given = options or {}
-  options = { grace_timeout = given.grace_timeout, ready_timeout = given.ready_timeout }
-  if options.grace_timeout == nil then options.grace_timeout = (self._resolved or self._options).grace_timeout end
   local logger = (self._resolved or self._options).logger or log.default()
-  logger:notice("kernel.Application: reloading the workers", { code = "reload_started" })
+  options = {
+    grace_timeout = given.grace_timeout, ready_timeout = given.ready_timeout,
+    -- `reload_started` is logged once the supervisor has accepted the reload, never for a refused one.
+    on_accepted = function() logger:notice("kernel.Application: reloading the workers", { code = "reload_started" }) end,
+  }
+  if options.grace_timeout == nil then options.grace_timeout = (self._resolved or self._options).grace_timeout end
   local ok, err = pcall(sup.reload, sup, options)
   if not ok then
     if core.is_instance_of(err, core.CancellationError) then error(err, 0) end
     local reason, cause, message = describe_failure(err)
-    if reason ~= "reload_in_progress" and reason ~= "stopping" and reason ~= "not_running" then
+    if reason == "reload_in_progress" or reason == "stopping" or reason == "not_running" then
+      logger:warning("kernel.Application: reload refused: " .. message, { code = "reload_refused", reason = reason })
+    else
       logger:error("kernel.Application: reload failed: " .. message,
         { code = "reload_failed", reason = reason, cause = cause })
     end

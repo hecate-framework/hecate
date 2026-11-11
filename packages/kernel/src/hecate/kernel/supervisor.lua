@@ -373,6 +373,8 @@ local function stop_workers(self, grace)
       if not received and core.is_instance_of(err, core.CancellationError) then error(err, 0) end
     end
   end
+  -- On purpose, `pcall` also absorbs an outer cancellation of this stop (the deadline that bounds the wait is
+  -- indistinguishable from it): the workers are then killed below rather than left running.
   local in_time = pcall(reactor.deadline, grace + KILL_MARGIN, wait_all)
   if not in_time then
     for _, slot in ipairs(self._slots) do
@@ -557,7 +559,7 @@ end
 --- is running), `stopping` (the supervisor is stopping) and `not_running` (not started, or stopped).
 --- Raises `hecate.core.ArgumentError` for a malformed argument.
 ---@async
----@param options? { grace_timeout?: number, ready_timeout?: number }  `grace_timeout`: seconds the old workers drain, default 30; `ready_timeout`: seconds a replacement may take to become ready, default 30
+---@param options? { grace_timeout?: number, ready_timeout?: number, on_accepted?: fun() }  `grace_timeout`: seconds the old workers drain, default 30; `ready_timeout`: seconds a replacement may take to become ready, default 30; `on_accepted`: called once, when the reload is accepted (not refused) and before the first worker is replaced
 function Supervisor:reload(options)
   if options ~= nil and type(options) ~= "table" then
     error(core.ArgumentError("hecate.kernel.supervisor.reload: options must be a table { grace_timeout?, ready_timeout? }, got " .. type(options)), 2)
@@ -569,6 +571,9 @@ function Supervisor:reload(options)
   if options.ready_timeout ~= nil and not is_duration(options.ready_timeout) then
     error(core.ArgumentError("hecate.kernel.supervisor.reload: ready_timeout must be a non-negative finite number of seconds, got " .. tostring(options.ready_timeout)), 2)
   end
+  if options.on_accepted ~= nil and type(options.on_accepted) ~= "function" then
+    error(core.ArgumentError("hecate.kernel.supervisor.reload: on_accepted must be a function, got " .. type(options.on_accepted)), 2)
+  end
   local function refuse(reason, text)
     error(errors.SupervisorError("hecate.kernel.supervisor.reload: cannot reload: " .. text, { context = { reason = reason } }), 3)
   end
@@ -576,6 +581,13 @@ function Supervisor:reload(options)
   if self._stopping or self._requests:length() > 0 then refuse("stopping", "the supervisor is stopping") end
   if self._reloading then refuse("reload_in_progress", "another reload is running") end
   self._reloading = true
+  if options.on_accepted ~= nil then
+    local called, failure = pcall(options.on_accepted)
+    if not called then
+      self._reloading = false
+      error(failure, 0)
+    end
+  end
   local reload_end = reactor.Channel(0)
   self._reload_end = reload_end
   local grace, ready_timeout = options.grace_timeout or 30, options.ready_timeout or 30
