@@ -172,7 +172,8 @@ may turn the handling off. The first signal stops accepting and lets the request
 finish for the grace period (configuration key `server.grace_timeout`, default 30 seconds);
 a second signal during the drain cancels the remaining requests at once. `SIGHUP` is not
 handled by a single process: the rolling reload of the workers belongs to the multi-process
-serving of ADR 0023. All handled through libuv signal handles (OQ-115).
+serving of ADR 0023. All handled through libuv signal handles (OQ-115). A loop that waits repeatedly uses a
+persistent `SignalWatcher`, which queues signals delivered between two waits (OQ-116).
 
 ## Testing requirements
 
