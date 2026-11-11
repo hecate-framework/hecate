@@ -8,9 +8,9 @@
 | Rock | `hecate-kernel` |
 | Layer | 3 — Framework |
 | Roadmap phase | 2 |
-| Status | in progress: filter chain, results, problems, route declarations, dispatcher, validation of the request inputs, `Application` skeleton and feature modules |
+| Status | in progress: filter chain, results, problems, route declarations, dispatcher, validation of the request inputs, `Application` skeleton and feature modules, listening strategies of multi-process serving |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |
-| Depends on | [`core`](../core), [`reactor`](../reactor), [`log`](../log), [`http`](../http), [`router`](../router), [`schema`](../schema), [`container`](../container), [`config`](../config), [`json`](../json) |
+| Depends on | [`core`](../core), [`reactor`](../reactor), [`net`](../net), [`log`](../log), [`http`](../http), [`router`](../router), [`schema`](../schema), [`container`](../container), [`config`](../config), [`json`](../json) |
 | Used by | `cli`, `hecate`, `security`, `template`, `test` |
 | Native code | none |
 | Specification | [http-and-routing.md](../../docs/architecture/http-and-routing.md) |
@@ -41,6 +41,7 @@
 
 - `kernel.load_configuration(options)`: `hecate.config.load` with `wrap_secret` set to `hecate.log.Secret` unless the options give one, so that the logging sinks render secret values `[redacted]`; pass the result as the `configuration` option of `Application`.
 - `kernel.Application(options)`: `boot()` (module order, services, container validation, route table, dispatcher; returns the `serve` function), `serve()` (async, runs an `http.Server`), `shutdown(grace)`, `local_address()` (the address while serving, else nil). Options: `configuration` (binds `limits.max_depth`, `errors.expose_details`, `requests.inputs` and the logging keys, builds and installs the default logger; explicit options win), `modules`, `routes`, `services`, `filters`, `container`, `max_depth`, `expose_details`, `inputs`, `logger`, `router`, `server`, `signals` (only `false`, which disables signal handling for tests and embedding; the signal set is fixed: `sigint` or `sigterm` makes `serve` call `shutdown(grace_timeout)`, and a second one while it drains forces the stop at once, cancelling the requests in flight and logging `shutdown_forced` at `warning`) and `grace_timeout` (seconds, default 30; bound to the configuration key `server.grace_timeout` when a `configuration` is given, an explicit option wins) (default 30 s, OQ-115).
+- `kernel.listening` (ADR 0023): `select(name, options?)` returns a new strategy for `auto`, `reuseport` or `round_robin` and, when a named strategy is not supported, the reason of the fallback to `round_robin` (`auto` falls back silently). A strategy has `supported()`, `prepare(endpoint)` (in the primary; `round_robin` binds and returns the address, port 0 allowed; `reuseport` needs a fixed port), `worker_listener(context)` (the listener a worker serves with `http.Server:serve`), `run(workers)` (the dispatch loop of the primary: `round_robin` hands each accepted connection to the next worker of a `WorkerRing` through its `hand_over(stream)`, tries each other worker once when one fails, then closes the connection; `reuseport` returns at once), `close()` and `local_address()`. `WorkerRing` (`add`, `remove`, `size`, `next`, `close`) is the rotation; `HandoffListener` (`push`, `accept`, `close`) is the listener of a `round_robin` worker, fed by its control loop. The supervisor (spawning, readiness, restart, drain) is not built yet.
 - Feature module: a table `{ name, requires?, services?, routes?, filters? }`; `kernel.modules.order` sorts it after its requirements. `kernel.ModuleError` carries `context.reason`.
 
 - `kernel.chain.compose(filters, action)`: composes a flat list of filters (outermost first)

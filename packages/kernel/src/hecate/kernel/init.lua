@@ -16,6 +16,7 @@ global <const> require, type, error, pairs
 ---@field routing hecate.kernel.routing  gathers route modules and controllers into one route table
 ---@field modules hecate.kernel.modules  validation and ordering of feature modules
 ---@field Application hecate.kernel.Application  the composition root
+---@field listening hecate.kernel.listening  the listening strategies of multi-process serving (ADR 0023)
 ---@field load_configuration fun(options: hecate.config.LoadOptions): hecate.config.Configuration  `config.load` with `wrap_secret = hecate.log.Secret`
 ---@field ModuleError hecate.kernel.ModuleError  an invalid application composition
 ---@field RouteDeclarationError hecate.kernel.RouteDeclarationError  an invalid route declaration
@@ -41,6 +42,7 @@ kernel.RouteModule = require("hecate.kernel.routes")
 ---@diagnostic disable-next-line: assign-type-mismatch  -- class constructor exported as its class
 kernel.Controller = require("hecate.kernel.controller")
 kernel.modules = require("hecate.kernel.modules")
+kernel.listening = require("hecate.kernel.listening")
 ---@diagnostic disable-next-line: assign-type-mismatch  -- class constructor exported as its class
 kernel.Application = require("hecate.kernel.application")
 kernel.RouteDeclarationError = require("hecate.kernel.errors").RouteDeclarationError

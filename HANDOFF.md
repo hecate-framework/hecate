@@ -3,8 +3,8 @@
 
 - roadmap_item: `kernel`: application, modules, controllers, route modules, filters, problem details, lifecycle, multi-process workers, graceful shutdown (Phase 2, docs/roadmap.md)
 - status: in-progress
-- lock_until: 2026-11-11T08:12:00Z
-- last_update: 2026-11-11T06:42:00Z
+- lock_until: 2026-11-11T08:40:00Z
+- last_update: 2026-11-11T07:10:00Z
 
 ## Done
 
@@ -57,9 +57,11 @@
 - Run of 00:42Z claimed the handoff and pushed nothing else (stopped early).
 - Step 20 (run of 2026-11-11T03:46Z, lock released at the end): roadmap (c): `kernel.load_configuration(options)` calls `config.load` with `wrap_secret` set to a function wrapping `hecate.log.Secret` (config checks the option is a function; `log.Secret` is a callable class), an explicit `wrap_secret` wins; 3 tests (one hides `package.loaded["hecate.log"]` to prove the kernel passes it, not config's fallback); README, CHANGELOG, configuration.md. typecheck, lint, check-annotations, check-boundaries, check-glossary, check-changelog, check-links, `test kernel` ok. Choice to confirm: the name and the shape (a helper the user calls, since `Application` takes an already loaded `Configuration`; the CLI-generated entry point will call it).
 
+- Step 21 (run of 2026-11-11T06:42Z): first part of the multi-process workers (ADR 0023): `hecate.kernel.listening` (`select`, `RoundRobinStrategy`, `ReuseportStrategy`, `WorkerRing`, `HandoffListener`), 12 tests with fake workers (no spawned process yet); `reactor.system_name()` and `reactor.available_parallelism()` (2 tests); ADR 0027 (Proposed): `kernel` depends on `net` (needed to bind listeners and wrap a stream received through `reactor.ipc` into a `net.TcpStream`; the package CLAUDE.md asks for an ADR for any new dependency). typecheck, lint, check-annotations, check-boundaries, check-glossary, check-lua-constructs, check-changelog, check-links, check-adr-index, check-rockspecs, `test kernel`, `test reactor` ok (after `build-native json`, `build-native http`). Choices to confirm: `auto` falling back to `round_robin` is silent (only a named strategy that is unsupported gives a reason to log); `reuseport` refuses port 0; `round_robin` tries each other worker once when a hand-over fails, then closes the connection; the strategy reads the private `_inner` of `net.TcpStream` to hand it over (ADR 0027 notes a public accessor would replace it).
+
 ## Next steps
 
-0. Kernel code still open: multi-process workers (ADR 0023: primary, `round_robin`, supervision, drain per worker; `SIGHUP` reload, OQ-115 (4)), response validation in development/test, the website reference page of `kernel`. Check CI of the pull request first.
+0. Kernel code still open: the supervisor of multi-process workers on top of `kernel.listening` (ADR 0023: worker role selected by `reactor.ipc` child marker, control messages `ready`/`stop(deadline)`/`reload`/counters over the IPC peer, the worker's control loop pushing received streams into a `HandoffListener` and draining on `stop` or when the pipe closes, restart with exponential backoff and a crash-loop limit, `server.workers` and `server.workers.strategy` config keys, integration test spawning real workers, a conformance test per strategy); then `SIGHUP` reload (roadmap (m)), response validation in development/test, the website reference page of `kernel`. Check CI of the pull request first.
 1. Before ticking: verify handoffs (a), (b), (c), (d), (e), (g), (h), (i), (j), (k), (l) against the roadmap text (most are done in code, see Done), then `/review-package kernel`.
 
 ## Decisions taken (and where they are recorded)

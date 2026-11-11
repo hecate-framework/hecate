@@ -11,6 +11,8 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- feat(kernel): `hecate.kernel.listening`, the listening strategies of multi-process serving (ADR 0023): `select(name)` (`auto`, `reuseport`, `round_robin`; an unsupported named strategy falls back to `round_robin` with a reason), `RoundRobinStrategy` (the primary binds, accepts and hands each connection to the next worker of a `WorkerRing`, trying the others when one fails), `ReuseportStrategy` (Linux with TCP `SO_REUSEPORT`, a fixed port), and `HandoffListener`, the listener of a `round_robin` worker. `kernel` now depends on `net` (ADR 0027, Proposed). The supervisor that starts the workers comes next.
+- feat(reactor): `reactor.system_name()` and `reactor.available_parallelism()`, capability queries for the listening strategies and the default count of workers.
 - feat(kernel): `kernel.load_configuration(options)`, `config.load` with `wrap_secret` set to `hecate.log.Secret` unless given, so that every logging sink renders the secret values `[redacted]` (roadmap kernel item (c), OQ-101).
 - feat(kernel): `Application:local_address()`, the address the application listens on while it serves (nil otherwise).
 - examples: `examples/hello`, a JSON API run through `kernel.Application` (path parameter validation, 422 problem details with `source`, 201 through `kernel.respond`, a `/health` route module, graceful shutdown), with an in-process test (`lua tools/run.lua test examples/hello`); single process only (multi-process workers are not built). tools: the `test` task accepts `examples/<name>`.
