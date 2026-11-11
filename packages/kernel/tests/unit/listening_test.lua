@@ -119,6 +119,43 @@ function T:test_the_handoff_listener_queues_wraps_and_closes()
   self:assert_equal("EBADF", failure.context.errno)
 end
 
+--- A stand-in for a received stream: only `close` matters to the listener when it refuses one.
+local function fake_stream()
+  local stream = { closed = false }
+  function stream:close() self.closed = true end
+  return stream
+end
+
+function T:test_the_handoff_listener_is_bounded_and_closes_what_it_cannot_queue()
+  reactor.run(function()
+    local handoff = listening.HandoffListener(nil, 2)
+    self:assert_equal(2, handoff:capacity())
+    local a, b, c = fake_stream(), fake_stream(), fake_stream()
+    self:assert_true((handoff:push(a)))
+    self:assert_true((handoff:push(b)))
+    local queued, reason = handoff:push(c)
+    self:assert_false(queued)
+    self:assert_equal("full", reason)
+    self:assert_true(c.closed)
+    self:assert_false(a.closed)
+    handoff:close()
+    local after, why = handoff:push(fake_stream())
+    self:assert_false(after)
+    self:assert_equal("closed", why)
+    self:assert_true(a.closed and b.closed)
+  end)
+end
+
+function T:test_the_handoff_listener_capacity_defaults_to_the_server_backlog_and_is_checked()
+  local http = require("hecate.http")
+  self:assert_equal(http.Server.DEFAULTS.backlog, listening.HandoffListener():capacity())
+  for _, bad in ipairs({ 0, -1, 1.5, "8" }) do
+    local ok, err = pcall(listening.HandoffListener, nil, bad)
+    self:assert_false(ok)
+    self:assert_true(core.is_instance_of(err, core.ArgumentError), tostring(err))
+  end
+end
+
 --- A worker of the test: takes a connection into its own handoff listener, as a real worker's control loop does.
 local function fake_worker(name, fail)
   local worker = { name = name, handoff = listening.HandoffListener(), taken = 0 }

@@ -8,6 +8,7 @@ global <const> require, type, error, pcall, tostring, math, table
 local core = require("hecate.core")
 local reactor = require("hecate.reactor")
 local net = require("hecate.net")
+local http = require("hecate.http")
 
 ---@class hecate.kernel.listening
 local listening = {}
@@ -57,28 +58,46 @@ end
 --- The listener of a `round_robin` worker: `accept` returns the connections the primary handed over, pushed by the
 --- worker's control loop. It has the interface `hecate.http.Server:serve` expects of a listener.
 ---@class hecate.kernel.HandoffListener
----@overload fun(address?: hecate.reactor.SocketAddress): hecate.kernel.HandoffListener
+---@overload fun(address?: hecate.reactor.SocketAddress, capacity?: integer): hecate.kernel.HandoffListener
 local HandoffListener = core.class("HandoffListener")
 
 --- Creates an empty, open listener.
+---
+--- Raises `hecate.core.ArgumentError` when `capacity` is not a positive integer.
 ---@param address? hecate.reactor.SocketAddress  what `local_address` reports (the primary's listening address)
-function HandoffListener:init(address)
+---@param capacity? integer  the most connections queued at once, the role of a listen backlog (default `http.Server.DEFAULTS.backlog`)
+function HandoffListener:init(address, capacity)
+  if capacity == nil then capacity = http.Server.DEFAULTS.backlog end
+  if math.type(capacity) ~= "integer" or capacity < 1 then
+    error(core.ArgumentError("kernel.HandoffListener: capacity must be a positive integer, got " .. tostring(capacity)), 3)
+  end
   self._address = address
-  -- Pushing never suspends: the control loop that pushes must stay free to receive `stop`. The number of queued
-  -- connections is bounded by the primary, which hands one over per accepted connection.
-  self._queue = reactor.Channel(math.maxinteger)
+  self._capacity = capacity
+  -- Pushing never suspends: the control loop that pushes must stay free to receive `stop`. A connection that does not
+  -- fit is closed instead, as a kernel drops a connection when the listen backlog is full.
+  self._queue = reactor.Channel(capacity)
 end
 
---- Queues a connection handed over by the primary. Returns false, and closes the stream, when the listener is
---- closed. Never suspends.
+--- The most connections queued at once.
+---@return integer
+function HandoffListener:capacity() return self._capacity end
+
+--- Queues a connection handed over by the primary. Never suspends. Returns false and a reason, after closing the
+--- stream, when the listener is closed (`"closed"`) or already holds `capacity` connections (`"full"`).
 ---@param stream hecate.reactor.TcpStream|hecate.net.TcpStream
 ---@return boolean queued
+---@return ("closed"|"full")? reason
 function HandoffListener:push(stream)
-  if self._queue:is_closed() then
+  local queue = self._queue
+  if queue:is_closed() then
     stream:close()
-    return false
+    return false, "closed"
   end
-  self._queue:send(stream)
+  if queue:length() >= self._capacity then
+    stream:close()
+    return false, "full"
+  end
+  queue:send(stream)
   return true
 end
 

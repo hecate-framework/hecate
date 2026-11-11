@@ -10,6 +10,7 @@ global <const> require, type, error, pcall, tostring, tonumber, math, table, ipa
 
 local core = require("hecate.core")
 local reactor = require("hecate.reactor")
+local log = require("hecate.log")
 local listening = require("hecate.kernel.listening")
 local errors = require("hecate.kernel.errors")
 
@@ -569,7 +570,10 @@ function WorkerRole:init(peer, environment)
   self.endpoint = { host = environment[ENV.host] or "127.0.0.1", port = port,
     backlog = math.tointeger(tonumber(environment[ENV.backlog])) }
   local address = { ip = self.endpoint.host, port = port, family = self.endpoint.host:find(":", 1, true) and "inet6" or "inet" }
-  self._handoff = listening.HandoffListener(address)
+  -- The hand-over queue is bounded like the listen backlog it stands for (default 128).
+  local capacity = self.endpoint.backlog
+  if capacity ~= nil and capacity < 1 then capacity = nil end
+  self._handoff = listening.HandoffListener(address, capacity)
 end
 
 --- The listener the server accepts from: the handoff listener (`round_robin`) or a socket bound with `SO_REUSEPORT`.
@@ -602,7 +606,12 @@ function WorkerRole:control(on_stop, default_grace)
     end
     if message == nil then break end
     if message == "connection" and stream ~= nil then
-      self._handoff:push(stream)
+      local queued, reason = self._handoff:push(stream)
+      if not queued and reason == "full" then
+        -- The primary cannot be told (the message pipe is one way here); the client sees its connection closed.
+        log.default():warning("kernel.WorkerRole: the hand-over queue is full; connection closed",
+          { code = "handover_queue_full", worker = self.index, capacity = self._handoff:capacity() })
+      end
     else
       if stream ~= nil then stream:close() end
       local seconds = message:match("^stop (.+)$")

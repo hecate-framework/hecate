@@ -270,6 +270,7 @@ Each release heading states the supported Lua version.
 
 - fix(kernel): a route module verb called without its table of declarations (`module:get "/x"` alone) is reported by `RouteModule:routes()` at boot (`RouteDeclarationError` `incomplete_route`) instead of dropping the route silently; `responses = { [204] = true }` declares a status without content instead of being refused (review of the kernel package, H3 and H4).
 - fix(kernel): an unhandled error while serving a request is logged with the method, the path (without the query) and the traceback taken where it was raised, not only its text (review of the kernel package, H5).
+- fix(kernel): the hand-over queue of a `round_robin` worker (`HandoffListener`) is bounded at the listen backlog (default 128, new `capacity` argument and method); a connection that does not fit is closed and logged (`handover_queue_full`) instead of queuing without limit (review of the kernel package, M1).
 
 - fix(kernel): `Application` watches signals with one persistent `reactor` watcher, so a signal delivered between two waits no longer takes the default action and kills a worker; the end-to-end test of the workers skips where `reactor.supports_spawn` or `supports_handle_passing` say no.
 - fix(http): the client sends `Expect: 100-continue` when `expect_continue` is true and the request has content (and no `Expect` field), and sends the content after the `100`, instead of always waiting for `expect_timeout`.
