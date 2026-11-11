@@ -153,6 +153,14 @@ Accepted in [ADR 0023](../adr/0023-multi-process-serving.md), measured in
 - The primary supervises workers (readiness, restart on crash with exponential backoff and a
   crash-loop limit) over a control message pipe that exists on every platform and carries `ready`,
   `stop(deadline)`, `reload` and counters; a worker whose control message pipe closes drains and exits.
+  `reload` is reserved and unused (the rolling reload replaces workers by restart). A worker sends
+  `counters <requests> <connections>` (two non-negative decimal integers, `-` for `requests` when it
+  cannot count them) at most once per second and only when a value changed, from a computation of its
+  own so that `stop` is never delayed; the primary keeps the latest values per worker
+  (`Supervisor:counters()`) and ignores a malformed message. Today `connections` counts the connections
+  the hand-over listener accepted (`round_robin`) and `requests` is always unknown, `http.Server`
+  having no request counter. A worker that does not send `ready` within `ready_timeout` seconds
+  (default 30) of its start or restart is killed and counted as a crash (`worker_not_ready`).
 - Graceful shutdown: stop accepting, drain in-flight requests up to a configurable deadline,
   then cancel remaining scopes. A rolling reload starts the replacement before stopping the old
   worker.

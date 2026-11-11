@@ -92,10 +92,15 @@ a server that reuses connections does not.
 ## The message pipe
 
 Each worker has a [message pipe](../reference/glossary.md#concurrency)
-to the primary, the same on every platform and never in the data path. It carries `ready` and
-`stop(deadline)` today. The name `reload` is reserved, and the counters are not
-implemented yet.
+to the primary, the same on every platform and never in the data path. It carries `ready`,
+`stop(deadline)` and the counters. The name `reload` is reserved and unused.
 
+- A worker sends `counters <requests> <connections>` at most once per second, and only when a value
+  changed. Today `connections` is the number of connections the worker accepted from the primary
+  and `requests` is unknown, because the HTTP server keeps no request counter yet. The primary keeps
+  the latest values of each worker and ignores a malformed message.
+- A worker that does not send `ready` within `ready_timeout` seconds (default 30) of its start is
+  killed and counted as a crash: the restart backoff and the crash limit apply.
 - A worker that sees the pipe close knows that the primary died. It drains and exits. No
   platform-specific orphan protection is needed.
 - The primary never signals a worker directly. It sends `stop`, and kills the process after the
@@ -132,7 +137,7 @@ role. A worker refuses a malformed host or backlog in those variables.
 | Strategy `round_robin`, configuration keys `server.workers` and `server.strategy` | Implemented. |
 | Strategy `reuseport` | Written, waits for luv support (see below). |
 | `hecate serve --workers` | Not implemented (the `cli` package, Phase 3). |
-| Control-protocol counters | Not implemented. |
+| Control-protocol counters | Implemented (connections; requests are not counted yet). |
 | Conformance suite of the strategies on three platforms | Not implemented. |
 
 ### `reuseport` does not work yet

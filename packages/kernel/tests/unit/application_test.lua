@@ -443,6 +443,8 @@ function T:test_workers_and_strategy_are_validated()
   refused({ worker_command = { "lua", 1 } })
   refused({ on_crash_loop = "restart" })
   refused({ on_crash_loop = true })
+  for _, bad in ipairs({ -1, 0 / 0, math.huge, "30", true }) do refused({ ready_timeout = bad }) end
+  self:assert_true(pcall(kernel.Application, { ready_timeout = 5 }))
   self:assert_true(pcall(kernel.Application, { on_crash_loop = "degrade" }))
   self:assert_true(pcall(kernel.Application, { on_crash_loop = "stop" }))
   self:assert_true(pcall(kernel.Application, { workers = 4, strategy = "round_robin", worker_command = { "lua", "main.lua" } }))

@@ -51,6 +51,7 @@ end
 ---@field workers? integer  number of worker processes, at least 1 (default 1: the process serves by itself); above 1 the primary runs a `hecate.kernel.Supervisor` (ADR 0023)
 ---@field strategy? "auto"|"reuseport"|"round_robin"  how connections reach the workers (default `auto`, `listening.select`); used only when `workers` is above 1
 ---@field worker_command? string[]  the program and arguments that start a worker (default: the running interpreter, main program and arguments, `Application.worker_command_from(arg)`)
+---@field ready_timeout? number  seconds a worker may take to report `ready` after it starts or restarts (default 30); a worker not ready in time is killed and counted as a crash (see `hecate.kernel.SupervisorOptions`); used only when `workers` is above 1; no configuration key; `reload` has its own `ready_timeout`
 ---@field on_crash_loop? "stop"|"degrade"  what the primary does when its workers keep crashing (see `hecate.kernel.SupervisorOptions`); default `stop`; used only when `workers` is above 1
 
 --- The composition root.
@@ -66,7 +67,7 @@ local Application = core.class("Application")
 local KNOWN = {
   modules = true, routes = true, configuration = true, services = true, filters = true, container = true, max_depth = true,
   expose_details = true, inputs = true, validate_responses = true, logger = true, router = true, server = true, signals = true, grace_timeout = true,
-  workers = true, strategy = true, worker_command = true, on_crash_loop = true,
+  workers = true, strategy = true, worker_command = true, on_crash_loop = true, ready_timeout = true,
 }
 
 local STRATEGIES <const> = { auto = true, reuseport = true, round_robin = true }
@@ -107,6 +108,11 @@ function Application:init(options)
   if options.on_crash_loop ~= nil and options.on_crash_loop ~= "stop" and options.on_crash_loop ~= "degrade" then
     error(core.ArgumentError(("hecate.kernel.application.init: on_crash_loop must be \"stop\" or \"degrade\", got %s"):format(
       type(options.on_crash_loop) == "string" and ("%q"):format(options.on_crash_loop) or type(options.on_crash_loop))), 2)
+  end
+  local ready_timeout = options.ready_timeout
+  if ready_timeout ~= nil and (type(ready_timeout) ~= "number" or ready_timeout ~= ready_timeout or ready_timeout < 0 or ready_timeout == math.huge) then
+    error(core.ArgumentError("hecate.kernel.application.init: ready_timeout must be a non-negative finite number of seconds, got "
+      .. tostring(ready_timeout)), 2)
   end
   local command = options.worker_command
   if command ~= nil then
@@ -427,7 +433,7 @@ local function serve_as_primary(self)
   local command = resolved.worker_command or Application.worker_command_from()
   local sup = supervisor.Supervisor({
     command = command, count = resolved.workers, endpoint = endpoint, strategy = strategy, logger = logger,
-    on_crash_loop = resolved.on_crash_loop,
+    on_crash_loop = resolved.on_crash_loop, ready_timeout = resolved.ready_timeout,
   })
   self._supervisor = sup
   if fallback ~= nil then logger:warning("kernel.Application: " .. fallback, { code = "strategy_fallback" }) end

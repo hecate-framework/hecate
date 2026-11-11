@@ -355,6 +355,20 @@ function T:test_a_waiting_accept_receives_the_next_pushed_connection()
   end)
 end
 
+function T:test_the_hand_over_listener_counts_the_connections_it_accepted()
+  virtual(function()
+    local listener = listening.HandOverListener()
+    self:assert_equal(0, listener:accepted())
+    for _ = 1, 3 do listener:push(fake_stream()) end
+    self:assert_equal(0, listener:accepted()) -- queued is not accepted
+    listener:accept()
+    listener:accept()
+    self:assert_equal(2, listener:accepted())
+    listener:close()
+    self:assert_equal(2, listener:accepted())
+  end)
+end
+
 function T:test_closing_the_hand_over_listener_wakes_a_waiting_accept_with_ebadf()
   virtual(function()
     local listener = listening.HandOverListener()

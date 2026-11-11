@@ -228,7 +228,7 @@ end
 
 --- Fake worker processes. `plan(n)` describes the n-th process started: `uptime` (seconds from its start, after `ready`,
 --- until its message pipe ends; default: it runs until `stop` or a kill), `ready` (default true), `on_stop` (`"exit"`,
---- default, or `"ignore"`), `spawn_error` (the start fails with it). `world.spawned` lists the processes, `world.times`
+--- default, or `"ignore"`), `spawn_error` (the start fails with it), `messages` (sent after `ready`, one per read). `world.spawned` lists the processes, `world.times`
 --- the clock reading of each start.
 local function new_world(plan)
   local world = { spawned = {}, times = {} }
@@ -249,6 +249,7 @@ local function new_world(plan)
         reported = true
         return "ready"
       end
+      if spec.messages ~= nil and spec.messages[1] ~= nil then return table.remove(spec.messages, 1) end
       if spec.uptime ~= nil then
         if spec.uptime > 0 then reactor.sleep(spec.uptime) end
         finish()
@@ -492,6 +493,253 @@ function T:test_a_replacement_that_cannot_be_started_fails_the_reload_and_keeps_
   local failed = false
   for _, code in ipairs(codes) do failed = failed or code == "reload_slot_failed" end
   self:assert_true(failed)
+end
+
+-- The ready timeout outside a reload ------------------------------------------------------------------------------------
+
+function T:test_ready_timeout_is_validated()
+  for _, bad in ipairs({ -1, 0 / 0, math.huge, "5", true }) do
+    local err = self:assert_error(function() supervisor_for({ ready_timeout = bad }) end)
+    self:assert_true(core.is_instance_of(err, core.ArgumentError), tostring(bad))
+    self:assert_not_nil(string.find(tostring(err), "ready_timeout", 1, true))
+  end
+  supervisor_for({ ready_timeout = 0 })
+  supervisor_for({ ready_timeout = 2.5 })
+end
+
+function T:test_a_worker_that_is_not_ready_in_time_is_killed_logged_and_restarted_with_backoff()
+  -- The first process never says `ready`; the second does.
+  local world = new_world(function(n) return { ready = n ~= 1 } end)
+  local logger, codes = recording_logger()
+  with_spawn(world.spawn, function()
+    virtual(function()
+      local sup = supervisor_for({ ready_timeout = 5, restart_delay = 1, logger = logger })
+      reactor.scope(function(scope)
+        local running = scope:fork(sup.run, sup)
+        virtual_wait(function() return sup:ready_count() == 1 end)
+        sup:stop(1)
+        running:value()
+      end)
+    end)
+  end)
+  self:assert_equal(1, world.spawned[1].kills)
+  self:assert_equal(0, world.spawned[2].kills)
+  self:assert_equal("0,6", times_of(world)) -- killed at 5 s, restart delay 1 s
+  self:assert_equal("worker_not_ready,worker_exited", table.concat(codes, ",", 1, 2))
+end
+
+function T:test_the_not_ready_log_is_an_error_with_the_worker_and_the_timeout()
+  local world = new_world(function() return { ready = false } end)
+  local seen
+  local logger = { log = function(_, severity, _, fields)
+    if fields and fields.code == "worker_not_ready" then seen = seen or { severity, fields } end
+  end }
+  with_spawn(world.spawn, function()
+    virtual(function()
+      local sup = supervisor_for({ ready_timeout = 2, logger = logger })
+      reactor.scope(function(scope)
+        local running = scope:fork(sup.run, sup)
+        virtual_wait(function() return seen ~= nil end)
+        sup:stop(0)
+        running:value()
+      end)
+    end)
+  end)
+  self:assert_equal("error", seen[1])
+  self:assert_equal(1, seen[2].worker)
+  self:assert_equal(1001, seen[2].pid)
+  self:assert_equal(2, seen[2].ready_timeout)
+end
+
+function T:test_workers_that_are_never_ready_count_as_crashes_and_end_in_a_crash_loop()
+  local world = new_world(function() return { ready = false } end)
+  local failure
+  with_spawn(world.spawn, function()
+    virtual(function()
+      local sup = supervisor_for({ ready_timeout = 3, restart_delay = 1, crash_limit = 3, crash_window = 1000 })
+      local ok, err = pcall(sup.run, sup)
+      failure = not ok and err or nil
+    end)
+  end)
+  self:assert_equal("crash_loop", failure.context.reason)
+  self:assert_equal("0,4,9", times_of(world)) -- 3 s, then delays of 1 and 2 s
+end
+
+function T:test_a_ready_worker_is_never_killed_by_the_ready_timeout()
+  local world = new_world()
+  with_spawn(world.spawn, function()
+    virtual(function()
+      local sup = supervisor_for({ ready_timeout = 1 })
+      reactor.scope(function(scope)
+        local running = scope:fork(sup.run, sup)
+        virtual_wait(function() return sup:ready_count() == 1 end)
+        reactor.sleep(5)
+        self:assert_equal(1, sup:ready_count())
+        sup:stop(1)
+        running:value()
+      end)
+    end)
+  end)
+  self:assert_equal(0, world.spawned[1].kills)
+  self:assert_equal(1, #world.spawned)
+end
+
+function T:test_a_stop_before_the_ready_timeout_is_not_a_not_ready_failure()
+  local world = new_world(function() return { ready = false } end)
+  local logger, codes = recording_logger()
+  with_spawn(world.spawn, function()
+    virtual(function()
+      local sup = supervisor_for({ ready_timeout = 5, logger = logger })
+      reactor.scope(function(scope)
+        local running = scope:fork(sup.run, sup)
+        virtual_wait(function() return sup:started_count() == 1 end)
+        sup:stop(1)
+        running:value()
+        reactor.sleep(10)
+      end)
+    end)
+  end)
+  for _, code in ipairs(codes) do self:assert_true(code ~= "worker_not_ready", code) end
+end
+
+-- The counters ---------------------------------------------------------------------------------------------------------
+
+function T:test_counters_lists_the_latest_values_of_each_worker()
+  local world = new_world(function(n)
+    if n == 1 then return { messages = { "counters 5 3", "counters 7 4" } } end
+    return { messages = { "counters - 9" } }
+  end)
+  local listed, before
+  with_spawn(world.spawn, function()
+    virtual(function()
+      local sup = supervisor_for({ count = 2 })
+      before = sup:counters()
+      reactor.scope(function(scope)
+        local running = scope:fork(sup.run, sup)
+        virtual_wait(function()
+          local list = sup:counters()
+          return #list == 2 and list[1].requests == 7
+        end)
+        listed = sup:counters()
+        sup:stop(1)
+        running:value()
+      end)
+    end)
+  end)
+  self:assert_equal(0, #before)
+  self:assert_equal(2, #listed)
+  self:assert_equal(1, listed[1].worker)
+  self:assert_equal(1001, listed[1].pid)
+  self:assert_equal(7, listed[1].requests)
+  self:assert_equal(4, listed[1].connections)
+  self:assert_equal(2, listed[2].worker)
+  self:assert_nil(listed[2].requests) -- unknown
+  self:assert_equal(9, listed[2].connections)
+end
+
+function T:test_a_malformed_counters_message_is_ignored_and_keeps_the_last_good_values()
+  local bad = { "counters", "counters 1", "counters a b", "counters 1 2 3", "counters -1 2", "counters 1.5 2", "counters 1 -",
+    "counters  1 2", "counters 99999999999999999999 1", "counters 1 2 " }
+  local messages = { "counters 2 3" }
+  for _, text in ipairs(bad) do messages[#messages + 1] = text end
+  messages[#messages + 1] = "ready" -- a second `ready` is harmless
+  messages[#messages + 1] = "counters 4 5"
+  local world = new_world(function() return { messages = messages } end)
+  local seen = {}
+  with_spawn(world.spawn, function()
+    virtual(function()
+      local sup = supervisor_for()
+      reactor.scope(function(scope)
+        local running = scope:fork(sup.run, sup)
+        virtual_wait(function() local c = sup:counters()[1]; return c ~= nil and c.requests == 4 end)
+        seen = sup:counters()
+        sup:stop(1)
+        running:value()
+      end)
+    end)
+  end)
+  self:assert_equal(1, #seen)
+  self:assert_equal(5, seen[1].connections)
+end
+
+function T:test_counters_do_not_keep_stop_from_being_handled()
+  local flood = {}
+  for i = 1, 500 do flood[i] = "counters " .. i .. " " .. i end
+  local world = new_world(function() return { messages = flood } end)
+  with_spawn(world.spawn, function()
+    virtual(function()
+      local sup = supervisor_for()
+      reactor.scope(function(scope)
+        local running = scope:fork(sup.run, sup)
+        virtual_wait(function() return sup:counters()[1] ~= nil end)
+        sup:stop(1)
+        running:value()
+      end)
+    end)
+  end)
+  self:assert_equal("stop 1", world.spawned[1].sent[1])
+end
+
+function T:test_a_restarted_worker_starts_with_no_counters()
+  local world = new_world(function(n)
+    if n == 1 then return { messages = { "counters 1 1" }, uptime = 1 } end
+    return {}
+  end)
+  with_spawn(world.spawn, function()
+    virtual(function()
+      local sup = supervisor_for({ restart_delay = 0.5 })
+      reactor.scope(function(scope)
+        local running = scope:fork(sup.run, sup)
+        virtual_wait(function() return #world.spawned == 2 and sup:ready_count() == 1 end)
+        self:assert_equal(0, #sup:counters())
+        sup:stop(1)
+        running:value()
+      end)
+    end)
+  end)
+end
+
+-- The counters of the worker role ------------------------------------------------------------------------------------
+
+function T:test_a_worker_reports_its_counters_at_most_once_per_second_and_only_when_they_changed()
+  local sent = {}
+  local peer = { close = function() end }
+  function peer.send(_, message) sent[#sent + 1] = { reactor.now(), message } end
+  local role = kernel.supervisor.WorkerRole(peer, worker_environment())
+  local accepted = 0
+  role._hand_over.accepted = function() return accepted end
+  local texts
+  virtual(function()
+    reactor.scope(function(scope)
+      local reporter = scope:fork(role.report_counters, role, 1)
+      reactor.sleep(0.5)
+      accepted = 2 -- changes within a period: one report at the next tick
+      accepted = 3
+      reactor.sleep(1) -- 1.5
+      reactor.sleep(2) -- 3.5: nothing changed since the tick at 3
+      accepted = 4
+      reactor.sleep(1) -- 4.5
+      reporter:cancel()
+    end)
+  end)
+  texts = {}
+  for i, entry in ipairs(sent) do texts[i] = ("%g %s"):format(entry[1], entry[2]) end
+  self:assert_equal("1 counters - 3,4 counters - 4", table.concat(texts, ","))
+end
+
+function T:test_the_reporter_survives_a_failing_pipe()
+  local peer = { close = function() end }
+  function peer.send() error("closed") end
+  local role = kernel.supervisor.WorkerRole(peer, worker_environment())
+  local accepted = 1
+  role._hand_over.accepted = function() return accepted end
+  virtual(function()
+    reactor.scope(function(scope)
+      local reporter = scope:fork(role.report_counters, role, 1)
+      reactor.sleep(2.5)
+      reporter:cancel()
+    end)
+  end)
 end
 
 -- The worker role with a fake peer -------------------------------------------------------------------------------------

@@ -2,8 +2,12 @@
 -- the primary starts the workers, adds each to the rotation once it is ready, restarts a worker that exits with an
 -- exponential backoff and a crash-loop limit, and stops them gracefully; the worker side reads the control messages of
 -- the primary, feeds the connections it hands over to the server, and drains on `stop` or when the message pipe
--- closes (the primary died). The control messages are the same on every platform (Decision 5): `ready` (worker to
--- primary), `stop <seconds>` and `connection` with a stream (primary to worker). The rolling reload replaces workers
+-- closes (the primary died). The control messages are the same on every platform (Decision 5): `ready` and
+-- `counters <requests> <connections>` (worker to primary), `stop <seconds>` and `connection` with a stream (primary to
+-- worker). `counters` carries two non-negative integers in decimal, `requests` being `-` when the worker cannot count
+-- them (`http.Server` has no request counter yet); a worker sends it at most once per second, and only when a value
+-- changed; the primary keeps the latest values of each worker (`Supervisor:counters`) and ignores a malformed message.
+-- A worker that does not say `ready` within `ready_timeout` seconds of its start is killed and counted as a crash. The rolling reload replaces workers
 -- by restart (a fresh process from the same command, ready before the old one is stopped), so it needs no message of its
 -- own: `reload` stays reserved in the protocol, unused, and a worker never sees it.
 global <const> require, type, error, pcall, tostring, tonumber, math, table, ipairs, pairs, os
@@ -47,6 +51,18 @@ local function is_host(host)
   return host:match("^[%w][%w%.%-]*$") ~= nil
 end
 
+--- Parses `counters <requests> <connections>` (decimal integers, `-` for unknown requests); nil when malformed.
+---@param message string
+---@return { requests: integer?, connections: integer }?
+local function parse_counters(message)
+  local requests, connections = message:match("^counters (%d+) (%d+)$")
+  if requests == nil then
+    requests, connections = message:match("^counters (%-) (%d+)$")
+  end
+  if connections == nil or #connections > 18 or (requests ~= "-" and #requests > 18) then return nil end
+  return { requests = requests ~= "-" and math.tointeger(tonumber(requests)) or nil, connections = math.tointeger(tonumber(connections)) }
+end
+
 -- The primary --------------------------------------------------------------------------------------------------------
 
 --- Options of `Supervisor`.
@@ -60,6 +76,7 @@ end
 ---@field restart_delay? number  seconds before the first restart of a worker (default 0.1), doubled at each crash in the crash window, at most 10 s
 ---@field crash_limit? integer  crashes within `crash_window` that stop the supervisor (default 5)
 ---@field crash_window? number  seconds (default 60)
+---@field ready_timeout? number  seconds a started worker (first start or restart) may take to send `ready` (default 30); past it the worker is killed, logged `worker_not_ready` at `error` and counted as a crash; a reload has its own `ready_timeout`
 ---@field on_crash_loop? "stop"|"degrade"  what a crash loop does: `stop` (default) ends `run` with a `SupervisorError`; `degrade` keeps restarting the workers at the maximum backoff (10 s), logs `crash_loop` at `error` once per crash window, and never ends `run` by itself
 
 --- The supervisor of the workers, in the primary.
@@ -69,7 +86,7 @@ local Supervisor = core.class("Supervisor")
 
 local KNOWN = {
   command = true, count = true, endpoint = true, strategy = true, env = true, logger = true, restart_delay = true,
-  crash_limit = true, crash_window = true, on_crash_loop = true,
+  crash_limit = true, crash_window = true, on_crash_loop = true, ready_timeout = true,
 }
 
 --- The longest delay before a restart (the cap of the backoff, and the pace of a degraded crash loop).
@@ -100,7 +117,7 @@ function Supervisor:init(options)
     error(core.ArgumentError("hecate.kernel.supervisor.init: count must be an integer of at least 1, got " .. tostring(options.count)), 2)
   end
   if type(options.endpoint) ~= "table" then error(core.ArgumentError("hecate.kernel.supervisor.init: endpoint must be a table, got " .. type(options.endpoint)), 2) end
-  for _, key in ipairs({ "restart_delay", "crash_window" }) do
+  for _, key in ipairs({ "restart_delay", "crash_window", "ready_timeout" }) do
     if options[key] ~= nil and not is_duration(options[key]) then
       error(core.ArgumentError(("hecate.kernel.supervisor.init: %s must be a non-negative finite number of seconds, got %s"):format(key, tostring(options[key]))), 2)
     end
@@ -188,6 +205,7 @@ end
 ---@field ready boolean  reported `ready` and counted in `ready_count`
 ---@field planned boolean  being replaced by a reload: its exit is not a crash
 ---@field finished boolean  has exited and been reaped
+---@field counters? { requests: integer?, connections: integer }  the latest `counters` message
 ---@field done hecate.reactor.Channel  closed once it has exited
 
 --- A worker slot, the unit the supervisor keeps alive.
@@ -239,17 +257,36 @@ local function supervise(self, slot)
     end
     slot.gen = gen
     local peer = gen.peer
-    while true do
-      local ok, message, stream = pcall(peer.receive, peer)
-      if not ok or message == nil then break end
-      -- The primary expects no stream from a worker: one that arrives is closed, not leaked (a descriptor each).
-      if stream ~= nil then pcall(stream.close, stream) end
-      if message == "ready" and not gen.ready and not gen.planned then
-        gen.ready = true
-        self._ready = self._ready + 1
-        if not self._stopping then self._ring:add(gen.target) end
+    -- A worker that does not say `ready` in time is killed; the loop below then sees its message pipe end and counts a crash.
+    reactor.scope(function(scope)
+      local watchdog
+      if not gen.ready then
+        local timeout = self._options.ready_timeout or 30
+        watchdog = scope:fork(function()
+          reactor.sleep(timeout)
+          if not gen.ready and not gen.finished and not self._stopping and gen.process:is_running() then
+            note(self, "error", "a worker was not ready in time; killing it", {
+              code = "worker_not_ready", worker = slot.index, pid = gen.process.pid, ready_timeout = timeout,
+            })
+            pcall(gen.process.kill, gen.process, "sigkill")
+          end
+        end)
       end
-    end
+      while true do
+        local ok, message, stream = pcall(peer.receive, peer)
+        if not ok or message == nil then break end
+        -- The primary expects no stream from a worker: one that arrives is closed, not leaked (a descriptor each).
+        if stream ~= nil then pcall(stream.close, stream) end
+        if message == "ready" and not gen.ready and not gen.planned then
+          gen.ready = true
+          self._ready = self._ready + 1
+          if not self._stopping then self._ring:add(gen.target) end
+        elseif message:sub(1, 9) == "counters " then
+          gen.counters = parse_counters(message) or gen.counters -- a malformed message changes nothing
+        end
+      end
+      if watchdog ~= nil then watchdog:cancel() end
+    end)
     self._ring:remove(gen.target)
     if gen.ready then self._ready = self._ready - 1 end
     peer:close()
@@ -583,6 +620,21 @@ function Supervisor:local_address()
   return endpoint
 end
 
+--- The latest counters each worker reported over its message pipe (`counters <requests> <connections>`), by worker
+--- index, for the workers in service that reported at least once: `{ worker, pid, connections, requests }`, `requests`
+--- being nil when the worker cannot count them. A restarted worker has none until it reports. Never suspends.
+---@return { worker: integer, pid: integer, connections: integer, requests: integer? }[]
+function Supervisor:counters()
+  local list = {}
+  for _, slot in ipairs(self._slots) do
+    local gen = slot.gen
+    if gen ~= nil and gen.counters ~= nil then
+      list[#list + 1] = { worker = slot.index, pid = gen.process.pid, connections = gen.counters.connections, requests = gen.counters.requests }
+    end
+  end
+  return list
+end
+
 --- Number of workers that reported `ready` and still run.
 ---@return integer
 function Supervisor:ready_count() return self._ready end
@@ -689,6 +741,36 @@ function WorkerRole:control(on_stop, default_grace)
   on_stop(grace)
 end
 
+--- The counters of this worker: requests (nil: `http.Server` keeps no request counter yet) and the connections the
+--- hand-over listener accepted (nil with `reuseport`, whose listener keeps no counter).
+---@return integer? requests
+---@return integer? connections
+function WorkerRole:counters()
+  if self.strategy ~= "round_robin" then return nil, nil end
+  return nil, self._hand_over:accepted()
+end
+
+--- Sends `counters <requests> <connections>` to the primary every `interval` seconds (default 1), only when the values
+--- changed since the last message; runs until cancelled. It never reads the message pipe, so the control loop stays
+--- free to receive `stop`; a failing pipe is ignored (the control loop ends on it).
+---@async
+---@param interval? number
+function WorkerRole:report_counters(interval)
+  local last
+  while true do
+    reactor.sleep(interval or 1)
+    local requests, connections = self:counters()
+    if connections ~= nil then
+      local text = ("counters %s %d"):format(requests ~= nil and ("%d"):format(requests) or "-", connections)
+      if text ~= last then
+        last = text
+        local ok, err = pcall(self._peer.send, self._peer, text)
+        if not ok and core.is_instance_of(err, core.CancellationError) then error(err, 0) end
+      end
+    end
+  end
+end
+
 --- Serves `server` as a worker: binds the listener, tells the primary it is ready, serves until `stop` or the end of
 --- the message pipe, which shut the server down gracefully. Returns when the server has stopped; closes the message
 --- pipe.
@@ -705,8 +787,10 @@ function WorkerRole:serve(server, default_grace)
       if listener.drain ~= nil then (listener --[[@as hecate.kernel.HandOverListener]]):drain(math.min(grace, 1)) end
       server:shutdown(grace)
     end, default_grace or 30)
+    local reporter = scope:fork(self.report_counters, self, 1)
     self._peer:send("ready")
     server:serve(listener --[[@as hecate.net.TcpListener]])
+    reporter:cancel()
     control:cancel()
   end)
   self._peer:close()

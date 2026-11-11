@@ -115,6 +115,52 @@ function T:test_a_worker_that_exits_after_ready_is_restarted_and_logged()
   end
 end
 
+function T:test_a_worker_that_never_reports_ready_is_killed_and_replaced()
+  if not can_run_workers() then return end
+  set_flag("hang") -- the first process never reports ready and ignores `stop`
+  local memory = log.MemorySink()
+  reactor.run(function()
+    local sup = new_supervisor({ count = 1, restart_delay = 0.01, ready_timeout = 0.3, logger = log.Logger({ sinks = { memory } }),
+      env = { HECATE_TEST_FLAG = flag_path } })
+    reactor.scope(function(scope)
+      local running = scope:fork(sup.run, sup)
+      wait_until(function() return sup:ready_count() == 1 end)
+      self:assert_equal(2, sup:started_count())
+      self:assert_not_nil(get(sup:local_address().port))
+      sup:stop(5)
+      running:value()
+    end)
+  end)
+  local event = workers.find_event(memory, "worker_not_ready")
+  self:assert_not_nil(event)
+  self:assert_equal(1, event.worker)
+  self:assert_false(alive(event.pid), "the hung worker is gone")
+  self:assert_equal("worker_not_ready,worker_exited", workers.codes(memory, "worker_"))
+end
+
+function T:test_the_primary_collects_the_counters_the_workers_send()
+  if not can_run_workers() then return end
+  reactor.run(function()
+    local sup = new_supervisor({ count = 1 })
+    reactor.scope(function(scope)
+      local running = scope:fork(sup.run, sup)
+      wait_until(function() return sup:ready_count() == 1 end)
+      local port = sup:local_address().port
+      for _ = 1, 3 do self:assert_not_nil(get(port)) end
+      wait_until(function()
+        local entry = sup:counters()[1]
+        return entry ~= nil and entry.connections == 3
+      end)
+      local entry = sup:counters()[1]
+      self:assert_equal(1, entry.worker)
+      self:assert_not_nil(entry.pid)
+      self:assert_nil(entry.requests) -- http.Server keeps no request counter yet
+      sup:stop(5)
+      running:value()
+    end)
+  end)
+end
+
 --- The supervisor does not kill a worker that ignores `stop` (known defect, reported with the tests: `stop_workers` and
 --- `retire` swallow the cancellation of their deadline, so nothing is ever killed). Remove the skip once it is fixed.
 

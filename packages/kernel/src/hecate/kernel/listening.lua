@@ -77,7 +77,12 @@ function HandOverListener:init(address, capacity)
   -- Pushing never suspends: the control loop that pushes must stay free to receive `stop`. A connection that does not
   -- fit is closed instead, as a kernel drops a connection when the listen backlog is full.
   self._pending = reactor.Channel(capacity)
+  self._accepted = 0
 end
+
+--- The number of connections `accept` has returned so far (a counter of the control protocol, ADR 0023 Decision 5).
+---@return integer
+function HandOverListener:accepted() return self._accepted end
 
 --- The most connections queued at once.
 ---@return integer
@@ -114,6 +119,7 @@ function HandOverListener:accept()
     if core.is_instance_of(stream, core.CancellationError) then error(stream, 0) end
     raise_closed("accept")
   end
+  self._accepted = self._accepted + 1
   if core.is_instance_of(stream, net.TcpStream) then return stream end
   return net.TcpStream(stream)
 end

@@ -11,6 +11,8 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- feat(kernel): `Supervisor` and `Application` option `ready_timeout` (default 30 s): a worker that does not report `ready` after its start or restart is killed, logged `worker_not_ready` at `error` and counted as a crash.
+- feat(kernel): control-protocol counters (ADR 0023, Decision 5): workers send `counters <requests> <connections>` at most once per second; `Supervisor:counters()` lists the latest values per worker (`requests` is unknown until `http.Server` counts them); `HandOverListener:accepted()`.
 - fix(kernel): `Supervisor:stop` and the rolling reload kill a worker that ignores `stop` after the grace period plus one second (the cancellation of the deadline was swallowed, so `run` or the reload waited forever); tests for graceful shutdown with requests in flight, boot rejections, the exposure of error messages, `WorkerRole`, the restart backoff and crash window, the hand-over ring and listener, and streaming responses through filters.
 - feat(hecate): the meta-module `hecate` re-exports the kernel surface (`Application`, `Controller`, `routes`, `respond`, `problem`, `load_configuration`, the kernel errors); no object-model entry points (OQ-57).
 - fix(http): `Server:shutdown` no longer closes a fresh connection (no request byte yet) at once; it gets up to 1 second (or the grace timeout when shorter) to send its request, served with `Connection: close`; idle keep-alive connections are still closed immediately. This fixes a request lost when a connection was handed over just before the stop.
