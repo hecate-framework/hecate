@@ -481,6 +481,9 @@ function T:test_a_bare_interpreter_name_is_resolved_through_the_search_path()
   local file = os.tmpname()
   local directory, name = file:match("^(.*)[/\\]([^/\\]+)$")
   if directory == nil or directory == "" then os.remove(file) return end
+  -- On Windows `os.tmpname` only returns a name: the file has to be created.
+  local created = assert(io.open(file, "wb"))
+  created:close()
   local arguments = { [-1] = name, [0] = "main.lua" }
   local found = from(arguments, "/no/such/directory" .. (package.config:sub(1, 1) == "\\" and ";" or ":") .. directory)
   local missing = from({ [-1] = name .. "-absent", [0] = "main.lua" }, directory)
