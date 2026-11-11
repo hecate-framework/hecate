@@ -73,8 +73,7 @@ function T:test_two_workers_serve_the_example_and_stop_on_shutdown()
     reactor.run(function()
       reactor.fork(function()
         local inner_ok, inner_err = pcall(reactor.deadline, 30, function()
-          -- Before its socket is bound, a primary reports the configured endpoint (port 0 here): wait for the real port.
-          while not (app:local_address() and app:local_address().port ~= 0) do reactor.sleep(0.02) end
+          while not app:local_address() do reactor.sleep(0.02) end
           local port = app:local_address().port
           while request(port, "GET", "/health") == nil do reactor.sleep(0.05) end -- a worker is ready
           for i = 1, 6 do answers[i] = { request(port, "GET", "/hello/Ada") } end

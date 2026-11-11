@@ -3,8 +3,8 @@
 
 - roadmap_item: `kernel`: application, modules, controllers, route modules, filters, problem details, lifecycle, multi-process workers, graceful shutdown (Phase 2, docs/roadmap.md)
 - status: in-progress
-- lock_until: 2026-11-11T09:50:00Z
-- last_update: 2026-11-11T09:50:00Z
+- lock_until: 2026-11-11T09:55:00Z
+- last_update: 2026-11-11T09:55:00Z
 
 ## Done
 
@@ -67,6 +67,7 @@
 - OQ-116 resolved by the owner (2026-11-11, issue #172 closed): all seven choices confirmed; the worker signal semantics are written in `docs/architecture/concurrency.md` (ADR 0023 is Accepted, not edited). OQ-43: the owner's luv pull request for TCP `reuseport` is merged in luv's main branch; when luv releases it, raise the pinned luv version (bootstrap and CI), then `auto` selects `reuseport` on Linux.
 
 - Step 24 (run of 2026-11-11T09:41Z, lock released at the end): Phase 2 exit criterion for the example: `examples/hello/main.lua` reads `HELLO_WORKERS` (default 1) and prints only in the primary (`kernel.supervisor.worker_role()`); `examples/hello/tests/workers_test.lua` runs the application as the primary of two workers started from `main.lua` itself (`round_robin`, stopped with `Application:shutdown`, so it runs on Windows too); CI runs `test examples/hello` whenever `kernel` is in the affected packages; README and CHANGELOG. typecheck, lint, check-changelog, check-links, check-lua-constructs, check-glossary, `test examples/hello` (3 consecutive green runs) ok; manual run with `HELLO_WORKERS=2` answered and stopped cleanly on SIGTERM. CI on macOS and Windows to verify.
+- Step 25 (owner request of 2026-11-11, lock released at the end): `Supervisor:local_address()` (and so `Application:local_address()`) is nil while an ephemeral port is not bound (test `tests/unit/supervisor_test.lua` with a gated fake strategy); the primary logs through `log.default()` when no logger is given (test in `application_test.lua`); the example test no longer waits for a non-zero port. typecheck, lint, check-annotations, check-glossary, check-lua-constructs, `test kernel`, `test examples/hello` ok.
 
 ## Next steps
 
@@ -87,8 +88,6 @@
 
 - The run was triggered by a bare "Retry" message with no task text; I assumed the relay routine and started the first unchecked roadmap item.
 
-- `Application:local_address()` in a primary returns the configured endpoint (port 0 when asked for an ephemeral port) until the supervisor has bound its socket; the example test waits for a non-zero port. Should it return nil until bound?
-- In a primary without a `logger` option or configuration, `workers_starting` is not logged (`serve_as_primary` uses `resolved.logger`, while the signal watcher falls back to `log.default()`); a manual run of `examples/hello` showed only the signal notice. Probably align on `log.default()` (small fix, test first).
 - `tools/lib/affected.lua` ignores changes under `examples/`, so a pull request touching only the example does not run its test in CI.
 
 ## Commands to re-run

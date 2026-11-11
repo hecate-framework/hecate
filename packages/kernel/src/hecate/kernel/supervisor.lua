@@ -307,11 +307,15 @@ function Supervisor:force()
 end
 
 --- The address the application listens on: the primary's socket for `round_robin`, the endpoint for `reuseport`;
---- nil before `run` has bound it.
+--- nil before `run` has bound it. With an ephemeral port (`port = 0`) it stays nil until the socket is bound, so a
+--- caller never sees port 0, which it could not connect to.
 ---@return hecate.reactor.SocketAddress|hecate.kernel.Endpoint|nil
 function Supervisor:local_address()
   if self._state == "new" then return nil end
-  return self._address or self._options.endpoint
+  if self._address ~= nil then return self._address end
+  local endpoint = self._options.endpoint
+  if endpoint.port == 0 then return nil end
+  return endpoint
 end
 
 --- Number of workers that reported `ready` and still run.

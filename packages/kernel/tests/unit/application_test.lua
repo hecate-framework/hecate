@@ -375,6 +375,21 @@ function T:test_the_primary_runs_a_supervisor_instead_of_a_server()
   self:assert_equal(2, codes(memory).workers_starting.workers)
 end
 
+function T:test_the_primary_logs_through_the_default_logger_without_a_logger_option()
+  local memory = log.MemorySink()
+  local saved = log.default()
+  log.set_default(log.Logger({ sinks = { memory } }))
+  local app = kernel.Application({
+    workers = 2, strategy = "round_robin", signals = false,
+    server = { host = "127.0.0.1", port = 0 }, worker_command = { "hecate-no-such-program" },
+  })
+  local ok
+  reactor.run(function() ok = pcall(reactor.deadline, 10, app.serve, app) end)
+  log.set_default(saved)
+  self:assert_false(ok) -- no worker program
+  self:assert_equal(2, codes(memory).workers_starting.workers)
+end
+
 function T:test_load_configuration_refuses_a_non_table()
   self:assert_false(pcall(kernel.load_configuration, "config"))
 end

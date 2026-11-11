@@ -273,7 +273,8 @@ end
 ---@async
 ---@param self hecate.kernel.Application
 local function serve_as_primary(self)
-  local resolved, logger = self._resolved, self._resolved.logger
+  -- Like the signal watcher and `http.Server`, the primary falls back to the default logger (OQ-79).
+  local resolved, logger = self._resolved, self._resolved.logger or log.default()
   local server_options = self._options.server or {}
   local defaults = http.Server.DEFAULTS
   local endpoint = {
@@ -286,11 +287,9 @@ local function serve_as_primary(self)
     command = command, count = resolved.workers, endpoint = endpoint, strategy = strategy, logger = logger,
   })
   self._supervisor = sup
-  if logger ~= nil then
-    if fallback ~= nil then logger:warning("kernel.Application: " .. fallback, { code = "strategy_fallback" }) end
-    logger:notice(("kernel.Application: starting %d workers (strategy %s)"):format(resolved.workers, strategy.name),
-      { code = "workers_starting", workers = resolved.workers, strategy = strategy.name, host = endpoint.host, port = endpoint.port })
-  end
+  if fallback ~= nil then logger:warning("kernel.Application: " .. fallback, { code = "strategy_fallback" }) end
+  logger:notice(("kernel.Application: starting %d workers (strategy %s)"):format(resolved.workers, strategy.name),
+    { code = "workers_starting", workers = resolved.workers, strategy = strategy.name, host = endpoint.host, port = endpoint.port })
   run_watched(self, watch_signals, function() sup:run() end)
 end
 
@@ -325,7 +324,8 @@ end
 
 --- The address the application listens on, `{ ip, port, family }`, or nil when it is not serving (with `port = 0` this
 --- is how a caller learns the port the system chose). In a primary it is the address its own socket is bound to
---- (`round_robin`), or the configured endpoint (`reuseport`, where each worker binds it), once the supervisor runs.
+--- (`round_robin`), or the configured endpoint (`reuseport`, where each worker binds it), once the supervisor runs;
+--- with `port = 0` it stays nil until that socket is bound.
 ---@return hecate.reactor.SocketAddress?
 function Application:local_address()
   if self._supervisor ~= nil then
