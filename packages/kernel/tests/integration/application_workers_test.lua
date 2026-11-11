@@ -125,6 +125,29 @@ local function codes_of(memory)
   return codes
 end
 
+--- Sends one request and counts it in `tally` (`answered`, `failures`); a failure records its reason, its time
+--- relative to `tally.origin` and the log codes seen so far (`codes`, the memory sink of the primary, may be nil).
+local function count_request(tally, port, memory)
+  local content, reason = get(port, "/whoami")
+  if content ~= nil then
+    tally.answered = tally.answered + 1
+    return
+  end
+  tally.failures = tally.failures + 1
+  local last
+  if memory ~= nil then
+    local records = memory:records()
+    for i = #records, 1, -1 do
+      local code = records[i].fields and records[i].fields.code
+      if code then last = code break end
+    end
+  end
+  tally.reasons[#tally.reasons + 1] = ("%s at +%.3f s (last event: %s)"):format(tostring(reason),
+    reactor.now() - tally.origin, tostring(last))
+end
+
+local function new_tally() return { answered = 0, failures = 0, reasons = {}, origin = reactor.now() } end
+
 local function contains(list, value)
   for _, item in ipairs(list) do if item == value then return true end end
   return false
@@ -134,7 +157,7 @@ function T:test_reload_replaces_the_workers_without_failing_a_request()
   if not can_run_workers() then return end
   local memory = log.MemorySink()
   local app = new_application({ logger = log.Logger({ sinks = { memory } }), signals = false })
-  local ok, err, before, after, failures, answered = nil, nil, {}, {}, 0, 0
+  local ok, err, before, after, tally = nil, nil, {}, {}, nil
   with_lua_paths(function()
     reactor.run(function()
       reactor.fork(function()
@@ -142,10 +165,9 @@ function T:test_reload_replaces_the_workers_without_failing_a_request()
         local port = app:local_address().port
         before = pids_of(port, 6)
         local reloading = true
+        tally = new_tally()
         local client = reactor.fork(function()
-          while reloading do
-            if get(port, "/whoami") then answered = answered + 1 else failures = failures + 1 end
-          end
+          while reloading do count_request(tally, port, memory) end
         end)
         app:reload({ grace_timeout = 5 })
         reloading = false
@@ -161,8 +183,8 @@ function T:test_reload_replaces_the_workers_without_failing_a_request()
   self:assert_equal(2, count(before))
   self:assert_equal(2, count(after))
   for pid in pairs(after) do self:assert_nil(before[pid], "a worker of before the reload still answers") end
-  self:assert_equal(0, failures)
-  self:assert_true(answered > 0)
+  self:assert_equal(0, tally.failures, table.concat(tally.reasons, "; "))
+  self:assert_true(tally.answered > 0)
   local codes = codes_of(memory)
   self:assert_true(contains(codes, "reload_started"))
   self:assert_true(contains(codes, "reload_done"))
@@ -170,8 +192,9 @@ end
 
 function T:test_a_reload_resets_no_connection_handed_over_just_before_the_stop()
   if not can_run_workers() then return end
-  local app = new_application({ signals = false })
-  local ok, err, failures, answered, reloads = nil, nil, 0, 0, 0
+  local memory = log.MemorySink()
+  local app = new_application({ logger = log.Logger({ sinks = { memory } }), signals = false })
+  local ok, err, reloads, tally = nil, nil, 0, nil
   local CLIENTS = 4
   with_lua_paths(function()
     reactor.run(function()
@@ -180,13 +203,12 @@ function T:test_a_reload_resets_no_connection_handed_over_just_before_the_stop()
         local port = app:local_address().port
         local reloading = true
         local clients = {}
+        tally = new_tally()
         -- Short requests in a tight loop from several clients: some connection is always on its way to the worker that
         -- the primary is about to stop. The reload must reset none of them.
         for _ = 1, CLIENTS do
           clients[#clients + 1] = reactor.fork(function()
-            while reloading do
-              if get(port, "/whoami") then answered = answered + 1 else failures = failures + 1 end
-            end
+            while reloading do count_request(tally, port, memory) end
           end)
         end
         for _ = 1, 2 do
@@ -202,8 +224,8 @@ function T:test_a_reload_resets_no_connection_handed_over_just_before_the_stop()
   end)
   self:assert_true(ok, tostring(err))
   self:assert_equal(2, reloads)
-  self:assert_equal(0, failures)
-  self:assert_true(answered >= CLIENTS * 2, "the clients were served during the reloads")
+  self:assert_equal(0, tally.failures, table.concat(tally.reasons, "; "))
+  self:assert_true(tally.answered >= CLIENTS * 2, "the clients were served during the reloads")
 end
 
 function T:test_sighup_starts_the_reload_and_a_terminal_signal_during_it_stops()

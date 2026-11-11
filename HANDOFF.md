@@ -82,7 +82,7 @@
 
 ## Next steps
 
-0. In progress (run of 2026-11-11T18:41Z): CI of 8730be2 failed on macOS at `ApplicationWorkersTest.test_reload_replaces_the_workers_without_failing_a_request` (`expected 0, got 1`), the flaky test seen in step 30; fixing it.
+0. In progress (run of 2026-11-11T18:41Z): CI of 8730be2 failed on macOS at `ApplicationWorkersTest.test_reload_replaces_the_workers_without_failing_a_request` (`expected 0, got 1`), the flaky test seen in step 30, and the CI of the claim commit 9a649f8 failed on macOS at the sibling `test_a_reload_resets_no_connection_handed_over_just_before_the_stop` (same message): one request lost per reload test, macOS only (150 runs on Linux under load: no failure). Step 32a pushed diagnostics (`helpers.get` returns the reason, the tests put the reasons, times and last log code in the assertion message); next: read the macOS log, find the cause, fix it (test first).
 1. The kernel item is ready for the owner's review: every review finding is done or consciously declined (see the Done entry of step 31). Remaining kernel pieces, all deferred and recorded in docs/roadmap.md: request id through the ambient context, the helper that returns the reactor options with `on_unobserved_failure` bound to `log` (CLI), the generated `config/development.lua` and `config/test.lua` values (CLI, Phase 3), `reuseport` conformance (waits for the next luv release, OQ-43), the `Request` counter of `http.Server` (workers report `-` for requests).
 2. Before ticking: the handoffs (a) to (n) were verified against the roadmap text and `/review-package kernel` ran twice (step 29 and the final review of step 31); nothing blocks ticking except the owner's decision on the deferred pieces.
 

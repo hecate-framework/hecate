@@ -70,23 +70,32 @@ function helpers.wait_until(predicate, seconds)
   end)
 end
 
---- One request with `Connection: close`; the content, or nil when the connection ended without an answer.
+--- One request with `Connection: close`; the content, or nil and why when the connection ended without an answer
+--- (`connect: <error>`, `read: <error> after <n> bytes`, `no answer after <n> bytes`), so that a test can say how a
+--- request failed.
 ---@async
 ---@param port integer
 ---@param path? string  default "/"
----@return string?
+---@return string? content
+---@return string? reason
 function helpers.get(port, path)
   local ok, stream = pcall(net.connect, "127.0.0.1", port)
-  if not ok then return nil end
-  stream:write(("GET %s HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n"):format(path or "/"))
-  local parts = {}
-  while true do
+  if not ok then return nil, "connect: " .. tostring(stream) end
+  local written, write_err = pcall(stream.write, stream,
+    ("GET %s HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n"):format(path or "/"))
+  local parts, failure = {}, nil
+  if not written then failure = "write: " .. tostring(write_err) end
+  while written do
     local read_ok, data = pcall(stream.read, stream)
-    if not read_ok or data == nil then break end
+    if not read_ok then failure = "read: " .. tostring(data) break end
+    if data == nil then break end
     parts[#parts + 1] = data
   end
   stream:close()
-  return table.concat(parts):match("\r\n\r\n(.*)$")
+  local all = table.concat(parts)
+  local content = all:match("\r\n\r\n(.*)$")
+  if content ~= nil then return content end
+  return nil, ("%s after %d bytes"):format(failure or "no answer", #all)
 end
 
 --- Whether a process of this id exists (signal 0 delivers nothing).
