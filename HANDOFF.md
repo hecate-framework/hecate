@@ -4,7 +4,7 @@
 - roadmap_item: `kernel`: application, modules, controllers, route modules, filters, problem details, lifecycle, multi-process workers, graceful shutdown (Phase 2, docs/roadmap.md)
 - status: in-progress
 - lock_until: 2026-11-11T08:06:34Z
-- last_update: 2026-11-11T09:26:10Z
+- last_update: 2026-11-11T09:30:16Z
 
 ## Done
 
@@ -68,7 +68,7 @@
 
 ## Next steps
 
-0. Kernel code still open: wire `kernel.supervisor` into `Application` (option `workers`, the primary runs a `Supervisor` with `command` defaulting to the running interpreter and script, a worker detected by `supervisor.worker_role()` serves through `WorkerRole:serve`; signals stop the supervisor), the configuration keys `server.workers` and `server.workers.strategy` (shape undecided: a count and a strategy under one key; record an OQ), `examples/hello` with N workers on the three platforms (Phase 2 exit criterion), a conformance test per strategy; then `SIGHUP` reload (roadmap (m)), response validation in development/test, the website reference page of `kernel`. Check CI of the pull request first.
+0. Kernel items still open, in this order (workers are wired in `Application`, OQ-116 resolved): (1) `examples/hello` with N workers on the three platforms (Phase 2 exit criterion; the example is single process today, run it with `workers = 2` through `server.workers` and add an in-process or spawned test), and run the example test in CI (a step invoking `lua tools/run.lua test examples/hello`); (2) a persistent signal handle in `reactor` (a worker that receives a signal between two `reactor.wait_signal` calls takes the default action and dies; `kernel/application.lua` loops on `wait_signal` to ignore `sigint` and `sigterm`), and a capability query for spawn and handle passing so the end-to-end test of `application_workers_test.lua` can skip where unsupported; (3) a conformance test per listening strategy (only `round_robin` is end to end; `reuseport` waits for the next luv release, OQ-43); (4) the `SIGHUP` rolling reload (roadmap (m), ADR 0023); (5) response validation in development and test; (6) the website reference page of `kernel`; (7) the generated `config/development.lua` and `config/test.lua` (CLI, Phase 3) must set `server.grace_timeout` low (2 s, to confirm). Check the CI of the pull request first.
 1. Before ticking: verify handoffs (a), (b), (c), (d), (e), (g), (h), (i), (j), (k), (l) against the roadmap text (most are done in code, see Done), then `/review-package kernel`.
 
 ## Decisions taken (and where they are recorded)
