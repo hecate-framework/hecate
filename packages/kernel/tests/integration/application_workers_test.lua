@@ -3,7 +3,7 @@
 -- answered, a signal stops the primary and its workers cleanly. Runs where `reactor.spawn` with a message pipe works (the
 -- three platforms of the CI; a platform that reports no spawn or handle passing skips the tests, any other failure to
 -- start a worker fails the test).
----@diagnostic disable: need-check-nil, param-type-mismatch, missing-fields, undefined-field, inject-field
+---@diagnostic disable: need-check-nil, undefined-field
 local test = require("harness.test")
 local uv = require("luv")
 local core = require("hecate.core")
@@ -14,25 +14,16 @@ local kernel = require("hecate.kernel")
 local T = test.Case("ApplicationWorkersTest")
 
 local here = debug.getinfo(1, "S").source:sub(2):match("^(.*)[/\\]integration[/\\][^/\\]+$") or "."
-local worker_script = uv.fs_realpath(here .. "/fixtures/application_worker.lua") or here .. "/fixtures/application_worker.lua"
-
---- Makes the relative entries of a search path absolute (the workers start in the same directory, but be safe).
-local function absolute(search_path)
-  local entries = {}
-  for entry in search_path:gmatch("[^;]+") do
-    local resolved = entry
-    if not (entry:match("^[/\\]") or entry:match("^%a:") or entry:match("^!")) then resolved = uv.cwd() .. "/" .. entry end
-    entries[#entries + 1] = resolved
-  end
-  return table.concat(entries, ";")
-end
+local workers = dofile(here .. "/helpers/workers.lua")
+local worker_script = workers.fixture("application_worker.lua")
+local can_run_workers, wait_until, get = workers.can_run_workers, workers.wait_until, workers.get
 
 --- Gives the workers (they inherit this process's environment) the search paths of this process while `body` runs.
 local function with_lua_paths(body)
   local names = { "LUA_PATH", "LUA_PATH_5_5", "LUA_CPATH", "LUA_CPATH_5_5" }
   local saved = {}
   for _, name in ipairs(names) do saved[name] = uv.os_getenv(name) end
-  local path, cpath = absolute(package.path), absolute(package.cpath)
+  local path, cpath = workers.absolute(package.path), workers.absolute(package.cpath)
   uv.os_setenv("LUA_PATH", path); uv.os_setenv("LUA_PATH_5_5", path)
   uv.os_setenv("LUA_CPATH", cpath); uv.os_setenv("LUA_CPATH_5_5", cpath)
   local ok, err = pcall(body)
@@ -53,45 +44,13 @@ local function new_application(options)
   return kernel.Application(options)
 end
 
---- One request with `Connection: close`; returns the body, or nil when the connection ended without an answer.
-local function get(port, path)
-  local stream = net.connect("127.0.0.1", port)
-  stream:write(("GET %s HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n"):format(path))
-  local parts = {}
-  while true do
-    local ok, data = pcall(stream.read, stream)
-    if not ok or data == nil then break end
-    parts[#parts + 1] = data
-  end
-  stream:close()
-  return table.concat(parts):match("\r\n\r\n(.*)$")
-end
-
-local function wait_until(predicate)
-  reactor.deadline(20, function()
-    while not predicate() do reactor.sleep(0.02) end
-  end)
-end
-
 local function wait_ready(app)
   wait_until(function() return app._supervisor ~= nil and app._supervisor:ready_count() == 2 end)
 end
 
---- Tells whether the platform can run the workers; prints why not and lets the test return when it cannot.
-local function can_run_workers()
-  for _, query in ipairs({ reactor.supports_spawn, reactor.supports_handle_passing }) do
-    local supported, reason = query()
-    if not supported then
-      io.stderr:write("# SKIP: workers are not supported here: ", tostring(reason), "\n")
-      return false
-    end
-  end
-  return true
-end
-
 function T:test_clients_are_answered_by_both_workers_and_a_signal_stops_everything()
   if not can_run_workers() then return end
-  if uv.os_uname().sysname:match("Windows") then return end -- the signal is raised with kill; Windows delivers console signals only
+  if not workers.can_raise_signals() then return end -- the signal is raised with kill; Windows delivers console signals only
   local guard = uv.new_signal() -- a signal raised before the watcher listens must not end the test process
   guard:start("sigterm", function() end)
   local memory = log.MemorySink()
@@ -211,9 +170,10 @@ end
 
 function T:test_sighup_starts_the_reload_and_a_terminal_signal_during_it_stops()
   if not can_run_workers() then return end
-  if uv.os_uname().sysname:match("Windows") then return end -- libuv delivers no sighup there
-  local guard = uv.new_signal()
+  if not workers.can_raise_signals() then return end -- libuv delivers no sighup there
+  local guard, hup_guard = uv.new_signal(), uv.new_signal() -- installed before any signal is raised: a signal that finds no watcher does not end the test process
   guard:start("sigterm", function() end)
+  hup_guard:start("sighup", function() end)
   local memory = log.MemorySink()
   local app = new_application({ logger = log.Logger({ sinks = { memory } }) })
   local ok, err, before, after = nil, nil, {}, {}
@@ -232,6 +192,7 @@ function T:test_sighup_starts_the_reload_and_a_terminal_signal_during_it_stops()
     end)
   end)
   guard:close()
+  hup_guard:close()
   self:assert_true(ok, tostring(err))
   for pid in pairs(after) do self:assert_nil(before[pid], "a worker of before the reload still answers") end
   self:assert_true(next(after) ~= nil)
@@ -249,26 +210,36 @@ function T:test_reload_needs_a_serving_primary()
 end
 
 function T:test_sighup_is_ignored_by_a_single_process()
-  if uv.os_uname().sysname:match("Windows") then return end
-  local guard = uv.new_signal()
+  if not workers.can_raise_signals() then return end
+  local guard, hup_guard = uv.new_signal(), uv.new_signal()
   guard:start("sigterm", function() end)
+  hup_guard:start("sighup", function() end)
+  local memory = log.MemorySink()
   local routes = kernel.routes("single")
   routes:get("/ping", { action = function() return { pong = true } end })
-  local app = kernel.Application({ routes = { routes }, logger = log.Logger({ sinks = {} }), server = { host = "127.0.0.1", port = 0 } })
+  local app = kernel.Application({
+    routes = { routes }, logger = log.Logger({ sinks = { memory }, severity = "debug" }), server = { host = "127.0.0.1", port = 0 },
+  })
   local ok, err, body = nil, nil, nil
   reactor.run(function()
     reactor.fork(function()
       wait_until(function() return app:local_address() ~= nil end)
-      uv.kill(uv.os_getpid(), "sighup")
-      reactor.sleep(0.2)
+      -- The watcher exists once the address is known; the signal is raised until the application says it ignored one.
+      wait_until(function()
+        uv.kill(uv.os_getpid(), "sighup")
+        return contains(codes_of(memory), "reload_ignored")
+      end)
       body = get(app:local_address().port, "/ping")
       uv.kill(uv.os_getpid(), "sigterm")
     end)
     ok, err = pcall(reactor.deadline, 30, app.serve, app)
   end)
   guard:close()
+  hup_guard:close()
   self:assert_true(ok, tostring(err))
   self:assert_not_nil(body) -- still serving after the sighup
+  self:assert_true(body:find("pong", 1, true) ~= nil)
+  self:assert_false(contains(codes_of(memory), "reload_started"), "a single process does not reload")
 end
 
 return T

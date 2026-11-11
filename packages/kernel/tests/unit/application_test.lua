@@ -1,4 +1,4 @@
----@diagnostic disable: need-check-nil, param-type-mismatch, missing-fields, undefined-field, assign-type-mismatch, inject-field
+---@diagnostic disable: need-check-nil, missing-fields, undefined-field, param-type-mismatch, assign-type-mismatch
 local test = require("harness.test")
 local http = require("hecate.http")
 local kernel = require("hecate.kernel")
@@ -361,13 +361,21 @@ function T:test_a_second_signal_forces_the_stop()
   self:assert_equal("sigterm", found.shutdown_forced.signal)
 end
 
+--- Waits (at most 10 s) until the application listens.
+local function wait_for_address(app)
+  reactor.deadline(10, function()
+    while app:local_address() == nil do reactor.sleep(0.005) end
+  end)
+end
+
 function T:test_signals_false_serves_until_shutdown()
   local app = kernel.Application({ signals = false, server = { host = "127.0.0.1", port = 0 } })
   reactor.run(function()
-    reactor.fork(function() reactor.sleep(0.01); app:shutdown(1) end)
+    reactor.fork(function() wait_for_address(app); app:shutdown(1) end)
     reactor.deadline(5, app.serve, app)
   end)
   self:assert_nil(app._server)
+  self:assert_nil(app:local_address())
 end
 
 function T:test_invalid_signal_options_are_refused()
@@ -487,7 +495,7 @@ end
 function T:test_a_single_process_has_no_supervisor()
   local app = kernel.Application({ signals = false, server = { host = "127.0.0.1", port = 0 }, worker_command = { "no-such-program" } })
   reactor.run(function()
-    reactor.fork(function() reactor.sleep(0.01); app:shutdown(1) end)
+    reactor.fork(function() wait_for_address(app); app:shutdown(1) end)
     reactor.deadline(5, app.serve, app)
   end)
   self:assert_nil(app._supervisor)
@@ -527,6 +535,196 @@ end
 
 function T:test_load_configuration_refuses_a_non_table()
   self:assert_false(pcall(kernel.load_configuration, "config"))
+end
+
+-- Boot rejections, before any request ------------------------------------------------------------------------------------
+
+--- Boots `options` and returns the error it raises; asserts that the application stays unbooted.
+local function boot_failure(case, options)
+  local app = kernel.Application(options)
+  local err = case:assert_error(function() app:boot() end)
+  case:assert_true(require("hecate.core").is_instance_of(err, kernel.RouteDeclarationError), tostring(err))
+  case:assert_nil(app.router)
+  case:assert_nil(app.container)
+  case:assert_nil(app._serve)
+  case:assert_false(app._booted)
+  return err, app
+end
+
+local function controller_with(declaration)
+  local core = require("hecate.core")
+  local Controller = core.class("BootController", kernel.Controller)
+  Controller.routes = { declaration }
+  core.finalise(Controller)
+  return Controller
+end
+
+function T:test_boot_rejects_a_route_that_names_a_missing_action()
+  local err = boot_failure(self, { routes = { controller_with({ method = "GET", path = "/x", action = "nothing" }) } })
+  self:assert_equal("missing_action", err.context.reason)
+  self:assert_equal("hecate.kernel.RouteDeclarationError.missing_action", err.code)
+  self:assert_equal("controller BootController", err.context.origin)
+  -- The same through a feature module, which gathers its routes at boot too.
+  local through_module = boot_failure(self, { modules = { { name = "m", routes = { controller_with({ method = "GET", path = "/x", action = "nothing" }) } } } })
+  self:assert_equal("missing_action", through_module.context.reason)
+end
+
+function T:test_boot_rejects_a_malformed_route_schema()
+  local err = boot_failure(self, { routes = { controller_with({ method = "GET", path = "/x", action = "a", responses = { [200] = {} } }) } })
+  self:assert_equal("invalid_responses", err.context.reason)
+  self:assert_equal("hecate.kernel.RouteDeclarationError.invalid_responses", err.code)
+  local parameters = boot_failure(self, { routes = { controller_with({
+    method = "GET", path = "/x", action = "a", parameters = { query = { q = "string" } } }) } })
+  self:assert_equal("invalid_parameters", parameters.context.reason)
+  local content = boot_failure(self, { routes = { controller_with({
+    method = "POST", path = "/x", action = "a", content = { ["application/json"] = 1 } }) } })
+  self:assert_equal("invalid_content", content.context.reason)
+end
+
+function T:test_boot_rejects_content_declared_for_an_unsupported_media_type()
+  local schema = require("hecate.schema")
+  local module = kernel.routes("xml")
+  module:post("/x", { action = function() return nil end, content = { ["application/xml"] = schema.any() } })
+  local err = boot_failure(self, { routes = { module } })
+  self:assert_equal("unsupported_content_type", err.context.reason)
+  self:assert_equal("hecate.kernel.RouteDeclarationError.unsupported_content_type", err.code)
+  self:assert_equal("route module xml", err.context.origin)
+  self:assert_equal("content", err.context.field)
+end
+
+function T:test_serve_fails_at_boot_before_it_listens_or_answers_anything()
+  local core = require("hecate.core")
+  local app = kernel.Application({
+    signals = false, server = { host = "127.0.0.1", port = 0 },
+    routes = { controller_with({ method = "GET", path = "/x", action = "nothing" }) },
+  })
+  local err
+  reactor.run(function()
+    local ok, failure = pcall(reactor.deadline, 5, app.serve, app)
+    err = not ok and failure or nil
+  end)
+  self:assert_true(core.is_instance_of(err, kernel.RouteDeclarationError), tostring(err))
+  self:assert_equal("missing_action", err.context.reason)
+  self:assert_nil(app:local_address()) -- nothing was bound
+  self:assert_nil(app._server)
+  self:assert_nil(app._served) -- a serve whose boot failed does not count
+end
+
+-- Errors of an action are not exposed ------------------------------------------------------------------------------------
+
+local function failing_application(options)
+  local module = kernel.routes("boom")
+  module:get("/boom", { action = function() error("secret") end })
+  options = options or {}
+  options.routes = { module }
+  return kernel.Application(options)
+end
+
+function T:test_a_plain_error_of_an_action_is_not_exposed_by_default()
+  local json = require("hecate.json")
+  local memory = log.MemorySink()
+  local serve = failing_application({ logger = log.Logger({ sinks = { memory } }) }):boot()
+  local response = get(serve, "/boom")
+  self:assert_equal(500, response.status)
+  self:assert_equal("application/problem+json", response.fields:get("Content-Type"))
+  local body = json.decode(response.content)
+  self:assert_equal(500, body.status)
+  self:assert_nil(body.debug)
+  for _, leak in ipairs({ "secret", "traceback", "stack", ".lua", "error(" }) do
+    self:assert_nil(response.content:find(leak, 1, true), "the body leaks " .. leak)
+  end
+  -- The failure is in the log, with its traceback, and nowhere else.
+  local record = memory:records()[1]
+  self:assert_not_nil(record)
+  self:assert_true(record.fields.error:find("secret", 1, true) ~= nil)
+  self:assert_true(record.fields.traceback:find("stack traceback", 1, true) ~= nil)
+end
+
+function T:test_a_plain_error_of_an_action_carries_the_debug_member_when_details_are_exposed()
+  local json = require("hecate.json")
+  local serve = failing_application({ expose_details = true, logger = log.Logger({ sinks = {} }) }):boot()
+  local response = get(serve, "/boom")
+  self:assert_equal(500, response.status)
+  local body = json.decode(response.content)
+  self:assert_equal("table", type(body.debug))
+  self:assert_equal("string", body.debug.error)
+  self:assert_true(body.debug.message:find("secret", 1, true) ~= nil)
+end
+
+function T:test_the_exposure_of_details_follows_the_configuration_unless_overridden()
+  local json = require("hecate.json")
+  local function body_of(options)
+    options.logger = log.Logger({ sinks = {} })
+    return json.decode(get(failing_application(options):boot(), "/boom").content)
+  end
+  self:assert_nil(body_of({ configuration = configuration({}) }).debug)
+  self:assert_not_nil(body_of({ configuration = configuration({ HECATE_ERRORS__EXPOSE_DETAILS = "true" }) }).debug)
+  self:assert_nil(body_of({ expose_details = false, configuration = configuration({ HECATE_ERRORS__EXPOSE_DETAILS = "true" }) }).debug)
+  log.set_default(nil)
+end
+
+-- A filter and a streaming response --------------------------------------------------------------------------------------
+
+function T:test_every_layer_of_filters_sees_a_streaming_response_unchanged()
+  local schema = require("hecate.schema")
+  local chunks_written = 0
+  local function writer(write)
+    chunks_written = chunks_written + 1
+    write("chunk one, ")
+    write("chunk two")
+  end
+  local produced = http.Response(200, { content = writer })
+  local seen = {}
+  local function observer(name)
+    return { handle = function(_, request, next)
+      local response = next(request)
+      seen[#seen + 1] = {
+        name = name, same = rawequal(response, produced), function_content = type(response.content) == "function",
+        same_writer = response.content == writer, written = chunks_written,
+      }
+      return response
+    end }
+  end
+  local module = kernel.routes("stream")
+  module:get("/stream", {
+    action = function() return produced end, responses = { [200] = schema.string() }, filters = { observer("route") },
+  })
+  local app = kernel.Application({
+    filters = { observer("global") }, validate_responses = true,
+    modules = { { name = "m", routes = { module }, filters = { observer("module") } } },
+  })
+  local response = get(app:boot(), "/stream")
+  self:assert_equal(3, #seen)
+  for _, entry in ipairs(seen) do
+    self:assert_true(entry.same, entry.name .. ": the filter got another response")
+    self:assert_true(entry.function_content, entry.name .. ": the content is no longer a writer")
+    self:assert_true(entry.same_writer, entry.name)
+    self:assert_equal(0, entry.written, entry.name .. ": the writer ran before the server consumed it")
+  end
+  self:assert_equal("route,module,global", seen[1].name .. "," .. seen[2].name .. "," .. seen[3].name)
+  self:assert_true(rawequal(response, produced), "the application returned another response")
+  -- The server runs the writer: it still produces the content, once.
+  local parts = {}
+  response.content(function(data) parts[#parts + 1] = data end, function() end)
+  self:assert_equal("chunk one, chunk two", table.concat(parts))
+  self:assert_equal(1, chunks_written)
+end
+
+function T:test_a_filter_may_add_a_field_to_a_streaming_response_and_it_keeps_streaming()
+  local function writer(write) write("x") end
+  local module = kernel.routes("stream")
+  module:get("/s", { action = function() return http.Response(200, { content = writer }) end })
+  local app = kernel.Application({
+    routes = { module },
+    filters = { { handle = function(_, request, next)
+      local response = next(request)
+      response.fields:set("X-Seen", "yes")
+      return response
+    end } },
+  })
+  local response = get(app:boot(), "/s")
+  self:assert_equal("yes", response.fields:get("X-Seen"))
+  self:assert_true(response.content == writer)
 end
 
 return T

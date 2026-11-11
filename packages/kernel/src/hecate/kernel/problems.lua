@@ -211,8 +211,9 @@ function problems.guard(action, options)
       local is_error = type(result) == "table" and core.is_instance_of(result, core.Error)
       -- The class and the code are fields of their own, apart from the free text of the message.
       fields.error_class = is_error and core.name(result) or type(result)
-      if is_error then fields.error_code = result.code end
-      fields.error = is_error and result.message or tostring(result)
+      local failure = result --[[@as hecate.core.Error]]
+      if is_error then fields.error_code = failure.code end
+      fields.error = is_error and failure.message or tostring(result)
       if response.status < 500 then
         -- A client-caused error (a request the client got wrong) is not a defect of the server: `warning`.
         logger:log("warning", "request refused", fields)

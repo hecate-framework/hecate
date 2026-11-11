@@ -1,4 +1,4 @@
----@diagnostic disable: need-check-nil, param-type-mismatch, missing-fields, undefined-field, assign-type-mismatch, inject-field
+---@diagnostic disable: undefined-field, param-type-mismatch
 local test = require("harness.test")
 local core = require("hecate.core")
 local json = require("hecate.json")

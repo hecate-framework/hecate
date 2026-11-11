@@ -1,3 +1,4 @@
+---@diagnostic disable: missing-fields, undefined-field
 local test = require("harness.test")
 local core = require("hecate.core")
 local chain = require("hecate.kernel.chain")

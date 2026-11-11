@@ -321,7 +321,14 @@ local function stop_workers(self, grace)
   end
   local function wait_all()
     for _, slot in ipairs(self._slots) do
-      if slot.future ~= nil then pcall(slot.future.value, slot.future) end
+      if slot.future ~= nil then
+        local waited, failure = pcall(slot.future.value, slot.future)
+        -- The cancellation of the deadline that bounds the wait must not be swallowed here (the future is then still
+        -- pending), or a worker that ignores `stop` is never killed. A future that ended by itself is not that case.
+        if not waited and slot.future:state() == "pending" and core.is_instance_of(failure, core.CancellationError) then
+          error(failure, 0)
+        end
+      end
     end
     local reload_end = self._reload_end -- a reload in flight ends once its replacement has exited (killed below at the latest)
     if reload_end ~= nil then
@@ -403,7 +410,11 @@ end
 local function retire(self, slot, gen, grace)
   note(self, "informational", "stopping the replaced worker", { code = "reload_old_stopping", worker = slot.index, pid = gen.process.pid })
   pcall(gen.peer.send, gen.peer, "stop " .. tostring(grace))
-  local ok, err = pcall(reactor.deadline, grace + KILL_MARGIN, function() pcall(gen.done.receive, gen.done) end)
+  local ok, err = pcall(reactor.deadline, grace + KILL_MARGIN, function()
+    local received, failure = pcall(gen.done.receive, gen.done)
+    -- The cancellation of the deadline must not be swallowed here, or a worker that ignores `stop` is never killed.
+    if not received and core.is_instance_of(failure, core.CancellationError) then error(failure, 0) end
+  end)
   if not ok then
     if not core.is_instance_of(err, core.DeadlineExceededError) then error(err, 0) end
     if gen.process:is_running() then
@@ -691,7 +702,7 @@ function WorkerRole:serve(server, default_grace)
   local ok, err = pcall(reactor.scope, function(scope)
     local control = scope:fork(self.control, self, function(grace)
       -- The connections handed over before the `stop` message are served first (a rolling reload loses none).
-      if listener.drain ~= nil then listener:drain(math.min(grace, 1)) end
+      if listener.drain ~= nil then (listener --[[@as hecate.kernel.HandOverListener]]):drain(math.min(grace, 1)) end
       server:shutdown(grace)
     end, default_grace or 30)
     self._peer:send("ready")

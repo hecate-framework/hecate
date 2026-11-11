@@ -45,8 +45,9 @@ function routing.collect(sources, module_filters)
     for _, entry in ipairs(list) do
       local gathered = entry
       if tag then
-        gathered = {}
-        for key, value in pairs(entry) do gathered[key] = value end
+        local copy = {}
+        for key, value in pairs(entry) do copy[key] = value end
+        gathered = copy --[[@as hecate.kernel.RouteEntry]]
         gathered.module_filters = module_filters
       end
       entries[#entries + 1] = gathered

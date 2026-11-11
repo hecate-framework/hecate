@@ -307,8 +307,10 @@ end
 --- Starts the grace of `conn` when it is fresh and the server is stopping. Called by `shutdown` for the connections it
 --- finds, and by `run_connection` for a connection accepted just before the accept loop stopped.
 function M.grace_fresh(self, conn)
-  if not conn.fresh or conn.watcher ~= nil or self._scope == nil then return end
-  local ok, task = pcall(self._scope.fork, self._scope, watch_fresh, self, conn)
+  ---@type hecate.reactor.Scope?
+  local scope = self._scope --[[@as hecate.reactor.Scope?]]
+  if not conn.fresh or conn.watcher ~= nil or scope == nil then return end
+  local ok, task = pcall(scope.fork, scope, watch_fresh, self, conn)
   if ok then conn.watcher = task end
 end
 

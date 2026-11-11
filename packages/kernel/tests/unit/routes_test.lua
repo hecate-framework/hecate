@@ -1,4 +1,4 @@
----@diagnostic disable: need-check-nil, param-type-mismatch, missing-fields, undefined-field, assign-type-mismatch, inject-field  -- the tests pass invalid declarations on purpose
+---@diagnostic disable: missing-fields, param-type-mismatch, assign-type-mismatch  -- the tests pass invalid declarations on purpose
 local test = require("harness.test")
 local core = require("hecate.core")
 local schema = require("hecate.schema")
@@ -460,6 +460,80 @@ function T:test_a_curried_declaration_that_is_refused_is_not_reported_as_incompl
   local module = kernel.routes("m")
   refused(self, "invalid_action", function() module:get "/bad" {} end)
   self:assert_equal(0, #module:routes())
+end
+
+-- One API, declared in both styles, from the route table to the answers --------------------------------------------------
+
+--- The same API twice: a route module with a prefix and a default filter, and a controller with the same prefix and filter.
+local function both_styles(trace)
+  local auth = { handle = function(_, request, next) trace[#trace + 1] = "auth"; return next(request) end }
+  local function show(request) return { id = request.parameters.path.id } end
+  local function list() return { items = {} } end
+  local function create() return { created = true } end
+  local function remove() return nil end
+  local responses = { [200] = schema.object { id = Id }, [404] = problem.NotFound }
+  local created = { [200] = schema.object { created = schema.boolean() } } -- one schema object, shared by both styles
+
+  local module = kernel.routes("users", { prefix = "/users", filters = { auth } })
+  module:get "/" { action = list, summary = "List users", tags = { "users" } }
+  module:post "/" { action = create, name = "users.create", responses = created }
+  module:get "/{id}" { action = show, summary = "Fetch a user", parameters = { path = { id = Id } }, responses = responses }
+  module:delete "/{id}" { action = remove, deprecated = true, parameters = { path = { id = Id } } }
+
+  local Users = core.class("UsersController", Controller)
+  Users.prefix, Users.filters = "/users", { auth }
+  Controller.route(Users, { method = "GET", path = "/", action = "list", summary = "List users", tags = { "users" } })
+  Controller.route(Users, { method = "POST", path = "/", action = "create", name = "users.create", responses = created })
+  Controller.route(Users, { method = "GET", path = "/{id}", action = "show", summary = "Fetch a user",
+    parameters = { path = { id = Id } }, responses = responses })
+  Controller.route(Users, { method = "DELETE", path = "/{id}", action = "remove", deprecated = true,
+    parameters = { path = { id = Id } } })
+  Users.list, Users.create, Users.remove = list, create, remove
+  function Users:show(request) return show(request) end
+  core.finalise(Users)
+  return module, Users
+end
+
+function T:test_a_whole_api_gives_the_same_route_table_in_both_styles()
+  local module, Users = both_styles({})
+  local a, b = kernel.routing.collect({ module }), kernel.routing.collect({ Users })
+  self:assert_equal(4, #a)
+  self:assert_equal(#a, #b)
+  for index = 1, #a do
+    same(self, a[index], b[index])
+    self:assert_equal(a[index].name, b[index].name)
+    self:assert_equal(#a[index].filters, #b[index].filters)
+    self:assert_true(a[index].filters[1] == b[index].filters[1], "the same filter object in both")
+  end
+  self:assert_equal("GET /users", a[1].name)
+  self:assert_equal("users.create", a[2].name)
+  self:assert_equal(true, a[4].deprecated)
+end
+
+function T:test_a_whole_api_answers_the_same_in_both_styles()
+  local json = require("hecate.json")
+  local http = require("hecate.http")
+  local trace_a, trace_b = {}, {}
+  local module = both_styles(trace_a)
+  local _, Users = both_styles(trace_b)
+  local serve_a = kernel.Application({ routes = { module } }):boot()
+  local serve_b = kernel.Application({ routes = { Users } }):boot()
+  local probes = {
+    { "GET", "/users" }, { "GET", "/users/" }, { "POST", "/users" }, { "GET", "/users/5" }, { "GET", "/users/0" },
+    { "GET", "/users/abc" }, { "DELETE", "/users/5" }, { "PUT", "/users/5" }, { "OPTIONS", "/users/5" },
+    { "GET", "/users/5/more" }, { "GET", "/nothing" }, { "HEAD", "/users/5" },
+  }
+  for _, probe in ipairs(probes) do
+    local function ask(serve) return serve(http.Request({ method = probe[1], target = probe[2], fields = http.Fields() })) end
+    local a, b = ask(serve_a), ask(serve_b)
+    local label = probe[1] .. " " .. probe[2]
+    self:assert_equal(a.status, b.status, label)
+    self:assert_equal(a.content and json.encode(json.decode(a.content)) or nil, b.content and json.encode(json.decode(b.content)) or nil, label)
+    self:assert_equal(a.fields:get("Allow"), b.fields:get("Allow"), label)
+    self:assert_equal(a.fields:get("Content-Type"), b.fields:get("Content-Type"), label)
+  end
+  self:assert_equal(table.concat(trace_a, ","), table.concat(trace_b, ","))
+  self:assert_true(#trace_a > 0, "the default filter ran")
 end
 
 return T

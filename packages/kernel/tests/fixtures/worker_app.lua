@@ -1,6 +1,15 @@
--- A worker of supervisor_test.lua: serves "<index>:<pid>" on every path, exits on /crash; with HECATE_TEST_MODE=exit
--- it exits at once (a crash loop). When the file named by HECATE_TEST_FLAG exists at start, its content picks the
--- behaviour of this process: `exit` (exits at once) or `hang` (never reports ready), to make a reload replacement fail.
+-- A worker of the supervisor tests: serves "<index>:<pid>" on every path and exits on /crash (the exit code, 4, is
+-- not asserted by any test: the supervisor only sees that the worker ended). With HECATE_TEST_MODE=exit it exits at
+-- once (a crash loop).
+--
+-- Modes: when the file named by HECATE_TEST_FLAG exists at start, the first process that gets to it takes it
+-- (a rename, so that only one process ever receives it), removes it, and its content picks the behaviour of that
+-- process alone:
+--   exit               exits at once, before it is ready
+--   hang               never reports ready, ignores every message of the primary (`stop` included) until it is killed
+--   deaf               reports ready, then ignores every message of the primary, `stop` included, until it is killed
+--   slow_ready=<s>     waits <s> seconds before it serves and reports ready
+--   exit_after_ready   reports ready, then exits
 local uv = require("luv")
 local reactor = require("hecate.reactor")
 local http = require("hecate.http")
@@ -9,16 +18,39 @@ local supervisor = require("hecate.kernel.supervisor")
 
 if os.getenv("HECATE_TEST_MODE") == "exit" then os.exit(3) end
 
-local flag = os.getenv("HECATE_TEST_FLAG")
-local handle = flag and io.open(flag, "r")
-if handle then
-  local mode = handle:read("a")
-  handle:close()
-  if mode:match("^exit") then os.exit(3) end
-  if mode:match("^hang") then reactor.run(function() reactor.sleep(3600) end) os.exit(0) end
+--- The mode this process takes from the flag file, nil when there is none or another process took it.
+---@return string? name
+---@return string? value
+local function take_mode()
+  local flag = os.getenv("HECATE_TEST_FLAG")
+  if flag == nil then return nil end
+  local mine = flag .. "." .. uv.os_getpid()
+  if not os.rename(flag, mine) then return nil end
+  local handle = io.open(mine, "r")
+  local text = handle and handle:read("a") or ""
+  if handle then handle:close() end
+  os.remove(mine)
+  return text:match("^([%w_]+)=?(.*)$")
 end
 
+local mode, value = take_mode()
+if mode == "exit" then os.exit(3) end
+
 reactor.run(function()
+  if mode == "hang" or mode == "deaf" then
+    local peer = assert(reactor.ipc.parent(), "not started as a worker")
+    if mode == "deaf" then peer:send("ready") end
+    while true do
+      local message, stream = peer:receive()
+      if message == nil then os.exit(0) end -- the primary is gone: do not outlive it
+      if stream ~= nil then stream:close() end
+    end
+  end
+  if mode == "exit_after_ready" then
+    assert(reactor.ipc.parent(), "not started as a worker"):send("ready")
+    os.exit(3)
+  end
+  if mode == "slow_ready" then reactor.sleep(tonumber(value) or 1) end
   local role = assert(supervisor.worker_role(), "not started as a worker")
   local server = http.Server(function(request)
     if request.target == "/crash" then os.exit(4) end
