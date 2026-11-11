@@ -3,7 +3,7 @@ description: La conception du service multiprocessus dans hecate (ADR 0023) : wo
 hecate: "0.x"
 lua: "5.5"
 order: 3
-source_revision: cc88cb1
+source_revision: 4c018d7
 ---
 
 # Service multiprocessus
@@ -99,9 +99,16 @@ connexions par seconde, ce que ne fait pas un serveur qui réutilise ses connexi
 
 Chaque worker a un [tube de messages](../reference/glossary.md#concurrency) (*message pipe*) vers
 le primaire, identique sur toutes les plateformes et jamais sur le chemin des données. Il
-transporte aujourd’hui `ready` et `stop(deadline)`. Le nom `reload` est réservé, et les compteurs
-ne sont pas encore implémentés.
+transporte `ready`, `stop(deadline)` et les compteurs. Le nom `reload` est réservé et inutilisé.
 
+- Un worker envoie `counters <requests> <connections>` au plus une fois par seconde, et seulement
+  quand une valeur a changé. Aujourd’hui, `connections` est le nombre de connexions que le worker a
+  acceptées du primaire et `requests` est inconnu, car le serveur HTTP ne tient pas encore de
+  compteur de requêtes. Le primaire garde les dernières valeurs de chaque worker et ignore un
+  message mal formé.
+- Un worker qui n’envoie pas `ready` dans les `ready_timeout` secondes (30 par défaut) suivant son
+  démarrage est tué et compté comme un plantage : le recul du redémarrage et la limite de
+  plantages s’appliquent.
 - Un worker qui voit le tube se fermer sait que le primaire est mort. Il vide ses requêtes et
   sort. Aucune protection propre à une plateforme contre les orphelins n’est nécessaire.
 - Le primaire ne signale jamais directement un worker. Il envoie `stop`, et tue le processus après
@@ -140,7 +147,7 @@ leur rôle. Un worker refuse un hôte ou un backlog mal formé dans ces variable
 | Stratégie `round_robin`, clés de configuration `server.workers` et `server.strategy` | Implémenté. |
 | Stratégie `reuseport` | Écrite, attend la prise en charge par luv (voir ci-dessous). |
 | `hecate serve --workers` | Non implémenté (paquet `cli`, phase 3). |
-| Compteurs du protocole de contrôle | Non implémenté. |
+| Compteurs du protocole de contrôle | Implémenté (connexions ; les requêtes ne sont pas encore comptées). |
 | Suite de conformité des stratégies sur trois plateformes | Non implémenté. |
 
 ### `reuseport` ne fonctionne pas encore {#reuseport-does-not-work-yet}
