@@ -20,6 +20,8 @@ function T:test_common_classes_carry_status_and_reason_phrase_as_title()
     BadRequest = 400, Unauthorized = 401, Forbidden = 403, NotFound = 404, MethodNotAllowed = 405,
     Conflict = 409, Gone = 410, UnprocessableContent = 422, TooManyRequests = 429,
     InternalServerError = 500, ServiceUnavailable = 503,
+    NotAcceptable = 406, RequestTimeout = 408, PreconditionFailed = 412, ContentTooLarge = 413,
+    UnsupportedMediaType = 415, BadGateway = 502, GatewayTimeout = 504,
   }
   for name, status in pairs(expected) do
     local class = problem[name]
@@ -32,6 +34,13 @@ function T:test_common_classes_carry_status_and_reason_phrase_as_title()
     self:assert_equal("about:blank", instance.type)
     self:assert_nil(instance.detail)
     self:assert_true(core.is_instance_of(instance, problem.Problem))
+  end
+end
+
+function T:test_a_built_in_class_has_the_code_hecate_problem_and_its_name()
+  for _, name in ipairs({ "BadRequest", "NotAcceptable", "ContentTooLarge", "GatewayTimeout", "ServiceUnavailable" }) do
+    self:assert_equal("hecate.problem." .. name, problem[name].code)
+    self:assert_equal("hecate.problem." .. name, problem[name]({}).code)
   end
 end
 
@@ -97,12 +106,24 @@ end
 function T:test_define_declares_an_own_class()
   local Teapot = problem.define("OutOfTea", { status = 418, title = "Out of tea", type = "https://example.test/out-of-tea" })
   self:assert_equal(418, Teapot.status)
+  self:assert_equal("app.problem.OutOfTea", Teapot.code) -- the shape of a built-in code, in the namespace of the application
   local p = Teapot({ detail = "Refill." })
+  self:assert_equal("app.problem.OutOfTea", p.code)
   self:assert_equal("https://example.test/out-of-tea", p.type)
   self:assert_true(core.is_instance_of(p, problem.Problem))
   local response = problems.from_error(p)
   self:assert_equal(418, response.status)
   self:assert_equal("https://example.test/out-of-tea", body(response).type)
+end
+
+function T:test_define_takes_an_explicit_code_but_never_in_the_hecate_namespace()
+  local Own = problem.define("Own", { status = 418, title = "t", code = "shop.problem.OutOfTea" })
+  self:assert_equal("shop.problem.OutOfTea", Own.code)
+  for _, code in ipairs({ "hecate.problem.Own", "hecate", 5, "" }) do
+    local err = self:assert_error(function() problem.define("Own", { status = 418, title = "t", code = code }) end)
+    self:assert_equal("hecate.core.ArgumentError", err.code)
+    self:assert_not_nil(err.message:find("^hecate%.kernel%.problem%.define: "), err.message)
+  end
 end
 
 function T:test_define_refuses_invalid_declarations()
@@ -114,6 +135,7 @@ function T:test_define_refuses_invalid_declarations()
   for _, case in ipairs(bad) do
     local err = self:assert_error(function() problem.define(case[1], case[2]) end)
     self:assert_equal("hecate.core.ArgumentError", err.code)
+    self:assert_not_nil(err.message:find("^hecate%.kernel%.problem%.define: .*got "), err.message)
   end
 end
 

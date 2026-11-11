@@ -3,7 +3,7 @@ description: La conception du service multiprocessus dans hecate (ADR 0023) : w
 hecate: "0.x"
 lua: "5.5"
 order: 3
-source_revision: f1f3b5e
+source_revision: 72259a8
 ---
 
 # Service multiprocessus
@@ -68,7 +68,7 @@ pour chaque stratégie. Il y en a deux.
 | `reuseport` | chaque worker, sur son propre socket lié avec `SO_REUSEPORT` | non | Linux |
 | `round_robin` | le primaire, qui passe chaque connexion acceptée au worker suivant | oui, pour accepter et transférer seulement | macOS et Windows, et le repli partout |
 
-`server.workers.strategy` vaudra `auto`, qui choisit la valeur par défaut de la plateforme, ou le
+`server.strategy` vaudra `auto`, qui choisit la valeur par défaut de la plateforme, ou le
 nom d’une stratégie. Quand la stratégie choisie n’est pas prise en charge, le serveur se replie
 sur `round_robin`, qui fonctionne partout, et journalise un avertissement avec la raison.
 
@@ -120,6 +120,14 @@ l’échéance, puis annule ce qui reste.
   puis arrête l’ancien, et garde au plus un worker hors service à la fois. Cette limite est
   documentée, pas cachée.
 
+Le rechargement progressif existe dans `kernel` (`Supervisor:reload` ; `SIGHUP` dans le primaire,
+ou `Application:reload`, qui prend une seule table d’options, `{ grace_timeout?, ready_timeout? }`).
+Il remplace les workers par redémarrage, un à la fois, et n’envoie aucun message `reload` : ce nom
+reste réservé.
+
+Les workers héritent de tout l’environnement du primaire, plus les variables `HECATE_WORKER_*` de
+leur rôle. Un worker refuse un hôte ou un backlog mal formé dans ces variables.
+
 ## Ce qui existe aujourd’hui {#what-exists-today}
 
 | Élément | État |
@@ -127,8 +135,9 @@ l’échéance, puis annule ce qui reste.
 | `reactor.spawn`, `Process` (`wait`, `kill`, `pid`) | Implémenté. |
 | `reactor.ipc` : `Peer:send`, `Peer:receive`, passage de handles, `ipc.parent()` | Implémenté. |
 | Option TCP `reuseport`, `reactor.supports_reuseport()` | Implémenté, mais voir ci-dessous. |
-| Superviseur : disponibilité, redémarrage, arrêt en douceur, rechargement progressif (`kernel`) | Non implémenté. |
-| Stratégies `reuseport` et `round_robin`, `server.workers.strategy` | Non implémenté. |
+| Superviseur : disponibilité, redémarrage, arrêt en douceur, rechargement progressif (`kernel`) | Implémenté. |
+| Stratégie `round_robin`, clés de configuration `server.workers` et `server.strategy` | Implémenté. |
+| Stratégie `reuseport` | Implémentée, attend la prise en charge par luv (voir ci-dessous). |
 | `hecate serve --workers` | Non implémenté. |
 | Suite de conformité des stratégies sur trois plateformes | Non implémenté. |
 

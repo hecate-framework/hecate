@@ -20,13 +20,13 @@ local listening = {}
 ---@field backlog? integer  pending connections the system queues (default 128)
 
 --- A worker as the primary sees it, for `round_robin`.
----@class hecate.kernel.HandoffTarget
----@field hand_over async fun(self: hecate.kernel.HandoffTarget, stream: hecate.reactor.TcpStream)  passes a connection to the worker (for example `Peer:send("connection", stream)`); raises when the worker cannot take it
+---@class hecate.kernel.HandOverTarget
+---@field hand_over async fun(self: hecate.kernel.HandOverTarget, stream: hecate.reactor.TcpStream)  passes a connection to the worker (for example `Peer:send("connection", stream)`); raises when the worker cannot take it
 
 --- What a worker gives its strategy to build its listener.
 ---@class hecate.kernel.WorkerContext
 ---@field endpoint hecate.kernel.Endpoint
----@field handoff hecate.kernel.HandoffListener  fed with the connections the primary hands over (`round_robin`)
+---@field hand_over hecate.kernel.HandOverListener  fed with the connections the primary hands over (`round_robin`)
 
 ---@param endpoint any
 ---@param call string
@@ -50,54 +50,54 @@ end
 ---@param operation string
 local function raise_closed(operation)
   error(reactor.TransportError({
-    message = "kernel.HandoffListener." .. operation .. ": EBADF: the listener is closed",
+    message = "kernel.HandOverListener." .. operation .. ": EBADF: the listener is closed",
     context = { operation = operation, errno = "EBADF" },
   }), 0)
 end
 
 --- The listener of a `round_robin` worker: `accept` returns the connections the primary handed over, pushed by the
 --- worker's control loop. It has the interface `hecate.http.Server:serve` expects of a listener.
----@class hecate.kernel.HandoffListener
----@overload fun(address?: hecate.reactor.SocketAddress, capacity?: integer): hecate.kernel.HandoffListener
-local HandoffListener = core.class("HandoffListener")
+---@class hecate.kernel.HandOverListener
+---@overload fun(address?: hecate.reactor.SocketAddress, capacity?: integer): hecate.kernel.HandOverListener
+local HandOverListener = core.class("HandOverListener")
 
 --- Creates an empty, open listener.
 ---
 --- Raises `hecate.core.ArgumentError` when `capacity` is not a positive integer.
 ---@param address? hecate.reactor.SocketAddress  what `local_address` reports (the primary's listening address)
 ---@param capacity? integer  the most connections queued at once, the role of a listen backlog (default `http.Server.DEFAULTS.backlog`)
-function HandoffListener:init(address, capacity)
+function HandOverListener:init(address, capacity)
   if capacity == nil then capacity = http.Server.DEFAULTS.backlog end
   if math.type(capacity) ~= "integer" or capacity < 1 then
-    error(core.ArgumentError("kernel.HandoffListener: capacity must be a positive integer, got " .. tostring(capacity)), 3)
+    error(core.ArgumentError("hecate.kernel.listening.init: capacity must be a positive integer, got " .. tostring(capacity)), 3)
   end
   self._address = address
   self._capacity = capacity
   -- Pushing never suspends: the control loop that pushes must stay free to receive `stop`. A connection that does not
   -- fit is closed instead, as a kernel drops a connection when the listen backlog is full.
-  self._queue = reactor.Channel(capacity)
+  self._pending = reactor.Channel(capacity)
 end
 
 --- The most connections queued at once.
 ---@return integer
-function HandoffListener:capacity() return self._capacity end
+function HandOverListener:capacity() return self._capacity end
 
 --- Queues a connection handed over by the primary. Never suspends. Returns false and a reason, after closing the
 --- stream, when the listener is closed (`"closed"`) or already holds `capacity` connections (`"full"`).
 ---@param stream hecate.reactor.TcpStream|hecate.net.TcpStream
 ---@return boolean queued
 ---@return ("closed"|"full")? reason
-function HandoffListener:push(stream)
-  local queue = self._queue
-  if queue:is_closed() then
+function HandOverListener:push(stream)
+  local pending = self._pending
+  if pending:is_closed() then
     stream:close()
     return false, "closed"
   end
-  if queue:length() >= self._capacity then
+  if pending:length() >= self._capacity then
     stream:close()
     return false, "full"
   end
-  queue:send(stream)
+  pending:send(stream)
   return true
 end
 
@@ -106,9 +106,9 @@ end
 --- Raises `hecate.reactor.TransportError` (`EBADF`, `context.operation` `accept`) when the listener is closed.
 ---@async
 ---@return hecate.net.TcpStream
-function HandoffListener:accept()
-  if self._queue:is_closed() then raise_closed("accept") end
-  local ok, stream = pcall(self._queue.receive, self._queue)
+function HandOverListener:accept()
+  if self._pending:is_closed() then raise_closed("accept") end
+  local ok, stream = pcall(self._pending.receive, self._pending)
   if not ok then
     if core.is_instance_of(stream, core.CancellationError) then error(stream, 0) end
     raise_closed("accept")
@@ -118,25 +118,25 @@ function HandoffListener:accept()
 end
 
 --- Stops accepting: a waiting `accept` fails, the queued connections are closed. Idempotent, never suspends.
-function HandoffListener:close()
-  local queue = self._queue
-  if queue:is_closed() then return end
-  queue:close()
-  while queue:length() > 0 do
-    local ok, stream = pcall(queue.receive, queue) -- a closed channel yields its buffered values without suspending
+function HandOverListener:close()
+  local pending = self._pending
+  if pending:is_closed() then return end
+  pending:close()
+  while pending:length() > 0 do
+    local ok, stream = pcall(pending.receive, pending) -- a closed channel yields its buffered values without suspending
     if ok then stream:close() end
   end
 end
 
 ---@return boolean
-function HandoffListener:is_closed() return self._queue:is_closed() end
+function HandOverListener:is_closed() return self._pending:is_closed() end
 
 --- The address given at creation, or nil.
 ---@return hecate.reactor.SocketAddress?
-function HandoffListener:local_address() return self._address end
+function HandOverListener:local_address() return self._address end
 
-core.finalise(HandoffListener)
-listening.HandoffListener = HandoffListener
+core.finalise(HandOverListener)
+listening.HandOverListener = HandOverListener
 
 --- The workers that take connections, in rotation (`round_robin`). The supervisor adds a worker once it is ready
 --- and removes it when it drains or exits.
@@ -159,7 +159,7 @@ local function signal(self)
 end
 
 --- Adds a worker at the end of the rotation (nothing if it is a member already). Never suspends.
----@param worker hecate.kernel.HandoffTarget
+---@param worker hecate.kernel.HandOverTarget
 function WorkerRing:add(worker)
   local members = self._members
   for i = 1, #members do if members[i] == worker then return end end
@@ -168,7 +168,7 @@ function WorkerRing:add(worker)
 end
 
 --- Removes a worker from the rotation (nothing if it is not a member). Never suspends.
----@param worker hecate.kernel.HandoffTarget
+---@param worker hecate.kernel.HandOverTarget
 function WorkerRing:remove(worker)
   local members = self._members
   for i = 1, #members do
@@ -185,9 +185,9 @@ end
 function WorkerRing:size() return #self._members end
 
 --- The next worker in the rotation, suspending while there is none; nil once the ring is closed. One caller at a time
---- (the dispatch loop of the primary).
+--- (the hand-over loop of the primary).
 ---@async
----@return hecate.kernel.HandoffTarget?
+---@return hecate.kernel.HandOverTarget?
 function WorkerRing:next()
   while not self._closed and #self._members == 0 do
     local ok, err = pcall(self._changed.receive, self._changed)
@@ -235,20 +235,20 @@ function RoundRobin:supported() return true, nil end
 ---@param endpoint hecate.kernel.Endpoint
 ---@return hecate.reactor.SocketAddress address
 function RoundRobin:prepare(endpoint)
-  check_endpoint(endpoint, "kernel.listening.round_robin:prepare")
-  if self._listener ~= nil then error(core.ArgumentError("kernel.listening.round_robin:prepare: already prepared"), 2) end
+  check_endpoint(endpoint, "hecate.kernel.listening.prepare")
+  if self._listener ~= nil then error(core.ArgumentError("hecate.kernel.listening.prepare: already prepared"), 2) end
   self._listener = net.listen(endpoint.host, endpoint.port, { backlog = endpoint.backlog })
   return self._listener:local_address()
 end
 
---- The listener of a worker: the handoff listener of its context, fed by its control loop. Does not suspend.
+--- The listener of a worker: the hand-over listener of its context, fed by its control loop. Does not suspend.
 ---@param context hecate.kernel.WorkerContext
----@return hecate.kernel.HandoffListener
+---@return hecate.kernel.HandOverListener
 function RoundRobin:worker_listener(context)
-  if type(context) ~= "table" or not core.is_instance_of(context.handoff, HandoffListener) then
-    error(core.ArgumentError("kernel.listening.round_robin:worker_listener: context.handoff must be a HandoffListener"), 2)
+  if type(context) ~= "table" or not core.is_instance_of(context.hand_over, HandOverListener) then
+    error(core.ArgumentError("hecate.kernel.listening.worker_listener: context.hand_over must be a HandOverListener, got " .. type(type(context) == "table" and context.hand_over or nil)), 2)
   end
-  return context.handoff
+  return context.hand_over
 end
 
 --- Hands one connection to a worker; tries each worker of the ring at most once, then closes the connection.
@@ -273,14 +273,14 @@ local function deliver(self, workers, stream)
       error(err, 0)
     end
     if self._logger ~= nil then
-      self._logger:warning("kernel.listening: a worker could not take a connection", { code = "handoff_failed", reason = tostring(err) })
+      self._logger:warning("kernel.listening: a worker could not take a connection", { code = "hand_over_failed", reason = tostring(err) })
     end
   end
   stream:close()
   return true
 end
 
---- The dispatch loop, in the primary: accepts each connection and hands it to the next worker of `workers`. Returns
+--- The hand-over loop, in the primary: accepts each connection and hands it over to the next worker of `workers`. Returns
 --- when `close` is called or the ring is closed. An accept failure (descriptor exhaustion) backs off from 50 ms to
 --- 1 s, as `hecate.http.Server` does, and is logged once per burst.
 ---
@@ -289,7 +289,7 @@ end
 ---@param workers hecate.kernel.WorkerRing
 function RoundRobin:run(workers)
   local listener = self._listener
-  if listener == nil then error(core.ArgumentError("kernel.listening.round_robin:run: call prepare first"), 2) end
+  if listener == nil then error(core.ArgumentError("hecate.kernel.listening.run: call prepare first"), 2) end
   local failures = 0
   while true do
     local ok, stream = pcall(listener.accept, listener)
@@ -361,9 +361,9 @@ end
 ---@param endpoint hecate.kernel.Endpoint
 ---@return hecate.reactor.SocketAddress? address  nil: the address is known once a worker has bound it
 function Reuseport:prepare(endpoint)
-  check_endpoint(endpoint, "kernel.listening.reuseport:prepare")
+  check_endpoint(endpoint, "hecate.kernel.listening.prepare")
   if endpoint.port == 0 then
-    error(core.ArgumentError("kernel.listening.reuseport:prepare: port 0 would give each worker its own port; use a fixed port or round_robin"), 2)
+    error(core.ArgumentError("hecate.kernel.listening.prepare: port 0 would give each worker its own port; use a fixed port or round_robin"), 2)
   end
   self._endpoint = endpoint
   return nil
@@ -376,11 +376,11 @@ end
 ---@param context hecate.kernel.WorkerContext
 ---@return hecate.net.TcpListener
 function Reuseport:worker_listener(context)
-  local endpoint = check_endpoint(type(context) == "table" and context.endpoint or nil, "kernel.listening.reuseport:worker_listener")
+  local endpoint = check_endpoint(type(context) == "table" and context.endpoint or nil, "hecate.kernel.listening.worker_listener")
   return net.listen(endpoint.host, endpoint.port, { backlog = endpoint.backlog, reuseport = true })
 end
 
---- No dispatch loop: returns at once.
+--- No hand-over loop: returns at once.
 ---@async
 ---@param workers hecate.kernel.WorkerRing
 function Reuseport:run(workers) local _ = workers end
@@ -403,7 +403,7 @@ listening.ReuseportStrategy = Reuseport
 ---@field reuseport? boolean  replaces `reactor.supports_reuseport()` (tests)
 ---@field logger? hecate.log.Logger  given to `round_robin`
 
---- Chooses the listening strategy for `server.workers.strategy` (ADR 0023, Decision 3): `"auto"` is `reuseport` when
+--- Chooses the listening strategy for `server.strategy` (ADR 0023, Decision 3): `"auto"` is `reuseport` when
 --- it is supported (Linux with TCP `SO_REUSEPORT`) and `round_robin` otherwise; a strategy named but not supported
 --- falls back to `round_robin`, and the second result gives the reason (the caller logs it as a warning). `auto`
 --- falling back is the documented default, not a warning. Does not suspend.
@@ -418,7 +418,7 @@ function listening.select(name, options)
   local round_robin = RoundRobin({ logger = options.logger })
   if name == "round_robin" then return round_robin, nil end
   if name ~= "auto" and name ~= "reuseport" then
-    error(core.ArgumentError(("kernel.listening.select: unknown strategy %q (auto, reuseport or round_robin)"):format(tostring(name))), 2)
+    error(core.ArgumentError(("hecate.kernel.listening.select: unknown strategy %q (valid: auto, reuseport, round_robin)"):format(tostring(name))), 2)
   end
   local reuseport = Reuseport({ system = options.system, reuseport = options.reuseport })
   local supported, reason = reuseport:supported()

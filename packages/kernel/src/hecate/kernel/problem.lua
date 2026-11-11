@@ -15,12 +15,19 @@ local http = require("hecate.http")
 ---@field Forbidden hecate.kernel.problem.Problem  403
 ---@field NotFound hecate.kernel.problem.Problem  404
 ---@field MethodNotAllowed hecate.kernel.problem.Problem  405
+---@field NotAcceptable hecate.kernel.problem.Problem  406
+---@field RequestTimeout hecate.kernel.problem.Problem  408
 ---@field Conflict hecate.kernel.problem.Problem  409
 ---@field Gone hecate.kernel.problem.Problem  410
+---@field PreconditionFailed hecate.kernel.problem.Problem  412
+---@field ContentTooLarge hecate.kernel.problem.Problem  413
+---@field UnsupportedMediaType hecate.kernel.problem.Problem  415
 ---@field UnprocessableContent hecate.kernel.problem.Problem  422
 ---@field TooManyRequests hecate.kernel.problem.Problem  429
 ---@field InternalServerError hecate.kernel.problem.Problem  500
+---@field BadGateway hecate.kernel.problem.Problem  502
 ---@field ServiceUnavailable hecate.kernel.problem.Problem  503
+---@field GatewayTimeout hecate.kernel.problem.Problem  504
 local problem = {}
 
 --- The fields a problem is built from.
@@ -32,7 +39,7 @@ local problem = {}
 ---@class hecate.kernel.problem.Problem : hecate.core.Error
 ---@field status integer
 ---@field title string
----@field code string  the stable error code, `hecate.problem.<Class>`
+---@field code string  the stable error code, `<namespace>.problem.<Class>`: `hecate.problem.NotFound` for a built-in class, `app.problem.<Name>` by default for a class of `problem.define`
 ---@field type string  a URI reference, `about:blank` by default (RFC 9457, section 4.2.1)
 ---@field detail? string
 ---@field extensions table<string, any>
@@ -53,34 +60,34 @@ local RESERVED <const> = { type = true, title = true, status = true, detail = tr
 function Problem:init(fields)
   if fields == nil then fields = {} end
   if type(fields) ~= "table" then
-    error(core.ArgumentError("a problem is built from a table of fields"), 3)
+    error(core.ArgumentError("hecate.kernel.problem.init: a problem is built from a table of fields, got " .. type(fields)), 3)
   end
   for key in pairs(fields) do
     if key ~= "detail" and key ~= "extensions" then
-      error(core.ArgumentError("a problem has no field " .. tostring(key) .. "; fields are detail and extensions"), 3)
+      error(core.ArgumentError("hecate.kernel.problem.init: unknown field '" .. tostring(key) .. "' (valid: detail, extensions)"), 3)
     end
   end
   if fields.detail ~= nil and type(fields.detail) ~= "string" then
-    error(core.ArgumentError("problem detail must be a string"), 3)
+    error(core.ArgumentError("hecate.kernel.problem.init: detail must be a string, got " .. type(fields.detail)), 3)
   end
   local extensions = fields.extensions
   if extensions ~= nil then
-    if type(extensions) ~= "table" then error(core.ArgumentError("problem extensions must be a table"), 3) end
+    if type(extensions) ~= "table" then error(core.ArgumentError("hecate.kernel.problem.init: extensions must be a table, got " .. type(extensions)), 3) end
     for key, value in pairs(extensions) do
       -- Cheap checks of what JSON cannot carry (the encoder would refuse it at the first answer): the nested values are
       -- left to `problems.from_problem`, which never lets an encoding failure escape.
       local kind = type(value)
       if kind == "function" or kind == "thread" or kind == "userdata" then
-        error(core.ArgumentError(("problem extension %q is a %s, which has no JSON representation"):format(tostring(key), kind)), 3)
+        error(core.ArgumentError(("hecate.kernel.problem.init: extension %q is a %s, which has no JSON representation"):format(tostring(key), kind)), 3)
       end
       if kind == "number" and (value ~= value or value == math.huge or value == -math.huge) then
-        error(core.ArgumentError(("problem extension %q is not a finite number"):format(tostring(key))), 3)
+        error(core.ArgumentError(("hecate.kernel.problem.init: extension %q is not a finite number"):format(tostring(key))), 3)
       end
       if type(key) ~= "string" then
-        error(core.ArgumentError("problem extension names must be strings"), 3)
+        error(core.ArgumentError("hecate.kernel.problem.init: extension names must be strings, got " .. type(key)), 3)
       end
       if RESERVED[key] then
-        error(core.ArgumentError("problem extension name '" .. key .. "' is reserved (RFC 9457, section 3.1)"), 3)
+        error(core.ArgumentError("hecate.kernel.problem.init: extension name '" .. key .. "' is reserved (RFC 9457, section 3.1)"), 3)
       end
     end
   end
@@ -113,8 +120,10 @@ end
 
 local COMMON <const> = {
   { "BadRequest", 400 }, { "Unauthorized", 401 }, { "Forbidden", 403 }, { "NotFound", 404 },
-  { "MethodNotAllowed", 405 }, { "Conflict", 409 }, { "Gone", 410 }, { "UnprocessableContent", 422 },
-  { "TooManyRequests", 429 }, { "InternalServerError", 500 }, { "ServiceUnavailable", 503 },
+  { "MethodNotAllowed", 405 }, { "NotAcceptable", 406 }, { "RequestTimeout", 408 }, { "Conflict", 409 },
+  { "Gone", 410 }, { "PreconditionFailed", 412 }, { "ContentTooLarge", 413 }, { "UnsupportedMediaType", 415 },
+  { "UnprocessableContent", 422 }, { "TooManyRequests", 429 }, { "InternalServerError", 500 },
+  { "BadGateway", 502 }, { "ServiceUnavailable", 503 }, { "GatewayTimeout", 504 },
 }
 
 for _, entry in ipairs(COMMON) do
@@ -122,28 +131,41 @@ for _, entry in ipairs(COMMON) do
   problem[name] = declare(name, "hecate.problem." .. name, status, http.Status.reason(status) or "Error", "about:blank")
 end
 
---- Declares an application's own problem class.
+--- Declares an application's own problem class. Its `code` has the shape of the built-in ones, `<namespace>.problem.<Name>`
+--- (`hecate.problem.NotFound`), in the namespace of the application: `app.problem.<Name>` unless `spec.code` gives
+--- another. The `hecate.` namespace belongs to the framework and is refused.
 ---
 --- Raises `hecate.core.ArgumentError` when `name` is not a non-empty string, `status` is not an integer from 400 to
---- 599, `title` is not a non-empty string, or `type` is given and is not a string.
+--- 599, `title` is not a non-empty string, `type` is given and is not a string, or `code` is given and is not a
+--- non-empty string outside the `hecate.` namespace.
 ---@param name string
----@param spec { status: integer, title: string, type?: string }
+---@param spec { status: integer, title: string, type?: string, code?: string }
 ---@return hecate.kernel.problem.Problem
 function problem.define(name, spec)
+  local where = "hecate.kernel.problem.define: "
   if type(name) ~= "string" or name == "" then
-    error(core.ArgumentError("problem.define: the name must be a non-empty string"), 2)
+    error(core.ArgumentError(where .. "the name must be a non-empty string, got " .. type(name)), 2)
   end
-  if type(spec) ~= "table" then error(core.ArgumentError("problem.define: the declaration must be a table"), 2) end
+  if type(spec) ~= "table" then error(core.ArgumentError(where .. "the declaration must be a table, got " .. type(spec)), 2) end
   if math.type(spec.status) ~= "integer" or spec.status < 400 or spec.status > 599 then
-    error(core.ArgumentError("problem.define: the status must be an integer from 400 to 599"), 2)
+    error(core.ArgumentError(where .. "the status must be an integer from 400 to 599, got " .. tostring(spec.status)), 2)
   end
   if type(spec.title) ~= "string" or spec.title == "" then
-    error(core.ArgumentError("problem.define: the title must be a non-empty string"), 2)
+    error(core.ArgumentError(where .. "the title must be a non-empty string, got " .. type(spec.title)), 2)
   end
   if spec.type ~= nil and type(spec.type) ~= "string" then
-    error(core.ArgumentError("problem.define: the type must be a string (a URI reference)"), 2)
+    error(core.ArgumentError(where .. "the type must be a string (a URI reference), got " .. type(spec.type)), 2)
   end
-  return declare(name, name, spec.status, spec.title, spec.type or "about:blank")
+  local code = spec.code
+  if code == nil then
+    code = "app.problem." .. name
+  elseif type(code) ~= "string" or code == "" then
+    error(core.ArgumentError(where .. "the code must be a non-empty string, got " .. type(code)), 2)
+  elseif code == "hecate" or code:sub(1, 7) == "hecate." then
+    error(core.ArgumentError(where .. "the code must not be in the 'hecate.' namespace, which belongs to the framework, got '"
+      .. code .. "'"), 2)
+  end
+  return declare(name, code, spec.status, spec.title, spec.type or "about:blank")
 end
 
 --- Tells whether a value is an instance of a problem class.

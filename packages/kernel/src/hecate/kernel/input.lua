@@ -124,9 +124,12 @@ local function compile_content(entry)
   if next(entry.content) == nil then return nil end
   local declared = entry.content[JSON]
   if declared == nil then
+    local media_types = {}
+    for media_type in pairs(entry.content) do media_types[#media_types + 1] = media_type end
+    table.sort(media_types)
     error(errors.RouteDeclarationError(
-      ("kernel: %s: route %q declares content but not for %s, the only media type the kernel reads"):format(
-        entry.origin, entry.name, JSON),
+      ("hecate.kernel.input.compile: %s: route %q declares content but not for %s, the only media type the kernel reads (got: %s)"):format(
+        entry.origin, entry.name, JSON, table.concat(media_types, ", ")),
       { context = { reason = "unsupported_content_type", origin = entry.origin, field = "content" } }))
   end
   return declared

@@ -20,14 +20,14 @@ local routing = {}
 --- route module may be gathered twice.
 ---
 --- Raises `RouteDeclarationError` (`invalid_source`) for a source that is neither, `hecate.core.ArgumentError` for a
---- `module_filters` that is not a list, and the errors of `Controller.routes`.
+--- `module_filters` that is not a list, and the errors of `Controller.entries`.
 ---@param sources (hecate.kernel.RouteModule|table)[]
 ---@param module_filters? hecate.kernel.Filter[]  the filters of the owning feature module
 ---@return hecate.kernel.RouteEntry[]
 function routing.collect(sources, module_filters)
-  if type(sources) ~= "table" then error(core.ArgumentError("kernel.routing.collect: sources is a list"), 2) end
+  if type(sources) ~= "table" then error(core.ArgumentError("hecate.kernel.routing.collect: sources must be a list, got " .. type(sources)), 2) end
   if module_filters ~= nil and type(module_filters) ~= "table" then
-    error(core.ArgumentError("kernel.routing.collect: module_filters is a list of filters"), 2)
+    error(core.ArgumentError("hecate.kernel.routing.collect: module_filters must be a list of filters, got " .. type(module_filters)), 2)
   end
   local tag = module_filters ~= nil and #module_filters > 0
   local entries = {}
@@ -36,10 +36,10 @@ function routing.collect(sources, module_filters)
     if core.is_instance_of(source, RouteModule) then
       list = source:routes()
     elseif core.is_class(source) then
-      list = Controller.routes(source)
+      list = Controller.entries(source)
     else
       error(errors.RouteDeclarationError(
-        ("kernel: sources[%d] is neither a route module nor a controller class (%s)"):format(index, type(source)),
+        ("hecate.kernel.routing.collect: sources[%d] is neither a route module nor a controller class, got %s"):format(index, type(source)),
         { context = { reason = "invalid_source", origin = "sources[" .. index .. "]" } }))
     end
     for _, entry in ipairs(list) do

@@ -2,7 +2,7 @@
 -- "Application and feature modules", "Filters", "Results and serialisation"). Everything that can be decided before the
 -- first request is decided here, once: the router is compiled, every action is resolved to a function and every chain
 -- is composed. A request then costs a route match, a service scope, the chain and the serialisation.
-global <const> require, type, error, pairs, ipairs, next
+global <const> require, type, error, pairs, ipairs, table, tostring
 
 local core = require("hecate.core")
 local http = require("hecate.http")
@@ -16,7 +16,7 @@ local input = require("hecate.kernel.input")
 --- Options of `dispatcher.build`.
 ---@class hecate.kernel.DispatcherOptions
 ---@field filters? hecate.kernel.Filter[]  global filters, outermost of all: they wrap the routing step, so they also see requests that match no route; the filters of a module come from `entry.module_filters`
----@field container? hecate.container.Container  a validated container: each request opens one service scope on it, bound to `request.scope`; required when a controller declares `dependencies`
+---@field container? hecate.container.Container  a validated container: each request opens one service scope on it, bound to `request.services` (`request.scope` stays the reactor scope `http.Server` sets); required when a controller declares `dependencies`
 ---@field router? hecate.router.RouterOptions  options of the router
 ---@field expose_details? boolean  see `hecate.kernel.problems.Options`
 ---@field logger? { log: fun(self: any, severity: string, message: string, fields?: table) }  receives unhandled failures
@@ -28,23 +28,29 @@ local input = require("hecate.kernel.input")
 ---@class hecate.kernel.dispatcher
 local dispatcher = {}
 
---- The action of a controller route: a new controller instance per request (its dependencies resolved in the request
---- scope, so a scoped service is shared by the request), then the method named by the entry.
+--- The action of a controller route: a new controller instance per request (its dependencies resolved in `request.services`,
+--- so a scoped service is shared by the request), then the method named by the entry.
 ---@param entry hecate.kernel.RouteEntry
 ---@param container hecate.container.Container?
----@return fun(request: hecate.http.Request): any
+---@return fun(request: hecate.kernel.Request): any
 local function controller_action(entry, container)
   local class, method = entry.controller --[[@as table]], entry.action --[[@as string]]
   local dependencies = class.dependencies
-  if dependencies ~= nil and next(dependencies) ~= nil and container == nil then
+  -- Resolved in sorted order of the field names, so that two requests (and two runs) build the services in the same
+  -- order: the list is computed once, here.
+  local fields = {}
+  for field in pairs(dependencies or {}) do fields[#fields + 1] = field end
+  table.sort(fields, function(a, b) return tostring(a) < tostring(b) end)
+  if #fields > 0 and container == nil then
     error(errors.RouteDeclarationError(
-      ("kernel: %s: the controller declares dependencies and the application has no container"):format(entry.origin),
+      ("hecate.kernel.dispatcher.build: %s: the controller declares dependencies and the application has no container"):format(entry.origin),
       { context = { reason = "missing_container", origin = entry.origin } }))
   end
   return function(request)
     local instance = class()
-    if dependencies ~= nil then
-      for field, key in pairs(dependencies) do instance[field] = request.scope:resolve(key) end
+    for index = 1, #fields do
+      local field = fields[index]
+      instance[field] = request.services:resolve(dependencies[field])
     end
     return instance[method](instance, request)
   end
@@ -53,7 +59,7 @@ end
 --- Resolves the action of an entry to a function of the request.
 ---@param entry hecate.kernel.RouteEntry
 ---@param container hecate.container.Container?
----@return fun(request: hecate.http.Request): any
+---@return fun(request: hecate.kernel.Request): any
 local function resolve_action(entry, container)
   if type(entry.action) == "function" then return entry.action --[[@as function]] end
   return controller_action(entry, container)
@@ -65,7 +71,7 @@ end
 ---
 --- Per request, in this order: the global filters (they wrap the routing step, so they also see the 404, 405, 400 and
 --- automatic `OPTIONS` 204 answers; at that point `request` carries no route: `request.parameters.path` is still the
---- empty table the request was created with and `request.scope` is not set); the guard (`problems.guard`: an error
+--- empty table the request was created with and `request.services` is not set); the guard (`problems.guard`: an error
 --- becomes a problem response that flows back through the global filters); the route is matched (404, 405, an
 --- unreadable path 400, and the automatic `OPTIONS` 204 with `Allow`); `request.parameters.path` receives the decoded
 --- path parameters as strings; the service scope is opened and closed around the chain of the entry;
@@ -82,26 +88,26 @@ end
 ---@return hecate.router.Router router
 function dispatcher.build(entries, options)
   options = options or {}
-  if type(entries) ~= "table" then error(core.ArgumentError("kernel.dispatcher.build: entries is a list"), 2) end
+  if type(entries) ~= "table" then error(core.ArgumentError("hecate.kernel.dispatcher.build: entries must be a list, got " .. type(entries)), 2) end
   local global_filters = options.filters or {}
   local container = options.container
   local router = router_package.Router(entries, options.router)
   local policy = options.inputs
   if policy == nil then policy = "strict" end
   if policy ~= "strict" and policy ~= "lax" then
-    error(core.ArgumentError("kernel.dispatcher.build: options.inputs is \"lax\" or \"strict\""), 2)
+    error(core.ArgumentError("hecate.kernel.dispatcher.build: options.inputs must be \"lax\" or \"strict\", got " .. tostring(policy)), 2)
   end
   local problem_options = { expose_details = options.expose_details, logger = options.logger }
   local input_options = { expose_details = options.expose_details, strict = policy == "strict" }
   local validate_responses = options.validate_responses
   if validate_responses ~= nil and type(validate_responses) ~= "boolean" then
-    error(core.ArgumentError("kernel.dispatcher.build: options.validate_responses is a boolean"), 2)
+    error(core.ArgumentError("hecate.kernel.dispatcher.build: options.validate_responses must be a boolean, got " .. type(validate_responses)), 2)
   end
   local serialise_options = { serialisers = options.serialisers, validate_responses = validate_responses == true, logger = options.logger }
 
-  -- One compiled handler per entry, indexed by the entry itself: the router hands back the table it was given. The
+  -- One compiled chain per entry, indexed by the entry itself: the router hands back the table it was given. The
   -- global filters are not part of it: they wrap the routing step (below). Layers here: module, controller, route.
-  local handlers = {}
+  local chains = {}
   for _, entry in ipairs(entries) do
     local filters = {}
     for _, filter in ipairs(entry.module_filters or {}) do filters[#filters + 1] = filter end
@@ -117,7 +123,7 @@ function dispatcher.build(entries, options)
       end
     end
     local composed = chain.compose(filters, action)
-    handlers[entry] = function(request)
+    chains[entry] = function(request)
       return results.serialise(composed(request), request, entry.responses, serialise_options)
     end
   end
@@ -130,11 +136,11 @@ function dispatcher.build(entries, options)
       return http.Response(204, { fields = http.Fields({ Allow = match.allow_field }) })
     end
     request.parameters.path = match.parameters
-    local handle = handlers[match.route]
-    if container == nil then return handle(request) end
+    local run_chain = chains[match.route]
+    if container == nil then return run_chain(request) end
     local scope <close> = container:open_scope()
-    request.scope = scope
-    return handle(request)
+    request.services = scope
+    return run_chain(request)
   end
 
   -- Order (http-and-routing.md, "Filters"): global filters, then the guard, then match and dispatch. The guard is inside

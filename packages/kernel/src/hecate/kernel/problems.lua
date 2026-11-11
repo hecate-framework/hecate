@@ -55,7 +55,7 @@ end
 ---@return hecate.http.Response
 function problems.response(status, detail)
   if math.type(status) ~= "integer" or status < 400 or status > 599 then
-    error(core.ArgumentError("problems.response: the status must be an integer from 400 to 599"), 2)
+    error(core.ArgumentError("hecate.kernel.problems.response: the status must be an integer from 400 to 599, got " .. tostring(status)), 2)
   end
   if detail == nil and DETAIL[status] ~= nil then return build(status, DETAIL[status]) end
   return http.problem.response(status, detail)

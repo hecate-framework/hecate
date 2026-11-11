@@ -21,7 +21,7 @@ local KNOWN = { name = true, requires = true, services = true, routes = true, fi
 local function refuse(reason, message, name, extra)
   local context = { reason = reason, module = name }
   if extra then for key, value in pairs(extra) do context[key] = value end end
-  error(errors.ModuleError("kernel: " .. message, { context = context }), 0)
+  error(errors.ModuleError("hecate.kernel.modules.order: " .. message, { context = context }), 0)
 end
 
 local function check(module, index)
@@ -53,7 +53,7 @@ end
 ---@param list hecate.kernel.FeatureModule[]
 ---@return hecate.kernel.FeatureModule[] ordered
 function modules.order(list)
-  if type(list) ~= "table" then error(core.ArgumentError("kernel.modules.order: list is a list of feature modules"), 2) end
+  if type(list) ~= "table" then error(core.ArgumentError("hecate.kernel.modules.order: list must be a list of feature modules, got " .. type(list)), 2) end
   local by_name = {}
   for index, module in ipairs(list) do
     check(module, index)

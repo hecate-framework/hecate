@@ -50,7 +50,7 @@ end
 
 --- Options of `Supervisor`.
 ---@class hecate.kernel.SupervisorOptions
----@field command string[]  the worker program and its arguments (`{ interpreter, script, ... }`): the same program as the primary, started again with the worker role
+---@field command string[]  the worker program and its arguments (`{ interpreter, main program, ... }`): the same program as the primary, started again with the worker role
 ---@field count integer  number of workers, at least 1
 ---@field endpoint hecate.kernel.Endpoint  where the application listens
 ---@field strategy? hecate.kernel.ListeningStrategy  default `listening.select("auto")`
@@ -79,31 +79,36 @@ local MAX_BACKOFF <const> = 10
 --- Raises `hecate.core.ArgumentError` for an unknown or malformed option.
 ---@param options hecate.kernel.SupervisorOptions
 function Supervisor:init(options)
-  if type(options) ~= "table" then error(core.ArgumentError("kernel.Supervisor: options is a table"), 2) end
+  if type(options) ~= "table" then error(core.ArgumentError("hecate.kernel.supervisor.init: options must be a table, got " .. type(options)), 2) end
   for key in pairs(options) do
-    if not KNOWN[key] then error(core.ArgumentError(("kernel.Supervisor: unknown option %q"):format(tostring(key))), 2) end
+    if not KNOWN[key] then
+      local names = {}
+      for name in pairs(KNOWN) do names[#names + 1] = name end
+      table.sort(names)
+      error(core.ArgumentError(("hecate.kernel.supervisor.init: unknown option '%s' (valid: %s)"):format(tostring(key), table.concat(names, ", "))), 2)
+    end
   end
   local command = options.command
   if type(command) ~= "table" or type(command[1]) ~= "string" then
-    error(core.ArgumentError("kernel.Supervisor: command is a list of strings, the program first"), 2)
+    error(core.ArgumentError("hecate.kernel.supervisor.init: command must be a list of strings, the program first, got " .. type(command)), 2)
   end
   for i = 1, #command do
-    if type(command[i]) ~= "string" then error(core.ArgumentError("kernel.Supervisor: command is a list of strings"), 2) end
+    if type(command[i]) ~= "string" then error(core.ArgumentError("hecate.kernel.supervisor.init: command must be a list of strings, got a " .. type(command[i]) .. " at " .. i), 2) end
   end
   if math.type(options.count) ~= "integer" or options.count < 1 then
-    error(core.ArgumentError("kernel.Supervisor: count is an integer of at least 1"), 2)
+    error(core.ArgumentError("hecate.kernel.supervisor.init: count must be an integer of at least 1, got " .. tostring(options.count)), 2)
   end
-  if type(options.endpoint) ~= "table" then error(core.ArgumentError("kernel.Supervisor: endpoint is a table"), 2) end
+  if type(options.endpoint) ~= "table" then error(core.ArgumentError("hecate.kernel.supervisor.init: endpoint must be a table, got " .. type(options.endpoint)), 2) end
   for _, key in ipairs({ "restart_delay", "crash_window" }) do
     if options[key] ~= nil and not is_duration(options[key]) then
-      error(core.ArgumentError(("kernel.Supervisor: %s is a non-negative finite number of seconds"):format(key)), 2)
+      error(core.ArgumentError(("hecate.kernel.supervisor.init: %s must be a non-negative finite number of seconds, got %s"):format(key, tostring(options[key]))), 2)
     end
   end
   if options.crash_limit ~= nil and (math.type(options.crash_limit) ~= "integer" or options.crash_limit < 1) then
-    error(core.ArgumentError("kernel.Supervisor: crash_limit is an integer of at least 1"), 2)
+    error(core.ArgumentError("hecate.kernel.supervisor.init: crash_limit must be an integer of at least 1, got " .. tostring(options.crash_limit)), 2)
   end
   if options.on_crash_loop ~= nil and options.on_crash_loop ~= "stop" and options.on_crash_loop ~= "degrade" then
-    error(core.ArgumentError(("kernel.Supervisor: on_crash_loop is \"stop\" or \"degrade\", got %s"):format(
+    error(core.ArgumentError(("hecate.kernel.supervisor.init: on_crash_loop must be \"stop\" or \"degrade\", got %s"):format(
       type(options.on_crash_loop) == "string" and ("%q"):format(options.on_crash_loop) or type(options.on_crash_loop))), 2)
   end
   self._options = options
@@ -178,7 +183,7 @@ end
 ---@class hecate.kernel.WorkerGeneration
 ---@field process hecate.reactor.Process
 ---@field peer hecate.reactor.Peer
----@field target hecate.kernel.HandoffTarget  what the ring hands connections to
+---@field target hecate.kernel.HandOverTarget  what the ring hands connections to
 ---@field ready boolean  reported `ready` and counted in `ready_count`
 ---@field planned boolean  being replaced by a reload: its exit is not a crash
 ---@field finished boolean  has exited and been reaped
@@ -224,7 +229,7 @@ local function supervise(self, slot)
       if self._stopping then return end
       local spawned, reason = start_worker(self, slot)
       if spawned == nil then
-        self._failure = self._failure or errors.SupervisorError(("kernel.Supervisor: cannot start a worker: %s"):format(tostring(reason)),
+        self._failure = self._failure or errors.SupervisorError(("hecate.kernel.supervisor.run: cannot start a worker: %s"):format(tostring(reason)),
           { context = { reason = "start_failed" } })
         request_stop(self, 0)
         return
@@ -273,7 +278,7 @@ local function supervise(self, slot)
       end
       if delay == nil then
         self._failure = self._failure or errors.SupervisorError(
-          "kernel.Supervisor: workers keep exiting (crash loop); stopping", { context = { reason = "crash_loop" } })
+          "hecate.kernel.supervisor.run: workers keep exiting (crash loop); stopping", { context = { reason = "crash_loop" } })
         note(self, "error", "crash loop: stopping every worker", { code = "crash_loop" })
         request_stop(self, 0)
         return
@@ -337,7 +342,7 @@ local function stop_workers(self, grace)
   end
 end
 
---- Binds the endpoint (`prepare` of the strategy), starts the workers and dispatches connections to them, until
+--- Binds the endpoint (`prepare` of the strategy), starts the workers and hands connections over to them, until
 --- `stop`. Returns once every worker has exited.
 ---
 --- Raises `hecate.kernel.SupervisorError` (`context.reason`: `crash_loop` when workers kept exiting, `start_failed`
@@ -345,7 +350,7 @@ end
 ---@async
 function Supervisor:run()
   if self._state ~= "new" then
-    error(errors.SupervisorError("kernel.Supervisor: run was already called", { context = { reason = "already_run" } }), 2)
+    error(errors.SupervisorError("hecate.kernel.supervisor.run: run was already called", { context = { reason = "already_run" } }), 2)
   end
   self._state = "running"
   local ok, err = pcall(function()
@@ -356,10 +361,10 @@ function Supervisor:run()
         self._slots[index] = slot
         slot.future = scope:fork(supervise, self, slot)
       end
-      local dispatch = scope:fork(function() self._strategy:run(self._ring) end)
+      local handing_over = scope:fork(function() self._strategy:run(self._ring) end)
       local grace = self._requests:receive()
       stop_workers(self, grace)
-      dispatch:cancel()
+      handing_over:cancel()
     end)
   end)
   self._state = "stopped"
@@ -380,7 +385,7 @@ end
 ---@param grace_timeout? number  seconds, default 30
 function Supervisor:stop(grace_timeout)
   if grace_timeout ~= nil and not is_duration(grace_timeout) then
-    error(core.ArgumentError("kernel.Supervisor.stop: grace_timeout is a non-negative finite number of seconds"), 2)
+    error(core.ArgumentError("hecate.kernel.supervisor.stop: grace_timeout must be a non-negative finite number of seconds, got " .. tostring(grace_timeout)), 2)
   end
   if self._state ~= "running" then return end
   request_stop(self, grace_timeout or 30)
@@ -425,7 +430,7 @@ end
 ---@return hecate.kernel.SupervisorError
 local function reload_failure(self, slot, cause, message)
   note(self, "error", message, { code = "reload_slot_failed", worker = slot.index, cause = cause })
-  return errors.SupervisorError(("kernel.Supervisor: reload failed (worker %d): %s"):format(slot.index, message),
+  return errors.SupervisorError(("hecate.kernel.supervisor.reload: reload failed (worker %d): %s"):format(slot.index, message),
     { context = { reason = "reload_failed", cause = cause, worker = slot.index } })
 end
 
@@ -492,7 +497,7 @@ end
 --- disk now (the rolling reload, ADR 0023 Decision 6). For each slot the replacement is started and awaited until it
 --- reports `ready`, joins the rotation, and only then the old worker leaves it and is stopped with `grace_timeout`
 --- seconds (then killed, as by `stop`): at most one worker is out of service at a time, and with `round_robin` the
---- primary stops dispatching to the draining worker, so no connection is lost. With `reuseport` the connections queued
+--- primary stops handing connections over to the draining worker, so no connection is lost. With `reuseport` the connections queued
 --- in the socket of a closing worker are reset by the kernel: the limit of that strategy, which a reload does not
 --- hide. The number of workers does not change. A planned exit is not a crash: it does not count towards the
 --- crash-loop limit and triggers no restart. No message is sent to a worker beyond `stop`.
@@ -506,17 +511,17 @@ end
 ---@param options? { grace_timeout?: number, ready_timeout?: number }  `grace_timeout`: seconds the old workers drain, default 30; `ready_timeout`: seconds a replacement may take to become ready, default 30
 function Supervisor:reload(options)
   if options ~= nil and type(options) ~= "table" then
-    error(core.ArgumentError("kernel.Supervisor.reload: options is a table { grace_timeout?, ready_timeout? }, got " .. type(options)), 2)
+    error(core.ArgumentError("hecate.kernel.supervisor.reload: options must be a table { grace_timeout?, ready_timeout? }, got " .. type(options)), 2)
   end
   options = options or {}
   if options.grace_timeout ~= nil and not is_duration(options.grace_timeout) then
-    error(core.ArgumentError("kernel.Supervisor.reload: grace_timeout is a non-negative finite number of seconds"), 2)
+    error(core.ArgumentError("hecate.kernel.supervisor.reload: grace_timeout must be a non-negative finite number of seconds, got " .. tostring(options.grace_timeout)), 2)
   end
   if options.ready_timeout ~= nil and not is_duration(options.ready_timeout) then
-    error(core.ArgumentError("kernel.Supervisor.reload: ready_timeout is a non-negative finite number of seconds"), 2)
+    error(core.ArgumentError("hecate.kernel.supervisor.reload: ready_timeout must be a non-negative finite number of seconds, got " .. tostring(options.ready_timeout)), 2)
   end
   local function refuse(reason, text)
-    error(errors.SupervisorError("kernel.Supervisor: cannot reload: " .. text, { context = { reason = reason } }), 3)
+    error(errors.SupervisorError("hecate.kernel.supervisor.reload: cannot reload: " .. text, { context = { reason = reason } }), 3)
   end
   if self._state ~= "running" or #self._slots == 0 then refuse("not_running", "the supervisor is not running") end
   if self._stopping or self._requests:length() > 0 then refuse("stopping", "the supervisor is stopping") end
@@ -594,16 +599,16 @@ local WorkerRole = core.class("WorkerRole")
 function WorkerRole:init(peer, environment)
   local strategy = environment[ENV.strategy]
   if strategy ~= "round_robin" and strategy ~= "reuseport" then
-    error(core.ArgumentError(("kernel.WorkerRole: unknown strategy %q"):format(tostring(strategy))), 2)
+    error(core.ArgumentError(("hecate.kernel.supervisor.worker_role: unknown strategy %q (valid: reuseport, round_robin)"):format(tostring(strategy))), 2)
   end
   local port = math.tointeger(tonumber(environment[ENV.port]))
-  if port == nil or port < 0 or port > 65535 then error(core.ArgumentError("kernel.WorkerRole: malformed port"), 2) end
+  if port == nil or port < 0 or port > 65535 then error(core.ArgumentError("hecate.kernel.supervisor.worker_role: malformed port, an integer from 0 to 65535 expected, got " .. tostring(environment[ENV.port])), 2) end
   self._peer = peer
   self.index = math.tointeger(tonumber(environment[ENV.index])) or 0
   self.strategy = strategy --[[@as string]]
   local host = environment[ENV.host] or "127.0.0.1"
   if not is_host(host) then
-    error(core.ArgumentError(("kernel.WorkerRole: malformed %s, an IP literal or a host name without spaces expected, got %q")
+    error(core.ArgumentError(("hecate.kernel.supervisor.worker_role: malformed %s, an IP literal or a host name without spaces expected, got %q")
       :format(ENV.host, tostring(host))), 2)
   end
   local backlog
@@ -611,7 +616,7 @@ function WorkerRole:init(peer, environment)
   if raw_backlog ~= nil then
     backlog = math.tointeger(tonumber(raw_backlog))
     if backlog == nil then
-      error(core.ArgumentError(("kernel.WorkerRole: malformed %s, an integer expected (clamped to 1..65535), got %q")
+      error(core.ArgumentError(("hecate.kernel.supervisor.worker_role: malformed %s, an integer expected (clamped to 1..65535), got %q")
         :format(ENV.backlog, tostring(raw_backlog))), 2)
     end
     backlog = math.max(1, math.min(65535, backlog))
@@ -619,24 +624,24 @@ function WorkerRole:init(peer, environment)
   self.endpoint = { host = host, port = port, backlog = backlog }
   local address = { ip = self.endpoint.host, port = port, family = self.endpoint.host:find(":", 1, true) and "inet6" or "inet" }
   -- The hand-over queue is bounded like the listen backlog it stands for (default 128).
-  self._handoff = listening.HandoffListener(address, self.endpoint.backlog)
+  self._hand_over = listening.HandOverListener(address, self.endpoint.backlog)
 end
 
---- The listener the server accepts from: the handoff listener (`round_robin`) or a socket bound with `SO_REUSEPORT`.
+--- The listener the server accepts from: the hand-over listener (`round_robin`) or a socket bound with `SO_REUSEPORT`.
 ---
 --- Raises `hecate.reactor.TransportError` when a `reuseport` socket cannot be bound.
 ---@async
----@return hecate.kernel.HandoffListener|hecate.net.TcpListener
+---@return hecate.kernel.HandOverListener|hecate.net.TcpListener
 function WorkerRole:listener()
   if self._listener == nil then
     local strategy = self.strategy == "reuseport" and listening.ReuseportStrategy() or listening.RoundRobinStrategy()
-    self._listener = strategy:worker_listener({ endpoint = self.endpoint, handoff = self._handoff })
+    self._listener = strategy:worker_listener({ endpoint = self.endpoint, hand_over = self._hand_over })
   end
   return self._listener
 end
 
 --- Reads the messages of the primary until `stop` or the end of the message pipe, then calls `on_stop` with the grace
---- period (the one of `stop`, else `default_grace`). Connections handed over go to the handoff listener; unknown
+--- period (the one of `stop`, else `default_grace`). Connections handed over go to the hand-over listener; unknown
 --- messages are ignored (a newer primary may send what this worker does not know).
 ---@async
 ---@param on_stop async fun(grace: number)
@@ -652,11 +657,11 @@ function WorkerRole:control(on_stop, default_grace)
     end
     if message == nil then break end
     if message == "connection" and stream ~= nil then
-      local queued, reason = self._handoff:push(stream)
+      local queued, reason = self._hand_over:push(stream)
       if not queued and reason == "full" then
         -- The primary cannot be told (the message pipe is one way here); the client sees its connection closed.
         log.default():warning("kernel.WorkerRole: the hand-over queue is full; connection closed",
-          { code = "handover_queue_full", worker = self.index, capacity = self._handoff:capacity() })
+          { code = "hand_over_queue_full", worker = self.index, capacity = self._hand_over:capacity() })
       end
     else
       if stream ~= nil then stream:close() end
@@ -668,7 +673,7 @@ function WorkerRole:control(on_stop, default_grace)
       end
     end
   end
-  self._handoff:close()
+  self._hand_over:close()
   on_stop(grace)
 end
 
@@ -695,7 +700,7 @@ end
 core.finalise(WorkerRole)
 supervisor.WorkerRole = WorkerRole
 
---- The worker role of this process, or nil when it was not started by a `Supervisor` (no message pipe to a parent, or
+--- The worker role of this process, or nil when it was not started by a `Supervisor` (no message pipe to a primary, or
 --- no `HECATE_WORKER_STRATEGY`). Does not suspend.
 ---@return hecate.kernel.WorkerRole?
 function supervisor.worker_role()

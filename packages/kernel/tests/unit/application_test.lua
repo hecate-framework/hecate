@@ -464,7 +464,7 @@ function T:test_the_worker_command_restarts_the_running_program()
   -- An empty search path keeps the interpreter name as it is.
   self:assert_equal("lua,main.lua,--port,80", table.concat(from({ [-1] = "lua", [0] = "main.lua", "--port", "80" }, ""), ","))
   self:assert_equal("lua,-W,main.lua", table.concat(from({ [-2] = "lua", [-1] = "-W", [0] = "main.lua" }, ""), ","))
-  self:assert_false(pcall(from, { [-1] = "lua" })) -- no script (interactive, -e): the caller gives worker_command
+  self:assert_false(pcall(from, { [-1] = "lua" })) -- no main program (interactive, -e): the caller gives worker_command
   self:assert_false(pcall(from, {}))
 end
 

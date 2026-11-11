@@ -41,7 +41,7 @@ local function pair(spec)
   })
   Users.act = action
   core.finalise(Users)
-  return module:routes()[1], Controller.routes(Users)[1]
+  return module:routes()[1], Controller.entries(Users)[1]
 end
 
 --- Structural equality; the same table (a schema, a problem class) is equal to itself.
@@ -140,17 +140,15 @@ function T:test_routes_returns_a_copy_in_declaration_order()
 end
 
 function T:test_route_module_name_must_be_non_empty_string()
-  self:assert_true(core.is_instance_of(self:assert_error(function() kernel.routes("") end), core.ArgumentError))
-  self:assert_true(core.is_instance_of(self:assert_error(function() kernel.routes(nil) end), core.ArgumentError))
+  refused(self, "invalid_argument", function() kernel.routes("") end)
+  refused(self, "invalid_argument", function() kernel.routes(nil) end)
 end
 
 function T:test_verb_arguments_are_checked()
   local module = kernel.routes("m")
-  self:assert_true(core.is_instance_of(self:assert_error(function() module:get(1, {}) end), core.ArgumentError))
-  self:assert_true(core.is_instance_of(self:assert_error(function() module:get("/x", 3) end), core.ArgumentError))
-  self:assert_true(core.is_instance_of(self:assert_error(function()
-    module:get("/x", { path = "/y", action = action })
-  end), core.ArgumentError))
+  refused(self, "invalid_argument", function() module:get(1, {}) end)
+  refused(self, "invalid_argument", function() module:get("/x", 3) end)
+  refused(self, "invalid_argument", function() module:get("/x", { path = "/y", action = action }) end)
 end
 
 function T:test_path_parameters_must_match_the_template_both_ways()
@@ -218,7 +216,7 @@ function T:test_filters_of_a_controller_come_before_those_of_the_route()
   Controller.route(Users, { method = "GET", path = "/x", action = "act", filters = { inner } })
   Users.act = action
   core.finalise(Users)
-  local filters = Controller.routes(Users)[1].filters
+  local filters = Controller.entries(Users)[1].filters
   self:assert_true(filters[1] == outer and filters[2] == inner)
 end
 
@@ -267,7 +265,7 @@ function T:test_module_defaults_equal_a_controller_with_the_same_prefix_and_filt
   Controller.route(Users, { method = "POST", path = "/", action = "act" })
   Users.act = action
   core.finalise(Users)
-  local a, b = module:routes(), Controller.routes(Users)
+  local a, b = module:routes(), Controller.entries(Users)
   self:assert_equal(2, #a)
   for index = 1, 2 do same(self, a[index], b[index]) end
 end
@@ -279,7 +277,7 @@ function T:test_module_defaults_do_not_change_controller_filters()
   Controller.route(Users, { method = "GET", path = "/x", action = "act", filters = { inner } })
   Users.act = action
   core.finalise(Users)
-  local filters = Controller.routes(Users)[1].filters
+  local filters = Controller.entries(Users)[1].filters
   self:assert_true(#filters == 2 and filters[1] == outer and filters[2] == inner)
 end
 
@@ -293,7 +291,7 @@ function T:test_module_options_are_validated_at_construction()
   refused(self, "invalid_filters", function() kernel.routes("m", { filters = { {} } }) end)
   refused(self, "invalid_filters", function() kernel.routes("m", { filters = "auth" }) end)
   self:assert_equal(0, #kernel.routes("m", { prefix = "", filters = {} }):routes())
-  self:assert_true(core.is_instance_of(self:assert_error(function() kernel.routes("", { prefix = "/a" }) end), core.ArgumentError))
+  refused(self, "invalid_argument", function() kernel.routes("", { prefix = "/a" }) end)
 end
 
 function T:test_module_default_filters_are_a_snapshot()
@@ -310,8 +308,8 @@ function T:test_controller_declared_methods_may_come_after_the_declaration()
   Controller.route(Users, { method = "GET", path = "/x", action = "late" })
   function Users:late() end
   core.finalise(Users)
-  self:assert_equal("late", Controller.routes(Users)[1].action)
-  self:assert_equal("GET /x", Controller.routes(Users)[1].name)
+  self:assert_equal("late", Controller.entries(Users)[1].action)
+  self:assert_equal("GET /x", Controller.entries(Users)[1].name)
 end
 
 function T:test_routes_field_after_route_declarations()
@@ -322,7 +320,7 @@ function T:test_routes_field_after_route_declarations()
   function Users:list() end
   function Users:show() end
   core.finalise(Users)
-  local entries = Controller.routes(Users)
+  local entries = Controller.entries(Users)
   self:assert_equal(2, #entries)
   self:assert_equal("list", entries[1].action)
   self:assert_equal("show", entries[2].action)
@@ -333,18 +331,18 @@ function T:test_routes_field_errors_surface_at_boot()
   local Users = core.class("UsersController", Controller)
   Users.routes = { { method = "GET", path = "/x", action = "nothing" } }
   core.finalise(Users)
-  refused(self, "missing_action", function() Controller.routes(Users) end)
+  refused(self, "missing_action", function() Controller.entries(Users) end)
   local Bad = core.class("BadController", Controller)
   Bad.routes = "nope"
   core.finalise(Bad)
-  refused(self, "invalid_routes", function() Controller.routes(Bad) end)
+  refused(self, "invalid_routes", function() Controller.entries(Bad) end)
 end
 
 function T:test_controller_missing_action_is_a_boot_error()
   local Users = core.class("UsersController", Controller)
   Controller.route(Users, { method = "GET", path = "/x", action = "nothing" })
   core.finalise(Users)
-  local err = refused(self, "missing_action", function() Controller.routes(Users) end)
+  local err = refused(self, "missing_action", function() Controller.entries(Users) end)
   self:assert_equal("controller UsersController", err.context.origin)
 end
 
@@ -354,17 +352,17 @@ function T:test_controller_declaration_is_validated_at_once()
   refused(self, "invalid_method", function() Controller.route(Users, { method = "get", path = "/x", action = "a" }) end)
   refused(self, "invalid_method", function() Controller.route(Users, { path = "/x", action = "a" }) end)
   refused(self, "invalid_action", function() Controller.route(Users, { method = "GET", path = "/x", action = action }) end)
-  self:assert_equal(0, #(function() core.finalise(Users) return Controller.routes(Users) end)())
+  self:assert_equal(0, #(function() core.finalise(Users) return Controller.entries(Users) end)())
 end
 
 function T:test_controller_routes_need_a_finalised_controller_class()
   local Users = core.class("UsersController", Controller)
-  refused(self, "invalid_controller", function() Controller.routes(Users) end)
-  refused(self, "invalid_controller", function() Controller.routes({}) end)
-  refused(self, "invalid_controller", function() Controller.routes(core.class("Other")) end)
-  self:assert_true(core.is_instance_of(self:assert_error(function()
+  refused(self, "invalid_controller", function() Controller.entries(Users) end)
+  refused(self, "invalid_controller", function() Controller.entries({}) end)
+  refused(self, "invalid_controller", function() Controller.entries(core.class("Other")) end)
+  refused(self, "invalid_argument", function()
     Controller.route(core.class("Other"), { method = "GET", path = "/x", action = "a" })
-  end), core.ArgumentError))
+  end)
 end
 
 function T:test_prefix_is_validated_when_routes_are_read()
@@ -373,7 +371,7 @@ function T:test_prefix_is_validated_when_routes_are_read()
   Users.prefix = "users/"
   Users.a = action
   core.finalise(Users)
-  refused(self, "invalid_path", function() Controller.routes(Users) end)
+  refused(self, "invalid_path", function() Controller.entries(Users) end)
 end
 
 function T:test_routes_of_a_controller_are_not_inherited()
@@ -383,8 +381,38 @@ function T:test_routes_of_a_controller_are_not_inherited()
   core.finalise(Base)
   local Sub = core.class("SubController", Base)
   core.finalise(Sub)
-  self:assert_equal(1, #Controller.routes(Base))
-  self:assert_equal(0, #Controller.routes(Sub))
+  self:assert_equal(1, #Controller.entries(Base))
+  self:assert_equal(0, #Controller.entries(Sub))
+end
+
+function T:test_a_controller_does_not_inherit_the_prefix_of_its_superclass()
+  local Base = core.class("PrefixedBaseController", Controller)
+  Base.prefix = "/base"
+  Controller.route(Base, { method = "GET", path = "/x", action = "a" })
+  Base.a = action
+  core.finalise(Base)
+  local Sub = core.class("PrefixedSubController", Base)
+  Controller.route(Sub, { method = "GET", path = "/y", action = "a" })
+  core.finalise(Sub)
+  self:assert_equal("/base/x", Controller.entries(Base)[1].path)
+  self:assert_equal("/y", Controller.entries(Sub)[1].path)
+  local Own = core.class("PrefixedOwnController", Base)
+  Own.prefix = "/own"
+  Controller.route(Own, { method = "GET", path = "/y", action = "a" })
+  core.finalise(Own)
+  self:assert_equal("/own/y", Controller.entries(Own)[1].path)
+end
+
+function T:test_controller_route_keeps_a_copy_of_the_declaration()
+  local Users = core.class("CopiedController", Controller)
+  local spec = { method = "GET", path = "/x", action = "a" }
+  Controller.route(Users, spec)
+  spec.path, spec.action = "/changed", "other"
+  Users.a = action
+  core.finalise(Users)
+  local entry = Controller.entries(Users)[1]
+  self:assert_equal("/x", entry.path)
+  self:assert_equal("a", entry.action)
 end
 
 function T:test_collect_refuses_other_sources_and_router_refuses_duplicates()

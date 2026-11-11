@@ -50,7 +50,7 @@ end
 ---@field grace_timeout? number  seconds a signal-driven shutdown lets requests in flight finish (default 30)
 ---@field workers? integer  number of worker processes, at least 1 (default 1: the process serves by itself); above 1 the primary runs a `hecate.kernel.Supervisor` (ADR 0023)
 ---@field strategy? "auto"|"reuseport"|"round_robin"  how connections reach the workers (default `auto`, `listening.select`); used only when `workers` is above 1
----@field worker_command? string[]  the program and arguments that start a worker (default: the running interpreter, script and arguments, `Application.worker_command_from(arg)`)
+---@field worker_command? string[]  the program and arguments that start a worker (default: the running interpreter, main program and arguments, `Application.worker_command_from(arg)`)
 ---@field on_crash_loop? "stop"|"degrade"  what the primary does when its workers keep crashing (see `hecate.kernel.SupervisorOptions`); default `stop`; used only when `workers` is above 1
 
 --- The composition root.
@@ -77,33 +77,43 @@ local STRATEGIES <const> = { auto = true, reuseport = true, round_robin = true }
 ---@param options? hecate.kernel.ApplicationOptions
 function Application:init(options)
   options = options or {}
-  if type(options) ~= "table" then error(core.ArgumentError("kernel.Application: options is a table"), 2) end
+  if type(options) ~= "table" then error(core.ArgumentError("hecate.kernel.application.init: options must be a table, got " .. type(options)), 2) end
   for key in pairs(options) do
-    if not KNOWN[key] then error(core.ArgumentError(("kernel.Application: unknown option %q"):format(tostring(key))), 2) end
+    if not KNOWN[key] then
+      local names = {}
+      for name in pairs(KNOWN) do names[#names + 1] = name end
+      table.sort(names)
+      error(core.ArgumentError(("hecate.kernel.application.init: unknown option '%s' (valid: %s)"):format(
+        tostring(key), table.concat(names, ", "))), 2)
+    end
   end
   if options.signals ~= nil and type(options.signals) ~= "boolean" then
-    error(core.ArgumentError(("kernel.Application: signals is true (default handling) or false (off), got %s; "
+    error(core.ArgumentError(("hecate.kernel.application.init: signals is true (default handling) or false (off), got %s; "
       .. "the signal set is fixed (sigint, sigterm stop; sighup reloads a primary)"):format(type(options.signals))), 2)
   end
   local grace = options.grace_timeout
   if grace ~= nil and (type(grace) ~= "number" or grace ~= grace or grace < 0 or grace == math.huge) then
-    error(core.ArgumentError("kernel.Application: grace_timeout is a non-negative finite number of seconds"), 2)
+    error(core.ArgumentError("hecate.kernel.application.init: grace_timeout must be a non-negative finite number of seconds, got "
+      .. tostring(grace)), 2)
   end
   if options.workers ~= nil and (math.type(options.workers) ~= "integer" or options.workers < 1) then
-    error(core.ArgumentError("kernel.Application: workers is an integer of at least 1"), 2)
+    error(core.ArgumentError("hecate.kernel.application.init: workers must be an integer of at least 1, got "
+      .. tostring(options.workers)), 2)
   end
   if options.strategy ~= nil and not STRATEGIES[options.strategy] then
-    error(core.ArgumentError("kernel.Application: strategy is auto, reuseport or round_robin"), 2)
+    error(core.ArgumentError("hecate.kernel.application.init: strategy must be one of auto, reuseport, round_robin, got "
+      .. tostring(options.strategy)), 2)
   end
   if options.on_crash_loop ~= nil and options.on_crash_loop ~= "stop" and options.on_crash_loop ~= "degrade" then
-    error(core.ArgumentError(("kernel.Application: on_crash_loop is \"stop\" or \"degrade\", got %s"):format(
+    error(core.ArgumentError(("hecate.kernel.application.init: on_crash_loop must be \"stop\" or \"degrade\", got %s"):format(
       type(options.on_crash_loop) == "string" and ("%q"):format(options.on_crash_loop) or type(options.on_crash_loop))), 2)
   end
   local command = options.worker_command
   if command ~= nil then
     local valid = type(command) == "table" and type(command[1]) == "string"
     for i = 1, valid and #command or 0 do if type(command[i]) ~= "string" then valid = false end end
-    if not valid then error(core.ArgumentError("kernel.Application: worker_command is a list of strings, the program first"), 2) end
+    if not valid then error(core.ArgumentError("hecate.kernel.application.init: worker_command must be a list of strings, the program first, got "
+      .. type(command)), 2) end
   end
   self._options = options
   self._booted = false
@@ -139,14 +149,14 @@ local function resolve_interpreter(program, search_path)
 end
 
 --- The command that starts the running program again, from the `arg` table of the standalone interpreter: the
---- interpreter and its options (the negative indices), the script (index 0) and the script arguments. A worker is that
+--- interpreter and its options (the negative indices), the main program (`arg[0]`) and its arguments. A worker is that
 --- program started with the worker role in its environment (ADR 0023, Decision 1).
 ---
 --- An interpreter named without a path separator (`lua`, started through the search path) is replaced by the absolute
 --- path of the first file of that name found in the search path, so that a worker does not depend on the `PATH` of the
 --- primary's children; when none is found the name is kept as it is.
 ---
---- Raises `hecate.core.ArgumentError` when there is no script (interactive use, `-e`, embedding): give `worker_command`.
+--- Raises `hecate.core.ArgumentError` when there is no main program (interactive use, `-e`, embedding): give `worker_command`.
 ---@param arguments? table  default the global `arg`
 ---@param search_path? string  the directories to search for a bare interpreter name, separated like `PATH`; default the `PATH` environment variable
 ---@return string[] command
@@ -159,13 +169,13 @@ function Application.worker_command_from(arguments, search_path)
     end
   end
   if type(arguments) ~= "table" or lowest == 0 or type(arguments[0]) ~= "string" then
-    error(core.ArgumentError("kernel.Application: cannot tell how to start a worker (no script in `arg`); give the worker_command option"), 2)
+    error(core.ArgumentError("hecate.kernel.application.worker_command_from: cannot tell how to start a worker (no main program in `arg`); give the worker_command option"), 2)
   end
   local command = {}
   for index = lowest, #arguments do
     local part = arguments[index]
     if type(part) ~= "string" then
-      error(core.ArgumentError("kernel.Application: cannot tell how to start a worker (`arg` has a gap); give the worker_command option"), 2)
+      error(core.ArgumentError("hecate.kernel.application.worker_command_from: cannot tell how to start a worker (`arg` has a gap); give the worker_command option"), 2)
     end
     command[#command + 1] = part
   end
@@ -186,10 +196,10 @@ end
 ---
 --- Raises `hecate.kernel.ModuleError` (including `already_booted`), `hecate.container.GraphError`,
 --- `hecate.kernel.RouteDeclarationError`, the errors of `hecate.router.Router` and `hecate.core.ArgumentError`.
----@return fun(request: hecate.http.Request): hecate.http.Response serve  runs one request
+---@return fun(request: hecate.http.Request): hecate.http.Response action  the function given to `http.Server`: serves one request
 function Application:boot()
   if self._booted then
-    error(errors.ModuleError("kernel: the application is already booted", { context = { reason = "already_booted" } }), 2)
+    error(errors.ModuleError("hecate.kernel.application.boot: the application is already booted", { context = { reason = "already_booted" } }), 2)
   end
   local options = {}
   for key, value in pairs(self._options) do options[key] = value end
@@ -283,7 +293,7 @@ local function reload_on_signal(self, logger)
 end
 
 --- Waits for `sigint` or `sigterm`, then shuts the application down gracefully. `sighup` starts the rolling reload of
---- the workers in a primary (in a task of its own, so that a stop signal during the reload is heard) and is ignored in a
+--- the workers in a primary (in a computation of its own, so that a stop signal during the reload is heard) and is ignored in a
 --- single process. While the shutdown drains, a second signal forces the stop: the requests still in flight are
 --- cancelled at once (`Server:shutdown(0)`, OQ-115). A signal the platform cannot watch is logged once and the
 --- application serves without signal handling.
@@ -315,7 +325,7 @@ local function watch_signals(self, watcher, logger)
       logger:notice("kernel.Application: signal received, shutting down gracefully",
         { code = "shutdown_signal", signal = name })
     end
-    -- The drain runs in this scope's body; the child waits for the second signal and ends with the scope (ADR 0003).
+    -- The drain runs in this scope's body; the forked computation waits for the second signal and ends with the scope (ADR 0003).
     reactor.scope(function(scope)
       local forcer = scope:fork(function()
         while true do
@@ -367,14 +377,14 @@ end
 local function run_watched(self, watch, body)
   local logger = self._resolved.logger
   local ok, err = pcall(reactor.scope, function(scope)
-    local task, watcher
+    local watching, watcher
     -- One persistent watcher for the whole run: a signal delivered between two waits is queued, never lost (a worker
-    -- would take the default action and die). It is closed once the body has ended, after the task is cancelled.
+    -- would take the default action and die). It is closed once the body has ended, after the watching computation is cancelled.
     if self._options.signals ~= false then
       local created, handle = pcall(reactor.watch_signals, table.unpack(watched_signals()))
       if created then
         watcher = handle
-        task = scope:fork(watch, self, handle, logger or log.default())
+        watching = scope:fork(watch, self, handle, logger or log.default())
       elseif logger ~= nil then
         logger:warning("kernel.Application: signals cannot be watched; serving without graceful shutdown on signals",
           { code = "signals_unavailable" })
@@ -382,7 +392,7 @@ local function run_watched(self, watch, body)
     end
     local body_ok, body_err = pcall(body)
     -- A watcher that received its signal is inside `shutdown` and ends by itself.
-    if task ~= nil and not self._signalled then task:cancel() end
+    if watching ~= nil and not self._signalled then watching:cancel() end
     if watcher ~= nil then watcher:close() end
     if not body_ok then error(body_err, 0) end
   end)
@@ -446,7 +456,7 @@ end
 ---@async
 function Application:serve()
   if self._served then
-    error(errors.ModuleError("kernel: the application has already been served (serve runs once, the container is closed when it returns)",
+    error(errors.ModuleError("hecate.kernel.application.serve: the application has already been served (serve runs once, the container is closed when it returns)",
       { context = { reason = "already_served" } }), 2)
   end
   local serve = self._serve or self:boot()
@@ -505,10 +515,10 @@ end
 function Application:reload(options)
   local sup = self._supervisor
   if sup == nil then
-    error(core.ArgumentError("kernel.Application.reload: only a serving primary of several workers can reload"), 2)
+    error(core.ArgumentError("hecate.kernel.application.reload: only a serving primary of several workers can reload"), 2)
   end
   if options ~= nil and type(options) ~= "table" then
-    error(core.ArgumentError("kernel.Application.reload: options is a table { grace_timeout?, ready_timeout? }, got " .. type(options)), 2)
+    error(core.ArgumentError("hecate.kernel.application.reload: options must be a table { grace_timeout?, ready_timeout? }, got " .. type(options)), 2)
   end
   local given = options or {}
   options = { grace_timeout = given.grace_timeout, ready_timeout = given.ready_timeout }

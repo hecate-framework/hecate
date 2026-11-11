@@ -68,7 +68,7 @@ function kernel.routes(name, options) return kernel.RouteModule(name, options) e
 ---@return hecate.config.Configuration
 function kernel.load_configuration(options)
   if type(options) ~= "table" then
-    error(core.ArgumentError("kernel.load_configuration: options must be a table, got " .. type(options)), 2)
+    error(core.ArgumentError("hecate.kernel.init.load_configuration: options must be a table, got " .. type(options)), 2)
   end
   local copy = {}
   for key, value in pairs(options) do copy[key] = value end

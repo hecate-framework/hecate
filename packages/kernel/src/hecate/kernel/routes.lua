@@ -1,6 +1,6 @@
 -- Route modules: the lightweight declaration style (ADR 0006). `hecate.routes(name)` returns an object whose verbs
 -- declare routes taking an action function; the normalised route list is read back with `RouteModule:routes()`.
-global <const> require, type, error, ipairs, pairs, string, tostring, table
+global <const> require, type, ipairs, pairs, string, tostring, table
 
 local core = require("hecate.core")
 local route = require("hecate.kernel.route")
@@ -35,12 +35,14 @@ local OPTION_FIELDS <const> = { prefix = true, filters = true }
 --- a layer of the chain, a route that declares its own `filters` replaces them (an empty list removes them), unlike
 --- the filters of a controller, which always come before those of the route.
 ---
---- Raises `hecate.core.ArgumentError` for a bad `name` and `RouteDeclarationError` for a bad option.
+--- Raises `RouteDeclarationError` for a bad `name` (`invalid_argument`) and for a bad option.
 ---@param name string
 ---@param options? hecate.kernel.RouteModuleOptions
 function RouteModule:init(name, options)
+  local where = "hecate.kernel.routes.init"
   if type(name) ~= "string" or name == "" then
-    error(core.ArgumentError("kernel.routes: the name of a route module is a non-empty string"), 3)
+    route.refuse(where, "route module", "invalid_argument", "name",
+      "the name of a route module must be a non-empty string, got " .. route.got(name))
   end
   self.name = name
   self._entries = {}
@@ -48,16 +50,17 @@ function RouteModule:init(name, options)
   local origin = "route module " .. name
   if options ~= nil then
     if type(options) ~= "table" then
-      route.refuse(origin, "invalid_options", nil, "the options of a route module are a table")
+      route.refuse(where, origin, "invalid_options", nil, "the options of a route module must be a table, got " .. route.got(options))
     end
     for key in pairs(options) do
       if type(key) ~= "string" or not OPTION_FIELDS[key] then
-        route.refuse(origin, "unknown_field", tostring(key), "unknown option " .. tostring(key) .. " (prefix, filters)")
+        route.refuse(where, origin, "unknown_field", tostring(key),
+          ("unknown option %s %s"):format(type(key) == "string" and ("'" .. key .. "'") or route.got(key), route.valid(OPTION_FIELDS)))
       end
     end
     if options.prefix ~= nil then
       if type(options.prefix) ~= "string" then
-        route.refuse(origin, "invalid_path", "prefix", "prefix must be a string, got " .. type(options.prefix))
+        route.refuse(where, origin, "invalid_path", "prefix", "prefix must be a string, got " .. route.got(options.prefix))
       end
       route.check_prefix(origin, options.prefix)
       self._prefix = options.prefix
@@ -69,18 +72,21 @@ function RouteModule:init(name, options)
 end
 
 local function declare(self, method, path, spec)
+  local where = "hecate.kernel.routes." .. string.lower(method)
+  local origin = "route module " .. self.name
   if type(path) ~= "string" then
-    error(core.ArgumentError(("route module %s: %s expects a path string, got %s"):format(self.name, method, type(path))), 3)
+    route.refuse(where, origin, "invalid_argument", "path", ("%s expects a path string, got %s"):format(method, route.got(path)))
   end
   if type(spec) ~= "table" then
-    error(core.ArgumentError(("route module %s: %s %s expects a table of declarations"):format(self.name, method, path)), 3)
+    route.refuse(where, origin, "invalid_argument", nil,
+      ("%s %s expects a table of declarations, got %s"):format(method, path, route.got(spec)))
   end
   -- `route.normalise` reads `path` from the spec: the verb gives it, the table must not repeat it.
   local copy = { path = path }
   for key, value in pairs(spec) do
     if key == "path" or key == "method" then
-      error(core.ArgumentError(("route module %s: %s %s: %s is given by the verb"):format(self.name, method, path,
-        tostring(key))), 3)
+      route.refuse(where, origin, "invalid_argument", tostring(key),
+        ("%s %s: %s is given by the verb, not by the table of declarations"):format(method, path, tostring(key)))
     end
     copy[key] = value
   end
@@ -121,7 +127,7 @@ function RouteModule:routes()
   for _, label in pairs(self._pending) do incomplete[#incomplete + 1] = label end
   if #incomplete > 0 then
     table.sort(incomplete)
-    route.refuse("route module " .. self.name, "incomplete_route", nil, "route " .. table.concat(incomplete, ", ")
+    route.refuse("hecate.kernel.routes.routes", "route module " .. self.name, "incomplete_route", nil, "route " .. table.concat(incomplete, ", ")
       .. " has no table of declarations (write module:get \"/x\" { ... })")
   end
   local list = {}

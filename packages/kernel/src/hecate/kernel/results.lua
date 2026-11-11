@@ -2,7 +2,7 @@
 -- `http` is bytes only (OQ-76 a): the kernel represents the value with the schema declared for the status
 -- (`schema:represent`, OQ-95), encodes it with the serialiser chosen by content negotiation (RFC 9110, section 12),
 -- and only then builds the Response. Nothing of a value or of an error message goes into a response (OQ-111).
-global <const> require, type, error, getmetatable, rawequal, math, string, table, ipairs, pairs, tonumber
+global <const> require, type, error, getmetatable, rawequal, math, string, table, ipairs, pairs, tonumber, tostring
 
 local core = require("hecate.core")
 local json = require("hecate.json")
@@ -41,7 +41,7 @@ results.serialisers = {
 ---@return hecate.kernel.results.Result
 function results.respond(status, value, schema)
   if math.type(status) ~= "integer" or status < 100 or status > 599 then
-    error(core.ArgumentError("results.respond: the status must be an integer from 100 to 599"), 2)
+    error(core.ArgumentError("hecate.kernel.results.respond: the status must be an integer from 100 to 599, got " .. tostring(status)), 2)
   end
   return { [RESULT] = true, status = status, value = value, schema = schema }
 end
@@ -118,7 +118,7 @@ local function refuse_unrepresentable(value)
   if type(value) == "table" then
     local meta = getmetatable(value)
     if meta ~= nil and not json.is_array(value) and not json.is_object(value) and type(meta.__pairs) ~= "function" then
-      error(core.ArgumentError("results.serialise: a value of a class has no schema declared for this status; declare one with schema.of(Class)"), 3)
+      error(core.ArgumentError("hecate.kernel.results.serialise: a value of a class has no schema declared for this status; declare one with schema.of(Class)"), 3)
     end
   end
 end

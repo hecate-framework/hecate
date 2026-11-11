@@ -42,7 +42,7 @@ What exists in `hecate.http` (the package README has the full API and the limits
 path component of the target as a string: `/users/42`), `fields` (header fields), `parameters`
 (the values declared by the route, parsed and validated after routing: `parameters.path`,
 `parameters.query`, `parameters.fields`, `parameters.cookies`, the same four keys as the
-`parameters` of a route declaration), validated `content`, the `scope`, and the connection's peer
+`parameters` of a route declaration), validated `content`, `scope` (the reactor scope of the request, set by the server), `services` (the service scope of the request, set by the kernel when the application has a container; what a controller's `dependencies` are resolved in), and the connection's peer
 address (`peer_address()`, as on every `net` stream). Responses carry `status`, `fields`, `content`.
 
 ```lua
@@ -131,7 +131,7 @@ The global filters wrap the routing step: the order is the global filters, then 
 the module, controller and route filters and the action. The global filters therefore also
 see the requests that match no route: the `404`, `405` and `400` problem responses and the
 automatic `OPTIONS` answer pass through them. At that point `request` carries no route
-(`request.parameters.path` is empty, there is no service scope yet). An error raised by
+(`request.parameters.path` is empty, `request.services` is not set yet). An error raised by
 the action, or by a filter of an inner layer, becomes a problem response that flows back
 through the global filters (their code after `next` runs).
 

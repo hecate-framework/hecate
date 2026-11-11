@@ -64,7 +64,7 @@ the server, the router and the actions, is the same for every strategy. There ar
 | `reuseport` | each worker, on its own socket bound with `SO_REUSEPORT` | no | Linux |
 | `round_robin` | the primary, which hands each accepted connection to the next worker | yes, for accepting and handing over only | macOS and Windows, and the fallback everywhere |
 
-`server.workers.strategy` will be `auto`, which picks the platform default, or the name of a
+`server.strategy` will be `auto`, which picks the platform default, or the name of a
 strategy. When the chosen strategy is not supported, the server falls back to `round_robin`,
 which works everywhere, and logs a warning with the reason.
 

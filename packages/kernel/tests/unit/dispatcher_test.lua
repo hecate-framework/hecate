@@ -136,7 +136,7 @@ function T:test_an_error_in_an_action_becomes_a_500_problem_and_is_logged()
   self:assert_equal(1, #logged)
 end
 
-function T:test_a_controller_gets_its_dependencies_from_the_request_scope()
+function T:test_a_controller_gets_its_dependencies_from_the_request_services()
   local Greeter = core.class("Greeter")
   function Greeter:greet() return "hello" end
   core.finalise(Greeter)
@@ -151,6 +151,48 @@ function T:test_a_controller_gets_its_dependencies_from_the_request_scope()
   local response = serve(request("GET", "/hello"))
   self:assert_equal(200, response.status)
   self:assert_equal("hello", json.decode(response.content).text)
+end
+
+function T:test_request_services_is_the_service_scope_and_leaves_the_reactor_scope_alone()
+  local Greeter = core.class("Greeter2")
+  core.finalise(Greeter)
+  local c = container.Container():bind("greeter", Greeter, { lifetime = "scoped" }):validate()
+  local seen
+  local serve = serve_with(function(m)
+    m:get("/s", { action = function(r)
+      seen = { services = r.services, reactor_scope = r.scope, first = r.services:resolve("greeter"),
+        second = r.services:resolve("greeter") }
+    end })
+  end, { container = c })
+  local req = request("GET", "/s")
+  local marker = {}
+  req.scope = marker -- what `http.Server` sets: the reactor scope of the request
+  serve(req)
+  self:assert_true(seen.services ~= nil)
+  self:assert_true(seen.first == seen.second)
+  self:assert_true(seen.reactor_scope == marker)
+end
+
+function T:test_the_dependencies_of_a_controller_are_resolved_in_sorted_key_order()
+  local order = {}
+  local function service(name)
+    local class = core.class("Service_" .. name)
+    function class:init() order[#order + 1] = name end
+    return core.finalise(class)
+  end
+  local Hello = core.class("OrderedController", kernel.Controller)
+  Hello.dependencies = { zeta = "z", alpha = "a", mid = "m" }
+  kernel.Controller.route(Hello, { method = "GET", path = "/", action = "say" })
+  function Hello:say() return nil end
+  core.finalise(Hello)
+  local c = container.Container():bind("z", service("z"), { lifetime = "transient" })
+    :bind("a", service("a"), { lifetime = "transient" }):bind("m", service("m"), { lifetime = "transient" }):validate()
+  local serve = dispatcher.build(kernel.routing.collect({ Hello }), { container = c })
+  for _ = 1, 3 do
+    order = {}
+    serve(request("GET", "/"))
+    self:assert_equal("a m z", table.concat(order, " "))
+  end
 end
 
 function T:test_a_controller_with_dependencies_and_no_container_is_refused_at_build()

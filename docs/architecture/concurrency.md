@@ -44,9 +44,9 @@ concurrency primitives; transport, name resolution, `fs`, `wait_signal`, `run_pr
 Every forked computation belongs to a **scope**. The kernel opens a scope per request;
 the test framework opens one per test. Rules:
 
-1. A scope does not complete before all of its children have completed.
-2. If a child fails, the scope cancels its siblings and propagates the error (unless the
-   child was explicitly detached into the application scope, an operation that must be
+1. A scope does not complete before all of its forked computations have completed.
+2. If a forked computation fails, the scope cancels its siblings and propagates the error (unless the
+   computation was explicitly detached into the application scope, an operation that must be
    visible in code: `reactor.detach(fn)`). A detached failure that nothing waits for when
    it happens is reported to the `on_unobserved_failure(err, future)` hook of the reactor
    (OQ-26 (1)), which `kernel` binds to `log`; without a hook it stays silent. The hook
@@ -72,8 +72,8 @@ computation forked while serving a request without being passed through each fun
   binding of the same key shadows the outer one until `fn` returns; the binding is removed when `fn` returns or raises.
 - `ambient(key)` returns the value bound in the running computation, or `nil`.
 - `fork`, `detach` and `Scope:fork` give the new computation the bindings visible **at the moment of the call**, from
-  the creator (not from the application scope). Bindings made later by the creator are not seen by the child, and a
-  binding made by a child is seen by neither its parent nor its siblings.
+  the creator (not from the application scope). Bindings made later by the creator are not seen by the forked computation, and a
+  binding made by a forked computation is seen by neither the computation that forked it nor its siblings.
 - Bindings are immutable: a value that must change is a table its owner mutates, visibly. `key` is any non-nil value
   compared by equality; a module-private table avoids collisions between packages.
 - Both functions raise `NonYieldableContextError` outside a managed coroutine.
@@ -189,4 +189,4 @@ persistent `SignalWatcher`, which queues signals delivered between two waits (OQ
 
 - Deterministic scheduler mode for tests (virtual clock for `sleep` and deadlines).
 - Property tests for `join`/`select`/cancellation interactions.
-- Leak detection: a test fails if its scope ends with live children or open handles.
+- Leak detection: a test fails if its scope ends with live forked computations or open handles.

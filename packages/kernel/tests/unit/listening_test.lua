@@ -90,26 +90,26 @@ function T:test_the_ring_waits_for_a_worker_and_returns_nil_once_closed()
   self:assert_nil(after_close)
 end
 
-function T:test_the_handoff_listener_queues_wraps_and_closes()
+function T:test_the_hand_over_listener_queues_wraps_and_closes()
   local accepted, queued_after_close, failure, closed_stream
   reactor.run(function()
     local server = net.listen("127.0.0.1", 0)
     local port = server:local_address().port
-    local handoff = listening.HandoffListener({ ip = "127.0.0.1", port = port, family = "inet" })
-    self:assert_equal(port, handoff:local_address().port)
+    local hand_over = listening.HandOverListener({ ip = "127.0.0.1", port = port, family = "inet" })
+    self:assert_equal(port, hand_over:local_address().port)
     reactor.fork(function() local s = net.connect("127.0.0.1", port); s:write("hi"); s:close() end)
     local stream = server:accept()
-    handoff:push(stream._inner) -- a reactor stream, as received through `reactor.ipc`
-    accepted = handoff:accept()
+    hand_over:push(stream._inner) -- a reactor stream, as received through `reactor.ipc`
+    accepted = hand_over:accept()
     self:assert_true(core.is_instance_of(accepted, net.TcpStream))
     self:assert_equal("hi", accepted:reader():read_exact(2))
     accepted:close()
     reactor.fork(function() local s = net.connect("127.0.0.1", port); s:close() end)
     local second = server:accept()
-    handoff:close()
-    queued_after_close = handoff:push(second._inner)
+    hand_over:close()
+    queued_after_close = hand_over:push(second._inner)
     closed_stream = second:is_closed()
-    local ok, err = pcall(handoff.accept, handoff)
+    local ok, err = pcall(hand_over.accept, hand_over)
     failure = not ok and err or nil
     server:close()
   end)
@@ -126,43 +126,43 @@ local function fake_stream()
   return stream
 end
 
-function T:test_the_handoff_listener_is_bounded_and_closes_what_it_cannot_queue()
+function T:test_the_hand_over_listener_is_bounded_and_closes_what_it_cannot_queue()
   reactor.run(function()
-    local handoff = listening.HandoffListener(nil, 2)
-    self:assert_equal(2, handoff:capacity())
+    local hand_over = listening.HandOverListener(nil, 2)
+    self:assert_equal(2, hand_over:capacity())
     local a, b, c = fake_stream(), fake_stream(), fake_stream()
-    self:assert_true((handoff:push(a)))
-    self:assert_true((handoff:push(b)))
-    local queued, reason = handoff:push(c)
+    self:assert_true((hand_over:push(a)))
+    self:assert_true((hand_over:push(b)))
+    local queued, reason = hand_over:push(c)
     self:assert_false(queued)
     self:assert_equal("full", reason)
     self:assert_true(c.closed)
     self:assert_false(a.closed)
-    handoff:close()
-    local after, why = handoff:push(fake_stream())
+    hand_over:close()
+    local after, why = hand_over:push(fake_stream())
     self:assert_false(after)
     self:assert_equal("closed", why)
     self:assert_true(a.closed and b.closed)
   end)
 end
 
-function T:test_the_handoff_listener_capacity_defaults_to_the_server_backlog_and_is_checked()
+function T:test_the_hand_over_listener_capacity_defaults_to_the_server_backlog_and_is_checked()
   local http = require("hecate.http")
-  self:assert_equal(http.Server.DEFAULTS.backlog, listening.HandoffListener():capacity())
+  self:assert_equal(http.Server.DEFAULTS.backlog, listening.HandOverListener():capacity())
   for _, bad in ipairs({ 0, -1, 1.5, "8" }) do
-    local ok, err = pcall(listening.HandoffListener, nil, bad)
+    local ok, err = pcall(listening.HandOverListener, nil, bad)
     self:assert_false(ok)
     self:assert_true(core.is_instance_of(err, core.ArgumentError), tostring(err))
   end
 end
 
---- A worker of the test: takes a connection into its own handoff listener, as a real worker's control loop does.
+--- A worker of the test: takes a connection into its own hand-over listener, as a real worker's control loop does.
 local function fake_worker(name, fail)
-  local worker = { name = name, handoff = listening.HandoffListener(), taken = 0 }
+  local worker = { name = name, listener = listening.HandOverListener(), taken = 0 }
   function worker:hand_over(stream)
     if fail then error("worker " .. name .. " is gone") end
     self.taken = self.taken + 1
-    self.handoff:push(stream)
+    self.listener:push(stream)
   end
   return worker
 end
@@ -181,7 +181,7 @@ function T:test_round_robin_spreads_connections_evenly_and_workers_serve_them()
       scope:fork(strategy.run, strategy, ring)
       for _, worker in ipairs(workers) do
         scope:fork(function()
-          local listener = strategy:worker_listener({ endpoint = { host = "127.0.0.1", port = 0 }, handoff = worker.handoff })
+          local listener = strategy:worker_listener({ endpoint = { host = "127.0.0.1", port = 0 }, hand_over = worker.listener })
           for _ = 1, 2 do
             local stream = listener:accept()
             stream:write(worker.name)
@@ -213,7 +213,7 @@ function T:test_round_robin_tries_the_next_worker_when_one_fails()
     reactor.scope(function(scope)
       scope:fork(strategy.run, strategy, ring)
       scope:fork(function()
-        local stream = healthy.handoff:accept()
+        local stream = healthy.listener:accept()
         stream:write("ok")
         stream:close()
       end)
@@ -249,7 +249,7 @@ function T:test_round_robin_returns_when_the_ring_closes()
   self:assert_true(returned)
 end
 
-function T:test_round_robin_needs_prepare_and_a_handoff_context()
+function T:test_round_robin_needs_prepare_and_a_hand_over_context()
   local strategy = listening.RoundRobinStrategy()
   self:assert_false((pcall(strategy.worker_listener, strategy, {})))
   local ok = pcall(reactor.run, function() strategy:run(listening.WorkerRing()) end)
