@@ -2,9 +2,9 @@
 # Handoff
 
 - roadmap_item: `kernel`: application, modules, controllers, route modules, filters, problem details, lifecycle, multi-process workers, graceful shutdown (Phase 2, docs/roadmap.md)
-- status: waiting-owner
-- lock_until: 2026-11-11T20:45:00Z
-- last_update: 2026-11-11T20:45:00Z
+- status: in-progress
+- lock_until: 2026-11-11T21:45:00Z
+- last_update: 2026-11-11T21:45:00Z
 
 ## Done
 
@@ -83,7 +83,7 @@
 
 ## Next steps
 
-0. BLOCKED on the owner, OQ-118 (issue #174): on macOS a rolling reload loses 1 to 4 handed-over connections (client gets a clean end of stream, 0 bytes); both reload tests of `application_workers_test.lua` fail there in every run since 4cb5750, so CI is red on macOS. Proven by the diagnostics of steps 32a to 32c: every connection the primary handed over was accepted by a worker's `http.Server` (no `hand_over_failed`, `control_failed`, `hand_over_discarded` or `hand_over_unaccounted`), which then read an end of stream at once. Hypothesis: the primary closes its descriptor right after writing the `connection` frame and the macOS collector of descriptors in flight in Unix sockets flushes the socket when an old worker's pipe closes. Recommended fix (a): a per-connection acknowledgement (`received`) from the worker, the primary closing its descriptor only then; it adds a message to ADR 0023 Decision 5 (Accepted) and needs `reactor.Peer:send` to keep the stream open on request, so it waits for the owner. A spike reproducing the loss with `reactor.ipc` alone on macOS would confirm the cause first.
+0. Read the CI of the head (step 33, fix of OQ-118), macOS first. Run of 2026-11-11T21:40Z: every workflow run created since 20:18Z (heads 10a1c04 and d99c644, 10 runs) is still `queued` with no job created, and no run is in progress in the repository; the last completed run dates from 19:44Z. This is GitHub side (runner availability, Actions minutes or billing): the owner must check the repository's Actions settings and usage. No code change was made; an empty commit to retrigger CI is not allowed. If macOS still loses connections once CI runs, reopen issue #174 and fall back to option (c).
 1. The kernel item is ready for the owner's review: every review finding is done or consciously declined (see the Done entry of step 31). Remaining kernel pieces, all deferred and recorded in docs/roadmap.md: request id through the ambient context, the helper that returns the reactor options with `on_unobserved_failure` bound to `log` (CLI), the generated `config/development.lua` and `config/test.lua` values (CLI, Phase 3), `reuseport` conformance (waits for the next luv release, OQ-43), the `Request` counter of `http.Server` (workers report `-` for requests).
 2. Before ticking: the handoffs (a) to (n) were verified against the roadmap text and `/review-package kernel` ran twice (step 29 and the final review of step 31); nothing blocks ticking except the owner's decision on the deferred pieces.
 
