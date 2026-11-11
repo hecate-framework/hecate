@@ -27,7 +27,7 @@ on the three platforms, with four workers:
 
 What follows from the measurements:
 
-- Node's `cluster` module reached the same conclusion: round-robin hand-off is its default everywhere except
+- Node's `cluster` module reached the same conclusion: round-robin hand-over is its default everywhere except
   Windows, because a shared listening handle left over 70% of connections in two of eight processes
   ([documentation](https://nodejs.org/api/cluster.html)); it keeps the shared handle on Windows, which our
   Windows measurement shows to be the weak choice.
@@ -98,7 +98,7 @@ What follows from the measurements:
    | `reuseport` | each worker, on its own socket bound with `SO_REUSEPORT` | no | Linux (default) |
    | `round_robin` | the primary, which passes every accepted connection to the next worker | yes (accept and pass only) | macOS and Windows (default), and the fallback everywhere |
 
-   `server.workers.strategy` is `auto` (the platform default above) or a strategy name. When the
+   `server.strategy` is `auto` (the platform default above) or a strategy name. When the
    chosen strategy is not `supported()`, the server falls back to `round_robin`, which works
    everywhere, and logs a warning that names the reason.
 4. **Linux first, enforced.** The platform-specific code lives in the strategies and in the
@@ -137,7 +137,7 @@ file-descriptor inheritance across a new binary.
   connection is served, the spread of connections stays within a bound for the balanced
   strategies, a crashed worker is restarted, and shutdown honours its deadline.
 - Linux keeps the shortest possible path; macOS and Windows get a correct and balanced one that
-  can be tuned without touching Linux. On Windows the primary's hand-off is the slowest part
+  can be tuned without touching Linux. On Windows the primary's hand-over is the slowest part
   (about 3300 connections per second in the spike); batching or another mechanism can be studied
   there later without affecting the other platforms.
 - Long-lived connections stay on the worker that took them: the spread of *connections* is
