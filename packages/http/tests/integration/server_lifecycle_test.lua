@@ -743,6 +743,7 @@ local function flaky(real, bursts)
   return fake
 end
 
+-- Documented in website/en/how-to/before-going-to-production.md (Logging).
 function T:test_the_accept_loop_survives_descriptor_exhaustion_and_logs_once_per_burst()
   local sink = log.MemorySink()
   local before = reactor.Reactor.open_handles()
@@ -771,6 +772,7 @@ function T:test_the_accept_loop_survives_descriptor_exhaustion_and_logs_once_per
       logged = logged + 1
       self:assert_nil(tostring(record.fields.peer or ""):find("10.0.0.1", 1, true))
       self:assert_equal("EMFILE", record.fields.reason)
+      self:assert_equal("warning", record.severity.name or tostring(record.severity))
     end
   end
   self:assert_equal(2, logged, "one record per burst, not per failure")
@@ -839,6 +841,92 @@ function T:test_on_response_marks_the_answers_sent_before_any_action_runs()
   self:assert_equal(1, #seen)
   self:assert_equal(400, seen[1].status)
   self:assert_equal(true, seen[1].refused)
+end
+
+-- Documented in website/en/how-to/before-going-to-production.md (Logging).
+function T:test_requests_refused_before_any_action_runs_are_not_logged_but_reach_on_response_as_refused()
+  local sink = log.MemorySink()
+  local seen = {}
+  local ran = false
+  with_server(self, {
+    action = function() ran = true; return Response(200) end,
+    max_content = 8,
+    logger = log.Logger({ sinks = { sink }, severity = "debug" }),
+    on_response = function(info) seen[#seen + 1] = info end,
+  }, function(port)
+    local malformed <close> = connect(port)
+    self:assert_equal(400, malformed:request("GET / HTTP/1.1\r\nHost: t\r\nBad Field: 1\r\n\r\n").status)
+    local large <close> = connect(port)
+    self:assert_equal(413, large:request("POST /e HTTP/1.1\r\nHost: t\r\nContent-Length: 9\r\n\r\n").status)
+  end)
+  self:assert_false(ran)
+  -- the listening address is the only record of the server: the logger works, the refusals are not in it
+  self:assert_equal(1, #sink:records())
+  self:assert_not_nil(sink:records()[1].message:find("listening on", 1, true), "unexpected record: " .. sink:records()[1].message)
+  self:assert_equal(2, #seen)
+  self:assert_equal(400, seen[1].status)
+  self:assert_equal(true, seen[1].refused)
+  self:assert_equal(413, seen[2].status)
+  self:assert_equal(true, seen[2].refused)
+end
+
+-- Documented in website/en/how-to/before-going-to-production.md (The access log).
+function T:test_on_response_marks_a_response_not_sent_completely_as_failed()
+  local seen = {}
+  with_server(self, {
+    action = function()
+      return Response(200, { content = function(write)
+        write("partial")
+        error("the writer broke", 0)
+      end })
+    end,
+    on_response = function(info) seen[#seen + 1] = info end,
+  }, function(port)
+    local client <close> = connect(port)
+    client:send(get("/stream"))
+    client:read_until_close() -- the content is cut short and the connection closed
+  end)
+  self:assert_equal(1, #seen)
+  self:assert_equal(200, seen[1].status)
+  self:assert_equal(true, seen[1].failed)
+  self:assert_equal(false, seen[1].refused)
+end
+
+--- Whether `needle` appears in any string of `value`, its keys and nested tables included.
+local function contains(value, needle, visited)
+  visited = visited or {}
+  if type(value) == "string" then return value:find(needle, 1, true) ~= nil end
+  if type(value) ~= "table" or visited[value] then return false end
+  visited[value] = true
+  for key, item in pairs(value) do
+    if contains(key, needle, visited) or contains(item, needle, visited) then return true end
+  end
+  return false
+end
+
+-- Documented in website/en/how-to/before-going-to-production.md (Logging).
+function T:test_the_action_failed_record_is_an_error_with_the_method_the_path_without_the_query_and_the_error()
+  local sink = log.MemorySink()
+  with_server(self, {
+    action = function() error("boom", 0) end,
+    logger = log.Logger({ sinks = { sink }, severity = "debug" }),
+  }, function(port)
+    local client <close> = connect(port)
+    self:assert_equal(500, client:request(get("/x?token=abc")).status)
+  end)
+  local failures = {}
+  for _, record in ipairs(sink:records()) do
+    if record.message == "http.Server: the action failed" then failures[#failures + 1] = record end
+  end
+  self:assert_equal(1, #failures)
+  local record = failures[1]
+  self:assert_equal("error", record.severity.name or tostring(record.severity))
+  self:assert_equal("GET", record.fields.method)
+  self:assert_equal("/x", record.fields.path)
+  self:assert_not_nil(tostring(record.fields.error):find("boom", 1, true))
+  for _, any in ipairs(sink:records()) do
+    self:assert_false(contains({ any.message, any.fields, any.context, any.logger }, "abc"), "the query reached a record")
+  end
 end
 
 function T:test_a_failing_on_response_hook_does_not_affect_the_response()

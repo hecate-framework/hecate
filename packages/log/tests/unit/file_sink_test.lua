@@ -77,4 +77,19 @@ function T:test_a_failed_write_raises_and_the_logger_counts_it()
   self:assert_true(closed)
 end
 
+-- Documented in website/en/how-to/before-going-to-production.md (Logging).
+function T:test_a_secret_is_written_as_redacted()
+  local path = os.tmpname()
+  local sink = log.FileSink({ path = path })
+  log.Logger({ sinks = { sink } }):error("login", { password = log.Secret("hunter2"), nested = { token = log.Secret("tok") } })
+  sink:close()
+  local text = read(path)
+  os.remove(path)
+  self:assert_nil(text:find("hunter2", 1, true))
+  self:assert_nil(text:find("tok\"", 1, true))
+  local object = json.decode(text:match("[^\n]+"))
+  self:assert_equal("[redacted]", object.fields.password)
+  self:assert_equal("[redacted]", object.fields.nested.token)
+end
+
 return T

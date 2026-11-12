@@ -106,4 +106,13 @@ function T:test_a_table_deeper_than_the_limit_is_truncated_and_a_shallower_one_i
   self:assert_not_nil(lines[2]:find("[truncated]", 1, true))
 end
 
+-- Documented in website/en/how-to/before-going-to-production.md (Redaction does not read free text).
+function T:test_a_table_with_a_metatable_is_written_as_it_is()
+  local logger, lines = new_logger({ redact = { "authorization" } })
+  logger:error("request", { fields = setmetatable({ authorization = "x" }, {}) })
+  local object = json.decode(lines[1])
+  self:assert_nil(object.encoding_error)
+  self:assert_equal("x", object.fields.fields.authorization)
+end
+
 return T

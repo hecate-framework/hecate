@@ -94,4 +94,13 @@ function T:test_a_user_extends_default_redact_with_table_move()
   self:assert_equal("[redacted]", tostring(sink:records()[1].fields.password))
 end
 
+-- Documented in website/en/how-to/before-going-to-production.md (Redaction does not read free text).
+function T:test_default_redact_holds_the_names_the_production_guide_lists()
+  local names = {}
+  for _, name in ipairs(log.DEFAULT_REDACT) do names[name] = true end
+  for _, name in ipairs({ "password", "secret", "token", "api_key", "authorization", "cookie", "session" }) do
+    self:assert_true(names[name], name)
+  end
+end
+
 return T
