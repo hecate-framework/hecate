@@ -26,16 +26,18 @@ The last call answers `422` with `errors[1] = { "pointer": "/name", "source": "c
 
 ## Run
 
-Once per clone, from the repository root, build the native modules (`luv` comes with the
-bootstrap, `tools/bootstrap`):
+Once per clone, from the repository root, install `luv` (the bootstrap installs only Lua and
+LuaRocks; building `luv` needs CMake and a C compiler) and build the native modules, all into
+`.hecate/rocks`:
 
 ```sh
+luarocks --tree .hecate/rocks install luv 1.53.0-0
 lua tools/run.lua build-native json
 lua tools/run.lua build-native http
 ```
 
 Then, in a POSIX shell from the repository root, put the Hecate packages and the native modules
-on the search paths (`luarocks path` gives the paths of `luv`), and run `main.lua` from
+on the search paths, and run `main.lua` from
 `examples/hello` (it adds `src` to the search path):
 
 ```sh
@@ -46,6 +48,12 @@ cd examples/hello
 HELLO_PORT=8080 lua main.lua
 HELLO_PORT=8080 HELLO_WORKERS=4 lua main.lua   # four worker processes (ADR 0023)
 ```
+
+Each response is logged on the standard error stream, through the default logger: method,
+path without the query string (a query can carry secrets), status, bytes and duration, for example
+`INFORMATIONAL [hecate] GET /hello/Ada -> 200 bytes=... duration_ms=0 status=200`. This is the
+`on_response` hook of `hecate.http.Server`, set in `main.lua`; the framework has no access log of
+its own yet.
 
 `HELLO_PORT` defaults to `8080`; the server listens on the loopback interface only.
 `HELLO_WORKERS` defaults to `1` (one process serves by itself). Above 1 the process is the
