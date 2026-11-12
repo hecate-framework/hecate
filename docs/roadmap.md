@@ -207,8 +207,13 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
 
 ## Phase 2 — additional spike
 
-- [ ] `reactor` follow-up: specify then implement `offload` (Lua functions on the libuv
-      thread pool), split from the Phase 1 item (OQ-27).
+- [x] `reactor` follow-up: specify then implement `offload` (Lua functions on the libuv
+      thread pool), split from the Phase 1 item (OQ-27). Delivered: the "Offload" section of
+      `concurrency.md`, `reactor.offload(fn, ...)` and `reactor.OffloadError` over luv `new_work` (values copied by
+      an own encoding, a fresh environment per call, `Reactor:run` waiting for in-flight work because luv crashes
+      when the state closes with work in flight), tests including a child-process exit test, the guide
+      `how-to/offload-cpu-bound-work.md` and the micro-benchmark `reactor/offload`; the conservative choices
+      are in OQ-119 for the owner to confirm.
 - [x] `reactor`: the multi-process primitives of [ADR 0023](adr/0023-multi-process-serving.md)
       (`spawn`, `ipc` with handle passing, TCP `reuseport`, OQ-8, OQ-43); needed by `kernel`
       for multi-process workers. Spike OQ-8 delivered. `reuseport` needs luv with TCP
