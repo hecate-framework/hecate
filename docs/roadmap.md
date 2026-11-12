@@ -236,6 +236,9 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
 - [ ] **Phase 2 gate**: verification of the phase, as described in [Phase gates](#phase-gates). Open
       questions to put to the owner before Phase 3: OQ-46, OQ-13, OQ-17, OQ-38 and OQ-64
       (OQ-33, OQ-35, OQ-36 and OQ-40 were resolved at the Phase 1 gate).
+      **Also triage (from the `examples/hello` review, dx-reviewer):** without the native module of `http`,
+      `Application:serve` fails with `attempt to call a nil value (field 'Server')` (`kernel/application.lua`); it
+      should raise an error that names `lua tools/run.lua build-native http`, as `hecate.net.tls` does for its module.
 
 ## Phase 3 — Contracts and tooling → `0.1.0`
 

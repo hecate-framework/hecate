@@ -1,18 +1,20 @@
 # `hello`
 
-A small JSON API run through `hecate.kernel.Application`. It is the example of Phase 2.
+A small JSON API run through `hecate.Application` (the meta-module `hecate`, which re-exports
+the kernel surface). It is the example of Phase 2.
 
 ## What it demonstrates
 
 | Route | Shows |
 |---|---|
 | `GET /hello/{name}` | a path parameter validated by a schema (1 to 40 characters), a result represented by a response schema (`{ "message": "Hello, Ada!" }`) |
-| `POST /greetings` | JSON content validated by a schema (`name`, optional `language` defaulting to `en`), `422` problem details (RFC 9457) with `source` and a relative `pointer` for each violation, `201` through `kernel.respond` |
-| `GET /health` | a route module (`kernel.routes`), the lightweight declaration style |
+| `POST /greetings` | JSON content validated by a schema (`name`, optional `language` defaulting to `en`), `422` problem details (RFC 9457) with `source` and a relative `pointer` for each violation, `201` through `hecate.respond` |
+| `GET /health` | a route module (`hecate.routes`), the lightweight declaration style |
 
-The two greeting routes are declared by a controller (`Controller.route`), `/health` by a route
+The two greeting routes are declared by a controller (`hecate.Controller.route`), `/health` by a route
 module, so both declaration styles appear. Unknown paths answer a `404` problem details response.
-Reasons for failures never carry values or messages of the errors (`errors.expose_details` is off).
+Each `422` entry carries `pointer`, `code` and `source`, never the rejected value or an error
+message (`errors.expose_details` defaults to `false`).
 
 ```sh
 curl -s localhost:8080/hello/Ada
@@ -24,10 +26,23 @@ The last call answers `422` with `errors[1] = { "pointer": "/name", "source": "c
 
 ## Run
 
-From this directory, with the Hecate packages (`packages/*/src`) on `LUA_PATH` and the native
-modules built (`lua tools/run.lua build-native json http`, then `.hecate/rocks` on `LUA_CPATH`):
+Once per clone, from the repository root, build the native modules (`luv` comes with the
+bootstrap, `tools/bootstrap`):
 
 ```sh
+lua tools/run.lua build-native json
+lua tools/run.lua build-native http
+```
+
+Then, in a POSIX shell from the repository root, put the Hecate packages and the native modules
+on the search paths (`luarocks path` gives the paths of `luv`), and run `main.lua` from
+`examples/hello` (it adds `src` to the search path):
+
+```sh
+eval "$(luarocks path)"
+for dir in "$PWD"/packages/*/src; do LUA_PATH="$dir/?.lua;$dir/?/init.lua;$LUA_PATH"; done
+export LUA_PATH="$LUA_PATH;;" LUA_CPATH="$PWD/.hecate/rocks/lib/lua/5.5/?.so;$LUA_CPATH;;"
+cd examples/hello
 HELLO_PORT=8080 lua main.lua
 HELLO_PORT=8080 HELLO_WORKERS=4 lua main.lua   # four worker processes (ADR 0023)
 ```
@@ -35,9 +50,10 @@ HELLO_PORT=8080 HELLO_WORKERS=4 lua main.lua   # four worker processes (ADR 0023
 `HELLO_PORT` defaults to `8080`; the server listens on the loopback interface only.
 `HELLO_WORKERS` defaults to `1` (one process serves by itself). Above 1 the process is the
 primary: it supervises that many workers, each one `main.lua` started again, and hands them the
-connections (`kernel.Application` options `workers` and `strategy`, default `auto`). Ctrl+C
-(SIGINT) or SIGTERM stops accepting, lets the requests in flight finish (up to 10 seconds) and
-exits; with workers, the primary asks each worker to drain, then exits.
+connections (`hecate.Application` options `workers` and `strategy`, default `auto`). Ctrl+C
+(SIGINT) or SIGTERM stops accepting, lets the requests in flight finish within the grace period
+(10 seconds here) and exits; with workers, the primary sends `stop` to each worker, which does
+the same, then exits.
 
 ## Test
 

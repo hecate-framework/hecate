@@ -11,6 +11,7 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- docs(examples): `examples/hello` uses the meta-module `hecate` (`hecate.Application`, `hecate.Controller`, `hecate.routes`, `hecate.respond`, `hecate.problem`); its README gives run commands that work as written (`build-native json` and `build-native http` separately, the `LUA_PATH` and `LUA_CPATH` entries).
 - test(examples): `examples/hello` shows that a graceful shutdown drains a request in flight (Phase 2 exit criterion), in process and in a worker of two: a request in flight (`Expect: 100-continue`, content not sent yet) is answered with `Connection: close` once new connections are refused and every server has begun its shutdown; the workers test checks that both workers served.
 - fix(tools): `affected` maps a change to an example (`examples/<name>/`, Markdown excepted) to `kernel`, so CI runs the example on the three platforms; a change to an example alone ran none of its tests.
 - feat(reactor): `Peer:send` takes `options.keep_open`, which leaves a handed-over stream open in the sender for the caller to close.

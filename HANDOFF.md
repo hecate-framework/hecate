@@ -3,8 +3,8 @@
 
 - roadmap_item: Example: `examples/hello` (JSON API with validation).
 - status: in-progress
-- lock_until: 2026-11-12T06:20:00Z
-- last_update: 2026-11-12T04:50:00Z
+- lock_until: 2026-11-12T05:25:10Z
+- last_update: 2026-11-12T03:55:10Z
 
 Stacked on the `kernel` pull request (#166, branch `claude/sweet-feynman-h1j6tu`), which is ready for review
 but not merged: this pull request targets that branch until #166 is merged, then `main`.
@@ -33,17 +33,22 @@ but not merged: this pull request targets that branch until #166 is merged, then
   listener before it sends `stop`); both workers ready before the requests and both served (supervisor counters);
   the 422 of the workers test checks `application/problem+json`; polling loops bounded. 5 runs of each file green.
 
+- dx-reviewer review: the example uses the meta-module `hecate`; README Run section rewritten and run verbatim from a
+  clean environment (two workers, `curl`, SIGTERM, exit 0); 422 wording; `prefix = ""` dropped; asserts commented;
+  no "listening" line before the bind (the server logs it); "grace period" instead of "drain" (glossary). The cryptic
+  error without the `http` native module is carried to the Phase 2 gate item (kernel/http, not this item).
+
 ## Next steps
 
-1. dx-reviewer findings (must-fix: README Run section commands are wrong: `build-native json http` builds json
-   only, the LUA_CPATH entry is `.hecate/rocks/lib/lua/5.5/?.so`, a copy-pasteable LUA_PATH snippet with
-   `eval "$(luarocks path)"`; use the meta-module `hecate` instead of `hecate.kernel` in the example; should-fix:
-   README wording on failures, drop `prefix = ""`, comment the asserts, the "listening" line before the bind,
-   "drain" → "grace period" (glossary)). Separate: a clear error from `Application:serve` when the http native
-   module is missing → roadmap/open question.
-2. CI green on three platforms.
+1. CI green on Linux, macOS and Windows for the latest commit; then delete `HANDOFF.md`, tick the roadmap item, mark
+   the pull request ready and ask for the owner's review (stacked on #166).
 
 ## Decisions taken (and where they are recorded)
+
+- Stacked on #166: the item depends on `kernel`, ticked there and ready for review but not merged.
+- No website tutorial in this item: the getting-started tutorial walks through `hello` in the Phase 3 website item
+  (recorded there in `docs/roadmap.md`); turning `hello` into a `hecate.project.lua` project goes to the Phase 3 `cli`
+  item (recorded there); `examples/README.md` says what a Phase 2 example is.
 
 ## Doubts and questions for the owner
 
