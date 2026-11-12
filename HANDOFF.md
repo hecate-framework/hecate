@@ -3,8 +3,8 @@
 
 - roadmap_item: Benchmarks: plaintext and JSON scenarios. (Phase 2, with the deferred performance findings RE2, J4, LO4, the router findings and the schema findings P5, P6)
 - status: in-progress
-- lock_until: 2026-11-12T11:33:54Z
-- last_update: 2026-11-12T10:03:54Z
+- lock_until: 2026-11-12T11:42:17Z
+- last_update: 2026-11-12T10:12:17Z
 
 ## Done
 
@@ -18,12 +18,17 @@
   review rows updated; two reactor experiments (RE2 without `table.pack`, indexed timer heap) gave no significant change
   and were reverted; `schema/validate` micro-benchmark fixed; `bench` summary parsing deferred to roadmap "Continuous";
   P5 pointer added to the Phase 4 database benchmarks item; CHANGELOG entry.
+- Step 4 (85d0e70, 6dd77cd, f0a5675): reviewer pass (test-engineer, performance-engineer) answered: generator counts
+  every response of the window (it under-counted at saturation), a batch deadline (end + 10 s), `run.lua` matches
+  rounds by label; LO4 fixed (`with_context` -29 %, test added); `router/match` measures 405 and fan-out; report
+  reworded (RE2 and timer heap: no gain detectable at 10 %; P6 provisional, `validation`/`routing` scenarios in
+  roadmap Continuous); README states the A/B does not cover native code. Not done: separate cache key for the
+  HTTP benchmark jobs (harmless, the build step always runs).
 
 ## Next steps
 
-1. Reviewer pass (performance-engineer, test-engineer) on the diff; fix what they find.
-2. CI green on the three platforms, and `benchmarks.yml` (three matrix jobs; the PR has the `performance` label).
-3. Finish: tick the roadmap item, delete `HANDOFF.md`, mark the PR ready, ask the owner for review.
+1. CI green on the three platforms, and `benchmarks.yml` (three matrix jobs; the PR has the `performance` label).
+2. Finish: tick the roadmap item, delete `HANDOFF.md`, mark the PR ready, ask the owner for review.
 
 ## Decisions taken (and where they are recorded)
 
