@@ -91,6 +91,19 @@ function T:test_context_of_a_child_logger_is_merged_over_its_parent()
   self:assert_equal("a", sink:records()[2].context.request_id)
 end
 
+function T:test_a_child_keeps_the_severity_of_its_parent_and_changes_it_alone()
+  local logger, sink = new_logger({ severity = "warning" })
+  local child = logger:with_context({ a = 1 })
+  self:assert_equal(Severity.warning, child:severity())
+  child:informational("dropped")
+  child:warning("kept")
+  self:assert_equal(1, #sink:records())
+  child:set_severity("debug")
+  self:assert_equal(Severity.warning, logger:severity())
+  self:assert_equal(Severity.debug, child:severity())
+  self:assert_equal(Severity.debug, child:with_context({}):severity())
+end
+
 function T:test_a_child_shares_the_sinks_of_its_parent()
   local logger, sink = new_logger()
   local late = log.MemorySink()

@@ -21,6 +21,56 @@ function T:test_tcp_echo_completes_every_request_without_errors()
   self:assert_true(text:find("latency p99.9", 1, true) ~= nil, text)
 end
 
+--- Runs an HTTP scenario small and fast; nil when luv or a native module is missing on this host.
+---@param scenario string
+---@param extra? string
+local function run_http(scenario, extra)
+  local command = ("%s benchmarks/run.lua %s --rounds=1 --connections=10 --rate=200 --duration=1 --warmup=0 %s 2>&1")
+    :format(util.quote(util.interpreter()), scenario, extra or "")
+  local text, ok = util.capture(command)
+  if text:find("module 'luv' not found", 1, true) or text:find("skipped", 1, true) then return nil end
+  return text, ok
+end
+
+function T:test_plaintext_answers_every_request_with_a_200()
+  if util.is_windows() then return end
+  local text, ok = run_http("plaintext")
+  if not text then return end
+  self:assert_true(ok, text)
+  self:assert_true(text:find("throughput%s+[1-9]") ~= nil, text)
+  self:assert_true(text:find("errors%s+0%.0") ~= nil, text)
+  self:assert_true(text:find("bad responses%s+0%.0") ~= nil, text)
+  self:assert_true(text:find("latency p99.9", 1, true) ~= nil, text)
+end
+
+function T:test_plaintext_pipelines_batches_of_requests()
+  if util.is_windows() then return end
+  local text, ok = run_http("plaintext", "--pipeline=4")
+  if not text then return end
+  self:assert_true(ok, text)
+  self:assert_true(text:find("throughput%s+[1-9]") ~= nil, text)
+  self:assert_true(text:find("bad responses%s+0%.0") ~= nil, text)
+end
+
+function T:test_json_answers_every_request_through_the_kernel()
+  if util.is_windows() then return end
+  local text, ok = run_http("kernel-json")
+  if not text then return end
+  self:assert_true(ok, text)
+  self:assert_true(text:find("throughput%s+[1-9]") ~= nil, text)
+  self:assert_true(text:find("errors%s+0%.0") ~= nil, text)
+  self:assert_true(text:find("bad responses%s+0%.0") ~= nil, text)
+end
+
+function T:test_http_load_counts_a_status_other_than_200_as_a_bad_response()
+  if util.is_windows() then return end
+  local text, ok = run_http("kernel-json", "--path=/missing")
+  if not text then return end
+  self:assert_true(ok, text)
+  self:assert_true(text:find("bad responses%s+10%.0") ~= nil, text)
+  self:assert_true(text:find("throughput%s+0%.0") ~= nil, text)
+end
+
 function T:test_accept_spread_ratio_is_the_largest_over_the_smallest_count()
   local spread = dofile("benchmarks/scenarios/accept-spread/spread.lua")
   self:assert_equal(1, spread.ratio({ 250, 250, 250, 250 }))
@@ -58,6 +108,8 @@ function T:test_list_shows_the_scenarios_next_to_the_micro_benchmarks()
   local text, ok = util.capture(("%s tools/run.lua bench --list 2>&1"):format(util.quote(util.interpreter())))
   self:assert_true(ok, text)
   self:assert_true(text:find("tcp-echo", 1, true) ~= nil, text)
+  self:assert_true(text:find("plaintext", 1, true) ~= nil, text)
+  self:assert_true(text:find("kernel-json", 1, true) ~= nil, text)
   self:assert_true(text:find("core/dispatch", 1, true) ~= nil, text)
 end
 

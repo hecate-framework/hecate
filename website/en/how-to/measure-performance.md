@@ -1,5 +1,5 @@
 ---
-description: Run the TCP echo benchmark, read its latency and throughput figures, and compare your working tree with a Git reference.
+description: Run the network benchmarks (TCP echo, plaintext HTTP, JSON through the kernel), read their latency and throughput figures, and compare your working tree with a Git reference.
 hecate: "0.x"
 lua: "5.5"
 order: 7
@@ -7,7 +7,7 @@ order: 7
 
 # Measure performance
 
-This guide shows how to run the network benchmark of the repository and how to compare a change
+This guide shows how to run the network benchmarks of the repository and how to compare a change
 with its base. It is written for hecate 0.x and Lua 5.5, and runs on Linux and macOS.
 
 The `tcp-echo` scenario starts an echo server built on `hecate.reactor` and `hecate.net`, then
@@ -37,6 +37,31 @@ between the largest and the smallest. Add `--json` for a machine-readable report
 A throughput below `--rate` means the server, or the generator, is saturated. Options of the load
 generator are `--connections`, `--rate` (total requests per second), `--duration` and `--warmup`
 (seconds), and `--payload` (bytes).
+
+## Measure the HTTP stack and the kernel
+
+Two scenarios measure HTTP/1.1 with the same kind of open-loop generator, over keep-alive
+connections:
+
+- `plaintext`: an `http.Server` action answers `GET /plaintext` with `Hello, World!`. It measures
+  the HTTP stack alone.
+- `kernel-json`: a `kernel.Application` with one route answers `GET /json` with
+  `{"message":"Hello, World!"}`, represented with the declared response schema and encoded as
+  JSON. The difference with `plaintext` is the cost of routing, dispatch and serialisation.
+
+Both need the native modules of `json` and `http`; build them once:
+
+```sh
+lua tools/run.lua build-native json
+lua tools/run.lua build-native http
+lua tools/run.lua bench plaintext --rounds=5 --connections=100 --rate=5000 --duration=10
+lua tools/run.lua bench kernel-json --rounds=5 --connections=100 --rate=5000 --duration=10
+```
+
+`--pipeline=N` writes N requests at once on each connection (HTTP pipelining), and `--path` changes
+the request target. The output adds `bad responses`: connections closed because a response was not
+a `200`. One server process saturates before the generator does: raise `--rate` until the
+throughput stops following it, then compare commits below that point.
 
 ## Compare with a base
 

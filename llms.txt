@@ -41,6 +41,7 @@
 - [Measure performance](website/en/how-to/measure-performance.md): run the TCP echo benchmark, read its figures, compare with a Git reference
 - [UDP, Unix sockets, named pipes and DNS](website/en/how-to/udp-pipes-and-dns.md): the transports other than TCP
 - [Run child processes and pass connections between processes](website/en/how-to/run-processes-and-pass-connections.md): `run_process`, `spawn`, the message pipe
+- [Offload CPU-bound work to the thread pool](website/en/how-to/offload-cpu-bound-work.md): `reactor.offload`, the values that cross, errors, cancellation
 - [The transport model](website/en/explanation/transport-model.md): streams, back-pressure, half-close, buffering, cancellation rules
 - [TLS trust and security defaults](website/en/explanation/tls-trust-and-security.md): the operating system's verifier, what cannot be disabled
 - [Multi-process serving](website/en/explanation/multi-process-serving.md): share-nothing workers, listening strategies, what exists today

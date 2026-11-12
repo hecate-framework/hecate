@@ -5,7 +5,7 @@ package-specific context. Specialist agent: `pkg-reactor`.
 
 ## Purpose
 
-The reactor over libuv (luv): coroutine scheduler, futures, structured concurrency, synchronisation primitives, timers, signals, processes, file system, network transport (TCP, UDP, pipes, name resolution), ambient context.
+The reactor over libuv (luv): coroutine scheduler, futures, structured concurrency, synchronisation primitives, timers, signals, processes, file system, network transport (TCP, UDP, pipes, name resolution), ambient context, `offload` to the libuv thread pool.
 
 ## Read before changing anything
 
@@ -20,7 +20,8 @@ The reactor over libuv (luv): coroutine scheduler, futures, structured concurren
 - Allowed dependencies: `hecate.core`.
   Anything else requires an ADR; `check-boundaries` fails otherwise.
 - Native code: luv (libuv binding).
-- Out of scope: network protocols (see `net`); OS threads running Lua code.
+- Out of scope: network protocols (see `net`); OS threads running Lua code, except the
+  self-contained functions of `offload` (separate Lua state per libuv pool thread, values copied).
 - If your task needs a change in another package, stop and describe the needed change
   instead of making it (unless the task explicitly spans packages).
 

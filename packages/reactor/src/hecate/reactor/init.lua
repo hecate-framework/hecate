@@ -27,6 +27,7 @@ local uv_call = require("hecate.reactor.internal.uv_call")
 ---@field Permit hecate.reactor.Permit
 ---@field IoError hecate.core.Error
 ---@field TransportError hecate.core.NetworkError
+---@field OffloadError hecate.reactor.OffloadError
 ---@field fs hecate.reactor.fs
 ---@field TcpStream hecate.reactor.TcpStream
 ---@field TcpListener hecate.reactor.TcpListener
@@ -50,6 +51,7 @@ local reactor = {
   Permit = require("hecate.reactor.permit"),
   IoError = uv_call.IoError,
   TransportError = uv_call.TransportError,
+  OffloadError = require("hecate.reactor.offload").OffloadError,
   fs = require("hecate.reactor.fs"),
   ---@diagnostic disable-next-line: assign-type-mismatch  -- class constructor exported as its class
   TcpStream = tcp.TcpStream,
@@ -88,6 +90,7 @@ local system = require("hecate.reactor.system")
 reactor.system_name = system.system_name
 reactor.available_parallelism = system.available_parallelism
 reactor.resolve = require("hecate.reactor.dns").resolve
+reactor.offload = require("hecate.reactor.offload").offload
 local signal = require("hecate.reactor.signal")
 reactor.wait_signal = signal.wait_signal
 reactor.watch_signals = signal.watch_signals

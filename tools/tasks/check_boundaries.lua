@@ -22,6 +22,9 @@ end
 local METATABLE_EXEMPT = {
   -- JSON markers are metatable tags set on every decoded container, not objects of the class model.
   ["packages/json/src/hecate/json/internal/markers.lua"] = true,
+  -- `offload` builds the per-call environment of an offloaded function on a pool thread, whose Lua state
+  -- has no `hecate.core` (concurrency.md, "Offload").
+  ["packages/reactor/src/hecate/reactor/offload.lua"] = true,
 }
 
 return {
