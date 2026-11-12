@@ -24,6 +24,15 @@ local function text_of_depth(depth, bad)
   return ('{"next":'):rep(depth - 1) .. (bad and '{"value":"x"}' or "{}") .. ("}"):rep(depth - 1)
 end
 
+function T:tear_down() json.set_max_depth(json.MAX_DEPTH_CEILING) end
+
+function T:test_the_guard_follows_json_set_max_depth()
+  json.set_max_depth(5)
+  local ok, violations = chain():validate(json.decode(text_of_depth(10), { max_depth = 20 }))
+  self:assert_false(ok)
+  self:assert_equal("depth_limit", violations[1].code)
+end
+
 function T:test_decoded_maximum_depth_validates_coerces_and_builds()
   local s = chain()
   local value = json.decode(text_of_depth(MAX))

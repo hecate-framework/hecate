@@ -44,6 +44,7 @@ local json = require("hecate.json")
 | Name | Description |
 |---|---|
 | `json.encode(value, options?)` | Encodes a Lua value as JSON text that is always valid UTF-8. Options: `pretty`, `indent` (0 to 16 spaces, or a string of at most 16 spaces and tabs; not with `pretty = false`, not with `rfc8785`), `canonical` (`true`: members in RFC 8785 order, UTF-16 code units; `"rfc8785"`: the full JSON Canonicalization Scheme), `max_depth` (default 1000, at most 1000, the same as `decode`), `max_size` (default 16 MiB). |
+| `json.set_max_depth(n)` | Lowers the process-wide default `max_depth` (never above the ceiling; refused otherwise), read back through `json.DEFAULT_MAX_DEPTH` (OQ-101). |
 | `json.DEFAULT_MAX_DEPTH`, `json.MAX_DEPTH_CEILING` | The default (1000) and the highest (1000) `max_depth` of `decode` and `encode`, read by `hecate.schema` for its nesting guard. |
 | `json.decode(text, options?)` | Decodes JSON text (RFC 8259). Options: `max_depth` (default 1000, at most 1000), `max_size` (default 16 MiB): the same two limits, with the same defaults and bounds, as `encode`; a text nested deeper is a `depth_limit` error. |
 | `json.null` | The value of JSON `null` (unique, immutable, never `nil`). |

@@ -115,18 +115,27 @@ sequenceDiagram
   participant A as action
   R->>H: connection readable
   H->>H: parse request (llhttp)
-  H->>K: dispatch(request) in a new coroutine and request scope
-  K->>Rt: match(method, path)
-  Rt-->>K: route + path parameters (or 404 / 405)
-  K->>K: coerce and validate parameters and content (schema)
-  K->>F: enter filter chain
-  F->>A: invoke action (controller method or function)
+  H->>K: serve(request) in a new coroutine and request scope
+  K->>F: enter the global filters
+  F->>Rt: match(method, path) (inside the global filters)
+  Rt-->>F: route + path parameters (or 404 / 405 / 400 / OPTIONS)
+  F->>F: module, controller and route filters of the matched route
+  F->>K: coerce and validate parameters and content (schema), innermost
+  K->>A: invoke action (controller method or function)
   A-->>F: value, Response or problem
   F-->>K: result
   K->>K: serialise representation, validate response (development/test)
   K-->>H: Response
   H-->>R: write (suspends until flushed)
 ```
+
+The global filters wrap the routing step, so the `404`, `405`, `400` and automatic `OPTIONS`
+answers pass through them. The filters of a feature module apply only to the routes of that
+module, and the controller and route filters come after them. The inputs of the request
+(path, query, header fields, cookies and content) are coerced and validated after all the
+filters, just before the action (OQ-114): a filter sees the request before its validation, and
+a request that fails it still passes through the filters on its way back as a `422` problem
+response. See [http-and-routing.md](http-and-routing.md).
 
 Every request runs in its own coroutine inside a **scope** (structured concurrency):
 computations forked during the request are cancelled when the request completes or is

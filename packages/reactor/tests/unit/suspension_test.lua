@@ -234,6 +234,12 @@ local CASES = {
     end)
     return function() reactor.wait_signal("sigusr1"); done = true end
   end,
+  ["SignalWatcher:wait"] = function(env)
+    local watcher = reactor.watch_signals("sigint")
+    env.defer(function() watcher:close() end)
+    reactor.fork(function() reactor.sleep(0.005); watcher:close() end) -- wakes the waiter with an error
+    return function() pcall(watcher.wait, watcher) end
+  end,
   ["dns.resolve"] = function() return function() reactor.resolve("localhost") end end,
   ["offload.offload"] = function() return function() reactor.offload(function() return 1 end) end end,
   ["fs.write_file"] = function(env)

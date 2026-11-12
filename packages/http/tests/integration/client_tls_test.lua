@@ -5,6 +5,8 @@ local core = require("hecate.core")
 local reactor = require("hecate.reactor")
 local net = require("hecate.net")
 local http = require("hecate.http")
+-- Without a logger the server writes to the standard error stream (OQ-79): tests keep it quiet.
+local QUIET <const> = require("hecate.log").Logger({ sinks = { require("hecate.log").MemorySink() }, severity = "debug" })
 local T = test.Case("ClientTlsTest")
 
 local available, reason = net.tls.available()
@@ -34,7 +36,7 @@ local Response = http.Response
 local function with_https(self, action, fn)
   local before = reactor.Reactor.open_handles()
   reactor.run(function()
-    local server = http.Server(action, { port = 0, tls = TLS })
+    local server = http.Server(action, { port = 0, tls = TLS, logger = QUIET })
     local listener = server:listen()
     local serving = reactor.fork(server.serve, server, listener)
     local ok, err = pcall(reactor.deadline, 25, fn, listener:local_address().port)

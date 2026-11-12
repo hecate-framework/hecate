@@ -8,7 +8,7 @@
 | Rock | `hecate-log` |
 | Layer | 1 — Runtime |
 | Roadmap phase | 1 |
-| Status | alpha — severities, records, `Logger` with context, in-memory and JSON lines sinks, `Secret`; console and file sinks, `LimitedSink` (sampling and rate limiting), `AsyncSink` (drain computation on `Semaphore` and `detach`); `log.bind` binds ambient context through the ambient context of `reactor` (ADR 0025) |
+| Status | alpha — severities, records, `Logger` with context, in-memory and JSON lines sinks, `Secret`; console and file sinks, `LimitedSink` (sampling and rate limiting), `AsyncSink` (drain computation on `Semaphore` and `detach`); `log.bind` binds ambient context through the ambient context of `reactor` (ADR 0025); the default logger redacts the names of `log.DEFAULT_REDACT` |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |
 | Depends on | [`core`](../core), [`reactor`](../reactor), [`json`](../json) |
 | Used by | `cli`, `hecate`, `http`, `kernel`, `migration`, `sql`, `test` |
@@ -45,6 +45,8 @@ local log = require("hecate.log")
 | `log.severity_code(severity)` | RFC 5424 numerical code, 0 to 7. |
 | `log.Logger(options?)` | Options: `severity` (default `informational`), `sinks`, `name`, `context`, `context_provider`, `redact` (field names wrapped in a `Secret`, case-insensitive, up to 16 levels deep, in fields and context), `clock`. Methods `emergency` ... `debug` `(message, fields?)`, `log(severity, message, fields?)`, `is_enabled`, `set_severity`, `severity`, `add_sink`, `with_context(fields)`, `failures()`. A call less urgent than the logger's severity builds no record; a sink that raises never fails the caller. |
 | `log.bind(fields, fn, ...)` | Runs `fn` with `fields` added to every record logged meanwhile (ambient context, below). Raises `ArgumentError` for bad arguments and `NonYieldableContextError` where the context cannot be carried. |
+| `log.default()` / `log.set_default(logger?)` | The process-wide default logger (OQ-79), built on first use: a `ConsoleSink` on the standard error stream at `informational`, synchronous, with `redact = log.DEFAULT_REDACT`. `set_default` replaces it (the kernel does); `nil` restores the lazy one. |
+| `log.DEFAULT_REDACT` | List (to copy, not to modify) of the 19 field names the default logger redacts: `password`, `passwd`, `secret`, `client_secret`, `token`, `access_token`, `refresh_token`, `id_token`, `api_key`, `apikey`, `x-api-key`, `private_key`, `authorization`, `proxy-authorization`, `cookie`, `set-cookie`, `session`, `sessionid`, `csrf`. Assigning to it raises; copy it with `table.move` to extend it. A plain `Logger` has no implicit `redact`. |
 | `log.Record` | What sinks receive: `severity`, `message`, `fields`, `context`, `timestamp`, `logger`. |
 | `log.MemorySink(options?)` | Keeps records (`records()`, `clear()`, `dropped()`, option `capacity`). |
 | `log.JsonLinesSink(options)` | Writes one JSON object per record to `options.output(line)`; renders secrets as `[redacted]`. |
@@ -53,6 +55,9 @@ local log = require("hecate.log")
 | `log.AsyncSink(options)` | Decorator: `write` queues the record (bounded by `capacity`, default 1024; beyond it the record is dropped and counted) and never suspends; a detached computation writes to `options.sink`. `flush()` and `close()` suspend until the queue is written; `dropped()`, `failures()`, `pending()`. Call `close()` before the main computation ends. |
 | `log.LimitedSink(options)` | Decorator: options `sink`, `exempt` (default `warning`: records at least this urgent always pass), `sample` (fraction in (0, 1]), `rate` and `burst` (token bucket), `random`, `clock`; `dropped()`. |
 | `log.Secret(value)` | Marks a value that no sink renders; `reveal()` returns it. |
+
+Redaction is by exact field name (case-insensitive) and never covers free text: a secret interpolated into a
+`message` is printed as is. Pass secrets as fields, or wrap them in `log.Secret`.
 
 A sink is any object with a synchronous `write(record)` that does not suspend. `log.bind(fields, fn, ...)` adds
 `fields` to every record logged while `fn` runs and by the computations it forks or detaches meanwhile (a logger

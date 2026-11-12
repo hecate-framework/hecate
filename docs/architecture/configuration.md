@@ -105,7 +105,7 @@ Some keys hold values that must never reach a log: passwords, signing keys, toke
   invariant "secrets are never logged": `describe()`, the diagnostics and every error message print `[redacted]` in place of the
   value (a violation says what is wrong, never the value: the messages of `hecate.schema` do not contain it).
 - `hecate.config` cannot depend on `hecate.log` (layering). The wrapper is the `wrap_secret` option, a function that takes a value and
-  returns the secret object; the kernel passes `hecate.log.Secret`, which the sinks recognise. Without the option, `config` uses
+  returns the secret object; the kernel passes `hecate.log.Secret` (`kernel.load_configuration`), which the sinks recognise. Without the option, `config` uses
   `package.loaded["hecate.log"].Secret` when that module is already loaded (the same look-up, with no dependency, as OQ-86 for the
   `schema` logger) and otherwise its own `hecate.config.Secret`, a class with the same interface that a `hecate.log` sink does not
   recognise (it still renders `[redacted]` through `tostring`).
@@ -207,7 +207,7 @@ logger (`log.default()`, boot step 1 of the `kernel` item) and the loggers of th
 | `logging.sinks` | array of `console`, `json_lines`, `file` | `{ "console" }` | the sinks of the default logger, in order; an empty array is allowed (the logger records nothing anywhere) |
 | `logging.file.path` | string | none | the file of the `file` sink (`FileSink({ path })`); required when `logging.sinks` contains `file` |
 | `logging.async` | boolean | `false` | wrap each sink in an `AsyncSink` (needs a running reactor at the first write) |
-| `logging.redact` | array of strings | `{}` | the `redact` option of the logger: field names whose values become secrets |
+| `logging.redact` | array of strings | `{}` | field names added to `log.DEFAULT_REDACT` (the built-in list of the default logger, OQ-111): their values become secrets. The list is not replaced; names are matched exactly, case-insensitively, and free text is never scrubbed |
 
 - The names are the glossary's: *severity*, never "level"; *sink*; a *named severity* belongs to a *logger name* (the `name`
   option of `Logger`). The severity enumeration is `emergency`, `alert`, `critical`, `error`, `warning`, `notice`,
@@ -220,6 +220,32 @@ logger (`log.default()`, boot step 1 of the `kernel` item) and the loggers of th
 - Environment variables: `HECATE_LOGGING__SEVERITY`, `HECATE_LOGGING__SINKS` (comma separated), `HECATE_LOGGING__FILE__PATH`,
   `HECATE_LOGGING__ASYNC`, `HECATE_LOGGING__REDACT`. `logging.severities` is a map and is configured by files only.
 - `logging.file.path` is an ordinary string, not a secret.
+
+## Error and request keys
+
+| Key | Type | Default | Meaning |
+|---|---|---|---|
+| `errors.expose_details` | boolean | `false` | bound to the `expose_details` option of the kernel: a 422 entry carries its message and a 500 carries the member `debug` (OQ-112). The kernel logs a `warning` at boot when it is true in the environment `production` |
+| `requests.inputs` | `strict` or `lax` | `strict` | bound to the `inputs` option of the dispatcher: policy for undeclared query parameters (OQ-114) |
+
+Environment variables: `HECATE_ERRORS__EXPOSE_DETAILS`, `HECATE_REQUESTS__INPUTS`. The names `errors` and `requests` are
+reserved like `logging` and `limits` (`ArgumentError`). `Application({ configuration = configuration })` applies them,
+together with `limits.max_depth` and the logging keys; an explicit option of `Application` wins. The generated
+`config/development.lua` and `config/test.lua` (a `cli` task) set `expose_details = true` and `inputs = "lax"`.
+
+## The server keys
+
+| Key | Type | Default | Meaning |
+|---|---|---|---|
+| `server.grace_timeout` | non-negative finite number (seconds) | `30` | seconds a graceful shutdown lets the requests in flight finish before cancelling them; it must be shorter than the stop timeout of the deployment (`docker stop` waits 10 s by default, Kubernetes 30 s) |
+| `server.workers` | integer, at least 1 | `1` | number of worker processes; `1` serves in the process itself, more runs a supervisor in the primary ([ADR 0023](../adr/0023-multi-process-serving.md)) |
+| `server.strategy` | `auto`, `reuseport` or `round_robin` | `auto` | how connections reach the workers (ADR 0023, Decision 2); only used when `server.workers` is above 1 |
+
+Environment variables: `HECATE_SERVER__GRACE_TIMEOUT` (text such as `2.5` is coerced to a number),
+`HECATE_SERVER__WORKERS` and `HECATE_SERVER__STRATEGY`. A negative value, NaN, infinity or a non-number is a
+`ConfigurationError` at load (`server.grace_timeout`); likewise a count below 1 or a name outside the three strategies. The name `server` is reserved like
+`logging`, `limits`, `errors` and `requests` (`ArgumentError`). The kernel binds the keys to the `grace_timeout`, `workers` and `strategy` options of `Application`
+([OQ-101](../open-questions.md), [OQ-115](../open-questions.md)); `config` only validates and exposes it.
 
 ## The limit on nesting depth
 
@@ -234,18 +260,16 @@ This is the single project setting of [OQ-92](../open-questions.md): one number 
 `config` as a constant, because `config` does not depend on `json`, and a test compares it with `json.MAX_DEPTH_CEILING`.
 
 `config` only validates and exposes the value (`configuration:get("limits.max_depth")`, environment variable
-`HECATE_LIMITS__MAX_DEPTH`). **Applying it needs a change that is not in this package:** `json` and `schema` read their depth from
-module constants (`json.DEFAULT_MAX_DEPTH`, the local `MAX_DEPTH` of `schema.lua`) and have no setter. The kernel item has to add,
-in `json`, a process-wide `json.set_max_depth(n)` (lowering only, refusing a value above `json.MAX_DEPTH_CEILING`, reading back
-through `json.DEFAULT_MAX_DEPTH`) and make `schema` read it instead of a constant. Until then the key is validated and
-reported and has no effect on the two packages (OQ-101).
+`HECATE_LIMITS__MAX_DEPTH`). **Applying it:** `json` now has a setter and `schema` reads the value it holds (added by the `kernel` item; the kernel
+calls it at boot). The setter is a process-wide `json.set_max_depth(n)` (lowering only, refusing a value above `json.MAX_DEPTH_CEILING`, reading back
+through `json.DEFAULT_MAX_DEPTH`). Until the kernel applies the key at boot, it is validated and reported only (OQ-101).
 
 ## Errors and messages
 
 | Class | When |
 |---|---|
 | `hecate.core.ConfigurationError` | any invalid configuration: unreadable or invalid file, unknown key, wrong type, missing required key, colliding environment variable names, a `file` sink without path |
-| `hecate.core.ArgumentError` | a wrong option of `load` (unknown option, bad `env_prefix`, `properties` that redeclare `logging` or `limits`, an unknown secret path); `get` of an undeclared path |
+| `hecate.core.ArgumentError` | a wrong option of `load` (unknown option, bad `env_prefix`, `properties` that redeclare `logging`, `limits`, `errors`, `requests` or `server`, an unknown secret path); `get` of an undeclared path |
 | `hecate.core.ConformanceError` | a write to a frozen section or list |
 
 Messages follow [coding-standards.md](coding-standards.md#errors): the qualified prefix (`config.load: ...`), the offending value and

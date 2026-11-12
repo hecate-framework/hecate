@@ -18,7 +18,7 @@ local function forms_action(options)
       local f = request:read_form(options and options.form)
       local pairs_ = {}
       for name, value in f:pairs() do pairs_[#pairs_ + 1] = { name, value } end
-      return Response(200, { content = { pairs = pairs_ } })
+      return Response(200, { content = json.encode({ pairs = pairs_ }) })
     end
     local reader = request:stream_parts(options and options.parts)
     local out = {}
@@ -27,7 +27,7 @@ local function forms_action(options)
       if part == nil then break end
       out[#out + 1] = { name = part.name, filename = part.filename, safe = part:safe_filename(), type = part.content_type, content = part:read_content() }
     end
-    return Response(200, { content = { parts = out } })
+    return Response(200, { content = json.encode({ parts = out }) })
   end
 end
 

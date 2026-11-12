@@ -16,6 +16,7 @@ dependencies = {
   "lua >= 5.5, < 5.6",
   "hecate-core",
   "hecate-reactor",
+  "hecate-net",
   "hecate-log",
   "hecate-http",
   "hecate-router",

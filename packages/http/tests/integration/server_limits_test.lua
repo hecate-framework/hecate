@@ -70,7 +70,7 @@ end
 -- Deadlines ------------------------------------------------------------------------------------------------------------
 
 function T:test_a_head_dripped_one_byte_at_a_time_is_cut_at_the_head_timeout()
-  with_server(self, ok_action, { head_timeout = 1, idle_timeout = 30 }, function(port)
+  with_server(self, ok_action, { head_timeout = 0.3, idle_timeout = 30 }, function(port)
     local client <close> = connect(port)
     client:send("GET / HTTP/1.1\r\nHost: t\r\nX-Slow: ")
     local dripping = true
@@ -89,7 +89,7 @@ function T:test_a_head_dripped_one_byte_at_a_time_is_cut_at_the_head_timeout()
 end
 
 function T:test_a_head_arriving_in_pieces_after_a_pipelined_request_is_held_to_the_head_timeout()
-  with_server(self, ok_action, { head_timeout = 1, idle_timeout = 30 }, function(port)
+  with_server(self, ok_action, { head_timeout = 0.3, idle_timeout = 30 }, function(port)
     local client <close> = connect(port)
     client:send(get("/a") .. "GET /b HTTP/1.1\r\nHo") -- the second head never completes
     self:assert_equal("ok /a", client:read_response().content)
@@ -99,7 +99,7 @@ function T:test_a_head_arriving_in_pieces_after_a_pipelined_request_is_held_to_t
 end
 
 function T:test_a_silent_connection_is_closed_at_the_idle_timeout()
-  with_server(self, ok_action, { idle_timeout = 1 }, function(port)
+  with_server(self, ok_action, { idle_timeout = 0.3 }, function(port)
     local client <close> = connect(port)
     self:assert_equal(200, client:request(get("/a")).status)
     self:assert_nil(client:read_response(), "closed without an answer")
@@ -111,7 +111,7 @@ function T:test_content_stalling_between_reads_is_cut_at_the_content_timeout()
   with_server(self, function(request)
     if request.path == "/health" then return ok_action(request) end
     return echo_action(request)
-  end, { content_timeout = 1 }, function(port)
+  end, { content_timeout = 0.3 }, function(port)
     local client <close> = connect(port)
     client:send("POST /e HTTP/1.1\r\nHost: t\r\nContent-Length: 100\r\n\r\nabc")
     self:assert_equal(408, client:read_response().status)
@@ -123,7 +123,7 @@ function T:test_content_dripped_within_the_between_reads_timeout_is_cut_by_the_t
   with_server(self, function(request)
     if request.path == "/health" then return ok_action(request) end
     return echo_action(request)
-  end, { content_timeout = 30, request_timeout = 1 }, function(port)
+  end, { content_timeout = 30, request_timeout = 0.3 }, function(port)
     local client <close> = connect(port)
     client:send("POST /e HTTP/1.1\r\nHost: t\r\nContent-Length: 100000\r\n\r\n")
     local dripping = true
@@ -153,7 +153,7 @@ function T:test_a_reader_that_never_reads_a_large_response_hits_the_write_timeou
       outcome.failed, outcome.error = not ok, err
       if not ok then error(err, 0) end
     end })
-  end, { write_timeout = 1 }, function(port)
+  end, { write_timeout = 0.3 }, function(port)
     local client <close> = connect(port)
     client:send(get("/big")) -- and never read
     while outcome.failed == nil do reactor.sleep(0.05) end

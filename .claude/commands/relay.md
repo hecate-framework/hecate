@@ -75,7 +75,8 @@ at all times. Specification: `docs/architecture/ai-assisted-development.md#relay
 
 A gate item (`docs/roadmap.md`, "Phase gates") is a verification, not development. It follows the
 same claim and handoff steps (branch `claude/relay-phase-<n>-gate`, draft pull request, `HANDOFF.md`),
-and its steps are the four checks of the roadmap: completeness, it works, coherence, open questions.
+and its steps are the five checks of the roadmap: completeness, it works, coherence, safe content (OQ-111: the
+audit of error messages and log fields, with the canary test), open questions.
 
 - Verify from a clean checkout, not from memory: run the tools, build the native modules, read the
   code of every ticked item against its specification and the definition of done, run the

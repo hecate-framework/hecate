@@ -7,15 +7,16 @@ order: 3
 
 # Multi-process serving
 
-This page explains how hecate will use several processes to serve requests, and why. It is
+This page explains how hecate uses several processes to serve requests, and why. It is
 written for hecate 0.x and Lua 5.5. The design is ADR 0023 (accepted 2026-10-18).
 
-> [!WARNING] What exists today
-> Only the **primitives** in `hecate.reactor` exist: `reactor.spawn`, `reactor.ipc` and the
-> `reuseport` option of TCP listeners. The `kernel` package, which holds the supervisor and the
-> listening strategies, is not implemented yet. There is no `hecate serve --workers` command today.
-> Sections marked *Planned* describe the design, not the current behaviour. The section
-> [What exists today](#what-exists-today) lists both.
+> [!NOTE] What exists today
+> The primitives in `hecate.reactor` (`reactor.spawn`, `reactor.ipc`) and the policy in
+> `hecate.kernel` exist: the supervisor, the `round_robin` strategy, the keys `server.workers`
+> and `server.strategy`, graceful shutdown and the rolling reload. Two parts are missing. The
+> `reuseport` strategy is written but waits for luv support (OQ-43). There is no `hecate serve
+> --workers` command yet: an `Application` starts its workers itself. The section
+> [What exists today](#what-exists-today) lists every piece.
 
 ## Why processes
 
@@ -30,7 +31,7 @@ the Linux path.
 
 ## Share-nothing workers
 
-*Planned.* A server is one [primary](../reference/glossary.md#concurrency) and *N*
+A server is one [primary](../reference/glossary.md#concurrency) and *N*
 [workers](../reference/glossary.md#concurrency). A worker is the same program started again with
 a worker role. It has its own Lua state, its own reactor and its own connections. The default for
 *N* is the number of CPU cores.
@@ -49,7 +50,7 @@ The work is split in two packages.
 
 - `hecate.reactor` has the mechanism, the platform-specific primitives: `reactor.spawn`,
   `reactor.ipc` and the `reuseport` option. They know nothing about servers.
-- `hecate.kernel` will have the policy: the supervisor in the primary (start, readiness,
+- `hecate.kernel` has the policy: the supervisor in the primary (start, readiness,
   restart with exponential backoff and a crash-loop limit, signals, rolling reload, graceful
   shutdown) and the listening strategies.
 
@@ -64,7 +65,7 @@ the server, the router and the actions, is the same for every strategy. There ar
 | `reuseport` | each worker, on its own socket bound with `SO_REUSEPORT` | no | Linux |
 | `round_robin` | the primary, which hands each accepted connection to the next worker | yes, for accepting and handing over only | macOS and Windows, and the fallback everywhere |
 
-`server.workers.strategy` will be `auto`, which picks the platform default, or the name of a
+`server.strategy` is `auto`, which picks the platform default, or the name of a
 strategy. When the chosen strategy is not supported, the server falls back to `round_robin`,
 which works everywhere, and logs a warning with the reason.
 
@@ -90,20 +91,32 @@ a server that reuses connections does not.
 
 ## The message pipe
 
-*Planned use; the primitive exists.* Each worker has a [message pipe](../reference/glossary.md#concurrency)
+Each worker has a [message pipe](../reference/glossary.md#concurrency)
 to the primary, the same on every platform and never in the data path. It carries `ready`,
-`stop(deadline)`, `reload` and counters.
+`stop(deadline)` and the counters, and, with `round_robin`, `connection` (with the stream handed over)
+from the primary and `received` from the worker. The name `reload` is reserved and unused.
 
+- A worker sends `counters <requests> <connections>` at most once per second, and only when a value
+  changed. Today `connections` is the number of connections the worker accepted from the primary
+  and `requests` is unknown, because the HTTP server keeps no request counter yet. The primary keeps
+  the latest values of each worker and ignores a malformed message.
+- A worker that does not send `ready` within `ready_timeout` seconds (default 30) of its start is
+  killed and counted as a crash: the restart backoff and the crash limit apply.
 - A worker that sees the pipe close knows that the primary died. It drains and exits. No
   platform-specific orphan protection is needed.
 - The primary never signals a worker directly. It sends `stop`, and kills the process after the
   deadline. That behaves the same on Windows, where POSIX signals do not exist.
 - With `round_robin`, the same pipe carries the connections: `Peer:send` hands a `TcpStream` to a
-  worker, together with a message.
+  worker, together with a message. The primary keeps its own copy of each stream open until the
+  worker answers `received` (once it has taken the stream out of the message, whether it queued or
+  refused it), and closes what is still held when the pipe ends or the worker exits or is killed.
+  A stream in flight in a message pipe is held by no process, and macOS discards it when another
+  Unix socket closes, which would reset a connection during a rolling reload. The streams held for
+  a worker are bounded by the connections in flight to it.
 
 ## Shutdown and reload
 
-*Planned.* A stopping worker closes its listener, finishes the requests in flight until the
+A stopping worker closes its listener, finishes the requests in flight until the
 deadline, then cancels what remains.
 
 - With `round_robin` the primary stops handing connections to a draining worker, so nothing is lost.
@@ -112,6 +125,13 @@ deadline, then cancels what remains.
   stops the old one, and keeps at most one worker out of service at a time. This limit is
   documented, not hidden.
 
+The rolling reload exists in `kernel` (`Supervisor:reload`; `SIGHUP` in the primary, or
+`Application:reload`, which takes one options table, `{ grace_timeout?, ready_timeout? }`). It replaces the workers by restart, one at a time, and sends no `reload`
+message: that name stays reserved.
+
+Workers inherit the whole environment of the primary, plus the `HECATE_WORKER_*` variables of their
+role. A worker refuses a malformed host or backlog in those variables.
+
 ## What exists today
 
 | Piece | Status |
@@ -119,9 +139,11 @@ deadline, then cancels what remains.
 | `reactor.spawn`, `Process` (`wait`, `kill`, `pid`) | Implemented. |
 | `reactor.ipc`: `Peer:send`, `Peer:receive`, handle passing, `ipc.parent()` | Implemented. |
 | TCP `reuseport` option, `reactor.supports_reuseport()` | Implemented, but see below. |
-| Supervisor: readiness, restart, graceful shutdown, rolling reload (`kernel`) | Not implemented. |
-| Strategies `reuseport` and `round_robin`, `server.workers.strategy` | Not implemented. |
-| `hecate serve --workers` | Not implemented. |
+| Supervisor: readiness, restart, graceful shutdown, rolling reload (`kernel`) | Implemented. |
+| Strategy `round_robin`, configuration keys `server.workers` and `server.strategy` | Implemented. |
+| Strategy `reuseport` | Written, waits for luv support (see below). |
+| `hecate serve --workers` | Not implemented (the `cli` package, Phase 3). |
+| Control-protocol counters | Implemented (connections; requests are not counted yet). |
 | Conformance suite of the strategies on three platforms | Not implemented. |
 
 ### `reuseport` does not work yet
@@ -129,7 +151,7 @@ deadline, then cancels what remains.
 The TCP `reuseport` option needs a version of luv that exposes it for TCP. luv 1.53, the version
 hecate is pinned to, does not (OQ-43). `reactor.supports_reuseport()` returns `false`, and
 `listen_tcp(..., { reuseport = true })` raises `TransportError` with `ENOTSUP`, instead of
-ignoring the option. Until luv supports it, `auto` will select `round_robin` on Linux too. The
+ignoring the option. Until luv supports it, `auto` selects `round_robin` on Linux too. The
 framework stays complete, and as fast for connections that are reused.
 
 Where the option is supported, it says nothing about balance: macOS accepts the flag and does not
@@ -138,6 +160,16 @@ balance.
 To assemble a hand-made version with these primitives, follow
 [Run child processes and pass connections between processes](../how-to/run-processes-and-pass-connections.md).
 You then write the supervision yourself.
+
+## Limits
+
+- A worker ignores `sigterm` and `sigint`, because a terminal sends them to the whole process
+  group. `kill <worker pid>` does nothing: only the primary stops a worker.
+- Windows never delivers `sigterm` and does not watch `sighup`. A service manager that stops the
+  primary with `TerminateProcess` gets no graceful shutdown. The workers see the message pipe
+  close and drain with the default grace period.
+- On Linux, `SO_REUSEPORT` lets any process of the same user bind the same port and take a share of
+  the connections. On a shared host, `round_robin` is the safer choice.
 
 ## Out of scope
 

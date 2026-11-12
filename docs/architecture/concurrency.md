@@ -44,9 +44,9 @@ concurrency primitives; transport, name resolution, `fs`, `wait_signal`, `run_pr
 Every forked computation belongs to a **scope**. The kernel opens a scope per request;
 the test framework opens one per test. Rules:
 
-1. A scope does not complete before all of its children have completed.
-2. If a child fails, the scope cancels its siblings and propagates the error (unless the
-   child was explicitly detached into the application scope, an operation that must be
+1. A scope does not complete before all of its forked computations have completed.
+2. If a forked computation fails, the scope cancels its siblings and propagates the error (unless the
+   computation was explicitly detached into the application scope, an operation that must be
    visible in code: `reactor.detach(fn)`). A detached failure that nothing waits for when
    it happens is reported to the `on_unobserved_failure(err, future)` hook of the reactor
    (OQ-26 (1)), which `kernel` binds to `log`; without a hook it stays silent. The hook
@@ -72,8 +72,8 @@ computation forked while serving a request without being passed through each fun
   binding of the same key shadows the outer one until `fn` returns; the binding is removed when `fn` returns or raises.
 - `ambient(key)` returns the value bound in the running computation, or `nil`.
 - `fork`, `detach` and `Scope:fork` give the new computation the bindings visible **at the moment of the call**, from
-  the creator (not from the application scope). Bindings made later by the creator are not seen by the child, and a
-  binding made by a child is seen by neither its parent nor its siblings.
+  the creator (not from the application scope). Bindings made later by the creator are not seen by the forked computation, and a
+  binding made by a forked computation is seen by neither the computation that forked it nor its siblings.
 - Bindings are immutable: a value that must change is a table its owner mutates, visibly. `key` is any non-nil value
   compared by equality; a module-private table avoids collisions between packages.
 - Both functions raise `NonYieldableContextError` outside a managed coroutine.
@@ -207,19 +207,57 @@ Accepted in [ADR 0023](../adr/0023-multi-process-serving.md), measured in
   constrained by what another platform needs.
 - The primary supervises workers (readiness, restart on crash with exponential backoff and a
   crash-loop limit) over a control message pipe that exists on every platform and carries `ready`,
-  `stop(deadline)`, `reload` and counters; a worker whose control message pipe closes drains and exits.
+  `stop(deadline)` and counters, and, with `round_robin`, `connection` (with the stream handed over)
+  from the primary and `received` from the worker; a worker whose control message pipe closes drains
+  and exits. `reload` is reserved and unused (the rolling reload replaces workers by restart). The
+  primary keeps its copy of each stream it hands over, in a FIFO per worker process, until the worker
+  answers `received` (sent from a computation of its own once the stream is out of the frame, whether
+  the worker queued or refused it), and closes what is still held when the message pipe ends or the
+  worker exits or is killed: a stream in flight in a message pipe is held by no process, and macOS
+  discards it when another Unix socket closes (OQ-118). The streams held for a worker are bounded by
+  the connections in flight to it. A worker sends
+  `counters <requests> <connections>` (two non-negative decimal integers, `-` for `requests` when it
+  cannot count them) at most once per second and only when a value changed, from a computation of its
+  own so that `stop` is never delayed, and once more when it has stopped serving; the primary keeps the
+  latest values per worker (`Supervisor:counters()`), ignores a malformed message, and logs
+  `hand_over_unaccounted` when a worker exits having accepted fewer connections than it was handed. Today `connections` counts the connections
+  the hand-over listener accepted (`round_robin`) and `requests` is always unknown, `http.Server`
+  having no request counter. A worker that does not send `ready` within `ready_timeout` seconds
+  (default 30) of its start or restart is killed and counted as a crash (`worker_not_ready`).
 - Graceful shutdown: stop accepting, drain in-flight requests up to a configurable deadline,
   then cancel remaining scopes. A rolling reload starts the replacement before stopping the old
   worker.
+- Signals (OQ-116): a worker ignores `SIGINT` and `SIGTERM`, because a terminal sends them to the
+  whole process group; only the `stop` message of the primary ends a worker. The first signal in the
+  primary stops the supervisor with the grace period (`server.grace_timeout`); a second one kills the
+  workers at once. `workers` and `strategy` are the `Application` options, bound from the sibling
+  configuration keys `server.workers` (default 1: the single process of before, with no supervisor)
+  and `server.strategy`. The primary boots the application before it spawns, so a configuration or
+  container error appears once.
+- Rolling reload (`Supervisor:reload`, started by `SIGHUP` in the primary or by `Application:reload`): for
+  each worker in turn the primary starts a fresh process from the same command, waits for its `ready`,
+  adds it to the rotation, then stops the old worker with the grace period; an old worker is never taken
+  out before its replacement is ready, a replacement that fails aborts the reload and leaves the old
+  worker serving, and the planned exit is not a crash. It needs no worker-side message (`reload` stays
+  reserved). With `reuseport` the connections queued in the closing socket of the old worker are reset
+  by the kernel (ADR 0023, Decision 6); `round_robin` loses none.
+  Both methods take one options table, `{ grace_timeout?, ready_timeout? }` (seconds the old worker
+  drains, default 30 or the `grace_timeout` option; seconds a replacement may take to become ready,
+  default 30).
 
 ## Signals and shutdown
 
-`SIGINT`/`SIGTERM` (and Windows console control events) trigger graceful shutdown.
-`SIGHUP` reloads configuration where supported. All handled through libuv signal
-handles.
+`SIGINT`/`SIGTERM` trigger graceful shutdown on every platform (Windows delivers only
+`SIGINT`, Ctrl+C, of the two). The set is fixed: it is not configurable, and an application
+may turn the handling off. The first signal stops accepting and lets the requests in flight
+finish for the grace period (configuration key `server.grace_timeout`, default 30 seconds);
+a second signal during the drain cancels the remaining requests at once. `SIGHUP` starts the
+rolling reload of the workers in the primary of a multi-process application (not on Windows) and is
+ignored by a single process and by a worker. All handled through libuv signal handles (OQ-115). A loop that waits repeatedly uses a
+persistent `SignalWatcher`, which queues signals delivered between two waits (OQ-116).
 
 ## Testing requirements
 
 - Deterministic scheduler mode for tests (virtual clock for `sleep` and deadlines).
 - Property tests for `join`/`select`/cancellation interactions.
-- Leak detection: a test fails if its scope ends with live children or open handles.
+- Leak detection: a test fails if its scope ends with live forked computations or open handles.

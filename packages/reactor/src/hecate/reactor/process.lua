@@ -357,4 +357,32 @@ end
 ---@diagnostic disable-next-line: assign-type-mismatch  -- class constructor exported as its class
 M.Process = Process
 
+--- Returns whether `spawn` and `run_process` can start a child here (libuv provides process
+--- creation on Linux, macOS and Windows; only the presence of the primitive is checked, nothing
+--- is started). Does not suspend.
+---@return boolean supported
+---@return string? reason  why not, when unsupported
+function M.supports_spawn() -- glossary-ok: operating-system process (ADR 0023)
+  if type(uv.spawn) ~= "function" then return false, "luv provides no uv.spawn" end -- glossary-ok: operating-system process (ADR 0023)
+  return true
+end
+
+--- Returns whether a message pipe between processes can carry handles (`spawn` with `ipc = true`
+--- and `Peer:send` with a handle): libuv needs an IPC pipe (`uv.new_pipe(true)`) and `write2`. Only
+--- the creation of one pipe handle is probed, nothing is passed. Does not suspend.
+---@return boolean supported
+---@return string? reason  why not, when unsupported
+function M.supports_handle_passing()
+  local spawnable, why = M.supports_spawn() -- glossary-ok: operating-system process (ADR 0023)
+  if not spawnable then return false, why end
+  local ok, handle, err = pcall(uv.new_pipe, true)
+  if not ok or not handle then
+    return false, "cannot create an IPC pipe: " .. tostring(ok and err or handle)
+  end
+  local capable = type(handle.write2) == "function"
+  handle:close()
+  if not capable then return false, "luv pipes have no write2 (handle passing)" end
+  return true
+end
+
 return M

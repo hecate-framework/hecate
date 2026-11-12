@@ -27,7 +27,7 @@ on the three platforms, with four workers:
 
 What follows from the measurements:
 
-- Node's `cluster` module reached the same conclusion: round-robin hand-off is its default everywhere except
+- Node's `cluster` module reached the same conclusion: round-robin hand-over is its default everywhere except
   Windows, because a shared listening handle left over 70% of connections in two of eight processes
   ([documentation](https://nodejs.org/api/cluster.html)); it keeps the shared handle on Windows, which our
   Windows measurement shows to be the weak choice.
@@ -98,7 +98,7 @@ What follows from the measurements:
    | `reuseport` | each worker, on its own socket bound with `SO_REUSEPORT` | no | Linux (default) |
    | `round_robin` | the primary, which passes every accepted connection to the next worker | yes (accept and pass only) | macOS and Windows (default), and the fallback everywhere |
 
-   `server.workers.strategy` is `auto` (the platform default above) or a strategy name. When the
+   `server.strategy` is `auto` (the platform default above) or a strategy name. When the
    chosen strategy is not `supported()`, the server falls back to `round_robin`, which works
    everywhere, and logs a warning that names the reason.
 4. **Linux first, enforced.** The platform-specific code lives in the strategies and in the
@@ -106,8 +106,13 @@ What follows from the measurements:
    has no IPC in the data path and no dispatch loop. A change to a common abstraction needs the
    Linux benchmark of the verification section not to regress.
 5. **The control message pipe is the same on every platform and is not in the data path.** Each worker
-   has a message pipe to the primary. It carries `ready`, `stop(deadline)`, `reload` and counters.
-   A worker that sees the message pipe close (the primary died) drains and exits, which gives
+   has a message pipe to the primary. It carries `ready`, `stop(deadline)`, `counters` and, with
+   `round_robin`, `connection` (with the stream handed over) from the primary and `received` from the
+   worker; `reload` is reserved and unused. The primary keeps its copy of a stream it handed over
+   until the worker answers `received` (or the pipe ends, or the worker exits or is killed): a
+   stream in flight in a message pipe is held by no process, and macOS discards it when another
+   Unix socket closes (OQ-118). The number of streams held for a worker is bounded by the
+   connections in flight to it. A worker that sees the message pipe close (the primary died) drains and exits, which gives
    orphan protection without `PR_SET_PDEATHSIG`. The primary never signals workers directly: it
    sends `stop`, then kills the process after the deadline, which behaves the same on Windows where
    POSIX signals do not exist.
@@ -137,7 +142,7 @@ file-descriptor inheritance across a new binary.
   connection is served, the spread of connections stays within a bound for the balanced
   strategies, a crashed worker is restarted, and shutdown honours its deadline.
 - Linux keeps the shortest possible path; macOS and Windows get a correct and balanced one that
-  can be tuned without touching Linux. On Windows the primary's hand-off is the slowest part
+  can be tuned without touching Linux. On Windows the primary's hand-over is the slowest part
   (about 3300 connections per second in the spike); batching or another mechanism can be studied
   there later without affecting the other platforms.
 - Long-lived connections stay on the worker that took them: the spread of *connections* is

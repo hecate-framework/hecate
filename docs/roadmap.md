@@ -11,7 +11,7 @@ Versions: Phases 0–2 produce no release. Phase 3 ends with `0.1.0` (alpha), Ph
 Every phase ends with a **gate** item, so that no phase is left with holes before the next one starts
 (no "Swiss cheese"). The relay takes a gate only when every other item of its phase is ticked, and it starts no
 item of phase N+1 while the gate of phase N is unticked. A gate is a verification, not new development; it
-produces a report, `docs/reviews/phase-<N>.md`, and checks:
+produces a report, `docs/reviews/phase-<N>.md`, and checks the five points below:
 
 1. **Completeness.** Every ticked item of the phase is delivered as the item says: the code exists, the public
    API is annotated, the tests and documentation required by the definition of done in `CLAUDE.md` exist
@@ -24,7 +24,14 @@ produces a report, `docs/reviews/phase-<N>.md`, and checks:
 3. **Coherence.** Code, ADRs, specifications, package READMEs, the glossary, the roadmap, `docs/open-questions.md`,
    the website (English and French), the catalogue in `automation.md`, `llms.txt`, `README.md` and `CLAUDE.md` say
    the same thing, and nothing says a thing that is not true.
-4. **Open questions.** The questions of `docs/open-questions.md` that block the next phase, or that the phase made
+4. **Safe content (OQ-111).** What the packages of the phase put in error messages, log records, problem details
+   and generated documentation is audited (CWE-532): no secret, no credential, no offending input value and no
+   personal data, and every field that can carry one is either redacted by name (`log.DEFAULT_REDACT`) or documented
+   as never logged. The audit greps the messages and `logger:*` calls of the packages of the phase, runs the canary
+   test (a canary secret is put through an error, a log field and a configuration value, and the output is searched
+   for it) and lists what it checked in the report; it also checks the production checklist page
+   (`website/en/how-to/`) against what the phase added.
+5. **Open questions.** The questions of `docs/open-questions.md` that block the next phase, or that the phase made
    stale, are listed in the report with their context and a recommendation; an issue labelled `needs-decision`
    asks the owner. The relay never decides them.
 
@@ -179,12 +186,19 @@ concurrency test suite passes; benchmark baseline recorded.
       fixes in [the review](reviews/schema-review-package.md).
 - [x] `container`: IoC container, lifetimes, cycle detection at boot; write its specification section in `docs/architecture/` (OQ-62).
 - [x] `config`: layered configuration validated by schemas; write its specification section in `docs/architecture/`, including the logging keys (OQ-62) and the `limits.max_depth` key that lowers the nesting depth of `json` and `schema` together (OQ-92).
-- [ ] `kernel`: application, modules, controllers, route modules, filters, problem
+- [x] `kernel`: application, modules, controllers, route modules, filters, problem
       details, lifecycle, multi-process workers, graceful shutdown. **Also (from the `schema` review, OQ-98 item 7):** settle how a route names the schema of its response (`docs/developer-experience.md` shows `Class.representation` and an implicit represent; `schema` offers `schema.of(Class):represent(instance)`). **First step (from the `http` reviews):** split
       `packages/http` `server.lua` (options, response writer, connection) and `client.lua` (pool, redirect) with no API
       change; build the in-process dispatch seam (OQ-78, with OQ-76 a), the `on_response` hook (OQ-81) remove the JSON fallback of `Server` for a table (OQ-76 a: an error, a generic 500 and a log entry; OQ-80 decided: no `http.json` or `http.text`) and build the default
       logger of OQ-79 (`log.default()`, console sink on the standard error stream, used by `http` when no `logger` is given, and by `schema` through `package.loaded` when `hecate.log` is already loaded, OQ-86); narrow the type of `Request.content`. **Also (from the `config` item, OQ-101):** (a) add a lowering-only `json.set_max_depth(n)` (it refuses a value above `json.MAX_DEPTH_CEILING` and the value is readable back through `json.DEFAULT_MAX_DEPTH`) and make `schema` read it instead of its constant, then apply `limits.max_depth` (OQ-92); (b) apply the logging keys when building the default logger; (c) pass `hecate.log.Secret` as the `wrap_secret` option of `config.load`.
-- [ ] Example: `examples/hello` (JSON API with validation).
+      **Also (owner decisions of 2026-11-09):** (d) the default logger is built with `log.DEFAULT_REDACT` plus the names of `logging.redact` (OQ-111); (e) the route's response schema is named with `schema.of(Class)` (or any schema), and the kernel itself calls `represent` then encodes (OQ-98 item 7); (f) `Response` content is `string|function|nil` in `http` (the constructor refuses a table), so the kernel gets a helper to answer with a status and a value, for example `hecate.respond(201, user)`, which represents and encodes it by content negotiation; (g) once the kernel has read and validated the content of a request (`Request.content` holds the validated value), `request:stream_content()` and `read_content()` raise a clear `ContentError` ("content already validated and consumed") instead of returning nothing; a route without a body schema keeps the stream untouched. **Also (OQ-112, owner decisions of 2026-11-09):** (h) the configuration key `errors.expose_details` (boolean, default `false`; `true` in the generated `config/development.lua` and `config/test.lua`) makes a 422 entry carry its message and a 500 carry the extension member `debug` (error class, message, traceback), and the kernel logs a `warning` at boot when it is true in the environment `production`; (j) the controller class field `routes = { spec, ... }` (OQ-113 (1)), next to `Controller.route(Class, spec)`, read by `Controller.entries` after `Controller.route` declarations, with its documented limitation (errors surface at boot, not at the line); (k) the options of a route module `hecate.routes(name, { prefix, filters })` (OQ-113 (8)): the `filters` are per-route defaults replaced by the `filters` of a route, the controller `filters` stay a controller-level layer; (l) the configuration key `requests.inputs` (`lax` or `strict`, default `strict`; `lax` in the generated `config/development.lua` and `config/test.lua`) bound to the `inputs` option of the dispatcher (OQ-114 (8)); (m) the rolling reload of the multi-process workers on `SIGHUP` ([ADR 0023](adr/0023-multi-process-serving.md): the primary replaces its workers one at a time with workers running the new code while the old ones drain; OQ-115 (4)), built with the workers; (n) OQ-115: remove the `signals` list option of `Application` (the set is fixed, `signals = false` stays as an opt-out), make a second `sigint` or `sigterm` force the stop, and declare the configuration key `server.grace_timeout` (`config`) bound to `grace_timeout`, with a low value in the generated `config/development.lua` and `config/test.lua`; (i) the problem classes `hecate.problem.*` with `hecate.problem.define`, returnable by an action and raisable from any layer (the guard maps a raised one), referenced by `responses` for the contract and the OpenAPI components.
+      **Deferred from this item (owner decisions of 2026-11-11):** the request id bound through the ambient context (`reactor.with_ambient`, `log.bind`; ADR 0025); the binding of `on_unobserved_failure` to `log` (a helper that returns the reactor options belongs to the CLI, Phase 3); the counters of the control protocol (ADR 0023, Decision 5); and the conformance of `reuseport` on three platforms, which waits for luv support (OQ-43). **Also deferred to the Phase 3 CLI:** the generated `config/development.lua` and `config/test.lua` must set `errors.expose_details = true`, `requests.inputs = "lax"` and a low `server.grace_timeout` (2 s, to confirm); `responses.validate` stays a candidate configuration key (OQ-117).
+- [x] Example: `examples/hello` (JSON API with validation). Delivered: a controller and a route module through the
+      meta-module `hecate`, path and content validation, `422` problem details (RFC 9457) with `source`, `201` through
+      `hecate.respond`, run by `lua main.lua` with `HELLO_WORKERS` processes; tests in process and with two workers
+      (`round_robin`), including a request in flight answered during the graceful shutdown; CI runs it on Linux, macOS
+      and Windows whenever the kernel or the example changes (`affected`). The project form (`hecate.project.lua`,
+      `hecate test`, `hecate contract lint`) and the tutorial are carried to the Phase 3 `cli` and website items.
 - [ ] Benchmarks: plaintext and JSON scenarios. **Carries three performance findings deferred from the Phase 1
       gate review** ([review](reviews/phase-1-review-package.md), "Minor"): judge each with a measurement, then
       keep or fix it, and note the result in the review: (RE2) three table allocations per suspend/resume on the
@@ -224,9 +238,17 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       report with rendered samples submitted to the owner before the website skeleton
       (resolved 2026-10-13: [report](spikes/OQ-11-doc-tooling.md), [ADR 0012](adr/0012-website-generator.md)).
 
+- [ ] Documentation: a how-to page "Before going to production" (`website/en/how-to/`), a checklist of what to verify before an
+      application is deployed: log severity, no secrets in error messages (the logger redacts field names, not free text), what the
+      default logger and the access log record (query strings), `logging.redact`, secrets declared in `secrets`, limits, development
+      mode off. Written after the `kernel` item so that it names its real configuration keys.
+
 - [ ] **Phase 2 gate**: verification of the phase, as described in [Phase gates](#phase-gates). Open
       questions to put to the owner before Phase 3: OQ-46, OQ-13, OQ-17, OQ-38 and OQ-64
       (OQ-33, OQ-35, OQ-36 and OQ-40 were resolved at the Phase 1 gate).
+      **Also triage (from the `examples/hello` review, dx-reviewer):** without the native module of `http`,
+      `Application:serve` fails with `attempt to call a nil value (field 'Server')` (`kernel/application.lua`); it
+      should raise an error that names `lua tools/run.lua build-native http`, as `hecate.net.tls` does for its module.
 
 ## Phase 3 — Contracts and tooling → `0.1.0`
 
@@ -242,10 +264,15 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       NFC/NFD names before the collision check, because a site is built from a tree authored elsewhere. **Also (from the `schema` review, OQ-96):** the `---@meta` file generation for LuaLS from the schemas of a project (carried here or by `cli`, to settle when `cli` is specified), which `schema` does not implement.
 - [ ] `cli` v1: self-contained executable, `new`, `install`, `add`, `remove`, `update`,
       `serve [--watch]`, `test`, `doc`, `contract`, `toolchain`, `doctor`, `version`.
+      **Also (from the `examples/hello` item):** turn `examples/hello` into a Hecate project (`hecate.project.lua`, run
+      by `hecate serve`, tested by `hecate test`, `hecate contract lint` in CI), as `examples/README.md` requires of
+      every example from Phase 3 on; today it is `lua main.lua` and the repository harness.
 - [ ] Docker images (runtime and build variants, amd64 + arm64).
 - [ ] Website: Diátaxis structure, English source, French locale enabled, MDN-like
       theme, getting-started tutorial, reference generated from annotations, built by
       `hecate doc` (ADR 0012, after OQ-11). Pages may be drafted as Markdown earlier.
+      The getting-started tutorial ("Your first API", documentation.md) walks through `examples/hello`, verbatim
+      once `hecate new` exists.
       **Carries a deferral from the Phase 1 gate:** bring the French pages in step with the English ones (the
       `shield` section of `deadlines-and-cancellation`, the `BufferedWriter:close` and 16 KiB text, the sockets
       how-to, json `out_of_memory`) and refresh every stale `source_revision` stamp (OQ-64; findings A44 and B32 of

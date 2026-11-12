@@ -94,7 +94,8 @@ Choices taken conservatively (Lua pattern for `pattern`, `integer` refuses `1.0`
 
 ```text
 src/hecate/schema/init.lua   public entry point
-src/hecate/schema/schema.lua  Schema class and constructors, compiled validators
+src/hecate/schema/schema.lua  public facade: exports and option types
+src/hecate/schema/internal/  Schema class, validation core, base types, classes, JSON Schema emission, formats (not public API)
 src/hecate/schema/violation.lua  Violation, JSON Pointer escaping
 tests/unit/  tests/support/  tests/external.lua
 examples/    benchmarks/

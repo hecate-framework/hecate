@@ -63,6 +63,8 @@ end
 function problem.of_error(err)
   if core.is_instance_of(err, ParseError) or core.is_instance_of(err, ContentError) or core.is_instance_of(err, FormError) then
     local status = err.context and err.context.status
+    -- Reading content that the application already validated is a defect of the server, not of the client.
+    if err.context and err.context.reason == "consumed" then return 500, DETAIL_BY_STATUS[500] end
     if DETAIL_BY_STATUS[status] ~= nil and status ~= 500 then return status, DETAIL_BY_STATUS[status] end
     return 400, DETAIL_BY_STATUS[400]
   end

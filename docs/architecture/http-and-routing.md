@@ -14,8 +14,8 @@ Packages: `http`, `router`, `kernel`. Status: specification.
 - Limits, all configurable with safe defaults: request line length, field count and
   size, content length, read and idle deadlines per connection.
 - Content is streamed: `request:read_content()` reads fully (bounded by the limit),
-  `request:stream_content()` streams (a `ContentStream`: `read()`, `read_all(limit?)`); responses accept strings, tables (serialised) or
-  writer functions.
+  `request:stream_content()` streams (a `ContentStream`: `read()`, `read_all(limit?)`); responses accept strings or writer functions
+  (`http` is bytes only and never serialises, OQ-76 a: the `Response` constructor refuses a table with `ArgumentError`; the kernel serialises).
 - Compression (gzip, br) is a later addition.
 
 ### Implemented surface
@@ -26,7 +26,9 @@ What exists in `hecate.http` (the package README has the full API and the limits
   `query` (both RAW: not percent-decoded, not normalised; the router decodes), `fields`, `peer_address()`, `cookies()`,
   `media_type()`, `read_content()`, `stream_content()`, `read_form()` and `stream_parts()`; its `content` attribute is nil
   for a request from the server (the kernel sets the validated content).
-- `Server`: `listen()`, `serve(listener?)`, `shutdown(grace_timeout?)` and `is_stopping()`. The `host` must be a NUMERIC
+- `Server`: `listen()`, `serve(listener?)`, `shutdown(grace_timeout?)` and `is_stopping()`. `shutdown` closes idle keep-alive connections at once, but gives a fresh
+  connection (no byte of its first request head yet) 1 second, or the `grace_timeout` when shorter, to send its request: it
+  is then served with `Connection: close`, and closed when none starts. The `host` must be a NUMERIC
   address (default `127.0.0.1`: a name would bind every address it resolves to), with split timeouts (`head_timeout`,
   `idle_timeout`, `content_timeout`, `request_timeout`, `write_timeout`, `drain_timeout`), `max_content`, optional
   `max_connections`, TLS with handshake limits, and an `on_error` and a `logger` option.
@@ -42,7 +44,7 @@ What exists in `hecate.http` (the package README has the full API and the limits
 path component of the target as a string: `/users/42`), `fields` (header fields), `parameters`
 (the values declared by the route, parsed and validated after routing: `parameters.path`,
 `parameters.query`, `parameters.fields`, `parameters.cookies`, the same four keys as the
-`parameters` of a route declaration), validated `content`, the `scope`, and the connection's peer
+`parameters` of a route declaration), validated `content`, `scope` (the reactor scope of the request, set by the server), `services` (the service scope of the request, set by the kernel when the application has a container; what a controller's `dependencies` are resolved in), and the connection's peer
 address (`peer_address()`, as on every `net` stream). Responses carry `status`, `fields`, `content`.
 
 ```lua
@@ -122,8 +124,18 @@ OpenAPI term), `path` to `in: path`, `query` to `in: query` and `cookies` to `in
 Filters wrap actions. A filter is an object with `handle(request, next)`; it may
 short-circuit, transform the request, or post-process the result. Filters are attached
 globally, per module, per controller or per route, and execute in that order (outermost
-first). Typical built-in filters: request identifiers, access logging, CORS, rate
-limiting (later), authentication (from `security`).
+first). The filters of a feature module apply only to the routes of that module; the
+global filters apply to every request. Typical built-in filters: request identifiers,
+access logging, CORS, rate limiting (later), authentication (from `security`).
+
+The global filters wrap the routing step: the order is the global filters, then the guard
+(which turns an error into a problem response), then the route match and the dispatch to
+the module, controller and route filters and the action. The global filters therefore also
+see the requests that match no route: the `404`, `405` and `400` problem responses and the
+automatic `OPTIONS` answer pass through them. At that point `request` carries no route
+(`request.parameters.path` is empty, `request.services` is not set yet). An error raised by
+the action, or by a filter of an inner layer, becomes a problem response that flows back
+through the global filters (their code after `next` runs).
 
 ### Results and serialisation
 

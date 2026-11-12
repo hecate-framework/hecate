@@ -71,10 +71,34 @@ function Peer:init(handle, options, stream)
   self._receiving = false
 end
 
+--- Options of `Peer:send`.
+---@class hecate.reactor.SendOptions
+---@field keep_open? boolean  leave the stream handed over open in this process after the write (default false): the caller closes it
+
+---@param options any
+---@return boolean keep_open
+local function check_send_options(options)
+  if options == nil then return false end
+  if type(options) ~= "table" then
+    error(core.ArgumentError(("reactor.Peer.send: expects an options table, got %s"):format(type(options))), 3)
+  end
+  for key in pairs(options) do
+    if key ~= "keep_open" then error(core.ArgumentError(("reactor.Peer.send: unknown option %s"):format(tostring(key))), 3) end
+  end
+  if options.keep_open ~= nil and type(options.keep_open) ~= "boolean" then
+    error(core.ArgumentError("reactor.Peer.send: option keep_open must be a boolean"), 3)
+  end
+  return options.keep_open == true
+end
+
 --- Sends a message, and optionally a `TcpStream` that the other end receives together with it.
 --- Returns once libuv has handed the message to the operating system. A stream that is passed is
 --- closed in this process when the hand-over completes: from then on only the other end owns the
---- connection. A cancelled send closes the peer, because the amount sent is unknown.
+--- connection, unless `options.keep_open` is true, which leaves the stream open and the closing to
+--- the caller. A stream in flight in the message pipe belongs to no process, and some systems
+--- (macOS) discard it when another Unix socket closes; a sender that must not lose it keeps it
+--- open until the receiver acknowledged it with a message (this is what the kernel supervisor does).
+--- A cancelled send closes the peer, because the amount sent is unknown, and leaves the stream open.
 ---
 --- Windows: the operating system duplicates the socket for the other process, and the duplicate
 --- is only valid while the sender's socket is open. This process closes it as soon as the write
@@ -82,13 +106,15 @@ end
 --- stream arrived waits for an acknowledgement message from the receiver before it exits.
 ---
 --- Raises `hecate.core.ArgumentError` for a message that is not a string, larger than the
---- `max_message` of the peer (16 MiB by default), or a `handle` that is not an open `TcpStream` (a `PipeStream` is refused: only TCP handles can be passed),
+--- `max_message` of the peer (16 MiB by default), a malformed `options`, or a `handle` that is not an open `TcpStream` (a `PipeStream` is refused: only TCP handles can be passed),
 --- and `hecate.reactor.TransportError` when the message pipe is closed (`EBADF`) or broken
 --- (`EPIPE`).
 ---@async
 ---@param message string  the message
 ---@param handle? hecate.reactor.TcpStream  a connected stream to hand over
-function Peer:send(message, handle)
+---@param options? hecate.reactor.SendOptions  `keep_open`
+function Peer:send(message, handle, options)
+  local keep_open = check_send_options(options)
   if type(message) ~= "string" then
     error(core.ArgumentError(("reactor.Peer.send: expects a string message, got %s"):format(type(message))), 2)
   end
@@ -113,7 +139,7 @@ function Peer:send(message, handle)
   local raw = handle._handle
   ---@diagnostic disable-next-line: invisible  -- same package
   self._stream:_await("send", function(callback) return self._handle:write2(frame, raw, callback) end)
-  handle:close()
+  if not keep_open then handle:close() end
 end
 
 --- Number of bytes received and not yet decoded.

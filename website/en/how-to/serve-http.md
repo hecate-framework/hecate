@@ -33,8 +33,9 @@ reactor.run(function() http.Server(action, { port = 8080 }):serve() end)
 -- Answers: hello
 ```
 
-Pass a `logger` (a `hecate.log.Logger`) and the server logs one informational record at start:
-`http.Server: listening on 127.0.0.1:8080 (loopback only)`.
+The server logs one informational record at start, `http.Server: listening on 127.0.0.1:8080
+(loopback only)`, to the standard error stream through the default logger (`log.default()`). Pass
+your own `logger` (a `hecate.log.Logger`) to replace it.
 
 ## Start a server
 
@@ -46,8 +47,9 @@ The example below serves three paths, asks each one with the client and shuts th
 
 <!-- example: packages/http/examples/hecate.http.Server.lua -->
 ```lua
--- A server on a free port. The action answers with a string, a table (sent as JSON) and a
+-- A server on a free port. The action answers with a string, JSON text (http never serialises) and a
 -- function that streams its content, then the server shuts down.
+local json = require("hecate.json")
 local reactor = require("hecate.reactor")
 local http = require("hecate.http")
 
@@ -55,7 +57,7 @@ local function action(request)
   if request.path == "/hello" then
     return http.Response(200, { content = "hello" })
   elseif request.path == "/user" then
-    return http.Response(200, { content = { name = "Ada" } })
+    return http.Response(200, { content = json.encode({ name = "Ada" }) })
   elseif request.path == "/count" then
     return http.Response(200, {
       content = function(write)
@@ -139,8 +141,13 @@ A `Response` is created with `http.Response(status, options?)`. The options are 
 |---|---|
 | `nil` | no content |
 | a string | the bytes, with `Content-Length` |
-| a table | JSON, with `Content-Type: application/json` unless you set another |
 | a function `content(write, flush)` | a stream (see [Stream HTTP content](stream-http-content.md)) |
+
+`http` is bytes only and never serialises. `http.Response` raises an `ArgumentError` for content
+that is not nil, a string or a function, a table included. Encode the table yourself
+(`json.encode`) and set `Content-Type`, as the example does. (A table set on a response object that
+bypassed the constructor reaches the server as an error: the client gets the generic 500 problem
+details response and the server logs the failure.)
 
 The server never sends content for HEAD, 1xx, 204 and 304. It sets `Date`, `Content-Length`,
 `Transfer-Encoding` and `Connection` itself and replaces yours. The one exception is a streamed
@@ -175,7 +182,8 @@ return http.problem.response(409, "The name is already taken.")
 When the action raises an error, the server sends a generic problem details response chosen by
 the class of the error. The text of the error never reaches the client: not a message, not an
 address, not an error number. A request over the content limit is a 413, a malformed form is a
-400 and anything else is a 500. Nothing is printed by default. Pass `on_error` (or a `logger`) to receive the real error:
+400 and anything else is a 500. The server also logs the error at `error` severity through the default logger (or your `logger`),
+and passes it to `on_error`, which you can use to take over:
 
 ```lua
 local server = http.Server(action, {

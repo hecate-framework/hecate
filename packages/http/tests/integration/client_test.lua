@@ -7,6 +7,8 @@ local json = require("hecate.json")
 local reactor = require("hecate.reactor")
 local net = require("hecate.net")
 local http = require("hecate.http")
+-- Without a logger the server writes to the standard error stream (OQ-79): tests keep it quiet.
+local QUIET <const> = require("hecate.log").Logger({ sinks = { require("hecate.log").MemorySink() }, severity = "debug" })
 local T = test.Case("ClientTest")
 
 local dir = debug.getinfo(1, "S").source:sub(2):gsub("\\", "/"):gsub("/[^/]*$", "")
@@ -16,14 +18,19 @@ local Response, Client = http.Response, http.Client
 
 local function base(port, path) return "http://127.0.0.1:" .. port .. (path or "/") end
 
+--- A response with `value` serialised as JSON (the server never does: OQ-76 a).
+local function json_response(value)
+  return Response(200, { content = json.encode(value), fields = http.Fields({ { "Content-Type", "application/json" } }) })
+end
+
 --- A action that describes the request it got.
 local function describe(request)
   local fields = {}
   for name, value in request.fields:lines() do fields[#fields + 1] = { name, value } end
-  return Response(200, { content = {
+  return json_response({
     method = request.method, target = request.target, content = request:read_content(), fields = fields,
     peer_port = request:peer_address().port,
-  } })
+  })
 end
 
 local function field(info, name)
@@ -181,11 +188,11 @@ function T:test_a_connection_is_reused_while_idle_and_not_after_the_idle_timeout
     local server = scripted(function(stream)
       while read_head(stream) do stream:write(support.ok("x")) end
     end)
-    local client <close> = Client({ idle_timeout = 1 })
+    local client <close> = Client({ idle_timeout = 0.5 })
     client:get(base(server.port)):read_content()
     client:get(base(server.port)):read_content()
     self:assert_equal(1, server.accepted, "reused")
-    reactor.sleep(1.5)
+    reactor.sleep(0.7)
     client:get(base(server.port)):read_content()
     self:assert_equal(2, server.accepted, "the idle connection expired")
     server.stop()
@@ -308,7 +315,7 @@ local function redirecting(request)
   if path == "/chain" then return to(302, "/chain?" .. tostring((tonumber(request.query) or 0) + 1)) end
   last_method = request.method
   local info = { method = request.method, content = request:read_content() }
-  return Response(200, { content = info })
+  return json_response(info)
 end
 
 function T:test_redirects_change_the_method_as_rfc_9110_section_15_4_says()
@@ -366,7 +373,7 @@ function T:test_credentials_are_stripped_on_a_cross_origin_redirect_and_kept_on_
   local seen = {}
   run(self, function()
     local function start(action)
-      local server = http.Server(action, { port = 0 })
+      local server = http.Server(action, { port = 0, logger = QUIET })
       local listener = server:listen()
       return listener:local_address().port, server, reactor.fork(server.serve, server, listener)
     end
@@ -517,11 +524,117 @@ end
 
 -- Expect: 100-continue ---------------------------------------------------------------------------------------------
 
-function T:test_expect_continue_sends_the_content_after_the_interim_response()
-  with_server(self, describe, nil, function(port)
-    local client <close> = Client()
-    local info = json.decode(client:post(base(port), "payload", { expect_continue = true }):read_content())
-    self:assert_equal("payload", info.content)
+--- A scripted server that records the request head and what follows it, optionally answering with `interim` (written at
+--- once) before reading the `Content-Length` bytes, and then with `final` (default: 200 echoing the content).
+local function expecting_server(record, interim, final)
+  return scripted(function(stream)
+    local head = read_head(stream)
+    record.head = head
+    record.with_head = head:match("\r\n\r\n(.*)$")
+    if interim ~= nil then stream:write(interim) end
+    record.after_interim = true
+    local length = tonumber(head:match("Content%-Length: (%d+)")) or 0
+    local received = record.with_head
+    while #received < length do
+      local chunk = stream:read()
+      if chunk == nil then break end
+      received = received .. chunk
+    end
+    record.received = received
+    stream:write(final or ("HTTP/1.1 200 OK\r\nContent-Length: " .. #received .. "\r\n\r\n" .. received))
+  end)
+end
+
+local function count_expect(head)
+  local count = 0
+  for _ in head:gmatch("\r\n[Ee][Xx][Pp][Ee][Cc][Tt]:") do count = count + 1 end
+  return count
+end
+
+function T:test_expect_continue_adds_the_field_and_sends_the_content_right_after_the_100()
+  run(self, function()
+    local record = {}
+    local server = scripted(function(stream)
+      local head = read_head(stream)
+      record.head = head
+      record.with_head = head:match("\r\n\r\n(.*)$")
+      -- RFC 9110 section 10.1.1: nothing but the head may arrive before the 100 Continue.
+      local ok, extra = pcall(reactor.deadline, 0.2, stream.read, stream)
+      record.before_100 = (ok and extra) or ""
+      stream:write("HTTP/1.1 100 Continue\r\n\r\n")
+      local received = ""
+      while #received < 7 do received = received .. stream:read() end
+      record.received = received
+      stream:write("HTTP/1.1 200 OK\r\nContent-Length: " .. #received .. "\r\n\r\n" .. received)
+    end)
+    -- A generous expect timeout: the 100 must be what releases the content, not the fallback.
+    local client <close> = Client({ expect_timeout = 5 })
+    local started = reactor.now()
+    self:assert_equal("payload", client:post(base(server.port), "payload", { expect_continue = true }):read_content())
+    self:assert_true(reactor.now() - started < 2.5, "the content waited for the expect timeout instead of the 100")
+    self:assert_not_nil(record.head:find("\r\nExpect: 100-continue\r\n", 1, true), record.head)
+    self:assert_equal(1, count_expect(record.head))
+    self:assert_equal("", record.with_head, "no content byte in the head packet")
+    self:assert_equal("", record.before_100, "no content byte before the 100 Continue")
+    self:assert_equal("payload", record.received)
+    server.stop(); server.loop:cancel()
+  end)
+end
+
+function T:test_expect_continue_does_not_send_the_content_when_a_final_status_answers_first()
+  for _, status in ipairs({ "417 Expectation Failed", "401 Unauthorized" }) do
+    run(self, function()
+      local record = {}
+      local server = scripted(function(stream)
+        record.head = read_head(stream)
+        stream:write("HTTP/1.1 " .. status .. "\r\nContent-Length: 0\r\n\r\n")
+        local ok, extra = pcall(reactor.deadline, 0.3, stream.read, stream)
+        record.after = (ok and extra) or ""
+      end)
+      local client <close> = Client({ expect_timeout = 5 })
+      local started = reactor.now()
+      local response = client:post(base(server.port), "payload", { expect_continue = true })
+      self:assert_equal(tonumber(status:match("^%d+")), response.status)
+      self:assert_true(reactor.now() - started < 2.5, "the client waited for the expect timeout")
+      self:assert_not_nil(record.head:find("\r\nExpect: 100-continue\r\n", 1, true), record.head)
+      response:read_content()
+      client:close()
+      reactor.sleep(0.4)
+      self:assert_equal("", record.after, "the content was sent after a final status (" .. status .. ")")
+      server.stop(); server.loop:cancel()
+    end)
+  end
+end
+
+function T:test_the_expect_field_is_sent_only_when_asked_and_with_content()
+  local cases = {
+    { "no content", function(client, port) return client:get(base(port), { expect_continue = true }) end },
+    { "expect_continue false", function(client, port) return client:post(base(port), "data", { expect_continue = false }) end },
+    { "expect_continue absent", function(client, port) return client:post(base(port), "data") end },
+  }
+  for _, case in ipairs(cases) do
+    run(self, function()
+      local record = {}
+      local server = expecting_server(record)
+      local client <close> = Client()
+      case[2](client, server.port):read_content()
+      self:assert_equal(0, count_expect(record.head), case[1] .. ": " .. record.head)
+      server.stop(); server.loop:cancel()
+    end)
+  end
+end
+
+function T:test_an_explicit_expect_field_is_not_duplicated()
+  run(self, function()
+    local record = {}
+    local server = expecting_server(record, "HTTP/1.1 100 Continue\r\n\r\n")
+    local client <close> = Client({ expect_timeout = 5 })
+    local started = reactor.now()
+    local fields = { Expect = "100-continue" }
+    self:assert_equal("data", client:post(base(server.port), "data", { expect_continue = true, fields = fields }):read_content())
+    self:assert_equal(1, count_expect(record.head), record.head)
+    self:assert_true(reactor.now() - started < 2.5, "the content waited for the expect timeout instead of the 100")
+    server.stop(); server.loop:cancel()
   end)
 end
 
@@ -575,7 +688,7 @@ function T:test_the_pool_stays_bounded_across_many_origins_and_leaves_no_handle(
   reactor.run(function()
     local servers = {}
     for i = 1, 12 do
-      local server = http.Server(function(request) return Response(200, { content = request.path }) end, { port = 0 })
+      local server = http.Server(function(request) return Response(200, { content = request.path }) end, { port = 0, logger = QUIET })
       local listener = server:listen()
       servers[i] = { server = server, port = listener:local_address().port, serving = reactor.fork(server.serve, server, listener) }
     end
@@ -599,10 +712,10 @@ end
 
 function T:test_expired_idle_connections_of_other_origins_are_swept_at_every_checkout()
   with_server(self, describe, nil, function(port)
-    local client <close> = Client({ idle_timeout = 1 })
+    local client <close> = Client({ idle_timeout = 0.5 })
     client:get(base(port, "/a")):read_content()
     self:assert_equal(1, client:pool_stats().idle)
-    reactor.sleep(1.5)
+    reactor.sleep(0.7)
     -- a request to another origin (same server, other name) sweeps the expired one
     client:get("http://localhost:" .. port .. "/b"):read_content()
     self:assert_true(client:pool_stats().idle <= 1, "the expired connection was closed")
@@ -618,11 +731,11 @@ end
 
 function T:test_a_cross_origin_307_that_would_replay_content_is_returned_not_followed()
   run(self, function()
-    local target = http.Server(redirecting_to(function() return "/x" end), { port = 0 })
+    local target = http.Server(redirecting_to(function() return "/x" end), { port = 0, logger = QUIET })
     local target_listener = target:listen()
     local target_port = target_listener:local_address().port
     local target_serving = reactor.fork(target.serve, target, target_listener)
-    local origin = http.Server(redirecting_to(function() return base(target_port, "/landing") end), { port = 0 })
+    local origin = http.Server(redirecting_to(function() return base(target_port, "/landing") end), { port = 0, logger = QUIET })
     local origin_listener = origin:listen()
     local origin_port = origin_listener:local_address().port
     local origin_serving = reactor.fork(origin.serve, origin, origin_listener)
@@ -651,11 +764,11 @@ function T:test_more_credential_fields_are_stripped_on_an_origin_change_and_the_
       for name in request.fields:lines() do names[#names + 1] = string.lower(name) end
       seen[#seen + 1] = names
       return Response(200, { content = "t" })
-    end, { port = 0 })
+    end, { port = 0, logger = QUIET })
     local target_listener = target:listen()
     local target_port = target_listener:local_address().port
     local target_serving = reactor.fork(target.serve, target, target_listener)
-    local origin = http.Server(function() return Response(302, { fields = http.Fields({ { "Location", base(target_port, "/t") } }) }) end, { port = 0 })
+    local origin = http.Server(function() return Response(302, { fields = http.Fields({ { "Location", base(target_port, "/t") } }) }) end, { port = 0, logger = QUIET })
     local origin_listener = origin:listen()
     local origin_port = origin_listener:local_address().port
     local origin_serving = reactor.fork(origin.serve, origin, origin_listener)
@@ -715,7 +828,7 @@ end
 function T:test_per_request_options_override_the_client_and_unknown_keys_are_refused()
   with_server(self, function(request)
     if request.path == "/slow" then reactor.sleep(30) end
-    if request.path == "/json" then return Response(200, { content = { id = 42 } }) end
+    if request.path == "/json" then return json_response({ id = 42 }) end
     if request.path == "/broken" then return Response(200, { content = "{not json", fields = http.Fields({ { "Content-Type", "application/json; charset=utf-8" } }) }) end
     if request.path == "/chain" then return Response(302, { fields = http.Fields({ { "Location", "/chain?" .. tostring((tonumber(request.query) or 0) + 1) } }) }) end
     return Response(200, { content = ("x"):rep(1000) })
