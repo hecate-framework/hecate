@@ -10,6 +10,7 @@ global <const> type
 ---@field current_computation? fun(operation: string): table  the running computation, or raises when none is running
 ---@field scope_run? fun(fn: function, deadline_at?: number): ...  runs a function in a new scope (set by `primitives`)
 ---@field cancel_computation? fun(computation: table, err: any)  requests cancellation of one computation
+---@field offloads_in_flight? integer  functions queued or running on the pool thread, results not yet received (set by `offload`)
 local context = {}
 
 return context

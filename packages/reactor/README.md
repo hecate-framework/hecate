@@ -1,6 +1,6 @@
 # `hecate-reactor`
 
-> The reactor over libuv (luv): coroutine scheduler, futures, structured concurrency, synchronisation primitives, timers, signals, processes, file system, network transport (TCP, UDP, pipes, name resolution), ambient context.
+> The reactor over libuv (luv): coroutine scheduler, futures, structured concurrency, synchronisation primitives, timers, signals, processes, file system, network transport (TCP, UDP, pipes, name resolution), ambient context, `offload` of Lua functions to the libuv thread pool.
 
 | | |
 |---|---|
@@ -8,7 +8,7 @@
 | Rock | `hecate-reactor` |
 | Layer | 1 — Runtime |
 | Roadmap phase | 1 (the transport primitives of ADR 0023: phase 2) |
-| Status | alpha — scheduler, `Future`, `fork`/`join`/`select`/`sleep`/`scope`/`deadline`, cancellation and virtual clock, `Channel`, `Semaphore`, `Mutex`, `Monitor` and `Condition` implemented; `detach`, ambient context, signals (`wait_signal`, persistent `SignalWatcher`), processes, file system, TCP, UDP and pipe transport and `resolve` implemented; `spawn`, `ipc` (framed messages with handle passing, over a message pipe) and the TCP `reuseport` option implemented (ADR 0023; effective only with a luv that supports it, OQ-43); `offload` pending |
+| Status | alpha — scheduler, `Future`, `fork`/`join`/`select`/`sleep`/`scope`/`deadline`, cancellation and virtual clock, `Channel`, `Semaphore`, `Mutex`, `Monitor` and `Condition` implemented; `detach`, ambient context, signals (`wait_signal`, persistent `SignalWatcher`), processes, file system, TCP, UDP and pipe transport and `resolve` implemented; `spawn`, `ipc` (framed messages with handle passing, over a message pipe) and the TCP `reuseport` option implemented (ADR 0023; effective only with a luv that supports it, OQ-43); `offload` implemented (OQ-27, OQ-119) |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |
 | Depends on | [`core`](../core) |
 | Used by | `cli`, `hecate`, `http`, `kernel`, `log`, `mongodb`, `mysql`, `net`, `orm`, `postgresql`, `redis`, `sql`, `sqlite`, `sqlserver`, `test`, `websocket` |
@@ -24,14 +24,14 @@
 - `fork`, `join`, `select`, `deadline`, `sleep`, `scope`, `detach`
 - `Future`, `Channel`, `Semaphore`, `Mutex`, `Monitor`, `Condition`
 - cooperative cancellation (`CancellationError`) and `DeadlineExceededError`
+- `offload`: self-contained Lua functions run on the libuv thread pool, values copied between Lua states
 - timers, signals, child processes, file-system operations, TCP, UDP and pipe transport and name resolution (the calls that wait are suspending calls)
 - virtual clock for tests
 
 ## Non-goals
 
 - network protocols (see `net`)
-- OS threads running Lua code
-- `offload` (OQ-27)
+- OS threads running Lua code, except the self-contained functions of `offload`, each in the separate Lua state of a libuv pool thread
 
 ## Standards and references
 
@@ -50,7 +50,7 @@ the tags match what the functions do.
 | Name | Description |
 |---|---|
 | `reactor.run(fn, ...)` | Runs `fn` on a new real-clock reactor until it and everything it forked have finished. |
-| `reactor.Reactor({ clock = "real"\|"virtual", start = 0, on_unobserved_failure = fn })` | The scheduler; `:run(fn, ...)`, `:now()`, `:live_coroutines()`, `:is_real()`; `Reactor.open_handles()` counts the open libuv handles (leak tests, task `leaks`). The virtual clock jumps to the next timer when nothing is ready (deterministic tests). |
+| `reactor.Reactor({ clock = "real"\|"virtual", start = 0, on_unobserved_failure = fn, max_offloads = n })` | The scheduler; `:run(fn, ...)`, `:now()`, `:live_coroutines()`, `:is_real()`; `Reactor.open_handles()` counts the open libuv handles (leak tests, task `leaks`). The virtual clock jumps to the next timer when nothing is ready (deterministic tests). |
 | `reactor.is_future(value)` | Whether `value` is a `Future`. |
 | `reactor.fork(fn, ...)` | Does not suspend; managed coroutines only (raises otherwise). Starts `fn` in the current scope, returns a `Future`. |
 | `reactor.join(f1, ...)` | *suspends*. Values in argument order; the first failure cancels the others and is raised. |
@@ -72,6 +72,7 @@ the tags match what the functions do.
 | `reactor.supports_reuseport()` | Whether `listen_tcp(..., { reuseport = true })` works here (probed once). Needs luv with TCP `reuseport` (OQ-43); otherwise `listen_tcp` raises `TransportError` `ENOTSUP` rather than ignoring the option. Says nothing about balance: macOS accepts the flag and does not balance. |
 | `reactor.system_name()` | Name of the operating system as libuv reports it (`Linux`, `Darwin`, `Windows_NT`, ...). Does not suspend. |
 | `reactor.available_parallelism()` | Processing units this process may use, at least 1: the default count of workers (ADR 0023). Does not suspend. |
+| `reactor.offload(fn, ...)` | *suspends*. Runs `fn(...)` on the libuv thread pool, in the separate Lua state of a pool thread (a fresh environment per call), and returns its results ([concurrency.md, "Offload"](../../docs/architecture/concurrency.md#offload), OQ-119). `fn` must be a Lua function with no upvalue other than `_ENV`, compiled with debug information (`ArgumentError` otherwise), and must not suspend. Arguments and results are copied (`nil`, booleans, numbers, strings, plain tables; the exact rules are in the specification). An error of `fn` raises `reactor.OffloadError` (`context.reason`, `context.traceback`, `context.code`). At most `max_offloads` functions (a `Reactor` option; default the pool size minus one, at least 1) are on the pool at once, the others wait in a first-in-first-out queue; a caller cancelled while queued is removed and its function never runs. A running function cannot be interrupted: its cancelled caller is released at once and the late result discarded, and `reactor.run` returns only once every running function has returned. Real clock only. The pool (4 threads, `UV_THREADPOOL_SIZE`) is shared with `fs` and `resolve`. |
 | `reactor.resolve(host, options?)` | *suspends*. Resolves a host name or numeric address to `{ ip, family }` entries in the resolver's order (option `family`: `"inet"` or `"inet6"`). Failure raises `TransportError` (`errno` such as `EAI_NONAME`); cancellation releases the caller at once and discards the late result (OQ-32). |
 | `reactor.connect_tcp(host, port, options?)` | *suspends*. Connects to a numeric address (no name resolution, OQ-30); returns a `TcpStream`. Bound it with `deadline`; cancellation abandons the attempt and closes its handle. Options: `nodelay` (default `true`), `keepalive` (default `false`), `keepalive_delay` (a positive integer number of seconds, default 60); `backlog` and `reuseport` belong to `listen_tcp` and raise `ArgumentError` here. |
 | `reactor.listen_tcp(host, port, options?)` | Binds and listens (port 0 picks a free port); returns a `TcpListener`. Options as above plus `backlog` (default 128); accepted streams inherit `nodelay` and `keepalive`. |
