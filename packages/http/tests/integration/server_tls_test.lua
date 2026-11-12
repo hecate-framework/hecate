@@ -147,6 +147,7 @@ function T:test_the_handshake_limit_queues_the_excess_until_a_slot_is_free()
   end)
 end
 
+-- Documented in website/en/how-to/before-going-to-production.md (Logging).
 function T:test_plain_text_sent_to_a_tls_port_is_dropped_without_detail_and_logged_server_side()
   with_tls_server(self, text_action, nil, function(port, _, records)
     local raw <close> = net.connect("127.0.0.1", port)
@@ -164,6 +165,7 @@ function T:test_plain_text_sent_to_a_tls_port_is_dropped_without_detail_and_logg
     self:assert_not_nil(seen, "the failure is logged")
     self:assert_equal("127.0.0.1:" .. local_port, seen.fields.peer)
     self:assert_equal("string", type(seen.fields.reason))
+    self:assert_equal("warning", seen.severity.name or tostring(seen.severity))
   end)
 end
 

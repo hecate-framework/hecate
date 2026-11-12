@@ -141,6 +141,68 @@ function T:test_content_dripped_within_the_between_reads_timeout_is_cut_by_the_t
   end)
 end
 
+--- Sends `text` one byte every 50 ms (a head that arrives slowly).
+local function drip(client, text)
+  for i = 1, #text do
+    client:send(text:sub(i, i))
+    reactor.sleep(0.05)
+  end
+end
+
+-- Documented in website/en/how-to/before-going-to-production.md (Listening and limits).
+function T:test_the_request_timeout_counts_from_the_end_of_the_head_not_from_its_first_byte()
+  local action = function(request)
+    if request.path == "/health" then return ok_action(request) end
+    return echo_action(request)
+  end
+  -- The head takes about 0.6 s, twice the request timeout and well within the head timeout.
+  local slow_part = ("a"):rep(12)
+  with_server(self, action, { head_timeout = 10, content_timeout = 30, request_timeout = 0.3 }, function(port)
+    -- Content sent at once after a slow head: served, so the head did not consume the request timeout.
+    local served <close> = connect(port)
+    served:send("POST /e HTTP/1.1\r\nHost: t\r\nContent-Length: 3\r\nX-Slow: ")
+    drip(served, slow_part)
+    served:send("\r\n\r\nabc")
+    local response = served:read_response()
+    self:assert_equal(200, response.status)
+    self:assert_equal("abc", response.content)
+    -- Content still unfinished at the request timeout after a slow head: 408, never before the request timeout has
+    -- elapsed since the end of the head.
+    local cut <close> = connect(port)
+    cut:send("POST /e HTTP/1.1\r\nHost: t\r\nContent-Length: 100\r\nX-Slow: ")
+    drip(cut, slow_part)
+    cut:send("\r\n\r\nab")
+    local head_ended = reactor.now()
+    local refused = cut:read_response()
+    self:assert_equal(408, refused.status)
+    self:assert_true(reactor.now() - head_ended >= 0.25, "the 408 came before the request timeout after the head")
+    healthy(self, port)
+  end)
+end
+
+-- Documented in website/en/how-to/before-going-to-production.md (Listening and limits).
+function T:test_the_server_has_no_timeout_on_the_action()
+  local options = {
+    head_timeout = 0.1, idle_timeout = 0.1, content_timeout = 0.1, request_timeout = 0.1, write_timeout = 0.1,
+    drain_timeout = 0.1,
+  }
+  with_server(self, function(request)
+    if request.path == "/slow" then
+      reactor.sleep(0.5) -- five times every timeout of the server
+      return Response(200, { content = "late" })
+    end
+    return ok_action(request)
+  end, options, function(port)
+    local client <close> = connect(port)
+    local started = reactor.now()
+    local response = client:request(get("/slow"))
+    self:assert_true(reactor.now() - started >= 0.45, "the action ran to its end")
+    self:assert_equal(200, response.status)
+    self:assert_equal("late", response.content)
+    healthy(self, port)
+  end)
+end
+
 function T:test_a_reader_that_never_reads_a_large_response_hits_the_write_timeout_and_the_action_is_cancelled()
   local outcome = {}
   with_server(self, function(request)
