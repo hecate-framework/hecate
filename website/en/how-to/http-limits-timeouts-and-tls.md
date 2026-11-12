@@ -161,7 +161,7 @@ that stays silent holds nothing but its own slot. Three options bound handshakes
 | `max_handshakes` | 64 | handshakes in progress at once (the excess waits in the backlog) |
 | `max_handshake_bytes` | 65536 | bytes read from a client before the handshake ends |
 
-A failed handshake sends the client nothing. The `logger` option (a `hecate.log.Logger`) receives
+A failed handshake sends the client nothing. The logger (the `logger` option, or `log.default()`) receives
 `http.Server: TLS handshake failed` with the peer address and the class of the reason. Nothing
 else leaves the server. For client certificates and ALPN, see
 [TLS client and server](tls-client-and-server.md).

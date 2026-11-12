@@ -24,6 +24,7 @@ global <const> require, type, pcall, error, string
 ---@field ContentStream hecate.http.ContentStream  message content as a stream
 ---@field ContentError hecate.http.ContentError  content over its limit, truncated, malformed or stalled
 ---@field problem hecate.http.problem  RFC 9457 problem details responses
+---@field serve_request fun(action: (fun(request: hecate.http.Request): hecate.http.Response), request: hecate.http.Request): hecate.http.Response, any?  runs an action without a socket (the server's own code path): the response to send and the failure caught
 local http = {}
 
 http.Fields = require("hecate.http.fields")
@@ -36,6 +37,7 @@ http.Response = require("hecate.http.response")
 http.ContentStream = require("hecate.http.content")
 http.ContentError = http.ContentStream.ContentError
 http.problem = require("hecate.http.problem")
+http.serve_request = require("hecate.http.serve_request")
 http.ParseError = require("hecate.http.errors").ParseError
 http.url = require("hecate.http.url")
 http.form = require("hecate.http.form")

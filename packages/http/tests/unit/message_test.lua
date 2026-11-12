@@ -1,5 +1,6 @@
----@diagnostic disable: missing-fields, param-type-mismatch  -- the tests pass invalid arguments on purpose
+---@diagnostic disable: missing-fields, param-type-mismatch, assign-type-mismatch  -- the tests pass invalid arguments on purpose
 local test = require("harness.test")
+local core = require("hecate.core")
 local http = require("hecate.http")
 local T = test.Case("MessageTest")
 
@@ -20,6 +21,23 @@ function T:test_request_has_the_four_parameter_keys()
   for _, key in ipairs({ "path", "query", "fields", "cookies" }) do self:assert_equal("table", type(r.parameters[key])) end
 end
 
+function T:test_validated_content_closes_the_raw_content()
+  local request = http.Request({ method = "POST", target = "/", content = "{}",
+    fields = http.Fields({ ["Content-Type"] = "application/x-www-form-urlencoded" }) })
+  request:set_validated_content({ name = "a" })
+  self:assert_equal("a", request.content.name)
+  for _, read in ipairs({
+    function() request:stream_content() end, function() request:read_content() end,
+    function() request:read_form() end, function() request:stream_parts() end,
+  }) do
+    local err = self:assert_error(read)
+    self:assert_true(core.is_instance_of(err, http.ContentError))
+    self:assert_equal("consumed", err.context.reason)
+  end
+  -- A request that never had validated content keeps its stream.
+  self:assert_equal("{}", http.Request({ method = "POST", target = "/", content = "{}" }):read_content())
+end
+
 function T:test_request_rejects_invalid_method_and_target()
   self:assert_error(function() http.Request({ method = "GE T", target = "/" }) end)
   self:assert_error(function() http.Request({ target = "" }) end)
@@ -37,6 +55,21 @@ function T:test_request_cookies_and_media_type()
   self:assert_equal("application/json", r:media_type():essence())
   self:assert_equal("127.0.0.1", r:peer_address().ip)
   self:assert_nil(http.Request({ target = "/" }):media_type())
+end
+
+function T:test_response_content_is_nil_a_string_or_a_function_and_http_does_not_serialise()
+  local core = require("hecate.core")
+  self:assert_nil(http.Response(200).content)
+  self:assert_equal("x", http.Response(200, { content = "x" }).content)
+  local writer = function() end
+  self:assert_true(http.Response(200, { content = writer }).content == writer)
+  for _, bad in ipairs({ {}, { id = 42 }, 42, true }) do
+    local ok, err = pcall(http.Response, 200, { content = bad })
+    self:assert_false(ok)
+    self:assert_true(core.is_instance_of(err, core.ArgumentError))
+    self:assert_not_nil(tostring(err):find("does not serialise", 1, true))
+    self:assert_not_nil(tostring(err):find("string or a writer function", 1, true))
+  end
 end
 
 function T:test_response_defaults()

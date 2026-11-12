@@ -46,6 +46,7 @@ for public APIs, documentation and internal code.
 | primary | The process that starts, supervises and, for some strategies, feeds the workers | Buschmann et al., *Pattern-Oriented Software Architecture* vol. 1 (1996), Master-Slave pattern | master, parent (for the operating-system relation, "parent process" is accepted) |
 | worker | A process with its own reactor that serves requests; workers share nothing | Buschmann et al. (1996), Master-Slave pattern | slave, child process (for the operating-system relation) |
 | message pipe | A framed connection between two processes that carries string messages and, optionally, a stream handle (`reactor.ipc`). Not to be confused with `PipeStream`, a local stream socket (Unix-domain socket, named pipe on Windows) | POSIX `pipe(2)`; ADR 0023 | channel (reserved for communication between coroutines) |
+| hand-over | The primary passes an accepted connection to a worker through the message pipe (`round_robin` listening strategy; `hand_over`, `HandOverTarget`, `HandOverListener`) | [ADR 0023](https://github.com/hecate-framework/hecate/blob/main/docs/adr/0023-multi-process-serving.md) | dispatch, pass, forward |
 | peer | The remote end of a connection (`peer_address`) or of a message pipe (`Peer`) | RFC 9293 | remote (in "remote address"), client (when the role is unknown) |
 | listening strategy | How the workers obtain connections: `reuseport` or `round_robin` ([ADR 0023](https://github.com/hecate-framework/hecate/blob/main/docs/adr/0023-multi-process-serving.md)) | — | cluster mode |
 | computation | A running unit of the scheduler: a coroutine started by `fork` or `detach`, or the main coroutine; what a scope owns and a future stands for | `concurrency.md` | task |
@@ -161,7 +162,7 @@ Errors are *problem details* (RFC 9457; `hecate.problem.*` is the namespace). Pa
 | leaf | A declared key that is not an `object`: a scalar, an enumeration or an array; the unit that an environment variable or a secret file can supply |  | setting, option |
 | `Section`, `List` | The frozen values of a configuration: a `Section` holds an object or a map, a `List` an array (also when empty); a write raises `ConformanceError` |  | table, dict, map (for the frozen object) |
 | secret object | The wrapper of the value of a secret key (`hecate.log.Secret`, else `hecate.config.Secret`): `tostring` gives `[redacted]` and `reveal()` gives the value |  | masked value, sensitive string |
-| framework keys | The keys that every configuration declares, `logging.*` and `limits.max_depth`, which an application cannot redeclare |  | built-in settings, core options |
+| framework keys | The keys that every configuration declares, `logging.*`, `limits.max_depth` and `server.grace_timeout`, which an application cannot redeclare |  | built-in settings, core options |
 
 
 ## Logging

@@ -101,7 +101,7 @@ not started with a message pipe. It returns the same peer on every call and does
 
 Both ends use the same methods:
 
-- `peer:send(message, stream?)` suspends until the message is handed to the operating system.
+- `peer:send(message, stream?, options?)` suspends until the message is handed to the operating system.
 - `peer:receive()` suspends and returns `message, stream?`. It returns `nil` when the other end
   has closed the pipe, which is how a child learns that its parent is gone.
 - `peer:close()` is idempotent and never suspends. A peer is `<close>`-able.
@@ -208,7 +208,10 @@ end)
 ```
 
 The stream is closed in the sender once it is handed over: using it afterwards raises
-`TransportError` with `EBADF`.
+`TransportError` with `EBADF`. With `{ keep_open = true }` as third argument the sender keeps the
+stream open and closes it itself. A stream in flight in the message pipe is held by no process, and
+macOS may discard it when another Unix socket closes, so a sender that cannot lose a connection keeps
+the stream until the receiver acknowledged it with a message (the kernel supervisor does).
 
 > [!WARNING] Windows
 > The operating system duplicates the socket for the receiver, and the duplicate is valid only
@@ -236,6 +239,22 @@ end
 Where it is supported, it says nothing about balance: macOS accepts the flag and does not balance.
 Supervision (readiness, restarts, shutdown) is yours to write for now. The design that will provide
 it is in [Multi-process serving](../explanation/multi-process-serving.md).
+
+## Check what this platform supports
+
+`reactor.supports_spawn()` and `reactor.supports_handle_passing()` return `true`, or `false` and a
+reason, like `reactor.supports_reuseport()`. They check that libuv provides the primitive (process
+creation, and an IPC pipe that can carry a handle) and start nothing, so a test can skip itself
+where they answer `false`.
+
+## Keep a signal from being lost between two waits
+
+`reactor.wait_signal` watches only while it waits: a signal delivered between two calls takes the
+default action, which ends the process. To ignore or handle signals in a loop, create a watcher
+once with `reactor.watch_signals("sigint", "sigterm")` and call `watcher:wait()` in the loop. The
+watcher owns its libuv handles until `close` (it is `<close>`-able), queues up to 16 signals that
+arrive while nobody waits (a name already queued is not queued twice), and survives the
+cancellation of a waiting coroutine.
 
 ## Platform differences
 

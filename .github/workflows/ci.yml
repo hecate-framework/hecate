@@ -8,9 +8,13 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+# No workflow-level concurrency: a newer push must not cancel a run it does not replace. A push that changes
+# only documentation skips the platform matrix (`code_changed`), and if it cancelled the previous run, the
+# tests of the code pushed before would be lost. Cancellation is therefore a job-level `concurrency` on the
+# matrix job (`ci` below), which exists only when the push changes code: a newer code push still cancels the
+# older code run, a documentation push cancels nothing. Limits: `plan`, `docs-checks` and `ci-ok` of a
+# superseded run are not cancelled (they are short), and a run whose `ci` jobs were cancelled ends red in
+# `ci-ok`, which is expected for a superseded run.
 
 jobs:
   # Computes the packages affected by the diff (reverse dependencies included) with the
@@ -18,11 +22,15 @@ jobs:
   plan:
     name: plan
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: read # the `ci-ok` verdict of the previous head (see "Code changed")
     outputs:
       packages: ${{ steps.affected.outputs.packages }}
       json_native: ${{ steps.affected.outputs.json_native }}
       http_native: ${{ steps.affected.outputs.http_native }}
       net_native: ${{ steps.affected.outputs.net_native }}
+      code_changed: ${{ steps.changes.outputs.code_changed }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -73,16 +81,90 @@ jobs:
           echo "TLS native module needed: $net_native"
           echo "net_native=$net_native" >> "$GITHUB_OUTPUT"
 
+      # `false` when the files changed by this push (the commits since the previous head of the branch, or of
+      # the pull request) are all documentation (`lua tools/run.lua code-changed`, lib/changes.lua). Any doubt
+      # yields `true`: no previous commit (new branch, opened or reopened pull request), a commit that is not
+      # reachable (force-push). The push is compared with the previous head, not with the base; the safety net below
+      # keeps a documentation commit from hiding a code commit that is not green.
+      - name: Code changed
+        id: changes
+        env:
+          BEFORE: ${{ github.event.before }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eo pipefail
+          if [ -n "$BEFORE" ] && git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            changed=$(lua tools/run.lua code-changed --from "$BEFORE" --to HEAD | head -n 1)
+          else
+            changed=true
+          fi
+          # Safety net: a pull request shows the checks of its head commit only, so a documentation commit on top of a
+          # code commit that failed, was cancelled or is still running would hide that commit and look green. A
+          # documentation-only push is skipped only when the `ci-ok` verdict of the previous head is `success` (by
+          # induction a chain of documentation commits stays covered); any other state, or any failure to read it, runs
+          # the full matrix. In the relay's usual rhythm (a documentation push right after a code push) the previous
+          # run is still pending, so the matrix runs, as before; the gain comes once the previous run has finished.
+          if [ "$changed" = "false" ]; then
+            verdict=$(gh api "repos/$GITHUB_REPOSITORY/commits/$BEFORE/check-runs?per_page=100" \
+              --jq '[.check_runs[] | select(.name == "ci-ok")] | sort_by(.started_at) | last | (.conclusion // "pending")' 2>/dev/null || echo unknown)
+            echo "ci-ok of the previous head: ${verdict:-none}"
+            if [ "$verdict" != "success" ]; then changed=true; fi
+          fi
+          echo "code changed: $changed"
+          echo "code_changed=$changed" >> "$GITHUB_OUTPUT"
+
+  # A documentation-only push skips the matrix, so the repository checks that read documentation run alone
+  # (cheap: no native module, no LuaLS). `docs.yml` lints and link-checks the Markdown.
+  docs-checks:
+    needs: plan
+    if: needs.plan.outputs.code_changed == 'false'
+    name: docs-checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Cache toolchain
+        id: toolchain
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: .hecate/toolchain
+          key: toolchain-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('tools/bootstrap/**') }}
+
+      - name: Bootstrap
+        if: steps.toolchain.outputs.cache-hit != 'true'
+        run: tools/bootstrap/bootstrap.sh --prefix .hecate/toolchain
+
+      - name: Add toolchain to PATH
+        run: echo "$GITHUB_WORKSPACE/.hecate/toolchain/bin" >> "$GITHUB_PATH"
+
+      - name: Documentation checks
+        run: |
+          set -e
+          for task in check-adr-index check-docs-examples check-package-structure; do
+            echo "::group::$task"
+            lua tools/run.lua "$task"
+            echo "::endgroup::"
+          done
+
   ci:
     needs: plan
+    # Skipped (a skipped required check counts as success) when the push changes only documentation.
+    if: needs.plan.outputs.code_changed == 'true'
     name: ci (${{ matrix.os }}, Lua 5.5)
     runs-on: ${{ matrix.os }}
+    # Cancels the previous run of the same platform on the same ref, never the jobs of another platform.
+    concurrency:
+      group: ci-code-${{ github.ref }}-${{ matrix.os }}
+      cancel-in-progress: true
     # A hung test must fail the job within minutes, not after the default six hours. The harness
     # watchdog (HECATE_TEST_TIMEOUT) names the test; this is the backstop for a blocking call.
     timeout-minutes: 30
     env:
       # The single LuaLS pin: read by this job (cache key and download) and by tools/tasks/setup_luals.lua.
       LUALS_VERSION: 3.19.1
+      # Release builds from a cold cache: incremental data would only grow the cached target directories.
+      CARGO_INCREMENTAL: "0"
     strategy:
       fail-fast: false
       matrix:
@@ -128,15 +210,18 @@ jobs:
         shell: cmd
         run: cl 2>&1 | findstr /C:"Version" && cmake --version
 
+      # The static checks (below) are platform-independent: they run on Linux only, so LuaLS is needed there only.
       # The archive is cached per platform and version (the checksum below is verified on every run, from the
       # cache or from the download), so a transient 5xx of the release endpoint only matters on a cold cache.
       - name: Cache LuaLS archive
+        if: runner.os == 'Linux'
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: ~/.cache/luals
           key: luals-${{ runner.os }}-${{ runner.arch }}-${{ env.LUALS_VERSION }}
 
       - name: Install LuaLS
+        if: runner.os == 'Linux'
         shell: bash
         run: |
           case "$RUNNER_OS-$RUNNER_ARCH" in
@@ -165,7 +250,11 @@ jobs:
         id: rocks
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
-          path: .hecate/rocks
+          # The native modules of Hecate have their own caches (below, keyed by their sources): excluded here, so
+          # that an old rocks archive never restores a stale module that the build steps would then take as built.
+          path: |
+            .hecate/rocks
+            !.hecate/rocks/lib/lua/5.5/hecate
           key: rocks-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('tools/bootstrap/**', '.github/workflows/ci.yml') }}
 
       # Native rocks (luv) for the reactor tests; `tools/harness/run_file.lua` puts
@@ -177,11 +266,56 @@ jobs:
         shell: bash
         run: luarocks --tree .hecate/rocks install luv 1.53.0-0
 
-      # Rust native module of `net` (TLS over rustls, ADR 0021). Only built when `net` or a
-      # dependent package is affected; the TLS tests skip silently when it is missing, so the
-      # build is asserted explicitly.
+      # Built native modules, one cache per module (a run builds only the modules it needs, so one shared cache
+      # would be saved with whatever subset the first run built and then hit by a run that needs more). Each key
+      # is the hash of every input of the build: the sources of the module (C sources, vendored libraries, Rust
+      # crate with Cargo.lock, rust-toolchain.toml and .cargo/config.toml; target directories excluded), the
+      # build task and the helpers it loads (build_native.lua, util.lua, sanitize.lua), the bootstrap scripts
+      # (the Lua headers and import library, hence the Lua version, come from the toolchain), and this workflow
+      # (the build environment: flags, profile, runner steps), plus the operating system and architecture. Not
+      # in the key: the compiler of the runner image (the image changes about weekly; bump this file to force a
+      # rebuild). Only the installed files are cached, never intermediate output; the steps below verify them
+      # after the restore, on a hit as on a build.
+      - name: Cache native module net (TLS)
+        id: nc_net
+        if: needs.plan.outputs.net_native == 'true'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: .hecate/rocks/lib/lua/5.5/hecate/net/tls_native.*
+          key: native-net-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('packages/net/native/**', 'packages/net/native/.cargo/**', '!**/target/**', 'tools/tasks/build_native.lua', 'tools/lib/util.lua', 'tools/lib/sanitize.lua', 'tools/bootstrap/**', '.github/workflows/ci.yml') }}
+
+      - name: Cache native modules json (C decoder, Rust encoder)
+        id: nc_json
+        if: needs.plan.outputs.json_native == 'true'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: |
+            .hecate/rocks/lib/lua/5.5/hecate/json/native.*
+            .hecate/rocks/lib/lua/5.5/hecate/json/encoder_native.*
+          key: native-json-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('packages/json/native/**', '!**/target/**', 'packages/json/csrc/**', 'tools/tasks/build_native.lua', 'tools/lib/util.lua', 'tools/lib/sanitize.lua', 'tools/bootstrap/**', '.github/workflows/ci.yml') }}
+
+      - name: Cache native module http (llhttp binding)
+        id: nc_http
+        if: needs.plan.outputs.http_native == 'true'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: .hecate/rocks/lib/lua/5.5/hecate/http/native.*
+          key: native-http-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('packages/http/csrc/**', 'tools/tasks/build_native.lua', 'tools/lib/util.lua', 'tools/lib/sanitize.lua', 'tools/bootstrap/**', '.github/workflows/ci.yml') }}
+
+      # The shipped module and the `--spec` variant of the CommonMark tests (never installed: it stays in target/spec).
+      - name: Cache native module doc (shipped and spec variants)
+        id: nc_doc
+        if: contains(format(' {0} ', needs.plan.outputs.packages), ' doc ')
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: |
+            .hecate/rocks/lib/lua/5.5/hecate/doc/native.*
+            packages/doc/native/target/spec/release/*hecate_doc_native.*
+          key: native-doc-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('packages/doc/native/**', 'packages/doc/native/.cargo/**', '!**/target/**', 'tools/tasks/build_native.lua', 'tools/lib/util.lua', 'tools/lib/sanitize.lua', 'tools/bootstrap/**', '.github/workflows/ci.yml') }}
+
+      # Cargo registry and target directories: only worth restoring when a Rust module has to be built.
       - name: Cache native build
-        if: needs.plan.outputs.net_native == 'true' || needs.plan.outputs.json_native == 'true' || contains(format(' {0} ', needs.plan.outputs.packages), ' doc ')
+        if: (needs.plan.outputs.net_native == 'true' && steps.nc_net.outputs.cache-hit != 'true') || (needs.plan.outputs.json_native == 'true' && steps.nc_json.outputs.cache-hit != 'true') || (contains(format(' {0} ', needs.plan.outputs.packages), ' doc ') && steps.nc_doc.outputs.cache-hit != 'true')
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: |
@@ -191,36 +325,33 @@ jobs:
             packages/doc/native/target
           key: native-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('packages/net/native/Cargo.lock', 'packages/net/native/rust-toolchain.toml', 'packages/json/native/Cargo.lock', 'packages/doc/native/Cargo.lock') }}
 
+      # Rust native module of `net` (TLS over rustls, ADR 0021). Only built when `net` or a
+      # dependent package is affected and its cache missed; the TLS tests skip silently when it is missing,
+      # so the files are asserted explicitly in "Verify the native modules".
       - name: Build the TLS native module (Linux, macOS)
-        if: runner.os != 'Windows' && needs.plan.outputs.net_native == 'true'
+        if: runner.os != 'Windows' && needs.plan.outputs.net_native == 'true' && steps.nc_net.outputs.cache-hit != 'true'
         run: |
           (cd packages/net/native && rustup toolchain install)
           lua tools/run.lua build-native net
-          test -f .hecate/rocks/lib/lua/5.5/hecate/net/tls_native.so
 
       # Both modules are required at run time (no fallback backend, OQ-53): every package that depends on `json` needs them.
       - name: Build the JSON native modules (C decoder, Rust encoder; POSIX)
-        if: runner.os != 'Windows' && needs.plan.outputs.json_native == 'true'
+        if: runner.os != 'Windows' && needs.plan.outputs.json_native == 'true' && steps.nc_json.outputs.cache-hit != 'true'
         run: |
           (cd packages/json/native && rustup toolchain install)
           lua tools/run.lua build-native json
-          test -f .hecate/rocks/lib/lua/5.5/hecate/json/native.so
-          test -f .hecate/rocks/lib/lua/5.5/hecate/json/encoder_native.so
 
       - name: Build the HTTP parser native module (llhttp binding; POSIX)
-        if: runner.os != 'Windows' && needs.plan.outputs.http_native == 'true'
-        run: |
-          lua tools/run.lua build-native http
-          test -f .hecate/rocks/lib/lua/5.5/hecate/http/native.so
+        if: runner.os != 'Windows' && needs.plan.outputs.http_native == 'true' && steps.nc_http.outputs.cache-hit != 'true'
+        run: lua tools/run.lua build-native http
 
       # Markdown and highlighting of `doc` (comrak, syntect; ADR 0022): the tests of `doc` and of the
       # website build need the module, so it is built whenever `doc` is affected.
       - name: Build the documentation native module (Linux, macOS)
-        if: runner.os != 'Windows' && contains(format(' {0} ', needs.plan.outputs.packages), ' doc ')
+        if: runner.os != 'Windows' && contains(format(' {0} ', needs.plan.outputs.packages), ' doc ') && steps.nc_doc.outputs.cache-hit != 'true'
         run: |
           (cd packages/doc/native && rustup toolchain install)
           lua tools/run.lua build-native doc
-          test -f .hecate/rocks/lib/lua/5.5/hecate/doc/native.so
           # The CommonMark specification tests need the test-only variant with the unsafe renderer, which the
           # shipped module no longer exports (ADR 0022): it is built apart and never installed.
           lua tools/run.lua build-native doc --spec
@@ -248,7 +379,7 @@ jobs:
           cargo clippy --locked --all-targets
 
       - name: Build the TLS native module (Windows)
-        if: runner.os == 'Windows' && needs.plan.outputs.net_native == 'true'
+        if: runner.os == 'Windows' && needs.plan.outputs.net_native == 'true' && steps.nc_net.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
           Push-Location packages/net/native
@@ -259,10 +390,9 @@ jobs:
           $env:LUA_LIB = "$tc/lib"
           $env:LUA_INC = "$tc/include"
           lua tools/run.lua build-native net
-          if (-not (Test-Path .hecate/rocks/lib/lua/5.5/hecate/net/tls_native.dll)) { throw 'tls_native.dll missing' }
 
       - name: Build the JSON native modules (Windows)
-        if: runner.os == 'Windows' && needs.plan.outputs.json_native == 'true'
+        if: runner.os == 'Windows' && needs.plan.outputs.json_native == 'true' && steps.nc_json.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
           Push-Location packages/json/native
@@ -273,11 +403,9 @@ jobs:
           $env:LUA_LIB = "$tc/lib"
           $env:LUA_INC = "$tc/include"
           lua tools/run.lua build-native json
-          if (-not (Test-Path .hecate/rocks/lib/lua/5.5/hecate/json/native.dll)) { throw 'native.dll missing' }
-          if (-not (Test-Path .hecate/rocks/lib/lua/5.5/hecate/json/encoder_native.dll)) { throw 'encoder_native.dll missing' }
 
       - name: Build the HTTP parser native module (Windows)
-        if: runner.os == 'Windows' && needs.plan.outputs.http_native == 'true'
+        if: runner.os == 'Windows' && needs.plan.outputs.http_native == 'true' && steps.nc_http.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
           $tc = (Join-Path $env:GITHUB_WORKSPACE '.hecate/toolchain') -replace '\\', '/'
@@ -285,10 +413,9 @@ jobs:
           $env:LUA_LIB = "$tc/lib"
           $env:LUA_INC = "$tc/include"
           lua tools/run.lua build-native http
-          if (-not (Test-Path .hecate/rocks/lib/lua/5.5/hecate/http/native.dll)) { throw 'native.dll missing' }
 
       - name: Build the documentation native module (Windows)
-        if: runner.os == 'Windows' && contains(format(' {0} ', needs.plan.outputs.packages), ' doc ')
+        if: runner.os == 'Windows' && contains(format(' {0} ', needs.plan.outputs.packages), ' doc ') && steps.nc_doc.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
           Push-Location packages/doc/native
@@ -299,8 +426,33 @@ jobs:
           $env:LUA_LIB = "$tc/lib"
           $env:LUA_INC = "$tc/include"
           lua tools/run.lua build-native doc
-          if (-not (Test-Path .hecate/rocks/lib/lua/5.5/hecate/doc/native.dll)) { throw 'native.dll missing' }
           lua tools/run.lua build-native doc --spec
+
+      # Runs on a cache hit as on a build: every module this run needs must exist, whatever restored it.
+      - name: Verify the native modules
+        shell: bash
+        env:
+          NEED_NET: ${{ needs.plan.outputs.net_native }}
+          NEED_JSON: ${{ needs.plan.outputs.json_native }}
+          NEED_HTTP: ${{ needs.plan.outputs.http_native }}
+          NEED_DOC: ${{ contains(format(' {0} ', needs.plan.outputs.packages), ' doc ') }}
+        run: |
+          ext=so
+          if [ "$RUNNER_OS" = Windows ]; then ext=dll; fi
+          dir=.hecate/rocks/lib/lua/5.5/hecate
+          missing=0
+          check() { if [ ! -f "$1" ]; then echo "::error::missing native module $1"; missing=1; fi; }
+          if [ "$NEED_NET" = true ]; then check "$dir/net/tls_native.$ext"; fi
+          if [ "$NEED_JSON" = true ]; then check "$dir/json/native.$ext"; check "$dir/json/encoder_native.$ext"; fi
+          if [ "$NEED_HTTP" = true ]; then check "$dir/http/native.$ext"; fi
+          if [ "$NEED_DOC" = true ]; then
+            check "$dir/doc/native.$ext"
+            if ! compgen -G "packages/doc/native/target/spec/release/*hecate_doc_native.*" > /dev/null; then
+              echo "::error::missing the spec-tests variant of the documentation native module"
+              missing=1
+            fi
+          fi
+          exit $missing
 
       - name: Lint the documentation native module (Linux)
         if: runner.os == 'Linux' && contains(format(' {0} ', needs.plan.outputs.packages), ' doc ')
@@ -318,13 +470,16 @@ jobs:
           cargo clippy --locked --all-targets
           cargo test --locked
 
-      - name: Check
+      # Platform-independent: the same answer on every platform (they read repository files only: no paths,
+      # line endings or native crates differ), so they run on Linux only. `lint` and `format-check` parse and
+      # scan sources, `typecheck` is LuaLS, `check-licenses` reads VENDORED.md and THIRD_PARTY_NOTICES (the Rust
+      # crates are covered by cargo-deny in security.yml). macOS and Windows run what depends on the platform:
+      # the native builds above and the tests below.
+      - name: Static checks (Linux)
+        if: runner.os == 'Linux'
         shell: bash
         env:
           PACKAGES: ${{ needs.plan.outputs.packages }}
-          # The TLS tests fail, instead of skipping, when the native module is missing.
-          HECATE_NETWORK_TESTS: "1"
-          HECATE_REQUIRE_TLS: ${{ needs.plan.outputs.net_native == 'true' && '1' || '' }}
         run: |
           set -e
           for task in check-versions check-rockspecs check-package-structure check-docs-examples check-licenses check-lua-constructs check-boundaries check-glossary check-annotations check-adr-index format-check typecheck; do
@@ -335,6 +490,50 @@ jobs:
           echo "::group::lint"
           lua tools/run.lua lint $PACKAGES
           echo "::endgroup::"
+
+      # Unit tests run in a pool of worker processes (HECATE_TEST_JOBS, default min(cores, 4)); the
+      # integration tests and the examples run serially after them (tools/tasks/test.lua).
+      - name: Test
+        shell: bash
+        env:
+          PACKAGES: ${{ needs.plan.outputs.packages }}
+          # The TLS tests fail, instead of skipping, when the native module is missing.
+          HECATE_NETWORK_TESTS: "1"
+          HECATE_REQUIRE_TLS: ${{ needs.plan.outputs.net_native == 'true' && '1' || '' }}
+        run: |
+          set -e
           echo "::group::test"
           lua tools/run.lua test tools $PACKAGES
           echo "::endgroup::"
+          # The Phase 2 example (examples/hello, with two worker processes) runs whenever the kernel is affected.
+          case " $PACKAGES " in
+            *" kernel "*)
+              echo "::group::test examples/hello"
+              lua tools/run.lua test examples/hello
+              echo "::endgroup::"
+              ;;
+          esac
+
+  # One check to require: green when the platform matrix passed or was skipped (documentation-only push), red
+  # when `plan`, `ci` or `docs-checks` failed or was cancelled. Not required by the branch rules today (they
+  # name the matrix jobs); a skipped matrix job counts as success there too.
+  ci-ok:
+    name: ci-ok
+    needs: [plan, ci, docs-checks]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Evaluate the results
+        env:
+          PLAN: ${{ needs.plan.result }}
+          MATRIX: ${{ needs.ci.result }}
+          DOCS: ${{ needs.docs-checks.result }}
+        run: |
+          echo "plan=$PLAN ci=$MATRIX docs-checks=$DOCS"
+          if [ "$PLAN" != success ]; then exit 1; fi
+          for result in "$MATRIX" "$DOCS"; do
+            case "$result" in
+              success|skipped) ;;
+              *) exit 1 ;;
+            esac
+          done

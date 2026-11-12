@@ -96,3 +96,6 @@ Every configuration has `logging.severity` (default `informational`), `logging.s
 logger name), `logging.sinks` (`console`, `json_lines`, `file`), `logging.file.path`, `logging.async` and
 `logging.redact`, which the kernel applies when it builds the loggers, and `limits.max_depth` (1 to 1000),
 the nesting depth of `hecate.json` and `hecate.schema`. A project can lower the depth, never raise it.
+`server.grace_timeout` (seconds, default 30, `HECATE_SERVER__GRACE_TIMEOUT`) is how long a graceful shutdown lets the
+requests in flight finish before cancelling them; keep it shorter than the stop timeout of the deployment
+(`docker stop` waits 10 s by default, Kubernetes 30 s).

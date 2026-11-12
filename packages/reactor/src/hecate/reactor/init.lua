@@ -64,6 +64,8 @@ local reactor = {
   ---@diagnostic disable-next-line: assign-type-mismatch  -- class constructor exported as its class
   Process = require("hecate.reactor.process").Process,
   ---@diagnostic disable-next-line: assign-type-mismatch  -- class constructor exported as its class
+  SignalWatcher = require("hecate.reactor.signal").SignalWatcher,
+  ---@diagnostic disable-next-line: assign-type-mismatch  -- class constructor exported as its class
   Peer = require("hecate.reactor.ipc").Peer,
   ipc = require("hecate.reactor.ipc"),
 }
@@ -80,8 +82,15 @@ local process = require("hecate.reactor.process")
 reactor.run_process = process.run_process
 reactor.spawn = process.spawn -- glossary-ok: operating-system process (ADR 0023)
 reactor.supports_reuseport = tcp.supports_reuseport
+reactor.supports_spawn = process.supports_spawn -- glossary-ok: operating-system process (ADR 0023)
+reactor.supports_handle_passing = process.supports_handle_passing
+local system = require("hecate.reactor.system")
+reactor.system_name = system.system_name
+reactor.available_parallelism = system.available_parallelism
 reactor.resolve = require("hecate.reactor.dns").resolve
-reactor.wait_signal = require("hecate.reactor.signal").wait_signal
+local signal = require("hecate.reactor.signal")
+reactor.wait_signal = signal.wait_signal
+reactor.watch_signals = signal.watch_signals
 reactor.detach = primitives.detach
 reactor.fork = primitives.fork
 reactor.join = primitives.join

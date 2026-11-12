@@ -229,6 +229,11 @@ function T:test_an_oversized_target_is_rejected_with_414()
   self:reject("GET /" .. ("a"):rep(9000) .. " HTTP/1.1\r\nHost: h\r\n\r\n", 414)
 end
 
+function T:test_a_very_long_query_string_is_rejected_with_414()
+  -- The query is part of the request target: it is bounded by `max_target_size` like the path.
+  self:reject("GET /x?q=" .. ("a"):rep(9000) .. " HTTP/1.1\r\nHost: h\r\n\r\n", 414)
+end
+
 function T:test_an_oversized_field_value_or_name_is_rejected_with_431()
   self:reject("GET / HTTP/1.1\r\nHost: h\r\nX-A: " .. ("a"):rep(9000) .. "\r\n\r\n", 431)
   self:reject("GET / HTTP/1.1\r\nHost: h\r\n" .. ("N"):rep(9000) .. ": a\r\n\r\n", 431)

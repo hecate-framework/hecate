@@ -4,6 +4,8 @@
 local test = require("harness.test")
 local reactor = require("hecate.reactor")
 local http = require("hecate.http")
+-- Without a logger the server writes to the standard error stream (OQ-79): tests keep it quiet.
+local QUIET <const> = require("hecate.log").Logger({ sinks = { require("hecate.log").MemorySink() }, severity = "debug" })
 local T = test.Case("ServerHardeningTest")
 
 local dir = debug.getinfo(1, "S").source:sub(2):gsub("\\", "/"):gsub("/[^/]*$", "")
@@ -18,7 +20,7 @@ local function healthy(self, port)
 end
 
 function T:test_bare_line_breaks_before_a_head_do_not_escape_the_head_timeout()
-  with_server(self, ok_action, { head_timeout = 1, idle_timeout = 30 }, function(port)
+  with_server(self, ok_action, { head_timeout = 0.3, idle_timeout = 30 }, function(port)
     local client <close> = connect(port)
     local dripping = true
     local dripper = reactor.fork(function()
@@ -42,7 +44,7 @@ function T:test_the_total_request_timeout_and_the_drain_have_finite_defaults()
 end
 
 function T:test_unread_content_trickled_after_the_response_is_cut_at_the_drain_timeout()
-  with_server(self, ok_action, { drain_timeout = 1, content_timeout = 30, request_timeout = 30 }, function(port)
+  with_server(self, ok_action, { drain_timeout = 0.3, content_timeout = 30, request_timeout = 30 }, function(port)
     local client <close> = connect(port)
     client:send("POST /x HTTP/1.1\r\nHost: t\r\nContent-Length: 1000000\r\n\r\n")
     local dripping = true
@@ -156,7 +158,7 @@ function T:test_a_few_messages_say_what_to_do_next()
   self:assert_not_nil(tostring(self:assert_error(function() http.Request("x") end)):find("http.Request({", 1, true))
   local seen
   reactor.run(function()
-    local server = http.Server(ok_action, { port = 0 })
+    local server = http.Server(ok_action, { port = 0, logger = QUIET })
     local listener = server:listen()
     local serving = reactor.fork(server.serve, server, listener)
     reactor.sleep(0)

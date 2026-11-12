@@ -4,6 +4,8 @@ local test = require("harness.test")
 local core = require("hecate.core")
 local reactor = require("hecate.reactor")
 local http = require("hecate.http")
+-- Without a logger the server writes to the standard error stream (OQ-79): tests keep it quiet.
+local QUIET <const> = require("hecate.log").Logger({ sinks = { require("hecate.log").MemorySink() }, severity = "debug" })
 local T = test.Case("ClientRedirectTest")
 
 local dir = debug.getinfo(1, "S").source:sub(2):gsub("\\", "/"):gsub("/[^/]*$", "")
@@ -16,7 +18,7 @@ local function redirect(status, location) return Response(status, { fields = htt
 
 --- Starts a server inside the running reactor; returns its port and a function that stops it.
 local function start(action)
-  local server = http.Server(action, { port = 0 })
+  local server = http.Server(action, { port = 0, logger = QUIET })
   local listener = server:listen()
   local serving = reactor.fork(server.serve, server, listener)
   return listener:local_address().port, function()

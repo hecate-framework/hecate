@@ -83,6 +83,19 @@ function T:test_echo_through_buffered_reader_and_writer()
   self:assert_equal("ALPHA,BETA,GAMMA", table.concat(lines, ","))
 end
 
+function T:test_transport_is_the_reactor_stream_under_the_buffered_one()
+  with_listener(self, function(listener, port)
+    local client <close> = net.connect(LOOPBACK, port)
+    local peer <close> = listener:accept()
+    local transport = client:transport()
+    self:assert_true(core.is_instance_of(transport, reactor.TcpStream))
+    self:assert_equal(transport, client:transport())
+    -- It is the same connection: writing on it reaches the peer through the buffered reader.
+    transport:write("ping\n")
+    self:assert_equal("ping", peer:reader():read_line())
+  end)
+end
+
 function T:test_a_large_payload_arrives_whole_through_the_buffered_layer()
   local payload = string.rep("0123456789abcdef", 64 * 1024) -- 1 MiB, far above any chunk size
   local received = with_listener(self, function(listener, port)

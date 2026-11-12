@@ -23,5 +23,6 @@ chaque paquet documenté.
 - [`hecate.schema`](schema/index.md) : types raffinés, validation, coercition et émission de JSON Schema.
 - [`hecate.container`](container/index.md) : le conteneur d’inversion de contrôle, les durées de vie, l’injection par constructeur, la validation au démarrage et la libération.
 - [`hecate.config`](config/index.md) : la configuration en couches validée par des schémas, les variables d’environnement, les secrets et la `Configuration` immuable.
+- [`hecate.kernel`](kernel/index.md) : l’application, les modules fonctionnels, les contrôleurs, les modules de routes, les filtres, les détails de problème, le superviseur et les stratégies d’écoute du service multi-processus.
 
 Le [glossaire](glossary.md) définit le vocabulaire utilisé partout.

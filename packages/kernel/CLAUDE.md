@@ -10,13 +10,14 @@ The application: feature modules, controllers, route modules, filters (chain of 
 ## Read before changing anything
 
 - Specification: `docs/architecture/http-and-routing.md`
-- Decisions: `docs/adr/0003-transparent-structured-concurrency.md`, `docs/adr/0006-declarative-routes-as-runtime-data.md`, `docs/adr/0007-object-model.md`
+- Decisions: `docs/adr/0003-transparent-structured-concurrency.md`, `docs/adr/0006-declarative-routes-as-runtime-data.md`, `docs/adr/0007-object-model.md`, `docs/adr/0023-multi-process-serving.md`, `docs/adr/0027-kernel-depends-on-net.md`
+- Specification, workers: `docs/architecture/concurrency.md` ("Workers", "Signals and shutdown")
 - Glossary: `docs/glossary.md` · Coding standards: `docs/architecture/coding-standards.md`
 - This package's `README.md` (scope, dependencies, status)
 
 ## Boundaries
 
-- Allowed dependencies: `hecate.core`, `hecate.reactor`, `hecate.log`, `hecate.http`, `hecate.router`, `hecate.schema`, `hecate.container`, `hecate.config`, `hecate.json`.
+- Allowed dependencies: `hecate.core`, `hecate.reactor`, `hecate.net` (ADR 0027), `hecate.log`, `hecate.http`, `hecate.router`, `hecate.schema`, `hecate.container`, `hecate.config`, `hecate.json`.
   Anything else requires an ADR; `check-boundaries` fails otherwise.
 - Native code: none.
 - Out of scope: templating (later, `template`).
@@ -33,7 +34,11 @@ The application: feature modules, controllers, route modules, filters (chain of 
 
 - end-to-end with in-process client
 - boot failure diagnostics
-- graceful shutdown under load
+- graceful shutdown under load, through `Application`, with requests in flight
+- multi-process serving: workers started by a fixture program, readiness, restart backoff and crash window
+- supervisor crash loop (`stop` and `degrade`)
+- rolling reload: a failed replacement leaves the old worker in service; a `stop` during a reload
+- hand-over (`round_robin`): rotation, a full queue, a worker that fails; `reuseport` cannot be tested end to end until OQ-43
 
 Plus, for every change: unit tests for public behaviour, LuaLS annotations on public API
 (`---@async` on anything that may suspend), README "Public API" section updated.
