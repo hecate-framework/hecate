@@ -231,7 +231,8 @@ logger (`log.default()`, boot step 1 of the `kernel` item) and the loggers of th
 Environment variables: `HECATE_ERRORS__EXPOSE_DETAILS`, `HECATE_REQUESTS__INPUTS`. The names `errors` and `requests` are
 reserved like `logging` and `limits` (`ArgumentError`). `Application({ configuration = configuration })` applies them,
 together with `limits.max_depth` and the logging keys; an explicit option of `Application` wins. The generated
-`config/development.lua` and `config/test.lua` (a `cli` task) set `expose_details = true` and `inputs = "lax"`.
+`config/development.lua` and `config/test.lua` (a `cli` task) set `expose_details = true` and `inputs = "lax"`, and
+`server.grace_timeout` to a low value so that Ctrl+C is quick (OQ-115 (6): 2 seconds, to be confirmed by the owner).
 
 ## The server keys
 

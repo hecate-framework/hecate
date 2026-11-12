@@ -24,7 +24,7 @@ variables combine is in [Configure an application](configure-an-application.md).
   `.env` file sets `HECATE_ENV=development` or `HECATE_ENV=test`. To fail fast, check
   `configuration:environment() == "production"` in your entry point.
 - [ ] **`config/production.lua` keeps the development settings out.** The development and test values
-  (`errors.expose_details = true`, `requests.inputs = "lax"`) belong in `config/development.lua` and `config/test.lua`
+  (`errors.expose_details = true`, `requests.inputs = "lax"`, a low `server.grace_timeout`) belong in `config/development.lua` and `config/test.lua`
   only, never in `config/default.lua`, which every environment reads.
 - [ ] **Response validation is off, or on by choice.** The `validate_responses` option (no key) defaults to `true` in
   `development` and `test` and to `false` elsewhere. Turn it on in production only if you accept its cost on every
