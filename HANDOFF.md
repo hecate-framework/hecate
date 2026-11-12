@@ -3,22 +3,26 @@
 
 - roadmap_item: Documentation: a how-to page "Before going to production" (`website/en/how-to/`), a checklist of what to verify before an application is deployed: log severity, no secrets in error messages (the logger redacts field names, not free text), what the default logger and the access log record (query strings), `logging.redact`, secrets declared in `secrets`, limits, development mode off. Written after the `kernel` item so that it names its real configuration keys.
 - status: in-progress
-- lock_until: 2026-11-12T14:15:00Z
-- last_update: 2026-11-12T12:45:00Z
+- lock_until: 2026-11-12T14:45:00Z
+- last_update: 2026-11-12T13:15:00Z
 
 ## Done
 
-- Claimed the item (branch `claude/relay-before-production`).
+- Claimed the item (branch `claude/relay-before-production`, draft pull request #179).
+- Inventory of the real keys and behaviours, then the page `website/en/how-to/before-going-to-production.md`, linked from
+  `how-to/index.md` and `OUTLINE.md`; `CHANGELOG.md` (b620e23). `check-links`, `check-docs-examples`, `check-changelog`,
+  `gen-llms-txt` (no change: it lists packages only) and `typecheck` pass.
 
 ## Next steps
 
-1. Inventory the real configuration keys and behaviours (`packages/config`, `packages/kernel`, `packages/log`, `packages/http`): log severity, `logging.redact`, `secrets`, `errors.expose_details`, `requests.inputs`, `server.grace_timeout`, limits, access log fields, environment `production`.
-2. Write `website/en/how-to/before-going-to-production.md` and link it from `website/en/how-to/index.md` and the site navigation.
-3. French translation (`website/fr`) if the site has the French locale for how-to pages.
-4. `CHANGELOG.md`, run the docs checks (`check-links`, `check-docs-examples`, `check-glossary`), markdownlint, typecheck.
-5. Review (`docs-writer`, `dx-reviewer`, `security-reviewer`), CI green, tick the roadmap item, delete this file, mark ready.
+1. Review of the page (`dx-reviewer`, `security-reviewer`) against the code; fix what they find.
+2. CI green (markdownlint, links), tick the roadmap item, delete this file, mark the pull request ready, ask the owner.
 
 ## Decisions taken (and where they are recorded)
+
+- No French translation in this pull request: `website/fr/how-to` does not mirror every English page yet (for example
+  `configure-an-application.md` is English only); `translator-fr` can add it later.
+- The page states that hecate writes no access log of its own (true of `kernel` and `http`: only the `on_response` hook).
 
 ## Doubts and questions for the owner
 
