@@ -13,6 +13,7 @@ local T = test.Case("HelloWorkersTest")
 
 local here = debug.getinfo(1, "S").source:sub(2):match("^(.*)[/\\]tests[/\\][^/\\]+$") or "."
 local main_script = uv.fs_realpath(here .. "/main.lua") or here .. "/main.lua"
+local wire = dofile(here .. "/tests/helpers/wire.lua")
 
 --- Makes the relative entries of a search path absolute.
 local function absolute(search_path)
@@ -93,6 +94,40 @@ function T:test_two_workers_serve_the_example_and_stop_on_shutdown()
   end
   self:assert_equal(422, invalid[1])
   self:assert_true(invalid[2]:find('"source"%s*:%s*"content"') ~= nil, invalid[2])
+  self:assert_nil(app:local_address())
+end
+
+function T:test_a_request_in_flight_in_a_worker_is_answered_when_the_primary_shuts_down()
+  local app = hello.application({
+    workers = 2, strategy = "round_robin", grace_timeout = 5, signals = false,
+    worker_command = { uv.exepath(), main_script },
+    logger = log.Logger({ sinks = { log.MemorySink() } }), server = { host = "127.0.0.1", port = 0 },
+  })
+  local response, refused, ok, err
+  with_lua_paths(function()
+    reactor.run(function()
+      reactor.fork(function()
+        local inner_ok, inner_err = pcall(reactor.deadline, 30, function()
+          while not app:local_address() do reactor.sleep(0.02) end
+          local port = app:local_address().port
+          while request(port, "GET", "/health") == nil do reactor.sleep(0.05) end -- a worker is ready
+          -- `stop` runs in a computation of its own: `shutdown` returns once the workers have drained.
+          response, refused = wire.request_in_flight_during_shutdown(reactor, port, function() app:shutdown(5) end)
+        end)
+        if not inner_ok then
+          app:shutdown(5)
+          error(inner_err, 0)
+        end
+      end)
+      ok, err = pcall(reactor.deadline, 40, app.serve, app)
+    end)
+  end)
+  self:assert_true(ok, tostring(err))
+  self:assert_true(refused, "the primary refuses new connections while the worker drains")
+  self:assert_not_nil(response, "the request in flight in the worker is answered")
+  self:assert_equal(201, response.status)
+  self:assert_true(response.body:find('"Hola, Ada!"', 1, true) ~= nil, response.body)
+  self:assert_true(response.head:lower():find("\r\nconnection: close", 1, true) ~= nil, response.head)
   self:assert_nil(app:local_address())
 end
 

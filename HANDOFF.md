@@ -4,7 +4,7 @@
 - roadmap_item: Example: `examples/hello` (JSON API with validation).
 - status: in-progress
 - lock_until: 2026-11-12T05:13:32Z
-- last_update: 2026-11-12T04:05:00Z
+- last_update: 2026-11-12T04:20:00Z
 
 Stacked on the `kernel` pull request (#166, branch `claude/sweet-feynman-h1j6tu`), which is ready for review
 but not merged: this pull request targets that branch until #166 is merged, then `main`.
@@ -19,15 +19,17 @@ but not merged: this pull request targets that branch until #166 is merged, then
 - `tools/lib/affected.lua`: a change to an example (not Markdown) now affects `kernel`, so CI runs the example; before,
   a change under `examples/` alone ran no test of it (test first in `tools/tests/affected_test.lua`).
 
+- Exit criterion "graceful shutdown drains in-flight requests": `tests/helpers/wire.lua` and one test in each of
+  `hello_test.lua` and `workers_test.lua` (content sent in two parts around `Application:shutdown`; 201 with
+  `Connection: close`, new connections refused). Checked that a zero grace fails it; 5 runs of each file green.
+
 ## Next steps
 
-1. Exit criterion "graceful shutdown drains in-flight requests" is not shown by the example's tests: add a test where a
-   request is in flight (content sent in two parts) when `shutdown` begins, in process and with two workers.
-2. `examples/README.md` says every example is a complete project passing `hecate test` and `hecate contract lint`:
+1. `examples/README.md` says every example is a complete project passing `hecate test` and `hecate contract lint`:
    true only from Phase 3; say so, and move the `hecate.project.lua`/contract part to the Phase 3 `cli` item.
-3. Website: a tutorial page that walks through the example (`website/en/tutorials/`, "Your first API" of
+2. Website: a tutorial page that walks through the example (`website/en/tutorials/`, "Your first API" of
    documentation.md), or record why not yet; `CHANGELOG.md`.
-4. `/review-package`-style review (dx-reviewer, test-engineer) of the example; CI green on three platforms.
+3. `/review-package`-style review (dx-reviewer, test-engineer) of the example; CI green on three platforms.
 
 ## Decisions taken (and where they are recorded)
 

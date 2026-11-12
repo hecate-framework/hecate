@@ -11,6 +11,7 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- test(examples): `examples/hello` shows that a graceful shutdown drains a request in flight (Phase 2 exit criterion), in process and in a worker of two: the request is answered with `Connection: close` while new connections are refused.
 - fix(tools): `affected` maps a change to an example (`examples/<name>/`, Markdown excepted) to `kernel`, so CI runs the example on the three platforms; a change to an example alone ran none of its tests.
 - feat(reactor): `Peer:send` takes `options.keep_open`, which leaves a handed-over stream open in the sender for the caller to close.
 - fix(kernel): the primary keeps each handed-over connection open until the worker answers `received` (a new message), and closes what is still held when the worker's message pipe ends or it exits; fixes connections lost during a rolling reload on macOS (OQ-118; ADR 0023 Decision 5 amended).

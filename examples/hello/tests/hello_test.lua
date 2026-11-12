@@ -6,6 +6,9 @@ local log = require("hecate.log")
 local hello = require("hello")
 local T = test.Case("HelloExampleTest")
 
+local here = debug.getinfo(1, "S").source:sub(2):match("^(.*)[/\\][^/\\]+$") or "."
+local wire = dofile(here .. "/helpers/wire.lua")
+
 --- Boots the application on an ephemeral port, runs `body(base_url)` as a client, then shuts down.
 local function with_server(body)
   local app = hello.application({ signals = false, grace_timeout = 1, logger = log.Logger({ sinks = { log.MemorySink() } }), server = { host = "127.0.0.1", port = 0 } })
@@ -69,6 +72,27 @@ function T:test_an_unknown_path_is_a_404_problem_details_response()
     self:assert_equal("application/problem+json", response.fields:get("Content-Type"))
     self:assert_equal(404, response:read_json().status)
   end)
+end
+
+function T:test_shutdown_drains_a_request_in_flight_and_refuses_new_connections()
+  local app = hello.application({ signals = false, grace_timeout = 5, logger = log.Logger({ sinks = { log.MemorySink() } }), server = { host = "127.0.0.1", port = 0 } })
+  local response, refused, served_ok, err
+  reactor.run(function()
+    reactor.fork(function()
+      while not app:local_address() do reactor.sleep(0.005) end
+      response, refused = wire.request_in_flight_during_shutdown(reactor, app:local_address().port, function()
+        app:shutdown(5)
+      end)
+    end)
+    served_ok, err = pcall(reactor.deadline, 20, app.serve, app)
+  end)
+  self:assert_true(served_ok, tostring(err))
+  self:assert_true(refused, "new connections are refused while the request in flight drains")
+  self:assert_not_nil(response, "the request in flight is answered")
+  self:assert_equal(201, response.status)
+  self:assert_true(response.body:find('"Hola, Ada!"', 1, true) ~= nil, response.body)
+  self:assert_true(response.head:lower():find("\r\nconnection: close", 1, true) ~= nil, response.head)
+  self:assert_nil(app:local_address())
 end
 
 return T

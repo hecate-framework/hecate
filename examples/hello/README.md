@@ -49,8 +49,14 @@ lua tools/run.lua test examples/hello
 `hecate.http.Client`: the greeting (200), invalid input (422 with `source`), creation (201), the
 health route and an unknown path (404). `tests/workers_test.lua` runs the application as the
 primary of two workers started from `main.lua` (`round_robin`), checks the answers, then stops it
-with `Application:shutdown`. CI runs both files on Linux, macOS and Windows whenever the kernel is
-affected.
+with `Application:shutdown`.
+
+Both files also check the graceful shutdown: a `POST /greetings` whose content is only half sent
+when `Application:shutdown` begins is still answered (`201`, with `Connection: close`), while new
+connections are already refused. In process the server drains it; with workers, the worker that
+holds the connection does. The raw HTTP of these tests is in `tests/helpers/wire.lua`.
+
+CI runs both files on Linux, macOS and Windows whenever the kernel or the example changes.
 
 ## Not built yet
 
