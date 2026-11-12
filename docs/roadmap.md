@@ -186,7 +186,7 @@ concurrency test suite passes; benchmark baseline recorded.
       fixes in [the review](reviews/schema-review-package.md).
 - [x] `container`: IoC container, lifetimes, cycle detection at boot; write its specification section in `docs/architecture/` (OQ-62).
 - [x] `config`: layered configuration validated by schemas; write its specification section in `docs/architecture/`, including the logging keys (OQ-62) and the `limits.max_depth` key that lowers the nesting depth of `json` and `schema` together (OQ-92).
-- [ ] `kernel`: application, modules, controllers, route modules, filters, problem
+- [x] `kernel`: application, modules, controllers, route modules, filters, problem
       details, lifecycle, multi-process workers, graceful shutdown. **Also (from the `schema` review, OQ-98 item 7):** settle how a route names the schema of its response (`docs/developer-experience.md` shows `Class.representation` and an implicit represent; `schema` offers `schema.of(Class):represent(instance)`). **First step (from the `http` reviews):** split
       `packages/http` `server.lua` (options, response writer, connection) and `client.lua` (pool, redirect) with no API
       change; build the in-process dispatch seam (OQ-78, with OQ-76 a), the `on_response` hook (OQ-81) remove the JSON fallback of `Server` for a table (OQ-76 a: an error, a generic 500 and a log entry; OQ-80 decided: no `http.json` or `http.text`) and build the default
