@@ -3,19 +3,19 @@
 
 - roadmap_item: `reactor` follow-up: specify then implement `offload` (Lua functions on the libuv thread pool), split from the Phase 1 item (OQ-27).
 - status: in-progress
-- lock_until: 2026-11-12T08:15:40Z
-- last_update: 2026-11-12T06:45:40Z
+- lock_until: 2026-11-12T08:19:53Z
+- last_update: 2026-11-12T06:49:53Z
 
 ## Done
 
 - Claimed the item; draft pull request #176.
 - Specification: `docs/architecture/concurrency.md` section "Offload"; OQ-119 with mirror issue #177.
+- Implementation: `reactor.offload` and `reactor.OffloadError` (`src/hecate/reactor/offload.lua`), codec `internal/transfer.lua`; tests `tests/unit/offload_test.lua` (23 cases) and a case in `suspension_test.lua`. `test reactor`, `typecheck`, `lint`, `check-boundaries` pass locally.
 
 ## Next steps
 
-1. Tests first (`packages/reactor/tests`), then implement `reactor.offload`.
-2. README, website reference/how-to, CHANGELOG, benchmark if relevant.
-3. Reviews (pkg-reactor, api-reviewer, cross-platform-reviewer, test-engineer), CI green on three platforms, tick the roadmap item, delete this file.
+1. README, website reference/how-to, CHANGELOG, benchmark if relevant.
+2. Reviews (pkg-reactor, api-reviewer, cross-platform-reviewer, test-engineer), CI green on three platforms, tick the roadmap item, delete this file.
 
 ## Decisions taken (and where they are recorded)
 
