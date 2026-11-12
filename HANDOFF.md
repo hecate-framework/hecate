@@ -3,21 +3,24 @@
 
 - roadmap_item: `reactor` follow-up: specify then implement `offload` (Lua functions on the libuv thread pool), split from the Phase 1 item (OQ-27).
 - status: in-progress
-- lock_until: 2026-11-12T08:12:08Z
-- last_update: 2026-11-12T06:42:08Z
+- lock_until: 2026-11-12T08:15:40Z
+- last_update: 2026-11-12T06:45:40Z
 
 ## Done
 
-- Claimed the item (this commit).
+- Claimed the item; draft pull request #176.
+- Specification: `docs/architecture/concurrency.md` section "Offload"; OQ-119 with mirror issue #177.
 
 ## Next steps
 
-1. Specify `offload` in `docs/architecture/concurrency.md` (contract: what may be passed, results, errors, cancellation, pool size), basis luv `new_work`; record any undecided choice in `docs/open-questions.md` (and its mirror issue).
-2. Tests first (`packages/reactor/tests`), then implement `reactor.offload`.
-3. README, website reference/how-to, CHANGELOG, benchmark if relevant.
-4. Reviews (pkg-reactor, api-reviewer, cross-platform-reviewer, test-engineer), CI green on three platforms, tick the roadmap item, delete this file.
+1. Tests first (`packages/reactor/tests`), then implement `reactor.offload`.
+2. README, website reference/how-to, CHANGELOG, benchmark if relevant.
+3. Reviews (pkg-reactor, api-reviewer, cross-platform-reviewer, test-engineer), CI green on three platforms, tick the roadmap item, delete this file.
 
 ## Decisions taken (and where they are recorded)
+
+- Five conservative choices recorded in OQ-119 (#177): plain tables cross through an own `string.pack` encoding (luv alone: 9 scalars, silently truncated); `OffloadError`; cancellation releases the caller and discards the result; no concurrency limit of its own; `require` uses the environment paths.
+- Measured on luv 1.53.0 (scratch probe): per-thread states with stdlib and `require`; errors in the work function are swallowed by luv, so a worker wrapper must `pcall` and encode; upvalues are lost by the bytecode copy.
 
 ## Doubts and questions for the owner
 

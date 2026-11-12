@@ -1,6 +1,6 @@
 # Concurrency (`hecate.reactor`)
 
-Status: implemented in Phase 1 (`offload`: Phase 2); decisions in [ADR 0002](../adr/0002-libuv-via-luv.md) and
+Status: implemented in Phase 1, `offload` in Phase 2; decisions in [ADR 0002](../adr/0002-libuv-via-luv.md) and
 [ADR 0003](../adr/0003-transparent-structured-concurrency.md) (both Accepted).
 
 ## Model
@@ -37,7 +37,7 @@ concurrency primitives; transport, name resolution, `fs`, `wait_signal`, `run_pr
 | `Channel(capacity)` | `:send(v)`, `:receive()`, `:close()`; capacity 0 is a rendezvous channel. Usable in `select`. |
 | `Semaphore(n)`, `Mutex()`, `Monitor()`, `Condition` | Classical synchronisation. `Mutex` and `Semaphore` permits are `<close>`-able. A `Monitor` follows Mesa semantics: `Condition:notify` does not hand over the monitor, so a woken waiter re-enters later and must wait in a `while` loop that re-tests its predicate. |
 | `now()`, `at(seconds)`, `Instant` | Reading of the running clock; absolute instants for `deadline`. |
-| `offload(fn, ...)` | (Phase 2, not yet implemented; OQ-27.) Run a pure function on the libuv thread pool (no access to Lua state other than its arguments; see "Blocking work"). |
+| `offload(fn, ...) → ...` | Run a self-contained Lua function on the libuv thread pool, in a separate Lua state, and suspend until it returns (see "Offload"). |
 
 ## Structured concurrency
 
@@ -128,9 +128,53 @@ and `resolve` suspend the calling coroutine and return streams, listeners and so
 - SQLite queries and CPU-heavy native work run on the libuv thread pool through native
   bindings designed for it. Only C code runs on pool threads; the Lua state is never
   touched outside the reactor thread.
-- `offload` for Lua functions requires a separate Lua state per pool thread with
-  serialised arguments and results; it is a later addition (Phase 2+), specified before
-  implementation.
+- Lua functions run on the pool through `offload` (below): each pool thread has its own Lua
+  state, and arguments and results are copied between states, never shared.
+
+## Offload
+
+Specified in Phase 2 (OQ-27); the choices that no ADR or owner decision fixed are listed in OQ-119.
+
+`offload(fn, ...)` runs `fn(...)` on libuv's thread pool and suspends the calling coroutine until it
+returns, so CPU-bound work (hashing a password, compressing, parsing a large document) does not stall
+the reactor thread. The basis is luv's `new_work` and `queue_work`; luv is used unmodified (OQ-1).
+
+- **The function is self-contained.** `fn` must be a Lua function (not a C function) whose only
+  upvalue, if any, is `_ENV`: it is copied to the pool thread as bytecode (`string.dump`), and
+  upvalues do not survive the copy. A function with any other upvalue raises `ArgumentError`
+  before anything is queued. On the pool thread `_ENV` is that state's global table, with the
+  standard libraries and `require` (searching the `LUA_PATH` and `LUA_CPATH` of the process
+  environment, not the `package.path` the reactor thread may have changed at run time).
+- **Separate state.** Each pool thread owns one Lua state, created on first use and kept for the
+  life of the process. `fn` sees nothing of the reactor thread: no globals, no loaded modules, no
+  reactor. It must not suspend (there is no reactor there) and must not rely on what an earlier
+  call left in its state (calls are spread across threads in no particular order).
+- **Values that cross.** Arguments and results are copied: `nil`, booleans, numbers (the integer or
+  float subtype is kept), strings (any bytes) and *plain tables* built from them: tables without a
+  metatable whose keys are booleans, numbers or strings and whose values are any of these values.
+  Nesting is limited to 100 levels. A cycle, a table with a metatable, or any other value
+  (function, userdata, thread) raises `ArgumentError` for an argument, or `OffloadError` for a
+  result. A table reached twice is copied twice (sharing is not preserved). There is no limit on
+  the number of arguments or results, and `nil` arguments and results are kept in place.
+- **Errors.** An error raised by `fn` is raised in the caller as `hecate.reactor.OffloadError`
+  (a `hecate.core.Error`): the message is `reactor.offload: ` followed by the error message (the
+  `message` field of an error object, otherwise `tostring` of the error), and
+  `context.traceback` holds the traceback on the pool thread. The original error object does not
+  cross.
+- **Cancellation.** A queued or running function cannot be withdrawn (luv exposes no
+  cancellation for `queue_work`, and a running Lua function cannot be interrupted from another
+  thread). A cancelled caller is released at once and the late result is discarded, as for
+  `resolve`; the pool thread stays busy until `fn` returns. Bound the work itself, not only the
+  wait.
+- **Clock.** Like the file system, `offload` needs the real clock; on a virtual-clock reactor it
+  raises `hecate.core.Error`.
+- **Pool size.** The libuv pool is shared with the file system and name resolution and has 4
+  threads by default; the environment variable `UV_THREADPOOL_SIZE`, read when the pool is first
+  used, changes it (libuv caps it at 1024). `offload` adds no limit of its own: long functions
+  occupying every thread delay file-system calls and name resolution until one returns. Bound
+  the number of concurrent offloads with a `Semaphore` when that matters (OQ-119 (4)).
+- **Cost.** Each call copies its arguments and results and loads the bytecode of `fn` on the pool
+  thread; it is worth it for work of a millisecond or more, not for short functions.
 
 ## Workers
 
