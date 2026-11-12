@@ -4,21 +4,30 @@
 - roadmap_item: Example: `examples/hello` (JSON API with validation).
 - status: in-progress
 - lock_until: 2026-11-12T05:13:32Z
-- last_update: 2026-11-12T03:43:32Z
+- last_update: 2026-11-12T04:05:00Z
 
 Stacked on the `kernel` pull request (#166, branch `claude/sweet-feynman-h1j6tu`), which is ready for review
 but not merged: this pull request targets that branch until #166 is merged, then `main`.
 
 ## Done
 
+- Found that the `kernel` pull request already delivered most of the example (commits 7378897, c584e7f, 6293e65):
+  `examples/hello` (controller and route module, path and content validation, 422 problem details with `source`,
+  `201` through `kernel.respond`, `/health`, 404), `tests/hello_test.lua` (in process) and `tests/workers_test.lua`
+  (two workers from `main.lua`, `round_robin`), run by CI on three platforms when `kernel` is affected. What is
+  left is the gap list below.
+- `tools/lib/affected.lua`: a change to an example (not Markdown) now affects `kernel`, so CI runs the example; before,
+  a change under `examples/` alone ran no test of it (test first in `tools/tests/affected_test.lua`).
+
 ## Next steps
 
-1. Read the kernel README and specification, `examples/README.md`, the Phase 2 exit criterion; record what the
-   Phase 2 example can and cannot show before Phase 3 (`hecate test`, `hecate contract lint`, OpenAPI do not exist yet).
-2. Write the integration tests of the example (valid request, invalid input → RFC 9457 problem details, N workers,
-   graceful shutdown drains in-flight requests), then the example itself.
-3. Wire the example into CI on the three platforms.
-4. Docs: example README, tutorial link on the website if any, `CHANGELOG.md`.
+1. Exit criterion "graceful shutdown drains in-flight requests" is not shown by the example's tests: add a test where a
+   request is in flight (content sent in two parts) when `shutdown` begins, in process and with two workers.
+2. `examples/README.md` says every example is a complete project passing `hecate test` and `hecate contract lint`:
+   true only from Phase 3; say so, and move the `hecate.project.lua`/contract part to the Phase 3 `cli` item.
+3. Website: a tutorial page that walks through the example (`website/en/tutorials/`, "Your first API" of
+   documentation.md), or record why not yet; `CHANGELOG.md`.
+4. `/review-package`-style review (dx-reviewer, test-engineer) of the example; CI green on three platforms.
 
 ## Decisions taken (and where they are recorded)
 
@@ -29,4 +38,8 @@ but not merged: this pull request targets that branch until #166 is merged, then
 ```sh
 lua tools/run.lua setup-luals   # once per session: pinned LuaLS into spikes/luals
 lua tools/run.lua typecheck     # required before every push (CI fails on any warning)
+eval "$(luarocks path)"         # luv is found only this way in the cloud image
+lua tools/run.lua build-native json; lua tools/run.lua build-native http; lua tools/run.lua build-native net
+export LUA_CPATH="$PWD/.hecate/rocks/lib/lua/5.5/?.so;$LUA_CPATH"
+lua tools/run.lua test examples/hello
 ```
