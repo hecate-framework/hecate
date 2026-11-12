@@ -142,13 +142,18 @@ the reactor thread. The basis is luv's `new_work` and `queue_work`; luv is used 
 - **The function is self-contained.** `fn` must be a Lua function (not a C function) whose only
   upvalue, if any, is `_ENV`: it is copied to the pool thread as bytecode (`string.dump`), and
   upvalues do not survive the copy. A function with any other upvalue raises `ArgumentError`
-  before anything is queued. On the pool thread `_ENV` is that state's global table, with the
-  standard libraries and `require` (searching the `LUA_PATH` and `LUA_CPATH` of the process
-  environment, not the `package.path` the reactor thread may have changed at run time).
+  before anything is queued, and so does a stripped function (bytecode without debug
+  information), whose upvalues cannot be checked. On the pool thread `_ENV` is a fresh table per
+  call whose reads fall through to that state's global table, with the standard libraries and
+  `require` (searching the `LUA_PATH` and `LUA_CPATH` of the process environment, not the
+  `package.path` the reactor thread may have changed at run time); a function written under its
+  own `local _ENV` gets this environment instead of its own.
 - **Separate state.** Each pool thread owns one Lua state, created on first use and kept for the
   life of the process. `fn` sees nothing of the reactor thread: no globals, no loaded modules, no
   reactor. It must not suspend (there is no reactor there) and must not rely on what an earlier
-  call left in its state (calls are spread across threads in no particular order).
+  call left in its state (calls are spread across threads in no particular order). An assignment
+  to a global stays in the call's own environment; changing the global table through `_G` or the
+  standard library tables is not supported, since it affects every later call on that thread.
 - **Values that cross.** Arguments and results are copied: `nil`, booleans, numbers (the integer or
   float subtype is kept), strings (any bytes) and *plain tables* built from them: tables without a
   metatable whose keys are booleans, numbers or strings and whose values are any of these values.
@@ -157,15 +162,18 @@ the reactor thread. The basis is luv's `new_work` and `queue_work`; luv is used 
   result. A table reached twice is copied twice (sharing is not preserved). There is no limit on
   the number of arguments or results, and `nil` arguments and results are kept in place.
 - **Errors.** An error raised by `fn` is raised in the caller as `hecate.reactor.OffloadError`
-  (a `hecate.core.Error`): the message is `reactor.offload:` followed by the error message (the
-  `message` field of an error object, otherwise `tostring` of the error), and
-  `context.traceback` holds the traceback on the pool thread. The original error object does not
-  cross.
+  (a `hecate.core.Error`) with `context.reason` `"raised"`: the message is `reactor.offload:`
+  followed by the error message (the `message` field of an error object, otherwise `tostring` of
+  the error), `context.traceback` holds the traceback on the pool thread and `context.code` the
+  `code` of a framework error. The original error object does not cross. A result that cannot be
+  copied gives the reason `"result"`, a failure of the pool thread itself `"worker"` (both
+  without a traceback). libuv refusing the work raises `hecate.reactor.IoError`.
 - **Cancellation.** A queued or running function cannot be withdrawn (luv exposes no
   cancellation for `queue_work`, and a running Lua function cannot be interrupted from another
   thread). A cancelled caller is released at once and the late result is discarded, as for
-  `resolve`; the pool thread stays busy until `fn` returns. Bound the work itself, not only the
-  wait.
+  `resolve`; the pool thread stays busy until `fn` returns. `Reactor:run` returns only once every
+  offloaded function has returned, even those whose callers were cancelled: luv crashes when the
+  Lua state closes with work in flight (OQ-119 (6)). Bound the work itself, not only the wait.
 - **Clock.** Like the file system, `offload` needs the real clock; on a virtual-clock reactor it
   raises `hecate.core.Error`.
 - **Pool size.** The libuv pool is shared with the file system and name resolution and has 4
@@ -174,7 +182,10 @@ the reactor thread. The basis is luv's `new_work` and `queue_work`; luv is used 
   occupying every thread delay file-system calls and name resolution until one returns. Bound
   the number of concurrent offloads with a `Semaphore` when that matters (OQ-119 (4)).
 - **Cost.** Each call copies its arguments and results and loads the bytecode of `fn` on the pool
-  thread; it is worth it for work of a millisecond or more, not for short functions.
+  thread: a round trip costs tens of microseconds, and the copy is proportional to the size of
+  the values, encoded and decoded on the reactor thread for the arguments and the results
+  (`packages/reactor/benchmarks/offload.lua`). It is worth it for work of a millisecond or more,
+  not for short functions or for a large value with little work.
 
 ## Workers
 

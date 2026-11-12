@@ -442,6 +442,10 @@ function Reactor:run(fn, ...)
     self._computations, self._live = {}, 0
     self._ready, self._head, self._tail = {}, 1, 0
   end
+  -- An offloaded function whose caller was cancelled may still run on a pool thread: luv crashes
+  -- when the Lua state closes with work in flight, so the run waits for every one to return
+  -- (concurrency.md, "Offload"). Their late results are discarded.
+  while (context.offloads_in_flight or 0) > 0 do uv.run("once") end
   context.reactor = nil
   self._root = nil
   if self._uv_timer then

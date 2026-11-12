@@ -18,74 +18,89 @@ local function factory()
   local pack, unpack = string.pack, string.unpack
   local MAX_DEPTH = 100
 
-  local function describe(value)
-    local kind = type(value)
-    if kind == "table" then return "a table with a metatable" end
-    return "a " .. kind
+  -- The path of the value being encoded, kept as a stack of keys: the label of an error message
+  -- ("argument 2.list[3]") is built only when an error is raised, never on the normal path.
+  local path, path_length, prefix = {}, 0, ""
+
+  local function fail(reason)
+    local parts = { prefix }
+    for i = 1, path_length do
+      local key = path[i]
+      parts[#parts + 1] = type(key) == "string" and ("." .. key) or ("[" .. tostring(key) .. "]")
+    end
+    error(table.concat(parts) .. ": " .. reason, 0)
   end
 
   local encode_value
 
-  local function encode_table(buffer, value, depth, seen, where)
-    if getmetatable(value) ~= nil then
-      error(where .. ": a table with a metatable cannot cross between Lua states", 0)
-    end
-    if seen[value] then error(where .. ": a table that contains itself cannot cross between Lua states", 0) end
+  local function encode_table(buffer, size, value, depth, seen)
+    if getmetatable(value) ~= nil then fail("a table with a metatable cannot cross between Lua states") end
+    if seen[value] then fail("a table that contains itself cannot cross between Lua states") end
     if depth > MAX_DEPTH then
-      error(where .. (": tables nested deeper than %d levels cannot cross between Lua states"):format(MAX_DEPTH), 0)
+      fail(("tables nested deeper than %d levels cannot cross between Lua states"):format(MAX_DEPTH))
     end
     seen[value] = true
-    buffer[#buffer + 1] = "T"
-    local slot = #buffer + 1
+    size = size + 1
+    buffer[size] = "T"
+    size = size + 1
+    local slot = size
     buffer[slot] = "" -- the count of pairs, written after the loop
     local count = 0
+    path_length = path_length + 1
     local key, item = next(value)
     while key ~= nil do
+      path[path_length] = key
       local kind = type(key)
       if kind ~= "string" and kind ~= "number" and kind ~= "boolean" then
-        error(("%s: a key of type %s cannot cross between Lua states"):format(where, kind), 0)
+        fail(("a key of type %s cannot cross between Lua states"):format(kind))
       end
-      local label = kind == "string" and (where .. "." .. key) or (where .. "[" .. tostring(key) .. "]")
-      encode_value(buffer, key, depth + 1, seen, label)
-      encode_value(buffer, item, depth + 1, seen, label)
+      size = encode_value(buffer, size, key, depth + 1, seen)
+      size = encode_value(buffer, size, item, depth + 1, seen)
       count = count + 1
       key, item = next(value, key)
     end
+    path[path_length] = nil
+    path_length = path_length - 1
     buffer[slot] = pack("<j", count)
     seen[value] = nil
+    return size
   end
 
-  function encode_value(buffer, value, depth, seen, where)
+  --- Appends the encoding of `value` after `buffer[size]`; returns the new size.
+  function encode_value(buffer, size, value, depth, seen)
     local kind = type(value)
     if value == nil then
-      buffer[#buffer + 1] = "n"
+      buffer[size + 1] = "n"
     elseif value == true then
-      buffer[#buffer + 1] = "t"
+      buffer[size + 1] = "t"
     elseif value == false then
-      buffer[#buffer + 1] = "f"
+      buffer[size + 1] = "f"
     elseif kind == "number" then
       if math.type(value) == "integer" then
-        buffer[#buffer + 1] = "i" .. pack("<j", value)
+        buffer[size + 1] = pack("<c1j", "i", value)
       else
-        buffer[#buffer + 1] = "d" .. pack("<n", value)
+        buffer[size + 1] = pack("<c1n", "d", value)
       end
     elseif kind == "string" then
-      buffer[#buffer + 1] = "s" .. pack("<s8", value)
+      buffer[size + 1] = pack("<c1s8", "s", value)
     elseif kind == "table" then
-      encode_table(buffer, value, depth, seen, where)
+      return encode_table(buffer, size, value, depth, seen)
     else
-      error(("%s: %s cannot cross between Lua states"):format(where, describe(value)), 0)
+      fail(("a %s cannot cross between Lua states"):format(kind))
     end
+    return size + 1
   end
 
   --- Encodes `values[first .. first + n - 1]`; `label` names them in messages ("argument").
   local function encode(label, n, values, first)
     first = first or 1
-    local buffer = { pack("<j", n) }
+    local buffer, size = { pack("<j", n) }, 1
+    path_length = 0
     for i = 1, n do
-      encode_value(buffer, values[first + i - 1], 1, {}, label .. " " .. i)
+      prefix = label .. " " .. i
+      size = encode_value(buffer, size, values[first + i - 1], 1, {})
     end
-    return table.concat(buffer)
+    return table.concat(buffer, "", 1, size)
   end
 
   local decode_value

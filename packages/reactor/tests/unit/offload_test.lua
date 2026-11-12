@@ -4,6 +4,7 @@
 local test = require("harness.test")
 local core = require("hecate.core")
 local reactor = require("hecate.reactor")
+local context = require("hecate.reactor.internal.context")
 local T = test.Case("OffloadTest")
 
 --- Runs `fn` on a real-clock reactor and returns its results.
@@ -156,7 +157,9 @@ function T:test_the_reactor_keeps_running_while_a_function_runs()
       end
     end)
     reactor.offload(function()
-      local stop = os.clock() + 0.3 -- processor time of this pool thread's process: busy on purpose
+      -- Busy on purpose. os.clock: process CPU time on Linux and macOS (all threads), wall time on Windows;
+      -- either way the loop ends after at most about 0.3 s of wall time while it is scheduled.
+      local stop = os.clock() + 0.3
       while os.clock() < stop do end
     end)
     ticker:cancel()
@@ -195,9 +198,42 @@ function T:test_an_error_of_the_function_is_raised_as_an_offload_error()
 end
 
 function T:test_the_message_field_of_an_error_object_is_used()
-  assert_offload_error(self, function()
-    reactor.offload(function() error({ message = "structured failure" }) end)
+  local err = assert_offload_error(self, function()
+    reactor.offload(function() error({ message = "structured failure", code = "hecate.example.Failure" }) end)
   end, "structured failure")
+  self:assert_equal("raised", err.context.reason)
+  self:assert_equal("hecate.example.Failure", err.context.code)
+end
+
+function T:test_a_function_cannot_break_the_next_ones_through_globals()
+  local leaked, debug_kind = run(function()
+    local futures = {}
+    for i = 1, 16 do -- more calls than pool threads, so every thread sees one
+      futures[i] = reactor.fork(reactor.offload, function()
+        _ENV.leaked_global = true -- assignments to globals, on purpose
+        _ENV.debug = nil
+        _ENV.pcall = nil
+      end)
+    end
+    for i = 1, 16 do futures[i]:value() end
+    for i = 1, 16 do
+      futures[i] = reactor.fork(reactor.offload, function() return _ENV.leaked_global, type(debug) end)
+    end
+    local any_leak, kind = false, nil
+    for i = 1, 16 do
+      local value, k = futures[i]:value()
+      any_leak = any_leak or value ~= nil
+      kind = k
+    end
+    return any_leak, kind
+  end)
+  self:assert_false(leaked)
+  self:assert_equal("table", debug_kind)
+end
+
+function T:test_a_stripped_function_is_refused_with_a_clear_message()
+  local stripped = load(string.dump(function() return math.pi end, true))
+  assert_argument_error(self, function() reactor.offload(stripped) end, "stripped")
 end
 
 function T:test_an_error_that_cannot_be_converted_to_a_string_is_reported()
@@ -209,7 +245,9 @@ function T:test_an_error_that_cannot_be_converted_to_a_string_is_reported()
 end
 
 function T:test_a_result_that_cannot_cross_raises_an_offload_error()
-  assert_offload_error(self, function() reactor.offload(function() return 1, print end) end, "result 2")
+  local err = assert_offload_error(self, function() reactor.offload(function() return 1, print end) end, "result 2")
+  self:assert_equal("result", err.context.reason)
+  self:assert_nil(err.context.traceback)
   assert_offload_error(self, function()
     reactor.offload(function() return { inner = coroutine.create(print) } end)
   end, "result 1.inner")
@@ -252,7 +290,7 @@ function T:test_a_cancelled_caller_is_released_and_the_result_discarded()
   local value = run(function()
     local worker = reactor.fork(function()
       return reactor.offload(function()
-        local stop = os.clock() + 0.1
+        local stop = os.clock() + 0.02 -- see the comment on os.clock above
         while os.clock() < stop do end
         return "late"
       end)
@@ -261,7 +299,12 @@ function T:test_a_cancelled_caller_is_released_and_the_result_discarded()
     worker:cancel()
     self:assert_error(function() worker:value() end)
     self:assert_equal("cancelled", worker:state())
-    reactor.sleep(0.3) -- lets the late result arrive and be discarded
+    -- Lets the late result arrive and be discarded inside this run, even on a slow runner.
+    for _ = 1, 200 do
+      if (context.offloads_in_flight or 0) == 0 then break end
+      reactor.sleep(0.01)
+    end
+    self:assert_equal(0, context.offloads_in_flight or 0)
     return reactor.offload(function() return "healthy" end)
   end)
   self:assert_equal("healthy", value)
@@ -272,7 +315,7 @@ function T:test_a_deadline_releases_the_caller()
   local err = self:assert_error(function()
     run(function()
       reactor.deadline(0.01, reactor.offload, function()
-        local stop = os.clock() + 0.2
+        local stop = os.clock() + 0.05 -- longer than the deadline; see the comment on os.clock above
         while os.clock() < stop do end
       end)
     end)

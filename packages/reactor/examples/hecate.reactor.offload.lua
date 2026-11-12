@@ -7,8 +7,8 @@ reactor.run(function()
   local ticks = 0
   local ticker = reactor.fork(function()
     while true do
-      ticks = ticks + 1
       reactor.sleep(0.001)
+      ticks = ticks + 1 -- counted after a completed sleep: the reactor was free meanwhile
     end
   end)
   local count, largest = reactor.offload(function(limit)

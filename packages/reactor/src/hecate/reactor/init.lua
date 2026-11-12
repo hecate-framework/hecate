@@ -27,7 +27,7 @@ local uv_call = require("hecate.reactor.internal.uv_call")
 ---@field Permit hecate.reactor.Permit
 ---@field IoError hecate.core.Error
 ---@field TransportError hecate.core.NetworkError
----@field OffloadError hecate.core.Error
+---@field OffloadError hecate.reactor.OffloadError
 ---@field fs hecate.reactor.fs
 ---@field TcpStream hecate.reactor.TcpStream
 ---@field TcpListener hecate.reactor.TcpListener

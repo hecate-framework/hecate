@@ -7,8 +7,8 @@ order: 15
 
 # Offload CPU-bound work to the thread pool
 
-The reactor runs every computation on one thread. A computation that calculates for a long time
-without suspending (hashing a password, compressing a file, parsing a large document) stops every
+The [reactor](../reference/glossary.md#concurrency) runs every computation on one thread. A
+computation that calculates for a long time without [suspending](../reference/glossary.md#concurrency) (hashing a password, compressing a file, parsing a large document) stops every
 other computation until it ends. `reactor.offload(fn, ...)` runs such a function on libuv's thread
 pool instead and suspends only the caller. This guide is written for hecate 0.x and Lua 5.5;
 call `offload` inside `reactor.run`, like every call that suspends.
@@ -28,8 +28,8 @@ reactor.run(function()
   local ticks = 0
   local ticker = reactor.fork(function()
     while true do
-      ticks = ticks + 1
       reactor.sleep(0.001)
+      ticks = ticks + 1 -- counted after a completed sleep: the reactor was free meanwhile
     end
   end)
   local count, largest = reactor.offload(function(limit)
@@ -50,9 +50,11 @@ end)
 -- Prints: 17984 primes, the largest is 199999, the reactor ticked: true
 ```
 
-The function runs in the separate Lua state of a pool thread. That state has the standard
-libraries and `require`, but nothing of the reactor thread: no global of yours, no loaded module,
-no reactor. The function must not call anything that suspends.
+The function runs in the separate Lua state of a pool thread, with a fresh environment for each
+call. It sees the standard libraries and `require`, but nothing of the reactor thread: no global of
+yours, no loaded module, no reactor. The function must not call anything that suspends. A global it
+assigns disappears with the call; do not change the standard library tables, which every later
+call on that thread shares.
 
 ## Write a self-contained function
 
@@ -88,22 +90,26 @@ values keep their place.
 
 ## Handle errors
 
-An error raised by the function reaches the caller as a `reactor.OffloadError`. Its message starts
-with `reactor.offload:` followed by the original message (the `message` field of an error
-object), and `err.context.traceback` holds the traceback on the pool thread. The original error
-object stays on the pool thread.
+An error raised by the function reaches the caller as a `reactor.OffloadError` with
+`err.context.reason` set to `"raised"`. Its message starts with `reactor.offload:` followed by the
+original message (the `message` field of an error object), `err.context.traceback` holds the
+traceback on the pool thread, and `err.context.code` keeps the code of a hecate error. The original
+error object stays on the pool thread. A result that cannot be copied gives the reason `"result"`.
 
 ```lua
+-- In app.lua, line 12:
 local ok, err = pcall(reactor.offload, function() error("corrupt input") end)
--- err.message: "reactor.offload: <chunk>:1: corrupt input"
+-- err.message: "reactor.offload: app.lua:12: corrupt input"
 ```
 
 ## Bound the work, not only the wait
 
-A function that runs on the pool cannot be interrupted. When the caller is cancelled, by
-`reactor.deadline` or by its scope, it is released at once and the result is discarded when it
-arrives, but the pool thread stays busy until the function returns. Give long work its own limit,
-for example a maximum input size or a number of rounds.
+A function that runs on the pool cannot be interrupted. When the caller is
+[cancelled](../reference/glossary.md#concurrency), by `reactor.deadline` or by its
+[scope](../reference/glossary.md#concurrency), it is released at once and the result is discarded
+when it arrives, but the pool thread stays busy until the function returns, and `reactor.run` does
+not return before it does. Give long work its own limit, for example a maximum input size or a
+number of rounds.
 
 ## Size the pool
 
@@ -116,12 +122,15 @@ pile up:
 ```lua
 local slots = reactor.Semaphore(2)
 
+-- `slow_hash` is a self-contained function defined elsewhere: it is the argument of `offload`,
+-- not a variable the offloaded function captures.
+
 local function hash(password, salt)
   local permit <close> = slots:acquire()
   return reactor.offload(slow_hash, password, salt)
 end
 ```
 
-Each call copies its arguments and results and loads the function on the pool thread, which costs
-a few microseconds: offload work of a millisecond or more, and keep short functions on the reactor
-thread.
+Each call copies its arguments and results and loads the function on the pool thread: a round trip
+costs tens of microseconds, and copying a large table costs time on the reactor thread in proportion
+to its size. Offload work of a millisecond or more, and keep short functions on the reactor thread.
