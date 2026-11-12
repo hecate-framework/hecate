@@ -3,23 +3,25 @@
 
 - roadmap_item: Benchmarks: plaintext and JSON scenarios. (Phase 2, with the deferred performance findings RE2, J4, LO4, the router findings and the schema findings P5, P6)
 - status: in-progress
-- lock_until: 2026-11-12T11:16:56Z
-- last_update: 2026-11-12T09:46:56Z
+- lock_until: 2026-11-12T11:20:05Z
+- last_update: 2026-11-12T09:50:05Z
 
 ## Done
 
 - Step 1 (4540674): scenarios `plaintext` (`http.Server` alone) and `kernel-json` (`kernel.Application`, one route,
   represent and encode), shared open-loop HTTP load generator `benchmarks/lib/http_load.lua` (`--pipeline=N`,
   `--path`), `benchmarks/lib/setup.lua`, smoke tests in `tools/tests/benchmark_scenario_test.lua`.
+- Step 2 (284170f, French page in the next commit): `benchmarks.yml` is a matrix over `tcp-echo`, `plaintext` and
+  `kernel-json` (HTTP ones build `json` and `http` natives, 100 connections at 2 000 requests/s); README section and
+  how-to page (English and French) updated. `bench kernel-json --compare=origin/main` checked locally.
 
 ## Next steps
 
-1. Wire `plaintext` and `kernel-json` into `.github/workflows/benchmarks.yml` (build the native modules of `json` and
-   `http` there; one job per scenario or a sequence), README table and usage (`benchmarks/README.md`), website how-to
-   `website/en/how-to/measure-performance.md` (and flag the French page as stale per the translation process).
-2. Judge the deferred findings with measurements (RE2, J4, LO4; router; schema P5, P6): keep or fix each, note the
+1. Judge the deferred findings with measurements (RE2, J4, LO4; router; schema P5, P6): keep or fix each, note the
    result in `docs/reviews/phase-1-review-package.md`, `docs/reviews/schema-review-package.md` and the router review.
-3. CHANGELOG, roadmap tick, CI green on three platforms.
+   Local indication (cloud VM, not quotable): one server process saturates at about 7 000 to 8 500 requests/s for
+   both `plaintext` and `kernel-json`, pipelining does not raise it, so the HTTP stack dominates; profile `plaintext`.
+2. CHANGELOG, roadmap tick, CI green on three platforms (label `performance` is on the PR, so `benchmarks.yml` runs).
 
 ## Decisions taken (and where they are recorded)
 
