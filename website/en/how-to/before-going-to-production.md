@@ -47,9 +47,9 @@ variables combine is in [Configure an application](configure-an-application.md).
 ## Logging
 
 - [ ] **Load the configuration with `kernel.load_configuration`**, not `config.load` directly. It passes
-  `hecate.log.Secret` as the `wrap_secret` option, so every logging sink renders a secret key as `[redacted]`. A value
-  wrapped by the fallback class of `hecate.config` still prints `[redacted]` through `tostring`, but a sink does not
-  recognise it as a secret.
+  `hecate.log.Secret` as the `wrap_secret` option, so every logging sink renders a secret key as `[redacted]`.
+  `config.load` alone does the same only when `hecate.log` is already loaded; otherwise it uses its own class, which
+  still prints `[redacted]` through `tostring` but which a sink does not recognise as a secret.
 - [ ] **Let the configuration build the logger.** An explicit `logger` option of `Application` replaces the logger
   built from the `logging.*` keys, so none of them applies, `logging.redact` included: give such a logger its own
   `redact` list.
