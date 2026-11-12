@@ -1,9 +1,9 @@
--- examples/hello: a small JSON API, run through `hecate.kernel.Application`.
+-- examples/hello: a small JSON API, run through `hecate.Application`.
 global <const> require, pairs, assert
 
 local core = require("hecate.core")
 local schema = require("hecate.schema")
-local kernel = require("hecate.kernel")
+local hecate = require("hecate")
 
 local hello = {}
 
@@ -18,21 +18,23 @@ local GREETINGS <const> = { en = "Hello", fr = "Bonjour", es = "Hola" }
 
 --- The controller of the greetings: the declaration style with a class.
 ---@class hello.GreetingController: hecate.kernel.Controller
-local GreetingController = core.class("GreetingController", kernel.Controller)
-GreetingController.prefix = ""
+local GreetingController = core.class("GreetingController", hecate.Controller)
 
-kernel.Controller.route(GreetingController, {
+hecate.Controller.route(GreetingController, {
   method = "GET", path = "/hello/{name}", action = "show", summary = "Greets a name",
   parameters = { path = { name = schema.string({ min_length = 1, max_length = 40 }) } },
-  responses = { [200] = Greeting, [422] = kernel.problem.UnprocessableContent },
+  responses = { [200] = Greeting, [422] = hecate.problem.UnprocessableContent },
 })
-kernel.Controller.route(GreetingController, {
+hecate.Controller.route(GreetingController, {
   method = "POST", path = "/greetings", action = "create", summary = "Records a greeting",
   content = { ["application/json"] = NewGreeting },
-  responses = { [201] = Created, [422] = kernel.problem.UnprocessableContent },
+  responses = { [201] = Created, [422] = hecate.problem.UnprocessableContent },
 })
 
 local next_id = 0
+
+-- The dispatcher validates the path parameters and the content before the action runs; the `assert` calls only tell
+-- the type checker that these optional fields of `Request` are set here.
 
 ---@param request hecate.http.Request
 function GreetingController:show(request)
@@ -41,10 +43,10 @@ end
 
 ---@param request hecate.http.Request
 function GreetingController:create(request)
-  local content = assert(request.content, "validated content") -- set by the dispatcher before the action
+  local content = assert(request.content)
   next_id = next_id + 1
   local word = GREETINGS[content.language] or GREETINGS.en
-  return kernel.respond(201, { id = next_id, message = ("%s, %s!"):format(word, content.name) })
+  return hecate.respond(201, { id = next_id, message = ("%s, %s!"):format(word, content.name) })
 end
 
 core.finalise(GreetingController)
@@ -52,7 +54,7 @@ core.finalise(GreetingController)
 --- The route module of the health check: the lightweight declaration style.
 ---@return hecate.kernel.RouteModule
 function hello.health_routes()
-  local health = kernel.routes("health")
+  local health = hecate.routes("health")
   health:get("/health", {
     summary = "Liveness probe",
     responses = { [200] = schema.object({ status = schema.string() }) },
@@ -61,13 +63,13 @@ function hello.health_routes()
   return health
 end
 
---- Builds the application. `options` are those of `kernel.Application` (for example `server`, `logger`, `signals`).
+--- Builds the application. `options` are those of `hecate.Application` (for example `server`, `logger`, `signals`).
 ---@param options? hecate.kernel.ApplicationOptions
 ---@return hecate.kernel.Application
 function hello.application(options)
   local merged = { routes = { hello.health_routes(), GreetingController } }
   for key, value in pairs(options or {}) do merged[key] = value end
-  return kernel.Application(merged)
+  return hecate.Application(merged)
 end
 
 return hello

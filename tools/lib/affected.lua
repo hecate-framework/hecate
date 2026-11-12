@@ -1,6 +1,9 @@
 -- Affected-package computation (pure functions).
 local M = {}
 
+-- The package whose CI run also runs the examples (ci.yml).
+local EXAMPLES_PACKAGE <const> = "kernel"
+
 --- Builds the set of packages affected by changed files, following reverse dependencies.
 ---@param files string[]  repository-relative changed paths
 ---@param deps table<string, string[]>  package -> direct dependencies
@@ -11,6 +14,10 @@ function M.compute(files, deps)
     local pkg = file:match("^packages/([^/]+)/")
     if pkg then
       if deps[pkg] then affected[pkg] = true end
+    elseif file:match("^examples/[^/]+/") and not file:match("%.md$") then
+      -- The examples are applications of the kernel: CI runs them in the run of `kernel` (ci.yml), so a change
+      -- to an example affects `kernel`, and the example is tested on the three platforms.
+      if deps[EXAMPLES_PACKAGE] then affected[EXAMPLES_PACKAGE] = true end
     elseif not (file:match("^docs/") or file:match("%.md$") or file:match("^website/")
         or file:match("^%.claude/") or file:match("^examples/")) then
       all = true
