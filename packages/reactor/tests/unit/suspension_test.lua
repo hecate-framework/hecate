@@ -241,6 +241,7 @@ local CASES = {
     return function() pcall(watcher.wait, watcher) end
   end,
   ["dns.resolve"] = function() return function() reactor.resolve("localhost") end end,
+  ["offload.offload"] = function() return function() reactor.offload(function() return 1 end) end end,
   ["fs.write_file"] = function(env)
     local path = temporary_path()
     env.defer(function() uv.fs_unlink(path) end)
