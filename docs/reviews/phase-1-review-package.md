@@ -89,7 +89,7 @@ short hashes on `claude/relay-phase-1-gate`.
 | LO1 | public classes typed `table` | fixed `83966dd`, `ac02277` (sinks declared as `hecate.log.Sink`) |
 | LO2 | missing tests (depth 15/16/17, raising target) | fixed `83966dd` |
 | LO3 | second concurrent `AsyncSink:close()` returns early | fixed `83966dd` (and a never-written sink still closes outside a reactor) |
-| LO4 | `with_context` rebuilds the severity list | measured, kept: not on the request path ([Phase 2 benchmarks](phase-2-benchmarks.md)) |
+| LO4 | `with_context` rebuilds the severity list | fixed in the Benchmarks pull request: the child copies the ordinal, about 29 % cheaper ([Phase 2 benchmarks](phase-2-benchmarks.md)) |
 | DO1 | `config.normalise` leaves keys unchecked, accepts `base = "//host/"` | fixed `6ef68d9` |
 | DO2 | `\\"` accepted in a quoted front-matter scalar | fixed `6ef68d9` |
 | DO3 | invalid UTF-8 Markdown gives a raw error | fixed `6ef68d9` (`BuildError` naming the file) |

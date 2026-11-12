@@ -61,7 +61,9 @@ Options of the load generator: `--connections`, `--rate` (total requests per sec
 is reported in microseconds (p50, p90, p99, p99.9, max), throughput in requests per second, `errors` in
 connections that failed. A throughput below `--rate` means the server (or the generator) is saturated.
 `--compare` checks the reference out in `.hecate/bench-base` and runs the same scenario files against that tree
-and the working tree, alternately, on this host; it exits with status 1 on a significant regression.
+and the working tree, alternately, on this host; it exits with status 1 on a significant regression. The base tree
+uses the native modules built in the working tree (it builds none of its own), so a change to native code (`json`,
+`http`) is not compared: measure it by hand, building each tree in turn.
 
 ## Running on your own hardware
 
@@ -183,7 +185,8 @@ lua tools/run.lua bench kernel-json --compare=origin/main --rounds=7  # A/B agai
 Load options: `--connections`, `--rate` (total requests per second), `--duration`, `--warmup`, `--pipeline` (requests
 per batch) and `--path` (the request target). Besides `throughput`, `errors` and the latencies, the output has
 `bad responses`: connections closed because a response was not a 200 with a `Content-Length`. One server process
-saturates long before the Lua generator does, so find the knee first (raise `--rate` until the throughput stops
+saturates before the Lua generator does (in a saturated `plaintext` run on a 4-vCPU VM the server used its whole core
+and the generator about a third of its two), so find the knee first (raise `--rate` until the throughput stops
 following it and the latency jumps) and compare commits below it; `benchmarks.yml` runs both scenarios at 2 000
 requests per second.
 

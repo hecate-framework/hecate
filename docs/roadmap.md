@@ -360,3 +360,5 @@ CI green on the three platforms.
 - `bench` summary: read the measurement lines whose label holds a number (`log/logger`: `enabled call, 3 fields`) and
   give `router/match` measurement lines instead of a table ([Phase 2 benchmarks](reviews/phase-2-benchmarks.md),
   "Found on the way").
+- Benchmarks: the `validation` and `routing` scenarios of `benchmarks/README.md`; judge the `schema` finding P6 (`format`
+  validators) again with `validation` ([Phase 2 benchmarks](reviews/phase-2-benchmarks.md)).
