@@ -199,7 +199,7 @@ concurrency test suite passes; benchmark baseline recorded.
       (`round_robin`), including a request in flight answered during the graceful shutdown; CI runs it on Linux, macOS
       and Windows whenever the kernel or the example changes (`affected`). The project form (`hecate.project.lua`,
       `hecate test`, `hecate contract lint`) and the tutorial are carried to the Phase 3 `cli` and website items.
-- [ ] Benchmarks: plaintext and JSON scenarios. **Carries three performance findings deferred from the Phase 1
+- [x] Benchmarks: plaintext and JSON scenarios. Delivered: `benchmarks/scenarios/plaintext` and `kernel-json` (named so that `bench json` keeps selecting the codec micro-benchmarks), the HTTP load generator `benchmarks/lib/http_load.lua`, both compared in `benchmarks.yml`; every finding below judged in [the report](reviews/phase-2-benchmarks.md): LO4 fixed, the others kept (P6 provisionally, until the `validation` scenario). **Carries three performance findings deferred from the Phase 1
       gate review** ([review](reviews/phase-1-review-package.md), "Minor"): judge each with a measurement, then
       keep or fix it, and note the result in the review: (RE2) three table allocations per suspend/resume on the
       scheduler hot path (`reactor.lua`, `context.suspend`; scenario `reactor/scheduler`, then `plaintext`);
@@ -315,7 +315,9 @@ in under five minutes; tutorial reproducible verbatim.
 - [ ] Example: `examples/crud` (PostgreSQL), integration tests against every driver in CI
       (service containers).
 - [ ] Benchmarks: database scenarios (single query, multiple queries, updates), compared
-      with reference clients of other ecosystems (ADR 0014 performance condition).
+      with reference clients of other ecosystems (ADR 0014 performance condition). **Also:** measure again the
+      class-bound build of `schema` (P5, about 1 µs per instance, kept in [Phase 2 benchmarks](reviews/phase-2-benchmarks.md))
+      on a scenario that builds many instances per request.
 
 - [ ] **Phase 4 gate**: verification of the phase, as described in [Phase gates](#phase-gates).
 
@@ -373,3 +375,8 @@ CI green on the three platforms.
 
 - Website: French translation kept in sync; further locales by contribution.
 - Benchmarks published per release.
+- `bench` summary: read the measurement lines whose label holds a number (`log/logger`: `enabled call, 3 fields`) and
+  give `router/match` measurement lines instead of a table ([Phase 2 benchmarks](reviews/phase-2-benchmarks.md),
+  "Found on the way").
+- Benchmarks: the `validation` and `routing` scenarios of `benchmarks/README.md`; judge the `schema` finding P6 (`format`
+  validators) again with `validation` ([Phase 2 benchmarks](reviews/phase-2-benchmarks.md)).

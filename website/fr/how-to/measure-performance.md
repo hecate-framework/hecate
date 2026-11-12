@@ -1,14 +1,14 @@
 ---
-description: Exécuter le benchmark d’écho TCP, lire ses chiffres de latence et de débit, et comparer votre arbre de travail à une référence Git.
+description: Exécuter les benchmarks réseau (écho TCP, HTTP en texte brut, JSON à travers le noyau), lire leurs chiffres de latence et de débit, et comparer votre arbre de travail à une référence Git.
 hecate: "0.x"
 lua: "5.5"
 order: 7
-source_revision: 1e4a3b0
+source_revision: 284170f
 ---
 
 # Mesurer les performances
 
-Ce guide montre comment exécuter le benchmark réseau du dépôt et comment comparer une modification
+Ce guide montre comment exécuter les benchmarks réseau du dépôt et comment comparer une modification
 à sa base. Il est écrit pour hecate 0.x et Lua 5.5, et fonctionne sous Linux et macOS.
 
 Le scénario `tcp-echo` démarre un serveur d’écho construit sur `hecate.reactor` et `hecate.net`,
@@ -39,6 +39,31 @@ rapport lisible par une machine.
 Un débit inférieur à `--rate` signifie que le serveur, ou le générateur, est saturé. Les options du
 générateur de charge sont `--connections`, `--rate` (requêtes par seconde au total), `--duration`
 et `--warmup` (secondes), et `--payload` (octets).
+
+## Mesurer la pile HTTP et le noyau
+
+Deux scénarios mesurent HTTP/1.1 avec le même genre de générateur à boucle ouverte, sur des
+connexions persistantes :
+
+- `plaintext` : une action de `http.Server` répond à `GET /plaintext` par `Hello, World!`. Il mesure
+  la pile HTTP seule.
+- `kernel-json` : une `kernel.Application` à une seule route répond à `GET /json` par
+  `{"message":"Hello, World!"}`, représenté avec le schéma de réponse déclaré et encodé en JSON. La
+  différence avec `plaintext` est le coût du routage, de la répartition et de la sérialisation.
+
+Les deux ont besoin des modules natifs de `json` et de `http` ; construisez-les une fois :
+
+```sh
+lua tools/run.lua build-native json
+lua tools/run.lua build-native http
+lua tools/run.lua bench plaintext --rounds=5 --connections=100 --rate=5000 --duration=10
+lua tools/run.lua bench kernel-json --rounds=5 --connections=100 --rate=5000 --duration=10
+```
+
+`--pipeline=N` écrit N requêtes d’un coup sur chaque connexion (pipelining HTTP), et `--path` change
+la cible de la requête. La sortie ajoute `bad responses` : les connexions fermées parce qu’une
+réponse n’était pas un `200`. Un seul processus serveur sature avant le générateur : augmentez
+`--rate` jusqu’à ce que le débit ne le suive plus, puis comparez les commits en dessous de ce point.
 
 ## Comparer à une base
 

@@ -43,10 +43,24 @@ end
 
 print(("# %s, %d rounds"):format(scenario, options.rounds))
 print(("%-20s %12s %12s %12s %8s"):format("measure", "median", "min", "max", "max/min"))
-for index, first in ipairs(rounds[1]) do
+-- measures are matched by label: a failed round may lack some of them (no latency when nothing completed)
+local labels, units, seen = {}, {}, {}
+for r = 1, #rounds do
+  for _, measure in ipairs(rounds[r]) do
+    if not seen[measure.label] then
+      seen[measure.label] = true
+      labels[#labels + 1], units[measure.label] = measure.label, measure.unit
+    end
+  end
+end
+for _, label in ipairs(labels) do
   local values = {}
-  for r = 1, #rounds do values[r] = rounds[r][index].value end
+  for r = 1, #rounds do
+    for _, measure in ipairs(rounds[r]) do
+      if measure.label == label then values[#values + 1] = measure.value end
+    end
+  end
   local lowest, highest = math.min(table.unpack(values)), math.max(table.unpack(values))
-  print(("%-20s %12.1f %12.1f %12.1f %8.2f  %s"):format(first.label, stats.median(values), lowest, highest,
-    lowest > 0 and highest / lowest or 0, first.unit))
+  print(("%-20s %12.1f %12.1f %12.1f %8.2f  %s%s"):format(label, stats.median(values), lowest, highest,
+    lowest > 0 and highest / lowest or 0, units[label], #values < #rounds and ("  (%d of %d rounds)"):format(#values, #rounds) or ""))
 end

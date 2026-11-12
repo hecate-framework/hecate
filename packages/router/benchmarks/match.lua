@@ -1,5 +1,7 @@
--- Matching throughput against route tables of growing size: a static path, a path with two parameters, a wildcard and a
--- miss. The rate of a static match must not fall as the table grows (invariant of the package).
+-- Matching throughput against route tables of growing size: a static path, a path with two parameters, a wildcard, a
+-- miss (404) and a method the path does not serve (405, with its `Allow` list); then a static match and a match with a
+-- parameter under a prefix with a wide fan-out of static siblings. The rate of a static match must not fall as the
+-- table grows (invariant of the package).
 -- Usage: lua packages/router/benchmarks/match.lua   (from the repository root)
 global <const> package, os, string, print, require, table, ipairs
 package.path = "packages/router/src/?.lua;packages/router/src/?/init.lua;packages/core/src/?.lua;"
@@ -39,12 +41,31 @@ local function build(size)
   return router.Router(list)
 end
 
-print(string.format("%-10s %14s %14s %14s %14s", "routes", "static", "parameters", "wildcard", "miss"))
+print(string.format("%-10s %14s %14s %14s %14s %14s", "routes", "static", "parameters", "wildcard", "miss", "405"))
 for _, size in ipairs({ 10, 100, 1000, 10000 }) do
   local r = build(size)
   local static = rate(function() r:match("GET", "/api/v1/target") end)
   local parameters = rate(function() r:match("GET", "/api/v1/target/42/items/7") end)
   local wildcard = rate(function() r:match("GET", "/files/a/b/c/d.txt") end)
   local miss = rate(function() r:match("GET", "/api/v1/unknown/42") end)
-  print(string.format("%-10d %14.0f %14.0f %14.0f %14.0f", size * 3 + 3, static, parameters, wildcard, miss))
+  local refused = rate(function() r:match("DELETE", "/api/v1/target") end)
+  print(string.format("%-10d %14.0f %14.0f %14.0f %14.0f %14.0f", size * 3 + 3, static, parameters, wildcard, miss, refused))
+end
+
+--- A table whose matched prefix `/api/v1/target/` has `width` static siblings next to the parameter.
+local function fan_out(width)
+  local list = {}
+  for i = 1, width do list[#list + 1] = { method = "GET", path = ("/api/v1/target/child%d"):format(i) } end
+  list[#list + 1] = { method = "GET", path = "/api/v1/target/{id}" }
+  list[#list + 1] = { method = "GET", path = "/api/v1/target/last" }
+  return router.Router(list)
+end
+
+print()
+print(string.format("%-10s %14s %14s", "siblings", "static", "parameter"))
+for _, width in ipairs({ 10, 100, 1000, 10000 }) do
+  local r = fan_out(width)
+  local static = rate(function() r:match("GET", "/api/v1/target/last") end)
+  local parameter = rate(function() r:match("GET", "/api/v1/target/42") end)
+  print(string.format("%-10d %14.0f %14.0f", width + 2, static, parameter))
 end
