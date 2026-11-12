@@ -176,4 +176,67 @@ function T:test_syntax_error_of_a_file_does_not_print_the_value()
   self:assert_equal("config/default.lua", err.context.file)
 end
 
+-- Documented in website/en/how-to/before-going-to-production.md (Secrets).
+-- `describe()` prints an unlisted key in full and a listed one as `[redacted]`. A validation error quotes neither value:
+-- the messages of `hecate.schema` never contain the value, so the only difference is that the message of a violation
+-- at a listed key is replaced, while an unlisted key keeps the message of its schema.
+function T:test_an_unlisted_key_is_printed_in_full_and_a_listed_one_never()
+  local schema = require("hecate.schema")
+  local PLAIN = "plain-host-value-7c1"
+  local configuration = fixture.load({
+    env = { HECATE_DATABASE__HOST = PLAIN, HECATE_DATABASE__PASSWORD = VALUE },
+    options = options(),
+  })
+  local text = configuration:describe()
+  self:assert_true(text:find(('database.host = "%s" (environment variable HECATE_DATABASE__HOST)'):format(PLAIN), 1, true) ~= nil, text)
+  self:assert_true(text:find("database.password = [redacted] (environment variable HECATE_DATABASE__PASSWORD)", 1, true) ~= nil, text)
+  self:assert_nil(text:find(VALUE, 1, true), text)
+
+  local err = fixture.failure({
+    env = { HECATE_DATABASE__HOST = PLAIN, HECATE_DATABASE__PASSWORD = VALUE },
+    options = options({ properties = { database = schema.object({
+      host = schema.string({ pattern = "^[0-9]+$" }),
+      password = schema.string({ pattern = "^[0-9]+$" }),
+    }) } }),
+  })
+  self:assert_equal(2, #err.context.violations)
+  local by_path = {}
+  for _, violation in ipairs(err.context.violations) do by_path[violation.path] = violation end
+  self:assert_equal("pattern", by_path["database.host"].code)
+  self:assert_equal("the string does not match the pattern", by_path["database.host"].message)
+  self:assert_equal("pattern", by_path["database.password"].code)
+  self:assert_equal("the value of a secret key does not conform to its schema (it is not shown)",
+    by_path["database.password"].message)
+  local message = tostring(err)
+  self:assert_nil(message:find(VALUE, 1, true), message)
+  -- Real behaviour: the schema message does not quote the value of the unlisted key either.
+  self:assert_nil(message:find(PLAIN, 1, true), message)
+end
+
+-- Documented in website/en/how-to/before-going-to-production.md (Logging and redaction).
+function T:test_without_wrap_secret_the_loaded_log_secret_is_used_else_the_config_secret()
+  local core = require("hecate.core")
+  local FakeSecret = core.class("FakeLogSecret")
+  function FakeSecret:init(value) self.value = value end
+  FakeSecret = core.finalise(FakeSecret)
+  local previous = package.loaded["hecate.log"]
+  local ok, failure = pcall(function()
+    package.loaded["hecate.log"] = { Secret = FakeSecret }
+    local with_log = fixture.load({ env = { HECATE_DATABASE__PASSWORD = VALUE }, options = options() })
+    local secret = with_log:get("database.password")
+    self:assert_true(core.is_instance_of(secret, FakeSecret), tostring(secret))
+    self:assert_false(core.is_instance_of(secret, config.Secret))
+    self:assert_equal(VALUE, secret.value)
+
+    package.loaded["hecate.log"] = nil
+    local without_log = fixture.load({ env = { HECATE_DATABASE__PASSWORD = VALUE }, options = options() })
+    local fallback = without_log:get("database.password")
+    self:assert_true(core.is_instance_of(fallback, config.Secret), tostring(fallback))
+    self:assert_equal("[redacted]", tostring(fallback))
+    self:assert_equal(VALUE, fallback:reveal())
+  end)
+  package.loaded["hecate.log"] = previous
+  if not ok then error(failure, 0) end
+end
+
 return T

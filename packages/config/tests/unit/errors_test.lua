@@ -166,4 +166,15 @@ function T:test_a_declaration_nested_deeper_than_the_walk_is_refused()
   self:assert_true(tostring(err):find("deep", 1, true) ~= nil, tostring(err))
 end
 
+-- Documented in website/en/how-to/before-going-to-production.md (Secrets).
+function T:test_an_unknown_path_in_secrets_is_an_argument_error_at_load()
+  for _, path in ipairs({ "database.pasword", "nope", "database" }) do
+    local ok, err = pcall(fixture.load, { options = { secrets = { path } } })
+    self:assert_false(ok, path)
+    self:assert_true(core.is_instance_of(err, core.ArgumentError), tostring(err))
+    self:assert_equal("hecate.core.ArgumentError", err.code, path)
+    self:assert_true(tostring(err):find(path, 1, true) ~= nil, tostring(err))
+  end
+end
+
 return T

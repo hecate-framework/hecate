@@ -81,7 +81,8 @@ variables combine is in [Configure an application](configure-an-application.md).
   for example `secrets = { "database.password", "session.signing_key" }`. A listed key is wrapped after validation:
   `tostring` gives `[redacted]` and only `reveal()` gives the value. An unknown path is an `ArgumentError` at load, so a
   typo cannot leave a key unprotected. A key that is not listed is an ordinary string, printed in full by `describe()`,
-  in error messages and in logs.
+  in logs and in any message the application builds with it (the validation errors of `config.load` never quote a
+  value, listed or not).
 - [ ] **Secrets come from secret files**, or else from environment variables, never from a file of the repository. A
   secret key is read from the file named by `<NAME>_FILE` (for example `HECATE_DATABASE__PASSWORD_FILE`), or from
   `<secrets_directory>/<NAME>` when the `secrets_directory` option is set, as a Docker or Kubernetes secret is mounted.
