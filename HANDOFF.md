@@ -14,13 +14,13 @@
 - Step 1: `check-examples` (`tools/tasks/check_examples.lua`, `tools/lib/examples.lua`) and the shared runner
   `tools/harness/examples.lua` (rule 2), tested in `tools/tests/examples_test.lua`; catalogue row in `automation.md`,
   `CLAUDE.md`. Not yet in `ci.yml` (it would fail until the migration).
+- Step 2: the `examples_test.lua` of the ten packages use the shared runner (http keeps its `-- Answers:` server path,
+  net its TLS skip). The tests of config, container, http, router and schema now FAIL until step 3 (20 examples gather
+  their output at the end). `examples/hello` is an application, not a printing example: only rule 1 applies to it.
 
 ## Next steps
 
-1. The `examples_test.lua` of every package (config, container, core, http, json, log, net, reactor, router, schema)
-   and the `examples/hello` tests use `tools/harness/examples.lua` (`examples.check(self, directory, NAMES, globals)`;
-   http keeps its `-- Answers:` server path).
-2. Migrate every example (`packages/*/examples/`, `examples/`) and the website pages that include them
+1. Migrate every example (`packages/*/examples/`, `examples/`) and the website pages that include them
    (`check-docs-examples`); fix the 98 lines reported by `check-examples` (94 in example files, 4 in website pages).
    Then add `check-examples` to the `docs-checks` (line ~144) and static-check (line ~485) task lists of `ci.yml`.
 3. `documentation.md`, `website/CLAUDE.md`, `CHANGELOG.md`; CI green on three platforms; tick, delete this file.

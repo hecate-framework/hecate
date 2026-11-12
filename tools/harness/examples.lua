@@ -133,16 +133,17 @@ function M.run(path, globals)
   return problem and (path .. ": " .. problem) or nil
 end
 
---- Runs the named examples of a package directory and fails the case on the first problem.
+--- Runs the named examples of a package directory and fails the case with every problem found.
 ---@param case table  the running test case (`self`)
 ---@param directory string  the package's `examples` directory
 ---@param names string[]  example names, without `.lua`
 ---@param globals table?  extra globals for every example
 function M.check(case, directory, names, globals)
+  local problems = {}
   for _, name in ipairs(names) do
-    local problem = M.run(("%s/%s.lua"):format(directory, name), globals)
-    if problem then case:fail(problem) end
+    problems[#problems + 1] = M.run(("%s/%s.lua"):format(directory, name), globals)
   end
+  if #problems > 0 then case:fail(table.concat(problems, "\n")) end
 end
 
 return M

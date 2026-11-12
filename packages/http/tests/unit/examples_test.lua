@@ -1,6 +1,9 @@
--- The examples included in the website pages are tested files: each one runs without error and prints what its
--- `-- Prints:` comment says (the lines that follow it, each starting with `-- `, continue the expected output).
+-- The examples included in the website pages are tested files: each one runs without error, and what a line
+-- prints is written in a `-- Prints:` block directly under that line (the shared runner
+-- `tools/harness/examples.lua`; `docs/architecture/documentation.md`, "Code examples"). A server example that never
+-- returns says what it answers instead (`-- Answers: <text>`).
 local test = require("harness.test")
+local examples = require("harness.examples")
 local T = test.Case("ExamplesTest")
 
 local here = debug.getinfo(1, "S").source:sub(2):gsub("\\", "/")
@@ -10,26 +13,6 @@ local NAMES = {
   "hecate.http.Server.limits", "hecate.http.Response.stream", "hecate.http.Server.shutdown", "hecate.http.Client.json",
   "hecate.http.Server.hello", "hecate.http.Server.tls",
 }
-
---- The text a `-- Prints:` block expects.
----@param source string
----@return string?
-local function expected_output(source)
-  local lines, collecting = {}, false
-  for line in (source .. "\n"):gmatch("(.-)\r?\n") do
-    local first = line:match("^%-%- Prints: ?(.*)$")
-    if first then
-      collecting = true
-      lines[#lines + 1] = first
-    elseif collecting then
-      local more = line:match("^%-%- ?(.*)$")
-      if more == nil then break end
-      lines[#lines + 1] = more
-    end
-  end
-  if #lines == 0 then return nil end
-  return table.concat(lines, "\n")
-end
 
 --- Runs a server example that never returns by itself (`-- Answers: <text>`): the server is created on a free port, one
 --- request is sent to it, its answer must be the text, and the server is shut down.
@@ -67,6 +50,7 @@ end
 
 function T:test_every_example_runs_and_prints_what_it_says()
   local net = require("hecate.net")
+  local problems = {}
   for _, name in ipairs(NAMES) do
     local path = ("%s/%s.lua"):format(directory, name)
     local file = assert(io.open(path, "rb"))
@@ -81,19 +65,11 @@ function T:test_every_example_runs_and_prints_what_it_says()
     elseif source:match("\n%-%- Answers: ") then
       run_serving(self, path, source, source:match("\n%-%- Answers: ([^\n]*)"))
     else
-      local expected = expected_output(source)
-      self:assert_not_nil(expected, path .. " has no `-- Prints:` line")
-      local lines = {}
-      local environment = setmetatable({ print = function(...)
-        local parts = table.pack(...)
-        for i = 1, parts.n do parts[i] = tostring(parts[i]) end
-        lines[#lines + 1] = table.concat(parts, "\t")
-      end }, { __index = _G })
-      local chunk = assert(load(source, "@" .. path, "t", environment))
-      chunk()
-      self:assert_equal(expected, table.concat(lines, "\n"), path)
+      local problem = examples.run(path)
+      problems[#problems + 1] = problem
     end
   end
+  if #problems > 0 then self:fail(table.concat(problems, "\n")) end
 end
 
 return T
