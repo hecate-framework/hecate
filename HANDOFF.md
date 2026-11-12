@@ -3,19 +3,19 @@
 
 - roadmap_item: `reactor` follow-up: specify then implement `offload` (Lua functions on the libuv thread pool), split from the Phase 1 item (OQ-27).
 - status: in-progress
-- lock_until: 2026-11-12T08:19:53Z
-- last_update: 2026-11-12T06:49:53Z
+- lock_until: 2026-11-12T08:22:03Z
+- last_update: 2026-11-12T06:52:03Z
 
 ## Done
 
 - Claimed the item; draft pull request #176.
 - Specification: `docs/architecture/concurrency.md` section "Offload"; OQ-119 with mirror issue #177.
-- Implementation: `reactor.offload` and `reactor.OffloadError` (`src/hecate/reactor/offload.lua`), codec `internal/transfer.lua`; tests `tests/unit/offload_test.lua` (23 cases) and a case in `suspension_test.lua`. `test reactor`, `typecheck`, `lint`, `check-boundaries` pass locally.
+- Implementation: `reactor.offload` and `reactor.OffloadError` (`src/hecate/reactor/offload.lua`), codec `internal/transfer.lua`; tests `tests/unit/offload_test.lua` (23 cases) and a case in `suspension_test.lua`. `test reactor`, `typecheck`, `lint`, `check-boundaries` pass locally (commit 69f82d4).
+- Docs: README (status, scope, non-goals, API row), package `CLAUDE.md`, `pkg-reactor` agent scope, tested example `examples/hecate.reactor.offload.lua`, guide `website/en/how-to/offload-cpu-bound-work.md` (+ index), CHANGELOG. No benchmark: `offload` is a new path, not a change to a hot path. French page not written (the French tree does not mirror every how-to yet; `translator-fr` later).
 
 ## Next steps
 
-1. README, website reference/how-to, CHANGELOG, benchmark if relevant.
-2. Reviews (pkg-reactor, api-reviewer, cross-platform-reviewer, test-engineer), CI green on three platforms, tick the roadmap item, delete this file.
+1. Reviews (pkg-reactor, api-reviewer, cross-platform-reviewer, test-engineer), CI green on three platforms, tick the roadmap item, delete this file.
 
 ## Decisions taken (and where they are recorded)
 
