@@ -297,7 +297,9 @@ in under five minutes; tutorial reproducible verbatim.
 - [ ] Example: `examples/crud` (PostgreSQL), integration tests against every driver in CI
       (service containers).
 - [ ] Benchmarks: database scenarios (single query, multiple queries, updates), compared
-      with reference clients of other ecosystems (ADR 0014 performance condition).
+      with reference clients of other ecosystems (ADR 0014 performance condition). **Also:** measure again the
+      class-bound build of `schema` (P5, about 1 µs per instance, kept in [Phase 2 benchmarks](reviews/phase-2-benchmarks.md))
+      on a scenario that builds many instances per request.
 
 - [ ] **Phase 4 gate**: verification of the phase, as described in [Phase gates](#phase-gates).
 
@@ -355,3 +357,6 @@ CI green on the three platforms.
 
 - Website: French translation kept in sync; further locales by contribution.
 - Benchmarks published per release.
+- `bench` summary: read the measurement lines whose label holds a number (`log/logger`: `enabled call, 3 fields`) and
+  give `router/match` measurement lines instead of a table ([Phase 2 benchmarks](reviews/phase-2-benchmarks.md),
+  "Found on the way").

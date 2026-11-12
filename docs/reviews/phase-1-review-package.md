@@ -70,7 +70,7 @@ short hashes on `claude/relay-phase-1-gate`.
 | C8 | same-named enumeration values compare equal | fixed `4fe9e25` |
 | C9 | missing tests (`__gc`, `finalise` on a trait, alias collisions) | fixed `4fe9e25` |
 | RE1 | negative or past deadlines accepted silently | fixed `c381fe5` (decision: immediate expiry, documented and tested) |
-| RE2 | table allocations on the scheduler hot path | deferred: Phase 2 "Benchmarks: plaintext and JSON scenarios" item |
+| RE2 | table allocations on the scheduler hot path | measured, kept: removing two tables per suspension gave no significant change ([Phase 2 benchmarks](phase-2-benchmarks.md)) |
 | RE3 | `Reactor:run` clears `context.reactor` before closing coroutines | fixed `c381fe5` |
 | RE4 | `tcp`, `udp`, `pipe`, `process`, `ipc`, `fs`, `channel*`, `monitor`, `mutex`, `semaphore` not reviewed | reviewed in the reviewer wave below |
 | N1 | `BufferedReader` closed during a suspended read returns the chunk | fixed `0d5658b` |
@@ -83,13 +83,13 @@ short hashes on `claude/relay-phase-1-gate`.
 | J1 | allocation failure reported as a syntax error | fixed `b28af5c` (reason `out_of_memory`) |
 | J2 | `size_limit` and BOM failures carry a made-up position | fixed `b28af5c` (`size_limit` has none; the BOM position is the true one) |
 | J3 | stale "two backends" text (OQ-54, ADR 0020) | OQ-54 fixed `b28af5c`; the one sentence of the Accepted ADR 0020 (line 69, the Note) is left: an Accepted ADR is not edited, owner approval needed (proposal: drop the sentence or read "the shared markers are pinned between the decoder and the encoder") |
-| J4 | per-key allocation in the Rust encoder | deferred: Phase 2 "Benchmarks: plaintext and JSON scenarios" item (`bench json`) |
+| J4 | per-key allocation in the Rust encoder | measured, kept: encoding the `kernel-json` document is under 2 % of a request ([Phase 2 benchmarks](phase-2-benchmarks.md)) |
 | J5 | option values echoed in full | fixed `b28af5c` |
 | J6 | missing tests | fixed `b28af5c` |
 | LO1 | public classes typed `table` | fixed `83966dd`, `ac02277` (sinks declared as `hecate.log.Sink`) |
 | LO2 | missing tests (depth 15/16/17, raising target) | fixed `83966dd` |
 | LO3 | second concurrent `AsyncSink:close()` returns early | fixed `83966dd` (and a never-written sink still closes outside a reactor) |
-| LO4 | `with_context` rebuilds the severity list | deferred: Phase 2 "Benchmarks: plaintext and JSON scenarios" item (`bench log/logger`) |
+| LO4 | `with_context` rebuilds the severity list | measured, kept: not on the request path ([Phase 2 benchmarks](phase-2-benchmarks.md)) |
 | DO1 | `config.normalise` leaves keys unchecked, accepts `base = "//host/"` | fixed `6ef68d9` |
 | DO2 | `\\"` accepted in a quoted front-matter scalar | fixed `6ef68d9` |
 | DO3 | invalid UTF-8 Markdown gives a raw error | fixed `6ef68d9` (`BuildError` naming the file) |

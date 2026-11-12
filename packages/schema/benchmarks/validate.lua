@@ -75,21 +75,22 @@ report("record", record, single, "build")
 report("record", record, single, "represent")
 report("array-of-100", records, list, "represent")
 
--- Class-bound build through `schema.of`.
-local Person = core.class("BenchPerson")
+-- Class-bound build through `schema.of` (a class declares `schema.Representable`, checked by `finalise`).
+local REPRESENTABLE <const> = { implements = { schema.Representable } }
+local Person = core.class("BenchPerson", nil, REPRESENTABLE)
 function Person.schema()
   return schema.object({
     id = schema.integer({ minimum = 1 }), name = schema.string({ min_length = 1 }),
   })
 end
 core.finalise(Person)
-local Address = core.class("BenchAddress")
+local Address = core.class("BenchAddress", nil, REPRESENTABLE)
 function Address.schema() return schema.object({ city = schema.string(), zip = schema.string() }) end
 core.finalise(Address)
 local person = schema.of(Person)
 local person_content = { id = 1, name = "Ada" }
 report("class-bound", person, person_content, "build")
-local Host = core.class("BenchHost")
+local Host = core.class("BenchHost", nil, REPRESENTABLE)
 function Host.schema()
   return schema.object({ id = schema.integer(), address = schema.of(Address) })
 end
@@ -109,7 +110,7 @@ report("tagged-union", events, event, "represent")
 
 -- Recursive union of two classes of identical shape (the memoisation probe of OQ-91), depth 30: linear.
 local function twins(depth, innermost)
-  local P, Q = core.class("BenchTwinP"), core.class("BenchTwinQ")
+  local P, Q = core.class("BenchTwinP", nil, REPRESENTABLE), core.class("BenchTwinQ", nil, REPRESENTABLE)
   local of_p, of_q = schema.of(P), schema.of(Q)
   local function body()
     return schema.object({ value = schema.optional(schema.string()),

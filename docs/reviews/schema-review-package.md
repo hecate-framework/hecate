@@ -64,8 +64,8 @@ less is noise. Absolute figures must come from the owner hardware (`benchmarks/R
 | P2 | The memoisation store (3 tables plus one per union) is allocated even when no union is nested; disabling it for the benchmark union gave validate +35 to 45 percent and coerce +35 percent | Use the memo only where a node can be revisited (inside an alternative attempt), create the answers table lazily; keep the OQ-91 bound (test the exponential case before and after) | fixed (5fc6d89) |
 | P3 | The `guarded` wrapper costs an extra closure call, the budget call, a table read and two global writes per container; replacing it by the inner function gave record +13 to 26 percent | Keep it (it enforces OQ-50 and OQ-91) but make it cheaper: cache the limits in upvalues, inline the step test, fold it into the object and array closures | measured, not worth it (see Fix pass D) |
 | P4 | The benchmark has no represent, class build, tagged union, recursive union, failing input, string with `min_length` or `format`, or `build` with `coerce` | Add these scenarios before optimising P2 and P3 | fixed (7ba31a5, 00289db) |
-| P5 | Class build costs about 75 percent more than a plain object build (3 tables plus one weak-table insertion) | Fill the instance directly; only if `plaintext` or `json` show it | deferred (Benchmarks item) |
-| P6 | `format` validators cost 0.6 to 1.1 microseconds per call; `utf8.len` about 85 nanoseconds per string | Measure with a realistic mix before touching | deferred (Benchmarks item) |
+| P5 | Class build costs about 75 percent more than a plain object build (3 tables plus one weak-table insertion) | Fill the instance directly; only if `plaintext` or `json` show it | measured, kept: about 1 µs per instance, not on the path of either scenario; to look at again with the Phase 4 database scenarios ([Phase 2 benchmarks](phase-2-benchmarks.md)) |
+| P6 | `format` validators cost 0.6 to 1.1 microseconds per call; `utf8.len` about 85 nanoseconds per string | Measure with a realistic mix before touching | measured, kept: about 1.1 µs per call, a few % of a request at most ([Phase 2 benchmarks](phase-2-benchmarks.md)) |
 
 The encoder `__pairs` check costs about 6 percent on a document made only of marked containers (the output of
 `represent`) and nothing for a plain table: not a finding. The roadmap Benchmarks item now carries P5 and P6 as a schema
@@ -162,7 +162,7 @@ coerce 40k to 61k and validate 86k to 133k per second (3 runs each).
   `map` followed `next`; a failed map coercion is now visited again in byte order (success path unchanged: 3 runs, within 3
   percent). Remaining and not changed: `represent` of a map or an `any` raises the error of the first failing member in `next`
   order (a response bug, one violation).
-- Deferred: P5 and P6 (roadmap, Benchmarks item).
+- P5 and P6: measured and kept by the Benchmarks item ([Phase 2 benchmarks](phase-2-benchmarks.md)).
 
 ## Owner decisions raised by the review
 
