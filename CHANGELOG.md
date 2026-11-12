@@ -11,6 +11,7 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- docs(website): how-to "Before going to production", a checklist of the environment, error details, logging and redaction (by field name, never free text), secrets, the access log (strip the query), limits, workers and shutdown.
 - feat(reactor): `Peer:send` takes `options.keep_open`, which leaves a handed-over stream open in the sender for the caller to close.
 - fix(kernel): the primary keeps each handed-over connection open until the worker answers `received` (a new message), and closes what is still held when the worker's message pipe ends or it exits; fixes connections lost during a rolling reload on macOS (OQ-118; ADR 0023 Decision 5 amended).
 - feat(kernel): a worker logs the connections it drops: `control_failed` (`error`) when its message pipe to the primary breaks or is violated (it was a silent stop), `hand_over_discarded` (`warning`, `count`) for the connections still queued when it stops; `HandOverListener:close()` returns how many queued connections it closed; a worker sends its final `counters` when it has stopped serving and the primary logs `hand_over_unaccounted` (`warning`) when a worker exits having accepted fewer connections than were handed over to it. The rolling-reload tests report why a request failed and the primary's events.
