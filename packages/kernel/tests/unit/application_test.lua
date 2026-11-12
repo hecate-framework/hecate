@@ -275,6 +275,13 @@ local function reloading_application(behaviour)
   return app, memory
 end
 
+--- The first record of `memory` whose `code` field is `code`.
+local function record_with(memory, code)
+  for _, record in ipairs(memory:records()) do
+    if record.fields and record.fields.code == code then return record end
+  end
+end
+
 local function codes_logged(memory)
   local codes = {}
   for _, record in ipairs(memory:records()) do codes[#codes + 1] = record.fields and record.fields.code end
@@ -302,6 +309,9 @@ function T:test_an_accepted_reload_logs_started_before_done_or_failed()
   reactor.run(function() app:reload() end)
   self:assert_equal("reload_started", codes_logged(memory)[1])
   self:assert_equal("reload_done", codes_logged(memory)[2])
+  -- Documented in website/en/how-to/before-going-to-production.md (Logging): the workers reloaded are `notice`.
+  self:assert_true(record_with(memory, "reload_started").severity == log.Severity.notice)
+  self:assert_true(record_with(memory, "reload_done").severity == log.Severity.notice)
   local failing, failed = reloading_application(function(_, options)
     options.on_accepted()
     error(kernel.SupervisorError("failed", { context = { reason = "reload_failed", cause = "not_ready" } }), 0)
@@ -366,12 +376,53 @@ function T:test_expose_details_in_production_warns_at_boot()
     configuration = configuration({ HECATE_ERRORS__EXPOSE_DETAILS = "true" }, "production"),
   })
   app:boot()
-  local found
-  for _, record in ipairs(memory:records()) do
-    if record.fields and record.fields.code == "expose_details_in_production" then found = true end
-  end
-  self:assert_true(found)
+  local found = record_with(memory, "expose_details_in_production")
+  self:assert_not_nil(found)
+  -- Documented in website/en/how-to/before-going-to-production.md (Error details): the boot warning is a `warning`.
+  self:assert_true(found.severity == log.Severity.warning)
   log.set_default(nil)
+end
+
+-- Documented in website/en/how-to/before-going-to-production.md (Error details).
+function T:test_expose_details_in_staging_gives_no_boot_warning()
+  local memory = log.MemorySink()
+  local app = kernel.Application({
+    logger = log.Logger({ sinks = { memory }, severity = "debug" }),
+    configuration = configuration({ HECATE_ERRORS__EXPOSE_DETAILS = "true" }, "staging"),
+  })
+  app:boot()
+  log.set_default(nil)
+  self:assert_equal(true, app._resolved.expose_details) -- the key applies
+  self:assert_nil(record_with(memory, "expose_details_in_production"))
+end
+
+-- Documented in website/en/how-to/before-going-to-production.md (Error details).
+function T:test_expose_details_as_an_option_without_a_configuration_gives_no_boot_warning()
+  local memory = log.MemorySink()
+  local app = kernel.Application({ expose_details = true, logger = log.Logger({ sinks = { memory }, severity = "debug" }) })
+  app:boot()
+  self:assert_equal(true, app._resolved.expose_details)
+  self:assert_nil(record_with(memory, "expose_details_in_production"))
+end
+
+-- Documented in website/en/how-to/before-going-to-production.md (Logging).
+function T:test_an_explicit_logger_replaces_the_logger_built_from_the_logging_keys()
+  local memory = log.MemorySink()
+  local explicit = log.Logger({ sinks = { memory } }) -- no `redact` of its own
+  local saved = log.default()
+  local app = kernel.Application({
+    logger = explicit,
+    configuration = configuration({ HECATE_LOGGING__REDACT = "pin", HECATE_LOGGING__SEVERITY = "debug" }),
+  })
+  app:boot()
+  local default_after = log.default()
+  log.set_default(nil)
+  self:assert_true(rawequal(explicit, app._resolved.logger))
+  self:assert_true(rawequal(saved, default_after)) -- the explicit logger is not installed as the default
+  -- No `logging.*` key applies to it: neither `logging.severity` nor `logging.redact`.
+  self:assert_false(explicit:is_enabled("debug"))
+  app._resolved.logger:notice("signed in", { pin = "1234" })
+  self:assert_equal("1234", memory:records()[1].fields.pin)
 end
 
 local reactor = require("hecate.reactor")
@@ -415,6 +466,57 @@ function T:test_a_signal_shuts_the_server_down_gracefully()
   local found = codes(memory)
   self:assert_equal("sigterm", found.shutdown_signal.signal)
   self:assert_nil(found.shutdown_forced)
+  -- Documented in website/en/how-to/before-going-to-production.md (Logging): the signals received are `notice`.
+  self:assert_true(record_with(memory, "shutdown_signal").severity == log.Severity.notice)
+end
+
+-- Documented in website/en/how-to/before-going-to-production.md (Workers and shutdown).
+function T:test_sigint_shuts_the_server_down_gracefully()
+  if uv.os_uname().sysname:match("Windows") then return end -- `uv.kill` cannot raise a console signal there
+  local guard = uv.new_signal()
+  guard:start("sigint", function() end)
+  local memory = log.MemorySink()
+  local routes = kernel.routes("slow")
+  local started, finished, cancelled = false, false, false
+  local release = reactor.Channel(1)
+  routes:get("/slow", { action = function()
+    started = true
+    local ok, err = pcall(release.receive, release)
+    if not ok then cancelled = true; error(err, 0) end
+    finished = true
+    return { done = true }
+  end })
+  local app = kernel.Application({
+    logger = log.Logger({ sinks = { memory } }), grace_timeout = 30, routes = { routes },
+    server = { host = "127.0.0.1", port = 0 },
+  })
+  local status
+  reactor.run(function()
+    local done = false
+    reactor.fork(function()
+      while not app:local_address() do reactor.sleep(0.005) end
+      local port = app:local_address().port
+      reactor.fork(function()
+        local ok, response = pcall(http.Client().get, http.Client(), "http://127.0.0.1:" .. port .. "/slow")
+        status = ok and response.status or response
+      end)
+      while not started do reactor.sleep(0.005) end
+      raise_until("sigint", function() return done or codes(memory).shutdown_signal ~= nil end)
+      while codes(memory).shutdown_signal == nil do reactor.sleep(0.005) end
+      release:send(true) -- the request in flight finishes within the grace period
+    end)
+    reactor.deadline(10, app.serve, app)
+    done = true
+  end)
+  guard:close()
+  local found = codes(memory)
+  self:assert_equal("sigint", found.shutdown_signal.signal)
+  self:assert_true(record_with(memory, "shutdown_signal").severity == log.Severity.notice)
+  self:assert_nil(found.shutdown_forced) -- graceful: drained, not forced
+  self:assert_true(finished)
+  self:assert_false(cancelled)
+  self:assert_equal(200, status)
+  self:assert_nil(app:local_address())
 end
 
 function T:test_a_second_signal_forces_the_stop()
@@ -470,6 +572,37 @@ function T:test_signals_false_serves_until_shutdown()
   end)
   self:assert_nil(app._server)
   self:assert_nil(app:local_address())
+end
+
+--- Serves `options` until it listens, then shuts it down; returns the argument lists `reactor.watch_signals` was called with.
+local function signal_watchers_installed(options)
+  local original = reactor.watch_signals
+  local calls = {}
+  reactor.watch_signals = function(...)
+    calls[#calls + 1] = { ... }
+    return original(...)
+  end
+  local app = kernel.Application(options)
+  local ok, err = pcall(reactor.run, function()
+    reactor.fork(function() wait_for_address(app); app:shutdown(1) end)
+    reactor.deadline(5, app.serve, app)
+  end)
+  reactor.watch_signals = original
+  if not ok then error(err, 0) end
+  return calls
+end
+
+-- Documented in website/en/how-to/before-going-to-production.md (Workers and shutdown).
+function T:test_signals_false_installs_no_signal_watcher()
+  local logger = log.Logger({ sinks = {} })
+  local server = { host = "127.0.0.1", port = 0 }
+  -- The spy sees the watcher of the default handling: `sigint` and `sigterm` (and `sighup` outside Windows).
+  local watched = signal_watchers_installed({ logger = logger, server = server })
+  self:assert_equal(1, #watched)
+  local names = table.concat(watched[1], ",")
+  self:assert_true(names:find("sigint", 1, true) ~= nil, names)
+  self:assert_true(names:find("sigterm", 1, true) ~= nil, names)
+  self:assert_equal(0, #signal_watchers_installed({ signals = false, logger = logger, server = { host = "127.0.0.1", port = 0 } }))
 end
 
 function T:test_invalid_signal_options_are_refused()
@@ -615,6 +748,8 @@ function T:test_the_primary_runs_a_supervisor_instead_of_a_server()
   self:assert_nil(app._server)
   self:assert_nil(app:local_address())
   self:assert_equal(2, codes(memory).workers_starting.workers)
+  -- Documented in website/en/how-to/before-going-to-production.md (Logging): the workers started are `notice`.
+  self:assert_true(record_with(memory, "workers_starting").severity == log.Severity.notice)
 end
 
 function T:test_the_primary_logs_through_the_default_logger_without_a_logger_option()
@@ -760,6 +895,87 @@ function T:test_the_exposure_of_details_follows_the_configuration_unless_overrid
   self:assert_not_nil(body_of({ configuration = configuration({ HECATE_ERRORS__EXPOSE_DETAILS = "true" }) }).debug)
   self:assert_nil(body_of({ expose_details = false, configuration = configuration({ HECATE_ERRORS__EXPOSE_DETAILS = "true" }) }).debug)
   log.set_default(nil)
+end
+
+-- Documented in website/en/how-to/before-going-to-production.md (Logging).
+function T:test_an_unhandled_error_is_logged_at_error_without_the_query()
+  local memory = log.MemorySink()
+  -- `lax`: in `strict` mode the undeclared query parameter is refused (422) before the action runs.
+  local serve = failing_application({ inputs = "lax", logger = log.Logger({ sinks = { memory } }) }):boot()
+  self:assert_equal(500, get(serve, "/boom?access_token=abc123").status)
+  local records = memory:records()
+  self:assert_equal(1, #records)
+  local record = records[1]
+  self:assert_true(record.severity == log.Severity.error)
+  self:assert_equal("unhandled error while serving a request", record.message)
+  self:assert_equal("GET", record.fields.method)
+  self:assert_equal("/boom", record.fields.path)
+  self:assert_equal("string", record.fields.error_class) -- a plain Lua error: its type
+  self:assert_true(record.fields.error:find("secret", 1, true) ~= nil)
+  self:assert_true(record.fields.traceback:find("stack traceback", 1, true) ~= nil)
+  for name, value in pairs(record.fields) do
+    self:assert_nil(tostring(value):find("abc123", 1, true), "the query leaks into " .. name)
+  end
+end
+
+-- Documented in website/en/how-to/before-going-to-production.md (Logging).
+function T:test_a_problem_below_500_that_an_action_returns_or_raises_is_not_logged()
+  local problem = kernel.problem
+  local module = kernel.routes("problems")
+  module:get("/returned", { action = function() return problem.NotFound({ detail = "no such order" }) end })
+  module:get("/conflict", { action = function() return problem.Conflict() end })
+  module:get("/raised", { action = function() error(problem.Forbidden()) end })
+  local memory = log.MemorySink()
+  local serve = kernel.Application({
+    routes = { module }, logger = log.Logger({ sinks = { memory }, severity = "debug" }),
+  }):boot()
+  self:assert_equal(404, get(serve, "/returned").status)
+  self:assert_equal(409, get(serve, "/conflict").status)
+  self:assert_equal(403, get(serve, "/raised").status)
+  self:assert_equal(0, #memory:records())
+end
+
+-- Documented in website/en/how-to/before-going-to-production.md (Logging; Listening and limits).
+function T:test_an_expired_deadline_gives_a_500_and_the_server_record_without_traceback()
+  local memory = log.MemorySink()
+  local module = kernel.routes("late")
+  module:get("/late", { action = function()
+    reactor.deadline(0.01, reactor.sleep, 5) -- not caught by the action
+    return { never = true }
+  end })
+  local app = kernel.Application({
+    routes = { module }, signals = false, logger = log.Logger({ sinks = { memory } }), inputs = "lax",
+    server = { host = "127.0.0.1", port = 0 },
+  })
+  local status, problem_type
+  reactor.run(function()
+    reactor.fork(function()
+      wait_for_address(app)
+      local port = app:local_address().port
+      local ok, response = pcall(http.Client().get, http.Client(), "http://127.0.0.1:" .. port .. "/late?access_token=abc123")
+      if ok then status, problem_type = response.status, response.fields:get("Content-Type") end
+      app:shutdown(1)
+    end)
+    reactor.deadline(10, app.serve, app)
+  end)
+  self:assert_equal(500, status)
+  self:assert_equal("application/problem+json", problem_type)
+  -- Beside the `listening` record (`informational`), one record only: the guard of the kernel logged nothing.
+  local records = {}
+  for _, candidate in ipairs(memory:records()) do
+    if candidate.severity ~= log.Severity.informational then records[#records + 1] = candidate end
+  end
+  self:assert_equal(1, #records)
+  local record = records[1]
+  self:assert_true(record.severity == log.Severity.error)
+  self:assert_equal("http.Server: the action failed", record.message)
+  self:assert_equal("GET", record.fields.method)
+  self:assert_equal("/late", record.fields.path)
+  self:assert_true(record.fields.error:find("deadline", 1, true) ~= nil, record.fields.error)
+  self:assert_nil(record.fields.traceback)
+  for name, value in pairs(record.fields) do
+    self:assert_nil(tostring(value):find("abc123", 1, true), "the query leaks into " .. name)
+  end
 end
 
 -- A filter and a streaming response --------------------------------------------------------------------------------------

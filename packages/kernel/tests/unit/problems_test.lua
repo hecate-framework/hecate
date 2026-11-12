@@ -179,6 +179,27 @@ function T:test_guard_logs_a_client_caused_error_at_warning()
   self:assert_equal("warning", seen[1][1])
 end
 
+-- Documented in website/en/how-to/before-going-to-production.md (Logging).
+function T:test_guard_logs_a_client_caused_error_as_request_refused_with_its_fields()
+  local seen = {}
+  local logger = { log = function(_, severity, message, fields) seen[#seen + 1] = { severity, message, fields } end }
+  local req = http.Request({ method = "PUT", target = "/orders/7?token=" .. SECRET, fields = http.Fields() })
+  local serve = problems.guard(function() error(http.ParseError("bad content", { context = { status = 400 } })) end,
+    { logger = logger })
+  self:assert_equal(400, (serve(req) --[[@as hecate.http.Response]]).status)
+  self:assert_equal(1, #seen)
+  self:assert_equal("warning", seen[1][1])
+  self:assert_equal("request refused", seen[1][2])
+  local fields = seen[1][3]
+  self:assert_equal("PUT", fields.method)
+  self:assert_equal("/orders/7", fields.path)
+  self:assert_equal("ParseError", fields.error_class)
+  self:assert_equal("hecate.http.ParseError", fields.error_code)
+  self:assert_equal("bad content", fields.error)
+  self:assert_equal("string", type(fields.traceback))
+  for _, value in pairs(fields) do self:assert_nil(string.find(tostring(value), SECRET, 1, true)) end
+end
+
 function T:test_guard_does_not_log_a_problem_below_500()
   local seen = {}
   local logger = { log = function(_, severity) seen[#seen + 1] = severity end }

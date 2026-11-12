@@ -502,7 +502,12 @@ function T:test_round_robin_closes_the_connection_when_every_worker_fails_and_go
   self:assert_equal("served", third)
   local failures = 0
   for _, record in ipairs(memory:records()) do
-    if record.fields and record.fields.code == "hand_over_failed" then failures = failures + 1 end
+    if record.fields and record.fields.code == "hand_over_failed" then
+      failures = failures + 1
+      -- Documented in website/en/how-to/before-going-to-production.md (Logging): a connection a worker could not take
+      -- is a `warning`.
+      self:assert_true(record.severity == log.Severity.warning)
+    end
   end
   self:assert_equal(4, failures) -- two workers tried for each of the two connections
 end
