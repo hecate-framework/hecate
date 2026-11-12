@@ -251,10 +251,15 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       NFC/NFD names before the collision check, because a site is built from a tree authored elsewhere. **Also (from the `schema` review, OQ-96):** the `---@meta` file generation for LuaLS from the schemas of a project (carried here or by `cli`, to settle when `cli` is specified), which `schema` does not implement.
 - [ ] `cli` v1: self-contained executable, `new`, `install`, `add`, `remove`, `update`,
       `serve [--watch]`, `test`, `doc`, `contract`, `toolchain`, `doctor`, `version`.
+      **Also (from the `examples/hello` item):** turn `examples/hello` into a Hecate project (`hecate.project.lua`, run
+      by `hecate serve`, tested by `hecate test`, `hecate contract lint` in CI), as `examples/README.md` requires of
+      every example from Phase 3 on; today it is `lua main.lua` and the repository harness.
 - [ ] Docker images (runtime and build variants, amd64 + arm64).
 - [ ] Website: Diátaxis structure, English source, French locale enabled, MDN-like
       theme, getting-started tutorial, reference generated from annotations, built by
       `hecate doc` (ADR 0012, after OQ-11). Pages may be drafted as Markdown earlier.
+      The getting-started tutorial ("Your first API", documentation.md) walks through `examples/hello`, verbatim
+      once `hecate new` exists.
       **Carries a deferral from the Phase 1 gate:** bring the French pages in step with the English ones (the
       `shield` section of `deadlines-and-cancellation`, the `BufferedWriter:close` and 16 KiB text, the sockets
       how-to, json `out_of_memory`) and refresh every stale `source_revision` stamp (OQ-64; findings A44 and B32 of

@@ -4,7 +4,7 @@
 - roadmap_item: Example: `examples/hello` (JSON API with validation).
 - status: in-progress
 - lock_until: 2026-11-12T05:13:32Z
-- last_update: 2026-11-12T04:20:00Z
+- last_update: 2026-11-12T04:30:00Z
 
 Stacked on the `kernel` pull request (#166, branch `claude/sweet-feynman-h1j6tu`), which is ready for review
 but not merged: this pull request targets that branch until #166 is merged, then `main`.
@@ -23,13 +23,14 @@ but not merged: this pull request targets that branch until #166 is merged, then
   `hello_test.lua` and `workers_test.lua` (content sent in two parts around `Application:shutdown`; 201 with
   `Connection: close`, new connections refused). Checked that a zero grace fails it; 5 runs of each file green.
 
+- `examples/README.md`: the "complete project, `hecate test`, `hecate contract lint`" rule applies from Phase 3; until
+  then `lua main.lua` and the harness. Carried to the Phase 3 `cli` item (turn `hello` into a project) and the Phase 3
+  website item (the getting-started tutorial walks through `hello`): no tutorial now, the website has no tutorials
+  section and "reproducible verbatim" needs `hecate new`.
+
 ## Next steps
 
-1. `examples/README.md` says every example is a complete project passing `hecate test` and `hecate contract lint`:
-   true only from Phase 3; say so, and move the `hecate.project.lua`/contract part to the Phase 3 `cli` item.
-2. Website: a tutorial page that walks through the example (`website/en/tutorials/`, "Your first API" of
-   documentation.md), or record why not yet; `CHANGELOG.md`.
-3. `/review-package`-style review (dx-reviewer, test-engineer) of the example; CI green on three platforms.
+1. `/review-package`-style review (dx-reviewer, test-engineer) of the example; CI green on three platforms.
 
 ## Decisions taken (and where they are recorded)
 
