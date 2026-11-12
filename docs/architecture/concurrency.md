@@ -178,7 +178,10 @@ the reactor thread. The basis is luv's `new_work` and `queue_work`; luv is used 
   running cannot be interrupted: libuv never stops a started work request, and stopping Lua code
   in another state would need native code. Its cancelled caller is released at once and the late
   result is discarded, as for `resolve`; the pool thread stays busy until `fn` returns. Bound the
-  work itself (input size, number of rounds), not only the wait.
+  work itself (input size, number of rounds), not only the wait. There is no deadline for a
+  running function: a count hook in the pool-thread state could raise once a deadline has passed,
+  but any count hook doubles the time of pure-Lua code in Lua 5.5, whatever its interval (owner
+  decision, OQ-119 (8)).
 - **End of a run.** `Reactor:run` returns only once every running function has returned, even
   those whose callers were cancelled, so a function that never returns keeps the program from
   ending. luv 1.53 crashes when the Lua state closes while work is in flight: at `lua_close` it

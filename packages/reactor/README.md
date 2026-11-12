@@ -8,7 +8,7 @@
 | Rock | `hecate-reactor` |
 | Layer | 1 — Runtime |
 | Roadmap phase | 1 (the transport primitives of ADR 0023: phase 2) |
-| Status | alpha — scheduler, `Future`, `fork`/`join`/`select`/`sleep`/`scope`/`deadline`, cancellation and virtual clock, `Channel`, `Semaphore`, `Mutex`, `Monitor` and `Condition` implemented; `detach`, ambient context, signals (`wait_signal`, persistent `SignalWatcher`), processes, file system, TCP, UDP and pipe transport and `resolve` implemented; `spawn`, `ipc` (framed messages with handle passing, over a message pipe) and the TCP `reuseport` option implemented (ADR 0023; effective only with a luv that supports it, OQ-43); `offload` implemented (OQ-27, choices to confirm in OQ-119) |
+| Status | alpha — scheduler, `Future`, `fork`/`join`/`select`/`sleep`/`scope`/`deadline`, cancellation and virtual clock, `Channel`, `Semaphore`, `Mutex`, `Monitor` and `Condition` implemented; `detach`, ambient context, signals (`wait_signal`, persistent `SignalWatcher`), processes, file system, TCP, UDP and pipe transport and `resolve` implemented; `spawn`, `ipc` (framed messages with handle passing, over a message pipe) and the TCP `reuseport` option implemented (ADR 0023; effective only with a luv that supports it, OQ-43); `offload` implemented (OQ-27, OQ-119) |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |
 | Depends on | [`core`](../core) |
 | Used by | `cli`, `hecate`, `http`, `kernel`, `log`, `mongodb`, `mysql`, `net`, `orm`, `postgresql`, `redis`, `sql`, `sqlite`, `sqlserver`, `test`, `websocket` |
