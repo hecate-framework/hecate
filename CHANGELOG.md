@@ -11,6 +11,7 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- docs(examples): `examples/hello` logs each response on the standard error stream (method, path without the query string, status, bytes, duration) through the `on_response` hook of `http.Server`; its README installs `luv` into `.hecate/rocks` (`luarocks --tree .hecate/rocks install luv 1.53.0-0`), which the bootstrap does not install, contrary to what it said.
 - docs(examples): `examples/hello` uses the meta-module `hecate` (`hecate.Application`, `hecate.Controller`, `hecate.routes`, `hecate.respond`, `hecate.problem`); its README gives run commands that work as written (`build-native json` and `build-native http` separately, the `LUA_PATH` and `LUA_CPATH` entries).
 - test(examples): `examples/hello` shows that a graceful shutdown drains a request in flight (Phase 2 exit criterion), in process and in a worker of two: a request in flight (`Expect: 100-continue`, content not sent yet) is answered with `Connection: close` once new connections are refused and every server has begun its shutdown; the workers test checks that both workers served.
 - fix(tools): `affected` maps a change to an example (`examples/<name>/`, Markdown excepted) to `kernel`, so CI runs the example on the three platforms; a change to an example alone ran none of its tests.
