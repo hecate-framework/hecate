@@ -43,6 +43,7 @@ Status column: `done` = implemented in `tools/`, `now` = workflow exists today, 
 | `check-adr-index` | `docs/adr/README.md` lists every ADR with its actual status | done |
 | `check-changelog` | pull requests touching `packages/` add an `[Unreleased]` entry | done |
 | `check-docs-examples` | every code block of the website introduced by `<!-- example: <path> -->` is identical to that file and the file exists (the examples run in the tests of their package) | done |
+| `check-examples` | the code examples (`packages/*/examples/**`, `examples/**`, the Lua blocks of `website/en/**` not copied from an example file) have no line holding a comment longer than 80 characters, indentation and code before the comment included, unless the line above is a comment holding `check-examples: allow-long-comment`; where printed output is written (a `-- Prints:` block directly under the line that prints it) is checked when the examples run, by the shared runner `tools/harness/examples.lua` (owner request, 2026-11-12) | done |
 | `check-translations` | missing/stale translations (front matter `source_revision`) | P3 |
 | `check-links` | internal Markdown links and anchors | done |
 | `check-licenses` | third-party code and rocks have compatible licences; `THIRD_PARTY_NOTICES` up to date | done (every directory with a `VENDORED.md` has a `LICENSE` and an entry in the notices, a `vendor` or `third_party` directory without a `VENDORED.md` is reported, every path the notices name must exist; Rust crates by cargo-deny; run by `ci`) |
