@@ -133,7 +133,7 @@ and `resolve` suspend the calling coroutine and return streams, listeners and so
 
 ## Offload
 
-Specified in Phase 2 (OQ-27); the choices that no ADR or owner decision fixed are listed in OQ-119.
+Specified in Phase 2 (OQ-27); the choices below were confirmed or decided by the owner (OQ-119, 2026-11-12).
 
 `offload(fn, ...)` runs `fn(...)` on libuv's thread pool and suspends the calling coroutine until it
 returns, so CPU-bound work (hashing a password, compressing, parsing a large document) does not stall
@@ -168,19 +168,33 @@ the reactor thread. The basis is luv's `new_work` and `queue_work`; luv is used 
   `code` of a framework error. The original error object does not cross. A result that cannot be
   copied gives the reason `"result"`, a failure of the pool thread itself `"worker"` (both
   without a traceback). libuv refusing the work raises `hecate.reactor.IoError`.
-- **Cancellation.** A queued or running function cannot be withdrawn (luv exposes no
-  cancellation for `queue_work`, and a running Lua function cannot be interrupted from another
-  thread). A cancelled caller is released at once and the late result is discarded, as for
-  `resolve`; the pool thread stays busy until `fn` returns. `Reactor:run` returns only once every
-  offloaded function has returned, even those whose callers were cancelled: luv crashes when the
-  Lua state closes with work in flight (OQ-119 (6)). Bound the work itself, not only the wait.
+- **Queue and limit.** At most `max_offloads` functions are on the pool at once (a `Reactor`
+  option, a positive integer; default the pool size minus one, at least 1), so a thread stays free
+  for the file system and name resolution. The other calls wait in a queue kept by `offload` in
+  Lua, first in first out. libuv's own queue is not used for them because luv does not expose the
+  cancellation of a queued `uv_work_t` (luv issues 416 and 630, open).
+- **Cancellation.** A caller cancelled while its call is queued is removed from the queue and its
+  function never runs; so is a caller closed by the teardown of a failed run. A function already
+  running cannot be interrupted: libuv never stops a started work request, and stopping Lua code
+  in another state would need native code. Its cancelled caller is released at once and the late
+  result is discarded, as for `resolve`; the pool thread stays busy until `fn` returns. Bound the
+  work itself (input size, number of rounds), not only the wait.
+- **End of a run.** `Reactor:run` returns only once every running function has returned, even
+  those whose callers were cancelled, so a function that never returns keeps the program from
+  ending. luv 1.53 crashes when the Lua state closes while work is in flight: at `lua_close` it
+  closes the pool-thread states (`luv_work_cleanup`) before running the loop to completion
+  (`loop_gc`), whose completion callback then enters the closing state. Programs that end with
+  `uv.run()` never meet it, because that call returns only when no work is left; the reactor
+  stops driving the loop when its main computation ends. Queued calls of finished callers are
+  dropped and do not delay the end.
 - **Clock.** Like the file system, `offload` needs the real clock; on a virtual-clock reactor it
   raises `hecate.core.Error`.
-- **Pool size.** The libuv pool is shared with the file system and name resolution and has 4
-  threads by default; the environment variable `UV_THREADPOOL_SIZE`, read when the pool is first
-  used, changes it (libuv caps it at 1024). `offload` adds no limit of its own: long functions
-  occupying every thread delay file-system calls and name resolution until one returns. Bound
-  the number of concurrent offloads with a `Semaphore` when that matters (OQ-119 (4)).
+- **Pool size.** The libuv pool is one per process, shared with the file system and name
+  resolution, and has 4 threads by default; the environment variable `UV_THREADPOOL_SIZE`, read
+  when the pool is first used, changes it (from 1 to 1024). Its threads never exit and its size
+  never changes: a program that offloads a lot sets `UV_THREADPOOL_SIZE` before it starts (the
+  advice Node.js gives for the same pool). An elastic pool would need threads owned by Hecate,
+  native code the owner declined (OQ-119).
 - **Cost.** Each call copies its arguments and results and loads the bytecode of `fn` on the pool
   thread: a round trip costs tens of microseconds, and the copy is proportional to the size of
   the values, encoded and decoded on the reactor thread for the arguments and the results

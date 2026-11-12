@@ -21,6 +21,7 @@ local CANCELLED = {} -- value a cancelled suspension is resumed with
 ---@field clock? "real"|"virtual"  default "real"
 ---@field start? number  initial reading of a virtual clock, default 0
 ---@field on_unobserved_failure? fun(err: any, future: hecate.reactor.Future)  called when a detached computation fails while nothing waits for its future (OQ-26 (1)); an error it raises is discarded
+---@field max_offloads? integer  at most this many `offload` functions on the libuv pool at once, the others wait in a queue; default the pool size minus one, at least 1 (OQ-119)
 
 --- The scheduler: runs a main computation and everything it forks over libuv, on a real or a virtual clock.
 ---@class hecate.reactor.Reactor
@@ -40,6 +41,11 @@ function Reactor:init(options)
     error(core.ArgumentError(("reactor.Reactor: on_unobserved_failure must be a function, got %s"):format(type(hook))), 2)
   end
   self._on_unobserved_failure = hook
+  local max_offloads = options.max_offloads
+  if max_offloads ~= nil and (math.type(max_offloads) ~= "integer" or max_offloads < 1) then
+    error(core.ArgumentError(("reactor.Reactor: max_offloads must be a positive integer, got %s"):format(tostring(max_offloads))), 2)
+  end
+  self._max_offloads = max_offloads
   self._virtual = clock == "virtual"
   self._virtual_now = options.start or 0
   self._origin = 0

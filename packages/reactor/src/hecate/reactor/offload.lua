@@ -4,7 +4,7 @@
 -- nine scalar values each way and swallows an error of the work function (the caller would then
 -- wait forever), so arguments and results travel as one string encoded by `internal/transfer`,
 -- and `work` below runs every step of its own under `pcall` and always answers with the id.
-global <const> type, error, require, pcall, xpcall, tostring, debug, table, string, select, load, setmetatable
+global <const> type, error, require, pcall, xpcall, tostring, tonumber, debug, table, string, select, load, setmetatable, os, math
 
 local core = require("hecate.core")
 local uv = require("luv")
@@ -76,19 +76,78 @@ local function work(id, codec_code, fn_code, payload)
   return id, status, data, traceback, code
 end
 
--- Module state: one work context, created on first use, and the callers waiting for a result.
+-- Module state. The libuv pool is one per process, so this state is too: one work context, created
+-- on first use, the callers whose function is on the pool (`waiting`, by id) and the callers queued
+-- here until a place on the pool is free (`queue`, first in first out). At most `limit()` functions
+-- are on the pool at once (OQ-119): the others stay in `queue`, where a cancelled caller is simply
+-- removed and its function never runs, and the pool keeps a thread for the file system and name
+-- resolution.
 local work_context
-local waiting = {} -- id -> state of the suspended call
+local waiting = {} -- id -> state of a call whose function is on the pool
+local queue, queue_head, queue_tail = {}, 1, 0 -- states of the calls waiting for a place on the pool
 local last_id = 0
 local bytecode = core.weak_table("k") -- function -> its bytecode
+
+--- The size of libuv's pool, read as libuv reads it (`UV_THREADPOOL_SIZE`, default 4, from 1 to 1024).
+---@return integer
+local function pool_size()
+  local text = os.getenv("UV_THREADPOOL_SIZE")
+  if text == nil then return 4 end
+  local size = math.tointeger(tonumber(text:match("^%s*([+-]?%d+)")) or 0) or 0
+  if size < 1 then return 1 end
+  if size > 1024 then return 1024 end
+  return size
+end
+
+--- How many functions may be on the pool at once: the `max_offloads` option of the running reactor,
+--- otherwise the pool size minus one, at least 1.
+---@return integer
+local function limit()
+  local running = context.reactor
+  if running and running._max_offloads then return running._max_offloads end
+  local size = pool_size()
+  return size > 1 and size - 1 or 1
+end
+
+--- Hands the call of `state` to the pool; on refusal, wakes its caller with the reason.
+local function submit(state)
+  waiting[state.id] = state
+  local called, queued, queue_error = pcall(uv.queue_work, work_context, state.id, transfer.code, state.code, state.payload)
+  state.payload = nil
+  if called and queued then
+    context.offloads_in_flight = (context.offloads_in_flight or 0) + 1
+    state.submitted = true
+  else
+    waiting[state.id] = nil
+    state.status, state.data = "refused", tostring(called and queue_error or queued)
+    state.wake()
+  end
+end
+
+--- Submits the queued calls while the pool has room; skips the calls whose caller was cancelled.
+local function dispatch()
+  while queue_head <= queue_tail and (context.offloads_in_flight or 0) < limit() do
+    local state = queue[queue_head]
+    queue[queue_head] = nil
+    queue_head = queue_head + 1
+    -- A caller cancelled while queued, or closed by the teardown of a failed run (its cleanup never
+    -- ran, its computation is dead): its function never runs.
+    if not state.abandoned and state.computation.state ~= "dead" then
+      state.queued = false
+      submit(state)
+    end
+  end
+end
 
 local function on_done(id, status, data, traceback, code)
   context.offloads_in_flight = (context.offloads_in_flight or 1) - 1
   local state = waiting[id]
-  if state == nil then return end -- a cancelled caller: the late result is discarded
-  waiting[id] = nil
-  state.status, state.data, state.traceback, state.code = status, data, traceback, code
-  state.wake()
+  if state ~= nil then
+    waiting[id] = nil
+    state.status, state.data, state.traceback, state.code = status, data, traceback, code
+    state.wake()
+  end -- otherwise a cancelled caller: the late result is discarded
+  dispatch()
 end
 
 --- Returns the bytecode of `fn`, or raises `ArgumentError` when it cannot run on a pool thread.
@@ -138,10 +197,13 @@ M.OffloadError = OffloadError
 --- suspend. Arguments and results are copied: `nil`, booleans, numbers, strings and plain tables of
 --- them (no metatable, no cycle, at most 100 levels).
 ---
---- A running function cannot be interrupted: a cancelled caller is released at once and the late
---- result is discarded, but `reactor.run` returns only once every offloaded function has returned.
---- The pool (4 threads unless `UV_THREADPOOL_SIZE` says otherwise) is shared with the file system
---- and name resolution.
+--- At most `max_offloads` functions (a `Reactor` option; default the pool size minus one, at least
+--- 1) are on the pool at once; the others wait in a queue, first in first out, so a thread stays
+--- free for the file system and name resolution, which share the pool (4 threads unless
+--- `UV_THREADPOOL_SIZE` says otherwise). A caller cancelled while queued is removed and its function
+--- never runs. A running function cannot be interrupted: its cancelled caller is released at once and
+--- the late result is discarded, but `reactor.run` returns only once every running function has
+--- returned.
 ---
 --- Raises `hecate.reactor.OffloadError` when `fn` raises (`context.reason` `"raised"`,
 --- `context.traceback` from the pool thread, `context.code` the `code` of a framework error),
@@ -156,28 +218,29 @@ function M.offload(fn, ...)
   local code = dump(fn)
   local ok, payload = pcall(transfer.codec.encode, "argument", select("#", ...), { ... })
   if not ok then error(core.ArgumentError("reactor.offload: " .. tostring(payload)), 2) end
-  uv_call.begin("reactor.offload")
+  local computation = uv_call.begin("reactor.offload")
   if work_context == nil then
     local created, result = pcall(uv.new_work, work, on_done)
     if not created or not result then uv_call.fail("reactor.offload", "new_work", tostring(result)) end
     work_context = result
   end
   last_id = last_id + 1
-  local id, state = last_id, {}
+  local state = { id = last_id, code = code, payload = payload, computation = computation }
   local suspended, failure = pcall(context.suspend, function(wake)
     state.wake = wake
-    waiting[id] = state
-    local called, queued, queue_error = pcall(uv.queue_work, work_context, id, transfer.code, code, payload)
-    if called and queued then
-      context.offloads_in_flight = (context.offloads_in_flight or 0) + 1
+    if (context.offloads_in_flight or 0) < limit() and queue_head > queue_tail then
+      submit(state)
     else
-      waiting[id] = nil
-      state.status, state.data = "refused", tostring(called and queue_error or queued)
-      wake()
+      state.queued = true
+      queue_tail = queue_tail + 1
+      queue[queue_tail] = state
     end
   end)
   if not suspended then
-    waiting[id] = nil
+    -- Cancelled: a queued call never reaches the pool; a submitted one runs on and its result is
+    -- discarded by `on_done`.
+    state.abandoned = true
+    waiting[state.id] = nil
     error(failure, 0)
   end
   local status = state.status

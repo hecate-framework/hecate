@@ -104,32 +104,27 @@ local ok, err = pcall(reactor.offload, function() error("corrupt input") end)
 
 ## Bound the work, not only the wait
 
-A function that runs on the pool cannot be interrupted. When the caller is
+A function waiting in the queue (see below) is never started if its caller is
 [cancelled](../reference/glossary.md#concurrency), by `reactor.deadline` or by its
-[scope](../reference/glossary.md#concurrency), it is released at once and the result is discarded
-when it arrives, but the pool thread stays busy until the function returns, and `reactor.run` does
-not return before it does. Give long work its own limit, for example a maximum input size or a
-number of rounds.
+[scope](../reference/glossary.md#concurrency). A function that already runs on the pool cannot be
+interrupted: its caller is released at once and the result is discarded when it arrives, but the
+pool thread stays busy until the function returns, and `reactor.run` does not return before it does.
+Give long work its own limit, for example a maximum input size or a number of rounds.
 
 ## Size the pool
 
-The pool has 4 threads by default and is shared with the file system and name resolution: four
-long offloaded functions delay every `reactor.fs` call and every name resolution until one of them
-returns. Set the environment variable `UV_THREADPOOL_SIZE` before the program starts to change the
-size, and bound the number of concurrent offloads with a `reactor.Semaphore` when the work can
-pile up:
+The pool has 4 threads by default and is shared with the file system and name resolution. So that
+offloaded work never takes every thread, at most 3 functions run on the pool at once (the pool size
+minus one); further calls wait in a queue and start in arrival order. Change the limit with the
+`max_offloads` option of the reactor:
 
 ```lua
-local slots = reactor.Semaphore(2)
-
--- `slow_hash` is a self-contained function defined elsewhere: it is the argument of `offload`,
--- not a variable the offloaded function captures.
-
-local function hash(password, salt)
-  local permit <close> = slots:acquire()
-  return reactor.offload(slow_hash, password, salt)
-end
+reactor.Reactor({ max_offloads = 2 }):run(main)
 ```
+
+The pool's size is fixed when it is first used and its threads never exit. A program that offloads a
+lot sets the environment variable `UV_THREADPOOL_SIZE` (from 1 to 1024) before it starts; the default
+limit follows it.
 
 Each call copies its arguments and results and loads the function on the pool thread: a round trip
 costs tens of microseconds, and copying a large table costs time on the reactor thread in proportion

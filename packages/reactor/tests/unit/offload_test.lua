@@ -336,4 +336,118 @@ function T:test_offload_requires_a_managed_coroutine()
   self:assert_true(core.is_instance_of(err, core.NonYieldableContextError), tostring(err))
 end
 
+-- The queue (OQ-119) -----------------------------------------------------------------------------
+
+--- A busy function: os.clock is process CPU time on Linux and macOS (all threads), wall time on
+--- Windows; either way it ends after at most `seconds` of wall time while it is scheduled.
+local function spin(seconds)
+  return function(s)
+    local stop = os.clock() + s
+    while os.clock() < stop do end
+  end, seconds
+end
+
+--- A path where nothing exists, for a function whose only trace is the file it writes.
+local function absent_path()
+  local path = os.tmpname()
+  os.remove(path)
+  return path
+end
+
+--- Runs `count` busy offloads on `options`'s reactor and returns the most seen at once on the pool.
+local function peak(options, count)
+  return reactor.Reactor(options):run(function()
+    local most, done = 0, false
+    local sampler = reactor.fork(function()
+      while not done do
+        local now = context.offloads_in_flight or 0
+        if now > most then most = now end
+        reactor.sleep(0.002)
+      end
+    end)
+    local futures = {}
+    for i = 1, count do futures[i] = reactor.fork(reactor.offload, spin(0.03)) end
+    for i = 1, count do futures[i]:value() end
+    done = true
+    sampler:value()
+    return most
+  end)
+end
+
+function T:test_at_most_max_offloads_functions_are_on_the_pool()
+  self:assert_equal(2, peak({ max_offloads = 2 }, 6))
+  self:assert_equal(1, peak({ max_offloads = 1 }, 3))
+end
+
+function T:test_the_default_limit_keeps_a_thread_free()
+  if os.getenv("UV_THREADPOOL_SIZE") then return end -- the default depends on it
+  self:assert_equal(3, peak(nil, 8))
+end
+
+function T:test_queued_functions_run_in_arrival_order()
+  local arrived, finished = reactor.Reactor({ max_offloads = 1 }):run(function()
+    local arrived, finished, futures = {}, {}, {}
+    for i = 1, 5 do
+      futures[i] = reactor.fork(function()
+        arrived[#arrived + 1] = i -- the order in which the calls reach `offload`
+        local value = reactor.offload(function(n) return n end, i)
+        finished[#finished + 1] = value -- not in one statement: the index would be taken before the call
+      end)
+    end
+    for i = 1, 5 do futures[i]:value() end
+    return arrived, finished
+  end)
+  self:assert_equal(5, #finished)
+  for i = 1, 5 do self:assert_equal(arrived[i], finished[i]) end
+end
+
+function T:test_a_caller_cancelled_while_queued_never_runs_its_function()
+  local path = absent_path()
+  reactor.Reactor({ max_offloads = 1 }):run(function()
+    local first = reactor.fork(reactor.offload, spin(0.05))
+    local queued = reactor.fork(reactor.offload, function(p)
+      local file = assert(io.open(p, "w"))
+      file:write("ran")
+      file:close()
+    end, path)
+    reactor.sleep(0)
+    queued:cancel()
+    self:assert_error(function() queued:value() end)
+    self:assert_equal("cancelled", queued:state())
+    first:value()
+    reactor.offload(function() end) -- the queue has moved past the cancelled call
+  end)
+  local file = io.open(path, "r")
+  if file then file:close(); os.remove(path) end
+  self:assert_nil(file, "the cancelled function ran")
+end
+
+function T:test_a_failed_run_drops_its_queued_calls()
+  local path = absent_path()
+  local err = self:assert_error(function()
+    reactor.Reactor({ max_offloads = 1 }):run(function()
+      reactor.fork(reactor.offload, spin(0.05))
+      reactor.fork(reactor.offload, function(p)
+        local file = assert(io.open(p, "w"))
+        file:write("ran")
+        file:close()
+      end, path)
+      reactor.sleep(0)
+      error("the run fails")
+    end)
+  end)
+  self:assert_true(tostring(err):find("the run fails", 1, true) ~= nil, tostring(err))
+  reactor.run(function() reactor.offload(function() end) end) -- a later run does not start it either
+  local file = io.open(path, "r")
+  if file then file:close(); os.remove(path) end
+  self:assert_nil(file, "the queued function of the failed run ran")
+end
+
+function T:test_max_offloads_is_validated()
+  for _, value in ipairs({ 0, -1, 1.5, "2" }) do
+    local err = self:assert_error(function() reactor.Reactor({ max_offloads = value }) end)
+    self:assert_true(core.is_instance_of(err, core.ArgumentError), tostring(err))
+  end
+end
+
 return T
