@@ -89,7 +89,7 @@ values keep their place.
 ## Handle errors
 
 An error raised by the function reaches the caller as a `reactor.OffloadError`. Its message starts
-with `reactor.offload: ` followed by the original message (the `message` field of an error
+with `reactor.offload:` followed by the original message (the `message` field of an error
 object), and `err.context.traceback` holds the traceback on the pool thread. The original error
 object stays on the pool thread.
 

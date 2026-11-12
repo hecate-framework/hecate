@@ -157,7 +157,7 @@ the reactor thread. The basis is luv's `new_work` and `queue_work`; luv is used 
   result. A table reached twice is copied twice (sharing is not preserved). There is no limit on
   the number of arguments or results, and `nil` arguments and results are kept in place.
 - **Errors.** An error raised by `fn` is raised in the caller as `hecate.reactor.OffloadError`
-  (a `hecate.core.Error`): the message is `reactor.offload: ` followed by the error message (the
+  (a `hecate.core.Error`): the message is `reactor.offload:` followed by the error message (the
   `message` field of an error object, otherwise `tostring` of the error), and
   `context.traceback` holds the traceback on the pool thread. The original error object does not
   cross.
