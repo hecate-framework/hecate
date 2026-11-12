@@ -23,8 +23,8 @@ A `Form` has `get(name)` (the first value, or `nil`), `get_all(name)` (every val
 
 <!-- example: packages/http/examples/hecate.http.Request.read_form.lua -->
 ```lua
--- An action that reads a urlencoded form. The client sends pairs with `form`; a name that
--- repeats keeps its order.
+-- An action that reads a urlencoded form. The client sends pairs with
+-- `form`; a name that repeats keeps its order.
 local reactor = require("hecate.reactor")
 local http = require("hecate.http")
 
@@ -75,8 +75,8 @@ A part has `name`, `filename`, `content_type`, `fields` (its own `Fields`), `rea
 
 <!-- example: packages/http/examples/hecate.http.Request.stream_parts.lua -->
 ```lua
--- An action that reads a multipart upload part by part. The file is never trusted with its
--- name: the action keeps its own and only counts the bytes.
+-- An action that reads a multipart upload part by part. The file is never
+-- trusted with its name: the action keeps its own and only counts the bytes.
 local reactor = require("hecate.reactor")
 local http = require("hecate.http")
 

@@ -19,8 +19,9 @@ container and no way to reach one from a service. Only the composition root and 
 
 <!-- example: packages/container/examples/hecate.container.Container.lua -->
 ```lua
--- Bind services, validate the graph at boot, then resolve them: a singleton is shared, a scoped service lives in one
--- service scope (one per request), a transient is built for each caller.
+-- Bind services, validate the graph at boot, then resolve them: a singleton
+-- is shared, a scoped service lives in one service scope (one per request), a
+-- transient is built for each caller.
 local core = require("hecate.core")
 local container = require("hecate.container")
 
@@ -30,7 +31,7 @@ core.finalise(Clock)
 
 local Session = core.class("Session")
 function Session:init(clock) self.opened_at = clock:now() end
-function Session:__close() print("session closed") end
+function Session:__close() self.closed = true end
 core.finalise(Session)
 
 local c = container.Container()
@@ -38,10 +39,20 @@ c:bind("clock", Clock, { lifetime = "singleton" })
 c:bind("session", Session, { lifetime = "scoped", requires = { "clock" } })
 c:validate()
 
-local request <close> = c:open_scope()
-print(request:resolve("session") == request:resolve("session"))
-print(c:open_scope():resolve("session") == request:resolve("session"))
-print(c:resolve("clock") == request:resolve("clock"))
+local session
+do
+  local request <close> = c:open_scope()
+  session = request:resolve("session")
+  print(session == request:resolve("session"))
+  -- Prints: true
+  print(c:open_scope():resolve("session") == session)
+  -- Prints: false
+  print(c:resolve("clock") == request:resolve("clock"))
+  -- Prints: true
+end
+-- Closing the scope closes its scoped services.
+print(session.closed)
+-- Prints: true
 
 -- A mistake in the composition is found at boot, with every problem at once.
 local broken = container.Container()
@@ -50,11 +61,7 @@ broken:bind("b", function() end, { lifetime = "transient", requires = { "a", "mi
 local ok, err = pcall(function() broken:validate() end)
 ---@cast err hecate.container.GraphError
 print(ok, err.context.problems[1].context.path[1], #err.context.problems)
--- Prints: true
--- false
--- true
--- false	a	2
--- session closed
+-- Prints: false	a	2
 ```
 
 `bind(key, definition, options?)` registers one service and returns the container, so calls chain.

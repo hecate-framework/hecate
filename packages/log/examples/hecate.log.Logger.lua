@@ -1,5 +1,5 @@
--- A logger drops what is less urgent than its severity, adds its context to every record and hands the rest to
--- its sinks.
+-- A logger drops what is less urgent than its severity, adds its context to
+-- every record and hands the rest to its sinks.
 local log = require("hecate.log")
 
 local sink = log.MemorySink()

@@ -1,5 +1,6 @@
--- Serve HTTPS with the throwaway keys of the net tests (use your own certificate and key) and call it
--- with a client that trusts their CA. The paths are relative to the root of the repository.
+-- Serve HTTPS with the throwaway keys of the net tests (use your own
+-- certificate and key) and call it with a client that trusts their CA.
+-- The paths are relative to the root of the repository.
 local reactor = require("hecate.reactor")
 local http = require("hecate.http")
 

@@ -1,6 +1,6 @@
--- A CPU-bound function runs on the libuv thread pool while the reactor keeps serving
--- other computations. The function is self-contained: what it needs arrives as
--- arguments, and its results are copied back.
+-- A CPU-bound function runs on the libuv thread pool while the reactor
+-- keeps serving other computations. The function is self-contained: what
+-- it needs arrives as arguments, and its results are copied back.
 local reactor = require("hecate.reactor")
 
 reactor.run(function()
@@ -8,7 +8,8 @@ reactor.run(function()
   local ticker = reactor.fork(function()
     while true do
       reactor.sleep(0.001)
-      ticks = ticks + 1 -- counted after a completed sleep: the reactor was free meanwhile
+      -- Counted after a completed sleep: the reactor was free meanwhile.
+      ticks = ticks + 1
     end
   end)
   local count, largest = reactor.offload(function(limit)

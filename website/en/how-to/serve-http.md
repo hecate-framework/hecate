@@ -26,7 +26,8 @@ with `curl http://127.0.0.1:8080/`. It answers `hello`.
 
 <!-- example: packages/http/examples/hecate.http.Server.hello.lua -->
 ```lua
--- The smallest server: it listens on 127.0.0.1:8080 and answers every request with "hello".
+-- The smallest server: it listens on 127.0.0.1:8080 and answers every
+-- request with "hello".
 local http, reactor = require("hecate.http"), require("hecate.reactor")
 local function action() return http.Response(200, { content = "hello\n" }) end
 reactor.run(function() http.Server(action, { port = 8080 }):serve() end)
@@ -47,8 +48,9 @@ The example below serves three paths, asks each one with the client and shuts th
 
 <!-- example: packages/http/examples/hecate.http.Server.lua -->
 ```lua
--- A server on a free port. The action answers with a string, JSON text (http never serialises) and a
--- function that streams its content, then the server shuts down.
+-- A server on a free port. The action answers with a string, JSON text
+-- (http never serialises) and a function that streams its content, then
+-- the server shuts down.
 local json = require("hecate.json")
 local reactor = require("hecate.reactor")
 local http = require("hecate.http")
@@ -75,16 +77,16 @@ reactor.run(function()
   local base = "http://127.0.0.1:" .. listener:local_address().port
   local client <close> = http.Client()
   print(client:get(base .. "/hello"):read_content())
+  -- Prints: hello
   print(client:get(base .. "/user"):read_content())
+  -- Prints: {"name":"Ada"}
   print((client:get(base .. "/count"):read_content():gsub("\n", " "):gsub(" $", "")))
+  -- Prints: 1 2 3
   print(client:get(base .. "/missing").status)
+  -- Prints: 404
   server:shutdown()
   reactor.join(serving)
 end)
--- Prints: hello
--- {"name":"Ada"}
--- 1 2 3
--- 404
 ```
 
 `serve` returns once every connection has ended, so fork it, as the example does, and join it
@@ -218,9 +220,10 @@ A program stops its server on `SIGINT` or `SIGTERM`: one computation waits for t
 
 <!-- example: packages/http/examples/hecate.http.Server.shutdown.lua -->
 ```lua
--- Stop a server on SIGINT or SIGTERM: one computation waits for the signal, another serves, and the
--- shutdown gives the requests in flight ten seconds. A `<close>` scope cannot stop a server, because
--- `shutdown` suspends while it waits for them. Here a request stands in for the signal.
+-- Stop a server on SIGINT or SIGTERM: one computation waits for the signal,
+-- another serves, and the shutdown gives the requests in flight ten seconds.
+-- A `<close>` scope cannot stop a server, because `shutdown` suspends while
+-- it waits for them. Here a request stands in for the signal.
 local reactor = require("hecate.reactor")
 local http = require("hecate.http")
 
@@ -231,7 +234,8 @@ reactor.run(function()
   local listener = server:listen()
   local serving = reactor.fork(server.serve, server, listener)
   local signalled = reactor.fork(reactor.wait_signal, "sigint", "sigterm")
-  local finished = reactor.fork(function() -- in a program, only the signal ends the wait
+  -- In a program, only the signal ends the wait.
+  local finished = reactor.fork(function()
     local client <close> = http.Client()
     print(client:get("http://127.0.0.1:" .. listener:local_address().port .. "/"):read_content())
   end)

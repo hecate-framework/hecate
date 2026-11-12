@@ -7,24 +7,25 @@ local shape = schema.tagged_union("kind", {
 })
 
 print((shape:validate({ kind = "circle", radius = 2 })))
+-- Prints: true
 
--- The violations are those of the selected variant, at the path of the offending value.
+-- The violations are those of the selected variant, at the path of the
+-- offending value.
 local _, violations = shape:validate({ kind = "circle", radius = -1 })
 local violation = assert(violations)[1]
 print(violation.path, violation.code)
+-- Prints: /radius	exclusive_minimum
 
 -- An unknown tag lists the variants; a missing tag is a missing property.
 _, violations = shape:validate({ kind = "triangle" })
 violation = assert(violations)[1]
 print(violation.path, violation.code, table.concat(assert(violation.context).values, " "))
+-- Prints: /kind	tagged_union	circle rectangle
 _, violations = shape:validate({ radius = 2 })
 violation = assert(violations)[1]
 print(violation.path, violation.code)
+-- Prints: /kind	required
 
 -- The emission is a `oneOf` of the variants, each with the tag as a constant.
 print(#shape:to_json_schema().oneOf)
--- Prints: true
--- /radius	exclusive_minimum
--- /kind	tagged_union	circle rectangle
--- /kind	required
--- 2
+-- Prints: 2

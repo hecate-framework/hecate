@@ -1,5 +1,5 @@
--- An action that reads a urlencoded form. The client sends pairs with `form`; a name that
--- repeats keeps its order.
+-- An action that reads a urlencoded form. The client sends pairs with
+-- `form`; a name that repeats keeps its order.
 local reactor = require("hecate.reactor")
 local http = require("hecate.http")
 

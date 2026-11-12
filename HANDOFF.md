@@ -3,8 +3,8 @@
 
 - roadmap_item: Examples: comment width and output placement (owner request, 2026-11-12).
 - status: in-progress
-- lock_until: 2026-11-13T01:35:00Z
-- last_update: 2026-11-13T00:05:00Z
+- lock_until: 2026-11-13T02:10:00Z
+- last_update: 2026-11-13T00:40:00Z
 
 ## Done
 
@@ -18,12 +18,19 @@
   net its TLS skip). The tests of config, container, http, router and schema now FAIL until step 3 (20 examples gather
   their output at the end). `examples/hello` is an application, not a printing example: only rule 1 applies to it.
 
+- Step 3: every example migrated (both rules; 20 examples had gathered output, 98 lines over the width), website
+  copies resynced (`check-docs-examples` ok), 4 inline website lines fixed; `check-examples` added to the `docs-checks`
+  and static-check task lists of `ci.yml`; `documentation.md` "Code examples", `website/CLAUDE.md`, `CHANGELOG.md`.
+  Local: every check ok, `test` ok (all packages, tools, examples/hello), `typecheck` ok. Only change of printed
+  output: the container example shows the scope closing through `session.closed` (`true`) instead of a print from
+  `__close`.
+
 ## Next steps
 
-1. Migrate every example (`packages/*/examples/`, `examples/`) and the website pages that include them
-   (`check-docs-examples`); fix the 98 lines reported by `check-examples` (94 in example files, 4 in website pages).
-   Then add `check-examples` to the `docs-checks` (line ~144) and static-check (line ~485) task lists of `ci.yml`.
-3. `documentation.md`, `website/CLAUDE.md`, `CHANGELOG.md`; CI green on three platforms; tick, delete this file.
+1. Watch CI of pull request #182 on the three platforms; fix any failure (Windows: line endings of examples read by
+   the runner are handled; check `os.tmpname` in `tools/tests/examples_test.lua`).
+2. When green: tick the roadmap item, delete this file, update the pull request body (implementation added), mark it
+   ready for review and ask the owner for review. Then the Phase 2 gate (#183, parked) can resume after the merge.
 
 ## Decisions taken (and where they are recorded)
 

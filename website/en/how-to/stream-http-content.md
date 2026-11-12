@@ -55,8 +55,9 @@ Give `content` a function. It receives `write` and `flush`. Each `write(data)` s
 
 <!-- example: packages/http/examples/hecate.http.Response.stream.lua -->
 ```lua
--- Streaming a response. The content is a function: each `write` is sent as it is called and
--- `flush` pushes it to the client at once. The client reads it chunk by chunk.
+-- Streaming a response. The content is a function: each `write` is sent as
+-- it is called and `flush` pushes it to the client at once. The client
+-- reads it chunk by chunk.
 local reactor = require("hecate.reactor")
 local http = require("hecate.http")
 
@@ -80,6 +81,7 @@ reactor.run(function()
   local client <close> = http.Client()
   local response <close> = client:get("http://127.0.0.1:" .. listener:local_address().port .. "/")
   print(response.fields:get("Transfer-Encoding"))
+  -- Prints: chunked
   local stream, text = response:stream_content(), {}
   while true do
     local chunk = stream:read()
@@ -87,11 +89,10 @@ reactor.run(function()
     text[#text + 1] = chunk:gsub("\n", "|")
   end
   print(table.concat(text))
+  -- Prints: line 1|line 2|line 3|
   server:shutdown()
   reactor.join(serving)
 end)
--- Prints: chunked
--- line 1|line 2|line 3|
 ```
 
 The framing depends on what you declared:

@@ -1,5 +1,6 @@
--- A client with its pool. The server echoes what it receives; the client sends JSON, then
--- reads a response chunk by chunk and releases its connection.
+-- A client with its pool. The server echoes what it receives; the client
+-- sends JSON, then reads a response chunk by chunk and releases its
+-- connection.
 local reactor = require("hecate.reactor")
 local http = require("hecate.http")
 
@@ -17,6 +18,7 @@ reactor.run(function()
 
   local created = client:post(base .. "/items", { name = "pen" })
   print(created.status .. " " .. created:read_content())
+  -- Prints: 200 POST /items 14
 
   local response <close> = client:get(base .. "/items/7")
   local stream = response:stream_content()
@@ -25,9 +27,8 @@ reactor.run(function()
     if chunk == nil then break end
     print(chunk)
   end
+  -- Prints: GET /items/7 0
 
   server:shutdown()
   reactor.join(serving)
 end)
--- Prints: 200 POST /items 14
--- GET /items/7 0

@@ -20,8 +20,9 @@ Pass the options when you create the server. The parser limits go in the `parser
 
 <!-- example: packages/http/examples/hecate.http.Server.limits.lua -->
 ```lua
--- Limits, as options. A server that accepts 16 bytes of content refuses a larger request
--- with a 413 before the action runs, and the parser limits go in the `parser` table.
+-- Limits, as options. A server that accepts 16 bytes of content refuses a
+-- larger request with a 413 before the action runs, and the parser limits
+-- go in the `parser` table.
 local reactor = require("hecate.reactor")
 local http = require("hecate.http")
 
@@ -46,14 +47,14 @@ reactor.run(function()
   local client <close> = http.Client()
   local small = client:post(url, "0123456789")
   print(small.status .. " " .. small:read_content())
+  -- Prints: 200 ok
   ran = false
   local large = client:post(url, ("x"):rep(17))
   print(large.status .. " " .. large.fields:get("Content-Type") .. " " .. tostring(ran))
+  -- Prints: 413 application/problem+json false
   server:shutdown()
   reactor.join(serving)
 end)
--- Prints: 200 ok
--- 413 application/problem+json false
 ```
 
 An unknown option, or a value out of range, raises an `ArgumentError` when the server is created.
@@ -120,8 +121,9 @@ their authority. Use your own certificate and key.
 
 <!-- example: packages/http/examples/hecate.http.Server.tls.lua -->
 ```lua
--- Serve HTTPS with the throwaway keys of the net tests (use your own certificate and key) and call it
--- with a client that trusts their CA. The paths are relative to the root of the repository.
+-- Serve HTTPS with the throwaway keys of the net tests (use your own
+-- certificate and key) and call it with a client that trusts their CA.
+-- The paths are relative to the root of the repository.
 local reactor = require("hecate.reactor")
 local http = require("hecate.http")
 
