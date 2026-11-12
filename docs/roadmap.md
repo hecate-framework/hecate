@@ -21,6 +21,12 @@ produces a report, `docs/reviews/phase-<N>.md`, and checks the five points below
    builds, the tests of every package and the examples and benchmark scenarios of the phase pass, and the CI
    workflows are green on the three platforms (Windows excepted where the owner has said so). The exit criteria of the
    phase are demonstrated, not assumed.
+   The code examples of the phase (`packages/*/examples/`, `examples/`, and the Lua blocks of the website) follow the
+   two example rules (owner request, 2026-11-12), checked by `check-examples` and by the examples tests, and read
+   by the gate: (a) no line that holds a comment is longer than 80 characters, indentation and the code before the
+   comment included (code lines may be longer, but are not broken unnaturally to fit), unless the line just above
+   carries an explicit exception marker; (b) what a line makes the reader see (printed output, log lines) is written
+   in a `-- Prints:` block directly under that line, never gathered at the end of the example.
 3. **Coherence.** Code, ADRs, specifications, package READMEs, the glossary, the roadmap, `docs/open-questions.md`,
    the website (English and French), the catalogue in `automation.md`, `llms.txt`, `README.md` and `CLAUDE.md` say
    the same thing, and nothing says a thing that is not true.
@@ -242,6 +248,14 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       application is deployed: log severity, no secrets in error messages (the logger redacts field names, not free text), what the
       default logger and the access log record (query strings), `logging.redact`, secrets declared in `secrets`, limits, development
       mode off. Written after the `kernel` item so that it names its real configuration keys.
+
+- [ ] Examples: comment width and output placement (owner request, 2026-11-12). A task `check-examples` (run by the
+      `docs-checks` and static-check jobs of `ci.yml`) fails on a line longer than 80 characters that holds a comment
+      in `packages/*/examples/**`, `examples/**` and the Lua blocks of `website/en/**`, unless the line above carries
+      the exception marker; the examples tests check that each printed or logged line is expected by a `-- Prints:`
+      block directly under the line that produced it (one shared helper instead of a copy per package). Migrate every
+      existing example and the website pages that include them; document both rules in `documentation.md` and
+      `website/CLAUDE.md`. Both rules are part of the phase gates ("It works").
 
 - [ ] **Phase 2 gate**: verification of the phase, as described in [Phase gates](#phase-gates). Open
       questions to put to the owner before Phase 3: OQ-46, OQ-13, OQ-17, OQ-38 and OQ-64
