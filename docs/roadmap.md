@@ -238,10 +238,10 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       report with rendered samples submitted to the owner before the website skeleton
       (resolved 2026-10-13: [report](spikes/OQ-11-doc-tooling.md), [ADR 0012](adr/0012-website-generator.md)).
 
-- [ ] Documentation: a how-to page "Before going to production" (`website/en/how-to/`), a checklist of what to verify before an
+- [x] Documentation: a how-to page "Before going to production" (`website/en/how-to/`), a checklist of what to verify before an
       application is deployed: log severity, no secrets in error messages (the logger redacts field names, not free text), what the
       default logger and the access log record (query strings), `logging.redact`, secrets declared in `secrets`, limits, development
-      mode off. Written after the `kernel` item so that it names its real configuration keys.
+      mode off. Written after the `kernel` item so that it names its real configuration keys. Delivered: [`website/en/how-to/before-going-to-production.md`](../website/en/how-to/before-going-to-production.md), reviewed against the code by `security-reviewer` and `dx-reviewer`; English only for now (`website/fr/how-to` does not yet mirror every page).
 
 - [ ] **Phase 2 gate**: verification of the phase, as described in [Phase gates](#phase-gates). Open
       questions to put to the owner before Phase 3: OQ-46, OQ-13, OQ-17, OQ-38 and OQ-64

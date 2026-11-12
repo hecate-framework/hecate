@@ -42,4 +42,12 @@ function T:test_control_characters_in_a_key_or_a_logger_name_cannot_forge_a_line
   self:assert_not_nil(lines[1]:find("\\x0a", 1, true))
 end
 
+-- Documented in website/en/how-to/before-going-to-production.md (Redaction does not read free text).
+function T:test_a_table_with_a_metatable_is_printed_as_an_ellipsis()
+  local logger, lines = new_logger({ redact = { "authorization" } })
+  logger:error("request", { fields = setmetatable({ authorization = "x" }, {}) })
+  self:assert_not_nil(lines[1]:find("fields={...}", 1, true))
+  self:assert_nil(lines[1]:find("authorization", 1, true))
+end
+
 return T
