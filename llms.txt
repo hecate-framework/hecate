@@ -79,5 +79,5 @@
 - [hecate-template](packages/template/README.md): Compiled templates with contextual auto-escaping, for HTML and text responses.
 - [hecate-mongodb](packages/mongodb/README.md): MongoDB driver (OP_MSG + BSON) and document mapper sharing the unit-of-work vocabulary.
 - [hecate-sqlserver](packages/sqlserver/README.md): Microsoft SQL Server driver implementing TDS in Lua.
-- [hecate-reactor](packages/reactor/README.md): The reactor over libuv (luv): coroutine scheduler, futures, structured concurrency, synchronisation primitives, timers, signals, processes, file system, network transport (TCP, UDP, pipes, name resolution), ambient context.
+- [hecate-reactor](packages/reactor/README.md): The reactor over libuv (luv): coroutine scheduler, futures, structured concurrency, synchronisation primitives, timers, signals, processes, file system, network transport (TCP, UDP, pipes, name resolution), ambient context, `offload` of Lua functions to the libuv thread pool.
 <!-- gen-llms-txt:end -->

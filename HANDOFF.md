@@ -1,14 +1,24 @@
 <!-- Relay handoff note. Lives only on relay branches; deleted before review. -->
 # Handoff
 
-- roadmap_item: **Phase 2 gate**: verification of the phase, as described in [Phase gates](#phase-gates).
-- status: in-progress
+- roadmap_item: **Phase 2 gate**: verification of the phase, as described in "Phase gates" (`docs/roadmap.md`).
+- status: waiting-owner
 - lock_until: 2026-11-13T01:00:51Z
 - last_update: 2026-11-12T23:30:51Z
+
+## Blocked until
+
+Pull request #182 adds the Phase 2 item "Examples: comment width and output placement" before this gate. The gate is
+startable only when every other Phase 2 item is ticked, so this pull request waits until that item is delivered and
+ticked on `main`; then rebase onto `main` and continue from "Next steps".
 
 ## Done
 
 - Claimed the gate (branch `claude/relay-phase-2-gate`, draft pull request). Issue #180 closed (#179 merged).
+- Partial step 1 (at `main` 0e1616c): every `check-*`, `lint`, `format-check`, `gen-dependency-graph --check` ok;
+  `build-native json|doc|http|net` ok. Findings: `gen-catalogue --check` and `gen-llms-txt --check` failed (stale,
+  regenerated in this branch; CI does not run them: check why); `packages/kernel/README.md` status still `in progress`
+  although the item is ticked.
 
 ## Next steps
 
