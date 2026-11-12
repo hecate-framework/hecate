@@ -3,8 +3,8 @@
 
 - roadmap_item: Example: `examples/hello` (JSON API with validation).
 - status: in-progress
-- lock_until: 2026-11-12T05:13:32Z
-- last_update: 2026-11-12T04:30:00Z
+- lock_until: 2026-11-12T06:20:00Z
+- last_update: 2026-11-12T04:50:00Z
 
 Stacked on the `kernel` pull request (#166, branch `claude/sweet-feynman-h1j6tu`), which is ready for review
 but not merged: this pull request targets that branch until #166 is merged, then `main`.
@@ -28,9 +28,20 @@ but not merged: this pull request targets that branch until #166 is merged, then
   website item (the getting-started tutorial walks through `hello`): no tutorial now, the website has no tutorials
   section and "reproducible verbatim" needs `hecate new`.
 
+- test-engineer review: the drain tests no longer guess timings (`Expect: 100-continue` marks the request in flight;
+  idle kept-alive connections, two per worker, close when each server begins its shutdown, as the primary closes its
+  listener before it sends `stop`); both workers ready before the requests and both served (supervisor counters);
+  the 422 of the workers test checks `application/problem+json`; polling loops bounded. 5 runs of each file green.
+
 ## Next steps
 
-1. `/review-package`-style review (dx-reviewer, test-engineer) of the example; CI green on three platforms.
+1. dx-reviewer findings (must-fix: README Run section commands are wrong: `build-native json http` builds json
+   only, the LUA_CPATH entry is `.hecate/rocks/lib/lua/5.5/?.so`, a copy-pasteable LUA_PATH snippet with
+   `eval "$(luarocks path)"`; use the meta-module `hecate` instead of `hecate.kernel` in the example; should-fix:
+   README wording on failures, drop `prefix = ""`, comment the asserts, the "listening" line before the bind,
+   "drain" → "grace period" (glossary)). Separate: a clear error from `Application:serve` when the http native
+   module is missing → roadmap/open question.
+2. CI green on three platforms.
 
 ## Decisions taken (and where they are recorded)
 

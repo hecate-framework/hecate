@@ -51,10 +51,12 @@ health route and an unknown path (404). `tests/workers_test.lua` runs the applic
 primary of two workers started from `main.lua` (`round_robin`), checks the answers, then stops it
 with `Application:shutdown`.
 
-Both files also check the graceful shutdown: a `POST /greetings` whose content is only half sent
-when `Application:shutdown` begins is still answered (`201`, with `Connection: close`), while new
-connections are already refused. In process the server drains it; with workers, the worker that
-holds the connection does. The raw HTTP of these tests is in `tests/helpers/wire.lua`.
+Both files also check the graceful shutdown: a `POST /greetings` sent with `Expect: 100-continue`
+is in flight (the server answered `100 Continue`, its content is not sent yet) when
+`Application:shutdown` begins; it is still answered (`201`, with `Connection: close`) once new
+connections are refused and the idle connections of every server or worker are closed. The workers
+test also checks, through the supervisor's counters, that both workers served connections. The raw
+HTTP of these tests is in `tests/helpers/wire.lua`.
 
 CI runs both files on Linux, macOS and Windows whenever the kernel or the example changes.
 

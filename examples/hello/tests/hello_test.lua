@@ -14,7 +14,7 @@ local function with_server(body)
   local app = hello.application({ signals = false, grace_timeout = 1, logger = log.Logger({ sinks = { log.MemorySink() } }), server = { host = "127.0.0.1", port = 0 } })
   reactor.run(function()
     reactor.fork(function()
-      while not app:local_address() do reactor.sleep(0.005) end
+      reactor.deadline(10, function() while not app:local_address() do reactor.sleep(0.005) end end)
       local base = "http://127.0.0.1:" .. app:local_address().port
       local ok, err = pcall(body, base)
       app:shutdown(1)
@@ -76,18 +76,24 @@ end
 
 function T:test_shutdown_drains_a_request_in_flight_and_refuses_new_connections()
   local app = hello.application({ signals = false, grace_timeout = 5, logger = log.Logger({ sinks = { log.MemorySink() } }), server = { host = "127.0.0.1", port = 0 } })
-  local response, refused, served_ok, err
+  local response, refused, idle_closed, served_ok, err
   reactor.run(function()
     reactor.fork(function()
-      while not app:local_address() do reactor.sleep(0.005) end
-      response, refused = wire.request_in_flight_during_shutdown(reactor, app:local_address().port, function()
-        app:shutdown(5)
+      local ok, failure = pcall(reactor.deadline, 20, function()
+        while not app:local_address() do reactor.sleep(0.005) end
+        response, refused, idle_closed = wire.request_in_flight_during_shutdown(reactor, app:local_address().port, 1,
+          function() app:shutdown(5) end)
       end)
+      if not ok then
+        app:shutdown(1)
+        error(failure, 0)
+      end
     end)
     served_ok, err = pcall(reactor.deadline, 20, app.serve, app)
   end)
   self:assert_true(served_ok, tostring(err))
   self:assert_true(refused, "new connections are refused while the request in flight drains")
+  self:assert_true(idle_closed, "the idle connection was closed: the shutdown had begun before the content was sent")
   self:assert_not_nil(response, "the request in flight is answered")
   self:assert_equal(201, response.status)
   self:assert_true(response.body:find('"Hola, Ada!"', 1, true) ~= nil, response.body)
