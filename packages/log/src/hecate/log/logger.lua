@@ -158,9 +158,8 @@ function Logger:with_context(fields)
   if type(fields) ~= "table" then
     error(core.ArgumentError(("log.Logger.with_context: expects a table, got %s"):format(type(fields))), 2)
   end
-  local child = Logger({
-    severity = self:severity(), name = self._name, context_provider = self._provider, clock = self._clock,
-  })
+  local child = Logger({ name = self._name, context_provider = self._provider, clock = self._clock })
+  child._severity = self._severity -- the ordinal, copied: resolving it again copied the list of severities (LO4)
   child._redact = self._redact
   local context = {}
   for key, value in pairs(self._context) do context[key] = value end
