@@ -27,10 +27,25 @@ concurrency:
 
 jobs:
   compare:
-    name: tcp-echo
+    name: ${{ matrix.scenario }}
     if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'performance')
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - scenario: tcp-echo
+            load: --connections=1000 --rate=5000
+            native: ""
+          # The HTTP scenarios run below the saturation of one server process, so that the p99 latency compares
+          # the cost of a request and not the length of a queue.
+          - scenario: plaintext
+            load: --connections=100 --rate=2000
+            native: json http
+          - scenario: kernel-json
+            load: --connections=100 --rate=2000
+            native: json http
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -62,12 +77,23 @@ jobs:
         if: steps.rocks.outputs.cache-hit != 'true'
         run: luarocks --tree .hecate/rocks install luv 1.53.0-0
 
+      # hecate.json has no pure-Lua fallback (OQ-53) and http.Server needs the llhttp binding: the HTTP scenarios
+      # build both (cargo and a C compiler are on the hosted runner). The base tree runs with the same modules.
+      - name: Build native modules
+        if: matrix.native != ''
+        env:
+          NATIVE: ${{ matrix.native }}
+        run: |
+          for package in $NATIVE; do lua tools/run.lua build-native "$package"; done
+
       - name: Compare with the base
         env:
           EVENT: ${{ github.event_name }}
           BASE_REF: ${{ github.base_ref }}
           BEFORE: ${{ github.event.before }}
           INPUT_BASE: ${{ inputs.base }}
+          SCENARIO: ${{ matrix.scenario }}
+          LOAD: ${{ matrix.load }}
         run: |
           case "$EVENT" in
             pull_request) base="origin/$BASE_REF" ;;
@@ -77,7 +103,8 @@ jobs:
           ulimit -n 65536 || true
           # Two cores: the server and the load generator on disjoint CPUs when the runner has them.
           set +e
-          lua tools/run.lua bench tcp-echo --compare="$base" --rounds=7 --connections=1000 --rate=5000 \
+          # shellcheck disable=SC2086 # LOAD holds several options
+          lua tools/run.lua bench "$SCENARIO" --compare="$base" --rounds=7 $LOAD \
             --duration=5 --warmup=2 --lua="$(command -v lua)" > benchmark.txt 2>&1
           status=$?
           set -e

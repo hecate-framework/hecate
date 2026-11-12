@@ -9,8 +9,8 @@ Performance is a product requirement (vision.md). Benchmarks run in CI
 |---|---|---|
 | `tcp-echo` | reactor + net overhead, up to 10 000 concurrent connections (100 by default, 1 000 in the workflow) | 1 |
 | `accept-spread` | multi-process serving ([ADR 0023](../docs/adr/0023-multi-process-serving.md)): connections per second and spread over the workers, per listening strategy | 1 |
-| `plaintext` | HTTP/1.1 server, keep-alive, pipelining | 2 |
-| `json` | serialisation + routing + kernel | 2 |
+| `plaintext` | HTTP/1.1 server (`http.Server` alone), keep-alive, pipelining (`--pipeline`) | 2 |
+| `kernel-json` | serialisation + routing + kernel: a `kernel.Application` with one route whose result is represented and encoded as JSON (the TechEmpower "JSON" test; named `kernel-json` because `bench json` selects the micro-benchmarks of the `json` package) | 2 |
 | `validation` | coercion and validation of path, query and content | 2 |
 | `routing` | route tables of 10 / 100 / 1 000 routes | 2 |
 | `db-single`, `db-multiple`, `db-updates` | PostgreSQL driver + pool + ORM (TechEmpower-like) | 4 |
@@ -18,7 +18,7 @@ Performance is a product requirement (vision.md). Benchmarks run in CI
 
 ## Method
 
-- Load generator: constant arrival rate, latency from the due time (coordinated-omission safe): the Lua generator of the repository for `tcp-echo`; `wrk2` or `oha` for the HTTP scenarios.
+- Load generator: constant arrival rate, latency from the due time (coordinated-omission safe): the Lua generators of the repository (`tcp-echo`, and `benchmarks/lib/http_load.lua` for `plaintext` and `kernel-json`); `wrk2` or `oha` by hand on dedicated hardware.
 - Report throughput, p50/p90/p99/p99.9 latency and errors; memory and allocations per request are not measured yet.
 - Same hardware for comparisons; 3 runs minimum; variance reported.
 - Comparison targets (informative, separate job): FastAPI (uvicorn), Node.js (Fastify),
@@ -41,7 +41,8 @@ Performance is a product requirement (vision.md). Benchmarks run in CI
   test, prints `listening <port>`) and `load.lua` (drives it and prints `label value unit` lines).
 - `benchmarks/run.lua`: runs a scenario for several rounds and prints the median and spread of each measure.
 - `benchmarks/compare.lua`: the A/B comparison of a base tree and a head tree (below).
-- `benchmarks/lib/`: `runner.lua` (one round) and `stats.lua` (percentiles, median, Mann-Whitney U).
+- `benchmarks/lib/`: `runner.lua` (one round), `stats.lua` (percentiles, median, Mann-Whitney U), `setup.lua` (the
+  module paths of a scenario, honouring `HECATE_SRC`) and `http_load.lua` (the HTTP/1.1 load generator).
 - `benchmarks/results/` (git-ignored; history stored as CI artefacts and on the website).
 
 The load generator is written in Lua on the reactor of the repository, so that no third-party tool is needed.
@@ -160,6 +161,31 @@ Apple Silicon has no frequency governor to set; compare runs of the same cooled-
 - Never compare a run with turbo on to one with turbo off, nor a quiet run to a noisy one (read
   the noise line of the two host reports first).
 - A difference smaller than the spread of the noise measurement is not a result.
+
+### `plaintext` and `kernel-json`
+
+Two HTTP/1.1 scenarios, measured by the same load generator (`benchmarks/lib/http_load.lua`): every connection stays
+open (keep-alive) and sends, at a constant arrival rate, a batch of `--pipeline` GET requests written at once (default
+1, no pipelining); the latency of each response is measured from the instant its batch was due. `plaintext` answers
+`GET /plaintext` with `Hello, World!` from a bare `http.Server` action: the cost of the HTTP stack. `kernel-json`
+answers `GET /json` with `{"message":"Hello, World!"}` through a `kernel.Application` (router, dispatcher, filter
+chain, `represent` with the declared response schema, JSON encoding; response validation off, as in production): the
+difference between the two is the cost of the kernel. Both servers log nothing per request and need the native modules
+of `json` and `http` (`lua tools/run.lua build-native json`, then `http`); without them the scenario reports itself
+skipped.
+
+```sh
+lua tools/run.lua bench plaintext --rounds=5 --connections=100 --rate=5000 --duration=10
+lua tools/run.lua bench plaintext --pipeline=16 --rate=20000          # pipelined batches
+lua tools/run.lua bench kernel-json --compare=origin/main --rounds=7  # A/B against a git reference
+```
+
+Load options: `--connections`, `--rate` (total requests per second), `--duration`, `--warmup`, `--pipeline` (requests
+per batch) and `--path` (the request target). Besides `throughput`, `errors` and the latencies, the output has
+`bad responses`: connections closed because a response was not a 200 with a `Content-Length`. One server process
+saturates long before the Lua generator does, so find the knee first (raise `--rate` until the throughput stops
+following it and the latency jumps) and compare commits below it; `benchmarks.yml` runs both scenarios at 2 000
+requests per second.
 
 ### `accept-spread`
 
