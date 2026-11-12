@@ -28,7 +28,7 @@ read the matching page of the [explanation](../explanation/index.md) section.
 - [Configure an application](configure-an-application.md): layers, environment variables, secrets, validation at boot,
   the logging and depth keys.
 - [Before going to production](before-going-to-production.md): a checklist of the environment, error details, logging
-  and redaction, secrets, the access log, limits, workers and shutdown.
+  and redaction, secrets, the access log, listening and limits, workers and shutdown.
 
 ## HTTP
 
