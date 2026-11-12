@@ -129,6 +129,34 @@ ADR 0022 (Accepted).
 - Vocabulary from the glossary; first occurrence of a term links to the glossary.
 - Short sentences, active voice, second person in tutorials and how-tos.
 
+## Code examples
+
+Owner request, 2026-11-12. Two rules apply to every code example: the files under `packages/*/examples/` and
+`examples/`, and the Lua blocks of the website pages.
+
+1. **Comment width.** No line that holds a comment is longer than 80 characters, counting the indentation and any
+   code before the comment. Code lines without a comment may be longer and are not broken unnaturally to fit. A
+   line is exempted only when the line just above it is a comment holding `check-examples: allow-long-comment`.
+   `check-examples` enforces this rule. It runs in the `docs-checks` and static-check jobs of `ci.yml`. A block that
+   copies an example file (`<!-- example: ... -->`) is checked through that file.
+2. **Output placement.** What a line makes the reader see is written in a `-- Prints:` block directly under that
+   line, never gathered at the end of the example. The block starts with `-- Prints: <first line>` and continues
+   on the comment lines `-- <next line>` that follow it. One block holds the output of one line. Only the rest of
+   the printing statement (such as `end)`) may stand between the line and its block. A server example that never
+   returns ends with `-- Answers: <text>` instead.
+
+```lua
+local ok, value = schema.integer():validate(42)
+print(ok, value)
+-- Prints: true	42
+```
+
+The examples tests of every package run their examples through one shared runner, `tools/harness/examples.lua`. It
+attributes each `print` to the line of the example that is running and fails when the output is missing, different,
+gathered into another line's block, or separated from its line. A `print` inside a helper function counts at the
+helper's line, so examples print inline. Every phase gate checks both rules on the examples of its phase
+(`docs/roadmap.md`, "Phase gates").
+
 ## Translations
 
 - Locales: `en` (source), `fr` (first), more by contribution.
