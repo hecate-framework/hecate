@@ -2,7 +2,9 @@
 -- and sends, at a constant arrival rate, a batch of `pipeline` GET requests written at once (1: no pipelining);
 -- latency is measured from the instant a batch was due, not from the instant it was sent, so a slow server cannot
 -- hide its queueing (coordinated omission). A response with a status other than 200, or one this generator cannot
--- frame (no `Content-Length`), counts in `bad responses` and closes that connection.
+-- frame (no `Content-Length`), counts in `bad responses` and closes that connection; a batch still unanswered 10 s
+-- after the end of the run counts in `errors`. Throughput counts every response completed after the warm-up, divided
+-- by the time from the end of the warm-up to the last response (or the duration, when longer).
 -- Prints measurement lines (`label value unit`): throughput, errors, bad responses, p50/p90/p99/p99.9 and max latency.
 global <const> io, arg, print, require, tonumber, ipairs, pcall, table, os, dofile, math, error
 
@@ -38,6 +40,7 @@ return function(defaults)
   local request = ("GET %s HTTP/1.1\r\nHost: %s:%d\r\nAccept: */*\r\n\r\n"):format(options.path, options.host,
     options.port)
   local batch = request:rep(pipeline)
+  local ANSWER_MARGIN <const> = 10 -- seconds a batch may still take after the end of the run
   local interval = options.connections * pipeline / options.rate -- seconds between two batches of one connection
 
   --- Reads one response; raises when it is not a 200 with a `Content-Length`.
@@ -76,14 +79,18 @@ return function(defaults)
       while due < stop do
         local wait = due - reactor.now()
         if wait > 0 then reactor.sleep(wait) end
-        local sent, problem = pcall(function()
+        -- a server that stops answering must not hang the run: a batch has until the end plus a margin
+        local sent, problem = pcall(reactor.deadline, math.max(0, stop - reactor.now()) + ANSWER_MARGIN, function()
           peer:write(batch)
           for _ = 1, pipeline do
             read_response(reader)
-            if due >= warm_until then
-              latencies[#latencies + 1] = reactor.now() - due
+            local now = reactor.now()
+            -- latency for the requests due after the warm-up; throughput for every response that completes in the
+            -- measured window, so that requests queued during a saturated warm-up are not served uncounted
+            if due >= warm_until then latencies[#latencies + 1] = now - due end
+            if now >= warm_until then
               completed = completed + 1
-              last_done = reactor.now()
+              last_done = now
             end
           end
         end)
