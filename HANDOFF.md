@@ -3,8 +3,8 @@
 
 - roadmap_item: **Phase 2 gate**: verification of the phase, as described in "Phase gates" (`docs/roadmap.md`).
 - status: in-progress
-- lock_until: 2026-11-13T13:15:00Z
-- last_update: 2026-11-13T11:45:00Z
+- lock_until: 2026-11-13T13:00:00Z
+- last_update: 2026-11-13T11:30:00Z
 
 ## Done
 
@@ -25,15 +25,14 @@
 - G5 fixed: coverage marker around the pool-thread body of `offload`; `reactor` 90.8 % (nightly failed at 89.8 %).
 - Coherence pass: 28 findings fixed (C24 left for the http agent); OQ-120 to OQ-122 added (issues 185 to 187);
   OQ-69 known limitation (P4); OQ-24 moved to Resolved (issue 64 closed). Owner issue: 188 (`needs-decision`).
+- P1, S1, S2, S7 and C24 fixed (`Request.content`, production checklist, tests). Every row of section 6 of the
+  report now has a final disposition; the coherence findings too (C10, C11, C25, C32 with the owner).
 
 ## Next steps
 
-1. Collect the `pkg-http` agent's work (P1 `Request.content`, S1, S2, S7 on the production checklist, tests; it may
-   also fix C24 in `packages/http/README.md`): review, add its CHANGELOG line, commit; set rows P1, S1, S2, S7 and
-   C24 to Fixed. If the agent is gone, redo those rows.
-2. Reviewer wave (`/review-package` on the Phase 2 packages), triage each minor (fix or defer with a pointer).
-3. Wait for the owner on issue 188 (section 5 questions); then record each answer in `docs/open-questions.md`.
-4. Finish: tick the gate only when the report shows no open gap and every question has an owner decision or deferral.
+1. Reviewer wave (`/review-package` on the Phase 2 packages), triage each minor (fix or defer with a pointer).
+2. Wait for the owner on issue 188 (section 5 questions); then record each answer in `docs/open-questions.md`.
+3. Finish: tick the gate only when the report shows no open gap and every question has an owner decision or deferral.
 
 ## Decisions taken (and where they are recorded)
 
