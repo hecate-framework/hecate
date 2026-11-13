@@ -404,3 +404,11 @@ CI green on the three platforms.
 - Benchmarks: a micro-benchmark of the container service scope that the kernel dispatcher opens per request
   (`container:open_scope()` and its close, `packages/kernel/src/hecate/kernel/dispatcher.lua`), next to the `routing`
   and `validation` scenarios ([Phase 2 gate report](reviews/phase-2.md), row P6).
+- `router`: index the affixed siblings of a node (by prefix or suffix) instead of scanning them, measured with
+  `packages/router/benchmarks/match.lua` on a wide affixed fan-out ([Phase 2 review](reviews/phase-2-review-package.md),
+  R-2).
+- `reactor` `offload`: measure the memory a call leaves in the Lua state of its pool thread, then decide on a collection
+  step after each call (`collectgarbage("step")`, or a full collection past a threshold) with `reactor/offload`
+  ([Phase 2 review](reviews/phase-2-review-package.md), RE-4).
+- `kernel`: a fast path for an `Accept` field of one range without parameters, judged with the `kernel-json`
+  scenario ([Phase 2 review](reviews/phase-2-review-package.md), K-14).

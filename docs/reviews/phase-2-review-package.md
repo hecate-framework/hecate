@@ -70,3 +70,23 @@ pool-thread states); RE-6 covers it with real tests.
 | RE-7 | minor | NUL bytes in `cwd` and in `env` names and values of `spawn` are not refused (luv cuts them) (`process.lua:268-283`). | Open |
 | RE-8 | minor | `supports_reuseport` caches any probe failure (EMFILE, no IPv4 loopback) as "unsupported" for the life of the process (`tcp.lua:597-611`). | Open |
 | RE-9 | minor | `pool_size()` maps a negative `UV_THREADPOOL_SIZE` to 1 where libuv reads 1024; the comment says "as libuv reads it" (`offload.lua:95-101`). | Open |
+
+## kernel and hecate
+
+| Id | Severity | Finding | Disposition |
+|---|---|---|---|
+| K-1 | major | The ready watchdog of a generation is never cancelled when `ready` arrives; when a reload retires that worker (`old.ready = false`), the watchdog SIGKILLs it in the middle of its drain and logs `worker_not_ready`: any reload within `ready_timeout` of a worker's start kills it with requests in flight (`supervisor.lua:328-345`, `:614-618`; point (m)). Reproduced. | Open |
+| K-2 | major | `requests.inputs = "strict"` does not apply to a route that declares only `content`: `?undeclared=1` is accepted (`input.lua:252-253`; point (l)). Reproduced. | Open |
+| K-3 | major | The binding names of controller `dependencies` are resolved first at request time: a typo boots and every request answers 500, against "nothing validated lazily at first request" (`dispatcher.lua:36-56`); needs a public `Container:has(key)`. Reproduced. | Open |
+| K-4 | major | A worker that stops reading its message pipe stalls the hand-over to every worker under `round_robin`: `deliver` awaits `peer:send` inside the single accept loop (`listening.lua:290-338`, `supervisor.lua:249-258`). | Open |
+| K-5 | minor | Bad `server` options in a primary are validated only in each worker, so they become a crash loop instead of one boot error (`application.lua:476-481`). | Open |
+| K-6 | minor | `Accept: application/json;q=0, */*` still selects JSON; RFC 9110 section 12.5.1 gives 406 (`results.lua:61-77`, `:93-95`). | Open |
+| K-7 | minor | A problem for 405 or 401 cannot carry `Allow` or `WWW-Authenticate` (RFC 9110) (`problems.lua:114-136`). | Open (decision) |
+| K-8 | minor | The worker's drain is not counted in its grace period, so it races the primary's kill at `grace + 1` (`supervisor.lua:942-943`). | Open |
+| K-9 | minor | `on_crash_loop = "degrade"` ends `run` with `start_failed` when a restart cannot spawn (`supervisor.lua:314-319`). | Open |
+| K-10 | minor | Worker-side logs (`control_failed`, `hand_over_queue_full`, `hand_over_discarded`) go to `log.default()`, ignoring an explicit `logger` (`supervisor.lua:856`, `:865`, `:890`). | Open |
+| K-11 | minor | `developer-experience.md` annotates with `hecate.Controller` and `hecate.Request`, which do not exist; the `hecate` README says "schema shortcuts", against OQ-57. | Open |
+| K-12 | minor | No test that a worker survives `sigint` or `sigterm` sent to its own pid (OQ-116); stale "known defect ... Remove the skip" comments (`supervisor_test.lua:164-165`, `supervisor_reload_test.lua:206-207`). | Open |
+| K-13 | minor | "passes a connection to the worker" where the glossary term is hand-over (`listening.lua:25`). | Open |
+| K-14 | minor | The `Accept` field is parsed into a sorted table on every request, even for `*/*` (`results.lua:61-114`). | Open (needs a measurement) |
+| K-15 | minor | An IPv6 link-local host with a zone id (`fe80::1%eth0`) is bound by the primary but refused by every worker, which then crash-loop (`supervisor.lua:54-58`). | Open |
