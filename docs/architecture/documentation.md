@@ -132,6 +132,43 @@ ADR 0022 (Accepted).
   fails when the block differs or the file is missing. A snippet of a few lines may stay inline.
 - Vocabulary from the glossary; first occurrence of a term links to the glossary.
 - Short sentences, active voice, second person in tutorials and how-tos.
+- Follow the writing style below.
+
+## Writing style
+
+Owner decision, 2026-11-13. The public pages are written after the manner of *Programming in Lua* (Roberto
+Ierusalimschy): a patient teacher who introduces one thing at a time, shows it at once, and never trades accuracy for
+ease. Readability comes from the order and the pace of the text, not from looser words. The rules apply to every page
+of `website/en/`; the engineering documents of `docs/` keep their denser, reference style.
+
+1. **One idea per paragraph.** A paragraph states one idea and stops. When a paragraph needs "also", "in addition" or
+   a second topic sentence, split it. Three to five sentences is a good length; a one-sentence paragraph is fine.
+2. **Example right after the concept.** Each new concept is followed at once by a short example: a few lines inline,
+   or a tested example file (`<!-- example: ... -->`). The example comes before the details, the options and the
+   exceptions, which follow it. Never pile several concepts up before the first example.
+3. **Recall a term the first time a page uses it.** The first occurrence of a glossary term on a page links to the
+   glossary and is followed by a brief reminder of what it means, in a clause or a short sentence ("a filter, an
+   object that wraps the action of a route, ..."). Do not assume the reader came from another page.
+4. **Short sentences, lower density.** Aim for sentences under about 25 words. One clause per idea; prefer two
+   sentences to a semicolon. Lists of more than three items become a bulleted list or a table. Leave room: a page
+   that covers less, clearly, is better than one that covers everything in packed sentences.
+5. **The precise term and the exact claim, always.** A simpler sentence never replaces a glossary term by a vaguer
+   word, never drops a condition that makes the claim true ("at boot", "on the same reactor", "since 0.x"), and never
+   rounds a limit or a default. When the exact claim is long, give it its own sentence or list item rather than
+   simplifying it.
+6. **Lead with the purpose.** A section opens with what the reader can do with the thing or why it exists, then how
+   it works. Rationale and history go last, or to an explanation page.
+7. **Move from the common case to the rare one.** Show the usual use first; edge cases, limits and "not available
+   yet" come after, each in its own paragraph or under its own heading.
+
+A short illustration of rules 1 to 3:
+
+> Too dense: *Filters, composed once at boot into a chain of responsibility over the action, may pass, short-circuit
+> or post-process, and errors they raise go through the guard like the action's.*
+>
+> Readable: *A [filter](../../website/en/reference/glossary.md) wraps the action of a route: it sees the request
+> before the action and the result after it. Here is the smallest filter, one that passes the request on:* (example)
+> *A filter can also stop the request before the action, by returning a result without calling `next`.*
 
 ## Code examples
 
