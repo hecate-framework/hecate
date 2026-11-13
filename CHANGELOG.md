@@ -324,6 +324,8 @@ Each release heading states the supported Lua version.
 
 ### Fixed
 
+- test(router): the cost test of a static segment beside affixed siblings builds 500 siblings instead of 5 000 (33 s to 0.4 s; the boot check of R-1 compares the siblings of a node pairwise, and 5 000 at one node is no real table).
+
 - fix(ci): the caches of the `ci` job (toolchain, LuaLS, rocks, the native modules and the cargo build) are restored and saved in separate steps, saved even when a later step fails and only when the restore missed (a native module or rocks cache only once verified): `actions/cache` saved them only on a green job, so a failing platform rebuilt luv and every native module on each run (about 3 minutes on Windows).
 
 - fix(http): a `ParseError` of a response parser carries no `status`, and `http.problem` maps a parse or content error without status to 500: a malformed response of another server, escaping an action, no longer becomes a 4xx answer that blames the requester (OQ-82).

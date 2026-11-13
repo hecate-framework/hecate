@@ -197,10 +197,10 @@ function T:test_a_static_segment_costs_the_same_whatever_the_affixed_siblings_of
     for i = 1, size do list[#list + 1] = { method = "GET", path = ("/f/static%d/items"):format(i) } end
     return router.Router(list)
   end
-  local small, large = table_of(5), table_of(5000)
+  local small, large = table_of(5), table_of(500)
   local function hit(r) return instructions(function() r:match("GET", "/f/target/items") end) end
   hit(small); hit(large)
-  self:assert_equal(hit(small), hit(large), "a static hit beside 5 and 5000 affixed siblings")
+  self:assert_equal(hit(small), hit(large), "a static hit beside 5 and 500 affixed siblings")
 end
 
 return T
