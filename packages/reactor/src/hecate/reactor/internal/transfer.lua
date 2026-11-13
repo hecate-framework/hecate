@@ -22,12 +22,33 @@ local function factory()
   -- ("argument 2.list[3]") is built only when an error is raised, never on the normal path.
   local path, path_length, prefix = {}, 0, ""
 
+  -- Bounds of the path in a message: a key comes from the data, so it may be huge or carry control
+  -- characters that must not reach a log as they are.
+  local MAX_KEY, MAX_PATH = 32, 192
+
+  --- One step of the path: `.name` for a short identifier, otherwise `[key]`, a string key quoted
+  --- with every control character escaped and cut to `MAX_KEY` bytes ("..." marks the cut).
+  local function step(key)
+    if type(key) ~= "string" then return "[" .. tostring(key) .. "]" end
+    if #key <= MAX_KEY and key:find("^[%a_][%w_]*$") then return "." .. key end
+    local cut = #key > MAX_KEY
+    local quoted = string.format("%q", cut and key:sub(1, MAX_KEY) or key):gsub("\\\n", "\\n")
+    return "[" .. quoted .. (cut and "...]" or "]")
+  end
+
   local function fail(reason)
-    local parts = { prefix }
-    for i = 1, path_length do
-      local key = path[i]
-      parts[#parts + 1] = type(key) == "string" and ("." .. key) or ("[" .. tostring(key) .. "]")
+    -- The innermost steps that fit in `MAX_PATH` bytes, after the label; "[...]" marks the steps left out.
+    local steps, length, first = {}, 0, 1
+    for i = path_length, 1, -1 do
+      local text = step(path[i])
+      if length + #text > MAX_PATH then
+        first = i + 1
+        break
+      end
+      steps[i], length = text, length + #text
     end
+    local parts = { prefix, first > 1 and "[...]" or "" }
+    for i = first, path_length do parts[#parts + 1] = steps[i] end
     error(table.concat(parts) .. ": " .. reason, 0)
   end
 

@@ -24,6 +24,27 @@ function T:test_parse_quoted_value_duplicates_and_malformed()
   self:assert_equal(3, #list)
 end
 
+-- Review H-1: the pairs are split with `find` and indices, in linear time, with the same results.
+function T:test_parse_whitespace_around_names_and_values_and_an_equals_sign_in_a_value()
+  local map, list = Cookie.parse(" \t a \t = \t x=y \t ;b=\" q \";  c  =  ")
+  self:assert_equal("x=y", map.a)
+  self:assert_equal(" q ", map.b)
+  self:assert_equal("", map.c)
+  self:assert_equal(3, #list)
+end
+
+function T:test_parse_a_whitespace_heavy_cookie_in_linear_time()
+  local inner = (" "):rep(8000)
+  local text = "a" .. inner .. "=" .. inner .. "v" .. inner .. "w" .. inner .. "; b" .. inner .. "c=1; " .. (" \t"):rep(4000)
+  local started = os.clock()
+  local map, list
+  for _ = 1, 10 do map, list = Cookie.parse(text) end
+  local elapsed = os.clock() - started
+  self:assert_equal("v" .. inner .. "w", map.a)
+  self:assert_equal(1, #list, "a name with inner whitespace is not a token")
+  self:assert_true(elapsed < 0.5, ("took %.3f s"):format(elapsed))
+end
+
 function T:test_parse_non_string_is_empty()
   local map, list = Cookie.parse(nil)
   self:assert_nil(next(map))

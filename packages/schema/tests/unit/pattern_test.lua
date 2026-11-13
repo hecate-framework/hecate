@@ -101,8 +101,28 @@ function T:test_declaration_warns_through_the_given_logger()
   self:assert_equal("%bxy", warnings[1][2].pattern)
   self:assert_equal(nil, (s.options --[[@as table]]).logger)
   self:assert_false(pcall(function() return s:to_json_schema() end))
-  -- without a logger nothing is reported and declaration succeeds
-  schema.string({ pattern = "%bxy" })
+end
+
+function T:test_declaration_without_a_logger_falls_back_on_the_default_logger_of_a_loaded_log()
+  -- OQ-86 (1): `hecate.log` is looked up in `package.loaded` only, never required by `schema`.
+  local saved = package.loaded["hecate.log"]
+  local warnings = {}
+  local default = { warning = function(_, message, fields) warnings[#warnings + 1] = { message, fields } end }
+  package.loaded["hecate.log"] = { default = function() return default end }
+  local ok, err = pcall(function()
+    schema.string({ pattern = "%bxy" })
+    self:assert_equal(1, #warnings)
+    self:assert_equal("%bxy", warnings[1][2].pattern)
+    -- an explicit logger wins over the default one
+    schema.string({ pattern = "%bxy", logger = { warning = function() end } })
+    self:assert_equal(1, #warnings)
+    -- without `hecate.log` loaded nothing is reported and the declaration succeeds
+    package.loaded["hecate.log"] = nil
+    schema.string({ pattern = "%bxy" })
+    self:assert_equal(1, #warnings)
+  end)
+  package.loaded["hecate.log"] = saved
+  if not ok then error(err, 0) end
 end
 
 return T

@@ -2,6 +2,15 @@
 global <const> require
 local kernel = require("hecate.kernel")
 
+-- Type names for application code, so that it annotates with the names it uses at run time (`hecate.Controller`):
+-- each is the type of the kernel it stands for, not a new type.
+
+--- The superclass of controllers (`hecate.kernel.Controller`): `---@class UserController : hecate.Controller`.
+---@class hecate.Controller : hecate.kernel.Controller
+
+--- The request an action and a filter receive (`hecate.kernel.Request`): `---@param request hecate.Request`.
+---@alias hecate.Request hecate.kernel.Request
+
 --- The framework surface for typical applications (`local hecate = require "hecate"`).
 --- It does not re-export the object-model entry points: classes are declared with `core.class` from `hecate.core`
 --- (OQ-57), and schemas are built with `hecate.schema`.

@@ -24,4 +24,18 @@ function grammar.is_field_value(text)
   return type(text) == "string" and string.find(text, "[%z\1-\8\10-\31\127]") == nil
 end
 
+--- Removes optional whitespace (SP and HTAB, RFC 9110 section 5.6.3) at both ends of `text`, in time linear in its
+--- length: one search for the first other character and one for the last. A pattern with a lazy capture before a
+--- class of whitespace anchored at the end (`^[ \t]*(.-)[ \t]*$`) is quadratic in the length of an inner run of
+--- whitespace, which lets a peer spend the CPU of the reactor thread with one head.
+---@param text string
+---@return string
+function grammar.trim_ows(text)
+  local first = string.find(text, "[^ \t]")
+  if first == nil then return "" end
+  local last = string.match(text, "^.*()[^ \t]") --[[@as integer]]
+  if first == 1 and last == #text then return text end
+  return string.sub(text, first, last)
+end
+
 return grammar

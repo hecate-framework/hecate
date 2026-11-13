@@ -77,7 +77,7 @@ local STATUS_OF_KIND = {
   no_progress = 500,
 }
 
-local function failure(raw)
+local function failure(raw, kind)
   return ParseError({
     message = "http.Parser:feed: message rejected: " .. raw.reason,
     context = {
@@ -85,28 +85,25 @@ local function failure(raw)
       detail = raw.reason,
       code = raw.code,
       position = raw.position,
-      status = STATUS_OF_KIND[raw.kind] or 400,
+      -- A status is the answer of a server to a request: a response of another server that does not parse carries
+      -- none, so it never becomes a 4xx answer of this one (OQ-82).
+      status = kind ~= "response" and (STATUS_OF_KIND[raw.kind] or 400) or nil,
     },
   })
 end
 
-local function to_fields(flat)
-  local fields = Fields()
-  for i = 1, #flat, 2 do fields:add(flat[i], flat[i + 1]) end
-  return fields
-end
-
--- Replaces the raw field lists of the events by Fields. Returns a ParseError when llhttp accepted a field the
--- message model refuses (it does not happen for a token name and a value without CR, LF and NUL, which llhttp enforces).
-local function convert(events)
+-- Replaces the raw field lists of the events by Fields, through the trusted constructor: llhttp in strict mode already
+-- refused a name that is not a token and a value with CR, LF, NUL or another control character (review H-3: checking
+-- them again cost most of the parse). Returns a ParseError when the one check kept as defence in depth fails.
+local function convert(events, kind)
   for _, event in ipairs(events) do
     local flat = event.fields or event.trailers
     if flat then
-      local ok, fields = pcall(to_fields, flat)
-      if not ok then
+      local fields = Fields._of_parsed(flat)
+      if fields == nil then
         return ParseError({
           message = "http.Parser:feed: message rejected: field refused by the message model",
-          context = { reason = "invalid_field", detail = "invalid field", code = "HPE_INVALID_HEADER_TOKEN", position = 0, status = 400 },
+          context = { reason = "invalid_field", detail = "invalid field", code = "HPE_INVALID_HEADER_TOKEN", position = 0, status = kind ~= "response" and 400 or nil },
         })
       end
       if event.fields then event.fields = fields else event.trailers = fields end
@@ -115,9 +112,9 @@ local function convert(events)
   return nil
 end
 
-local function result(events, raw)
-  local err = convert(events)
-  if err == nil and raw ~= nil then err = failure(raw) end
+local function result(events, raw, kind)
+  local err = convert(events, kind)
+  if err == nil and raw ~= nil then err = failure(raw, kind) end
   if err ~= nil then
     -- Nothing from a message that failed before its end is delivered: events are kept up to the last message that
     -- finished (those of earlier pipelined messages stay).
@@ -191,7 +188,7 @@ function Parser:feed(chunk)
     end
     start = consumed
   end
-  local events, err = result(all, raw)
+  local events, err = result(all, raw, self._kind)
   if stalled then self._terminal = err end
   return events, err
 end
@@ -203,7 +200,7 @@ end
 function Parser:finish()
   if self._terminal ~= nil then return {}, self._terminal end
   local events, failed = self._handle:finish()
-  return result(events, failed)
+  return result(events, failed, self._kind)
 end
 
 --- Declares that the next final response (status 200 or above) has no content whatever its fields say: the response to

@@ -78,6 +78,16 @@ function T:test_a_singleton_reaches_a_scoped_service_through_transients()
   self:assert_equal("s,t1,t2,r", table.concat(problems[1].context.path, ","))
 end
 
+function T:test_a_captive_dependency_reached_directly_and_through_a_transient_is_reported_once()
+  local c = container.Container()
+    :bind("s", thing, { lifetime = "singleton", requires = { "r", "t" } })
+    :bind("t", thing, { lifetime = "transient", requires = { "r" } })
+    :bind("r", thing, { lifetime = "scoped" })
+  local problems = problems_of(c)
+  self:assert_equal(1, #problems)
+  self:assert_equal("s,r", table.concat(problems[1].context.path, ","))
+end
+
 function T:test_the_other_lifetime_combinations_are_accepted()
   local c = container.Container()
     :bind("sing", thing, { lifetime = "singleton" })
@@ -138,9 +148,9 @@ function T:test_validate_freezes_the_container()
   local c = container.Container():bind("a", thing, { lifetime = "transient" })
   c:validate()
   local err = self:assert_error(function() c:bind("b", thing, { lifetime = "transient" }) end)
-  self:assert_true(core.is_instance_of(err, container.ContainerError))
+  self:assert_true(core.is_instance_of(err, core.StateError))
   err = self:assert_error(function() c:override("a", thing) end)
-  self:assert_true(core.is_instance_of(err, container.ContainerError))
+  self:assert_true(core.is_instance_of(err, core.StateError))
 end
 
 function T:test_a_failed_validation_does_not_freeze()
@@ -153,9 +163,9 @@ end
 function T:test_resolution_and_scopes_need_validation_first()
   local c = container.Container():bind("a", thing, { lifetime = "transient" })
   local err = self:assert_error(function() c:resolve("a") end)
-  self:assert_true(core.is_instance_of(err, container.ContainerError))
+  self:assert_true(core.is_instance_of(err, core.StateError))
   err = self:assert_error(function() c:open_scope() end)
-  self:assert_true(core.is_instance_of(err, container.ContainerError))
+  self:assert_true(core.is_instance_of(err, core.StateError))
 end
 
 function T:test_an_override_cannot_introduce_a_cycle_or_a_violation_unnoticed()

@@ -37,4 +37,15 @@ function T:test_connection_options_are_matched_as_list_items()
   self:assert_false(wire.has_connection_option("closed", "close"))
   self:assert_false(wire.has_connection_option(nil, "close"))
 end
+
+-- Review H-1: list items are trimmed in linear time.
+function T:test_a_whitespace_heavy_connection_value_is_matched_in_linear_time()
+  local value = "a" .. (" "):rep(8000) .. "b, " .. (" "):rep(8000) .. "close" .. (" \t"):rep(4000)
+  local started = os.clock()
+  for _ = 1, 10 do self:assert_true(wire.has_connection_option(value, "close")) end
+  self:assert_false(wire.has_connection_option((" "):rep(8000), "close"))
+  local elapsed = os.clock() - started
+  self:assert_true(elapsed < 0.5, ("took %.3f s"):format(elapsed))
+end
+
 return T

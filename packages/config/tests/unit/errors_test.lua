@@ -166,6 +166,64 @@ function T:test_a_declaration_nested_deeper_than_the_walk_is_refused()
   self:assert_true(tostring(err):find("deep", 1, true) ~= nil, tostring(err))
 end
 
+-- A name with a dot could never be read nor named in `secrets` (review finding CF-5).
+function T:test_a_property_name_containing_a_dot_is_refused_at_every_depth()
+  local cases = {
+    { ["a.b"] = schema.string() },
+    { database = schema.object({ ["x.y"] = schema.optional(schema.string()) }) },
+    { outer = schema.default(schema.object({
+      inner = schema.optional(schema.object({ ["deep.name"] = schema.optional(schema.integer()) })) }), {}) },
+  }
+  for index, properties in ipairs(cases) do
+    local ok, err = pcall(fixture.load, { options = { properties = properties } })
+    self:assert_false(ok, "case " .. index)
+    self:assert_true(core.is_instance_of(err, core.ArgumentError), tostring(err))
+    self:assert_true(tostring(err):find("cannot contain", 1, true) ~= nil, tostring(err))
+  end
+end
+
+-- A key of a file that is not a string, or a table mixing items and named keys, is reported at that key with the file
+-- as source (review finding CF-10).
+function T:test_a_non_string_key_of_a_file_is_reported_at_that_key()
+  local err = fixture.failure({ files = { ["config/default.lua"] = "return { database = { [true] = 1, port = 1 } }" } })
+  self:assert_equal(1, #err.context.violations, tostring(err))
+  local violation = err.context.violations[1]
+  self:assert_equal("database.true", violation.path)
+  self:assert_equal("/database/true", violation.pointer)
+  self:assert_equal("type", violation.code)
+  self:assert_equal("config/default.lua", violation.source)
+  self:assert_true(violation.message:find("string", 1, true) ~= nil, violation.message)
+  local root = fixture.failure({ files = { ["config/default.lua"] = "return { [1.5] = 'x' }" } })
+  self:assert_equal(1, #root.context.violations, tostring(root))
+  self:assert_equal("/1.5", root.context.violations[1].pointer)
+end
+
+function T:test_a_table_mixing_items_and_named_keys_is_reported_at_the_first_item()
+  local err = fixture.failure({
+    files = { ["config/production.lua"] = "return { database = { 'x', 'y', port = 1 } }" },
+    options = { environment = "production" },
+  })
+  self:assert_equal(1, #err.context.violations, tostring(err))
+  local violation = err.context.violations[1]
+  self:assert_equal("database.1", violation.path)
+  self:assert_equal("type", violation.code)
+  self:assert_equal("config/production.lua", violation.source)
+  self:assert_true(violation.message:find("mixes", 1, true) ~= nil, violation.message)
+  local root = fixture.failure({ files = { ["config/default.lua"] = "return { 'x', name = 'y' }" } })
+  self:assert_equal(1, #root.context.violations, tostring(root))
+  self:assert_equal("1", root.context.violations[1].path)
+  self:assert_nil(tostring(root):find("(root)", 1, true), tostring(root))
+end
+
+function T:test_an_array_with_a_hole_is_reported_at_the_item_after_the_hole()
+  local err = fixture.failure({ files = { ["config/default.lua"] = "return { tags = { 'a', nil, 'c' } }" } })
+  self:assert_equal(1, #err.context.violations, tostring(err))
+  self:assert_equal("tags.3", err.context.violations[1].path)
+  self:assert_equal("config/default.lua", err.context.violations[1].source)
+  -- a valid array and an empty table are accepted
+  fixture.load({ files = { ["config/default.lua"] = "return { tags = { 'a', 'b' }, labels = {} }" } })
+end
+
 -- Documented in website/en/how-to/before-going-to-production.md (Secrets).
 function T:test_an_unknown_path_in_secrets_is_an_argument_error_at_load()
   for _, path in ipairs({ "database.pasword", "nope", "database" }) do

@@ -40,7 +40,7 @@ end
 
 function T:test_hierarchy()
   for _, name in ipairs({
-    "ConfigurationError", "ConformanceError", "ArgumentError", "CancellationError",
+    "ConfigurationError", "ConformanceError", "PreconditionError", "CancellationError",
     "DeadlineExceededError", "NonYieldableContextError", "ClosedChannelError", "NetworkError", "IoError", "ProtocolError", "ValidationError", "DatabaseError",
   }) do
     local class = core[name]
@@ -48,6 +48,35 @@ function T:test_hierarchy()
     self:assert_equal("hecate.core." .. name, class.code)
     self:assert_true(core.is_instance_of(class("x"), core.Error))
   end
+end
+
+function T:test_precondition_hierarchy()
+  self:assert_true(core.superclass(core.ArgumentError) == core.PreconditionError)
+  self:assert_true(core.superclass(core.StateError) == core.PreconditionError)
+  self:assert_equal("hecate.core.PreconditionError", core.PreconditionError.code)
+  self:assert_equal("hecate.core.ArgumentError", core.ArgumentError.code)
+  self:assert_equal("hecate.core.StateError", core.StateError.code)
+  local argument = core.ArgumentError("bad argument")
+  self:assert_true(core.is_instance_of(argument, core.ArgumentError))
+  self:assert_true(core.is_instance_of(argument, core.PreconditionError))
+  self:assert_true(core.is_instance_of(argument, core.Error))
+  self:assert_false(core.is_instance_of(argument, core.StateError))
+  local state = core.StateError { message = "closed", context = { reason = "closed" } }
+  self:assert_equal("hecate.core.StateError", state.code)
+  self:assert_equal("closed", state.context.reason)
+  self:assert_true(core.is_instance_of(state, core.PreconditionError))
+  self:assert_true(core.is_instance_of(state, core.Error))
+  self:assert_false(core.is_instance_of(state, core.ArgumentError))
+  self:assert_false(core.is_instance_of(core.PreconditionError("x"), core.ArgumentError))
+  self:assert_false(core.is_instance_of(core.PreconditionError("x"), core.StateError))
+end
+
+function T:test_errors_of_the_object_model_stay_argument_errors()
+  local ok, err = pcall(core.error_class, invalid(42), "c")
+  self:assert_false(ok)
+  self:assert_equal("hecate.core.ArgumentError", err.code)
+  self:assert_true(core.is_instance_of(err, core.ArgumentError))
+  self:assert_true(core.is_instance_of(err, core.PreconditionError))
 end
 
 function T:test_io_error_is_a_base_class_for_file_system_failures()

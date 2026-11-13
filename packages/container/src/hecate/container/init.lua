@@ -15,7 +15,7 @@ local errors = require("hecate.container.errors")
 ---@field DuplicateBindingError hecate.container.DuplicateBindingError  a key bound twice
 ---@field MissingBindingError hecate.container.MissingBindingError  a key without binding
 ---@field CycleError hecate.container.CycleError  a dependency cycle
----@field LifetimeError hecate.container.LifetimeError  a singleton that depends on a scoped service
+---@field LifetimeError hecate.container.LifetimeError  a captive scoped service, or a root resolution that needs a service scope
 ---@field GraphError hecate.container.GraphError  everything `validate` found
 ---@field ConstructionError hecate.container.ConstructionError  a constructor or factory raised
 local M = {}

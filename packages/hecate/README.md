@@ -8,7 +8,7 @@
 | Rock | `hecate` |
 | Layer | Meta |
 | Roadmap phase | 3 |
-| Status | implemented — re-exports the surface of `kernel` |
+| Status | in progress — re-exports the surface of `kernel`; the standard edition (the meta-rock and its dependencies) is a Phase 3 item |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |
 | Depends on | [`core`](../core), [`reactor`](../reactor), [`net`](../net), [`json`](../json), [`log`](../log), [`http`](../http), [`schema`](../schema), [`router`](../router), [`container`](../container), [`config`](../config), [`kernel`](../kernel), [`openapi`](../openapi) |
 | Used by | — |
@@ -21,7 +21,7 @@
 ## Responsibilities
 
 - single dependency for typical applications
-- `require "hecate"` gives classes, controllers, routes, problem details, schema shortcuts
+- `require "hecate"` gives the application, controllers, routes, results and problem details; classes come from `hecate.core` and schemas from `hecate.schema` ([OQ-57](../../docs/open-questions.md))
 
 ## Non-goals
 
@@ -47,10 +47,14 @@ built with `hecate.schema` ([OQ-57](../../docs/open-questions.md)): the meta-mod
 | `load_configuration` | `hecate.kernel` | loads the configuration, wrapping secrets with `hecate.log.Secret` |
 | `RouteDeclarationError`, `ModuleError`, `SupervisorError` | `hecate.kernel` | the errors of the kernel |
 
-## Layout (once implemented)
+Two type names, for LuaLS annotations only (no value): `hecate.Controller`, a class deriving from
+`hecate.kernel.Controller` (`---@class UserController : hecate.Controller`; a LuaLS alias cannot be a
+superclass), and `hecate.Request`, an alias of `hecate.kernel.Request` (`---@param request hecate.Request`).
+
+## Layout
 
 ```text
-src/hecate/init.lua   public entry point
-tests/unit/  tests/integration/  tests/fixtures/
-examples/    benchmarks/
+src/hecate/init.lua   public entry point (re-exports only)
+tests/unit/           the re-export completeness test and the examples test
+examples/             tested examples of the website (problem details, filters)
 ```

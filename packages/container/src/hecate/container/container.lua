@@ -1,8 +1,8 @@
 -- The container and its service scopes. Construction is constructor injection of explicitly declared dependencies
 -- (Fowler 2004, "Forms of Dependency Injection"); the graph is composed in one place and validated before use
 -- (Seemann 2011, section 3.2 "Composition Root"). Nothing here suspends, so no instance is ever created twice and no
--- lock is needed (container.md, "Construction").
-global <const> require, type, pairs, ipairs, pcall, error, table, getmetatable, tostring
+-- lock is needed (container.md, "Construction"); a constructor that suspends anyway (OQ-107) is detected and refused.
+global <const> require, type, pairs, ipairs, pcall, error, table, getmetatable, tostring, coroutine
 
 local core = require("hecate.core")
 local errors = require("hecate.container.errors")
@@ -96,6 +96,42 @@ local function close_all(owned)
   error(first, 0)
 end
 
+--- Attaches `failure` (a close error) to `context.suppressed` of `err` when `err` is a framework error.
+local function suppress(err, failure)
+  if type(err) == "table" and core.is_instance_of(err, core.Error) then
+    local list = err.context.suppressed or {}
+    list[#list + 1] = failure
+    err.context.suppressed = list
+  end
+end
+
+local function rendered_path(path)
+  local rendered = {}
+  for i, entry in ipairs(path) do rendered[i] = render(entry) end
+  return rendered
+end
+
+--- Tracks `instance` in `holder` (a service scope or the container) unless it already does: an owner closes an
+--- instance once, however many times it was returned (container.md, "Disposal"). Returns whether it was added.
+local function track(holder, instance)
+  if holder._tracked[instance] then return false end
+  holder._tracked[instance] = true
+  holder._owned[#holder._owned + 1] = instance
+  return true
+end
+
+--- Stops tracking `instance` in `holder`.
+local function untrack(holder, instance)
+  holder._tracked[instance] = nil
+  local owned = holder._owned
+  for i = #owned, 1, -1 do
+    if owned[i] == instance then
+      table.remove(owned, i)
+      return
+    end
+  end
+end
+
 local function closeable(service)
   if type(service) ~= "table" and type(service) ~= "userdata" then return false end
   local metatable = getmetatable(service)
@@ -109,8 +145,7 @@ end
 
 --- Refuses a closable transient that no service scope and no singleton owns (container.md, "Disposal").
 local function refuse_unowned(path)
-  local rendered = {}
-  for i, entry in ipairs(path) do rendered[i] = render(entry) end
+  local rendered = rendered_path(path)
   error(errors.LifetimeError(
     ("container: %q is a transient with __close and no service scope owns it: resolve it through a ServiceScope made by container:open_scope()")
       :format(rendered[#rendered]),
@@ -125,6 +160,8 @@ end
 local Container = core.class("Container")
 
 --- A scope of lifetime of scoped services, made by `Container:open_scope`: one per request, closed by its owner.
+--- Not constructible from outside: `ServiceScope(x)` raises `hecate.core.ArgumentError` unless `x` is a `Container`;
+--- use `Container:open_scope()`.
 ---@class hecate.container.ServiceScope
 ---@overload fun(container: hecate.container.Container): hecate.container.ServiceScope
 local ServiceScope = core.class("ServiceScope")
@@ -135,27 +172,27 @@ function Container:init()
   self._order = {}
   self._singletons = {}
   self._owned = {}
-  self._constructing = {}
+  self._tracked = {} -- the instances in `_owned`, as a set
   self._validated = false
   self._warnings = {}
   self._closed = false
 end
 
 local function check_open(container, method)
-  if container._closed then error(ContainerError("container: " .. method .. " on a closed container"), 3) end
+  if container._closed then error(core.StateError("container: " .. method .. " on a closed container"), 3) end
 end
 
 local function check_unfrozen(container, method)
   check_open(container, method)
   if container._validated then
-    error(ContainerError("container: " .. method .. " after validate: the container is frozen"), 3)
+    error(core.StateError("container: " .. method .. " after validate: the container is frozen"), 3)
   end
 end
 
 local function check_validated(container, method)
   check_open(container, method)
   if not container._validated then
-    error(ContainerError("container: " .. method .. " before validate: validate the container at boot"), 3)
+    error(core.StateError("container: " .. method .. " before validate: validate the container at boot"), 3)
   end
 end
 
@@ -164,7 +201,7 @@ end
 --- `definition` a class, `validate` checks that the class implements it; a factory product is checked at its first
 --- construction.
 ---
---- Raises `hecate.container.DuplicateBindingError` if `key` is bound, `hecate.container.ContainerError` after
+--- Raises `hecate.container.DuplicateBindingError` if `key` is bound, `hecate.core.StateError` after
 --- `validate` or `close`, and `hecate.core.ArgumentError` for a wrong argument.
 ---@param key string|table  a non-empty name or an interface
 ---@param definition table|function  a finalised class or a factory
@@ -184,10 +221,23 @@ function Container:bind(key, definition, options)
   return self
 end
 
+--- Tells whether `key` has a binding, without constructing anything; it does not need `validate`. The kernel uses it
+--- at boot to check the keys it will resolve (container.md, "Keys").
+---
+--- Raises `hecate.core.StateError` after `close`, and `hecate.core.ArgumentError` if `key` is not a
+--- non-empty string or an interface.
+---@param key string|table  a non-empty name or an interface
+---@return boolean bound
+function Container:has(key)
+  check_key("has", key, "key")
+  check_open(self, "has")
+  return self._bindings[key] ~= nil
+end
+
 --- Replaces the binding of `key`, for tests. When `options` is omitted the lifetime and `requires` of the replaced
 --- binding are kept; when given, it replaces both (the lifetime is required, as for `bind`). The new graph is checked by `validate`.
 ---
---- Raises `hecate.container.MissingBindingError` if `key` is not bound, `hecate.container.ContainerError` after
+--- Raises `hecate.container.MissingBindingError` if `key` is not bound, `hecate.core.StateError` after
 --- `validate` or `close`, and `hecate.core.ArgumentError` for a wrong argument.
 ---@param key string|table
 ---@param definition table|function
@@ -216,9 +266,10 @@ end
 --- a fake. Like `override`, `key` must already be bound. When `key` is an interface, the conformance of `value` is
 --- checked here, at the call, because its class is known (a value that is not an instance of a class does not
 --- implement the interface, as for a factory product); the binding is unchanged on failure. A name key carries no
---- check. (container.md, "Overrides for tests"; Fowler 2004, "Forms of Dependency Injection".)
+--- check. The container never tracks nor closes `value`, even when it defines `__close`: the caller who built it owns
+--- it (OQ-123). (container.md, "Overrides for tests"; Fowler 2004, "Forms of Dependency Injection".)
 ---
---- Raises `hecate.container.MissingBindingError` if `key` is not bound, `hecate.container.ContainerError` after
+--- Raises `hecate.container.MissingBindingError` if `key` is not bound, `hecate.core.StateError` after
 --- `validate` or `close`, `hecate.core.ConformanceError` if `value` does not implement the interface `key`, and
 --- `hecate.core.ArgumentError` for a wrong argument.
 ---@param key string|table
@@ -232,7 +283,9 @@ function Container:override_with_instance(key, value)
     error(core.ConformanceError(("container: the instance for %q does not implement it"):format(render(key)),
       { context = { key = render(key) } }), 2)
   end
-  return self:override(key, function() return value end, { lifetime = Lifetime.singleton })
+  self:override(key, function() return value end, { lifetime = Lifetime.singleton })
+  self._bindings[key].caller_owned = true
+  return self
 end
 
 --- Checks the whole graph without constructing anything, then freezes the container. Collects every problem:
@@ -259,43 +312,84 @@ function Container:validate()
   return self, warnings
 end
 
---- Builds the service of `binding` from its resolved dependencies.
-local function construct(container, binding, args, count, path)
+-- The guard of a construction: its `__close` clears the mark of the binding, also when the computation is closed while
+-- suspended in the constructor (`coroutine.close` closes pending to-be-closed variables).
+--- Internal: the to-be-closed guard of one construction; not exported.
+---@class hecate.container.ConstructionGuard
+---@field binding hecate.container.Binding
+local ConstructionGuard = core.class("ConstructionGuard")
+
+--- Guards the construction of `binding`.
+---@param binding hecate.container.Binding
+function ConstructionGuard:init(binding) self.binding = binding end
+
+--- Clears the mark of the construction.
+function ConstructionGuard:__close() self.binding.constructing = nil end
+core.finalise(ConstructionGuard)
+
+--- Closes a closable product that will not be returned, unless an owner already tracks it.
+local function discard(container, scope, product, err)
+  if not closeable(product) or container._tracked[product] or (scope ~= nil and scope._tracked[product]) then return end
+  local closed, failure = pcall(getmetatable(product).__close, product, nil)
+  if not closed then suppress(err, failure) end
+end
+
+--- Builds the service of `binding` from its resolved dependencies. `binding.constructing` holds the computation that
+--- is constructing it (OQ-107: a constructor never suspends, so another computation never sees the mark set).
+local function construct(container, scope, binding, args, count, path)
   local key = binding.key
-  container._constructing[key] = true
+  binding.constructing = coroutine.running()
+  local guard <close> = ConstructionGuard(binding)
   local ok, product = pcall(binding.definition, table.unpack(args, 1, count))
-  container._constructing[key] = nil
   if not ok then
     if core.is_instance_of(product, core.CancellationError) or core.is_instance_of(product, core.DeadlineExceededError) then
       error(product, 0)
     end
-    local rendered = {}
-    for i, entry in ipairs(path) do rendered[i] = render(entry) end
     error(errors.ConstructionError(("container: constructing %q failed"):format(render(key)),
-      { cause = product, context = { key = render(key), path = rendered } }), 0)
+      { cause = product, context = { key = render(key), path = rendered_path(path) } }), 0)
   end
   if product == nil then
     error(errors.ConstructionError(("container: the constructor of %q returned nil"):format(render(key)),
-      { context = { key = render(key), path = {} } }), 0)
+      { context = { key = render(key), path = rendered_path(path) } }), 0)
   end
   if core.is_interface(key) and not core.implements(product, key) then
-    error(core.ConformanceError(("container: the product of %q does not implement it"):format(render(key)),
-      { context = { key = render(key) } }), 0)
+    local failure = core.ConformanceError(("container: the product of %q does not implement it"):format(render(key)),
+      { context = { key = render(key), path = rendered_path(path) } })
+    discard(container, scope, product, failure)
+    error(failure, 0)
   end
   return product
 end
 
---- `path` is the chain of keys being resolved, from the requested key. `owner` is the list that tracks the closable
---- transients built on the way: the service scope's, the container's while a singleton is being built, or `nil` from
---- the root, where `pending` collects what was built in this call (refused at the end, container.md, "Disposal").
-local function resolve_key(container, scope, key, path, owner, pending)
+local resolve_key
+
+--- Resolves the dependencies of `binding`, then constructs it.
+local function build(container, scope, binding, path, owner, pending, journal)
+  local count = #binding.requires
+  local args = {}
+  for i = 1, count do args[i] = resolve_key(container, scope, binding.requires[i], path, owner, pending, journal) end
+  return construct(container, scope, binding, args, count, path)
+end
+
+--- Closes and drops the closable transients built for a singleton whose construction failed (`journal`), then raises
+--- `failure`; a close error is attached to `failure` as `context.suppressed`.
+local function abandon(container, journal, failure)
+  for i = #journal, 1, -1 do untrack(container, journal[i]) end
+  local closed, close_failure = pcall(close_all, journal)
+  if not closed then suppress(failure, close_failure) end
+  error(failure, 0)
+end
+
+--- `path` is the chain of keys being resolved, from the requested key. `owner` is what tracks the closable transients
+--- built on the way: the service scope, the container while a singleton is being built, or `nil` from the root, where
+--- `pending` collects what was built in this call (refused at the end, container.md, "Disposal"). `journal` lists the
+--- closable transients the container took for the singleton being built, dropped if its construction fails.
+function resolve_key(container, scope, key, path, owner, pending, journal)
   local binding = container._bindings[key]
   path[#path + 1] = key
   if binding == nil then
-    local rendered = {}
-    for i, entry in ipairs(path) do rendered[i] = render(entry) end
     error(errors.MissingBindingError(("container: %q is not bound"):format(render(key)),
-      { context = { key = render(key), path = rendered } }), 0)
+      { context = { key = render(key), path = rendered_path(path) } }), 0)
   end
   local lifetime = binding.lifetime
   local cache = nil
@@ -308,31 +402,41 @@ local function resolve_key(container, scope, key, path, owner, pending)
     path[#path] = nil
     return cache[key]
   end
-  if container._constructing[key] then
-    local rendered = { render(key), render(key) }
-    error(errors.CycleError("container: re-entrant resolution of " .. rendered[1], { context = { path = rendered } }), 0)
+  local constructing = binding.constructing
+  if constructing ~= nil then
+    if constructing == coroutine.running() then
+      local rendered = { render(key), render(key) }
+      error(errors.CycleError("container: re-entrant resolution of " .. rendered[1], { context = { path = rendered } }), 0)
+    end
+    error(ContainerError(
+      ("container: %q is being constructed by a computation that suspended: constructors and factories must not suspend (OQ-107)")
+        :format(render(key)), { context = { key = render(key), path = rendered_path(path) } }), 0)
   end
   if lifetime == Lifetime.transient and owner == nil and class_closeable(binding.definition) then
     refuse_unowned(path)
   end
-  local count = #binding.requires
-  local args = {}
-  -- A singleton is built without a service scope: nothing request-bound can reach it, and the container owns the
-  -- closable transients it needs.
-  local inner, inner_owner = scope, owner
-  if lifetime == Lifetime.singleton then inner, inner_owner = nil, container._owned end
-  for i = 1, count do args[i] = resolve_key(container, inner, binding.requires[i], path, inner_owner, pending) end
-  local product = construct(container, binding, args, count, path)
+  local product
+  if lifetime == Lifetime.singleton then
+    -- A singleton is built without a service scope: nothing request-bound can reach it, and the container owns the
+    -- closable transients it needs; they are dropped again if its construction fails.
+    local built = {}
+    local ok, result = pcall(build, container, nil, binding, path, container, nil, built)
+    if not ok then abandon(container, built, result) end
+    product = result
+  else
+    product = build(container, scope, binding, path, owner, pending, journal)
+  end
   if cache ~= nil then
     cache[key] = product
-    if closeable(product) then
-      local owned = lifetime == Lifetime.singleton and container._owned or scope._owned
-      owned[#owned + 1] = product
+    if closeable(product) and not binding.caller_owned then
+      track(lifetime == Lifetime.singleton and container or scope, product)
     end
-  elseif closeable(product) then
+  elseif closeable(product) and not container._tracked[product] and not (scope ~= nil and scope._tracked[product]) then
+    -- A product already tracked (a singleton's or a scoped instance, or one returned before) has an owner already.
     if owner ~= nil then
-      owner[#owner + 1] = product
-      if scope ~= nil and owner == scope._owned then scope._released[product] = true end
+      track(owner, product)
+      if owner == scope then scope._released[product] = true end
+      if journal ~= nil and owner == container then journal[#journal + 1] = product end
     else
       pending[#pending + 1] = product
       refuse_unowned(path)
@@ -349,13 +453,13 @@ end
 --- Resolves a root-resolvable service: a singleton or a transient whose dependencies are all singletons or
 --- transients. The container must have been validated.
 ---
---- --- A transient whose instance defines `__close` has no owner here: it is refused, see below.
+--- A transient whose instance defines `__close` has no owner here: it is refused, see below.
 ---
 --- Raises `hecate.container.LifetimeError` if the service needs a scoped one (use `ServiceScope:resolve`), or if it
 --- would create a closable transient that no singleton owns (resolve it through `ServiceScope:resolve`; a factory
 --- product is closed again before the error is raised),
 --- `hecate.container.MissingBindingError` for an unbound key, `hecate.container.ConstructionError` if a constructor
---- raised, and `hecate.container.ContainerError` before `validate` or after `close`.
+--- raised, and `hecate.core.StateError` before `validate` or after `close`.
 ---@param key string|table
 ---@return any service  never `nil`
 function Container:resolve(key)
@@ -372,11 +476,11 @@ function Container:resolve(key)
   end
   -- Nothing owns a closable transient built here: what was built in this call is closed again before the refusal.
   local pending = {}
-  local ok, result = pcall(resolve_key, self, nil, key, {}, nil, pending)
+  local ok, result = pcall(resolve_key, self, nil, key, {}, nil, pending, nil)
   if ok then return result end
   if #pending > 0 then
     local closed, failure = pcall(close_all, pending)
-    if not closed and core.is_instance_of(result, core.Error) then result.context.suppressed = { failure } end
+    if not closed then suppress(result, failure) end
   end
   error(result, 0)
 end
@@ -394,6 +498,7 @@ end
 function Container:close()
   if self._closed then return end
   self._closed = true
+  self._tracked = {}
   close_all(self._owned)
 end
 
@@ -402,9 +507,13 @@ function Container:__close() self:close() end
 
 ---@param container hecate.container.Container
 function ServiceScope:init(container)
+  if type(container) ~= "table" or not core.is_instance_of(container, Container) then
+    error(core.ArgumentError("container.ServiceScope: container must be a Container; open a service scope with container:open_scope()"), 3)
+  end
   self._container = container
   self._instances = {}
   self._owned = {}
+  self._tracked = {} -- the instances in `_owned`, as a set
   self._released = {} -- the closable transients this scope tracks, which `release` may close early
   self._closed = false
 end
@@ -412,37 +521,31 @@ end
 --- Resolves any service: scoped instances are cached in this scope, singleton instances in the container.
 ---
 --- Raises `hecate.container.MissingBindingError`, `hecate.container.ConstructionError` or
---- `hecate.container.ContainerError` (this scope or the container is closed).
+--- `hecate.core.StateError` (this scope or the container is closed).
 ---@param key string|table
 ---@return any service  never `nil`
 function ServiceScope:resolve(key)
   check_key_argument("resolve", key)
-  if self._closed then error(ContainerError("container: resolve on a closed service scope"), 2) end
+  if self._closed then error(core.StateError("container: resolve on a closed service scope"), 2) end
   check_validated(self._container, "resolve")
-  return resolve_key(self._container, self, key, {}, self._owned, nil)
+  return resolve_key(self._container, self, key, {}, self, nil, nil)
 end
 
 --- Closes a closable transient now, instead of at the close of this scope, and stops tracking it. A scope that owns a
 --- transient closes it: do not close it yourself. A close error propagates as it is.
 ---
---- Raises `hecate.core.ArgumentError` if `instance` is not a table, and `hecate.container.ContainerError` if this
+--- Raises `hecate.core.ArgumentError` if `instance` is neither a table nor a userdata, and `hecate.container.ContainerError` if this
 --- scope does not track it (never resolved here, owned by a singleton, already released, or the scope is closed).
 ---@param instance table  a closable transient resolved through this scope
 function ServiceScope:release(instance)
   if type(instance) ~= "table" and type(instance) ~= "userdata" then
-    argument_error("release", "instance must be a table")
+    argument_error("release", "instance must be a table or a userdata")
   end
   if not self._released[instance] then
     error(ContainerError("container: release of an instance that this service scope does not track"), 2)
   end
   self._released[instance] = nil
-  local owned = self._owned
-  for i = #owned, 1, -1 do
-    if owned[i] == instance then
-      table.remove(owned, i)
-      break
-    end
-  end
+  untrack(self, instance)
   getmetatable(instance).__close(instance, nil)
 end
 
@@ -452,6 +555,7 @@ function ServiceScope:close()
   if self._closed then return end
   self._closed = true
   self._released = {}
+  self._tracked = {}
   close_all(self._owned)
 end
 

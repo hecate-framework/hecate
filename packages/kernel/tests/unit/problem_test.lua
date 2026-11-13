@@ -69,7 +69,7 @@ function T:test_reserved_extension_names_are_refused()
 end
 
 function T:test_invalid_fields_are_refused()
-  for _, fields in ipairs({ { detail = 3 }, { extensions = "x" }, { extensions = { [1] = "x" } }, { bogus = 1 } }) do
+  for _, fields in ipairs({ { detail = 3 }, { extensions = "x" }, { extensions = { [1] = "x" } }, { bogus = 1 }, { fields = "x" } }) do
     local err = self:assert_error(function() problem.NotFound(fields) end)
     self:assert_equal("hecate.core.ArgumentError", err.code)
   end
@@ -240,6 +240,92 @@ function T:test_a_problem_class_is_a_route_response_declaration()
   self:assert_true(problem.is_class(problem.NotFound))
   self:assert_false(problem.is_class(core.Error))
   self:assert_false(problem.is_class(problem.NotFound()))
+end
+
+-- OQ-126 (a), owner decision of 2026-11-13: header fields on a problem ------------------------------------------------
+
+function T:test_a_problem_carries_header_fields_into_the_response_and_never_into_the_body()
+  local p = problem.Unauthorized({ fields = { ["WWW-Authenticate"] = 'Bearer realm="api"' } })
+  self:assert_equal('Bearer realm="api"', p.fields:get("WWW-Authenticate"))
+  local response = problems.from_problem(p)
+  self:assert_equal(401, response.status)
+  self:assert_equal('Bearer realm="api"', response.fields:get("WWW-Authenticate"))
+  self:assert_equal("application/problem+json", response.fields:get("Content-Type"))
+  local members = body(response)
+  self:assert_nil(members.fields)
+  self:assert_nil(members["WWW-Authenticate"])
+  local allowed = problems.from_problem(problem.MethodNotAllowed({ fields = { Allow = "GET, HEAD" } }))
+  self:assert_equal("GET, HEAD", allowed.fields:get("Allow"))
+  local limited = problems.from_problem(problem.TooManyRequests({ fields = { ["Retry-After"] = "120" } }))
+  self:assert_equal("120", limited.fields:get("Retry-After"))
+  local busy = problems.from_problem(problem.ServiceUnavailable({ fields = { ["Retry-After"] = "30" } }))
+  self:assert_equal("30", busy.fields:get("Retry-After"))
+end
+
+function T:test_a_list_of_values_gives_one_field_line_each()
+  local p = problem.Unauthorized({ fields = { ["WWW-Authenticate"] = { 'Bearer realm="api"', 'Basic realm="api"' } } })
+  local values = problems.from_problem(p).fields:get_all("WWW-Authenticate")
+  self:assert_equal('Bearer realm="api"|Basic realm="api"', table.concat(values, "|"))
+end
+
+function T:test_a_problem_of_define_carries_fields_too()
+  local Locked = problem.define("Locked", { status = 423, title = "Locked" })
+  local response = problems.from_problem(Locked({ fields = { ["Retry-After"] = "5" } }))
+  self:assert_equal(423, response.status)
+  self:assert_equal("5", response.fields:get("Retry-After"))
+end
+
+function T:test_fields_reach_the_response_of_a_problem_raised_or_returned()
+  local p = problem.Unauthorized({ fields = { ["WWW-Authenticate"] = "Bearer" } })
+  local raised = problems.guard(function() error(p) end)(request())
+  self:assert_equal("Bearer", raised.fields:get("WWW-Authenticate"))
+  self:assert_equal("Bearer", problems.from_error(p).fields:get("WWW-Authenticate"))
+  local returned = results.serialise(p, request(), {})
+  self:assert_equal(401, returned.status)
+  self:assert_equal("Bearer", returned.fields:get("WWW-Authenticate"))
+end
+
+function T:test_an_invalid_field_name_or_value_is_refused_at_construction()
+  for _, fields in ipairs({
+    { ["Bad Name"] = "x" }, { [""] = "x" }, { ["X-Split"] = "a\r\nInjected: yes" }, { ["X-Nul"] = "a\0" },
+    { [1] = "x" }, { ["X-Number"] = 3 }, { ["X-List"] = { "ok", 4 } }, "Allow: GET",
+  }) do
+    local err = self:assert_error(function() problem.Unauthorized({ fields = fields }) end)
+    self:assert_equal("hecate.core.ArgumentError", err.code)
+    self:assert_not_nil(tostring(err):find("hecate.kernel.problem.init", 1, true), tostring(err))
+  end
+end
+
+function T:test_the_fields_the_kernel_owns_are_refused_in_any_case()
+  for _, name in ipairs({ "Content-Type", "content-length", "TRANSFER-ENCODING", "Connection" }) do
+    local err = self:assert_error(function() problem.Conflict({ fields = { [name] = "x" } }) end)
+    self:assert_equal("hecate.core.ArgumentError", err.code)
+    self:assert_not_nil(tostring(err):find("owned by the kernel", 1, true), tostring(err))
+  end
+end
+
+function T:test_fields_changed_after_construction_to_an_owned_one_answer_a_logged_generic_500()
+  local seen = {}
+  local logger = { log = function(_, severity, message, fields) seen[#seen + 1] = { severity, message, fields } end }
+  local p = problem.Unauthorized({ fields = { ["WWW-Authenticate"] = "Bearer" } })
+  p.fields:set("Content-Length", "0") -- valid for `http.Fields`, refused by the kernel when it answers
+  local response = problems.from_problem(p, logger)
+  self:assert_equal(500, response.status)
+  self:assert_nil(response.fields:get("WWW-Authenticate"))
+  self:assert_equal(1, #seen)
+  self:assert_equal("error", seen[1][1])
+  self:assert_equal("problem_fields_refused", seen[1][3].code)
+  self:assert_equal("hecate.problem.Unauthorized", seen[1][3].problem)
+  ---@diagnostic disable-next-line: assign-type-mismatch
+  p.fields = "WWW-Authenticate: Bearer" -- replaced by a value that is not `http.Fields`
+  self:assert_equal(500, problems.from_problem(p, logger).status)
+  self:assert_equal(2, #seen)
+end
+
+function T:test_a_problem_without_fields_has_none()
+  self:assert_nil(problem.NotFound().fields)
+  local response = problems.from_problem(problem.NotFound())
+  self:assert_equal(1, response.fields:count()) -- Content-Type alone
 end
 
 return T

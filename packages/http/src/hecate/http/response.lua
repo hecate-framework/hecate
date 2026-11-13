@@ -33,7 +33,7 @@ local Response = core.class("Response")
 --- Initialises a response.
 ---
 --- Raises `hecate.core.ArgumentError` for a status outside 100..599, for content that is not nil, a string or a function
---- (`http` does not serialise), or for content on a status that never has content (1xx, 204, 304; RFC 9110, section 6.4.1).
+--- (`http` does not serialise), or for content on a status that never has content (1xx, 204, 205, 304; RFC 9110, sections 6.4.1 and 15.3.6).
 ---@param status? integer  default 200
 ---@param options? hecate.http.ResponseOptions
 function Response:init(status, options)
@@ -70,8 +70,9 @@ function Response:stream_content()
 end
 
 --- Reads the whole content into a string, bounded by `limit` (default: the `max_content` of the client for a client
---- response). Raises `hecate.http.ContentError` (status 413, `too_large`) beyond the limit, and the failure of the
---- connection when the content cannot be read.
+--- response). Raises `hecate.http.ContentError` (`too_large`; with status 413 except for a client response, OQ-82)
+--- beyond the limit, `hecate.http.ContentError` (`timeout`) when the content of a client response stalls longer than
+--- `content_timeout`, and the failure of the connection when the content cannot be read.
 ---@async
 ---@param limit? integer  bytes
 ---@return string

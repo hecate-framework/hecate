@@ -128,7 +128,7 @@ function T:test_run_process_reaps_the_child_it_kills_on_cancellation()
   self:assert_equal(before, reactor.Reactor.open_handles())
 end
 
-function T:test_an_embedded_nul_in_a_program_name_or_argument_is_rejected()
+function T:test_an_embedded_nul_in_a_program_name_an_argument_or_an_option_is_rejected()
   ---@diagnostic disable: param-type-mismatch, assign-type-mismatch  -- the arguments are invalid on purpose
   reactor.run(function()
     for _, call in ipairs({
@@ -136,6 +136,9 @@ function T:test_an_embedded_nul_in_a_program_name_or_argument_is_rejected()
       function() reactor.spawn("a\0b") end,
       function() reactor.run_process("x", { "a\0b" }) end,
       function() reactor.spawn("x", { "a\0b" }) end,
+      function() reactor.spawn("x", {}, { cwd = "a\0b" }) end,
+      function() reactor.spawn("x", {}, { env = { ["A\0B"] = "1" } }) end,
+      function() reactor.spawn("x", {}, { env = { NAME = "a\0b" } }) end,
     }) do
       local err = self:assert_error(call)
       self:assert_true(core.is_instance_of(err, core.ArgumentError), tostring(err))
@@ -311,7 +314,8 @@ function T:test_concurrent_receivers_are_refused()
       reactor.sleep(0.001)
     end
     self:assert_true(peer._receiving, "the first receive parked") ---@diagnostic disable-line: invisible
-    self:assert_error(function() peer:receive() end)
+    local err = self:assert_error(function() peer:receive() end)
+    self:assert_true(core.is_instance_of(err, core.StateError), tostring(err))
     peer:send("go")
     self:assert_equal("GO", reactor.join(waiting))
     peer:close()

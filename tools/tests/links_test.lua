@@ -29,4 +29,11 @@ function T:test_a_link_into_a_reference_directory_that_is_not_generated_is_not_b
   self:assert_false(links.is_ungenerated_reference("website/en/reference/glossary.md", exists))
   self:assert_false(links.is_ungenerated_reference("docs/glossary.md", exists))
 end
+function T:test_a_link_to_a_generated_reference_page_that_is_not_generated_is_not_broken()
+  local present = { ["website/en/reference/configuration-keys.md"] = true }
+  local function exists(path) return present[path] == true end
+  self:assert_true(links.is_ungenerated_reference("website/en/reference/error-codes.md", exists))
+  self:assert_false(links.is_ungenerated_reference("website/en/reference/configuration-keys.md", exists))
+  self:assert_false(links.is_ungenerated_reference("website/en/reference/other.md", exists))
+end
 return T

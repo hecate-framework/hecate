@@ -5,8 +5,9 @@ asynchronous runtime (libuv via luv), HTTP stack, schemas, OpenAPI generation, t
 framework, documentation generator, database drivers, ORM and CLI.
 
 The project is in **early implementation**: the design is complete, and the foundations are
-written (`core`, `reactor`, `net`, `json`, `log`, `doc`; Phases 0 and 1 of the
-roadmap, both gates done). The other packages are still specifications. Your job is to implement the rest,
+written (`core`, `reactor`, `net`, `json`, `log`, `doc`, then `http`, `router`, `schema`,
+`container`, `config`, `kernel` and part of `hecate`; Phases 0 to 2 of the roadmap, the
+Phase 2 gate in progress). The other packages are still specifications. Your job is to implement the rest,
 milestone by milestone, following the roadmap.
 
 ## Sources of truth, in order of precedence
@@ -113,9 +114,8 @@ step, one roadmap item per run, never merge.
 
 ## Commands
 
-Tooling does not exist yet; it is built in Phase 0 as Lua tasks run by
-`lua tools/run.lua <task>` (catalogue: `docs/architecture/automation.md`). Fill this
-section as soon as each command is available:
+Tooling is a set of Lua tasks run by `lua tools/run.lua <task>` (catalogue:
+`docs/architecture/automation.md`).
 
 Run `lua tools/run.lua --list` for the full catalogue.
 

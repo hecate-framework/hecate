@@ -1,6 +1,6 @@
 # HTTP, routing and the kernel
 
-Packages: `http`, `router`, `kernel`. Status: specification.
+Packages: `http`, `router`, `kernel`. Status: implemented in Phase 2 (alpha); a statement about something not implemented says so.
 
 ## `hecate.http`
 
@@ -34,7 +34,7 @@ What exists in `hecate.http` (the package README has the full API and the limits
   `max_connections`, TLS with handshake limits, and an `on_error` and a `logger` option.
 - `Client`: a pool per origin, redirects, deadlines, TLS, streaming, `read_json()`.
 - `http.problem`, `http.form`, `http.multipart`, `http.url` and the error classes `ParseError`, `ContentError` and `FormError`.
-- The answers sent before any action runs (400 malformed or without exactly one `Host`, 408, 413, 414, 417, 431, 501 for an
+- The answers sent before any action runs (400 malformed, for an HTTP/1.1 request without a `Host`, for any request with more than one `Host` line or an invalid one, for a target with a fragment, and for the asterisk-form outside OPTIONS, RFC 9112 section 3.2; 408, 413, 414, 417, 431, 501 for an
   upgrade) are problem details built by `http.problem` and never reach the kernel.
 
 ### Message model
@@ -62,12 +62,22 @@ The same package provides an HTTP client (`http.Client`: connection reuse per or
 TLS, redirects policy, streaming; the response content is read with `response:read_content()` or `response:stream_content()`, like the server's request content). It powers the test client's network mode and the
 CLI's registry access.
 
+Reading a response content fails as reading a request content does, with `ContentError` and the same `context.reason`
+(OQ-82): `too_large` beyond the client's `max_content` (with `context.limit`), and `timeout` when no content arrives
+for `content_timeout` seconds (the error of the expired read is the `cause`). The client's `ContentError` carries no
+`context.status`: a status is the server's to give, and `http.problem` maps a content error without one to a 500
+when it escapes an action. `core.DeadlineExceededError` stays the error of the deadlines that are not about the
+content (`connect_timeout`, `head_timeout`, `write_timeout`) and of the whole exchange, `request_timeout`, also when
+it expires while the content is being read. A request on a closed client raises `core.StateError` (OQ-77).
+
 ## `hecate.router`
 
 - One compiled **radix tree** over decoded segments, the methods stored per node; static segments, parameter segments
   (`{id}`) and a trailing wildcard (`{path...}`). Path templates are a subset of
   RFC 6570 level 1.
-- Matching cost is bounded by the length of the path times the length of the longest template, and independent of the number of routes.
+- Matching cost grows with the length of the path. A static segment is one hash lookup, so its cost is independent of
+  the number of routes; the parameters with literal text around them (`{id}.json`) at one node are scanned one by one,
+  so their cost grows with the number of such siblings; backtracking is bounded by the tree nodes the path reaches.
 - Ambiguous or conflicting routes are detected at compile time.
 - 404 when no path matches; 405 with an `Allow` field when the path matches but the
   method does not; automatic `HEAD` and `OPTIONS` handling (configurable).
@@ -80,9 +90,13 @@ What exists in `hecate.router` (the package README has the API; choices taken ar
 
 - `Router(routes, options)` compiles a route table once; `match(method, raw_path)` returns a `Match` (200, 204 for the
   automatic `OPTIONS`, 400 for an unreadable path, 404, 405 with a sorted `Allow`); `url_for`, `routes()`, `route(name)`.
-- The tree is a radix tree over whole decoded segments: a static child is one hash lookup, so a step costs the same for
-  any number of routes. Precedence is static, parameter with literal text (longest first), plain parameter, wildcard, with backtracking, and a route that does not serve
-  the method is skipped for a lower-precedence one that does.
+- The tree is a radix tree over whole decoded segments: a static child is one hash lookup, so a static step costs the
+  same for any number of routes. The affixed siblings of a node (parameters with literal text around them) are scanned
+  linearly, and backtracking visits at most the tree nodes the path reaches. Indexing affixed siblings is deferred.
+  Precedence is static, parameter with literal text (longest text first), plain parameter, wildcard, with backtracking,
+  and a route that does not serve the method is skipped for a lower-precedence one that does. Two affixed siblings of
+  the same text length that can match one segment (`a{x}` and `{y}b`) have no precedence between them: two routes
+  through them that serve the same method for a common path are `ambiguous_route`.
 - The path is read as OQ-75 asks: `http.Request.path` is raw, the router percent-decodes each segment on its own
   (`%2F` is data, RFC 3986 section 2.1) and resolves dot segments first (section 5.2.4; `%2E` is a dot).
 - Gaps to RFC 6570 and RFC 3986 are allowed only for security or major performance reasons, and each is documented in
@@ -110,6 +124,34 @@ In the emitted OpenAPI document, the parameter location `fields` maps to `in: he
 OpenAPI term), `path` to `in: path`, `query` to `in: query` and `cookies` to `in: cookie`.
 
 ## `hecate.kernel`
+
+### Implemented surface
+
+What exists in `hecate.kernel` (the package [README](../../packages/kernel/README.md) has the full API):
+
+- `Application(options)` boots feature modules, controllers and route modules into one route table and a dispatcher,
+  then serves it (`serve`, `shutdown`, `reload`). With a `configuration`, its options are bound to the configuration
+  keys (`limits.max_depth`, `errors.expose_details`, `requests.inputs`, `server.*` and the logging keys); an explicit
+  option wins. With `workers` above 1 the process is the primary of a `Supervisor` (ADR 0023).
+- An action returns a value, a `Response`, a problem, or `respond(status, value?, schema?)` for another status or
+  schema.
+- Problem classes (`problem.NotFound`, ..., `problem.define` for an application's own) become
+  `application/problem+json` responses (RFC 9457). An uncaught error is a `500` without internal details, logged
+  through the application's logger or, without one, through `log.default()` on standard error (OQ-79).
+- A problem instance may carry header fields (`fields`, OQ-126 (a)): `WWW-Authenticate` for a 401 (RFC 9110,
+  sections 11.6.1 and 15.5.2), `Allow` for a 405 (section 15.5.6), `Retry-After` for a 429 or a 503 (section 10.2.3).
+  They are copied into the response through `http.Fields`, never into the JSON content nor into the contract of a route
+  (`responses`, OpenAPI); an invalid name or value raises `ArgumentError` at construction, and so do the fields the
+  kernel owns (`Content-Type`, `Content-Length`, `Transfer-Encoding`, `Connection`). Fields changed after construction
+  into an owned one give a logged generic `500`.
+- `Accept` is minimal: absent, `*/*`, `application/*` or `application/json` select JSON; anything else is a `406`
+  problem. It follows RFC 9110 section 12.5.1: a media type takes the weight of the most specific matching range, and
+  `q=0` excludes it (`application/json;q=0, */*` gives 406); equal weights go to the range written first, then JSON.
+- Invalid inputs give a `422` whose `errors` entries carry `pointer`, `code` and `source` (`path`, `query`, `header`,
+  `cookie` or `content`); `requests.inputs = "strict"` also refuses undeclared query parameters, on every route, including one that
+  declares only `content`.
+- The binding names of controller `dependencies` are checked against the container at boot
+  (`RouteDeclarationError`, `unknown_dependency`), never first at request time.
 
 ### Application and feature modules
 
@@ -144,7 +186,8 @@ An action may return:
 - a value: serialised as the representation for the declared `200` (or `201` for
   `POST` when declared) response;
 - a `Response`: sent as is;
-- a problem (`hecate.problem.*`): serialised as `application/problem+json` (RFC 9457).
+- a problem (`hecate.problem.*`): serialised as `application/problem+json` (RFC 9457), with its header
+  fields (`fields`) when it has some.
 
 In development and test modes, responses are validated against the declared response
 schemas; a mismatch is an error. In production this check is off by default.

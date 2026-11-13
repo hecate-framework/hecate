@@ -96,14 +96,14 @@ end
 
 --- Suspends until a datagram arrives; returns its payload and the sender's address. An empty
 --- datagram is returned as an empty string. Cancelling keeps the socket open and loses nothing.
---- One coroutine receives at a time.
+--- One coroutine receives at a time: a second one raises `hecate.core.StateError`.
 ---@async
 ---@return string data
 ---@return hecate.reactor.SocketAddress from
 function UdpSocket:receive_from()
   uv_call.begin(qualified(self, "receive_from"))
   require_open(self, "receive_from")
-  if self._receiving then error(core.Error(qualified(self, "receive_from") .. ": another coroutine is already receiving"), 2) end
+  if self._receiving then error(core.StateError(qualified(self, "receive_from") .. ": another coroutine is already receiving"), 2) end
   local state = {}
   self._receiving = true
   local ok, failure = pcall(context.suspend, function(wake)

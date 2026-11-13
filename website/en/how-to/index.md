@@ -24,11 +24,17 @@ read the matching page of the [explanation](../explanation/index.md) section.
   `run_process`, `spawn`, the message pipe and handing a connection to a child.
 - [Offload CPU-bound work to the thread pool](offload-cpu-bound-work.md): `reactor.offload`, self-contained
   functions, the values that cross, errors, cancellation and the pool size.
+- [Concurrency](concurrency.md): fork and join, scopes, select, deadlines, channels, and a mutex for shared state.
 
 ## Application
 
 - [Configure an application](configure-an-application.md): layers, environment variables, secrets, validation at boot,
   the logging and depth keys.
+- [Map domain errors to problem details](map-domain-errors-to-problem-details.md): built-in problem classes,
+  your own with `problem.define`, returned or raised, the guard and `errors.expose_details`.
+- [Filters](filters.md): the four layers of the chain and their order, authentication and CORS written as filters.
+- [Multi-process deployment, graceful shutdown and health checks](multi-process-deployment.md): workers, strategies,
+  signals, the grace period, the rolling reload and a health route.
 - [Before going to production](before-going-to-production.md): a checklist of the environment, error details, logging
   and redaction, secrets, the access log, listening and limits, workers and shutdown.
 

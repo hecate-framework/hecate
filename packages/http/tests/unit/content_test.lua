@@ -1,4 +1,4 @@
----@diagnostic disable: missing-fields, param-type-mismatch  -- the tests pass invalid arguments on purpose
+---@diagnostic disable: missing-fields, param-type-mismatch, assign-type-mismatch  -- the tests pass invalid arguments on purpose
 local test = require("harness.test")
 local core = require("hecate.core")
 local http = require("hecate.http")
@@ -47,6 +47,19 @@ function T:test_read_all_limit_is_lower_than_the_reader_limit()
   self:assert_equal("abc", http.ContentStream.of("abc"):read_all(3))
 end
 
+function T:test_a_client_reader_gives_no_status()
+  local reader = http.ContentStream(chunks({ "abc", "def" }), { limit = 4, client = true })
+  self:assert_equal("abc", reader:read())
+  local err = self:assert_error(function() reader:read() end)
+  self:assert_true(core.is_instance_of(err, http.ContentError))
+  self:assert_equal("too_large", err.context.reason)
+  self:assert_equal(4, err.context.limit)
+  self:assert_nil(err.context.status)
+  local lowered = self:assert_error(function() http.ContentStream(chunks({ "abcdef" }), { client = true }):read_all(3) end)
+  self:assert_equal("too_large", lowered.context.reason)
+  self:assert_nil(lowered.context.status)
+end
+
 function T:test_a_failure_of_the_source_is_sticky_and_raised_as_it_came()
   local boom = core.Error("source failed")
   local reader = http.ContentStream(function() error(boom, 0) end)
@@ -63,9 +76,24 @@ function T:test_request_reads_its_string_content()
   self:assert_nil(reader:read())
 end
 
+function T:test_request_content_given_by_hand_is_a_string_or_nothing()
+  -- OQ-76 (b): only a string can be read back as the content of a request; a table or a function would read as nothing.
+  for _, invalid in ipairs({ { a = 1 }, function() end, 42, true }) do
+    local err = self:assert_error(function() http.Request({ method = "POST", target = "/x", content = invalid }) end)
+    self:assert_true(core.is_instance_of(err, core.ArgumentError), tostring(err))
+    self:assert_true(tostring(err):find("content must be a string", 1, true) ~= nil, tostring(err))
+  end
+  -- A server request has no `content`: it reads its content from the stream.
+  local request = http.Request({ method = "POST", target = "/x", content_stream = http.ContentStream.of("streamed") })
+  self:assert_nil(request.content)
+  self:assert_equal("streamed", request:read_content())
+  self:assert_nil(request.content)
+end
+
 function T:test_invalid_arguments()
   self:assert_error(function() http.ContentStream("x") end)
   self:assert_error(function() http.ContentStream(chunks({}), { limit = -1 }) end)
+  self:assert_error(function() http.ContentStream(chunks({}), { client = "yes" }) end)
   self:assert_error(function() http.ContentStream.of("a"):read_all("x") end)
 end
 return T

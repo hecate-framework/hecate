@@ -97,7 +97,8 @@ An error raised by the function reaches the caller as a `reactor.OffloadError` w
 `err.context.reason` set to `"raised"`. Its message starts with `reactor.offload:` followed by the
 original message (the `message` field of an error object), `err.context.traceback` holds the
 traceback on the pool thread, and `err.context.code` keeps the code of a hecate error. The original
-error object stays on the pool thread. A result that cannot be copied gives the reason `"result"`.
+error object stays on the pool thread. A result that cannot be copied gives the reason `"result"`, and a failure of the pool thread itself
+(the function cannot be loaded there, or the arguments cannot be decoded) gives `"pool_thread"`.
 
 ```lua
 -- In app.lua, line 12:
@@ -132,3 +133,8 @@ limit follows it.
 Each call copies its arguments and results and loads the function on the pool thread: a round trip
 costs tens of microseconds, and copying a large table costs time on the reactor thread in proportion
 to its size. Offload work of a millisecond or more, and keep short functions on the reactor thread.
+
+What the function allocates stays in the pool thread's Lua state after it returns, until that thread
+runs Lua again: a program can hold up to the pool size times the peak allocation of one call. A
+function that builds large data drops it before returning: it clears its references to that data,
+then calls `collectgarbage()`.

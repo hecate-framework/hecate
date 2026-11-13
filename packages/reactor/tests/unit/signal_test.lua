@@ -124,8 +124,21 @@ function T:test_wait_after_close_raises()
     local watcher = reactor.watch_signals("sigint")
     watcher:close()
     local err = self:assert_error(function() watcher:wait() end)
-    self:assert_true(core.is_instance_of(err, core.Error), tostring(err))
+    self:assert_true(core.is_instance_of(err, core.StateError), tostring(err))
   end)
+end
+
+function T:test_a_second_waiter_is_a_state_error()
+  local err = run(self, function()
+    local watcher <close> = reactor.watch_signals("sigint")
+    local first = reactor.fork(function() return pcall(watcher.wait, watcher) end)
+    reactor.sleep(0.01)
+    local ok, failure = pcall(watcher.wait, watcher)
+    self:assert_false(ok)
+    first:cancel()
+    return failure
+  end)
+  self:assert_true(core.is_instance_of(err, core.StateError), tostring(err))
 end
 
 function T:test_closing_wakes_a_waiter_with_an_error()

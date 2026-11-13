@@ -30,10 +30,14 @@ local config = {
 
 --- The name of the environment variable that sets the key at `segments` (`HECATE_LIMITS__MAX_DEPTH` for
 --- `{ "limits", "max_depth" }`): the prefix, an underscore, the upper-cased segments joined by two underscores.
+---
+--- Raises `hecate.core.ArgumentError` when `prefix` is not upper case letters, digits and underscores starting with a
+--- letter (as the `env_prefix` option), or when `segments` is not a non-empty list of non-empty strings.
 ---@param prefix string  for example `HECATE`
 ---@param segments string[]  the path of the key
 ---@return string name
 function config.variable_name(prefix, segments)
+  declaration.check_variable_arguments(prefix, segments)
   return declaration.variable_name(prefix, segments)
 end
 

@@ -26,13 +26,14 @@ function Monitor:init()
 end
 
 --- Enters the monitor, suspending in FIFO order while it is occupied. The permit leaves it
---- when released or closed: `local permit <close> = monitor:enter()`. Not reentrant.
+--- when released or closed: `local permit <close> = monitor:enter()`. Not reentrant: the
+--- coroutine already inside raises `hecate.core.StateError`.
 ---@async
 ---@return hecate.reactor.Permit
 function Monitor:enter()
   local computation = context.current_computation("reactor.Monitor.enter")
   if self._owner == computation then
-    error(core.ArgumentError("reactor.Monitor.enter: the calling coroutine has already entered the monitor (not reentrant)"), 2)
+    error(core.StateError("reactor.Monitor.enter: the calling coroutine has already entered the monitor (not reentrant)"), 2)
   end
   self._inner = self._mutex:lock()
   self._owner = computation

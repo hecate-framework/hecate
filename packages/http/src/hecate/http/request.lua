@@ -17,7 +17,7 @@ local multipart = require("hecate.http.multipart")
 ---@field query string?  the raw query component without `?` (not decoded), or nil when the target has none
 ---@field version string  protocol version, "HTTP/1.1" by default
 ---@field fields hecate.http.Fields
----@field content? string|table|function  the content; the server reads it from the stream
+---@field content any  nil for a request built by the server (read the content with `read_content` or `stream_content`); the string given to the constructor for a request built by hand; the validated value once the kernel has read and validated the content (`set_validated_content`, OQ-76 b)
 ---@field parameters table  values declared by the route; the four keys path, query, fields, cookies
 ---@field scope? table  the scope of the request (one scope per request)
 ---@overload fun(options: hecate.http.RequestOptions): hecate.http.Request
@@ -27,7 +27,7 @@ local Request = core.class("Request")
 ---@field method? string  default "GET"
 ---@field target string
 ---@field fields? hecate.http.Fields
----@field content? string|table|function
+---@field content? string  the whole content of a request built by hand, read back by `read_content` and `stream_content`
 ---@field version? string
 ---@field scope? table
 ---@field peer_address? table
@@ -35,8 +35,8 @@ local Request = core.class("Request")
 
 --- Initialises a request.
 ---
---- Raises `hecate.core.ArgumentError` for an invalid method or a target that is empty or holds
---- whitespace or control characters.
+--- Raises `hecate.core.ArgumentError` for an invalid method, a target that is empty or holds
+--- whitespace or control characters, or a `content` that is not a string.
 ---@param options hecate.http.RequestOptions
 function Request:init(options)
   if type(options) ~= "table" then error(core.ArgumentError("http.Request: expected an options table, as in http.Request({ method = \"GET\", target = \"/\" })"), 3) end
@@ -45,6 +45,9 @@ function Request:init(options)
   local target = options.target
   if type(target) ~= "string" or target == "" or string.find(target, "[%c ]") then
     error(core.ArgumentError("http.Request: the target must be a non-empty string without whitespace or control characters"), 3)
+  end
+  if options.content ~= nil and type(options.content) ~= "string" then
+    error(core.ArgumentError("http.Request: the content must be a string (the server reads it from the stream; the kernel sets the validated value)"), 3)
   end
   self.method, self.target, self.version = method, target, options.version or "HTTP/1.1"
   self.path, self.query = string.match(target, "^([^?#]*)%??([^#]*)")

@@ -187,4 +187,20 @@ function T:test_the_cost_grows_with_the_path_length()
   self:assert_true(cost("/a/b/c/d/e/f/g/h") > cost("/a/b"))
 end
 
+
+function T:test_a_static_segment_costs_the_same_whatever_the_affixed_siblings_of_its_node()
+  -- R-2 of the Phase 2 gate review: a static child is one hash lookup, and the affixed siblings of a node (which are
+  -- scanned one by one) are not looked at when the static branch serves the request.
+  local function table_of(size)
+    local list = { { method = "GET", path = "/f/target/items" } }
+    for i = 1, size do list[#list + 1] = { method = "GET", path = ("/f/{x}.e%d/items"):format(i) } end
+    for i = 1, size do list[#list + 1] = { method = "GET", path = ("/f/static%d/items"):format(i) } end
+    return router.Router(list)
+  end
+  local small, large = table_of(5), table_of(500)
+  local function hit(r) return instructions(function() r:match("GET", "/f/target/items") end) end
+  hit(small); hit(large)
+  self:assert_equal(hit(small), hit(large), "a static hit beside 5 and 500 affixed siblings")
+end
+
 return T

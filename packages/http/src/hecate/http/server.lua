@@ -44,6 +44,7 @@ local function is_deadline(err) return core.is_instance_of(err, core.DeadlineExc
 ---@field logger? hecate.log.Logger  receives everything the server logs: an unhandled error of an action (`error`), the listening address, the failed handshakes with the peer address, accept failures (default: `log.default()`, OQ-79; an explicit logger replaces it)
 ---@field on_response? fun(info: hecate.http.ResponseInfo)  called once after each response, with what was sent (access logging, OQ-81); an error of the hook is discarded
 ---@field on_error? fun(err: any)  called with the failure of an action or a connection (the client only sees generic problem details)
+---@field on_request_end? async fun(request: hecate.http.Request)  called once for each request given to the action, when the serving of that request has ended: after its response was sent (a content writer included) or failed, or when it was cancelled (`shutdown`, a deadline); every computation of the request has completed by then. It runs in the computation of the connection, which may be cancelled: a cleanup that suspends runs under `reactor.shield`. An error of the hook is discarded (reported to `on_error`). Releases what the action keeps for its response (the service scope of `hecate.kernel`)
 
 --- What `on_response` receives about one response.
 ---@class hecate.http.ResponseInfo
@@ -126,6 +127,7 @@ function Server:init(action, options)
   self._limits = settings.limits
   self._on_error = settings.on_error
   self._on_response = settings.on_response
+  self._on_request_end = settings.on_request_end
   self._action = settings.action
   self._handshaking = {}
   self._handshakes = reactor.Semaphore(self._max_handshakes)
@@ -216,12 +218,12 @@ end
 --- Each connection is a computation of an internal scope that ends only when every connection and request has ended;
 --- a failure of a connection closes that connection only. Returns once every connection has ended.
 ---
---- Raises `hecate.core.ArgumentError` when already serving, a `TransportError` when binding fails, and the
+--- Raises `hecate.core.StateError` when already serving, a `TransportError` when binding fails, and the
 --- cancellation of the caller.
 ---@async
 ---@param listener? hecate.net.TcpListener  any net listener whose `accept` returns a stream with `reader`, `writer`, `shutdown` and `close` (a `PipeListener` is expected to work and is not tested)
 function Server:serve(listener)
-  if self._serving then error(core.ArgumentError("http.Server:serve: the server is already serving; call shutdown first"), 2) end
+  if self._serving then error(core.StateError("http.Server:serve: the server is already serving; call shutdown first"), 2) end
   listener = listener or self:listen()
   self._listener = listener
   self._serving = true
@@ -249,8 +251,9 @@ local function wait_finished(self)
   self._finished:release() -- the next waiter
 end
 
---- Stops accepting, closes the idle connections (those that served a request and wait for the next), lets the requests in
---- flight finish (each answer carries `Connection: close`), and returns when `serve` has returned. A fresh connection (no
+--- Stops accepting, closes the idle connections (those that served a request and wait for the next with no byte of its
+--- head), lets the requests in flight finish (each answer carries `Connection: close`; a request whose head has partly
+--- arrived is in flight), and returns when `serve` has returned. A fresh connection (no
 --- byte of its first request head yet, e.g. handed over just before the stop) is not closed at once: it has
 --- `connection.FRESH_GRACE` (1 second, or the `grace_timeout` when shorter) to start its request, which is then served with
 --- `Connection: close`; it is closed when none starts. When `grace_timeout` seconds pass first, the
@@ -271,9 +274,11 @@ function Server:shutdown(grace_timeout)
     self._stop_grace = grace_timeout
     for conn in pairs(self._connections) do
       -- A fresh connection (no byte of its first request head yet) is given a short grace, not closed: its client may have
-      -- written the request already (a connection handed over just before the stop). One that served a request is closed.
+      -- written the request already (a connection handed over just before the stop). One that waits with no byte of a
+      -- next head (it served a request) is idle and closed. One whose head has partly arrived (`conn.partial`, first or
+      -- next request) is not idle: its request is served with `Connection: close`, bounded by `head_timeout` and the grace.
       if conn.fresh then connection.grace_fresh(self, conn)
-      elseif conn.waiting then conn.stream:close() end
+      elseif conn.waiting and not conn.partial then conn.stream:close() end
     end
     for limited in pairs(self._handshaking) do limited:close() end
   end

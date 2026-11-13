@@ -15,6 +15,12 @@ on:
       - "packages/*/src/**"
       - "packages/*/README.md"
       - "packages/doc/**"
+      - "docs/architecture/configuration.md"
+      - "tools/tasks/gen_error_codes.lua"
+      - "tools/tasks/gen_config_reference.lua"
+      - "tools/lib/error_codes.lua"
+      - "tools/lib/config_reference.lua"
+      - "tools/lib/generated_page.lua"
       - "llms.txt"
       - ".github/workflows/website.yml"
   push:
@@ -117,6 +123,13 @@ jobs:
         if: github.event_name != 'pull_request'
         uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6
 
+      # The error codes and configuration keys pages are git-ignored like the code reference: generated here, before
+      # the site build (pure Lua, no LuaLS).
+      - name: Generate the error codes and configuration keys pages
+        run: |
+          lua tools/run.lua gen-error-codes
+          lua tools/run.lua gen-config-reference
+
       - name: Build the site
         env:
           BASE_PATH: ${{ steps.pages.outputs.base_path }}
@@ -130,6 +143,9 @@ jobs:
         run: |
           for package in core reactor net json log http router schema container config kernel; do
             test -f "website/dist/en/reference/$package/index.html" || { echo "missing reference of $package" >&2; exit 1; }
+          done
+          for page in error-codes configuration-keys; do
+            test -f "website/dist/en/reference/$page/index.html" || { echo "missing reference page $page" >&2; exit 1; }
           done
 
       - name: Upload the site

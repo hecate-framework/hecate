@@ -4,8 +4,9 @@ global <const> require
 
 local core = require("hecate.core")
 
---- Base class of the container errors; also raised for a use in the wrong state (before `validate`, `bind` after it,
---- any use after `close`).
+--- Base class of the container errors; also raised when a key is being constructed by a computation that suspended
+--- (OQ-107) and by `release` of an instance the scope does not track. A use in the wrong state (before `validate`,
+--- `bind` after it, any use after `close`) raises `hecate.core.StateError` instead (OQ-77).
 ---@class hecate.container.ContainerError : hecate.core.ConfigurationError
 ---@overload fun(fields: hecate.core.ErrorFields|string, extra?: hecate.core.ErrorFields): hecate.container.ContainerError
 local ContainerError = core.error_class("ContainerError", "hecate.container.ContainerError", core.ConfigurationError)
@@ -31,10 +32,13 @@ local MissingBindingError = core.error_class("MissingBindingError", "hecate.cont
 ---@overload fun(fields: hecate.core.ErrorFields|string, extra?: hecate.core.ErrorFields): hecate.container.CycleError
 local CycleError = core.error_class("CycleError", "hecate.container.CycleError", ContainerError)
 
---- A singleton depends on a scoped service, or a scoped service is requested from the container itself.
---- `context.key` is the singleton (or the requested key), `context.dependency` the scoped service.
+--- A singleton depends on a scoped service; a service that needs a scoped one is requested from the container itself;
+--- or a resolution from the container itself would create a closable transient that no singleton owns.
+--- `context.key` is the singleton (or the requested key), `context.dependency` the scoped service (or the closable
+--- transient), `context.path` the chain between them; `context.suppressed` holds the close errors of the products
+--- closed again before a refusal of a closable transient, if any.
 ---@class hecate.container.LifetimeError : hecate.container.ContainerError
----@field context { key: string, dependency: string, path: string[] }
+---@field context { key: string, dependency: string, path: string[], suppressed?: any[] }
 ---@overload fun(fields: hecate.core.ErrorFields|string, extra?: hecate.core.ErrorFields): hecate.container.LifetimeError
 local LifetimeError = core.error_class("LifetimeError", "hecate.container.LifetimeError", ContainerError)
 

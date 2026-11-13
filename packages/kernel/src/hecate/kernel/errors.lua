@@ -40,6 +40,10 @@ end
 --- - `invalid_source`: a route declaration or a source of routes is not a table (or class);
 --- - `incomplete_route`: a verb was called without its table of declarations (`module:get "/x"` alone);
 --- - `missing_container`: a controller declares `dependencies` and the application has no container;
+--- - `invalid_dependencies`: the `dependencies` of a controller are not a table of non-empty field names to non-empty
+---   binding names;
+--- - `unknown_dependency`: a binding name of `dependencies` has no binding in the container (`context.field` is
+---   `dependencies.<field>`), found at boot rather than at the first request;
 --- - `unsupported_content_type`: a route declares `content` for no media type the kernel reads.
 ---
 --- `context.origin` names the route module or controller; `context.field` the offending field when there is one.

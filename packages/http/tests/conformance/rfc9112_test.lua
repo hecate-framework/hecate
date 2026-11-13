@@ -272,7 +272,7 @@ end
 function T:test_obs_fold_in_a_response_is_refused()
   local _, err = self:run("response", "HTTP/1.1 200 OK\r\nX-A: one\r\n two\r\nContent-Length: 0\r\n\r\n")
   self:assert_true(err ~= nil)
-  self:assert_equal(400, err.context.status)
+  self:assert_nil(err.context.status) -- a response has no status to answer with (OQ-82)
 end
 
 -- Message framing, RFC 9112 section 6.3: one vector per rule ----------------------------------------------------------
@@ -429,7 +429,7 @@ function T:test_rule_5_an_invalid_content_length_is_refused()
       local head = kind == "request" and "POST / HTTP/1.1\r\nHost: h\r\n" or "HTTP/1.1 200 OK\r\n"
       local events, err = self:run(kind, head .. "Content-Length: " .. vector[2] .. "\r\n\r\nbody")
       self:assert_true(err ~= nil, kind .. " accepted: " .. vector[1])
-      self:assert_equal(400, err.context.status, vector[1])
+      self:assert_equal(kind == "request" and 400 or nil, err.context.status, vector[1])
       for _, e in ipairs(events) do self:assert_true(e.type ~= "head", vector[1]) end
     end
   end
@@ -443,7 +443,8 @@ function T:test_rule_5_duplicate_content_length_is_refused_even_when_identical()
   _, err = self:run("request", "POST / HTTP/1.1\r\nHost: h\r\nContent-Length: 4\r\nContent-Length: 5\r\n\r\nbody!")
   self:assert_equal(400, err.context.status)
   _, err = self:run("response", "HTTP/1.1 200 OK\r\nContent-Length: 2\r\nContent-Length: 2\r\n\r\nok")
-  self:assert_equal(400, err.context.status)
+  self:assert_true(err ~= nil)
+  self:assert_nil(err.context.status) -- a response has no status to answer with (OQ-82)
 end
 
 -- Rule 5: a valid Content-Length gives the length of the content.
@@ -735,7 +736,7 @@ function T:test_malformed_status_lines_are_refused()
   }) do
     local _, err = self:run("response", line .. "\r\nContent-Length: 0\r\n\r\n")
     self:assert_true(err ~= nil, "accepted: " .. line:gsub("%c", "?"))
-    self:assert_equal(400, err.context.status)
+    self:assert_nil(err.context.status) -- a response has no status to answer with (OQ-82)
   end
 end
 

@@ -222,11 +222,6 @@ concurrency test suite passes; benchmark baseline recorded.
       call. Judge each with `packages/schema/benchmarks/validate.lua` (`build class-bound`, `validate string-email`) and
       the `validation` scenario, on a realistic mix, before touching them.
 
-Exit: `examples/hello` runs on three platforms with N workers; invalid input yields
-RFC 9457 problem details; graceful shutdown drains in-flight requests.
-
-## Phase 2 — additional spike
-
 - [x] `reactor` follow-up: specify then implement `offload` (Lua functions on the libuv
       thread pool), split from the Phase 1 item (OQ-27). Delivered: the "Offload" section of
       `concurrency.md`, `reactor.offload(fn, ...)` and `reactor.OffloadError` over luv `new_work` (values copied by
@@ -260,27 +255,76 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       `tools/harness/examples.lua` used by the examples tests of the ten packages; every example and the website pages
       that include them migrated; the rules in `documentation.md`, "Code examples"; reviewed by `test-engineer`.
 
-- [ ] **Phase 2 gate**: verification of the phase, as described in [Phase gates](#phase-gates). Open
+- [x] Documentation and generators planned for Phase 2 that no item carried (OQ-121, owner decision of 2026-11-13;
+      [gate report](reviews/phase-2.md), findings C10 and C11). The generators `gen-error-codes` (the error code
+      reference page from the error classes and their codes, ADR 0018) and `gen-config-reference` (the configuration
+      keys reference from the `config` declarations), each a `tools/` task with a `--check` mode run by CI and tested on
+      fixtures, and the pages of `website/OUTLINE.md` still marked Phase 2: the how-tos "Problem details: mapping domain
+      errors to RFC 9457 responses", "Filters" (what exists: authentication by a filter, CORS and compression written as
+      filters; request identifiers are deferred, ADR 0025), "Concurrency: fork/join, select, deadlines, channels,
+      protecting shared state" and "Multi-process deployment, graceful shutdown, health checks"; the references
+      "Configuration keys" and "Error codes" (generated) and "Schema keywords and formats"; the explanations
+      "Architecture and layers", "The object model" and "Concurrency model". English only (the French copies follow
+      with the translation sync); code samples from tested example files. The outline line "Background work and
+      offloading CPU-bound computations" duplicates the offload how-to and is removed; `gen-meta` moves to Phase 3
+      (carried by the `cli` item). Delivered: `gen-error-codes` and `gen-config-reference` (pages built by `website.yml`,
+      `--check` in CI); how-tos `map-domain-errors-to-problem-details`, `filters`, `concurrency`,
+      `multi-process-deployment`; reference `schema-keywords-and-formats`; explanations `architecture-and-layers`,
+      `object-model`, `concurrency-model`; tested examples in `hecate`, `reactor` and `core`.
+
+- [x] **Phase 2 gate**: verification of the phase, as described in [Phase gates](#phase-gates). Open
       questions to put to the owner before Phase 3: OQ-46, OQ-13, OQ-17, OQ-38 and OQ-64
       (OQ-33, OQ-35, OQ-36 and OQ-40 were resolved at the Phase 1 gate).
       **Also triage (from the `examples/hello` review, dx-reviewer):** without the native module of `http`,
       `Application:serve` fails with `attempt to call a nil value (field 'Server')` (`kernel/application.lua`); it
       should raise an error that names `lua tools/run.lua build-native http`, as `hecate.net.tls` does for its module.
+      Delivered: [report](reviews/phase-2.md), [coherence findings](reviews/phase-2-coherence-findings.md) and
+      [reviewer wave](reviews/phase-2-review-package.md); every finding fixed (test first) or deferred to a named item, every
+      open question decided by the owner on 2026-11-13 (OQ-13 and OQ-17 stay open as Phase 3 spikes); CI green on Linux,
+      macOS and Windows.
+
+Exit: `examples/hello` runs on three platforms with N workers; invalid input yields
+RFC 9457 problem details; graceful shutdown drains in-flight requests.
 
 ## Phase 3 — Contracts and tooling → `0.1.0`
 
+- [ ] **First item of Phase 3 (owner decision of 2026-11-13): a readable writing style.** Write a "Writing style"
+      section in `docs/architecture/documentation.md`, after the manner of *Programming in Lua* (Ierusalimschy): one
+      idea per paragraph, a short example right after each new concept, a brief reminder of what a term means the first
+      time a page uses it (linked to the glossary), short sentences and a lower density, the precise term and the exact
+      claim always kept. Pilot it on the 8 pages written at the Phase 2 gate (the how-tos on problem details, filters,
+      concurrency and multi-process deployment; the schema keywords reference; the explanations on the architecture, the
+      object model and the concurrency model) and submit them to the owner before any other Phase 3 item starts. Once
+      approved, the website item applies it to the rest of the site.
 - [ ] `openapi`: OpenAPI 3.1 assembly, served endpoint, export, contract diff.
 - [ ] `test`: test framework, runner, in-process client, fixtures, contract conformance,
       reporters (TAP, JUnit XML), coverage. **Also (T2, from the `http` test review):** a hand-built `Request` whose
       `content` is a table must be JSON-encoded or raise, not read as empty (`Request:read_content` today reads only a
       string); the in-process client uses the dispatch seam of OQ-78. **Also (from the `schema` review, OQ-96):** property-based generators derived from `hecate.schema` types (`generate`, `generate_invalid`, shrinking), which `schema` does not implement.
+- [ ] Spike OQ-13 (standalone CLI executable: Lua 5.5, the CLI modules and the native modules in one binary per
+      platform; code signing on macOS and Windows), time-boxed, report and recommendation to the owner before the
+      `cli` v1 item (owner decision of 2026-11-13).
+- [ ] Spike OQ-17 (split tool for the read-only mirrors: `splitsh-lite`, `git subtree split`, `git filter-repo`;
+      determinism and speed), report to the owner before the mirrors item (owner decision of 2026-11-13).
+- [ ] `reactor.random(n)`, cryptographically secure bytes over libuv `uv_random`, used by the multipart boundaries of
+      `http` (no `math.random` fallback), before `0.1.0` (OQ-73, owner decision of 2026-11-13).
 - [ ] `doc`: project documentation generator for user projects (OpenAPI reference,
       `hecate doc build`); the minimal generator and the code reference moved to Phase 1. **Carries deferrals
       from the Phase 1 gate review** (cross-platform review): refuse, with a `BuildError`, page ids that are not valid
       file names on Windows (`? : * " < > |`, trailing dots or spaces, reserved names such as `CON`) and normalise
       NFC/NFD names before the collision check, because a site is built from a tree authored elsewhere. **Also (from the `schema` review, OQ-96):** the `---@meta` file generation for LuaLS from the schemas of a project (carried here or by `cli`, to settle when `cli` is specified), which `schema` does not implement.
+      **Also (OQ-38, owner decision of 2026-11-13):** the theme extension points for user projects: a site
+      configuration `logo`, a CSS custom-properties override file for the colours, template overrides later if users ask;
+      the hecate marks are never recoloured.
 - [ ] `cli` v1: self-contained executable, `new`, `install`, `add`, `remove`, `update`,
       `serve [--watch]`, `test`, `doc`, `contract`, `toolchain`, `doctor`, `version`.
+      **Also (OQ-122, owner decision of 2026-11-13, ADR 0023 amended):** `server.workers` accepts `"auto"` and
+      defaults to it: `max(1, cores - 1)`, `cores` from `uv.available_parallelism()` (exposed by `reactor`), read on
+      Linux within the cgroup CPU quota of a container when one is set (or documented as a limit); `hecate serve`
+      without `--workers` reads `server.workers`; the generated `config/development.lua` and `config/test.lua` set
+      `server.workers = 1`.
+      **Also (OQ-121):** `gen-meta`, the LuaLS `---@meta` files generated from schemas, as a `tools/` task and through
+      the CLI (file layout, naming and when it runs decided with the item).
       **Also (from the `examples/hello` item):** turn `examples/hello` into a Hecate project (`hecate.project.lua`, run
       by `hecate serve`, tested by `hecate test`, `hecate contract lint` in CI), as `examples/README.md` requires of
       every example from Phase 3 on; today it is `lua main.lua` and the repository harness.
@@ -299,6 +343,16 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       http-limits-timeouts-and-tls, handle-forms-and-multipart}.md` (terminology in `website/fr/glossary-terms.md`: add *origin*,
       *head*, *persistent connection*, *pipelining*, *lease*, *grace period*, *action*), stamp their `source_revision`, and check
       that the generated `http` reference (added to `DEFAULT_PACKAGES`) builds in both locales with `--strict`.
+      **Also (Phase 2 gate):** a how-to on building an application with the kernel (feature modules, controllers,
+      `hecate.respond`, problems) and tested examples for `kernel` and `hecate` (`packages/*/examples/`)
+      ([Phase 2 gate report](reviews/phase-2.md), row P7). Translate into the French glossary the rows added to the
+      English one in Phase 2: *violation*, *class-bound schema*, *presence set*, *work budget*, *validator*, *build*,
+      *Representable*, *represent*, *fail-fast mode*, *minor units*, *union (sum type)*, *path template*, *route table*,
+      *dot segment* and *service scope* (finding C9 of `docs/reviews/phase-2-coherence-findings.md`).
+      **Also (owner decisions of 2026-11-13):** apply the writing style of the first Phase 3 item to every page;
+      Mermaid diagrams (OQ-128): an ADR for the dependency (a vendored copy of `mermaid.js`, loaded only on the pages
+      that hold a diagram, no CDN), then the support in `hecate.doc` (a ` ```mermaid ` block becomes a diagram) and
+      diagrams in the explanation pages.
 - [ ] Meta-rock `hecate` (standard edition).
 - [ ] Read-only mirrors (ADR 0017): `split`, `mirrors ensure`, `check-mirrors`,
       `split.yml`; Homebrew tap and Scoop bucket repositories (resolves OQ-17).
@@ -309,6 +363,8 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       the native modules of `net` and `json`, ADR 0021), `docker.yml`, `cli-e2e.yml`, `website.yml`
       and the `release *` tasks.
 
+      **Also (OQ-46, owner decision of 2026-11-13):** fill `modules` of every rockspec (Lua sources and native
+      modules) and extend `check-rockspecs` to compare `modules` with `src/`.
 - [ ] **Phase 3 gate**: verification of the phase, as described in [Phase gates](#phase-gates). Open
       questions to put to the owner before Phase 4: OQ-18 and OQ-45.
 
@@ -390,10 +446,25 @@ CI green on the three platforms.
 
 ## Continuous
 
-- Website: French translation kept in sync; further locales by contribution.
+- Website: French translation kept in sync; further locales by contribution. **Rule for the French text (owner,
+  2026-11-13):** translate a technical term only when it has a recognised French translation in common technical
+  usage (*concurrence*, *requête*, *schéma*); keep in English the terms French developers use as they are (*framework*,
+  *middleware*, *callback*, *thread pool*, *worker*, *runtime*); when in doubt, keep the English term. Applied from the
+  next translation sync.
 - Benchmarks published per release.
 - `bench` summary: read the measurement lines whose label holds a number (`log/logger`: `enabled call, 3 fields`) and
   give `router/match` measurement lines instead of a table ([Phase 2 benchmarks](reviews/phase-2-benchmarks.md),
   "Found on the way").
 - Benchmarks: the `validation` and `routing` scenarios of `benchmarks/README.md`; judge the `schema` finding P6 (`format`
   validators) again with `validation` ([Phase 2 benchmarks](reviews/phase-2-benchmarks.md)).
+- Benchmarks: a micro-benchmark of the container service scope that the kernel dispatcher opens per request
+  (`container:open_scope()` and its close, `packages/kernel/src/hecate/kernel/dispatcher.lua`), next to the `routing`
+  and `validation` scenarios ([Phase 2 gate report](reviews/phase-2.md), row P6).
+- `router`: index the affixed siblings of a node (by prefix or suffix) instead of scanning them, measured with
+  `packages/router/benchmarks/match.lua` on a wide affixed fan-out ([Phase 2 review](reviews/phase-2-review-package.md),
+  R-2).
+- `reactor` `offload`: measure the memory a call leaves in the Lua state of its pool thread, then decide on a collection
+  step after each call (`collectgarbage("step")`, or a full collection past a threshold) with `reactor/offload`
+  ([Phase 2 review](reviews/phase-2-review-package.md), RE-4).
+- `kernel`: a fast path for an `Accept` field of one range without parameters, judged with the `kernel-json`
+  scenario ([Phase 2 review](reviews/phase-2-review-package.md), K-14).

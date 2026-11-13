@@ -10,6 +10,7 @@ local reactor = require("hecate.reactor")
 local net = require("hecate.net")
 local Parser = require("hecate.http.parser")
 local Request = require("hecate.http.request")
+local grammar = require("hecate.http.grammar")
 local ContentStream = require("hecate.http.content")
 local problem = require("hecate.http.problem")
 local HandshakeStream = require("hecate.http.handshake_stream")
@@ -154,10 +155,19 @@ end
 ---@return integer? status
 ---@return string? detail
 local function refuse(self, head)
-  -- RFC 9112, section 3.2: a server MUST answer 400 to an HTTP/1.1 request without exactly one Host field.
+  -- RFC 9112, section 3.2: a server MUST answer 400 to "any HTTP/1.1 request message that lacks a Host header field and
+  -- to any request message that contains more than one Host header field line" (any version), or an invalid value.
   local hosts = head.fields:get_all("Host")
-  if head.version == "HTTP/1.1" and #hosts ~= 1 then
+  if #hosts > 1 or (head.version == "HTTP/1.1" and #hosts ~= 1) then
     return 400, "The request needs exactly one Host field."
+  end
+  -- RFC 9112, section 3.2: no request-target form carries a fragment (origin-form and absolute-form end at the query;
+  -- RFC 9110, section 7.1), and the asterisk-form is for OPTIONS only (section 3.2.4). llhttp accepts both.
+  if string.find(head.target, "#", 1, true) then
+    return 400, "The request target holds a fragment."
+  end
+  if head.target == "*" and head.method ~= "OPTIONS" then
+    return 400, "The asterisk-form target is for OPTIONS only."
   end
   -- The field is `uri-host [ ":" port ]` and nothing else: no list, path, userinfo or blank (RFC 9112 section 3.2).
   if #hosts == 1 and not valid_host(hosts[1]) then
@@ -168,7 +178,7 @@ local function refuse(self, head)
   if string.find(head.target, "^%a[%w+.-]*://") then
     local scheme, authority = string.match(head.target, "^(%a[%w+.-]*)://([^/?#]*)")
     local lower = string.lower(scheme)
-    if (lower ~= "http" and lower ~= "https") or string.find(authority, "@", 1, true) or string.find(head.target, "#", 1, true)
+    if (lower ~= "http" and lower ~= "https") or string.find(authority, "@", 1, true)
       or hosts[1] == nil or string.lower(authority) ~= string.lower(hosts[1]) then
       return 400, "The request target does not match its Host field."
     end
@@ -177,7 +187,7 @@ local function refuse(self, head)
     return 501, "The server does not switch protocols."
   end
   local expect = head.fields:combined("Expect")
-  if expect ~= nil and head.version == "HTTP/1.1" and string.lower((string.match(expect, "^[ \t]*(.-)[ \t]*$"))) ~= "100-continue" then
+  if expect ~= nil and head.version == "HTTP/1.1" and string.lower(grammar.trim_ows(expect)) ~= "100-continue" then
     return 417, "The expectation of the request cannot be met."
   end
   if head.content_length ~= nil and head.content_length > self._max_content then
@@ -216,7 +226,7 @@ local function serve_request(self, conn, head)
     request.path = path == "" and "/" or path
     request.query = string.find(rest, "?", 1, true) and query or nil
   end
-  return reactor.scope(function(scope)
+  local served, keep = pcall(reactor.scope, function(scope)
     request.scope = scope
     local response, failure = scope:fork(serve_action, self._action, request):value()
     if failure ~= nil then
@@ -233,6 +243,14 @@ local function serve_request(self, conn, head)
     end)
     return drained and not conn.broken
   end)
+  -- The serving of the request has ended (sent, failed or cancelled), and every computation of its scope with it.
+  local hook = self._on_request_end
+  if hook ~= nil then
+    local ended, err = pcall(hook, request)
+    if not ended then self:_report("the on_request_end hook failed", err) end
+  end
+  if not served then error(keep, 0) end
+  return keep
 end
 
 --- Serves the requests of one connection in order until it ends.

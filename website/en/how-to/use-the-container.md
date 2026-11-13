@@ -67,9 +67,10 @@ print(ok, err.context.problems[1].context.path[1], #err.context.problems)
 `bind(key, definition, options?)` registers one service and returns the container, so calls chain.
 
 - The **key** is a non-empty string (a name) or an interface made by `core.interface`. A key has one binding;
-  binding it twice raises `DuplicateBindingError`.
+  binding it twice raises `DuplicateBindingError`. `has(key)` tells whether a key is bound, without building anything.
 - The **definition** is a finalised class, called as `Class(dependency1, dependency2, ...)`, or a function (a
-  factory) called with the same arguments. It must run to completion without suspending.
+  factory) called with the same arguments. It must run to completion without suspending: while one suspends, resolving
+  the same key from another computation raises `ContainerError`.
 - `requires` lists the keys of the dependencies, in the order of the constructor arguments. Dependencies are declared,
   never guessed from parameter names.
 - `lifetime` is `"singleton"`, `"scoped"` or `"transient"` (or a member of `container.Lifetime`). It is required:
@@ -98,7 +99,7 @@ copied. Close the scope when the request ends (`scope:close()` or a `<close>` va
 ## Validate at boot
 
 `container:validate()` checks every binding without constructing anything, then freezes the container: `bind` and
-`override` raise `ContainerError` afterwards, and `resolve` and `open_scope` raise it until validation has succeeded.
+`override` raise `core.StateError` afterwards, and `resolve` and `open_scope` raise it until validation has succeeded.
 It reports:
 
 - a **missing binding**: a required key that is not bound (`MissingBindingError`);
@@ -129,22 +130,29 @@ A scope that owns a transient closes it, so do not put a `<close>` on it yoursel
 releasing an instance the scope does not track, a second time included, raises `ContainerError`. A long-lived scope
 keeps the closable transients it resolved until it closes or you release them.
 
+An owner closes an instance once, however many times a factory returned it, and the instance of a singleton,
+returned again by a transient factory, stays the container's. When a singleton fails to build, the closable
+transients built for it are closed at once.
+
 ## Construction errors
 
 An error raised by a constructor or factory becomes a `ConstructionError` whose `cause` is the original error and whose
 `context.key` and `context.path` say which service and through which chain. `CancellationError` and
-`DeadlineExceededError` pass through unchanged. A failed construction caches nothing; the next resolution tries again.
+`DeadlineExceededError` pass through unchanged. A constructor that returns `nil` raises `ConstructionError` too, and a
+factory product that does not implement its interface key raises `core.ConformanceError` (with the same `context.path`),
+after being closed if it defines `__close`. A failed construction caches nothing; the next resolution tries again.
 
 ## Replace a service in a test
 
 `override(key, definition, options?)` replaces a binding before `validate`; without `options` it keeps the lifetime and
 `requires` of the replaced binding; with `options`, `lifetime` is required as for `bind`. A key that is not bound raises `MissingBindingError`, so a misspelt key cannot
 create a service by accident. `override_with_instance(key, value)` binds an existing object as a singleton without
-dependencies, the usual way to inject a fake. The key must be bound; for an interface key the value must implement it, and a fake that does not raises `core.ConformanceError` at the call. The new graph is validated as a whole, so an override cannot add a cycle
+dependencies, the usual way to inject a fake. The key must be bound; for an interface key the value must implement it, and a fake that does not raises `core.ConformanceError` at the call. The container never closes that object, even one that defines `__close`: you built it, so you close it. The new graph is validated as a whole, so an override cannot add a cycle
 or a captive dependency unnoticed.
 
 ## Errors
 
-All container errors extend `core.ConfigurationError`: `ContainerError` (also a use in the wrong state),
+All container errors extend `core.ConfigurationError`: `ContainerError`,
 `DuplicateBindingError`, `MissingBindingError`, `CycleError`, `LifetimeError`, `GraphError` and `ConstructionError`.
-A wrong argument raises `core.ArgumentError`. In messages and `context`, an interface is shown by its name.
+A wrong argument raises `core.ArgumentError`, and a use in the wrong state (before `validate`, `bind` or `override`
+after it, any use after `close`) raises `core.StateError`. In messages and `context`, an interface is shown by its name.

@@ -88,6 +88,48 @@ function T:test_clients_are_answered_by_both_workers_and_a_signal_stops_everythi
   self:assert_nil(app:local_address())
 end
 
+function T:test_a_worker_survives_sigint_and_sigterm_sent_to_its_own_pid()
+  -- OQ-116: a signal of the terminal reaches the whole process group; a worker ignores it and the primary decides.
+  if not can_run_workers() then return end
+  if not workers.can_raise_signals() then return end -- raised with kill; Windows delivers console signals only
+  local app = new_application({ signals = false })
+  local ok, err, target, before, after, alive_after
+  with_lua_paths(function()
+    reactor.run(function()
+      reactor.fork(function()
+        local inner_ok, inner_err = pcall(function()
+          wait_ready(app)
+          local port = app:local_address().port
+          for _ = 1, 4 do
+            local body = get(port, "/whoami")
+            target = target or (body and body:match('"pid"%s*:%s*(%d+)'))
+          end
+          before = app._supervisor:started_count()
+          uv.kill(tonumber(target), "sigint")
+          uv.kill(tonumber(target), "sigterm")
+          -- A worker that took the default action would be gone (and restarted) by now; it still answers.
+          reactor.sleep(0.5)
+          local seen = {}
+          for _ = 1, 4 do
+            local body = get(port, "/whoami")
+            local pid = body and body:match('"pid"%s*:%s*(%d+)')
+            if pid then seen[pid] = true end
+          end
+          alive_after = seen[target] == true and workers.alive(target)
+          after = app._supervisor:started_count()
+        end)
+        app:shutdown(5)
+        if not inner_ok then error(inner_err, 0) end
+      end)
+      ok, err = pcall(reactor.deadline, 30, app.serve, app)
+    end)
+  end)
+  self:assert_true(ok, tostring(err))
+  self:assert_not_nil(target)
+  self:assert_true(alive_after, "the signalled worker still serves")
+  self:assert_equal(before, after, "no worker was restarted")
+end
+
 function T:test_a_forced_stop_kills_the_workers()
   if not can_run_workers() then return end
   local app = new_application({ signals = false })
@@ -281,7 +323,7 @@ function T:test_reload_needs_a_serving_primary()
   local app = kernel.Application({ logger = log.Logger({ sinks = {} }) })
   reactor.run(function()
     local err = self:assert_error(function() app:reload() end)
-    self:assert_true(core.is_instance_of(err, core.ArgumentError), tostring(err))
+    self:assert_true(core.is_instance_of(err, core.StateError), tostring(err))
   end)
 end
 

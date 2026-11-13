@@ -50,12 +50,12 @@ function Status.class(code)
   return ({ "informational", "successful", "redirection", "client_error", "server_error" })[code // 100]
 end
 
---- Reports whether a response with this status never has content: 1xx, 204 and 304
---- (RFC 9110, sections 15.2, 15.3.5, 15.4.5).
+--- Reports whether a response with this status never has content: 1xx, 204, 205 and 304
+--- (RFC 9110, sections 15.2, 15.3.5, 15.3.6, 15.4.5).
 ---@param code integer
 ---@return boolean
 function Status.forbids_content(code)
-  return code < 200 or code == 204 or code == 304
+  return code < 200 or code == 204 or code == 205 or code == 304
 end
 
 return Status

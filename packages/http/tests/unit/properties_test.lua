@@ -140,7 +140,11 @@ function T:test_arbitrary_bytes_never_raise_and_the_limits_hold()
       self:assert_true(ok, "the parser raised on arbitrary bytes: " .. tostring(events))
       if err ~= nil then
         self:assert_true(core.is_instance_of(err, core.ProtocolError))
-        self:assert_true(err.context.status == 400 or err.context.status == 414 or err.context.status == 431, "status " .. tostring(err.context.status))
+        if kind == "request" then
+          self:assert_true(err.context.status == 400 or err.context.status == 414 or err.context.status == 431, "status " .. tostring(err.context.status))
+        else
+          self:assert_nil(err.context.status, "a response has no status to answer with (OQ-82)")
+        end
       end
       for _, event in ipairs(events) do
         if event.type == "head" then self:assert_true(event.fields:count() <= limits.max_fields, "max_fields holds") end

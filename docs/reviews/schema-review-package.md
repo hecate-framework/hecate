@@ -36,8 +36,8 @@ reproduces the failure first.
 | s2 | security | `represent` and `build` collide with class members: a declared property named like a method represents the method (function, then an encode error) and a client string can overwrite a method on a built instance | Refuse declared names that resolve to a class member in `of`; skip function values in `represent` | fixed (5cf3b69) |
 | s3 | security | Boolean `false` is lost: coercing `"false"` in a map is refused and a top-level `default(boolean, false)` returns nil (both fail closed) | Explicit if and else instead of and-or | fixed (5cf3b69) |
 | s4 | security | `email` accepts control characters and any length | Reject control characters, maximum 254 bytes | fixed (5cf3b69) |
-| s5 | security | Lua matches bytes and ECMA without the u flag matches UTF-16 units: the invariant holds for ASCII input only | Document it in the README and the explanation page | open |
-| s6 | security | Per-call state is module state; a yielding `__index` during `represent` or `build` in a coroutine could interleave two calls | Document it | open |
+| s5 | security | Lua matches bytes and ECMA without the u flag matches UTF-16 units: the invariant holds for ASCII input only | Document it in the README and the explanation page | fixed (documented: explanation page `schemas-and-contracts.md`, "Limits to know") |
+| s6 | security | Per-call state is module state; a yielding `__index` during `represent` or `build` in a coroutine could interleave two calls | Document it | fixed (documented: `packages/schema/README.md`, "Limits", and the explanation page, "Limits to know") |
 | s7 | security | The encoder entry budget could hold hundreds of MB at 8M entries; a repeated key from an iterator encodes duplicate keys | Tighter budget; refuse or deduplicate a repeated key | open (json) |
 | t1 | terminology | DTO and data transfer object used for inline schemas; the French glossary row blesses it | Say inline schema; delete the French row | fixed (116ae90, fdae972) |
 | t2 | terminology | body used for the declaration of a schema (collides with content) | Say definition | fixed (116ae90, fdae972) |

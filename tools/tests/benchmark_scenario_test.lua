@@ -104,6 +104,14 @@ function T:test_run_rejects_an_unknown_scenario_and_option()
   self:assert_true(text:find("unknown argument", 1, true) ~= nil, text)
 end
 
+function T:test_a_scenario_given_runs_names_the_rounds_option()
+  if util.is_windows() then return end
+  local text, ok = util.capture(("%s tools/run.lua bench tcp-echo --runs=1 2>&1"):format(util.quote(util.interpreter())))
+  self:assert_false(ok)
+  self:assert_true(text:find("--rounds=N", 1, true) ~= nil, text)
+  self:assert_nil(text:find("unknown argument", 1, true), text)
+end
+
 function T:test_list_shows_the_scenarios_next_to_the_micro_benchmarks()
   local text, ok = util.capture(("%s tools/run.lua bench --list 2>&1"):format(util.quote(util.interpreter())))
   self:assert_true(ok, text)

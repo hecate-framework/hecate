@@ -57,13 +57,20 @@ end
 
 --- Whether a missing target is a page of the generated code reference that is not generated
 --- here: `website/<locale>/reference/<package>/...` with no `<package>` directory (git-ignored,
---- produced by `gen-reference`; the strict site build checks these links).
+--- produced by `gen-reference`), or a missing page of `GENERATED_PAGES` (`gen-error-codes`,
+--- `gen-config-reference`); the strict site build checks these links.
 ---@param target string  repository-relative path of the link target
 ---@param exists fun(path: string): boolean
 ---@return boolean
 function M.is_ungenerated_reference(target, exists)
   local base = target:match("^(website/[^/]+/reference/[^/]+)/")
-  return base ~= nil and not exists(base)
+  if base ~= nil then return not exists(base) end
+  local page = target:match("^website/[^/]+/reference/([^/]+%.md)$")
+  return page ~= nil and M.GENERATED_PAGES[page] == true and not exists(target)
 end
+
+--- The single pages of the reference that are generated and git-ignored (gen-error-codes, gen-config-reference).
+---@type table<string, boolean>
+M.GENERATED_PAGES = { ["error-codes.md"] = true, ["configuration-keys.md"] = true }
 
 return M

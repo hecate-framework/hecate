@@ -1,6 +1,6 @@
 # Schemas and contracts
 
-Packages: `schema`, `openapi`. Status: specification.
+Packages: `schema`, `openapi`. Status: `schema` implemented in Phase 2 (alpha; the section "Generation" is not implemented); `openapi` specification (Phase 3).
 
 ## `hecate.schema`
 
@@ -56,6 +56,13 @@ the class and the interface and says how to fix it.
 built value, or `false` and the list of violations; they never raise for content that does not conform. `check` is the raising form
 of `validate` only: it returns the value or raises `ValidationError` with `context.violations`. `represent` returns the plain
 value and raises `ValidationError` when it cannot represent it. A declaration that is wrong raises `ArgumentError`.
+
+The message of these two `ValidationError`s names no JSON Pointer of the data (OQ-120 (2)): a pointer can hold a key supplied
+by a user (a map key, an additional property name), which is personal data, and the message of an error reaches the logs. The
+message of `check` names the count and the code of the first violation (`2 violation(s), first violation code 'type'; the JSON
+Pointer is in context.violations`), that of `represent` the code (`cannot represent: violation code 'union'; ...`); the pointers
+stay in `context.violations`. The `message` of a violation is not concerned: it goes back to the client who sent the data, and
+never quotes a value.
 
 Names: class-bound schemas own the schema names. A schema without a class and without `named` is inlined.
 Two different bodies under one name in one emission raise `ArgumentError`, whose message names the colliding
@@ -166,7 +173,9 @@ A malformed pattern (the faults Lua reports only when a match reaches them: a tr
 Declaring a `string` with a `logger` option (an object with `warning(message, fields)`) reports a pattern that cannot be
 translated at declaration, as `schema: pattern "%bxy" cannot be emitted: %b has no exact translation` (the pattern and the reason
 are also in `fields`); emission refuses it with an `ArgumentError` whose message says that Lua validation is unaffected and how to
-rewrite the pattern: with sets, classes, `format`, `min_length` or `enum`.
+rewrite the pattern: with sets, classes, `format`, `min_length` or `enum`. Without the `logger` option, the default logger of
+`hecate.log` (`log.default()`) receives the warning when that module is already loaded; `schema` looks it up in `package.loaded`
+and never requires it (OQ-86 (1)).
 
 Lua matches **bytes**, ECMA-262 matches UTF-16 code units, so `.`, negated sets and negated
 classes differ from the emitted expression on non-ASCII input (for example `^.$` rejects `"é"` in Lua and accepts it in

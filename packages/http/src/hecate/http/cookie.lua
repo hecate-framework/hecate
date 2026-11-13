@@ -99,7 +99,13 @@ function Cookie.parse(text)
   local map, list = {}, {}
   if type(text) ~= "string" then return map, list end
   for item in string.gmatch(text, "[^;]+") do
-    local name, value = string.match(item, "^[ \t]*([^=]-)[ \t]*=[ \t]*(.-)[ \t]*$")
+    -- Split at the first `=` with `find` and indices, then trim each side: linear in the length of the pair (a lazy
+    -- capture before a class of whitespace anchored at the end is quadratic).
+    local equals = string.find(item, "=", 1, true)
+    local name, value
+    if equals ~= nil then
+      name, value = grammar.trim_ows(string.sub(item, 1, equals - 1)), grammar.trim_ows(string.sub(item, equals + 1))
+    end
     if name and grammar.is_token(name) then
       local inner = string.match(value, '^"(.*)"$')
       if inner then value = inner end

@@ -299,6 +299,102 @@ function T:test_a_stream_whose_write_failed_is_not_held_and_does_not_shift_the_a
   self:assert_equal(1, streams[3].closed, "the second received acknowledges the third stream")
 end
 
+function T:test_a_worker_with_as_many_unacknowledged_connections_as_its_backlog_is_saturated()
+  local gate = reactor.Channel(0)
+  local acknowledge = reactor.Channel(8)
+  local peer_ready = false
+  local peer = {
+    receive = function()
+      if not peer_ready then peer_ready = true return "ready" end
+      local ok, message = pcall(acknowledge.receive, acknowledge)
+      if ok then return message end
+      return nil
+    end,
+    send = function(_, message) if message:find("^stop") then acknowledge:close() end end,
+    close = function() end,
+  }
+  local process = {
+    ipc = peer, pid = 7, wait = function() return { code = 0 } end, is_running = function() return false end,
+    kill = function() end,
+  }
+  local states = {}
+  local strategy = idle_strategy()
+  strategy.run = function(_, ring)
+    local worker = ring:next()
+    for _ = 1, 2 do
+      states[#states + 1] = worker:saturated()
+      worker:hand_over(closable())
+    end
+    states[#states + 1] = worker:saturated() -- two held, a backlog of two
+    acknowledge:send("received")
+    wait_until(function() return not worker:saturated() end)
+    states[#states + 1] = worker:saturated()
+    gate:close()
+    reactor.sleep(60)
+  end
+  with_spawn(function() return process end, function()
+    local sup = kernel.supervisor.Supervisor({
+      command = { "worker" }, count = 1, endpoint = { host = "127.0.0.1", port = 0, backlog = 2 }, strategy = strategy,
+    })
+    reactor.run(function()
+      reactor.scope(function(scope)
+        local running = scope:fork(sup.run, sup)
+        pcall(gate.receive, gate)
+        sup:stop(0.1)
+        running:value()
+      end)
+    end)
+  end)
+  self:assert_equal("false,false,true,false", table.concat({ tostring(states[1]), tostring(states[2]), tostring(states[3]), tostring(states[4]) }, ","))
+end
+
+function T:test_an_acknowledgement_wakes_a_hand_over_loop_paused_on_saturation()
+  local gate = reactor.Channel(0)
+  local acknowledge = reactor.Channel(8)
+  local peer_ready = false
+  local peer = {
+    receive = function()
+      if not peer_ready then peer_ready = true return "ready" end
+      local ok, message = pcall(acknowledge.receive, acknowledge)
+      if ok then return message end
+      return nil
+    end,
+    send = function(_, message) if message:find("^stop") then acknowledge:close() end end,
+    close = function() end,
+  }
+  local process = {
+    ipc = peer, pid = 7, wait = function() return { code = 0 } end, is_running = function() return false end,
+    kill = function() end,
+  }
+  local woken, saturated_after
+  local strategy = idle_strategy()
+  strategy.run = function(_, ring)
+    local worker = ring:next()
+    worker:hand_over(closable()) -- a backlog of one: saturated
+    ring:wait() -- takes the wake-up the worker's arrival left, so that only the acknowledgement can end the next wait
+    acknowledge:send("received")
+    woken = pcall(reactor.deadline, 5, ring.wait, ring)
+    saturated_after = worker:saturated()
+    gate:close()
+    reactor.sleep(60)
+  end
+  with_spawn(function() return process end, function()
+    local sup = kernel.supervisor.Supervisor({
+      command = { "worker" }, count = 1, endpoint = { host = "127.0.0.1", port = 0, backlog = 1 }, strategy = strategy,
+    })
+    reactor.run(function()
+      reactor.scope(function(scope)
+        local running = scope:fork(sup.run, sup)
+        pcall(gate.receive, gate)
+        sup:stop(0.1)
+        running:value()
+      end)
+    end)
+  end)
+  self:assert_true(woken, "the `received` of the worker wakes the paused loop")
+  self:assert_false(saturated_after)
+end
+
 function T:test_on_crash_loop_is_validated()
   local function build(value)
     return kernel.supervisor.Supervisor({
@@ -374,6 +470,15 @@ function T:test_the_worker_role_validates_host_and_backlog()
     self:assert_equal(host, role({ HECATE_WORKER_HOST = host }).endpoint.host)
   end
   for _, host in ipairs({ "", "bad host", "a;b", "-x", "::1 ", "host/name", ("a"):rep(254) }) do
+    local err = self:assert_error(function() role({ HECATE_WORKER_HOST = host }) end)
+    self:assert_true(core.is_instance_of(err, core.ArgumentError), host)
+  end
+  -- An IPv6 literal may carry a zone id (RFC 6874, RFC 4007 section 11), as a link-local address the primary binds.
+  for _, host in ipairs({ "fe80::1%eth0", "fe80::1%2", "fe80::a:b%en0.100", "fe80::1%br-lan_1" }) do
+    self:assert_equal(host, role({ HECATE_WORKER_HOST = host }).endpoint.host)
+    self:assert_equal("inet6", role({ HECATE_WORKER_HOST = host }):listener():local_address().family)
+  end
+  for _, host in ipairs({ "fe80::1%", "fe80::1%eth 0", "127.0.0.1%eth0", "fe80::1%%eth0", "fe80::1%eth0%1", "host%eth0", "fe80::1%eth/0" }) do
     local err = self:assert_error(function() role({ HECATE_WORKER_HOST = host }) end)
     self:assert_true(core.is_instance_of(err, core.ArgumentError), host)
   end
@@ -549,6 +654,72 @@ function T:test_the_crash_limit_counts_the_crashes_inside_the_window()
     self:assert_equal("crash_loop", failure.context.reason, "limit " .. limit)
     self:assert_equal(started, #world.spawned)
   end
+end
+
+--- A world whose first process exits after 1 s, whose next `failures` starts fail, and whose later processes run.
+local function failing_restarts(failures)
+  local attempts = 0
+  return new_world(function()
+    attempts = attempts + 1
+    if attempts == 1 then return { uptime = 1 } end
+    if attempts <= 1 + failures then return { spawn_error = "EMFILE: too many open files" } end
+    return {}
+  end)
+end
+
+function T:test_in_degrade_mode_a_restart_that_cannot_start_counts_as_a_crash_and_is_retried()
+  local world = failing_restarts(2)
+  local logger, codes = recording_logger()
+  local result
+  with_spawn(world.spawn, function()
+    virtual(function()
+      local sup = supervisor_for({ restart_delay = 1, crash_limit = 2, crash_window = 1000, on_crash_loop = "degrade", logger = logger })
+      reactor.scope(function(scope)
+        local running = scope:fork(function() result = { pcall(sup.run, sup) } end)
+        virtual_wait(function() return #world.spawned == 2 and sup:ready_count() == 1 end)
+        self:assert_nil(result, "run goes on")
+        sup:stop(1)
+        running:value()
+      end)
+    end)
+  end)
+  self:assert_true(result[1], tostring(result[2]))
+  -- The exit at 1 s (delay 1), a failed start at 2 (the limit: the maximum backoff, 10), another at 12 (10), a start at 22.
+  self:assert_equal("0,22", times_of(world))
+  local failed, loops = 0, 0
+  for _, code in ipairs(codes) do
+    if code == "worker_start_failed" then failed = failed + 1 end
+    if code == "crash_loop" then loops = loops + 1 end
+  end
+  self:assert_equal(2, failed)
+  self:assert_equal(1, loops)
+end
+
+function T:test_in_stop_mode_a_restart_that_cannot_start_ends_run_with_start_failed()
+  local world = failing_restarts(1)
+  local failure
+  with_spawn(world.spawn, function()
+    virtual(function()
+      local sup = supervisor_for({ restart_delay = 1 })
+      local ok, err = pcall(sup.run, sup)
+      failure = not ok and err or nil
+    end)
+  end)
+  self:assert_true(core.is_instance_of(failure, kernel.SupervisorError), tostring(failure))
+  self:assert_equal("start_failed", failure.context.reason)
+end
+
+function T:test_in_degrade_mode_a_first_start_that_fails_still_ends_run_with_start_failed()
+  local world = new_world(function() return { spawn_error = "ENOENT: no such program" } end)
+  local failure
+  with_spawn(world.spawn, function()
+    virtual(function()
+      local sup = supervisor_for({ on_crash_loop = "degrade" })
+      local ok, err = pcall(sup.run, sup)
+      failure = not ok and err or nil
+    end)
+  end)
+  self:assert_equal("start_failed", failure.context.reason)
 end
 
 function T:test_stop_before_run_does_nothing_and_checks_its_argument()
@@ -787,6 +958,36 @@ function T:test_a_ready_worker_is_never_killed_by_the_ready_timeout()
   end)
   self:assert_equal(0, world.spawned[1].kills)
   self:assert_equal(1, #world.spawned)
+end
+
+function T:test_a_worker_retired_by_a_reload_soon_after_its_start_drains_past_the_ready_timeout()
+  -- The first process ignores `stop`: it drains until the reload kills it at grace + margin, never at its ready timeout.
+  local world = new_world(function(n) return n == 1 and { on_stop = "ignore" } or {} end)
+  local logger, codes = recording_logger()
+  local killed_at, reload_began
+  with_spawn(world.spawn, function()
+    virtual(function()
+      local sup = supervisor_for({ ready_timeout = 1, logger = logger })
+      reactor.scope(function(scope)
+        local running = scope:fork(sup.run, sup)
+        virtual_wait(function() return sup:ready_count() == 1 end)
+        reload_began = reactor.now()
+        local first = world.spawned[1]
+        local kill = first.kill
+        function first.kill(...) killed_at = reactor.now(); return kill(...) end
+        sup:reload({ grace_timeout = 5, ready_timeout = 5 })
+        self:assert_equal(1, sup:ready_count())
+        sup:stop(1)
+        running:value()
+      end)
+    end)
+  end)
+  for _, code in ipairs(codes) do self:assert_true(code ~= "worker_not_ready", table.concat(codes, ",")) end
+  self:assert_equal(1, world.spawned[1].kills)
+  self:assert_true(math.abs(killed_at - reload_began - 6) < 0.01, ("killed after %g s"):format(killed_at - reload_began))
+  local seen = {}
+  for _, code in ipairs(codes) do if code:match("^reload_") or code == "worker_killed" then seen[#seen + 1] = code end end
+  self:assert_equal("reload_replacement_ready,reload_old_stopping,worker_killed,reload_old_exited", table.concat(seen, ","))
 end
 
 function T:test_a_stop_before_the_ready_timeout_is_not_a_not_ready_failure()
@@ -1114,6 +1315,50 @@ function T:test_control_logs_a_failure_of_the_pipe()
   self:assert_not_nil(record, "the failure is logged")
   self:assert_equal("control_failed", record.fields.code)
   self:assert_true(tostring(record.fields.reason):find("broken pipe", 1, true) ~= nil, tostring(record.fields.reason))
+end
+
+function T:test_the_worker_shuts_its_server_down_with_what_is_left_of_the_grace_period()
+  -- A connection queued and never accepted keeps the drain of the hand-over listener busy for its full second: the
+  -- server then gets the rest of the grace period of `stop 3`, so the worker ends before the primary kills it.
+  local peer = scripted_peer({ { "connection", closable() }, { "stop 3" } })
+  local role = kernel.supervisor.WorkerRole(peer, worker_environment(), { logger = log.Logger({ sinks = {} }) })
+  local gate = reactor.Channel(0)
+  local given, ended_at
+  local server = {
+    serve = function() pcall(gate.receive, gate) end,
+    shutdown = function(_, grace) given = grace; gate:close() end,
+  }
+  virtual(function()
+    role:serve(server --[[@as any]], 30)
+    ended_at = reactor.now()
+  end)
+  self:assert_true(math.abs(given - 2) < 1e-6, tostring(given))
+  self:assert_true(ended_at <= 3, tostring(ended_at))
+end
+
+function T:test_the_worker_role_logs_to_its_logger_not_to_the_default()
+  local mine, default = log.MemorySink(), log.MemorySink()
+  local saved = log.default()
+  log.set_default(log.Logger({ sinks = { default } }))
+  local logger = log.Logger({ sinks = { mine } })
+  local function control(script)
+    local role = kernel.supervisor.WorkerRole(scripted_peer(script), worker_environment({ HECATE_WORKER_BACKLOG = "1" }), { logger = logger })
+    virtual(function() role:control(function() end, 1) end)
+  end
+  local ok, err = pcall(function()
+    control({ { "connection", closable() }, { "connection", closable() }, { "stop 1" } })
+    control({ function() error("broken pipe") end })
+  end)
+  log.set_default(saved)
+  if not ok then error(err, 0) end
+  local codes = {}
+  for _, record in ipairs(mine:records()) do codes[#codes + 1] = record.fields.code end
+  self:assert_equal("hand_over_queue_full,hand_over_discarded,control_failed", table.concat(codes, ","))
+  self:assert_equal(0, #default:records())
+  local err2 = self:assert_error(function()
+    kernel.supervisor.WorkerRole({}, worker_environment(), ({ logger = 1 }) --[[@as any]])
+  end)
+  self:assert_true(core.is_instance_of(err2, core.ArgumentError), tostring(err2))
 end
 
 function T:test_the_worker_role_refuses_an_unknown_strategy_and_a_malformed_port()

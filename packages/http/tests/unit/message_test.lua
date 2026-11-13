@@ -89,6 +89,8 @@ function T:test_response_rejects_invalid_status_and_content()
   self:assert_error(function() http.Response("200") end)
   self:assert_error(function() http.Response(204, { content = "x" }) end)
   self:assert_error(function() http.Response(304, { content = "x" }) end)
+  self:assert_error(function() http.Response(205, { content = "x" }) end) -- RFC 9110, section 15.3.6 (review H-7)
+  self:assert_equal(205, http.Response(205).status)
   self:assert_false(http.Response(404):is_successful())
 end
 

@@ -66,8 +66,10 @@ What follows from the measurements:
 
 ## Decision
 
-1. **Workers are processes, and nothing is shared.** `hecate serve --workers N` (default
-   `uv.available_parallelism()`, the number of CPU cores) starts a **primary** and N **workers**.
+1. **Workers are processes, and nothing is shared.** `hecate serve --workers N` (default: the
+   configuration key `server.workers`, whose default `"auto"` is `max(1, cores - 1)` with `cores` from
+   `uv.available_parallelism()`, leaving one core of headroom; amended by the owner on 2026-11-13, OQ-122)
+   starts a **primary** and N **workers**.
    A worker is the same program started again with a worker role: it has its own Lua state, its own
    reactor and its own connections. State shared between workers lives outside the processes
    (database, Redis); Hecate offers no shared memory.

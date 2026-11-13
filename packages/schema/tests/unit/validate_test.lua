@@ -168,6 +168,19 @@ function T:test_check_raises_a_validation_error_carrying_the_violations()
   self:assert_equal(5, schema.integer():check(5))
 end
 
+-- OQ-120 (2), owner decision of 2026-11-13: a JSON Pointer can hold a key supplied by a user (personal data) and the
+-- message of an error reaches the logs, so the message keeps the count and the code of the first violation only; the
+-- pointer stays in `context.violations`.
+function T:test_check_message_names_no_pointer_of_the_data()
+  local key = "jane.doe@example.org"
+  local err = self:assert_error(function() schema.map(schema.integer()):check({ [key] = "x", other = 1 }) end)
+  self:assert_true(core.is_instance_of(err, core.ValidationError))
+  self:assert_nil(err.message:find(key, 1, true), "the key leaks into the message: " .. err.message)
+  self:assert_nil(err.message:find("/", 1, true), "a pointer in the message: " .. err.message)
+  self:assert_equal("1 violation(s), first violation code 'type'; the JSON Pointer is in context.violations", err.message)
+  self:assert_equal("/" .. key, err.context.violations[1].path)
+end
+
 function T:test_schemas_are_immutable()
   local s = schema.string()
   self:assert_error(function() s.kind = "integer" end)

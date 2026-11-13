@@ -54,63 +54,61 @@ function results.is_result(value)
   return type(value) == "table" and value[RESULT] == true
 end
 
---- Parses `Accept` (RFC 9110, section 12.5.1) into the media types it ranges over, best first. Minimal: parameters
---- other than `q` are ignored, and the specificity of a range does not break ties between equal weights.
+--- Parses `Accept` (RFC 9110, section 12.5.1) into its ranges, in the order written: `{ range, weight }`, the range in
+--- lower case. Parameters other than `q` are ignored; a range of weight 0 is kept: it excludes what it matches.
 ---@param header string
----@return string[] ranges  lower-case ranges with a weight above zero, by decreasing weight
+---@return { [1]: string, [2]: number }[]
 local function ranges_of(header)
   local entries = {}
   for part in string.gmatch(header, "[^,]+") do
     local range, params = string.match(part, "^%s*([^;%s]+)%s*(.*)$")
     if range ~= nil then
-      local weight = tonumber(string.match(params, ";%s*[qQ]%s*=%s*([%d.]+)")) or 1
-      if weight > 0 then entries[#entries + 1] = { string.lower(range), weight, #entries } end
+      entries[#entries + 1] = { string.lower(range), tonumber(string.match(params, ";%s*[qQ]%s*=%s*([%d.]+)")) or 1 }
     end
   end
-  table.sort(entries, function(a, b)
-    if a[2] ~= b[2] then return a[2] > b[2] end
-    return a[3] < b[3]
-  end)
-  local ranges = {}
-  for i, entry in ipairs(entries) do ranges[i] = entry[1] end
-  return ranges
+  return entries
 end
 
---- Picks the media type of the representation: the first range of `Accept` (best weight first) that a serialiser
---- satisfies; with no `Accept`, `application/json` when there is a serialiser for it, else the first by name.
+--- How specifically `range` matches `media_type`: 3 for the type itself, 2 for `type/*`, 1 for `*/*`, nil otherwise.
+---@param range string
+---@param media_type string
+---@return integer?
+local function specificity(range, media_type)
+  if range == media_type then return 3 end
+  if range == "*/*" then return 1 end
+  if string.sub(range, -2) == "/*" and string.sub(media_type, 1, #range - 1) == string.sub(range, 1, -2) then return 2 end
+  return nil
+end
+
+--- Picks the media type of the representation (RFC 9110, section 12.5.1). The weight of each media type a serialiser
+--- produces is the one of the most specific range of `Accept` that matches it (the first written among equally specific
+--- ones), so `application/json;q=0, */*` excludes JSON; a weight of 0 is "not acceptable". The highest weight wins;
+--- between equal weights, the media type whose range is written first, then `application/json`, then the first by
+--- name. With no `Accept`, `application/json` when there is a serialiser for it, else the first by name.
 ---@param request hecate.http.Request
 ---@param serialisers table<string, function>
 ---@return string? media_type  nil when nothing is acceptable
 local function negotiate(request, serialisers)
+  local names = {}
+  for name in pairs(serialisers) do if name ~= JSON then names[#names + 1] = name end end
+  table.sort(names)
+  if serialisers[JSON] ~= nil then table.insert(names, 1, JSON) end
   local header = request.fields:combined("Accept")
-  if header == nil then
-    if serialisers[JSON] ~= nil then return JSON end
-    local names = {}
-    for name in pairs(serialisers) do names[#names + 1] = name end
-    table.sort(names)
-    return names[1]
-  end
-  for _, range in ipairs(ranges_of(header)) do
-    if range == "*/*" then
-      if serialisers[JSON] ~= nil then return JSON end
-      local names = {}
-      for name in pairs(serialisers) do names[#names + 1] = name end
-      table.sort(names)
-      if names[1] ~= nil then return names[1] end
-    elseif string.sub(range, -2) == "/*" then
-      local prefix = string.sub(range, 1, -2)
-      if serialisers[JSON] ~= nil and string.sub(JSON, 1, #prefix) == prefix then return JSON end
-      local names = {}
-      for name in pairs(serialisers) do
-        if string.sub(name, 1, #prefix) == prefix then names[#names + 1] = name end
-      end
-      table.sort(names)
-      if names[1] ~= nil then return names[1] end
-    elseif serialisers[range] ~= nil then
-      return range
+  if header == nil then return names[1] end
+  local ranges = ranges_of(header)
+  local best, best_weight, best_position
+  for _, name in ipairs(names) do
+    local level, weight, position = 0, nil, nil
+    for index, entry in ipairs(ranges) do
+      local found = specificity(entry[1], name)
+      if found ~= nil and found > level then level, weight, position = found, entry[2], index end
+    end
+    if weight ~= nil and weight > 0
+      and (best == nil or weight > best_weight or (weight == best_weight and position < best_position)) then
+      best, best_weight, best_position = name, weight, position
     end
   end
-  return nil
+  return best
 end
 
 --- Refuses an instance of a class used without a schema: its attributes are not representable by default.

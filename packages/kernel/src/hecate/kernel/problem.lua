@@ -2,7 +2,7 @@
 -- A problem is a subclass of `hecate.core.Error`, so `error(NotFound { ... })` works from any layer and the guard of
 -- `problems` maps it. The developer chooses `detail` and the extension members; an error message is never one of them
 -- (OQ-111, OQ-112 (6)).
-global <const> require, type, pairs, ipairs, math, error, tostring, getmetatable
+global <const> require, type, pairs, ipairs, math, error, tostring, getmetatable, pcall, string
 
 local core = require("hecate.core")
 local http = require("hecate.http")
@@ -34,6 +34,7 @@ local problem = {}
 ---@class hecate.kernel.problem.Fields
 ---@field detail? string  explanation specific to this occurrence, chosen by the developer (RFC 9457, section 3.1.4)
 ---@field extensions? table<string, any>  extension members (section 3.2)
+---@field fields? table<string, string|string[]>  header fields of the response, a name to a value or a list of values (one field line each): `WWW-Authenticate` for a 401 (RFC 9110, sections 11.6.1 and 15.5.2), `Allow` for a 405 (section 15.5.6), `Retry-After` for a 429 or a 503 (section 10.2.3). Names and values follow `hecate.http.Fields`; `Content-Type`, `Content-Length`, `Transfer-Encoding` and `Connection` belong to the kernel and are refused. Never part of the JSON content nor of the contract of a route (OQ-126)
 
 --- A problem details occurrence. The class carries `status`, `title` and `type`; the instance copies them.
 ---@class hecate.kernel.problem.ProblemDetails : hecate.core.Error
@@ -43,6 +44,7 @@ local problem = {}
 ---@field type string  a URI reference, `about:blank` by default (RFC 9457, section 4.2.1)
 ---@field detail? string
 ---@field extensions table<string, any>
+---@field fields? hecate.http.Fields  the header fields given at construction (a copy), added to the response; nil when none were given
 ---@overload fun(fields?: hecate.kernel.problem.Fields): hecate.kernel.problem.ProblemDetails
 local Problem = core.class("Problem", core.Error)
 Problem.code = "hecate.problem.Problem"
@@ -51,11 +53,57 @@ Problem.type = "about:blank"
 -- RFC 9457, section 3.1: the members the specification defines; an extension member may not reuse their names.
 local RESERVED <const> = { type = true, title = true, status = true, detail = true, instance = true }
 
+--- The header fields the kernel sets itself on a problem details response (lowercase): a problem may not carry them.
+--- `Content-Type` is `application/problem+json` (RFC 9457, section 3); the framing fields belong to the server
+--- (RFC 9112, sections 6 and 9.6).
+local OWNED <const> = { ["content-type"] = true, ["content-length"] = true, ["transfer-encoding"] = true, connection = true }
+
+--- Tells whether a header field belongs to the kernel on a problem details response (`Content-Type`,
+--- `Content-Length`, `Transfer-Encoding`, `Connection`, in any case): a problem may not carry it.
+---@param name string
+---@return boolean
+function problem.is_owned_field(name)
+  return type(name) == "string" and OWNED[string.lower(name)] == true
+end
+
+--- Checks the `fields` of a problem and copies them into `hecate.http.Fields`.
+---@param given any
+---@return hecate.http.Fields
+local function fields_of(given)
+  if type(given) ~= "table" then
+    error(core.ArgumentError("hecate.kernel.problem.init: fields must be a table of header field names to values, got " .. type(given)), 4)
+  end
+  for name, value in pairs(given) do
+    if type(name) ~= "string" then
+      error(core.ArgumentError("hecate.kernel.problem.init: header field names must be strings, got " .. type(name)), 4)
+    end
+    if problem.is_owned_field(name) then
+      error(core.ArgumentError(("hecate.kernel.problem.init: header field %q is owned by the kernel (Content-Type, Content-Length, Transfer-Encoding and Connection are refused)"):format(name)), 4)
+    end
+    local values = type(value) == "table" and value or { value }
+    for _, item in ipairs(values) do
+      if type(item) ~= "string" then
+        error(core.ArgumentError(("hecate.kernel.problem.init: the value of header field %q must be a string or a list of strings, got a %s"):format(name, type(item))), 4)
+      end
+    end
+  end
+  local built, copy = pcall(function() return http.Fields(given) end)
+  if not built then
+    -- The text of `http.Fields` names the rule broken, never the value (which could be anything the caller passed).
+    local reason = core.is_instance_of(copy, core.Error) and (copy --[[@as hecate.core.Error]]).message or tostring(copy)
+    error(core.ArgumentError("hecate.kernel.problem.init: invalid header fields: " .. reason), 4)
+  end
+  return copy
+end
+
 --- Builds a problem from `fields`.
 ---
---- Raises `hecate.core.ArgumentError` for an unknown field, a `detail` that is not a string, or `extensions` that
+--- Raises `hecate.core.ArgumentError` for an unknown field, a `detail` that is not a string, `extensions` that
 --- is not a table with string keys outside the reserved names (`type`, `title`, `status`, `detail`, `instance`), or
---- that holds, at its first level, a function, a thread, a userdata or a number that is not finite (NaN, infinity).
+--- that holds, at its first level, a function, a thread, a userdata or a number that is not finite (NaN, infinity),
+--- or `fields` that is not a table of header field names to strings or lists of strings, that holds a name or a value
+--- `hecate.http.Fields` refuses (not a token; a control character other than HTAB), or a field the kernel owns
+--- (`problem.is_owned_field`).
 ---@param fields? hecate.kernel.problem.Fields
 function Problem:init(fields)
   if fields == nil then fields = {} end
@@ -63,8 +111,8 @@ function Problem:init(fields)
     error(core.ArgumentError("hecate.kernel.problem.init: a problem is built from a table of fields, got " .. type(fields)), 3)
   end
   for key in pairs(fields) do
-    if key ~= "detail" and key ~= "extensions" then
-      error(core.ArgumentError("hecate.kernel.problem.init: unknown field '" .. tostring(key) .. "' (valid: detail, extensions)"), 3)
+    if key ~= "detail" and key ~= "extensions" and key ~= "fields" then
+      error(core.ArgumentError("hecate.kernel.problem.init: unknown field '" .. tostring(key) .. "' (valid: detail, extensions, fields)"), 3)
     end
   end
   if fields.detail ~= nil and type(fields.detail) ~= "string" then
@@ -91,6 +139,7 @@ function Problem:init(fields)
       end
     end
   end
+  local header_fields = fields.fields ~= nil and fields_of(fields.fields) or nil
   local class = getmetatable(self)
   core.Error.init(self, { message = fields.detail or class.title or "Problem" })
   self.status = class.status
@@ -98,6 +147,7 @@ function Problem:init(fields)
   self.type = class.type
   self.detail = fields.detail
   self.extensions = extensions or {}
+  self.fields = header_fields
 end
 
 problem.Problem = core.finalise(Problem)

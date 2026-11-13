@@ -1,7 +1,9 @@
 -- The request path as the router reads it. `http.Request.path` is raw (OQ-75): this module percent-decodes each
 -- segment on its own (RFC 3986 section 2.1, so `%2F` is data and not a separator) and resolves dot segments
 -- (RFC 3986 section 5.2.4).
-global <const> type, string, tonumber
+global <const> type, string, tonumber, require, error
+
+local core = require("hecate.core")
 
 --- Splitting, decoding and encoding of URI paths.
 ---@class hecate.router.paths
@@ -51,12 +53,17 @@ end
 --- like every path with a trailing slash (`/a/` gives `a` and an empty segment); `ignore` drops that one segment.
 ---
 --- Returns nil and a reason (`not_absolute`, `malformed_percent_encoding`, `encoded_nul`) for a path the router
---- refuses.
+--- refuses. Raises `hecate.core.ArgumentError` for a `trailing_slash` policy other than `"strict"` and `"ignore"`.
 ---@param raw string  the path component of the request target, raw
----@param trailing_slash "strict"|"ignore"
+---@param trailing_slash? "strict"|"ignore"  default `"ignore"`, as for `Router`
 ---@return string[]? segments
 ---@return string? reason
 function path.split(raw, trailing_slash)
+  if trailing_slash == nil then
+    trailing_slash = "ignore"
+  elseif trailing_slash ~= "ignore" and trailing_slash ~= "strict" then
+    error(core.ArgumentError("router.path.split: trailing_slash must be \"strict\" or \"ignore\""), 2)
+  end
   if type(raw) ~= "string" or string.byte(raw, 1) ~= 47 then return nil, "not_absolute" end
   local out, count = {}, 0
   local position, length = 2, #raw

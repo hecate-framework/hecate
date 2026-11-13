@@ -89,6 +89,7 @@ reactor.supports_handle_passing = process.supports_handle_passing
 local system = require("hecate.reactor.system")
 reactor.system_name = system.system_name
 reactor.available_parallelism = system.available_parallelism
+reactor.getenv = system.getenv
 reactor.resolve = require("hecate.reactor.dns").resolve
 reactor.offload = require("hecate.reactor.offload").offload
 local signal = require("hecate.reactor.signal")

@@ -115,6 +115,26 @@ function T:test_async_wraps_each_sink_in_an_async_sink()
   self:assert_true(core.is_instance_of(synchronous._shared.sinks[1], log.JsonLinesSink))
 end
 
+-- Documented in website/en/how-to/before-going-to-production.md (Logging): with `logging.async`, each sink queues at
+-- most 1024 records and drops the others silently; the drop count of the sink is not reachable from the logger.
+function T:test_async_drops_records_past_a_queue_of_1024_without_a_reachable_count()
+  local logger = logging.build(configuration("{ sinks = { 'json_lines' }, async = true }"))
+  local sink = logger._shared.sinks[1]
+  local out = capture(function()
+    reactor.run(function()
+      -- No suspension between the calls: the drain computation cannot run, so the queue fills up.
+      for index = 1, 1030 do logger:notice("record", { index = index }) end
+      self:assert_equal(1024, sink:pending())
+      self:assert_equal(6, sink:dropped())
+      sink:close()
+    end)
+  end)
+  self:assert_equal(1024, #out)
+  self:assert_equal(0, logger:failures()) -- a dropped record is not a failure of the logger
+  self:assert_nil(logger.sinks, "the logger has no public accessor of its sinks")
+  self:assert_nil(logger.dropped, "nor of their drop counts")
+end
+
 -- Documented in website/en/how-to/before-going-to-production.md (Redaction does not read free text).
 function T:test_redact_names_are_added_to_the_default_list()
   local logger = logging.build(configuration("{ sinks = { 'json_lines' }, redact = { 'pin' } }"))

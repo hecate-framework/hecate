@@ -211,16 +211,19 @@ end
 ---
 --- Raises `hecate.core.ArgumentError` for an invalid method, URL (relative, userinfo, whitespace, control characters),
 --- field or option; `hecate.reactor.TransportError` (as `net` raises it: its message and context may name the addresses
---- the name resolved to, so never forward them to a peer), `hecate.core.DeadlineExceededError`,
---- `hecate.net.EndOfStreamError`, `hecate.http.ParseError` and `hecate.core.ProtocolError` (a refused reason phrase,
---- too many redirects, a redirect loop, a downgrade to http) for failures.
+--- the name resolved to, so never forward them to a peer), `hecate.core.DeadlineExceededError` (`connect_timeout`,
+--- `head_timeout`, `write_timeout`, or the whole-exchange `request_timeout`), `hecate.net.EndOfStreamError`,
+--- `hecate.http.ParseError` and `hecate.core.ProtocolError` (a refused reason phrase, too many redirects, a redirect
+--- loop, a downgrade to http) for failures, and `hecate.core.StateError` once the client is closed. Reading the content
+--- of the response raises `hecate.http.ContentError` with `context.reason` `too_large` (beyond `max_content`) or
+--- `timeout` (no content for `content_timeout` seconds), without a `context.status`: a status is the server's to give.
 ---@async
 ---@param method string
 ---@param target string  an absolute http or https URL
 ---@param options? { fields?: hecate.http.Fields|table, content?: string|table|function, form?: string[][], multipart?: table[], cross_origin_redirects?: boolean, head_timeout?: number, content_timeout?: number, max_content?: integer, max_redirects?: integer, redirects?: boolean, expect_continue?: boolean, request_timeout?: number }
 ---@return hecate.http.Response
 function Client:request(method, target, options)
-  if self._closed then error(core.Error("http.Client:request: the client is closed"), 2) end
+  if self._closed then error(core.StateError("http.Client:request: the client is closed"), 2) end
   options = options or {}
   if type(options) ~= "table" then error(core.ArgumentError("http.Client:request: options must be a table"), 2) end
   if not grammar.is_token(method) then error(core.ArgumentError("http.Client:request: the method must be a token"), 2) end

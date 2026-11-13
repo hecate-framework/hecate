@@ -127,7 +127,7 @@ end
 --- and does not cancel the application scope (concurrency.md, rule 2; OQ-26). Does not suspend; it needs a
 --- managed coroutine (hence no `---@async` tag).
 ---
---- Raises `hecate.core.ArgumentError` if `fn` is not a function, `hecate.core.Error` if the
+--- Raises `hecate.core.ArgumentError` if `fn` is not a function, `hecate.core.StateError` if the
 --- application scope is not running, and `hecate.core.NonYieldableContextError` outside a
 --- managed coroutine.
 ---@param fn fun(...): ...  the computation to run
@@ -140,7 +140,7 @@ function M.detach(fn, ...)
   local computation = context.current_computation("reactor.detach")
   local root = computation.reactor._root
   if root == nil or root._closed then
-    error(core.Error("reactor.detach: the application scope is not running"), 2)
+    error(core.StateError("reactor.detach: the application scope is not running"), 2)
   end
   local future = computation.reactor:_create_computation(root, fn, table.pack(...))
   future._computation.detached = true
@@ -415,10 +415,10 @@ end
 
 --- Returns the reading of the running reactor's clock, in seconds.
 ---
---- Raises `hecate.core.Error` if no reactor is running.
+--- Raises `hecate.core.StateError` if no reactor is running.
 ---@return number seconds  the clock reading
 function M.now()
-  if context.reactor == nil then error(core.Error("reactor.now: no reactor is running"), 2) end
+  if context.reactor == nil then error(core.StateError("reactor.now: no reactor is running"), 2) end
   return context.reactor:now()
 end
 

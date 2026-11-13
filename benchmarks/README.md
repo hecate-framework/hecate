@@ -11,8 +11,8 @@ Performance is a product requirement (vision.md). Benchmarks run in CI
 | `accept-spread` | multi-process serving ([ADR 0023](../docs/adr/0023-multi-process-serving.md)): connections per second and spread over the workers, per listening strategy | 1 |
 | `plaintext` | HTTP/1.1 server (`http.Server` alone), keep-alive, pipelining (`--pipeline`) | 2 |
 | `kernel-json` | serialisation + routing + kernel: a `kernel.Application` with one route whose result is represented and encoded as JSON (the TechEmpower "JSON" test; named `kernel-json` because `bench json` selects the micro-benchmarks of the `json` package) | 2 |
-| `validation` | coercion and validation of path, query and content (not written yet) | 2 |
-| `routing` | route tables of 10 / 100 / 1 000 routes (not written yet; `packages/router/benchmarks/match.lua` measures the match alone) | 2 |
+| `validation` | coercion and validation of path, query and content (not written yet) | continuous (roadmap) |
+| `routing` | route tables of 10 / 100 / 1 000 routes (not written yet; `packages/router/benchmarks/match.lua` measures the match alone) | continuous (roadmap) |
 | `db-single`, `db-multiple`, `db-updates` | PostgreSQL driver + pool + ORM (TechEmpower-like) | 4 |
 | micro | per package: dispatch cost (`core`), JSON codec, router match, schema validation | 1→ |
 

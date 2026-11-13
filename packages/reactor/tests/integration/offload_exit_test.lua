@@ -34,4 +34,18 @@ function T:test_a_program_exits_cleanly_after_a_cancelled_offload()
   end
 end
 
+function T:test_an_offloaded_function_requires_a_module_through_lua_path()
+  local fixtures = here .. "/fixtures"
+  local search = absolute(fixtures .. "/?.lua") .. ";;" -- ";;": the default path after it
+  local setup = ("package.path = %q; package.cpath = %q"):format(absolute(package.path), absolute(package.cpath))
+  local script = uv.fs_realpath(fixtures .. "/offload_require_child.lua") or fixtures .. "/offload_require_child.lua"
+  local status = reactor.run(function()
+    -- Both names: a pool thread's state reads LUA_PATH_5_5 first, then LUA_PATH.
+    local child = reactor.spawn(uv.exepath(), { "-e", setup, script },
+      { env = { LUA_PATH = search, LUA_PATH_5_5 = search }, stdout = "ignore" })
+    return child:wait()
+  end)
+  self:assert_equal(0, status.code, ("the child exited with code %s, signal %s"):format(status.code, status.signal))
+end
+
 return T

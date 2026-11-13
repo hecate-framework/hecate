@@ -1,6 +1,6 @@
 -- The router: a route table compiled at boot into a radix tree (see tree.lua), with 404/405 handling, automatic HEAD
 -- and OPTIONS, and reverse routing.
-global <const> require, type, error, pairs, ipairs, string, table, next, tostring
+global <const> require, type, error, pairs, ipairs, string, table, next, tostring, math
 
 local core = require("hecate.core")
 local errors = require("hecate.router.errors")
@@ -34,8 +34,9 @@ local RouteTableError = errors.RouteTableError
 ---@field reason? string  `not_absolute`, `malformed_percent_encoding` or `encoded_nul` (status 400)
 
 --- A compiled route table. It is built once, at boot, and never changes; matching is a walk down a radix tree over the
---- decoded segments of the path, in the order static, parameter, wildcard, so its cost depends on the length of the
---- path and not on the number of routes.
+--- decoded segments of the path, in the order static, parameter with literal text, parameter, wildcard. Its cost grows
+--- with the length of the path; a static segment is one hash lookup whatever the number of routes, and the parameters
+--- with literal text at one node are tried one by one.
 ---@class hecate.router.Router
 ---@overload fun(routes: hecate.router.Route[], options?: hecate.router.RouterOptions): hecate.router.Router
 local Router = core.class("Router")
@@ -98,12 +99,20 @@ end
 
 --- Compiles a route table. The routes are read once: later changes to `routes` are not seen. Raises
 --- `hecate.router.RouteTableError` for an invalid route, a duplicate name and an ambiguous table (two routes that
---- serve the same method for the same paths), and `hecate.core.ArgumentError` for bad arguments.
+--- serve the same method for the same paths with no precedence between them), and `hecate.core.ArgumentError` for bad
+--- arguments, among them a `routes` table whose keys are not exactly 1..n.
 ---@param routes hecate.router.Route[]
 ---@param options? hecate.router.RouterOptions
 function Router:init(routes, options)
   if type(routes) ~= "table" then argument_error("routes must be a list of route tables") end
-  if next(routes) ~= nil and routes[1] == nil then argument_error("routes must be a list (a table with keys 1..n), not a map") end
+  -- Exactly the keys 1..n: a hole would end `ipairs` early and drop the routes after it without a word.
+  local count = 0
+  for _ in pairs(routes) do count = count + 1 end
+  for key in pairs(routes) do
+    if math.type(key) ~= "integer" or key < 1 or key > count then
+      argument_error("routes must be a list (a table with exactly the keys 1..n), not a map or a list with a hole")
+    end
+  end
   local settings = check_options(options)
   self._trailing_slash = settings.trailing_slash
   self._head = settings.automatic_head
@@ -133,7 +142,7 @@ function Router:init(routes, options)
       end
       self._by_name[route.name] = { index = index, template = parsed }
     end
-    local entry = { route = route, names = parsed.names, index = index }
+    local entry = { route = route, names = parsed.names, index = index, segments = parsed.segments }
     entries[index] = entry
     for _, method in ipairs(methods) do
       local existing = tree.insert(self._root, parsed, method, entry)
@@ -190,7 +199,7 @@ function Router:match(method, raw_path)
 end
 
 --- Reverse routing: the path of the route called `name`, with each value percent-encoded (RFC 3986 section 2.1).
---- Values are strings or integers; a wildcard takes a string whose `/` separate its segments.
+--- Values are strings or integers; a wildcard takes a string whose `/` separate its segments, or an integer.
 ---
 --- Raises `hecate.core.ArgumentError` for an unknown name, a missing or unknown parameter and a value no request path
 --- could carry (empty, `.`, `..`, a NUL byte).
@@ -204,7 +213,9 @@ function Router:url_for(name, parameters)
   end
   local named = self._by_name[name]
   if named == nil then error(core.ArgumentError(("router.Router:url_for: no route is named %q"):format(name)), 2) end
-  return template.expand(named.template, parameters)
+  local built, problem = template._expand(named.template, parameters)
+  if built == nil then error(core.ArgumentError("router.Router:url_for: " .. problem), 2) end
+  return built
 end
 
 --- The routes in the order they were declared: a new list of the route tables as given, which are not to be modified

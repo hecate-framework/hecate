@@ -245,7 +245,8 @@ end
 
 --- Reads at most `max` bytes (default: whatever the next receive delivers). Returns nil at
 --- end of stream (the peer shut down its side); never returns an empty string. Cancelling a
---- suspended read keeps the stream open and loses no data. One coroutine reads at a time.
+--- suspended read keeps the stream open and loses no data. One coroutine reads at a time: a
+--- second one raises `hecate.core.StateError`.
 ---
 --- Once a first read was made the stream reads ahead of its reader by up to 64 KiB (it keeps
 --- libuv reading between two calls instead of restarting it for every call), then stops reading
@@ -259,7 +260,7 @@ function TcpStream:read(max)
     error(core.ArgumentError(("%s: expects a positive integer, got %s"):format(qualified(self, "read"), tostring(max))), 2)
   end
   require_open(self, "read")
-  if self._reading then error(core.Error(qualified(self, "read") .. ": another coroutine is already reading this stream"), 2) end
+  if self._reading then error(core.StateError(qualified(self, "read") .. ": another coroutine is already reading this stream"), 2) end
   self._demanded = true
   while self._inbox == nil and not self._eof and self._failure == nil do
     self._reading = true
@@ -411,13 +412,14 @@ local DROPPED = { EINVAL = true, ENOTCONN = true, ECONNRESET = true, ECONNABORTE
 --- listener open; connections that arrive meanwhile stay queued. Connections are taken one
 --- per call, so a slow acceptor leaves the rest in the kernel backlog (back-pressure). A
 --- connection whose peer already reset it (the options cannot be applied: `EINVAL`, `ENOTCONN`,
---- `ECONNRESET`, `ECONNABORTED`) is closed and skipped; any other failure is raised.
+--- `ECONNRESET`, `ECONNABORTED`) is closed and skipped; any other failure is raised. One
+--- coroutine accepts at a time: a second one raises `hecate.core.StateError`.
 ---@async
 ---@return hecate.reactor.TcpStream
 function TcpListener:accept()
   uv_call.begin(qualified(self, "accept"))
   require_open(self, "accept")
-  if self._accepting then error(core.Error(qualified(self, "accept") .. ": another coroutine is already accepting"), 2) end
+  if self._accepting then error(core.StateError(qualified(self, "accept") .. ": another coroutine is already accepting"), 2) end
   while true do
     while self._incoming == 0 and self._failure == nil do
       self._accepting = true
@@ -589,26 +591,55 @@ end
 
 local reuseport_supported
 
---- Returns whether this platform and this luv let several TCP sockets listen on one port
---- (`reuseport = true`). The first call probes with two loopback sockets and caches the answer.
---- It says nothing about balance: macOS accepts the flag and gives every connection to one
---- socket, which is why the listening strategy lives above (ADR 0023). Does not suspend.
----@return boolean supported  whether `listen_tcp` accepts `reuseport = true`
-function api.supports_reuseport()
-  if reuseport_supported ~= nil then return reuseport_supported end
+--- Whether a libuv error string carries `errno`.
+---@param err any
+---@param errno string
+---@return boolean
+local function has_errno(err, errno) return type(err) == "string" and err:sub(1, #errno) == errno end
+
+--- Probes `reuseport` with two sockets on the loopback address `host`. Returns true when both
+--- sockets listen on one port, false when the second one is refused with `EADDRINUSE` (the
+--- definite answer of a platform or luv without the option), nil for any other failure (no such
+--- loopback, no descriptor left, ...), which says nothing about the option.
+---@param host string
+---@return boolean?
+local function probe_reuseport(host)
   local first, second = uv.new_tcp(), uv.new_tcp()
   local flags = { reuseport = true }
-  local supported = false
-  if protected(first.bind, first, "127.0.0.1", 0, flags) then
+  local answer
+  if protected(first.bind, first, host, 0, flags) then
     local address = first:getsockname()
-    if address and protected(second.bind, second, "127.0.0.1", address.port, flags)
-        and first:listen(1, function() end) and second:listen(1, function() end) then
-      supported = true
+    if address then
+      local bound, bind_err = protected(second.bind, second, host, address.port, flags)
+      if not bound then
+        if has_errno(bind_err, "EADDRINUSE") then answer = false end
+      elseif first:listen(1, function() end) then
+        local listening, listen_err = second:listen(1, function() end)
+        if listening then
+          answer = true
+        elseif has_errno(listen_err, "EADDRINUSE") then
+          answer = false
+        end
+      end
     end
   end
   first:close(); second:close()
-  reuseport_supported = supported
-  return supported
+  return answer
+end
+
+--- Returns whether this platform and this luv let several TCP sockets listen on one port
+--- (`reuseport = true`). The first call probes with two loopback sockets (`127.0.0.1`, then `::1`)
+--- and caches a definite answer; a probe that fails for another reason (no loopback address, no
+--- descriptor left) answers false and is made again on the next call. It says nothing about
+--- balance: macOS accepts the flag and gives every connection to one socket, which is why the
+--- listening strategy lives above (ADR 0023). Does not suspend.
+---@return boolean supported  whether `listen_tcp` accepts `reuseport = true`
+function api.supports_reuseport()
+  if reuseport_supported ~= nil then return reuseport_supported end
+  local answer = probe_reuseport("127.0.0.1")
+  if answer == nil then answer = probe_reuseport("::1") end
+  reuseport_supported = answer
+  return answer == true
 end
 
 --- Forgets the probe of `supports_reuseport` (tests only: the answer is cached for good).

@@ -3,32 +3,41 @@ global <const> require, type, error, math, table, pcall
 
 local core = require("hecate.core")
 
---- The content of a request could not be read: it exceeds the limit, ended early, was malformed or stalled.
---- `context.status` is the status code to answer with (413, 408 or 400) and `context.reason` a stable identifier
---- (`too_large`, `timeout`, `truncated`, `malformed`); `context.limit` is set for `too_large`.
+--- The content of a message could not be read: it exceeds the limit, ended early, was malformed or stalled.
+--- `context.reason` is a stable identifier (`too_large`, `timeout`, `truncated`, `malformed`) and `context.limit` is
+--- set for `too_large`. On the server, `context.status` is the status code to answer with (413, 408 or 400); the
+--- client raises it for a response (`too_large` beyond `max_content`, `timeout` when the content stalls longer than
+--- `content_timeout`) without a status, which is the server's to give (OQ-82).
 ---@class hecate.http.ContentError : hecate.core.ProtocolError
----@field context { status: integer, reason: string, limit?: integer }
+---@field context { status?: integer, reason: string, limit?: integer }
 local ContentError = core.error_class("ContentError", "hecate.http.ContentError", core.ProtocolError)
 
 --- A stream of message content: an ordered sequence of bytes read in order, chunk by chunk. A server creates one per request; a request built by hand
 --- gets one over its string content.
 ---@class hecate.http.ContentStream
----@overload fun(pull: fun(): (string?), options?: { limit?: integer }): hecate.http.ContentStream
+---@overload fun(pull: fun(): (string?), options?: { limit?: integer, client?: boolean }): hecate.http.ContentStream
 local ContentStream = core.class("ContentStream")
 ContentStream.ContentError = ContentError
 
 --- Creates a reader. `pull` returns the next chunk (never empty) or nil at the end of the content; it may
 --- suspend. `options.limit` bounds the total number of bytes the reader delivers (no default: the server passes its own).
+--- `options.client` is true for the content of a response read by a client: its `ContentError` then carries no
+--- `context.status` (default false: a `too_large` error carries 413).
 ---@param pull fun(): string?
----@param options? { limit?: integer }
+---@param options? { limit?: integer, client?: boolean }
 function ContentStream:init(pull, options)
   if type(pull) ~= "function" then error(core.ArgumentError("http.ContentStream: expected a pull function"), 3) end
   local limit = options and options.limit
   if limit ~= nil and (math.type(limit) ~= "integer" or limit < 0) then
     error(core.ArgumentError("http.ContentStream: limit must be a non-negative integer"), 3)
   end
+  local client = options and options.client
+  if client ~= nil and type(client) ~= "boolean" then
+    error(core.ArgumentError("http.ContentStream: client must be a boolean"), 3)
+  end
   self._pull = pull
   self._limit = limit
+  self._too_large_status = not client and 413 or nil
   self._total = 0
   self._finished = false
   self._started = false
@@ -70,7 +79,7 @@ function ContentStream:read()
   if self._limit ~= nil and self._total > self._limit then
     self._failure = ContentError({
       message = "http.ContentStream: the content exceeds its limit",
-      context = { status = 413, reason = "too_large", limit = self._limit },
+      context = { status = self._too_large_status, reason = "too_large", limit = self._limit },
     })
     error(self._failure, 0)
   end
@@ -95,7 +104,7 @@ function ContentStream:read_all(limit)
     if limit ~= nil and size > limit then
       error(ContentError({
         message = "http.ContentStream: the content exceeds its limit",
-        context = { status = 413, reason = "too_large", limit = limit },
+        context = { status = self._too_large_status, reason = "too_large", limit = limit },
       }), 2)
     end
     parts[#parts + 1] = chunk

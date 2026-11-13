@@ -2,6 +2,7 @@
 global <const> require, string, table, type
 
 local Status = require("hecate.http.status")
+local grammar = require("hecate.http.grammar")
 local date = require("hecate.http.date")
 
 --- Pure helpers that turn a response into bytes.
@@ -61,7 +62,7 @@ wire.LAST_CHUNK = "0\r\n\r\n"
 function wire.has_connection_option(value, option)
   if value == nil then return false end
   for item in string.gmatch(value, "[^,]+") do
-    if string.lower((string.match(item, "^[ \t]*(.-)[ \t]*$"))) == option then return true end
+    if string.lower(grammar.trim_ows(item)) == option then return true end
   end
   return false
 end

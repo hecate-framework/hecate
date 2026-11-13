@@ -15,7 +15,7 @@ local transfer = require("hecate.reactor.internal.transfer")
 --- Raised by `reactor.offload` when the offloaded function raises, returns a value that cannot
 --- cross between Lua states, or cannot be run on the pool thread.
 ---@class hecate.reactor.OffloadError : hecate.core.Error
----@field context { reason: "raised"|"result"|"worker", traceback?: string, code?: string }
+---@field context { reason: "raised"|"result"|"pool_thread", traceback?: string, code?: string }
 local OffloadError = core.error_class("OffloadError", "hecate.reactor.OffloadError", core.Error)
 
 --- Runs on a pool thread. Sent as bytecode by luv, so it has no upvalue but `_ENV` (the global
@@ -33,6 +33,7 @@ local OffloadError = core.error_class("OffloadError", "hecate.reactor.OffloadErr
 ---@return string? traceback
 ---@return string? code
 local function work(id, codec_code, fn_code, payload)
+  -- coverage: off (runs in the Lua state of a libuv pool thread, where the line hook is not installed)
   local globals = _ENV
   local function run()
     local key = "hecate.reactor.offload.codec" -- a literal: `work` may not capture an upvalue
@@ -46,7 +47,7 @@ local function work(id, codec_code, fn_code, payload)
     local codec = cached.codec
     local environment = setmetatable({}, { __index = globals })
     local fn, load_error = load(fn_code, nil, "b", environment)
-    if fn == nil then return "worker", "cannot load the function: " .. tostring(load_error) end
+    if fn == nil then return "pool_thread", "cannot load the function: " .. tostring(load_error) end
     local n, args = codec.decode(payload)
     local function handler(err)
       local message, code
@@ -71,9 +72,10 @@ local function work(id, codec_code, fn_code, payload)
   local ok, status, data, traceback, code = pcall(run)
   if not ok then
     local text_ok, text = pcall(tostring, status)
-    return id, "worker", "the pool thread failed: " .. (text_ok and text or "unknown error")
+    return id, "pool_thread", "the pool thread failed: " .. (text_ok and text or "unknown error")
   end
   return id, status, data, traceback, code
+  -- coverage: on
 end
 
 -- Module state. The libuv pool is one per process, so this state is too: one work context, created
@@ -88,7 +90,10 @@ local queue, queue_head, queue_tail = {}, 1, 0 -- states of the calls waiting fo
 local last_id = 0
 local bytecode = core.weak_table("k") -- function -> its bytecode
 
---- The size of libuv's pool, read as libuv reads it (`UV_THREADPOOL_SIZE`, default 4, from 1 to 1024).
+--- The size of libuv's pool (`UV_THREADPOOL_SIZE`, default 4, at most 1024). libuv reads the value with
+--- `atoi` into an unsigned integer, so a negative value gives it 1024 threads; here every value below 1
+--- counts as 1: an estimate that is too small only keeps more calls in the queue, one that is too large
+--- would take the threads of the file system and name resolution.
 ---@return integer
 local function pool_size()
   local text = os.getenv("UV_THREADPOOL_SIZE")
@@ -186,6 +191,9 @@ end
 local M = {}
 
 M.OffloadError = OffloadError
+--- The pool-thread body, for the tests of its failure paths in this state. Not public API.
+---@private
+M._work = work
 
 --- Runs `fn(...)` on libuv's thread pool, in the separate Lua state of a pool thread, and returns
 --- its results. Use it for CPU-bound work of a millisecond or more (hashing, compression, parsing a
@@ -208,7 +216,7 @@ M.OffloadError = OffloadError
 --- Raises `hecate.reactor.OffloadError` when `fn` raises (`context.reason` `"raised"`,
 --- `context.traceback` from the pool thread, `context.code` the `code` of a framework error),
 --- returns a value that cannot be copied (`"result"`) or cannot run on the pool thread
---- (`"worker"`); `hecate.core.ArgumentError` for a function or an argument that cannot be sent;
+--- (`"pool_thread"`); `hecate.core.ArgumentError` for a function or an argument that cannot be sent;
 --- `hecate.reactor.IoError` when libuv refuses the work.
 ---@async
 ---@param fn fun(...): ...  a self-contained Lua function
@@ -240,6 +248,7 @@ function M.offload(fn, ...)
     -- Cancelled: a queued call never reaches the pool; a submitted one runs on and its result is
     -- discarded by `on_done`.
     state.abandoned = true
+    state.payload = nil -- a queued call holds its encoded arguments until `dispatch` skips it
     waiting[state.id] = nil
     error(failure, 0)
   end

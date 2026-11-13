@@ -80,7 +80,7 @@ jobs:
           lua tools/run.lua fetch-fixtures doc
 
       - name: Leak detection
-        run: lua tools/run.lua leaks
+        run: lua tools/run.lua leaks reactor net kernel
 
   coverage:
     name: coverage

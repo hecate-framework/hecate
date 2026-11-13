@@ -34,9 +34,10 @@
 > **Status: early implementation, not usable yet.** The foundations exist and are tested on
 > Linux, macOS and Windows: the object model and errors (`core`), the asynchronous runtime
 > (`reactor`), networking with TLS (`net`), the JSON codec (`json`), structured logging (`log`)
-> and the documentation generator that builds the website (`doc`). The HTTP server, router,
-> schemas, kernel, tooling and data access are specified in `docs/` and not written yet; the
-> [roadmap](docs/roadmap.md) says what comes next.
+> and the documentation generator that builds the website (`doc`); then the HTTP server and
+> client (`http`), the router, schemas, the container, configuration and the kernel with
+> multi-process workers. OpenAPI, the test framework, the CLI and data access are specified in
+> `docs/` and not written yet; the [roadmap](docs/roadmap.md) says what comes next.
 
 Hecate is a complete ecosystem for building HTTP APIs in Lua: an asynchronous runtime,
 an HTTP server, a router, schemas and validation, automatic OpenAPI contracts, a test

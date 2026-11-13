@@ -200,6 +200,53 @@ function T:test_guard_logs_a_client_caused_error_as_request_refused_with_its_fie
   for _, value in pairs(fields) do self:assert_nil(string.find(tostring(value), SECRET, 1, true)) end
 end
 
+-- Documented in website/en/how-to/before-going-to-production.md (Logging): the logged path drops the query, but a path
+-- parameter is part of the path and is logged as it came.
+function T:test_guard_logs_the_path_parameters_but_not_the_query()
+  local seen = {}
+  local logger = { log = function(_, severity, message, fields) seen[#seen + 1] = { severity, message, fields } end }
+  local req = http.Request({ method = "GET", target = "/users/ada@example.org?token=" .. SECRET, fields = http.Fields() })
+  problems.guard(function() error(core.Error("lookup failed")) end, { logger = logger })(req)
+  self:assert_equal(1, #seen)
+  self:assert_equal("/users/ada@example.org", seen[1][3].path)
+  for _, value in pairs(seen[1][3]) do self:assert_nil(string.find(tostring(value), SECRET, 1, true)) end
+end
+
+-- OQ-120 (2), owner decision of 2026-11-13: no JSON Pointer in a message (a pointer can hold a key supplied by a user);
+-- in development and test (`expose_details`), the pointer of the first violation is a log field of its own.
+local function failing_check(key)
+  return function() schema.map(schema.integer()):check({ [key] = "x" }) end
+end
+
+function T:test_guard_logs_the_pointer_of_the_first_violation_with_expose_details()
+  local seen = {}
+  local logger = { log = function(_, severity, message, fields) seen[#seen + 1] = { severity, message, fields } end }
+  problems.guard(failing_check("ada@example.org"), { logger = logger, expose_details = true })(request())
+  self:assert_equal(1, #seen)
+  self:assert_equal("/ada@example.org", seen[1][3].pointer)
+  self:assert_nil(seen[1][3].error:find("ada@example.org", 1, true), seen[1][3].error)
+end
+
+function T:test_guard_never_logs_the_pointer_without_expose_details()
+  local seen = {}
+  local logger = { log = function(_, severity, message, fields) seen[#seen + 1] = { severity, message, fields } end }
+  problems.guard(failing_check(SECRET), { logger = logger })(request())
+  self:assert_equal(1, #seen)
+  self:assert_nil(seen[1][3].pointer)
+  for _, value in pairs(seen[1][3]) do self:assert_nil(string.find(tostring(value), SECRET, 1, true)) end
+end
+
+function T:test_guard_logs_no_pointer_for_an_error_without_violations()
+  local seen = {}
+  local logger = { log = function(_, severity, message, fields) seen[#seen + 1] = { severity, message, fields } end }
+  problems.guard(function() error(core.ValidationError("empty", { context = { violations = {} } })) end,
+    { logger = logger, expose_details = true })(request())
+  problems.guard(function() error(core.Error("boom")) end, { logger = logger, expose_details = true })(request())
+  self:assert_equal(2, #seen)
+  self:assert_nil(seen[1][3].pointer)
+  self:assert_nil(seen[2][3].pointer)
+end
+
 function T:test_guard_does_not_log_a_problem_below_500()
   local seen = {}
   local logger = { log = function(_, severity) seen[#seen + 1] = severity end }
@@ -218,6 +265,23 @@ function T:test_guard_logs_the_class_and_the_code_of_a_500_apart_from_the_messag
   self:assert_equal("ArgumentError", fields.error_class)
   self:assert_equal("hecate.core.ArgumentError", fields.error_code)
   self:assert_equal("boom", fields.error)
+end
+
+function T:test_guard_without_a_logger_logs_through_the_default_logger()
+  local memory = log.MemorySink()
+  log.set_default(log.Logger({ sinks = { memory } })) -- what a process without a logger writes to (OQ-79)
+  local ok, response = pcall(function()
+    return problems.guard(function() error(core.Error("boom")) end)(request())
+  end)
+  log.set_default(nil)
+  self:assert_true(ok, tostring(response))
+  self:assert_equal(500, response.status)
+  local records = memory:records()
+  self:assert_equal(1, #records)
+  self:assert_true(records[1].severity == log.Severity.error)
+  self:assert_equal("unhandled error while serving a request", records[1].message)
+  self:assert_equal("boom", records[1].fields.error)
+  self:assert_equal("string", type(records[1].fields.traceback), "the traceback is taken without a logger too")
 end
 
 function T:test_the_console_sink_escapes_control_characters_of_a_logged_message()
@@ -241,6 +305,18 @@ end
 function T:test_guard_never_swallows_a_deadline()
   local serve = problems.guard(function() error(core.DeadlineExceededError("late")) end)
   self:assert_equal("hecate.core.DeadlineExceededError", self:assert_error(function() serve(request()) end).code)
+end
+
+function T:test_the_chain_without_messages_names_each_cause_by_class_and_code()
+  -- OQ-120 (1): what the logged traceback starts with while `errors.expose_details` is false.
+  local err = core.Error({ message = "the lookup failed", cause = core.ArgumentError({ message = "row 42 said secret",
+    cause = "a plain Lua error with secret text" }) })
+  local text = problems.chain_without_messages(err)
+  self:assert_true(text:find("the lookup failed", 1, true) ~= nil, text)
+  self:assert_nil(text:find("secret", 1, true), text)
+  self:assert_true(text:find("caused by: " .. core.name(err.cause) .. " (" .. err.cause.code .. ")", 1, true) ~= nil, text)
+  self:assert_true(text:find("caused by: a string", 1, true) ~= nil, text)
+  self:assert_equal("plain", problems.chain_without_messages("plain"))
 end
 
 return T

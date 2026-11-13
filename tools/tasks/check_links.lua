@@ -50,7 +50,7 @@ return {
         local at = ("%s:%d"):format(rel, l.line)
         local function exists(path) return util.exists(ctx.root .. "/" .. path) end
         if links.is_ungenerated_reference(target, exists) then
-          -- The code reference is generated and git-ignored: the strict build (--reference) checks these links.
+          -- The reference is generated and git-ignored: the strict build of the website checks these links.
         elseif not exists(target) then
           problems[#problems + 1] = ("%s: broken link to '%s'"):format(at, l.path)
         elseif l.fragment and target:sub(-3) == ".md" and not util.is_dir(ctx.root .. "/" .. target)

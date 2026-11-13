@@ -146,6 +146,14 @@ jobs:
             lua tools/run.lua "$task"
             echo "::endgroup::"
           done
+          # The generated sections (package table, llms.txt, dependency graph) follow the READMEs and rockspecs; the
+          # error codes and configuration keys pages (git-ignored, built by website.yml) follow the sources and
+          # configuration.md: their --check validates the sources without writing.
+          for task in gen-catalogue gen-llms-txt gen-dependency-graph gen-error-codes gen-config-reference; do
+            echo "::group::$task --check"
+            lua tools/run.lua "$task" --check
+            echo "::endgroup::"
+          done
 
   ci:
     needs: plan
@@ -174,7 +182,7 @@ jobs:
 
       - name: Cache toolchain
         id: toolchain
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: .hecate/toolchain
           key: toolchain-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('tools/bootstrap/**') }}
@@ -214,8 +222,9 @@ jobs:
       # The archive is cached per platform and version (the checksum below is verified on every run, from the
       # cache or from the download), so a transient 5xx of the release endpoint only matters on a cold cache.
       - name: Cache LuaLS archive
+        id: luals
         if: runner.os == 'Linux'
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: ~/.cache/luals
           key: luals-${{ runner.os }}-${{ runner.arch }}-${{ env.LUALS_VERSION }}
@@ -248,7 +257,7 @@ jobs:
 
       - name: Cache rocks
         id: rocks
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           # The native modules of Hecate have their own caches (below, keyed by their sources): excluded here, so
           # that an old rocks archive never restores a stale module that the build steps would then take as built.
@@ -262,6 +271,7 @@ jobs:
       # Pinned: TCP `reuseport` support (OQ-43) and the process/pipe behaviour the tests assert depend on
       # the luv (and bundled libuv) version; bump it deliberately. 1.53.0-0 is what the Linux job installs today (OQ-1).
       - name: Install luv
+        id: install_luv
         if: steps.rocks.outputs.cache-hit != 'true'
         shell: bash
         run: luarocks --tree .hecate/rocks install luv 1.53.0-0
@@ -279,7 +289,7 @@ jobs:
       - name: Cache native module net (TLS)
         id: nc_net
         if: needs.plan.outputs.net_native == 'true'
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: .hecate/rocks/lib/lua/5.5/hecate/net/tls_native.*
           key: native-net-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('packages/net/native/**', 'packages/net/native/.cargo/**', '!**/target/**', 'tools/tasks/build_native.lua', 'tools/lib/util.lua', 'tools/lib/sanitize.lua', 'tools/bootstrap/**', '.github/workflows/ci.yml') }}
@@ -287,7 +297,7 @@ jobs:
       - name: Cache native modules json (C decoder, Rust encoder)
         id: nc_json
         if: needs.plan.outputs.json_native == 'true'
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: |
             .hecate/rocks/lib/lua/5.5/hecate/json/native.*
@@ -297,7 +307,7 @@ jobs:
       - name: Cache native module http (llhttp binding)
         id: nc_http
         if: needs.plan.outputs.http_native == 'true'
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: .hecate/rocks/lib/lua/5.5/hecate/http/native.*
           key: native-http-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('packages/http/csrc/**', 'tools/tasks/build_native.lua', 'tools/lib/util.lua', 'tools/lib/sanitize.lua', 'tools/bootstrap/**', '.github/workflows/ci.yml') }}
@@ -306,7 +316,7 @@ jobs:
       - name: Cache native module doc (shipped and spec variants)
         id: nc_doc
         if: contains(format(' {0} ', needs.plan.outputs.packages), ' doc ')
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: |
             .hecate/rocks/lib/lua/5.5/hecate/doc/native.*
@@ -315,8 +325,9 @@ jobs:
 
       # Cargo registry and target directories: only worth restoring when a Rust module has to be built.
       - name: Cache native build
+        id: cargo
         if: (needs.plan.outputs.net_native == 'true' && steps.nc_net.outputs.cache-hit != 'true') || (needs.plan.outputs.json_native == 'true' && steps.nc_json.outputs.cache-hit != 'true') || (contains(format(' {0} ', needs.plan.outputs.packages), ' doc ') && steps.nc_doc.outputs.cache-hit != 'true')
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: |
             ~/.cargo/registry
@@ -430,6 +441,7 @@ jobs:
 
       # Runs on a cache hit as on a build: every module this run needs must exist, whatever restored it.
       - name: Verify the native modules
+        id: verify_native
         shell: bash
         env:
           NEED_NET: ${{ needs.plan.outputs.net_native }}
@@ -487,6 +499,11 @@ jobs:
             lua tools/run.lua "$task"
             echo "::endgroup::"
           done
+          for task in gen-catalogue gen-llms-txt gen-dependency-graph gen-error-codes gen-config-reference; do
+            echo "::group::$task --check"
+            lua tools/run.lua "$task" --check
+            echo "::endgroup::"
+          done
           echo "::group::lint"
           lua tools/run.lua lint $PACKAGES
           echo "::endgroup::"
@@ -513,6 +530,85 @@ jobs:
               echo "::endgroup::"
               ;;
           esac
+
+      # Saved even when a step failed (actions/cache saves only on a green job: a red run would leave every later
+      # run without cache), and only when the restore missed. A native module or rocks cache is saved only when its
+      # build was verified (`verify_native`) or luv installed (`install_luv`), never a half-built one.
+      - name: Save cache toolchain
+        if: always() && steps.toolchain.outputs.cache-hit != 'true' && steps.toolchain.outputs.cache-primary-key != ''
+        continue-on-error: true
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: .hecate/toolchain
+          key: ${{ steps.toolchain.outputs.cache-primary-key }}
+
+      - name: Save cache LuaLS archive
+        if: always() && steps.luals.outputs.cache-hit != 'true' && steps.luals.outputs.cache-primary-key != ''
+        continue-on-error: true
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: ~/.cache/luals
+          key: ${{ steps.luals.outputs.cache-primary-key }}
+
+      - name: Save cache rocks
+        if: always() && steps.rocks.outputs.cache-hit != 'true' && steps.rocks.outputs.cache-primary-key != '' && steps.install_luv.outcome == 'success'
+        continue-on-error: true
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          # The native modules of Hecate have their own caches (below, keyed by their sources): excluded here, so
+          # that an old rocks archive never restores a stale module that the build steps would then take as built.
+          path: |
+            .hecate/rocks
+            !.hecate/rocks/lib/lua/5.5/hecate
+          key: ${{ steps.rocks.outputs.cache-primary-key }}
+
+      - name: Save cache native module net (TLS)
+        if: always() && steps.nc_net.outputs.cache-hit != 'true' && steps.nc_net.outputs.cache-primary-key != '' && steps.verify_native.outcome == 'success'
+        continue-on-error: true
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: .hecate/rocks/lib/lua/5.5/hecate/net/tls_native.*
+          key: ${{ steps.nc_net.outputs.cache-primary-key }}
+
+      - name: Save cache native modules json (C decoder, Rust encoder)
+        if: always() && steps.nc_json.outputs.cache-hit != 'true' && steps.nc_json.outputs.cache-primary-key != '' && steps.verify_native.outcome == 'success'
+        continue-on-error: true
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: |
+            .hecate/rocks/lib/lua/5.5/hecate/json/native.*
+            .hecate/rocks/lib/lua/5.5/hecate/json/encoder_native.*
+          key: ${{ steps.nc_json.outputs.cache-primary-key }}
+
+      - name: Save cache native module http (llhttp binding)
+        if: always() && steps.nc_http.outputs.cache-hit != 'true' && steps.nc_http.outputs.cache-primary-key != '' && steps.verify_native.outcome == 'success'
+        continue-on-error: true
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: .hecate/rocks/lib/lua/5.5/hecate/http/native.*
+          key: ${{ steps.nc_http.outputs.cache-primary-key }}
+
+      - name: Save cache native module doc (shipped and spec variants)
+        if: always() && steps.nc_doc.outputs.cache-hit != 'true' && steps.nc_doc.outputs.cache-primary-key != '' && steps.verify_native.outcome == 'success'
+        continue-on-error: true
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: |
+            .hecate/rocks/lib/lua/5.5/hecate/doc/native.*
+            packages/doc/native/target/spec/release/*hecate_doc_native.*
+          key: ${{ steps.nc_doc.outputs.cache-primary-key }}
+
+      - name: Save cache native build
+        if: always() && steps.cargo.outputs.cache-hit != 'true' && steps.cargo.outputs.cache-primary-key != '' && steps.verify_native.outcome == 'success'
+        continue-on-error: true
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: |
+            ~/.cargo/registry
+            packages/net/native/target
+            packages/json/native/target
+            packages/doc/native/target
+          key: ${{ steps.cargo.outputs.cache-primary-key }}
 
   # One check to require: green when the platform matrix passed or was skipped (documentation-only push), red
   # when `plan`, `ci` or `docs-checks` failed or was cancelled. Not required by the branch rules today (they

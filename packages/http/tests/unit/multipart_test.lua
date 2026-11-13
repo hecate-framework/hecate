@@ -347,6 +347,17 @@ function T:test_basename_is_conservative_for_windows_and_long_names()
   self:assert_true(#multibyte <= 255 and utf8.len(multibyte) ~= nil, "a cut never splits a character")
 end
 
+-- Review H-1 (same pattern class): stripping trailing dots and spaces is linear in the length of the filename.
+function T:test_basename_of_a_dot_and_space_heavy_filename_is_linear()
+  local filename = "a" .. (". "):rep(4000) .. "b" .. (" ."):rep(4000)
+  local started = os.clock()
+  local name
+  for _ = 1, 10 do name = multipart.basename(filename) end
+  local elapsed = os.clock() - started
+  self:assert_true(elapsed < 0.5, ("took %.3f s"):format(elapsed))
+  self:assert_equal("a" .. (". "):rep(127), name)
+end
+
 function T:test_boundaries_differ_between_messages()
   local seen = {}
   for _ = 1, 200 do

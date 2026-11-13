@@ -152,10 +152,20 @@ errors.ConfigurationError = error_class("ConfigurationError", "hecate.core.Confi
 ---@class hecate.core.ConformanceError : hecate.core.Error
 ---@overload fun(fields: hecate.core.ErrorFields|string, extra?: hecate.core.ErrorFields): hecate.core.ConformanceError
 errors.ConformanceError = error_class("ConformanceError", "hecate.core.ConformanceError")
+--- Raised when the caller broke the contract of an operation (a programmer error; Meyer, Design
+--- by Contract). Base class of `ArgumentError` and `StateError` (OQ-77).
+---@class hecate.core.PreconditionError : hecate.core.Error
+---@overload fun(fields: hecate.core.ErrorFields|string, extra?: hecate.core.ErrorFields): hecate.core.PreconditionError
+errors.PreconditionError = error_class("PreconditionError", "hecate.core.PreconditionError")
 --- Raised when a function is called with an invalid argument (a programmer error).
----@class hecate.core.ArgumentError : hecate.core.Error
+---@class hecate.core.ArgumentError : hecate.core.PreconditionError
 ---@overload fun(fields: hecate.core.ErrorFields|string, extra?: hecate.core.ErrorFields): hecate.core.ArgumentError
-errors.ArgumentError = error_class("ArgumentError", "hecate.core.ArgumentError")
+errors.ArgumentError = error_class("ArgumentError", "hecate.core.ArgumentError", errors.PreconditionError)
+--- Raised when an operation is not allowed in the current state of the object: closed, already
+--- serving, not booted (a programmer error).
+---@class hecate.core.StateError : hecate.core.PreconditionError
+---@overload fun(fields: hecate.core.ErrorFields|string, extra?: hecate.core.ErrorFields): hecate.core.StateError
+errors.StateError = error_class("StateError", "hecate.core.StateError", errors.PreconditionError)
 --- Raised in a computation that was cancelled, at its next suspension point.
 ---@class hecate.core.CancellationError : hecate.core.Error
 ---@overload fun(fields: hecate.core.ErrorFields|string, extra?: hecate.core.ErrorFields): hecate.core.CancellationError

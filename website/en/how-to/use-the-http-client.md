@@ -137,7 +137,7 @@ A call returns when the response head has arrived: `response.status`, `response.
 failure of the exchange raises. The content is read lazily:
 
 - `response:read_content(limit?)` returns the whole content. The default bound is 10 MiB
-  (`max_content`). Over it, it raises `http.ContentError`.
+  (`max_content`). Over it, it raises `http.ContentError` with `context.reason = "too_large"`.
 - `response:stream_content()` returns a `ContentStream`. Nothing is buffered beyond one read.
 
 A response whose content is not read holds its connection, and its slot in the pool, until the
@@ -158,7 +158,7 @@ The client keeps connections per [origin](../reference/glossary.md#http) (scheme
   is never repeated.
 
 `client:pool_stats()` reports `idle` and `origins`. `client:close()` closes the idle connections
-and refuses further requests.
+and refuses further requests: a request on a closed client raises `core.StateError`.
 
 ## Redirects
 
@@ -184,6 +184,10 @@ The client follows 301, 302, 303, 307 and 308 with a `Location`, up to 10 times
 | `write_timeout` | 60 s | one write to the server |
 | `request_timeout` | 300 s | the whole request, redirects and content included |
 
+A response content that stalls longer than `content_timeout` raises `http.ContentError` with
+`context.reason = "timeout"`, as the server does for a request content. The other timeouts raise
+`core.DeadlineExceededError`, `request_timeout` included when it expires during the content.
+
 `request_timeout` can be set for one request in its options. A streaming download that legitimately lasts
 longer than five minutes needs a larger value. A request that is cancelled or fails drops its
 connection.
@@ -194,11 +198,13 @@ Errors are core error objects. The ones you will catch:
 
 - `reactor.TransportError`: the connection failed. Its message and `context.attempts` may list
   the addresses a name resolved to. Do not forward them to a peer.
-- `core.DeadlineExceededError`: a timeout expired.
+- `core.DeadlineExceededError`: a timeout expired (all but `content_timeout`).
 - `net.EndOfStreamError`: the server closed before or inside the response.
 - `net.TlsError`: the TLS handshake or verification failed.
 - `http.ParseError`: the response is malformed or over a `parser` limit.
-- `http.ContentError`: the content is over `max_content`.
+- `http.ContentError`: the content is over `max_content` (`context.reason` is `too_large`) or
+  stalled longer than `content_timeout` (`timeout`). It carries no `context.status`: a status is
+  the server's to give. Escaping an action, it becomes a 500.
 - `core.ProtocolError`: a redirect problem or a refused response (101 and upgrades are refused).
 
 > [!WARNING] The client does not filter addresses
@@ -211,6 +217,8 @@ local ok, err = pcall(function() return client:get(url):read_json() end)
 if not ok then
   if core.is_instance_of(err, core.DeadlineExceededError) then
     -- too slow
+  elseif core.is_instance_of(err, http.ContentError) then
+    -- too large or stalled: err.context.reason says which
   elseif core.is_instance_of(err, http.ParseError) or core.is_instance_of(err, core.ProtocolError) then
     -- the server answered something that is not valid, or a redirect went
     -- wrong: err.context.reason says which

@@ -80,7 +80,13 @@ Templates are a subset of RFC 6570 level 1:
 
 When several routes could serve a path, a static segment wins over a parameter with literal text around it
 (the longer text first), that over a plain parameter, and a plain parameter over a wildcard, segment by segment, going back to a lower-precedence branch when the preferred one has no route for the method.
-Matching costs a few table accesses per segment, whatever the number of routes.
+Two parameters with literal text of the same length that can match one segment have no precedence between them:
+`/f/a{x}` and `/f/{y}b` both match `/f/a1b`, so two such routes for one method are refused at boot
+(`ambiguous_route`). `/f/a{x}` and `/f/b{x}` never match the same segment and are accepted.
+
+A static segment costs one table access, whatever the number of routes. The parameters with literal text at one
+position are tried one by one, so their cost grows with their number there, and going back to another branch visits
+at most the part of the tree the path reaches.
 
 ## The request path
 
@@ -129,7 +135,7 @@ listed here with its reason. Only security and major performance reasons justify
 |---|---|---|
 | RFC 6570 levels 2 to 4 | Only level 1 expressions: no `{+path}`, `{/path*}`, `{?query}`, no modifiers. | Matching a request back to a template is not defined by RFC 6570, and the query is not part of the route (`schema` validates it). Level 1 is what a radix tree can match without ambiguity. |
 | Several expressions in one segment | `{a}-{b}` is refused at boot (`mixed_segment`). | The split of `x-y-z` between `a` and `b` is ambiguous, and a matcher that tries them all costs more than a table access per segment (performance). |
-| Wildcard | `{path...}` is the router's own notation, last segment only, one or more segments. | RFC 6570 has no notation to match several segments. The notation is not an RFC 6570 expression. |
+| Wildcard | `{path...}` is the router's own notation, last segment only, one or more non-empty segments. Under `trailing_slash = "strict"` it does not match a path ending with a slash: `/static/a/` ends with an empty segment, which `/static/{path...}` refuses (404 or 405). | RFC 6570 has no notation to match several segments. The notation is not an RFC 6570 expression. An empty segment is refused for the reason of the row "Empty value". |
 | Empty value | `{id}` never matches an empty segment: `/a//b` does not match `/a/{x}/b`, and `/files/.json` binds `name` to nothing, so it does not match `/files/{name}.json`. | RFC 6570 allows an empty expansion. An empty identifier is not a value users expect a route to bind, and an empty segment is a classic way to confuse path checks (security). |
 | Encoded slash in a wildcard | A wildcard refuses a segment whose decoded text holds `/` (404 or 405). A `{id}` accepts it. | RFC 3986 says `%2F` is data. Accepting it in a wildcard lets `..%2F..%2Fsecret` look like a path a file action then trusts (security, hardening that other frameworks apply to their wildcards too). |
 | Unreadable path | A malformed percent sequence or `%00` gives status 400, not 404. | RFC 3986 section 2.1 makes it malformed. NUL truncates strings in C code and filesystems (security). |
@@ -150,7 +156,8 @@ this off, and the answer is then 405). The `Allow` of a 405 lists these automati
 
 ## Mistakes found at boot
 
-`router.Router(routes, options)` compiles once and never changes. It raises `router.RouteTableError`, a
+`router.Router(routes, options)` compiles once and never changes. `routes` is a list with exactly the keys 1..n:
+a map or a list with a hole is an `ArgumentError`. It raises `router.RouteTableError`, a
 `ConfigurationError`, with a stable `context.reason`, the position of the route (`context.index`) and, for conflicts,
 the other route (`context.other_index`):
 
@@ -160,14 +167,14 @@ the other route (`context.other_index`):
 | `invalid_method` | not a token, an empty list, a repeated method |
 | `invalid_template` | a template the grammar refuses (`context.template_reason` says why) |
 | `duplicate_name` | two routes with one name |
-| `ambiguous_route` | two routes that serve the same method for the same paths, for example `/users/{id}` and `/users/{user}` |
+| `ambiguous_route` | two routes that serve the same method for the same paths with no precedence between them, for example `/users/{id}` and `/users/{user}`, or `/f/a{x}` and `/f/{y}b` |
 
 `/users/me` and `/users/{id}` are not ambiguous: the static route has precedence.
 
 ## Reverse routing and introspection
 
 `routes:url_for(name, parameters)` builds the path of a named route. Values are strings or integers and are
-percent-encoded; a wildcard value keeps its `/`. It raises `ArgumentError` for an unknown name, a missing or unknown
+percent-encoded, for a wildcard too; a wildcard string keeps its `/`. It raises `ArgumentError` for an unknown name, a missing or unknown
 parameter, and a value no request path could carry (empty, a NUL byte, or a value that makes the segment `.` or `..`). `routes:routes()` lists the
 declared routes in order and `routes:route(name)` finds one by name, for OpenAPI generation and documentation.
 

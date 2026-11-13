@@ -71,6 +71,8 @@ end
 local function frame(status, content, declared, version)
   local has_declared = declared ~= nil and string.find(declared, "^%d+$") ~= nil
   if status < 200 or status == 204 then return "none" end
+  -- 205: no content, framed by "Content-Length: 0" (RFC 9110, section 15.3.6), whatever the response carries or declares.
+  if status == 205 then return "length", "" end
   if status == 304 then return has_declared and "declared_only" or "none", declared end
   local kind = type(content)
   if kind == "string" then return "length", content end

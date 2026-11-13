@@ -11,6 +11,11 @@ order: 0
 These pages explain how hecate works and why it is designed this way. They do not give recipes:
 the [how-to guides](../how-to/index.md) do.
 
+- [Architecture and layers](architecture-and-layers.md): the packages and their layers, native code, the life of a
+  request and a boot that validates everything.
+- [The object model](object-model.md): classes, traits, interfaces, finalisation, value classes and errors.
+- [The concurrency model](concurrency-model.md): the reactor, transparent suspension, suspension points, structured
+  concurrency and cooperative cancellation.
 - [The transport model](transport-model.md): streams, suspension instead of callbacks,
   back-pressure, half-close, buffering and cancellation.
 - [TLS trust and security defaults](tls-trust-and-security.md): why the operating system's

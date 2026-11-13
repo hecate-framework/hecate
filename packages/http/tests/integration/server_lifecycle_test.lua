@@ -346,6 +346,28 @@ function T:test_a_writer_that_breaks_its_declared_length_closes_the_connection()
   end)
 end
 
+-- Documented in website/en/how-to/before-going-to-production.md (Logging): `on_error` receives the error object itself,
+-- with its context and its causes, whatever they hold.
+function T:test_on_error_receives_the_raw_error_with_its_context_and_causes()
+  local reported = {}
+  local failure = core.Error({ message = "the lookup failed", context = { dsn = "postgresql://app:hunter2@db/app" },
+    cause = core.Error("driver said: password authentication failed for user app") })
+  with_server(self, {
+    action = function() error(failure, 0) end,
+    logger = log.Logger({ sinks = { log.MemorySink() } }),
+    on_error = function(err) reported[#reported + 1] = err end,
+  }, function(port)
+    local client <close> = connect(port)
+    local response = client:request(get("/"))
+    self:assert_equal(500, response.status)
+    self:assert_nil(response.content:find("hunter2", 1, true))
+  end)
+  self:assert_equal(1, #reported)
+  self:assert_true(rawequal(failure, reported[1]))
+  self:assert_equal("postgresql://app:hunter2@db/app", reported[1].context.dsn)
+  self:assert_true(tostring(reported[1]):find("caused by: ", 1, true) ~= nil, tostring(reported[1]))
+end
+
 function T:test_a_table_is_an_error_answered_with_the_generic_500_and_logged()
   -- OQ-76 a: http never serialises; a table reaching the server (set after construction) is a failure of the action, not JSON.
   local sink = log.MemorySink()
@@ -610,6 +632,41 @@ function T:test_shutdown_serves_a_fresh_connection_whose_request_arrives_after_i
     local response = fresh:read_response()
     self:assert_equal(200, response.status)
     self:assert_equal("GET /late", response.content)
+    self:assert_equal("close", response.fields:get("Connection"))
+    stopping:value()
+  end)
+end
+
+function T:test_shutdown_serves_a_first_request_whose_head_had_partly_arrived()
+  with_server(self, { action = text_action }, function(port, server)
+    local partial <close> = connect(port)
+    partial:send("GET /half HTTP/1.1\r\nHo")
+    reactor.sleep(0.05) -- the server read the bytes: the head is pending
+    local stopping = reactor.fork(server.shutdown, server, 5)
+    reactor.sleep(0.05) -- the shutdown started
+    self:assert_true(server:is_stopping())
+    partial:send("st: test\r\n\r\n")
+    local response = partial:read_response()
+    self:assert_not_nil(response, "a connection with a partial head is not closed as idle")
+    self:assert_equal(200, response.status)
+    self:assert_equal("GET /half", response.content)
+    self:assert_equal("close", response.fields:get("Connection"))
+    stopping:value()
+  end)
+end
+
+function T:test_shutdown_serves_a_next_request_whose_head_had_partly_arrived_on_a_keep_alive_connection()
+  with_server(self, { action = text_action }, function(port, server)
+    local client <close> = connect(port)
+    self:assert_equal(200, client:request(get("/first")).status)
+    client:send("GET /second HTTP/1.1\r\nHo")
+    reactor.sleep(0.05)
+    local stopping = reactor.fork(server.shutdown, server, 5)
+    reactor.sleep(0.05)
+    client:send("st: test\r\n\r\n")
+    local response = client:read_response()
+    self:assert_not_nil(response, "a connection with a partial next head is not closed as idle")
+    self:assert_equal("GET /second", response.content)
     self:assert_equal("close", response.fields:get("Connection"))
     stopping:value()
   end)
@@ -890,6 +947,77 @@ function T:test_on_response_marks_a_response_not_sent_completely_as_failed()
   self:assert_equal(200, seen[1].status)
   self:assert_equal(true, seen[1].failed)
   self:assert_equal(false, seen[1].refused)
+end
+
+-- on_request_end ---------------------------------------------------------------------------------------------------
+
+function T:test_on_request_end_runs_once_after_the_content_writer_with_the_request()
+  local trace, ended = {}, {}
+  with_server(self, {
+    action = function(request)
+      request.marker = "mine"
+      return Response(200, { content = function(write) trace[#trace + 1] = "writer"; write("streamed") end })
+    end,
+    on_request_end = function(request) trace[#trace + 1] = "end"; ended[#ended + 1] = request.marker end,
+  }, function(port)
+    local client <close> = connect(port)
+    self:assert_equal("streamed", client:request(get("/s")).content)
+    self:assert_equal(200, client:request(get("/t")).status)
+  end)
+  self:assert_equal("writer,end,writer,end", table.concat(trace, ","))
+  self:assert_equal("mine,mine", table.concat(ended, ","))
+end
+
+function T:test_on_request_end_runs_when_the_request_is_cancelled_and_may_suspend_under_a_shield()
+  local entered = reactor.Semaphore(0)
+  local ended, slept = 0, false
+  with_server(self, {
+    action = function() entered:release(); reactor.sleep(30); return Response(200) end,
+    on_request_end = function()
+      ended = ended + 1
+      reactor.shield(1, function() reactor.sleep(0.01); slept = true end)
+    end,
+  }, function(port, server)
+    local client <close> = connect(port)
+    client:send(get("/"))
+    entered:acquire()
+    server:shutdown(0.05)
+  end)
+  self:assert_equal(1, ended)
+  self:assert_true(slept, "the hook ran its shielded cleanup in a cancelled request")
+end
+
+function T:test_on_request_end_is_not_called_for_a_request_refused_before_any_action_and_survives_an_error()
+  local ended = 0
+  with_server(self, {
+    action = text_action,
+    on_request_end = function() ended = ended + 1; error("hook failure") end,
+  }, function(port)
+    local refused <close> = connect(port)
+    refused:send("GET / HTTP/1.1\r\n\r\n") -- no Host field: 400, no action
+    refused:read_response()
+    local client <close> = connect(port)
+    self:assert_equal(200, client:request(get("/a")).status)
+    self:assert_equal(200, client:request(get("/b")).status, "an error of the hook does not end the connection")
+  end)
+  self:assert_equal(2, ended)
+end
+
+function T:test_serving_twice_is_a_state_error()
+  with_server(self, { action = text_action }, function(_, server)
+    for _ = 1, 2000 do -- the serve forked by `with_server` starts at its first turn (bounded poll)
+      if server._serving then break end ---@diagnostic disable-line: invisible
+      reactor.sleep(0.001)
+    end
+    local err = self:assert_error(function() server:serve() end)
+    self:assert_true(core.is_instance_of(err, core.StateError), tostring(err))
+    self:assert_true(err.message:find("already serving", 1, true) ~= nil, err.message)
+  end)
+end
+
+function T:test_on_request_end_must_be_a_function()
+  local err = self:assert_error(function() Server(text_action, { on_request_end = "x" }) end)
+  self:assert_true(core.is_instance_of(err, core.ArgumentError), tostring(err))
 end
 
 --- Whether `needle` appears in any string of `value`, its keys and nested tables included.

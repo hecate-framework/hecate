@@ -21,6 +21,7 @@ global <const> require, type, error, pcall, tostring, tonumber, math, table, ipa
 local core = require("hecate.core")
 local reactor = require("hecate.reactor")
 local log = require("hecate.log")
+local http = require("hecate.http")
 local listening = require("hecate.kernel.listening")
 local errors = require("hecate.kernel.errors")
 
@@ -47,13 +48,19 @@ local function is_duration(seconds)
   return type(seconds) == "number" and seconds == seconds and seconds >= 0 and seconds < math.huge
 end
 
---- Tells whether a text looks like an IP literal (IPv4 or IPv6, hexadecimal digits, colons and dots) or like a host name
---- (letters, digits, hyphens and dots, at most 253 characters): no space, no other character. Does not resolve anything.
+--- Tells whether a text looks like an IP literal (IPv4 or IPv6, hexadecimal digits, colons and dots; an IPv6 literal may
+--- end with a zone id, `%` then letters, digits, `.`, `-` or `_`, as `fe80::1%eth0`, RFC 4007 section 11) or like a
+--- host name (letters, digits, hyphens and dots, at most 253 characters): no space, no other character. Does not
+--- resolve anything.
 ---@param host any
 ---@return boolean
 local function is_host(host)
   if type(host) ~= "string" or host == "" or #host > 253 then return false end
-  if host:find(":", 1, true) then return host:match("^[%x:%.]+$") ~= nil end
+  if host:find(":", 1, true) then
+    local address, zone = host:match("^([%x:%.]+)%%([%w%.%-_]+)$")
+    if address ~= nil then return zone ~= nil end
+    return host:match("^[%x:%.]+$") ~= nil
+  end
   return host:match("^[%w][%w%.%-]*$") ~= nil
 end
 
@@ -78,12 +85,12 @@ end
 ---@field endpoint hecate.kernel.Endpoint  where the application listens
 ---@field strategy? hecate.kernel.ListeningStrategy  default `listening.select("auto")`
 ---@field env? table<string, string>  variables added to the environment of each worker
----@field logger? hecate.log.Logger  receives worker exits, restarts and the crash loop
+---@field logger? hecate.log.Logger  receives worker exits, restarts and the crash loop (default `log.default()` at the time of each record, OQ-79); also given to the strategy chosen by default
 ---@field restart_delay? number  seconds before the first restart of a worker (default 0.1), doubled at each crash in the crash window, at most 10 s
 ---@field crash_limit? integer  crashes within `crash_window` that stop the supervisor (default 5)
 ---@field crash_window? number  seconds (default 60)
 ---@field ready_timeout? number  seconds a started worker (first start or restart) may take to send `ready` (default 30); past it the worker is killed, logged `worker_not_ready` at `error` and counted as a crash; a reload has its own `ready_timeout`
----@field on_crash_loop? "stop"|"degrade"  what a crash loop does: `stop` (default) ends `run` with a `SupervisorError`; `degrade` keeps restarting the workers at the maximum backoff (10 s), logs `crash_loop` at `error` once per crash window, and never ends `run` by itself
+---@field on_crash_loop? "stop"|"degrade"  what a crash loop does: `stop` (default) ends `run` with a `SupervisorError`; `degrade` keeps restarting the workers at the maximum backoff (10 s), logs `crash_loop` at `error` once per crash window, and never ends `run` by itself; in `degrade` mode a restart that cannot start the program is logged `worker_start_failed` at `warning`, counted as a crash and retried (the first start of a worker that fails still ends `run` with `start_failed`)
 
 --- The supervisor of the workers, in the primary.
 ---@class hecate.kernel.Supervisor
@@ -158,7 +165,7 @@ end
 ---@param message string
 ---@param fields table
 local function note(self, severity, message, fields)
-  if self._logger ~= nil then self._logger:log(severity, "kernel.Supervisor: " .. message, fields) end
+  (self._logger or log.default()):log(severity, "kernel.Supervisor: " .. message, fields) -- never lost (OQ-79)
 end
 
 --- Asks `run` to stop, with `grace` seconds; only the first request counts. Never suspends.
@@ -216,6 +223,8 @@ end
 ---@field held hecate.reactor.TcpStream[]  streams written to it that it has not acknowledged with `received` yet, oldest first (`held_first` is the index of the oldest)
 ---@field held_first integer
 ---@field held_last integer
+---@field held_count integer  the streams held (written, not acknowledged): the ring skips the worker once it reaches `capacity`
+---@field capacity integer  the hand-over queue of the worker (its backlog): the most connections held for it at once
 ---@field pump hecate.reactor.Future?  while a reload retires the old worker, the computation that reads the messages of this replacement; `supervise` cancels it and takes over
 ---@field done hecate.reactor.Channel  closed once it has exited
 
@@ -239,23 +248,35 @@ local function start_worker(self, slot)
   if not started then return nil, process end
   self._started = self._started + 1
   local peer = process.ipc --[[@as hecate.reactor.Peer]]
+  -- The worker queues at most its backlog of connections (`HandOverListener`); the primary holds at most as many
+  -- unacknowledged ones for it, so that a worker that stops reading its message pipe is skipped by the ring instead of
+  -- stalling the hand-over loop of every worker on a full pipe (back-pressure from the `received` acknowledgements).
+  local backlog = self._options.endpoint.backlog
+  local capacity = math.max(1, math.min(65535, math.tointeger(backlog) or http.Server.DEFAULTS.backlog))
   local gen = {
     process = process, peer = peer, ready = false, planned = false, finished = false, done = reactor.Channel(0), handed = 0,
-    held = {}, held_first = 1, held_last = 0,
+    held = {}, held_first = 1, held_last = 0, held_count = 0, capacity = capacity,
   }
   -- The stream stays open in the primary until the worker answers `received` (or the worker is gone): a stream in flight
   -- in a message pipe is held by no process, and macOS discards it when another Unix socket closes (OQ-118). It is
   -- recorded before the write so that a fast `received` always finds it; a failed write takes it back.
-  gen.target = { hand_over = function(_, stream)
-    local index = gen.held_last + 1
-    gen.held_last, gen.held[index] = index, stream
-    local sent, err = pcall(peer.send, peer, "connection", stream, { keep_open = true })
-    if not sent then
-      if gen.held[index] == stream then gen.held[index] = false end -- the position stays (later entries are ahead of it)
-      error(err, 0)
-    end
-    gen.handed = gen.handed + 1
-  end }
+  gen.target = {
+    hand_over = function(_, stream)
+      local index = gen.held_last + 1
+      gen.held_last, gen.held[index] = index, stream
+      gen.held_count = gen.held_count + 1
+      local sent, err = pcall(peer.send, peer, "connection", stream, { keep_open = true })
+      if not sent then
+        if gen.held[index] == stream then -- the position stays (later entries are ahead of it)
+          gen.held[index] = false
+          gen.held_count = gen.held_count - 1
+        end
+        error(err, 0)
+      end
+      gen.handed = gen.handed + 1
+    end,
+    saturated = function() return gen.held_count >= gen.capacity end,
+  }
   return gen
 end
 
@@ -268,6 +289,7 @@ local function release_oldest(gen)
     local stream = gen.held[index]
     gen.held[index], gen.held_first = nil, index + 1
     if stream then
+      gen.held_count = gen.held_count - 1
       pcall(stream.close, stream)
       return
     end
@@ -294,9 +316,52 @@ local function on_message(self, gen, message, stream)
     if not self._stopping then self._ring:add(gen.target) end
   elseif message == "received" then
     release_oldest(gen)
+    self._ring:acknowledged() -- the worker may take one more: a hand-over loop paused on saturation resumes (OQ-127 (2))
   elseif message:sub(1, 9) == "counters " then
     gen.counters = parse_counters(message) or gen.counters -- a malformed message changes nothing
   end
+end
+
+--- Records a crash (an exit, or a restart that could not start) and returns the delay before the next start, or nil
+--- when the crash-loop limit is reached in `stop` mode (the supervisor then stops: `_failure` is set). In `degrade` mode
+--- the limit gives the maximum backoff and logs `crash_loop` once per crash window.
+---@param self hecate.kernel.Supervisor
+---@return number?
+local function after_crash(self)
+  local delay = crash_delay(self)
+  if delay == nil and self._options.on_crash_loop == "degrade" then
+    -- Degraded mode: the limit is reached, the supervisor keeps trying at the slowest pace and says so once per window.
+    delay = MAX_BACKOFF
+    local now, window = reactor.now(), self._options.crash_window or 60
+    if self._crash_loop_logged == nil or now - self._crash_loop_logged >= window then
+      self._crash_loop_logged = now
+      note(self, "error", "crash loop: restarting the workers at the maximum backoff", { code = "crash_loop", delay = delay })
+    end
+  end
+  if delay == nil then
+    self._failure = self._failure or errors.SupervisorError(
+      "hecate.kernel.supervisor.run: workers keep exiting (crash loop); stopping", { context = { reason = "crash_loop" } })
+    note(self, "error", "crash loop: stopping every worker", { code = "crash_loop" })
+    request_stop(self, 0)
+  end
+  return delay
+end
+
+--- Sleeps `delay` seconds before a restart of `slot`; false when the sleep was cancelled by a stop.
+---@async
+---@param self hecate.kernel.Supervisor
+---@param slot hecate.kernel.WorkerSlot
+---@param delay number
+---@return boolean
+local function wait_restart(self, slot, delay)
+  slot.waiting = true
+  local slept, err = pcall(reactor.sleep, delay)
+  slot.waiting = false
+  if not slept then
+    if self._stopping then return false end
+    error(err, 0)
+  end
+  return true
 end
 
 --- Runs one worker slot: starts the worker, reads its messages until its message pipe ends, waits for it, and
@@ -308,11 +373,21 @@ end
 ---@param slot hecate.kernel.WorkerSlot
 local function supervise(self, slot)
   local gen ---@type hecate.kernel.WorkerGeneration?
+  local restarting = false -- a worker of this slot has run: a start is a restart
   while true do
-    if gen == nil then
+    while gen == nil do
       if self._stopping then return end
       local spawned, reason = start_worker(self, slot)
-      if spawned == nil then
+      if spawned == nil and restarting and self._options.on_crash_loop == "degrade" then
+        -- In degraded mode a restart that cannot start (descriptors or memory exhausted for a while) is a crash like an
+        -- exit: counted, retried with the backoff. The first start of a slot is not: a program that cannot start at
+        -- all is a boot error.
+        note(self, "warning", "a worker could not be restarted; retrying", {
+          code = "worker_start_failed", worker = slot.index, reason = tostring(reason),
+        })
+        local delay = after_crash(self)
+        if delay == nil or not wait_restart(self, slot, delay) then return end
+      elseif spawned == nil then
         self._failure = self._failure or errors.SupervisorError(("hecate.kernel.supervisor.run: cannot start a worker: %s"):format(tostring(reason)),
           { context = { reason = "start_failed" } })
         request_stop(self, 0)
@@ -320,16 +395,20 @@ local function supervise(self, slot)
       end
       gen = spawned
     end
+    ---@cast gen hecate.kernel.WorkerGeneration
+    restarting = true
     slot.gen = gen
     local peer = gen.peer
-    -- A worker that does not say `ready` in time is killed; the loop below then sees its message pipe end and counts a crash.
+    -- A worker that does not say `ready` in time is killed; the loop below then sees its message pipe end and counts a
+    -- crash. The watchdog ends as soon as `ready` arrives: a reload that retires the worker later clears `gen.ready`,
+    -- and the worker then drains under the grace period of the reload, never under this timeout.
     reactor.scope(function(scope)
       local watchdog
       if not gen.ready then
         local timeout = self._options.ready_timeout or 30
         watchdog = scope:fork(function()
           reactor.sleep(timeout)
-          if not gen.ready and not gen.finished and not self._stopping and gen.process:is_running() then
+          if not gen.ready and not gen.planned and not gen.finished and not self._stopping and gen.process:is_running() then
             note(self, "error", "a worker was not ready in time; killing it", {
               code = "worker_not_ready", worker = slot.index, pid = gen.process.pid, ready_timeout = timeout,
             })
@@ -341,6 +420,10 @@ local function supervise(self, slot)
         local ok, message, stream = pcall(peer.receive, peer)
         if not ok or message == nil then break end
         on_message(self, gen, message, stream)
+        if watchdog ~= nil and gen.ready then
+          watchdog:cancel()
+          watchdog = nil
+        end
       end
       if watchdog ~= nil then watchdog:cancel() end
     end)
@@ -375,33 +458,11 @@ local function supervise(self, slot)
       local exited = gen
       gen = nil
       if self._stopping then return end
-      local delay = crash_delay(self)
       note(self, "warning", "a worker exited; restarting it", {
         code = "worker_exited", worker = slot.index, pid = exited.process.pid, exit_code = status.code, signal = status.signal,
       })
-      if delay == nil and self._options.on_crash_loop == "degrade" then
-        -- Degraded mode: the limit is reached, the supervisor keeps trying at the slowest pace and says so once per window.
-        delay = MAX_BACKOFF
-        local now, window = reactor.now(), self._options.crash_window or 60
-        if self._crash_loop_logged == nil or now - self._crash_loop_logged >= window then
-          self._crash_loop_logged = now
-          note(self, "error", "crash loop: restarting the workers at the maximum backoff", { code = "crash_loop", delay = delay })
-        end
-      end
-      if delay == nil then
-        self._failure = self._failure or errors.SupervisorError(
-          "hecate.kernel.supervisor.run: workers keep exiting (crash loop); stopping", { context = { reason = "crash_loop" } })
-        note(self, "error", "crash loop: stopping every worker", { code = "crash_loop" })
-        request_stop(self, 0)
-        return
-      end
-      slot.waiting = true
-      local slept, err = pcall(reactor.sleep, delay)
-      slot.waiting = false
-      if not slept then
-        if self._stopping then return end
-        error(err, 0)
-      end
+      local delay = after_crash(self)
+      if delay == nil or not wait_restart(self, slot, delay) then return end
     end
   end
 end
@@ -467,7 +528,8 @@ end
 --- `stop`. Returns once every worker has exited.
 ---
 --- Raises `hecate.kernel.SupervisorError` (`context.reason`: `crash_loop` when workers kept exiting, `start_failed`
---- when the program cannot be started, `already_run`), and what the strategy's `prepare` raises.
+--- when the program cannot be started (in `degrade` mode, only at the first start of a worker: a restart that cannot
+--- start is a crash, retried), `already_run`), and what the strategy's `prepare` raises.
 ---@async
 function Supervisor:run()
   if self._state ~= "new" then
@@ -762,14 +824,29 @@ supervisor.Supervisor = Supervisor
 ---@field index integer  the worker's number, from 1
 ---@field strategy string  `round_robin` or `reuseport`
 ---@field endpoint hecate.kernel.Endpoint  for `round_robin`, the primary's listening address
----@overload fun(peer: hecate.reactor.Peer, environment: table<string, string?>): hecate.kernel.WorkerRole
+---@overload fun(peer: hecate.reactor.Peer, environment: table<string, string?>, options?: hecate.kernel.WorkerRoleOptions): hecate.kernel.WorkerRole
 local WorkerRole = core.class("WorkerRole")
 
+--- Options of `WorkerRole` and `supervisor.worker_role`.
+---@class hecate.kernel.WorkerRoleOptions
+---@field logger? hecate.log.Logger  receives what the worker side logs (`control_failed`, `hand_over_queue_full`, `hand_over_discarded`); default `log.default()` at the time of each record
+
 --- Prefer `supervisor.worker_role()`.
+---
+--- Raises `hecate.core.ArgumentError` for a malformed environment or option.
 ---@param peer hecate.reactor.Peer
 ---@param environment table<string, string?>  the `HECATE_WORKER_*` variables
+---@param options? hecate.kernel.WorkerRoleOptions
 ---@private
-function WorkerRole:init(peer, environment)
+function WorkerRole:init(peer, environment, options)
+  if options ~= nil and type(options) ~= "table" then
+    error(core.ArgumentError("hecate.kernel.supervisor.worker_role: options must be a table { logger? }, got " .. type(options)), 2)
+  end
+  local logger = options and options.logger
+  if logger ~= nil and (type(logger) ~= "table" or type(logger.log) ~= "function") then
+    error(core.ArgumentError("hecate.kernel.supervisor.worker_role: logger must be a hecate.log.Logger, got " .. type(logger)), 2)
+  end
+  self._logger = logger
   local strategy = environment[ENV.strategy]
   if strategy ~= "round_robin" and strategy ~= "reuseport" then
     error(core.ArgumentError(("hecate.kernel.supervisor.worker_role: unknown strategy %q (valid: reuseport, round_robin)"):format(tostring(strategy))), 2)
@@ -853,7 +930,7 @@ function WorkerRole:control(on_stop, default_grace)
           return
         end
         -- A broken or violated message pipe ends the worker like the end of the pipe; the handles still in it are lost.
-        log.default():error("kernel.WorkerRole: the message pipe to the primary failed; the worker stops",
+        (self._logger or log.default()):log("error", "kernel.WorkerRole: the message pipe to the primary failed; the worker stops",
           { code = "control_failed", worker = self.index, reason = tostring(message) })
         break
       end
@@ -862,7 +939,7 @@ function WorkerRole:control(on_stop, default_grace)
         local queued, reason = self._hand_over:push(stream)
         if not queued and reason == "full" then
           -- The client sees its connection closed; the primary is told only that the stream was taken out of the frame.
-          log.default():warning("kernel.WorkerRole: the hand-over queue is full; connection closed",
+          (self._logger or log.default()):log("warning", "kernel.WorkerRole: the hand-over queue is full; connection closed",
             { code = "hand_over_queue_full", worker = self.index, capacity = self._hand_over:capacity() })
         end
         -- Whatever became of the stream, the primary may now close its copy (it holds it until this message).
@@ -887,7 +964,7 @@ function WorkerRole:control(on_stop, default_grace)
     stopped, failure = pcall(on_stop, grace)
     local discarded = self._hand_over:close()
     if discarded > 0 then
-      log.default():warning("kernel.WorkerRole: connections still queued at the stop were closed unserved",
+      (self._logger or log.default()):log("warning", "kernel.WorkerRole: connections still queued at the stop were closed unserved",
         { code = "hand_over_discarded", worker = self.index, count = discarded })
     end
     wake:close()
@@ -927,8 +1004,9 @@ function WorkerRole:report_counters(interval)
 end
 
 --- Serves `server` as a worker: binds the listener, tells the primary it is ready, serves until `stop` or the end of
---- the message pipe, which shut the server down gracefully. Returns when the server has stopped; closes the message
---- pipe.
+--- the message pipe, which shut the server down gracefully: the connections already handed over are taken first (at
+--- most 1 s), then the server drains for what is left of the grace period. Returns when the server has stopped; closes
+--- the message pipe.
 ---
 --- Raises what `hecate.http.Server:serve` raises.
 ---@async
@@ -938,9 +1016,12 @@ function WorkerRole:serve(server, default_grace)
   local listener = self:listener()
   local ok, err = pcall(reactor.scope, function(scope)
     local control = scope:fork(self.control, self, function(grace)
-      -- The connections handed over before the `stop` message are served first (a rolling reload loses none).
+      -- The connections handed over before the `stop` message are served first (a rolling reload loses none). The
+      -- drain counts in the grace period: the server gets what is left of it, so that the worker ends before the
+      -- primary kills it (at grace + 1 s).
+      local began = reactor.now()
       if listener.drain ~= nil then (listener --[[@as hecate.kernel.HandOverListener]]):drain(math.min(grace, 1)) end
-      server:shutdown(grace)
+      server:shutdown(math.max(0, grace - (reactor.now() - began)))
     end, default_grace or 30)
     local reporter = scope:fork(self.report_counters, self, 1)
     self._peer:send("ready")
@@ -962,14 +1043,17 @@ supervisor.WorkerRole = WorkerRole
 
 --- The worker role of this process, or nil when it was not started by a `Supervisor` (no message pipe to a primary, or
 --- no `HECATE_WORKER_STRATEGY`). Does not suspend.
+---
+--- Raises `hecate.core.ArgumentError` for a malformed worker environment or option.
+---@param options? hecate.kernel.WorkerRoleOptions  `logger`: where the worker side logs (`Application` gives its own)
 ---@return hecate.kernel.WorkerRole?
-function supervisor.worker_role()
+function supervisor.worker_role(options)
   if os.getenv(ENV.strategy) == nil then return nil end
   local peer = reactor.ipc.parent()
   if peer == nil then return nil end
   local environment = {}
   for _, name in pairs(ENV) do environment[name] = os.getenv(name) end
-  return WorkerRole(peer, environment)
+  return WorkerRole(peer, environment, options)
 end
 
 return supervisor

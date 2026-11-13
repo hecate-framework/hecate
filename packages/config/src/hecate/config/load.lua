@@ -16,11 +16,11 @@ local OPTIONS = {
 }
 
 ---@class hecate.config.LoadOptions
----@field properties table<string, hecate.schema.Schema>  the keys of the application (`logging` and `limits` are declared by `config`)
+---@field properties table<string, hecate.schema.Schema>  the keys of the application (`logging`, `limits`, `errors`, `requests` and `server` are declared by `config`; a name contains no `.`)
 ---@field environment? string  name of the environment (default: the variable `<PREFIX>_ENV`, else `production`)
 ---@field directory? string  directory of the files (default `config`)
 ---@field env_prefix? string  prefix of the environment variables (default `HECATE`)
----@field secrets? string[]  dotted paths of the leaves whose values are secrets
+---@field secrets? string[]  dotted paths of the leaves whose values are secrets (a list: keys 1 to n)
 ---@field secrets_directory? string  directory of secret files named like the environment variables
 ---@field wrap_secret? fun(value: any): any  wraps a secret value (default: `hecate.log.Secret` when loaded, else `hecate.config.Secret`)
 ---@field getenv? fun(name: string): string?  reads a variable (default `os.getenv`)
@@ -44,11 +44,15 @@ local function check_options(options)
   end
   if options.properties == nil then refuse("option properties is required") end
   declaration.check_properties(options.properties)
-  if options.env_prefix ~= nil and not options.env_prefix:find("^%u[%u%d_]*$") then
+  if options.env_prefix ~= nil and not options.env_prefix:find(declaration.PREFIX_PATTERN) then
     refuse("option env_prefix must be upper case letters, digits and underscores, starting with a letter, got " .. options.env_prefix)
   end
   if options.environment ~= nil and not options.environment:find("^[a-z][a-z0-9_]*$") then
     refuse("option environment must match [a-z][a-z0-9_]*, got " .. options.environment)
+  end
+  -- A map or a list with any other key would be read by `ipairs` in part only, leaving keys unprotected.
+  if options.secrets ~= nil and not declaration.is_sequence(options.secrets) then
+    refuse("option secrets must be a list of dotted paths (keys 1 to n), not a map")
   end
   for _, path in ipairs(options.secrets or {}) do
     if type(path) ~= "string" then refuse("option secrets must be a list of dotted paths") end
@@ -105,6 +109,81 @@ end
 
 local function is_list(value)
   return value[1] ~= nil
+end
+
+local function unescape(segment)
+  return (segment:gsub("~1", "/"):gsub("~0", "~"))
+end
+
+--- The dotted path of a JSON Pointer (`/database/port` gives `database.port`; the root gives the empty string).
+local function dotted_of(pointer)
+  local parts = {}
+  for segment in pointer:gmatch("/([^/]*)") do parts[#parts + 1] = unescape(segment) end
+  return table.concat(parts, ".")
+end
+
+--- The shape of the keys of a table of a file: `"array"` (keys exactly 1 to n, n at least 1) or `"object"` (anything
+--- else, the empty table included), and the keys that do not fit, each `{ key, message }`, sorted.
+local function shape_of(value)
+  local strings, integers, others = 0, {}, {}
+  for key in pairs(value) do
+    if type(key) == "string" then
+      strings = strings + 1
+    elseif math.type(key) == "integer" and key >= 1 then
+      integers[#integers + 1] = key
+    else
+      others[#others + 1] = key
+    end
+  end
+  table.sort(integers)
+  local offending = {}
+  for _, key in ipairs(others) do
+    offending[#offending + 1] = { key = key, message = ("a key must be a string or an array index, got %s %s"):format(
+      math.type(key) or type(key), tostring(key)) }
+  end
+  if #integers > 0 and strings > 0 then
+    -- named keys and items: neither an object nor an array; reported once, at the first item
+    offending[#offending + 1] = { key = integers[1],
+      message = "the table mixes array items and named keys (an object has named keys only, an array items only)" }
+  elseif #integers > 0 and #others == 0 then
+    for position, key in ipairs(integers) do
+      if key ~= position then
+        offending[#offending + 1] = { key = key, message = ("the items of an array must be numbered from 1 without a hole, item %d is missing"):format(position) }
+        break
+      end
+    end
+  end
+  table.sort(offending, function(a, b) return tostring(a.key) < tostring(b.key) end)
+  local is_array = #integers > 0 and strings == 0 and #others == 0 and #offending == 0
+  return is_array and "array" or "object", offending
+end
+
+--- Deep copy of the table returned by a file, without the keys that no schema can read: a non-string key of an object,
+--- an item of a table that also has named keys, an item after a hole. Each is a violation of code `type` at that key,
+--- with the file as source (the schema would only see a table of the wrong type at the parent).
+local function checked_copy(value, segments, depth, where, problems)
+  if type(value) ~= "table" then return value end
+  if depth > MERGE_DEPTH then
+    error(configuration_error(where .. " is nested deeper than " .. MERGE_DEPTH .. " levels (or contains a cycle)", { file = where }), 0)
+  end
+  local shape, offending = shape_of(value)
+  local dropped = {}
+  for _, entry in ipairs(offending) do
+    dropped[entry.key] = true
+    segments[#segments + 1] = tostring(entry.key)
+    local pointer = pointer_of(segments)
+    problems[#problems + 1] = { path = dotted_of(pointer), pointer = pointer, code = "type", message = entry.message, source = where }
+    segments[#segments] = nil
+  end
+  local result = {}
+  for key, item in pairs(value) do
+    if not dropped[key] and (shape == "array" or type(key) == "string") then
+      segments[#segments + 1] = tostring(key)
+      result[key] = checked_copy(item, segments, depth + 1, where, problems)
+      segments[#segments] = nil
+    end
+  end
+  return result
 end
 
 --- Merges `layer` into `target` (configuration.md, "Merging"), recording the origin of every key in `sources`.
@@ -190,17 +269,6 @@ end
 local function by_path(a, b)
   if a.pointer ~= b.pointer then return a.pointer < b.pointer end
   return a.code < b.code
-end
-
-local function unescape(segment)
-  return (segment:gsub("~1", "/"):gsub("~0", "~"))
-end
-
---- The dotted path of a JSON Pointer (`/database/port` gives `database.port`; the root gives the empty string).
-local function dotted_of(pointer)
-  local parts = {}
-  for segment in pointer:gmatch("/([^/]*)") do parts[#parts + 1] = unescape(segment) end
-  return table.concat(parts, ".")
 end
 
 --- Whether the pointer is a secret key or a part of one.
@@ -311,7 +379,7 @@ return function(options)
       if missing and not required then return end
       error(configuration_error(("cannot read %s: %s"):format(path, tostring(message)), { file = path }), 0)
     end
-    merge(merged, evaluate(path, strip_bom(text)), {}, path, sources, 1, path)
+    merge(merged, checked_copy(evaluate(path, strip_bom(text)), {}, 1, path, problems), {}, path, sources, 1, path)
   end
   layer_file("default.lua", false)
   layer_file(environment .. ".lua", explicit)
@@ -383,6 +451,13 @@ return function(options)
       if node ~= nil then
         set_path(merged, leaf.node.segments, copy(node, 1, leaf.path))
         sources[pointer_of(leaf.node.segments)] = source_of[leaf.path]
+        -- An ancestor that no earlier layer supplied was created here: it names this layer, not `schema default`.
+        local ancestor = {}
+        for i = 1, #leaf.node.segments - 1 do
+          ancestor[i] = leaf.node.segments[i]
+          local pointer = pointer_of(ancestor)
+          if sources[pointer] == nil then sources[pointer] = source_of[leaf.path] end
+        end
       end
     end
   end

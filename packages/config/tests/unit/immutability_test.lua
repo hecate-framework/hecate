@@ -1,4 +1,4 @@
----@diagnostic disable: need-check-nil, param-type-mismatch, undefined-field, inject-field
+---@diagnostic disable: need-check-nil, param-type-mismatch, undefined-field, inject-field, redundant-parameter
 -- The configuration is immutable after boot (invariant) and typed access (configuration.md, "Immutability and typed access").
 local test = require("harness.test")
 local core = require("hecate.core")
@@ -125,6 +125,46 @@ function T:test_configuration_object_has_no_setters()
   local configuration = fixture.load({})
   self:assert_nil(configuration.set)
   self:assert_nil(configuration.put)
+end
+
+-- Invariant "configuration is immutable after boot": the `Configuration` object itself, not only its values.
+function T:test_the_configuration_object_refuses_writes_to_methods_and_fields()
+  local configuration = fixture.load({})
+  write_fails(self, function() configuration.get = function() return "forged" end end)
+  write_fails(self, function() configuration._root = {} end)
+  write_fails(self, function() configuration._sources = {} end)
+  write_fails(self, function() configuration.anything = 1 end)
+  self:assert_equal(5432, configuration:get("database.port"))
+  self:assert_equal("schema default", configuration:source("database.port"))
+end
+
+function T:test_the_internals_of_the_configuration_are_out_of_reach()
+  local configuration = fixture.load({})
+  for _, name in ipairs({ "_root", "_index", "_sources", "_environment" }) do
+    self:assert_nil(configuration[name], name)
+  end
+  local count = 0
+  for _ in pairs(configuration) do count = count + 1 end
+  self:assert_equal(0, count)
+  self:assert_true(core.is_instance_of(configuration, require("hecate.config").Configuration))
+end
+
+function T:test_two_configurations_are_distinct_objects()
+  local first, second = fixture.load({}), fixture.load({})
+  self:assert_true(first == first)
+  self:assert_false(first == second)
+end
+
+function T:test_malformed_paths_are_argument_errors()
+  local configuration = fixture.load({})
+  for _, path in ipairs({ ".", "..", ".database", "database.", "database..port", "database.port." }) do
+    for _, method in ipairs({ "get", "source" }) do
+      local ok, err = pcall(configuration[method], configuration, path)
+      self:assert_false(ok, method .. " " .. path)
+      self:assert_true(core.is_instance_of(err, core.ArgumentError), tostring(err))
+      self:assert_true(tostring(err):find("malformed", 1, true) ~= nil, tostring(err))
+    end
+  end
 end
 
 return T

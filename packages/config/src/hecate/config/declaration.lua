@@ -1,6 +1,6 @@
 -- The keys that every configuration has (`logging`, `limits`, `errors`, `requests`, `server`) and the walk of a schema that derives environment
 -- variables and checks paths (configuration.md, "Logging keys", "The limit on nesting depth", "Environment variables").
-global <const> require, type, pairs, ipairs, table, string, getmetatable, error
+global <const> require, type, pairs, ipairs, table, string, getmetatable, error, math
 
 local core = require("hecate.core")
 local schema = require("hecate.schema")
@@ -18,6 +18,36 @@ M.SEVERITIES = { "emergency", "alert", "critical", "error", "warning", "notice",
 M.MAX_DEPTH_CEILING = 1000
 
 local FRAMEWORK = { logging = true, limits = true, errors = true, requests = true, server = true }
+
+--- The pattern of a prefix of environment variables (the `env_prefix` option).
+M.PREFIX_PATTERN = "^%u[%u%d_]*$"
+
+--- Whether `value` is a plain table whose keys are exactly the integers 1 to n (n may be 0): a list that `ipairs` reads
+--- whole. A map, or a list with a hole or with any other key, is not.
+---@param value any
+---@return boolean
+function M.is_sequence(value)
+  if type(value) ~= "table" or getmetatable(value) ~= nil then return false end
+  local count = 0
+  for key in pairs(value) do
+    if math.type(key) ~= "integer" or key < 1 then return false end
+    count = count + 1
+  end
+  for index = 1, count do
+    if value[index] == nil then return false end
+  end
+  return true
+end
+
+--- Why a property name cannot be declared, or nil when it can: a name is a non-empty string without a dot, because a
+--- dot separates the segments of a path (`get`, `source`, the `secrets` option) and a dotted name could never be read.
+---@param name any
+---@return string? reason
+local function name_problem(name)
+  if type(name) ~= "string" or name == "" then return "property names must be non-empty strings" end
+  if name:find(".", 1, true) then return ("property name %q cannot contain '.' (a dot separates the segments of a path)"):format(name) end
+  return nil
+end
 
 --- The framework properties declared by every configuration.
 ---@return table<string, hecate.schema.Schema>
@@ -66,9 +96,8 @@ function M.check_properties(properties)
     error(core.ArgumentError("config.load: option properties must be a table of schemas, got " .. type(properties)), 3)
   end
   for name, property in pairs(properties) do
-    if type(name) ~= "string" or name == "" then
-      error(core.ArgumentError("config.load: option properties: property names must be non-empty strings"), 3)
-    end
+    local problem = name_problem(name)
+    if problem ~= nil then error(core.ArgumentError("config.load: option properties: " .. problem), 3) end
     if FRAMEWORK[name] then
       error(core.ArgumentError(("config.load: option properties: %s is a key of the framework and cannot be declared"):format(name)), 3)
     end
@@ -115,6 +144,11 @@ local function walk(s, segments, depth)
     end
     local children = {}
     for name, property in pairs(inner.properties) do
+      local problem = name_problem(name)
+      if problem ~= nil then
+        error(core.ArgumentError(("config.load: option properties: %s: %s"):format(table.concat(segments, "."), problem),
+          { context = { path = table.concat(segments, ".") } }), 0)
+      end
       local path = { table.unpack(segments) }
       path[#path + 1] = name
       children[name] = walk(property, path, depth + 1)
@@ -146,6 +180,24 @@ function M.each_leaf(node, fn)
   for name in pairs(node.children) do names[#names + 1] = name end
   table.sort(names)
   for _, name in ipairs(names) do M.each_leaf(node.children[name], fn) end
+end
+
+--- Checks the arguments of `config.variable_name`: a prefix like the `env_prefix` option and a non-empty list of
+--- non-empty strings.
+---@param prefix any
+---@param segments any
+function M.check_variable_arguments(prefix, segments)
+  if type(prefix) ~= "string" or not prefix:find(M.PREFIX_PATTERN) then
+    error(core.ArgumentError(("config.variable_name: prefix must be upper case letters, digits and underscores, starting with a letter, got %s"):format(
+      type(prefix) == "string" and ("%q"):format(prefix) or type(prefix))), 3)
+  end
+  local valid = M.is_sequence(segments) and #segments > 0
+  for _, segment in ipairs(valid and segments or {}) do
+    if type(segment) ~= "string" or segment == "" then valid = false end
+  end
+  if not valid then
+    error(core.ArgumentError("config.variable_name: segments must be a non-empty list of non-empty strings"), 3)
+  end
 end
 
 --- The name of the environment variable of a path (configuration.md, "Environment variables").

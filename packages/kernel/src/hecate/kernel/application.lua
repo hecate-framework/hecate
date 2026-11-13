@@ -43,9 +43,9 @@ end
 ---@field expose_details? boolean  see `hecate.kernel.DispatcherOptions`
 ---@field inputs? "lax"|"strict"  see `hecate.kernel.DispatcherOptions`
 ---@field validate_responses? boolean  validate each result against the schema declared for its status (see `hecate.kernel.DispatcherOptions`); default true when the environment of `configuration` is `development` or `test`, else false (OQ-117)
----@field logger? hecate.log.Logger  receives unhandled failures and the container warnings
+---@field logger? hecate.log.Logger  receives unhandled failures and the container warnings; without it and without a `configuration`, `log.default()` does (OQ-79: standard error)
 ---@field router? hecate.router.RouterOptions
----@field server? hecate.http.ServerOptions  options of the HTTP server made by `serve` (`logger` defaults to the application's)
+---@field server? hecate.http.ServerOptions  options of the HTTP server made by `serve` (`logger` defaults to the application's; the application sets `on_request_end` to end the service scope of each request, and a hook given here runs after that)
 ---@field signals? boolean  `true` (default) handles signals, `false` disables signal handling (tests, embedding); the set (`sigint`, `sigterm` stop; `sighup` reloads a primary, and is ignored elsewhere) is fixed and cannot be listed
 ---@field grace_timeout? number  seconds a signal-driven shutdown lets requests in flight finish (default 30)
 ---@field workers? integer  number of worker processes, at least 1 (default 1: the process serves by itself); above 1 the primary runs a `hecate.kernel.Supervisor` (ADR 0023)
@@ -60,6 +60,7 @@ end
 ---@field router hecate.router.Router?  the router, after `boot`
 ---@field _supervisor hecate.kernel.Supervisor?  the supervisor, while serving as the primary of several workers
 ---@field _served boolean?  set by the first `serve` that booted
+---@field _finish (async fun(request: hecate.http.Request))?  ends the service scope of a request, after `boot` (`dispatcher.build`)
 ---@field _signalled boolean?  set by the signal watcher once it started `shutdown`
 ---@overload fun(options?: hecate.kernel.ApplicationOptions): hecate.kernel.Application
 local Application = core.class("Application")
@@ -193,7 +194,7 @@ end
 --- services (application first, then each module in order), validates the container graph, gathers the route table and
 --- builds the function that serves a request; only then applies `max_depth` (`json.set_max_depth`) and, when the
 --- logger comes from `configuration`, installs it as the default logger (`log.set_default`). Container warnings go to
---- the logger.
+--- the logger, or to `log.default()` without one (OQ-79).
 ---
 --- A failed boot changes no process-wide setting and leaves the application unbooted (`container`, `router` and the
 --- resolved options stay unset). What it can leave behind: the services already bound into a container given with the
@@ -247,17 +248,15 @@ function Application:boot()
     module_sources[#module_sources + 1] = { sources = module.routes or {}, filters = module.filters }
   end
   local _, warnings = container:validate()
-  local logger = options.logger
-  if logger ~= nil then
-    for _, warning in ipairs(warnings) do
-      logger:log("warning", "container: " .. tostring(warning.message), { code = warning.code })
-    end
+  local logger = options.logger -- nil: each record goes to `log.default()` (OQ-79), resolved when it is written
+  for _, warning in ipairs(warnings) do
+    (logger or log.default()):log("warning", "container: " .. tostring(warning.message), { code = warning.code })
   end
   local entries = routing.collect(sources)
   for _, owned in ipairs(module_sources) do
     for _, entry in ipairs(routing.collect(owned.sources, owned.filters)) do entries[#entries + 1] = entry end
   end
-  local serve, router = dispatcher.build(entries, {
+  local serve, router, finish = dispatcher.build(entries, {
     filters = filters, container = container, router = options.router, expose_details = options.expose_details,
     logger = logger, inputs = options.inputs, validate_responses = options.validate_responses,
   })
@@ -265,7 +264,7 @@ function Application:boot()
   if options.max_depth ~= nil then json.set_max_depth(options.max_depth) end
   if built_logger then log.set_default(options.logger) end
   self._resolved = options
-  self.container, self.router, self._serve, self._booted = container, router, serve, true
+  self.container, self.router, self._serve, self._finish, self._booted = container, router, serve, finish, true
   return serve
 end
 
@@ -303,7 +302,7 @@ end
 ---@async
 ---@param self hecate.kernel.Application
 ---@param watcher hecate.reactor.SignalWatcher
----@param logger? hecate.log.Logger
+---@param logger hecate.log.Logger  the application's, or `log.default()` (OQ-79)
 local function watch_signals(self, watcher, logger)
   reactor.scope(function(reloads)
     local name
@@ -319,15 +318,13 @@ local function watch_signals(self, watcher, logger)
       end
       if self._supervisor ~= nil then
         reloads:fork(reload_on_signal, self, logger)
-      elseif logger ~= nil then
+      else
         logger:debug("kernel.Application: sighup ignored; only a primary of several workers reloads", { code = "reload_ignored" })
       end
     end
     self._signalled = true
-    if logger ~= nil then
-      logger:notice("kernel.Application: signal received, shutting down gracefully",
-        { code = "shutdown_signal", signal = name })
-    end
+    logger:notice("kernel.Application: signal received, shutting down gracefully",
+      { code = "shutdown_signal", signal = name })
     -- The drain runs in this scope's body; the forked computation waits for the second signal and ends with the scope (ADR 0003).
     reactor.scope(function(scope)
       local forcer = scope:fork(function()
@@ -338,9 +335,7 @@ local function watch_signals(self, watcher, logger)
             return
           end
           if second ~= "sighup" then
-            if logger ~= nil then
-              logger:warning("kernel.Application: second signal received, stopping now", { code = "shutdown_forced", signal = second })
-            end
+            logger:warning("kernel.Application: second signal received, stopping now", { code = "shutdown_forced", signal = second })
             -- The primary cannot wait for the workers' own drain any more: it kills them (`Supervisor:force`).
             if self._supervisor ~= nil then self._supervisor:force() else self:shutdown(0) end
             return
@@ -358,7 +353,7 @@ end
 ---@async
 ---@param self hecate.kernel.Application
 ---@param watcher hecate.reactor.SignalWatcher
----@param logger? hecate.log.Logger
+---@param logger hecate.log.Logger  the application's, or `log.default()` (OQ-79)
 local function swallow_signals(self, watcher, logger)
   while true do
     local ok, name = pcall(watcher.wait, watcher)
@@ -366,16 +361,14 @@ local function swallow_signals(self, watcher, logger)
       if core.is_instance_of(name, core.CancellationError) then error(name, 0) end
       return
     end
-    if logger ~= nil then
-      logger:debug("kernel.Application: worker ignores a signal; the primary stops it", { code = "worker_signal_ignored", signal = name })
-    end
+    logger:debug("kernel.Application: worker ignores a signal; the primary stops it", { code = "worker_signal_ignored", signal = name })
   end
 end
 
 --- Runs `body` with `watch` (the signal handling) beside it, unless `signals = false`; closes the container afterwards.
 ---@async
 ---@param self hecate.kernel.Application
----@param watch async fun(self: hecate.kernel.Application, watcher: hecate.reactor.SignalWatcher, logger?: hecate.log.Logger)
+---@param watch async fun(self: hecate.kernel.Application, watcher: hecate.reactor.SignalWatcher, logger: hecate.log.Logger)
 ---@param body async fun()
 local function run_watched(self, watch, body)
   local logger = self._resolved.logger
@@ -388,8 +381,8 @@ local function run_watched(self, watch, body)
       if created then
         watcher = handle
         watching = scope:fork(watch, self, handle, logger or log.default())
-      elseif logger ~= nil then
-        logger:warning("kernel.Application: signals cannot be watched; serving without graceful shutdown on signals",
+      else
+        (logger or log.default()):warning("kernel.Application: signals cannot be watched; serving without graceful shutdown on signals",
           { code = "signals_unavailable" })
       end
     end
@@ -411,16 +404,31 @@ local function server_options_of(self)
   local server_options = {}
   for key, value in pairs(self._options.server or {}) do server_options[key] = value end
   if server_options.logger == nil then server_options.logger = self._resolved.logger end
+  -- The service scope of a request ends with the request (container.md, "Lifetimes"): once its response is written,
+  -- also when it is cancelled. A hook of the `server` option still runs, after it.
+  local finish, given = self._finish --[[@as async fun(request: hecate.http.Request)]], server_options.on_request_end
+  if given == nil or type(given) ~= "function" then
+    server_options.on_request_end = given or finish
+  else
+    server_options.on_request_end = function(request)
+      local ok, err = pcall(finish, request)
+      given(request)
+      if not ok then error(err, 0) end
+    end
+  end
   return server_options
 end
 
---- Prepares the primary of several workers: builds the `Supervisor` for the endpoint of the `server` option and returns
---- the function that runs it. Everything that can raise before the run happens here.
+--- Prepares the primary of several workers: checks the `server` option as each worker will, builds the `Supervisor` for
+--- its endpoint and returns the function that runs it. Everything that can raise before the run happens here.
 ---@param self hecate.kernel.Application
 ---@return fun() run  async: serves until the supervisor stops, then closes the container
 local function prepare_primary(self)
   -- Like the signal watcher and `http.Server`, the primary falls back to the default logger (OQ-79).
   local resolved, logger = self._resolved, self._resolved.logger or log.default()
+  -- Each worker builds its `http.Server` from the same options: they are checked once here (a server is built and
+  -- discarded; building one binds nothing), so that a bad option is one boot error, not a crash loop of the workers.
+  http.Server(self._serve, server_options_of(self))
   local server_options = self._options.server or {}
   local defaults = http.Server.DEFAULTS
   local endpoint = {
@@ -456,16 +464,23 @@ end
 --- application to serve again. A `serve` that fails before the run begins (a failed `boot`, bad `server` options, no way
 --- to tell how to start a worker) does not count: the application is booted and not served, and can be served again.
 ---
---- Raises what `boot` and `hecate.http.Server:serve` raise, `hecate.kernel.ModuleError` (`already_served`) and
---- `hecate.kernel.SupervisorError` in a primary.
+--- Raises what `boot` and `hecate.http.Server:serve` raise, `hecate.kernel.ModuleError` (`already_served`, or
+--- `http_unavailable` when the native module of `hecate.http` is not built: the message names
+--- `lua tools/run.lua build-native http`) and `hecate.kernel.SupervisorError` in a primary.
 ---@async
 function Application:serve()
   if self._served then
     error(errors.ModuleError("hecate.kernel.application.serve: the application has already been served (serve runs once, the container is closed when it returns)",
       { context = { reason = "already_served" } }), 2)
   end
+  local available, why = http.available()
+  if not available then
+    -- Without its native module `http` has no `Server`: say which command builds it (as `hecate.net.tls` does).
+    error(errors.ModuleError("hecate.kernel.application.serve: cannot serve HTTP, " .. tostring(why),
+      { context = { reason = "http_unavailable" } }), 2)
+  end
   local serve = self._serve or self:boot()
-  local role = supervisor.worker_role()
+  local role = supervisor.worker_role({ logger = self._resolved.logger }) -- the worker side logs where the application does
   if role == nil and self._resolved.workers > 1 then
     -- Everything that can fail before the run (the supervisor, the worker command) is prepared before `_served` is set.
     local run = prepare_primary(self)
@@ -519,13 +534,13 @@ end
 --- is logged once the supervisor has accepted the reload.
 ---
 --- Raises `hecate.kernel.SupervisorError` (`reload_failed`, `reload_in_progress`, `stopping`; see `Supervisor:reload`)
---- and `hecate.core.ArgumentError` when the application is not a primary of several workers that is serving.
+--- and `hecate.core.StateError` when the application is not a primary of several workers that is serving.
 ---@async
 ---@param options? { grace_timeout?: number, ready_timeout?: number }  `grace_timeout`: seconds the old workers drain, default the `grace_timeout` option, else 30; `ready_timeout`: seconds a replacement may take to become ready, default 30
 function Application:reload(options)
   local sup = self._supervisor
   if sup == nil then
-    error(core.ArgumentError("hecate.kernel.application.reload: only a serving primary of several workers can reload"), 2)
+    error(core.StateError("hecate.kernel.application.reload: only a serving primary of several workers can reload"), 2)
   end
   if options ~= nil and type(options) ~= "table" then
     error(core.ArgumentError("hecate.kernel.application.reload: options must be a table { grace_timeout?, ready_timeout? }, got " .. type(options)), 2)

@@ -175,4 +175,103 @@ function T:test_http_available_reports_one_line_and_the_build_command()
   self:assert_nil(reason)
 end
 
+-- Findings of the Phase 2 gate review --------------------------------------------------------------------------------
+
+-- H-1: whitespace-heavy heads within the default limits are parsed in linear time, so they do not delay a plain request
+-- on another connection (the quadratic trim took about 0.5 s per head on the reactor thread).
+function T:test_whitespace_heavy_heads_do_not_delay_a_request_on_another_connection()
+  with_server(self, ok_action, nil, function(port)
+    local value = "a" .. (" "):rep(8000) .. "b"
+    local lines = { "GET /slow HTTP/1.1\r\nHost: t\r\nExpect: 100-continue" .. (" "):rep(8000) .. "\r\n" }
+    for i = 1, 6 do lines[#lines + 1] = ("X%d: %s\r\n"):format(i, value) end
+    lines[#lines + 1] = "\r\n"
+    local head = table.concat(lines)
+    local attackers = {}
+    for i = 1, 3 do attackers[i] = connect(port) end
+    local victim <close> = connect(port)
+    local started = reactor.now()
+    for i = 1, 3 do attackers[i]:send(head) end
+    reactor.sleep(0.01)
+    self:assert_equal("ok /fast", victim:request(get("/fast")).content)
+    local elapsed = reactor.now() - started
+    self:assert_true(elapsed < 0.5, ("the plain request waited %.2f s"):format(elapsed))
+    for i = 1, 3 do
+      self:assert_equal(200, attackers[i]:read_response().status)
+      attackers[i]:close()
+    end
+  end)
+end
+
+-- H-5: several Host lines are a 400 whatever the version (RFC 9112, section 3.2: one Host; RFC 9110, section 5.3: Host is
+-- not a list). HTTP/1.0 without a Host is still served.
+function T:test_several_host_lines_are_refused_for_every_version()
+  local served = 0
+  with_server(self, function(request) served = served + 1 return ok_action(request) end, nil, function(port)
+    for _, version in ipairs({ "HTTP/1.0", "HTTP/1.1" }) do
+      local client <close> = connect(port)
+      self:assert_equal(400, client:request("GET / " .. version .. "\r\nHost: a\r\nHost: b\r\n\r\n").status, version)
+      local same <close> = connect(port)
+      self:assert_equal(400, same:request("GET / " .. version .. "\r\nHost: a\r\nHost: a\r\n\r\n").status, version)
+    end
+    self:assert_equal(0, served)
+    local bare <close> = connect(port)
+    self:assert_equal(200, bare:request("GET / HTTP/1.0\r\n\r\n").status)
+    local invalid <close> = connect(port)
+    self:assert_equal(400, invalid:request("GET / HTTP/1.0\r\nHost: a/b\r\n\r\n").status)
+  end)
+end
+
+-- H-6: request-target forms (RFC 9112, section 3.2). The asterisk-form is for OPTIONS only (section 3.2.4), and no form
+-- carries a fragment (sections 3.2.1 and 3.2.2: origin-form and absolute-form have none; RFC 9110, section 7.1).
+local TARGET_VECTORS = {
+  { "OPTIONS * HTTP/1.1", 200, "asterisk-form with OPTIONS (section 3.2.4)" },
+  { "GET * HTTP/1.1", 400, "asterisk-form with GET" },
+  { "POST * HTTP/1.1", 400, "asterisk-form with POST" },
+  { "HEAD * HTTP/1.1", 400, "asterisk-form with HEAD" },
+  { "OPTIONS * HTTP/1.0", 200, "asterisk-form with OPTIONS in HTTP/1.0" },
+  { "OPTIONS /a HTTP/1.1", 200, "origin-form with OPTIONS" },
+  { "GET /a#x HTTP/1.1", 400, "origin-form with a fragment" },
+  { "GET /a?q=1#x HTTP/1.1", 400, "origin-form with a query and a fragment" },
+  { "GET /# HTTP/1.1", 400, "origin-form with an empty fragment" },
+  { "OPTIONS *#x HTTP/1.1", 400, "asterisk-form with a fragment" },
+  { "GET http://t/a#x HTTP/1.1", 400, "absolute-form with a fragment" },
+  { "GET /a?q=%23 HTTP/1.1", 200, "a percent-encoded number sign is data" },
+}
+
+function T:test_request_target_forms_follow_rfc_9112_section_3_2()
+  local seen = {}
+  with_server(self, function(request) seen[#seen + 1] = request.target return ok_action(request) end, nil, function(port)
+    for _, vector in ipairs(TARGET_VECTORS) do
+      local client <close> = connect(port)
+      local response = client:request(vector[1] .. "\r\nHost: t\r\n\r\n")
+      self:assert_equal(vector[2], response and response.status, vector[3])
+    end
+  end)
+  for _, target in ipairs(seen) do self:assert_nil(string.find(target, "#", 1, true), target) end
+  self:assert_equal(4, #seen)
+end
+
+-- H-7: a 205 goes out with `Content-Length: 0` and no content, even when a hand-made response carries some (RFC 9110,
+-- section 15.3.6), and the connection stays usable.
+function T:test_a_205_response_has_a_zero_length_and_no_content()
+  with_server(self, function(request)
+    local response = http.Response(205)
+    if request.path == "/smuggled" then response.content = "should not be sent" end
+    return response
+  end, nil, function(port)
+    local client <close> = connect(port)
+    client:send("GET /plain HTTP/1.1\r\nHost: t\r\n\r\n")
+    local raw = ""
+    while not string.find(raw, "\r\n\r\n", 1, true) do raw = raw .. client.stream:read(65536) end
+    self:assert_not_nil(string.find(raw, "\r\nContent-Length: 0\r\n", 1, true), raw)
+    self:assert_nil(string.find(raw, "Transfer-Encoding", 1, true), raw)
+    local again <close> = connect(port)
+    local response = again:request("GET /smuggled HTTP/1.1\r\nHost: t\r\n\r\n")
+    self:assert_equal(205, response.status)
+    self:assert_equal("", response.content)
+    self:assert_equal("0", response.fields:get("Content-Length"))
+    self:assert_equal(205, again:request(get("/next")).status, "the connection stays in step")
+  end)
+end
+
 return T
