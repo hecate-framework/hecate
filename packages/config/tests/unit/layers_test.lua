@@ -55,6 +55,39 @@ function T:test_secret_file_wins_over_environment_variable()
   self:assert_equal("secret file /run/secrets/HECATE_DATABASE__PASSWORD", configuration:source("database.password"))
 end
 
+-- A section that only a later layer created names that layer, not `schema default` (review finding CF-6).
+function T:test_source_of_a_section_created_by_environment_variables_names_that_layer()
+  local schema = require("hecate.schema")
+  local configuration = fixture.load({ env = { HECATE_DATABASE__PORT = "8080", HECATE_DATABASE__HOST = "db" } })
+  -- the first leaf in path order that created the section
+  self:assert_equal("environment variable HECATE_DATABASE__HOST", configuration:source("database"))
+  local nested = fixture.load({
+    env = { HECATE_OUTER__INNER__COUNT = "3" },
+    options = { properties = { outer = schema.default(schema.object({
+      inner = schema.default(schema.object({ count = schema.optional(schema.integer()) }), {}) }), {}) } },
+  })
+  self:assert_equal("environment variable HECATE_OUTER__INNER__COUNT", nested:source("outer"))
+  self:assert_equal("environment variable HECATE_OUTER__INNER__COUNT", nested:source("outer.inner"))
+  self:assert_equal("schema default", fixture.load({}):source("database"))
+end
+
+function T:test_source_of_a_section_created_by_a_secret_file_names_that_layer()
+  local configuration = fixture.load({
+    env = { HECATE_DATABASE__PASSWORD_FILE = "/run/secrets/password" },
+    files = { ["/run/secrets/password"] = "value" },
+    options = { secrets = { "database.password" } },
+  })
+  self:assert_equal("secret file /run/secrets/password", configuration:source("database"))
+end
+
+function T:test_source_of_a_section_from_a_file_is_kept_when_a_variable_adds_a_key()
+  local configuration = fixture.load({
+    files = { ["config/default.lua"] = "return { database = { host = 'db' } }" },
+    env = { HECATE_DATABASE__PORT = "8080" },
+  })
+  self:assert_equal("config/default.lua", configuration:source("database"))
+end
+
 function T:test_arrays_are_replaced_and_maps_are_merged()
   local configuration = fixture.load({
     files = {
@@ -78,6 +111,15 @@ function T:test_environment_comes_from_the_variable()
   })
   self:assert_equal("development", configuration:environment())
   self:assert_equal("dev", configuration:get("name"))
+end
+
+-- The specification refuses an empty `HECATE_ENV` (it does not match the pattern); it is not read as unset (review
+-- finding CF-7). Not run on Windows, where an empty variable is the same as an unset one (OQ-110 (6)).
+function T:test_an_empty_environment_variable_is_refused()
+  if package.config:sub(1, 1) == "\\" then return end
+  local err = fixture.failure({ env = { HECATE_ENV = "" } })
+  self:assert_equal("hecate.core.ConfigurationError", err.code)
+  self:assert_true(tostring(err):find("HECATE_ENV", 1, true) ~= nil, tostring(err))
 end
 
 function T:test_environment_defaults_to_production_without_option_or_variable()

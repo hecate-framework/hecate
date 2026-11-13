@@ -97,8 +97,9 @@ load. So is a leaf whose name is reserved: `<PREFIX>_ENV` (the environment) and,
 
 Some keys hold values that must never reach a log: passwords, signing keys, tokens.
 
-- The application lists them in the `secrets` option, as dotted paths of leaves (`{ "database.password" }`). An unknown path is a
-  `hecate.core.ArgumentError` at load (a typo must not leave a key unprotected).
+- The application lists them in the `secrets` option, as a list of dotted paths of leaves (`{ "database.password" }`). An unknown
+  path is a `hecate.core.ArgumentError` at load (a typo must not leave a key unprotected), and so is a `secrets` table with any key
+  other than 1 to n (a map such as `{ ["database.password"] = true }` would otherwise protect nothing).
 - After validation, the value of each declared secret key that is present is wrapped: `Configuration:get` and the root `Section`
   return a **secret object** with the semantics of `hecate.log.Secret` (`tostring` returns `[redacted]`, `reveal()` returns the
   value, and the logging sinks render it as `[redacted]`). The raw value is reachable only through `reveal()`. This is the
@@ -108,7 +109,8 @@ Some keys hold values that must never reach a log: passwords, signing keys, toke
   returns the secret object; the kernel passes `hecate.log.Secret` (`kernel.load_configuration`), which the sinks recognise. Without the option, `config` uses
   `package.loaded["hecate.log"].Secret` when that module is already loaded (the same look-up, with no dependency, as OQ-86 for the
   `schema` logger) and otherwise its own `hecate.config.Secret`, a class with the same interface that a `hecate.log` sink does not
-  recognise (it still renders `[redacted]` through `tostring`).
+  recognise (it still renders `[redacted]` through `tostring`). Both secret classes are value classes of `hecate.core` compared by
+  identity: the value is held outside the object, and a write to the object raises `hecate.core.ConformanceError`.
 - A secret may come from any layer, because forbidding some would break development; the *wrapping* is what protects it.
   The recommended source is a secret file or an environment variable (factor III).
 
@@ -147,14 +149,18 @@ local configuration = config.load({
 local port = configuration:get("database.port")
 ```
 
-- The root is `schema.object(properties)` plus the framework keys `logging` and `limits`. The application must not declare those
-  two names (`ArgumentError`). Undeclared properties are rejected at **every** depth: **unknown keys are errors**, with the
+- The root is `schema.object(properties)` plus the framework keys `logging`, `limits`, `errors`, `requests` and `server`. The
+  application must not declare those five names (`ArgumentError`). A property name, at any depth, is a non-empty string without
+  a `.` (the dot separates the segments of a path; `ArgumentError` otherwise). Undeclared properties are rejected at **every** depth: **unknown keys are errors**, with the
   violation code `additional_properties`; the misspelling of a key never goes unnoticed.
 - A required property (neither `optional` nor `default`) that no layer supplies is a `required` violation: there is no implicit
   `nil`.
 - The declared schema also decides the type of the frozen result: an array is a `List` (also when empty), an object or a map is a
   `Section`. The keys of the application are at most 16 objects deep (`ArgumentError` beyond).
 - Defaults come from the schema (`schema.default`, layer 1), so one declaration holds the type, the constraints and the default.
+- In a configuration file, a table is an array (keys 1 to n) or an object (string keys). A key that fits neither, such as
+  `[true] = 1`, an item of a table that also has named keys (`{ "x", port = 1 }`) or an item after a hole, is a violation of
+  code `type` at that key (`database.1`), with the file as source, instead of a type violation of the table that holds it.
 - On failure `config.load` raises one `hecate.core.ConfigurationError` that reports **every** problem found, not the first. Its
   message is, for example:
 
@@ -179,16 +185,25 @@ local port = configuration:get("database.port")
 
 `config.load` returns a `Configuration`; **the configuration is immutable after boot**:
 
+- the `Configuration` object itself is a value class of `hecate.core` with no field (its state is private to the package) and
+  is compared by identity: a write, of a method or of any field, raises `hecate.core.ConformanceError`.
+
 - every table of the result is a frozen value (`hecate.core` value classes): objects and maps are `Section`s, arrays are `List`s.
   A write raises `hecate.core.ConformanceError`, as for every immutable value. `pairs` iterates a section; `ipairs` and `#` work on
   a list. Reading is by field (`configuration:values().database.port`) or by dotted path.
 - `Configuration:get(path)` returns the value of a declared key (a scalar, a secret object, a `Section` or a `List`), or `nil` for
   an optional key that no layer supplied. A path that the schema does not declare is a `hecate.core.ArgumentError`: asking for a key
   that cannot exist is a programmer error, not an absent value. Values are typed by the schema (`get("database.port")` is an
-  integer), so no consumer converts or checks again.
-- `Configuration:source(path)` names the layer of the value (`schema default` for a default); `Configuration:environment()`;
+  integer), so no consumer converts or checks again. A malformed path (an empty segment, or a leading or trailing dot, such as
+  `.`, `database.` or `database..port`) is an `ArgumentError` too, for `get` and `source`.
+- `Configuration:source(path)` names the layer of the value (`schema default` for a default). A section that no file supplied
+  and that an environment variable or a secret file created names that layer: the first variable or secret file, in path order,
+  of a leaf inside it. `Configuration:environment()`;
   `Configuration:describe()` returns a multi-line text, one `path = value (source)` per leaf in key order, in which secrets are
-  `[redacted]`: it is the text to log at boot.
+  `[redacted]`: it is the text to log at boot. A string is written between double quotes, with `\` and `"` escaped; in values,
+  map keys and sources every control character is escaped (`\n`, `\r`, otherwise `\ddd` with three decimal digits), so the text
+  is exactly one line per leaf whatever the values (a value cannot forge a line of the boot log). The escaping is the package's
+  own, the same on every Lua version.
 - The merge works on copies: the tables returned by the files and the options of the caller are never modified, and nothing the
   caller keeps can change the configuration.
 
@@ -270,8 +285,8 @@ through `json.DEFAULT_MAX_DEPTH`).
 | Class | When |
 |---|---|
 | `hecate.core.ConfigurationError` | any invalid configuration: unreadable or invalid file, unknown key, wrong type, missing required key, colliding environment variable names, a `file` sink without path |
-| `hecate.core.ArgumentError` | a wrong option of `load` (unknown option, bad `env_prefix`, `properties` that redeclare `logging`, `limits`, `errors`, `requests` or `server`, an unknown secret path); `get` of an undeclared path |
-| `hecate.core.ConformanceError` | a write to a frozen section or list |
+| `hecate.core.ArgumentError` | a wrong option of `load` (unknown option, bad `env_prefix`, `properties` that redeclare `logging`, `limits`, `errors`, `requests` or `server`, a property name with a `.`, an unknown secret path, `secrets` that is not a list); `get` or `source` of an undeclared or malformed path; wrong arguments of `config.variable_name` |
+| `hecate.core.ConformanceError` | a write to a frozen section or list, to the `Configuration` object or to a secret object |
 
 Messages follow [coding-standards.md](coding-standards.md#errors): the qualified prefix (`config.load: ...`), the offending value and
 the expected one, and never a secret value.

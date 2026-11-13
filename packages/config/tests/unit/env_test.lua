@@ -12,6 +12,21 @@ function T:test_name_is_prefix_and_path_with_double_underscores()
   self:assert_equal("ACME_DATABASE__PORT", config.variable_name("ACME", { "database", "port" }))
 end
 
+function T:test_variable_name_checks_its_arguments()
+  local core = require("hecate.core")
+  local cases = {
+    { nil, { "a" } }, { 1, { "a" } }, { "", { "a" } }, { "hecate", { "a" } }, { "1X", { "a" } },
+    { "HECATE", nil }, { "HECATE", "a" }, { "HECATE", {} }, { "HECATE", { "" } }, { "HECATE", { 1 } },
+    { "HECATE", { a = "x" } }, { "HECATE", { "a", extra = "b" } },
+  }
+  for index, case in ipairs(cases) do
+    local ok, err = pcall(config.variable_name, case[1], case[2])
+    self:assert_false(ok, "case " .. index)
+    self:assert_true(core.is_instance_of(err, core.ArgumentError), tostring(err))
+    self:assert_true(tostring(err):find("config.variable_name", 1, true) ~= nil, tostring(err))
+  end
+end
+
 function T:test_text_is_coerced_by_the_schema_of_the_leaf()
   local configuration = fixture.load({ env = {
     HECATE_DATABASE__PORT = "8080",

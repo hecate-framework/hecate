@@ -120,6 +120,41 @@ function T:test_fallback_secret_class_has_the_interface()
   self:assert_equal("[redacted]", config.Secret.REDACTED)
 end
 
+-- A secrets option that is not a list would protect nothing: `ipairs` would skip its entries (review finding CF-1).
+function T:test_secrets_that_are_not_a_list_are_refused()
+  local core = require("hecate.core")
+  local refused = {
+    { ["database.password"] = true },
+    { "database.password", extra = "database.password" },
+    { [2] = "database.password" },
+    { [1] = "database.password", [3] = "database.password" },
+    { [0] = "database.password" },
+    { [1.5] = "database.password" },
+  }
+  for index, secrets in ipairs(refused) do
+    local ok, err = pcall(fixture.load, { env = { HECATE_DATABASE__PASSWORD = VALUE }, options = { secrets = secrets } })
+    self:assert_false(ok, "case " .. index)
+    self:assert_true(core.is_instance_of(err, core.ArgumentError), tostring(err))
+    self:assert_true(tostring(err):find("secrets", 1, true) ~= nil, tostring(err))
+  end
+  fixture.load({ options = { secrets = {} } })
+end
+
+-- The value of a secret object cannot be replaced (review finding CF-11).
+function T:test_the_value_of_a_fallback_secret_cannot_be_replaced()
+  local core = require("hecate.core")
+  local secret = config.Secret(VALUE)
+  for _, name in ipairs({ "_reveal", "reveal", "value" }) do
+    local ok, err = pcall(function() secret[name] = function() return "forged" end end)
+    self:assert_false(ok, name)
+    self:assert_true(core.is_instance_of(err, core.ConformanceError), tostring(err))
+  end
+  self:assert_equal(VALUE, secret:reveal())
+  self:assert_nil(secret._reveal)
+  for _ in pairs(secret) do self:assert_true(false, "a secret has no field") end
+  self:assert_false(config.Secret(VALUE) == config.Secret(VALUE), "two secrets are distinct objects")
+end
+
 local function without_value(self, err)
   self:assert_nil(tostring(err):find(VALUE, 1, true), tostring(err))
   for _, violation in ipairs(err.context.violations or {}) do
