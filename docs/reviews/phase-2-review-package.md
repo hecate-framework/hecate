@@ -90,3 +90,17 @@ pool-thread states); RE-6 covers it with real tests.
 | K-13 | minor | "passes a connection to the worker" where the glossary term is hand-over (`listening.lua:25`). | Open |
 | K-14 | minor | The `Accept` field is parsed into a sorted table on every request, even for `*/*` (`results.lua:61-114`). | Open (needs a measurement) |
 | K-15 | minor | An IPv6 link-local host with a zone id (`fe80::1%eth0`) is bound by the primary but refused by every worker, which then crash-loop (`supervisor.lua:54-58`). | Open |
+
+## http
+
+| Id | Severity | Finding | Disposition |
+|---|---|---|---|
+| H-1 | blocker | Quadratic trimming of field values (`^[ \t]*(.-)[ \t]*$`) lets one client stall the reactor thread within the default limits: a 56 KiB head of seven whitespace-heavy fields costs 1.56 s in `Parser:feed`; three such requests delayed a plain `GET` on another connection by 4.9 s (`fields.lua:53`, `:66`; `server_connection.lua:180`; `wire.lua:64`; `cookie.lua:102`). Reproduced. | Open |
+| H-2 | major | `native.new(kind)` called with one argument runs `lua_next` on the userdata it just pushed (undefined behaviour in C; not reachable from the network) (`csrc/native.c:520-531`). Reproduced. | Open |
+| H-3 | major | 94 % of parse time is `Fields:add` re-validating what llhttp already checked in strict mode (61 µs per 18-field head against 3.9 µs) (`parser.lua:93-96`). | Open (with H-1) |
+| H-4 | minor | `shutdown` closes without an answer a connection whose request head has partly arrived (`server.lua:275-276`). Reproduced. | Open |
+| H-5 | minor | An HTTP/1.0 request with several `Host` lines is served and no value is validated (`server_connection.lua:158-165`). Reproduced. | Open |
+| H-6 | minor | `GET *` (asterisk-form outside OPTIONS) and an origin-form target with a fragment (`/a#x`) are served (`server_connection.lua:156-187`, `request.lua:53`). Reproduced. | Open |
+| H-7 | minor | A 205 response may carry content, against RFC 9110 section 15.3.6 (`status.lua:57`). | Open |
+| H-8 | minor | A comment of the native binding says a Lua memory error cannot leave a parser that is not failed; on the success path it can (`csrc/native.c:14`, `:713`). | Open |
+| H-9 | minor | "Header block of a part" in the README, where the glossary and OQ-75 say header fields (README:100). | Open |
