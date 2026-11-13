@@ -4,7 +4,7 @@
 - roadmap_item: **Phase 2 gate**: verification of the phase, as described in "Phase gates" (`docs/roadmap.md`).
 - status: in-progress
 - lock_until: 2026-11-13T12:45:00Z
-- last_update: 2026-11-13T11:15:00Z
+- last_update: 2026-11-13T11:10:00Z
 
 ## Done
 
@@ -20,24 +20,20 @@
   default logger) and 3 (`json_equal` read the depth limit once) fixed, test first.
 - Coherence audit written: `docs/reviews/phase-2-coherence-findings.md` (C1 to C32).
 - Safe content canary test committed as work in progress
-  (`packages/kernel/tests/integration/safe_content_canary_test.lua`); the audit agent is still finishing it.
+  (`packages/kernel/tests/integration/safe_content_canary_test.lua`, final).
+- Report sections 1, 3 and 4 written; findings P1 to P8, S1 to S7 in section 6 with their dispositions.
 
 ## Next steps
 
-1. Report section 1 from the completeness audit: table per item; remaining gaps: (1) narrow `Request.content`
-   (`http/request.lua:20`, `:30`: drop `function`, document nil from the server and the validated value);
-   (4) OQ-69 per-address TLS handshake cap: record as known limitation or re-home; (5) `automation.md:76` reference
-   set (= C13); (6) container scope micro-benchmark: defer to roadmap "Continuous"; (7) kernel how-to and examples:
-   name them in the Phase 3 website item; (8) `schema-review-package.md:39-40` s5, s6 statuses.
+1. Report rows P1, P4, P6, P7, P8, S1, S2, S7 (`docs/reviews/phase-2.md`, section 6): fix or defer as written.
 2. Coherence findings: fix the 28 text edits (C1 to C9, C12 to C24, C26 to C31), give each a disposition in the
    findings file; C10, C11, C25, C32 need the owner: open-questions entries (with mirror issues).
-3. Safe content (section 4) from the audit agent's report; fix or defer each finding.
-4. `coverage`: `reactor` 89.8 % (< 90 %) locally; compare with the nightly of eb9d9b7 (run 43403344037).
-5. Reviewer wave (`/review-package` on the Phase 2 packages), triage each minor.
-6. Section 5: the open `due:phase-2` issues 56 OQ-46, 60 OQ-17, 61 OQ-13, 64 OQ-24 (owner decision recorded: move
+3. `coverage`: `reactor` 89.8 % (< 90 %) locally; compare with the nightly of eb9d9b7 (run 43403344037).
+4. Reviewer wave (`/review-package` on the Phase 2 packages), triage each minor.
+5. Section 5 (also S1 code choice, S3): the open `due:phase-2` issues 56 OQ-46, 60 OQ-17, 61 OQ-13, 64 OQ-24 (owner decision recorded: move
    to Resolved), 72 OQ-38, 77 OQ-64, 81 OQ-75, 83 OQ-69, 87 OQ-73, 90 OQ-82, 91 OQ-77, plus C10, C11, C25, C32;
    recommendation each, one `needs-decision` issue.
-7. Finish: tick the gate only when the report shows no open gap and every question has an owner decision or deferral.
+6. Finish: tick the gate only when the report shows no open gap and every question has an owner decision or deferral.
 
 ## Decisions taken (and where they are recorded)
 
