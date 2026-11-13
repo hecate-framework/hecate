@@ -245,9 +245,15 @@ Accepted in [ADR 0023](../adr/0023-multi-process-serving.md), measured in
   `hand_over_unaccounted` when a worker exits having accepted fewer connections than it was handed. Today `connections` counts the connections
   the hand-over listener accepted (`round_robin`) and `requests` is always unknown, `http.Server`
   having no request counter. A worker that does not send `ready` within `ready_timeout` seconds
-  (default 30) of its start or restart is killed and counted as a crash (`worker_not_ready`).
+  (default 30) of its start or restart is killed and counted as a crash (`worker_not_ready`); the watchdog ends at
+  `ready`, and a worker retired by a reload drains under the reload's grace period, never cut short by it.
+  Back-pressure of `round_robin`: a worker with as many unacknowledged hand-overs as its backlog is skipped; when every
+  worker is saturated the connection is closed and `hand_over_saturated` is logged. In `degrade` mode a restart that
+  cannot start the program counts as a crash and is retried; a failed first start stays `start_failed`.
+  `HECATE_WORKER_HOST` may carry an IPv6 zone id.
 - Graceful shutdown: stop accepting, drain in-flight requests up to a configurable deadline,
-  then cancel remaining scopes. A rolling reload starts the replacement before stopping the old
+  then cancel remaining scopes. In a worker the drain of the hand-over queue counts within the grace period (its
+  server gets what is left of it). A rolling reload starts the replacement before stopping the old
   worker.
 - Signals (OQ-116): a worker ignores `SIGINT` and `SIGTERM`, because a terminal sends them to the
   whole process group; only the `stop` message of the primary ends a worker. The first signal in the

@@ -130,9 +130,13 @@ What exists in `hecate.kernel` (the package [README](../../packages/kernel/READM
 - Problem classes (`problem.NotFound`, ..., `problem.define` for an application's own) become
   `application/problem+json` responses (RFC 9457). An uncaught error is a `500` without internal details.
 - `Accept` is minimal: absent, `*/*`, `application/*` or `application/json` select JSON; anything else is a `406`
-  problem.
+  problem. It follows RFC 9110 section 12.5.1: a media type takes the weight of the most specific matching range, and
+  `q=0` excludes it (`application/json;q=0, */*` gives 406); equal weights go to the range written first, then JSON.
 - Invalid inputs give a `422` whose `errors` entries carry `pointer`, `code` and `source` (`path`, `query`, `header`,
-  `cookie` or `content`); `requests.inputs = "strict"` also refuses undeclared query parameters.
+  `cookie` or `content`); `requests.inputs = "strict"` also refuses undeclared query parameters, on every route, including one that
+  declares only `content`.
+- The binding names of controller `dependencies` are checked against the container at boot
+  (`RouteDeclarationError`, `unknown_dependency`), never first at request time.
 
 ### Application and feature modules
 

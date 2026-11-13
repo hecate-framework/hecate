@@ -80,7 +80,10 @@ member or its name.
 
 A **service scope** (`container.ServiceScope`) is made by `container:open_scope()` (calling `ServiceScope(x)` with
 anything but a `Container` raises `core.ArgumentError`). The `kernel` opens one per
-request, and closes it when the request's reactor scope ends; `hecate.container` does not itself depend on the
+request, and closes it when the request has ended: `http.Server` calls its `on_request_end` option once the
+response is written (a writer included) and every computation of the request's reactor scope has ended, also on
+cancellation; in process (no `request.scope`) `serve` closes it before it returns, unless the response has a writer,
+and the caller then calls the `finish` that `dispatcher.build` returns. `hecate.container` does not itself depend on the
 reactor, so the link between the two is the kernel's, not the container's (OQ-105). The service scope is an
 ordinary value: every computation forked during the request receives the same one when the kernel passes it,
 typically through the ambient context (ADR 0025, key owned by the kernel), so a scoped service is **shared
@@ -144,7 +147,7 @@ is an error, and the scope does not close a released instance again.
 `ServiceScope` and `Container` themselves support `<close>` and `:close()`; closing is idempotent. A closed service
 scope or container refuses further `resolve` with `ContainerError`. Closing runs in the caller's computation, so when
 the request is cancelled the kernel closes the service scope under `reactor.shield` (concurrency.md, rule 4, OQ-23) if
-any `__close` suspends.
+any `__close` suspends (the kernel's bound is `dispatcher.CLOSE_TIMEOUT`, 5 s, a value no decision fixes yet: OQ-127).
 
 ## Boot validation
 
