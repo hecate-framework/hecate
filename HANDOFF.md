@@ -2,9 +2,9 @@
 # Handoff
 
 - roadmap_item: **Phase 2 gate**: verification of the phase, as described in "Phase gates" (`docs/roadmap.md`).
-- status: waiting-owner
-- lock_until: 2026-11-13T18:45:00Z
-- last_update: 2026-11-13T18:45:00Z
+- status: in-progress
+- lock_until: 2026-11-13T21:00:00Z
+- last_update: 2026-11-13T19:25:00Z
 
 ## Done
 
@@ -31,10 +31,17 @@
 
 ## Next steps
 
-1. Wait for the owner on issue 188 (section 5 questions, and OQ-123 to OQ-127 in its comment). Checked 2026-11-13T18:45Z:
-   no answer on 188 nor on the 18 question issues; CI of 7f21068 green. Nothing else is startable (Phase 3 waits on
-   this gate); then record each answer in `docs/open-questions.md`.
-2. Finish: tick the gate only when the report shows no open gap and every question has an owner decision or deferral.
+1. Owner decisions of 2026-11-13 (in the session, recorded): OQ-120 (1) done (causes by class and code in
+   production); OQ-120 (2) option (b): no JSON Pointer in any message, pointer as a log field with `expose_details`
+   (agent `pkg-schema` working: `schema` messages, `kernel/problems.lua`, docs); then close OQ-120 (issue 185) and
+   amend OQ-117 (4) in the file. OQ-121 and OQ-122 resolved (issues 186, 187 closed; ADR 0023 amended).
+2. Roadmap item "Documentation and generators planned for Phase 2" (before the gate): agent `ci-engineer` builds
+   `gen-error-codes` and `gen-config-reference`; agent `docs-writer` writes the hand-written pages. Collect, check,
+   CHANGELOG, tick the item.
+3. Report part 3 to 5 for the owner (http and kernel reviews, the other packages, open questions); the owner reads it
+   in the session and answers inline.
+4. Remaining owner questions: issue 188 (OQ-46, 13, 17, 38, 64, 69, 73, 75, 77, 82) and OQ-123 to OQ-127.
+5. Finish: tick the gate only when the report shows no open gap and every question has an owner decision or deferral.
 
 ## Decisions taken (and where they are recorded)
 
