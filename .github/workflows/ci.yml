@@ -141,7 +141,7 @@ jobs:
       - name: Documentation checks
         run: |
           set -e
-          for task in check-adr-index check-docs-examples check-package-structure; do
+          for task in check-adr-index check-docs-examples check-examples check-package-structure; do
             echo "::group::$task"
             lua tools/run.lua "$task"
             echo "::endgroup::"
@@ -482,7 +482,7 @@ jobs:
           PACKAGES: ${{ needs.plan.outputs.packages }}
         run: |
           set -e
-          for task in check-versions check-rockspecs check-package-structure check-docs-examples check-licenses check-lua-constructs check-boundaries check-glossary check-annotations check-adr-index format-check typecheck; do
+          for task in check-versions check-rockspecs check-package-structure check-docs-examples check-examples check-licenses check-lua-constructs check-boundaries check-glossary check-annotations check-adr-index format-check typecheck; do
             echo "::group::$task"
             lua tools/run.lua "$task"
             echo "::endgroup::"

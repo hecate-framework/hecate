@@ -1,4 +1,5 @@
--- The same schema emits a JSON Schema 2020-12 document, here to list its required properties.
+-- The same schema emits a JSON Schema 2020-12 document, here to list its
+-- required properties.
 local schema = require("hecate.schema")
 
 local user = schema.object({

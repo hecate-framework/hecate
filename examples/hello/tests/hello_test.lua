@@ -1,4 +1,5 @@
----@diagnostic disable: need-check-nil, param-type-mismatch, missing-fields, undefined-field, assign-type-mismatch, inject-field
+---@diagnostic disable: need-check-nil, param-type-mismatch, missing-fields
+---@diagnostic disable: undefined-field, assign-type-mismatch, inject-field
 local test = require("harness.test")
 local http = require("hecate.http")
 local reactor = require("hecate.reactor")
@@ -9,7 +10,8 @@ local T = test.Case("HelloExampleTest")
 local here = debug.getinfo(1, "S").source:sub(2):match("^(.*)[/\\][^/\\]+$") or "."
 local wire = dofile(here .. "/helpers/wire.lua")
 
---- Boots the application on an ephemeral port, runs `body(base_url)` as a client, then shuts down.
+--- Boots the application on an ephemeral port, runs `body(base_url)` as a
+--- client, then shuts down.
 local function with_server(body)
   local app = hello.application({ signals = false, grace_timeout = 1, logger = log.Logger({ sinks = { log.MemorySink() } }), server = { host = "127.0.0.1", port = 0 } })
   reactor.run(function()

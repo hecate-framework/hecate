@@ -42,7 +42,7 @@ reactor.run(function()
   writer:write("alice\n")
   writer:flush()
   print(reader:read_line())
+  -- Prints: welcome alice
   client:shutdown()
   acceptor:cancel()
 end)
--- Prints: welcome alice

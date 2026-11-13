@@ -1,5 +1,5 @@
--- An action that reads a multipart upload part by part. The file is never trusted with its
--- name: the action keeps its own and only counts the bytes.
+-- An action that reads a multipart upload part by part. The file is never
+-- trusted with its name: the action keeps its own and only counts the bytes.
 local reactor = require("hecate.reactor")
 local http = require("hecate.http")
 
@@ -38,7 +38,7 @@ reactor.run(function()
     },
   })
   print(response:read_content())
+  -- Prints: title=report; upload: 100 bytes (client name passwd)
   server:shutdown()
   reactor.join(serving)
 end)
--- Prints: title=report; upload: 100 bytes (client name passwd)

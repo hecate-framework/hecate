@@ -19,9 +19,9 @@ call `offload` inside `reactor.run`, like every call that suspends.
 
 <!-- example: packages/reactor/examples/hecate.reactor.offload.lua -->
 ```lua
--- A CPU-bound function runs on the libuv thread pool while the reactor keeps serving
--- other computations. The function is self-contained: what it needs arrives as
--- arguments, and its results are copied back.
+-- A CPU-bound function runs on the libuv thread pool while the reactor
+-- keeps serving other computations. The function is self-contained: what
+-- it needs arrives as arguments, and its results are copied back.
 local reactor = require("hecate.reactor")
 
 reactor.run(function()
@@ -29,7 +29,8 @@ reactor.run(function()
   local ticker = reactor.fork(function()
     while true do
       reactor.sleep(0.001)
-      ticks = ticks + 1 -- counted after a completed sleep: the reactor was free meanwhile
+      -- Counted after a completed sleep: the reactor was free meanwhile.
+      ticks = ticks + 1
     end
   end)
   local count, largest = reactor.offload(function(limit)
@@ -65,8 +66,10 @@ variable:
 
 ```lua
 local rounds = 10
-reactor.offload(function() return rounds end) -- ArgumentError: captures the local variable rounds
-reactor.offload(function(n) return n end, rounds) -- correct: the value is an argument
+-- ArgumentError: captures the local variable rounds
+reactor.offload(function() return rounds end)
+-- correct: the value is an argument
+reactor.offload(function(n) return n end, rounds)
 ```
 
 To use a module on the pool thread, `require` it inside the function. The pool thread searches the

@@ -125,7 +125,7 @@ Run `lua tools/run.lua --list` for the full catalogue.
 - Type check (LuaLS): `lua tools/run.lua typecheck` (needs `lua-language-server`)
 - Other gates: `check-lua-constructs`, `check-boundaries`, `check-glossary`,
   `check-versions`, `check-rockspecs`, `check-package-structure`, `check-adr-index`,
-  `check-changelog`, `check-links`, `check-docs-examples`, `check-licenses`
+  `check-changelog`, `check-links`, `check-docs-examples`, `check-examples`, `check-licenses`
 - Native modules: `build-native <package>` (needs `cargo` or a C compiler), `sanitize [package]`
   (ASan/UBSan, Linux), `fuzz <target> [--seconds n]` or `fuzz --list` (cargo-fuzz, nightly Rust)
 - Robustness and measurement: `leaks [package]`, `coverage [package]`, `fetch-fixtures <package>`,

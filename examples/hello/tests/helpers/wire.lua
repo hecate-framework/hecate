@@ -1,5 +1,7 @@
--- Raw HTTP/1.1 over a `hecate.net` stream, for the tests that need to control when each byte is sent (a request still
--- in flight when the shutdown begins). Loaded with `dofile` by the tests of the example; not part of the example.
+-- Raw HTTP/1.1 over a `hecate.net` stream, for the tests that need to
+-- control when each byte is sent (a request still in flight when the
+-- shutdown begins). Loaded with `dofile` by the tests of the example; not
+-- part of the example.
 local net = require("hecate.net")
 
 local wire = {}
@@ -9,7 +11,8 @@ local wire = {}
 ---@param port integer
 function wire.connect(port) return net.connect("127.0.0.1", port) end
 
---- Reads one response from `stream`, with the bytes already read in `buffer` (returned with what is left after it).
+--- Reads one response from `stream`, with the bytes already read in
+--- `buffer` (returned with what is left after it).
 --- Returns nil when the connection ends before a complete response.
 ---@async
 ---@param stream table
@@ -32,10 +35,12 @@ function wire.read_response(stream, buffer)
   local status = tonumber(head:match("^HTTP/1%.1 (%d%d%d)"))
   local length = tonumber(head:lower():match("\r\ncontent%-length:%s*(%d+)"))
   local start = head_end + 4
-  if status ~= nil and (status < 200 or status == 204 or status == 304) then -- no content (RFC 9112, section 6.3)
+  -- No content (RFC 9112, section 6.3).
+  if status ~= nil and (status < 200 or status == 204 or status == 304) then
     return { status = status, head = head, body = "" }, buffer:sub(start)
   end
-  if length == nil then -- no length: the body ends with the connection
+  -- No length: the body ends with the connection.
+  if length == nil then
     while more() do end
     return { status = status, head = head, body = buffer:sub(start) }, ""
   end
@@ -49,7 +54,7 @@ end
 ---@param method string
 ---@param path string
 ---@param length? integer
----@param extra? string[]  more field lines, such as "Connection: close" or "Expect: 100-continue"
+---@param extra? string[]  more field lines, such as "Connection: close"
 ---@return string
 function wire.head(method, path, length, extra)
   local lines = { ("%s %s HTTP/1.1"):format(method, path), "Host: 127.0.0.1" }
@@ -61,7 +66,8 @@ function wire.head(method, path, length, extra)
   return table.concat(lines, "\r\n") .. "\r\n\r\n"
 end
 
---- Whether a new connection to `port` is refused (a successful probe is closed).
+--- Whether a new connection to `port` is refused (a successful probe is
+--- closed).
 ---@async
 ---@param port integer
 ---@return boolean
@@ -71,7 +77,8 @@ function wire.refused(port)
   return not ok
 end
 
---- Whether the server closed `stream` (end of stream or error) before `seconds` passed.
+--- Whether the server closed `stream` (end of stream or error) before
+--- `seconds` passed.
 ---@async
 local function closed_within(reactor, stream, seconds)
   local ok, result = pcall(reactor.deadline, seconds, function()
@@ -83,25 +90,32 @@ local function closed_within(reactor, stream, seconds)
   return ok and result == true
 end
 
---- The scenario of the exit criterion "graceful shutdown drains in-flight requests", against an application listening
---- on `port`, with no timing guess:
+--- The scenario of the exit criterion "graceful shutdown drains in-flight
+--- requests", against an application listening on `port`, with no timing
+--- guess:
 ---
---- 1. `idle` kept-alive connections each serve `GET /health` and stay open (with `round_robin` workers, consecutive
----    connections go to consecutive workers, so twice the number of workers covers each one). A server closes such an
----    idle connection as soon as its shutdown begins (`http.Server:shutdown`): their end is the signal that every server
----    is draining.
---- 2. A `POST /greetings` with `Expect: 100-continue` sends its head; the server answers `100 Continue` when the action's
----    content is first read: the request is then in flight, inside the action, with its content not sent yet.
---- 3. `stop()` begins the shutdown, in a computation of its own; new connections become refused, and the idle
----    connections end.
---- 4. The content is sent; the answer must be complete (`201`, `Connection: close`).
+--- 1. `idle` kept-alive connections each serve `GET /health` and stay open
+---    (with `round_robin` workers, consecutive connections go to
+---    consecutive workers, so twice the number of workers covers each one).
+---    A server closes such an idle connection as soon as its shutdown
+---    begins (`http.Server:shutdown`): their end is the signal that every
+---    server is draining.
+--- 2. A `POST /greetings` with `Expect: 100-continue` sends its head; the
+---    server answers `100 Continue` when the action's content is first
+---    read: the request is then in flight, inside the action, with its
+---    content not sent yet.
+--- 3. `stop()` begins the shutdown, in a computation of its own; new
+---    connections become refused, and the idle connections end.
+--- 4. The content is sent; the answer must be complete (`201`,
+---    `Connection: close`).
 ---
---- Returns the final response of the request in flight (nil when it got none), whether new connections were refused
---- during the drain, and whether every idle connection was closed before the content was sent.
+--- Returns the final response of the request in flight (nil when it got
+--- none), whether new connections were refused during the drain, and
+--- whether every idle connection was closed before the content was sent.
 ---@async
 ---@param reactor table  hecate.reactor
 ---@param port integer
----@param idle integer  how many idle kept-alive connections to watch (at least 1)
+---@param idle integer  idle kept-alive connections to watch (at least 1)
 ---@param stop fun()  begins the shutdown (it may suspend until the drain ends)
 ---@return { status: integer, head: string, body: string }? response
 ---@return boolean refused_during_drain
@@ -122,7 +136,8 @@ function wire.request_in_flight_during_shutdown(reactor, port, idle, stop)
   assert(interim and interim.status == 100, "the server asks for the content: the request is in flight")
   reactor.fork(stop)
   local refused = false
-  for _ = 1, 200 do -- at most about 10 seconds (a refusal takes up to 2 seconds on Windows)
+  -- At most about 10 seconds (a refusal takes up to 2 seconds on Windows).
+  for _ = 1, 200 do
     if wire.refused(port) then refused = true break end
     reactor.sleep(0.05)
   end

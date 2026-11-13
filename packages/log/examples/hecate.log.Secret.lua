@@ -1,4 +1,5 @@
--- A secret is never rendered by a sink, whatever the depth of the field that holds it.
+-- A secret is never rendered by a sink, whatever the depth of the field
+-- that holds it.
 local log = require("hecate.log")
 
 local lines = {}

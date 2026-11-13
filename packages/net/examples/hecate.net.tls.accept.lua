@@ -30,6 +30,6 @@ reactor.run(function()
   })
   client:write("hello\n")
   print(client:reader():read_line())
+  -- Prints: hello over echo
   client:shutdown() -- close_notify: a clean end, not a truncation
 end)
--- Prints: hello over echo
