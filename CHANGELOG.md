@@ -298,6 +298,8 @@ Each release heading states the supported Lua version.
 
 ### Fixed
 
+- fix(ci): the `docs-checks` job and the static checks of `ci.yml` run `gen-catalogue --check`, `gen-llms-txt --check` and `gen-dependency-graph --check`, so a stale package table, `llms.txt` or dependency graph fails CI (Phase 2 gate). docs(packages): the READMEs of `http`, `router`, `schema`, `container`, `config` and `kernel` give the status `alpha` (`implemented` is not a status of `packages/README.md`), and `hecate` the status `in progress` (its standard edition is a Phase 3 item).
+
 - fix(kernel): a route module verb called without its table of declarations (`module:get "/x"` alone) is reported by `RouteModule:routes()` at boot (`RouteDeclarationError` `incomplete_route`) instead of dropping the route silently; `responses = { [204] = true }` declares a status without content instead of being refused (review of the kernel package, H3 and H4).
 - fix(kernel): an unhandled error while serving a request is logged with the method, the path (without the query) and the traceback taken where it was raised, not only its text (review of the kernel package, H5).
 - fix(kernel): the hand-over queue of a `round_robin` worker (`HandoffListener`) is bounded at the listen backlog (default 128, new `capacity` argument and method); a connection that does not fit is closed and logged (`handover_queue_full`) instead of queuing without limit (review of the kernel package, M1).

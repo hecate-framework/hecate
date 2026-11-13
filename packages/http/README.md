@@ -8,7 +8,7 @@
 | Rock | `hecate-http` |
 | Layer | 2 — Protocol |
 | Roadmap phase | 2 |
-| Status | implemented: message model, parser, server, client, forms and multipart; documentation and review done in PR 52 |
+| Status | alpha — implemented in Phase 2: message model, parser, server, client, forms and multipart; documentation and review done in PR 52 |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |
 | Depends on | [`core`](../core), [`reactor`](../reactor), [`net`](../net), [`json`](../json), [`log`](../log) (the `logger` option is any `hecate.log.Logger`, used through `logger:log`; `log.default()` when none is given) |
 | Used by | `hecate`, `kernel`, `websocket`, `test`, `cli` |

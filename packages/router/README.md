@@ -8,7 +8,7 @@
 | Rock | `hecate-router` |
 | Layer | 2 — Protocol |
 | Roadmap phase | 2 |
-| Status | implemented (phase 2): templates, matching, 404/405, reverse routing, introspection |
+| Status | alpha — implemented in Phase 2: templates, matching, 404/405, reverse routing, introspection |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |
 | Depends on | [`core`](../core) |
 | Used by | `hecate`, `kernel`, `openapi` |

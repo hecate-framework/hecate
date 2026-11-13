@@ -146,6 +146,12 @@ jobs:
             lua tools/run.lua "$task"
             echo "::endgroup::"
           done
+          # The generated sections (package table, llms.txt, dependency graph) follow the READMEs and rockspecs.
+          for task in gen-catalogue gen-llms-txt gen-dependency-graph; do
+            echo "::group::$task --check"
+            lua tools/run.lua "$task" --check
+            echo "::endgroup::"
+          done
 
   ci:
     needs: plan
@@ -485,6 +491,11 @@ jobs:
           for task in check-versions check-rockspecs check-package-structure check-docs-examples check-examples check-licenses check-lua-constructs check-boundaries check-glossary check-annotations check-adr-index format-check typecheck; do
             echo "::group::$task"
             lua tools/run.lua "$task"
+            echo "::endgroup::"
+          done
+          for task in gen-catalogue gen-llms-txt gen-dependency-graph; do
+            echo "::group::$task --check"
+            lua tools/run.lua "$task" --check
             echo "::endgroup::"
           done
           echo "::group::lint"

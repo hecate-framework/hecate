@@ -8,7 +8,7 @@
 | Rock | `hecate-config` |
 | Layer | 3 — Framework |
 | Roadmap phase | 2 |
-| Status | implemented (phase 2): layers, environment variables, secret files, validation at boot, immutable `Configuration`, logging keys and `limits.max_depth` |
+| Status | alpha — implemented in Phase 2: layers, environment variables, secret files, validation at boot, immutable `Configuration`, logging keys and `limits.max_depth` |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |
 | Depends on | [`core`](../core), [`schema`](../schema) |
 | Used by | `hecate`, `kernel` |

@@ -8,7 +8,7 @@
 | Rock | `hecate-container` |
 | Layer | 3 — Framework |
 | Roadmap phase | 2 |
-| Status | implemented (phase 2): bindings, lifetimes, boot validation, constructor injection, disposal, overrides |
+| Status | alpha — implemented in Phase 2: bindings, lifetimes, boot validation, constructor injection, disposal, overrides |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |
 | Depends on | [`core`](../core) |
 | Used by | `hecate`, `kernel` |

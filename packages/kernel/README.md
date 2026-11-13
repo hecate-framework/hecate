@@ -8,7 +8,7 @@
 | Rock | `hecate-kernel` |
 | Layer | 3 — Framework |
 | Roadmap phase | 2 |
-| Status | in progress: filter chain, results, problems, route declarations, dispatcher, validation of the request inputs, response validation in development and test, `Application` skeleton and feature modules, listening strategies and supervisor of multi-process serving, wired into `Application` (`workers`, `strategy`), rolling reload of the workers (`Supervisor:reload`, `Application:reload`, `sighup`) |
+| Status | alpha — implemented in Phase 2: filter chain, results, problems, route declarations, dispatcher, validation of the request inputs, response validation in development and test, `Application` skeleton and feature modules, listening strategies and supervisor of multi-process serving, wired into `Application` (`workers`, `strategy`), rolling reload of the workers (`Supervisor:reload`, `Application:reload`, `sighup`) |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |
 | Depends on | [`core`](../core), [`reactor`](../reactor), [`net`](../net), [`log`](../log), [`http`](../http), [`router`](../router), [`schema`](../schema), [`container`](../container), [`config`](../config), [`json`](../json) |
 | Used by | `cli`, `hecate`, `security`, `template`, `test` |
