@@ -33,8 +33,9 @@ hecate.Controller.route(GreetingController, {
 
 local next_id = 0
 
--- The dispatcher validates the path parameters and the content before the action runs; the `assert` calls only tell
--- the type checker that these optional fields of `Request` are set here.
+-- The dispatcher validates the path parameters and the content before the
+-- action runs; the `assert` calls only tell the type checker that these
+-- optional fields of `Request` are set here.
 
 ---@param request hecate.http.Request
 function GreetingController:show(request)
@@ -63,7 +64,8 @@ function hello.health_routes()
   return health
 end
 
---- Builds the application. `options` are those of `hecate.Application` (for example `server`, `logger`, `signals`).
+--- Builds the application. `options` are those of `hecate.Application`
+--- (for example `server`, `logger`, `signals`).
 ---@param options? hecate.kernel.ApplicationOptions
 ---@return hecate.kernel.Application
 function hello.application(options)

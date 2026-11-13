@@ -17,8 +17,8 @@ severity builds no record. A sink that raises never fails the caller.
 
 <!-- example: packages/log/examples/hecate.log.Logger.lua -->
 ```lua
--- A logger drops what is less urgent than its severity, adds its context to every record and hands the rest to
--- its sinks.
+-- A logger drops what is less urgent than its severity, adds its context to
+-- every record and hands the rest to its sinks.
 local log = require("hecate.log")
 
 local sink = log.MemorySink()
@@ -70,7 +70,8 @@ as a field instead.
 
 <!-- example: packages/log/examples/hecate.log.Secret.lua -->
 ```lua
--- A secret is never rendered by a sink, whatever the depth of the field that holds it.
+-- A secret is never rendered by a sink, whatever the depth of the field
+-- that holds it.
 local log = require("hecate.log")
 
 local lines = {}
@@ -97,8 +98,9 @@ the main computation ends: a drain computation still waiting for records is a de
 
 <!-- example: packages/log/examples/hecate.log.AsyncSink.lua -->
 ```lua
--- An asynchronous sink queues records and writes them from a drain computation: logging never waits
--- for the target. `close` flushes what is queued and stops the drain computation.
+-- An asynchronous sink queues records and writes them from a drain
+-- computation: logging never waits for the target. `close` flushes what is
+-- queued and stops the drain computation.
 local reactor = require("hecate.reactor")
 local log = require("hecate.log")
 

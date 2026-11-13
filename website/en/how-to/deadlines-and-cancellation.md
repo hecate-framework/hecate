@@ -136,7 +136,8 @@ local ok = pcall(reactor.shield, 5, function()
   writer:flush()
   stream:shutdown()
 end)
--- A deadline of 5 seconds bounds the cleanup. ok is false if it expired or failed.
+-- A deadline of 5 seconds bounds the cleanup.
+-- ok is false if it expired or failed.
 ```
 
 The cancellation that arrived meanwhile is raised again at the first suspension point after the

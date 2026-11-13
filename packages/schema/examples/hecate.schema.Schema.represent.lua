@@ -1,4 +1,5 @@
--- Represent an instance for a response: declared attributes only, enumeration members as names, then encode.
+-- Represent an instance for a response: declared attributes only, enumeration
+-- members as names, then encode.
 local core = require("hecate.core")
 local json = require("hecate.json")
 local schema = require("hecate.schema")
@@ -17,13 +18,17 @@ core.finalise(Account)
 
 local accounts = schema.of(Account)
 local _, account = accounts:build({ name = "Ada", status = "active", tags = {} })
-account.password = "secret" -- not declared by the schema: it never reaches the response
+-- Not declared by the schema: it never reaches the response.
+account.password = "secret"
 
 local plain = accounts:represent(account)
 print(plain.status, plain.password, core.is_instance_of(plain, Account))
+-- Prints: active	nil	false
 print(json.encode(plain.tags), json.encode(plain.name))
+-- Prints: []	"Ada"
 
--- A cycle in the object graph ends with an error that names the limit, instead of a hang.
+-- A cycle in the object graph ends with an error that names the limit,
+-- instead of a hang.
 local Node = core.class("Node", nil, { implements = { schema.Representable } })
 function Node.schema() return schema.object({ next = schema.optional(schema.of(Node)) }) end
 core.finalise(Node)
@@ -32,6 +37,4 @@ local node = core.allocate(Node)
 node.next = node
 local ok, err = pcall(schema.of(Node).represent, schema.of(Node), node)
 print(ok, err.context.violations[1].code)
--- Prints: active	nil	false
--- []	"Ada"
--- false	depth_limit
+-- Prints: false	depth_limit

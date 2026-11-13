@@ -1,5 +1,5 @@
--- Declare a schema once, then validate a value: every violation is collected, each with the
--- JSON Pointer of the offending value.
+-- Declare a schema once, then validate a value: every violation is collected,
+-- each with the JSON Pointer of the offending value.
 local schema = require("hecate.schema")
 
 local user = schema.object({

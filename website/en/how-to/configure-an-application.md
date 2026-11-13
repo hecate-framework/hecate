@@ -19,8 +19,9 @@ environment variables and secret files. The [environment](../reference/glossary.
 
 <!-- example: packages/config/examples/hecate.config.load.lua -->
 ```lua
--- Layers in increasing precedence: the schema default, config/default.lua, config/production.lua, an environment
--- variable. The password is a secret: it is wrapped and never printed. The file system and the environment are
+-- Layers in increasing precedence: the schema default, config/default.lua,
+-- config/production.lua, an environment variable. The password is a secret:
+-- it is wrapped and never printed. The file system and the environment are
 -- replaced by tables here; by default `load` reads the real ones.
 local config = require("hecate.config")
 local schema = require("hecate.schema")
@@ -48,14 +49,14 @@ local configuration = config.load({
 })
 
 print(configuration:get("database.host"), configuration:source("database.host"))
+-- Prints: db.internal	config/production.lua
 print(configuration:get("database.port"), configuration:source("database.port"))
+-- Prints: 5433	config/default.lua
 print(tostring(configuration:get("database.password")), configuration:get("database.password"):reveal() == "s3cr3t")
+-- Prints: [redacted]	true
 local database = configuration:get("database")
 print(tostring(select(2, pcall(function() database.port = 1 end))):match("immutable"))
--- Prints: db.internal	config/production.lua
--- 5433	config/default.lua
--- [redacted]	true
--- immutable
+-- Prints: immutable
 ```
 
 A file under `config/` returns a table and is evaluated in an empty `_ENV` table (no `require`, no

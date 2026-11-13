@@ -18,13 +18,15 @@ local server so that it can be tested.
 
 <!-- example: packages/http/examples/hecate.http.Client.json.lua -->
 ```lua
--- Call a JSON API and decode the answer. The API is a local server here; with a real one only the URL changes.
+-- Call a JSON API and decode the answer. The API is a local server here;
+-- with a real one only the URL changes.
 local reactor = require("hecate.reactor")
 local json = require("hecate.json")
 local http = require("hecate.http")
 
 local function action(request)
-  -- http never serialises: the action encodes the table and names its media type
+  -- http never serialises: the action encodes the table and names its
+  -- media type
   return http.Response(200, {
     content = json.encode({ id = 42, name = "Ada" }),
     fields = http.Fields({ { "Content-Type", "application/json" } }),
@@ -39,10 +41,10 @@ reactor.run(function()
   local response = client:get("http://127.0.0.1:" .. listener:local_address().port .. "/users/42")
   local user = response:read_json()
   print(response.status .. " " .. user.name)
+  -- Prints: 200 Ada
   server:shutdown()
   reactor.join(serving)
 end)
--- Prints: 200 Ada
 ```
 
 `response:read_json(limit?)` reads the content (bounded like `read_content`) and decodes it. Content
@@ -60,8 +62,9 @@ chunk.
 
 <!-- example: packages/http/examples/hecate.http.Client.lua -->
 ```lua
--- A client with its pool. The server echoes what it receives; the client sends JSON, then
--- reads a response chunk by chunk and releases its connection.
+-- A client with its pool. The server echoes what it receives; the client
+-- sends JSON, then reads a response chunk by chunk and releases its
+-- connection.
 local reactor = require("hecate.reactor")
 local http = require("hecate.http")
 
@@ -79,6 +82,7 @@ reactor.run(function()
 
   local created = client:post(base .. "/items", { name = "pen" })
   print(created.status .. " " .. created:read_content())
+  -- Prints: 200 POST /items 14
 
   local response <close> = client:get(base .. "/items/7")
   local stream = response:stream_content()
@@ -87,12 +91,11 @@ reactor.run(function()
     if chunk == nil then break end
     print(chunk)
   end
+  -- Prints: GET /items/7 0
 
   server:shutdown()
   reactor.join(serving)
 end)
--- Prints: 200 POST /items 14
--- GET /items/7 0
 ```
 
 The methods are `client:request(method, url, options?)` and the wrappers `get`, `head`, `delete`
@@ -209,7 +212,8 @@ if not ok then
   if core.is_instance_of(err, core.DeadlineExceededError) then
     -- too slow
   elseif core.is_instance_of(err, http.ParseError) or core.is_instance_of(err, core.ProtocolError) then
-    -- the server answered something that is not valid, or a redirect went wrong: err.context.reason says which
+    -- the server answered something that is not valid, or a redirect went
+    -- wrong: err.context.reason says which
   else
     error(err, 0) -- a transport or TLS failure, or a bug
   end

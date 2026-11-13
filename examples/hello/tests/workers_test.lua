@@ -1,8 +1,11 @@
--- The Phase 2 exit criterion: the example served by two worker processes (ADR 0023). This process is the primary
--- (`workers = 2`, `round_robin`); each worker is `main.lua` itself, started again by the supervisor, so the entry point
--- a user runs is the one tested. The test asks the primary to stop (`Application:shutdown`) instead of raising a signal,
--- so it runs on the three platforms.
----@diagnostic disable: need-check-nil, param-type-mismatch, missing-fields, undefined-field, inject-field
+-- The Phase 2 exit criterion: the example served by two worker processes
+-- (ADR 0023). This process is the primary (`workers = 2`, `round_robin`);
+-- each worker is `main.lua` itself, started again by the supervisor, so the
+-- entry point a user runs is the one tested. The test asks the primary to
+-- stop (`Application:shutdown`) instead of raising a signal, so it runs on
+-- the three platforms.
+---@diagnostic disable: need-check-nil, param-type-mismatch, missing-fields
+---@diagnostic disable: undefined-field, inject-field
 local test = require("harness.test")
 local uv = require("luv")
 local net = require("hecate.net")
@@ -26,7 +29,8 @@ local function absolute(search_path)
   return table.concat(entries, ";")
 end
 
---- Gives the workers (they inherit this process's environment) the search paths of this process while `body` runs.
+--- Gives the workers (they inherit this process's environment) the search
+--- paths of this process while `body` runs.
 local function with_lua_paths(body)
   local names = { "LUA_PATH", "LUA_PATH_5_5", "LUA_CPATH", "LUA_CPATH_5_5" }
   local saved = {}
@@ -41,8 +45,10 @@ local function with_lua_paths(body)
   if not ok then error(err, 0) end
 end
 
---- One request on its own connection (`Connection: close`, so round robin sees a new connection each time); returns
---- the status, the body and the head, or nil when the connection ended without an answer (no worker ready yet).
+--- One request on its own connection (`Connection: close`, so round robin
+--- sees a new connection each time); returns the status, the body and the
+--- head, or nil when the connection ended without an answer (no worker
+--- ready yet).
 local function request(port, method, path, content)
   local stream = net.connect("127.0.0.1", port)
   local head = ("%s %s HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n"):format(method, path)
@@ -63,7 +69,8 @@ local function request(port, method, path, content)
   return tonumber(status), answer:match("\r\n\r\n(.*)$"), answer:match("^(.-)\r\n\r\n")
 end
 
---- Waits until both workers have reported `ready` (the supervisor of the primary; a test may read it).
+--- Waits until both workers have reported `ready` (the supervisor of the
+--- primary; a test may read it).
 ---@async
 local function wait_both_ready(app)
   while not (app._supervisor ~= nil and app._supervisor:ready_count() == 2) do reactor.sleep(0.02) end
@@ -85,8 +92,9 @@ function T:test_two_workers_serve_the_example_and_stop_on_shutdown()
           wait_both_ready(app)
           for i = 1, 6 do answers[i] = { request(port, "GET", "/hello/Ada") } end
           invalid = { request(port, "POST", "/greetings", '{"name":""}') }
-          -- Each worker reports the connections it accepted (control-protocol counters, at most once per second):
-          -- both served, so the example really runs on N processes.
+          -- Each worker reports the connections it accepted
+          -- (control-protocol counters, at most once per second): both
+          -- served, so the example really runs on N processes.
           while true do
             local counters = app._supervisor:counters()
             serving = 0
@@ -130,8 +138,9 @@ function T:test_a_request_in_flight_in_a_worker_is_answered_when_the_primary_shu
           while not app:local_address() do reactor.sleep(0.02) end
           local port = app:local_address().port
           wait_both_ready(app)
-          -- Four idle connections: round robin gives two to each worker. `stop` runs in a computation of its own:
-          -- `shutdown` returns once the workers have drained.
+          -- Four idle connections: round robin gives two to each worker.
+          -- `stop` runs in a computation of its own: `shutdown` returns
+          -- once the workers have drained.
           response, refused, idle_closed = wire.request_in_flight_during_shutdown(reactor, port, 4,
             function() app:shutdown(5) end)
         end)

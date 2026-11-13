@@ -20,7 +20,8 @@ metadata you want back. The router keeps the table you gave it; the list of rout
 
 <!-- example: packages/router/examples/hecate.router.Router.lua -->
 ```lua
--- Declare routes as data, compile them once, match requests and build URLs from route names.
+-- Declare routes as data, compile them once, match requests and build URLs
+-- from route names.
 local router = require("hecate.router")
 
 local routes = router.Router({
@@ -31,29 +32,29 @@ local routes = router.Router({
   { method = "GET", path = "/static/{path...}", name = "static" },
 })
 
+-- A match carries the route and its parameters, or the status to answer.
 local function show(method, path)
   local match = routes:match(method, path)
   if match.status == 200 then
-    print(method, path, match.route.name, match.parameters.id or match.parameters.path or "-")
-  else
-    print(method, path, match.status, match.allow_field or "-")
+    return method, path, match.route.name, match.parameters.id or match.parameters.path or "-"
   end
+  return method, path, match.status, match.allow_field or "-"
 end
 
-show("GET", "/users/42")
-show("GET", "/users/me")
-show("DELETE", "/users/me")
-show("POST", "/users/42")
-show("GET", "/static/css/site.css")
-show("GET", "/nothing")
-print(routes:url_for("users.show", { id = "Ada Lovelace" }))
+print(show("GET", "/users/42"))
 -- Prints: GET	/users/42	users.show	42
--- GET	/users/me	users.me	-
--- DELETE	/users/me	users.delete	me
--- POST	/users/42	405	DELETE, GET, HEAD, OPTIONS
--- GET	/static/css/site.css	static	css/site.css
--- GET	/nothing	404	-
--- /users/Ada%20Lovelace
+print(show("GET", "/users/me"))
+-- Prints: GET	/users/me	users.me	-
+print(show("DELETE", "/users/me"))
+-- Prints: DELETE	/users/me	users.delete	me
+print(show("POST", "/users/42"))
+-- Prints: POST	/users/42	405	DELETE, GET, HEAD, OPTIONS
+print(show("GET", "/static/css/site.css"))
+-- Prints: GET	/static/css/site.css	static	css/site.css
+print(show("GET", "/nothing"))
+-- Prints: GET	/nothing	404	-
+print(routes:url_for("users.show", { id = "Ada Lovelace" }))
+-- Prints: /users/Ada%20Lovelace
 ```
 
 `match` always returns a `Match`. Its `status` says what to do:
@@ -88,7 +89,8 @@ Matching costs a few table accesses per segment, whatever the number of routes.
 
 <!-- example: packages/router/examples/hecate.router.path.lua -->
 ```lua
--- The router reads the raw path of a request: each segment is decoded on its own and dot segments are resolved first.
+-- The router reads the raw path of a request: each segment is decoded on its
+-- own and dot segments are resolved first.
 local router = require("hecate.router")
 
 local routes = router.Router({
@@ -98,16 +100,18 @@ local routes = router.Router({
 
 -- An encoded slash is data: it does not split the segment.
 print(routes:match("GET", "/files/reports%2F2026.pdf").parameters.name)
+-- Prints: reports/2026.pdf
+
 -- Dot segments never climb above the root and are resolved before matching.
 print(routes:match("GET", "/docs/x/../y/./index").parameters.topic)
+-- Prints: y
 print(routes:match("GET", "/../../files/a").parameters.name)
+-- Prints: a
+
 -- A path that cannot be read is a 400, not a 404.
 local bad = routes:match("GET", "/files/%zz")
 print(bad.status, bad.reason)
--- Prints: reports/2026.pdf
--- y
--- a
--- 400	malformed_percent_encoding
+-- Prints: 400	malformed_percent_encoding
 ```
 
 - `%2F` stays inside its segment. A wildcard refuses a segment whose decoded text holds a `/`, so `..%2F..%2Fsecret`

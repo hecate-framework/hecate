@@ -22,8 +22,8 @@ de la RFC 6901.
 
 <!-- example: packages/schema/examples/hecate.schema.validate.lua -->
 ```lua
--- Declare a schema once, then validate a value: every violation is collected, each with the
--- JSON Pointer of the offending value.
+-- Declare a schema once, then validate a value: every violation is collected,
+-- each with the JSON Pointer of the offending value.
 local schema = require("hecate.schema")
 
 local user = schema.object({
@@ -55,8 +55,9 @@ ce qu’il envoie.
 
 <!-- example: packages/schema/examples/hecate.schema.Schema.check.lua -->
 ```lua
--- Report violations to a client: `check` raises a `ValidationError`, and its violations become the plain
--- table of a problem details response (the kernel does this conversion for you).
+-- Report violations to a client: `check` raises a `ValidationError`, and its
+-- violations become the plain table of a problem details response (the kernel
+-- does this conversion for you).
 local core = require("hecate.core")
 local schema = require("hecate.schema")
 
@@ -67,8 +68,10 @@ local user = schema.object({
 
 local ok, err = pcall(user.check, user, { name = "", age = -1 })
 print(ok, core.is_instance_of(err, core.ValidationError))
+-- Prints: false	true
 
--- One entry per violation: the JSON Pointer of the value, the stable code and the message (no client value in it).
+-- One entry per violation: the JSON Pointer of the value, the stable code and
+-- the message (no client value in it).
 local problem = { type = "about:blank", title = "The content is not valid", status = 400, errors = {} }
 for _, violation in ipairs(err.context.violations) do
   problem.errors[#problem.errors + 1] = { pointer = violation.path, code = violation.code, detail = violation.message }
@@ -76,13 +79,12 @@ end
 for _, entry in ipairs(problem.errors) do
   print(entry.pointer, entry.code, entry.detail)
 end
+-- Prints: /age	minimum	the value is less than 0
+-- /name	min_length	the string is shorter than 1
 
 -- A conforming value is returned as it is.
 print(user:check({ name = "Ada", age = 36 }).name)
--- Prints: false	true
--- /age	minimum	the value is less than 0
--- /name	min_length	the string is shorter than 1
--- Ada
+-- Prints: Ada
 ```
 
 ## Donner son schéma à une classe
@@ -97,7 +99,8 @@ chaque emploi. Les classes peuvent se référencer mutuellement ou elles-mêmes.
 
 <!-- example: packages/schema/examples/hecate.schema.of.lua -->
 ```lua
--- A class owns the schema of its instances: the interface `schema.Representable` requires a class-level `schema()`, and
+-- A class owns the schema of its instances: the interface
+-- `schema.Representable` requires a class-level `schema()`, and
 -- `schema.of(Class)` uses the class wherever it is a part of another schema.
 local core = require("hecate.core")
 local schema = require("hecate.schema")
@@ -119,23 +122,24 @@ core.finalise(User)
 -- A class that declares the interface without `schema()` cannot be finalised.
 local Incomplete = core.class("Incomplete", nil, { implements = { Representable } })
 print((pcall(core.finalise, Incomplete)))
+-- Prints: false
 
--- `schema.of` refuses a class that does not declare the interface, even when it has a `schema` function.
+-- `schema.of` refuses a class that does not declare the interface, even when
+-- it has a `schema` function.
 local Plain = core.class("Plain")
 function Plain.schema() return schema.object({}) end
 core.finalise(Plain)
 print((pcall(schema.of, Plain)))
+-- Prints: false
 
 local ok, user = schema.of(User):build({ name = "Ada", address = { street = "1 Main St", city = "Paris" } })
 print(ok, core.is_instance_of(user, User), core.is_instance_of(user.address, Address))
+-- Prints: true	true	true
 
 -- The emission names each class once, in `$defs`, and refers to it.
 local document = schema.of(User):to_json_schema()
 print(document["$ref"], document["$defs"].User.properties.address["$ref"])
--- Prints: false
--- false
--- true	true	true
--- #/$defs/User	#/$defs/Address
+-- Prints: #/$defs/User	#/$defs/Address
 ```
 
 ## Construire des instances
@@ -159,7 +163,8 @@ conversion, et jamais pour un PATCH. `schema.sent` n’enregistre que les attrib
 
 <!-- example: packages/schema/examples/hecate.schema.Schema.build.lua -->
 ```lua
--- Build an instance of a class from the texts of a query string: convert, validate, apply defaults.
+-- Build an instance of a class from the texts of a query string: convert,
+-- validate, apply defaults.
 local core = require("hecate.core")
 local schema = require("hecate.schema")
 
@@ -176,17 +181,19 @@ core.finalise(Filter)
 
 local filters = schema.of(Filter)
 
--- Every value of a query string is a text: `coerce = true` converts it before building.
+-- Every value of a query string is a text: `coerce = true` converts it
+-- before building.
 local _, filter = filters:build({ limit = "5", tags = "a,b", archived = "true" }, { coerce = true })
 print(core.is_instance_of(filter, Filter), filter.status, filter.limit, #filter.tags, filter.archived)
+-- Prints: true	open	5	2	true
 print(schema.sent(filter, "limit"), schema.sent(filter, "status"))
+-- Prints: true	false
 
--- A text that cannot be converted is a violation with the path of the parameter.
+-- A text that cannot be converted is a violation with the path of the
+-- parameter.
 local ok, violations = filters:build({ limit = "many" }, { coerce = true })
 print(ok, violations[1].path, violations[1].code)
--- Prints: true	open	5	2	true
--- true	false
--- false	/limit	coercion
+-- Prints: false	/limit	coercion
 ```
 
 ### Remplir les propriétés absentes avec des valeurs par défaut
@@ -199,8 +206,9 @@ défaut. `validate` ne fournit jamais de valeur.
 
 <!-- example: packages/schema/examples/hecate.schema.default.lua -->
 ```lua
--- A default makes a property optional. A POST or PUT receives a fresh copy of it; a PATCH never
--- does, because an absent attribute of a PATCH means unchanged.
+-- A default makes a property optional. A POST or PUT receives a fresh copy of
+-- it; a PATCH never does, because an absent attribute of a PATCH means
+-- unchanged.
 local core = require("hecate.core")
 local schema = require("hecate.schema")
 
@@ -217,21 +225,21 @@ local articles = schema.of(Article)
 
 local _, created = articles:build({ title = "Hello" })
 print(#created.tags, created.tags[1], schema.sent(created, "tags"))
+-- Prints: 1	draft	false
 
 -- The default is copied: changing it on one instance changes nothing else.
 created.tags[1] = "changed"
 local _, other = articles:build({ title = "Again" })
 print(other.tags[1])
+-- Prints: draft
 
 local _, patched = articles:build({ title = "Renamed" }, { method = "PATCH" })
 print(patched.tags, schema.sent(patched, "tags"))
+-- Prints: nil	false
 
 -- `validate` never supplies a value; it only checks.
 print((schema.object({ tags = schema.default(schema.string(), "x") }):validate({})))
--- Prints: 1	draft	false
--- draft
--- nil	false
--- true
+-- Prints: true
 ```
 
 ### Distinguer inchangé et effacé dans un PATCH
@@ -245,7 +253,8 @@ lever d’erreur.
 
 <!-- example: packages/schema/examples/hecate.schema.sent.lua -->
 ```lua
--- For a PATCH, `schema.sent` tells an attribute left unchanged from one that was cleared.
+-- For a PATCH, `schema.sent` tells an attribute left unchanged from one that
+-- was cleared.
 local core = require("hecate.core")
 local json = require("hecate.json")
 local schema = require("hecate.schema")
@@ -264,22 +273,23 @@ local profiles = schema.of(Profile)
 -- The attribute is absent: unchanged.
 local _, unchanged = profiles:build({ name = "Ada" }, { method = "PATCH" })
 print(unchanged.bio, schema.sent(unchanged, "bio"))
+-- Prints: nil	false
 
 -- The attribute is an explicit null: cleared. Both leave `bio` nil.
 local _, cleared = profiles:build({ bio = json.null }, { method = "PATCH" })
 print(cleared.bio, schema.sent(cleared, "bio"), schema.sent(cleared, "name"))
+-- Prints: nil	true	false
 
 -- A PATCH relaxes the required properties of the top-level object only.
 print((profiles:build({}, { method = "POST" })))
+-- Prints: false
 print((profiles:build({}, { method = "PATCH" })))
+-- Prints: true
 
--- A value that `build` did not make has sent nothing, and `sent` does not raise.
+-- A value that `build` did not make has sent nothing, and `sent` does not
+-- raise.
 print(schema.sent({ name = "Ada" }, "name"))
--- Prints: nil	false
--- nil	true	false
--- false
--- true
--- false
+-- Prints: false
 ```
 
 ## Représenter une instance dans une réponse
@@ -302,7 +312,8 @@ comme pour `validate` : un cycle dans le graphe d’objets lève une `Validation
 
 <!-- example: packages/schema/examples/hecate.schema.Schema.represent.lua -->
 ```lua
--- Represent an instance for a response: declared attributes only, enumeration members as names, then encode.
+-- Represent an instance for a response: declared attributes only, enumeration
+-- members as names, then encode.
 local core = require("hecate.core")
 local json = require("hecate.json")
 local schema = require("hecate.schema")
@@ -321,13 +332,17 @@ core.finalise(Account)
 
 local accounts = schema.of(Account)
 local _, account = accounts:build({ name = "Ada", status = "active", tags = {} })
-account.password = "secret" -- not declared by the schema: it never reaches the response
+-- Not declared by the schema: it never reaches the response.
+account.password = "secret"
 
 local plain = accounts:represent(account)
 print(plain.status, plain.password, core.is_instance_of(plain, Account))
+-- Prints: active	nil	false
 print(json.encode(plain.tags), json.encode(plain.name))
+-- Prints: []	"Ada"
 
--- A cycle in the object graph ends with an error that names the limit, instead of a hang.
+-- A cycle in the object graph ends with an error that names the limit,
+-- instead of a hang.
 local Node = core.class("Node", nil, { implements = { schema.Representable } })
 function Node.schema() return schema.object({ next = schema.optional(schema.of(Node)) }) end
 core.finalise(Node)
@@ -336,9 +351,7 @@ local node = core.allocate(Node)
 node.next = node
 local ok, err = pcall(schema.of(Node).represent, schema.of(Node), node)
 print(ok, err.context.violations[1].code)
--- Prints: active	nil	false
--- []	"Ada"
--- false	depth_limit
+-- Prints: false	depth_limit
 ```
 
 ## Émettre du JSON Schema
@@ -347,7 +360,8 @@ print(ok, err.context.violations[1].code)
 
 <!-- example: packages/schema/examples/hecate.schema.to_json_schema.lua -->
 ```lua
--- The same schema emits a JSON Schema 2020-12 document, here to list its required properties.
+-- The same schema emits a JSON Schema 2020-12 document, here to list its
+-- required properties.
 local schema = require("hecate.schema")
 
 local user = schema.object({
@@ -375,33 +389,32 @@ régulière ECMA-262 pour le contrat.
 
 <!-- example: packages/schema/examples/hecate.schema.string.lua -->
 ```lua
--- `format` checks well-known string formats. `pattern` is a Lua pattern, translated to an
--- ECMA-262 regular expression when the schema is emitted.
+-- `format` checks well-known string formats. `pattern` is a Lua pattern,
+-- translated to an ECMA-262 regular expression when the schema is emitted.
 local schema = require("hecate.schema")
 
 print((schema.string({ format = "email" }):validate("ada@example.org")))
+-- Prints: true
 
 local sku = schema.string({ pattern = "^%u%u%-%d+$" })
 print((sku:validate("AB-42")), (sku:validate("ab-42")))
+-- Prints: true	false
 print(sku:to_json_schema().pattern)
+-- Prints: ^[A-Z][A-Z]-[0-9]+$
 
--- A pattern that cannot be translated exactly is refused when emitting, never approximated:
--- `%b` and `%f`, and any non-ASCII byte.
+-- A pattern that cannot be translated exactly is refused when emitting, never
+-- approximated: `%b` and `%f`, and any non-ASCII byte.
 for _, pattern in ipairs({ "%bxy", "%f[%w]", "caf\u{e9}" }) do
   local refused = schema.string({ pattern = pattern })
   print((pcall(refused.to_json_schema, refused)))
 end
+-- Prints: false
+-- false
+-- false
 
 -- A `logger` reports the pattern at declaration instead.
-local logger = { warning = function(_, message) print(message) end }
-schema.string({ pattern = "%bxy", logger = logger })
--- Prints: true
--- true	false
--- ^[A-Z][A-Z]-[0-9]+$
--- false
--- false
--- false
--- schema: pattern "%bxy" cannot be emitted: %b has no exact translation
+schema.string({ pattern = "%bxy", logger = { warning = function(_, message) print(message) end } })
+-- Prints: schema: pattern "%bxy" cannot be emitted: %b has no exact translation
 ```
 
 La traduction est exacte pour un sous-ensemble défini et refuse le reste. Les constructions refusées sont `%b`, `%f`,
@@ -426,27 +439,29 @@ l’une de ces deux solutions.
 
 <!-- example: packages/schema/examples/hecate.schema.integer.lua -->
 ```lua
--- `multiple_of` takes a whole-number divisor. For decimal places, use minor units or a string.
+-- `multiple_of` takes a whole-number divisor. For decimal places, use minor
+-- units or a string.
 local schema = require("hecate.schema")
 
 local lots = schema.integer({ multiple_of = 5 })
 print((lots:validate(15)), (lots:validate(16)))
+-- Prints: true	false
 
--- A fractional divisor is refused at declaration: binary floats cannot express a decimal step.
+-- A fractional divisor is refused at declaration: binary floats cannot
+-- express a decimal step.
 local declared, err = pcall(schema.number, { multiple_of = 0.01 })
 print(declared, tostring(err):match("ArgumentError: ([^;]+)"))
+-- Prints: false	schema: number: option multiple_of must be a whole number
 
 -- First alternative: an integer in minor units, here cents (1999 is 19.99).
 local cents = schema.integer({ minimum = 0 })
 print((cents:validate(1999)))
+-- Prints: true
 
 -- Second alternative: a string with exactly two decimals.
 local price = schema.string({ pattern = "^%d+%.%d%d$" })
 print((price:validate("19.99")), (price:validate("19.9")))
 -- Prints: true	false
--- false	schema: number: option multiple_of must be a whole number
--- true
--- true	false
 ```
 
 ### Déclarer des tables associatives et des énumérations
@@ -457,27 +472,29 @@ prend pas de schéma de clés, parce que les clés d’un objet JSON sont toujou
 
 <!-- example: packages/schema/examples/hecate.schema.map.lua -->
 ```lua
--- A map has string keys that are not declared in advance, and one schema for every value.
+-- A map has string keys that are not declared in advance, and one schema for
+-- every value.
 local schema = require("hecate.schema")
 
 local stock = schema.map(schema.integer({ minimum = 0 }), { max_properties = 2 })
 
 print((stock:validate({ apples = 3, pears = 0 })))
+-- Prints: true
 
 local _, violations = stock:validate({ apples = -1 })
 local violation = assert(violations)[1]
 print(violation.path, violation.code)
+-- Prints: /apples	minimum
 
 _, violations = stock:validate({ apples = 1, pears = 2, plums = 3 })
 violation = assert(violations)[1]
 print(violation.path == "", violation.code)
+-- Prints: true	max_properties
 
--- The emission is an object whose `additionalProperties` is the schema of the values.
+-- The emission is an object whose `additionalProperties` is the schema of the
+-- values.
 print(stock:to_json_schema().additionalProperties.type)
--- Prints: true
--- /apples	minimum
--- true	max_properties
--- integer
+-- Prints: integer
 ```
 
 `schema.enumeration` accepte aussi une énumération de `hecate.core`. La forme JSON d’un membre est son nom, donc
@@ -494,22 +511,22 @@ local Status = core.enumeration("Status", { "active", "disabled", "pending" })
 local account = schema.object({ status = schema.enumeration(Status) })
 
 print((account:validate({ status = "active" })))
+-- Prints: true
 
 -- Only the names are accepted, never the member itself.
 local _, violations = account:validate({ status = "Active" })
 local violation = assert(violations)[1]
 print(violation.path, violation.code, table.concat(assert(violation.context).values, " "))
+-- Prints: /status	enum	active disabled pending
 
 -- `build` replaces the name by the member.
 local _, built = account:build({ status = "disabled" })
 print(built.status == Status.disabled)
+-- Prints: true
 
 local emitted = account:to_json_schema().properties.status
 print(emitted.type, #emitted.enum)
--- Prints: true
--- /status	enum	active disabled pending
--- true
--- string	3
+-- Prints: string	3
 ```
 
 ### Choisir entre `union` et `tagged_union`
@@ -531,27 +548,28 @@ local shape = schema.tagged_union("kind", {
 })
 
 print((shape:validate({ kind = "circle", radius = 2 })))
+-- Prints: true
 
--- The violations are those of the selected variant, at the path of the offending value.
+-- The violations are those of the selected variant, at the path of the
+-- offending value.
 local _, violations = shape:validate({ kind = "circle", radius = -1 })
 local violation = assert(violations)[1]
 print(violation.path, violation.code)
+-- Prints: /radius	exclusive_minimum
 
 -- An unknown tag lists the variants; a missing tag is a missing property.
 _, violations = shape:validate({ kind = "triangle" })
 violation = assert(violations)[1]
 print(violation.path, violation.code, table.concat(assert(violation.context).values, " "))
+-- Prints: /kind	tagged_union	circle rectangle
 _, violations = shape:validate({ radius = 2 })
 violation = assert(violations)[1]
 print(violation.path, violation.code)
+-- Prints: /kind	required
 
 -- The emission is a `oneOf` of the variants, each with the tag as a constant.
 print(#shape:to_json_schema().oneOf)
--- Prints: true
--- /radius	exclusive_minimum
--- /kind	tagged_union	circle rectangle
--- /kind	required
--- 2
+-- Prints: 2
 ```
 
 Une union n’accepte jamais null d’elle-même : `nullable` est le seul moyen pour une propriété d’accepter
@@ -562,27 +580,29 @@ sous `named`, `optional` ou `default`. Enveloppez plutôt l’union, sous la for
 
 <!-- example: packages/schema/examples/hecate.schema.union.lua -->
 ```lua
--- A union never accepts null on its own: `nullable` is the only way for a property to accept null.
+-- A union never accepts null on its own: `nullable` is the only way for a
+-- property to accept null.
 local json = require("hecate.json")
 local schema = require("hecate.schema")
 
 local plain = schema.union({ schema.string(), schema.integer() })
 print((plain:validate(json.null)))
+-- Prints: false
 
 -- A `null` or `nullable` alternative is refused at declaration, with a hint.
 local ok, err = pcall(schema.union, { schema.string(), schema.null() })
 print(ok, (err --[[@as table]]).code)
+-- Prints: false	hecate.core.ArgumentError
 
 -- Wrap the union instead.
 local identifier = schema.nullable(plain)
 print((identifier:validate(json.null)), (identifier:validate("a1")), (identifier:validate(true)))
+-- Prints: true	true	false
 
--- `any` is different: it accepts every value, null included, by an explicit choice.
+-- `any` is different: it accepts every value, null included, by an explicit
+-- choice.
 print((schema.union({ schema.string(), schema.any() }):validate(json.null)))
--- Prints: false
--- false	hecate.core.ArgumentError
--- true	true	false
--- true
+-- Prints: true
 ```
 
 `schema.any()` n’est pas refusé : il accepte toutes les valeurs, null compris, par un choix explicite et différent.
