@@ -927,6 +927,24 @@ function T:test_override_with_instance_checks_nothing_for_a_name_key()
   self:assert_equal(42, c:resolve("a"))
 end
 
+function T:test_override_with_instance_leaves_the_closing_to_the_caller()
+  -- OQ-123: the caller who built the instance owns it; neither the container nor a service scope closes it.
+  local Resource = core.class("Resource")
+  function Resource:init() self.closed = 0 end
+  function Resource:__close() self.closed = self.closed + 1 end
+  core.finalise(Resource)
+  local fake = Resource()
+  local c = container.Container():bind("resource", Resource, { lifetime = "singleton" })
+  c:bind("user", function(resource) return { resource = resource } end, { lifetime = "scoped", requires = { "resource" } })
+  c:override_with_instance("resource", fake):validate()
+  self:assert_true(c:resolve("resource") == fake)
+  local scope = c:open_scope()
+  self:assert_true(scope:resolve("user").resource == fake)
+  scope:close()
+  c:close()
+  self:assert_equal(0, fake.closed, "the container does not close an instance it did not build")
+end
+
 function T:test_override_after_validate_raises_container_error()
   local c = container.Container():bind("a", function() return {} end, { lifetime = "transient" }):validate()
   raises(self, container.ContainerError, function() c:override("a", function() return {} end) end)

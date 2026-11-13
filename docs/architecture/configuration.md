@@ -92,6 +92,9 @@ load. So is a leaf whose name is reserved: `<PREFIX>_ENV` (the environment) and,
   a stray `HECATE_DATABSE__PORT` cannot be told from the variables of another tool. The invariant "unknown keys are errors" covers
   every layer that can be enumerated (files and secret files); `Configuration:unused_names()` is not provided (OQ-101).
 - The `getenv` option (a function of a name returning a string or `nil`) replaces `os.getenv`, for tests and embedding.
+  `kernel.load_configuration` passes `reactor.getenv` (libuv `uv_os_getenv`) unless the caller gives a `getenv`: on Windows it
+  reads the wide environment, so a non-ASCII value arrives as UTF-8 whatever the code page, and elsewhere it reads the same bytes
+  as `os.getenv` (OQ-124).
 
 ## Secrets
 
@@ -126,6 +129,7 @@ variable (so a secret file can hold an integer). A path named by `<NAME>_FILE` t
 missing file of the directory is simply no secret. Secret files exist for secret keys only: a file for any other key is not looked
 for. Secret files win over environment variables (layer 5): a mounted secret is more deliberate than an inherited variable.
 The `read_file` option (a function of a path returning the content, or `nil` and a message) replaces the file reading, for tests.
+The path is the operator's: a secret file is read whole, with no size limit and no check of its permissions (OQ-124).
 
 ## Validation
 

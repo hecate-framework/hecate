@@ -15,7 +15,7 @@ local transfer = require("hecate.reactor.internal.transfer")
 --- Raised by `reactor.offload` when the offloaded function raises, returns a value that cannot
 --- cross between Lua states, or cannot be run on the pool thread.
 ---@class hecate.reactor.OffloadError : hecate.core.Error
----@field context { reason: "raised"|"result"|"worker", traceback?: string, code?: string }
+---@field context { reason: "raised"|"result"|"pool_thread", traceback?: string, code?: string }
 local OffloadError = core.error_class("OffloadError", "hecate.reactor.OffloadError", core.Error)
 
 --- Runs on a pool thread. Sent as bytecode by luv, so it has no upvalue but `_ENV` (the global
@@ -47,7 +47,7 @@ local function work(id, codec_code, fn_code, payload)
     local codec = cached.codec
     local environment = setmetatable({}, { __index = globals })
     local fn, load_error = load(fn_code, nil, "b", environment)
-    if fn == nil then return "worker", "cannot load the function: " .. tostring(load_error) end
+    if fn == nil then return "pool_thread", "cannot load the function: " .. tostring(load_error) end
     local n, args = codec.decode(payload)
     local function handler(err)
       local message, code
@@ -72,7 +72,7 @@ local function work(id, codec_code, fn_code, payload)
   local ok, status, data, traceback, code = pcall(run)
   if not ok then
     local text_ok, text = pcall(tostring, status)
-    return id, "worker", "the pool thread failed: " .. (text_ok and text or "unknown error")
+    return id, "pool_thread", "the pool thread failed: " .. (text_ok and text or "unknown error")
   end
   return id, status, data, traceback, code
   -- coverage: on
@@ -216,7 +216,7 @@ M._work = work
 --- Raises `hecate.reactor.OffloadError` when `fn` raises (`context.reason` `"raised"`,
 --- `context.traceback` from the pool thread, `context.code` the `code` of a framework error),
 --- returns a value that cannot be copied (`"result"`) or cannot run on the pool thread
---- (`"worker"`); `hecate.core.ArgumentError` for a function or an argument that cannot be sent;
+--- (`"pool_thread"`); `hecate.core.ArgumentError` for a function or an argument that cannot be sent;
 --- `hecate.reactor.IoError` when libuv refuses the work.
 ---@async
 ---@param fn fun(...): ...  a self-contained Lua function

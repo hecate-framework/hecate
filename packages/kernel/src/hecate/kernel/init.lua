@@ -61,7 +61,9 @@ function kernel.routes(name, options) return kernel.RouteModule(name, options) e
 
 --- Loads the configuration with `hecate.config.load`, passing `hecate.log.Secret` as `wrap_secret` unless the options
 --- give one (configuration.md, "Secrets"): the secret values are then rendered `[redacted]` by every logging sink.
---- Pass the result as the `configuration` option of `Application`.
+--- Environment variables are read with `hecate.reactor.getenv` unless the options give a `getenv`: on Windows it reads
+--- the wide environment, so a non-ASCII value arrives as UTF-8 (OQ-124). Pass the result as the `configuration`
+--- option of `Application`.
 ---
 --- Raises `hecate.core.ArgumentError` for invalid options and the errors of `hecate.config.load`.
 ---@param options hecate.config.LoadOptions
@@ -73,6 +75,7 @@ function kernel.load_configuration(options)
   local copy = {}
   for key, value in pairs(options) do copy[key] = value end
   if copy.wrap_secret == nil then copy.wrap_secret = wrap_secret end
+  if copy.getenv == nil then copy.getenv = require("hecate.reactor").getenv end
   return config.load(copy)
 end
 

@@ -266,7 +266,8 @@ end
 --- a fake. Like `override`, `key` must already be bound. When `key` is an interface, the conformance of `value` is
 --- checked here, at the call, because its class is known (a value that is not an instance of a class does not
 --- implement the interface, as for a factory product); the binding is unchanged on failure. A name key carries no
---- check. (container.md, "Overrides for tests"; Fowler 2004, "Forms of Dependency Injection".)
+--- check. The container never tracks nor closes `value`, even when it defines `__close`: the caller who built it owns
+--- it (OQ-123). (container.md, "Overrides for tests"; Fowler 2004, "Forms of Dependency Injection".)
 ---
 --- Raises `hecate.container.MissingBindingError` if `key` is not bound, `hecate.container.ContainerError` after
 --- `validate` or `close`, `hecate.core.ConformanceError` if `value` does not implement the interface `key`, and
@@ -282,7 +283,9 @@ function Container:override_with_instance(key, value)
     error(core.ConformanceError(("container: the instance for %q does not implement it"):format(render(key)),
       { context = { key = render(key) } }), 2)
   end
-  return self:override(key, function() return value end, { lifetime = Lifetime.singleton })
+  self:override(key, function() return value end, { lifetime = Lifetime.singleton })
+  self._bindings[key].caller_owned = true
+  return self
 end
 
 --- Checks the whole graph without constructing anything, then freezes the container. Collects every problem:
@@ -425,7 +428,9 @@ function resolve_key(container, scope, key, path, owner, pending, journal)
   end
   if cache ~= nil then
     cache[key] = product
-    if closeable(product) then track(lifetime == Lifetime.singleton and container or scope, product) end
+    if closeable(product) and not binding.caller_owned then
+      track(lifetime == Lifetime.singleton and container or scope, product)
+    end
   elseif closeable(product) and not container._tracked[product] and not (scope ~= nil and scope._tracked[product]) then
     -- A product already tracked (a singleton's or a scoped instance, or one returned before) has an owner already.
     if owner ~= nil then

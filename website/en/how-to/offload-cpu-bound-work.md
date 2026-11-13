@@ -97,7 +97,8 @@ An error raised by the function reaches the caller as a `reactor.OffloadError` w
 `err.context.reason` set to `"raised"`. Its message starts with `reactor.offload:` followed by the
 original message (the `message` field of an error object), `err.context.traceback` holds the
 traceback on the pool thread, and `err.context.code` keeps the code of a hecate error. The original
-error object stays on the pool thread. A result that cannot be copied gives the reason `"result"`.
+error object stays on the pool thread. A result that cannot be copied gives the reason `"result"`, and a failure of the pool thread itself
+(the function cannot be loaded there, or the arguments cannot be decoded) gives `"pool_thread"`.
 
 ```lua
 -- In app.lua, line 12:

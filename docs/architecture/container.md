@@ -119,6 +119,8 @@ were attempted, the others attached as `context.suppressed`):
   that singleton fails, the closable transients built for it are closed at once, in reverse order of creation, and
   dropped (an error of such a close is attached to the raised error as `context.suppressed`); those built for a
   singleton that did succeed on the way stay owned.
+- an instance bound by `override_with_instance` is **owned by the caller** who built it: neither the container nor a
+  service scope tracks or closes it, even when it defines `__close` (owner decision on OQ-123).
 
 An owner tracks an instance once: a factory that returns the same closable instance several times makes its owner
 close it once. A closable product that an owner already tracks (the instance of a singleton or of a scoped service,
@@ -223,6 +225,7 @@ binds an existing object as a `singleton` with no dependencies, the usual way to
 immediately, at the call, because the class of the value is known: a value that does not implement the interface raises
 `core.ConformanceError` there and the binding is unchanged; a value that is not an instance of a class (a plain table)
 does not implement it, the same rule as for a factory product. A name key carries no check. Owner decision on OQ-109.
+The container never closes that value: the caller who built it owns it ("Disposal", OQ-123).
 
 An override is an ordinary binding in every other respect. There is no "test mode": the same method works in
 production, and the same rules apply (OQ-104 (c): the owner chose no test mode; `override` is already refused after `validate`). Without `options`

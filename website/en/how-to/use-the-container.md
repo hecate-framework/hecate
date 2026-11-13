@@ -147,7 +147,7 @@ after being closed if it defines `__close`. A failed construction caches nothing
 `override(key, definition, options?)` replaces a binding before `validate`; without `options` it keeps the lifetime and
 `requires` of the replaced binding; with `options`, `lifetime` is required as for `bind`. A key that is not bound raises `MissingBindingError`, so a misspelt key cannot
 create a service by accident. `override_with_instance(key, value)` binds an existing object as a singleton without
-dependencies, the usual way to inject a fake. The key must be bound; for an interface key the value must implement it, and a fake that does not raises `core.ConformanceError` at the call. The new graph is validated as a whole, so an override cannot add a cycle
+dependencies, the usual way to inject a fake. The key must be bound; for an interface key the value must implement it, and a fake that does not raises `core.ConformanceError` at the call. The container never closes that object, even one that defines `__close`: you built it, so you close it. The new graph is validated as a whole, so an override cannot add a cycle
 or a captive dependency unnoticed.
 
 ## Errors

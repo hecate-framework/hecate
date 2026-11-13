@@ -44,7 +44,7 @@ Nothing here suspends, so nothing is `---@async`.
   - `bind(key, definition, options?)`: `key` is a name or an interface, `definition` a finalised class or a factory,
     `options.lifetime` (required) and `options.requires` (keys, in constructor order). Chainable.
   - `has(key)`: whether `key` has a binding; constructs nothing and does not need `validate` (the kernel checks its keys at boot with it).
-  - `override(key, definition, options?)` and `override_with_instance(key, value)`: replace a bound key (tests); for an interface key the value must implement it, checked at the call (`core.ConformanceError`).
+  - `override(key, definition, options?)` and `override_with_instance(key, value)`: replace a bound key (tests); for an interface key the value must implement it, checked at the call (`core.ConformanceError`). The instance given to `override_with_instance` is never tracked nor closed by the container or a service scope: the caller owns it.
   - `validate()`: checks the whole graph, raises one `GraphError`, then freezes the container. Returns the container and a list of warnings (`code = "singleton_over_transient"`: a singleton directly depends on a transient); warnings never fail it, the kernel logs them.
   - `resolve(key)`: singletons and transients that need no scoped service, and no closable transient that a singleton does not own (`LifetimeError`). `open_scope()`: a `ServiceScope`.
   - `close()` (also `<close>`): closes the singletons that define `__close`.
@@ -66,7 +66,7 @@ Nothing here suspends, so nothing is `---@async`.
 - A factory product that fails its interface check is closed if it defines `__close`. An owner tracks an instance
   once; a transient factory that returns an instance already owned (a singleton's) does not change its owner.
 - Services with `__close` are closed in reverse order of creation by their owner: scoped services and closable transients by the service scope that resolved them (a transient without `__close` is never tracked), singletons and the closable transients they received by the container. `Container:resolve` refuses a closable transient that no singleton owns (`LifetimeError`: resolve it through a service scope). Do not close a transient that a scope owns; use `scope:release(instance)` to close it early.
-- `override_with_instance` requires the key to be bound, like `override`, and checks an interface key at the call.
+- `override_with_instance` requires the key to be bound, like `override`, and checks an interface key at the call. The container never closes its value, even one with `__close`: the caller who built it closes it (OQ-123).
 
 ## Layout
 

@@ -39,6 +39,7 @@ end
 ---@field requires (string|table)[]
 ---@field needs_scope? boolean  set by `annotate`: constructing it needs a service scope
 ---@field scoped_path? (string|table)[]  set by `annotate` when `needs_scope`: the chain down to a scoped service
+---@field caller_owned? boolean  bound by `override_with_instance`: the caller owns the instance, never closed here (OQ-123)
 ---@field constructing? thread  the computation constructing it, while it runs (container.lua; OQ-107)
 
 -- A singleton reaches a scoped service only through transients (a singleton in between is checked on its own).

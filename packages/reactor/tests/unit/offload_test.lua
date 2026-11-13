@@ -312,20 +312,20 @@ end
 
 -- The pool thread, called in this state (OQ-119) -------------------------------------------------
 
-function T:test_a_pool_thread_that_cannot_load_the_function_answers_worker()
+function T:test_a_pool_thread_that_cannot_load_the_function_answers_pool_thread()
   local transfer = require("hecate.reactor.internal.transfer")
   local payload = transfer.codec.encode("argument", 0, {})
   local id, status, message = offload_module._work(7, transfer.code, "not bytecode", payload)
   self:assert_equal(7, id)
-  self:assert_equal("worker", status)
+  self:assert_equal("pool_thread", status)
   self:assert_true(message:find("cannot load the function", 1, true) ~= nil, message)
 end
 
-function T:test_a_pool_thread_that_cannot_decode_the_arguments_answers_worker()
+function T:test_a_pool_thread_that_cannot_decode_the_arguments_answers_pool_thread()
   local transfer = require("hecate.reactor.internal.transfer")
   local id, status, message = offload_module._work(8, transfer.code, string.dump(function() end), "\1\0\0\0\0\0\0\0?")
   self:assert_equal(8, id)
-  self:assert_equal("worker", status)
+  self:assert_equal("pool_thread", status)
   self:assert_true(message:find("the pool thread failed", 1, true) ~= nil, message)
   -- A well-formed call through the same entry answers "ok".
   local _, ok_status, data = offload_module._work(9, transfer.code, string.dump(function(a) return a + 1 end),

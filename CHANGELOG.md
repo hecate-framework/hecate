@@ -277,6 +277,12 @@ Each release heading states the supported Lua version.
 
 ### Changed
 
+- fix(container): `Container:override_with_instance` no longer tracks nor closes its value: the caller who built it owns it, even when it defines `__close` (OQ-123, owner decision of 2026-11-13).
+
+- feat(reactor, kernel): `reactor.getenv(name)` reads an environment variable through libuv (UTF-8 on Windows); `kernel.load_configuration` reads the environment with it unless the caller passes `getenv`. Secret files have no size limit and no permission check, by design (OQ-124, owner decisions of 2026-11-13).
+
+- feat(reactor)!: the `context.reason` of an `OffloadError` for a failure of the pool thread itself is now `"pool_thread"` (was `"worker"`, a glossary term for a process) (OQ-125, owner decision of 2026-11-13).
+
 - feat(schema, kernel): no error message names a JSON Pointer of the data any more (OQ-120 (2), owner decision of 2026-11-13): `Schema:check` and a failed `represent` give the count and the code of the first violation, the pointers stay in `context.violations`; with `errors.expose_details` the kernel logs the pointer of the first violation in a `pointer` field.
 
 - docs: owner decisions of 2026-11-13. ADR 0023 (Decision 1) amended: the default number of workers is the configuration key `server.workers`, `"auto"` = `max(1, cores - 1)`, implemented with the Phase 3 `cli` item (OQ-122). The generators `gen-error-codes` and `gen-config-reference` and the outline pages still marked Phase 2 become a roadmap item before the Phase 2 gate; `gen-meta` moves to the Phase 3 `cli` item (OQ-121).
