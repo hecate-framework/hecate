@@ -298,6 +298,8 @@ Each release heading states the supported Lua version.
 
 ### Fixed
 
+- fix(tools): `bench <scenario> --runs=N` fails at once with a message naming `--rounds=N`, the option of the scenarios, instead of `unknown argument` printed twice; `bench --list` names `--rounds` (Phase 2 gate, G3).
+
 - fix(kernel): `Application:serve` without the native module of `http` raises `ModuleError` (`reason = "http_unavailable"`) whose message names `lua tools/run.lua build-native http`, instead of `attempt to call a nil value (field 'Server')` (Phase 2 gate, from the `examples/hello` review).
 
 - fix(ci): the `docs-checks` job and the static checks of `ci.yml` run `gen-catalogue --check`, `gen-llms-txt --check` and `gen-dependency-graph --check`, so a stale package table, `llms.txt` or dependency graph fails CI (Phase 2 gate). docs(packages): the READMEs of `http`, `router`, `schema`, `container`, `config` and `kernel` give the status `alpha` (`implemented` is not a status of `packages/README.md`), and `hecate` the status `in progress` (its standard edition is a Phase 3 item).

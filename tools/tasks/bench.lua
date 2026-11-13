@@ -163,6 +163,10 @@ local function run_scenario(ctx, scenario)
   local interpreter = util.quote(util.interpreter())
   local compare, passed = nil, {}
   for i = 2, #ctx.args do
+    if ctx.args[i]:match("^%-%-runs=") then
+      -- `--runs` repeats a micro-benchmark file; a scenario counts its repetitions in rounds.
+      return { ok = false, problems = { "a scenario takes --rounds=N (default 5), not --runs=N, which repeats a micro-benchmark file" } }
+    end
     local ref = ctx.args[i]:match("^%-%-compare=(.+)$")
     if ref then compare = ref else passed[#passed + 1] = util.quote(ctx.args[i]) end
   end
@@ -184,7 +188,7 @@ local function run_scenario(ctx, scenario)
 end
 
 return {
-  description = "browse and run the benchmarks on a Linux host (--list, --runs=N, --pin=CPUS, --out=DIR)",
+  description = "browse and run the benchmarks on a Linux host (--list, --runs=N, --pin=CPUS, --out=DIR; a scenario takes --rounds=N)",
   run = function(ctx)
     if ctx.args[1] and util.is_dir(ctx.root .. "/benchmarks/scenarios/" .. ctx.args[1]) then
       if util.is_windows() then
