@@ -10,30 +10,16 @@ order: 18
 This guide shows the concurrency primitives of `hecate.reactor` on small tasks. It is written for hecate 0.x and
 Lua 5.5. For the model behind them, read [The concurrency model](../explanation/concurrency-model.md).
 
-Every primitive below runs inside `reactor.run(fn)`. That call runs `fn` in a managed
-[coroutine](../reference/glossary.md#concurrency), Lua's native unit of execution. It returns once `fn` and
-everything `fn` forked have finished.
-
-```lua
-local reactor = require("hecate.reactor")
-
-reactor.run(function()
-  reactor.sleep(0.01) -- a primitive: it needs a managed coroutine
-  print("done")
-  -- Prints: done
-end)
-```
-
-An action of `hecate.http.Server` or of an `Application` already runs inside a managed coroutine. Outside one, a
-primitive raises `NonYieldableContextError`.
+Every primitive below runs inside `reactor.run(fn)`, which runs `fn` in a managed
+[coroutine](../reference/glossary.md#concurrency) and returns once it and everything it forked have finished. An
+action of `hecate.http.Server` or of an `Application` already runs inside one. Outside a managed coroutine, a primitive
+raises `NonYieldableContextError`.
 
 ## Run computations at the same time
 
-`reactor.fork(fn, ...)` starts a [computation](../reference/glossary.md#concurrency), a running unit of the
-scheduler. It returns a [future](../reference/glossary.md#concurrency) at once: a placeholder for the value the
-computation will produce.
-
-`reactor.join(f1, f2, ...)` waits for every future. It returns their first values, in argument order.
+`reactor.fork(fn, ...)` starts a [computation](../reference/glossary.md#concurrency) and returns a
+[future](../reference/glossary.md#concurrency) at once. `reactor.join(f1, f2, ...)` waits for every future and returns
+their first values, in argument order.
 
 <!-- example: packages/reactor/examples/hecate.reactor.join.lua -->
 ```lua
@@ -67,32 +53,21 @@ reactor.run(function()
 end)
 ```
 
-The two fetches of the first part overlap. The `join` takes about 20 milliseconds, not 30.
+The two fetches of the first part overlap: the `join` takes about 20 milliseconds, not 30.
 
-### Scopes
+A computation belongs to the [scope](../reference/glossary.md#concurrency) that was running when it was forked.
+`reactor.scope(fn)` opens a scope of its own and returns only when every computation forked inside has ended. When
+one fails, the scope cancels the others and raises the first failure, as the second part of the example shows. Use a
+scope whenever you want to handle the failure of a group: the failure of a computation forked directly in an outer
+scope fails that outer scope, even if you catch the error of `join`.
 
-A computation belongs to the [scope](../reference/glossary.md#concurrency) that was running when it was forked. A
-scope is a structured-concurrency region that owns the computations forked in it.
-
-`reactor.scope(fn)` opens a scope of its own. It returns only when every computation forked inside has ended. When
-one fails, the scope cancels the others and raises the first failure. The second part of the example shows it.
-
-Use a scope whenever you want to handle the failure of a group. The failure of a computation forked directly in an
-outer scope fails that outer scope, even if you catch the error of `join`.
-
-### Futures
-
-A future also has four methods:
-
-- `value()` waits for its result;
-- `cancel()` requests its cancellation;
-- `done()` tells whether it has finished;
-- `state()` gives one of `pending`, `completed`, `failed` and `cancelled`.
+A future also has `value()` (waits for its result), `cancel()`, `done()` and `state()`, one of `pending`,
+`completed`, `failed` and `cancelled`.
 
 ## Wait for the first result
 
-`reactor.select(...)` waits for the first of several alternatives. It returns the position and the value of that
-alternative, and cancels the futures that lost. An alternative is a future or a channel operation.
+`reactor.select(...)` waits for the first of several alternatives, returns its position and its value, and cancels
+the futures that lost. An alternative is a future or a channel operation.
 
 <!-- example: packages/reactor/examples/hecate.reactor.select.lua -->
 ```lua
@@ -129,23 +104,15 @@ reactor.run(function()
 end)
 ```
 
-When several alternatives are ready at once, the first in argument order wins. The order is a priority, not a random
-choice.
-
-A channel operation takes effect only when it is the one selected. So a losing `receive_op()` takes no value, and a
-losing `send_op(v)` sends nothing.
+When several alternatives are ready at once, the first in argument order wins: the order is a priority, not a random
+choice. A channel operation takes effect only when it is the one selected, so a losing `receive_op()` takes no value
+and a losing `send_op(v)` sends nothing.
 
 ## Bound the time
 
-`reactor.deadline(limit, fn, ...)` runs `fn` and returns its results. When `fn` is late, it cancels it and raises
-`DeadlineExceededError`. The previous example used it.
-
-`limit` takes one of two forms:
-
-- a [timeout](../reference/glossary.md#concurrency), a relative duration in seconds;
-- an instant from `reactor.at(seconds)`, a reading of the reactor clock.
-
-Use an instant to share one [deadline](../reference/glossary.md#concurrency), an absolute bound on completion,
+`reactor.deadline(limit, fn, ...)` runs `fn` and returns its results, or cancels it and raises
+`DeadlineExceededError` when it is late. `limit` is a [timeout](../reference/glossary.md#concurrency) in seconds or
+an instant from `reactor.at(seconds)`. Use an instant to share one [deadline](../reference/glossary.md#concurrency)
 between several steps:
 
 ```lua
@@ -154,16 +121,14 @@ local user = reactor.deadline(finish, load_user, id)
 local orders = reactor.deadline(finish, load_orders, id)
 ```
 
-A deadline is delivered at suspension points only. Pure computation that never suspends is not interrupted. Move it
-to the thread pool with [`reactor.offload`](offload-cpu-bound-work.md).
-
-What a cancelled read or write leaves behind is described in
-[Deadlines and cancellation on streams](deadlines-and-cancellation.md).
+A deadline is delivered at suspension points. Pure computation that never suspends is not interrupted; move it to
+the thread pool with [`reactor.offload`](offload-cpu-bound-work.md). What a cancelled read or write leaves behind is
+in [Deadlines and cancellation on streams](deadlines-and-cancellation.md).
 
 ## Pass values through a channel
 
 A [channel](../reference/glossary.md#concurrency) carries values between coroutines. `reactor.Channel(capacity)`
-holds up to `capacity` values. With capacity 0, each `send` waits for a `receive` (a rendezvous).
+holds up to `capacity` values; with capacity 0, each `send` waits for a `receive` (a rendezvous).
 
 <!-- example: packages/reactor/examples/hecate.reactor.Channel.lua -->
 ```lua
@@ -195,37 +160,21 @@ reactor.run(function()
 end)
 ```
 
-The example relies on three behaviours of a channel:
-
-- `send` suspends while the channel is full: a fast producer waits for a slow consumer. That is
-  [back-pressure](../reference/glossary.md#concurrency), instead of buffering without bound.
+- `send` suspends while the channel is full: a fast producer waits for a slow consumer
+  ([back-pressure](../reference/glossary.md#concurrency)).
 - `close()` ends the channel. Receivers first take the values still buffered, then `receive` raises
   `ClosedChannelError`. A `send` on a closed channel raises it too.
 - `length()` and `capacity()` tell how full it is.
 
-### Limit concurrent work
-
-Sometimes you want to limit how many computations do something at once, such as calls to a remote service. Use a
-[semaphore](../reference/glossary.md#concurrency), a counting synchronisation primitive:
-
-```lua
-local calls = reactor.Semaphore(4) -- at most four calls at once
-local function call_service(request)
-  local permit <close> = calls:acquire()
-  return send_to_service(request)
-end
-```
-
-`reactor.Semaphore(n)` holds `n` units. `acquire()` waits for one of them. The `<close>` variable gives it back when
-`permit` goes out of scope.
+To limit how many computations do something at once (calls to a remote service, for example), use a
+[semaphore](../reference/glossary.md#concurrency): `local permit <close> = semaphore:acquire()` waits for one of its
+`n` units and gives it back when `permit` goes out of scope.
 
 ## Protect shared state
 
-The reactor runs one coroutine at a time. So code between two suspension points is never interleaved with other
-code.
-
-A read-modify-write sequence that suspends in the middle is not safe. Another coroutine can run at that point and
-change the same state:
+The reactor runs one coroutine at a time, so code between two suspension points is never interleaved with other
+code. A read-modify-write sequence that suspends in the middle is not safe: another coroutine can run at that point
+and change the same state.
 
 <!-- example: packages/reactor/examples/hecate.reactor.Mutex.lua -->
 ```lua
@@ -260,13 +209,10 @@ reactor.run(function()
 end)
 ```
 
-`mutex:lock()` waits until the [mutex](../reference/glossary.md#concurrency), a mutual exclusion lock, is free. It
-returns a permit. A `<close>` variable releases the permit when the block ends, by return or by error. Waiters get
-the mutex in arrival order.
+`mutex:lock()` waits until the [mutex](../reference/glossary.md#concurrency) is free and returns a permit. A
+`<close>` variable releases it when the block ends, by return or by error. Waiters get the mutex in arrival order.
 
-### Prefer designs that need no lock
-
-Three designs avoid the lock altogether:
+Prefer designs that need no lock:
 
 - keep state local to a request, or in a scoped service of the container
   ([Use the container](use-the-container.md));
@@ -274,45 +220,21 @@ Three designs avoid the lock altogether:
 - do not suspend inside a read-modify-write sequence.
 
 State in one process is not shared with the other [workers](../reference/glossary.md#concurrency) of a
-multi-process server. A worker is a process with its own reactor that serves requests. Shared state belongs in a
-database.
+multi-process server: shared state belongs in a database.
 
-### Wait for a condition
-
-For a condition to wait on, `reactor.Monitor()` gives a [monitor](../reference/glossary.md#concurrency): a mutex with
-condition variables. `monitor:condition()` makes a condition attached to it.
-
-```lua
-local monitor = reactor.Monitor()
-local not_empty = monitor:condition()
-local items = {}
-
-local function take()
-  local permit <close> = monitor:enter()
-  while #items == 0 do not_empty:wait() end
-  return table.remove(items, 1)
-end
-```
-
-The monitor follows Mesa semantics: a woken waiter must test its condition again. That is why `wait()` sits in a
-`while` loop, never in an `if`.
+For a condition to wait on, `reactor.Monitor()` gives a [monitor](../reference/glossary.md#concurrency) and its
+conditions. It follows Mesa semantics: a woken waiter must test its condition again in a `while` loop.
 
 ## Avoid the traps
 
-**A detached computation outlives its scope.** `reactor.detach(fn)` starts `fn` in the application scope. Its
-failure is seen only through its future. When nothing waits for that future, the failure is passed to the
-`on_unobserved_failure` option of the reactor, if one is given. Use `detach` for work that must survive the request,
-and only then.
-
-**Some calls cannot suspend.** A suspending call there raises `NonYieldableContextError`. These calls are:
-
-- the comparator of `table.sort`;
-- the replacement function of `string.gsub`;
-- some metamethods called from C;
-- a module being loaded by `require`.
-
-**Cleanup in a cancelled scope cannot suspend**, unless it runs in `reactor.shield(limit, fn)`. See
-[Run cleanup while the scope is cancelled](deadlines-and-cancellation.md#run-cleanup-while-the-scope-is-cancelled).
+- **A detached computation outlives its scope.** `reactor.detach(fn)` starts `fn` in the application scope. Its
+  failure is seen only through its future, or through the `on_unobserved_failure` option of the reactor when nothing
+  waits for it. Use it for work that must survive the request, and only then.
+- **Some calls cannot suspend.** The comparator of `table.sort`, the replacement function of `string.gsub`, some
+  metamethods called from C and a module being loaded by `require` cannot suspend. A suspending call there raises
+  `NonYieldableContextError`.
+- **Cleanup in a cancelled scope cannot suspend**, unless it runs in `reactor.shield(limit, fn)`. See
+  [Run cleanup while the scope is cancelled](deadlines-and-cancellation.md#run-cleanup-while-the-scope-is-cancelled).
 
 ## See also
 

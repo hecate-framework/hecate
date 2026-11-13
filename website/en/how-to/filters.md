@@ -7,18 +7,16 @@ order: 17
 
 # Filters
 
-This guide shows how to wrap the actions of an application with filters. It is written for hecate 0.x and Lua 5.5.
-It assumes you know how to declare routes with `hecate.routes` or a
-[controller](../reference/glossary.md#object-model-and-architecture), a class whose methods are actions.
-
-An [action](../reference/glossary.md#object-model-and-architecture) is the function that serves a request. A
-[filter](../reference/glossary.md#object-model-and-architecture) wraps the action of a route. It sees the request on
-the way in and the result on the way out. It can also stop the request before the action.
+A [filter](../reference/glossary.md#object-model-and-architecture) wraps the
+[action](../reference/glossary.md#object-model-and-architecture) of a route. The filters of a request form a
+[chain of responsibility](../reference/glossary.md#object-model-and-architecture): each one sees the request on the
+way in and the result on the way out, and may stop the request before the action. This guide is written for
+hecate 0.x and Lua 5.5, and assumes you know how to declare routes with `hecate.routes` or a
+[controller](../reference/glossary.md#object-model-and-architecture).
 
 ## Write a filter
 
-A filter is any table with a `handle(self, request, next)` function. It can be a plain table or an instance of a
-class. Here is the smallest filter, one that passes the request on:
+A filter is any table with a `handle(self, request, next)` function: a plain table or an instance of a class.
 
 ```lua
 local pass_through = {
@@ -29,26 +27,17 @@ local pass_through = {
 }
 ```
 
-`next` runs the rest of the chain, then the action. The filters of a request form a
-[chain of responsibility](../reference/glossary.md#object-model-and-architecture): an ordered list of handlers around
-the action, each one deciding whether to call the next.
-
-In `handle`, a filter can do three things:
+In `handle` a filter can:
 
 - **pass** the request on, `return next(request)`, possibly after changing it;
 - **short-circuit**: return a result without calling `next`, so the action never runs;
 - **post-process**: change what `next` returned before returning it.
 
-An error raised by a filter is handled like an error of the action. The guard turns it into
-[problem details](map-domain-errors-to-problem-details.md).
-
-The chain is composed once, at boot. So a filter costs no allocation per request.
-
-Nothing stops a filter from calling `next` twice. Do it only on purpose.
+An error raised by a filter is handled like an error of the action: the guard turns it into
+[problem details](map-domain-errors-to-problem-details.md). The chain is composed once, at boot, so a filter costs no
+allocation per request. Nothing stops a filter from calling `next` twice; do it only on purpose.
 
 ## Attach filters at four layers
-
-You attach a filter where it should apply. There are four layers:
 
 | Layer | Where | Applies to |
 |---|---|---|
@@ -56,9 +45,6 @@ You attach a filter where it should apply. There are four layers:
 | feature module | `filters` field of the module table | the routes of that module |
 | controller | class field `filters` of the controller | the routes of that controller |
 | route | `filters` field of the route declaration | that route |
-
-A [feature module](../reference/glossary.md#object-model-and-architecture) is the kernel's grouping of routes into one
-feature.
 
 The order is global, module, controller, then route, outermost first. Inside a list, the first filter is the
 outermost. The example traces one filter of each layer:
@@ -129,50 +115,39 @@ print(table.concat(trail, " "))
 ```
 
 A route module has no layer of its own. The `filters` option of `hecate.routes(name, { filters = ... })` gives the
-*default* filters of its routes:
-
-- a route that declares `filters` replaces them;
-- a route that declares `filters = {}` removes them.
-
-The filters of a controller, by contrast, always run, before those of the route.
+*default* filters of its routes: a route that declares `filters` replaces them, and `filters = {}` removes them. The
+filters of a controller, by contrast, always run, before those of the route.
 
 ## Know what each layer sees
 
-The global filters wrap the routing step. They see every request. The `404`, `405` and `400` problem responses pass
-through them, and so does the automatic answer to `OPTIONS`.
-
-When the global filters run, the route is not known yet. `request.parameters.path` is empty, and `request.services`
-is not set.
+The global filters wrap the routing step. They see every request: the `404`, `405` and `400` problem responses and
+the automatic answer to `OPTIONS` pass through them. When they run, the route is not known yet:
+`request.parameters.path` is empty and `request.services` is not set.
 
 The other layers run after routing. There:
 
 - `request.services` is the [service scope](../reference/glossary.md#object-model-and-architecture) of the request,
-  when the application has a container. A service scope is the region in which a `scoped` service has one instance.
-- `request.parameters.path` holds the path parameters as raw strings.
-- The inputs are not validated yet. The kernel coerces and validates the path, query, header fields, cookies and
-  content after the last filter, just before the action.
+  when the application has a container;
+- `request.parameters.path` holds the path parameters as raw strings;
+- the inputs are not validated yet. The kernel coerces and validates the path, query, header fields, cookies and
+  content after the last filter, just before the action. A request refused by a filter costs no read of its content.
 
-So a request refused by a filter costs no read of its content.
+What `next` returns differs too:
 
-What `next` returns depends on the layer:
+- for a **global** filter, `next` returns a `hecate.http.Response`: the result is already serialised, and an error is
+  already a problem response;
+- for a **module, controller or route** filter, `next` returns what the action returned: a value, a `Response` or a
+  problem. The serialisation happens after the chain. A filter that sets response header fields is therefore a global
+  filter, or it must handle each kind of result.
 
-- For a **global** filter, `next` returns a `hecate.http.Response`. The result is already serialised, and an error
-  is already a problem response.
-- For a **module, controller or route** filter, `next` returns what the action returned: a value, a `Response` or a
-  problem. The serialisation happens after the chain.
-
-So a filter that sets response header fields is a global filter. A filter of another layer that does it must
-handle each kind of result.
-
-A response whose content is a function is written after the chain has returned. A filter can set its fields. It
-cannot read or change its content.
+A response whose content is a function is written after the chain has returned. A filter can set its fields, not
+read or change its content.
 
 ## Authenticate with a filter
 
 Authentication is a filter of the routes that need it. The example below refuses a request without a known bearer
-token. It answers `401` with its `WWW-Authenticate` field. Otherwise it passes the user on to the action.
-
-The same example also contains the CORS filter of the next section.
+token with a `401` and its `WWW-Authenticate` field, and passes the user on to the action. It also contains the CORS
+filter of the next section.
 
 <!-- example: packages/hecate/examples/hecate.filter.authentication_and_cors.lua -->
 ```lua
@@ -258,48 +233,32 @@ print(response.status, response.fields:get("Access-Control-Allow-Origin"))
 -- Prints: 401	https://app.example.com
 ```
 
-The filter stores the user on the request (`request.principal`). That is a plain field of your own. The `security`
-package, which will provide authentication filters, does not exist yet.
+The filter stores the user on the request (`request.principal`). That is a plain field of your own: the `security`
+package, which will provide authentication filters, does not exist yet. Compare tokens from a store in constant time
+in a real application; the table lookup above is only an illustration.
 
-In a real application, compare tokens from a store in constant time. The table lookup above is only an
-illustration.
-
-To refuse with a body only, without a header field, a filter can also return a problem:
-
-```lua
-return hecate.problem.Forbidden { detail = "No access to this account." }
-```
-
-The serialisation after the chain answers it.
+To refuse with a body only, without a header field, a filter can also return a problem such as
+`hecate.problem.Forbidden { detail = "..." }`: the serialisation after the chain answers it.
 
 ## Answer CORS with a filter
 
-The `cors` filter of the example is global, for two reasons:
-
-- The preflight request (`OPTIONS` with `Access-Control-Request-Method`) matches no declared route. Only the global
-  filters see it.
-- A global filter receives a `Response`. So it can set the `Access-Control-Allow-Origin` field on every answer, a
-  `401` from an inner filter included.
-
-Add `Vary: Origin`, so that a cache keeps one answer per origin.
+The `cors` filter of the example is global, for two reasons. The preflight request (`OPTIONS` with
+`Access-Control-Request-Method`) matches no declared route, and only the global filters see it. And a global filter
+receives a `Response`, so it can set the `Access-Control-Allow-Origin` field on every answer, a `401` from an inner
+filter included. Add `Vary: Origin` so that a cache keeps one answer per origin.
 
 ## What does not exist yet
 
-**Compression.** hecate has no compression codec. A filter could replace the content of a response with a compressed
-one. But the codec would be a third-party dependency, which needs an architecture decision first. This guide shows
-none.
-
-**Request identifiers.** Binding a request id in the [ambient context](../reference/glossary.md#concurrency) is
-designed (ADR 0025) and deferred. The ambient context holds the bindings visible to a running computation, inherited
-by the computations it forks or detaches. With a bound request id, every log record of a request would carry it. The
-kernel does not do it yet.
-
-Meanwhile, a global filter can read or create an `X-Request-Id` field and set it on the response. The call
-`log.bind({ request_id = id }, next, request)` binds the id for the records written while the rest of the chain runs.
-See [Log structured records](log-structured-records.md).
-
-**Built-in filters.** No access log, CORS, rate limiting or authentication filter ships with the kernel. The access
-log is the `on_response` hook of the server (see `examples/hello`).
+- **Compression.** hecate has no compression codec. A filter could replace the content of a response with a compressed
+  one, but the codec would be a third-party dependency, which needs an architecture decision first. This guide shows
+  none.
+- **Request identifiers.** Binding a request id in the [ambient context](../reference/glossary.md#concurrency), so that
+  every log record of a request carries it, is designed (ADR 0025) and deferred: the kernel does not do it yet. A
+  global filter can read or create an `X-Request-Id` field and set it on the response, and
+  `log.bind({ request_id = id }, next, request)` binds it for the records written while the rest of the chain runs
+  (see [Log structured records](log-structured-records.md)).
+- **Built-in filters.** No access log, CORS, rate limiting or authentication filter ships with the kernel. The access
+  log is the `on_response` hook of the server (see `examples/hello`).
 
 ## See also
 

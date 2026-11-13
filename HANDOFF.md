@@ -16,12 +16,15 @@
    Linux only; `on_unobserved_failure` only if given.
 4. The schema reference and the three explanations restyled (73fc583); `depth_limit` follows
    `json.DEFAULT_MAX_DEPTH`.
+   Reverted at the owner's request (2026-11-13): the eight pages written at the Phase 2 gate were overwritten,
+   which was not the goal of this run. They are back to their `main` versions; the rewrites stay in the history
+   (ebcd71b, 73fc583) for reference only.
 5. Every new inline snippet run against `packages/*/src` (luv installed with `luarocks install luv`): outputs match.
    Gates: typecheck, lint, check-links, check-glossary, check-docs-examples, check-examples, check-changelog ok.
 
 ## Next steps
 
-1. Wait for the owner's review of the writing style and the 8 pilot pages (pull request #195). Apply the owner's
+1. Wait for the owner's answer on how to present the pilot, and their review of the writing style (#195). Apply the owner's
    remarks; once approved, delete this note, tick the roadmap item and keep the pull request ready for review. No
    other Phase 3 item may start before that approval (roadmap).
 
@@ -32,9 +35,13 @@
 
 ## Doubts and questions for the owner
 
-- The French pages of the eight pages were not touched; they become stale and are refreshed with the website item.
-- `reference/schema-keywords-and-formats.md` gained one clause: the conservative format subsets "may refuse a value
-  that the standard allows" (spelled out from "conservative subsets"); drop it if unwanted.
+- How the pilot should be presented, now that the Phase 2 gate pages are kept as they are (asked on #195).
+- Statements of the Phase 2 gate pages found not to match the code while rewriting them (not applied, pages
+  restored; the 422 logging gap is now a Phase 3 roadmap item): the input step, not the guard, builds the 422 of invalid inputs; extension values deeper than the first
+  level fail when the problem is answered (generic 500); `auto` logs no fallback warning and `reuseport` is Linux only
+  (OQ-43); a refused or failed `app:reload` raises `SupervisorError`, a `SIGHUP` reload never raises;
+  `on_unobserved_failure` only if given; `depth_limit` follows `json.DEFAULT_MAX_DEPTH` (lowered by
+  `limits.max_depth`).
 
 ## Environment notes
 

@@ -10,34 +10,13 @@ docs/architecture/schemas-and-contracts.md. -->
 
 # Schema keywords and formats
 
-This page lists what `hecate.schema` accepts, for hecate 0.x and Lua 5.5. For each constructor, it gives the
-options, the JSON Schema 2020-12 keyword emitted, and the violation code. It also lists the values of `format`. For
-how to use them, read [Validate values with schemas](../how-to/validate-with-schemas.md).
+This page lists what `hecate.schema` accepts, for hecate 0.x and Lua 5.5: each constructor, its options, the
+JSON Schema 2020-12 keyword it emits, and the values of `format`. Options follow the JSON Schema vocabulary in
+`snake_case` ([glossary](glossary.md#types-and-validation)). For how to use them, read
+[Validate values with schemas](../how-to/validate-with-schemas.md).
 
-A [schema](glossary.md#types-and-validation) is the declaration of a type, usable for validation, coercion and
-contract emission. You build one with a constructor and its options. The same schema then validates values and emits
-JSON Schema:
-
-```lua
-local schema = require("hecate.schema")
-
-local age = schema.integer({ minimum = 0 })
-print(age:to_json_schema().minimum)
--- Prints: 0
-local ok, violations = age:validate(-1)
-print(ok, violations[1].code)
--- Prints: false	minimum
-```
-
-Options follow the JSON Schema vocabulary in `snake_case` ([glossary](glossary.md#types-and-validation)):
-`minimum` above, `min_length`, `multiple_of`.
-
-Options are checked at declaration. Each of these raises `hecate.core.ArgumentError`, with the list of accepted
-options:
-
-- an unknown option;
-- an option of the wrong type;
-- an inconsistent range (`minimum` above `maximum`).
+An unknown option, an option of the wrong type or an inconsistent range (`minimum` above `maximum`) raises
+`hecate.core.ArgumentError` at declaration, with the list of accepted options.
 
 ## Base types
 
@@ -60,35 +39,22 @@ options:
 | `format` | one of the formats below | `format` | `format` |
 | `logger` | object with `warning(message, fields)` | nothing | none |
 
-Lengths count UTF-8 characters. When a length is declared, a string that is not valid UTF-8 gets the violation
-`invalid_utf8`.
-
-`pattern` is a Lua pattern, not a regular expression. Anchor it (`^...$`) and declare `max_length`, because a Lua
-pattern can backtrack.
-
-The emission translates a subset of Lua patterns exactly. It refuses the rest with an `ArgumentError` at emission:
-
-- `%b`;
-- `%f`;
-- the position capture `()`;
-- non-ASCII bytes.
-
-A malformed pattern (`ab%`, `(a`, `[a`) is refused earlier, at declaration.
-
-`logger` receives, at declaration, a warning for a pattern that cannot be emitted. Without it, the default logger of
-`hecate.log` receives the warning, when that module is loaded.
-
-`pattern` and `format` are not checked on a string that already has an `invalid_utf8` or `max_length` violation.
-
-Without `max_length`, a string longer than 65536 bytes is not matched. It gets a `pattern` (or `format`) violation
-with `context.reason = "too_long_for_pattern"`.
+- Lengths count UTF-8 characters. A string that is not valid UTF-8 gets the violation `invalid_utf8` when a length is
+  declared.
+- `pattern` is a Lua pattern, not a regular expression. Anchor it (`^...$`) and declare `max_length`: a Lua pattern
+  can backtrack. The emission translates a subset exactly and refuses `%b`, `%f`, the position capture `()` and
+  non-ASCII bytes, with an `ArgumentError` at emission. A malformed pattern (`ab%`, `(a`, `[a`) is refused at
+  declaration.
+- `logger` receives, at declaration, a warning for a pattern that cannot be emitted. Without it, the default logger of
+  `hecate.log` receives it when that module is loaded.
+- `pattern` and `format` are not checked on a string that already has an `invalid_utf8` or `max_length` violation.
+  Without `max_length`, a string longer than 65536 bytes is not matched: it gets a `pattern` (or `format`) violation
+  with `context.reason = "too_long_for_pattern"`.
 
 ## Formats
 
-`format` accepts the values of this table. Any other value is refused at declaration, with the list of accepted
-formats.
-
-The checks are conservative subsets of the standards: they may refuse a value that the standard allows.
+`format` accepts these values. Any other value is refused at declaration, with the list of accepted formats. The
+checks are conservative subsets of the standards.
 
 | Format | Accepts | Standard |
 |---|---|---|
@@ -113,10 +79,8 @@ Other formats of JSON Schema (`hostname`, `ipv6`, `time`, `uri-reference`, ...) 
 | `exclusive_maximum` | number | `exclusiveMaximum` | `exclusive_maximum` |
 | `multiple_of` | whole number greater than 0 | `multipleOf` | `multiple_of` |
 
-`multiple_of` refuses a fractional divisor such as `0.01`. Use one of two alternatives instead:
-
-- integers in [minor units](glossary.md#types-and-validation), the smallest unit of a currency (cents);
-- a `string` with a `pattern`, for a fixed number of decimals.
+`multiple_of` refuses a fractional divisor such as `0.01`: use integers in
+[minor units](glossary.md#types-and-validation), or a `string` with a `pattern` for a fixed number of decimals.
 
 ## Constants
 
@@ -133,11 +97,9 @@ Other formats of JSON Schema (`hostname`, `ipv6`, `time`, `uri-reference`, ...) 
 | `schema.object(properties, options?)` | `additional_properties` (boolean, default `false`) | `type: object`, `properties`, `required`, `additionalProperties` |
 | `schema.map(value, options?)` | `min_properties`, `max_properties` (integers) | `type: object`, `additionalProperties: <value>`, `minProperties`, `maxProperties` |
 
-Every property of an `object` is required unless it is wrapped (next table). A missing property is the violation
-`required`. An undeclared property is the violation `additional_properties`.
-
-A `map` has string keys that are not declared in advance. Every value has the schema `value`. There is no key
-schema.
+- Every property of an `object` is required unless it is wrapped (next table). An undeclared property is the violation
+  `additional_properties`; a missing one is `required`.
+- A `map` has string keys that are not declared in advance, all with the schema `value`. There is no key schema.
 
 ### Property wrappers
 
@@ -158,28 +120,20 @@ schema.
 | `unique_items` | boolean | `uniqueItems` | `unique_items` |
 | `delimiter` | non-empty string, default `","` | nothing | none |
 
-`delimiter` is how `coerce` splits a text (a query parameter, for example) into items.
-
-The JSON Pointers of items are 0-based.
+`delimiter` is how `coerce` splits a text (a query parameter, for example) into items. The JSON Pointers of items are
+0-based.
 
 ## Sum types
-
-A [sum type](glossary.md#types-and-validation) is a value that is exactly one of several variants.
 
 | Constructor | Meaning | Emits |
 |---|---|---|
 | `schema.union(alternatives)` | a value accepted by at least one alternative ([sum type](glossary.md#types-and-validation)) | `anyOf` |
 | `schema.tagged_union(tag, variants)` | `variants` maps a name to an `object` schema; the property `tag` holds the name | `oneOf`, each variant with its tag as `const` |
 
-A `union` refuses at declaration every alternative that accepts null. Write `schema.nullable(schema.union(...))`
-instead.
-
-Prefer `tagged_union` for objects that differ by a tag. It dispatches on the tag, and costs less.
+A `union` refuses at declaration every alternative that accepts null: write `schema.nullable(schema.union(...))`.
+Prefer `tagged_union` for objects that differ by a tag: it dispatches on the tag and costs less.
 
 ## Names and classes
-
-A [class-bound schema](glossary.md#types-and-validation) is the schema of a class, returned by its class-level
-`schema()`. The class owns the schema name.
 
 | Constructor | Meaning | Emits |
 |---|---|---|
@@ -190,37 +144,19 @@ Two different bodies under one name in one emission raise `ArgumentError`.
 
 ## Keywords that are never emitted
 
-The emission covers these keywords:
+The emission covers `type`, `enum`, `const`, the numeric, string, array and object keywords above, `properties`,
+`required`, `additionalProperties`, `items`, `anyOf`, `oneOf`, `default`, `format`, `$defs` and local `$ref`. These
+JSON Schema keywords have no constructor: `allOf`, `not`, `if`, `then`, `else`, `contains`, `prefixItems`,
+`patternProperties`, `propertyNames`, `dependentSchemas`, `dependentRequired`, `unevaluatedProperties`,
+`unevaluatedItems`, `$id`, anchors, `$dynamicRef`, remote `$ref` and the `content` keywords.
 
-- `type`, `enum`, `const`;
-- the numeric, string, array and object keywords above;
-- `properties`, `required`, `additionalProperties`, `items`;
-- `anyOf`, `oneOf`, `default`, `format`;
-- `$defs` and local `$ref`.
-
-These JSON Schema keywords have no constructor:
-
-- `allOf`, `not`, `if`, `then`, `else`;
-- `contains`, `prefixItems`;
-- `patternProperties`, `propertyNames`, `dependentSchemas`, `dependentRequired`;
-- `unevaluatedProperties`, `unevaluatedItems`;
-- `$id`, anchors, `$dynamicRef`, remote `$ref`;
-- the `content` keywords.
-
-A predicate written in Lua (`refine`) is not offered. JSON Schema could not express it, so the emitted contract would
-be looser than the check.
+A predicate written in Lua (`refine`) is not offered: JSON Schema could not express it, and the emitted contract
+would be looser than the check.
 
 ## Violation codes
 
-A [violation](glossary.md#types-and-validation) is one reason a value does not conform to a schema. `validate`
-collects them all. Every violation has four fields:
-
-- `path`, a JSON Pointer (RFC 6901) to the offending value;
-- `code`, from the table below;
-- `message`;
-- `context`, a table of the fields listed below.
-
-The codes are stable.
+Every [violation](glossary.md#types-and-validation) has a `path` (JSON Pointer, RFC 6901), a `code`, a `message` and
+a `context`. The codes are stable.
 
 | Code | Context fields | Raised by |
 |---|---|---|
@@ -242,14 +178,12 @@ The codes are stable.
 | `union` | `alternatives` | `union` |
 | `tagged_union` | `tag`, `values` | `tagged_union`, for an unknown tag |
 | `coercion` | `expected` | `coerce`, and `build` with `coerce = true` |
-| `depth_limit` | `max_depth` | every container, beyond `json.DEFAULT_MAX_DEPTH` levels (1000 by default; `limits.max_depth` lowers it at boot) |
+| `depth_limit` | `max_depth` | every container, beyond 1000 levels |
 | `complexity_limit` | `max_steps` | a call that spends more than 1,000,000 steps |
 | `too_many_violations` | `max` | a call that keeps 100 violations; it replaces the 101st |
 
-`context.reason` of `pattern` and `format` takes one of two values:
-
-- `too_long_for_pattern`, for a string longer than 65536 bytes without `max_length`;
-- `malformed_pattern`, for a `pattern` that Lua gave up on.
+`context.reason` of `pattern` and `format` is `too_long_for_pattern`, or `malformed_pattern` for a `pattern` that Lua
+gave up on.
 
 ## See also
 

@@ -11,7 +11,7 @@ Each release heading states the supported Lua version.
 
 ### Added
 
-- docs: a "Writing style" for the website (owner decision 2026-11-13, `docs/architecture/documentation.md`), after the manner of *Programming in Lua*: one idea per paragraph, a short example right after each new concept, a brief reminder of a term the first time a page uses it, short sentences, the precise term and the exact claim always kept. Piloted on the eight pages written at the Phase 2 gate (the how-tos on problem details, filters, concurrency and multi-process deployment, the schema keywords reference, and the explanations on the architecture, the object model and the concurrency model).
+- docs: a "Writing style" for the website (owner decision 2026-11-13, `docs/architecture/documentation.md`), after the manner of *Programming in Lua*: one idea per paragraph, a short example right after each new concept, a brief reminder of a term the first time a page uses it, short sentences, the precise term and the exact claim always kept.
 
 - docs(website): how-tos "Map domain errors to problem details", "Filters", "Concurrency" and "Multi-process deployment, graceful shutdown and health checks", the hand-written reference "Schema keywords and formats", and the explanations "Architecture and layers", "The object model" and "The concurrency model", with tested examples in `hecate`, `reactor` and `core` (OQ-121).
 
