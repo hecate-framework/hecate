@@ -15,10 +15,11 @@ OpenAPI automatiques, un cadre de test, un générateur de documentation, des pi
 données, un mappeur objet-relationnel et un outil en ligne de commande.
 
 > [!NOTE] État d’avancement
-> Les paquets core, reactor, net, json et log sont implémentés et documentés, de même que le
-> générateur qui construit ce site. Voir les [guides pratiques](how-to/index.md), les
-> [explications](explanation/index.md) et la [référence](reference/index.md) générée. Tout le reste
-> est encore spécifié et non implémenté. Ce site grandit avec le code, paquet par paquet.
+> Les paquets core, reactor, net, json, log, http, router, schema, container, config et kernel sont
+> implémentés et documentés, de même que le générateur qui construit ce site. Voir les
+> [guides pratiques](how-to/index.md), les [explications](explanation/index.md) et la
+> [référence](reference/index.md) générée. OpenAPI, le cadre de test, la CLI et l’accès aux données
+> sont encore spécifiés et non implémentés. Ce site grandit avec le code, paquet par paquet.
 
 ## Principes
 

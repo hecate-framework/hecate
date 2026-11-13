@@ -222,11 +222,6 @@ concurrency test suite passes; benchmark baseline recorded.
       call. Judge each with `packages/schema/benchmarks/validate.lua` (`build class-bound`, `validate string-email`) and
       the `validation` scenario, on a realistic mix, before touching them.
 
-Exit: `examples/hello` runs on three platforms with N workers; invalid input yields
-RFC 9457 problem details; graceful shutdown drains in-flight requests.
-
-## Phase 2 — additional spike
-
 - [x] `reactor` follow-up: specify then implement `offload` (Lua functions on the libuv
       thread pool), split from the Phase 1 item (OQ-27). Delivered: the "Offload" section of
       `concurrency.md`, `reactor.offload(fn, ...)` and `reactor.OffloadError` over luv `new_work` (values copied by
@@ -267,6 +262,9 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       `Application:serve` fails with `attempt to call a nil value (field 'Server')` (`kernel/application.lua`); it
       should raise an error that names `lua tools/run.lua build-native http`, as `hecate.net.tls` does for its module.
 
+Exit: `examples/hello` runs on three platforms with N workers; invalid input yields
+RFC 9457 problem details; graceful shutdown drains in-flight requests.
+
 ## Phase 3 — Contracts and tooling → `0.1.0`
 
 - [ ] `openapi`: OpenAPI 3.1 assembly, served endpoint, export, contract diff.
@@ -299,6 +297,12 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       http-limits-timeouts-and-tls, handle-forms-and-multipart}.md` (terminology in `website/fr/glossary-terms.md`: add *origin*,
       *head*, *persistent connection*, *pipelining*, *lease*, *grace period*, *action*), stamp their `source_revision`, and check
       that the generated `http` reference (added to `DEFAULT_PACKAGES`) builds in both locales with `--strict`.
+      **Also (Phase 2 gate):** a how-to on building an application with the kernel (feature modules, controllers,
+      `hecate.respond`, problems) and tested examples for `kernel` and `hecate` (`packages/*/examples/`)
+      ([Phase 2 gate report](reviews/phase-2.md), row P7). Translate into the French glossary the rows added to the
+      English one in Phase 2: *violation*, *class-bound schema*, *presence set*, *work budget*, *validator*, *build*,
+      *Representable*, *represent*, *fail-fast mode*, *minor units*, *union (sum type)*, *path template*, *route table*,
+      *dot segment* and *service scope* (finding C9 of `docs/reviews/phase-2-coherence-findings.md`).
 - [ ] Meta-rock `hecate` (standard edition).
 - [ ] Read-only mirrors (ADR 0017): `split`, `mirrors ensure`, `check-mirrors`,
       `split.yml`; Homebrew tap and Scoop bucket repositories (resolves OQ-17).
@@ -397,3 +401,6 @@ CI green on the three platforms.
   "Found on the way").
 - Benchmarks: the `validation` and `routing` scenarios of `benchmarks/README.md`; judge the `schema` finding P6 (`format`
   validators) again with `validation` ([Phase 2 benchmarks](reviews/phase-2-benchmarks.md)).
+- Benchmarks: a micro-benchmark of the container service scope that the kernel dispatcher opens per request
+  (`container:open_scope()` and its close, `packages/kernel/src/hecate/kernel/dispatcher.lua`), next to the `routing`
+  and `validation` scenarios ([Phase 2 gate report](reviews/phase-2.md), row P6).

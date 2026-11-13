@@ -1,6 +1,6 @@
 # Configuration (`hecate.config`)
 
-Package: `config` (layer 3, Framework). Status: specification, implemented in phase 2. Decisions: none specific; the choices
+Package: `config` (layer 3, Framework). Status: implemented in Phase 2 (alpha). Decisions: none specific; the choices
 that no ADR settles were taken conservatively and confirmed by the owner, see [OQ-101](../open-questions.md). Standard: The Twelve-Factor
 App, factor III ("Config"): configuration that varies between deploys is kept apart from the code and read from the
 environment. Vocabulary: [glossary](../glossary.md), section "Configuration".
@@ -263,7 +263,7 @@ This is the single project setting of [OQ-92](../open-questions.md): one number 
 `config` only validates and exposes the value (`configuration:get("limits.max_depth")`, environment variable
 `HECATE_LIMITS__MAX_DEPTH`). **Applying it:** `json` now has a setter and `schema` reads the value it holds (added by the `kernel` item; the kernel
 calls it at boot). The setter is a process-wide `json.set_max_depth(n)` (lowering only, refusing a value above `json.MAX_DEPTH_CEILING`, reading back
-through `json.DEFAULT_MAX_DEPTH`). Until the kernel applies the key at boot, it is validated and reported only (OQ-101).
+through `json.DEFAULT_MAX_DEPTH`).
 
 ## Errors and messages
 

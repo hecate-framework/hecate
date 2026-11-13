@@ -70,6 +70,7 @@ for public APIs, documentation and internal code.
 | inversion of control | The framework calls user code | Fowler (2004) | — |
 | container | Object that resolves and constructs dependencies | Fowler (2004) | service locator (an anti-pattern, not a synonym) |
 | service | An object registered in the container and resolved by it | Fowler (2004) | bean, provider |
+| service scope | The region in which a `scoped` service has one instance (`Container:open_scope`); the kernel opens one per request as `request.services`. Not a reactor scope | `container.md` ("Lifetimes"); OQ-105 | request scope, scope (alone, which names the structured-concurrency region) |
 | action | The function that serves a request: a controller method, a route function, or the function given to `http.Server`; what filters wrap. "Handler" is reserved for I/O completion handlers of the reactor | `http-and-routing.md` | handler |
 | controller, route module, feature module | The two route declaration styles (a class of actions, or `hecate.routes(name)`) and the kernel's grouping of them into a feature module ([ADR 0006](adr/0006-declarative-routes-as-runtime-data.md)) | ADR 0006; `http-and-routing.md` | router group, blueprint, plugin; "module" alone, which is ambiguous with a Lua module |
 | chain of responsibility | Ordered handlers around an action | Gamma et al. (1994) | middleware stack |
@@ -166,7 +167,7 @@ Errors are *problem details* (RFC 9457; `hecate.problem.*` is the namespace). Pa
 | leaf | A declared key that is not an `object`: a scalar, an enumeration or an array; the unit that an environment variable or a secret file can supply | `configuration.md` | setting, option |
 | `Section`, `List` | The frozen values of a configuration: a `Section` holds an object or a map, a `List` an array (also when empty); a write raises `ConformanceError` | `configuration.md` | table, dict, map (for the frozen object) |
 | secret object | The wrapper of the value of a secret key (`hecate.log.Secret`, else `hecate.config.Secret`): `tostring` gives `[redacted]` and `reveal()` gives the value | `configuration.md` | masked value, sensitive string |
-| framework keys | The keys that every configuration declares, `logging.*` and `limits.max_depth`, which an application cannot redeclare | `configuration.md` | built-in settings, core options |
+| framework keys | The keys that every configuration declares, `logging.*`, `limits.max_depth`, `errors.expose_details`, `requests.inputs` and `server.*`, which an application cannot redeclare | `configuration.md` | built-in settings, core options |
 
 ## Logging
 

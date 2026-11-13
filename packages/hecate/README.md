@@ -47,10 +47,9 @@ built with `hecate.schema` ([OQ-57](../../docs/open-questions.md)): the meta-mod
 | `load_configuration` | `hecate.kernel` | loads the configuration, wrapping secrets with `hecate.log.Secret` |
 | `RouteDeclarationError`, `ModuleError`, `SupervisorError` | `hecate.kernel` | the errors of the kernel |
 
-## Layout (once implemented)
+## Layout
 
 ```text
-src/hecate/init.lua   public entry point
-tests/unit/  tests/integration/  tests/fixtures/
-examples/    benchmarks/
+src/hecate/init.lua   public entry point (re-exports only)
+tests/unit/           the re-export completeness test
 ```

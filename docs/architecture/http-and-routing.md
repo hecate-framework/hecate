@@ -1,6 +1,6 @@
 # HTTP, routing and the kernel
 
-Packages: `http`, `router`, `kernel`. Status: specification.
+Packages: `http`, `router`, `kernel`. Status: implemented in Phase 2 (alpha); a statement about something not implemented says so.
 
 ## `hecate.http`
 
@@ -110,6 +110,23 @@ In the emitted OpenAPI document, the parameter location `fields` maps to `in: he
 OpenAPI term), `path` to `in: path`, `query` to `in: query` and `cookies` to `in: cookie`.
 
 ## `hecate.kernel`
+
+### Implemented surface
+
+What exists in `hecate.kernel` (the package [README](../../packages/kernel/README.md) has the full API):
+
+- `Application(options)` boots feature modules, controllers and route modules into one route table and a dispatcher,
+  then serves it (`serve`, `shutdown`, `reload`). With a `configuration`, its options are bound to the configuration
+  keys (`limits.max_depth`, `errors.expose_details`, `requests.inputs`, `server.*` and the logging keys); an explicit
+  option wins. With `workers` above 1 the process is the primary of a `Supervisor` (ADR 0023).
+- An action returns a value, a `Response`, a problem, or `respond(status, value?, schema?)` for another status or
+  schema.
+- Problem classes (`problem.NotFound`, ..., `problem.define` for an application's own) become
+  `application/problem+json` responses (RFC 9457). An uncaught error is a `500` without internal details.
+- `Accept` is minimal: absent, `*/*`, `application/*` or `application/json` select JSON; anything else is a `406`
+  problem.
+- Invalid inputs give a `422` whose `errors` entries carry `pointer`, `code` and `source` (`path`, `query`, `header`,
+  `cookie` or `content`); `requests.inputs = "strict"` also refuses undeclared query parameters.
 
 ### Application and feature modules
 

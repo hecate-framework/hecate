@@ -3,7 +3,8 @@
 > Hecate is a modular, contract-first web API framework for Lua 5.5, with its own
 > asynchronous runtime (libuv via luv), HTTP stack, schemas, OpenAPI 3.1 generation,
 > test framework, documentation generator, database drivers, ORM and CLI. Status:
-> early implementation (foundations written, other packages still specifications).
+> early implementation (runtime, HTTP stack, schemas, configuration, container and
+> kernel written; OpenAPI, test framework, CLI and data access still specifications).
 
 ## Start here
 
@@ -24,6 +25,8 @@
 - [HTTP and routing](docs/architecture/http-and-routing.md): server, router, kernel, filters
 - [Schemas and contracts](docs/architecture/schemas-and-contracts.md): refinement types, OpenAPI
 - [Data access](docs/architecture/data-access.md): SQL interfaces, drivers, query builder, ORM
+- [Container](docs/architecture/container.md): bindings, lifetimes, service scopes, boot validation
+- [Configuration](docs/architecture/configuration.md): layers, environment variables, secrets, framework keys
 - [Logging](docs/architecture/logging.md): severities, loggers, records, sinks, ambient context
 - [Testing](docs/architecture/testing.md), [Documentation](docs/architecture/documentation.md)
 - [CLI and packaging](docs/architecture/cli-and-packaging.md), [Versioning and distribution](docs/architecture/versioning-and-distribution.md)
@@ -42,9 +45,21 @@
 - [UDP, Unix sockets, named pipes and DNS](website/en/how-to/udp-pipes-and-dns.md): the transports other than TCP
 - [Run child processes and pass connections between processes](website/en/how-to/run-processes-and-pass-connections.md): `run_process`, `spawn`, the message pipe
 - [Offload CPU-bound work to the thread pool](website/en/how-to/offload-cpu-bound-work.md): `reactor.offload`, the values that cross, errors, cancellation
+- [Serve HTTP](website/en/how-to/serve-http.md): start a server, write a handler, answer with JSON and problem details, set cookies, shut down
+- [Stream HTTP content](website/en/how-to/stream-http-content.md): read request content chunk by chunk and stream a response
+- [Use the HTTP client](website/en/how-to/use-the-http-client.md): requests, pooled connections, redirects, deadlines and failures
+- [Handle forms and multipart](website/en/how-to/handle-forms-and-multipart.md): urlencoded forms, uploads and untrusted filenames
+- [Set limits, timeouts and TLS on the HTTP server](website/en/how-to/http-limits-timeouts-and-tls.md): every bound, its default, and HTTPS
+- [Route requests](website/en/how-to/route-requests.md): path templates, precedence, 404 and 405 with `Allow`, percent-decoding and dot segments, reverse routing
+- [Validate values with schemas](website/en/how-to/validate-with-schemas.md): declare schemas, collect violations with JSON Pointer paths, emit JSON Schema
+- [Use the container](website/en/how-to/use-the-container.md): bind services, choose lifetimes, validate the graph at boot, resolve by constructor injection, close services and replace them in tests
+- [Configure an application](website/en/how-to/configure-an-application.md): layers, environment variables, secrets, validation at boot, the logging and depth keys
+- [Before going to production](website/en/how-to/before-going-to-production.md): a checklist of the environment, error details, logging and redaction, secrets, the access log, listening and limits, workers and shutdown
 - [The transport model](website/en/explanation/transport-model.md): streams, back-pressure, half-close, buffering, cancellation rules
 - [TLS trust and security defaults](website/en/explanation/tls-trust-and-security.md): the operating system's verifier, what cannot be disabled
 - [Multi-process serving](website/en/explanation/multi-process-serving.md): share-nothing workers, listening strategies, what exists today
+- [The HTTP model](website/en/explanation/http-model.md): messages, the life of a connection, and why the limits have their defaults
+- [Schemas and contracts](website/en/explanation/schemas-and-contracts.md): why schemas are runtime data, validation versus coercion versus build, the presence set, the safety bounds and the limits to know
 - [Glossary (public copy)](website/en/reference/glossary.md): the vocabulary, kept in step with `docs/glossary.md`
 
 ## Packages

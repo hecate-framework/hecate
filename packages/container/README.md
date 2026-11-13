@@ -21,7 +21,7 @@
 ## Responsibilities
 
 - bindings by name or interface
-- lifetimes: singleton (per process), scoped (per reactor scope, e.g. request), transient
+- lifetimes: singleton (per process), scoped (per service scope; the kernel opens one per request), transient
 - graph validation at boot (missing bindings, cycles, lifetime violations)
 - overrides for tests
 

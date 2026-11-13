@@ -80,6 +80,7 @@ for public APIs, documentation and internal code.
 | inversion of control | The framework calls user code | Fowler (2004) | — |
 | container | Object that resolves and constructs dependencies | Fowler (2004) | service locator (an anti-pattern, not a synonym) |
 | service | An object registered in the container and resolved by it | Fowler (2004) | bean, provider |
+| service scope | The region in which a `scoped` service has one instance (`Container:open_scope`); the kernel opens one per request as `request.services`. Not a reactor scope | — | request scope, scope (alone, which names the structured-concurrency region) |
 | action | The function that serves a request: a controller method, a route function, or the function given to `http.Server`; what filters wrap. "Handler" is reserved for I/O completion handlers of the reactor | `http-and-routing.md` | handler |
 | controller, route module, feature module | The two route declaration styles (a class of actions, or `hecate.routes(name)`) and the kernel's grouping of them into a feature module ([ADR 0006](https://github.com/hecate-framework/hecate/blob/main/docs/adr/0006-declarative-routes-as-runtime-data.md)) | ADR 0006; `http-and-routing.md` | router group, blueprint, plugin; "module" alone, which is ambiguous with a Lua module |
 | chain of responsibility | Ordered handlers around an action | Gamma et al. (1994) | middleware stack |
@@ -129,6 +130,17 @@ This table appears at the top of the `query` and `orm` reference pages.
 | product type | Record of named components | — | — |
 | coercion | Conversion of a textual input to a typed value | — | casting, parsing (when coercion is meant) |
 | schema | Declaration of a type usable for validation, coercion and contract emission | JSON Schema 2020-12 | model, DTO |
+| violation | One reason a value does not conform to a schema, with its JSON Pointer path, a code and a message; `validate` collects them all | RFC 6901 | error (for one reason), failure |
+| class-bound schema | The schema of a class, returned by its class-level `schema()` and named by `schema.of(Class)`; the class owns the schema name, and `build` makes an instance of it | [ADR 0006](https://github.com/hecate-framework/hecate/blob/main/docs/adr/0006-declarative-routes-as-runtime-data.md) | model, DTO |
+| presence set | The names of the attributes that were present in the content from which an instance was built, explicit `null` included (`schema.sent`); it tells unchanged from cleared in a PATCH | — | dirty flags, `json.null` as an attribute value |
+| work budget | The fixed number of steps one `validate`, `coerce` or `build` call may spend before it ends with a `complexity_limit` violation | — | timeout, for a count of steps |
+| validator | The compiled check of a schema, a closure made at declaration that appends violations; internal, never the name of a type or of a public object | — | a synonym of refinement type or schema |
+| build | `Schema:build`: validate decoded content, then make the instance of each class-bound part (without calling `init`) | — | construct, hydrate, deserialise |
+| Representable | Interface of a class whose instances have a representation, declared once by the class-level `schema()` that the interface requires (`schema.Representable`); `schema.of` refuses a class that does not declare it | Fielding (2000); RFC 9110 | DTO, view model |
+| represent | `Schema:represent`: convert an instance to the plain values of its representation, to be encoded as JSON | RFC 9110 | serialise |
+| fail-fast mode | The mode in which a validator stops at its first violation and builds no detail; a `union` uses it to decide its alternatives | — | short-circuit mode |
+| minor units | The smallest unit of a currency (cents), held in an integer instead of a decimal fraction | ISO 4217 | decimals, for money |
+| union (sum type) | The `union` constructor of `schema` is a sum type (`anyOf`); it is not the relational `UNION` of the query builder (see the SQL table above), and the context says which is meant | JSON Schema 2020-12 section 10.2.1.2 | — |
 
 Schema keywords follow JSON Schema 2020-12 vocabulary in `snake_case`: `minimum`,
 `maximum`, `exclusive_minimum`, `multiple_of`, `min_length`, `max_length`, `pattern`,
@@ -148,6 +160,9 @@ Errors are *problem details* (RFC 9457; `hecate.problem.*` is the namespace). Pa
 | persistent connection | A connection kept open for several messages (keep-alive) | RFC 9112 section 9.3 | keep-alive connection (acceptable in prose) |
 | pipelining | Several requests sent on a connection without waiting for the responses, answered in request order | RFC 9112 section 9.3.2 | batching |
 | lease | The right to use one connection of a pool for one exchange, held until its response content is read or closed | Gray and Cheriton (1989) | ticket, checkout token |
+| path template | A route's path with parameters: literal segments, parameters `{id}` (a whole segment, or one expression with literal text around it) and a last-segment wildcard `{path...}`; a subset of RFC 6570 level 1 | RFC 6570 section 1.2 | route pattern, URL pattern |
+| route table | The list of route declarations a router compiles at boot, and that introspection gives back | [ADR 0006](https://github.com/hecate-framework/hecate/blob/main/docs/adr/0006-declarative-routes-as-runtime-data.md) | routing table, URL map |
+| dot segment | A path segment `.` or `..`, resolved before routing | RFC 3986 section 3.3, section 5.2.4 | relative segment |
 | grace period | The time `Server:shutdown` lets requests in flight finish before cancelling them | ADR 0023 | drain timeout (that is the unread-content drain of a response) |
 
 ## Configuration
@@ -162,7 +177,7 @@ Errors are *problem details* (RFC 9457; `hecate.problem.*` is the namespace). Pa
 | leaf | A declared key that is not an `object`: a scalar, an enumeration or an array; the unit that an environment variable or a secret file can supply |  | setting, option |
 | `Section`, `List` | The frozen values of a configuration: a `Section` holds an object or a map, a `List` an array (also when empty); a write raises `ConformanceError` |  | table, dict, map (for the frozen object) |
 | secret object | The wrapper of the value of a secret key (`hecate.log.Secret`, else `hecate.config.Secret`): `tostring` gives `[redacted]` and `reveal()` gives the value |  | masked value, sensitive string |
-| framework keys | The keys that every configuration declares, `logging.*`, `limits.max_depth` and `server.grace_timeout`, which an application cannot redeclare |  | built-in settings, core options |
+| framework keys | The keys that every configuration declares, `logging.*`, `limits.max_depth`, `errors.expose_details`, `requests.inputs` and `server.*`, which an application cannot redeclare |  | built-in settings, core options |
 
 
 ## Logging

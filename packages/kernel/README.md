@@ -31,7 +31,7 @@
 ## Non-goals
 
 - templating (later, `template`)
-- the meta-module `hecate`, which re-exports the framework surface (`hecate.respond`, `hecate.problem`, ...): it belongs to the `hecate` package, which has no code yet
+- the meta-module `hecate`, which re-exports the framework surface (`hecate.respond`, `hecate.problem`, ...): it belongs to the `hecate` package (it re-exports `Application`, `Controller`, `routes`, `respond`, `problem`, `load_configuration` and the kernel errors)
 - the command line (`hecate serve --workers`), which belongs to `cli` (Phase 3)
 
 ## Standards and references
@@ -251,6 +251,7 @@ src/hecate/kernel/routing.lua  the route table of an application
 src/hecate/kernel/errors.lua   RouteDeclarationError, ModuleError, SupervisorError
 src/hecate/kernel/input.lua    validation and coercion of the inputs of a request
 src/hecate/kernel/dispatcher.lua  the function that serves a request
-tests/unit/  tests/integration/  tests/fixtures/
-examples/    benchmarks/
+tests/unit/  tests/integration/  tests/fixtures/  tests/helpers/
 ```
+
+Benchmark: the repository scenario `benchmarks/scenarios/kernel-json`. Tested example: `examples/hello`.

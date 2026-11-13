@@ -251,7 +251,7 @@ visible in a computation and in the computations it forks or detaches. The packa
 
 ## Configuration
 
-Today a logger is configured in code only. Options of `Logger`:
+A `Logger` is configured in code; the kernel builds the default logger from the logging keys (below). Options of `Logger`:
 
 | Option | Default | Meaning |
 |---|---|---|
@@ -270,6 +270,50 @@ The keys of `hecate.config` for the default logger are specified in
 name, matched exactly), `logging.sinks`, `logging.file.path`, `logging.async` and `logging.redact`. `hecate.log` reads
 no configuration itself and does not depend on `config`: the kernel reads those keys and builds the loggers with the
 options above.
+
+## The default logger
+
+`log.default()` returns the process-wide default logger (OQ-79, OQ-111). It is built on first use:
+
+- one `ConsoleSink` that writes human-readable lines to the **standard error** stream, synchronously;
+- severity `informational`, logger name `hecate`;
+- `redact = log.DEFAULT_REDACT`.
+
+`log.DEFAULT_REDACT` lists 19 field names: `password`, `passwd`, `secret`, `client_secret`, `token`, `access_token`,
+`refresh_token`, `id_token`, `api_key`, `apikey`, `x-api-key`, `private_key`, `authorization`, `proxy-authorization`,
+`cookie`, `set-cookie`, `session`, `sessionid`, `csrf`. They are matched like any `redact` option: by exact field
+name, case-insensitive, never inside free text (a message, or a value under another name). The list is read-only
+(assigning to it raises); to extend it, copy it with `table.move` and pass the copy as the `redact` option of a
+`Logger`. A plain `Logger` has no implicit `redact`.
+
+`log.set_default(logger)` replaces the default logger; `nil` discards it, and the next `log.default()` builds the
+console one again. Anything else raises `hecate.core.ArgumentError`.
+
+Who uses it: a package that has something to log and was given no `logger` option logs through `log.default()`, so
+that none builds a parallel mechanism. Today: `http.Server`, the `kernel` (problems, results, the worker role and the
+`Application` without a logger) and `schema`, which reads it through `package.loaded["hecate.log"]` because it does
+not depend on `log` (OQ-86).
+
+How the kernel replaces it: when an `Application` has a `configuration` and no `logger` option,
+`hecate.kernel.logging.build` makes a logger from the logging keys (severity, named severity of `hecate`, sinks,
+`async`, and `logging.redact` added to `log.DEFAULT_REDACT`), and the application installs it with
+`log.set_default` once boot succeeded. Its `console` and `json_lines` sinks write to the **standard output** stream
+(The Twelve-Factor App, factor XI "Logs").
+
+### What the kernel logs for an error of an action
+
+The guard of the kernel (`problems.guard`) logs an error that becomes a `5xx` answer at `error`
+(`unhandled error while serving a request`) and a client-caused error (`4xx`) at `warning` (`request refused`). A
+problem below `500` is a normal answer and is not logged. The fields are `method`, `path` (never the query),
+`error_class`, `error_code` (for a `hecate.core.Error`), `error` and `traceback`:
+
+- `error` holds the message alone (`err.message` for a `hecate.core.Error`, else `tostring(err)`).
+- `traceback` starts with the message of the error **and of each of its causes**: `problems.lua` builds it with
+  `debug.traceback(tostring(err))`, and `tostring` of a `hecate.core.Error` renders the whole cause chain. The
+  exception is an error that carries its own traceback, captured at creation when `core.set_debug_mode(true)` is
+  on: that one is logged as it is, and starts with the message of the error alone.
+
+A cause message can hold data that the `error` field does not show; field-name redaction does not reach it.
 
 ## Secrets and privacy
 
@@ -338,4 +382,4 @@ convenience methods (`log.Logger.informational: message must be a string, got nu
 
 - [OQ-63](../open-questions.md): two error messages do not carry a qualified prefix.
 - Keys of `hecate.config` for logging: specified in [configuration.md](configuration.md#logging-keys) ([OQ-101](../open-questions.md));
-  applied by the kernel, not yet implemented.
+  applied by the kernel (`hecate.kernel.logging.build`) when an `Application` has a configuration.

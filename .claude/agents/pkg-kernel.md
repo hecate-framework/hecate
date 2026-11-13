@@ -17,7 +17,7 @@ Before any work:
 Working rules:
 - Stay inside `packages/kernel` unless the task explicitly spans packages; report needed
   changes elsewhere instead of making them.
-- Allowed dependencies: `hecate.core`, `hecate.reactor`, `hecate.log`, `hecate.http`, `hecate.router`, `hecate.schema`, `hecate.container`, `hecate.config`, `hecate.json`.
+- Allowed dependencies: `hecate.core`, `hecate.reactor`, `hecate.net` (ADR 0027), `hecate.log`, `hecate.http`, `hecate.router`, `hecate.schema`, `hecate.container`, `hecate.config`, `hecate.json`.
 - Preserve the invariants listed in `packages/kernel/CLAUDE.md`; add a test for each one
   you touch.
 - Relevant standards: RFC 9457 (problem details); RFC 9110 (content negotiation). Cite section numbers in code

@@ -1,6 +1,6 @@
 # Schemas and contracts
 
-Packages: `schema`, `openapi`. Status: specification.
+Packages: `schema`, `openapi`. Status: `schema` implemented in Phase 2 (alpha; the section "Generation" is not implemented); `openapi` specification (Phase 3).
 
 ## `hecate.schema`
 
