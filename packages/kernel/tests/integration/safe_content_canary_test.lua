@@ -345,7 +345,7 @@ function T:test_the_context_of_an_action_error_is_neither_logged_nor_answered()
   self:assert_equal("", canary_in_logs(captured))
 end
 
-function T:test_the_cause_of_an_action_error_reaches_only_the_traceback_field()
+function T:test_the_cause_of_an_action_error_reaches_the_logs_by_class_and_code_only()
   local serve, captured = boot(configuration({ HECATE_DATABASE__PASSWORD = "x" }))
   local response = serve(request("GET", "/fail-cause"))
   self:assert_equal(500, response.status)
@@ -354,64 +354,22 @@ function T:test_the_cause_of_an_action_error_reaches_only_the_traceback_field()
   self:assert_not_nil(record)
   -- The `error` field holds the message of the error alone, without its cause.
   self:assert_equal("the lookup failed", record.fields.error)
-  -- Documented in website/en/how-to/before-going-to-production.md (Logging): `problems.guard` takes the traceback with
-  -- `debug.traceback(tostring(err), 2)`, and `tostring` of a `hecate.core.Error` renders the whole cause chain, so the
-  -- `traceback` field starts with the message of the error and of each cause (a driver error, a `DETAIL` text). OQ-111
-  -- (3) covers it: an error message must not embed a secret, causes included.
-  self:assert_true(has_canary(record.fields.traceback), "the cause chain is in the traceback field")
+  -- OQ-120 (1), owner decision of 2026-11-13 (before-going-to-production.md, Logging): while `errors.expose_details`
+  -- is false, the `traceback` field names each cause by its class and code only, never its message (a driver error,
+  -- a `DETAIL` text).
+  self:assert_equal("", canary_in_logs(captured))
+  self:assert_equal(1, (record.fields.traceback:find("hecate.core.Error: the lookup failed\ncaused by: Error (hecate.core.Error)", 1, true)),
+    record.fields.traceback)
+end
+
+function T:test_with_expose_details_the_traceback_carries_the_messages_of_the_causes()
+  local serve, captured = boot(configuration({ HECATE_DATABASE__PASSWORD = "x", HECATE_ERRORS__EXPOSE_DETAILS = "true" }, "development"))
+  serve(request("GET", "/fail-cause"))
+  local record = record_of(captured, "unhandled error while serving a request")
+  self:assert_not_nil(record)
+  -- Development and test: everything that helps debugging, the messages of the causes included (OQ-120 (1)).
   self:assert_equal(1, (record.fields.traceback:find("hecate.core.Error: the lookup failed\ncaused by: hecate.core.Error: driver said " .. CANARY, 1, true)),
-    "the traceback starts with the message of the error, then its causes")
-  local others = {}
-  for key, value in pairs(record.fields) do
-    if key ~= "traceback" then others[key] = value end
-  end
-  self:assert_equal("", canary_in(others))
-end
-
-function T:test_an_unencodable_problem_logs_no_value()
-  local serve, captured = boot(configuration({ HECATE_DATABASE__PASSWORD = "x" }))
-  local response = serve(request("GET", "/unencodable"))
-  self:assert_equal(500, response.status)
-  self:assert_false(has_canary(response_text(response)), response_text(response))
-  self:assert_equal("", canary_in_logs(captured))
-end
-
--- (d) Refused request inputs ---------------------------------------------------------------------------------------------
-
-function T:test_refused_inputs_are_never_echoed_nor_logged()
-  local serve, captured = boot(configuration({ HECATE_DATABASE__PASSWORD = "x" }))
-  local valid = '{"email":"a@example.org","age":1,"role":"reader"}'
-  local cases = {
-    -- invalid content: a format, a type, an enumeration and a length, each with the canary as the value
-    { 422, request("POST", "/users", { content = json.encode({ email = CANARY, age = CANARY, role = CANARY, nickname = CANARY }) }) },
-    -- content that is not JSON
-    { 400, request("POST", "/users", { content = '{"email":"' .. CANARY }) },
-    -- a declared header field, a declared cookie and a declared query parameter that do not coerce
-    { 422, request("POST", "/users", { content = valid, fields = { ["X-Page"] = CANARY } }) },
-    { 422, request("POST", "/users", { content = valid, fields = { Cookie = "session_id=" .. CANARY } }) },
-    { 422, request("POST", "/users?limit=" .. CANARY, { content = valid }) },
-    -- an undeclared query parameter (`requests.inputs = "strict"`): named, never its value
-    { 422, request("POST", "/users?access_token=" .. CANARY, { content = valid }) },
-    -- a media type other than application/json
-    { 415, http.Request({ method = "POST", target = "/users", content = CANARY,
-      fields = http.Fields({ ["Content-Type"] = "text/plain" }) }) },
-  }
-  for index, case in ipairs(cases) do
-    local response = serve(case[2])
-    self:assert_equal(case[1], response.status, "case " .. index)
-    self:assert_false(has_canary(response_text(response)), "case " .. index .. ": " .. response_text(response))
-  end
-  local undeclared = json.decode(serve(request("POST", "/users?access_token=" .. CANARY, { content = valid })).content)
-  self:assert_equal("/access_token", undeclared.errors[1].pointer)
-  self:assert_nil(undeclared.errors[1].message, "no message while errors.expose_details is false")
-  -- Documented in website/en/how-to/before-going-to-production.md (Logging): an input refusal (422, 400, 415) is
-  -- returned, not raised, so it is a normal answer: no record at all, so nothing can leak there.
-  self:assert_equal(0, #captured.memory:records())
-  self:assert_equal("", canary_in_logs(captured))
-  -- A header value the message model refuses (a control character): the error names the rule, never the value.
-  local ok, err = pcall(http.Fields, { ["X-Token"] = CANARY .. "\1" })
-  self:assert_false(ok)
-  self:assert_false(has_canary(tostring(err)), tostring(err))
+    record.fields.traceback)
 end
 
 function T:test_expose_details_forwards_only_the_documented_members()

@@ -255,4 +255,16 @@ function T:test_guard_never_swallows_a_deadline()
   self:assert_equal("hecate.core.DeadlineExceededError", self:assert_error(function() serve(request()) end).code)
 end
 
+function T:test_the_chain_without_messages_names_each_cause_by_class_and_code()
+  -- OQ-120 (1): what the logged traceback starts with while `errors.expose_details` is false.
+  local err = core.Error({ message = "the lookup failed", cause = core.ArgumentError({ message = "row 42 said secret",
+    cause = "a plain Lua error with secret text" }) })
+  local text = problems.chain_without_messages(err)
+  self:assert_true(text:find("the lookup failed", 1, true) ~= nil, text)
+  self:assert_nil(text:find("secret", 1, true), text)
+  self:assert_true(text:find("caused by: " .. core.name(err.cause) .. " (" .. err.cause.code .. ")", 1, true) ~= nil, text)
+  self:assert_true(text:find("caused by: a string", 1, true) ~= nil, text)
+  self:assert_equal("plain", problems.chain_without_messages("plain"))
+end
+
 return T

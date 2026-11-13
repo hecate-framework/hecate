@@ -70,9 +70,10 @@ variables combine is in [Configure an application](configure-an-application.md).
   - the listening address (`informational`), the workers started and reloaded (`notice`), the signals received
     (`notice`);
   - an unhandled error of an action (`error`, "unhandled error while serving a request"), with the method, the path
-    **without** the query, the error class, its code, its message and the traceback. The `traceback` field starts
-    with the message of the error and of each of its causes (`caused by: ...`): an error that wraps a driver error
-    carries the text of the driver into the logs;
+    **without** the query, the error class, its code, its message and the traceback. While `errors.expose_details`
+    is false, the `traceback` field names each cause of the error by its class and code only
+    (`caused by: hecate.postgresql.QueryError (23505)`), never by its message; with the key true (development and
+    test), it carries the message of each cause too, so a wrapped driver error brings its text into the logs;
   - an error the client caused (`warning`, "request refused"), with the same fields;
   - an action that fails in a way the kernel does not answer itself, such as an expired deadline (`error`, "http.Server:
     the action failed"), with the method, the path without the query and the error;

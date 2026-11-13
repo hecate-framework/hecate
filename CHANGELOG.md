@@ -273,6 +273,8 @@ Each release heading states the supported Lua version.
 
 ### Changed
 
+- feat(kernel): while `errors.expose_details` is false (the production default), the `traceback` field logged with an unhandled action error names each cause by its class and code only, never its message; with the key true (development and test) it carries the whole chain as before (OQ-120 (1), owner decision of 2026-11-13).
+
 - chore(ci): static checks on Linux only, one native build cache per module keyed by a hash of all its inputs, unit tests in a worker pool (`HECATE_TEST_JOBS`, integration tests stay serial), documentation-only pushes skip the platform matrix when the previous head is green (`code-changed` task, `docs-checks` and `ci-ok` jobs), `HECATE_NATIVE_PROFILE` for `build-native`; the `http` tests run in about 16 s instead of 91 s.
 - kernel!: `Application` option `signals` no longer takes a list; the signal set is fixed (`sigint`, `sigterm`) and `false` is the only accepted value (opt-out). A second signal during a signal-driven graceful shutdown forces the stop: the remaining requests are cancelled at once and `shutdown_forced` is logged at `warning` (OQ-115).
 - `hecate.http`: breaking: `http` is bytes only (OQ-76 a). The `hecate.http.Response` constructor raises `hecate.core.ArgumentError` for content that is not nil, a string or a function (a table included), and `Response.content` is annotated `string|function|nil`. A framework that serialises, the kernel, encodes before it builds the response. `serve_request` and the server keep their check for a hand-made object that bypasses the constructor: the generic 500 problem details response and a log entry.

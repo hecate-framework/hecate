@@ -308,12 +308,16 @@ problem below `500` is a normal answer and is not logged. The fields are `method
 `error_class`, `error_code` (for a `hecate.core.Error`), `error` and `traceback`:
 
 - `error` holds the message alone (`err.message` for a `hecate.core.Error`, else `tostring(err)`).
-- `traceback` starts with the message of the error **and of each of its causes**: `problems.lua` builds it with
-  `debug.traceback(tostring(err))`, and `tostring` of a `hecate.core.Error` renders the whole cause chain. The
-  exception is an error that carries its own traceback, captured at creation when `core.set_debug_mode(true)` is
-  on: that one is logged as it is, and starts with the message of the error alone.
+- `traceback` starts with the code and message of the error, then its causes (OQ-120 (1), owner decision of
+  2026-11-13). While `errors.expose_details` is false (the production default), each cause is named by its class and
+  code only (`caused by: hecate.postgresql.QueryError (23505)`; `problems.chain_without_messages`); with the key true
+  (development and test), `problems.lua` builds it with `debug.traceback(tostring(err))`, and `tostring` of a
+  `hecate.core.Error` renders the whole cause chain, messages included. The exception is an error that carries its
+  own traceback, captured at creation when `core.set_debug_mode(true)` is on: that one is logged as it is, and starts
+  with the message of the error alone.
 
-A cause message can hold data that the `error` field does not show; field-name redaction does not reach it.
+With `expose_details`, a cause message can hold data that the `error` field does not show; field-name redaction does
+not reach it.
 
 ## Secrets and privacy
 

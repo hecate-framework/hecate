@@ -2,7 +2,7 @@
 -- Only the class of an error and the structured violations of a validation decide the response: the message, the
 -- context and the cause of an error never reach a client (OQ-111, invariant "internal error messages are not exposed
 -- by default"). What the client may be told is a fixed text per status.
-global <const> require, error, math, ipairs, pairs, pcall, xpcall, tostring, type, getmetatable, debug
+global <const> require, error, math, ipairs, pairs, pcall, xpcall, tostring, type, getmetatable, debug, table
 
 local core = require("hecate.core")
 local json = require("hecate.json")
@@ -173,9 +173,33 @@ end
 
 --- Wraps an action (or a composed chain) so that no error escapes as a response of the wrong shape: an error becomes
 --- a problem details response, and the function returns the response and the caught failure (for the caller to log).
+--- The text an error starts its logged traceback with while `errors.expose_details` is false (OQ-120 (1), owner
+--- decision of 2026-11-13): the code and message of the error itself, then each cause by its class name and code only,
+--- never its message (a driver error may quote row data or a connection string). A cause that is not a framework error
+--- is named by its Lua type. With `expose_details` the whole chain is logged, messages included (`tostring`).
+---@param err any
+---@return string
+function problems.chain_without_messages(err)
+  if not (type(err) == "table" and core.is_instance_of(err, core.Error)) then return tostring(err) end
+  local failure = err --[[@as hecate.core.Error]]
+  local lines = { ("%s: %s"):format(failure.code, failure.message) }
+  local current = failure.cause
+  while current ~= nil and #lines < 16 do
+    if type(current) == "table" and core.is_instance_of(current, core.Error) then
+      lines[#lines + 1] = ("caused by: %s (%s)"):format(core.name(current), current.code)
+      current = current.cause
+    else
+      lines[#lines + 1] = "caused by: a " .. type(current)
+      current = nil
+    end
+  end
+  return table.concat(lines, "\n")
+end
+
 --- With `options.logger` the failure is logged with its message (free text, by design of OQ-111), its class name
 --- (`error_class`) and `code` (`error_code`) as fields of their own, the method, the path (never the query) and the
---- traceback taken where the error was raised: at `error` severity for a `5xx` answer, at `warning` for a client-caused
+--- traceback taken where the error was raised (with `expose_details` it starts with the messages of the error and of
+--- its causes; without it, each cause is named by its class and code only, `problems.chain_without_messages`): at `error` severity for a `5xx` answer, at `warning` for a client-caused
 --- error (a `4xx` answer, such as a `ParseError`). A problem below 500 is a normal answer and is not logged.
 --- Cancellation and deadline errors are never caught: they belong to the scope that raised them (ADR 0003).
 ---@param action fun(request: hecate.http.Request): hecate.http.Response
@@ -183,6 +207,7 @@ end
 ---@return fun(request: hecate.http.Request): hecate.http.Response, any?
 function problems.guard(action, options)
   local logger = options ~= nil and options.logger or nil
+  local expose = options ~= nil and options.expose_details == true
   -- The traceback is taken where the error was raised (the stack is still there in the message handler), only on the
   -- failure path and only when the failure will be logged.
   local traceback
@@ -191,7 +216,7 @@ function problems.guard(action, options)
       if type(err) == "table" and type(err.traceback) == "string" then
         traceback = err.traceback
       else
-        traceback = debug.traceback(tostring(err), 2)
+        traceback = debug.traceback(expose and tostring(err) or problems.chain_without_messages(err), 2)
       end
     end
     return err
