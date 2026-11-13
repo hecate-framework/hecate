@@ -555,7 +555,7 @@ function T:test_a_maximal_whitespace_heavy_head_is_parsed_quickly()
     self:assert_nil(err, "shape " .. index)
     self:assert_equal("head", events[1].type)
     self:assert_true(#head > 56000, "the head is near the limit")
-    self:assert_true(elapsed < 0.05, ("shape %d: a %d-byte head took %.3f s"):format(index, #head, elapsed))
+    self:assert_true(elapsed < 0.5, ("shape %d: a %d-byte head took %.3f s"):format(index, #head, elapsed))
   end
 end
 

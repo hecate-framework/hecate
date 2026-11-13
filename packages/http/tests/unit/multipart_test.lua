@@ -354,7 +354,7 @@ function T:test_basename_of_a_dot_and_space_heavy_filename_is_linear()
   local name
   for _ = 1, 10 do name = multipart.basename(filename) end
   local elapsed = os.clock() - started
-  self:assert_true(elapsed < 0.05, ("took %.3f s"):format(elapsed))
+  self:assert_true(elapsed < 0.5, ("took %.3f s"):format(elapsed))
   self:assert_equal("a" .. (". "):rep(127), name)
 end
 

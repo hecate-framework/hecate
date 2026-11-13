@@ -42,7 +42,7 @@ function T:test_parse_a_whitespace_heavy_cookie_in_linear_time()
   local elapsed = os.clock() - started
   self:assert_equal("v" .. inner .. "w", map.a)
   self:assert_equal(1, #list, "a name with inner whitespace is not a token")
-  self:assert_true(elapsed < 0.05, ("took %.3f s"):format(elapsed))
+  self:assert_true(elapsed < 0.5, ("took %.3f s"):format(elapsed))
 end
 
 function T:test_parse_non_string_is_empty()

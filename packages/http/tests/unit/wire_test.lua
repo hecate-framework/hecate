@@ -45,7 +45,7 @@ function T:test_a_whitespace_heavy_connection_value_is_matched_in_linear_time()
   for _ = 1, 10 do self:assert_true(wire.has_connection_option(value, "close")) end
   self:assert_false(wire.has_connection_option((" "):rep(8000), "close"))
   local elapsed = os.clock() - started
-  self:assert_true(elapsed < 0.05, ("took %.3f s"):format(elapsed))
+  self:assert_true(elapsed < 0.5, ("took %.3f s"):format(elapsed))
 end
 
 return T

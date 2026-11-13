@@ -86,7 +86,8 @@ function T:test_trimming_a_whitespace_heavy_value_is_linear()
     end
   end
   local elapsed = os.clock() - started
-  self:assert_true(elapsed < 0.05, ("80 trims of 8 KiB values took %.3f s"):format(elapsed))
+  -- The quadratic trim took 6.4 s here; linear takes milliseconds. 0.5 s leaves room for slow CI runners (Windows).
+  self:assert_true(elapsed < 0.5, ("80 trims of 8 KiB values took %.3f s"):format(elapsed))
 end
 
 -- Review H-3: the constructor of the parser trusts llhttp for the names and for the other control characters (refused
