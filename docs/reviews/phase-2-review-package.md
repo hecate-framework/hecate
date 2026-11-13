@@ -17,7 +17,7 @@ disposition: fixed in the gate pull request (test first), or deferred to a named
 | CT-4 | minor | A closable factory product that fails the conformance check is never closed (`container.lua:281`). | Fixed, test first |
 | CT-5 | minor | The same closable instance returned by a transient factory twice, or a singleton's instance returned by a transient factory, is tracked and closed twice (`container.lua:328-336`). | Fixed, test first |
 | CT-6 | minor | The closable transients built for a singleton whose construction fails stay in `container._owned`, growing with every retry (`container.lua:323-325`). | Fixed, test first |
-| CT-7 | minor | `override_with_instance` makes the container close an injected closable fake that the test still owns; `container.md` does not say who owns it (`container.lua:235`). | Deferred: OQ-123 (issue 189) |
+| CT-7 | minor | `override_with_instance` makes the container close an injected closable fake that the test still owns; `container.md` does not say who owns it (`container.lua:235`). | Fixed in the gate after the owner decision on OQ-123 (the container never closes an injected instance) |
 | CT-8 | minor | `ServiceScope` can be constructed directly and then fails with a misleading "resolve before validate" (`container.lua:129`, `:404`). | Fixed, test first |
 | CT-9 | minor | The property test accepts a `LifetimeError` for any non-scoped key at the root without checking it needs a scoped service; no closable products, interface keys or overrides are generated (`properties_test.lua:90-95`). | Fixed, test first |
 | CT-10 | minor | No test for a failure partway through a graph inside a scope, a suspending constructor, or a resolution after a cancelled construction. | Fixed, test first |
@@ -39,8 +39,8 @@ disposition: fixed in the gate pull request (test first), or deferred to a named
 | CF-9 | minor | `config.variable_name` does not check its arguments (raw "attempt to concatenate a nil value") (`init.lua:36-38`). | Fixed, test first |
 | CF-10 | minor | A non-string key or a mixed array/object in a configuration file is reported as `(root): expected object, got table` without the key or the file (`load.lua:151-180`, `:256-264`). | Fixed, test first |
 | CF-11 | minor | The value of a secret object can be replaced (`secret._reveal = ...`), in `config` and in `log` (`secret.lua:18`). | Fixed, test first |
-| CF-12 | minor | No size cap nor type check when reading a secret file: `/dev/zero` exhausts memory and a FIFO blocks the boot (`load.lua:102-110`, `:439`); a decision. | Deferred: OQ-124 (issue 190) |
-| CF-13 | minor | On Windows `os.getenv` returns the ANSI code page, so a non-ASCII environment value may be misread (`load.lua:286`; not verified). | Deferred: OQ-124 (issue 190) |
+| CF-12 | minor | No size cap nor type check when reading a secret file: `/dev/zero` exhausts memory and a FIFO blocks the boot (`load.lua:102-110`, `:439`); a decision. | Resolved by the owner (OQ-124): no cap nor check by design (CF-12); a UTF-8 reader on Windows in the gate (CF-13) |
+| CF-13 | minor | On Windows `os.getenv` returns the ANSI code page, so a non-ASCII environment value may be misread (`load.lua:286`; not verified). | Resolved by the owner (OQ-124): no cap nor check by design (CF-12); a UTF-8 reader on Windows in the gate (CF-13) |
 
 ## router
 
@@ -65,7 +65,7 @@ pool-thread states); RE-6 covers it with real tests.
 | RE-2 | minor | Encoding errors of `offload` embed the path of table keys unescaped and uncut (a 1 MiB key gives a 1 MiB message; control characters reach the logs) (`transfer.lua:25-31`, `:54-56`, `offload.lua:222`). Reproduced. | Fixed, test first (`offload_test.lua`) |
 | RE-3 | minor | A call cancelled while queued keeps its encoded arguments until the pool reaches it (`offload.lua:241-246`). | Fixed, test first (`offload_test.lua`) |
 | RE-4 | minor | Garbage of a call stays in the pool thread's Lua state until that thread runs again (299 MB resident after one call building 3 million strings) (`offload.lua:35-79`). Reproduced. | Documented (`concurrency.md`, offload how-to); the collection step deferred to roadmap "Continuous" |
-| RE-5 | minor | `OffloadError.context.reason = "worker"` collides with the glossary term *worker* (a process, ADR 0023) (`offload.lua:18`, `:75`; `concurrency.md:169`). | Deferred: OQ-125 (issue 191) |
+| RE-5 | minor | `OffloadError.context.reason = "worker"` collides with the glossary term *worker* (a process, ADR 0023) (`offload.lua:18`, `:75`; `concurrency.md:169`). | Fixed in the gate after the owner decision on OQ-125 (renamed `pool_thread`) |
 | RE-6 | minor | No test for `require` on a pool thread, the `worker` reason, the `refused` path, or a function under its own `local _ENV`. | Fixed: tests added (`offload_test.lua`, `offload_exit_test.lua`) |
 | RE-7 | minor | NUL bytes in `cwd` and in `env` names and values of `spawn` are not refused (luv cuts them) (`process.lua:268-283`). | Fixed, test first (`process_test.lua`) |
 | RE-8 | minor | `supports_reuseport` caches any probe failure (EMFILE, no IPv4 loopback) as "unsupported" for the life of the process (`tcp.lua:597-611`). | Fixed, test first (`reuseport_test.lua`); an `ENOTSUP` probe is not cached either |
