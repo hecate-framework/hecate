@@ -4,7 +4,7 @@
 - roadmap_item: **Phase 2 gate**: verification of the phase, as described in "Phase gates" (`docs/roadmap.md`).
 - status: in-progress
 - lock_until: 2026-11-13T18:30:00Z
-- last_update: 2026-11-13T17:00:00Z
+- last_update: 2026-11-13T16:15:00Z
 
 ## Done
 
@@ -27,18 +27,12 @@
   OQ-69 known limitation (P4); OQ-24 moved to Resolved (issue 64 closed). Owner issue: 188 (`needs-decision`).
 - P1, S1, S2, S7 and C24 fixed (`Request.content`, production checklist, tests). Every row of section 6 of the
   report now has a final disposition; the coherence findings too (C10, C11, C25, C32 with the owner).
-- Reviewer wave done (`docs/reviews/phase-2-review-package.md`): every finding fixed test first or deferred, but
-  H-4 and L-1; deferred ones in OQ-123 to OQ-127 (issues 189 to 193) and roadmap "Continuous".
+- Reviewer wave done (`docs/reviews/phase-2-review-package.md`): every finding fixed test first or deferred, H-4 and L-1 included; deferred ones in OQ-123 to OQ-127 (issues 189 to 193) and roadmap "Continuous".
 
 ## Next steps
 
-1. Two open rows of `docs/reviews/phase-2-review-package.md`: H-4 (`shutdown` closes a connection whose head has
-   partly arrived, `packages/http/src/hecate/http/server.lua:275-276`; reproduction
-   `repro_test.lua` of the reviewer, described in the row) and L-1 (`leaks kernel`: one `uv_tcp_t` left by two
-   `application_test.lua` tests, also on `main`). Fix test first (`pkg-http`, `pkg-kernel`); then consider adding
-   `kernel` to the nightly `leaks` set.
-2. Wait for the owner on issue 188 (section 5 questions); then record each answer in `docs/open-questions.md`.
-3. Finish: tick the gate only when the report shows no open gap and every question has an owner decision or deferral.
+1. Wait for the owner on issue 188 (section 5 questions); then record each answer in `docs/open-questions.md`.
+2. Finish: tick the gate only when the report shows no open gap and every question has an owner decision or deferral.
 
 ## Decisions taken (and where they are recorded)
 

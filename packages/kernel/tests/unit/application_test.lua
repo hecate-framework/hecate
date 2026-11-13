@@ -528,8 +528,11 @@ function T:test_sigint_shuts_the_server_down_gracefully()
       reactor.fork(function()
         local client = http.Client()
         local ok, response = pcall(client.get, client, "http://127.0.0.1:" .. port .. "/slow")
-        client:close() -- an open pool keeps a libuv handle (`leaks kernel`)
         status = ok and response.status or response
+        -- A response whose content is not read holds its connection: `client:close()` closes only the idle ones, so the
+        -- response is closed first (`leaks kernel`).
+        if ok then response:close() end
+        client:close()
       end)
       while not started do reactor.sleep(0.005) end
       raise_until("sigint", function() return done or codes(memory).shutdown_signal ~= nil end)
@@ -1080,8 +1083,11 @@ function T:test_an_expired_deadline_gives_a_500_and_the_server_record_without_tr
       local port = app:local_address().port
       local client = http.Client()
       local ok, response = pcall(client.get, client, "http://127.0.0.1:" .. port .. "/late?access_token=abc123")
-      client:close() -- an open pool keeps a libuv handle (`leaks kernel`)
-      if ok then status, problem_type = response.status, response.fields:get("Content-Type") end
+      if ok then
+        status, problem_type = response.status, response.fields:get("Content-Type")
+        response:close() -- its unread content holds the connection; `client:close()` closes only idle ones (`leaks kernel`)
+      end
+      client:close()
       app:shutdown(1)
     end)
     reactor.deadline(10, app.serve, app)

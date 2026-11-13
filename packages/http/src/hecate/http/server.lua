@@ -251,8 +251,9 @@ local function wait_finished(self)
   self._finished:release() -- the next waiter
 end
 
---- Stops accepting, closes the idle connections (those that served a request and wait for the next), lets the requests in
---- flight finish (each answer carries `Connection: close`), and returns when `serve` has returned. A fresh connection (no
+--- Stops accepting, closes the idle connections (those that served a request and wait for the next with no byte of its
+--- head), lets the requests in flight finish (each answer carries `Connection: close`; a request whose head has partly
+--- arrived is in flight), and returns when `serve` has returned. A fresh connection (no
 --- byte of its first request head yet, e.g. handed over just before the stop) is not closed at once: it has
 --- `connection.FRESH_GRACE` (1 second, or the `grace_timeout` when shorter) to start its request, which is then served with
 --- `Connection: close`; it is closed when none starts. When `grace_timeout` seconds pass first, the
@@ -273,9 +274,11 @@ function Server:shutdown(grace_timeout)
     self._stop_grace = grace_timeout
     for conn in pairs(self._connections) do
       -- A fresh connection (no byte of its first request head yet) is given a short grace, not closed: its client may have
-      -- written the request already (a connection handed over just before the stop). One that served a request is closed.
+      -- written the request already (a connection handed over just before the stop). One that waits with no byte of a
+      -- next head (it served a request) is idle and closed. One whose head has partly arrived (`conn.partial`, first or
+      -- next request) is not idle: its request is served with `Connection: close`, bounded by `head_timeout` and the grace.
       if conn.fresh then connection.grace_fresh(self, conn)
-      elseif conn.waiting then conn.stream:close() end
+      elseif conn.waiting and not conn.partial then conn.stream:close() end
     end
     for limited in pairs(self._handshaking) do limited:close() end
   end

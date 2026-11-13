@@ -98,7 +98,7 @@ pool-thread states); RE-6 covers it with real tests.
 | H-1 | blocker | Quadratic trimming of field values (`^[ \t]*(.-)[ \t]*$`) lets one client stall the reactor thread within the default limits: a 56 KiB head of seven whitespace-heavy fields costs 1.56 s in `Parser:feed`; three such requests delayed a plain `GET` on another connection by 4.9 s (`fields.lua:53`, `:66`; `server_connection.lua:180`; `wire.lua:64`; `cookie.lua:102`). Reproduced. | Fixed, test first |
 | H-2 | major | `native.new(kind)` called with one argument runs `lua_next` on the userdata it just pushed (undefined behaviour in C; not reachable from the network) (`csrc/native.c:520-531`). Reproduced. | Fixed, test first |
 | H-3 | major | 94 % of parse time is `Fields:add` re-validating what llhttp already checked in strict mode (61 µs per 18-field head against 3.9 µs) (`parser.lua:93-96`). | Fixed, test first |
-| H-4 | minor | `shutdown` closes without an answer a connection whose request head has partly arrived (`server.lua:275-276`). Reproduced. | Open |
+| H-4 | minor | `shutdown` closes without an answer a connection whose request head has partly arrived (`server.lua:275-276`). Reproduced. | Fixed, test first |
 | H-5 | minor | An HTTP/1.0 request with several `Host` lines is served and no value is validated (`server_connection.lua:158-165`). Reproduced. | Fixed, test first |
 | H-6 | minor | `GET *` (asterisk-form outside OPTIONS) and an origin-form target with a fragment (`/a#x`) are served (`server_connection.lua:156-187`, `request.lua:53`). Reproduced. | Fixed, test first |
 | H-7 | minor | A 205 response may carry content, against RFC 9110 section 15.3.6 (`status.lua:57`). | Fixed, test first |
@@ -109,5 +109,5 @@ pool-thread states); RE-6 covers it with real tests.
 
 | Id | Severity | Finding | Disposition |
 |---|---|---|---|
-| L-1 | minor | `leaks kernel` fails on `main` too: `test_sigint_shuts_the_server_down_gracefully` and `test_an_expired_deadline_gives_a_500_and_the_server_record_without_traceback` (`application_test.lua`) each leave one `uv_tcp_t` open; the nightly `leaks` job checks `reactor` and `net` only. The tests now close their `http.Client`, which was not the cause. | Open |
+| L-1 | minor | `leaks kernel` fails on `main` too: `test_sigint_shuts_the_server_down_gracefully` and `test_an_expired_deadline_gives_a_500_and_the_server_record_without_traceback` (`application_test.lua`) each leave one `uv_tcp_t` open; the nightly `leaks` job checks `reactor` and `net` only. The tests now close their `http.Client`, which was not the cause. | Fixed: the tests left their response unread, so it held its connection; `kernel` added to the nightly `leaks` job |
 | L-2 | minor | The French guide `website/fr/how-to/route-requests.md` does not carry the router changes (R-1, R-2, R-7). | Deferred: the French translation sync (roadmap "Continuous"; `check-translations`, Phase 3) |

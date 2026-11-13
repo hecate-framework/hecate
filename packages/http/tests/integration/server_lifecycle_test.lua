@@ -637,6 +637,41 @@ function T:test_shutdown_serves_a_fresh_connection_whose_request_arrives_after_i
   end)
 end
 
+function T:test_shutdown_serves_a_first_request_whose_head_had_partly_arrived()
+  with_server(self, { action = text_action }, function(port, server)
+    local partial <close> = connect(port)
+    partial:send("GET /half HTTP/1.1\r\nHo")
+    reactor.sleep(0.05) -- the server read the bytes: the head is pending
+    local stopping = reactor.fork(server.shutdown, server, 5)
+    reactor.sleep(0.05) -- the shutdown started
+    self:assert_true(server:is_stopping())
+    partial:send("st: test\r\n\r\n")
+    local response = partial:read_response()
+    self:assert_not_nil(response, "a connection with a partial head is not closed as idle")
+    self:assert_equal(200, response.status)
+    self:assert_equal("GET /half", response.content)
+    self:assert_equal("close", response.fields:get("Connection"))
+    stopping:value()
+  end)
+end
+
+function T:test_shutdown_serves_a_next_request_whose_head_had_partly_arrived_on_a_keep_alive_connection()
+  with_server(self, { action = text_action }, function(port, server)
+    local client <close> = connect(port)
+    self:assert_equal(200, client:request(get("/first")).status)
+    client:send("GET /second HTTP/1.1\r\nHo")
+    reactor.sleep(0.05)
+    local stopping = reactor.fork(server.shutdown, server, 5)
+    reactor.sleep(0.05)
+    client:send("st: test\r\n\r\n")
+    local response = client:read_response()
+    self:assert_not_nil(response, "a connection with a partial next head is not closed as idle")
+    self:assert_equal("GET /second", response.content)
+    self:assert_equal("close", response.fields:get("Connection"))
+    stopping:value()
+  end)
+end
+
 function T:test_shutdown_closes_a_silent_fresh_connection_within_its_grace_not_the_whole_grace_period()
   with_server(self, { action = text_action }, function(port, server)
     local silent <close> = connect(port)

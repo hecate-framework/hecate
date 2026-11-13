@@ -210,8 +210,9 @@ return response
 
 ## Stop the server
 
-`server:shutdown(grace_timeout?)` stops accepting, closes the connections that wait for a request and
-lets each request in flight finish. Their answers carry `Connection: close`. It returns when
+`server:shutdown(grace_timeout?)` stops accepting, closes the connections that wait for a request
+with no byte of it yet and lets each request in flight finish, including one whose head has partly
+arrived. Their answers carry `Connection: close`. It returns when
 `serve` has returned. When the [grace period](../reference/glossary.md#http) expires (30 seconds by default), the remaining requests are
 cancelled. There is no `<close>` form for a server: `shutdown` suspends while it waits for the
 requests, and a `<close>` scope cannot suspend.
