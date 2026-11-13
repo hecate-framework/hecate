@@ -3,8 +3,8 @@
 
 - roadmap_item: **Phase 2 gate**: verification of the phase, as described in "Phase gates" (`docs/roadmap.md`).
 - status: in-progress
-- lock_until: 2026-11-13T11:50:00Z
-- last_update: 2026-11-13T10:20:00Z
+- lock_until: 2026-11-13T12:05:00Z
+- last_update: 2026-11-13T10:35:00Z
 
 ## Unblocked
 
@@ -23,13 +23,13 @@ example rules, `check-examples` and the examples tests).
   packages, `tools`, `examples/hello`), `leaks`, `bench plaintext` and `kernel-json` ok; CI of eb9d9b7 green on the
   three platforms. Recorded in `docs/reviews/phase-2.md` section 2, with findings G1 (gen checks not in CI: fixed),
   G2 (README statuses: fixed), G3 (`bench <scenario> --runs` message: to triage). `coverage` was started; record it.
+- Step 3, roadmap triage item: `Application:serve` without the `http` native module raises `ModuleError`
+  `http_unavailable` naming `build-native http` (test first; report row G4).
 
 ## Next steps
 
 2. Completeness: one row per ticked Phase 2 item (section 1 of the report), with code, tests, README status,
    website reference, CHANGELOG, benchmarks; grep `TODO|FIXME|not implemented` in the Phase 2 packages.
-3. Triage item named by the roadmap: `Application:serve` without the `http` native module must raise an error naming
-   `lua tools/run.lua build-native http` (test first, `pkg-kernel`).
 4. Coherence audit (code, ADRs, specs, READMEs, glossary, roadmap, open questions, website, `automation.md`,
    `llms.txt`, `README.md`, `CLAUDE.md`), findings in `docs/reviews/phase-2-coherence-findings.md`; fix or defer each.
 5. Safe content audit (OQ-111): grep messages and `logger:*` calls of `http`, `router`, `schema`, `container`,

@@ -252,6 +252,35 @@ function T:test_a_serve_that_fails_before_the_run_leaves_the_application_servabl
   end)
 end
 
+function T:test_serve_without_the_native_module_of_http_names_the_build_command()
+  local core = require("hecate.core")
+  local reactor = require("hecate.reactor")
+  -- Simulates an `http` whose native module is not built: `Server` is nil and `available` says why.
+  local saved_server, saved_available = http.Server, http.available
+  http.Server = nil
+  http.available = function()
+    return false, "module 'hecate.http.native' not found (run `lua tools/run.lua build-native http`)"
+  end
+  local app = kernel.Application({ signals = false, server = { host = "127.0.0.1", port = 0 } })
+  local primary = kernel.Application({ signals = false, workers = 2, server = { host = "127.0.0.1", port = 0 } })
+  local ok, err, ok2, err2
+  reactor.run(function()
+    ok, err = pcall(app.serve, app)
+    ok2, err2 = pcall(primary.serve, primary)
+  end)
+  http.Server, http.available = saved_server, saved_available
+  for _, case in ipairs({ { ok, err }, { ok2, err2 } }) do
+    self:assert_false(case[1])
+    self:assert_true(core.is_instance_of(case[2], kernel.ModuleError), tostring(case[2]))
+    self:assert_equal("http_unavailable", case[2].context.reason)
+    self:assert_true(tostring(case[2].message):find("lua tools/run.lua build-native http", 1, true) ~= nil,
+      tostring(case[2].message))
+  end
+  -- Not served: the application can be served once the module is there.
+  self:assert_nil(app._served)
+  self:assert_nil(primary._served)
+end
+
 function T:test_a_primary_that_cannot_tell_how_to_start_a_worker_stays_servable()
   local core = require("hecate.core")
   local reactor = require("hecate.reactor")

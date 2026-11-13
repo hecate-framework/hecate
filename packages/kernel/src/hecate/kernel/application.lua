@@ -456,13 +456,20 @@ end
 --- application to serve again. A `serve` that fails before the run begins (a failed `boot`, bad `server` options, no way
 --- to tell how to start a worker) does not count: the application is booted and not served, and can be served again.
 ---
---- Raises what `boot` and `hecate.http.Server:serve` raise, `hecate.kernel.ModuleError` (`already_served`) and
---- `hecate.kernel.SupervisorError` in a primary.
+--- Raises what `boot` and `hecate.http.Server:serve` raise, `hecate.kernel.ModuleError` (`already_served`, or
+--- `http_unavailable` when the native module of `hecate.http` is not built: the message names
+--- `lua tools/run.lua build-native http`) and `hecate.kernel.SupervisorError` in a primary.
 ---@async
 function Application:serve()
   if self._served then
     error(errors.ModuleError("hecate.kernel.application.serve: the application has already been served (serve runs once, the container is closed when it returns)",
       { context = { reason = "already_served" } }), 2)
+  end
+  local available, why = http.available()
+  if not available then
+    -- Without its native module `http` has no `Server`: say which command builds it (as `hecate.net.tls` does).
+    error(errors.ModuleError("hecate.kernel.application.serve: cannot serve HTTP, " .. tostring(why),
+      { context = { reason = "http_unavailable" } }), 2)
   end
   local serve = self._serve or self:boot()
   local role = supervisor.worker_role()
