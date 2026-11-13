@@ -2,6 +2,7 @@
 -- The request path as the router reads it: percent-decoded per segment (RFC 3986 section 2.1: %2F is not a separator),
 -- dot segments resolved (RFC 3986 section 5.2.4).
 local test = require("harness.test")
+local core = require("hecate.core")
 local path = require("hecate.router.path")
 local T = test.Case("PathTest")
 
@@ -122,6 +123,18 @@ function T:test_encode_then_decode_round_trips_every_byte()
   local text = table.concat(all)
   self:assert_equal(text, path.decode(path.encode(text)))
   self:assert_equal(text, path.decode(path.encode(text, true)))
+end
+
+
+function T:test_split_defaults_to_the_ignore_policy_and_refuses_an_unknown_one()
+  -- R-5 of the Phase 2 gate review.
+  self:assert_equal("[a|b]", joined(path.split("/a/b/")))
+  self:assert_equal("[]", joined(path.split("/")))
+  for _, policy in ipairs({ "redirect", 1, true }) do
+    local err = self:assert_error(function() path.split("/a", policy) end)
+    self:assert_true(core.is_instance_of(err, core.ArgumentError), tostring(err))
+    self:assert_true(err.message:find("^router%.path%.split: ") ~= nil, err.message)
+  end
 end
 
 return T

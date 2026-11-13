@@ -32,12 +32,18 @@ local NAME <const> = "[%a_][%w_]*"
 --- Parses a path template. Returns nil, a stable reason and a detail text for a template the router refuses: reasons
 --- are `not_absolute`, `invalid_character`, `empty_segment`, `dot_segment`, `malformed_percent_encoding`,
 --- `encoded_nul`, `malformed_expression`, `mixed_segment`, `duplicate_parameter` and `wildcard_not_last`.
+--- Raises `hecate.core.ArgumentError` for a `trailing_slash` policy other than `"strict"` and `"ignore"`.
 ---@param text any
----@param trailing_slash "strict"|"ignore"
+---@param trailing_slash? "strict"|"ignore"  default `"ignore"`, as for `Router`
 ---@return hecate.router.Template? template
 ---@return string? reason
 ---@return string? detail
 function template.parse(text, trailing_slash)
+  if trailing_slash == nil then
+    trailing_slash = "ignore"
+  elseif trailing_slash ~= "ignore" and trailing_slash ~= "strict" then
+    error(core.ArgumentError("router.template.parse: trailing_slash must be \"strict\" or \"ignore\""), 2)
+  end
   if type(text) ~= "string" or string.byte(text, 1) ~= 47 then
     return nil, "not_absolute", "a path template starts with a slash"
   end
@@ -117,34 +123,30 @@ function template.parse(text, trailing_slash)
   return { text = text, segments = segments, names = names, slash = slash }
 end
 
-local function refuse(message) error(core.ArgumentError("router.url_for: " .. message), 4) end
-
---- A reverse-routing value is a string or an integer that stays one segment after matching.
+--- A reverse-routing value is a string or an integer that stays one segment after matching. Returns the text, or nil
+--- and the reason it is refused.
 local function segment_text(name, value, inside)
   local kind = math.type(value)
   if kind == "integer" then return tostring(value) end
-  if type(value) ~= "string" then refuse(("parameter %s must be a string or an integer"):format(name)) end
+  if type(value) ~= "string" then return nil, ("parameter %s must be a string or an integer"):format(name) end
   if value == "" or (not inside and (value == "." or value == "..")) or string.find(value, "\0", 1, true) then
-    refuse(("parameter %s is empty, a dot segment or holds a NUL byte, which no request path can carry"):format(name))
+    return nil, ("parameter %s is empty, a dot segment or holds a NUL byte, which no request path can carry"):format(name)
   end
   return value
 end
 
---- Builds the path of `parsed` from `parameters`: every value is percent-encoded (RFC 6570 section 3.2.2, level 1
---- expansion keeps only the unreserved characters). The value of a wildcard is split at its slashes and each part is
---- encoded, so it matches the wildcard again.
----
---- Raises `hecate.core.ArgumentError` for a missing or unknown parameter and for a value that matching could not read
---- back (empty, `.`, `..`, a NUL byte, an empty part in a wildcard value).
+--- The expansion of `expand`, without raising: returns the path, or nil and what is wrong. `Router:url_for` calls it
+--- to raise under its own name.
 ---@param parsed hecate.router.Template
 ---@param parameters? table<string, string|integer>
----@return string path
-function template.expand(parsed, parameters)
+---@return string? path
+---@return string? problem
+function template._expand(parsed, parameters)
   parameters = parameters or {}
   local known = {}
   for _, name in ipairs(parsed.names) do known[name] = true end
   for name in pairs(parameters) do
-    if not known[name] then refuse(("unknown parameter %s"):format(tostring(name))) end
+    if not known[name] then return nil, ("unknown parameter %s"):format(tostring(name)) end
   end
   local out = {}
   for _, segment in ipairs(parsed.segments) do
@@ -152,22 +154,28 @@ function template.expand(parsed, parameters)
       out[#out + 1] = path.encode(segment.value, true)
     else
       local value = parameters[segment.name]
-      if value == nil then refuse(("missing parameter %s"):format(segment.name)) end
+      if value == nil then return nil, ("missing parameter %s"):format(segment.name) end
       if segment.kind == "parameter" then
-        out[#out + 1] = path.encode(segment_text(segment.name, value))
+        local text, problem = segment_text(segment.name, value)
+        if text == nil then return nil, problem end
+        out[#out + 1] = path.encode(text)
       elseif segment.kind == "affixed" then
-        local text = segment_text(segment.name, value, true)
-        if segment.prefix .. text .. segment.suffix == "." or segment.prefix .. text .. segment.suffix == ".." then
-          refuse(("parameter %s would make a dot segment"):format(segment.name))
-        end
+        local text, problem = segment_text(segment.name, value, true)
+        if text == nil then return nil, problem end
+        local whole = segment.prefix .. text .. segment.suffix
+        if whole == "." or whole == ".." then return nil, ("parameter %s would make a dot segment"):format(segment.name) end
         out[#out + 1] = path.encode(segment.prefix, true) .. path.encode(text) .. path.encode(segment.suffix, true)
       else
-        if type(value) ~= "string" then refuse(("parameter %s must be a string"):format(segment.name)) end
+        -- A wildcard takes a string whose `/` separate its segments, or an integer (one segment).
+        if math.type(value) == "integer" then value = tostring(value) end
+        if type(value) ~= "string" then return nil, ("parameter %s must be a string or an integer"):format(segment.name) end
         ---@cast value string
         local parts, start = {}, 1
         while true do
           local slash = string.find(value, "/", start, true)
-          parts[#parts + 1] = path.encode(segment_text(segment.name, string.sub(value, start, (slash or #value + 1) - 1)))
+          local text, problem = segment_text(segment.name, string.sub(value, start, (slash or #value + 1) - 1))
+          if text == nil then return nil, problem end
+          parts[#parts + 1] = path.encode(text)
           if slash == nil then break end
           start = slash + 1
         end
@@ -176,6 +184,21 @@ function template.expand(parsed, parameters)
     end
   end
   return "/" .. table.concat(out, "/") .. (parsed.slash and "/" or "")
+end
+
+--- Builds the path of `parsed` from `parameters`: every value is percent-encoded (RFC 6570 section 3.2.2, level 1
+--- expansion keeps only the unreserved characters). Values are strings or integers. The value of a wildcard is split
+--- at its slashes and each part is encoded, so it matches the wildcard again.
+---
+--- Raises `hecate.core.ArgumentError` for a missing or unknown parameter and for a value that matching could not read
+--- back (empty, `.`, `..`, a NUL byte, an empty part in a wildcard value).
+---@param parsed hecate.router.Template
+---@param parameters? table<string, string|integer>
+---@return string path
+function template.expand(parsed, parameters)
+  local built, problem = template._expand(parsed, parameters)
+  if built == nil then error(core.ArgumentError("router.template.expand: " .. problem), 2) end
+  return built
 end
 
 return template

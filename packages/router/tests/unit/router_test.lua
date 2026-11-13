@@ -514,4 +514,88 @@ function T:test_identical_affixed_templates_are_ambiguous()
   self:assert_equal("ambiguous_route", err.context.reason)
 end
 
+
+-- Phase 2 gate review (R-1, R-3, R-4, R-6, R-7) ----------------------------------------------------------------------
+
+function T:test_overlapping_affixed_templates_of_the_same_text_length_are_ambiguous()
+  -- R-1: `/f/a1b` matches both and neither has precedence (same text length).
+  local err = raises(self, router.RouteTableError, function()
+    Router(routes({ method = "GET", path = "/f/a{x}", name = "first" }, { method = "GET", path = "/f/{y}b", name = "second" }))
+  end)
+  self:assert_equal("ambiguous_route", err.context.reason)
+  self:assert_equal(2, err.context.index)
+  self:assert_equal(1, err.context.other_index)
+  self:assert_equal("GET", err.context.method)
+  self:assert_true(err.message:find("/f/a{x}", 1, true) ~= nil, err.message)
+  self:assert_true(err.message:find("/f/{y}b", 1, true) ~= nil, err.message)
+  for _, pair in ipairs({ { "/f/ab{x}", "/f/a{y}b" }, { "/f/{x}.json", "/f/.{y}json" }, { "/f/a{x}/c", "/f/{y}b/{z}" },
+    { "/f/a{x}/{rest...}", "/f/{y}b/c" }, { "/f/a{x}/c{z}", "/f/{y}b/{w}d" } }) do
+    local err2 = raises(self, router.RouteTableError, function()
+      Router(routes({ method = "GET", path = pair[1] }, { method = "GET", path = pair[2] }))
+    end)
+    self:assert_equal("ambiguous_route", err2.context.reason, pair[1] .. " " .. pair[2])
+  end
+  -- The conflict is found whichever sibling the second route shares a node with.
+  raises(self, router.RouteTableError, function()
+    Router(routes({ method = "GET", path = "/f/a{x}" }, { method = "POST", path = "/f/{y}b" }, { method = "POST", path = "/f/a{z}" }))
+  end)
+end
+
+function T:test_affixed_templates_of_the_same_text_length_that_cannot_match_one_segment_are_accepted()
+  local r = Router(routes(
+    { method = "GET", path = "/f/a{x}", name = "a" },
+    { method = "GET", path = "/f/b{x}", name = "b" },
+    { method = "GET", path = "/f/{x}.json", name = "json" },
+    { method = "GET", path = "/f/{x}.yaml", name = "yaml" }))
+  self:assert_equal("a", r:match("GET", "/f/a1").route.name)
+  self:assert_equal("b", r:match("GET", "/f/b1").route.name)
+  self:assert_equal("yaml", r:match("GET", "/f/x.yaml").route.name)
+  -- Overlapping affixes are not ambiguous for different methods, for different text lengths, or when no path
+  -- matches both routes.
+  Router(routes({ method = "GET", path = "/f/a{x}" }, { method = "POST", path = "/f/{y}b" }))
+  local longer = Router(routes({ method = "GET", path = "/f/a{x}", name = "short" }, { method = "GET", path = "/f/{y}bc", name = "long" }))
+  self:assert_equal("long", longer:match("GET", "/f/a1bc").route.name)
+  local apart = Router(routes({ method = "GET", path = "/f/a{x}/c", name = "c" }, { method = "GET", path = "/f/{y}b/d", name = "d" }))
+  self:assert_equal("c", apart:match("GET", "/f/a1b/c").route.name)
+  self:assert_equal("d", apart:match("GET", "/f/a1b/d").route.name)
+  Router(routes({ method = "GET", path = "/f/a{x}/a%2Fb" }, { method = "GET", path = "/f/{y}b/{rest...}" }))
+end
+
+function T:test_a_route_list_with_a_hole_or_extra_keys_is_an_argument_error()
+  -- R-3: the routes after a hole would be dropped silently.
+  local list = { { method = "GET", path = "/a" } }
+  list[3] = { method = "GET", path = "/c" }
+  raises(self, core.ArgumentError, function() Router(list) end)
+  raises(self, core.ArgumentError, function() Router({ { method = "GET", path = "/a" }, extra = true }) end)
+  raises(self, core.ArgumentError, function() Router({ [0] = { method = "GET", path = "/a" }, { method = "GET", path = "/b" } }) end)
+  self:assert_equal(2, #Router({ { method = "GET", path = "/a" }, { method = "GET", path = "/b" } }):routes())
+end
+
+function T:test_url_for_errors_name_url_for()
+  -- R-4: the errors raised while expanding the template name the method the caller called.
+  local r = Router(routes({ method = "GET", path = "/u/{id}", name = "u" }))
+  for _, parameters in ipairs({ {}, { id = "" }, { id = 1, extra = 2 }, { id = true } }) do
+    local err = raises(self, core.ArgumentError, function() r:url_for("u", parameters) end)
+    self:assert_true(err.message:find("^router%.Router:url_for: ") ~= nil, err.message)
+  end
+end
+
+function T:test_url_for_accepts_an_integer_for_a_wildcard()
+  -- R-6
+  local r = Router(routes({ method = "GET", path = "/pages/{rest...}", name = "pages" }))
+  self:assert_equal("/pages/42", r:url_for("pages", { rest = 42 }))
+  self:assert_equal("42", r:match("GET", r:url_for("pages", { rest = 42 })).parameters.rest)
+  raises(self, core.ArgumentError, function() r:url_for("pages", { rest = 1.5 }) end)
+end
+
+function T:test_under_the_strict_policy_a_wildcard_does_not_match_a_path_ending_with_a_slash()
+  -- R-7: the trailing slash is an empty last segment, and a wildcard takes non-empty segments only.
+  local strict = Router(routes({ method = "GET", path = "/s/{rest...}" }), { trailing_slash = "strict" })
+  self:assert_equal(200, strict:match("GET", "/s/a/b").status)
+  self:assert_equal(404, strict:match("GET", "/s/a/b/").status)
+  self:assert_equal(404, strict:match("GET", "/s/a/").status)
+  local ignore = Router(routes({ method = "GET", path = "/s/{rest...}" }))
+  self:assert_equal("a/b", ignore:match("GET", "/s/a/b/").parameters.rest)
+end
+
 return T

@@ -1,5 +1,6 @@
 -- The compiled tree: a radix tree whose edges are whole path segments. A node holds its static children in a hash
--- table, so a step costs one table access whatever the number of routes; at most one parameter child; and the entries
+-- table, so a static step costs one table access whatever the number of routes; its affixed children in a list scanned
+-- one by one (longest text first); at most one parameter child; and the entries
 -- of the routes that end at the node (`terminal`) or that end with a wildcard there (`wild`), by method.
 global <const> pairs, ipairs, string, table
 
@@ -8,6 +9,7 @@ global <const> pairs, ipairs, string, table
 ---@field route table  the route table as declared
 ---@field names string[]  parameter names in order; the values are bound by position
 ---@field index integer  position of the route in the table
+---@field segments hecate.router.TemplateSegment[]  the segments of the parsed template, to detect ambiguous tables
 
 ---@class hecate.router.Node
 ---@field static? table<string, hecate.router.Node>
@@ -28,9 +30,68 @@ local tree = {}
 ---@return hecate.router.Node
 function tree.new() return {} end
 
---- Adds `entry` for `method` under the segments of `parsed`. Returns the entry that already serves the same method at
---- the same position when there is one (the table is ambiguous); the tree is then left as it was for this method, and the
---- caller abandons the whole table.
+local function starts(text, head) return string.sub(text, 1, #head) == head end
+local function ends(text, tail) return tail == "" or string.sub(text, -#tail) == tail end
+
+--- Whether one non-empty segment can match two affixed expressions: one prefix starts the other and one suffix ends
+--- the other (then the longer prefix, any text and the longer suffix is such a segment).
+local function affixes_overlap(a, b)
+  return (starts(a.prefix, b.prefix) or starts(b.prefix, a.prefix)) and (ends(a.suffix, b.suffix) or ends(b.suffix, a.suffix))
+end
+
+--- Whether the request segment `text` can match the template segment `segment` (not a wildcard).
+local function segment_matches(segment, text)
+  if segment.kind == "static" then return segment.value == text end
+  if text == "" then return false end
+  if segment.kind == "parameter" then return true end
+  return #text > #segment.prefix + #segment.suffix and starts(text, segment.prefix) and ends(text, segment.suffix)
+end
+
+--- Whether a wildcard can take the template segments `segments[i..]`: at least one, and none that is empty or holds a
+--- slash (see `rest_of`). Parameters never match an empty segment and stay one segment.
+local function wildcard_takes(segments, i)
+  if segments[i] == nil then return false end
+  for j = i, #segments do
+    local segment = segments[j]
+    if segment.kind == "static" and (segment.value == "" or string.find(segment.value, "/", 1, true)) then return false end
+  end
+  return true
+end
+
+--- Whether some request path matches both `a[i..]` and `b[j..]` (the segments before are matched by both).
+local function templates_overlap(a, i, b, j)
+  local x, y = a[i], b[j]
+  if x == nil or y == nil then return x == nil and y == nil end
+  if x.kind == "wildcard" then return y.kind == "wildcard" or wildcard_takes(b, j) end
+  if y.kind == "wildcard" then return wildcard_takes(a, i) end
+  local next_a, next_b = i + 1, j + 1
+  if x.kind == "static" then return segment_matches(y, x.value) and templates_overlap(a, next_a, b, next_b) end
+  if y.kind == "static" then return segment_matches(x, y.value) and templates_overlap(a, next_a, b, next_b) end
+  if x.kind == "affixed" and y.kind == "affixed" and not affixes_overlap(x, y) then return false end
+  return templates_overlap(a, next_a, b, next_b)
+end
+
+--- The first entry under `node` that serves `method` for a path that the template `segments[i..]` also matches.
+local function overlapping_entry(node, segments, i, method)
+  for _, map in pairs({ terminal = node.terminal, wild = node.wild }) do
+    local entry = map[method]
+    if entry and templates_overlap(segments, i, entry.segments, i) then return entry end
+  end
+  for _, child in pairs(node.static or {}) do
+    local entry = overlapping_entry(child, segments, i, method)
+    if entry then return entry end
+  end
+  for _, candidate in ipairs(node.affixed or {}) do
+    local entry = overlapping_entry(candidate.node, segments, i, method)
+    if entry then return entry end
+  end
+  return node.param and overlapping_entry(node.param, segments, i, method) or nil
+end
+
+--- Adds `entry` for `method` under the segments of `parsed`. Returns the entry that already serves the same method for
+--- the same paths when there is one (the table is ambiguous): at the same position, or under an affixed sibling of the
+--- same text length that can match the same segment, where precedence can not choose. The caller then abandons the
+--- whole table, so the tree may be left with empty nodes.
 ---@param root hecate.router.Node
 ---@param parsed hecate.router.Template
 ---@param method string
@@ -39,7 +100,7 @@ function tree.new() return {} end
 function tree.insert(root, parsed, method, entry)
   local node = root
   local target
-  for _, segment in ipairs(parsed.segments) do
+  for position, segment in ipairs(parsed.segments) do
     if segment.kind == "static" then
       node.static = node.static or {}
       local child = node.static[segment.value]
@@ -49,8 +110,16 @@ function tree.insert(root, parsed, method, entry)
       local list = node.affixed
       if list == nil then list = {}; node.affixed = list end
       local child
+      local size = #segment.prefix + #segment.suffix
       for _, candidate in ipairs(list) do
-        if candidate.prefix == segment.prefix and candidate.suffix == segment.suffix then child = candidate.node end
+        if candidate.prefix == segment.prefix and candidate.suffix == segment.suffix then
+          child = candidate.node
+        elseif #candidate.prefix + #candidate.suffix == size and affixes_overlap(candidate, segment) then
+          -- Precedence orders affixed siblings by text length only; of two that can match one segment with the same
+          -- length, neither has precedence, so a path both routes match is ambiguous.
+          local other = overlapping_entry(candidate.node, parsed.segments, position + 1, method)
+          if other then return other end
+        end
       end
       if child == nil then
         child = {}

@@ -49,8 +49,10 @@
     `automatic_options` (default `true`).
 - `router.RouteTableError`: a `ConfigurationError` raised at boot; `context.reason` is `invalid_route`,
   `invalid_method`, `invalid_template`, `duplicate_name` or `ambiguous_route`.
-- `router.template`: `parse(text, trailing_slash)` and `expand(template, parameters)`.
-- `router.path`: `split(raw, trailing_slash)`, `decode(text)` and `encode(text, keep_delimiters?)`.
+- `router.template`: `parse(text, trailing_slash?)` and `expand(template, parameters)` (errors named
+  `router.template.expand:`; through `url_for` they are named `router.Router:url_for:`).
+- `router.path`: `split(raw, trailing_slash?)`, `decode(text)` and `encode(text, keep_delimiters?)`. The policy
+  defaults to `"ignore"`, as for `Router`; another value is an `ArgumentError`.
 
 ### Behaviour
 
@@ -59,15 +61,21 @@
   notation is the router's own). Several expressions in one segment (`{a}-{b}`) are refused.
 - Precedence is static, then parameter with literal text (longest text first), then plain parameter, then wildcard,
   segment by segment, with backtracking. A route that does not serve
-  the method is skipped for a lower-precedence one that does.
+  the method is skipped for a lower-precedence one that does. Two parameters with literal text of the same length that
+  can match one segment (`/f/a{x}` and `/f/{y}b`, both match `/f/a1b`) have no precedence between them: when both
+  routes serve one method for a common path, the table is ambiguous.
+- Matching cost grows with the length of the path. A static segment is one hash lookup, independent of the number of
+  routes; the parameters with literal text at one node are scanned one by one; backtracking is bounded by the tree
+  nodes the path reaches.
 - 404 when no route has the path; 405 with a sorted `Allow` when the path exists for other methods; `HEAD` falls back to
   `GET` and `OPTIONS` answers 204 with `Allow`, unless a route is declared or the option is off.
 - The request path is read as OQ-75 asks: each segment is percent-decoded on its own (`%2F` is data), dot segments are
   resolved first (RFC 3986 section 5.2.4; `%2E` is a dot), a malformed percent sequence or `%00` is status 400, and a
   wildcard never matches a segment whose decoded text holds `/`.
 - `/a` and `/a/` are the same path by default (`trailing_slash = "ignore"`, a documented gap to RFC 3986; `"strict"` follows
-  it); the router never redirects.
-- Ambiguous tables (the same method for the same paths) are rejected at boot, naming both routes.
+  it); the router never redirects. Under `"strict"`, a wildcard does not match a path ending with a slash.
+- Ambiguous tables (the same method for the same paths, with no precedence between the routes) are rejected at boot,
+  naming both routes. A route table is a list with exactly the keys 1..n; anything else is an `ArgumentError`.
 
 ### Gaps to the standards
 
