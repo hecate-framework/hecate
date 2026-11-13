@@ -3,8 +3,8 @@
 
 - roadmap_item: **Phase 2 gate**: verification of the phase, as described in "Phase gates" (`docs/roadmap.md`).
 - status: in-progress
-- lock_until: 2026-11-13T17:00:00Z
-- last_update: 2026-11-13T15:30:00Z
+- lock_until: 2026-11-13T18:30:00Z
+- last_update: 2026-11-13T17:00:00Z
 
 ## Done
 
@@ -27,18 +27,16 @@
   OQ-69 known limitation (P4); OQ-24 moved to Resolved (issue 64 closed). Owner issue: 188 (`needs-decision`).
 - P1, S1, S2, S7 and C24 fixed (`Request.content`, production checklist, tests). Every row of section 6 of the
   report now has a final disposition; the coherence findings too (C10, C11, C25, C32 with the owner).
+- Reviewer wave done (`docs/reviews/phase-2-review-package.md`): every finding fixed test first or deferred, but
+  H-4 and L-1; deferred ones in OQ-123 to OQ-127 (issues 189 to 193) and roadmap "Continuous".
 
 ## Next steps
 
-1. Reviewer wave, findings in `docs/reviews/phase-2-review-package.md` (container, config, router, reactor, kernel
-   recorded; `http` reviewer still running). Fix agents running in parallel (no commits of their own): container
-   (CT-1, CT-3 to CT-6, CT-8 to CT-12, plus `Container:has` for K-3), config (CF-1 to CF-11, also `log` secret),
-   router (R-1 to R-7), reactor (RE-1 to RE-3, RE-6 to RE-9, RE-4 docs), kernel (K-1, K-2, K-4 to K-6, K-8 to K-13,
-   K-15, CT-2; K-3 once `Container:has` exists). Then: `http` fixes (after the kernel agent, which may touch `http`
-   for CT-2); review each agent's diff, run the full checks, add CHANGELOG lines, set every row's disposition,
-   commit and push. Deferred already: CT-7 OQ-123, CF-12/13 OQ-124, RE-5 OQ-125, K-7 OQ-126 (issues 189 to 192);
-   R-2 indexing, RE-4 measurement, K-14 in roadmap Continuous. If a run finds the agents gone: redo from the
-   `Open` rows of the review file (check `git status` for partial work first).
+1. Two open rows of `docs/reviews/phase-2-review-package.md`: H-4 (`shutdown` closes a connection whose head has
+   partly arrived, `packages/http/src/hecate/http/server.lua:275-276`; reproduction
+   `repro_test.lua` of the reviewer, described in the row) and L-1 (`leaks kernel`: one `uv_tcp_t` left by two
+   `application_test.lua` tests, also on `main`). Fix test first (`pkg-http`, `pkg-kernel`); then consider adding
+   `kernel` to the nightly `leaks` set.
 2. Wait for the owner on issue 188 (section 5 questions); then record each answer in `docs/open-questions.md`.
 3. Finish: tick the gate only when the report shows no open gap and every question has an owner decision or deferral.
 
