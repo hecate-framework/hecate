@@ -233,7 +233,7 @@ function T:test_the_primary_pauses_accepting_while_every_worker_is_saturated_and
   if not can_run_workers() then return end
   set_flag("mute") -- the only worker reports ready, then never reads its message pipe: it never acknowledges
   local memory = log.MemorySink()
-  local first, second, third, fourth, why
+  local served, lost, why = 0, 0, {}
   reactor.run(function()
     local sup = new_supervisor({ count = 1, restart_delay = 0.01, endpoint = { host = "127.0.0.1", port = 0, backlog = 2 },
       logger = log.Logger({ sinks = { memory } }), strategy = kernel.listening.select("round_robin", { logger = log.Logger({ sinks = { memory } }) }),
@@ -242,43 +242,50 @@ function T:test_the_primary_pauses_accepting_while_every_worker_is_saturated_and
       local running = scope:fork(sup.run, sup)
       wait_until(function() return sup:ready_count() == 1 end)
       local port = sup:local_address().port
-      -- Two connections fill the backlog (2) of the mute worker: handed over, never acknowledged.
-      first = scope:fork(get, port)
-      second = scope:fork(get, port)
-      -- The third finds every worker saturated: the primary keeps it and stops accepting; the fourth waits in the
-      -- listen backlog. Neither is closed.
-      third = scope:fork(get, port)
+      -- Three connections: the first two to arrive fill the backlog (2) of the mute worker (handed over, never
+      -- acknowledged); the third to arrive finds every worker saturated, so the primary keeps it and stops accepting.
+      -- Which of the three arrives last is not fixed (the connections are concurrent), so they are judged together.
+      local early = { scope:fork(get, port), scope:fork(get, port), scope:fork(get, port) }
       wait_until(function() return workers.find_event(memory, "hand_over_saturated") ~= nil end)
-      fourth = scope:fork(get, port)
+      -- Opened during the pause: it waits in the listen backlog.
+      local late = scope:fork(get, port)
       reactor.sleep(0.3)
-      self:assert_equal("pending", third:state(), "a connection kept during the pause is not closed")
-      self:assert_equal("pending", fourth:state())
+      local pending = 0
+      for _, f in ipairs(early) do if f:state() == "pending" then pending = pending + 1 end end
+      self:assert_true(pending >= 1, "a connection kept during the pause is not closed")
+      self:assert_equal("pending", late:state())
       -- The mute worker is killed (the test reaches the process the supervisor holds); its replacement serves, and
-      -- the primary resumes: the kept connection and the one in the listen backlog are both answered.
+      -- the primary resumes: the kept connection and the one in the listen backlog are answered, the two the mute
+      -- worker held are lost with it.
       local mute = sup._slots[1].gen.process
       mute:kill("sigkill")
-      local content
-      content, why = third:value()
-      self:assert_not_nil(content, "the connection kept by the primary: " .. tostring(why) .. " (records: "
-        .. event_codes(memory) .. ")")
-      self:assert_true(content:match("^1:%d+$") ~= nil, content)
-      content, why = fourth:value()
+      for _, f in ipairs(early) do
+        local content, reason = f:value()
+        if content ~= nil then
+          served = served + 1
+          self:assert_true(content:match("^1:%d+$") ~= nil, content)
+        else
+          lost = lost + 1
+          why[#why + 1] = tostring(reason)
+        end
+      end
+      local content, reason = late:value()
       if package.config:sub(1, 1) == "\\" then
         -- Windows answers a connection that finds the listen backlog full with a reset (RST), where Linux and macOS
         -- let it wait: in the listen backlog it is either served or refused, never left hanging.
-        self:assert_true(content ~= nil or tostring(why):find("ECONNRESET", 1, true) ~= nil,
-          "the connection in the listen backlog: " .. tostring(why))
+        self:assert_true(content ~= nil or tostring(reason):find("ECONNRESET", 1, true) ~= nil,
+          "the connection in the listen backlog: " .. tostring(reason))
       else
-        self:assert_not_nil(content, "the connection in the listen backlog: " .. tostring(why))
+        self:assert_not_nil(content, "the connection in the listen backlog: " .. tostring(reason))
         self:assert_true(content:match("^1:%d+$") ~= nil, content)
       end
-      first, second = first:value(), second:value() -- the connections lost with the mute worker are closed
       sup:stop(0.2)
       running:value()
     end)
   end)
-  self:assert_nil(first)
-  self:assert_nil(second)
+  self:assert_equal(1, served, "the connection kept by the primary is served (lost: " .. table.concat(why, "; ")
+    .. "; records: " .. event_codes(memory) .. ")")
+  self:assert_equal(2, lost, "the two connections the mute worker held are lost with it")
   self:assert_equal(1, count_events(memory, "hand_over_saturated"), "logged once, when the pause starts")
 end
 
