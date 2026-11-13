@@ -17,16 +17,22 @@ local structural = { ["end"] = true, ["else"] = true, ["do"] = true, ["then"] = 
   ["}"] = true, ["{"] = true, [")"] = true, ["},"] = true, ["end)"] = true, ["end,"] = true, ["})"] = true }
 
 --- Lines of a Lua source that hold code (an approximation of the debug line table: blank lines,
---- comments, long comments and lines made only of block delimiters are not executable).
+--- comments, long comments and lines made only of block delimiters are not executable). A region between a
+--- comment `-- coverage: off` and a comment `-- coverage: on` is not counted either: it is for code that runs in
+--- another Lua state (a libuv pool thread), which the line hook never sees; the comment says why.
 ---@param source string
 ---@return table<integer, true>
 function M.executable_lines(source)
-  local lines, long = {}, false
+  local lines, long, off = {}, false, false
   local n = 0
   for line in (source .. "\n"):gmatch("(.-)\r?\n") do
     n = n + 1
     local text = line:match("^%s*(.-)%s*$")
-    if long then
+    if off then
+      if text:find("^%-%-%s*coverage:%s*on") then off = false end
+    elseif text:find("^%-%-%s*coverage:%s*off") then
+      off = true
+    elseif long then
       if text:find("]]", 1, true) then long = false end
     elseif text:sub(1, 4) == "--[[" then
       if not text:find("]]", 5, true) then long = true end

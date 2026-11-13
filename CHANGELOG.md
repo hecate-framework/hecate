@@ -298,6 +298,8 @@ Each release heading states the supported Lua version.
 
 ### Fixed
 
+- fix(tools): `coverage` leaves out a region between `-- coverage: off` and `-- coverage: on`, for code that runs in another Lua state where the line hook is not installed; the pool-thread body of `reactor.offload` is marked so, which brings `reactor` back above its 90 % threshold (89.8 % made the nightly `coverage` job fail since `offload` landed; Phase 2 gate, G5).
+
 - fix(schema): without a `logger` option, a pattern that cannot be emitted is reported through the default logger of `hecate.log` when that module is already loaded (looked up in `package.loaded`, never required), as decided in OQ-86 (1); the structural equality behind `unique_items` reads `json.DEFAULT_MAX_DEPTH` at call time, so a `limits.max_depth` lowered at boot reaches it (Phase 2 gate, completeness gaps 2 and 3).
 
 - fix(tools): `bench <scenario> --runs=N` fails at once with a message naming `--rounds=N`, the option of the scenarios, instead of `unknown argument` printed twice; `bench --list` names `--rounds` (Phase 2 gate, G3).

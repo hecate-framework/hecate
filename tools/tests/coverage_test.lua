@@ -14,6 +14,16 @@ function T:test_executable_lines_skip_blanks_comments_and_delimiters()
   self:assert_nil(lines[8])
 end
 
+function T:test_executable_lines_skip_a_region_marked_off()
+  -- Code run in another Lua state (a libuv pool thread) is never seen by the line hook: it is marked off.
+  local lines = coverage.executable_lines(
+    "local a = 1\n-- coverage: off (runs on a pool thread)\nlocal b = 2\nlocal c = 3\n-- coverage: on\nlocal d = 4\n")
+  self:assert_true(lines[1])
+  self:assert_nil(lines[3])
+  self:assert_nil(lines[4])
+  self:assert_true(lines[6])
+end
+
 function T:test_parse_hits_merges_records()
   local hits = coverage.parse_hits("a.lua\t1\na.lua\t3\nb.lua\t2\n")
   coverage.parse_hits("a.lua\t4\n", hits)

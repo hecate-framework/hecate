@@ -33,6 +33,7 @@ local OffloadError = core.error_class("OffloadError", "hecate.reactor.OffloadErr
 ---@return string? traceback
 ---@return string? code
 local function work(id, codec_code, fn_code, payload)
+  -- coverage: off (runs in the Lua state of a libuv pool thread, where the line hook is not installed)
   local globals = _ENV
   local function run()
     local key = "hecate.reactor.offload.codec" -- a literal: `work` may not capture an upvalue
@@ -74,6 +75,7 @@ local function work(id, codec_code, fn_code, payload)
     return id, "worker", "the pool thread failed: " .. (text_ok and text or "unknown error")
   end
   return id, status, data, traceback, code
+  -- coverage: on
 end
 
 -- Module state. The libuv pool is one per process, so this state is too: one work context, created
