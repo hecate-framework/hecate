@@ -121,7 +121,8 @@ OQ-24 had an owner decision (2026-10-27) and is recorded as resolved; its issue 
 ## 6. Findings and disposition
 
 The reviewer wave (`/review-package` on `http`, `kernel` with `hecate`, `router`, `container`, `config` and the Phase 2
-additions of `reactor`) is reported in [phase-2-review-package.md](phase-2-review-package.md): 66 findings, each fixed
+additions of `reactor`) is reported in [phase-2-review-package.md](phase-2-review-package.md): 65 findings and two found while
+closing them, each fixed
 test first or deferred to a named roadmap item or open question. The rows below are the gate's own findings.
 
 | Id | Finding | Disposition |
