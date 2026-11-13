@@ -34,7 +34,7 @@ What exists in `hecate.http` (the package README has the full API and the limits
   `max_connections`, TLS with handshake limits, and an `on_error` and a `logger` option.
 - `Client`: a pool per origin, redirects, deadlines, TLS, streaming, `read_json()`.
 - `http.problem`, `http.form`, `http.multipart`, `http.url` and the error classes `ParseError`, `ContentError` and `FormError`.
-- The answers sent before any action runs (400 malformed or without exactly one `Host`, 408, 413, 414, 417, 431, 501 for an
+- The answers sent before any action runs (400 malformed, for an HTTP/1.1 request without a `Host`, for any request with more than one `Host` line or an invalid one, for a target with a fragment, and for the asterisk-form outside OPTIONS, RFC 9112 section 3.2; 408, 413, 414, 417, 431, 501 for an
   upgrade) are problem details built by `http.problem` and never reach the kernel.
 
 ### Message model

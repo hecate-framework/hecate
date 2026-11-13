@@ -137,6 +137,27 @@ function T:test_unacceptable_accept_is_a_406_problem_without_detail_of_the_value
   self:assert_equal(406, results.serialise({ 1 }, request("GET", "application/json;q=0"), {}).status)
 end
 
+function T:test_a_more_specific_range_overrides_a_wildcard_and_q_zero_excludes()
+  -- RFC 9110, section 12.5.1: the most specific range that matches a media type gives its weight; q=0 is "not acceptable".
+  for _, accept in ipairs({ "application/json;q=0, */*", "*/*, application/json;q=0", "application/*;q=0, */*",
+    "*/*;q=0.5, application/json; q=0", "*/*;q=0" }) do
+    self:assert_equal(406, results.serialise({ 1 }, request("GET", accept), {}).status, accept)
+  end
+  for _, accept in ipairs({ "text/*;q=0, */*", "application/json;q=0.2, */*", "*/*;q=0, application/json", "application/*;q=0, application/json" }) do
+    local response = results.serialise({ 1 }, request("GET", accept), {})
+    self:assert_equal(200, response.status, accept)
+    self:assert_equal("application/json", response.fields:get("Content-Type"), accept)
+  end
+  local serialisers = { ["application/json"] = results.serialisers["application/json"], ["text/plain"] = function() return "plain" end }
+  local function chosen(accept)
+    return results.serialise({ a = 1 }, request("GET", accept), {}, { serialisers = serialisers }).fields:get("Content-Type")
+  end
+  self:assert_equal("text/plain", chosen("*/*, application/json;q=0"))
+  self:assert_equal("text/plain", chosen("application/json;q=0.5, */*;q=0.8"))
+  self:assert_equal("application/json", chosen("*/*")) -- equal weights: JSON is preferred
+  self:assert_equal("text/plain", chosen("text/plain, */*")) -- equal weights: the range written first
+end
+
 function T:test_serialisers_table_plugs_in_a_media_type()
   local serialisers = { ["application/json"] = results.serialisers["application/json"], ["text/plain"] = function(plain) return "plain:" .. tostring(plain.a) end }
   local response = results.serialise({ a = 1 }, request("GET", "text/plain, application/json;q=0.1"), {}, { serialisers = serialisers })

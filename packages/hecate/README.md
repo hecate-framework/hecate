@@ -21,7 +21,7 @@
 ## Responsibilities
 
 - single dependency for typical applications
-- `require "hecate"` gives classes, controllers, routes, problem details, schema shortcuts
+- `require "hecate"` gives the application, controllers, routes, results and problem details; classes come from `hecate.core` and schemas from `hecate.schema` ([OQ-57](../../docs/open-questions.md))
 
 ## Non-goals
 
@@ -46,6 +46,10 @@ built with `hecate.schema` ([OQ-57](../../docs/open-questions.md)): the meta-mod
 | `problem` | `hecate.kernel` | problem classes (`hecate.problem.NotFound`) and `hecate.problem.define` |
 | `load_configuration` | `hecate.kernel` | loads the configuration, wrapping secrets with `hecate.log.Secret` |
 | `RouteDeclarationError`, `ModuleError`, `SupervisorError` | `hecate.kernel` | the errors of the kernel |
+
+Two type names, for LuaLS annotations only (no value): `hecate.Controller`, a class deriving from
+`hecate.kernel.Controller` (`---@class UserController : hecate.Controller`; a LuaLS alias cannot be a
+superclass), and `hecate.Request`, an alias of `hecate.kernel.Request` (`---@param request hecate.Request`).
 
 ## Layout
 

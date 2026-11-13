@@ -44,6 +44,7 @@ local function is_deadline(err) return core.is_instance_of(err, core.DeadlineExc
 ---@field logger? hecate.log.Logger  receives everything the server logs: an unhandled error of an action (`error`), the listening address, the failed handshakes with the peer address, accept failures (default: `log.default()`, OQ-79; an explicit logger replaces it)
 ---@field on_response? fun(info: hecate.http.ResponseInfo)  called once after each response, with what was sent (access logging, OQ-81); an error of the hook is discarded
 ---@field on_error? fun(err: any)  called with the failure of an action or a connection (the client only sees generic problem details)
+---@field on_request_end? async fun(request: hecate.http.Request)  called once for each request given to the action, when the serving of that request has ended: after its response was sent (a content writer included) or failed, or when it was cancelled (`shutdown`, a deadline); every computation of the request has completed by then. It runs in the computation of the connection, which may be cancelled: a cleanup that suspends runs under `reactor.shield`. An error of the hook is discarded (reported to `on_error`). Releases what the action keeps for its response (the service scope of `hecate.kernel`)
 
 --- What `on_response` receives about one response.
 ---@class hecate.http.ResponseInfo
@@ -126,6 +127,7 @@ function Server:init(action, options)
   self._limits = settings.limits
   self._on_error = settings.on_error
   self._on_response = settings.on_response
+  self._on_request_end = settings.on_request_end
   self._action = settings.action
   self._handshaking = {}
   self._handshakes = reactor.Semaphore(self._max_handshakes)

@@ -50,7 +50,7 @@ end
 ---@return hecate.http.Fields self
 function Fields:add(name, value)
   check(name, value)
-  value = string.match(value, "^[ \t]*(.-)[ \t]*$")
+  value = grammar.trim_ows(value)
   local entries = self._entries
   entries[#entries + 1] = { name = name, key = string.lower(name), value = value }
   return self
@@ -63,7 +63,7 @@ end
 ---@return hecate.http.Fields self
 function Fields:set(name, value)
   check(name, value)
-  value = string.match(value, "^[ \t]*(.-)[ \t]*$")
+  value = grammar.trim_ows(value)
   local key, entries, kept, placed = string.lower(name), self._entries, {}, false
   for _, entry in ipairs(entries) do
     if entry.key ~= key then
@@ -76,6 +76,31 @@ function Fields:set(name, value)
   if not placed then kept[#kept + 1] = { name = name, key = key, value = value } end
   self._entries = kept
   return self
+end
+
+-- Not public API: builds the fields of a parsed head or trailer section from the flat list of the native parser
+-- (`{ name1, value1, name2, value2, ... }`), for `hecate.http.parser` only. llhttp in strict mode already refused a
+-- name that is not a token and a value with a control character other than HTAB, or with DEL (RFC 9112 section 5,
+-- RFC 9110 section 5.5), and it skips the leading whitespace of a value: this constructor does not check the names, it
+-- lowercases them and trims a value only when it starts or ends with SP or HTAB (RFC 9112 section 5.1, linear). One cheap
+-- check is kept as defence in depth, the one that guards against splitting a message: a value with CR, LF or NUL
+-- returns nil, and the parser refuses the message. It is three plain searches (a class of control characters scanned
+-- by a Lua pattern cost ten times as much, most of a parse).
+---@param flat string[]
+---@return hecate.http.Fields?
+function Fields._of_parsed(flat)
+  local fields = Fields()
+  local entries, lower, find, byte, trim = fields._entries, string.lower, string.find, string.byte, grammar.trim_ows
+  local n = 0
+  for i = 1, #flat, 2 do
+    local name, value = flat[i], flat[i + 1]
+    if find(value, "\r", 1, true) or find(value, "\n", 1, true) or find(value, "\0", 1, true) then return nil end
+    local first, final = byte(value, 1), byte(value, -1)
+    if first == 32 or first == 9 or final == 32 or final == 9 then value = trim(value) end
+    n = n + 1
+    entries[n] = { name = name, key = lower(name), value = value }
+  end
+  return fields
 end
 
 --- Returns the value of the first line of `name`, or nil.

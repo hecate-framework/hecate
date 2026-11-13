@@ -33,7 +33,7 @@ local Response = core.class("Response")
 --- Initialises a response.
 ---
 --- Raises `hecate.core.ArgumentError` for a status outside 100..599, for content that is not nil, a string or a function
---- (`http` does not serialise), or for content on a status that never has content (1xx, 204, 304; RFC 9110, section 6.4.1).
+--- (`http` does not serialise), or for content on a status that never has content (1xx, 204, 205, 304; RFC 9110, sections 6.4.1 and 15.3.6).
 ---@param status? integer  default 200
 ---@param options? hecate.http.ResponseOptions
 function Response:init(status, options)

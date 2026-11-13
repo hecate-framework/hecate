@@ -22,7 +22,8 @@ local listening = {}
 
 --- A worker as the primary sees it, for `round_robin`.
 ---@class hecate.kernel.HandOverTarget
----@field hand_over async fun(self: hecate.kernel.HandOverTarget, stream: hecate.reactor.TcpStream)  passes a connection to the worker (for example `Peer:send("connection", stream)`); raises when the worker cannot take it
+---@field hand_over async fun(self: hecate.kernel.HandOverTarget, stream: hecate.reactor.TcpStream)  hands a connection over to the worker (for example `Peer:send("connection", stream)`); raises when the worker cannot take it
+---@field saturated? fun(self: hecate.kernel.HandOverTarget): boolean  true while the worker cannot take one more connection (the connections handed over and not acknowledged yet reached its backlog): the hand-over loop skips it. Never suspends; absent means never saturated
 
 --- What a worker gives its strategy to build its listener.
 ---@class hecate.kernel.WorkerContext
@@ -249,6 +250,7 @@ RoundRobin.name = "round_robin"
 function RoundRobin:init(options)
   self._logger = options and options.logger or nil
   self._listener = nil
+  self._saturated = false -- every worker was saturated at the last connection (`hand_over_saturated` logged)
 end
 
 --- Always true: handing over connections works on every platform.
@@ -281,7 +283,9 @@ function RoundRobin:worker_listener(context)
   return context.hand_over
 end
 
---- Hands one connection to a worker; tries each worker of the ring at most once, then closes the connection.
+--- Hands one connection to a worker; tries each worker of the ring at most once, skipping a saturated one (the
+--- back-pressure of a worker that does not take its connections: it never stalls the loop for the others), then closes
+--- the connection, as a full listen backlog drops one. That every worker was saturated is logged once per burst.
 ---@async
 ---@param self hecate.kernel.RoundRobinStrategy
 ---@param workers hecate.kernel.WorkerRing
@@ -290,20 +294,35 @@ end
 local function deliver(self, workers, stream)
   local inner = stream:transport() -- the reactor stream is what `reactor.ipc` passes (ADR 0027)
   local attempts = math.max(1, workers:size())
+  local skipped = 0
   for _ = 1, attempts do
     local worker = workers:next()
     if worker == nil then
       stream:close()
       return false
     end
-    local ok, err = pcall(worker.hand_over, worker, inner)
-    if ok then return true end
-    if core.is_instance_of(err, core.CancellationError) then
-      stream:close()
-      error(err, 0)
+    if worker.saturated ~= nil and worker:saturated() then
+      skipped = skipped + 1
+    else
+      local ok, err = pcall(worker.hand_over, worker, inner)
+      if ok then
+        self._saturated = false
+        return true
+      end
+      if core.is_instance_of(err, core.CancellationError) then
+        stream:close()
+        error(err, 0)
+      end
+      if self._logger ~= nil then
+        self._logger:warning("kernel.listening: a worker could not take a connection", { code = "hand_over_failed", reason = tostring(err) })
+      end
     end
+  end
+  if skipped == attempts and not self._saturated then
+    self._saturated = true -- until a connection is handed over again
     if self._logger ~= nil then
-      self._logger:warning("kernel.listening: a worker could not take a connection", { code = "hand_over_failed", reason = tostring(err) })
+      self._logger:warning("kernel.listening: every worker holds as many connections not yet acknowledged as its backlog; connection closed",
+        { code = "hand_over_saturated", workers = attempts })
     end
   end
   stream:close()

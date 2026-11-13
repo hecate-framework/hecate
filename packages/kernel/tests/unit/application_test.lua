@@ -526,7 +526,9 @@ function T:test_sigint_shuts_the_server_down_gracefully()
       while not app:local_address() do reactor.sleep(0.005) end
       local port = app:local_address().port
       reactor.fork(function()
-        local ok, response = pcall(http.Client().get, http.Client(), "http://127.0.0.1:" .. port .. "/slow")
+        local client = http.Client()
+        local ok, response = pcall(client.get, client, "http://127.0.0.1:" .. port .. "/slow")
+        client:close() -- an open pool keeps a libuv handle (`leaks kernel`)
         status = ok and response.status or response
       end)
       while not started do reactor.sleep(0.005) end
@@ -571,7 +573,11 @@ function T:test_a_second_signal_forces_the_stop()
     reactor.fork(function()
       while not app:local_address() do reactor.sleep(0.005) end
       local port = app:local_address().port
-      reactor.fork(function() pcall(http.Client().get, http.Client(), "http://127.0.0.1:" .. port .. "/slow") end)
+      reactor.fork(function()
+        local client = http.Client()
+        pcall(client.get, client, "http://127.0.0.1:" .. port .. "/slow")
+        client:close()
+      end)
       while not started do reactor.sleep(0.005) end
       raise_until("sigterm", function() return done or codes(memory).shutdown_forced ~= nil end)
     end)
@@ -591,6 +597,50 @@ local function wait_for_address(app)
   reactor.deadline(10, function()
     while app:local_address() == nil do reactor.sleep(0.005) end
   end)
+end
+
+function T:test_a_served_writer_uses_open_scoped_services_and_they_close_after_the_response()
+  local core = require("hecate.core")
+  local net = require("hecate.net")
+  local trace = {}
+  local Session = core.class("ServedSession")
+  function Session:init() self.open = true end
+  function Session:__close() self.open = false; trace[#trace + 1] = "closed" end
+  core.finalise(Session)
+  local module = kernel.routes("stream")
+  module:get("/stream", { action = function(request)
+    local session = request.services:resolve("session")
+    return http.Response(200, { content = function(write)
+      trace[#trace + 1] = session.open and "open" or "already closed"
+      write("streamed")
+    end })
+  end })
+  local app = kernel.Application({
+    signals = false, routes = { module }, logger = log.Logger({ sinks = {} }),
+    server = { host = "127.0.0.1", port = 0, on_request_end = function() trace[#trace + 1] = "hook" end },
+    services = function(c) c:bind("session", Session, { lifetime = "scoped" }) end,
+  })
+  local answer
+  reactor.run(function()
+    reactor.fork(function()
+      wait_for_address(app)
+      local stream = net.connect("127.0.0.1", app:local_address().port)
+      stream:write("GET /stream HTTP/1.1\r\nHost: t\r\nConnection: close\r\n\r\n")
+      local parts = {}
+      while true do
+        local chunk = stream:read()
+        if chunk == nil then break end
+        parts[#parts + 1] = chunk
+      end
+      stream:close()
+      answer = table.concat(parts)
+      reactor.deadline(5, function() while #trace < 3 do reactor.sleep(0.005) end end)
+      app:shutdown(1)
+    end)
+    reactor.deadline(10, app.serve, app)
+  end)
+  self:assert_not_nil(answer:find("streamed", 1, true), answer)
+  self:assert_equal("open,closed,hook", table.concat(trace, ","), "the hook of the server option runs after the close")
 end
 
 function T:test_signals_false_serves_until_shutdown()
@@ -781,6 +831,37 @@ function T:test_the_primary_runs_a_supervisor_instead_of_a_server()
   self:assert_true(record_with(memory, "workers_starting").severity == log.Severity.notice)
 end
 
+function T:test_bad_server_options_fail_the_primary_once_before_any_worker_starts()
+  local core = require("hecate.core")
+  local memory = log.MemorySink()
+  local app = kernel.Application({
+    workers = 2, strategy = "round_robin", signals = false, logger = log.Logger({ sinks = { memory } }),
+    server = { host = "127.0.0.1", port = 0, max_connections = -1 }, worker_command = { "hecate-no-such-program" },
+  })
+  local ok, err
+  reactor.run(function() ok, err = pcall(reactor.deadline, 10, app.serve, app) end)
+  self:assert_false(ok)
+  self:assert_true(core.is_instance_of(err, core.ArgumentError), tostring(err))
+  self:assert_nil(app._served, "a serve that fails before the run does not count")
+  self:assert_nil(app._supervisor)
+  self:assert_nil(codes(memory).workers_starting, "no worker was started")
+end
+
+function T:test_a_worker_gets_the_logger_of_the_application()
+  local core = require("hecate.core")
+  local logger = log.Logger({ sinks = {} })
+  local app = kernel.Application({ signals = false, logger = logger, server = { host = "127.0.0.1", port = 0 } })
+  local real, given = kernel.supervisor.worker_role, nil
+  kernel.supervisor.worker_role = function(options)
+    given = options
+    error(core.ArgumentError("stop here"))
+  end
+  local ok = pcall(function() reactor.run(function() app:serve() end) end)
+  kernel.supervisor.worker_role = real
+  self:assert_false(ok)
+  self:assert_true(given ~= nil and given.logger == logger, "worker_role receives the application's logger")
+end
+
 function T:test_the_primary_logs_through_the_default_logger_without_a_logger_option()
   local memory = log.MemorySink()
   local saved = log.default()
@@ -830,6 +911,22 @@ function T:test_boot_rejects_a_route_that_names_a_missing_action()
   -- The same through a feature module, which gathers its routes at boot too.
   local through_module = boot_failure(self, { modules = { { name = "m", routes = { controller_with({ method = "GET", path = "/x", action = "nothing" }) } } } })
   self:assert_equal("missing_action", through_module.context.reason)
+end
+
+function T:test_boot_rejects_a_controller_dependency_that_names_no_binding()
+  local core = require("hecate.core")
+  local Hello = core.class("BootTypoController", kernel.Controller)
+  Hello.dependencies = { repository = "users.UserRepositry" }
+  kernel.Controller.route(Hello, { method = "GET", path = "/h", action = "say" })
+  function Hello:say() return nil end
+  core.finalise(Hello)
+  local app = kernel.Application({
+    routes = { Hello }, logger = log.Logger({ sinks = {} }),
+    services = function(c) c:bind("users.UserRepository", core.finalise(core.class("UserRepository")), { lifetime = "scoped" }) end,
+  })
+  local err = self:assert_error(function() app:boot() end)
+  self:assert_equal("unknown_dependency", err.context.reason)
+  self:assert_nil(app.router, "the boot failed: nothing is served")
 end
 
 function T:test_boot_rejects_a_malformed_route_schema()
@@ -981,7 +1078,9 @@ function T:test_an_expired_deadline_gives_a_500_and_the_server_record_without_tr
     reactor.fork(function()
       wait_for_address(app)
       local port = app:local_address().port
-      local ok, response = pcall(http.Client().get, http.Client(), "http://127.0.0.1:" .. port .. "/late?access_token=abc123")
+      local client = http.Client()
+      local ok, response = pcall(client.get, client, "http://127.0.0.1:" .. port .. "/late?access_token=abc123")
+      client:close() -- an open pool keeps a libuv handle (`leaks kernel`)
       if ok then status, problem_type = response.status, response.fields:get("Content-Type") end
       app:shutdown(1)
     end)

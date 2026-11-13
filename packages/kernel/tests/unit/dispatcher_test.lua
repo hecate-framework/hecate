@@ -173,6 +173,89 @@ function T:test_request_services_is_the_service_scope_and_leaves_the_reactor_sco
   self:assert_true(seen.reactor_scope == marker)
 end
 
+-- The end of the service scope (container.md, "Lifetimes", "Disposal") ------------------------------------------------
+
+--- A container with a scoped, closable service `"session"`; `log` records `open` and `closed` (and the writer's reads).
+local function closable_session(log, close)
+  local Session = core.class("Session_" .. tostring(log):gsub("%W", ""))
+  function Session:init() self.open = true end
+  function Session:__close()
+    if close ~= nil then close() end
+    self.open = false
+    log[#log + 1] = "closed"
+  end
+  core.finalise(Session)
+  return container.Container():bind("session", Session, { lifetime = "scoped" }):validate()
+end
+
+function T:test_the_service_scope_ends_when_serve_returns_a_response_without_a_writer()
+  local log = {}
+  local serve = serve_with(function(m)
+    m:get("/s", { action = function(r) r.services:resolve("session"); log[#log + 1] = "action"; return { ok = true } end })
+  end, { container = closable_session(log) })
+  self:assert_equal(200, serve(request("GET", "/s")).status)
+  self:assert_equal("action,closed", table.concat(log, ","))
+end
+
+function T:test_a_writer_uses_the_scoped_services_of_its_request_and_finish_closes_them()
+  local log = {}
+  local module = kernel.routes("t")
+  module:get("/stream", { action = function(r)
+    local session = r.services:resolve("session")
+    return http.Response(200, { content = function(write)
+      log[#log + 1] = session.open and "open while writing" or "closed while writing"
+      write("x")
+    end })
+  end })
+  local serve, _, finish = dispatcher.build(module:routes(), { container = closable_session(log) })
+  local req = request("GET", "/stream")
+  local response = serve(req)
+  self:assert_equal("", table.concat(log, ","), "nothing is closed when serve returns a writer")
+  response.content(function() end, function() end)
+  finish(req)
+  finish(req) -- once only
+  self:assert_equal("open while writing,closed", table.concat(log, ","))
+end
+
+function T:test_a_request_with_a_reactor_scope_keeps_its_service_scope_until_finish()
+  -- What `http.Server` serves: `request.scope` is set, and the server calls `on_request_end` (`finish`) once the
+  -- response is written and every computation of the request has ended.
+  local log = {}
+  local module = kernel.routes("t")
+  module:get("/s", { action = function(r) r.services:resolve("session"); return { ok = true } end })
+  module:get("/fail", { action = function(r) r.services:resolve("session"); error("boom") end })
+  local serve, _, finish = dispatcher.build(module:routes(), { container = closable_session(log) })
+  for index, path in ipairs({ "/s", "/fail" }) do
+    local req = request("GET", path)
+    req.scope = {}
+    serve(req)
+    self:assert_equal(index - 1, #log, path .. ": open after serve")
+    finish(req)
+    self:assert_equal(index, #log, path .. ": closed by finish")
+  end
+end
+
+function T:test_finish_closes_the_service_scope_of_a_cancelled_request_under_a_shield()
+  local reactor = require("hecate.reactor")
+  local log = {}
+  local module = kernel.routes("t")
+  module:get("/s", { action = function(r) r.services:resolve("session"); return { ok = true } end })
+  -- A `__close` that suspends: in a cancelled computation it completes only under a shield.
+  local serve, _, finish = dispatcher.build(module:routes(), {
+    container = closable_session(log, function() reactor.sleep(0.01) end),
+  })
+  reactor.run(function()
+    pcall(reactor.scope, function(scope)
+      local req = request("GET", "/s")
+      req.scope = scope
+      serve(req)
+      scope:cancel()
+      finish(req)
+    end)
+  end)
+  self:assert_equal("closed", table.concat(log, ","))
+end
+
 function T:test_the_dependencies_of_a_controller_are_resolved_in_sorted_key_order()
   local order = {}
   local function service(name)
@@ -204,6 +287,39 @@ function T:test_a_controller_with_dependencies_and_no_container_is_refused_at_bu
   local err = self:assert_error(function() dispatcher.build(kernel.routing.collect({ Hello })) end)
   self:assert_equal("missing_container", err.context.reason)
 end
+
+--- A finalised controller with `dependencies`, one route.
+local function controller_with(name, dependencies)
+  local class = core.class(name, kernel.Controller)
+  class.dependencies = dependencies
+  kernel.Controller.route(class, { method = "GET", path = "/" .. name, action = "say" })
+  function class:say() return nil end
+  return core.finalise(class)
+end
+
+function T:test_a_dependency_naming_no_binding_is_refused_at_build_not_at_the_first_request()
+  local Greeter = core.finalise(core.class("BoundGreeter"))
+  local c = container.Container():bind("greeter", Greeter, { lifetime = "scoped" }):validate()
+  local Typo = controller_with("TypoController", { greeter = "greeter", mailer = "maler" })
+  local err = self:assert_error(function() dispatcher.build(kernel.routing.collect({ Typo }), { container = c }) end)
+  self:assert_true(core.is_instance_of(err, kernel.RouteDeclarationError), tostring(err))
+  self:assert_equal("unknown_dependency", err.context.reason)
+  self:assert_equal("hecate.kernel.RouteDeclarationError.unknown_dependency", err.code)
+  self:assert_equal("dependencies.mailer", err.context.field)
+  self:assert_not_nil(tostring(err):find("TypoController", 1, true), tostring(err))
+  self:assert_not_nil(tostring(err):find('"maler"', 1, true), tostring(err))
+  dispatcher.build(kernel.routing.collect({ controller_with("BoundController", { greeter = "greeter" }) }), { container = c })
+end
+
+function T:test_dependencies_must_map_field_names_to_binding_names()
+  local c = container.Container():bind("greeter", core.finalise(core.class("AnyGreeter")), { lifetime = "scoped" }):validate()
+  for index, dependencies in ipairs({ { greeter = 1 }, { greeter = "" }, { [1] = "greeter" }, "greeter" }) do
+    local class = controller_with("MalformedDependencies" .. index, dependencies)
+    local err = self:assert_error(function() dispatcher.build(kernel.routing.collect({ class }), { container = c }) end)
+    self:assert_equal("invalid_dependencies", err.context.reason, tostring(err))
+  end
+end
+
 function T:test_validate_responses_turns_a_nonconforming_result_into_a_logged_500()
   local logged = {}
   local options = { validate_responses = true,

@@ -151,7 +151,8 @@ that is not nil, a string or a function, a table included. Encode the table your
 bypassed the constructor reaches the server as an error: the client gets the generic 500 problem
 details response and the server logs the failure.)
 
-The server never sends content for HEAD, 1xx, 204 and 304. It sets `Date`, `Content-Length`,
+The server never sends content for HEAD, 1xx, 204, 205 and 304 (a 205 goes out with
+`Content-Length: 0`). It sets `Date`, `Content-Length`,
 `Transfer-Encoding` and `Connection` itself and replaces yours. The one exception is a streamed
 content: a `Content-Length` you set is then the length you promise, and when the function writes
 another number of bytes the server cuts the content and closes the connection.
@@ -251,7 +252,10 @@ end)
 - It serves keep-alive connections, and answers pipelined requests in order.
 - It answers `Expect: 100-continue` when the action first reads the content. Any other
   expectation is a 417.
-- It answers an HTTP/1.1 request without exactly one `Host` field with a 400.
+- It answers an HTTP/1.1 request without exactly one `Host` field with a 400, and any request
+  with several `Host` lines.
+- It answers a request target with a fragment (`/a#x`), and the target `*` with a method other
+  than `OPTIONS`, with a 400.
 - It answers an `Upgrade` or `CONNECT` request with a 501.
 
 It does not run a timeout on the action. An action that never returns holds its connection.

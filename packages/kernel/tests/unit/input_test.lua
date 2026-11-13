@@ -228,6 +228,24 @@ function T:test_strict_is_the_default_and_applies_to_a_route_that_declares_no_qu
   self:assert_equal(200, bare(request("GET", "/bare?")).status)
 end
 
+function T:test_strict_applies_to_a_route_that_declares_only_content()
+  local ran = false
+  local spec = {
+    content = { ["application/json"] = schema.object({ x = schema.integer() }) },
+    action = function() ran = true; return { ok = true } end,
+  }
+  local serve = serve_with("POST", "/only-content", spec)
+  local response = serve(request("POST", "/only-content?undeclared=1", { content = '{"x":1}' }))
+  self:assert_equal(422, response.status)
+  self:assert_false(ran)
+  local entry = json.decode(response.content).errors[1]
+  self:assert_equal("query", entry.source)
+  self:assert_equal("/undeclared", entry.pointer)
+  self:assert_equal(200, serve(request("POST", "/only-content", { content = '{"x":1}' })).status)
+  local lax = serve_with("POST", "/only-content", spec, { inputs = "lax" })
+  self:assert_equal(200, lax(request("POST", "/only-content?undeclared=1", { content = '{"x":1}' })).status)
+end
+
 function T:test_lax_inputs_drop_undeclared_query_parameters()
   local seen
   local serve = serve_with("GET", "/x", {

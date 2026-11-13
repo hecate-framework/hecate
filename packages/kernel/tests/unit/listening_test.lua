@@ -512,6 +512,52 @@ function T:test_round_robin_closes_the_connection_when_every_worker_fails_and_go
   self:assert_equal(4, failures) -- two workers tried for each of the two connections
 end
 
+function T:test_round_robin_skips_a_saturated_worker_and_closes_when_every_worker_is()
+  local stalled, healthy = fake_worker("stalled"), fake_worker("healthy")
+  local saturated = true
+  function stalled:saturated() return saturated end
+  function healthy:saturated() return false end
+  local memory = log.MemorySink()
+  local answers = {}
+  reactor.run(function()
+    local strategy = listening.RoundRobinStrategy({ logger = log.Logger({ sinks = { memory } }) })
+    local address = strategy:prepare({ host = "127.0.0.1", port = 0 })
+    local ring = listening.WorkerRing()
+    ring:add(stalled); ring:add(healthy)
+    local function connection()
+      local client = net.connect("127.0.0.1", address.port)
+      local answer = read_all(client)
+      client:close()
+      return answer
+    end
+    reactor.scope(function(scope)
+      scope:fork(strategy.run, strategy, ring)
+      scope:fork(function()
+        for _ = 1, 3 do
+          local stream = healthy.listener:accept()
+          stream:write("healthy")
+          stream:close()
+        end
+      end)
+      for i = 1, 3 do answers[i] = connection() end
+      function healthy:saturated() return true end -- every worker is saturated: the connection is closed
+      answers[4] = connection()
+      answers[5] = connection()
+      strategy:close()
+    end)
+  end)
+  self:assert_equal("healthy,healthy,healthy,,", table.concat(answers, ","))
+  self:assert_equal(0, stalled.taken, "a saturated worker is never handed a connection")
+  local logged = 0
+  for _, record in ipairs(memory:records()) do
+    if record.fields and record.fields.code == "hand_over_saturated" then
+      logged = logged + 1
+      self:assert_true(record.severity == log.Severity.warning)
+    end
+  end
+  self:assert_equal(1, logged, "logged once per burst")
+end
+
 function T:test_round_robin_needs_prepare_and_a_hand_over_context()
   local strategy = listening.RoundRobinStrategy()
   self:assert_false((pcall(strategy.worker_listener, strategy, {})))

@@ -162,17 +162,18 @@ function input.compile(entry, options)
     for _, name in ipairs(names.query) do declared_query[name] = true end
   end
   local problem_options = { input = true, expose_details = options ~= nil and options.expose_details or nil }
+  --- The refusal of undeclared query parameters for a route that declares no parameter (`strict` only): a request
+  --- without a query string passes it with one comparison, no allocation.
+  local function refuse_query(request)
+    local text = request.query
+    if text == nil or text == "" then return nil end
+    local found = undeclared_names(form.parse_urlencoded(text), declared_query)
+    if found ~= nil then return problems.from_error(failure(found), problem_options) end
+    return nil
+  end
   if root == nil and content == nil then
     if not strict then return nil end
-    -- Strict and no declared input: the only step is the refusal of undeclared query parameters, and a request without a
-    -- query string passes it with one comparison, no allocation.
-    return function(request)
-      local text = request.query
-      if text == nil or text == "" then return nil end
-      local found = undeclared_names(form.parse_urlencoded(text), declared_query)
-      if found ~= nil then return problems.from_error(failure(found), problem_options) end
-      return nil
-    end
+    return refuse_query -- strict and no declared input: the only step
   end
   -- Defaults apply to a text input whatever the method; the content schema alone follows the method (PATCH, OQ-50).
   local content_options = entry.method == "PATCH" and { method = "PATCH" } or nil
@@ -250,7 +251,13 @@ function input.compile(entry, options)
   end
 
   if content == nil then return read_parameters end
-  if root == nil then return read_content end
+  if root == nil then
+    if not strict then return read_content end
+    -- A route that declares only content refuses undeclared query parameters too, before its content is read.
+    return function(request)
+      return refuse_query(request) or read_content(request)
+    end
+  end
   return function(request)
     return read_parameters(request) or read_content(request)
   end

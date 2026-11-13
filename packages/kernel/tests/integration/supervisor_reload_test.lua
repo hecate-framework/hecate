@@ -203,9 +203,6 @@ local function reload_trace(memory)
   return table.concat(seen, ",")
 end
 
---- The supervisor does not kill a worker that ignores `stop` (known defect, reported with the tests: `retire` and
---- `stop_workers` swallow the cancellation of their deadline, so nothing is ever killed). Remove the skip once it is fixed.
-
 function T:test_a_deaf_old_worker_is_killed_during_a_reload_and_the_replacement_serves()
   if not can_run_workers() then return end
   set_flag("deaf") -- the first process, the worker in service, never drains

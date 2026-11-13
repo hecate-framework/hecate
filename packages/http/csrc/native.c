@@ -10,9 +10,11 @@
  * Memory ownership: the callbacks of llhttp never touch the Lua state. They record events in a log owned by the
  * parser userdata (freed by close and __gc): the spans of the content are recorded as offsets into the chunk being
  * parsed, which stays alive on the Lua stack until the events are built; the head of a message (target, reason, fields)
- * is copied into buffers of the parser, because it may span chunks. Once llhttp_execute has returned, the failure is
- * stored in the parser first, then the log is turned into Lua values (strings by copy), so no Lua reference outlives
- * a call and a Lua memory error cannot unwind through the C parser or leave a parser that is not failed.
+ * is copied into buffers of the parser, because it may span chunks. Once llhttp_execute has returned, a failure is
+ * stored in the parser first (on the success path, a provisional `out_of_memory` failure, withdrawn once every event
+ * is built), then the log is turned into Lua values (strings by copy), so no Lua reference outlives a call and a Lua
+ * memory error cannot unwind through the C parser; when one is raised while the events are built, they are lost and
+ * the parser stays failed, so no later call can resume after a message whose events were never delivered.
  *
  * Bounds: the sizes of the target, of one field name or value, of the reason phrase and of the number of fields are
  * limits of the parser, and so is the raw byte budget of a "section": the bytes the parser consumes from the start of
@@ -516,6 +518,9 @@ static void read_options(lua_State *L, int index, parser *p) {
 /* new(kind, options?): kind is "request" or "response". */
 static int native_new(lua_State *L) {
   static const char *const kinds[] = {"request", "response", NULL};
+  /* Index 2 is the options or nil even when the caller passed the kind alone: the userdata pushed below goes to index 3,
+   * never to the slot read as the options (lua_next on a userdata is undefined behaviour). */
+  lua_settop(L, 2);
   int kind = luaL_checkoption(L, 1, NULL, kinds);
   if (!lua_isnoneornil(L, 2)) luaL_checktype(L, 2, LUA_TTABLE);
   parser *p = (parser *)lua_newuserdatauv(L, sizeof(parser), 0);
@@ -710,8 +715,13 @@ static int parser_execute(lua_State *L) {
     const char *reason = kind != K_NONE ? kind_reason[kind] : llhttp_get_error_reason(&p->llhttp);
     store_failure(p, (int)err, kind, reason != NULL ? reason : "parse error", base + offset);
   }
-  /* The failure is stored above: from here on the Lua allocations below may raise without leaving a live parser. */
+  /* A failure is stored from here on: the Lua allocations below may raise without leaving a live parser. On the success
+   * path it is a provisional out_of_memory failure, withdrawn once the events are built, so that a memory error while
+   * they are built (they are then lost) leaves a failed parser. */
+  int provisional = err == HPE_OK && !p->terminal;
+  if (provisional) store_failure(p, HPE_USER, K_MEMORY, kind_reason[K_MEMORY], base + offset);
   push_events(L, p, upgrade);
+  if (provisional) p->terminal = 0;
   if (err == HPE_OK || err == HPE_PAUSED_UPGRADE) {
     lua_pushnil(L);
   } else {
@@ -732,7 +742,10 @@ static int parser_finish(lua_State *L) {
     const char *reason = llhttp_get_error_reason(&p->llhttp);
     store_failure(p, (int)err, p->call_kind, p->call_kind != K_NONE ? kind_reason[p->call_kind] : reason != NULL ? reason : "parse error", 0);
   }
+  int provisional = err == HPE_OK && !p->terminal; /* as in execute: a memory error below leaves a failed parser */
+  if (provisional) store_failure(p, HPE_USER, K_MEMORY, kind_reason[K_MEMORY], 0);
   push_events(L, p, -1);
+  if (provisional) p->terminal = 0;
   if (err == HPE_OK) {
     lua_pushnil(L);
   } else {

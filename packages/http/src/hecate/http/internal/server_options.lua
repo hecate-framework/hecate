@@ -14,6 +14,7 @@ local KNOWN <const> = {
   host = true, port = true, backlog = true, max_connections = true, max_content = true, head_timeout = true,
   idle_timeout = true, content_timeout = true, request_timeout = true, drain_timeout = true, write_timeout = true, parser = true, on_error = true,
   tls = true, handshake_timeout = true, max_handshakes = true, max_handshake_bytes = true, logger = true, on_response = true,
+  on_request_end = true,
 }
 
 ---@param host string
@@ -73,6 +74,7 @@ function M.validate(action, options, DEFAULTS)
   end
   if options.on_error ~= nil and type(options.on_error) ~= "function" then bad("on_error", "a function", options.on_error) end
   if options.on_response ~= nil and type(options.on_response) ~= "function" then bad("on_response", "a function", options.on_response) end
+  if options.on_request_end ~= nil and type(options.on_request_end) ~= "function" then bad("on_request_end", "a function", options.on_request_end) end
   if options.tls == nil then
     for _, name in ipairs({ "handshake_timeout", "max_handshakes", "max_handshake_bytes" }) do
       if options[name] ~= nil then bad(name, "unset: it applies to TLS only, and no `tls` option was given", options[name]) end
@@ -111,6 +113,7 @@ function M.validate(action, options, DEFAULTS)
   settings.limits = options.parser
   settings.on_error = options.on_error
   settings.on_response = options.on_response
+  settings.on_request_end = options.on_request_end
   return settings
 end
 

@@ -527,4 +527,72 @@ function T:test_a_native_call_that_makes_no_progress_is_a_terminal_internal_erro
   self:assert_equal("no_progress", finishing.context.reason)
 end
 
+-- Findings of the Phase 2 gate review ------------------------------------------------------------------------------
+
+-- H-1: a maximal whitespace-heavy head (within max_head_size and max_field_size) is parsed in linear time.
+function T:test_a_maximal_whitespace_heavy_head_is_parsed_quickly()
+  local shapes = {
+    function(n) return "a" .. (" "):rep(n - 2) .. "b" end,
+    function(n) return "a" .. (" \t"):rep((n - 1) // 2) end,
+    function(n) return (" "):rep(n) end,
+  }
+  for index, shape in ipairs(shapes) do
+    local lines = { "GET / HTTP/1.1\r\nHost: h\r\n" }
+    local size = #lines[1] + 2
+    local i = 0
+    while true do
+      i = i + 1
+      local line = ("X%d: %s\r\n"):format(i, shape(8000))
+      if size + #line > 65536 then break end
+      lines[#lines + 1] = line
+      size = size + #line
+    end
+    lines[#lines + 1] = "\r\n"
+    local head = table.concat(lines)
+    local started = os.clock()
+    local events, err = parse(head)
+    local elapsed = os.clock() - started
+    self:assert_nil(err, "shape " .. index)
+    self:assert_equal("head", events[1].type)
+    self:assert_true(#head > 56000, "the head is near the limit")
+    self:assert_true(elapsed < 0.05, ("shape %d: a %d-byte head took %.3f s"):format(index, #head, elapsed))
+  end
+end
+
+-- H-3: the parser builds its Fields without re-validating what llhttp checked; the result is the same message model.
+function T:test_parsed_fields_keep_names_as_written_and_trim_values()
+  local events, err = parse("GET / HTTP/1.1\r\nHost: h\r\nX-Mixed-Case:  \t a \t b \t \r\nEmpty:\r\nBlank:  \t \r\n"
+    .. "X-Mixed-Case: second\r\nObs: \200\255\r\n\r\n")
+  self:assert_nil(err)
+  local fields = events[1].fields
+  self:assert_equal("a \t b", fields:get("x-mixed-case"))
+  self:assert_equal("", fields:get("empty"))
+  self:assert_equal("", fields:get("blank"))
+  self:assert_equal("\200\255", fields:get("OBS"))
+  self:assert_equal(2, #fields:get_all("X-MIXED-CASE"))
+  local names = {}
+  for name in fields:lines() do names[#names + 1] = name end
+  self:assert_equal("Host,X-Mixed-Case,Empty,Blank,X-Mixed-Case,Obs", table.concat(names, ","))
+  fields:add("Later", "v") -- the fields stay an ordinary, mutable Fields
+  self:assert_equal("v", fields:get("later"))
+  local trailers = parse("POST / HTTP/1.1\r\nHost: h\r\nTransfer-Encoding: chunked\r\n\r\n0\r\nTrailer-One: t \t\r\n\r\n")
+  self:assert_equal("t", trailers[#trailers].trailers:get("trailer-one"))
+end
+
+-- H-2: the native constructor with one argument uses the default limits (it ran lua_next on its own userdata).
+function T:test_the_native_constructor_accepts_the_kind_alone()
+  local native = require("hecate.http.native")
+  for _, kind in ipairs({ "request", "response" }) do
+    local handle = native.new(kind)
+    self:assert_not_nil(handle)
+    handle:close()
+  end
+  local handle = native.new("request")
+  local events, failed = handle:execute("GET / HTTP/1.1\r\nHost: h\r\n\r\n")
+  self:assert_nil(failed)
+  self:assert_equal("head", events[1].type)
+  handle:close()
+  self:assert_error(function() native.new("request", 42) end)
+end
+
 return T

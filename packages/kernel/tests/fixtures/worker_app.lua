@@ -8,6 +8,8 @@
 --   exit               exits at once, before it is ready
 --   hang               never reports ready, ignores every message of the primary (`stop` included) until it is killed
 --   deaf               reports ready, then ignores every message of the primary, `stop` included, until it is killed
+--   mute               reports ready, then never reads its message pipe again (connections handed over pile up in it);
+--                      exits by itself after 60 s at the latest, so that it never outlives a failed test for long
 --   slow_ready=<s>     waits <s> seconds before it serves and reports ready
 --   exit_after_ready   reports ready, then exits
 local uv = require("luv")
@@ -45,6 +47,11 @@ reactor.run(function()
       if message == nil then os.exit(0) end -- the primary is gone: do not outlive it
       if stream ~= nil then stream:close() end
     end
+  end
+  if mode == "mute" then
+    assert(reactor.ipc.parent(), "not started as a worker"):send("ready")
+    reactor.sleep(60)
+    os.exit(0)
   end
   if mode == "exit_after_ready" then
     assert(reactor.ipc.parent(), "not started as a worker"):send("ready")

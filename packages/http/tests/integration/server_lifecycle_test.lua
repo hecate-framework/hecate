@@ -914,6 +914,65 @@ function T:test_on_response_marks_a_response_not_sent_completely_as_failed()
   self:assert_equal(false, seen[1].refused)
 end
 
+-- on_request_end ---------------------------------------------------------------------------------------------------
+
+function T:test_on_request_end_runs_once_after_the_content_writer_with_the_request()
+  local trace, ended = {}, {}
+  with_server(self, {
+    action = function(request)
+      request.marker = "mine"
+      return Response(200, { content = function(write) trace[#trace + 1] = "writer"; write("streamed") end })
+    end,
+    on_request_end = function(request) trace[#trace + 1] = "end"; ended[#ended + 1] = request.marker end,
+  }, function(port)
+    local client <close> = connect(port)
+    self:assert_equal("streamed", client:request(get("/s")).content)
+    self:assert_equal(200, client:request(get("/t")).status)
+  end)
+  self:assert_equal("writer,end,writer,end", table.concat(trace, ","))
+  self:assert_equal("mine,mine", table.concat(ended, ","))
+end
+
+function T:test_on_request_end_runs_when_the_request_is_cancelled_and_may_suspend_under_a_shield()
+  local entered = reactor.Semaphore(0)
+  local ended, slept = 0, false
+  with_server(self, {
+    action = function() entered:release(); reactor.sleep(30); return Response(200) end,
+    on_request_end = function()
+      ended = ended + 1
+      reactor.shield(1, function() reactor.sleep(0.01); slept = true end)
+    end,
+  }, function(port, server)
+    local client <close> = connect(port)
+    client:send(get("/"))
+    entered:acquire()
+    server:shutdown(0.05)
+  end)
+  self:assert_equal(1, ended)
+  self:assert_true(slept, "the hook ran its shielded cleanup in a cancelled request")
+end
+
+function T:test_on_request_end_is_not_called_for_a_request_refused_before_any_action_and_survives_an_error()
+  local ended = 0
+  with_server(self, {
+    action = text_action,
+    on_request_end = function() ended = ended + 1; error("hook failure") end,
+  }, function(port)
+    local refused <close> = connect(port)
+    refused:send("GET / HTTP/1.1\r\n\r\n") -- no Host field: 400, no action
+    refused:read_response()
+    local client <close> = connect(port)
+    self:assert_equal(200, client:request(get("/a")).status)
+    self:assert_equal(200, client:request(get("/b")).status, "an error of the hook does not end the connection")
+  end)
+  self:assert_equal(2, ended)
+end
+
+function T:test_on_request_end_must_be_a_function()
+  local err = self:assert_error(function() Server(text_action, { on_request_end = "x" }) end)
+  self:assert_true(core.is_instance_of(err, core.ArgumentError), tostring(err))
+end
+
 --- Whether `needle` appears in any string of `value`, its keys and nested tables included.
 local function contains(value, needle, visited)
   visited = visited or {}

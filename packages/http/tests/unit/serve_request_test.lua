@@ -113,6 +113,19 @@ function T:test_normalise_keeps_head_204_and_1xx_free_of_content_and_head_keeps_
   self:assert_nil(streamed:get("Transfer-Encoding"), "a HEAD response announces no coding it does not send")
 end
 
+-- Review H-7: a 205 has no content, and its framing says so with `Content-Length: 0` (RFC 9110, section 15.3.6), even
+-- when a hand-made response carries content or declares another length.
+function T:test_normalise_frames_205_with_a_zero_length()
+  for _, response in ipairs({ Response(205), (function() local r = Response(205); r.content = "x"; return r end)(),
+    Response(205, { fields = Fields({ { "Content-Length", "7" } }) }) }) do
+    local fields, mode, text = responses.normalise(info(), response, false)
+    self:assert_equal("length", mode)
+    self:assert_equal("", text)
+    self:assert_equal("0", fields:get("Content-Length"))
+    self:assert_nil(fields:get("Transfer-Encoding"))
+  end
+end
+
 function T:test_normalise_chunks_a_function_and_honours_a_declared_length()
   local fields, mode = responses.normalise(info(), Response(200, { content = function() end }), false)
   self:assert_equal("chunked", mode)

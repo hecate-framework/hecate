@@ -90,20 +90,15 @@ local function failure(raw)
   })
 end
 
-local function to_fields(flat)
-  local fields = Fields()
-  for i = 1, #flat, 2 do fields:add(flat[i], flat[i + 1]) end
-  return fields
-end
-
--- Replaces the raw field lists of the events by Fields. Returns a ParseError when llhttp accepted a field the
--- message model refuses (it does not happen for a token name and a value without CR, LF and NUL, which llhttp enforces).
+-- Replaces the raw field lists of the events by Fields, through the trusted constructor: llhttp in strict mode already
+-- refused a name that is not a token and a value with CR, LF, NUL or another control character (review H-3: checking
+-- them again cost most of the parse). Returns a ParseError when the one check kept as defence in depth fails.
 local function convert(events)
   for _, event in ipairs(events) do
     local flat = event.fields or event.trailers
     if flat then
-      local ok, fields = pcall(to_fields, flat)
-      if not ok then
+      local fields = Fields._of_parsed(flat)
+      if fields == nil then
         return ParseError({
           message = "http.Parser:feed: message rejected: field refused by the message model",
           context = { reason = "invalid_field", detail = "invalid field", code = "HPE_INVALID_HEADER_TOKEN", position = 0, status = 400 },

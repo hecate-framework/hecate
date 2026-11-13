@@ -57,6 +57,50 @@ function T:test_values_are_trimmed()
   self:assert_equal("v", f:get("x"))
 end
 
+-- Review H-1: the trimming is linear in the length of the value; a lazy capture before a greedy class of whitespace
+-- (`^[ \t]*(.-)[ \t]*$`) was quadratic and let one head stall the reactor thread.
+function T:test_trimming_keeps_inner_whitespace_and_empties_a_blank_value()
+  local f = http.Fields()
+  f:add("A", "  a \t b  "):add("B", " \t \t "):add("C", ""):add("D", "x")
+  self:assert_equal("a \t b", f:get("a"))
+  self:assert_equal("", f:get("b"))
+  self:assert_equal("", f:get("c"))
+  self:assert_equal("x", f:get("d"))
+  f:set("A", "\t y \t")
+  self:assert_equal("y", f:get("a"))
+end
+
+function T:test_trimming_a_whitespace_heavy_value_is_linear()
+  local shapes = {
+    "a" .. (" "):rep(8000) .. "b",
+    "a" .. (" \t"):rep(4000),
+    (" "):rep(8000),
+    (" \t"):rep(2000) .. "a" .. (" "):rep(4000) .. "b" .. ("\t"):rep(2000),
+  }
+  local started = os.clock()
+  for _ = 1, 10 do
+    for _, value in ipairs(shapes) do
+      local f = http.Fields()
+      f:add("X", value)
+      f:set("Y", value)
+    end
+  end
+  local elapsed = os.clock() - started
+  self:assert_true(elapsed < 0.05, ("80 trims of 8 KiB values took %.3f s"):format(elapsed))
+end
+
+-- Review H-3: the constructor of the parser trusts llhttp for the names and for the other control characters (refused
+-- by the parser: the field vectors of tests/conformance/rfc9112_test.lua), and keeps the check against CR, LF and NUL.
+function T:test_the_parser_constructor_keeps_the_check_against_control_characters()
+  local fields = http.Fields._of_parsed({ "Host", "h", "X-A", "v \t", "x-a", "\t" }) --[[@as hecate.http.Fields]]
+  self:assert_equal("v", fields:get("x-a"))
+  self:assert_equal(2, #fields:get_all("X-A"))
+  self:assert_equal("", fields:get_all("x-a")[2])
+  for _, bad in ipairs({ "a\rb", "a\nb", "a\0b", "\r\n", "a\0" }) do
+    self:assert_nil(http.Fields._of_parsed({ "X", bad }), ("%q"):format(bad))
+  end
+end
+
 function T:test_injection_is_refused()
   local f = http.Fields()
   self:assert_error(function() f:add("X", "a\r\nSet-Cookie: x=1") end)

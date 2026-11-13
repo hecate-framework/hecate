@@ -12,7 +12,7 @@ disposition: fixed in the gate pull request (test first), or deferred to a named
 | Id | Severity | Finding | Disposition |
 |---|---|---|---|
 | CT-1 | major | A constructor or factory that suspends is not detected (OQ-107 forbids it): the `_constructing[key]` flag is per container, so a second request in another service scope fails with a misleading `CycleError` (`db -> db`), and a construction closed while suspended leaves the flag set, so the key never resolves again (`container.lua:265-267`, `:311-314`). Reproduced. | Fixed, test first |
-| CT-2 | major | (`kernel`) The service scope of a request is closed when `serve_matched` returns (`dispatcher.lua:141`), before a `Response` whose content is a function is written, which then uses closed scoped services; `container.md` says the scope ends with the request's reactor scope, under `shield` on cancellation. | Open |
+| CT-2 | major | (`kernel`) The service scope of a request is closed when `serve_matched` returns (`dispatcher.lua:141`), before a `Response` whose content is a function is written, which then uses closed scoped services; `container.md` says the scope ends with the request's reactor scope, under `shield` on cancellation. | Fixed, test first |
 | CT-3 | minor | The "returned nil" `ConstructionError` has an empty `context.path`, and the `ConformanceError` of a factory product has none (`container.lua:278-283`). | Fixed, test first |
 | CT-4 | minor | A closable factory product that fails the conformance check is never closed (`container.lua:281`). | Fixed, test first |
 | CT-5 | minor | The same closable instance returned by a transient factory twice, or a singleton's instance returned by a transient factory, is tracked and closed twice (`container.lua:328-336`). | Fixed, test first |
@@ -75,32 +75,39 @@ pool-thread states); RE-6 covers it with real tests.
 
 | Id | Severity | Finding | Disposition |
 |---|---|---|---|
-| K-1 | major | The ready watchdog of a generation is never cancelled when `ready` arrives; when a reload retires that worker (`old.ready = false`), the watchdog SIGKILLs it in the middle of its drain and logs `worker_not_ready`: any reload within `ready_timeout` of a worker's start kills it with requests in flight (`supervisor.lua:328-345`, `:614-618`; point (m)). Reproduced. | Open |
-| K-2 | major | `requests.inputs = "strict"` does not apply to a route that declares only `content`: `?undeclared=1` is accepted (`input.lua:252-253`; point (l)). Reproduced. | Open |
-| K-3 | major | The binding names of controller `dependencies` are resolved first at request time: a typo boots and every request answers 500, against "nothing validated lazily at first request" (`dispatcher.lua:36-56`); needs a public `Container:has(key)`. Reproduced. | Open |
-| K-4 | major | A worker that stops reading its message pipe stalls the hand-over to every worker under `round_robin`: `deliver` awaits `peer:send` inside the single accept loop (`listening.lua:290-338`, `supervisor.lua:249-258`). | Open |
-| K-5 | minor | Bad `server` options in a primary are validated only in each worker, so they become a crash loop instead of one boot error (`application.lua:476-481`). | Open |
-| K-6 | minor | `Accept: application/json;q=0, */*` still selects JSON; RFC 9110 section 12.5.1 gives 406 (`results.lua:61-77`, `:93-95`). | Open |
-| K-7 | minor | A problem for 405 or 401 cannot carry `Allow` or `WWW-Authenticate` (RFC 9110) (`problems.lua:114-136`). | Open (decision) |
-| K-8 | minor | The worker's drain is not counted in its grace period, so it races the primary's kill at `grace + 1` (`supervisor.lua:942-943`). | Open |
-| K-9 | minor | `on_crash_loop = "degrade"` ends `run` with `start_failed` when a restart cannot spawn (`supervisor.lua:314-319`). | Open |
-| K-10 | minor | Worker-side logs (`control_failed`, `hand_over_queue_full`, `hand_over_discarded`) go to `log.default()`, ignoring an explicit `logger` (`supervisor.lua:856`, `:865`, `:890`). | Open |
-| K-11 | minor | `developer-experience.md` annotates with `hecate.Controller` and `hecate.Request`, which do not exist; the `hecate` README says "schema shortcuts", against OQ-57. | Open |
-| K-12 | minor | No test that a worker survives `sigint` or `sigterm` sent to its own pid (OQ-116); stale "known defect ... Remove the skip" comments (`supervisor_test.lua:164-165`, `supervisor_reload_test.lua:206-207`). | Open |
-| K-13 | minor | "passes a connection to the worker" where the glossary term is hand-over (`listening.lua:25`). | Open |
-| K-14 | minor | The `Accept` field is parsed into a sorted table on every request, even for `*/*` (`results.lua:61-114`). | Open (needs a measurement) |
-| K-15 | minor | An IPv6 link-local host with a zone id (`fe80::1%eth0`) is bound by the primary but refused by every worker, which then crash-loop (`supervisor.lua:54-58`). | Open |
+| K-1 | major | The ready watchdog of a generation is never cancelled when `ready` arrives; when a reload retires that worker (`old.ready = false`), the watchdog SIGKILLs it in the middle of its drain and logs `worker_not_ready`: any reload within `ready_timeout` of a worker's start kills it with requests in flight (`supervisor.lua:328-345`, `:614-618`; point (m)). Reproduced. | Fixed, test first |
+| K-2 | major | `requests.inputs = "strict"` does not apply to a route that declares only `content`: `?undeclared=1` is accepted (`input.lua:252-253`; point (l)). Reproduced. | Fixed, test first |
+| K-3 | major | The binding names of controller `dependencies` are resolved first at request time: a typo boots and every request answers 500, against "nothing validated lazily at first request" (`dispatcher.lua:36-56`); needs a public `Container:has(key)`. Reproduced. | Fixed, test first |
+| K-4 | major | A worker that stops reading its message pipe stalls the hand-over to every worker under `round_robin`: `deliver` awaits `peer:send` inside the single accept loop (`listening.lua:290-338`, `supervisor.lua:249-258`). | Fixed, test first |
+| K-5 | minor | Bad `server` options in a primary are validated only in each worker, so they become a crash loop instead of one boot error (`application.lua:476-481`). | Fixed, test first |
+| K-6 | minor | `Accept: application/json;q=0, */*` still selects JSON; RFC 9110 section 12.5.1 gives 406 (`results.lua:61-77`, `:93-95`). | Fixed, test first |
+| K-7 | minor | A problem for 405 or 401 cannot carry `Allow` or `WWW-Authenticate` (RFC 9110) (`problems.lua:114-136`). | Deferred: OQ-126 (issue 192) |
+| K-8 | minor | The worker's drain is not counted in its grace period, so it races the primary's kill at `grace + 1` (`supervisor.lua:942-943`). | Fixed, test first |
+| K-9 | minor | `on_crash_loop = "degrade"` ends `run` with `start_failed` when a restart cannot spawn (`supervisor.lua:314-319`). | Fixed, test first |
+| K-10 | minor | Worker-side logs (`control_failed`, `hand_over_queue_full`, `hand_over_discarded`) go to `log.default()`, ignoring an explicit `logger` (`supervisor.lua:856`, `:865`, `:890`). | Fixed, test first |
+| K-11 | minor | `developer-experience.md` annotates with `hecate.Controller` and `hecate.Request`, which do not exist; the `hecate` README says "schema shortcuts", against OQ-57. | Fixed, test first |
+| K-12 | minor | No test that a worker survives `sigint` or `sigterm` sent to its own pid (OQ-116); stale "known defect ... Remove the skip" comments (`supervisor_test.lua:164-165`, `supervisor_reload_test.lua:206-207`). | Fixed, test first |
+| K-13 | minor | "passes a connection to the worker" where the glossary term is hand-over (`listening.lua:25`). | Fixed |
+| K-14 | minor | The `Accept` field is parsed into a sorted table on every request, even for `*/*` (`results.lua:61-114`). | Deferred: roadmap "Continuous" |
+| K-15 | minor | An IPv6 link-local host with a zone id (`fe80::1%eth0`) is bound by the primary but refused by every worker, which then crash-loop (`supervisor.lua:54-58`). | Fixed, test first |
 
 ## http
 
 | Id | Severity | Finding | Disposition |
 |---|---|---|---|
-| H-1 | blocker | Quadratic trimming of field values (`^[ \t]*(.-)[ \t]*$`) lets one client stall the reactor thread within the default limits: a 56 KiB head of seven whitespace-heavy fields costs 1.56 s in `Parser:feed`; three such requests delayed a plain `GET` on another connection by 4.9 s (`fields.lua:53`, `:66`; `server_connection.lua:180`; `wire.lua:64`; `cookie.lua:102`). Reproduced. | Open |
-| H-2 | major | `native.new(kind)` called with one argument runs `lua_next` on the userdata it just pushed (undefined behaviour in C; not reachable from the network) (`csrc/native.c:520-531`). Reproduced. | Open |
-| H-3 | major | 94 % of parse time is `Fields:add` re-validating what llhttp already checked in strict mode (61 µs per 18-field head against 3.9 µs) (`parser.lua:93-96`). | Open (with H-1) |
+| H-1 | blocker | Quadratic trimming of field values (`^[ \t]*(.-)[ \t]*$`) lets one client stall the reactor thread within the default limits: a 56 KiB head of seven whitespace-heavy fields costs 1.56 s in `Parser:feed`; three such requests delayed a plain `GET` on another connection by 4.9 s (`fields.lua:53`, `:66`; `server_connection.lua:180`; `wire.lua:64`; `cookie.lua:102`). Reproduced. | Fixed, test first |
+| H-2 | major | `native.new(kind)` called with one argument runs `lua_next` on the userdata it just pushed (undefined behaviour in C; not reachable from the network) (`csrc/native.c:520-531`). Reproduced. | Fixed, test first |
+| H-3 | major | 94 % of parse time is `Fields:add` re-validating what llhttp already checked in strict mode (61 µs per 18-field head against 3.9 µs) (`parser.lua:93-96`). | Fixed, test first |
 | H-4 | minor | `shutdown` closes without an answer a connection whose request head has partly arrived (`server.lua:275-276`). Reproduced. | Open |
-| H-5 | minor | An HTTP/1.0 request with several `Host` lines is served and no value is validated (`server_connection.lua:158-165`). Reproduced. | Open |
-| H-6 | minor | `GET *` (asterisk-form outside OPTIONS) and an origin-form target with a fragment (`/a#x`) are served (`server_connection.lua:156-187`, `request.lua:53`). Reproduced. | Open |
-| H-7 | minor | A 205 response may carry content, against RFC 9110 section 15.3.6 (`status.lua:57`). | Open |
-| H-8 | minor | A comment of the native binding says a Lua memory error cannot leave a parser that is not failed; on the success path it can (`csrc/native.c:14`, `:713`). | Open |
-| H-9 | minor | "Header block of a part" in the README, where the glossary and OQ-75 say header fields (README:100). | Open |
+| H-5 | minor | An HTTP/1.0 request with several `Host` lines is served and no value is validated (`server_connection.lua:158-165`). Reproduced. | Fixed, test first |
+| H-6 | minor | `GET *` (asterisk-form outside OPTIONS) and an origin-form target with a fragment (`/a#x`) are served (`server_connection.lua:156-187`, `request.lua:53`). Reproduced. | Fixed, test first |
+| H-7 | minor | A 205 response may carry content, against RFC 9110 section 15.3.6 (`status.lua:57`). | Fixed, test first |
+| H-8 | minor | A comment of the native binding says a Lua memory error cannot leave a parser that is not failed; on the success path it can (`csrc/native.c:14`, `:713`). | Fixed (a failure is stored on the success path too; sanitizer run) |
+| H-9 | minor | "Header block of a part" in the README, where the glossary and OQ-75 say header fields (README:100). | Fixed, test first |
+
+## Found while closing the findings
+
+| Id | Severity | Finding | Disposition |
+|---|---|---|---|
+| L-1 | minor | `leaks kernel` fails on `main` too: `test_sigint_shuts_the_server_down_gracefully` and `test_an_expired_deadline_gives_a_500_and_the_server_record_without_traceback` (`application_test.lua`) each leave one `uv_tcp_t` open; the nightly `leaks` job checks `reactor` and `net` only. The tests now close their `http.Client`, which was not the cause. | Open |
+| L-2 | minor | The French guide `website/fr/how-to/route-requests.md` does not carry the router changes (R-1, R-2, R-7). | Deferred: the French translation sync (roadmap "Continuous"; `check-translations`, Phase 3) |

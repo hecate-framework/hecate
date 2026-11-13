@@ -64,7 +64,9 @@ function multipart.basename(filename)
   local name = string.match(filename, "([^/\\]*)$")
   name = string.gsub(name, '[%c\127<>:"|?*]', "")
   name = string.gsub(name, "^%.+", "")
-  name = string.gsub(name, "[%. ]+$", "")
+  -- Trailing dots and spaces: cut after the last other character (linear; `[%. ]+$` is tried from every position).
+  local last = string.match(name, "^.*()[^%. ]")
+  name = last and string.sub(name, 1, last) or ""
   if #name > 255 then
     name = string.sub(name, 1, 255)
     while #name > 0 and not utf8.len(name) do name = string.sub(name, 1, -2) end

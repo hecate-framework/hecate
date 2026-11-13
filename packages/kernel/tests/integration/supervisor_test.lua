@@ -161,9 +161,6 @@ function T:test_the_primary_collects_the_counters_the_workers_send()
   end)
 end
 
---- The supervisor does not kill a worker that ignores `stop` (known defect, reported with the tests: `stop_workers` and
---- `retire` swallow the cancellation of their deadline, so nothing is ever killed). Remove the skip once it is fixed.
-
 function T:test_a_deaf_worker_is_killed_after_the_grace_period_and_a_margin()
   if not can_run_workers() then return end
   set_flag("deaf") -- the first process ignores `stop`
@@ -185,6 +182,37 @@ function T:test_a_deaf_worker_is_killed_after_the_grace_period_and_a_margin()
     self:assert_false(alive(killed.pid), "the deaf worker is gone")
     self:assert_equal(0, sup:ready_count())
   end)
+end
+
+function T:test_a_worker_that_stops_reading_its_message_pipe_does_not_stall_the_others()
+  if not can_run_workers() then return end
+  set_flag("mute") -- the first process reports ready, then never reads its message pipe again
+  local memory = log.MemorySink()
+  local answered, unanswered = 0, 0
+  reactor.run(function()
+    local sup = new_supervisor({ count = 2, endpoint = { host = "127.0.0.1", port = 0, backlog = 3 },
+      logger = log.Logger({ sinks = { memory } }), env = { HECATE_TEST_FLAG = flag_path } })
+    reactor.scope(function(scope)
+      local running = scope:fork(sup.run, sup)
+      wait_until(function() return sup:ready_count() == 2 end)
+      local port = sup:local_address().port
+      local function request(seconds)
+        local ok, content = pcall(reactor.deadline, seconds, get, port)
+        return ok and type(content) == "string"
+      end
+      -- The rotation alternates until the mute worker holds its backlog (3) of connections it never acknowledged;
+      -- those clients get no answer.
+      for _ = 1, 6 do
+        if request(0.5) then answered = answered + 1 else unanswered = unanswered + 1 end
+      end
+      -- From then on it is skipped: every connection goes to the other worker, and is served.
+      for i = 1, 10 do self:assert_true(request(5), "request " .. i .. " is answered") end
+      sup:stop(0.2)
+      running:value()
+    end)
+  end)
+  self:assert_equal(3, answered)
+  self:assert_equal(3, unanswered)
 end
 
 function T:test_cancelling_run_leaves_no_worker_process_alive()

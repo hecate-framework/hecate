@@ -45,7 +45,7 @@ end
 ---@field validate_responses? boolean  validate each result against the schema declared for its status (see `hecate.kernel.DispatcherOptions`); default true when the environment of `configuration` is `development` or `test`, else false (OQ-117)
 ---@field logger? hecate.log.Logger  receives unhandled failures and the container warnings
 ---@field router? hecate.router.RouterOptions
----@field server? hecate.http.ServerOptions  options of the HTTP server made by `serve` (`logger` defaults to the application's)
+---@field server? hecate.http.ServerOptions  options of the HTTP server made by `serve` (`logger` defaults to the application's; the application sets `on_request_end` to end the service scope of each request, and a hook given here runs after that)
 ---@field signals? boolean  `true` (default) handles signals, `false` disables signal handling (tests, embedding); the set (`sigint`, `sigterm` stop; `sighup` reloads a primary, and is ignored elsewhere) is fixed and cannot be listed
 ---@field grace_timeout? number  seconds a signal-driven shutdown lets requests in flight finish (default 30)
 ---@field workers? integer  number of worker processes, at least 1 (default 1: the process serves by itself); above 1 the primary runs a `hecate.kernel.Supervisor` (ADR 0023)
@@ -60,6 +60,7 @@ end
 ---@field router hecate.router.Router?  the router, after `boot`
 ---@field _supervisor hecate.kernel.Supervisor?  the supervisor, while serving as the primary of several workers
 ---@field _served boolean?  set by the first `serve` that booted
+---@field _finish (async fun(request: hecate.http.Request))?  ends the service scope of a request, after `boot` (`dispatcher.build`)
 ---@field _signalled boolean?  set by the signal watcher once it started `shutdown`
 ---@overload fun(options?: hecate.kernel.ApplicationOptions): hecate.kernel.Application
 local Application = core.class("Application")
@@ -257,7 +258,7 @@ function Application:boot()
   for _, owned in ipairs(module_sources) do
     for _, entry in ipairs(routing.collect(owned.sources, owned.filters)) do entries[#entries + 1] = entry end
   end
-  local serve, router = dispatcher.build(entries, {
+  local serve, router, finish = dispatcher.build(entries, {
     filters = filters, container = container, router = options.router, expose_details = options.expose_details,
     logger = logger, inputs = options.inputs, validate_responses = options.validate_responses,
   })
@@ -265,7 +266,7 @@ function Application:boot()
   if options.max_depth ~= nil then json.set_max_depth(options.max_depth) end
   if built_logger then log.set_default(options.logger) end
   self._resolved = options
-  self.container, self.router, self._serve, self._booted = container, router, serve, true
+  self.container, self.router, self._serve, self._finish, self._booted = container, router, serve, finish, true
   return serve
 end
 
@@ -411,16 +412,31 @@ local function server_options_of(self)
   local server_options = {}
   for key, value in pairs(self._options.server or {}) do server_options[key] = value end
   if server_options.logger == nil then server_options.logger = self._resolved.logger end
+  -- The service scope of a request ends with the request (container.md, "Lifetimes"): once its response is written,
+  -- also when it is cancelled. A hook of the `server` option still runs, after it.
+  local finish, given = self._finish --[[@as async fun(request: hecate.http.Request)]], server_options.on_request_end
+  if given == nil or type(given) ~= "function" then
+    server_options.on_request_end = given or finish
+  else
+    server_options.on_request_end = function(request)
+      local ok, err = pcall(finish, request)
+      given(request)
+      if not ok then error(err, 0) end
+    end
+  end
   return server_options
 end
 
---- Prepares the primary of several workers: builds the `Supervisor` for the endpoint of the `server` option and returns
---- the function that runs it. Everything that can raise before the run happens here.
+--- Prepares the primary of several workers: checks the `server` option as each worker will, builds the `Supervisor` for
+--- its endpoint and returns the function that runs it. Everything that can raise before the run happens here.
 ---@param self hecate.kernel.Application
 ---@return fun() run  async: serves until the supervisor stops, then closes the container
 local function prepare_primary(self)
   -- Like the signal watcher and `http.Server`, the primary falls back to the default logger (OQ-79).
   local resolved, logger = self._resolved, self._resolved.logger or log.default()
+  -- Each worker builds its `http.Server` from the same options: they are checked once here (a server is built and
+  -- discarded; building one binds nothing), so that a bad option is one boot error, not a crash loop of the workers.
+  http.Server(self._serve, server_options_of(self))
   local server_options = self._options.server or {}
   local defaults = http.Server.DEFAULTS
   local endpoint = {
@@ -472,7 +488,7 @@ function Application:serve()
       { context = { reason = "http_unavailable" } }), 2)
   end
   local serve = self._serve or self:boot()
-  local role = supervisor.worker_role()
+  local role = supervisor.worker_role({ logger = self._resolved.logger }) -- the worker side logs where the application does
   if role == nil and self._resolved.workers > 1 then
     -- Everything that can fail before the run (the supervisor, the worker command) is prepared before `_served` is set.
     local run = prepare_primary(self)

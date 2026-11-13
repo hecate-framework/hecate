@@ -26,8 +26,9 @@ function T:test_validity_and_class()
 end
 
 function T:test_forbids_content()
-  for _, code in ipairs({ 100, 101, 204, 304 }) do self:assert_true(Status.forbids_content(code)) end
-  for _, code in ipairs({ 200, 205, 301, 404, 500 }) do self:assert_false(Status.forbids_content(code)) end
+  -- 205: "a server MUST NOT generate content in a 205 response" (RFC 9110, section 15.3.6; review H-7)
+  for _, code in ipairs({ 100, 101, 204, 205, 304 }) do self:assert_true(Status.forbids_content(code)) end
+  for _, code in ipairs({ 200, 206, 301, 404, 500 }) do self:assert_false(Status.forbids_content(code)) end
 end
 
 return T
