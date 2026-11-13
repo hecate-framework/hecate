@@ -235,7 +235,11 @@ local function remove_tree(path)
 end
 
 function T:test_the_task_reports_examples_and_pages_with_their_lines()
-  local root = (os.tmpname() .. "-root"):gsub("\\", "/")
+  -- a fixture tree inside the git-ignored `.hecate/` of the repository: on the Windows runners, the shell listing
+  -- of `util.list_dir` found nothing under the temporary directory (`C:/Users/RUNNER~1/...`)
+  local here = debug.getinfo(1, "S").source:sub(2):gsub("\\", "/")
+  local repository = here:match("^(.*)/tools/tests/") or "."
+  local root = ("%s/.hecate/check-examples-%d-%d"):format(repository, os.time(), math.random(1, 1000000))
   local function write(path, text)
     util.mkdir((root .. "/" .. path):match("^(.*)/"))
     local f = assert(io.open(root .. "/" .. path, "wb"))
@@ -249,7 +253,6 @@ function T:test_the_task_reports_examples_and_pages_with_their_lines()
   write("website/en/reference/r.md", "```lua\n-- " .. LONG .. LONG .. "\n```\n")
   local ok, report = pcall(require("tasks.check_examples").run, { root = root, args = {} })
   remove_tree(root)
-  os.remove((root:gsub("-root$", "")))
   self:assert_true(ok, tostring(report))
   local seen = ("root %s, %d files, problems:\n%s"):format(root, report.count, table.concat(report.problems, "\n"))
   self:assert_false(report.ok, seen)
