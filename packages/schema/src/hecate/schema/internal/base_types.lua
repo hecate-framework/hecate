@@ -2,7 +2,7 @@
 -- optional, nullable and named. None of them reads the state of a call: they use only the helpers of `validation`.
 -- Internal to `hecate.schema`: not public API. `schema.lua` and the other `internal/` modules require it.
 ---@diagnostic disable: invisible -- the `package` fields of `Schema` are shared by the internal modules of this package
-global <const> require, type, pairs, ipairs, table, string, math, utf8, pcall, tostring, tonumber, error
+global <const> require, type, pairs, ipairs, table, string, math, utf8, pcall, tostring, tonumber, error, package
 
 local core = require("hecate.core")
 local json = require("hecate.json")
@@ -68,6 +68,12 @@ function M.string(options)
       refuse(("string: option pattern %q is not a valid Lua pattern: %s (it is a Lua pattern, not a regular expression; OQ-85)")
         :format(pattern, reason), { option = "pattern", reason = reason })
     end
+  end
+  if pattern ~= nil and logger == nil then
+    -- OQ-86 (1): the default logger of `hecate.log` when that module is already loaded; never required here, so a
+    -- consumer of `schema` alone does not load `hecate.reactor` and libuv.
+    local log = package.loaded["hecate.log"]
+    if type(log) == "table" and type(log.default) == "function" then logger = log.default() end
   end
   if pattern ~= nil and logger ~= nil then
     local translated, err = pcall(pattern_to_ecma, pattern)

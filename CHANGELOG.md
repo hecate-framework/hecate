@@ -298,6 +298,8 @@ Each release heading states the supported Lua version.
 
 ### Fixed
 
+- fix(schema): without a `logger` option, a pattern that cannot be emitted is reported through the default logger of `hecate.log` when that module is already loaded (looked up in `package.loaded`, never required), as decided in OQ-86 (1); the structural equality behind `unique_items` reads `json.DEFAULT_MAX_DEPTH` at call time, so a `limits.max_depth` lowered at boot reaches it (Phase 2 gate, completeness gaps 2 and 3).
+
 - fix(tools): `bench <scenario> --runs=N` fails at once with a message naming `--rounds=N`, the option of the scenarios, instead of `unknown argument` printed twice; `bench --list` names `--rounds` (Phase 2 gate, G3).
 
 - fix(kernel): `Application:serve` without the native module of `http` raises `ModuleError` (`reason = "http_unavailable"`) whose message names `lua tools/run.lua build-native http`, instead of `attempt to call a nil value (field 'Server')` (Phase 2 gate, from the `examples/hello` review).

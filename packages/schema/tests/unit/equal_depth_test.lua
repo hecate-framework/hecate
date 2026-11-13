@@ -83,4 +83,17 @@ function T:test_emission_of_two_named_schemas_is_unaffected()
   self:assert_equal("string", doc["$defs"].Same.type)
 end
 
+function T:test_the_equality_reads_the_depth_limit_at_call_time()
+  -- `limits.max_depth` lowers the limit at boot (OQ-101 (a)), after `schema` is loaded: the equality must see it.
+  local saved = json.DEFAULT_MAX_DEPTH
+  json.set_max_depth(3)
+  local ok, err = pcall(function()
+    local result = unique:validate({ nested(5, 1), nested(5, 1) })
+    self:assert_true(result) -- deeper than the lowered bound: different, so unique
+  end)
+  json.set_max_depth(saved)
+  if not ok then error(err, 0) end
+  self:assert_false((unique:validate({ nested(5, 1), nested(5, 1) }))) -- within the default bound: a duplicate
+end
+
 return T

@@ -5,7 +5,6 @@ global <const> require, type, next
 local json = require("hecate.json")
 
 local null = json.null
-local MAX_DEPTH = json.DEFAULT_MAX_DEPTH
 
 ---@class hecate.schema.internal.json_values
 local M = {}
@@ -28,7 +27,7 @@ local function copy_value(value)
 end
 
 --- Structural equality of decoded JSON values; `1` and `1.0` are equal numbers, as in JSON Schema. Bounded like the
---- depth guard (OQ-99): two tables that are still different tables below `MAX_DEPTH` levels are reported as DIFFERENT, never
+--- depth guard (OQ-99): two tables that are still different tables below `json.DEFAULT_MAX_DEPTH` levels are reported as DIFFERENT, never
 --- by a Lua stack overflow. Decoded content stops at the same depth, so only a hand-built table can reach the bound.
 ---@param a any
 ---@param b any
@@ -38,7 +37,7 @@ local function json_equal(a, b, level)
   if a == b then return true end
   if type(a) ~= "table" or type(b) ~= "table" or a == null or b == null then return false end
   level = (level or 0) + 1
-  if level > MAX_DEPTH then return false end
+  if level > json.DEFAULT_MAX_DEPTH then return false end -- read at call time: `limits.max_depth` lowers it at boot
   local count = 0
   for key, member in next, a do
     if not json_equal(member, b[key], level) then return false end

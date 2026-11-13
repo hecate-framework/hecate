@@ -166,7 +166,9 @@ A malformed pattern (the faults Lua reports only when a match reaches them: a tr
 Declaring a `string` with a `logger` option (an object with `warning(message, fields)`) reports a pattern that cannot be
 translated at declaration, as `schema: pattern "%bxy" cannot be emitted: %b has no exact translation` (the pattern and the reason
 are also in `fields`); emission refuses it with an `ArgumentError` whose message says that Lua validation is unaffected and how to
-rewrite the pattern: with sets, classes, `format`, `min_length` or `enum`.
+rewrite the pattern: with sets, classes, `format`, `min_length` or `enum`. Without the `logger` option, the default logger of
+`hecate.log` (`log.default()`) receives the warning when that module is already loaded; `schema` looks it up in `package.loaded`
+and never requires it (OQ-86 (1)).
 
 Lua matches **bytes**, ECMA-262 matches UTF-16 code units, so `.`, negated sets and negated
 classes differ from the emitted expression on non-ASCII input (for example `^.$` rejects `"é"` in Lua and accepts it in
