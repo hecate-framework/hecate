@@ -110,10 +110,19 @@ gap.
 | OQ-120, what free text the logs may carry (new, S1, S3, C25) | Causes in the `traceback` field and `debug.message`; JSON Pointer in `schema` messages, which deviates from OQ-117 (4). | (1) keep the causes, documented (done); (2) no pointer in any message, confirming the deviation. |
 | OQ-121, planned Phase 2 work with no roadmap item (new, C10, C11) | Eleven outline pages and three generators marked P2. | Re-mark them P3 and name them in the Phase 3 `doc`, `cli` and website items. |
 | OQ-122, default number of workers of `hecate serve` (new, C32) | ADR 0023 says the cores; `server.workers` defaults to 1. | The flag falls back on `server.workers`; the generated production configuration sets the cores. |
+| OQ-123, owner of an instance injected into the container (new, CT-7) | `Container:close()` closes a fake the test still owns. | The container never closes a value it did not build. |
+| OQ-124, limits of the configuration loader (new, CF-12, CF-13) | No size cap on secret files; Windows environment values in the ANSI code page. | A read cap; a UTF-8 `getenv` hook passed by the kernel. |
+| OQ-125, the `"worker"` reason of `OffloadError` (new, RE-5) | Collides with the glossary term *worker*. | Rename it `pool_thread` before `0.1.0`. |
+| OQ-126, fields of 405 and 401 problems (new, K-7) | `Allow` and `WWW-Authenticate` cannot be carried. | A `fields` member, decided with `security` (Phase 5). |
+| OQ-127, three conservative kernel choices (new, K-4, CT-2) | Shield bound 5 s; close when all workers are saturated; no deadline on `send`. | Keep the three. |
 
 OQ-24 had an owner decision (2026-10-27) and is recorded as resolved; its issue is closed.
 
 ## 6. Findings and disposition
+
+The reviewer wave (`/review-package` on `http`, `kernel` with `hecate`, `router`, `container`, `config` and the Phase 2
+additions of `reactor`) is reported in [phase-2-review-package.md](phase-2-review-package.md): 66 findings, each fixed
+test first or deferred to a named roadmap item or open question. The rows below are the gate's own findings.
 
 | Id | Finding | Disposition |
 |---|---|---|
