@@ -32,9 +32,8 @@
    also fix C24 in `packages/http/README.md`): review, add its CHANGELOG line, commit; set rows P1, S1, S2, S7 and
    C24 to Fixed. If the agent is gone, redo those rows.
 2. Reviewer wave (`/review-package` on the Phase 2 packages), triage each minor (fix or defer with a pointer).
-3. `automation.md`: document the `-- coverage: off` / `-- coverage: on` marker in the `coverage` row (G5).
-4. Wait for the owner on issue 188 (section 5 questions); then record each answer in `docs/open-questions.md`.
-5. Finish: tick the gate only when the report shows no open gap and every question has an owner decision or deferral.
+3. Wait for the owner on issue 188 (section 5 questions); then record each answer in `docs/open-questions.md`.
+4. Finish: tick the gate only when the report shows no open gap and every question has an owner decision or deferral.
 
 ## Decisions taken (and where they are recorded)
 
