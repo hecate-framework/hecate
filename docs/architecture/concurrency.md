@@ -214,7 +214,7 @@ the reactor thread. The basis is luv's `new_work` and `queue_work`; luv is used 
 Accepted in [ADR 0023](../adr/0023-multi-process-serving.md), measured in
 [the OQ-8 spike](../spikes/OQ-8-multi-process.md).
 
-- `hecate serve --workers N` (default: number of CPU cores) starts one primary process
+- `hecate serve --workers N` (default: `server.workers`, whose default `"auto"` is `max(1, cores - 1)`, OQ-122) starts one primary process
   and N worker processes. A worker is the same program with a worker role: its own Lua state
   and reactor, nothing shared.
 - `reactor` provides the mechanism: `spawn` (a long-lived child), `ipc` (framed messages

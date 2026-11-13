@@ -273,6 +273,8 @@ Each release heading states the supported Lua version.
 
 ### Changed
 
+- docs: owner decisions of 2026-11-13. ADR 0023 (Decision 1) amended: the default number of workers is the configuration key `server.workers`, `"auto"` = `max(1, cores - 1)`, implemented with the Phase 3 `cli` item (OQ-122). The generators `gen-error-codes` and `gen-config-reference` and the outline pages still marked Phase 2 become a roadmap item before the Phase 2 gate; `gen-meta` moves to the Phase 3 `cli` item (OQ-121).
+
 - feat(kernel): while `errors.expose_details` is false (the production default), the `traceback` field logged with an unhandled action error names each cause by its class and code only, never its message; with the key true (development and test) it carries the whole chain as before (OQ-120 (1), owner decision of 2026-11-13).
 
 - chore(ci): static checks on Linux only, one native build cache per module keyed by a hash of all its inputs, unit tests in a worker pool (`HECATE_TEST_JOBS`, integration tests stay serial), documentation-only pushes skip the platform matrix when the previous head is green (`code-changed` task, `docs-checks` and `ci-ok` jobs), `HECATE_NATIVE_PROFILE` for `build-native`; the `http` tests run in about 16 s instead of 91 s.

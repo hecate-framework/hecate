@@ -255,6 +255,20 @@ concurrency test suite passes; benchmark baseline recorded.
       `tools/harness/examples.lua` used by the examples tests of the ten packages; every example and the website pages
       that include them migrated; the rules in `documentation.md`, "Code examples"; reviewed by `test-engineer`.
 
+- [ ] Documentation and generators planned for Phase 2 that no item carried (OQ-121, owner decision of 2026-11-13;
+      [gate report](reviews/phase-2.md), findings C10 and C11). The generators `gen-error-codes` (the error code
+      reference page from the error classes and their codes, ADR 0018) and `gen-config-reference` (the configuration
+      keys reference from the `config` declarations), each a `tools/` task with a `--check` mode run by CI and tested on
+      fixtures, and the pages of `website/OUTLINE.md` still marked Phase 2: the how-tos "Problem details: mapping domain
+      errors to RFC 9457 responses", "Filters" (what exists: authentication by a filter, CORS and compression written as
+      filters; request identifiers are deferred, ADR 0025), "Concurrency: fork/join, select, deadlines, channels,
+      protecting shared state" and "Multi-process deployment, graceful shutdown, health checks"; the references
+      "Configuration keys" and "Error codes" (generated) and "Schema keywords and formats"; the explanations
+      "Architecture and layers", "The object model" and "Concurrency model". English only (the French copies follow
+      with the translation sync); code samples from tested example files. The outline line "Background work and
+      offloading CPU-bound computations" duplicates the offload how-to and is removed; `gen-meta` moves to Phase 3
+      (carried by the `cli` item).
+
 - [ ] **Phase 2 gate**: verification of the phase, as described in [Phase gates](#phase-gates). Open
       questions to put to the owner before Phase 3: OQ-46, OQ-13, OQ-17, OQ-38 and OQ-64
       (OQ-33, OQ-35, OQ-36 and OQ-40 were resolved at the Phase 1 gate).
@@ -279,6 +293,13 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       NFC/NFD names before the collision check, because a site is built from a tree authored elsewhere. **Also (from the `schema` review, OQ-96):** the `---@meta` file generation for LuaLS from the schemas of a project (carried here or by `cli`, to settle when `cli` is specified), which `schema` does not implement.
 - [ ] `cli` v1: self-contained executable, `new`, `install`, `add`, `remove`, `update`,
       `serve [--watch]`, `test`, `doc`, `contract`, `toolchain`, `doctor`, `version`.
+      **Also (OQ-122, owner decision of 2026-11-13, ADR 0023 amended):** `server.workers` accepts `"auto"` and
+      defaults to it: `max(1, cores - 1)`, `cores` from `uv.available_parallelism()` (exposed by `reactor`), read on
+      Linux within the cgroup CPU quota of a container when one is set (or documented as a limit); `hecate serve`
+      without `--workers` reads `server.workers`; the generated `config/development.lua` and `config/test.lua` set
+      `server.workers = 1`.
+      **Also (OQ-121):** `gen-meta`, the LuaLS `---@meta` files generated from schemas, as a `tools/` task and through
+      the CLI (file layout, naming and when it runs decided with the item).
       **Also (from the `examples/hello` item):** turn `examples/hello` into a Hecate project (`hecate.project.lua`, run
       by `hecate serve`, tested by `hecate test`, `hecate contract lint` in CI), as `examples/README.md` requires of
       every example from Phase 3 on; today it is `lua main.lua` and the repository harness.
