@@ -252,10 +252,18 @@ function T:test_the_primary_pauses_accepting_while_every_worker_is_saturated_and
       mute:kill("sigkill")
       local content
       content, why = third:value()
-      self:assert_not_nil(content, why)
-      content, why = fourth:value()
-      self:assert_not_nil(content, why)
+      self:assert_not_nil(content, "the connection kept by the primary: " .. tostring(why))
       self:assert_true(content:match("^1:%d+$") ~= nil, content)
+      content, why = fourth:value()
+      if package.config:sub(1, 1) == "\\" then
+        -- Windows answers a connection that finds the listen backlog full with a reset (RST), where Linux and macOS
+        -- let it wait: in the listen backlog it is either served or refused, never left hanging.
+        self:assert_true(content ~= nil or tostring(why):find("ECONNRESET", 1, true) ~= nil,
+          "the connection in the listen backlog: " .. tostring(why))
+      else
+        self:assert_not_nil(content, "the connection in the listen backlog: " .. tostring(why))
+        self:assert_true(content:match("^1:%d+$") ~= nil, content)
+      end
       first, second = first:value(), second:value() -- the connections lost with the mute worker are closed
       sup:stop(0.2)
       running:value()

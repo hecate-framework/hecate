@@ -22,7 +22,11 @@ function T:test_getenv_reads_a_variable_and_answers_nil_when_it_is_unset()
   local name = "HECATE_REACTOR_GETENV_TEST"
   uv.os_setenv(name, "value=1")
   self:assert_equal("value=1", reactor.getenv(name))
-  self:assert_equal(os.getenv(name), reactor.getenv(name), "the same value as os.getenv")
+  -- On POSIX both read the same environment. On Windows `uv.os_setenv` writes the wide environment of the process,
+  -- which the C runtime copy read by `os.getenv` does not see: the very reason `reactor.getenv` exists (OQ-124).
+  if package.config:sub(1, 1) == "/" then
+    self:assert_equal(os.getenv(name), reactor.getenv(name), "the same value as os.getenv")
+  end
   uv.os_unsetenv(name)
   self:assert_nil(reactor.getenv(name))
   self:assert_nil(reactor.getenv(""))
