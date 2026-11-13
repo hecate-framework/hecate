@@ -292,10 +292,11 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       section in `docs/architecture/documentation.md`, after the manner of *Programming in Lua* (Ierusalimschy): one
       idea per paragraph, a short example right after each new concept, a brief reminder of what a term means the first
       time a page uses it (linked to the glossary), short sentences and a lower density, the precise term and the exact
-      claim always kept. Pilot it on the 8 pages written at the Phase 2 gate (the how-tos on problem details, filters,
-      concurrency and multi-process deployment; the schema keywords reference; the explanations on the architecture, the
-      object model and the concurrency model) and submit them to the owner before any other Phase 3 item starts. Once
-      approved, the website item applies it to the rest of the site.
+      claim always kept. The owner likes the 8 pages written at the Phase 2 gate as they are (2026-11-13): write the rule
+      from them, as the model (the how-tos on problem details, filters, concurrency and multi-process deployment; the
+      schema keywords reference; the explanations on the architecture, the object model and the concurrency model), then
+      pilot it on a few pages written before the gate and submit them to the owner before any other Phase 3 item starts.
+      Once approved, the website item applies it to the rest of the site.
 - [ ] `openapi`: OpenAPI 3.1 assembly, served endpoint, export, contract diff.
 - [ ] `test`: test framework, runner, in-process client, fixtures, contract conformance,
       reporters (TAP, JUnit XML), coverage. **Also (T2, from the `http` test review):** a hand-built `Request` whose
