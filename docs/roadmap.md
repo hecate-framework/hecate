@@ -272,12 +272,16 @@ concurrency test suite passes; benchmark baseline recorded.
       `multi-process-deployment`; reference `schema-keywords-and-formats`; explanations `architecture-and-layers`,
       `object-model`, `concurrency-model`; tested examples in `hecate`, `reactor` and `core`.
 
-- [ ] **Phase 2 gate**: verification of the phase, as described in [Phase gates](#phase-gates). Open
+- [x] **Phase 2 gate**: verification of the phase, as described in [Phase gates](#phase-gates). Open
       questions to put to the owner before Phase 3: OQ-46, OQ-13, OQ-17, OQ-38 and OQ-64
       (OQ-33, OQ-35, OQ-36 and OQ-40 were resolved at the Phase 1 gate).
       **Also triage (from the `examples/hello` review, dx-reviewer):** without the native module of `http`,
       `Application:serve` fails with `attempt to call a nil value (field 'Server')` (`kernel/application.lua`); it
       should raise an error that names `lua tools/run.lua build-native http`, as `hecate.net.tls` does for its module.
+      Delivered: [report](reviews/phase-2.md), [coherence findings](reviews/phase-2-coherence-findings.md) and
+      [reviewer wave](reviews/phase-2-review-package.md); every finding fixed (test first) or deferred to a named item, every
+      open question decided by the owner on 2026-11-13 (OQ-13 and OQ-17 stay open as Phase 3 spikes); CI green on Linux,
+      macOS and Windows.
 
 Exit: `examples/hello` runs on three platforms with N workers; invalid input yields
 RFC 9457 problem details; graceful shutdown drains in-flight requests.

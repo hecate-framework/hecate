@@ -7,6 +7,13 @@ Windows is not a benchmark target.
 Scope: completeness (section 1), it works (section 2), coherence (section 3), safe content (section 4, OQ-111),
 open questions (section 5), and the findings with their disposition (section 6).
 
+## Outcome
+
+The gate is passed (2026-11-13). Every finding of this report, of the coherence audit and of the reviewer wave is
+fixed (test first) or deferred to a named roadmap item; every open question listed in section 5 has an owner decision
+(2026-11-13), recorded in `docs/open-questions.md`; OQ-13 and OQ-17 stay open as research for the Phase 3 spikes. CI
+is green on Linux, macOS and Windows.
+
 ## 1. Completeness
 
 | Roadmap item | Evidence |
