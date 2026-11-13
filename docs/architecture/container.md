@@ -38,6 +38,9 @@ A binding is registered under a **key**, which is either a **name** (a non-empty
 an **interface** (a value made by `core.interface`). Both are used the same way: `bind`, `requires`, `resolve`
 accept either. Keys compare by identity (strings by value, interfaces by reference). A key has at most one
 binding; `bind` on a key that is bound raises `DuplicateBindingError` (use `override`, below).
+`Container:has(key)` tells whether a key has a binding, without constructing anything and without needing
+`validate` (the `kernel` uses it at boot to check the keys it will resolve, so that a misspelt key fails the boot, not
+a request); it raises `ContainerError` after `close` and `core.ArgumentError` for a value that is not a key.
 
 When the key is an interface, the product must conform to it: for a class definition the check happens at
 `validate` (`core.implements`, a `core.ConformanceError` listed among the problems), for a factory definition
@@ -75,7 +78,8 @@ member or its name.
 | `scoped` | as long as one **service scope** | at first resolution inside that service scope, then shared inside it |
 | `transient` | for the caller only; closed by its owner if it defines `__close` ("Disposal") | at every resolution, never shared, never cached |
 
-A **service scope** (`container.ServiceScope`) is made by `container:open_scope()`. The `kernel` opens one per
+A **service scope** (`container.ServiceScope`) is made by `container:open_scope()` (calling `ServiceScope(x)` with
+anything but a `Container` raises `core.ArgumentError`). The `kernel` opens one per
 request, and closes it when the request's reactor scope ends; `hecate.container` does not itself depend on the
 reactor, so the link between the two is the kernel's, not the container's (OQ-105). The service scope is an
 ordinary value: every computation forked during the request receives the same one when the kernel passes it,
@@ -108,7 +112,14 @@ were attempted, the others attached as `context.suppressed`):
   is the order of the whole list. This includes a transient dependency of a transient or of a scoped service resolved in
   that scope. A transient without `__close` is never tracked: it costs no memory. A closable transient created while a
   singleton is being constructed (a dependency of the singleton, even when the singleton is resolved inside a service
-  scope) is owned by the container and closed with it, after the singleton that received it.
+  scope) is owned by the container and closed with it, after the singleton that received it. When the construction of
+  that singleton fails, the closable transients built for it are closed at once, in reverse order of creation, and
+  dropped (an error of such a close is attached to the raised error as `context.suppressed`); those built for a
+  singleton that did succeed on the way stay owned.
+
+An owner tracks an instance once: a factory that returns the same closable instance several times makes its owner
+close it once. A closable product that an owner already tracks (the instance of a singleton or of a scoped service,
+returned again by a transient factory) is not tracked again: it keeps its owner, and the root does not refuse it.
 
 Owner decision on OQ-106 (2026-11-08). A scope that owns a transient closes it: the caller does not close it itself
 (no `<close>` on it); the memory of a long-lived scope grows with the closable transients it resolved, which is the
@@ -183,8 +194,16 @@ such; the kernel never makes it.
   computations never create the same singleton or scoped service twice, and no lock is needed.
 - A re-entrant resolution of a key that is being constructed (possible only through a factory that captured the
   container, which is discouraged) raises `CycleError`, a second line of defence behind validation.
+- A constructor or factory that suspends anyway is detected when another computation resolves the same key while the
+  first one is suspended in its construction: that resolution raises `ContainerError` with `context.key` and
+  `context.path`, saying that constructors must not suspend (OQ-107), not `CycleError`. The mark of a construction is
+  cleared when it ends, also when its computation is closed while suspended (`coroutine.close`), so the key resolves
+  again afterwards.
 - An error raised by a constructor or factory is wrapped: `ConstructionError` with `context.key`,
-  `context.path` and the original error as `cause`. The exception is `core.CancellationError` and
+  `context.path` and the original error as `cause`. A constructor that returns `nil` raises `ConstructionError` with
+  the same `context`; a factory product that does not implement its interface key raises `core.ConformanceError` with
+  `context.key` and `context.path`, after closing the product if it defines `__close` and no owner tracks it (a close
+  error in `context.suppressed`). The exception is `core.CancellationError` and
   `core.DeadlineExceededError`, which propagate unchanged so cancellation keeps its meaning (concurrency.md).
 - A failed construction caches nothing: a later resolution tries again.
 
@@ -213,7 +232,7 @@ All extend `hecate.core.Error` through `core.ConfigurationError`, since each mea
 
 | Class | Superclass | Raised when | `context` |
 |---|---|---|---|
-| `ContainerError` | `core.ConfigurationError` | base class; also a use in the wrong state (before `validate`, after it for `bind`, after `close`) | varies |
+| `ContainerError` | `core.ConfigurationError` | base class; also a use in the wrong state (before `validate`, after it for `bind`, after `close`), and a key whose construction is suspended in another computation (OQ-107) | varies (`key`, `path` for the last case) |
 | `DuplicateBindingError` | `ContainerError` | `bind` on a bound key | `key` |
 | `MissingBindingError` | `ContainerError` | a required or requested key has no binding; `override` of an unbound key | `key`, `path` |
 | `CycleError` | `ContainerError` | the dependency graph has a cycle | `path` |
@@ -228,7 +247,7 @@ by name, an interface by its `core.name`, never by address.
 
 ## Public API summary
 
-`hecate.container`: `Container` (`bind`, `override`, `override_with_instance`, `validate`, `resolve`, `open_scope`,
+`hecate.container`: `Container` (`bind`, `has`, `override`, `override_with_instance`, `validate`, `resolve`, `open_scope`,
 `close`), `ServiceScope` (`resolve`, `release`, `close`), `Lifetime`, and the error classes above. Every function carries
 LuaLS annotations; none is `---@async`, because nothing here suspends.
 

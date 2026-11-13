@@ -105,6 +105,29 @@ function T:test_a_lifetime_is_given_as_a_member_or_its_name()
   self:assert_true(c:resolve("b") == c:resolve("b"))
 end
 
+function T:test_has_tells_whether_a_key_is_bound_without_constructing_or_validating()
+  local Repo = core.interface("Repo", { "find" })
+  local Other = core.interface("Other", { "find" })
+  local built = 0
+  local c = container.Container()
+  self:assert_false(c:has("clock"))
+  c:bind("clock", function() built = built + 1; return {} end, { lifetime = "singleton", requires = { "ghost" } })
+  c:bind(Repo, function() built = built + 1; return {} end, { lifetime = "transient" })
+  self:assert_true(c:has("clock"))
+  self:assert_true(c:has(Repo))
+  self:assert_false(c:has("ghost"), "a required key is not a binding")
+  self:assert_false(c:has(Other))
+  self:assert_equal(0, built)
+  for _, bad in ipairs({ "", 1, {}, true }) do
+    raises(self, core.ArgumentError, function() c:has(bad) end)
+  end
+  raises(self, core.ArgumentError, function() c:has(nil) end)
+  local valid = ready(function(v) v:bind("a", function() return {} end, { lifetime = "transient" }) end)
+  self:assert_true(valid:has("a"))
+  valid:close()
+  raises(self, container.ContainerError, function() valid:has("a") end)
+end
+
 function T:test_binding_a_bound_key_raises_duplicate_binding_error()
   local c = container.Container():bind("a", function() return {} end, { lifetime = "transient" })
   local err = raises(self, container.DuplicateBindingError, function() c:bind("a", function() return {} end, { lifetime = "transient" }) end)
@@ -508,7 +531,8 @@ function T:test_release_refuses_what_the_scope_does_not_track()
   raises(self, container.ContainerError, function() one:release({}) end)
   raises(self, container.ContainerError, function() one:release(one:resolve("single")) end)
   for _, bad in ipairs({ 1, "x", true }) do
-    raises(self, core.ArgumentError, function() one:release(bad) end)
+    local err = raises(self, core.ArgumentError, function() one:release(bad) end)
+    self:assert_true(tostring(err.message):find("table or a userdata", 1, true) ~= nil, err.message)
   end
   raises(self, core.ArgumentError, function() one:release(nil) end)
   self:assert_equal(0, #log)
@@ -599,6 +623,227 @@ function T:test_a_closed_scope_or_container_refuses_to_resolve()
   raises(self, container.ContainerError, function() other:resolve("a") end)
   raises(self, container.ContainerError, function() c:open_scope() end)
   raises(self, container.ContainerError, function() c:bind("b", function() return {} end, { lifetime = "transient" }) end)
+end
+
+-- Suspension, partial failures and ownership -----------------------------------------------------------------------------
+
+function T:test_a_constructor_that_suspends_is_reported_to_another_service_scope_not_as_a_cycle()
+  local suspend = true
+  local c = ready(function(c)
+    c:bind("db", function()
+      if suspend then coroutine.yield() end
+      return {}
+    end, { lifetime = "scoped" })
+  end)
+  local one, two = c:open_scope(), c:open_scope()
+  local first = coroutine.create(function() return one:resolve("db") end)
+  self:assert_true((coroutine.resume(first)))
+  self:assert_equal("suspended", coroutine.status(first))
+  local err = raises(self, container.ContainerError, function() two:resolve("db") end)
+  self:assert_false(core.is_instance_of(err, container.CycleError), "not a cycle: " .. tostring(err))
+  self:assert_equal("db", err.context.key)
+  self:assert_true(tostring(err.message):find("must not suspend", 1, true) ~= nil, err.message)
+  self:assert_true(tostring(err.message):find("OQ-107", 1, true) ~= nil, err.message)
+  local ok, db = coroutine.resume(first)
+  self:assert_true(ok)
+  self:assert_true(db == one:resolve("db"))
+  suspend = false
+  self:assert_false(two:resolve("db") == db, "the key resolves again once the construction finished")
+end
+
+function T:test_a_construction_closed_while_suspended_does_not_block_the_key()
+  local suspend = true
+  local c = ready(function(c)
+    c:bind("db", function()
+      if suspend then coroutine.yield() end
+      return { ready = true }
+    end, { lifetime = "singleton" })
+  end)
+  local abandoned = coroutine.create(function() return c:resolve("db") end)
+  self:assert_true((coroutine.resume(abandoned)))
+  self:assert_true((coroutine.close(abandoned)))
+  suspend = false
+  self:assert_true(c:resolve("db").ready)
+  self:assert_true(c:resolve("db") == c:open_scope():resolve("db"))
+end
+
+function T:test_a_reentrant_resolution_inside_a_coroutine_is_still_a_cycle()
+  local c
+  c = ready(function(self_c)
+    self_c:bind("a", function() return c:resolve("a") end, { lifetime = "singleton" })
+  end)
+  local ok, err = coroutine.resume(coroutine.create(function() return c:resolve("a") end))
+  self:assert_false(ok)
+  self:assert_true(core.is_instance_of(err, container.ConstructionError), tostring(err))
+  self:assert_true(core.is_instance_of(err.cause, container.CycleError), tostring(err.cause))
+end
+
+function T:test_a_cancelled_construction_caches_nothing_and_a_later_resolution_succeeds()
+  local stop = core.CancellationError("stop")
+  local cancel = true
+  local c = ready(function(c)
+    c:bind("single", function()
+      if cancel then error(stop) end
+      return { id = "single" }
+    end, { lifetime = "singleton" })
+    c:bind("scoped", function(single)
+      if cancel then error(stop) end
+      return { single = single }
+    end, { lifetime = "scoped", requires = { "single" } })
+  end)
+  local scope = c:open_scope()
+  self:assert_true(self:assert_error(function() c:resolve("single") end) == stop)
+  self:assert_true(self:assert_error(function() scope:resolve("scoped") end) == stop)
+  cancel = false
+  self:assert_equal("single", c:resolve("single").id)
+  self:assert_true(scope:resolve("scoped").single == c:resolve("single"))
+end
+
+function T:test_a_failure_partway_through_a_graph_in_a_scope_keeps_what_the_scope_built()
+  local log = {}
+  local S, Tr = closing_class("S", log), closing_class("T", log)
+  local fail = true
+  local c = ready(function(c)
+    c:bind("s", S, { lifetime = "scoped" })
+    c:bind("t", Tr, { lifetime = "transient" })
+    c:bind("bad", function()
+      if fail then error("broken") end
+      return {}
+    end, { lifetime = "transient" })
+    c:bind("top", function(s, t, bad) return { s = s, t = t, bad = bad } end,
+      { lifetime = "scoped", requires = { "s", "t", "bad" } })
+  end)
+  local scope = c:open_scope()
+  local err = raises(self, container.ConstructionError, function() scope:resolve("top") end)
+  self:assert_equal("top,bad", table.concat(err.context.path, ","))
+  self:assert_equal(0, #log, "the scope owns what was built and closes it with itself")
+  fail = false
+  local top = scope:resolve("top")
+  self:assert_true(top.s == scope:resolve("s"), "the scoped service built before the failure is reused")
+  scope:close()
+  self:assert_equal("T,T,S", table.concat(log, ","))
+end
+
+function T:test_a_nil_product_and_a_non_conformant_product_carry_the_path()
+  local Repo = core.interface("Repo", { "find" })
+  local c = ready(function(c)
+    c:bind("a", function() end, { lifetime = "transient" })
+    c:bind("top", function(a) return { a = a } end, { lifetime = "transient", requires = { "a" } })
+    c:bind(Repo, function() return {} end, { lifetime = "transient" })
+    c:bind("user", function(repo) return { repo = repo } end, { lifetime = "transient", requires = { Repo } })
+  end)
+  local err = raises(self, container.ConstructionError, function() c:resolve("top") end)
+  self:assert_equal("a", err.context.key)
+  self:assert_equal("top,a", table.concat(err.context.path, ","))
+  local conformance = raises(self, core.ConformanceError, function() c:resolve("user") end)
+  self:assert_equal("Repo", conformance.context.key)
+  self:assert_equal("user,Repo", table.concat(conformance.context.path, ","))
+end
+
+function T:test_a_closable_factory_product_that_fails_conformance_is_closed()
+  local Repo = core.interface("Repo", { "find" })
+  local log = {}
+  local Plain, Bad = closing_class("Plain", log), closing_class("Bad", log, true)
+  local c = ready(function(c) c:bind(Repo, function() return Plain() end, { lifetime = "transient" }) end)
+  local scope = c:open_scope()
+  raises(self, core.ConformanceError, function() scope:resolve(Repo) end)
+  self:assert_equal("Plain", table.concat(log, ","))
+  self:assert_equal(0, #scope._owned)
+  raises(self, core.ConformanceError, function() c:resolve(Repo) end)
+  self:assert_equal("Plain,Plain", table.concat(log, ","))
+  local Strict = core.interface("Strict", { "find" })
+  local d = ready(function(d) d:bind(Strict, function() return Bad() end, { lifetime = "transient" }) end)
+  local err = raises(self, core.ConformanceError, function() d:open_scope():resolve(Strict) end)
+  self:assert_equal(1, #err.context.suppressed)
+  self:assert_equal("Bad failed", err.context.suppressed[1].message)
+end
+
+function T:test_an_instance_returned_twice_is_tracked_and_closed_once_per_owner()
+  local log = {}
+  local Res = closing_class("Res", log)
+  local shared = Res()
+  local c = ready(function(c)
+    c:bind("t", function() return shared end, { lifetime = "transient" })
+    c:bind("a", function(t) return { t = t } end, { lifetime = "singleton", requires = { "t" } })
+    c:bind("b", function(t) return { t = t } end, { lifetime = "singleton", requires = { "t" } })
+  end)
+  c:resolve("a")
+  c:resolve("b")
+  self:assert_equal(1, #c._owned)
+  c:close()
+  self:assert_equal("Res", table.concat(log, ","))
+  local other = Res()
+  local d = ready(function(d) d:bind("t", function() return other end, { lifetime = "transient" }) end)
+  local scope = d:open_scope()
+  scope:resolve("t")
+  scope:resolve("t")
+  self:assert_equal(1, #scope._owned)
+  scope:close()
+  self:assert_equal("Res,Res", table.concat(log, ","))
+end
+
+function T:test_a_transient_returning_a_singleton_instance_is_not_closed_by_the_scope()
+  local log = {}
+  local Res = closing_class("Res", log)
+  local c = ready(function(c)
+    c:bind("single", Res, { lifetime = "singleton" })
+    c:bind("view", function(single) return single end, { lifetime = "transient", requires = { "single" } })
+  end)
+  local scope = c:open_scope()
+  local view = scope:resolve("view")
+  self:assert_true(view == c:resolve("single"))
+  raises(self, container.ContainerError, function() scope:release(view) end)
+  scope:close()
+  self:assert_equal(0, #log, "the container owns it")
+  self:assert_true(c:resolve("view") == view, "the root does not refuse the singleton's own instance")
+  self:assert_equal(0, #log)
+  c:close()
+  self:assert_equal("Res", table.concat(log, ","))
+end
+
+function T:test_a_failed_singleton_construction_closes_the_transients_built_for_it()
+  local log = {}
+  local Dep = closing_class("Dep", log)
+  local fail = true
+  local c = ready(function(c)
+    c:bind("dep", Dep, { lifetime = "transient" })
+    c:bind("inner", function(dep) return { dep = dep } end, { lifetime = "singleton", requires = { "dep" } })
+    c:bind("outer", function(inner, dep)
+      if fail then error("broken") end
+      return { inner = inner, dep = dep }
+    end, { lifetime = "singleton", requires = { "inner", "dep" } })
+  end)
+  raises(self, container.ConstructionError, function() c:resolve("outer") end)
+  self:assert_equal("Dep", table.concat(log, ","), "only the transient of the failed singleton")
+  self:assert_equal(1, #c._owned, "the transient of the built singleton stays owned")
+  for _ = 1, 3 do raises(self, container.ConstructionError, function() c:open_scope():resolve("outer") end) end
+  self:assert_equal(1, #c._owned, "no growth with retries")
+  fail = false
+  c:resolve("outer")
+  self:assert_equal(2, #c._owned)
+  c:close()
+  self:assert_equal("Dep,Dep,Dep,Dep,Dep,Dep", table.concat(log, ","))
+end
+
+function T:test_a_close_error_while_dropping_the_transients_of_a_failed_singleton_is_suppressed()
+  local log = {}
+  local Bad = closing_class("Bad", log, true)
+  local c = ready(function(c)
+    c:bind("dep", Bad, { lifetime = "transient" })
+    c:bind("single", function() error(core.Error("broken")) end, { lifetime = "singleton", requires = { "dep" } })
+  end)
+  local err = raises(self, container.ConstructionError, function() c:resolve("single") end)
+  self:assert_equal("broken", err.cause.message)
+  self:assert_equal(1, #err.context.suppressed)
+  self:assert_equal("Bad failed", err.context.suppressed[1].message)
+  self:assert_equal(0, #c._owned)
+end
+
+function T:test_a_service_scope_is_made_only_from_a_container()
+  for _, bad in ipairs({ {}, 1, "x", true }) do
+    raises(self, core.ArgumentError, function() container.ServiceScope(bad) end)
+  end
+  raises(self, core.ArgumentError, function() container.ServiceScope() end)
 end
 
 -- Overrides ----------------------------------------------------------------------------------------------------------------

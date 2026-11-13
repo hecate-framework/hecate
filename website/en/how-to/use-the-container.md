@@ -67,9 +67,10 @@ print(ok, err.context.problems[1].context.path[1], #err.context.problems)
 `bind(key, definition, options?)` registers one service and returns the container, so calls chain.
 
 - The **key** is a non-empty string (a name) or an interface made by `core.interface`. A key has one binding;
-  binding it twice raises `DuplicateBindingError`.
+  binding it twice raises `DuplicateBindingError`. `has(key)` tells whether a key is bound, without building anything.
 - The **definition** is a finalised class, called as `Class(dependency1, dependency2, ...)`, or a function (a
-  factory) called with the same arguments. It must run to completion without suspending.
+  factory) called with the same arguments. It must run to completion without suspending: while one suspends, resolving
+  the same key from another computation raises `ContainerError`.
 - `requires` lists the keys of the dependencies, in the order of the constructor arguments. Dependencies are declared,
   never guessed from parameter names.
 - `lifetime` is `"singleton"`, `"scoped"` or `"transient"` (or a member of `container.Lifetime`). It is required:
@@ -129,11 +130,17 @@ A scope that owns a transient closes it, so do not put a `<close>` on it yoursel
 releasing an instance the scope does not track, a second time included, raises `ContainerError`. A long-lived scope
 keeps the closable transients it resolved until it closes or you release them.
 
+An owner closes an instance once, however many times a factory returned it, and the instance of a singleton,
+returned again by a transient factory, stays the container's. When a singleton fails to build, the closable
+transients built for it are closed at once.
+
 ## Construction errors
 
 An error raised by a constructor or factory becomes a `ConstructionError` whose `cause` is the original error and whose
 `context.key` and `context.path` say which service and through which chain. `CancellationError` and
-`DeadlineExceededError` pass through unchanged. A failed construction caches nothing; the next resolution tries again.
+`DeadlineExceededError` pass through unchanged. A constructor that returns `nil` raises `ConstructionError` too, and a
+factory product that does not implement its interface key raises `core.ConformanceError` (with the same `context.path`),
+after being closed if it defines `__close`. A failed construction caches nothing; the next resolution tries again.
 
 ## Replace a service in a test
 
