@@ -40,7 +40,7 @@
 
 - The cloud setup script had not run: Lua 5.5 was installed with
   `bash tools/bootstrap/bootstrap.sh --prefix /opt/lua-5.5 --link /usr/local/bin` (a first attempt hit a transient
-  reset from www.lua.org).
+  reset from `www.lua.org`).
 
 ## Commands to re-run
 
