@@ -90,7 +90,10 @@ local queue, queue_head, queue_tail = {}, 1, 0 -- states of the calls waiting fo
 local last_id = 0
 local bytecode = core.weak_table("k") -- function -> its bytecode
 
---- The size of libuv's pool, read as libuv reads it (`UV_THREADPOOL_SIZE`, default 4, from 1 to 1024).
+--- The size of libuv's pool (`UV_THREADPOOL_SIZE`, default 4, at most 1024). libuv reads the value with
+--- `atoi` into an unsigned integer, so a negative value gives it 1024 threads; here every value below 1
+--- counts as 1: an estimate that is too small only keeps more calls in the queue, one that is too large
+--- would take the threads of the file system and name resolution.
 ---@return integer
 local function pool_size()
   local text = os.getenv("UV_THREADPOOL_SIZE")
@@ -188,6 +191,9 @@ end
 local M = {}
 
 M.OffloadError = OffloadError
+--- The pool-thread body, for the tests of its failure paths in this state. Not public API.
+---@private
+M._work = work
 
 --- Runs `fn(...)` on libuv's thread pool, in the separate Lua state of a pool thread, and returns
 --- its results. Use it for CPU-bound work of a millisecond or more (hashing, compression, parsing a
@@ -242,6 +248,7 @@ function M.offload(fn, ...)
     -- Cancelled: a queued call never reaches the pool; a submitted one runs on and its result is
     -- discarded by `on_done`.
     state.abandoned = true
+    state.payload = nil -- a queued call holds its encoded arguments until `dispatch` skips it
     waiting[state.id] = nil
     error(failure, 0)
   end

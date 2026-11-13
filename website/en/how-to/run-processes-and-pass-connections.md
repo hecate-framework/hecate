@@ -163,8 +163,10 @@ The methods of [`Peer`](../reference/reactor/Peer.md) list every error.
 `receive` returns both. From then on only the child owns the connection: the sender's copy is
 closed when the hand-over completes.
 
-Only a `TcpStream` can be handed over, and it must be open. This is the mechanism by which a
-primary hands accepted connections to its workers.
+Only a `TcpStream` can be handed over, it must be open, and it must not have been read: bytes it
+already received would stay in the sender, so `send` refuses a stream on which `read` was called
+with `ArgumentError`. This is the mechanism by which a primary hands accepted connections to its
+workers.
 
 <!-- example: packages/reactor/examples/hecate.reactor.Peer.send.lua -->
 ```lua

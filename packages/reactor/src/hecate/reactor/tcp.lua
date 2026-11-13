@@ -589,26 +589,55 @@ end
 
 local reuseport_supported
 
---- Returns whether this platform and this luv let several TCP sockets listen on one port
---- (`reuseport = true`). The first call probes with two loopback sockets and caches the answer.
---- It says nothing about balance: macOS accepts the flag and gives every connection to one
---- socket, which is why the listening strategy lives above (ADR 0023). Does not suspend.
----@return boolean supported  whether `listen_tcp` accepts `reuseport = true`
-function api.supports_reuseport()
-  if reuseport_supported ~= nil then return reuseport_supported end
+--- Whether a libuv error string carries `errno`.
+---@param err any
+---@param errno string
+---@return boolean
+local function has_errno(err, errno) return type(err) == "string" and err:sub(1, #errno) == errno end
+
+--- Probes `reuseport` with two sockets on the loopback address `host`. Returns true when both
+--- sockets listen on one port, false when the second one is refused with `EADDRINUSE` (the
+--- definite answer of a platform or luv without the option), nil for any other failure (no such
+--- loopback, no descriptor left, ...), which says nothing about the option.
+---@param host string
+---@return boolean?
+local function probe_reuseport(host)
   local first, second = uv.new_tcp(), uv.new_tcp()
   local flags = { reuseport = true }
-  local supported = false
-  if protected(first.bind, first, "127.0.0.1", 0, flags) then
+  local answer
+  if protected(first.bind, first, host, 0, flags) then
     local address = first:getsockname()
-    if address and protected(second.bind, second, "127.0.0.1", address.port, flags)
-        and first:listen(1, function() end) and second:listen(1, function() end) then
-      supported = true
+    if address then
+      local bound, bind_err = protected(second.bind, second, host, address.port, flags)
+      if not bound then
+        if has_errno(bind_err, "EADDRINUSE") then answer = false end
+      elseif first:listen(1, function() end) then
+        local listening, listen_err = second:listen(1, function() end)
+        if listening then
+          answer = true
+        elseif has_errno(listen_err, "EADDRINUSE") then
+          answer = false
+        end
+      end
     end
   end
   first:close(); second:close()
-  reuseport_supported = supported
-  return supported
+  return answer
+end
+
+--- Returns whether this platform and this luv let several TCP sockets listen on one port
+--- (`reuseport = true`). The first call probes with two loopback sockets (`127.0.0.1`, then `::1`)
+--- and caches a definite answer; a probe that fails for another reason (no loopback address, no
+--- descriptor left) answers false and is made again on the next call. It says nothing about
+--- balance: macOS accepts the flag and gives every connection to one socket, which is why the
+--- listening strategy lives above (ADR 0023). Does not suspend.
+---@return boolean supported  whether `listen_tcp` accepts `reuseport = true`
+function api.supports_reuseport()
+  if reuseport_supported ~= nil then return reuseport_supported end
+  local answer = probe_reuseport("127.0.0.1")
+  if answer == nil then answer = probe_reuseport("::1") end
+  reuseport_supported = answer
+  return answer == true
 end
 
 --- Forgets the probe of `supports_reuseport` (tests only: the answer is cached for good).

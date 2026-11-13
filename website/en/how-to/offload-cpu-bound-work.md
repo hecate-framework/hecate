@@ -132,3 +132,8 @@ limit follows it.
 Each call copies its arguments and results and loads the function on the pool thread: a round trip
 costs tens of microseconds, and copying a large table costs time on the reactor thread in proportion
 to its size. Offload work of a millisecond or more, and keep short functions on the reactor thread.
+
+What the function allocates stays in the pool thread's Lua state after it returns, until that thread
+runs Lua again: a program can hold up to the pool size times the peak allocation of one call. A
+function that builds large data drops it before returning: it clears its references to that data,
+then calls `collectgarbage()`.

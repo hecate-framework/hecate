@@ -107,6 +107,7 @@ end
 ---
 --- Raises `hecate.core.ArgumentError` for a message that is not a string, larger than the
 --- `max_message` of the peer (16 MiB by default), a malformed `options`, or a `handle` that is not an open `TcpStream` (a `PipeStream` is refused: only TCP handles can be passed),
+--- or a stream that has been read (`read` was called on it: its buffered bytes would be lost),
 --- and `hecate.reactor.TransportError` when the message pipe is closed (`EBADF`) or broken
 --- (`EPIPE`).
 ---@async
@@ -129,6 +130,12 @@ function Peer:send(message, handle, options)
   end
   if handle ~= nil and handle:is_closed() then
     error(core.ArgumentError("reactor.Peer.send: the stream to hand over is closed"), 2)
+  end
+  -- A stream that has been read holds bytes the receiver would never see (its buffer), and its
+  -- read-ahead may still take bytes meant for the receiver: only an unread stream is handed over.
+  ---@diagnostic disable-next-line: invisible  -- same package
+  if handle ~= nil and (handle._demanded or handle._started or handle._inbox ~= nil) then
+    error(core.ArgumentError("reactor.Peer.send: a stream that has been read cannot be handed over"), 2)
   end
   local frame = string.pack(HEADER, #message, handle and 1 or 0) .. message
   if handle == nil then

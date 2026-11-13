@@ -1,10 +1,11 @@
----@diagnostic disable: param-type-mismatch, assign-type-mismatch  -- the tests pass invalid arguments on purpose
+---@diagnostic disable: param-type-mismatch, assign-type-mismatch, invisible  -- invalid arguments on purpose; `_work` is internal
 -- `reactor.offload` (concurrency.md, "Offload"; OQ-119): self-contained functions on the libuv
 -- thread pool, values copied between Lua states, errors, cancellation and the reactor clock.
 local test = require("harness.test")
 local core = require("hecate.core")
 local reactor = require("hecate.reactor")
 local context = require("hecate.reactor.internal.context")
+local offload_module = require("hecate.reactor.offload") -- `_work`, the pool-thread body
 local T = test.Case("OffloadTest")
 
 --- Runs `fn` on a real-clock reactor and returns its results.
@@ -283,6 +284,83 @@ function T:test_arguments_that_cannot_cross_are_refused()
   assert_argument_error(self, function() reactor.offload(function() end, cycle) end, "contains itself")
 end
 
+function T:test_the_path_in_an_encoding_error_is_escaped_and_bounded()
+  local huge = ("k"):rep(1024 * 1024)
+  local err = assert_argument_error(self, function() reactor.offload(function() end, { [huge] = print }) end, "argument 1[")
+  self:assert_true(#tostring(err) < 400, ("a message of %d bytes"):format(#tostring(err)))
+  err = assert_argument_error(self, function()
+    reactor.offload(function() end, { list = { ["line\nbreak\0\r"] = print } })
+  end, 'argument 1.list["line\\nbreak')
+  self:assert_nil(tostring(err):find("[%c]"), "a raw control character in: " .. tostring(err))
+  -- A deep path keeps its beginning and its end, within a bound.
+  local root = {}
+  local node = root
+  for _ = 1, 90 do
+    node.a_rather_long_field_name = {}
+    node = node.a_rather_long_field_name
+  end
+  node.last = print
+  err = assert_argument_error(self, function() reactor.offload(function() end, root) end, "argument 1[...].a_rather")
+  self:assert_true(tostring(err):find(".last: a function", 1, true) ~= nil, tostring(err))
+  self:assert_true(#tostring(err) < 400, ("a message of %d bytes"):format(#tostring(err)))
+  -- The same on the pool thread, for a result.
+  local result = assert_offload_error(self, function()
+    reactor.offload(function() return { ["a\nb"] = print } end)
+  end, 'result 1["a\\nb"]')
+  self:assert_nil(result.message:find("[%c]"), result.message)
+end
+
+-- The pool thread, called in this state (OQ-119) -------------------------------------------------
+
+function T:test_a_pool_thread_that_cannot_load_the_function_answers_worker()
+  local transfer = require("hecate.reactor.internal.transfer")
+  local payload = transfer.codec.encode("argument", 0, {})
+  local id, status, message = offload_module._work(7, transfer.code, "not bytecode", payload)
+  self:assert_equal(7, id)
+  self:assert_equal("worker", status)
+  self:assert_true(message:find("cannot load the function", 1, true) ~= nil, message)
+end
+
+function T:test_a_pool_thread_that_cannot_decode_the_arguments_answers_worker()
+  local transfer = require("hecate.reactor.internal.transfer")
+  local id, status, message = offload_module._work(8, transfer.code, string.dump(function() end), "\1\0\0\0\0\0\0\0?")
+  self:assert_equal(8, id)
+  self:assert_equal("worker", status)
+  self:assert_true(message:find("the pool thread failed", 1, true) ~= nil, message)
+  -- A well-formed call through the same entry answers "ok".
+  local _, ok_status, data = offload_module._work(9, transfer.code, string.dump(function(a) return a + 1 end),
+    transfer.codec.encode("argument", 1, { 41 }))
+  self:assert_equal("ok", ok_status)
+  local n, values = transfer.codec.decode(data)
+  self:assert_equal(1, n)
+  self:assert_equal(42, values[1])
+end
+
+function T:test_a_call_libuv_refuses_raises_an_io_error()
+  local uv = require("luv")
+  local original = uv.queue_work
+  uv.queue_work = function() return nil, "EINVAL: invalid argument" end
+  local ok, err = pcall(run, function() return reactor.offload(function() return 1 end) end)
+  uv.queue_work = original
+  self:assert_false(ok)
+  self:assert_true(core.is_instance_of(err, reactor.IoError), tostring(err))
+  self:assert_true(tostring(err):find("EINVAL", 1, true) ~= nil, tostring(err))
+  self:assert_equal(0, context.offloads_in_flight or 0)
+  self:assert_equal(2, run(function() return reactor.offload(function() return 2 end) end), "the reactor is healthy")
+end
+
+function T:test_a_function_under_its_own_local_env_runs()
+  local doubled, rep = run(function()
+    return reactor.offload(function(x)
+      local s = string -- read through the _ENV upvalue, before the local one
+      local _ENV = { value = x * 2 }
+      return value, s.rep("a", 2) ---@diagnostic disable-line: undefined-global  -- a field of the local _ENV
+    end, 21)
+  end)
+  self:assert_equal(42, doubled)
+  self:assert_equal("aa", rep)
+end
+
 -- Scheduling ------------------------------------------------------------------------------------
 
 function T:test_a_cancelled_caller_is_released_and_the_result_discarded()
@@ -420,6 +498,39 @@ function T:test_a_caller_cancelled_while_queued_never_runs_its_function()
   local file = io.open(path, "r")
   if file then file:close(); os.remove(path) end
   self:assert_nil(file, "the cancelled function ran")
+end
+
+--- The queue of `offload` (an upvalue of the function): the states of the calls waiting for the pool.
+local function offload_queue()
+  local index = 1
+  while true do
+    local name, value = debug.getupvalue(offload_module.offload, index)
+    if name == nil then error("offload has no upvalue named queue") end
+    if name == "queue" then return value end
+    index = index + 1
+  end
+end
+
+function T:test_a_caller_cancelled_while_queued_releases_its_arguments_at_once()
+  local queued_states, held = reactor.Reactor({ max_offloads = 1 }):run(function()
+    local first = reactor.fork(reactor.offload, spin(0.3))
+    local queued = reactor.fork(reactor.offload, function() end, ("x"):rep(1024 * 1024))
+    reactor.sleep(0)
+    local count, held = 0, 0
+    for _, state in pairs(offload_queue()) do
+      count = count + 1
+      self:assert_equal("string", type(state.payload), "a queued call holds its encoded arguments")
+    end
+    queued:cancel()
+    pcall(queued.value, queued)
+    for _, state in pairs(offload_queue()) do -- the cancelled call stays in the queue until `dispatch` skips it
+      if state.payload ~= nil then held = held + #state.payload end
+    end
+    first:value()
+    return count, held
+  end)
+  self:assert_equal(1, queued_states)
+  self:assert_equal(0, held, "the cancelled call still holds its encoded arguments")
 end
 
 function T:test_a_failed_run_drops_its_queued_calls()

@@ -268,6 +268,10 @@ local function check_start_options(options)
   if options.cwd ~= nil and type(options.cwd) ~= "string" then
     error(core.ArgumentError("reactor.spawn: option cwd must be a string"), 3)
   end
+  -- libuv takes C strings: it would cut a NUL byte and its tail away (as for the program name).
+  if options.cwd ~= nil and options.cwd:find("\0", 1, true) then
+    error(core.ArgumentError("reactor.spawn: option cwd contains a NUL byte"), 3)
+  end
   for _, key in ipairs({ "stdout", "stderr" }) do
     local value = options[key]
     if value ~= nil and value ~= "inherit" and value ~= "ignore" then
@@ -279,6 +283,9 @@ local function check_start_options(options)
     for name, value in pairs(options.env) do
       if type(name) ~= "string" or name == "" or name:find("=", 1, true) or type(value) ~= "string" then
         error(core.ArgumentError("reactor.spawn: option env maps variable names to strings"), 3)
+      end
+      if name:find("\0", 1, true) or value:find("\0", 1, true) then
+        error(core.ArgumentError("reactor.spawn: option env contains a NUL byte in a variable name or value"), 3)
       end
     end
   end
@@ -303,7 +310,8 @@ end
 --- valid standard output and error in this process (a service without them gets a failure from
 --- the operating system: pass `"ignore"`).
 ---
---- Raises `hecate.core.ArgumentError` for a malformed argument or option and
+--- Raises `hecate.core.ArgumentError` for a malformed argument or option (a NUL byte in `program`,
+--- an argument, `cwd` or an `env` name or value included) and
 --- `hecate.reactor.IoError` if the program cannot be started.
 ---@param program string  the program to start
 ---@param args? string[]  its arguments, without the program name

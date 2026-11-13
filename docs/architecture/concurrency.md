@@ -202,7 +202,12 @@ the reactor thread. The basis is luv's `new_work` and `queue_work`; luv is used 
   thread: a round trip costs tens of microseconds, and the copy is proportional to the size of
   the values, encoded and decoded on the reactor thread for the arguments and the results
   (`packages/reactor/benchmarks/offload.lua`). It is worth it for work of a millisecond or more,
-  not for short functions or for a large value with little work.
+  not for short functions or for a large value with little work. Memory is a cost too: what `fn`
+  allocates stays in the pool thread's Lua state after the call, as garbage that state collects only
+  when that thread runs Lua again, so a program can hold up to the pool size times the peak
+  allocation of one call (one call building 3 million strings left about 300 MB resident). A
+  function that builds large data drops it before returning: it clears its references to that data
+  (or builds it in an inner function that has returned) and then calls `collectgarbage()`.
 
 ## Workers
 

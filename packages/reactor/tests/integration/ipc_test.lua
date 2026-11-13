@@ -260,6 +260,31 @@ function T:test_send_closes_the_handed_stream_unless_keep_open_is_given()
   end)
 end
 
+function T:test_a_stream_that_has_been_read_cannot_be_handed_over()
+  with_pair(self, function(a)
+    local listener <close> = reactor.listen_tcp("127.0.0.1", 0)
+    local port = listener:local_address().port
+    local client = reactor.connect_tcp("127.0.0.1", port)
+    local accepted = listener:accept()
+    client:write("hello")
+    self:assert_equal("he", accepted:read(2)) -- "llo" stays buffered, and the stream reads ahead
+    local err = self:assert_error(function() a:send("x", accepted) end)
+    self:assert_true(core.is_instance_of(err, core.ArgumentError), tostring(err))
+    self:assert_true(tostring(err):find("has been read", 1, true) ~= nil, tostring(err))
+    self:assert_false(accepted:is_closed(), "a refused stream stays with the caller")
+    -- A read demanded and cancelled before any byte arrived also counts: libuv may be reading.
+    local client_two = reactor.connect_tcp("127.0.0.1", port)
+    local waiting = listener:accept()
+    local reader = reactor.fork(function() return waiting:read() end)
+    reactor.sleep(0)
+    reader:cancel()
+    pcall(reader.value, reader)
+    err = self:assert_error(function() a:send("y", waiting) end)
+    self:assert_true(core.is_instance_of(err, core.ArgumentError), tostring(err))
+    accepted:close(); waiting:close(); client:close(); client_two:close()
+  end)
+end
+
 function T:test_send_checks_its_options()
   with_pair(self, function(a)
     local function refused(options)
