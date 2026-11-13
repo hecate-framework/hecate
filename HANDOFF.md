@@ -3,8 +3,8 @@
 
 - roadmap_item: **Phase 2 gate**: verification of the phase, as described in "Phase gates" (`docs/roadmap.md`).
 - status: in-progress
-- lock_until: 2026-11-13T12:20:00Z
-- last_update: 2026-11-13T10:50:00Z
+- lock_until: 2026-11-13T12:30:00Z
+- last_update: 2026-11-13T11:00:00Z
 
 ## Unblocked
 
@@ -22,9 +22,18 @@ example rules, `check-examples` and the examples tests).
 - Step 1 "It works" (at `main` eb9d9b7): every check, `build-native json|doc|http|net`, `typecheck`, `test` (all
   packages, `tools`, `examples/hello`), `leaks`, `bench plaintext` and `kernel-json` ok; CI of eb9d9b7 green on the
   three platforms. Recorded in `docs/reviews/phase-2.md` section 2, with findings G1 (gen checks not in CI: fixed),
-  G2 (README statuses: fixed), G3 (`bench <scenario> --runs` message: to triage). `coverage` was started; record it.
+  G2 (README statuses: fixed), G3 (`bench <scenario> --runs` message: to triage). `coverage`: every package at or above its threshold but `reactor` 89.8 % (< 90 %) locally; compare with the
+  nightly of eb9d9b7 (run 43403344037) before deciding (report row G5, to add).
 - Step 3, roadmap triage item: `Application:serve` without the `http` native module raises `ModuleError`
   `http_unavailable` naming `build-native http` (test first; report row G4).
+- G3 fixed (`bench <scenario> --runs` names `--rounds`), 41c4795. Issue #184 (stale idle notice) closed.
+- Steps 2, 4 and 5 delegated to three agents (completeness, coherence into
+  `docs/reviews/phase-2-coherence-findings.md`, safe content with the canary test
+  `packages/kernel/tests/integration/safe_content_canary_test.lua`); interrupted once by a usage limit, resumed.
+  If a run finds them gone, redo those steps.
+- Step 7 prepared: the open `due:phase-2` issues are #56 OQ-46, #60 OQ-17, #61 OQ-13, #64 OQ-24 (owner decision
+  recorded: move to Resolved), #72 OQ-38, #77 OQ-64, #81 OQ-75, #83 OQ-69, #87 OQ-73, #90 OQ-82, #91 OQ-77; each
+  needs a line in section 5 with a recommendation and one `needs-decision` issue.
 
 ## Next steps
 
