@@ -348,4 +348,23 @@ function T:test_validate_responses_must_be_a_boolean()
   self:assert_true(core.is_instance_of(err, core.ArgumentError))
 end
 
+function T:test_the_fields_of_a_problem_returned_or_raised_by_an_action_reach_the_response()
+  local problem = require("hecate.kernel.problem")
+  local serve = serve_with(function(m)
+    m:get("/returned", { action = function()
+      return problem.Unauthorized({ fields = { ["WWW-Authenticate"] = 'Bearer realm="api"' } })
+    end })
+    m:get("/raised", { action = function()
+      error(problem.ServiceUnavailable({ fields = { ["Retry-After"] = "30" } }))
+    end })
+  end)
+  local returned = serve(request("GET", "/returned"))
+  self:assert_equal(401, returned.status)
+  self:assert_equal('Bearer realm="api"', returned.fields:get("WWW-Authenticate"))
+  local raised = serve(request("GET", "/raised"))
+  self:assert_equal(503, raised.status)
+  self:assert_equal("30", raised.fields:get("Retry-After"))
+  self:assert_nil(raised.content:find("Retry-After", 1, true), "never in the content")
+end
+
 return T

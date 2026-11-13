@@ -59,7 +59,8 @@ the test framework opens one per test. Rules:
    inside a shield no cancellation of the enclosing scopes (nor of the running computation) is delivered, the
    shield's own deadline bounds it, and a cancellation that arrived meanwhile is raised again at the first
    suspension point after it. Computations forked inside a shield belong to the shield's scope and are not cancelled
-   by the outer one.
+   by the outer one. The kernel bounds the shield of the service-scope close of a cancelled request at 5 s
+   (`dispatcher.CLOSE_TIMEOUT`, OQ-127 (1)).
 
 This removes the classic leak where background work outlives the request that started it.
 
@@ -166,7 +167,7 @@ the reactor thread. The basis is luv's `new_work` and `queue_work`; luv is used 
   followed by the error message (the `message` field of an error object, otherwise `tostring` of
   the error), `context.traceback` holds the traceback on the pool thread and `context.code` the
   `code` of a framework error. The original error object does not cross. A result that cannot be
-  copied gives the reason `"result"`, a failure of the pool thread itself `"worker"` (both
+  copied gives the reason `"result"`, a failure of the pool thread itself `"pool_thread"` (both
   without a traceback). libuv refusing the work raises `hecate.reactor.IoError`.
 - **Queue and limit.** At most `max_offloads` functions are on the pool at once (a `Reactor`
   option, a positive integer; default the pool size minus one, at least 1), so a thread stays free
@@ -248,7 +249,11 @@ Accepted in [ADR 0023](../adr/0023-multi-process-serving.md), measured in
   (default 30) of its start or restart is killed and counted as a crash (`worker_not_ready`); the watchdog ends at
   `ready`, and a worker retired by a reload drains under the reload's grace period, never cut short by it.
   Back-pressure of `round_robin`: a worker with as many unacknowledged hand-overs as its backlog is skipped; when every
-  worker is saturated the connection is closed and `hand_over_saturated` is logged. In `degrade` mode a restart that
+  worker is saturated the primary pauses accepting (OQ-127 (2)): it keeps the connection already accepted and hands it
+  over as soon as a worker acknowledges one (`received`), while new connections wait in the listen backlog and the
+  operating system refuses them once it is full, as nginx, gunicorn and HAProxy do. The pause is logged
+  `hand_over_saturated` at `warning` once, when it starts, and nothing per connection. A worker joining the rotation (a
+  restart, the replacement of a reload) also ends the pause; a stop ends it at once and closes the connection kept. In `degrade` mode a restart that
   cannot start the program counts as a crash and is retried; a failed first start stays `start_failed`.
   `HECATE_WORKER_HOST` may carry an IPv6 zone id.
 - Graceful shutdown: stop accepting, drain in-flight requests up to a configurable deadline,

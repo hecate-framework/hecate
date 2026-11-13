@@ -215,6 +215,86 @@ function T:test_a_worker_that_stops_reading_its_message_pipe_does_not_stall_the_
   self:assert_equal(3, unanswered)
 end
 
+--- Counts the records of `code` in `memory`.
+local function count_events(memory, code)
+  local count = 0
+  for _, event in ipairs(workers.events(memory)) do if event.code == code then count = count + 1 end end
+  return count
+end
+
+function T:test_the_primary_pauses_accepting_while_every_worker_is_saturated_and_resumes_when_one_frees_up()
+  if not can_run_workers() then return end
+  set_flag("mute") -- the only worker reports ready, then never reads its message pipe: it never acknowledges
+  local memory = log.MemorySink()
+  local first, second, third, fourth, why
+  reactor.run(function()
+    local sup = new_supervisor({ count = 1, restart_delay = 0.01, endpoint = { host = "127.0.0.1", port = 0, backlog = 2 },
+      logger = log.Logger({ sinks = { memory } }), strategy = kernel.listening.select("round_robin", { logger = log.Logger({ sinks = { memory } }) }),
+      env = { HECATE_TEST_FLAG = flag_path } })
+    reactor.scope(function(scope)
+      local running = scope:fork(sup.run, sup)
+      wait_until(function() return sup:ready_count() == 1 end)
+      local port = sup:local_address().port
+      -- Two connections fill the backlog (2) of the mute worker: handed over, never acknowledged.
+      first = scope:fork(get, port)
+      second = scope:fork(get, port)
+      -- The third finds every worker saturated: the primary keeps it and stops accepting; the fourth waits in the
+      -- listen backlog. Neither is closed.
+      third = scope:fork(get, port)
+      wait_until(function() return workers.find_event(memory, "hand_over_saturated") ~= nil end)
+      fourth = scope:fork(get, port)
+      reactor.sleep(0.3)
+      self:assert_equal("pending", third:state(), "a connection kept during the pause is not closed")
+      self:assert_equal("pending", fourth:state())
+      -- The mute worker is killed (the test reaches the process the supervisor holds); its replacement serves, and
+      -- the primary resumes: the kept connection and the one in the listen backlog are both answered.
+      local mute = sup._slots[1].gen.process
+      mute:kill("sigkill")
+      local content
+      content, why = third:value()
+      self:assert_not_nil(content, why)
+      content, why = fourth:value()
+      self:assert_not_nil(content, why)
+      self:assert_true(content:match("^1:%d+$") ~= nil, content)
+      first, second = first:value(), second:value() -- the connections lost with the mute worker are closed
+      sup:stop(0.2)
+      running:value()
+    end)
+  end)
+  self:assert_nil(first)
+  self:assert_nil(second)
+  self:assert_equal(1, count_events(memory, "hand_over_saturated"), "logged once, when the pause starts")
+end
+
+function T:test_a_stop_ends_a_pause_and_closes_the_connection_kept()
+  if not can_run_workers() then return end
+  set_flag("mute")
+  local memory = log.MemorySink()
+  local kept, reason
+  reactor.run(function()
+    local sup = new_supervisor({ count = 1, endpoint = { host = "127.0.0.1", port = 0, backlog = 1 },
+      logger = log.Logger({ sinks = { memory } }), strategy = kernel.listening.select("round_robin", { logger = log.Logger({ sinks = { memory } }) }),
+      env = { HECATE_TEST_FLAG = flag_path } })
+    reactor.scope(function(scope)
+      local running = scope:fork(sup.run, sup)
+      wait_until(function() return sup:ready_count() == 1 end)
+      local port = sup:local_address().port
+      local held = scope:fork(get, port) -- handed over, never acknowledged
+      local paused = scope:fork(get, port)
+      wait_until(function() return workers.find_event(memory, "hand_over_saturated") ~= nil end)
+      local stopping = scope:fork(sup.stop, sup, 0.2)
+      -- The pause ends with the stop: the kept connection is closed at once, long before the mute worker is killed.
+      reactor.deadline(5, function() kept, reason = paused:value() end)
+      stopping:value()
+      running:value()
+      held:value()
+    end)
+  end)
+  self:assert_nil(kept)
+  -- Closed unanswered (an orderly close, or a reset since the request was never read: it depends on the system).
+  self:assert_true(reason:find("after 0 bytes$") ~= nil, reason)
+end
+
 function T:test_cancelling_run_leaves_no_worker_process_alive()
   if not can_run_workers() then return end
   reactor.run(function()

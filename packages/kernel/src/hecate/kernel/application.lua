@@ -43,7 +43,7 @@ end
 ---@field expose_details? boolean  see `hecate.kernel.DispatcherOptions`
 ---@field inputs? "lax"|"strict"  see `hecate.kernel.DispatcherOptions`
 ---@field validate_responses? boolean  validate each result against the schema declared for its status (see `hecate.kernel.DispatcherOptions`); default true when the environment of `configuration` is `development` or `test`, else false (OQ-117)
----@field logger? hecate.log.Logger  receives unhandled failures and the container warnings
+---@field logger? hecate.log.Logger  receives unhandled failures and the container warnings; without it and without a `configuration`, `log.default()` does (OQ-79: standard error)
 ---@field router? hecate.router.RouterOptions
 ---@field server? hecate.http.ServerOptions  options of the HTTP server made by `serve` (`logger` defaults to the application's; the application sets `on_request_end` to end the service scope of each request, and a hook given here runs after that)
 ---@field signals? boolean  `true` (default) handles signals, `false` disables signal handling (tests, embedding); the set (`sigint`, `sigterm` stop; `sighup` reloads a primary, and is ignored elsewhere) is fixed and cannot be listed
@@ -194,7 +194,7 @@ end
 --- services (application first, then each module in order), validates the container graph, gathers the route table and
 --- builds the function that serves a request; only then applies `max_depth` (`json.set_max_depth`) and, when the
 --- logger comes from `configuration`, installs it as the default logger (`log.set_default`). Container warnings go to
---- the logger.
+--- the logger, or to `log.default()` without one (OQ-79).
 ---
 --- A failed boot changes no process-wide setting and leaves the application unbooted (`container`, `router` and the
 --- resolved options stay unset). What it can leave behind: the services already bound into a container given with the
@@ -248,11 +248,9 @@ function Application:boot()
     module_sources[#module_sources + 1] = { sources = module.routes or {}, filters = module.filters }
   end
   local _, warnings = container:validate()
-  local logger = options.logger
-  if logger ~= nil then
-    for _, warning in ipairs(warnings) do
-      logger:log("warning", "container: " .. tostring(warning.message), { code = warning.code })
-    end
+  local logger = options.logger -- nil: each record goes to `log.default()` (OQ-79), resolved when it is written
+  for _, warning in ipairs(warnings) do
+    (logger or log.default()):log("warning", "container: " .. tostring(warning.message), { code = warning.code })
   end
   local entries = routing.collect(sources)
   for _, owned in ipairs(module_sources) do
@@ -304,7 +302,7 @@ end
 ---@async
 ---@param self hecate.kernel.Application
 ---@param watcher hecate.reactor.SignalWatcher
----@param logger? hecate.log.Logger
+---@param logger hecate.log.Logger  the application's, or `log.default()` (OQ-79)
 local function watch_signals(self, watcher, logger)
   reactor.scope(function(reloads)
     local name
@@ -320,15 +318,13 @@ local function watch_signals(self, watcher, logger)
       end
       if self._supervisor ~= nil then
         reloads:fork(reload_on_signal, self, logger)
-      elseif logger ~= nil then
+      else
         logger:debug("kernel.Application: sighup ignored; only a primary of several workers reloads", { code = "reload_ignored" })
       end
     end
     self._signalled = true
-    if logger ~= nil then
-      logger:notice("kernel.Application: signal received, shutting down gracefully",
-        { code = "shutdown_signal", signal = name })
-    end
+    logger:notice("kernel.Application: signal received, shutting down gracefully",
+      { code = "shutdown_signal", signal = name })
     -- The drain runs in this scope's body; the forked computation waits for the second signal and ends with the scope (ADR 0003).
     reactor.scope(function(scope)
       local forcer = scope:fork(function()
@@ -339,9 +335,7 @@ local function watch_signals(self, watcher, logger)
             return
           end
           if second ~= "sighup" then
-            if logger ~= nil then
-              logger:warning("kernel.Application: second signal received, stopping now", { code = "shutdown_forced", signal = second })
-            end
+            logger:warning("kernel.Application: second signal received, stopping now", { code = "shutdown_forced", signal = second })
             -- The primary cannot wait for the workers' own drain any more: it kills them (`Supervisor:force`).
             if self._supervisor ~= nil then self._supervisor:force() else self:shutdown(0) end
             return
@@ -359,7 +353,7 @@ end
 ---@async
 ---@param self hecate.kernel.Application
 ---@param watcher hecate.reactor.SignalWatcher
----@param logger? hecate.log.Logger
+---@param logger hecate.log.Logger  the application's, or `log.default()` (OQ-79)
 local function swallow_signals(self, watcher, logger)
   while true do
     local ok, name = pcall(watcher.wait, watcher)
@@ -367,16 +361,14 @@ local function swallow_signals(self, watcher, logger)
       if core.is_instance_of(name, core.CancellationError) then error(name, 0) end
       return
     end
-    if logger ~= nil then
-      logger:debug("kernel.Application: worker ignores a signal; the primary stops it", { code = "worker_signal_ignored", signal = name })
-    end
+    logger:debug("kernel.Application: worker ignores a signal; the primary stops it", { code = "worker_signal_ignored", signal = name })
   end
 end
 
 --- Runs `body` with `watch` (the signal handling) beside it, unless `signals = false`; closes the container afterwards.
 ---@async
 ---@param self hecate.kernel.Application
----@param watch async fun(self: hecate.kernel.Application, watcher: hecate.reactor.SignalWatcher, logger?: hecate.log.Logger)
+---@param watch async fun(self: hecate.kernel.Application, watcher: hecate.reactor.SignalWatcher, logger: hecate.log.Logger)
 ---@param body async fun()
 local function run_watched(self, watch, body)
   local logger = self._resolved.logger
@@ -389,8 +381,8 @@ local function run_watched(self, watch, body)
       if created then
         watcher = handle
         watching = scope:fork(watch, self, handle, logger or log.default())
-      elseif logger ~= nil then
-        logger:warning("kernel.Application: signals cannot be watched; serving without graceful shutdown on signals",
+      else
+        (logger or log.default()):warning("kernel.Application: signals cannot be watched; serving without graceful shutdown on signals",
           { code = "signals_unavailable" })
       end
     end

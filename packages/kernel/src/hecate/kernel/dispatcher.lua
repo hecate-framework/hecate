@@ -20,7 +20,7 @@ local input = require("hecate.kernel.input")
 ---@field container? hecate.container.Container  a validated container: each request opens one service scope on it, bound to `request.services` (`request.scope` stays the reactor scope `http.Server` sets); required when a controller declares `dependencies`
 ---@field router? hecate.router.RouterOptions  options of the router
 ---@field expose_details? boolean  see `hecate.kernel.problems.GuardOptions`
----@field logger? { log: fun(self: any, severity: string, message: string, fields?: table) }  receives unhandled failures
+---@field logger? { log: fun(self: any, severity: string, message: string, fields?: table) }  receives unhandled failures (default `log.default()` at the time of each record, OQ-79)
 ---@field inputs? "lax"|"strict"  policy for undeclared query parameters, default `"strict"`: a request that carries one is refused with a 422 naming each (never its value); `"lax"` drops them. Undeclared header fields and cookies are always dropped. The kernel will bind it to `requests.inputs` (OQ-114 (8))
 ---@field serialisers? table<string, fun(plain: any): string>  media type to serialiser; default `results.serialisers`
 ---@field validate_responses? boolean  default false: validate each represented result against the schema declared for its status, a mismatch becomes a logged 500 (development and test, see `results.serialise`)

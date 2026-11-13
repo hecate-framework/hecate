@@ -392,6 +392,32 @@ function T:test_configuration_builds_and_installs_the_default_logger()
   log.set_default(nil)
 end
 
+function T:test_an_application_without_logger_or_configuration_logs_through_the_default_logger()
+  local memory = log.MemorySink()
+  log.set_default(log.Logger({ sinks = { memory } })) -- stands for the console logger on standard error (OQ-79)
+  local m = kernel.routes("failing")
+  m:get("/fail", { action = function() error("an unhandled defect") end })
+  local ok, failure = pcall(function()
+    local app = kernel.Application({
+      routes = { m },
+      -- A singleton over a transient: a container warning at boot, logged too.
+      services = function(c)
+        c:bind("clock", function() return {} end, { lifetime = "transient" })
+        c:bind("cache", function() return {} end, { lifetime = "singleton", requires = { "clock" } })
+      end,
+    })
+    local serve = app:boot()
+    self:assert_equal(500, get(serve, "/fail").status)
+  end)
+  log.set_default(nil)
+  self:assert_true(ok, tostring(failure))
+  local messages = {}
+  for _, record in ipairs(memory:records()) do messages[#messages + 1] = record.message end
+  local text = table.concat(messages, "\n")
+  self:assert_not_nil(text:find("unhandled error while serving a request", 1, true), text)
+  self:assert_not_nil(text:find("container: ", 1, true), text)
+end
+
 function T:test_file_sink_without_path_is_refused()
   local logging = require("hecate.kernel.logging")
   local ok = pcall(logging.build, { get = function() return { sinks = { "file" }, redact = {}, severities = {}, severity = "debug" } end })

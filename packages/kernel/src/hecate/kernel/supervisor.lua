@@ -85,7 +85,7 @@ end
 ---@field endpoint hecate.kernel.Endpoint  where the application listens
 ---@field strategy? hecate.kernel.ListeningStrategy  default `listening.select("auto")`
 ---@field env? table<string, string>  variables added to the environment of each worker
----@field logger? hecate.log.Logger  receives worker exits, restarts and the crash loop
+---@field logger? hecate.log.Logger  receives worker exits, restarts and the crash loop (default `log.default()` at the time of each record, OQ-79); also given to the strategy chosen by default
 ---@field restart_delay? number  seconds before the first restart of a worker (default 0.1), doubled at each crash in the crash window, at most 10 s
 ---@field crash_limit? integer  crashes within `crash_window` that stop the supervisor (default 5)
 ---@field crash_window? number  seconds (default 60)
@@ -165,7 +165,7 @@ end
 ---@param message string
 ---@param fields table
 local function note(self, severity, message, fields)
-  if self._logger ~= nil then self._logger:log(severity, "kernel.Supervisor: " .. message, fields) end
+  (self._logger or log.default()):log(severity, "kernel.Supervisor: " .. message, fields) -- never lost (OQ-79)
 end
 
 --- Asks `run` to stop, with `grace` seconds; only the first request counts. Never suspends.
@@ -316,6 +316,7 @@ local function on_message(self, gen, message, stream)
     if not self._stopping then self._ring:add(gen.target) end
   elseif message == "received" then
     release_oldest(gen)
+    self._ring:acknowledged() -- the worker may take one more: a hand-over loop paused on saturation resumes (OQ-127 (2))
   elseif message:sub(1, 9) == "counters " then
     gen.counters = parse_counters(message) or gen.counters -- a malformed message changes nothing
   end

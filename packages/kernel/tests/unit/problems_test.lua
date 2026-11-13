@@ -267,6 +267,23 @@ function T:test_guard_logs_the_class_and_the_code_of_a_500_apart_from_the_messag
   self:assert_equal("boom", fields.error)
 end
 
+function T:test_guard_without_a_logger_logs_through_the_default_logger()
+  local memory = log.MemorySink()
+  log.set_default(log.Logger({ sinks = { memory } })) -- what a process without a logger writes to (OQ-79)
+  local ok, response = pcall(function()
+    return problems.guard(function() error(core.Error("boom")) end)(request())
+  end)
+  log.set_default(nil)
+  self:assert_true(ok, tostring(response))
+  self:assert_equal(500, response.status)
+  local records = memory:records()
+  self:assert_equal(1, #records)
+  self:assert_true(records[1].severity == log.Severity.error)
+  self:assert_equal("unhandled error while serving a request", records[1].message)
+  self:assert_equal("boom", records[1].fields.error)
+  self:assert_equal("string", type(records[1].fields.traceback), "the traceback is taken without a logger too")
+end
+
 function T:test_the_console_sink_escapes_control_characters_of_a_logged_message()
   local out = {}
   local logger = log.Logger({ sinks = { log.ConsoleSink({ output = function(line) out[#out + 1] = line end }) } })

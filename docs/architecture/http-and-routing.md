@@ -128,7 +128,14 @@ What exists in `hecate.kernel` (the package [README](../../packages/kernel/READM
 - An action returns a value, a `Response`, a problem, or `respond(status, value?, schema?)` for another status or
   schema.
 - Problem classes (`problem.NotFound`, ..., `problem.define` for an application's own) become
-  `application/problem+json` responses (RFC 9457). An uncaught error is a `500` without internal details.
+  `application/problem+json` responses (RFC 9457). An uncaught error is a `500` without internal details, logged
+  through the application's logger or, without one, through `log.default()` on standard error (OQ-79).
+- A problem instance may carry header fields (`fields`, OQ-126 (a)): `WWW-Authenticate` for a 401 (RFC 9110,
+  sections 11.6.1 and 15.5.2), `Allow` for a 405 (section 15.5.6), `Retry-After` for a 429 or a 503 (section 10.2.3).
+  They are copied into the response through `http.Fields`, never into the JSON content nor into the contract of a route
+  (`responses`, OpenAPI); an invalid name or value raises `ArgumentError` at construction, and so do the fields the
+  kernel owns (`Content-Type`, `Content-Length`, `Transfer-Encoding`, `Connection`). Fields changed after construction
+  into an owned one give a logged generic `500`.
 - `Accept` is minimal: absent, `*/*`, `application/*` or `application/json` select JSON; anything else is a `406`
   problem. It follows RFC 9110 section 12.5.1: a media type takes the weight of the most specific matching range, and
   `q=0` excludes it (`application/json;q=0, */*` gives 406); equal weights go to the range written first, then JSON.
@@ -171,7 +178,8 @@ An action may return:
 - a value: serialised as the representation for the declared `200` (or `201` for
   `POST` when declared) response;
 - a `Response`: sent as is;
-- a problem (`hecate.problem.*`): serialised as `application/problem+json` (RFC 9457).
+- a problem (`hecate.problem.*`): serialised as `application/problem+json` (RFC 9457), with its header
+  fields (`fields`) when it has some.
 
 In development and test modes, responses are validated against the declared response
 schemas; a mismatch is an error. In production this check is off by default.

@@ -135,10 +135,27 @@ print(body.detail)
 - **Raise** a problem (`error(NotFound { ... })`) from code deep below the action, where returning is awkward. The
   guard of the kernel catches it and answers it the same way.
 - **Any other error** (a Lua error, a `hecate.core.Error`) answers a generic `500`. Its message never reaches the
-  client: here, `database connection lost: 10.0.0.5` stays on the server.
+  client: here, `database connection lost: 10.0.0.5` stays on the server, in the log (see below).
 
 The answer has `type`, `title`, `status`, the `detail` you gave and the extension members. It has no `instance`
 member.
+
+## Add header fields to a problem
+
+Some answers need a header field ([RFC 9110](https://www.rfc-editor.org/rfc/rfc9110)): `WWW-Authenticate` on a
+`401` (sections 11.6.1 and 15.5.2), `Allow` on a `405` (section 15.5.6), `Retry-After` on a `429` or a `503`
+(section 10.2.3). Give them in `fields`, a name to a string, or to a list of strings for several field lines:
+
+```lua
+return hecate.problem.Unauthorized {
+  fields = { ["WWW-Authenticate"] = 'Bearer realm="api"' },
+}
+```
+
+The fields go to the response, never to the JSON object nor to the contract of the route; they apply to a problem
+you return or raise. A name that is not a token or a value with a control character raises an `ArgumentError` when
+the problem is built, and so do `Content-Type`, `Content-Length`, `Transfer-Encoding` and `Connection`, which the
+kernel sets itself.
 
 ## Declare the problems of a route
 
@@ -167,10 +184,11 @@ To answer a `422` from an action, return or raise `UnprocessableContent`.
 Cancellation and deadline errors are never caught: they belong to the [scope](../reference/glossary.md#concurrency)
 that raised them.
 
-> [!IMPORTANT] Give the application a logger
-> The guard logs a failure only when the application has a logger: the `logger` option, or the one the kernel builds
-> from a `configuration`. Without either, a `500` is answered and nothing is logged. A problem below 500 is a normal
-> answer and is never logged; a problem from 500 is logged at `error`.
+> [!NOTE] Where the guard logs
+> The guard logs a failure through the logger of the application: the `logger` option, or the one the kernel builds
+> from a `configuration`. Without either, it logs through the default logger of `hecate.log`, on the standard error
+> stream, so a `500` is never silent. A problem below 500 is a normal answer and is never logged; a problem from 500
+> is logged at `error`.
 
 The logged record carries the message of the error, its class (`error_class`) and code (`error_code`), the method, the
 path without the query string, and the traceback where it was raised. While `errors.expose_details` is `false`, the

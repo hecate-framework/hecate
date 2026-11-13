@@ -100,14 +100,15 @@ end
 ---@class hecate.kernel.problems.GuardOptions
 ---@field input? boolean  a `ValidationError` is about the request input (422); otherwise it is a defect of the server (500)
 ---@field expose_details? boolean  default false; the kernel binds it to the configuration key `errors.expose_details`: a 422 entry carries its `message`, a generic 500 carries `debug`
----@field logger? { log: fun(self: any, severity: string, message: string, fields?: table) }  receives the failure (`guard` only)
+---@field logger? { log: fun(self: any, severity: string, message: string, fields?: table) }  receives the failure (`guard`) and a problem whose extension members cannot be encoded; default `log.default()` at the time of each record (OQ-79)
 
 --- The problem details response of a problem instance (RFC 9457, section 3): `type`, `title`, `status`, the `detail`
---- when the developer gave one, and the extension members (section 3.2); no `instance` member.
+--- when the developer gave one, and the extension members (section 3.2); no `instance` member. The header fields of
+--- the problem (`fields`, OQ-126) are added to the response, never to its content.
 ---
 --- Extension members the encoder refuses (a function, NaN, a cycle, a value nested too deep, mutated after construction)
 --- never escape: the failure is logged at `error` with the code of the problem (never a value) and the answer is the
---- generic `500`.
+--- generic `500`. So are header fields changed after construction into one the kernel owns (`problem_fields_refused`).
 ---@param instance hecate.kernel.problem.ProblemDetails
 ---@param logger? { log: fun(self: any, severity: string, message: string, fields?: table) }  default `log.default()`
 ---@return hecate.http.Response
@@ -132,6 +133,26 @@ function problems.from_problem(instance, logger)
     return problems.response(500)
   end
   local response = http.Response(instance.status, { content = content })
+  -- OQ-126 (a): the header fields of the problem (`WWW-Authenticate`, `Allow`, `Retry-After`, ...), never in the content.
+  -- They were checked at construction; one changed since (a field the kernel owns, or no longer `http.Fields`) is a
+  -- defect of the application: a generic 500, logged with the code of the problem and the name of the field only.
+  local extra = instance.fields
+  if extra ~= nil then
+    local refused = not core.is_instance_of(extra, http.Fields) and "fields" or nil
+    if refused == nil then
+      for name in extra:lines() do
+        if problem.is_owned_field(name) then refused = name break end
+      end
+    end
+    if refused ~= nil then
+      local sink = logger or log.default()
+      sink:log("error", "kernel.problems: the header fields of a problem were changed after its construction; answering a generic 500", {
+        code = "problem_fields_refused", problem = instance.code, status = instance.status, field = refused,
+      })
+      return problems.response(500)
+    end
+    for name, value in extra:lines() do response.fields:add(name, value) end
+  end
   response.fields:set("Content-Type", CONTENT_TYPE)
   return response
 end
@@ -196,7 +217,7 @@ function problems.chain_without_messages(err)
   return table.concat(lines, "\n")
 end
 
---- With `options.logger` the failure is logged with its message (free text, by design of OQ-111), its class name
+--- The failure is logged, through `options.logger` or else `log.default()` (OQ-79: never lost), with its message (free text, by design of OQ-111), its class name
 --- (`error_class`) and `code` (`error_code`) as fields of their own, the method, the path (never the query) and the
 --- traceback taken where the error was raised (with `expose_details` it starts with the messages of the error and of
 --- its causes; without it, each cause is named by its class and code only, `problems.chain_without_messages`), and,
@@ -211,15 +232,13 @@ function problems.guard(action, options)
   local logger = options ~= nil and options.logger or nil
   local expose = options ~= nil and options.expose_details == true
   -- The traceback is taken where the error was raised (the stack is still there in the message handler), only on the
-  -- failure path and only when the failure will be logged.
+  -- failure path.
   local traceback
   local function capture(err)
-    if logger ~= nil then
-      if type(err) == "table" and type(err.traceback) == "string" then
-        traceback = err.traceback
-      else
-        traceback = debug.traceback(expose and tostring(err) or problems.chain_without_messages(err), 2)
-      end
+    if type(err) == "table" and type(err.traceback) == "string" then
+      traceback = err.traceback
+    else
+      traceback = debug.traceback(expose and tostring(err) or problems.chain_without_messages(err), 2)
     end
     return err
   end
@@ -232,7 +251,8 @@ function problems.guard(action, options)
       error(result, 0)
     end
     local response = problems.from_error(result, options)
-    if logger ~= nil and not (problem.is_problem(result) and result.status < 500) then
+    if not (problem.is_problem(result) and result.status < 500) then
+      local sink = logger or log.default() -- resolved at each record: a default installed later is used
       -- The path without the query: a query may carry a credential, the log names the route, not its arguments.
       local fields = { method = request.method, path = request.path, traceback = captured }
       local is_error = type(result) == "table" and core.is_instance_of(result, core.Error)
@@ -250,9 +270,9 @@ function problems.guard(action, options)
       end
       if response.status < 500 then
         -- A client-caused error (a request the client got wrong) is not a defect of the server: `warning`.
-        logger:log("warning", "request refused", fields)
+        sink:log("warning", "request refused", fields)
       else
-        logger:log("error", "unhandled error while serving a request", fields)
+        sink:log("error", "unhandled error while serving a request", fields)
       end
     end
     return response, result

@@ -277,6 +277,12 @@ Each release heading states the supported Lua version.
 
 ### Changed
 
+- feat(kernel): under `round_robin`, when every worker is saturated, the primary pauses accepting instead of closing the new connection: it hands the connection it holds over once a worker acknowledges one or joins the rotation, and new connections wait in the listen backlog; `hand_over_saturated` is logged once, when the pause starts (OQ-127 (2), owner decision of 2026-11-13).
+
+- feat(kernel): problems accept `fields` (`WWW-Authenticate`, `Allow`, `Retry-After`, ...), validated by `http.Fields` at construction and copied into the response, never into the content nor the contract; the fields the kernel owns are refused; `problem.is_owned_field` (OQ-126, owner decision of 2026-11-13).
+
+- fix(kernel): every kernel path that logged nothing without a logger (`problems.guard`, the container warnings at boot, the signal handling, `Supervisor`, the `round_robin` strategy) logs through `log.default()`: an `Application` with neither a `logger` nor a `configuration` logs an unhandled action error on standard error (OQ-79, owner decision of 2026-11-13).
+
 - fix(container): `Container:override_with_instance` no longer tracks nor closes its value: the caller who built it owns it, even when it defines `__close` (OQ-123, owner decision of 2026-11-13).
 
 - feat(reactor, kernel): `reactor.getenv(name)` reads an environment variable through libuv (UTF-8 on Windows); `kernel.load_configuration` reads the environment with it unless the caller passes `getenv`. Secret files have no size limit and no permission check, by design (OQ-124, owner decisions of 2026-11-13).

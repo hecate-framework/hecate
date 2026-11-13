@@ -348,6 +348,53 @@ function T:test_a_worker_with_as_many_unacknowledged_connections_as_its_backlog_
   self:assert_equal("false,false,true,false", table.concat({ tostring(states[1]), tostring(states[2]), tostring(states[3]), tostring(states[4]) }, ","))
 end
 
+function T:test_an_acknowledgement_wakes_a_hand_over_loop_paused_on_saturation()
+  local gate = reactor.Channel(0)
+  local acknowledge = reactor.Channel(8)
+  local peer_ready = false
+  local peer = {
+    receive = function()
+      if not peer_ready then peer_ready = true return "ready" end
+      local ok, message = pcall(acknowledge.receive, acknowledge)
+      if ok then return message end
+      return nil
+    end,
+    send = function(_, message) if message:find("^stop") then acknowledge:close() end end,
+    close = function() end,
+  }
+  local process = {
+    ipc = peer, pid = 7, wait = function() return { code = 0 } end, is_running = function() return false end,
+    kill = function() end,
+  }
+  local woken, saturated_after
+  local strategy = idle_strategy()
+  strategy.run = function(_, ring)
+    local worker = ring:next()
+    worker:hand_over(closable()) -- a backlog of one: saturated
+    ring:wait() -- takes the wake-up the worker's arrival left, so that only the acknowledgement can end the next wait
+    acknowledge:send("received")
+    woken = pcall(reactor.deadline, 5, ring.wait, ring)
+    saturated_after = worker:saturated()
+    gate:close()
+    reactor.sleep(60)
+  end
+  with_spawn(function() return process end, function()
+    local sup = kernel.supervisor.Supervisor({
+      command = { "worker" }, count = 1, endpoint = { host = "127.0.0.1", port = 0, backlog = 1 }, strategy = strategy,
+    })
+    reactor.run(function()
+      reactor.scope(function(scope)
+        local running = scope:fork(sup.run, sup)
+        pcall(gate.receive, gate)
+        sup:stop(0.1)
+        running:value()
+      end)
+    end)
+  end)
+  self:assert_true(woken, "the `received` of the worker wakes the paused loop")
+  self:assert_false(saturated_after)
+end
+
 function T:test_on_crash_loop_is_validated()
   local function build(value)
     return kernel.supervisor.Supervisor({

@@ -9,6 +9,7 @@ local core = require("hecate.core")
 local reactor = require("hecate.reactor")
 local net = require("hecate.net")
 local http = require("hecate.http")
+local log = require("hecate.log")
 
 --- The listening strategies of multi-process serving (`round_robin`, `reuseport`) and the endpoint the application listens on.
 ---@class hecate.kernel.listening
@@ -23,7 +24,7 @@ local listening = {}
 --- A worker as the primary sees it, for `round_robin`.
 ---@class hecate.kernel.HandOverTarget
 ---@field hand_over async fun(self: hecate.kernel.HandOverTarget, stream: hecate.reactor.TcpStream)  hands a connection over to the worker (for example `Peer:send("connection", stream)`); raises when the worker cannot take it
----@field saturated? fun(self: hecate.kernel.HandOverTarget): boolean  true while the worker cannot take one more connection (the connections handed over and not acknowledged yet reached its backlog): the hand-over loop skips it. Never suspends; absent means never saturated
+---@field saturated? fun(self: hecate.kernel.HandOverTarget): boolean  true while the worker cannot take one more connection (the connections handed over and not acknowledged yet reached its backlog): the hand-over loop skips it, and pauses accepting when every worker is (until `WorkerRing:acknowledged`). Never suspends; absent means never saturated
 
 --- What a worker gives its strategy to build its listener.
 ---@class hecate.kernel.WorkerContext
@@ -230,7 +231,24 @@ function WorkerRing:next()
   return members[self._index]
 end
 
---- Closes the ring: `next` returns nil from now on, also in a waiting caller. Never suspends.
+--- Tells the hand-over loop that a member acknowledged a connection, so that it may take one more: a loop paused in
+--- `wait` because every member was saturated resumes. The supervisor calls it on each `received`. Never suspends.
+function WorkerRing:acknowledged() signal(self) end
+
+--- Suspends until a member is added or acknowledges a connection (`acknowledged`), or the ring is closed. Returns false
+--- once the ring is closed (without suspending when it is closed already), true otherwise. A change that happened since
+--- the last `next` or `wait` returns at once, so none is missed between a check and the wait. One caller at a time (the
+--- hand-over loop of the primary).
+---@async
+---@return boolean open
+function WorkerRing:wait()
+  if self._closed then return false end
+  local ok, err = pcall(self._changed.receive, self._changed)
+  if not ok and core.is_instance_of(err, core.CancellationError) then error(err, 0) end
+  return not self._closed
+end
+
+--- Closes the ring: `next` returns nil and `wait` false from now on, also in a waiting caller. Never suspends.
 function WorkerRing:close()
   self._closed = true
   self._changed:close()
@@ -248,9 +266,19 @@ RoundRobin.name = "round_robin"
 
 ---@param options? { logger?: hecate.log.Logger }
 function RoundRobin:init(options)
-  self._logger = options and options.logger or nil
+  self._logger = options and options.logger or nil -- nil: `log.default()` at each record (OQ-79)
   self._listener = nil
-  self._saturated = false -- every worker was saturated at the last connection (`hand_over_saturated` logged)
+  self._saturated = false -- in a burst of pauses (`hand_over_saturated` logged)
+end
+
+--- Logs a warning through the `logger` option, or through `log.default()` (OQ-79) when none was given: a record is
+--- never lost.
+---@param self hecate.kernel.RoundRobinStrategy
+---@param message string
+---@param fields table
+local function warn(self, message, fields)
+  local logger = self._logger or log.default()
+  logger:warning(message, fields)
 end
 
 --- Always true: handing over connections works on every platform.
@@ -283,9 +311,14 @@ function RoundRobin:worker_listener(context)
   return context.hand_over
 end
 
---- Hands one connection to a worker; tries each worker of the ring at most once, skipping a saturated one (the
---- back-pressure of a worker that does not take its connections: it never stalls the loop for the others), then closes
---- the connection, as a full listen backlog drops one. That every worker was saturated is logged once per burst.
+--- Hands one connection to a worker; tries each worker of the ring at most once per round, skipping a saturated one
+--- (the back-pressure of a worker that does not take its connections: it never stalls the loop for the others). When
+--- no worker took it and at least one was saturated, the loop pauses (OQ-127 (2)): it keeps the connection and waits for
+--- a worker to acknowledge one (`WorkerRing:wait`), then tries again; meanwhile nothing is accepted, so new connections
+--- wait in the listen backlog and the system refuses them once it is full, as other servers do. The pause is logged
+--- `hand_over_saturated` once, when it starts, and again only after a connection was handed over without pausing (one
+--- record per burst, none per connection). When every worker failed, the connection is closed. A closed ring (the
+--- primary is stopping) or a cancellation closes the connection held.
 ---@async
 ---@param self hecate.kernel.RoundRobinStrategy
 ---@param workers hecate.kernel.WorkerRing
@@ -293,44 +326,56 @@ end
 ---@return boolean continue  false once the ring is closed
 local function deliver(self, workers, stream)
   local inner = stream:transport() -- the reactor stream is what `reactor.ipc` passes (ADR 0027)
-  local attempts = math.max(1, workers:size())
-  local skipped = 0
-  for _ = 1, attempts do
-    local worker = workers:next()
-    if worker == nil then
+  local paused = false
+  while true do
+    local attempts = math.max(1, workers:size())
+    local skipped = 0
+    for _ = 1, attempts do
+      local worker = workers:next()
+      if worker == nil then
+        stream:close()
+        return false
+      end
+      if worker.saturated ~= nil and worker:saturated() then
+        skipped = skipped + 1
+      else
+        local ok, err = pcall(worker.hand_over, worker, inner)
+        if ok then
+          if not paused then self._saturated = false end -- the burst ends with a hand-over that did not wait
+          return true
+        end
+        if core.is_instance_of(err, core.CancellationError) then
+          stream:close()
+          error(err, 0)
+        end
+        warn(self, "kernel.listening: a worker could not take a connection", { code = "hand_over_failed", reason = tostring(err) })
+      end
+    end
+    if skipped == 0 then
+      stream:close() -- every worker failed: no acknowledgement will free one up for this connection
+      return true
+    end
+    if not self._saturated then
+      self._saturated = true
+      warn(self, "kernel.listening: every worker holds as many connections not yet acknowledged as its backlog; accepting paused until one acknowledges",
+        { code = "hand_over_saturated", workers = attempts })
+    end
+    paused = true
+    local waited, open = pcall(workers.wait, workers)
+    if not waited then
+      stream:close()
+      error(open, 0)
+    end
+    if not open then
       stream:close()
       return false
     end
-    if worker.saturated ~= nil and worker:saturated() then
-      skipped = skipped + 1
-    else
-      local ok, err = pcall(worker.hand_over, worker, inner)
-      if ok then
-        self._saturated = false
-        return true
-      end
-      if core.is_instance_of(err, core.CancellationError) then
-        stream:close()
-        error(err, 0)
-      end
-      if self._logger ~= nil then
-        self._logger:warning("kernel.listening: a worker could not take a connection", { code = "hand_over_failed", reason = tostring(err) })
-      end
-    end
   end
-  if skipped == attempts and not self._saturated then
-    self._saturated = true -- until a connection is handed over again
-    if self._logger ~= nil then
-      self._logger:warning("kernel.listening: every worker holds as many connections not yet acknowledged as its backlog; connection closed",
-        { code = "hand_over_saturated", workers = attempts })
-    end
-  end
-  stream:close()
-  return true
 end
 
 --- The hand-over loop, in the primary: accepts each connection and hands it over to the next worker of `workers`. Returns
---- when `close` is called or the ring is closed. An accept failure (descriptor exhaustion) backs off from 50 ms to
+--- when `close` is called or the ring is closed; while it pauses because every worker is saturated, only closing the ring
+--- (as `Supervisor` does on stop) or a cancellation ends it. An accept failure (descriptor exhaustion) backs off from 50 ms to
 --- 1 s, as `hecate.http.Server` does, and is logged once per burst.
 ---
 --- Raises `hecate.core.ArgumentError` when `prepare` was not called.
@@ -346,8 +391,8 @@ function RoundRobin:run(workers)
       if core.is_instance_of(stream, core.CancellationError) then error(stream, 0) end
       if listener:is_closed() then return end
       failures = failures + 1
-      if failures == 1 and self._logger ~= nil then
-        self._logger:warning("kernel.listening: accept failed", { code = "accept_failed", reason = tostring(stream) })
+      if failures == 1 then
+        warn(self, "kernel.listening: accept failed", { code = "accept_failed", reason = tostring(stream) })
       end
       reactor.sleep(math.min(0.05 * 2 ^ (failures - 1), 1))
     else

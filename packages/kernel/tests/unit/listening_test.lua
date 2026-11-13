@@ -297,10 +297,12 @@ function T:test_round_robin_spreads_connections_evenly_and_workers_serve_them()
   self:assert_equal("one,two,one,two", table.concat(answers, ","))
 end
 
-function T:test_round_robin_tries_the_next_worker_when_one_fails()
+function T:test_round_robin_tries_the_next_worker_when_one_fails_and_logs_through_the_default_logger()
   local broken, healthy = fake_worker("broken", true), fake_worker("healthy")
   local answer
-  reactor.run(function()
+  local memory = log.MemorySink()
+  log.set_default(log.Logger({ sinks = { memory } })) -- no `logger` option: the record goes to `log.default()` (OQ-79)
+  local ran, failure = pcall(reactor.run, function()
     local strategy = listening.RoundRobinStrategy()
     local address = strategy:prepare({ host = "127.0.0.1", port = 0 })
     local ring = listening.WorkerRing()
@@ -318,8 +320,13 @@ function T:test_round_robin_tries_the_next_worker_when_one_fails()
       strategy:close()
     end)
   end)
+  log.set_default(nil)
+  self:assert_true(ran, tostring(failure))
   self:assert_equal("ok", answer)
   self:assert_equal(1, healthy.taken)
+  local records = memory:records()
+  self:assert_equal(1, #records)
+  self:assert_equal("hand_over_failed", records[1].fields.code)
 end
 
 function T:test_round_robin_returns_when_the_ring_closes()
@@ -512,11 +519,47 @@ function T:test_round_robin_closes_the_connection_when_every_worker_fails_and_go
   self:assert_equal(4, failures) -- two workers tried for each of the two connections
 end
 
-function T:test_round_robin_skips_a_saturated_worker_and_closes_when_every_worker_is()
+--- Connects to the primary and returns the future of what the connection reads to its end.
+local function client(scope, port)
+  return scope:fork(function()
+    local stream = net.connect("127.0.0.1", port)
+    local answer = read_all(stream)
+    stream:close()
+    return answer
+  end)
+end
+
+function T:test_the_ring_wakes_a_waiting_hand_over_loop_when_a_member_acknowledges_or_is_added()
+  virtual(function()
+    local ring = listening.WorkerRing()
+    local woken = {}
+    reactor.scope(function(scope)
+      local waiting = scope:fork(function()
+        woken[#woken + 1] = ring:wait()
+        woken[#woken + 1] = ring:wait()
+        woken[#woken + 1] = ring:wait()
+      end)
+      reactor.sleep(0.1)
+      self:assert_equal(0, #woken, "nothing happened: the loop still waits")
+      ring:acknowledged()
+      reactor.sleep(0.1)
+      self:assert_equal(1, #woken)
+      ring:add(fake_worker("late"))
+      reactor.sleep(0.1)
+      self:assert_equal(2, #woken)
+      ring:close()
+      waiting:value()
+    end)
+    self:assert_equal("true,true,false", tostring(woken[1]) .. "," .. tostring(woken[2]) .. "," .. tostring(woken[3]))
+    self:assert_false(ring:wait(), "a closed ring never suspends")
+  end)
+end
+
+function T:test_round_robin_pauses_accepting_while_every_worker_is_saturated_and_resumes_on_an_acknowledgement()
   local stalled, healthy = fake_worker("stalled"), fake_worker("healthy")
-  local saturated = true
-  function stalled:saturated() return saturated end
-  function healthy:saturated() return false end
+  local saturated = false
+  function stalled:saturated() return true end
+  function healthy:saturated() return saturated end
   local memory = log.MemorySink()
   local answers = {}
   reactor.run(function()
@@ -524,29 +567,34 @@ function T:test_round_robin_skips_a_saturated_worker_and_closes_when_every_worke
     local address = strategy:prepare({ host = "127.0.0.1", port = 0 })
     local ring = listening.WorkerRing()
     ring:add(stalled); ring:add(healthy)
-    local function connection()
-      local client = net.connect("127.0.0.1", address.port)
-      local answer = read_all(client)
-      client:close()
-      return answer
-    end
     reactor.scope(function(scope)
-      scope:fork(strategy.run, strategy, ring)
-      scope:fork(function()
-        for _ = 1, 3 do
+      local loop = scope:fork(strategy.run, strategy, ring)
+      local serving = scope:fork(function()
+        for _ = 1, 4 do
           local stream = healthy.listener:accept()
           stream:write("healthy")
           stream:close()
         end
       end)
-      for i = 1, 3 do answers[i] = connection() end
-      function healthy:saturated() return true end -- every worker is saturated: the connection is closed
-      answers[4] = connection()
-      answers[5] = connection()
+      answers[1] = client(scope, address.port):value()
+      answers[2] = client(scope, address.port):value()
+      saturated = true -- every worker is saturated: the primary pauses instead of closing
+      local paused = client(scope, address.port)
+      local waiting = client(scope, address.port) -- stays in the listen backlog while the primary pauses
+      reactor.sleep(0.2)
+      self:assert_equal("pending", paused:state(), "a paused connection is neither answered nor closed")
+      self:assert_equal("pending", waiting:state())
+      self:assert_equal(2, healthy.taken, "no connection is handed over while every worker is saturated")
+      saturated = false
+      ring:acknowledged() -- a worker acknowledged a connection: the primary resumes
+      answers[3] = paused:value()
+      answers[4] = waiting:value()
+      serving:value()
       strategy:close()
+      loop:value()
     end)
   end)
-  self:assert_equal("healthy,healthy,healthy,,", table.concat(answers, ","))
+  self:assert_equal("healthy,healthy,healthy,healthy", table.concat(answers, ","))
   self:assert_equal(0, stalled.taken, "a saturated worker is never handed a connection")
   local logged = 0
   for _, record in ipairs(memory:records()) do
@@ -555,7 +603,58 @@ function T:test_round_robin_skips_a_saturated_worker_and_closes_when_every_worke
       self:assert_true(record.severity == log.Severity.warning)
     end
   end
-  self:assert_equal(1, logged, "logged once per burst")
+  self:assert_equal(1, logged, "logged once, when the pause starts")
+end
+
+function T:test_a_paused_round_robin_ends_promptly_when_the_ring_closes_and_closes_the_held_connection()
+  local worker = fake_worker("full")
+  function worker:saturated() return true end
+  local answer, elapsed
+  reactor.run(function()
+    local strategy = listening.RoundRobinStrategy({ logger = log.Logger({ sinks = { log.MemorySink() } }) })
+    local address = strategy:prepare({ host = "127.0.0.1", port = 0 })
+    local ring = listening.WorkerRing()
+    ring:add(worker)
+    reactor.scope(function(scope)
+      local loop = scope:fork(strategy.run, strategy, ring)
+      local held = client(scope, address.port)
+      reactor.sleep(0.1)
+      self:assert_equal("pending", held:state())
+      local began = reactor.now()
+      strategy:close() -- the primary is stopping, as `Supervisor` stops: listener, then ring
+      ring:close()
+      loop:value()
+      elapsed = reactor.now() - began
+      answer = held:value()
+    end)
+  end)
+  self:assert_equal("", answer, "the held connection is closed once the primary stops")
+  self:assert_true(elapsed < 1, "the pause ends at once")
+  self:assert_equal(0, worker.taken)
+end
+
+function T:test_cancelling_a_paused_round_robin_closes_the_held_connection()
+  local worker = fake_worker("full")
+  function worker:saturated() return true end
+  local answer, cancelled
+  reactor.run(function()
+    local strategy = listening.RoundRobinStrategy({ logger = log.Logger({ sinks = { log.MemorySink() } }) })
+    local address = strategy:prepare({ host = "127.0.0.1", port = 0 })
+    local ring = listening.WorkerRing()
+    ring:add(worker)
+    reactor.scope(function(scope)
+      local loop = scope:fork(strategy.run, strategy, ring)
+      local held = client(scope, address.port)
+      reactor.sleep(0.1)
+      loop:cancel()
+      local ok, err = pcall(loop.value, loop)
+      cancelled = not ok and core.is_instance_of(err, core.CancellationError)
+      strategy:close()
+      answer = held:value()
+    end)
+  end)
+  self:assert_true(cancelled)
+  self:assert_equal("", answer)
 end
 
 function T:test_round_robin_needs_prepare_and_a_hand_over_context()

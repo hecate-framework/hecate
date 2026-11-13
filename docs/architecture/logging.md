@@ -290,8 +290,9 @@ name, case-insensitive, never inside free text (a message, or a value under anot
 console one again. Anything else raises `hecate.core.ArgumentError`.
 
 Who uses it: a package that has something to log and was given no `logger` option logs through `log.default()`, so
-that none builds a parallel mechanism. Today: `http.Server`, the `kernel` (problems, results, the worker role and the
-`Application` without a logger) and `schema`, which reads it through `package.loaded["hecate.log"]` because it does
+that none builds a parallel mechanism. Today: `http.Server`, the `kernel` (the guard and the other paths of problems,
+results, the container warnings at boot, the signal handling, the `round_robin` strategy, the `Supervisor`, the worker
+role and the `Application` without a logger) and `schema`, which reads it through `package.loaded["hecate.log"]` because it does
 not depend on `log` (OQ-86).
 
 How the kernel replaces it: when an `Application` has a `configuration` and no `logger` option,
@@ -302,7 +303,9 @@ How the kernel replaces it: when an `Application` has a `configuration` and no `
 
 ### What the kernel logs for an error of an action
 
-The guard of the kernel (`problems.guard`) logs an error that becomes a `5xx` answer at `error`
+The guard of the kernel (`problems.guard`) logs through the application's logger, or through `log.default()` when
+the application has neither a `logger` option nor a `configuration` (on standard error: a failure is never silent).
+It logs an error that becomes a `5xx` answer at `error`
 (`unhandled error while serving a request`) and a client-caused error (`4xx`) at `warning` (`request refused`). A
 problem below `500` is a normal answer and is not logged. The fields are `method`, `path` (never the query),
 `error_class`, `error_code` (for a `hecate.core.Error`), `error` and `traceback`:
