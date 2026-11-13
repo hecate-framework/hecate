@@ -11,6 +11,8 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- docs: a "Writing style" for the website (owner decision 2026-11-13, `docs/architecture/documentation.md`), after the manner of *Programming in Lua*: one idea per paragraph, a short example right after each new concept, a brief reminder of a term the first time a page uses it, short sentences, the precise term and the exact claim always kept. Piloted on the eight pages written at the Phase 2 gate (the how-tos on problem details, filters, concurrency and multi-process deployment, the schema keywords reference, and the explanations on the architecture, the object model and the concurrency model).
+
 - docs(website): how-tos "Map domain errors to problem details", "Filters", "Concurrency" and "Multi-process deployment, graceful shutdown and health checks", the hand-written reference "Schema keywords and formats", and the explanations "Architecture and layers", "The object model" and "The concurrency model", with tested examples in `hecate`, `reactor` and `core` (OQ-121).
 
 - feat(tools): `gen-error-codes` and `gen-config-reference` generate the "Error codes" reference page (55 error classes with their codes, parents, descriptions and documented reasons) and the "Configuration keys" page (each framework key with its type, default, range, environment variable and meaning), git-ignored and built by `website.yml`; their `--check` runs in CI and fails when an error class has an unknown parent or a framework key is not documented in `configuration.md` (OQ-121). `.gitignore` now covers the generated reference of every Phase 2 package.
