@@ -32,6 +32,14 @@ website/en/reference/net/
 website/en/reference/json/
 website/en/reference/log/
 website/en/reference/http/
+website/en/reference/router/
+website/en/reference/schema/
+website/en/reference/container/
+website/en/reference/config/
+website/en/reference/kernel/
+# Generated reference pages (gen-error-codes, gen-config-reference; the website workflow generates them).
+website/en/reference/error-codes.md
+website/en/reference/configuration-keys.md
 
 # Editors and OS
 .vscode/

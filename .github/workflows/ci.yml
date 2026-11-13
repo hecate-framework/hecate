@@ -146,8 +146,10 @@ jobs:
             lua tools/run.lua "$task"
             echo "::endgroup::"
           done
-          # The generated sections (package table, llms.txt, dependency graph) follow the READMEs and rockspecs.
-          for task in gen-catalogue gen-llms-txt gen-dependency-graph; do
+          # The generated sections (package table, llms.txt, dependency graph) follow the READMEs and rockspecs; the
+          # error codes and configuration keys pages (git-ignored, built by website.yml) follow the sources and
+          # configuration.md: their --check validates the sources without writing.
+          for task in gen-catalogue gen-llms-txt gen-dependency-graph gen-error-codes gen-config-reference; do
             echo "::group::$task --check"
             lua tools/run.lua "$task" --check
             echo "::endgroup::"
@@ -493,7 +495,7 @@ jobs:
             lua tools/run.lua "$task"
             echo "::endgroup::"
           done
-          for task in gen-catalogue gen-llms-txt gen-dependency-graph; do
+          for task in gen-catalogue gen-llms-txt gen-dependency-graph gen-error-codes gen-config-reference; do
             echo "::group::$task --check"
             lua tools/run.lua "$task" --check
             echo "::endgroup::"
