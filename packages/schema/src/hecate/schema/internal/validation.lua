@@ -271,15 +271,17 @@ local function accepts(validate, value, at)
   return found[1] == nil and budget_violation == nil
 end
 
---- Stops a representation (`Schema:represent`) with a `ValidationError` that carries one violation: the code and the
---- JSON Pointer where it stopped, as `Schema:check` does.
+--- Stops a representation (`Schema:represent`) with a `ValidationError` that carries one violation, with the code and
+--- the JSON Pointer where it stopped, in `context.violations`. The message names the code only, never the pointer: a
+--- pointer can hold a key supplied by a user (personal data) and the message of an error reaches the logs (OQ-120 (2)).
 ---@param path string  the JSON Pointer
 ---@param code hecate.schema.ViolationCode
 ---@param message string
 ---@param context? table
 local function stop_representation(path, code, message, context)
   local v = Violation(path, code, message, context)
-  error(core.ValidationError(("cannot represent: %s"):format(tostring(v)), { context = { violations = { v } } }), 0)
+  error(core.ValidationError(("cannot represent: violation code '%s'; the JSON Pointer is in context.violations"):format(code),
+    { context = { violations = { v } } }), 0)
 end
 
 --- Wraps a representer with the nesting guard and the work budget, the counters of validation (OQ-91, OQ-92). A cycle
@@ -1142,7 +1144,8 @@ function Schema:represent(value)
 end
 
 --- Returns `value` when it conforms; raises `hecate.core.ValidationError` otherwise, with every violation in
---- `context.violations`.
+--- `context.violations`. The message names the count and the code of the first violation, never its JSON Pointer,
+--- which can hold a key supplied by a user and would reach the logs (OQ-120 (2)).
 ---@generic T
 ---@param value T
 ---@return T
@@ -1150,7 +1153,8 @@ function Schema:check(value)
   local ok, violations = self:validate(value)
   if not ok then
     ---@cast violations hecate.schema.Violation[]
-    error(core.ValidationError(("%d violation(s); first: %s"):format(#violations, tostring(violations[1])),
+    error(core.ValidationError(("%d violation(s), first violation code '%s'; the JSON Pointer is in context.violations")
+      :format(#violations, violations[1].code),
       { context = { violations = violations } }))
   end
   return value

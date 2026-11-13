@@ -319,6 +319,10 @@ problem below `500` is a normal answer and is not logged. The fields are `method
 With `expose_details`, a cause message can hold data that the `error` field does not show; field-name redaction does
 not reach it.
 
+No error message names a JSON Pointer into the data (OQ-120 (2), owner decision of 2026-11-13): a pointer can hold a key
+supplied by a user. With `expose_details` true, and only then, an error that has `context.violations` adds the field
+`pointer`, the JSON Pointer of its first violation (`violation.path`).
+
 ## Secrets and privacy
 
 - `log.Secret(value)` marks a value: `tostring` returns `[redacted]`, `reveal()` returns the value. The

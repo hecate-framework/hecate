@@ -57,6 +57,13 @@ built value, or `false` and the list of violations; they never raise for content
 of `validate` only: it returns the value or raises `ValidationError` with `context.violations`. `represent` returns the plain
 value and raises `ValidationError` when it cannot represent it. A declaration that is wrong raises `ArgumentError`.
 
+The message of these two `ValidationError`s names no JSON Pointer of the data (OQ-120 (2)): a pointer can hold a key supplied
+by a user (a map key, an additional property name), which is personal data, and the message of an error reaches the logs. The
+message of `check` names the count and the code of the first violation (`2 violation(s), first violation code 'type'; the JSON
+Pointer is in context.violations`), that of `represent` the code (`cannot represent: violation code 'union'; ...`); the pointers
+stay in `context.violations`. The `message` of a violation is not concerned: it goes back to the client who sent the data, and
+never quotes a value.
+
 Names: class-bound schemas own the schema names. A schema without a class and without `named` is inlined.
 Two different bodies under one name in one emission raise `ArgumentError`, whose message names the colliding
 name and says whether each comes from a class or from `named`; equal bodies share one definition.

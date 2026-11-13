@@ -73,7 +73,9 @@ variables combine is in [Configure an application](configure-an-application.md).
     **without** the query, the error class, its code, its message and the traceback. While `errors.expose_details`
     is false, the `traceback` field names each cause of the error by its class and code only
     (`caused by: hecate.postgresql.QueryError (23505)`), never by its message; with the key true (development and
-    test), it carries the message of each cause too, so a wrapped driver error brings its text into the logs;
+    test), it carries the message of each cause too, so a wrapped driver error brings its text into the logs. With
+    the key true, an error that carries violations (a failed `check`) also logs the JSON Pointer of the first one in
+    the `pointer` field, which can hold a key the client sent; no message ever names that pointer;
   - an error the client caused (`warning`, "request refused"), with the same fields;
   - an action that fails in a way the kernel does not answer itself, such as an expired deadline (`error`, "http.Server:
     the action failed"), with the method, the path without the query and the error;

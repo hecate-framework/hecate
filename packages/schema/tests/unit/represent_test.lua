@@ -344,6 +344,19 @@ function T:test_a_value_that_is_not_a_table_is_a_clean_error()
   self:assert_equal("type", err.context.violations[1].code)
 end
 
+-- OQ-120 (2), owner decision of 2026-11-13: the message of a failed representation names no JSON Pointer, which can
+-- hold a key supplied by a user; the code is in the message, the pointer in `context.violations`.
+function T:test_a_failed_representation_names_no_pointer_of_the_data()
+  local key = "jane.doe@example.org"
+  local s = schema.map(schema.union({ schema.integer(), schema.string() }))
+  local err = self:assert_error(function() s:represent({ [key] = true }) end)
+  self:assert_equal("hecate.core.ValidationError", err.code)
+  self:assert_nil(err.message:find(key, 1, true), "the key leaks into the message: " .. err.message)
+  self:assert_nil(err.message:find("/", 1, true), "a pointer in the message: " .. err.message)
+  self:assert_equal("cannot represent: violation code 'union'; the JSON Pointer is in context.violations", err.message)
+  self:assert_equal("/" .. key, err.context.violations[1].path)
+end
+
 --- Deep equality of decoded content (the encoder does not order keys, so texts are compared by value).
 local function same(a, b)
   if type(a) ~= "table" or type(b) ~= "table" or a == json.null or b == json.null then return a == b end

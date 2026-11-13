@@ -199,7 +199,9 @@ end
 --- With `options.logger` the failure is logged with its message (free text, by design of OQ-111), its class name
 --- (`error_class`) and `code` (`error_code`) as fields of their own, the method, the path (never the query) and the
 --- traceback taken where the error was raised (with `expose_details` it starts with the messages of the error and of
---- its causes; without it, each cause is named by its class and code only, `problems.chain_without_messages`): at `error` severity for a `5xx` answer, at `warning` for a client-caused
+--- its causes; without it, each cause is named by its class and code only, `problems.chain_without_messages`), and,
+--- with `expose_details` only, the JSON Pointer of the first violation in `context.violations` (`pointer`, OQ-120 (2)):
+--- at `error` severity for a `5xx` answer, at `warning` for a client-caused
 --- error (a `4xx` answer, such as a `ParseError`). A problem below 500 is a normal answer and is not logged.
 --- Cancellation and deadline errors are never caught: they belong to the scope that raised them (ADR 0003).
 ---@param action fun(request: hecate.http.Request): hecate.http.Response
@@ -239,6 +241,13 @@ function problems.guard(action, options)
       local failure = result --[[@as hecate.core.Error]]
       if is_error then fields.error_code = failure.code end
       fields.error = is_error and failure.message or tostring(result)
+      if expose then
+        -- OQ-120 (2): no message names a JSON Pointer, which can hold a key supplied by a user (personal data); in
+        -- development and test the pointer of the first violation is a field of its own, never in production.
+        local violations = is_error and type(failure.context) == "table" and failure.context.violations
+        local first = type(violations) == "table" and violations[1]
+        if type(first) == "table" and type(first.path) == "string" then fields.pointer = first.path end
+      end
       if response.status < 500 then
         -- A client-caused error (a request the client got wrong) is not a defect of the server: `warning`.
         logger:log("warning", "request refused", fields)

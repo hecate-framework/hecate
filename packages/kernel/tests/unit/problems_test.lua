@@ -212,6 +212,41 @@ function T:test_guard_logs_the_path_parameters_but_not_the_query()
   for _, value in pairs(seen[1][3]) do self:assert_nil(string.find(tostring(value), SECRET, 1, true)) end
 end
 
+-- OQ-120 (2), owner decision of 2026-11-13: no JSON Pointer in a message (a pointer can hold a key supplied by a user);
+-- in development and test (`expose_details`), the pointer of the first violation is a log field of its own.
+local function failing_check(key)
+  return function() schema.map(schema.integer()):check({ [key] = "x" }) end
+end
+
+function T:test_guard_logs_the_pointer_of_the_first_violation_with_expose_details()
+  local seen = {}
+  local logger = { log = function(_, severity, message, fields) seen[#seen + 1] = { severity, message, fields } end }
+  problems.guard(failing_check("ada@example.org"), { logger = logger, expose_details = true })(request())
+  self:assert_equal(1, #seen)
+  self:assert_equal("/ada@example.org", seen[1][3].pointer)
+  self:assert_nil(seen[1][3].error:find("ada@example.org", 1, true), seen[1][3].error)
+end
+
+function T:test_guard_never_logs_the_pointer_without_expose_details()
+  local seen = {}
+  local logger = { log = function(_, severity, message, fields) seen[#seen + 1] = { severity, message, fields } end }
+  problems.guard(failing_check(SECRET), { logger = logger })(request())
+  self:assert_equal(1, #seen)
+  self:assert_nil(seen[1][3].pointer)
+  for _, value in pairs(seen[1][3]) do self:assert_nil(string.find(tostring(value), SECRET, 1, true)) end
+end
+
+function T:test_guard_logs_no_pointer_for_an_error_without_violations()
+  local seen = {}
+  local logger = { log = function(_, severity, message, fields) seen[#seen + 1] = { severity, message, fields } end }
+  problems.guard(function() error(core.ValidationError("empty", { context = { violations = {} } })) end,
+    { logger = logger, expose_details = true })(request())
+  problems.guard(function() error(core.Error("boom")) end, { logger = logger, expose_details = true })(request())
+  self:assert_equal(2, #seen)
+  self:assert_nil(seen[1][3].pointer)
+  self:assert_nil(seen[2][3].pointer)
+end
+
 function T:test_guard_does_not_log_a_problem_below_500()
   local seen = {}
   local logger = { log = function(_, severity) seen[#seen + 1] = severity end }

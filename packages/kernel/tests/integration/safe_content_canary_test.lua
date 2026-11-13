@@ -159,7 +159,8 @@ end
 
 --- The routes of the canary application. `/log` logs the canary in fields; `/secret` logs the secret configuration
 --- value; `/fail` raises an error whose message holds the canary; `/fail-object` raises an error that holds it only in
---- its context; `/fail-cause` one that holds it only in the message of its cause; `/unencodable` raises a problem whose extension cannot be encoded; `/users` declares
+--- its context; `/fail-cause` one that holds it only in the message of its cause; `/fail-check` fails `Schema:check` on a map whose
+--- key is the canary; `/unencodable` raises a problem whose extension cannot be encoded; `/users` declares
 --- inputs of every location.
 ---@param loaded hecate.config.Configuration
 ---@return hecate.kernel.RouteModule
@@ -202,6 +203,11 @@ local function canary_routes(loaded)
   end })
   routes:get("/fail-cause", { action = function()
     error(core.Error({ message = "the lookup failed", cause = core.Error({ message = "driver said " .. CANARY }) }))
+  end })
+  routes:get("/fail-check", { action = function()
+    -- A key supplied by a user (a map key) that fails a check inside the action: its JSON Pointer holds the canary.
+    schema.map(schema.integer()):check({ [CANARY] = "not an integer" })
+    return { checked = true }
   end })
   routes:get("/unencodable", { action = function()
     error(kernel.problem.Conflict({ extensions = { info = { [CANARY] = function() end } } }))
@@ -370,6 +376,31 @@ function T:test_with_expose_details_the_traceback_carries_the_messages_of_the_ca
   -- Development and test: everything that helps debugging, the messages of the causes included (OQ-120 (1)).
   self:assert_equal(1, (record.fields.traceback:find("hecate.core.Error: the lookup failed\ncaused by: hecate.core.Error: driver said " .. CANARY, 1, true)),
     record.fields.traceback)
+end
+
+-- OQ-120 (2), owner decision of 2026-11-13: no JSON Pointer in an error message, since a pointer can hold a key supplied
+-- by a user; with `errors.expose_details` the pointer of the first violation is the log field `pointer`.
+function T:test_a_failed_check_names_no_pointer_in_the_logs()
+  local serve, captured = boot(configuration({ HECATE_DATABASE__PASSWORD = "x" }))
+  local response = serve(request("GET", "/fail-check"))
+  self:assert_equal(500, response.status)
+  self:assert_false(has_canary(response_text(response)), response_text(response))
+  local record = record_of(captured, "unhandled error while serving a request")
+  self:assert_not_nil(record)
+  self:assert_equal("ValidationError", record.fields.error_class)
+  self:assert_nil(record.fields.pointer)
+  self:assert_equal("", canary_in_logs(captured))
+end
+
+function T:test_with_expose_details_the_pointer_of_a_failed_check_is_a_log_field()
+  local serve, captured = boot(configuration({ HECATE_DATABASE__PASSWORD = "x", HECATE_ERRORS__EXPOSE_DETAILS = "true" }, "development"))
+  serve(request("GET", "/fail-check"))
+  local record = record_of(captured, "unhandled error while serving a request")
+  self:assert_not_nil(record)
+  self:assert_equal("/" .. CANARY, record.fields.pointer)
+  -- The field of its own is the only place: the message and the traceback name the count and the code.
+  self:assert_false(has_canary(record.fields.error), record.fields.error)
+  self:assert_false(has_canary(record.fields.traceback), record.fields.traceback)
 end
 
 function T:test_expose_details_forwards_only_the_documented_members()
