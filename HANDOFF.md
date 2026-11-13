@@ -2,9 +2,9 @@
 # Handoff
 
 - roadmap_item: **First item of Phase 3 (owner decision of 2026-11-13): a readable writing style.** Write a "Writing style" section in `docs/architecture/documentation.md`, after the manner of *Programming in Lua* (Ierusalimschy) [...] Pilot it on the 8 pages written at the Phase 2 gate [...] and submit them to the owner before any other Phase 3 item starts.
-- status: waiting-owner
-- lock_until: 2026-11-14T00:30:00Z
-- last_update: 2026-11-13T23:05:00Z
+- status: in-progress
+- lock_until: 2026-11-14T00:40:00Z
+- last_update: 2026-11-13T23:10:00Z
 
 ## Done
 
@@ -24,9 +24,24 @@
 
 ## Next steps
 
-1. Wait for the owner's answer on how to present the pilot, and their review of the writing style (#195). Apply the owner's
-   remarks; once approved, delete this note, tick the roadmap item and keep the pull request ready for review. No
-   other Phase 3 item may start before that approval (roadmap).
+Owner instruction (2026-11-13, on #195): the eight Phase 2 gate pages are the approved pilot and stay as they are,
+except the statements that do not fit the code exactly (verify thoroughly before asserting). This run's goal is to
+bring every other English page to the same standard and style (the "apply the writing style to every page" part of
+the Website item).
+
+1. Fix, on the eight pilot pages, only the statements proven not to match the code (listed below), each with its
+   evidence.
+2. Restyle group 1: how-to `encode-and-decode-json`, `measure-performance`, `configure-an-application`,
+   `log-structured-records`, `use-the-container`, `before-going-to-production`, `offload-cpu-bound-work`.
+3. Restyle group 2: how-to `deadlines-and-cancellation`, `udp-pipes-and-dns`, `connect-and-serve-over-tcp`,
+   `run-processes-and-pass-connections`, `tls-client-and-server`.
+4. Restyle group 3: how-to `serve-http`, `stream-http-content`, `use-the-http-client`, `http-limits-timeouts-and-tls`,
+   `handle-forms-and-multipart`, `route-requests`.
+5. Restyle group 4: how-to `validate-with-schemas`, explanation `schemas-and-contracts`.
+6. Restyle group 5: explanations `tls-trust-and-security`, `transport-model`, `http-model`, `multi-process-serving`,
+   and the index pages (`index.md`, `how-to/index.md`, `explanation/index.md`, `reference/index.md`).
+7. Tick the first Phase 3 item, record the style part of the Website item as done, CHANGELOG, gates, ready for
+   review.
 
 ## Decisions taken (and where they are recorded)
 
@@ -35,8 +50,7 @@
 
 ## Doubts and questions for the owner
 
-- How the pilot should be presented, now that the Phase 2 gate pages are kept as they are (asked on #195).
-- Statements of the Phase 2 gate pages found not to match the code while rewriting them (not applied, pages
+- Candidate statements of the Phase 2 gate pages that may not match the code while rewriting them (not applied, pages
   restored; the 422 logging gap is now a Phase 3 roadmap item): the input step, not the guard, builds the 422 of invalid inputs; extension values deeper than the first
   level fail when the problem is answered (generic 500); `auto` logs no fallback warning and `reuseport` is Linux only
   (OQ-43); a refused or failed `app:reload` raises `SupervisorError`, a `SIGHUP` reload never raises;
