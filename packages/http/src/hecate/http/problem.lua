@@ -56,7 +56,7 @@ end
 
 --- Maps an error raised while serving a request to a status and a generic detail. Only the class decides:
 --- the message and the context of the error never reach the result. A `ParseError` or a `ContentError` carries its
---- own status; a `ContentError` without one is the client's (a response of another server too large or stalled,
+--- own status; one without status is the client's (a response of another server malformed, too large or stalled,
 --- OQ-82) and is a 500; a transport or network failure is a 500 with a text of its own; anything else is a 500.
 ---@param err any
 ---@return integer status
@@ -67,7 +67,9 @@ function problem.of_error(err)
     -- Reading content that the application already validated is a defect of the server, not of the client.
     if err.context and err.context.reason == "consumed" then return 500, DETAIL_BY_STATUS[500] end
     -- A content error of the client (no status): the response of another server failed, not this request.
-    if status == nil and core.is_instance_of(err, ContentError) then return 500, DETAIL_BY_STATUS[500] end
+    -- A parse or content error without status is the client's (a response of another server malformed, too large or
+    -- stalled, OQ-82): the response of another server failed, not this request.
+    if status == nil and not core.is_instance_of(err, FormError) then return 500, DETAIL_BY_STATUS[500] end
     if DETAIL_BY_STATUS[status] ~= nil and status ~= 500 then return status, DETAIL_BY_STATUS[status] end
     return 400, DETAIL_BY_STATUS[400]
   end

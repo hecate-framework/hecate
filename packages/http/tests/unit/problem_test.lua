@@ -102,4 +102,10 @@ function T:test_every_error_class_maps_to_a_status_and_a_fixed_detail_that_echoe
   end
 end
 
+function T:test_a_parse_error_without_status_is_a_500()
+  -- A malformed response of another server, escaping an action: not the requester's fault.
+  local err = http.ParseError({ message = "x", context = { reason = "invalid_content_length" } })
+  self:assert_equal(500, (problem.of_error(err)))
+end
+
 return T

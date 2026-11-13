@@ -344,7 +344,7 @@ end
 function T:test_a_long_reason_phrase_is_bounded()
   local _, err = Parser.response():feed("HTTP/1.1 200 " .. ("r"):rep(9000) .. "\r\n\r\n")
   self:assert_equal("reason_too_long", err.context.reason)
-  self:assert_equal(400, err.context.status, "a response has nothing to answer: the generic status")
+  self:assert_nil(err.context.status, "a response has nothing to answer: no status (OQ-82)")
 end
 
 function T:test_chunk_extensions_and_chunk_size_digits_are_bounded()
@@ -593,6 +593,18 @@ function T:test_the_native_constructor_accepts_the_kind_alone()
   self:assert_equal("head", events[1].type)
   handle:close()
   self:assert_error(function() native.new("request", 42) end)
+end
+
+function T:test_a_malformed_response_gives_a_parse_error_without_status()
+  -- A status is the server's to give: a response of another server that does not parse must not become a 4xx
+  -- answer of this one (OQ-82, as for the client's ContentError).
+  local p = Parser.response()
+  local _, err = p:feed("HTTP/1.1 200 OK\r\nContent-Length: x\r\n\r\n")
+  self:assert_true(core_is(err, "Error") and err.context ~= nil, tostring(err))
+  self:assert_nil(err.context.status)
+  -- A request parser keeps the status it answers with.
+  local _, refused = parse("GET / HTTP/1.1\r\nContent-Length: x\r\n\r\n")
+  self:assert_equal(400, refused.context.status)
 end
 
 return T

@@ -430,7 +430,11 @@ CI green on the three platforms.
 
 ## Continuous
 
-- Website: French translation kept in sync; further locales by contribution.
+- Website: French translation kept in sync; further locales by contribution. **Rule for the French text (owner,
+  2026-11-13):** translate a technical term only when it has a recognised French translation in common technical
+  usage (*concurrence*, *requête*, *schéma*); keep in English the terms French developers use as they are (*framework*,
+  *middleware*, *callback*, *thread pool*, *worker*, *runtime*); when in doubt, keep the English term. Applied from the
+  next translation sync.
 - Benchmarks published per release.
 - `bench` summary: read the measurement lines whose label holds a number (`log/logger`: `enabled call, 3 fields`) and
   give `router/match` measurement lines instead of a table ([Phase 2 benchmarks](reviews/phase-2-benchmarks.md),

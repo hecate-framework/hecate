@@ -324,6 +324,8 @@ Each release heading states the supported Lua version.
 
 ### Fixed
 
+- fix(http): a `ParseError` of a response parser carries no `status`, and `http.problem` maps a parse or content error without status to 500: a malformed response of another server, escaping an action, no longer becomes a 4xx answer that blames the requester (OQ-82).
+
 - fix(http): `Server:shutdown` no longer closes without an answer a connection whose request head has partly arrived; that request is served with `Connection: close` (Phase 2 review, H-4). test(kernel): two `application_test` tests left a client response unread, which held its connection (L-1); the nightly `leaks` job now checks `kernel` with `reactor` and `net`.
 
 - fix(http): Phase 2 review findings H-1 to H-3 and H-5 to H-9 ([review](docs/reviews/phase-2-review-package.md)). Field values, `Connection` items, `Expect`, `Cookie` pairs and multipart file names are trimmed in linear time: a whitespace-heavy head within the default limits could stall the reactor thread for seconds (H-1, a denial of service; the regression tests bound the time at 0.5 s, against seconds for the quadratic trim); the parser builds its `Fields` without re-validating what llhttp already checks (a browser-sized request about 2.4 times faster); several `Host` lines, a fragment in the target and the asterisk-form outside OPTIONS are a 400; a 205 carries no content and is sent with `Content-Length: 0`; `native.new` with the kind alone no longer reads its own userdata as options, and a memory error while building events leaves the parser failed. feat(http): the server option `on_request_end(request)`, called once a request's serving has ended.
