@@ -2,15 +2,15 @@
 # Handoff
 
 - roadmap_item: **Phase 2 gate**: verification of the phase, as described in "Phase gates" (`docs/roadmap.md`).
-- status: waiting-owner
-- lock_until: 2026-11-13T01:00:51Z
-- last_update: 2026-11-12T23:30:51Z
+- status: in-progress
+- lock_until: 2026-11-13T09:20:00Z
+- last_update: 2026-11-13T09:20:00Z
 
-## Blocked until
+## Unblocked
 
-Pull request #182 adds the Phase 2 item "Examples: comment width and output placement" before this gate. The gate is
-startable only when every other Phase 2 item is ticked, so this pull request waits until that item is delivered and
-ticked on `main`; then rebase onto `main` and continue from "Next steps".
+#182 (the examples item) was merged on 2026-11-13 and `main` is merged into this branch: every Phase 2 item
+but the gate is ticked. Continue from "Next steps" (redo step 1 at the new `main`; the gate now also checks the two
+example rules, `check-examples` and the examples tests).
 
 ## Done
 
