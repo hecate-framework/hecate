@@ -324,6 +324,8 @@ Each release heading states the supported Lua version.
 
 ### Fixed
 
+- fix(ci): the caches of the `ci` job (toolchain, LuaLS, rocks, the native modules and the cargo build) are restored and saved in separate steps, saved even when a later step fails and only when the restore missed (a native module or rocks cache only once verified): `actions/cache` saved them only on a green job, so a failing platform rebuilt luv and every native module on each run (about 3 minutes on Windows).
+
 - fix(http): a `ParseError` of a response parser carries no `status`, and `http.problem` maps a parse or content error without status to 500: a malformed response of another server, escaping an action, no longer becomes a 4xx answer that blames the requester (OQ-82).
 
 - fix(http): `Server:shutdown` no longer closes without an answer a connection whose request head has partly arrived; that request is served with `Connection: close` (Phase 2 review, H-4). test(kernel): two `application_test` tests left a client response unread, which held its connection (L-1); the nightly `leaks` job now checks `kernel` with `reactor` and `net`.

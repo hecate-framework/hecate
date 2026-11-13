@@ -215,6 +215,13 @@ function T:test_a_worker_that_stops_reading_its_message_pipe_does_not_stall_the_
   self:assert_equal(3, unanswered)
 end
 
+--- The codes of the records in `memory`, in order, for a failure message.
+local function event_codes(memory)
+  local codes = {}
+  for _, event in ipairs(workers.events(memory)) do codes[#codes + 1] = tostring(event.code) end
+  return table.concat(codes, ",")
+end
+
 --- Counts the records of `code` in `memory`.
 local function count_events(memory, code)
   local count = 0
@@ -252,7 +259,8 @@ function T:test_the_primary_pauses_accepting_while_every_worker_is_saturated_and
       mute:kill("sigkill")
       local content
       content, why = third:value()
-      self:assert_not_nil(content, "the connection kept by the primary: " .. tostring(why))
+      self:assert_not_nil(content, "the connection kept by the primary: " .. tostring(why) .. " (records: "
+        .. event_codes(memory) .. ")")
       self:assert_true(content:match("^1:%d+$") ~= nil, content)
       content, why = fourth:value()
       if package.config:sub(1, 1) == "\\" then
