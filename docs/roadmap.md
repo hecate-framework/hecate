@@ -249,13 +249,16 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       default logger and the access log record (query strings), `logging.redact`, secrets declared in `secrets`, limits, development
       mode off. Written after the `kernel` item so that it names its real configuration keys. Delivered: [`website/en/how-to/before-going-to-production.md`](../website/en/how-to/before-going-to-production.md), reviewed against the code by `security-reviewer` and `dx-reviewer`; English only for now (`website/fr/how-to` does not yet mirror every page).
 
-- [ ] Examples: comment width and output placement (owner request, 2026-11-12). A task `check-examples` (run by the
+- [x] Examples: comment width and output placement (owner request, 2026-11-12). A task `check-examples` (run by the
       `docs-checks` and static-check jobs of `ci.yml`) fails on a line longer than 80 characters that holds a comment
       in `packages/*/examples/**`, `examples/**` and the Lua blocks of `website/en/**`, unless the line above carries
       the exception marker; the examples tests check that each printed or logged line is expected by a `-- Prints:`
       block directly under the line that produced it (one shared helper instead of a copy per package). Migrate every
       existing example and the website pages that include them; document both rules in `documentation.md` and
-      `website/CLAUDE.md`. Both rules are part of the phase gates ("It works").
+      `website/CLAUDE.md`. Both rules are part of the phase gates ("It works"). Delivered: `check-examples` (`tools/lib/examples.lua`,
+      exemption marker `check-examples: allow-long-comment`, every website locale) and the shared runner
+      `tools/harness/examples.lua` used by the examples tests of the ten packages; every example and the website pages
+      that include them migrated; the rules in `documentation.md`, "Code examples"; reviewed by `test-engineer`.
 
 - [ ] **Phase 2 gate**: verification of the phase, as described in [Phase gates](#phase-gates). Open
       questions to put to the owner before Phase 3: OQ-46, OQ-13, OQ-17, OQ-38 and OQ-64
