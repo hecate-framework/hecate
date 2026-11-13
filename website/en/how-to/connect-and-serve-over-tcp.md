@@ -154,9 +154,9 @@ reactor.run(function()
   end
   local first, second = reactor.join(reactor.fork(ask, "alpha"), reactor.fork(ask, "beta"))
   print(first .. " " .. second)
+  -- Prints: ALPHA BETA
   acceptor:cancel()
 end)
--- Prints: ALPHA BETA
 ```
 
 Cancelling an `accept` keeps the listener and the connections already queued in it. That is how

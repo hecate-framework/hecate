@@ -16,9 +16,9 @@ reactor.run(function()
   local finished = reactor.fork(function()
     local client <close> = http.Client()
     print(client:get("http://127.0.0.1:" .. listener:local_address().port .. "/"):read_content())
+    -- Prints: hello
   end)
   reactor.select(signalled, finished)
   server:shutdown(10)
   reactor.join(serving)
 end)
--- Prints: hello

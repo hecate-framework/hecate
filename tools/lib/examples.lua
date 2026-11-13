@@ -35,8 +35,12 @@ end
 ---@param source string
 ---@return table<integer, true> lines
 ---@return table<integer, string> comments  comment text per line (concatenated when a line holds several)
+---@return table<integer, true> inner  lines inside a long comment or long string, after its first line
 function M.comment_lines(source)
-  local lines, comments = {}, {}
+  local lines, comments, inner = {}, {}, {}
+  local function within(from, spanned)
+    for number = from + 1, from + spanned do inner[number] = true end
+  end
   local function mark(from, to, text)
     local first = 1
     for number = from, to do
@@ -66,6 +70,7 @@ function M.comment_lines(source)
         local text = source:sub(position, last)
         local spanned = count(position, last)
         mark(line, line + spanned, text)
+        within(line, spanned)
         line = line + spanned
         position = last + 1
       else
@@ -78,15 +83,30 @@ function M.comment_lines(source)
       local close = "]" .. level .. "]"
       local stop = source:find(close, position + 2 + #level, true)
       local last = stop and stop + #close - 1 or length
-      line = line + count(position, last)
+      local spanned = count(position, last)
+      within(line, spanned)
+      line = line + spanned
       position = last + 1
     elseif c == '"' or c == "'" then
       local cursor = position + 1
       while cursor <= length do
         local d = source:sub(cursor, cursor)
         if d == "\\" then
-          if source:sub(cursor + 1, cursor + 1) == "\n" then line = line + 1 end
-          cursor = cursor + 2
+          local escaped = source:sub(cursor + 1, cursor + 2)
+          if escaped == "\r\n" or escaped == "\n\r" then
+            line = line + 1 -- an escaped line break of two characters
+            cursor = cursor + 3
+          elseif escaped:sub(1, 1) == "\n" or escaped:sub(1, 1) == "\r" then
+            line = line + 1
+            cursor = cursor + 2
+          elseif escaped:sub(1, 1) == "z" then
+            -- `\z` skips the following white space, line breaks included
+            local blank = source:match("^%s*", cursor + 2)
+            line = line + count(cursor + 2, cursor + 1 + #blank)
+            cursor = cursor + 2 + #blank
+          else
+            cursor = cursor + 2
+          end
         elseif d == c then
           break
         elseif d == "\n" then
@@ -103,7 +123,7 @@ function M.comment_lines(source)
       position = position + 1
     end
   end
-  return lines, comments
+  return lines, comments, inner
 end
 
 --- Problems of the width rule in a Lua source.
@@ -111,12 +131,15 @@ end
 ---@return { line: integer, message: string }[] problems
 function M.check_source(source)
   local problems = {}
-  local holds, comments = M.comment_lines(source)
-  for number, text in ipairs(split(source)) do
+  local holds, comments, inner = M.comment_lines(source)
+  local lines = split(source)
+  for number, text in ipairs(lines) do
     local size = width(text)
     if holds[number] and size > M.WIDTH then
+      -- the exemption is a comment line of its own, just above (not a trailing comment, not a long comment)
       local above = comments[number - 1]
-      if not (above and above:find(M.EXEMPTION, 1, true)) then
+      local own = above ~= nil and not inner[number - 1] and (lines[number - 1] or ""):match("^%s*%-%-") ~= nil
+      if not (own and above:find(M.EXEMPTION, 1, true)) then
         problems[#problems + 1] = {
           line = number,
           message = ("a line holding a comment is %d characters long (at most %d)"):format(size, M.WIDTH),
@@ -135,11 +158,12 @@ function M.lua_blocks(text)
   local lines, blocks = split(text), {}
   local index = 1
   while index <= #lines do
-    local fence = lines[index]:match("^%s*(```+)%s*lua%s*$")
+    local fence = lines[index]:match("^%s*(```+)%s*[Ll]ua%f[^%w_]") or lines[index]:match("^%s*(~~~+)%s*[Ll]ua%f[^%w_]")
     if fence then
       local copied = index > 1 and lines[index - 1]:match("^<!%-%-%s*example:") ~= nil
       local body, cursor = {}, index + 1
-      while cursor <= #lines and not lines[cursor]:match("^%s*" .. fence .. "%s*$") do
+      local closing = "^%s*" .. fence:sub(1, 1):gsub("~", "%%~") .. "+%s*$"
+      while cursor <= #lines and not (lines[cursor]:match(closing) and #lines[cursor]:match("[`~]+") >= #fence) do
         body[#body + 1] = lines[cursor]
         cursor = cursor + 1
       end

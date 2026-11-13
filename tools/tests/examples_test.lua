@@ -1,6 +1,7 @@
 local test = require("harness.test")
 local examples = require("lib.examples")
 local runner = require("harness.examples")
+local util = require("lib.util")
 local T = test.Case("ExamplesTest")
 
 local LONG = string.rep("x", 70)
@@ -125,8 +126,9 @@ function T:test_run_attributes_each_print_to_its_line_in_the_example()
   file:write("local function each(f) f() end\neach(function()\n  print('inner')\n  -- Prints: inner\nend)\n"
     .. "print(1, nil)\n-- Prints: 1\tnil\n")
   file:close()
-  local problem = runner.run(path)
+  local ok, problem = pcall(runner.run, path)
   os.remove(path)
+  self:assert_true(ok, tostring(problem))
   self:assert_nil(problem, problem)
 end
 
@@ -135,9 +137,126 @@ function T:test_run_reports_an_error_of_the_example()
   local file = assert(io.open(path, "wb"))
   file:write("error('broken')\n")
   file:close()
-  local problem = runner.run(path)
+  local ok, problem = pcall(runner.run, path)
   os.remove(path)
+  self:assert_true(ok, tostring(problem))
   self:assert_not_nil(problem and problem:find("broken", 1, true), problem)
+end
+
+-- Review findings of 2026-11-12 (test-engineer).
+
+function T:test_a_z_escape_does_not_end_the_string()
+  self:assert_equal(1, #examples.check_source('local s = "a\\z\n  b" -- ' .. LONG .. LONG .. "\n"))
+end
+
+function T:test_an_escaped_crlf_line_break_stays_inside_the_string()
+  self:assert_equal(0, #examples.check_source('local s = "a\\\r\n--' .. LONG .. LONG .. '"\r\nprint(s)\r\n'))
+end
+
+function T:test_a_crlf_source_is_measured_without_carriage_returns()
+  local line = "-- " .. string.rep("x", 77)
+  self:assert_equal(0, #examples.check_source(line .. "\r\n" .. line .. "\r\n"))
+end
+
+function T:test_an_unclosed_long_comment_runs_to_the_end_of_the_file()
+  self:assert_equal(1, #examples.check_source("--[[ open\n" .. LONG .. LONG .. "\n"))
+end
+
+function T:test_a_mismatched_long_bracket_level_does_not_close_the_string()
+  self:assert_equal(0, #examples.check_source("local s = [==[ ]] --" .. LONG .. LONG .. "\n]==]\n"))
+end
+
+function T:test_a_comment_at_the_end_of_the_file_without_a_newline_is_checked()
+  self:assert_equal(1, #examples.check_source("local x = 1\n-- " .. LONG .. LONG))
+end
+
+function T:test_tilde_capitalised_and_annotated_fences_are_checked()
+  local body = "local x = 1 -- " .. LONG .. "\n"
+  self:assert_equal(1, #examples.check_markdown("~~~lua\n" .. body .. "~~~\n"))
+  self:assert_equal(1, #examples.check_markdown("```Lua\n" .. body .. "```\n"))
+  self:assert_equal(1, #examples.check_markdown("```lua title=x\n" .. body .. "```\n"))
+  self:assert_equal(0, #examples.check_markdown("```luax\n" .. body .. "```\n"))
+end
+
+function T:test_the_exemption_must_be_a_comment_line_of_its_own()
+  local source = "f() -- " .. examples.EXEMPTION .. "\nlocal x = 1 -- " .. LONG .. "\n"
+  self:assert_equal(1, #examples.check_source(source))
+end
+
+function T:test_ordinary_code_between_a_print_and_its_block_is_refused()
+  local problem = runner.compare("print('a')\nlocal x = 1\nlocal y = 2\n-- Prints: a\n", outputs({ { 1, "a" } }))
+  self:assert_not_nil(problem and problem:find("not directly under", 1, true), problem)
+end
+
+function T:test_a_block_under_a_line_that_prints_nothing_is_refused()
+  local problem = runner.compare("print('a')\nquiet()\n-- Prints: a\n", outputs({ { 1, "a" } }))
+  self:assert_not_nil(problem and problem:find("not directly under", 1, true), problem)
+end
+
+function T:test_the_arguments_of_a_multi_line_print_may_stand_before_its_block()
+  local source = "print(\n  'a',\n  'b'\n)\n-- Prints: a\tb\n"
+  self:assert_nil(runner.compare(source, outputs({ { 1, "a\tb" } })))
+end
+
+function T:test_a_prints_line_inside_a_long_comment_or_string_is_not_a_block()
+  local source = "print('a')\n-- Prints: a\nlocal s = [[\n-- Prints: b\n]]\n--[[\n-- Prints: c\n]]\n"
+  self:assert_nil(runner.compare(source, outputs({ { 1, "a" } })))
+end
+
+function T:test_output_not_attributable_to_a_line_is_refused()
+  local problem = runner.compare("print('a')\n-- Prints: a\n", outputs({ { 0, "a" } }))
+  self:assert_not_nil(problem and problem:find("not attributable", 1, true), problem)
+end
+
+local function with_file(text, fn)
+  local path = os.tmpname()
+  local file = assert(io.open(path, "wb"))
+  file:write(text)
+  file:close()
+  local ok, result = pcall(fn, path)
+  os.remove(path)
+  if not ok then error(result, 0) end
+  return result
+end
+
+function T:test_print_through_the_global_table_is_captured()
+  local problem = with_file("_G.print('a')\n-- Prints: a\n", runner.run)
+  self:assert_nil(problem, problem)
+end
+
+function T:test_writing_to_the_standard_output_is_refused()
+  local problem = with_file("io.write('a\\n')\n", runner.run)
+  self:assert_not_nil(problem and problem:find("print", 1, true), problem)
+end
+
+local function remove_tree(path)
+  if util.is_windows() then os.execute(('rmdir /s /q "%s" >nul 2>&1'):format(path:gsub("/", "\\")))
+  else os.execute("rm -rf " .. util.quote(path)) end
+end
+
+function T:test_the_task_reports_examples_and_pages_with_their_lines()
+  local root = (os.tmpname() .. "-root"):gsub("\\", "/")
+  local function write(path, text)
+    util.mkdir((root .. "/" .. path):match("^(.*)/"))
+    local f = assert(io.open(root .. "/" .. path, "wb"))
+    f:write(text)
+    f:close()
+  end
+  write("packages/x/examples/a.lua", "local x = 1\nlocal y = 2 -- " .. LONG .. "\n")
+  write("examples/app/main.lua", "-- short\n")
+  write("website/en/how-to/p.md", "# P\n\n```lua\n-- " .. LONG .. LONG .. "\n```\n")
+  write("website/fr/how-to/p.md", "# P\n\n```lua\n-- " .. LONG .. LONG .. "\n```\n")
+  write("website/en/reference/r.md", "```lua\n-- " .. LONG .. LONG .. "\n```\n")
+  local ok, report = pcall(require("tasks.check_examples").run, { root = root, args = {} })
+  remove_tree(root)
+  os.remove((root:gsub("-root$", "")))
+  self:assert_true(ok, tostring(report))
+  self:assert_false(report.ok)
+  table.sort(report.problems)
+  self:assert_equal(3, #report.problems, table.concat(report.problems, "\n"))
+  self:assert_not_nil(report.problems[1]:find("^packages/x/examples/a%.lua:2: "), report.problems[1])
+  self:assert_not_nil(report.problems[2]:find("^website/en/how%-to/p%.md:4: "), report.problems[2])
+  self:assert_not_nil(report.problems[3]:find("^website/fr/how%-to/p%.md:4: "), report.problems[3])
 end
 
 return T

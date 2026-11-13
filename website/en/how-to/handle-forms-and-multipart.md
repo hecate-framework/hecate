@@ -44,10 +44,10 @@ reactor.run(function()
     form = { { "name", "Ada Lovelace" }, { "tag", "math" }, { "tag", "code" } },
   })
   print(response:read_content())
+  -- Prints: Ada Lovelace math,code
   server:shutdown()
   reactor.join(serving)
 end)
--- Prints: Ada Lovelace math,code
 ```
 
 The limits are `max_pairs` (1000) and `max_size` (1 MiB). Over either, the form is refused with a
@@ -115,10 +115,10 @@ reactor.run(function()
     },
   })
   print(response:read_content())
+  -- Prints: title=report; upload: 100 bytes (client name passwd)
   server:shutdown()
   reactor.join(serving)
 end)
--- Prints: title=report; upload: 100 bytes (client name passwd)
 ```
 
 The reader pulls content only when it needs it. It keeps one chunk, the header fields of the

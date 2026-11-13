@@ -142,10 +142,10 @@ reactor.run(function()
   local serving = reactor.fork(server.serve, server, listener)
   local client <close> = http.Client({ tls = { ca_pem = read("ca.pem"), system_roots = false } })
   print(client:get("https://127.0.0.1:" .. listener:local_address().port .. "/"):read_content())
+  -- Prints: secure
   server:shutdown()
   reactor.join(serving)
 end)
--- Prints: secure
 ```
 
 To make a certificate for local work: `openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes -days 30

@@ -41,10 +41,10 @@ reactor.run(function()
   local response = client:get("http://127.0.0.1:" .. listener:local_address().port .. "/users/42")
   local user = response:read_json()
   print(response.status .. " " .. user.name)
+  -- Prints: 200 Ada
   server:shutdown()
   reactor.join(serving)
 end)
--- Prints: 200 Ada
 ```
 
 `response:read_json(limit?)` reads the content (bounded like `read_content`) and decodes it. Content

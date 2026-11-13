@@ -1,5 +1,5 @@
 -- check-examples: no line holding a comment is longer than 80 characters in the code examples
--- (`packages/*/examples/**`, `examples/**`, the Lua blocks of `website/en/**`), unless the line
+-- (`packages/*/examples/**`, `examples/**`, the Lua blocks of `website/<locale>/**`), unless the line
 -- above carries the exemption marker. The placement of printed output is checked when the
 -- examples run (`tools/harness/examples.lua`).
 local util = require("lib.util")
@@ -47,7 +47,12 @@ return {
         problems[#problems + 1] = ("%s:%d: %s"):format(rel, problem.line, problem.message)
       end
     end
-    local pages = walk(root, "website/en", ".md", {})
+    local pages = {}
+    if util.is_dir(root .. "/website") then
+      for _, locale in ipairs(util.list_dir(root .. "/website")) do
+        if util.is_dir(root .. "/website/" .. locale) then walk(root, "website/" .. locale, ".md", pages) end
+      end
+    end
     table.sort(pages)
     for _, rel in ipairs(pages) do
       count = count + 1

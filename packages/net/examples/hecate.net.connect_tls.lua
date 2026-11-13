@@ -31,6 +31,6 @@ reactor.run(function()
   writer:write("hello\n")
   writer:flush()
   print(reader:read_line())
+  -- Prints: secure hello
   client:shutdown() -- close_notify: a clean end, not a truncation
 end)
--- Prints: secure hello

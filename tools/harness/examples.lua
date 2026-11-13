@@ -5,7 +5,9 @@
 --
 -- Matching: each `print` is attributed to the innermost line of the example that is running when it is called. A
 -- block expects the output of exactly one line, the last line printing before the block, and that line is followed
--- by the block with no blank or comment line in between (only the rest of its statement, such as `end)`).
+-- by the block with only the rest of its statement in between: the remaining arguments of a call spanning several
+-- lines, or closing lines such as `end)`. Examples write through `print` only: `io.write` and `io.stdout` are refused.
+local lexer = require("lib.examples")
 local M = {}
 
 --- The `-- Prints:` blocks of a source.
@@ -14,9 +16,11 @@ local M = {}
 function M.expectations(source)
   local blocks, current = {}, nil
   local number = 0
+  local _, _, inner = lexer.comment_lines(source)
   for line in (source .. "\n"):gmatch("(.-)\r?\n") do
     number = number + 1
-    local first = line:match("^%s*%-%- Prints: ?(.*)$") or (line:match("^%s*%-%- Prints:$") and "")
+    local first = not inner[number]
+      and (line:match("^%s*%-%- Prints: ?(.*)$") or (line:match("^%s*%-%- Prints:$") and ""))
     if first then
       current = { line = number, last = number, lines = { first } }
       blocks[#blocks + 1] = current
@@ -46,6 +50,25 @@ local function split(source)
   return lines
 end
 
+--- True when a line holds nothing but the end of a statement: `end`, closing brackets, separators or an `until`.
+---@param text string
+---@return boolean
+local function closes(text)
+  if text:match("^%s*until%f[%W]") then return true end
+  local rest = text:gsub("%f[%w_]end%f[^%w_]", ""):gsub("[%s%)%]},;]", "")
+  return rest == ""
+end
+
+--- Bracket depth change of a line, strings and comments left out (an approximation good enough for examples).
+---@param text string
+---@return integer
+local function depth(text)
+  local code = text:gsub("\\.", ""):gsub('"[^"]*"', ""):gsub("'[^']*'", ""):gsub("%-%-.*$", "")
+  local _, opened = code:gsub("[%(%[{]", "")
+  local _, closed = code:gsub("[%)%]}]", "")
+  return opened - closed
+end
+
 --- Checks captured output against the blocks of a source.
 ---@param source string
 ---@param outputs { line: integer, text: string }[]  in the order they were printed
@@ -55,6 +78,10 @@ function M.compare(source, outputs)
   if #blocks == 0 and #outputs == 0 then return "the example has no `-- Prints:` block" end
   local received = {}
   for _, output in ipairs(outputs) do
+    if output.line == 0 then
+      return ("%q is not attributable to a line of the example (none was running): print inline")
+        :format(output.text)
+    end
     local owner
     for index, block in ipairs(blocks) do
       if block.line > output.line then
@@ -80,9 +107,12 @@ function M.compare(source, outputs)
     if entry == nil then
       return ("the `-- Prints:` block of line %d expects %q, but nothing printed it"):format(block.line, block.text)
     end
+    local open = depth(lines[entry.from])
     for between = entry.from + 1, block.line - 1 do
       local text = lines[between]
-      if text:match("^%s*$") or text:match("^%s*%-%-") then
+      local continued = open > 0 and not text:match("^%s*$") and not text:match("^%s*%-%-")
+      open = open + depth(text)
+      if not (continued or closes(text)) then
         return ("the `-- Prints:` block of line %d is not directly under line %d, which prints it"):format(
           block.line, entry.from)
       end
@@ -124,6 +154,10 @@ function M.run(path, globals)
       outputs[#outputs + 1] = { line = line, text = text }
     end
   end
+  environment._G = environment
+  local function refused() error("an example writes through `print` only, never `io.write` or `io.stdout`", 2) end
+  environment.io = setmetatable({ write = refused, stdout = setmetatable({}, { __index = refused }) },
+    { __index = io })
   setmetatable(environment, { __index = _G })
   local chunk, message = load(source, chunkname, "t", environment)
   if not chunk then return message end

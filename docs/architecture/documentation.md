@@ -142,8 +142,10 @@ Owner request, 2026-11-12. Two rules apply to every code example: the files unde
 2. **Output placement.** What a line makes the reader see is written in a `-- Prints:` block directly under that
    line, never gathered at the end of the example. The block starts with `-- Prints: <first line>` and continues
    on the comment lines `-- <next line>` that follow it. One block holds the output of one line. Only the rest of
-   the printing statement (such as `end)`) may stand between the line and its block. A server example that never
-   returns ends with `-- Answers: <text>` instead.
+   the printing statement may stand between the line and its block: the remaining arguments of a call that spans
+   several lines, or closing lines such as `end)`. Inside a function, the block goes inside it, indented. Examples
+   write through `print` only (`io.write` and `io.stdout` are refused). A server example that never returns ends
+   with `-- Answers: <text>` instead.
 
 ```lua
 local ok, value = schema.integer():validate(42)

@@ -19,7 +19,7 @@ reactor.run(function()
     form = { { "name", "Ada Lovelace" }, { "tag", "math" }, { "tag", "code" } },
   })
   print(response:read_content())
+  -- Prints: Ada Lovelace math,code
   server:shutdown()
   reactor.join(serving)
 end)
--- Prints: Ada Lovelace math,code

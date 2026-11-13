@@ -3,8 +3,8 @@
 
 - roadmap_item: Examples: comment width and output placement (owner request, 2026-11-12).
 - status: in-progress
-- lock_until: 2026-11-13T02:10:00Z
-- last_update: 2026-11-13T00:40:00Z
+- lock_until: 2026-11-13T02:30:00Z
+- last_update: 2026-11-13T00:30:00Z
 
 ## Done
 
@@ -24,6 +24,14 @@
   Local: every check ok, `test` ok (all packages, tools, examples/hello), `typecheck` ok. Only change of printed
   output: the container example shows the scope closing through `session.closed` (`true`) instead of a print from
   `__close`.
+
+- Step 4: `test-engineer` review of the tooling (7 findings), all fixed test first: a block under ordinary code or
+  under a silent line is refused (only the rest of the printing statement may stand between), `\z` and escaped CRLF
+  line breaks in strings, `~~~`/`Lua`/annotated fences, every website locale scanned, the exemption must be a comment
+  line of its own, `-- Prints:` inside long brackets ignored, output not attributable to a line refused, `_G.print`
+  captured and `io.write`/`io.stdout` refused, a fixture test of the task, lexer edge cases, temporary files removed on
+  failure. Nine examples moved their block inside the function, under the print. Not done: checking that `-- Answers:`
+  is the last line (an `http`-only convention, low value).
 
 ## Next steps
 

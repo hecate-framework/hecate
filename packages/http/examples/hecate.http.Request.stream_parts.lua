@@ -38,7 +38,7 @@ reactor.run(function()
     },
   })
   print(response:read_content())
+  -- Prints: title=report; upload: 100 bytes (client name passwd)
   server:shutdown()
   reactor.join(serving)
 end)
--- Prints: title=report; upload: 100 bytes (client name passwd)

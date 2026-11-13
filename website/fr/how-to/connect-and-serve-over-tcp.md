@@ -156,9 +156,9 @@ reactor.run(function()
   end
   local first, second = reactor.join(reactor.fork(ask, "alpha"), reactor.fork(ask, "beta"))
   print(first .. " " .. second)
+  -- Prints: ALPHA BETA
   acceptor:cancel()
 end)
--- Prints: ALPHA BETA
 ```
 
 Annuler un `accept` conserve l’écouteur et les connexions déjà en file d’attente. C’est ainsi que

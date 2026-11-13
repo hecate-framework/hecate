@@ -78,9 +78,9 @@ reactor.run(function()
   writer:write("hello\n")
   writer:flush()
   print(reader:read_line())
+  -- Prints: secure hello
   client:shutdown() -- close_notify: a clean end, not a truncation
 end)
--- Prints: secure hello
 ```
 
 `system_roots = false` exige `ca_pem`. Le client termine la conversation avec `shutdown()`, qui
@@ -157,9 +157,9 @@ reactor.run(function()
   })
   client:write("hello\n")
   print(client:reader():read_line())
+  -- Prints: hello over echo
   client:shutdown() -- close_notify: a clean end, not a truncation
 end)
--- Prints: hello over echo
 ```
 
 Un serveur peut lire le nom demandé par un client avec `stream:requested_server_name()`. Il ne
@@ -221,10 +221,10 @@ reactor.run(function()
   writer:write("alice\n")
   writer:flush()
   print(reader:read_line())
+  -- Prints: welcome alice
   client:shutdown()
   acceptor:cancel()
 end)
--- Prints: welcome alice
 ```
 
 > [!NOTE]
