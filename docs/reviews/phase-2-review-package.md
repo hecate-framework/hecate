@@ -53,3 +53,20 @@ disposition: fixed in the gate pull request (test first), or deferred to a named
 | R-5 | minor | `template.parse(text)` and `path.split(raw)` without a policy behave as `strict`, not the documented default `ignore` (`template.lua:233`, `path.lua:116`). Reproduced. | Open |
 | R-6 | minor | `url_for` refuses an integer for a wildcard though the documentation says "strings or integers" (`template.lua:285`). Reproduced. | Open |
 | R-7 | minor | Under `trailing_slash = "strict"` a wildcard refuses a path ending with a slash; the guide does not say so (`tree.lua:93-101`). Reproduced. | Open |
+
+## reactor (Phase 2 additions)
+
+The `-- coverage: off` region around the pool-thread body of `offload` was judged correct (only code that runs in
+pool-thread states); RE-6 covers it with real tests.
+
+| Id | Severity | Finding | Disposition |
+|---|---|---|---|
+| RE-1 | minor | `Peer:send` accepts a stream that has already been read: its buffered bytes are lost, and a running read-ahead can take bytes meant for the receiver (`ipc.lua:124-142`). No current caller is hit. | Open |
+| RE-2 | minor | Encoding errors of `offload` embed the path of table keys unescaped and uncut (a 1 MiB key gives a 1 MiB message; control characters reach the logs) (`transfer.lua:25-31`, `:54-56`, `offload.lua:222`). Reproduced. | Open |
+| RE-3 | minor | A call cancelled while queued keeps its encoded arguments until the pool reaches it (`offload.lua:241-246`). | Open |
+| RE-4 | minor | Garbage of a call stays in the pool thread's Lua state until that thread runs again (299 MB resident after one call building 3 million strings) (`offload.lua:35-79`). Reproduced. | Open (needs a measurement) |
+| RE-5 | minor | `OffloadError.context.reason = "worker"` collides with the glossary term *worker* (a process, ADR 0023) (`offload.lua:18`, `:75`; `concurrency.md:169`). | Open (public name: owner) |
+| RE-6 | minor | No test for `require` on a pool thread, the `worker` reason, the `refused` path, or a function under its own `local _ENV`. | Open |
+| RE-7 | minor | NUL bytes in `cwd` and in `env` names and values of `spawn` are not refused (luv cuts them) (`process.lua:268-283`). | Open |
+| RE-8 | minor | `supports_reuseport` caches any probe failure (EMFILE, no IPv4 loopback) as "unsupported" for the life of the process (`tcp.lua:597-611`). | Open |
+| RE-9 | minor | `pool_size()` maps a negative `UV_THREADPOOL_SIZE` to 1 where libuv reads 1024; the comment says "as libuv reads it" (`offload.lua:95-101`). | Open |
