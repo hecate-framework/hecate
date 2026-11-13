@@ -284,6 +284,14 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
 
 ## Phase 3 — Contracts and tooling → `0.1.0`
 
+- [ ] **First item of Phase 3 (owner decision of 2026-11-13): a readable writing style.** Write a "Writing style"
+      section in `docs/architecture/documentation.md`, after the manner of *Programming in Lua* (Ierusalimschy): one
+      idea per paragraph, a short example right after each new concept, a brief reminder of what a term means the first
+      time a page uses it (linked to the glossary), short sentences and a lower density, the precise term and the exact
+      claim always kept. Pilot it on the 8 pages written at the Phase 2 gate (the how-tos on problem details, filters,
+      concurrency and multi-process deployment; the schema keywords reference; the explanations on the architecture, the
+      object model and the concurrency model) and submit them to the owner before any other Phase 3 item starts. Once
+      approved, the website item applies it to the rest of the site.
 - [ ] `openapi`: OpenAPI 3.1 assembly, served endpoint, export, contract diff.
 - [ ] `test`: test framework, runner, in-process client, fixtures, contract conformance,
       reporters (TAP, JUnit XML), coverage. **Also (T2, from the `http` test review):** a hand-built `Request` whose
@@ -337,6 +345,10 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       English one in Phase 2: *violation*, *class-bound schema*, *presence set*, *work budget*, *validator*, *build*,
       *Representable*, *represent*, *fail-fast mode*, *minor units*, *union (sum type)*, *path template*, *route table*,
       *dot segment* and *service scope* (finding C9 of `docs/reviews/phase-2-coherence-findings.md`).
+      **Also (owner decisions of 2026-11-13):** apply the writing style of the first Phase 3 item to every page;
+      Mermaid diagrams (OQ-128): an ADR for the dependency (a vendored copy of `mermaid.js`, loaded only on the pages
+      that hold a diagram, no CDN), then the support in `hecate.doc` (a ` ```mermaid ` block becomes a diagram) and
+      diagrams in the explanation pages.
 - [ ] Meta-rock `hecate` (standard edition).
 - [ ] Read-only mirrors (ADR 0017): `split`, `mirrors ensure`, `check-mirrors`,
       `split.yml`; Homebrew tap and Scoop bucket repositories (resolves OQ-17).
