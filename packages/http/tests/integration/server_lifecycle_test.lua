@@ -346,6 +346,28 @@ function T:test_a_writer_that_breaks_its_declared_length_closes_the_connection()
   end)
 end
 
+-- Documented in website/en/how-to/before-going-to-production.md (Logging): `on_error` receives the error object itself,
+-- with its context and its causes, whatever they hold.
+function T:test_on_error_receives_the_raw_error_with_its_context_and_causes()
+  local reported = {}
+  local failure = core.Error({ message = "the lookup failed", context = { dsn = "postgresql://app:hunter2@db/app" },
+    cause = core.Error("driver said: password authentication failed for user app") })
+  with_server(self, {
+    action = function() error(failure, 0) end,
+    logger = log.Logger({ sinks = { log.MemorySink() } }),
+    on_error = function(err) reported[#reported + 1] = err end,
+  }, function(port)
+    local client <close> = connect(port)
+    local response = client:request(get("/"))
+    self:assert_equal(500, response.status)
+    self:assert_nil(response.content:find("hunter2", 1, true))
+  end)
+  self:assert_equal(1, #reported)
+  self:assert_true(rawequal(failure, reported[1]))
+  self:assert_equal("postgresql://app:hunter2@db/app", reported[1].context.dsn)
+  self:assert_true(tostring(reported[1]):find("caused by: ", 1, true) ~= nil, tostring(reported[1]))
+end
+
 function T:test_a_table_is_an_error_answered_with_the_generic_500_and_logged()
   -- OQ-76 a: http never serialises; a table reaching the server (set after construction) is a failure of the action, not JSON.
   local sink = log.MemorySink()

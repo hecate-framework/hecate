@@ -35,7 +35,8 @@ variables combine is in [Configure an application](configure-an-application.md).
 - [ ] **`errors.expose_details` is `false`** (the default; `HECATE_ERRORS__EXPOSE_DETAILS`). When it is `true`, a 422
   entry carries the message of each violation, and a 500 carries the extension member `debug`: the error class, its
   message (for a plain Lua error, the source file and line) and, when the error object holds one, its traceback.
-  Internal details reach the client.
+  `debug.message` holds the message of the error and of each of its causes, so the text of a wrapped driver error
+  reaches the client too.
 - [ ] **Do not rely on the boot warning alone.** The application logs a `warning` with code
   `expose_details_in_production` at boot when the key is `true`, but only when a `configuration` is given and its
   environment is exactly `production`: an environment named `staging`, or `expose_details = true` passed as an option
@@ -60,20 +61,33 @@ variables combine is in [Configure an application](configure-an-application.md).
   `json_lines` when a platform collects the logs: one JSON object per line, still on the standard output. `file` needs
   `logging.file.path`. Set `logging.async = true` to wrap each sink in an `AsyncSink` when a sink is slow, so that it
   does not hold up a request.
+- [ ] **Know what `logging.async` loses.** Each `AsyncSink` queues at most 1024 records. Past that, it drops records
+  silently. The sink counts them, but the logger built from the configuration gives no access to that count.
+- [ ] **Own the permissions and the retention of the log file.** The `file` sink creates its file with the permissions
+  the umask of the process leaves, and it never rotates the file. Set the umask, the permissions of the directory and
+  the retention yourself.
 - [ ] **Know what the framework records.** At `informational` and above:
   - the listening address (`informational`), the workers started and reloaded (`notice`), the signals received
     (`notice`);
   - an unhandled error of an action (`error`, "unhandled error while serving a request"), with the method, the path
-    **without** the query, the error class, its code, its message and the traceback;
+    **without** the query, the error class, its code, its message and the traceback. The `traceback` field starts
+    with the message of the error and of each of its causes (`caused by: ...`): an error that wraps a driver error
+    carries the text of the driver into the logs;
   - an error the client caused (`warning`, "request refused"), with the same fields;
   - an action that fails in a way the kernel does not answer itself, such as an expired deadline (`error`, "http.Server:
     the action failed"), with the method, the path without the query and the error;
   - a failed TLS handshake (`warning`), with the address of the peer (behind a proxy, the proxy's address);
   - accept failures and connections a worker could not take (`warning`).
 
-  Some answers are **not** logged: a problem with a status below 500 that an action returns or raises, and the requests
-  the server refuses before any action runs (400, 408, 413, 414, 417, 431, 501). Only an access log sees them. The peer
-  address is personal data in some jurisdictions: decide how long the records are kept.
+  Some answers are **not** logged: an input the kernel refuses (422, 400 for content that is not JSON, 415), which is
+  returned, not raised; a problem with a status below 500 that an action returns or raises; and the requests the server
+  refuses before any action runs (400, 408, 413, 414, 417, 431, 501). Only an access log sees them. The peer address is
+  personal data in some jurisdictions: decide how long the records are kept.
+- [ ] **Keep personal data out of paths.** The logged `path` drops the query, but not the path parameters. A route
+  such as `/users/{email}` writes the email address into every record of a failed request.
+- [ ] **Never log the argument of `on_error` whole.** The `on_error` option of `server` receives the error object
+  itself, with its context and its causes. A connection string or a driver message can be in them. Record its class
+  and its code instead.
 
 ## Secrets
 
@@ -82,7 +96,7 @@ variables combine is in [Configure an application](configure-an-application.md).
   `tostring` gives `[redacted]` and only `reveal()` gives the value. An unknown path is an `ArgumentError` at load, so a
   typo cannot leave a key unprotected. A key that is not listed is an ordinary string, printed in full by `describe()`,
   in logs and in any message the application builds with it (the validation errors of `config.load` never quote a
-  value, listed or not).
+  value, listed or not). Once every secret key is listed, `configuration:describe()` is safe to log at boot.
 - [ ] **Secrets come from secret files**, or else from environment variables, never from a file of the repository. A
   secret key is read from the file named by `<NAME>_FILE` (for example `HECATE_DATABASE__PASSWORD_FILE`), or from
   `<secrets_directory>/<NAME>` when the `secrets_directory` option is set, as a Docker or Kubernetes secret is mounted.

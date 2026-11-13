@@ -92,4 +92,29 @@ function T:test_a_secret_is_written_as_redacted()
   self:assert_equal("[redacted]", object.fields.nested.token)
 end
 
+
+-- Documented in website/en/how-to/before-going-to-production.md (Logging): the file sink creates its file with the
+-- permissions the umask of the process leaves (0666 masked), and never rotates it: every record goes to that one file.
+function T:test_the_file_is_created_with_the_umask_and_never_rotated()
+  local path = os.tmpname()
+  os.remove(path) -- os.tmpname may create the file: let the sink create it
+  local sink = log.FileSink({ path = path })
+  local logger = log.Logger({ sinks = { sink } })
+  for index = 1, 2000 do logger:notice("record", { index = index, padding = string.rep("x", 100) }) end
+  sink:close()
+  local count = 0
+  for _ in read(path):gmatch("[^\n]+") do count = count + 1 end
+  self:assert_equal(2000, count)
+  self:assert_nil(io.open(path .. ".1", "rb"), "no rotated file")
+  if package.config:sub(1, 1) == "/" then
+    local uv = require("luv")
+    local shell = assert(io.popen("umask"))
+    local umask = tonumber(shell:read("l"), 8)
+    shell:close()
+    local stat = assert(uv.fs_stat(path))
+    self:assert_equal(0x1B6 & ~umask, stat.mode & 0x1FF)
+  end
+  os.remove(path)
+end
+
 return T

@@ -354,12 +354,13 @@ function T:test_the_cause_of_an_action_error_reaches_only_the_traceback_field()
   self:assert_not_nil(record)
   -- The `error` field holds the message of the error alone, without its cause.
   self:assert_equal("the lookup failed", record.fields.error)
-  -- AUDIT FINDING (safe content, Phase 2 gate), asserted as the behaviour found: `problems.guard` takes the traceback
-  -- with `debug.traceback(tostring(err), 2)`, and `tostring` of a `hecate.core.Error` renders the whole cause chain, so
-  -- the message of every cause (a driver error, a `DETAIL` text) reaches the `traceback` field. OQ-111 (3) covers it
-  -- (an error message must not embed a secret, causes included), but before-going-to-production.md says only "its
-  -- message and the traceback". If the guard stops rendering the causes, invert this assertion.
+  -- Documented in website/en/how-to/before-going-to-production.md (Logging): `problems.guard` takes the traceback with
+  -- `debug.traceback(tostring(err), 2)`, and `tostring` of a `hecate.core.Error` renders the whole cause chain, so the
+  -- `traceback` field starts with the message of the error and of each cause (a driver error, a `DETAIL` text). OQ-111
+  -- (3) covers it: an error message must not embed a secret, causes included.
   self:assert_true(has_canary(record.fields.traceback), "the cause chain is in the traceback field")
+  self:assert_equal(1, (record.fields.traceback:find("hecate.core.Error: the lookup failed\ncaused by: hecate.core.Error: driver said " .. CANARY, 1, true)),
+    "the traceback starts with the message of the error, then its causes")
   local others = {}
   for key, value in pairs(record.fields) do
     if key ~= "traceback" then others[key] = value end
@@ -391,6 +392,9 @@ function T:test_refused_inputs_are_never_echoed_nor_logged()
     { 422, request("POST", "/users?limit=" .. CANARY, { content = valid }) },
     -- an undeclared query parameter (`requests.inputs = "strict"`): named, never its value
     { 422, request("POST", "/users?access_token=" .. CANARY, { content = valid }) },
+    -- a media type other than application/json
+    { 415, http.Request({ method = "POST", target = "/users", content = CANARY,
+      fields = http.Fields({ ["Content-Type"] = "text/plain" }) }) },
   }
   for index, case in ipairs(cases) do
     local response = serve(case[2])
@@ -400,7 +404,9 @@ function T:test_refused_inputs_are_never_echoed_nor_logged()
   local undeclared = json.decode(serve(request("POST", "/users?access_token=" .. CANARY, { content = valid })).content)
   self:assert_equal("/access_token", undeclared.errors[1].pointer)
   self:assert_nil(undeclared.errors[1].message, "no message while errors.expose_details is false")
-  -- A refused input is a normal answer: nothing is logged, so nothing can leak there.
+  -- Documented in website/en/how-to/before-going-to-production.md (Logging): an input refusal (422, 400, 415) is
+  -- returned, not raised, so it is a normal answer: no record at all, so nothing can leak there.
+  self:assert_equal(0, #captured.memory:records())
   self:assert_equal("", canary_in_logs(captured))
   -- A header value the message model refuses (a control character): the error names the rule, never the value.
   local ok, err = pcall(http.Fields, { ["X-Token"] = CANARY .. "\1" })
@@ -427,7 +433,8 @@ function T:test_expose_details_forwards_only_the_documented_members()
   local object = json.decode(serve(request("GET", "/fail-object")).content).debug
   self:assert_not_nil(object)
   self:assert_equal("", canary_in(object))
-  -- The cause chain is part of `tostring`, hence of `debug.message` (the page says only "its message").
+  -- Documented in before-going-to-production.md (Error details): the cause chain is part of `tostring`, hence of
+  -- `debug.message`, which holds the message of the error and of its causes.
   local caused = json.decode(serve(request("GET", "/fail-cause")).content).debug
   self:assert_not_nil(caused)
   self:assert_true(caused.message:find("the lookup failed", 1, true) ~= nil, caused.message)

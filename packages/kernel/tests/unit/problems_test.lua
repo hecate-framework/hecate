@@ -200,6 +200,18 @@ function T:test_guard_logs_a_client_caused_error_as_request_refused_with_its_fie
   for _, value in pairs(fields) do self:assert_nil(string.find(tostring(value), SECRET, 1, true)) end
 end
 
+-- Documented in website/en/how-to/before-going-to-production.md (Logging): the logged path drops the query, but a path
+-- parameter is part of the path and is logged as it came.
+function T:test_guard_logs_the_path_parameters_but_not_the_query()
+  local seen = {}
+  local logger = { log = function(_, severity, message, fields) seen[#seen + 1] = { severity, message, fields } end }
+  local req = http.Request({ method = "GET", target = "/users/ada@example.org?token=" .. SECRET, fields = http.Fields() })
+  problems.guard(function() error(core.Error("lookup failed")) end, { logger = logger })(req)
+  self:assert_equal(1, #seen)
+  self:assert_equal("/users/ada@example.org", seen[1][3].path)
+  for _, value in pairs(seen[1][3]) do self:assert_nil(string.find(tostring(value), SECRET, 1, true)) end
+end
+
 function T:test_guard_does_not_log_a_problem_below_500()
   local seen = {}
   local logger = { log = function(_, severity) seen[#seen + 1] = severity end }

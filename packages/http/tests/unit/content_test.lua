@@ -1,4 +1,4 @@
----@diagnostic disable: missing-fields, param-type-mismatch  -- the tests pass invalid arguments on purpose
+---@diagnostic disable: missing-fields, param-type-mismatch, assign-type-mismatch  -- the tests pass invalid arguments on purpose
 local test = require("harness.test")
 local core = require("hecate.core")
 local http = require("hecate.http")
@@ -61,6 +61,20 @@ function T:test_request_reads_its_string_content()
   local reader = http.Request({ target = "/x", content = "ab" }):stream_content()
   self:assert_equal("ab", reader:read())
   self:assert_nil(reader:read())
+end
+
+function T:test_request_content_given_by_hand_is_a_string_or_nothing()
+  -- OQ-76 (b): only a string can be read back as the content of a request; a table or a function would read as nothing.
+  for _, invalid in ipairs({ { a = 1 }, function() end, 42, true }) do
+    local err = self:assert_error(function() http.Request({ method = "POST", target = "/x", content = invalid }) end)
+    self:assert_true(core.is_instance_of(err, core.ArgumentError), tostring(err))
+    self:assert_true(tostring(err):find("content must be a string", 1, true) ~= nil, tostring(err))
+  end
+  -- A server request has no `content`: it reads its content from the stream.
+  local request = http.Request({ method = "POST", target = "/x", content_stream = http.ContentStream.of("streamed") })
+  self:assert_nil(request.content)
+  self:assert_equal("streamed", request:read_content())
+  self:assert_nil(request.content)
 end
 
 function T:test_invalid_arguments()
