@@ -2,25 +2,28 @@
 # Handoff
 
 - roadmap_item: **First item of Phase 3 (owner decision of 2026-11-13): a readable writing style.** Write a "Writing style" section in `docs/architecture/documentation.md`, after the manner of *Programming in Lua* (Ierusalimschy) [...] Pilot it on the 8 pages written at the Phase 2 gate [...] and submit them to the owner before any other Phase 3 item starts.
-- status: in-progress
-- lock_until: 2026-11-14T00:03:42Z
-- last_update: 2026-11-13T22:33:42Z
+- status: waiting-owner
+- lock_until: 2026-11-14T00:30:00Z
+- last_update: 2026-11-13T23:05:00Z
 
 ## Done
 
 1. Claimed the item (this note, draft pull request #195).
 2. "Writing style" section in `docs/architecture/documentation.md`, pointer in `website/CLAUDE.md` (the
    `docs-writer` agent already reads both files).
+3. The four how-tos restyled (ebcd71b), with factual corrections: the 422 of invalid inputs is built by the input
+   step, not the guard; deep extension values fail when answered; `auto` logs no fallback warning; `reuseport` is
+   Linux only; `on_unobserved_failure` only if given.
+4. The schema reference and the three explanations restyled (73fc583); `depth_limit` follows
+   `json.DEFAULT_MAX_DEPTH`.
+5. Every new inline snippet run against `packages/*/src` (luv installed with `luarocks install luv`): outputs match.
+   Gates: typecheck, lint, check-links, check-glossary, check-docs-examples, check-examples, check-changelog ok.
 
 ## Next steps
 
-1. Pilot it on the how-tos: `how-to/map-domain-errors-to-problem-details.md`, `how-to/filters.md`,
-   `how-to/concurrency.md`, `how-to/multi-process-deployment.md`.
-2. Pilot it on `reference/schema-keywords-and-formats.md` and the explanations `explanation/architecture-and-layers.md`,
-   `explanation/object-model.md`, `explanation/concurrency-model.md`.
-3. Run the docs gates (`check-docs-examples`, `check-examples`, `check-links`, `check-glossary`), CHANGELOG, then mark
-   the pull request ready and ask the owner to review the style and the 8 pages. The item is ticked only after the
-   owner approves (status `waiting-owner`).
+1. Wait for the owner's review of the writing style and the 8 pilot pages (pull request #195). Apply the owner's
+   remarks; once approved, delete this note, tick the roadmap item and keep the pull request ready for review. No
+   other Phase 3 item may start before that approval (roadmap).
 
 ## Decisions taken (and where they are recorded)
 
@@ -28,6 +31,10 @@
   not on `claude/relay-writing-style`.
 
 ## Doubts and questions for the owner
+
+- The French pages of the eight pages were not touched; they become stale and are refreshed with the website item.
+- `reference/schema-keywords-and-formats.md` gained one clause: the conservative format subsets "may refuse a value
+  that the standard allows" (spelled out from "conservative subsets"); drop it if unwanted.
 
 ## Environment notes
 
