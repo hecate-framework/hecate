@@ -11,6 +11,8 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- docs(website): how-tos "Map domain errors to problem details", "Filters", "Concurrency" and "Multi-process deployment, graceful shutdown and health checks", the hand-written reference "Schema keywords and formats", and the explanations "Architecture and layers", "The object model" and "The concurrency model", with tested examples in `hecate`, `reactor` and `core` (OQ-121).
+
 - feat(tools): `gen-error-codes` and `gen-config-reference` generate the "Error codes" reference page (55 error classes with their codes, parents, descriptions and documented reasons) and the "Configuration keys" page (each framework key with its type, default, range, environment variable and meaning), git-ignored and built by `website.yml`; their `--check` runs in CI and fails when an error class has an unknown parent or a framework key is not documented in `configuration.md` (OQ-121). `.gitignore` now covers the generated reference of every Phase 2 package.
 
 - feat(tools): two rules for code examples (owner request, 2026-11-12; `docs/architecture/documentation.md`, "Code examples"). `check-examples` reports a line holding a comment longer than 80 characters in `packages/*/examples/`, `examples/` and the Lua blocks of the website pages, unless the line above holds `check-examples: allow-long-comment`. The examples tests of every package run through one shared runner, `tools/harness/examples.lua`, which requires each printed line to be expected by a `-- Prints:` block directly under the line that printed it. Every example and the website pages that include them follow both rules.

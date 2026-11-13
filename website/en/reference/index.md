@@ -1,6 +1,6 @@
 ---
 title: Reference
-description: The reference of hecate: the generated code reference of each package and the glossary.
+description: The reference of hecate: the generated code reference of each package, the error codes, the configuration keys and the glossary.
 hecate: "0.x"
 lua: "5.5"
 order: 0
@@ -24,5 +24,17 @@ documented package.
 - [`hecate.container`](container/index.md): the inversion-of-control container, lifetimes, constructor injection, boot validation and disposal.
 - [`hecate.config`](config/index.md): layered configuration validated by schemas, environment variables, secrets and the immutable `Configuration`.
 - [`hecate.kernel`](kernel/index.md): the application, feature modules, controllers, route modules, filters, problem details, the supervisor and the listening strategies of multi-process serving.
+
+Two pages are generated from the sources and the specifications:
+
+- [Error codes](error-codes.md): every error class, its stable code, its parent and the values of
+  `context.reason`.
+- [Configuration keys](configuration-keys.md): the keys every configuration declares, their type,
+  default, allowed values, environment variable and meaning.
+
+Hand-written pages:
+
+- [Schema keywords and formats](schema-keywords-and-formats.md): every constructor and option of `hecate.schema`, the
+  JSON Schema keyword it emits, the supported `format` values and the violation codes.
 
 The [glossary](glossary.md) defines the vocabulary used everywhere.

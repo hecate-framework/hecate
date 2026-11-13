@@ -55,5 +55,6 @@ superclass), and `hecate.Request`, an alias of `hecate.kernel.Request` (`---@par
 
 ```text
 src/hecate/init.lua   public entry point (re-exports only)
-tests/unit/           the re-export completeness test
+tests/unit/           the re-export completeness test and the examples test
+examples/             tested examples of the website (problem details, filters)
 ```

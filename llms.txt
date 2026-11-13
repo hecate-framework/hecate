@@ -55,12 +55,20 @@
 - [Use the container](website/en/how-to/use-the-container.md): bind services, choose lifetimes, validate the graph at boot, resolve by constructor injection, close services and replace them in tests
 - [Configure an application](website/en/how-to/configure-an-application.md): layers, environment variables, secrets, validation at boot, the logging and depth keys
 - [Before going to production](website/en/how-to/before-going-to-production.md): a checklist of the environment, error details, logging and redaction, secrets, the access log, listening and limits, workers and shutdown
+- [Map domain errors to problem details](website/en/how-to/map-domain-errors-to-problem-details.md): problem classes, `problem.define`, returned or raised, the guard, `errors.expose_details`
+- [Filters](website/en/how-to/filters.md): the four layers of the chain and their order, authentication and CORS as filters
+- [Concurrency](website/en/how-to/concurrency.md): fork and join, scopes, select, deadlines, channels, a mutex for shared state
+- [Multi-process deployment, graceful shutdown and health checks](website/en/how-to/multi-process-deployment.md): workers, strategies, signals, rolling reload, a health route
 - [The transport model](website/en/explanation/transport-model.md): streams, back-pressure, half-close, buffering, cancellation rules
 - [TLS trust and security defaults](website/en/explanation/tls-trust-and-security.md): the operating system's verifier, what cannot be disabled
 - [Multi-process serving](website/en/explanation/multi-process-serving.md): share-nothing workers, listening strategies, what exists today
 - [The HTTP model](website/en/explanation/http-model.md): messages, the life of a connection, and why the limits have their defaults
 - [Schemas and contracts](website/en/explanation/schemas-and-contracts.md): why schemas are runtime data, validation versus coercion versus build, the presence set, the safety bounds and the limits to know
+- [Architecture and layers](website/en/explanation/architecture-and-layers.md): packages and layers, native code, the life of a request, the boot
+- [The object model](website/en/explanation/object-model.md): classes, traits, interfaces, finalisation, value classes, errors
+- [The concurrency model](website/en/explanation/concurrency-model.md): the reactor, suspension points, structured concurrency, cooperative cancellation
 - [Glossary (public copy)](website/en/reference/glossary.md): the vocabulary, kept in step with `docs/glossary.md`
+- [Schema keywords and formats](website/en/reference/schema-keywords-and-formats.md): every `hecate.schema` option, its JSON Schema keyword, the `format` values and the violation codes
 
 ## Packages
 

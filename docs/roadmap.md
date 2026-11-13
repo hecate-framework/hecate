@@ -255,7 +255,7 @@ concurrency test suite passes; benchmark baseline recorded.
       `tools/harness/examples.lua` used by the examples tests of the ten packages; every example and the website pages
       that include them migrated; the rules in `documentation.md`, "Code examples"; reviewed by `test-engineer`.
 
-- [ ] Documentation and generators planned for Phase 2 that no item carried (OQ-121, owner decision of 2026-11-13;
+- [x] Documentation and generators planned for Phase 2 that no item carried (OQ-121, owner decision of 2026-11-13;
       [gate report](reviews/phase-2.md), findings C10 and C11). The generators `gen-error-codes` (the error code
       reference page from the error classes and their codes, ADR 0018) and `gen-config-reference` (the configuration
       keys reference from the `config` declarations), each a `tools/` task with a `--check` mode run by CI and tested on
@@ -267,7 +267,10 @@ concurrency test suite passes; benchmark baseline recorded.
       "Architecture and layers", "The object model" and "Concurrency model". English only (the French copies follow
       with the translation sync); code samples from tested example files. The outline line "Background work and
       offloading CPU-bound computations" duplicates the offload how-to and is removed; `gen-meta` moves to Phase 3
-      (carried by the `cli` item).
+      (carried by the `cli` item). Delivered: `gen-error-codes` and `gen-config-reference` (pages built by `website.yml`,
+      `--check` in CI); how-tos `map-domain-errors-to-problem-details`, `filters`, `concurrency`,
+      `multi-process-deployment`; reference `schema-keywords-and-formats`; explanations `architecture-and-layers`,
+      `object-model`, `concurrency-model`; tested examples in `hecate`, `reactor` and `core`.
 
 - [ ] **Phase 2 gate**: verification of the phase, as described in [Phase gates](#phase-gates). Open
       questions to put to the owner before Phase 3: OQ-46, OQ-13, OQ-17, OQ-38 and OQ-64
