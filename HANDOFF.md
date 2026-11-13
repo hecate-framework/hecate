@@ -3,8 +3,8 @@
 
 - roadmap_item: **Phase 2 gate**: verification of the phase, as described in "Phase gates" (`docs/roadmap.md`).
 - status: in-progress
-- lock_until: 2026-11-13T14:00:00Z
-- last_update: 2026-11-13T12:10:00Z
+- lock_until: 2026-11-13T17:00:00Z
+- last_update: 2026-11-13T15:30:00Z
 
 ## Done
 
