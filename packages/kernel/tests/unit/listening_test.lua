@@ -270,6 +270,8 @@ function T:test_round_robin_spreads_connections_evenly_and_workers_serve_them()
     local address = strategy:prepare({ host = "127.0.0.1", port = 0 })
     self:assert_true(address.port > 0)
     self:assert_equal(address.port, strategy:local_address().port)
+    local again = self:assert_error(function() strategy:prepare({ host = "127.0.0.1", port = 0 }) end)
+    self:assert_true(core.is_instance_of(again, core.StateError), tostring(again))
     local ring = listening.WorkerRing()
     for _, worker in ipairs(workers) do ring:add(worker) end
     reactor.scope(function(scope)
@@ -660,8 +662,9 @@ end
 function T:test_round_robin_needs_prepare_and_a_hand_over_context()
   local strategy = listening.RoundRobinStrategy()
   self:assert_false((pcall(strategy.worker_listener, strategy, {})))
-  local ok = pcall(reactor.run, function() strategy:run(listening.WorkerRing()) end)
+  local ok, err = pcall(reactor.run, function() strategy:run(listening.WorkerRing()) end)
   self:assert_false(ok)
+  self:assert_true(core.is_instance_of(err, core.StateError), tostring(err))
 end
 
 return T

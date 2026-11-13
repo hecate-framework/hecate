@@ -125,7 +125,7 @@ function T:test_has_tells_whether_a_key_is_bound_without_constructing_or_validat
   local valid = ready(function(v) v:bind("a", function() return {} end, { lifetime = "transient" }) end)
   self:assert_true(valid:has("a"))
   valid:close()
-  raises(self, container.ContainerError, function() valid:has("a") end)
+  raises(self, core.StateError, function() valid:has("a") end)
 end
 
 function T:test_binding_a_bound_key_raises_duplicate_binding_error()
@@ -616,13 +616,13 @@ function T:test_a_closed_scope_or_container_refuses_to_resolve()
   local c = ready(function(c) c:bind("a", function() return {} end, { lifetime = "transient" }) end)
   local scope = c:open_scope()
   scope:close()
-  raises(self, container.ContainerError, function() scope:resolve("a") end)
+  raises(self, core.StateError, function() scope:resolve("a") end)
   local other = c:open_scope()
   c:close()
-  raises(self, container.ContainerError, function() c:resolve("a") end)
-  raises(self, container.ContainerError, function() other:resolve("a") end)
-  raises(self, container.ContainerError, function() c:open_scope() end)
-  raises(self, container.ContainerError, function() c:bind("b", function() return {} end, { lifetime = "transient" }) end)
+  raises(self, core.StateError, function() c:resolve("a") end)
+  raises(self, core.StateError, function() other:resolve("a") end)
+  raises(self, core.StateError, function() c:open_scope() end)
+  raises(self, core.StateError, function() c:bind("b", function() return {} end, { lifetime = "transient" }) end)
 end
 
 -- Suspension, partial failures and ownership -----------------------------------------------------------------------------
@@ -945,10 +945,10 @@ function T:test_override_with_instance_leaves_the_closing_to_the_caller()
   self:assert_equal(0, fake.closed, "the container does not close an instance it did not build")
 end
 
-function T:test_override_after_validate_raises_container_error()
+function T:test_override_after_validate_raises_state_error()
   local c = container.Container():bind("a", function() return {} end, { lifetime = "transient" }):validate()
-  raises(self, container.ContainerError, function() c:override("a", function() return {} end) end)
-  raises(self, container.ContainerError, function() c:override_with_instance("a", {}) end)
+  raises(self, core.StateError, function() c:override("a", function() return {} end) end)
+  raises(self, core.StateError, function() c:override_with_instance("a", {}) end)
 end
 
 return T

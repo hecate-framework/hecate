@@ -122,8 +122,10 @@ as an amount of money or a date range, is then safe to share between computation
 
 ## Errors are classes too
 
-`hecate.core.Error` is the root of one error hierarchy: `ArgumentError` for a misuse of an API, `ValidationError`,
-`CancellationError`, `NetworkError` and the others. An error has a `message`, a stable `code`, a `context` table and a
+`hecate.core.Error` is the root of one error hierarchy: `PreconditionError` when the caller broke the
+[precondition](../reference/glossary.md#object-model-and-architecture) of an operation (its subclasses `ArgumentError`,
+a wrong argument, and `StateError`, an object used in the wrong state, such as a closed client or a server that
+already serves), `ValidationError`, `CancellationError`, `NetworkError` and the others. An error has a `message`, a stable `code`, a `context` table and a
 `cause`; `tostring` renders the [cause chain](../reference/glossary.md#object-model-and-architecture). Failures
 raise these objects, and an expected absence returns `nil`.
 

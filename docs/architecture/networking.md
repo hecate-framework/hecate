@@ -57,7 +57,7 @@ Invariants, checked by tests that walk every class:
   buffered (see "Cancellation rules").
 
 One coroutine reads at a time on a stream, a listener or a `UdpSocket`; a second concurrent call raises
-`core.Error` instead of waiting. Writes from several coroutines on a `TcpStream` are queued in call order; on a
+`core.StateError` (OQ-77) instead of waiting. Writes from several coroutines on a `TcpStream` are queued in call order; on a
 `TlsStream` they run one after the other, each intact. (`BufferedReader` and `BufferedWriter` behave differently:
 they queue, see below.)
 

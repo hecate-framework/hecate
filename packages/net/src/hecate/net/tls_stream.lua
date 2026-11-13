@@ -229,7 +229,8 @@ end
 --- taken for a clean end (RFC 8446 section 6.1). Cancelling a suspended read keeps the stream
 --- open; the exception is a cancellation that interrupts the sending of ciphertext the session
 --- queued (a key update or an alert), which closes the stream like any cancelled write. One
---- coroutine reads at a time. Raises `TransportError` (EBADF) on a closed stream.
+--- coroutine reads at a time: a second one raises `hecate.core.StateError`. Raises `TransportError` (EBADF) on a
+--- closed stream.
 ---@async
 ---@param max? integer
 ---@return string?
@@ -238,7 +239,7 @@ function TlsStream:read(max)
     error(core.ArgumentError(("net.TlsStream.read: expects a positive integer, got %s"):format(tostring(max))), 2)
   end
   self:_check("read")
-  if self._reading then error(core.Error("net.TlsStream.read: another coroutine is already reading this stream"), 2) end
+  if self._reading then error(core.StateError("net.TlsStream.read: another coroutine is already reading this stream"), 2) end
   self._reading = true
   local ok, result = pcall(self._read, self, max)
   self._reading = false

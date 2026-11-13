@@ -277,6 +277,10 @@ Each release heading states the supported Lua version.
 
 ### Changed
 
+- feat(core)!: `PreconditionError` (the caller broke the contract of an operation, after Meyer's Design by Contract) with the subclasses `ArgumentError` (code unchanged) and the new `StateError`. The wrong-state uses of `reactor`, `net`, `http`, `kernel` and `container` raise `StateError`: a closed client or container, a server that already serves, a second concurrent reader or acceptor, a nested `run`, `prepare` twice, `reload` when not serving; the wrong-state errors of `container` are no longer `ContainerError`s (OQ-77, owner decision of 2026-11-13).
+
+- feat(http)!: on the client, a response content that stalls past `content_timeout` raises `ContentError` with `reason = "timeout"` (`DeadlineExceededError` stays for `request_timeout`), and a response over `max_content` raises `ContentError` with `reason = "too_large"` and no `status` (was 413); `http.problem` maps a `ContentError` without a status to 500, so a failing downstream call never blames the requester (OQ-82, owner decision of 2026-11-13).
+
 - feat(kernel): under `round_robin`, when every worker is saturated, the primary pauses accepting instead of closing the new connection: it hands the connection it holds over once a worker acknowledges one or joins the rotation, and new connections wait in the listen backlog; `hand_over_saturated` is logged once, when the pause starts (OQ-127 (2), owner decision of 2026-11-13).
 
 - feat(kernel): problems accept `fields` (`WWW-Authenticate`, `Allow`, `Retry-After`, ...), validated by `http.Fields` at construction and copied into the response, never into the content nor the contract; the fields the kernel owns are refused; `problem.is_owned_field` (OQ-126, owner decision of 2026-11-13).

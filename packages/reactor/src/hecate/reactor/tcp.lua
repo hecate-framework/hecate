@@ -245,7 +245,8 @@ end
 
 --- Reads at most `max` bytes (default: whatever the next receive delivers). Returns nil at
 --- end of stream (the peer shut down its side); never returns an empty string. Cancelling a
---- suspended read keeps the stream open and loses no data. One coroutine reads at a time.
+--- suspended read keeps the stream open and loses no data. One coroutine reads at a time: a
+--- second one raises `hecate.core.StateError`.
 ---
 --- Once a first read was made the stream reads ahead of its reader by up to 64 KiB (it keeps
 --- libuv reading between two calls instead of restarting it for every call), then stops reading
@@ -259,7 +260,7 @@ function TcpStream:read(max)
     error(core.ArgumentError(("%s: expects a positive integer, got %s"):format(qualified(self, "read"), tostring(max))), 2)
   end
   require_open(self, "read")
-  if self._reading then error(core.Error(qualified(self, "read") .. ": another coroutine is already reading this stream"), 2) end
+  if self._reading then error(core.StateError(qualified(self, "read") .. ": another coroutine is already reading this stream"), 2) end
   self._demanded = true
   while self._inbox == nil and not self._eof and self._failure == nil do
     self._reading = true
@@ -411,13 +412,14 @@ local DROPPED = { EINVAL = true, ENOTCONN = true, ECONNRESET = true, ECONNABORTE
 --- listener open; connections that arrive meanwhile stay queued. Connections are taken one
 --- per call, so a slow acceptor leaves the rest in the kernel backlog (back-pressure). A
 --- connection whose peer already reset it (the options cannot be applied: `EINVAL`, `ENOTCONN`,
---- `ECONNRESET`, `ECONNABORTED`) is closed and skipped; any other failure is raised.
+--- `ECONNRESET`, `ECONNABORTED`) is closed and skipped; any other failure is raised. One
+--- coroutine accepts at a time: a second one raises `hecate.core.StateError`.
 ---@async
 ---@return hecate.reactor.TcpStream
 function TcpListener:accept()
   uv_call.begin(qualified(self, "accept"))
   require_open(self, "accept")
-  if self._accepting then error(core.Error(qualified(self, "accept") .. ": another coroutine is already accepting"), 2) end
+  if self._accepting then error(core.StateError(qualified(self, "accept") .. ": another coroutine is already accepting"), 2) end
   while true do
     while self._incoming == 0 and self._failure == nil do
       self._accepting = true

@@ -8,6 +8,7 @@ local reactor = require("hecate.reactor")
 local Response = require("hecate.http.response")
 local Status = require("hecate.http.status")
 local ContentStream = require("hecate.http.content")
+local ContentError = ContentStream.ContentError
 local wire = require("hecate.http.wire")
 local connections = require("hecate.http.internal.client_connection")
 local pool = require("hecate.http.internal.client_pool")
@@ -148,10 +149,19 @@ local function make_response(self, conn, state, head, final_url)
   local function pull()
     if finished then return nil end
     while true do
-      local ok, event, err = pcall(next_event, conn, bounded(state, state.content_timeout))
+      local seconds = bounded(state, state.content_timeout)
+      local ok, event, err = pcall(next_event, conn, seconds)
       if not ok then
         drop(conn)
         finished = true
+        -- The read deadline is this wait's own (an outer deadline cancels it instead): when `content_timeout`, not
+        -- what is left of `request_timeout`, bounded it, the content stalled (OQ-82, as on the server).
+        if seconds >= state.content_timeout and core.is_instance_of(event, core.DeadlineExceededError) then
+          error(ContentError({
+            message = "http.Client: the response content stalled longer than content_timeout",
+            cause = event, context = { reason = "timeout" },
+          }), 0)
+        end
         error(event, 0)
       end
       if event == nil then
@@ -170,7 +180,7 @@ local function make_response(self, conn, state, head, final_url)
       error(core.ProtocolError({ message = "http.Client: unexpected event in the response content", context = { reason = "unexpected_event" } }), 0)
     end
   end
-  local stream = ContentStream(pull, { limit = state.max_content }) -- max_content bounds `read_content` and `stream_content` alike
+  local stream = ContentStream(pull, { limit = state.max_content, client = true }) -- max_content bounds `read_content` and `stream_content` alike
   local response = Response(head.status, {
     reason = head.reason, fields = head.fields, content_stream = stream, max_content = state.max_content,
     discard = function()

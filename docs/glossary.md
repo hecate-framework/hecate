@@ -67,6 +67,7 @@ for public APIs, documentation and internal code.
 | superclass | Class from which a class inherits (single inheritance) | — | parent class, base class |
 | enumeration | Closed named set of values | — | enum |
 | cause chain | Errors linked by `cause`, rendered by `__tostring` | — | — |
+| precondition | What the caller of an operation must ensure: valid arguments and an object in a state that allows the operation. A broken one is a programmer error and raises a `PreconditionError`: an `ArgumentError` for a wrong argument, a `StateError` for an object in the wrong state (closed, already serving, not prepared) | Meyer, *Object-Oriented Software Construction* (1988), Design by Contract; OQ-77 | illegal state, invalid operation (for a state error) |
 | inversion of control | The framework calls user code | Fowler (2004) | — |
 | container | Object that resolves and constructs dependencies | Fowler (2004) | service locator (an anti-pattern, not a synonym) |
 | service | An object registered in the container and resolved by it | Fowler (2004) | bean, provider |

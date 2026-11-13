@@ -130,7 +130,7 @@ function T:test_a_close_handler_that_forks_during_teardown_fails_cleanly()
   end)
   self:assert_true(err.message:find("reactor.run: deadlock", 1, true) == 1, err.message)
   self:assert_false(forked)
-  self:assert_true(core.is_instance_of(fork_error, core.Error), tostring(fork_error))
+  self:assert_true(core.is_instance_of(fork_error, core.StateError), tostring(fork_error))
   self:assert_equal(0, instance:live_coroutines())
   self:assert_equal("ok", instance:run(function() return "ok" end)) -- the reactor is not left "running"
 end
@@ -138,8 +138,13 @@ end
 function T:test_nested_run_is_rejected()
   reactor.run(function()
     local err = self:assert_error(function() reactor.run(function() end) end)
-    self:assert_true(core.is_instance_of(err, core.Error))
+    self:assert_true(core.is_instance_of(err, core.StateError), tostring(err))
   end)
+end
+
+function T:test_now_without_a_running_reactor_is_a_state_error()
+  local err = self:assert_error(function() reactor.now() end)
+  self:assert_true(core.is_instance_of(err, core.StateError), tostring(err))
 end
 
 function T:test_a_reactor_is_usable_again_after_a_failed_run()

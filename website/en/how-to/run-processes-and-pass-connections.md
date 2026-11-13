@@ -110,7 +110,7 @@ A message is a string of at most 16 MiB. Pass `{ max_message = n }` to `reactor.
 `reactor.ipc.parent` to lower the limit. Serialise structured data yourself, for example as JSON:
 `reactor` has no dependency on a JSON library.
 
-Only one coroutine may receive at a time. A cancelled `receive` keeps the peer open and loses
+Only one coroutine may receive at a time: a second one raises `core.StateError`. A cancelled `receive` keeps the peer open and loses
 nothing. A cancelled `send` closes the peer, because the amount sent is unknown.
 
 <!-- example: packages/reactor/examples/hecate.reactor.spawn.lua -->

@@ -4,8 +4,9 @@ global <const> require
 
 local core = require("hecate.core")
 
---- Base class of the container errors; also raised for a use in the wrong state (before `validate`, `bind` after it,
---- any use after `close`).
+--- Base class of the container errors; also raised when a key is being constructed by a computation that suspended
+--- (OQ-107) and by `release` of an instance the scope does not track. A use in the wrong state (before `validate`,
+--- `bind` after it, any use after `close`) raises `hecate.core.StateError` instead (OQ-77).
 ---@class hecate.container.ContainerError : hecate.core.ConfigurationError
 ---@overload fun(fields: hecate.core.ErrorFields|string, extra?: hecate.core.ErrorFields): hecate.container.ContainerError
 local ContainerError = core.error_class("ContainerError", "hecate.container.ContainerError", core.ConfigurationError)

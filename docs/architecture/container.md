@@ -40,7 +40,7 @@ accept either. Keys compare by identity (strings by value, interfaces by referen
 binding; `bind` on a key that is bound raises `DuplicateBindingError` (use `override`, below).
 `Container:has(key)` tells whether a key has a binding, without constructing anything and without needing
 `validate` (the `kernel` uses it at boot to check the keys it will resolve, so that a misspelt key fails the boot, not
-a request); it raises `ContainerError` after `close` and `core.ArgumentError` for a value that is not a key.
+a request); it raises `core.StateError` after `close` and `core.ArgumentError` for a value that is not a key.
 
 When the key is an interface, the product must conform to it: for a class definition the check happens at
 `validate` (`core.implements`, a `core.ConformanceError` listed among the problems), for a factory definition
@@ -147,15 +147,15 @@ singleton, already released, or the scope is closed) raises `ContainerError`, so
 is an error, and the scope does not close a released instance again.
 
 `ServiceScope` and `Container` themselves support `<close>` and `:close()`; closing is idempotent. A closed service
-scope or container refuses further `resolve` with `ContainerError`. Closing runs in the caller's computation, so when
+scope or container refuses further `resolve` with `core.StateError`. Closing runs in the caller's computation, so when
 the request is cancelled the kernel closes the service scope under `reactor.shield` (concurrency.md, rule 4, OQ-23) if
 any `__close` suspends (the kernel's bound is `dispatcher.CLOSE_TIMEOUT`, 5 s, a value no decision fixes yet: OQ-127).
 
 ## Boot validation
 
 `Container:validate()` checks the whole graph without constructing anything, and **freezes** the container:
-after it, `bind` and `override` raise `ContainerError`, and `resolve` and `open_scope` are allowed only after it
-(before it they raise `ContainerError`; there is no lazy validation). The `kernel` calls it at step 2 of the boot
+after it, `bind` and `override` raise `core.StateError`, and `resolve` and `open_scope` are allowed only after it
+(before it they raise `core.StateError`; there is no lazy validation). The `kernel` calls it at step 2 of the boot
 sequence (overview.md); a failure aborts the boot with the diagnostic, as every failure of steps 1 to 5.
 
 It detects, for every binding:
@@ -217,11 +217,11 @@ such; the kernel never makes it.
 `Container:override(key, definition, options?)` replaces the binding of `key`; it exists for tests and for the
 composition root of a test application (testing.md, "Fixtures": container overrides). It raises
 `MissingBindingError` when `key` is not already bound (a misspelt key must not silently create a service), and
-`ContainerError` after `validate`. When `options` is omitted, the lifetime and `requires` of the replaced binding are kept; when it is given,
+`core.StateError` after `validate`. When `options` is omitted, the lifetime and `requires` of the replaced binding are kept; when it is given,
 it replaces both (defaults as for `bind`). The replaced definition is discarded and the new graph is validated as a whole by `validate`, so an
 override cannot introduce a cycle or a lifetime violation unnoticed. `Container:override_with_instance(key, value)`
 binds an existing object as a `singleton` with no dependencies, the usual way to inject a fake. Its key must be bound
-(`MissingBindingError` otherwise, `ContainerError` after `validate`). For an interface key the conformance check runs
+(`MissingBindingError` otherwise, `core.StateError` after `validate`). For an interface key the conformance check runs
 immediately, at the call, because the class of the value is known: a value that does not implement the interface raises
 `core.ConformanceError` there and the binding is unchanged; a value that is not an instance of a class (a plain table)
 does not implement it, the same rule as for a factory product. A name key carries no check. Owner decision on OQ-109.
@@ -238,7 +238,7 @@ All extend `hecate.core.Error` through `core.ConfigurationError`, since each mea
 
 | Class | Superclass | Raised when | `context` |
 |---|---|---|---|
-| `ContainerError` | `core.ConfigurationError` | base class; also a use in the wrong state (before `validate`, after it for `bind`, after `close`), and a key whose construction is suspended in another computation (OQ-107) | varies (`key`, `path` for the last case) |
+| `ContainerError` | `core.ConfigurationError` | base class; also a key whose construction is suspended in another computation (OQ-107), and `release` of an instance the scope does not track | varies (`key`, `path` for the last case) |
 | `DuplicateBindingError` | `ContainerError` | `bind` on a bound key | `key` |
 | `MissingBindingError` | `ContainerError` | a required or requested key has no binding; `override` of an unbound key | `key`, `path` |
 | `CycleError` | `ContainerError` | the dependency graph has a cycle | `path` |
@@ -247,8 +247,9 @@ All extend `hecate.core.Error` through `core.ConfigurationError`, since each mea
 | `ConstructionError` | `ContainerError` | a constructor or factory raised | `key`, `path`; `cause` |
 
 Wrong arguments raise `core.ArgumentError`; a conformance failure is the `core.ConformanceError` of `core`.
-The state error of OQ-77 (a state error class missing from `core`) is the reason `ContainerError` stands for
-wrong-state use, and the choice is revisited when `core` gets it. In messages and context, keys are rendered
+A use in the wrong state (before `validate`, `bind` or `override` after it, any use after `close`) is a programmer
+error, not a wrong composition: it raises `core.StateError` (a `core.PreconditionError`, OQ-77), not a
+`ContainerError`. In messages and context, keys are rendered
 by name, an interface by its `core.name`, never by address.
 
 ## Public API summary

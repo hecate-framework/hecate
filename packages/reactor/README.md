@@ -47,6 +47,13 @@ Implemented. Every function marked *suspends* is `---@async` and raises
 coroutine and raise the same error otherwise, but carry no `---@async` tag. `tests/unit/suspension_test.lua` checks that
 the tags match what the functions do.
 
+A call that the state of its object does not allow raises `hecate.core.StateError` (OQ-77): `run` while a reactor
+already runs on the thread, `now` with no reactor running, `detach` when the application scope is not running, a
+fork while a failed run is being torn down, a second coroutine reading a `TcpStream` or `PipeStream`, accepting on a
+`TcpListener` or `PipeListener`, receiving on a `UdpSocket` or a `Peer`, or waiting on a `SignalWatcher` while another
+one does, a wait on a closed `SignalWatcher`, and `Monitor:enter` by the coroutine already inside. A closed transport
+handle keeps raising `TransportError` (`EBADF`), and a closed `Channel` `ClosedChannelError`.
+
 | Name | Description |
 |---|---|
 | `reactor.run(fn, ...)` | Runs `fn` on a new real-clock reactor until it and everything it forked have finished. |

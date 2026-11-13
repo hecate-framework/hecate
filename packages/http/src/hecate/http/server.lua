@@ -218,12 +218,12 @@ end
 --- Each connection is a computation of an internal scope that ends only when every connection and request has ended;
 --- a failure of a connection closes that connection only. Returns once every connection has ended.
 ---
---- Raises `hecate.core.ArgumentError` when already serving, a `TransportError` when binding fails, and the
+--- Raises `hecate.core.StateError` when already serving, a `TransportError` when binding fails, and the
 --- cancellation of the caller.
 ---@async
 ---@param listener? hecate.net.TcpListener  any net listener whose `accept` returns a stream with `reader`, `writer`, `shutdown` and `close` (a `PipeListener` is expected to work and is not tested)
 function Server:serve(listener)
-  if self._serving then error(core.ArgumentError("http.Server:serve: the server is already serving; call shutdown first"), 2) end
+  if self._serving then error(core.StateError("http.Server:serve: the server is already serving; call shutdown first"), 2) end
   listener = listener or self:listen()
   self._listener = listener
   self._serving = true

@@ -70,8 +70,9 @@ function Response:stream_content()
 end
 
 --- Reads the whole content into a string, bounded by `limit` (default: the `max_content` of the client for a client
---- response). Raises `hecate.http.ContentError` (status 413, `too_large`) beyond the limit, and the failure of the
---- connection when the content cannot be read.
+--- response). Raises `hecate.http.ContentError` (`too_large`; with status 413 except for a client response, OQ-82)
+--- beyond the limit, `hecate.http.ContentError` (`timeout`) when the content of a client response stalls longer than
+--- `content_timeout`, and the failure of the connection when the content cannot be read.
 ---@async
 ---@param limit? integer  bytes
 ---@return string

@@ -92,14 +92,15 @@ end
 --- coroutine at a time may wait.
 ---
 --- Raises `hecate.core.CancellationError` when the enclosing scope is cancelled while waiting
---- (the watcher and its queue are kept), and `hecate.core.Error` when the watcher is closed.
+--- (the watcher and its queue are kept), `hecate.core.StateError` when the watcher is closed or another coroutine
+--- already waits, and `hecate.core.Error` when the watcher is closed while waiting.
 ---@async
 ---@return string name  the name of the signal
 function SignalWatcher:wait()
   context.current_computation("reactor.SignalWatcher.wait")
-  if self._closed then error(core.Error("reactor.SignalWatcher.wait: the watcher is closed"), 2) end
+  if self._closed then error(core.StateError("reactor.SignalWatcher.wait: the watcher is closed"), 2) end
   if #self._queue > 0 then return table.remove(self._queue, 1) end
-  if self._wake then error(core.Error("reactor.SignalWatcher.wait: another coroutine is already waiting"), 2) end
+  if self._wake then error(core.StateError("reactor.SignalWatcher.wait: another coroutine is already waiting"), 2) end
   local ok, name = pcall(context.suspend, function(wake)
     self._wake = wake
     self:_reference(true)

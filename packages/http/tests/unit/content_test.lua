@@ -47,6 +47,19 @@ function T:test_read_all_limit_is_lower_than_the_reader_limit()
   self:assert_equal("abc", http.ContentStream.of("abc"):read_all(3))
 end
 
+function T:test_a_client_reader_gives_no_status()
+  local reader = http.ContentStream(chunks({ "abc", "def" }), { limit = 4, client = true })
+  self:assert_equal("abc", reader:read())
+  local err = self:assert_error(function() reader:read() end)
+  self:assert_true(core.is_instance_of(err, http.ContentError))
+  self:assert_equal("too_large", err.context.reason)
+  self:assert_equal(4, err.context.limit)
+  self:assert_nil(err.context.status)
+  local lowered = self:assert_error(function() http.ContentStream(chunks({ "abcdef" }), { client = true }):read_all(3) end)
+  self:assert_equal("too_large", lowered.context.reason)
+  self:assert_nil(lowered.context.status)
+end
+
 function T:test_a_failure_of_the_source_is_sticky_and_raised_as_it_came()
   local boom = core.Error("source failed")
   local reader = http.ContentStream(function() error(boom, 0) end)
@@ -80,6 +93,7 @@ end
 function T:test_invalid_arguments()
   self:assert_error(function() http.ContentStream("x") end)
   self:assert_error(function() http.ContentStream(chunks({}), { limit = -1 }) end)
+  self:assert_error(function() http.ContentStream(chunks({}), { client = "yes" }) end)
   self:assert_error(function() http.ContentStream.of("a"):read_all("x") end)
 end
 return T

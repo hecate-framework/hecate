@@ -62,6 +62,14 @@ The same package provides an HTTP client (`http.Client`: connection reuse per or
 TLS, redirects policy, streaming; the response content is read with `response:read_content()` or `response:stream_content()`, like the server's request content). It powers the test client's network mode and the
 CLI's registry access.
 
+Reading a response content fails as reading a request content does, with `ContentError` and the same `context.reason`
+(OQ-82): `too_large` beyond the client's `max_content` (with `context.limit`), and `timeout` when no content arrives
+for `content_timeout` seconds (the error of the expired read is the `cause`). The client's `ContentError` carries no
+`context.status`: a status is the server's to give, and `http.problem` maps a content error without one to a 500
+when it escapes an action. `core.DeadlineExceededError` stays the error of the deadlines that are not about the
+content (`connect_timeout`, `head_timeout`, `write_timeout`) and of the whole exchange, `request_timeout`, also when
+it expires while the content is being read. A request on a closed client raises `core.StateError` (OQ-77).
+
 ## `hecate.router`
 
 - One compiled **radix tree** over decoded segments, the methods stored per node; static segments, parameter segments

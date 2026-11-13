@@ -99,7 +99,7 @@ copied. Close the scope when the request ends (`scope:close()` or a `<close>` va
 ## Validate at boot
 
 `container:validate()` checks every binding without constructing anything, then freezes the container: `bind` and
-`override` raise `ContainerError` afterwards, and `resolve` and `open_scope` raise it until validation has succeeded.
+`override` raise `core.StateError` afterwards, and `resolve` and `open_scope` raise it until validation has succeeded.
 It reports:
 
 - a **missing binding**: a required key that is not bound (`MissingBindingError`);
@@ -152,6 +152,7 @@ or a captive dependency unnoticed.
 
 ## Errors
 
-All container errors extend `core.ConfigurationError`: `ContainerError` (also a use in the wrong state),
+All container errors extend `core.ConfigurationError`: `ContainerError`,
 `DuplicateBindingError`, `MissingBindingError`, `CycleError`, `LifetimeError`, `GraphError` and `ConstructionError`.
-A wrong argument raises `core.ArgumentError`. In messages and `context`, an interface is shown by its name.
+A wrong argument raises `core.ArgumentError`, and a use in the wrong state (before `validate`, `bind` or `override`
+after it, any use after `close`) raises `core.StateError`. In messages and `context`, an interface is shown by its name.

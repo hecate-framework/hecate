@@ -534,13 +534,13 @@ end
 --- is logged once the supervisor has accepted the reload.
 ---
 --- Raises `hecate.kernel.SupervisorError` (`reload_failed`, `reload_in_progress`, `stopping`; see `Supervisor:reload`)
---- and `hecate.core.ArgumentError` when the application is not a primary of several workers that is serving.
+--- and `hecate.core.StateError` when the application is not a primary of several workers that is serving.
 ---@async
 ---@param options? { grace_timeout?: number, ready_timeout?: number }  `grace_timeout`: seconds the old workers drain, default the `grace_timeout` option, else 30; `ready_timeout`: seconds a replacement may take to become ready, default 30
 function Application:reload(options)
   local sup = self._supervisor
   if sup == nil then
-    error(core.ArgumentError("hecate.kernel.application.reload: only a serving primary of several workers can reload"), 2)
+    error(core.StateError("hecate.kernel.application.reload: only a serving primary of several workers can reload"), 2)
   end
   if options ~= nil and type(options) ~= "table" then
     error(core.ArgumentError("hecate.kernel.application.reload: options must be a table { grace_timeout?, ready_timeout? }, got " .. type(options)), 2)

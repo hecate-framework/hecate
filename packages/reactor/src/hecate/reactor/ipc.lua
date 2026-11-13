@@ -208,7 +208,7 @@ end
 --- Receives the next message, and the stream that came with it, if any. Returns `nil` when the
 --- other end closed the message pipe (the parent or the child exited). Cancelling a suspended
 --- receive keeps the peer open and loses nothing, also after a partial frame. One coroutine
---- receives at a time.
+--- receives at a time: a second one raises `hecate.core.StateError`.
 ---
 --- Raises `hecate.reactor.TransportError` when the message pipe breaks (`EPIPE` inside a frame),
 --- is closed (`EBADF`, or `ECANCELED` when closed while waiting), or the other end violates the
@@ -218,7 +218,7 @@ end
 ---@return string? message  the message, or nil at the end of the message pipe
 ---@return hecate.reactor.TcpStream? handle  the stream handed over with it
 function Peer:receive()
-  if self._receiving then error(core.Error("reactor.Peer.receive: another coroutine is already receiving"), 2) end
+  if self._receiving then error(core.StateError("reactor.Peer.receive: another coroutine is already receiving"), 2) end
   self._receiving = true
   local ok, message, handle = pcall(self._receive, self)
   self._receiving = false

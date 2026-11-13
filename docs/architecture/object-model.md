@@ -102,8 +102,10 @@ A single hierarchy rooted at `hecate.core.Error`:
 
 - fields: `message`, `cause` (another error, for chaining), `context` (table),
   `traceback` (captured when created in debug mode);
-- subclasses per domain: `ConfigurationError`, `ConformanceError`, `ArgumentError`
-  (misuse of an API), `CancellationError`,
+- subclasses per domain: `ConfigurationError`, `ConformanceError`, `PreconditionError`
+  (the caller broke the contract of an operation; Meyer, Design by Contract) with its two subclasses
+  `ArgumentError` (a wrong argument) and `StateError` (the operation is not allowed in the current state
+  of the object: closed, already serving, not prepared; OQ-77), `CancellationError`,
   `DeadlineExceededError`, `NonYieldableContextError`, `ClosedChannelError`, `NetworkError`, `IoError`, `ProtocolError`, `ValidationError`,
   `DatabaseError` (with SQLSTATE when available), etc.;
 - `message` defaults to the class name when none is given;

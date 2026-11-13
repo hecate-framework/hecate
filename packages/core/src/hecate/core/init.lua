@@ -17,7 +17,9 @@ local weak_module = require("hecate.core.weak")
 ---@field Error hecate.core.Error
 ---@field ConfigurationError hecate.core.ConfigurationError
 ---@field ConformanceError hecate.core.ConformanceError
+---@field PreconditionError hecate.core.PreconditionError
 ---@field ArgumentError hecate.core.ArgumentError
+---@field StateError hecate.core.StateError
 ---@field CancellationError hecate.core.CancellationError
 ---@field DeadlineExceededError hecate.core.DeadlineExceededError
 ---@field NonYieldableContextError hecate.core.NonYieldableContextError
@@ -60,7 +62,7 @@ core.set_debug_mode = errors.set_debug_mode
 core.is_debug_mode = errors.is_debug_mode
 
 for _, name in ipairs({
-  "ConfigurationError", "ConformanceError", "ArgumentError", "CancellationError",
+  "ConfigurationError", "ConformanceError", "PreconditionError", "ArgumentError", "StateError", "CancellationError",
   "DeadlineExceededError", "NonYieldableContextError", "ClosedChannelError", "NetworkError", "IoError", "ProtocolError", "ValidationError", "DatabaseError",
 }) do
   ---@diagnostic disable-next-line: assign-type-mismatch  -- error classes are constructors exported as their class

@@ -75,6 +75,9 @@ function T:test_every_error_class_maps_to_a_status_and_a_fixed_detail_that_echoe
     { e(http.ContentError, { status = 413, reason = "too_large", limit = 1 }), 413 },
     { e(http.ContentError, { status = 408, reason = "timeout" }), 408 },
     { e(http.ContentError, { status = 400, reason = "truncated" }), 400 },
+    -- The client's: a response of another server too large or stalled is not the fault of the requester (OQ-82).
+    { e(http.ContentError, { reason = "too_large", limit = 1 }), 500 },
+    { e(http.ContentError, { reason = "timeout" }), 500 },
     { e(http.FormError, { status = 415, reason = "unsupported_media_type" }), 415 },
     { e(http.FormError, { status = 400, reason = "bad_part_fields" }), 400 },
     { e(http.FormError, { status = 413, reason = "too_many_parts" }), 413 },

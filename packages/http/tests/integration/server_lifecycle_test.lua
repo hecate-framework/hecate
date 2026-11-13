@@ -1003,6 +1003,18 @@ function T:test_on_request_end_is_not_called_for_a_request_refused_before_any_ac
   self:assert_equal(2, ended)
 end
 
+function T:test_serving_twice_is_a_state_error()
+  with_server(self, { action = text_action }, function(_, server)
+    for _ = 1, 2000 do -- the serve forked by `with_server` starts at its first turn (bounded poll)
+      if server._serving then break end ---@diagnostic disable-line: invisible
+      reactor.sleep(0.001)
+    end
+    local err = self:assert_error(function() server:serve() end)
+    self:assert_true(core.is_instance_of(err, core.StateError), tostring(err))
+    self:assert_true(err.message:find("already serving", 1, true) ~= nil, err.message)
+  end)
+end
+
 function T:test_on_request_end_must_be_a_function()
   local err = self:assert_error(function() Server(text_action, { on_request_end = "x" }) end)
   self:assert_true(core.is_instance_of(err, core.ArgumentError), tostring(err))

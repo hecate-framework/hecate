@@ -323,7 +323,7 @@ function T:test_reload_needs_a_serving_primary()
   local app = kernel.Application({ logger = log.Logger({ sinks = {} }) })
   reactor.run(function()
     local err = self:assert_error(function() app:reload() end)
-    self:assert_true(core.is_instance_of(err, core.ArgumentError), tostring(err))
+    self:assert_true(core.is_instance_of(err, core.StateError), tostring(err))
   end)
 end
 

@@ -179,20 +179,20 @@ function Container:init()
 end
 
 local function check_open(container, method)
-  if container._closed then error(ContainerError("container: " .. method .. " on a closed container"), 3) end
+  if container._closed then error(core.StateError("container: " .. method .. " on a closed container"), 3) end
 end
 
 local function check_unfrozen(container, method)
   check_open(container, method)
   if container._validated then
-    error(ContainerError("container: " .. method .. " after validate: the container is frozen"), 3)
+    error(core.StateError("container: " .. method .. " after validate: the container is frozen"), 3)
   end
 end
 
 local function check_validated(container, method)
   check_open(container, method)
   if not container._validated then
-    error(ContainerError("container: " .. method .. " before validate: validate the container at boot"), 3)
+    error(core.StateError("container: " .. method .. " before validate: validate the container at boot"), 3)
   end
 end
 
@@ -201,7 +201,7 @@ end
 --- `definition` a class, `validate` checks that the class implements it; a factory product is checked at its first
 --- construction.
 ---
---- Raises `hecate.container.DuplicateBindingError` if `key` is bound, `hecate.container.ContainerError` after
+--- Raises `hecate.container.DuplicateBindingError` if `key` is bound, `hecate.core.StateError` after
 --- `validate` or `close`, and `hecate.core.ArgumentError` for a wrong argument.
 ---@param key string|table  a non-empty name or an interface
 ---@param definition table|function  a finalised class or a factory
@@ -224,7 +224,7 @@ end
 --- Tells whether `key` has a binding, without constructing anything; it does not need `validate`. The kernel uses it
 --- at boot to check the keys it will resolve (container.md, "Keys").
 ---
---- Raises `hecate.container.ContainerError` after `close`, and `hecate.core.ArgumentError` if `key` is not a
+--- Raises `hecate.core.StateError` after `close`, and `hecate.core.ArgumentError` if `key` is not a
 --- non-empty string or an interface.
 ---@param key string|table  a non-empty name or an interface
 ---@return boolean bound
@@ -237,7 +237,7 @@ end
 --- Replaces the binding of `key`, for tests. When `options` is omitted the lifetime and `requires` of the replaced
 --- binding are kept; when given, it replaces both (the lifetime is required, as for `bind`). The new graph is checked by `validate`.
 ---
---- Raises `hecate.container.MissingBindingError` if `key` is not bound, `hecate.container.ContainerError` after
+--- Raises `hecate.container.MissingBindingError` if `key` is not bound, `hecate.core.StateError` after
 --- `validate` or `close`, and `hecate.core.ArgumentError` for a wrong argument.
 ---@param key string|table
 ---@param definition table|function
@@ -269,7 +269,7 @@ end
 --- check. The container never tracks nor closes `value`, even when it defines `__close`: the caller who built it owns
 --- it (OQ-123). (container.md, "Overrides for tests"; Fowler 2004, "Forms of Dependency Injection".)
 ---
---- Raises `hecate.container.MissingBindingError` if `key` is not bound, `hecate.container.ContainerError` after
+--- Raises `hecate.container.MissingBindingError` if `key` is not bound, `hecate.core.StateError` after
 --- `validate` or `close`, `hecate.core.ConformanceError` if `value` does not implement the interface `key`, and
 --- `hecate.core.ArgumentError` for a wrong argument.
 ---@param key string|table
@@ -459,7 +459,7 @@ end
 --- would create a closable transient that no singleton owns (resolve it through `ServiceScope:resolve`; a factory
 --- product is closed again before the error is raised),
 --- `hecate.container.MissingBindingError` for an unbound key, `hecate.container.ConstructionError` if a constructor
---- raised, and `hecate.container.ContainerError` before `validate` or after `close`.
+--- raised, and `hecate.core.StateError` before `validate` or after `close`.
 ---@param key string|table
 ---@return any service  never `nil`
 function Container:resolve(key)
@@ -521,12 +521,12 @@ end
 --- Resolves any service: scoped instances are cached in this scope, singleton instances in the container.
 ---
 --- Raises `hecate.container.MissingBindingError`, `hecate.container.ConstructionError` or
---- `hecate.container.ContainerError` (this scope or the container is closed).
+--- `hecate.core.StateError` (this scope or the container is closed).
 ---@param key string|table
 ---@return any service  never `nil`
 function ServiceScope:resolve(key)
   check_key_argument("resolve", key)
-  if self._closed then error(ContainerError("container: resolve on a closed service scope"), 2) end
+  if self._closed then error(core.StateError("container: resolve on a closed service scope"), 2) end
   check_validated(self._container, "resolve")
   return resolve_key(self._container, self, key, {}, self, nil, nil)
 end

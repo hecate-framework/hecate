@@ -289,14 +289,14 @@ function RoundRobin:supported() return true, nil end
 --- Binds the listening socket in the primary, once (suspends for the bind). Returns the bound address (with
 --- `port = 0`, the port the system chose).
 ---
---- Raises `hecate.core.ArgumentError` for a malformed endpoint or a second call, `hecate.reactor.TransportError`
+--- Raises `hecate.core.ArgumentError` for a malformed endpoint, `hecate.core.StateError` for a second call, `hecate.reactor.TransportError`
 --- when the address cannot be bound.
 ---@async
 ---@param endpoint hecate.kernel.Endpoint
 ---@return hecate.reactor.SocketAddress address
 function RoundRobin:prepare(endpoint)
   check_endpoint(endpoint, "hecate.kernel.listening.prepare")
-  if self._listener ~= nil then error(core.ArgumentError("hecate.kernel.listening.prepare: already prepared"), 2) end
+  if self._listener ~= nil then error(core.StateError("hecate.kernel.listening.prepare: already prepared"), 2) end
   self._listener = net.listen(endpoint.host, endpoint.port, { backlog = endpoint.backlog })
   return self._listener:local_address()
 end
@@ -378,12 +378,12 @@ end
 --- (as `Supervisor` does on stop) or a cancellation ends it. An accept failure (descriptor exhaustion) backs off from 50 ms to
 --- 1 s, as `hecate.http.Server` does, and is logged once per burst.
 ---
---- Raises `hecate.core.ArgumentError` when `prepare` was not called.
+--- Raises `hecate.core.StateError` when `prepare` was not called.
 ---@async
 ---@param workers hecate.kernel.WorkerRing
 function RoundRobin:run(workers)
   local listener = self._listener
-  if listener == nil then error(core.ArgumentError("hecate.kernel.listening.run: call prepare first"), 2) end
+  if listener == nil then error(core.StateError("hecate.kernel.listening.run: call prepare first"), 2) end
   local failures = 0
   while true do
     local ok, stream = pcall(listener.accept, listener)

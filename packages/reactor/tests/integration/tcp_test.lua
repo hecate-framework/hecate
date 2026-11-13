@@ -225,6 +225,16 @@ function T:test_cancelled_accept_keeps_the_listener_and_queued_connections()
   end)
 end
 
+function T:test_a_second_concurrent_accept_is_a_state_error()
+  with_listener(self, function(listener)
+    local acceptor = reactor.fork(function() return pcall(listener.accept, listener) end)
+    wait_until(self, function() return listener._accepting end, "the acceptor to park") ---@diagnostic disable-line: invisible
+    local err = self:assert_error(function() listener:accept() end)
+    self:assert_true(core.is_instance_of(err, core.StateError), tostring(err))
+    acceptor:cancel()
+  end)
+end
+
 function T:test_closing_the_listener_wakes_a_pending_accept()
   with_listener(self, function(listener)
     local acceptor = reactor.fork(function()
@@ -419,6 +429,7 @@ function T:test_a_second_concurrent_read_is_refused()
     wait_until(self, function() return client._reading end, "the first read to park") ---@diagnostic disable-line: invisible
     local err = self:assert_error(function() client:read() end)
     self:assert_true(tostring(err):find("another coroutine is already reading", 1, true) ~= nil, tostring(err))
+    self:assert_true(core.is_instance_of(err, core.StateError), tostring(err))
     first:cancel()
     release:send(true)
   end)

@@ -121,7 +121,8 @@ and `resolve` suspend the calling coroutine and return streams, listeners and so
   cancelled `write`, `send_to`, `shutdown` or `connect` closes it, because how much was sent
   is unknown. `close` is idempotent, never suspends and wakes every coroutine waiting on it.
 - Operations take no timeout argument: bound them with `deadline`.
-- One coroutine reads, accepts or receives at a time on an object.
+- One coroutine reads, accepts or receives at a time on an object; a second concurrent call raises `core.StateError`
+  (OQ-77).
 
 ## Blocking work
 

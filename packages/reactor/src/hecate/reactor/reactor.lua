@@ -306,7 +306,7 @@ end
 ---@private
 function Reactor:_create_computation(scope, fn, args)
   if self._tearing_down then
-    error(core.Error("reactor: cannot start a coroutine while the run is being torn down"), 0)
+    error(core.StateError("reactor: cannot start a coroutine while the run is being torn down"), 0)
   end
   local future = Future()
   local computation = {
@@ -386,6 +386,8 @@ end
 
 --- Runs `fn(...)` as the main coroutine, inside a root scope, and drives the reactor until
 --- it and everything it forked have finished. Returns the results of `fn`, or raises its error.
+---
+--- Raises `hecate.core.StateError` when a reactor is already running on this thread.
 ---@param fn fun(...): ...
 ---@param ... any
 ---@return any ...
@@ -394,7 +396,7 @@ function Reactor:run(fn, ...)
     error(core.ArgumentError(("reactor.Reactor.run: expects a function, got %s"):format(type(fn))), 2)
   end
   if context.reactor ~= nil then
-    error(core.Error("reactor.Reactor.run: a reactor is already running on this thread"), 2)
+    error(core.StateError("reactor.Reactor.run: a reactor is already running on this thread"), 2)
   end
   local args = table.pack(...)
   context.reactor = self

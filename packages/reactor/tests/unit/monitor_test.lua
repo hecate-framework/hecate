@@ -14,7 +14,7 @@ function T:test_monitor_excludes_and_is_not_reentrant()
     self:assert_true(monitor:is_entered())
     err = self:assert_error(function() monitor:enter() end)
   end)
-  self:assert_true(core.is_instance_of(err, core.ArgumentError))
+  self:assert_true(core.is_instance_of(err, core.StateError), tostring(err))
 end
 
 function T:test_enter_raises_outside_a_managed_coroutine()

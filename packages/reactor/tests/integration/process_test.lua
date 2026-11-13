@@ -314,7 +314,8 @@ function T:test_concurrent_receivers_are_refused()
       reactor.sleep(0.001)
     end
     self:assert_true(peer._receiving, "the first receive parked") ---@diagnostic disable-line: invisible
-    self:assert_error(function() peer:receive() end)
+    local err = self:assert_error(function() peer:receive() end)
+    self:assert_true(core.is_instance_of(err, core.StateError), tostring(err))
     peer:send("go")
     self:assert_equal("GO", reactor.join(waiting))
     peer:close()

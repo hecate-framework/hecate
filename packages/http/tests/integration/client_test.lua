@@ -174,10 +174,14 @@ function T:test_read_content_is_bounded_by_the_limit()
     local client <close> = Client({ max_content = 100 })
     local err = self:assert_error(function() client:get(base(port)):read_content() end)
     self:assert_true(core.is_instance_of(err, http.ContentError))
-    self:assert_equal(413, err.context.status)
+    self:assert_equal("too_large", err.context.reason)
+    self:assert_nil(err.context.status, "a status is the server's to give, not the client's (OQ-82)")
     local roomy <close> = Client()
     local ok = roomy:get(base(port)):read_content(5000)
     self:assert_equal(1000, #ok)
+    local lowered = self:assert_error(function() roomy:get(base(port)):read_content(10) end)
+    self:assert_equal("too_large", lowered.context.reason)
+    self:assert_nil(lowered.context.status, "a limit given to read_content gives no status either")
   end)
 end
 
@@ -292,7 +296,8 @@ function T:test_a_closed_client_refuses_requests_and_drops_its_idle_connections(
     client:get(base(port)):read_content()
     client:close()
     client:close()
-    self:assert_error(function() client:get(base(port)) end)
+    local err = self:assert_error(function() client:get(base(port)) end)
+    self:assert_true(core.is_instance_of(err, core.StateError), tostring(err))
   end)
 end
 
@@ -432,7 +437,7 @@ function T:test_a_slow_head_is_a_deadline_error_and_the_client_stays_usable()
   end)
 end
 
-function T:test_content_that_stalls_between_reads_is_a_deadline_error_and_the_connection_is_dropped()
+function T:test_content_that_stalls_between_reads_is_a_content_error_and_the_connection_is_dropped()
   with_server(self, function()
     return Response(200, { content = function(write, flush) write("first"); flush(); reactor.sleep(30) end })
   end, nil, function(port)
@@ -441,7 +446,23 @@ function T:test_content_that_stalls_between_reads_is_a_deadline_error_and_the_co
     local stream = response:stream_content()
     self:assert_equal("first", stream:read())
     local err = self:assert_error(function() stream:read() end)
-    self:assert_true(core.is_instance_of(err, core.DeadlineExceededError))
+    self:assert_true(core.is_instance_of(err, http.ContentError), tostring(err))
+    self:assert_equal("timeout", err.context.reason)
+    self:assert_nil(err.context.status)
+    self:assert_true(core.is_instance_of(err.cause, core.DeadlineExceededError), "the expired read is the cause")
+    self:assert_true(stream:is_finished() == false)
+  end)
+end
+
+function T:test_content_that_stalls_past_the_whole_exchange_deadline_is_a_deadline_error()
+  with_server(self, function()
+    return Response(200, { content = function(write, flush) write("first"); flush(); reactor.sleep(30) end })
+  end, nil, function(port)
+    local client <close> = Client({ content_timeout = 20, request_timeout = 0.5 })
+    local stream = client:get(base(port)):stream_content()
+    self:assert_equal("first", stream:read())
+    local err = self:assert_error(function() stream:read() end)
+    self:assert_true(core.is_instance_of(err, core.DeadlineExceededError), tostring(err))
   end)
 end
 
@@ -451,7 +472,7 @@ function T:test_the_total_timeout_covers_the_whole_request()
   end, nil, function(port)
     local client <close> = Client({ request_timeout = 0.5 })
     local err = self:assert_error(function() client:get(base(port)):read_content() end)
-    self:assert_true(core.is_instance_of(err, core.DeadlineExceededError))
+    self:assert_true(core.is_instance_of(err, core.DeadlineExceededError), "the whole-exchange deadline stays a deadline error")
     self:assert_error(function() Client():get(base(port), { request_timeout = 0 }) end)
   end)
 end

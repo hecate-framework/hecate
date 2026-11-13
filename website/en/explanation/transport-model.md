@@ -102,7 +102,7 @@ takes a timeout argument: you wrap it in `reactor.deadline`.
 ## One reader at a time
 
 One coroutine reads, accepts or receives at a time on an object. A second concurrent call raises
-an error instead of waiting. The reason is that two readers would split the bytes of one stream
+`core.StateError` instead of waiting. The reason is that two readers would split the bytes of one stream
 between them, so the data each sees would depend on scheduling. Writes from several coroutines are
 queued in call order. A buffered reader or writer also queues a second concurrent call instead of
 raising.

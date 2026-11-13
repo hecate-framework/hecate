@@ -51,7 +51,9 @@ Nothing here suspends, so nothing is `---@async`.
 - `container.ServiceScope` (made by `open_scope()`; `ServiceScope(x)` refuses anything but a `Container`): `resolve(key)`, `release(instance)` (closes a tracked transient now) and `close()` (also `<close>`).
 - `container.Lifetime`: enumeration `singleton`, `scoped`, `transient`.
 - Errors, all `core.ConfigurationError`: `ContainerError`, `DuplicateBindingError`, `MissingBindingError`,
-  `CycleError`, `LifetimeError`, `GraphError`, `ConstructionError`.
+  `CycleError`, `LifetimeError`, `GraphError`, `ConstructionError`. A use in the wrong state (`resolve` or
+  `open_scope` before `validate`, `bind` or `override` after it, any use after `close`) raises `core.StateError`
+  (OQ-77); a wrong argument `core.ArgumentError`.
 
 ### Behaviour
 

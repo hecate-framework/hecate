@@ -51,6 +51,22 @@ function T:test_receive_suspends_until_a_datagram_arrives()
   self:assert_equal("late", data)
 end
 
+function T:test_a_second_concurrent_receive_is_a_state_error()
+  local err = run(self, function()
+    local server <close> = reactor.bind_udp(LOOPBACK, 0)
+    local first = reactor.fork(function() return server:receive_from() end)
+    for _ = 1, 5000 do
+      if server._receiving then break end ---@diagnostic disable-line: invisible
+      reactor.sleep(0.001)
+    end
+    local ok, failure = pcall(server.receive_from, server)
+    self:assert_false(ok)
+    first:cancel()
+    return failure
+  end)
+  self:assert_true(core.is_instance_of(err, core.StateError), tostring(err))
+end
+
 function T:test_cancelled_receive_keeps_socket_and_loses_nothing()
   local data = run(self, function()
     local server <close> = reactor.bind_udp(LOOPBACK, 0)
