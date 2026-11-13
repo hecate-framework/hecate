@@ -3,7 +3,7 @@
 
 - roadmap_item: **Phase 2 gate**: verification of the phase, as described in "Phase gates" (`docs/roadmap.md`).
 - status: in-progress
-- lock_until: 2026-11-13T13:00:00Z
+- lock_until: 2026-11-13T13:30:00Z
 - last_update: 2026-11-13T11:30:00Z
 
 ## Done
@@ -30,7 +30,7 @@
 
 ## Next steps
 
-1. Reviewer wave (`/review-package` on the Phase 2 packages), triage each minor (fix or defer with a pointer).
+1. Reviewer wave: six read-only reviewers launched (http, kernel+hecate, router, container, config, reactor Phase 2 additions; `schema` cites `schema-review-package.md`). Write `docs/reviews/phase-2-review-package.md` from their reports, triage each finding (fix test first, or defer with a pointer). If a run finds them gone, relaunch.
 2. Wait for the owner on issue 188 (section 5 questions); then record each answer in `docs/open-questions.md`.
 3. Finish: tick the gate only when the report shows no open gap and every question has an owner decision or deferral.
 
