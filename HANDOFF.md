@@ -2,9 +2,9 @@
 # Handoff
 
 - roadmap_item: **Phase 2 gate**: verification of the phase, as described in "Phase gates" (`docs/roadmap.md`).
-- status: in-progress
-- lock_until: 2026-11-13T18:30:00Z
-- last_update: 2026-11-13T16:15:00Z
+- status: waiting-owner
+- lock_until: 2026-11-13T18:45:00Z
+- last_update: 2026-11-13T18:45:00Z
 
 ## Done
 
@@ -31,7 +31,9 @@
 
 ## Next steps
 
-1. Wait for the owner on issue 188 (section 5 questions); then record each answer in `docs/open-questions.md`.
+1. Wait for the owner on issue 188 (section 5 questions, and OQ-123 to OQ-127 in its comment). Checked 2026-11-13T18:45Z:
+   no answer on 188 nor on the 18 question issues; CI of 7f21068 green. Nothing else is startable (Phase 3 waits on
+   this gate); then record each answer in `docs/open-questions.md`.
 2. Finish: tick the gate only when the report shows no open gap and every question has an owner decision or deferral.
 
 ## Decisions taken (and where they are recorded)
