@@ -81,7 +81,7 @@ pool-thread states); RE-6 covers it with real tests.
 | K-4 | major | A worker that stops reading its message pipe stalls the hand-over to every worker under `round_robin`: `deliver` awaits `peer:send` inside the single accept loop (`listening.lua:290-338`, `supervisor.lua:249-258`). | Fixed, test first |
 | K-5 | minor | Bad `server` options in a primary are validated only in each worker, so they become a crash loop instead of one boot error (`application.lua:476-481`). | Fixed, test first |
 | K-6 | minor | `Accept: application/json;q=0, */*` still selects JSON; RFC 9110 section 12.5.1 gives 406 (`results.lua:61-77`, `:93-95`). | Fixed, test first |
-| K-7 | minor | A problem for 405 or 401 cannot carry `Allow` or `WWW-Authenticate` (RFC 9110) (`problems.lua:114-136`). | Deferred: OQ-126 (issue 192) |
+| K-7 | minor | A problem for 405 or 401 cannot carry `Allow` or `WWW-Authenticate` (RFC 9110) (`problems.lua:114-136`). | Fixed in the gate after the owner decision on OQ-126 (a `fields` member on problems) |
 | K-8 | minor | The worker's drain is not counted in its grace period, so it races the primary's kill at `grace + 1` (`supervisor.lua:942-943`). | Fixed, test first |
 | K-9 | minor | `on_crash_loop = "degrade"` ends `run` with `start_failed` when a restart cannot spawn (`supervisor.lua:314-319`). | Fixed, test first |
 | K-10 | minor | Worker-side logs (`control_failed`, `hand_over_queue_full`, `hand_over_discarded`) go to `log.default()`, ignoring an explicit `logger` (`supervisor.lua:856`, `:865`, `:890`). | Fixed, test first |
