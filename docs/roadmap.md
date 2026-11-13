@@ -289,11 +289,21 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       reporters (TAP, JUnit XML), coverage. **Also (T2, from the `http` test review):** a hand-built `Request` whose
       `content` is a table must be JSON-encoded or raise, not read as empty (`Request:read_content` today reads only a
       string); the in-process client uses the dispatch seam of OQ-78. **Also (from the `schema` review, OQ-96):** property-based generators derived from `hecate.schema` types (`generate`, `generate_invalid`, shrinking), which `schema` does not implement.
+- [ ] Spike OQ-13 (standalone CLI executable: Lua 5.5, the CLI modules and the native modules in one binary per
+      platform; code signing on macOS and Windows), time-boxed, report and recommendation to the owner before the
+      `cli` v1 item (owner decision of 2026-11-13).
+- [ ] Spike OQ-17 (split tool for the read-only mirrors: `splitsh-lite`, `git subtree split`, `git filter-repo`;
+      determinism and speed), report to the owner before the mirrors item (owner decision of 2026-11-13).
+- [ ] `reactor.random(n)`, cryptographically secure bytes over libuv `uv_random`, used by the multipart boundaries of
+      `http` (no `math.random` fallback), before `0.1.0` (OQ-73, owner decision of 2026-11-13).
 - [ ] `doc`: project documentation generator for user projects (OpenAPI reference,
       `hecate doc build`); the minimal generator and the code reference moved to Phase 1. **Carries deferrals
       from the Phase 1 gate review** (cross-platform review): refuse, with a `BuildError`, page ids that are not valid
       file names on Windows (`? : * " < > |`, trailing dots or spaces, reserved names such as `CON`) and normalise
       NFC/NFD names before the collision check, because a site is built from a tree authored elsewhere. **Also (from the `schema` review, OQ-96):** the `---@meta` file generation for LuaLS from the schemas of a project (carried here or by `cli`, to settle when `cli` is specified), which `schema` does not implement.
+      **Also (OQ-38, owner decision of 2026-11-13):** the theme extension points for user projects: a site
+      configuration `logo`, a CSS custom-properties override file for the colours, template overrides later if users ask;
+      the hecate marks are never recoloured.
 - [ ] `cli` v1: self-contained executable, `new`, `install`, `add`, `remove`, `update`,
       `serve [--watch]`, `test`, `doc`, `contract`, `toolchain`, `doctor`, `version`.
       **Also (OQ-122, owner decision of 2026-11-13, ADR 0023 amended):** `server.workers` accepts `"auto"` and
@@ -337,6 +347,8 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       the native modules of `net` and `json`, ADR 0021), `docker.yml`, `cli-e2e.yml`, `website.yml`
       and the `release *` tasks.
 
+      **Also (OQ-46, owner decision of 2026-11-13):** fill `modules` of every rockspec (Lua sources and native
+      modules) and extend `check-rockspecs` to compare `modules` with `src/`.
 - [ ] **Phase 3 gate**: verification of the phase, as described in [Phase gates](#phase-gates). Open
       questions to put to the owner before Phase 4: OQ-18 and OQ-45.
 
