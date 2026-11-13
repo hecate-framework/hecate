@@ -3,8 +3,8 @@
 
 - roadmap_item: **Phase 2 gate**: verification of the phase, as described in "Phase gates" (`docs/roadmap.md`).
 - status: in-progress
-- lock_until: 2026-11-13T12:45:00Z
-- last_update: 2026-11-13T11:10:00Z
+- lock_until: 2026-11-13T13:15:00Z
+- last_update: 2026-11-13T11:45:00Z
 
 ## Done
 
@@ -21,19 +21,20 @@
 - Coherence audit written: `docs/reviews/phase-2-coherence-findings.md` (C1 to C32).
 - Safe content canary test committed as work in progress
   (`packages/kernel/tests/integration/safe_content_canary_test.lua`, final).
-- Report sections 1, 3 and 4 written; findings P1 to P8, S1 to S7 in section 6 with their dispositions.
+- Report sections 1, 3, 4 and 5 written; findings P1 to P8, S1 to S7 in section 6 with their dispositions.
+- G5 fixed: coverage marker around the pool-thread body of `offload`; `reactor` 90.8 % (nightly failed at 89.8 %).
+- Coherence pass: 28 findings fixed (C24 left for the http agent); OQ-120 to OQ-122 added (issues 185 to 187);
+  OQ-69 known limitation (P4); OQ-24 moved to Resolved (issue 64 closed). Owner issue: 188 (`needs-decision`).
 
 ## Next steps
 
-1. Report rows P1, P4, P6, P7, P8, S1, S2, S7 (`docs/reviews/phase-2.md`, section 6): fix or defer as written.
-2. Coherence findings: fix the 28 text edits (C1 to C9, C12 to C24, C26 to C31), give each a disposition in the
-   findings file; C10, C11, C25, C32 need the owner: open-questions entries (with mirror issues).
-3. `coverage`: `reactor` 89.8 % (< 90 %) locally; compare with the nightly of eb9d9b7 (run 43403344037).
-4. Reviewer wave (`/review-package` on the Phase 2 packages), triage each minor.
-5. Section 5 (also S1 code choice, S3): the open `due:phase-2` issues 56 OQ-46, 60 OQ-17, 61 OQ-13, 64 OQ-24 (owner decision recorded: move
-   to Resolved), 72 OQ-38, 77 OQ-64, 81 OQ-75, 83 OQ-69, 87 OQ-73, 90 OQ-82, 91 OQ-77, plus C10, C11, C25, C32;
-   recommendation each, one `needs-decision` issue.
-6. Finish: tick the gate only when the report shows no open gap and every question has an owner decision or deferral.
+1. Collect the `pkg-http` agent's work (P1 `Request.content`, S1, S2, S7 on the production checklist, tests; it may
+   also fix C24 in `packages/http/README.md`): review, add its CHANGELOG line, commit; set rows P1, S1, S2, S7 and
+   C24 to Fixed. If the agent is gone, redo those rows.
+2. Reviewer wave (`/review-package` on the Phase 2 packages), triage each minor (fix or defer with a pointer).
+3. `automation.md`: document the `-- coverage: off` / `-- coverage: on` marker in the `coverage` row (G5).
+4. Wait for the owner on issue 188 (section 5 questions); then record each answer in `docs/open-questions.md`.
+5. Finish: tick the gate only when the report shows no open gap and every question has an owner decision or deferral.
 
 ## Decisions taken (and where they are recorded)
 

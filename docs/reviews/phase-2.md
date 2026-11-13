@@ -90,7 +90,28 @@ it lacked is S1, S2 and S7.
 
 ## 5. Open questions
 
-To be written.
+The questions labelled `due:phase-2` were due by the end of this phase, and the gate added three (OQ-120 to OQ-122).
+None blocks a Phase 2 deliverable; each is put to the owner in one `needs-decision` issue. The relay decides none of
+them. A recommendation of "relabel `due:phase-3`" means the question is a real Phase 3 prerequisite, not a Phase 2
+gap.
+
+| Question | Context | Recommendation |
+|---|---|---|
+| OQ-46, rockspecs ship nothing (`modules = {}`) | `luarocks make` installs no source; `check-rockspecs` does not notice. | (b): leave it to the Phase 3 release item, which extends `check-rockspecs`; relabel `due:phase-3`. |
+| OQ-13, standalone CLI executable (research) | Blocks the Phase 3 `cli` v1 item. | A spike at the start of Phase 3, before `cli` v1; relabel `due:phase-3`. |
+| OQ-17, split tool for the mirrors (research) | Blocks the Phase 3 mirrors item. | A spike before that item (determinism, speed); relabel `due:phase-3`. |
+| OQ-38, theme of `hecate doc build` for user projects | Needed before `hecate doc build` (Phase 3 `doc`). | A site configuration `logo` plus a CSS custom-properties override file now, template overrides later; the hecate marks are never recoloured. |
+| OQ-64, `source_revision` stamps of the French pages | Nothing reads them until `check-translations` (Phase 3). | Leave them; `check-translations` decides from content. State the rule in `website/CLAUDE.md`. |
+| OQ-69, `host` of `Server` and the first defaults | Owner answer recorded (numeric `host`, `localhost` later); the per-address handshake cap is now a recorded known limitation (P4). | Confirm the recorded defaults and close; `host = "localhost"` and the per-address cap become later items. |
+| OQ-73, cryptographically secure random primitive | `multipart` falls back on `math.random` on Windows. | `reactor.random(n)` over luv `random`, before `0.1.0` (Phase 3), used by `multipart`. |
+| OQ-75, naming and API review of `http` (one break before 0.1) | Implemented as listed. | Confirm as implemented, before the Phase 3 API freeze. |
+| OQ-77, a state error class | Wrong-state use is an `ArgumentError` today. | `core.StateError`, before `0.1.0`; relabel `due:phase-3`. |
+| OQ-82, review notes of `http` | Several points; `Request.content` narrowed by this gate (P1); the split of `server.lua` and `client.lua` done by the kernel item. | Close the points the gate and the kernel delivered; carry the rest (one class for content timeouts, the client-side 413) to the Phase 3 API freeze. |
+| OQ-120, what free text the logs may carry (new, S1, S3, C25) | Causes in the `traceback` field and `debug.message`; JSON Pointer in `schema` messages, which deviates from OQ-117 (4). | (1) keep the causes, documented (done); (2) no pointer in any message, confirming the deviation. |
+| OQ-121, planned Phase 2 work with no roadmap item (new, C10, C11) | Eleven outline pages and three generators marked P2. | Re-mark them P3 and name them in the Phase 3 `doc`, `cli` and website items. |
+| OQ-122, default number of workers of `hecate serve` (new, C32) | ADR 0023 says the cores; `server.workers` defaults to 1. | The flag falls back on `server.workers`; the generated production configuration sets the cores. |
+
+OQ-24 had an owner decision (2026-10-27) and is recorded as resolved; its issue is closed.
 
 ## 6. Findings and disposition
 
