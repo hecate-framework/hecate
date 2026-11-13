@@ -41,3 +41,15 @@ disposition: fixed in the gate pull request (test first), or deferred to a named
 | CF-11 | minor | The value of a secret object can be replaced (`secret._reveal = ...`), in `config` and in `log` (`secret.lua:18`). | Open |
 | CF-12 | minor | No size cap nor type check when reading a secret file: `/dev/zero` exhausts memory and a FIFO blocks the boot (`load.lua:102-110`, `:439`); a decision. | Open (missing decision) |
 | CF-13 | minor | On Windows `os.getenv` returns the ANSI code page, so a non-ASCII environment value may be misread (`load.lua:286`; not verified). | Open (missing decision) |
+
+## router
+
+| Id | Severity | Finding | Disposition |
+|---|---|---|---|
+| R-1 | major | Overlapping affixed templates of the same text length (`/f/a{x}` and `/f/{y}b`) are accepted, and `/f/a1b` goes to one of them by byte order of the affixes, against "ambiguous route tables are rejected at boot" (`tree.lua:52-64`). Reproduced. | Open |
+| R-2 | major | The specification says matching cost is independent of the number of routes; affixed siblings at a node are scanned one by one (a 404 costs 296 VM instructions with one `/f/{x}.e1` route, 160 424 with 10 000) (`http-and-routing.md:70`, `:83-84`; `tree.lua:135-150`). | Open: correct the statement and test the static case in the gate; indexing affixed siblings deferred |
+| R-3 | minor | A route list with a hole (`{r1, nil, r3}`) silently drops the routes after it (`router.lua:296`, `:305`; by reading). | Open |
+| R-4 | minor | `url_for` errors raised through `template.expand` name `url_for` and point inside `router.lua` (`template.lua:240`, `:243-249`, `:290`). | Open |
+| R-5 | minor | `template.parse(text)` and `path.split(raw)` without a policy behave as `strict`, not the documented default `ignore` (`template.lua:233`, `path.lua:116`). Reproduced. | Open |
+| R-6 | minor | `url_for` refuses an integer for a wildcard though the documentation says "strings or integers" (`template.lua:285`). Reproduced. | Open |
+| R-7 | minor | Under `trailing_slash = "strict"` a wildcard refuses a path ending with a slash; the guide does not say so (`tree.lua:93-101`). Reproduced. | Open |
