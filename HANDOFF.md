@@ -3,7 +3,7 @@
 
 - roadmap_item: **First item of Phase 3 (owner decision of 2026-11-13): a readable writing style.** Write a "Writing style" section in `docs/architecture/documentation.md`, after the manner of *Programming in Lua* (Ierusalimschy) [...] Pilot it on the 8 pages written at the Phase 2 gate [...] and submit them to the owner before any other Phase 3 item starts.
 - status: in-progress
-- owner: session https://claude.ai/code/session_01Mdjhq2GwFoE6iRV9c7hC7W. Owner instruction (2026-11-13, comment on #195):
+- owner: session `session_01Mdjhq2GwFoE6iRV9c7hC7W`. Owner instruction (2026-11-13, comment on #195):
   no other relay run continues this pull request, whatever `lock_until` says; take another roadmap item instead.
 - lock_until: 2026-11-14T10:15:00Z
 - last_update: 2026-11-14T08:45:00Z
