@@ -38,6 +38,7 @@
 
 ## Standards and references
 
+- sha256 through the `digest` rock behind a one-module seam, [ADR 0028](../../docs/adr/0028-cli-sha256-rock-behind-a-seam.md)
 - LuaRocks rockspec format
 - SemVer 2.0.0
 

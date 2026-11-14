@@ -1,0 +1,119 @@
+name: spike-oq13-digest
+
+# Throwaway workflow of spike OQ-13 and ADR 0028 (remove it with the spike): checks, on every platform, that the
+# `digest` rock (osch/lua-digest) installs through LuaRocks on Lua 5.5, passes its own test suite with all its
+# fixtures, and that the `hecate.cli.digest` seam (docs/spikes/OQ-13) gives the same answers with the `digest` and
+# `plc` backends. The result is read by hand; it is not a required check.
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/spike-oq13-digest.yml"
+      - "docs/spikes/OQ-13/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  digest:
+    name: digest (${{ matrix.os }}, Lua 5.5)
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    continue-on-error: ${{ matrix.extra }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        extra: [false]
+        include:
+          # Targets of ADR 0010 beyond the CI matrix; informative, a failure here does not fail the run.
+          - os: ubuntu-24.04-arm
+            extra: true
+          - os: macos-15-intel
+            extra: true
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Cache toolchain
+        id: toolchain
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: .hecate/toolchain
+          key: toolchain-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('tools/bootstrap/**') }}
+
+      - name: Bootstrap (Linux, macOS)
+        if: steps.toolchain.outputs.cache-hit != 'true' && runner.os != 'Windows'
+        run: tools/bootstrap/bootstrap.sh --prefix .hecate/toolchain
+
+      - name: MSVC environment (Windows)
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1
+
+      - name: Bootstrap (Windows)
+        if: steps.toolchain.outputs.cache-hit != 'true' && runner.os == 'Windows'
+        shell: pwsh
+        run: tools/bootstrap/bootstrap.ps1
+
+      - name: Add toolchain to PATH
+        shell: pwsh
+        run: |
+          $tc = Join-Path $env:GITHUB_WORKSPACE '.hecate/toolchain'
+          Add-Content -Path $env:GITHUB_PATH -Value (Join-Path $tc 'bin')
+          if ($env:RUNNER_OS -eq 'Windows') {
+            Add-Content -Path $env:GITHUB_ENV -Value "LUAROCKS_CONFIG=$(Join-Path $tc 'luarocks-config.lua')"
+          }
+
+      - name: Versions
+        shell: bash
+        run: |
+          lua -v
+          luarocks --version | head -1
+          uname -sm || true
+
+      # The real path of the dependency: a source rock built by LuaRocks with the platform compiler.
+      - name: Install the rocks (digest, plc)
+        shell: bash
+        run: |
+          luarocks --tree "$RUNNER_TEMP/lr" install digest
+          luarocks --tree "$RUNNER_TEMP/lr" install plc
+          luarocks --tree "$RUNNER_TEMP/lr" list
+
+      # The rock's own suite needs its test vectors, which the rock does not ship: use the tagged sources.
+      - name: Fetch the tagged sources of digest
+        shell: bash
+        run: |
+          git clone --depth 1 --branch v0.0.1 https://github.com/osch/lua-digest "$RUNNER_TEMP/lua-digest"
+          echo "commit: $(git -C "$RUNNER_TEMP/lua-digest" rev-parse HEAD)"
+
+      - name: Run the digest test suite against the installed rock
+        shell: bash
+        run: |
+          case "$RUNNER_OS" in Windows) ext=dll ;; *) ext=so ;; esac
+          cd "$RUNNER_TEMP/lua-digest"
+          export LUA_CPATH="$RUNNER_TEMP/lr/lib/lua/5.5/?.$ext;;"
+          lua run_tests.lua
+
+      - name: Contract test of the seam, both backends
+        shell: bash
+        run: |
+          case "$RUNNER_OS" in Windows) ext=dll ;; *) ext=so ;; esac
+          export LUA_PATH="$GITHUB_WORKSPACE/docs/spikes/OQ-13/?.lua;$RUNNER_TEMP/lr/share/lua/5.5/?.lua;;"
+          export LUA_CPATH="$RUNNER_TEMP/lr/lib/lua/5.5/?.$ext;;"
+          lua docs/spikes/OQ-13/digest_test.lua digest
+          lua docs/spikes/OQ-13/digest_test.lua plc
+
+      - name: Speed on 16 MB
+        shell: bash
+        run: |
+          case "$RUNNER_OS" in Windows) ext=dll ;; *) ext=so ;; esac
+          export LUA_PATH="$RUNNER_TEMP/lr/share/lua/5.5/?.lua;;"
+          export LUA_CPATH="$RUNNER_TEMP/lr/lib/lua/5.5/?.$ext;;"
+          lua -e '
+            local data = string.rep("x", 16 * 1024 * 1024)
+            local d = require("digest")
+            local t = os.clock(); local h = d.sha256hex(data)
+            print(("digest %s %.3f s"):format(h:sub(1, 16), os.clock() - t))
+            local sha2 = require("plc.sha2")
+            t = os.clock(); local r = sha2.hash256(data)
+            print(("plc    %s %.3f s"):format(r:sub(1, 8):gsub(".", function(c) return ("%02x"):format(c:byte()) end), os.clock() - t))'

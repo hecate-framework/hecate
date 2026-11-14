@@ -1,8 +1,8 @@
 # 0028 — sha256 in the CLI: the `digest` rock behind a one-line seam
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-11-14
-- **Deciders:** project owner
+- **Deciders:** project owner (accepted by the project owner, 2026-11-14, on pull request #200)
 - **Packages:** cli
 - **Related:** [ADR 0009](0009-project-manifest.md) (`hecate.lock` carries checksums), [ADR 0010](0010-self-contained-cli-and-managed-toolchains.md), [spike OQ-13](../spikes/OQ-13-standalone-executable.md), OQ-13
 
@@ -54,15 +54,18 @@ Candidates were installed on Lua 5.5.1 and checked against `sha256sum` on `abc` 
 
 ## Consequences
 
-- `hecate-cli` depends on `digest` when this ADR is accepted (the rockspec is not changed before), and
-  `THIRD_PARTY_NOTICES` records it: MIT for the binding, BSD-3-Clause for `sha2.c` (a notice obligation), MIT for
-  `md5.c` (the rock ships `LICENSE-THIRD-PARTY`).
+- `hecate-cli` depends on the `digest` rock (rockspec updated with this ADR). `THIRD_PARTY_NOTICES` records it when it
+  is vendored or compiled into the executable (the file lists vendored material, not rock dependencies): MIT for
+  the binding, BSD-3-Clause for `sha2.c` (a notice obligation), MIT for `md5.c` (the rock ships
+  `LICENSE-THIRD-PARTY`).
 - Files are streamed in chunks (`digest.new("sha256")`), so large archives need no extra memory.
 - Risks, accepted with the seam as the mitigation: the rock is young (24 days on 2026-11-14, one maintainer, 215
   downloads); if it is abandoned, its single C file and two cores can be vendored (as yyjson is) or the backend
   switched to `plc`. Its README claims CI on macOS and on Windows (MSVC and MinGW) for Lua 5.5, which we have not
-  verified: a throwaway workflow compiling and testing it on the three platforms is required before this ADR is
-  accepted. It was compiled here with GCC on Linux only, and its own suite was run with part of its fixtures.
+  verified: the throwaway workflow `spike-oq13-digest` (installs the rock with LuaRocks, runs its own suite with all
+  fixtures and the contract test of the seam on the three CI platforms, plus Linux arm64 and macOS x86_64
+  informatively) runs on the pull request; its result is recorded in the spike report, and a failure reopens this
+  decision (switch the backend to `plc`, or vendor the source). It was compiled here with GCC on Linux only, and its own suite was run with part of its fixtures.
 - The contract test of the seam runs against every backend present, so a switch is checked by the same vectors.
 
 ## Verification

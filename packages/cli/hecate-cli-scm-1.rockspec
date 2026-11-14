@@ -19,6 +19,7 @@ dependencies = {
   "hecate-log",
   "hecate-json",
   "hecate-schema",
+  "digest",
 }
 
 build = {

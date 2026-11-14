@@ -170,3 +170,6 @@ runs the CLI's own code.
   candidates found by the searches above were tested. Risks recorded in ADR 0028: a young single-maintainer
   project (mitigated by the seam, and by vendoring the single C file with its two cores as yyjson is), and no
   compilation on macOS or MSVC by us yet (to be checked in a throwaway workflow before the ADR is accepted).
+- Sixth round (owner, 2026-11-14): ADR 0028 accepted (`digest`, `plc` as fallback); the three-platform check of
+  `digest` is the throwaway workflow `.github/workflows/spike-oq13-digest.yml`, to be removed with the spike;
+  signing is left for the owner to handle later (issues #201 and #202 stay open).
