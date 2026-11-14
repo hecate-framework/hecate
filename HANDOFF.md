@@ -4,8 +4,8 @@
 - roadmap_item: `openapi`: OpenAPI 3.1 assembly, served endpoint, export, contract diff.
 - status: in-progress            <!-- in-progress | waiting-ci | waiting-owner -->
 <!-- Optional, only when the owner holds this pull request for one run: - owner: session `<session id>`, why. -->
-- lock_until: 2026-11-14T16:00:47Z
-- last_update: 2026-11-14T14:30:47Z
+- lock_until: 2026-11-14T20:10:00Z
+- last_update: 2026-11-14T18:42:00Z
 
 ## Done
 
