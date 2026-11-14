@@ -54,9 +54,8 @@ flowchart TB
     sqlserver --> sql
   end
   subgraph T[Tooling]
-    cli --> doc
-    cli --> migration
-    cli --> test
+    cli --> log
+    cli --> schema
     doc --> openapi
     doc --> reactor
     test --> kernel
