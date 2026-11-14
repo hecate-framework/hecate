@@ -43,3 +43,4 @@ Use [`template.md`](template.md) or the `/new-adr` command.
 | [0028](0028-cli-sha256-rock-behind-a-seam.md) | sha256 in the CLI: the `digest` rock behind a one-line seam | Accepted |
 | [0029](0029-executable-is-the-lua-5.5-interpreter.md) | The `hecate` executable embeds Lua and LuaRocks and is the interpreter of Lua 5.5 projects | Accepted |
 | [0030](0030-luasodium-for-cryptography.md) | `luasodium` is the cryptography dependency of Hecate | Accepted |
+| [0031](0031-dev-only-json-schema-validator.md) | A development-only JSON Schema validator validates the OpenAPI documents in CI | Proposed |

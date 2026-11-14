@@ -11,6 +11,8 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- docs(openapi): ADR 0031 (Proposed): a development-only JSON Schema validator (Python `jsonschema` 4.26.0, pinned with hashes, never shipped) validates the golden document and the documents of the build tests against the official OpenAPI 3.1 schema in CI through a `validate-openapi` task, the Lua self-check staying the always-on check (owner choice (b) of OQ-130, 2026-11-14); the spike found that Node `ajv` 8.20.0 mishandles `$dynamicRef` of that schema and that the golden document has a `security` requirement `{}` instead of `[]`.
+
 - feat(kernel): the served OpenAPI document (step 5 of the `openapi` item): the `Application` option `openapi` (`info`, `servers`, `tags`, `external_docs`, `path`, `name`, `enabled`, `pretty`) serves the document of the application routes with `GET /openapi.json`, built at the first request; served by default only in the `development` environment; `hecate-kernel` now depends on `hecate-openapi` (OQ-134); `Application.entries` lists the routes after `boot`.
 
 - feat(kernel): optional request body: the route declaration flag `content_optional = true` makes the input step accept an empty body, with or without a `Content-Type` field, the action getting a nil `content`; a body that is not empty is validated as before (the name is permanent, to be reviewed at the Phase 3 gate), and a declared `content` stays required by default. The route entry gets `content_optional` (boolean, `false` by default); a non-boolean value, or the flag without `content`, is a `RouteDeclarationError` with reason `invalid_content_optional`.
