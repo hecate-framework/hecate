@@ -44,7 +44,7 @@ end
 ---@field expose_details? boolean  see `hecate.kernel.DispatcherOptions`
 ---@field inputs? "lax"|"strict"  see `hecate.kernel.DispatcherOptions`
 ---@field validate_responses? boolean  validate each result against the schema declared for its status (see `hecate.kernel.DispatcherOptions`); default true when the environment of `configuration` is `development` or `test`, else false (OQ-117)
----@field contracts? hecate.kernel.ContractProvider[]  documents rendered from the route table and served with a GET route each (`hecate.openapi.provider`); default none (OQ-131)
+---@field contracts? hecate.kernel.ContractProvider[]  documents rendered from the route table and served with a GET route each (`hecate.openapi.provider`); default none (OQ-134)
 ---@field logger? hecate.log.Logger  receives unhandled failures and the container warnings; without it and without a `configuration`, `log.default()` does (OQ-79: standard error)
 ---@field router? hecate.router.RouterOptions
 ---@field server? hecate.http.ServerOptions  options of the HTTP server made by `serve` (`logger` defaults to the application's; the application sets `on_request_end` to end the service scope of each request, and a hook given here runs after that)

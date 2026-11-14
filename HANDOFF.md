@@ -20,7 +20,7 @@
 - Awaiting owner: OQ-129 (11) diff rules, `content_optional` name and empty-body rule, (13); then move OQ-129 to Resolved and close #199.
 - Diff reports default, description, summary, example, tags, deprecated, security changes (cece774); `content_optional` permanent, accepts an empty body even with a Content-Type (bacfae8); owner answers recorded in OQ-129.
 - Step 4 `openapi`: conformance test: structural self-check `tests/support/structure.lua` plus comparison with the pinned official schema (`oas/3.1/schema/2026-11-05` of OAI/spec.openapis.org, `fetch-fixtures openapi`, added to ci.yml and nightly.yml); a full validation is OQ-130 (issue #203).
-- Step 5 `openapi`/`kernel`: `Application` option `contracts` (plain-data providers, `kernel/contract.lua`), `Application.entries`, `openapi.provider`; OQ-131 (issue #208). Kernel and provider tests could not run locally (no luv, no native json): CI decides.
+- Step 5 `openapi`/`kernel`: `Application` option `contracts` (plain-data providers, `kernel/contract.lua`), `Application.entries`, `openapi.provider`; OQ-134 (issue #208). Kernel and provider tests could not run locally (no luv, no native json): CI decides.
 
 ## Next steps
 

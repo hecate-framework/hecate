@@ -279,4 +279,4 @@ tests/unit/  tests/integration/  tests/fixtures/  tests/helpers/
 
 Benchmark: the repository scenario `benchmarks/scenarios/kernel-json`. Tested example: `examples/hello`.
 
-- `contracts` (Application option): a list of contract providers, documents rendered from the route table and served by a GET route (`hecate.openapi.provider`, OQ-131); `Application.entries` holds the route entries after `boot`.
+- `contracts` (Application option): a list of contract providers, documents rendered from the route table and served by a GET route (`hecate.openapi.provider`, OQ-134); `Application.entries` holds the route entries after `boot`.
