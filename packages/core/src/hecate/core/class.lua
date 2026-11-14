@@ -224,6 +224,25 @@ function M.finalise(target)
     end
   end
 
+  -- Class-level fields of the interfaces: a non-function member of the class or of its finalised superclass.
+  for _, handle in ipairs(record.interfaces) do
+    local interface_record = registry.interfaces[handle]
+    for _, field_name in ipairs(interface_record.field_order) do
+      if not seen[field_name] then
+        local field = interface_record.fields[field_name]
+        local value = own[field_name]
+        if value == nil and superclass ~= nil then value = rawget(superclass, field_name) end
+        if type(value) == "function" or value == nil or not field.check(value) then
+          seen[field_name] = true
+          missing[#missing + 1] = { member = field_name, origin = field.origin }
+          problems[#problems + 1] = ("%s: missing or invalid field %s required by interface %s (expected %s, got %s)")
+            :format(describe(target), field_name, field.origin, field.expected,
+              value == nil and "nothing" or type(value) == "function" and "a function" or type(value))
+        end
+      end
+    end
+  end
+
   if #problems > 0 then
     raise.conformance(table.concat(problems, "; "),
       { class = record.name, conflicts = conflicts, missing = missing })

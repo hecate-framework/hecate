@@ -117,4 +117,57 @@ function T:test_interface_name_must_be_a_non_empty_string()
   end
 end
 
+--- A field requirement: a class-level member that is not a function, checked by a predicate.
+local function positive() return { name = "size", expected = "a positive integer", check = function(v)
+  return math.type(v) == "integer" and v > 0
+end } end
+
+function T:test_field_requirement_is_checked_at_finalisation()
+  local Sized = core.interface("Sized", {}, { fields = { positive() } })
+  local A = core.class("A", nil, { implements = { Sized } })
+  local err = self:assert_error(function() core.finalise(A) end)
+  self:assert_equal("size", err.context.missing[1].member)
+  self:assert_equal("Sized", err.context.missing[1].origin)
+  self:assert_true(err.message:find("a positive integer", 1, true) ~= nil)
+  A.size = 3
+  core.finalise(A)
+  self:assert_true(core.implements(A, Sized))
+end
+
+function T:test_field_requirement_reports_the_offending_type()
+  local Sized = core.interface("Sized", {}, { fields = { positive() } })
+  local A = core.class("A", nil, { implements = { Sized } })
+  A.size = "big"
+  local err = self:assert_error(function() core.finalise(A) end)
+  self:assert_true(err.message:find("got string", 1, true) ~= nil)
+end
+
+function T:test_field_requirements_are_inherited_through_extends()
+  local Sized = core.interface("Sized", {}, { fields = { positive() } })
+  local Measured = core.interface("Measured", { "measure" }, { extends = { Sized } })
+  local A = core.class("A", nil, { implements = { Measured } })
+  function A:measure() end
+  local err = self:assert_error(function() core.finalise(A) end)
+  self:assert_equal("size", err.context.missing[1].member)
+  self:assert_equal("Sized", err.context.missing[1].origin)
+end
+
+function T:test_invalid_field_requirements_are_refused()
+  for _, fields in ipairs({
+    invalid({ "size" }),
+    invalid({ { name = "size" } }),
+    invalid({ { name = 1, expected = "x", check = function() end } }),
+    invalid({ positive(), positive() }),
+    invalid(3),
+  }) do
+    local err = self:assert_error(function() core.interface("I", {}, { fields = fields }) end)
+    self:assert_equal("hecate.core.ArgumentError", err.code)
+  end
+end
+
+function T:test_field_and_method_with_one_name_is_refused()
+  local err = self:assert_error(function() core.interface("I", { "size" }, { fields = { positive() } }) end)
+  self:assert_equal("hecate.core.ArgumentError", err.code)
+end
+
 return T
