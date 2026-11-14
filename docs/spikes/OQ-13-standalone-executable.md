@@ -293,4 +293,3 @@ with the source URL pointing at the local file, in a git-ignored directory (`spi
   `password`/`salt`/4096 vector; a 100-byte password with 40 bytes of output) and takes 14 ms for 4096 iterations, the PostgreSQL
   SCRAM default. So SCRAM-SHA-256 needs nothing but `luasodium`.
 - Not checked: Windows and macOS builds of `luasodium` (it needs the libsodium library on each), and its FFI bindings (LuaJIT only).
-
