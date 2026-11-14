@@ -249,5 +249,7 @@ rock's own suite from a clone of its `v0.0.1` tag (all fixtures present), then t
   packages, three attacker-uploaded packages removed, and a recommendation to use LuaRocks 3.12 or newer. The bootstrap
   and the embedded LuaRocks are 3.13.0; the checksums of `hecate.lock` are the mitigation for rocks fetched later.
   I read the report page only, not the details of what was checked.
-- OQ-133: ADR 0023 already specifies the rolling reload of workers by the `kernel` supervisor; the open part is its
-  trigger and the upgrade of the primary or the binary (out of scope in ADR 0023). Recorded in the OQ-133 entry.
+- OQ-133: the `kernel` already implements the graceful stop (`sigint`, `sigterm`) and, on Unix, the rolling reload of
+  ADR 0023 on `sighup` in a primary (`Supervisor:reload`; I first wrote that the trigger was missing, which was wrong); the
+  open parts are reload on Windows, the upgrade of the primary or of the binary (out of scope in ADR 0023) and
+  whether the CLI adds commands. Recorded in the OQ-133 entry.
