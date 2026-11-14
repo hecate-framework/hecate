@@ -37,6 +37,27 @@ function T:test_common_classes_carry_status_and_reason_phrase_as_title()
   end
 end
 
+function T:test_every_problem_class_implements_the_core_problem_interface()
+  self:assert_true(core.implements(problem.Problem, core.Problem))
+  self:assert_true(core.implements(problem.NotFound, core.Problem))
+  local Teapot = problem.define("Teapot", { status = 418, title = "Teapot" })
+  self:assert_true(core.implements(Teapot, core.Problem))
+end
+
+function T:test_the_base_class_defaults_to_an_internal_server_error()
+  self:assert_equal(500, problem.Problem.status)
+  self:assert_equal("Internal Server Error", problem.Problem.title)
+  local instance = problem.Problem({ detail = "x" })
+  self:assert_equal(500, instance.status)
+  self:assert_equal("Internal Server Error", instance.title)
+  -- The classes made by `declare` and `define` keep their own status and title.
+  self:assert_equal(404, problem.NotFound.status)
+  self:assert_equal("Not Found", problem.NotFound.title)
+  local Teapot = problem.define("Teapot", { status = 418, title = "Short and stout" })
+  self:assert_equal(418, Teapot.status)
+  self:assert_equal("Short and stout", Teapot().title)
+end
+
 function T:test_a_built_in_class_has_the_code_hecate_problem_and_its_name()
   for _, name in ipairs({ "BadRequest", "NotAcceptable", "ContentTooLarge", "GatewayTimeout", "ServiceUnavailable" }) do
     self:assert_equal("hecate.problem." .. name, problem[name].code)
