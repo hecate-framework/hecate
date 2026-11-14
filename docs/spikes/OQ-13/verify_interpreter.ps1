@@ -33,6 +33,12 @@ Get-ChildItem $Work -Filter host.exe | Format-List Name, Length
 
 $host_ = Join-Path $Work 'host.exe'
 
+Step 'LuaFileSystem for the embedded LuaRocks (a native rock built by the standard toolchain)'
+# Without lfs, LuaRocks lists the files of a rock with the `find` command, which is Windows' text-search tool on a
+# Windows runner: the list comes back empty and nothing is deployed. The official luarocks.exe bundles lfs.
+Run luarocks --tree "$Work\t0" install luafilesystem
+$lfsCpath = "$Work\t0\lib\lua\5.5\?.dll"
+
 Step '1. the host loads a native rock built by the standard toolchain'
 Run luarocks --tree "$Work\t1" install $NativeRock
 $env:LUA_CPATH = "$Work\t1\lib\lua\5.5\?.dll;;"
@@ -40,22 +46,18 @@ Run $host_ "$here\check_native.lua" $NativeRock
 
 # LUAROCKS_CONFIG is the toolchain's (compiler and library variables); only the tree changes, with --tree.
 $env:LUA_PATH = "$LuaRocksLib\?.lua;;"
+$env:LUA_CPATH = "$lfsCpath;;"
 
 Step "2. LuaRocks runs inside the host and installs a pure-Lua rock ($PureRock)"
 Run $host_ $LuaRocksBin --version
 Run $host_ $LuaRocksBin --tree "$Work\t2" install $PureRock
 
 Step "3. LuaRocks runs inside the host and builds a source rock ($NativeRock) from the Lua headers"
-# Verbose output is kept and filtered: the lines about deployment, copies and failures are what matters here.
-$verbose = & $host_ $LuaRocksBin --tree "$Work\t3" install --verbose $NativeRock 2>&1 | Out-String
-if ($LASTEXITCODE -ne 0) { Write-Host $verbose; throw "install of $NativeRock failed" }
-Write-Host 'the last 90 verbose lines of the install, shortened:'
-$lines = $verbose -split "`r?`n"
-$lines | Select-Object -Last 90 | ForEach-Object { $t = $_.Trim(); if ($t.Length -gt 150) { $t = $t.Substring(0, 150) + '...' }; Write-Host "  $t" }
+Run $host_ $LuaRocksBin --tree "$Work\t3" install $NativeRock
 Write-Host 'files installed in t3:'
 Get-ChildItem -Recurse -File "$Work\t3" | ForEach-Object { Write-Host "  $($_.FullName)" }
 $env:LUA_PATH = "$LuaRocksLib\?.lua;;"
-$env:LUA_CPATH = "$Work\t3\lib\lua\5.5\?.dll;;"
+$env:LUA_CPATH = "$Work\t3\lib\lua\5.5\?.dll;$lfsCpath;;"
 Run $host_ "$here\check_native.lua" $NativeRock
 
 Step '4. the contract test of the sha256 seam runs in the host'
