@@ -7,6 +7,7 @@ local core = require("hecate.core")
 local json = require("hecate.json")
 local schema = require("hecate.schema")
 local Components = require("hecate.openapi.internal.components")
+local diff = require("hecate.openapi.internal.diff")
 local problem_details = require("hecate.openapi.internal.problem_details")
 local status = require("hecate.openapi.internal.status")
 
@@ -296,6 +297,20 @@ function openapi.build(options)
   if #tags > 0 then document.tags = tags end
   document.components = { schemas = components.schemas }
   return document
+end
+
+--- Compares two documents (tables, as `build` returns or `hecate.json` decodes them) and lists the changes from `old`
+--- to `new`, each classified as breaking or not for a client of the API. The list is sorted (by `path`, `kind`,
+--- `message`), so equal inputs give the same list; messages name rules and property names, never a value of the
+--- contract. `$ref` into `components.schemas` is resolved. Request schemas are inputs: a narrowed type, a new required
+--- property or parameter, removed enum values or stricter bounds are breaking. Response schemas are outputs: a removed
+--- response, property or media type, or a changed type, is breaking. Neither document is modified. Raises
+--- `hecate.core.ArgumentError` when an argument is not a table.
+---@param old table  the previous contract
+---@param new table  the current contract
+---@return hecate.openapi.Change[] changes
+function openapi.diff(old, new)
+  return diff.compare(old, new)
 end
 
 --- Encodes a document as JSON text with the members of every object in a fixed order (`canonical`, RFC 8785
