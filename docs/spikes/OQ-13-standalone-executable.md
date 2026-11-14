@@ -123,7 +123,7 @@ runs the CLI's own code.
 - `lsha2`: the `403` is the network policy of the cloud environment, not a network fault: `github.com`,
   `codeload.github.com` and the repository page itself all answer `403`. It could not be judged from here.
 - sha256, at worst: a small vendored C implementation (as yyjson is vendored).
-- Signing: issues for the Apple Developer ID and the Windows signing certificate record the prerequisites.
+- Signing: issues [#201](https://github.com/hecate-framework/hecate/issues/201) (Apple Developer ID) and [#202](https://github.com/hecate-framework/hecate/issues/202) (Windows signing route) record the prerequisites.
 - The CLI dependencies are corrected in this pull request: `Depends on` of `packages/cli/README.md`, the
   rockspec and the overview graph now list `core`, `reactor`, `log`, `json` and `schema` only (the confinement of
   luv to `reactor` makes `reactor` the way to supervise processes). ADR 0010 is unchanged: its wording ("the native
