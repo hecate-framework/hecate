@@ -306,7 +306,8 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
 - [ ] `openapi`: OpenAPI 3.1 assembly, served endpoint, export, contract diff. **Also (owner answers on OQ-129,
       2026-11-14):** routes are always named explicitly by the user (`kernel` refuses a route without `name`; no
       default name), `operationId` is that name; an optional request body (`content_optional`); a shared HTTP status
-      table in `core` (confirm); the problem classes recognised by an explicit marker (confirm); the ordered `tags` list
+      table in `core`, used by `http` and `openapi` (confirmed); the interface `Problem` in `core`, which the problem
+      classes of `kernel` declare and `openapi` tests (confirmed); the ordered `tags` list
       with descriptions and `externalDocs` in the project settings. **Later, optional:** a controller-level default
       `tags` field, so that the routes of a controller need not repeat them.
 - [ ] `test`: test framework, runner, in-process client, fixtures, contract conformance,
