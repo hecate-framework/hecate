@@ -233,4 +233,3 @@ rock's own suite from a clone of its `v0.0.1` tag (all fixtures present), then t
 - OQ-45: the owner's direction is that `digest` serves the CLI only and that security cryptography belongs to the
   `security` package over `luasodium`, with argon2id by default; recorded in the OQ-45 entry. `luasodium` and
   `argon2` rocks exist on luarocks.org (versions up to 0.0.11-1 and 3.0.0-1); neither was installed or tested here.
-
