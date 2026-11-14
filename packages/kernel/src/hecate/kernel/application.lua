@@ -44,7 +44,7 @@ end
 ---@field expose_details? boolean  see `hecate.kernel.DispatcherOptions`
 ---@field inputs? "lax"|"strict"  see `hecate.kernel.DispatcherOptions`
 ---@field validate_responses? boolean  validate each result against the schema declared for its status (see `hecate.kernel.DispatcherOptions`); default true when the environment of `configuration` is `development` or `test`, else false (OQ-117)
----@field contracts? hecate.kernel.ContractProvider[]  documents rendered from the route table and served with a GET route each (`hecate.openapi.provider`); default none (OQ-134)
+---@field openapi? hecate.kernel.OpenApiOptions  serves the OpenAPI 3.1 document of the routes (`hecate.openapi`) with a GET route; `info` is required; served by default only in the `development` environment of `configuration` (OQ-134)
 ---@field logger? hecate.log.Logger  receives unhandled failures and the container warnings; without it and without a `configuration`, `log.default()` does (OQ-79: standard error)
 ---@field router? hecate.router.RouterOptions
 ---@field server? hecate.http.ServerOptions  options of the HTTP server made by `serve` (`logger` defaults to the application's; the application sets `on_request_end` to end the service scope of each request, and a hook given here runs after that)
@@ -69,7 +69,7 @@ end
 local Application = core.class("Application")
 
 local KNOWN = {
-  modules = true, routes = true, contracts = true, configuration = true, services = true, filters = true, container = true, max_depth = true,
+  modules = true, routes = true, openapi = true, configuration = true, services = true, filters = true, container = true, max_depth = true,
   expose_details = true, inputs = true, validate_responses = true, logger = true, router = true, server = true, signals = true, grace_timeout = true,
   workers = true, strategy = true, worker_command = true, on_crash_loop = true, ready_timeout = true,
 }
@@ -259,10 +259,11 @@ function Application:boot()
   for _, owned in ipairs(module_sources) do
     for _, entry in ipairs(routing.collect(owned.sources, owned.filters)) do entries[#entries + 1] = entry end
   end
-  -- Contract providers see the routes of the application, not their own: they are added after the table is gathered.
+  -- The document describes the routes of the application, not its own route: that one is added after the table is gathered.
   local documented = {}
   for index, entry in ipairs(entries) do documented[index] = entry end
-  for _, entry in ipairs(contract.entries(options.contracts, documented)) do entries[#entries + 1] = entry end
+  local served_in_development = configuration ~= nil and configuration:environment() == "development"
+  for _, entry in ipairs(contract.entries(options.openapi, documented, served_in_development)) do entries[#entries + 1] = entry end
   local serve, router, finish = dispatcher.build(entries, {
     filters = filters, container = container, router = options.router, expose_details = options.expose_details,
     logger = logger, inputs = options.inputs, validate_responses = options.validate_responses,

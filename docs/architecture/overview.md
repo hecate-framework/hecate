@@ -32,7 +32,7 @@ flowchart TB
     kernel --> config
     kernel --> container
     kernel --> http
-    kernel --> router
+    kernel --> openapi
     openapi --> router
     openapi --> schema
     security --> kernel
@@ -60,11 +60,9 @@ flowchart TB
     doc --> openapi
     doc --> reactor
     test --> kernel
-    test --> openapi
   end
   subgraph M[Meta]
     hecate --> kernel
-    hecate --> openapi
   end
 ```
 <!-- gen-dependency-graph:end -->

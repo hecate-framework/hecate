@@ -1,47 +1,54 @@
 ---@diagnostic disable: need-check-nil, missing-fields, undefined-field, param-type-mismatch, assign-type-mismatch
 local test = require("harness.test")
 local http = require("hecate.http")
+local json = require("hecate.json")
 local kernel = require("hecate.kernel")
-local T = test.Case("ContractProviderTest")
+local T = test.Case("ServedOpenApiTest")
+
+local INFO = { title = "Shop", version = "1.0.0" }
 
 local function get(serve, path)
   return serve(http.Request({ method = "GET", target = path, fields = http.Fields() }))
 end
 
-local function app(providers)
+local function app(openapi)
   local m = kernel.routes("health")
-  m:get("/health", { name = "health", action = function() return { ok = true } end })
-  return kernel.Application({ routes = { m }, contracts = providers })
+  m:get("/health", { name = "health", responses = { [204] = true }, action = function() return kernel.respond(204) end })
+  return kernel.Application({ routes = { m }, openapi = openapi })
 end
 
-function T:test_provider_is_served_with_its_media_type_and_sees_only_application_routes()
-  local seen
-  local a = app { { name = "doc", path = "/doc", media_type = "text/plain", render = function(entries) seen = entries; return "hello" end } }
-  local serve = a:boot()
-  local response = get(serve, "/doc")
+function T:test_document_is_served_without_its_own_route()
+  local a = app { info = INFO, enabled = true }
+  local response = get(a:boot(), "/openapi.json")
   self:assert_equal(200, response.status)
-  self:assert_equal("hello", response.content)
-  self:assert_equal("text/plain", response.fields:get("Content-Type"))
-  self:assert_equal(1, #seen)
-  self:assert_equal("health", seen[1].name)
+  self:assert_equal("application/json", response.fields:get("Content-Type"))
+  local document = json.decode(response.content)
+  self:assert_equal("Shop", document.info.title)
+  self:assert_true(document.paths["/health"] ~= nil)
+  self:assert_nil(document.paths["/openapi.json"])
   self:assert_equal(1, #a.entries)
 end
 
-function T:test_document_is_rendered_once()
-  local count = 0
-  local serve = app({ { name = "doc", path = "/doc", media_type = "text/plain", render = function() count = count + 1; return "x" end } }):boot()
-  get(serve, "/doc"); get(serve, "/doc")
-  self:assert_equal(1, count)
+function T:test_path_and_name_are_options_and_document_is_kept()
+  local serve = app({ info = INFO, enabled = true, path = "/spec", name = "spec" }):boot()
+  local first, second = get(serve, "/spec"), get(serve, "/spec")
+  self:assert_equal(200, first.status)
+  self:assert_equal(first.content, second.content)
+  self:assert_equal(404, get(serve, "/openapi.json").status)
 end
 
-function T:test_disabled_provider_serves_nothing()
-  local serve = app({ { name = "doc", path = "/doc", media_type = "text/plain", render = function() return "x" end, enabled = false } }):boot()
-  self:assert_equal(404, get(serve, "/doc").status)
+function T:test_not_served_without_the_option_or_when_disabled_or_outside_development()
+  self:assert_equal(404, get(app(nil):boot(), "/openapi.json").status)
+  self:assert_equal(404, get(app({ info = INFO, enabled = false }):boot(), "/openapi.json").status)
+  -- no configuration: not in development, so not served by default
+  self:assert_equal(404, get(app({ info = INFO }):boot(), "/openapi.json").status)
 end
 
-function T:test_invalid_provider_is_refused()
-  self:assert_error(function() app({ { name = "doc", path = "/doc", media_type = "text/plain" } }):boot() end)
-  self:assert_error(function() app({ { name = "doc", path = "/doc", media_type = "x", render = function() end, bogus = 1 } }):boot() end)
+function T:test_invalid_option_is_refused()
+  self:assert_error(function() app({}):boot() end)
+  self:assert_error(function() app({ info = INFO, bogus = 1 }):boot() end)
+  self:assert_error(function() app({ info = INFO, path = "" }):boot() end)
+  self:assert_error(function() app("x"):boot() end)
 end
 
 return T

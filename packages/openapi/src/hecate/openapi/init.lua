@@ -396,34 +396,4 @@ function openapi.encode(document, options)
   return json.encode(document, encode_options)
 end
 
---- Options of `openapi.provider`: those of `openapi.build` except the routes, which the application gives at the first request.
----@class hecate.openapi.ProviderOptions
----@field info hecate.openapi.Info
----@field servers? table
----@field tags? table
----@field external_docs? table
----@field path? string  default `/openapi.json`
----@field name? string  route name, default `openapi`
----@field enabled? boolean  `false` serves nothing (default true; the caller decides, for example from the environment)
----@field pretty? boolean  indented output (default false)
-
---- A contract provider for `hecate.kernel.Application` (option `contracts`): plain data, the kernel is not required.
---- The document is built from the routes of the application at the first request and kept; the route that serves it
---- is not part of it. A document that cannot be built (see `build`) is an internal failure of that request.
---- Raises `hecate.core.ArgumentError` for invalid options.
----@param options hecate.openapi.ProviderOptions
----@return table provider  `hecate.kernel.ContractProvider`
-function openapi.provider(options)
-  check_table(options, "options", { info = true, servers = true, tags = true, external_docs = true, path = true, name = true, enabled = true, pretty = true })
-  if options.info == nil then refuse("options.info is required") end
-  return {
-    name = options.name or "openapi", path = options.path or "/openapi.json", enabled = options.enabled,
-    media_type = "application/json", summary = "OpenAPI document of this application",
-    render = function(entries)
-      return openapi.encode(openapi.build({ info = options.info, servers = options.servers, tags = options.tags,
-        external_docs = options.external_docs, routes = entries }), { pretty = options.pretty })
-    end,
-  }
-end
-
 return openapi

@@ -10,7 +10,7 @@
 | Roadmap phase | 2 |
 | Status | alpha — implemented in Phase 2: filter chain, results, problems, route declarations, dispatcher, validation of the request inputs (refusals logged at `warning` as `request refused`), response validation in development and test, `Application` skeleton and feature modules, listening strategies and supervisor of multi-process serving, wired into `Application` (`workers`, `strategy`), rolling reload of the workers (`Supervisor:reload`, `Application:reload`, `sighup`) |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |
-| Depends on | [`core`](../core), [`reactor`](../reactor), [`net`](../net), [`log`](../log), [`http`](../http), [`router`](../router), [`schema`](../schema), [`container`](../container), [`config`](../config), [`json`](../json) |
+| Depends on | [`core`](../core), [`reactor`](../reactor), [`net`](../net), [`log`](../log), [`http`](../http), [`router`](../router), [`schema`](../schema), [`openapi`](../openapi), [`container`](../container), [`config`](../config), [`json`](../json) |
 | Used by | `cli`, `hecate`, `security`, `template`, `test` |
 | Native code | none |
 | Specification | [http-and-routing.md](../../docs/architecture/http-and-routing.md) |
@@ -279,4 +279,4 @@ tests/unit/  tests/integration/  tests/fixtures/  tests/helpers/
 
 Benchmark: the repository scenario `benchmarks/scenarios/kernel-json`. Tested example: `examples/hello`.
 
-- `contracts` (Application option): a list of contract providers, documents rendered from the route table and served by a GET route (`hecate.openapi.provider`, OQ-134); `Application.entries` holds the route entries after `boot`.
+- `openapi` (Application option, OQ-134): `{ info, servers?, tags?, external_docs?, path?, name?, enabled?, pretty? }` serves the OpenAPI 3.1 document of the routes (`hecate.openapi`) with `GET /openapi.json`. The document is built from the application routes at the first request and kept; the serving route is not in it. Without the option nothing is served; with it, `enabled` defaults to true in the `development` environment of the configuration and false otherwise (no configuration: false). `Application.entries` holds the route entries after `boot`.
