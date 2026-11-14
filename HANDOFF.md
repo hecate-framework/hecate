@@ -4,8 +4,8 @@
 - roadmap_item: `openapi`: OpenAPI 3.1 assembly, served endpoint, export, contract diff.
 - status: in-progress            <!-- in-progress | waiting-ci | waiting-owner -->
 <!-- Optional, only when the owner holds this pull request for one run: - owner: session `<session id>`, why. -->
-- lock_until: 2026-11-14T21:17:03Z
-- last_update: 2026-11-14T21:17:03Z
+- lock_until: 2026-11-14T23:20:00Z
+- last_update: 2026-11-14T21:50:00Z
 
 ## Done
 
@@ -24,12 +24,13 @@
 - Step 6 `openapi`: task `validate-openapi` (`tools/tasks/validate_openapi.lua`, `tools/lib/openapi_validate.lua`, `tools/lib/validate_openapi.py`, `tools/ci/openapi-validator-requirements.txt`, tests), per ADR 0031 (Accepted).
 - Step 7 `openapi`: `validate-openapi` wired into `ci.yml` as steps of the `ci` matrix job (guarded by `openapi` affected): `actions/setup-python` 3.13.17, venv cache, hashed install, `validate-openapi` with `CI=true`; only CI can verify it.
 - CI fixes: the kernel-json benchmark server lists `openapi` among its packages (kernel now depends on it); Python 3.13.17 (3.13.18 has no Windows/macOS build).
+- Step 8 `openapi`: `openapi.lint` (internal/lint.lua, 8 tests, README, CHANGELOG); typecheck ok; native json missing locally so build/diff tests cannot run here: CI decides.
 
 ## Next steps
 
 1. Reference page for the served document (embedded static assets); check on CI that the kernel tests `contract_test` pass.
 2. YAML output and the `hecate contract export` hook (kernel/cli).
-3. Lint: names, descriptions, examples, undocumented responses as errors, unused listed tags.
+3. Lint: wire `openapi.lint` into the export step and the CLI (`hecate contract lint`), lint website page.
 4. Integration tests and website reference pages (`{rest...}` documented).
 5. Later, optional: controller-level default `tags` (roadmap).
 6. CI green on three platforms, delete HANDOFF.md, tick roadmap, mark ready.

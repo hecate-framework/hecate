@@ -8,6 +8,7 @@ local json = require("hecate.json")
 local schema = require("hecate.schema")
 local Components = require("hecate.openapi.internal.components")
 local diff = require("hecate.openapi.internal.diff")
+local lint = require("hecate.openapi.internal.lint")
 local problem_details = require("hecate.openapi.internal.problem_details")
 
 --- The contact of the API (OpenAPI 3.1 section 4.8.3).
@@ -402,6 +403,17 @@ end
 ---@return hecate.openapi.Change[] changes
 function openapi.diff(old, new)
   return diff.compare(old, new)
+end
+
+--- Lints a document (a table, as `build` returns it or `hecate.json` decodes it) and lists the findings, sorted by
+--- `path` then `rule`. Errors: `operation-id-missing`, `response-description-missing`, `response-undocumented` (a route
+--- that declares no response). Warnings: `description-missing`, `example-missing` (request content and `2xx` response
+--- content), `tag-unused` (a listed tag no operation uses). Messages name rules and locations, never a value of the
+--- contract. The document is not modified. Raises `hecate.core.ArgumentError` when it is not a table.
+---@param document table
+---@return hecate.openapi.Finding[] findings
+function openapi.lint(document)
+  return lint.run(document)
 end
 
 --- Encodes a document as JSON text with the members of every object in a fixed order (`canonical`, RFC 8785

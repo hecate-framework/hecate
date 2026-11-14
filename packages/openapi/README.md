@@ -8,7 +8,7 @@
 | Rock | `hecate-openapi` |
 | Layer | 3 — Framework |
 | Roadmap phase | 3 |
-| Status | in progress — document assembly (step 1) and contract diff (step 2) implemented; served endpoint implemented in `kernel`; export and lint to come |
+| Status | in progress — document assembly (step 1) and contract diff (step 2) implemented; served endpoint implemented in `kernel`; lint (`openapi.lint`) implemented; export to come |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |
 | Depends on | [`core`](../core), [`schema`](../schema), [`router`](../router), [`json`](../json) |
 | Used by | `cli`, `doc`, `hecate`, `kernel`, `test` |
@@ -24,7 +24,7 @@
 - `/openapi.json` and an interactive reference page in development
 - export to JSON/YAML
 - contract diff with breaking-change classification
-- lint rules (operation ids, descriptions, examples)
+- `openapi.lint(document)`: findings sorted by path and rule, as errors (`operation-id-missing`, `response-description-missing`, `response-undocumented`) or warnings (`description-missing`, `example-missing`, `tag-unused`)
 
 ## Non-goals
 
