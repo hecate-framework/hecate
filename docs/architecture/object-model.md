@@ -11,9 +11,8 @@ model. No package may define its own class mechanism.
    superclass (`core.superclass(C).init(self, ...)`).
 2. **Traits** (Schärli et al.) for horizontal reuse: composition is flat, conflicts
    between traits are errors unless explicitly resolved (exclusion or aliasing).
-3. **Interfaces**: named sets of required methods, and optionally of required class-level
-   fields (a datum that is not a function, checked by a predicate: `fields` option, used by
-   `core.Problem`). Conformance is checked when the class is finalised, not at call time.
+3. **Interfaces**: named sets of required methods. Conformance is checked when the
+   class is finalised, not at call time.
 4. Metamethods (`__tostring`, `__eq`, `__lt`, `__le`, `__len`, `__call`, `__close`,
    `__index` fallbacks) are inherited correctly.
 5. `__close` support so that resources (connections, transactions, scopes) can be bound

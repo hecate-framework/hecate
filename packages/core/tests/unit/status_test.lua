@@ -42,6 +42,17 @@ function T:test_is_valid_accepts_integers_from_100_to_599_only()
   self:assert_false(status.is_valid(nil))
 end
 
+function T:test_is_error_accepts_integers_from_400_to_599_only()
+  self:assert_true(status.is_error(400))
+  self:assert_true(status.is_error(599))
+  self:assert_false(status.is_error(399))
+  self:assert_false(status.is_error(100))
+  self:assert_false(status.is_error(600))
+  self:assert_false(status.is_error(404.0))
+  self:assert_false(status.is_error("404"))
+  self:assert_false(status.is_error(nil))
+end
+
 function T:test_class_of_a_code()
   self:assert_equal("informational", status.class(101))
   self:assert_equal("successful", status.class(204))

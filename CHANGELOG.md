@@ -11,7 +11,7 @@ Each release heading states the supported Lua version.
 
 ### Added
 
-- feat(core): the status table `hecate.core.status` (`reason`, `is_valid`, `class`, `forbids_content`; RFC 9110 section 15), the single copy that `http` and `openapi` are to use, and the interface `core.Problem` (class-level `status` from 100 to 599 and `title` string, checked by `finalise` with a `ConformanceError`). To support it, `core.interface` accepts the option `fields`: class-level members that are not functions, checked by a predicate. Owner answers (6) and (7) of OQ-129; the field requirement is recorded in OQ-129 (12).
+- feat(core): the status table `hecate.core.status` (`reason`, `is_valid`, `is_error`, `class`, `forbids_content`; RFC 9110 section 15), the single copy that `http` and `openapi` are to use, and the interface `core.Problem`, methods only like every interface (ADR 0007): class-level functions `status()` (integer from 400 to 599) and `title()` (string), checked for presence by `finalise` with a `ConformanceError`, as `Representable` does for `schema()`. Owner answers (6) and (7) of OQ-129, and the owner decisions of 2026-11-14 recorded in OQ-129 (12).
 
 - feat(openapi): the contract diff (step 2 of the `openapi` item): `openapi.diff(old, new)` compares two OpenAPI documents, resolving `$ref` into components, and returns a sorted, deterministic list of `{ kind, breaking, path, message }` (removed path, operation, parameter or response, newly required parameter or request body, narrowed input type, new required property, removed enum values and stricter bounds are breaking; added operations, optional parameters, input widening and added response properties are not). Messages hold no value of the contract. Choices to confirm in OQ-129 (11).
 

@@ -35,6 +35,14 @@ function status.is_valid(code)
   return type(code) == "number" and math.type(code) == "integer" and code >= 100 and code <= 599
 end
 
+--- Reports whether `code` is an integer in 400..599, a client or server error (RFC 9110, sections 15.5 and 15.6): the
+--- range of the status of a problem (`core.Problem`).
+---@param code any
+---@return boolean
+function status.is_error(code)
+  return status.is_valid(code) and code >= 400
+end
+
 --- Returns the reason phrase of a registered code, or nil.
 ---@param code integer
 ---@return string?

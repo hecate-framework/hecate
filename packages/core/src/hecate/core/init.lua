@@ -33,7 +33,7 @@ local Problem = require("hecate.core.problem")
 ---@field DatabaseError hecate.core.DatabaseError
 ---@field compat hecate.core.compat  Lua-version shims (ADR 0001)
 ---@field status hecate.core.status  the table of HTTP status codes and reason phrases (RFC 9110 section 15)
----@field Problem table  interface of a problem class: class-level `status` (100..599) and `title` (string), RFC 9457
+---@field Problem table  interface of a problem class: class-level functions `status()` (integer 400..599) and `title()` (string), RFC 9457
 local core = {
   Error = errors.Error --[[@as hecate.core.Error]],
   compat = compat,
