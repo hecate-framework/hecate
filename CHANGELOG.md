@@ -11,6 +11,8 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- feat(kernel): contract providers (step 5 of the `openapi` item): the `Application` option `contracts` takes plain-data providers (`name`, `path`, `media_type`, `render(entries)`, `enabled`) served by a GET route each, rendered at the first request; `Application.entries` lists the routes after `boot`; `openapi.provider(options)` makes the provider of the OpenAPI document (`/openapi.json`, OQ-131).
+
 - feat(kernel): optional request body: the route declaration flag `content_optional = true` makes the input step accept an empty body, with or without a `Content-Type` field, the action getting a nil `content`; a body that is not empty is validated as before (the name is permanent, to be reviewed at the Phase 3 gate), and a declared `content` stays required by default. The route entry gets `content_optional` (boolean, `false` by default); a non-boolean value, or the flag without `content`, is a `RouteDeclarationError` with reason `invalid_content_optional`.
 
 - feat(core): the status table `hecate.core.status` (`reason`, `is_valid`, `is_error`, `class`, `forbids_content`; RFC 9110 section 15), the single copy that `http` and `openapi` are to use, and the marker interface `core.Problem`, which declares no method and no field and says that a class is serialisable as an RFC 9457 problem; a consumer recognises it with `core.implements(class, core.Problem)` and reads the class attributes `status` (integer from 400 to 599) and `title` (string, possibly empty) itself. Owner answers (6) and (7) of OQ-129, and the owner decisions of 2026-11-14 recorded in OQ-129 (12).

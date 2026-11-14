@@ -9,6 +9,7 @@ local http = require("hecate.http")
 local container_package = require("hecate.container")
 local modules = require("hecate.kernel.modules")
 local routing = require("hecate.kernel.routing")
+local contract = require("hecate.kernel.contract")
 local dispatcher = require("hecate.kernel.dispatcher")
 local errors = require("hecate.kernel.errors")
 local logging = require("hecate.kernel.logging")
@@ -43,6 +44,7 @@ end
 ---@field expose_details? boolean  see `hecate.kernel.DispatcherOptions`
 ---@field inputs? "lax"|"strict"  see `hecate.kernel.DispatcherOptions`
 ---@field validate_responses? boolean  validate each result against the schema declared for its status (see `hecate.kernel.DispatcherOptions`); default true when the environment of `configuration` is `development` or `test`, else false (OQ-117)
+---@field contracts? hecate.kernel.ContractProvider[]  documents rendered from the route table and served with a GET route each (`hecate.openapi.provider`); default none (OQ-131)
 ---@field logger? hecate.log.Logger  receives unhandled failures and the container warnings; without it and without a `configuration`, `log.default()` does (OQ-79: standard error)
 ---@field router? hecate.router.RouterOptions
 ---@field server? hecate.http.ServerOptions  options of the HTTP server made by `serve` (`logger` defaults to the application's; the application sets `on_request_end` to end the service scope of each request, and a hook given here runs after that)
@@ -58,6 +60,7 @@ end
 ---@class hecate.kernel.Application
 ---@field container hecate.container.Container?  the validated container, after `boot`
 ---@field router hecate.router.Router?  the router, after `boot`
+---@field entries hecate.kernel.RouteEntry[]?  the route entries of the application, without those of its contract providers, after `boot`
 ---@field _supervisor hecate.kernel.Supervisor?  the supervisor, while serving as the primary of several workers
 ---@field _served boolean?  set by the first `serve` that booted
 ---@field _finish (async fun(request: hecate.http.Request))?  ends the service scope of a request, after `boot` (`dispatcher.build`)
@@ -66,7 +69,7 @@ end
 local Application = core.class("Application")
 
 local KNOWN = {
-  modules = true, routes = true, configuration = true, services = true, filters = true, container = true, max_depth = true,
+  modules = true, routes = true, contracts = true, configuration = true, services = true, filters = true, container = true, max_depth = true,
   expose_details = true, inputs = true, validate_responses = true, logger = true, router = true, server = true, signals = true, grace_timeout = true,
   workers = true, strategy = true, worker_command = true, on_crash_loop = true, ready_timeout = true,
 }
@@ -256,6 +259,10 @@ function Application:boot()
   for _, owned in ipairs(module_sources) do
     for _, entry in ipairs(routing.collect(owned.sources, owned.filters)) do entries[#entries + 1] = entry end
   end
+  -- Contract providers see the routes of the application, not their own: they are added after the table is gathered.
+  local documented = {}
+  for index, entry in ipairs(entries) do documented[index] = entry end
+  for _, entry in ipairs(contract.entries(options.contracts, documented)) do entries[#entries + 1] = entry end
   local serve, router, finish = dispatcher.build(entries, {
     filters = filters, container = container, router = options.router, expose_details = options.expose_details,
     logger = logger, inputs = options.inputs, validate_responses = options.validate_responses,
@@ -264,6 +271,7 @@ function Application:boot()
   if options.max_depth ~= nil then json.set_max_depth(options.max_depth) end
   if built_logger then log.set_default(options.logger) end
   self._resolved = options
+  self.entries = documented
   self.container, self.router, self._serve, self._finish, self._booted = container, router, serve, finish, true
   return serve
 end
