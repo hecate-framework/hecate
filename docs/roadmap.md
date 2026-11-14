@@ -311,7 +311,7 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
 - [x] Spike OQ-13 (standalone CLI executable: Lua 5.5, the CLI modules and the native modules in one binary per
       platform; code signing on macOS and Windows), time-boxed, report and recommendation to the owner before the
       `cli` v1 item (owner decision of 2026-11-13). Report: [OQ-13](spikes/OQ-13-standalone-executable.md) (Linux
-      prototype of a CLI-only binary; macOS, Windows and the download method to check before `cli` v1; recommendation awaits the owner).
+      prototype of a CLI-only binary; recommendation adopted by the owner on 2026-11-14, OQ-13 resolved).
 - [ ] Spike OQ-17 (split tool for the read-only mirrors: `splitsh-lite`, `git subtree split`, `git filter-repo`;
       determinism and speed), report to the owner before the mirrors item (owner decision of 2026-11-13).
 - [ ] `reactor.random(n)`, cryptographically secure bytes over libuv `uv_random`, used by the multipart boundaries of
@@ -326,6 +326,13 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       the hecate marks are never recoloured.
 - [ ] `cli` v1: self-contained executable, `new`, `install`, `add`, `remove`, `update`,
       `serve [--watch]`, `test`, `doc`, `contract`, `toolchain`, `doctor`, `version`.
+      **Also (OQ-13, resolved 2026-11-14):** the executable embeds Lua 5.5 and only what the CLI needs (framework packages
+      stay project dependencies); settle first how the CLI supervises processes (`reactor`, or an own function, see the
+      `serve` result of the spike: plain Lua cannot `exec` or forward signals) and how it downloads and unpacks toolchains
+      (`curl` and `tar`, or a native client); prebuilt toolchain archives per platform and architecture; installers (Windows
+      setup executable, macOS `.pkg`, Linux archives, Homebrew, winget, Scoop); `hecate.cli.digest` over the `digest` rock
+      (ADR 0028), compiled into the host and checked on the platforms; a command to switch interpreters once Lua 5.4 is
+      supported.
       **Also (OQ-122, owner decision of 2026-11-13, ADR 0023 amended):** `server.workers` accepts `"auto"` and
       defaults to it: `max(1, cores - 1)`, `cores` from `uv.available_parallelism()` (exposed by `reactor`), read on
       Linux within the cgroup CPU quota of a container when one is set (or documented as a limit); `hecate serve`
