@@ -1,0 +1,85 @@
+name: spike-oq13-interpreter
+
+# Throwaway workflow of spike OQ-13 and ADR 0029 (remove it with the spike): checks, on every platform, that an
+# executable embedding Lua 5.5 can be the interpreter of a project: it loads a native rock built by the standard
+# toolchain, runs LuaRocks itself, builds a source rock from the Lua headers, and runs the sha256 contract test.
+# The result is read by hand; it is not a required check.
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/spike-oq13-interpreter.yml"
+      - "docs/spikes/OQ-13/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  interpreter:
+    name: interpreter (${{ matrix.os }}, Lua 5.5)
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    continue-on-error: ${{ matrix.extra }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        extra: [false]
+        include:
+          - os: ubuntu-24.04-arm
+            extra: true
+          - os: macos-15-intel
+            extra: true
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Cache toolchain
+        id: toolchain
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: .hecate/toolchain
+          key: toolchain-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('tools/bootstrap/**') }}
+
+      - name: Bootstrap (Linux, macOS)
+        if: steps.toolchain.outputs.cache-hit != 'true' && runner.os != 'Windows'
+        run: tools/bootstrap/bootstrap.sh --prefix .hecate/toolchain
+
+      - name: MSVC environment (Windows)
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1
+
+      - name: Bootstrap (Windows)
+        if: steps.toolchain.outputs.cache-hit != 'true' && runner.os == 'Windows'
+        shell: pwsh
+        run: tools/bootstrap/bootstrap.ps1
+
+      - name: Add toolchain to PATH
+        shell: pwsh
+        run: |
+          $tc = Join-Path $env:GITHUB_WORKSPACE '.hecate/toolchain'
+          Add-Content -Path $env:GITHUB_PATH -Value (Join-Path $tc 'bin')
+          if ($env:RUNNER_OS -eq 'Windows') {
+            Add-Content -Path $env:GITHUB_ENV -Value "LUAROCKS_CONFIG=$(Join-Path $tc 'luarocks-config.lua')"
+          }
+
+      # The LuaRocks sources the host will run (pure Lua), at the version of the bootstrap.
+      - name: Fetch the LuaRocks sources
+        shell: bash
+        run: git clone --depth 1 --branch v3.13.0 https://github.com/luarocks/luarocks "$RUNNER_TEMP/luarocks-src"
+
+      - name: Verify (Linux, macOS)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          docs/spikes/OQ-13/verify_interpreter.sh "$GITHUB_WORKSPACE/.hecate/toolchain" \
+            "$RUNNER_TEMP/luarocks-src/src" "$RUNNER_TEMP/luarocks-src/src/bin/luarocks" "$RUNNER_TEMP/verify"
+
+      # PowerShell: under Git's bash on Windows, GNU `link` shadows MSVC's `link.exe`.
+      - name: Verify (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          docs/spikes/OQ-13/verify_interpreter.ps1 -Toolchain "$env:GITHUB_WORKSPACE\.hecate\toolchain" `
+            -LuaRocksLib "$env:RUNNER_TEMP\luarocks-src\src" -LuaRocksBin "$env:RUNNER_TEMP\luarocks-src\src\bin\luarocks" `
+            -Work "$env:RUNNER_TEMP\verify"
