@@ -7,37 +7,35 @@ order: 2
 
 # TLS client and server
 
-This guide shows how to use TLS with `hecate.net`: a client that verifies a server, a server
-that accepts clients, and the errors you can meet. It is written for hecate 0.x and Lua 5.5.
-It assumes you know [how to connect and serve over TCP](connect-and-serve-over-tcp.md).
+This guide shows how to use TLS with `hecate.net`: a client that verifies a server, a server that accepts clients,
+and the errors you can meet. It is written for hecate 0.x and Lua 5.5. It assumes you know
+[how to connect and serve over TCP](connect-and-serve-over-tcp.md).
 
-TLS is provided by [rustls](https://github.com/rustls/rustls) inside a native module. Build it
-once with `lua tools/run.lua build-native`. Without it, `net.tls.available()` returns `false`
-and the reason, and every TLS call raises `TlsError` with `context.reason` set to
-`"native_missing"`.
+TLS is provided by [rustls](https://github.com/rustls/rustls) inside a native module. Build it once with
+`lua tools/run.lua build-native net`. Without it, `net.tls.available()` returns `false` and the reason, and every TLS
+call raises `TlsError` with `context.reason` set to `"native_missing"`.
 
 > [!WARNING] Verification cannot be turned off
-> There is no option that disables certificate verification, and none will be added. A mistyped
-> or unsafe option such as `verify = false` raises `ArgumentError`. See
+> There is no option that disables certificate verification, and none will be added. A mistyped or unsafe option
+> such as `verify = false` raises `ArgumentError`. See
 > [TLS trust and security defaults](../explanation/tls-trust-and-security.md) for the reasons.
 
 ## Connect to a public server
 
-With no option, `net.connect_tls` verifies the server certificate against the operating system's
-trust store. A public server works as is.
+With no option, `net.connect_tls` verifies the server certificate against the operating system's trust store. A
+public server works as is.
 
 ```lua
 local stream <close> = net.connect_tls("example.org", 443, { alpn = { "http/1.1" } })
 ```
 
-The host is also the server name: it is sent as SNI (Server Name Indication, RFC 6066), and the certificate must match it (RFC 6125).
-Pass `server_name` when you connect to an address but the certificate names a host.
+The host is also the server name. It is sent as SNI (Server Name Indication, RFC 6066), and the certificate must
+match it (RFC 6125). Pass `server_name` when you connect to an address but the certificate names a host.
 
 ## Trust a private certificate authority
 
-Use `ca_pem` to add the trust anchors of your own authority to the system store. Add
-`system_roots = false` to trust only `ca_pem`. That gives you a closed trust set, which is
-also what the tests of hecate use.
+Use `ca_pem` to add the trust anchors of your own authority to the system store. Add `system_roots = false` to trust
+only `ca_pem`. That gives you a closed trust set, which is also what the tests of hecate use.
 
 <!-- example: packages/net/examples/hecate.net.connect_tls.lua -->
 ```lua
@@ -79,13 +77,27 @@ reactor.run(function()
 end)
 ```
 
-`system_roots = false` requires `ca_pem`. The client ends the conversation with `shutdown()`, which
-sends `close_notify`. See [Close a TLS stream](#close-a-tls-stream).
+`system_roots = false` requires `ca_pem`.
 
-To connect many times with the same options, build the configuration once with
-`net.tls.client_config(options)` and pass it as `tls_config`. It excludes the other TLS options.
-Without it, `connect_tls` builds a configuration per call. Loading the system store is the
-costly part, so cache it when you connect often.
+The client ends the conversation with `shutdown()`, which sends `close_notify`. See
+[Close a TLS stream](#close-a-tls-stream).
+
+### Reuse a configuration
+
+Building a client configuration loads the system store, which is the costly part. With the default trust (system
+roots, no `ca_pem` and no client certificate), `connect_tls` builds that configuration once per ALPN list and reuses
+it. With any other trust option, it builds a new configuration on every call.
+
+To connect many times with such options, build the configuration once with `net.tls.client_config(options)`, and pass
+it as `tls_config`:
+
+```lua
+local config = net.tls.client_config({ ca_pem = ca, system_roots = false })
+local stream <close> = net.connect_tls(host, port, { tls_config = config })
+```
+
+`tls_config` cannot be combined with `ca_pem`, `system_roots`, `cert_pem`, `key_pem` or `alpn`: those belong to the
+configuration.
 
 ## Serve TLS
 
@@ -101,19 +113,22 @@ Then it accepts connections in two steps, on purpose:
 local peer = net.tls.accept(listener:accept(), config)
 ```
 
-`listener:accept()` returns the TCP stream. `tls.accept` runs the handshake of that one
-connection and takes ownership of the stream: if the handshake fails, the stream is closed.
+`listener:accept()` returns the TCP stream. `tls.accept` runs the handshake of that one connection, and takes
+ownership of the stream: if the handshake fails, the stream is closed.
 
 > [!TIP] Fork the handshake
-> Never run the handshake in the accept loop itself. A client that connects and then says nothing
-> would stall every other client for up to 60 seconds. `tls.accept` must run in a forked computation:
-> fork one coroutine per connection and run `tls.accept` inside it.
-> The handshake is bounded anyway by `handshake_timeout`, which is 60 seconds by default for `tls.accept` (10 for `connect_tls` and `tls.connect`). Pass
-> `{ handshake_timeout = 5 }` as the third argument to change it. On expiry the stream is closed and
-> `DeadlineExceededError` is raised.
+> Never run the handshake in the accept loop itself. A client that connects and then says nothing would stall every
+> other client for up to 60 seconds. Fork one coroutine per connection and run `tls.accept` inside it.
 
-The example below negotiates an application protocol with ALPN (Application-Layer Protocol Negotiation, RFC 7301). The server offers `echo`; the
-client asks for it; each side reads the result with `stream:alpn()`.
+The handshake is bounded anyway by `handshake_timeout`. It is 60 seconds by default for `tls.accept`, and 10 for
+`connect_tls` and `tls.connect`. Pass `{ handshake_timeout = 5 }` as the third argument of `tls.accept` to change it.
+On expiry, the stream is closed and `DeadlineExceededError` is raised.
+
+### Negotiate a protocol
+
+ALPN (Application-Layer Protocol Negotiation, RFC 7301) lets the two sides agree on an application protocol during
+the handshake. In the example below, the server offers `echo` and the client asks for it. Each side reads the result
+with `stream:alpn()`.
 
 <!-- example: packages/net/examples/hecate.net.tls.accept.lua -->
 ```lua
@@ -154,16 +169,16 @@ reactor.run(function()
 end)
 ```
 
-A server can read the name a client asked for with `stream:requested_server_name()`. It does not
-select a certificate from it: there is one certificate chain per configuration.
+A server can read the name a client asked for with `stream:requested_server_name()`. It does not select a certificate
+from it: there is one certificate chain per configuration.
 
 ## Require client certificates
 
-Mutual TLS asks the client to prove who it is. On the server, pass `client_ca_pem`: the
-authority that signed the client certificates. Clients then need `cert_pem` and `key_pem`.
+Mutual TLS asks the client to prove who it is. On the server, pass `client_ca_pem`: the authority that signed the
+client certificates. Clients then need `cert_pem` and `key_pem`.
 
-The example forks the handshake of every connection, bounds it with `handshake_timeout`, and
-requires a client certificate.
+The example below forks the handshake of every connection, bounds it with `handshake_timeout`, and requires a client
+certificate.
 
 <!-- example: packages/net/examples/hecate.net.tls.server_config.lua -->
 ```lua
@@ -217,13 +232,17 @@ reactor.run(function()
 end)
 ```
 
-> [!NOTE]
-> Without `client_crl_pem` the server does not check client certificates for revocation. Pass one
-> or more certificate revocation lists (PEM) in `client_crl_pem`, together with `client_ca_pem`, to
-> reject a revoked client certificate. An intermediate CA needs its own list in the same PEM string:
-> without it the certificates that CA issued are denied (an unknown revocation status is denied). The
-> expiry of a list is not enforced and the lists are read once: build a new configuration to load
-> a newer one.
+### Check revocation
+
+Without `client_crl_pem`, the server does not check client certificates for revocation.
+
+To reject a revoked client certificate, pass one or more certificate revocation lists (PEM) in `client_crl_pem`,
+together with `client_ca_pem`. The limits:
+
+- An intermediate CA needs its own list in the same PEM string. Without it, the certificates that CA issued are
+  denied: an unknown revocation status is denied.
+- The expiry of a list is not enforced.
+- The lists are read once. Build a new configuration to load a newer one.
 
 ## Close a TLS stream
 
@@ -234,13 +253,13 @@ Call `shutdown()` first, then let `<close>` run:
 stream:shutdown() -- sends close_notify; suspends
 ```
 
-On the receiving side, `read` returns `nil` after the peer's `close_notify`. When the transport
-ends without it, `read` raises `TlsError` with the reason `truncated`, because the data may be incomplete.
+On the receiving side, `read` returns `nil` after the peer's `close_notify`. When the transport ends without it,
+`read` raises `TlsError` with the reason `truncated`, because the data may be incomplete.
 
 ## Read a TLS error
 
-A failed handshake or verification raises `TlsError`. `context.reason` names the kind when it
-is recognised:
+A failed handshake or verification raises `TlsError`. `context.reason` names the kind of failure when it is
+recognised:
 
 | Reason | Meaning |
 |---|---|
@@ -253,6 +272,8 @@ is recognised:
 | `transport_ended` | The transport ended during the handshake. |
 | `stalled` | The TLS session made no progress. |
 | `native_missing` | The native TLS module is not built. |
+
+In the example below, the client trusts another authority than the one that signed the server's certificate.
 
 <!-- example: packages/net/examples/hecate.net.TlsError.lua -->
 ```lua
@@ -291,20 +312,17 @@ end)
 -- Prints: untrusted_issuer
 ```
 
-On macOS and Windows the operating system's verifier reports many failures as text only. Then
-`context.reason` is absent and the message carries the cause. Test the reason with a fallback, not
-as an exhaustive list.
+On macOS and Windows, the operating system's verifier reports many failures as text only. Then `context.reason` is
+absent, and the message carries the cause. Test the reason with a fallback, not as an exhaustive list.
 
 ## Know the platform differences
 
-- On macOS and Windows the system verifier may check revocation over the network during the
-  handshake. That call blocks the reactor until it completes. Use `system_roots = false` when
-  that is unacceptable.
-- macOS refuses a server certificate valid for more than 398 days, even when its authority was
-  added with `ca_pem`. Use shorter certificates, or `system_roots = false`.
-- An empty or incomplete system store is an error: the handshake raises `TlsError` that
-  explains the cause and the remedy. Install the system certificates (the Docker images of hecate do) or
-  pass `ca_pem`.
+- On macOS and Windows, the system verifier may check revocation over the network during the handshake. That call
+  blocks the reactor until it completes. Use `system_roots = false` when that is unacceptable.
+- macOS refuses a server certificate valid for more than 398 days, even when its authority was added with `ca_pem`.
+  Use shorter certificates, or `system_roots = false`.
+- An empty or incomplete system store is an error. The handshake raises a `TlsError` that explains the cause and the
+  remedy. Install the system certificates (the Docker images of hecate do), or pass `ca_pem`.
 
 ## See also
 

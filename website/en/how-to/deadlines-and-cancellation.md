@@ -7,30 +7,44 @@ order: 3
 
 # Deadlines and cancellation on streams
 
-This guide shows how to bound a network operation in time, and what state a stream is in after
-the operation was cancelled. It is written for hecate 0.x and Lua 5.5.
+This guide shows how to bound a network operation in time, and what state a stream is in after the operation was
+cancelled. It is written for hecate 0.x and Lua 5.5. It assumes you know
+[how to connect and serve over TCP](connect-and-serve-over-tcp.md).
 
-No operation of `hecate.net` takes a timeout argument. You bound any of them by wrapping it in
-`reactor.deadline(seconds, fn, ...)`. It runs `fn`, and when the [deadline](../reference/glossary.md#concurrency)
-passes it [cancels](../reference/glossary.md#concurrency) `fn` and raises `DeadlineExceededError`.
+## Bound an operation with `reactor.deadline`
 
-A cancellation from elsewhere, for example from an enclosing `reactor.scope`, raises
-`CancellationError` instead. The two are siblings under `Error`: `DeadlineExceededError` is not a
-`CancellationError`. The state a stream is left in is the same for both.
-
-## Bound a connect
-
-`reactor.deadline` also bounds name resolution, because `net.connect` resolves inside the call.
+The connects, reads, writes and accepts of `hecate.net` take no timeout argument. You bound any of them in the same
+way: wrap the call in `reactor.deadline(seconds, fn, ...)`.
 
 ```lua
 local stream <close> = reactor.deadline(5, net.connect, "example.org", 80)
 ```
 
-A cancellation stops `connect` at once and cancels every attempt in flight. It does not try the
-next address. The half-open connections are closed, so nothing leaks.
+`reactor.deadline` runs `fn` with the arguments that follow it and returns its results. When the
+[deadline](../reference/glossary.md#concurrency), the bound on the call, passes first, it
+[cancels](../reference/glossary.md#concurrency) `fn` and raises `DeadlineExceededError`. Cancellation is a
+cooperative request to stop: the cancelled [coroutine](../reference/glossary.md#concurrency) receives it at its next
+suspension point, that is, at its next call that waits.
 
-`connect_tls` has two bounds. The `reactor.deadline` you wrap around it covers resolution and the TCP
-connect. The option `handshake_timeout` (10 seconds by default) covers the TLS handshake only:
+A cancellation can also come from elsewhere, for example from an enclosing `reactor.scope`. That one raises
+`CancellationError` instead. The two classes are siblings under `Error`: a `DeadlineExceededError` is not a
+`CancellationError`. The state a [stream](../reference/glossary.md#concurrency) is left in is the same for both.
+
+Two options carry a timeout of their own. `handshake_timeout` bounds a TLS handshake, and `close_timeout` bounds the
+flush that `BufferedWriter:close` performs. Both are described below.
+
+## Bound a connect
+
+The deadline around `net.connect` also bounds name resolution, because `net.connect` resolves the host inside the
+call. The snippet above therefore gives the whole connection 5 seconds, resolution included.
+
+A cancellation stops `connect` at once. It cancels every attempt in flight and does not try the next address. The
+half-open connections are closed, so nothing leaks.
+
+`net.connect_tls` has two bounds:
+
+- The `reactor.deadline` you wrap around it bounds the whole call: resolution, TCP connect and TLS handshake.
+- The option `handshake_timeout` (10 seconds by default) bounds the TLS handshake alone.
 
 ```lua
 local stream <close> = reactor.deadline(5, net.connect_tls, host, 443, { handshake_timeout = 5 })
@@ -38,8 +52,11 @@ local stream <close> = reactor.deadline(5, net.connect_tls, host, 443, { handsha
 
 ## Bound a read
 
-A read that is cancelled loses nothing. The stream and the reader stay usable, and bytes
-that had already arrived stay in the reader. You can read again later.
+A read that is cancelled loses nothing. The stream and its reader stay usable, and the bytes that had already arrived
+stay in the reader. You can read again later.
+
+In the example below, the server stays silent past the deadline. The first read is cancelled; the second one gets the
+answer.
 
 <!-- example: packages/net/examples/hecate.net.TcpStream.read.lua -->
 ```lua
@@ -69,8 +86,8 @@ end)
 -- Prints: deadline exceeded: true; then read: late
 ```
 
-This is the idiom for an idle timeout: run the read inside a deadline, and on
-`DeadlineExceededError` decide whether to wait again or to close the stream.
+This is the idiom for an idle timeout. Run the read inside a deadline. On `DeadlineExceededError`, decide whether to
+wait again or to close the stream.
 
 ## Bound an accept
 
@@ -78,14 +95,16 @@ This is the idiom for an idle timeout: run the read inside a deadline, and on
 local ok, stream = pcall(reactor.deadline, 30, function() return listener:accept() end)
 ```
 
-A cancelled `accept` keeps the listener open and the connections already queued in it. It works
-the same for a pipe listener. This is how a server stops its accept loop: cancel the coroutine that
-runs it, then close the listener.
+A cancelled `accept` keeps the listener open, with the connections already queued in it. It works the same for a pipe
+listener.
+
+This is how a server stops its accept loop: it cancels the coroutine that runs the loop, then closes the listener.
 
 ## What a cancelled operation leaves behind
 
-Some operations cannot be withdrawn once started: the operating system has taken the bytes, and
-nobody knows how many were sent. They close the object instead of leaving it in an unknown state.
+A read or an accept can be withdrawn: nothing was taken from the peer yet. A write cannot. Once the operating system
+has taken some of the bytes, nobody knows how many were sent. Such an operation closes its object instead of leaving
+it in an unknown state.
 
 | Operation | After a cancellation |
 |---|---|
@@ -101,9 +120,12 @@ nobody knows how many were sent. They close the object instead of leaving it in 
 
 ## Know the poisoned writer
 
-A `BufferedWriter` that failed to flush, or whose flush was cancelled, cannot say how much of
-its buffer left. It would be wrong to send the rest. The writer is therefore *poisoned*: every
-later call raises a `NetworkError` whose `cause` is the original failure.
+A `BufferedWriter` that failed to flush, or whose flush was cancelled, cannot say how much of its buffer left. Sending
+the rest would be wrong: the peer would receive bytes after a gap.
+
+The writer is therefore *poisoned*. Every later call raises a `NetworkError` whose `cause` is the failure that
+poisoned it. For a cancelled flush, that cause is the `CancellationError` the write received, even when a deadline
+cancelled it.
 
 ```lua
 local ok, err = pcall(reactor.deadline, 2, function() writer:flush() end)
@@ -112,24 +134,28 @@ if not ok then
 end
 ```
 
-Reading from the same stream is not an option either, since the cancelled write closed it.
-Treat a cancelled write as the end of the connection.
+Reading from the same stream is not an option either: the cancelled write closed it. Treat a cancelled write as the
+end of the connection.
 
 ## Let `close` flush a writer
 
-`BufferedWriter:close` flushes the bytes it still holds under `reactor.shield`, so it completes
-inside a `<close>` block even while the coroutine is being cancelled. The writer option
-`close_timeout` (5 seconds by default) bounds it: if the peer is stuck, `close` raises
-`DeadlineExceededError`, the writer is closed anyway and the unsent bytes are dropped. `close` does
-not shut the stream down: to end a conversation cleanly, call `shutdown` too. See
+`BufferedWriter:close` flushes the bytes the writer still holds. It runs that flush under `reactor.shield`, so the
+flush completes inside a `<close>` block even while the coroutine is being cancelled.
+
+The writer option `close_timeout` (5 seconds by default) bounds that flush. If the peer is stuck, `close` raises
+`DeadlineExceededError`. The writer is closed anyway, and the unsent bytes are dropped.
+
+`close` does not shut the stream down. To end a conversation cleanly, call `shutdown` too. See
 [The transport model](../explanation/transport-model.md).
 
 ## Run cleanup while the scope is cancelled
 
-Once a scope is cancelled, every suspension point inside it raises again, so a cleanup step that
-must wait (flush a buffer, send a closing message) would fail at once. Run it with
-`reactor.shield`, which keeps the cancellation of the enclosing scopes out of its body and has a
-deadline of its own, so that a stuck peer cannot block shutdown:
+Once a [scope](../reference/glossary.md#concurrency), the region that owns a group of computations, is cancelled,
+every suspension point inside it raises again. A cleanup step that must wait, such as flushing a buffer or sending a
+closing message, would therefore fail at once.
+
+Run such a step with `reactor.shield(limit, fn)`. The shield keeps the cancellation of the enclosing scopes out of its
+body. It has a deadline of its own, so that a stuck peer cannot block shutdown.
 
 ```lua
 local ok = pcall(reactor.shield, 5, function()
@@ -140,12 +166,13 @@ end)
 -- ok is false if it expired or failed.
 ```
 
-The cancellation that arrived meanwhile is raised again at the first suspension point after the
+The cancellation that arrived meanwhile is not lost. It is raised again at the first suspension point after the
 shield.
 
 ## See also
 
 - [Connect and serve over TCP](connect-and-serve-over-tcp.md)
-- [`reactor.deadline`](../reference/reactor/functions/deadline.md),
+- [Concurrency](concurrency.md): `reactor.deadline`, scopes and `select`
+- Reference: [`reactor.deadline`](../reference/reactor/functions/deadline.md),
   [`reactor.shield`](../reference/reactor/functions/shield.md),
   [`BufferedWriter`](../reference/net/BufferedWriter.md)
