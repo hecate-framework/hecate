@@ -72,12 +72,16 @@ jobs:
           uname -sm || true
 
       # The real path of the dependency: a source rock built by LuaRocks with the platform compiler.
+      # PowerShell on every platform: under Git's bash on Windows, GNU `link` shadows MSVC's `link.exe`.
       - name: Install the rocks (digest, plc)
-        shell: bash
+        shell: pwsh
         run: |
-          luarocks --tree "$RUNNER_TEMP/lr" install digest
-          luarocks --tree "$RUNNER_TEMP/lr" install plc
-          luarocks --tree "$RUNNER_TEMP/lr" list
+          $tree = Join-Path $env:RUNNER_TEMP 'lr'
+          luarocks --tree $tree install digest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          luarocks --tree $tree install plc
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          luarocks --tree $tree list
 
       # The rock's own suite needs its test vectors, which the rock does not ship: use the tagged sources.
       - name: Fetch the tagged sources of digest
