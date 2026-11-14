@@ -56,6 +56,14 @@
   downloaded (`lua tools/run.lua fetch-fixtures openapi`, `oas/3.1/schema/2026-11-05` of OAI/spec.openapis.org, pinned in
   `tests/external.lua`) the test compares the `required` and `properties` of each object with the fixed-field tables of
   the self-check. Without the download the comparison is skipped locally and fails in CI.
+- Complete validation (development-only, ADR 0031): the conformance test also writes every document it builds into
+  `.hecate/openapi-validate/<label>.json` (git-ignored), and `lua tools/run.lua validate-openapi` validates them and the
+  golden file against the whole official schema (and its `schema-base` wrapper) with Python `jsonschema`. Locally, after
+  `lua tools/run.lua test openapi` and `lua tools/run.lua fetch-fixtures openapi`, create the environment once
+  (`python3 -m venv .hecate/venv-openapi`, then `.hecate/venv-openapi/bin/pip install --require-hashes --only-binary :all:
+  --no-deps -r tools/ci/openapi-validator-requirements.txt`; `Scripts/pip.exe` on Windows) or point
+  `HECATE_OPENAPI_VALIDATOR_PYTHON` at an interpreter that has `jsonschema`. Without them the task skips locally and fails
+  when `CI` is `true`. The tool never ships.
 
 ## Layout (once implemented)
 

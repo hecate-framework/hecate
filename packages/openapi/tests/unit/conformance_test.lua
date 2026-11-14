@@ -66,7 +66,23 @@ local function routes()
   }
 end
 
+-- Every document the tests build is also written as JSON into `.hecate/openapi-validate/<label>.json` (git-ignored), where
+-- `lua tools/run.lua validate-openapi` validates it against the complete official schema (ADR 0031). Best effort: a
+-- directory that cannot be written is not a test failure (the task then reports the missing documents).
+local RECORDED = here .. "/../../../../.hecate/openapi-validate"
+local windows = package.config:sub(1, 1) == "\\"
+local function record(label, document)
+  local name = label:lower():gsub("[^%w]+", "-"):gsub("^%-+", ""):gsub("%-+$", ""):sub(1, 60)
+  local dir = windows and RECORDED:gsub("/", "\\") or RECORDED
+  os.execute(windows and ('mkdir "%s" >nul 2>&1'):format(dir) or ("mkdir -p '%s' 2>/dev/null"):format(dir))
+  local file = io.open(RECORDED .. "/" .. name .. ".json", "wb")
+  if not file then return end
+  file:write(openapi.encode(document))
+  file:close()
+end
+
 local function assert_conforms(self, document, label)
+  record(label, document)
   local problems = structure.check(document)
   self:assert_equal("", table.concat(problems, "\n"), label)
 end
