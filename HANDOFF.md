@@ -4,8 +4,8 @@
 - roadmap_item: `openapi`: OpenAPI 3.1 assembly, served endpoint, export, contract diff.
 - status: in-progress            <!-- in-progress | waiting-ci | waiting-owner -->
 <!-- Optional, only when the owner holds this pull request for one run: - owner: session `<session id>`, why. -->
-- lock_until: 2026-11-14T12:54:18Z
-- last_update: 2026-11-14T11:24:18Z
+- lock_until: 2026-11-14T15:34:21Z
+- last_update: 2026-11-14T14:04:21Z
 
 ## Done
 
@@ -14,19 +14,19 @@
 - Step 2: contract diff `openapi.diff` (36 tests, choices in OQ-129 (11)) (ca6cb9d).
 - Owner answers on OQ-129 recorded (OQ-129 row, roadmap).
 - Kernel: route `name` mandatory, no default name (8458973). Kernel integration tests that need native modules could not run in the sandbox: CI decides.
-- Core: `hecate.core.status` table and `core.Problem` interface (data fields added to `core.interface`: owner to confirm, not in ADR 0007).
+- Core: `hecate.core.status` table, `core.status.is_error`, and `core.Problem` as a marker interface with no member (owner decisions of 2026-11-14: interfaces declare no field; status 400..599; empty title accepted) (693bdca, 8abfbd3).
+- Kernel: base `Problem` implements `core.Problem` with default 500 "Internal Server Error"; route flag `content_optional` (cf3c586, 7c37851); `http.Status` is an alias of `core.status` (5eb85af). CI green on the three platforms at that point.
 
 ## Next steps
 
-1. `http`: make `http/status.lua` delegate to `core.status` (alias `http.Status`).
-2. `kernel`: problem classes made by `declare`/`define` declare `core.Problem` (not the bare base class); use `core.status.reason`; route flag `content_optional` (the input step accepts an absent body).
-3. `openapi`: drop `internal/status.lua` (keep the class-label fallback), recognise problems with `core.implements(value, core.Problem)`; ordered `tags` list with descriptions and `externalDocs` in the settings; `operationId` is the name; document `{rest...}` as `{rest}`.
-4. Validate output against the official OpenAPI 3.1 JSON Schema (vendor it; `conforms` helper in `packages/schema/tests/support`).
-5. Served `/openapi.json` (development default) and reference page; needs a kernel hook.
-6. YAML output and the `hecate contract export` hook (kernel/cli).
-7. Lint: names, descriptions, examples, undocumented responses as errors, unused listed tags.
-8. Integration tests and website reference pages (`{rest...}` documented).
-9. CI green on three platforms, delete HANDOFF.md, tick roadmap, mark ready.
+1. `openapi`: drop `internal/status.lua` (use `core.status.reason`, keep the class-label fallback); recognise problems with `core.implements(value, core.Problem)` then read and validate `status` (`core.status.is_error`) and `title`; `operationId` is the route name (always present); ordered `tags` list with descriptions and `externalDocs` in the settings; `{rest...}` documented as `{rest}`; the request body `required` follows `content_optional`.
+2. Validate output against the official OpenAPI 3.1 JSON Schema (vendor it; `conforms` helper in `packages/schema/tests/support`).
+3. Served `/openapi.json` (development default) and reference page; needs a kernel hook.
+4. YAML output and the `hecate contract export` hook (kernel/cli).
+5. Lint: names, descriptions, examples, undocumented responses as errors, unused listed tags.
+6. Integration tests and website reference pages (`{rest...}` documented).
+7. Later, optional: controller-level default `tags` (roadmap).
+8. CI green on three platforms, delete HANDOFF.md, tick roadmap, mark ready.
 
 ## Decisions taken (and where they are recorded)
 
@@ -34,7 +34,6 @@
 
 ## Doubts and questions for the owner
 
-- Data fields on `core.interface` (extension, ADR 0007 untouched): confirm or use accessor methods.
 - Stray files `/before.txt` and `/after.txt` at the filesystem root of the sandbox (harmless; not in the repository).
 - Never leave a git worktree under `.claude/worktrees/` while running `typecheck`: it duplicates every file (3571 warnings).
 
