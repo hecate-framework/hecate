@@ -311,7 +311,7 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
 - [ ] Spike OQ-13 (standalone CLI executable: Lua 5.5, the CLI modules and the native modules in one binary per
       platform; code signing on macOS and Windows), time-boxed, report and recommendation to the owner before the
       `cli` v1 item (owner decision of 2026-11-13).
-- [ ] Spike OQ-17 (split tool for the read-only mirrors: `splitsh-lite`, `git subtree split`, `git filter-repo`;
+- [x] Spike OQ-17 (split tool for the read-only mirrors: `splitsh-lite`, `git subtree split`, `git filter-repo`;
       determinism and speed), report to the owner before the mirrors item (owner decision of 2026-11-13).
 - [ ] `reactor.random(n)`, cryptographically secure bytes over libuv `uv_random`, used by the multipart boundaries of
       `http` (no `math.random` fallback), before `0.1.0` (OQ-73, owner decision of 2026-11-13).
@@ -366,7 +366,7 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       inline `on_error` snippet, which the output rule refuses in example files.
 - [ ] Meta-rock `hecate` (standard edition).
 - [ ] Read-only mirrors (ADR 0017): `split`, `mirrors ensure`, `check-mirrors`,
-      `split.yml`; Homebrew tap and Scoop bucket repositories (resolves OQ-17).
+      `split.yml`; Homebrew tap and Scoop bucket repositories (applies OQ-17: `splitsh-lite` pinned, `git subtree split` as fallback, see the [spike](spikes/OQ-17-split-tool.md)).
 - [ ] Publish all rocks to luarocks.org (sources from mirrors).
 - [ ] `hecate generate workflow` (ci, contract, docs-pages, release) and its templates;
       regenerate the monorepo's `website.yml` with it.

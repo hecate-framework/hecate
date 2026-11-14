@@ -11,6 +11,7 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- docs: spike OQ-17 (`docs/spikes/OQ-17-split-tool.md`): `splitsh-lite`, `git subtree split` and `git filter-repo` measured on the history of the repository; recommendation for the owner.
 - feat(kernel): the input step logs the `422`, `400` and `415` it answers, at `warning` through the logger of the application, like the guard does for a client-caused error: `method`, `path` without the query, `status`, `reason` and the violation `codes`, never a value, a name or a pointer (OQ-111).
 
 - docs(schema): the `Schema.check` example builds the `422` the kernel answers for invalid inputs (`pointer` and `code` per entry, the message only with `errors.expose_details`), instead of a `400` with the message in every entry.
