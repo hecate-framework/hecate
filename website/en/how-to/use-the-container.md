@@ -7,15 +7,20 @@ order: 14
 
 # Use the container
 
-`hecate.container` builds the objects of an application from declared dependencies. You list the services and what
-each one needs in one place, the composition root; the container checks the whole graph before anything runs, then
-constructs services when they are asked for. It depends only on `hecate.core`, needs no native module, and never
-suspends.
+This guide shows how to build the objects of an application with `hecate.container`. It is written for hecate 0.x
+and Lua 5.5.
 
-A service never asks the container for anything: it receives its dependencies in its constructor. There is no global
-container and no way to reach one from a service. Only the composition root and the kernel call `resolve`.
+A [container](../reference/glossary.md#object-model-and-architecture) is an object that resolves and constructs
+dependencies. Each object it builds is a [service](../reference/glossary.md#object-model-and-architecture). You list
+the services and what each one needs in one place, the
+[composition root](../reference/glossary.md#object-model-and-architecture). The container checks the whole graph
+before anything runs, then constructs services when they are asked for.
+
+`hecate.container` depends only on `hecate.core`. It needs no native module, and it never suspends.
 
 ## Bind, validate, resolve
+
+A container is used in three steps: bind the services, validate the graph once, then resolve services.
 
 <!-- example: packages/container/examples/hecate.container.Container.lua -->
 ```lua
@@ -64,22 +69,30 @@ print(ok, err.context.problems[1].context.path[1], #err.context.problems)
 -- Prints: false	a	2
 ```
 
-`bind(key, definition, options?)` registers one service and returns the container, so calls chain.
+A service never asks the container for anything: it receives its dependencies in its constructor. There is no
+global container and no way to reach one from a service. Only the composition root and the kernel call `resolve`.
 
-- The **key** is a non-empty string (a name) or an interface made by `core.interface`. A key has one binding;
-  binding it twice raises `DuplicateBindingError`. `has(key)` tells whether a key is bound, without building anything.
-- The **definition** is a finalised class, called as `Class(dependency1, dependency2, ...)`, or a function (a
-  factory) called with the same arguments. It must run to completion without suspending: while one suspends, resolving
-  the same key from another computation raises `ContainerError`.
-- `requires` lists the keys of the dependencies, in the order of the constructor arguments. Dependencies are declared,
-  never guessed from parameter names.
+## Bind a service
+
+`bind(key, definition, options?)` registers one service. It returns the container, so calls chain.
+
+- The **key** is a non-empty string (a name) or an [interface](../reference/glossary.md#object-model-and-architecture)
+  made by `core.interface`. A key has one binding: binding it twice raises `DuplicateBindingError`. `has(key)` tells
+  whether a key is bound, without building anything.
+- The **definition** is a finalised class, called as `Class(dependency1, dependency2, ...)`. It can also be a
+  function (a factory), called with the same arguments.
+- `requires` lists the keys of the dependencies, in the order of the constructor arguments. Dependencies are
+  declared, never guessed from parameter names.
 - `lifetime` is `"singleton"`, `"scoped"` or `"transient"` (or a member of `container.Lifetime`). It is required:
-  binding without it raises `ArgumentError`, so that what a service shares is always written where it is bound.
+  binding without it raises `ArgumentError`. So what a service shares is always written where it is bound.
+
+A definition must run to completion without suspending. While one suspends, resolving the same key from another
+computation raises `ContainerError`.
 
 When the key is an interface, a class definition must implement it; `validate` reports it otherwise. A factory
 product is checked when it is first built.
 
-## Lifetimes
+## Choose a lifetime
 
 | Lifetime | An instance lives | Created |
 |---|---|---|
@@ -87,72 +100,134 @@ product is checked when it is first built.
 | `scoped` | as long as one service scope | at the first resolution in that scope, then shared inside it |
 | `transient` | for the caller only (closed by its scope if it defines `__close`) | at every resolution, never cached |
 
-A service scope is made by `container:open_scope()`; the kernel opens one per request. It is an ordinary value:
-every computation that receives it sees the same scoped instances, so a scoped service is shared across `fork`, not
-copied. Close the scope when the request ends (`scope:close()` or a `<close>` variable).
+### Open a service scope
 
-- `container:resolve(key)` builds singletons and transients whose dependencies are all singletons or transients. A
-  service that needs a scoped one raises `LifetimeError`, before anything is constructed: the call has no service
-  scope. So does a transient that defines `__close` and that no singleton owns: resolve it with `scope:resolve`.
+A [service scope](../reference/glossary.md#object-model-and-architecture) is the region in which a `scoped` service
+has one instance. `container:open_scope()` makes one, and the kernel opens one per request. It is not a reactor
+scope.
+
+A service scope is an ordinary value. Every computation that receives it sees the same scoped instances, so a scoped
+service is shared across `fork`, not copied.
+
+Close the scope when the request ends: call `scope:close()`, or hold it in a `<close>` variable as the example does.
+
+### Resolve from the container or from a scope
+
 - `scope:resolve(key)` builds any service.
+- `container:resolve(key)` builds singletons, and transients whose dependencies are all singletons or transients.
+
+`container:resolve` has no service scope. Two cases raise `LifetimeError` there, before anything is constructed:
+
+- a service that needs a scoped one;
+- a transient that defines `__close` and that no singleton owns. Resolve it with `scope:resolve`.
 
 ## Validate at boot
 
-`container:validate()` checks every binding without constructing anything, then freezes the container: `bind` and
-`override` raise `core.StateError` afterwards, and `resolve` and `open_scope` raise it until validation has succeeded.
-It reports:
+`container:validate()` checks every binding without constructing anything. It reports:
 
 - a **missing binding**: a required key that is not bound (`MissingBindingError`);
-- a **cycle**: `a -> b -> c -> a`, with a binding that requires itself as the shortest case (`CycleError`). There is no
-  lazy resolution to break a cycle; restructure instead;
-- a **lifetime violation**: a singleton that depends on a scoped service, directly or through transients, which would
-  keep a request-bound object alive for the whole process (`LifetimeError`);
+- a **cycle**: `a -> b -> c -> a`, the shortest case being a binding that requires itself (`CycleError`);
+- a **lifetime violation**: a singleton that depends on a scoped service, directly or through transients
+  (`LifetimeError`). It would keep a request-bound object alive for the whole process;
 - a class that does not implement its **interface** key (`core.ConformanceError`).
 
-It collects every problem and raises one `GraphError`; `err.context.problems` lists them in the order of binding. A
-validated graph raises none of these at request time: what can still fail is the code of a constructor.
+There is no lazy resolution to break a cycle: restructure the services instead.
 
-`validate` also returns the container and a list of **warnings**, which never fail it: a singleton that directly
-depends on a transient gets `code = "singleton_over_transient"`, with `key`, `dependency`, `path` and a `message`,
-because that transient is built once and lives as long as the process. The container has no logger; the kernel
-reports the warnings.
+`validate` collects every problem and raises one `GraphError`. `err.context.problems` lists them in the order of
+binding. A validated graph raises none of these at request time: what can still fail is the code of a constructor.
 
-## Disposal
+Validation also freezes the container. Afterwards, `bind` and `override` raise `core.StateError`. Before it has
+succeeded, `resolve` and `open_scope` raise `core.StateError`.
 
-A service whose instance defines `__close` is closed by its owner, in reverse order of creation: a scoped service and
-a closable transient when the service scope that resolved them closes, a singleton (and a closable transient it
-received) when the container closes. A transient without `__close` is never tracked. Every close is attempted; the first
-error is raised afterwards and the others are in `context.suppressed`. Closing is idempotent, and a closed scope or
-container refuses `resolve`.
+### Read the warnings
+
+`validate` returns the container and a list of **warnings**, which never fail it.
+
+A singleton that directly depends on a transient gets a warning with `code = "singleton_over_transient"`, `key`,
+`dependency`, `path` and a `message`. That transient is built once and lives as long as the process.
+
+The container has no logger; the kernel reports the warnings.
+
+## Close services
+
+A service whose instance defines `__close` is closed by its owner, in reverse order of creation:
+
+- a scoped service, and a closable transient, when the service scope that resolved them closes;
+- a singleton, and a closable transient it received, when the container closes.
+
+A transient without `__close` is never tracked.
+
+Every close is attempted. The first error is raised afterwards, and the others are in `context.suppressed`. Closing
+is idempotent, and a closed scope or container refuses `resolve`.
+
+### Release a transient early
 
 A scope that owns a transient closes it, so do not put a `<close>` on it yourself. To close it earlier, call
-`scope:release(instance)`: it closes the instance once and stops tracking it (a close error propagates as it is);
-releasing an instance the scope does not track, a second time included, raises `ContainerError`. A long-lived scope
-keeps the closable transients it resolved until it closes or you release them.
+`scope:release(instance)`. It closes the instance once and stops tracking it; a close error propagates as it is.
 
-An owner closes an instance once, however many times a factory returned it, and the instance of a singleton,
-returned again by a transient factory, stays the container's. When a singleton fails to build, the closable
-transients built for it are closed at once.
+Releasing an instance the scope does not track raises `ContainerError`, and so does releasing it a second time.
 
-## Construction errors
+A long-lived scope keeps the closable transients it resolved until it closes or you release them.
 
-An error raised by a constructor or factory becomes a `ConstructionError` whose `cause` is the original error and whose
-`context.key` and `context.path` say which service and through which chain. `CancellationError` and
-`DeadlineExceededError` pass through unchanged. A constructor that returns `nil` raises `ConstructionError` too, and a
-factory product that does not implement its interface key raises `core.ConformanceError` (with the same `context.path`),
-after being closed if it defines `__close`. A failed construction caches nothing; the next resolution tries again.
+### Shared instances
+
+An owner closes an instance once, however many times a factory returned it. The instance of a singleton, returned
+again by a transient factory, stays the container's.
+
+When a singleton fails to build, the closable transients built for it are closed at once.
+
+## Handle construction errors
+
+An error raised by a constructor or a factory becomes a `ConstructionError`:
+
+- its `cause` is the original error;
+- `context.key` says which service failed;
+- `context.path` says through which chain it was reached.
+
+`CancellationError` and `DeadlineExceededError` pass through unchanged.
+
+A constructor that returns `nil` raises `ConstructionError` too. A factory product that does not implement its
+interface key raises `core.ConformanceError`, with the same `context.path`, after being closed if it defines
+`__close`.
+
+A failed construction caches nothing: the next resolution tries again.
 
 ## Replace a service in a test
 
-`override(key, definition, options?)` replaces a binding before `validate`; without `options` it keeps the lifetime and
-`requires` of the replaced binding; with `options`, `lifetime` is required as for `bind`. A key that is not bound raises `MissingBindingError`, so a misspelt key cannot
-create a service by accident. `override_with_instance(key, value)` binds an existing object as a singleton without
-dependencies, the usual way to inject a fake. The key must be bound; for an interface key the value must implement it, and a fake that does not raises `core.ConformanceError` at the call. The container never closes that object, even one that defines `__close`: you built it, so you close it. The new graph is validated as a whole, so an override cannot add a cycle
-or a captive dependency unnoticed.
+`override(key, definition, options?)` replaces a binding before `validate`.
 
-## Errors
+- Without `options`, it keeps the lifetime and `requires` of the replaced binding.
+- With `options`, `lifetime` is required, as for `bind`.
 
-All container errors extend `core.ConfigurationError`: `ContainerError`,
-`DuplicateBindingError`, `MissingBindingError`, `CycleError`, `LifetimeError`, `GraphError` and `ConstructionError`.
-A wrong argument raises `core.ArgumentError`, and a use in the wrong state (before `validate`, `bind` or `override`
-after it, any use after `close`) raises `core.StateError`. In messages and `context`, an interface is shown by its name.
+A key that is not bound raises `MissingBindingError`, so a misspelt key cannot create a service by accident.
+
+`override_with_instance(key, value)` binds an existing object as a singleton without dependencies. It is the usual
+way to inject a fake.
+
+- The key must be bound.
+- For an interface key, the value must implement it. A fake that does not raises `core.ConformanceError` at the call.
+- The container never closes that object, even one that defines `__close`: you built it, so you close it.
+
+The new graph is validated as a whole. An override cannot add a cycle or a captive dependency unnoticed.
+
+## Know the errors
+
+All container errors extend `core.ConfigurationError`:
+
+- `ContainerError`;
+- `DuplicateBindingError`;
+- `MissingBindingError`;
+- `CycleError`;
+- `LifetimeError`;
+- `GraphError`;
+- `ConstructionError`.
+
+A wrong argument raises `core.ArgumentError`. A use in the wrong state raises `core.StateError`: a use before
+`validate`, `bind` or `override` after it, and any use after `close`.
+
+In messages and `context`, an interface is shown by its name.
+
+## See also
+
+- [Concurrency](concurrency.md): scoped services as a way to avoid shared state.
+- Reference: [`hecate.container`](../reference/container/index.md)
