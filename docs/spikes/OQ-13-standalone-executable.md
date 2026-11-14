@@ -218,7 +218,7 @@ rock's own suite from a clone of its `v0.0.1` tag (all fixtures present), then t
   *login proof*: PostgreSQL SCRAM-SHA-256 needs PBKDF2 with HMAC-SHA-256 over the password and a salt sent by the
   server, MySQL `caching_sha2_password` a SHA-256 scramble with the server's nonce, legacy PostgreSQL an MD5 of the
   password, the user and a salt. The password itself is not sent. `digest` (SHA-256, HMAC, MD5) covers all but
-  PBKDF2, which is a loop over HMAC; this is a possible option for OQ-45, not decided here.
+  PBKDF2, which is a loop over HMAC; this is a possible option for OQ-45, not decided here. (Superseded on 2026-11-14 by the owner's rule: a primitive libsodium lacks comes from a dedicated rock, never from code of our own; see the `luasodium` section below.)
 
 ### Eighth round (owner answers, 2026-11-14)
 
@@ -291,5 +291,5 @@ with the source URL pointing at the local file, in a git-ignored directory (`spi
 - Its HMAC functions take a fixed 32-byte key and have no streaming form; there is no PBKDF2, MD5, SHA-1 or HKDF.
 - PBKDF2-HMAC-SHA-256 over `crypto_hash_sha256` alone (RFC 2104 HMAC, any key length) matches OpenSSL on two vectors (the
   `password`/`salt`/4096 vector; a 100-byte password with 40 bytes of output) and takes 14 ms for 4096 iterations, the PostgreSQL
-  SCRAM default. So SCRAM-SHA-256 needs nothing but `luasodium`.
+  SCRAM default. This is a measurement, not a design: by the owner's rule (a primitive libsodium lacks comes from a dedicated rock, never from code of our own), PBKDF2 for SCRAM-SHA-256 comes from a dedicated rock, to be chosen.
 - Not checked: Windows and macOS builds of `luasodium` (it needs the libsodium library on each), and its FFI bindings (LuaJIT only).

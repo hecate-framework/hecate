@@ -1,8 +1,8 @@
 # 0030 — `luasodium` is the cryptography dependency of Hecate
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-11-14
-- **Deciders:** project owner
+- **Deciders:** project owner (accepted by the project owner, 2026-11-14, on pull request #200)
 - **Packages:** security (and any package that needs a cryptographic primitive for a security purpose)
 - **Related:** [ADR 0014](0014-wire-protocol-drivers-in-lua.md), [ADR 0021](0021-rust-native-modules.md), [ADR 0028](0028-cli-sha256-rock-behind-a-seam.md) (the CLI's checksum, not a security use), OQ-45 (issue [#58](https://github.com/hecate-framework/hecate/issues/58)), [spike OQ-13](../spikes/OQ-13-standalone-executable.md)
 
@@ -39,8 +39,8 @@ builds of `luasodium`, or bundling libsodium.
   for a security purpose.
 - Any other package that needs a cryptographic primitive for a security purpose uses `luasodium` as well, directly (as a
   third-party rock) and not through `security`, which has other responsibilities and sits above many packages.
-- Where one package needs a primitive that libsodium does not provide, that package takes a small dedicated rock or its own
-  code for it; no shared package is created for such primitives.
+- Where one package needs a primitive that libsodium does not provide, that package takes a small dedicated rock for it;
+  no shared package is created for such primitives.
 - The CLI keeps its own checksum dependency for lock files and downloaded archives (ADR 0028); that is not a security use of
   cryptography in the sense of this ADR.
 
