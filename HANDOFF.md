@@ -3,8 +3,8 @@
 
 - roadmap_item: **First item of Phase 3 (owner decision of 2026-11-13): a readable writing style.** Write a "Writing style" section in `docs/architecture/documentation.md`, after the manner of *Programming in Lua* (Ierusalimschy) [...] Pilot it on the 8 pages written at the Phase 2 gate [...] and submit them to the owner before any other Phase 3 item starts.
 - status: in-progress
-- lock_until: 2026-11-14T00:40:00Z
-- last_update: 2026-11-13T23:10:00Z
+- lock_until: 2026-11-14T05:11:53Z
+- last_update: 2026-11-14T03:41:53Z
 
 ## Done
 
@@ -21,6 +21,10 @@
    (ebcd71b, 73fc583) for reference only.
 5. Every new inline snippet run against `packages/*/src` (luv installed with `luarocks install luv`): outputs match.
    Gates: typecheck, lint, check-links, check-glossary, check-docs-examples, check-examples, check-changelog ok.
+6. Step 1 of the owner instruction done: the pilot pages were checked against the code for every candidate statement;
+   only `multi-process-deployment.md` was wrong (an `auto` fallback logs no warning, only an explicit `reuseport` does,
+   `listening.select`). The others match: `SupervisorError` `crash_loop`/`reload_failed`, `on_unobserved_failure`,
+   the 422 of the inputs.
 
 ## Next steps
 
@@ -29,8 +33,6 @@ except the statements that do not fit the code exactly (verify thoroughly before
 bring every other English page to the same standard and style (the "apply the writing style to every page" part of
 the Website item).
 
-1. Fix, on the eight pilot pages, only the statements proven not to match the code (listed below), each with its
-   evidence.
 2. Restyle group 1: how-to `encode-and-decode-json`, `measure-performance`, `configure-an-application`,
    `log-structured-records`, `use-the-container`, `before-going-to-production`, `offload-cpu-bound-work`.
 3. Restyle group 2: how-to `deadlines-and-cancellation`, `udp-pipes-and-dns`, `connect-and-serve-over-tcp`,
