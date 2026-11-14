@@ -3,8 +3,8 @@
 
 - roadmap_item: **First item of Phase 3 (owner decision of 2026-11-13): a readable writing style.** Write a "Writing style" section in `docs/architecture/documentation.md`, after the manner of *Programming in Lua* (Ierusalimschy) [...] Pilot it on the 8 pages written at the Phase 2 gate [...] and submit them to the owner before any other Phase 3 item starts.
 - status: in-progress
-- lock_until: 2026-11-14T05:11:53Z
-- last_update: 2026-11-14T03:41:53Z
+- lock_until: 2026-11-14T08:19:33Z
+- last_update: 2026-11-14T06:49:33Z
 
 ## Done
 
@@ -26,15 +26,19 @@
    `listening.select`). The others match: `SupervisorError` `crash_loop`/`reload_failed`, `on_unobserved_failure`,
    the 422 of the inputs.
 
+7. Restyle group 1 (7 how-tos) done with the docs-writer agent, claims checked against the code (json depth/size
+   limits, benchmark rounds and pinning, config secrets, sink defaults, container override, `auto` strategy, offload
+   limits); gates typecheck, check-docs-examples, check-links, check-glossary ok.
+
 ## Next steps
+
+(Group 1 done, see Done 7.)
 
 Owner instruction (2026-11-13, on #195): the eight Phase 2 gate pages are the approved pilot and stay as they are,
 except the statements that do not fit the code exactly (verify thoroughly before asserting). This run's goal is to
 bring every other English page to the same standard and style (the "apply the writing style to every page" part of
 the Website item).
 
-2. Restyle group 1: how-to `encode-and-decode-json`, `measure-performance`, `configure-an-application`,
-   `log-structured-records`, `use-the-container`, `before-going-to-production`, `offload-cpu-bound-work`.
 3. Restyle group 2: how-to `deadlines-and-cancellation`, `udp-pipes-and-dns`, `connect-and-serve-over-tcp`,
    `run-processes-and-pass-connections`, `tls-client-and-server`.
 4. Restyle group 3: how-to `serve-http`, `stream-http-content`, `use-the-http-client`, `http-limits-timeouts-and-tls`,

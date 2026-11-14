@@ -7,15 +7,20 @@ order: 8
 
 # Configure an application
 
-This guide shows how to load the [configuration](../reference/glossary.md#configuration) of a process with `hecate.config`. It is written for
-hecate 0.x and Lua 5.5. The configuration is read once at boot, validated against a schema and then
-immutable; the specification is [configuration.md](https://github.com/hecate-framework/hecate/blob/main/docs/architecture/configuration.md).
+The [configuration](../reference/glossary.md#configuration) of a process is the immutable, validated tree of keys that
+the process is booted with. `hecate.config` builds it from several sources. Use it to give your application its keys
+once, at boot, and to learn at once when one is wrong. This guide is written for hecate 0.x and Lua 5.5.
+
+The specification is [configuration.md](https://github.com/hecate-framework/hecate/blob/main/docs/architecture/configuration.md).
 
 ## Declare the keys and load
 
-Declare the keys of your application as schemas, then call `config.load`. The [layers](../reference/glossary.md#configuration), from the weakest
-to the strongest, are the defaults of the schema, `config/default.lua`, `config/<environment>.lua`,
-environment variables and secret files. The [environment](../reference/glossary.md#configuration) is `HECATE_ENV` (default `production`).
+Declare the keys of your application as schemas. Then call `config.load`. It reads the sources, merges them,
+validates the result against the schemas and returns the configuration. It blocks, so call it at boot, before the
+reactor runs.
+
+The example declares a database section. Its host comes from a file, its port from another file and its password from
+an environment variable.
 
 <!-- example: packages/config/examples/hecate.config.load.lua -->
 ```lua
@@ -59,31 +64,100 @@ print(tostring(select(2, pcall(function() database.port = 1 end))):match("immuta
 -- Prints: immutable
 ```
 
-A file under `config/` returns a table and is evaluated in an empty `_ENV` table (no `require`, no
-`os`). Tables merge key by key; an array of a later layer replaces the earlier one.
+Read the output line by line.
+
+- `database.host` comes from `config/production.lua`, a later layer than `config/default.lua`.
+- `database.port` comes from `config/default.lua`, which wins over the default of the schema (5432).
+- The password is a secret object. `tostring` gives `[redacted]`, and `reveal()` gives the value.
+- A write to the configuration raises an error that says it is immutable.
+
+### The layers
+
+A [configuration layer](../reference/glossary.md#configuration) is one source of the merge. From the weakest to the
+strongest, the layers are:
+
+1. the defaults of the schema;
+2. `config/default.lua`;
+3. `config/<environment>.lua`;
+4. environment variables;
+5. secret files.
+
+The [environment](../reference/glossary.md#configuration) names the deployment profile, such as `development`, `test`
+or `production`. It selects `config/<environment>.lua`. It is the `environment` option of `config.load`, else the
+variable `HECATE_ENV`, else `production`. The prefix `HECATE` is the `env_prefix` option.
+
+### The files
+
+A file under `config/` returns a table. It is evaluated in an empty `_ENV` table, so it has no `require` and no `os`.
+
+Tables merge key by key. An array of a later layer replaces the earlier array as a whole.
 
 ## Environment variables
 
-The name of a variable is derived from the schema: the prefix (`HECATE`, option `env_prefix`), then the
-upper-case path joined by two underscores, for example `HECATE_DATABASE__PORT` or
-`HECATE_LIMITS__MAX_DEPTH`. The text is converted by the schema of the key: `"8080"` is an integer,
-`"true"` a boolean, `"a,b"` an array. A text that does not convert is reported with the name of its variable.
-Members of a map are configured by files only.
+An [environment variable](../reference/glossary.md#configuration) supplies one leaf of the configuration. A leaf is a
+declared key that is not an object: a scalar, an enumeration or an array. Its name is derived from the schema:
+
+1. the prefix, `HECATE` by default;
+2. an underscore;
+3. the path of the leaf in upper case, its segments joined by two underscores.
+
+So `database.port` is `HECATE_DATABASE__PORT`, and `limits.max_depth` is `HECATE_LIMITS__MAX_DEPTH`.
+
+The schema of the key converts the text:
+
+- `"8080"` is an integer;
+- `"true"` is a boolean;
+- `"a,b"` is an array.
+
+A text that does not convert is reported with the name of its variable. Members of a map are configured by files
+only, because the schema does not know the names of its members.
 
 ## Secrets
 
-List the keys that hold [secrets](../reference/glossary.md#configuration) in the `secrets` option. Their values are wrapped (`tostring` gives
-`[redacted]`, `reveal()` gives the value) and `configuration:describe()`, the error messages and the
-logs never show them. A secret can be read from a file: `HECATE_DATABASE__PASSWORD_FILE` names it, or
-set `secrets_directory` to the directory where your platform mounts secrets. Pass `wrap_secret = log.Secret`
-so that the logging sinks recognise the wrapper.
+A [secret object](../reference/glossary.md#configuration) wraps the value of a key that must never be printed. List
+the keys that hold secrets in the `secrets` option, by their dotted paths:
+
+```lua
+local configuration = config.load({
+  properties = properties,
+  secrets = { "database.password" },
+})
+```
+
+A path that is not a declared leaf raises `ArgumentError`. The wrapped value shows as `[redacted]` through `tostring`,
+and `reveal()` gives the value. `configuration:describe()`, the error messages and the logs never show it.
+
+### Read a secret from a file
+
+A [secret file](../reference/glossary.md#configuration) holds the value of one secret key, as a container platform
+mounts it. There are two ways to name it:
+
+- the variable `HECATE_DATABASE__PASSWORD_FILE` holds the path of the file;
+- the option `secrets_directory` names a directory that holds a file called `HECATE_DATABASE__PASSWORD`.
+
+A final line end and a byte order mark of the file are removed. A secret file wins over the environment variable. A
+file named by `<NAME>_FILE` must exist. A missing file in `secrets_directory` is ignored.
+
+### Wrap the secrets for the logs
+
+The logging sinks must recognise the wrapper. By default, `config.load` uses `hecate.log.Secret` when `hecate.log` is
+already loaded, and its own class otherwise. That class prints `[redacted]` through `tostring`, but a sink does not
+recognise it. Pass `wrap_secret = log.Secret` to be sure, or call `kernel.load_configuration`, which does it.
 
 ## Read and diagnose
 
-`configuration:get("database.port")` returns a typed value; `get` validates the path, so a path the schema does not declare raises
-`ArgumentError`, and `configuration:values()` gives the root section to read by field. `configuration:source(path)` tells which layer won, and `configuration:describe()` is
-the text to log at boot. Unknown keys are errors at every depth, and one `ConfigurationError` lists
-every [violation](../reference/glossary.md#types-and-validation) with its dotted path, its code and its layer (`context.violations` also holds the JSON Pointer):
+`configuration:get("database.port")` returns a typed value. `get` validates the path: a path that the schema does not
+declare raises `ArgumentError`. `configuration:values()` gives the root `Section`, which you read by field.
+
+Two methods tell where a value comes from:
+
+- `configuration:source(path)` names the layer that won;
+- `configuration:describe()` is the text to log at boot, one line per leaf, with each layer.
+
+### Read an invalid configuration
+
+Unknown keys are errors at every depth. One `ConfigurationError` lists every
+[violation](../reference/glossary.md#types-and-validation), each with its dotted path, its code and its layer:
 
 ```text
 config.load: invalid configuration (2 problems, environment production)
@@ -91,12 +165,27 @@ config.load: invalid configuration (2 problems, environment production)
   databse: the property is not declared [additional_properties] (config/production.lua)
 ```
 
-## Logging and depth keys
+`context.violations` also holds the JSON Pointer of each violation. The message of a violation at a secret key never
+quotes the value.
 
-Every configuration has `logging.severity` (default `informational`), `logging.severities` (a severity per
-logger name), `logging.sinks` (`console`, `json_lines`, `file`), `logging.file.path`, `logging.async` and
-`logging.redact`, which the kernel applies when it builds the loggers, and `limits.max_depth` (1 to 1000),
-the nesting depth of `hecate.json` and `hecate.schema`. A project can lower the depth, never raise it.
-`server.grace_timeout` (seconds, default 30, `HECATE_SERVER__GRACE_TIMEOUT`) is how long a graceful shutdown lets the
-requests in flight finish before cancelling them; keep it shorter than the stop timeout of the deployment
-(`docker stop` waits 10 s by default, Kubernetes 30 s).
+## Framework keys
+
+Every configuration declares the framework keys, and an application cannot redeclare them. The logging keys are:
+
+| Key | Meaning | Default |
+|---|---|---|
+| `logging.severity` | the severity of the default logger | `informational` |
+| `logging.severities` | a severity per logger name | none |
+| `logging.sinks` | a list of `console`, `json_lines`, `file` | `console` |
+| `logging.file.path` | the path of the `file` sink | none |
+| `logging.async` | wrap each sink in an asynchronous sink | `false` |
+| `logging.redact` | field names to redact, added to the built-in list | none |
+
+The kernel applies the logging keys when it builds the loggers.
+
+`limits.max_depth` is the nesting depth accepted by `hecate.json` and `hecate.schema`. It is an integer from 1 to 1000,
+and its default is 1000. A project can lower the depth, never raise it.
+
+`server.grace_timeout` is how long a graceful shutdown lets the requests in flight finish before cancelling them. It
+is a number of seconds, 30 by default (`HECATE_SERVER__GRACE_TIMEOUT`). Keep it shorter than the stop timeout of the
+deployment: `docker stop` waits 10 seconds by default, and Kubernetes 30 seconds.
