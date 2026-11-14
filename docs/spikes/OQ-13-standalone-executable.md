@@ -120,8 +120,10 @@ runs the CLI's own code.
 - Shipping: like Node.js. A Windows setup executable, a macOS `.pkg` installer and Linux archives, with Homebrew,
   winget and Scoop on top. A `curl | sh` installer for Linux and macOS is not opposed (it avoids the macOS
   quarantine attribute); to be settled with the installers item.
-- `lsha2`: the `403` is the network policy of the cloud environment, not a network fault: `github.com`,
-  `codeload.github.com` and the repository page itself all answer `403`. It could not be judged from here.
+- `lsha2`: `github.com` and `codeload.github.com` answer `403` from the cloud environment (network policy), but
+  `raw.githubusercontent.com` and `luarocks.org` are reachable, so the rockspec and the sources were read
+  (2026-11-14). Rejected on its own metadata: "SHA224/SHA256 in Lua 5.1/5.2", depends on the `bit32` rock, and
+  licence **GPL-3**, which cannot be a dependency of an MIT project.
 - sha256, at worst: a small vendored C implementation (as yyjson is vendored).
 - Signing: issues [#201](https://github.com/hecate-framework/hecate/issues/201) (Apple Developer ID) and [#202](https://github.com/hecate-framework/hecate/issues/202) (Windows signing route) record the prerequisites.
 - The CLI dependencies are corrected in this pull request: `Depends on` of `packages/cli/README.md`, the
