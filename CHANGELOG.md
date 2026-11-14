@@ -11,6 +11,8 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- ci(openapi): `ci.yml` runs `validate-openapi` (ADR 0031) on Linux, macOS and Windows whenever `openapi` is affected, as steps of the matrix job after the tests: `actions/setup-python` (pinned by commit, Python 3.13.18, pip cache), the validator environment `.hecate/venv-openapi` cached and created from the hashed requirements file, `CI=true` so that a missing prerequisite fails.
+
 - docs(openapi): ADR 0031 (Accepted by the owner, 2026-11-14): a development-only JSON Schema validator (Python `jsonschema` 4.26.0, pinned with hashes, never shipped) validates the golden document and the documents of the build tests against the official OpenAPI 3.1 schema in CI through a `validate-openapi` task, the Lua self-check staying the always-on check (owner choice (b) of OQ-130, 2026-11-14); the spike found that Node `ajv` 8.20.0 mishandles `$dynamicRef` of that schema and that the golden document has a `security` requirement `{}` instead of `[]`.
 
 - feat(kernel): the served OpenAPI document (step 5 of the `openapi` item): the `Application` option `openapi` (`info`, `servers`, `tags`, `external_docs`, `path`, `name`, `enabled`, `pretty`) serves the document of the application routes with `GET /openapi.json`, built at the first request; served by default only in the `development` environment; `hecate-kernel` now depends on `hecate-openapi` (OQ-134); `Application.entries` lists the routes after `boot`.

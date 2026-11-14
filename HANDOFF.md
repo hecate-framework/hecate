@@ -21,11 +21,8 @@
 - Diff reports default, description, summary, example, tags, deprecated, security changes (cece774); `content_optional` permanent, accepts an empty body even with a Content-Type (bacfae8); owner answers recorded in OQ-129.
 - Step 4 `openapi`: conformance test: structural self-check `tests/support/structure.lua` plus comparison with the pinned official schema (`oas/3.1/schema/2026-11-05` of OAI/spec.openapis.org, `fetch-fixtures openapi`, added to ci.yml and nightly.yml); a full validation is OQ-130 (issue #203).
 - Step 5 `openapi`/`kernel`: owner decision on OQ-134: `kernel` depends on `openapi` and serves `/openapi.json` itself (`Application` option `openapi`, `kernel/contract.lua`, development-only default, `Application.entries`); the provider indirection was removed. Kernel tests could not run locally (no luv, no native json): CI decides.
-- Step 6 `openapi`: task `validate-openapi` (`tools/tasks/validate_openapi.lua`, `tools/lib/openapi_validate.lua`, `tools/lib/validate_openapi.py`, `tools/ci/openapi-validator-requirements.txt`, tests), per ADR 0031 (still Proposed): NOT wired into any workflow.
-
-## Waiting for acceptance of ADR 0031 (then add to `ci.yml`)
-
-A job (not in the package matrix) on ubuntu, macos and windows: checkout, the Lua bootstrap, `lua tools/run.lua fetch-fixtures openapi`, `lua tools/run.lua test openapi` (writes `.hecate/openapi-validate/`), `actions/setup-python` pinned by SHA with `python-version: "3.13.18"` and `cache: pip` (`cache-dependency-path: tools/ci/openapi-validator-requirements.txt`), `actions/cache` of `.hecate/venv-openapi` keyed on OS, Python version and the hash of the requirements file, on a miss `python -m venv .hecate/venv-openapi` then `pip install --require-hashes --only-binary :all: --no-deps -r tools/ci/openapi-validator-requirements.txt` (Windows: `Scripts/pip.exe`), then `lua tools/run.lua validate-openapi` (CI=true makes absence a failure).
+- Step 6 `openapi`: task `validate-openapi` (`tools/tasks/validate_openapi.lua`, `tools/lib/openapi_validate.lua`, `tools/lib/validate_openapi.py`, `tools/ci/openapi-validator-requirements.txt`, tests), per ADR 0031 (Accepted).
+- Step 7 `openapi`: `validate-openapi` wired into `ci.yml` as steps of the `ci` matrix job (guarded by `openapi` affected): `actions/setup-python` 3.13.18, venv cache, hashed install, `validate-openapi` with `CI=true`; only CI can verify it.
 
 ## Next steps
 
