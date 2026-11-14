@@ -4,8 +4,8 @@
 - roadmap_item: `openapi`: OpenAPI 3.1 assembly, served endpoint, export, contract diff.
 - status: in-progress            <!-- in-progress | waiting-ci | waiting-owner -->
 <!-- Optional, only when the owner holds this pull request for one run: - owner: session `<session id>`, why. -->
-- lock_until: 2026-11-14T15:48:15Z
-- last_update: 2026-11-14T14:18:15Z
+- lock_until: 2026-11-14T16:00:47Z
+- last_update: 2026-11-14T14:30:47Z
 
 ## Done
 
@@ -18,6 +18,7 @@
 - Kernel: base `Problem` implements `core.Problem` with default 500 "Internal Server Error"; route flag `content_optional` (cf3c586, 7c37851); `http.Status` is an alias of `core.status` (5eb85af). CI green on the three platforms at that point.
 - Step 3 `openapi`: `core.status`, problems recognised by `core.Problem`, mandatory names, `content_optional`, ordered `tags` and `external_docs`, `{rest}` documented (ca7ac03).
 - Awaiting owner: OQ-129 (11) diff rules, `content_optional` name and empty-body rule, (13); then move OQ-129 to Resolved and close #199.
+- Diff reports default, description, summary, example, tags, deprecated, security changes (cece774); `content_optional` permanent, accepts an empty body even with a Content-Type (bacfae8); owner answers recorded in OQ-129.
 
 ## Next steps
 
