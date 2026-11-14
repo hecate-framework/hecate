@@ -170,6 +170,28 @@ runs the CLI's own code.
   candidates found by the searches above were tested. Risks recorded in ADR 0028: a young single-maintainer
   project (mitigated by the seam, and by vendoring the single C file with its two cores as yyjson is), and no
   compilation on macOS or MSVC by us yet (to be checked in a throwaway workflow before the ADR is accepted).
-- Sixth round (owner, 2026-11-14): ADR 0028 accepted (`digest`, `plc` as fallback); the three-platform check of
-  `digest` is the throwaway workflow `.github/workflows/spike-oq13-digest.yml`, to be removed with the spike;
-  signing is left for the owner to handle later (issues #201 and #202 stay open).
+- Sixth round (owner, 2026-11-14): ADR 0028 accepted (`digest`, `plc` as fallback); signing is left for the owner to
+  handle later (issues #201 and #202 stay open).
+
+### Three-platform check of `digest` (2026-11-14)
+
+A throwaway workflow (`spike-oq13-digest`, in the history of pull request #200 at commit `45ed610`, removed after
+the run) installed `digest` and `plc` with `luarocks install` on Lua 5.5.1 built by the repository's bootstrap, ran the
+rock's own suite from a clone of its `v0.0.1` tag (all fixtures present), then the contract test of the seam for the
+`digest` and `plc` backends, then hashed 16 MB.
+
+| Runner | `luarocks install digest` | Rock's own suite | Contract test (both backends) |
+|---|---|---|---|
+| ubuntu-latest (x86_64) | built | passed | passed |
+| macos-latest (arm64) | built | passed | passed |
+| windows-latest (MSVC 14.51) | built | 2948 + 806 assertions, 0 failed | passed |
+| ubuntu-24.04-arm (aarch64) | built | passed | passed |
+| macos-15-intel (x86_64) | built | passed | passed |
+
+- Windows, 16 MB: `digest` 0.055 s, `plc` 6.76 s, identical hash (`a06c26cb...`).
+- The first Windows run failed in the workflow, not in `digest`: under Git's bash, GNU `link` shadows MSVC's
+  `link.exe` (`link: unknown option -- d`); building the rock from PowerShell fixed it. Anything that builds a C rock
+  on Windows must not run under Git's bash (the repository's bootstrap already avoids it).
+- Earlier doubt resolved: the single failed check of the partial local run (fixtures not fetched) passes with the full
+  fixtures. Not covered: Windows arm64, musl, the embedded build into the CLI host (not written yet), and the
+  stricter release toolchains (code signing, minimum macOS version).

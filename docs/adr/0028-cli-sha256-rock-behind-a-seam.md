@@ -62,10 +62,9 @@ Candidates were installed on Lua 5.5.1 and checked against `sha256sum` on `abc` 
 - Risks, accepted with the seam as the mitigation: the rock is young (24 days on 2026-11-14, one maintainer, 215
   downloads); if it is abandoned, its single C file and two cores can be vendored (as yyjson is) or the backend
   switched to `plc`. Its README claims CI on macOS and on Windows (MSVC and MinGW) for Lua 5.5, which we have not
-  verified: the throwaway workflow `spike-oq13-digest` (installs the rock with LuaRocks, runs its own suite with all
-  fixtures and the contract test of the seam on the three CI platforms, plus Linux arm64 and macOS x86_64
-  informatively) runs on the pull request; its result is recorded in the spike report, and a failure reopens this
-  decision (switch the backend to `plc`, or vendor the source). It was compiled here with GCC on Linux only, and its own suite was run with part of its fixtures.
+  verified at the time of drafting; the check was done on 2026-11-14 (throwaway workflow of the pull request, result in
+  the [spike report](../spikes/OQ-13-standalone-executable.md)): the rock installs through LuaRocks and passes its own
+  suite on Linux x86_64 and arm64, macOS arm64 and x86_64 and Windows (MSVC), with `plc` as the tested fallback. It was compiled here with GCC on Linux only, and its own suite was run with part of its fixtures.
 - The contract test of the seam runs against every backend present, so a switch is checked by the same vectors.
 
 ## Verification
