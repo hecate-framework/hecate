@@ -1,8 +1,8 @@
 # 0031 — A development-only JSON Schema validator validates the OpenAPI documents in CI
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-11-14
-- **Deciders:** project owner (choice (b) of OQ-130 made on 2026-11-14; promotion to Accepted pending)
+- **Deciders:** project owner (choice (b) of OQ-130 and promotion to Accepted on 2026-11-14)
 - **Packages:** openapi, schema (tests only), ci tooling (`tools/`, `.github/workflows/ci.yml`)
 - **Related:** OQ-130 (issue [#203](https://github.com/hecate-framework/hecate/issues/203)), `packages/openapi/tests/support/structure.lua`, `packages/openapi/tests/external.lua`, [automation](../architecture/automation.md)
 
@@ -85,8 +85,8 @@ Option (b) with Python `jsonschema` (option b2). Checkable form:
   or hash gives a new key; on a hit the install is skipped, on a miss it runs with `--require-hashes` as above. The caches
   live only in the cache storage of GitHub Actions, scoped by branch (a pull request cannot write the cache of `main`);
   nothing of them enters the repository or any artefact. The interpreter itself is not cached: the action uses the toolcache
-  of the runner or downloads it. Versions are those found on PyPI on 2026-11-14; the **owner verifies them (and the hashes
-  produced by the next step) before promotion**. A change of any pin is a pull request that re-runs the check.
+  of the runner or downloads it. Versions are those found on PyPI on 2026-11-14; the **real install with `--require-hashes`
+  of the `validate-openapi` task (hashes of the requirements file) is their verification**; the owner accepted the ADR on 2026-11-14 on that basis. A change of any pin is a pull request that re-runs the check.
 - **Licence**: every package of the set is MIT, MIT-compatible or PSF-2.0 (permissive). `check-licenses` only covers
   directories with a `VENDORED.md` under `packages/` and `THIRD_PARTY_NOTICES`; a tool installed into `.hecate/` is not
   vendored, so **no allowlist entry is needed**. If the requirements file were ever committed under `packages/`, it would
