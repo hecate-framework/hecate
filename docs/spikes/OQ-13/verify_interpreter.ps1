@@ -46,9 +46,12 @@ Run $host_ $LuaRocksBin --version
 Run $host_ $LuaRocksBin --tree "$Work\t2" install $PureRock
 
 Step "3. LuaRocks runs inside the host and builds a source rock ($NativeRock) from the Lua headers"
-Run $host_ $LuaRocksBin --tree "$Work\t3" install --verbose $NativeRock
-Write-Host 'LuaRocks configuration seen by the host-run LuaRocks:'
-& $host_ $LuaRocksBin --tree "$Work\t3" config
+# Verbose output is kept and filtered: the lines about deployment, copies and failures are what matters here.
+$verbose = & $host_ $LuaRocksBin --tree "$Work\t3" install --verbose $NativeRock 2>&1 | Out-String
+if ($LASTEXITCODE -ne 0) { Write-Host $verbose; throw "install of $NativeRock failed" }
+Write-Host 'verbose lines about deployment, copies and failures:'
+($verbose -split "`r?`n") | Where-Object { $_ -match 'deploy|copy|cp |digest\.dll|rror|fail|denied|cannot|not found' } |
+  Select-Object -First 60 | ForEach-Object { Write-Host "  $_" }
 Write-Host 'files installed in t3:'
 Get-ChildItem -Recurse -File "$Work\t3" | ForEach-Object { Write-Host "  $($_.FullName)" }
 $env:LUA_PATH = "$LuaRocksLib\?.lua;;"
