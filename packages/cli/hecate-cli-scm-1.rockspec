@@ -19,11 +19,6 @@ dependencies = {
   "hecate-log",
   "hecate-json",
   "hecate-schema",
-  "hecate-kernel",
-  "hecate-test",
-  "hecate-doc",
-  "hecate-openapi",
-  "hecate-migration",
 }
 
 build = {

@@ -114,3 +114,17 @@ runs the CLI's own code.
   archive blocked in this environment); `lua-hashings-and-nums` 1.0.3 (pure Lua, MIT) installs and loads but
   hashed 1 MB in **61 s**, so a toolchain archive (825 KB) would take about 50 s: too slow. A rock the CLI
   depends on must also be linked into the embedded interpreter at build time (a C rock) or embedded as Lua.
+
+### Second round of answers (2026-11-14)
+
+- Shipping: like Node.js. A Windows setup executable, a macOS `.pkg` installer and Linux archives, with Homebrew,
+  winget and Scoop on top. A `curl | sh` installer for Linux and macOS is not opposed (it avoids the macOS
+  quarantine attribute); to be settled with the installers item.
+- `lsha2`: the `403` is the network policy of the cloud environment, not a network fault: `github.com`,
+  `codeload.github.com` and the repository page itself all answer `403`. It could not be judged from here.
+- sha256, at worst: a small vendored C implementation (as yyjson is vendored).
+- Signing: issues for the Apple Developer ID and the Windows signing certificate record the prerequisites.
+- The CLI dependencies are corrected in this pull request: `Depends on` of `packages/cli/README.md`, the
+  rockspec and the overview graph now list `core`, `reactor`, `log`, `json` and `schema` only (the confinement of
+  luv to `reactor` makes `reactor` the way to supervise processes). ADR 0010 is unchanged: its wording ("the native
+  modules it needs") already fits.

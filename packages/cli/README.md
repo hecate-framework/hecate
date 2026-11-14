@@ -10,9 +10,9 @@
 | Roadmap phase | 3 |
 | Status | specified — no code yet |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |
-| Depends on | [`core`](../core), [`reactor`](../reactor), [`log`](../log), [`json`](../json), [`schema`](../schema), [`kernel`](../kernel), [`test`](../test), [`doc`](../doc), [`openapi`](../openapi), [`migration`](../migration) |
+| Depends on | [`core`](../core), [`reactor`](../reactor), [`log`](../log), [`json`](../json), [`schema`](../schema) |
 | Used by | — |
-| Native code | self-contained executable embedding Lua 5.5 (OQ-13) |
+| Native code | self-contained executable embedding Lua 5.5 and what the CLI itself needs (OQ-13) |
 | Specification | [cli-and-packaging.md](../../docs/architecture/cli-and-packaging.md) |
 | Decisions | [ADR 0009](../../docs/adr/0009-project-manifest.md), [ADR 0010](../../docs/adr/0010-self-contained-cli-and-managed-toolchains.md) |
 | Agent | [`pkg-cli`](../../.claude/agents/pkg-cli.md) |
@@ -32,6 +32,9 @@
 ## Non-goals
 
 - replacing LuaRocks
+- carrying the framework: `kernel`, `test`, `doc`, `openapi`, `migration` and the drivers are dependencies of the
+  user's project, installed by `hecate install` and run by the project's interpreter; the `hecate` executable starts
+  that interpreter and loads none of them (owner decision of 2026-11-14, [spike OQ-13](../../docs/spikes/OQ-13-standalone-executable.md))
 
 ## Standards and references
 
