@@ -40,7 +40,7 @@ read the matching page of the [explanation](../explanation/index.md) section.
 
 ## HTTP
 
-- [Serve HTTP](serve-http.md): start a server, write a handler, answer with JSON and problem
+- [Serve HTTP](serve-http.md): start a server, write an action, answer with JSON and problem
   details, set cookies, shut down.
 - [Stream HTTP content](stream-http-content.md): read request content chunk by chunk and stream
   a response.
