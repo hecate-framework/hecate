@@ -1,76 +1,99 @@
-# Spike OQ-13: standalone `hecate` executable
+# Spike OQ-13: the `hecate` executable
 
-Status: **partial (Linux x86_64 only, time-boxed)**. Recommendation only; the owner decides. macOS and
-Windows were not built (no runner in this session); what is said of them is an assessment, marked as such.
+Status: **partial (Linux x86_64 only, time-boxed)**. Recommendation only; the owner decides. macOS and Windows
+were not built; what is said of them is an assessment, marked as such.
+
+Scope note (owner correction on pull request #200): a first iteration embedded the framework packages and
+their native modules in the binary. That answered the wrong question and was dropped. The binary carries only
+what the CLI commands need; the framework packages and their native modules reach a project as LuaRocks
+dependencies, installed by `hecate install` (ADR 0009).
 
 ## Question
 
-ADR 0010: one executable per platform embedding Lua 5.5, the CLI modules and the native modules. Is it
-feasible with the pieces Hecate already has (C modules, Rust `mlua` modules, luv), and what do code
-signing and the six targets cost?
+The user flow: download the binary; `hecate new` (or clone a project); `hecate install` (LuaRocks wrapper);
+`hecate serve`. Then: **what must the binary contain, and should the Lua interpreter that runs the CLI be
+embedded in it or downloaded with the toolchain?**
 
 ## Method
 
-Throwaway prototype under `spikes/OQ-13/` (git-ignored); the three small sources are kept in
-[`OQ-13/`](OQ-13/): `gen.lua`, `main.c`, `preload.c`. GCC 13, Lua 5.5.1 (`liblua.a`), Rust 1.97.
+Throwaway prototype in `spikes/OQ-13/` (git-ignored); sources kept in [`OQ-13/`](OQ-13/): `cli.lua`,
+`cli_main.c`, `serve_luv.lua`. GCC 13, Lua 5.5.1, LuaRocks 3.13, luv 1.53.0 built as a static library.
 
-1. luv 1.53.0 (with its bundled libuv) built as a **static library** against the system Lua 5.5:
-   `cmake -DWITH_LUA_ENGINE=Lua -DBUILD_MODULE=OFF -DBUILD_STATIC_LIBS=ON -DWITH_SHARED_LIBUV=OFF -DLUA_BUILD_TYPE=System ...`
-   Builds unmodified.
-2. `gen.lua` compiles every `.lua` file of `core`, `reactor`, `log`, `json`, `schema`, `router`, `container`
-   and `config` (88 files) to stripped bytecode (`string.dump(f, true)`) into a C array table.
-3. `main.c` is the host: `luaL_newstate`, `luaL_openlibs`, luv registered with `luaL_requiref`, an extra
-   `package.searchers` entry that loads the embedded bytecode, then runs a script (`arg[1]`).
-4. `preload.c` registers the native modules in `package.preload`:
-   - `hecate.json.native`: the C module (`packages/json/csrc/native.c` + vendored yyjson) compiled into the host.
-   - `hecate.json.encoder_native`: the Rust `mlua` module, rebuilt from a copy of `packages/json/native` with
-     `crate-type = ["staticlib"]` (the `module` feature leaves the Lua symbols to the host), linked in.
+1. **Toolchain in a user directory.** `/opt/lua-5.5` (Lua, headers, LuaRocks) copied to
+   `home/toolchains/lua-5.5.1`, as `~/.hecate/toolchains/lua-5.5.1` would be.
+2. **CLI host**: 40 lines of C that run an embedded Lua bytecode chunk (`cli.lua`, standard library only):
+   `install` runs the toolchain's LuaRocks against a project tree and a local `file://` rock repository, `serve`
+   runs the project script with the toolchain's `lua`. Nothing from `packages/` is inside.
+3. The same host with luv linked in (to measure the cost of process control), and a `serve` written with
+   `uv.spawn` and `uv.new_signal`.
 
 ## Findings
 
 | Check | Result |
 |---|---|
-| Script run with `env -i`, no Lua installed, from an empty directory: luv timer, `hecate.json` encode (C and Rust natives), `require("hecate.core")`, `require("hecate.reactor")` | **works**, all in one process |
-| Dynamic build (libc, libm only; `ldd` lists 5 entries) | 3.5 MB; 1.7 MB stripped; starts in about 2 ms |
-| Fully static glibc build (`-static`) | links and runs, 4.9 MB, but the linker warns that `getaddrinfo` and `getpwuid` need the shared glibc at run time: a static glibc binary is not safe for DNS resolution. A musl target (`x86_64-unknown-linux-musl`) is the normal answer; not tried |
-| Rust staticlib of an `mlua` module | **works**: the `luaopen_*` symbol is exported, 8.5 MB archive, 15 s build, no change to the source of the module; so `crate-type` must list `staticlib` next to `cdylib` for the embedded build |
-| Error when a native module is missing | the packages already raise a clear `JsonError`; with `package.preload` the same code path serves the rock build and the embedded build, no change in the packages |
-| Bytecode versus sources | bytecode is tied to the exact Lua build (5.5.1) and platform word size and endianness; fine for a binary that embeds its own Lua, but the build must generate it per target; sources can be embedded instead at a small start-up cost |
+| CLI host with only the Lua standard library | **285 KB** stripped, 4 shared objects (libc, libm, libdl) |
+| Same host plus luv (process, signals, file system, network) | 674 KB stripped, **+390 KB** |
+| Flow with an empty environment: `hecate install` then `hecate serve` | works: the rock `dep-a` is installed into the project's `lua_modules` by the toolchain's LuaRocks, and the project script runs on the toolchain's `lua` and finds it |
+| Toolchain size (Lua, headers, LuaRocks) | 2.8 MB on disk, **825 KB** as `.tar.gz` |
+| Is a stock toolchain relocatable? | **No.** `bin/luarocks` and `etc/luarocks/config-5.5.lua` hard-code the install prefix (`/opt/lua-5.5`), and the `lua` binary has the usual `/usr/local` defaults. A copy elsewhere fails. Rewriting the prefix in the two files (a `sed` at install time) was enough: the relocated LuaRocks installed the rock. So a prebuilt toolchain archive can be unpacked anywhere if the CLI writes the prefix, or if the toolchain is built at its final path |
+| Plain Lua as the only process API (`os.execute`, `io.popen`) | `serve` leaks: after `SIGTERM` to the CLI (a process manager, `docker stop`, CI cancel) the CLI exits and its child server **keeps running** (2 processes left). Lua has no `exec`, no signal handler and no portable child control |
+| `serve` with luv (`uv.spawn`, a `sigterm` handler that kills the child) | child stopped cleanly, exit status and signal propagated, no process left |
 
-Not verified here, to be checked on the three-platform CI:
+## What the CLI binary needs (from the command list)
 
-- **macOS**: static libuv and luv build there (luv is routinely built on macOS); Rust modules need
-  `-undefined dynamic_lookup` only for dynamic modules (OQ-4 note), not for a staticlib. **Signing and
-  notarisation** need an Apple Developer ID certificate (paid account), `codesign --options runtime` and
-  `notarytool`; both are owner-held secrets, hence a release-pipeline step that is run by the owner's CI only.
-  Unsigned binaries from a download are quarantined by Gatekeeper; installing through Homebrew or `curl | sh`
-  (no quarantine attribute) works unsigned but is not a long-term answer.
-- **Windows**: MSVC link of `liblua.lib`, luv and the Rust staticlib (`LUA_LIB`, `LUA_INC` as in OQ-4);
-  needs `__declspec(dllexport)` only for dynamic modules. Authenticode signing needs a certificate (or Azure
-  Trusted Signing); unsigned binaries trigger SmartScreen warnings, which hurts `winget` and Scoop adoption.
-- **arm64** targets (macOS arm64, linux aarch64, Windows arm64): same code, native runners or cross builds.
-  Windows arm64 runners and Rust `aarch64-pc-windows-msvc` availability were not checked.
+| Need | Commands | Source |
+|---|---|---|
+| Lua to evaluate the manifest in a sandbox, lock files, templates, `--json` output | all | the embedded interpreter, standard library only |
+| Spawn and supervise child processes, forward signals, exit codes | `install`, `serve`, `test`, `doc`, `migrate`, `run` | a native layer: luv (+390 KB), or a smaller own C function (`exec` on Unix, `CreateProcess` plus a job object on Windows) |
+| Download toolchains and rocks index, verify sha256, unpack archives | `toolchain install`, `new`, `self update` | not decided: shell out to `curl` and `tar` (Windows 10 and later ship both), or a native HTTPS client and archive reader (hecate's Rust TLS module is 2.8 MB, OQ-4) |
+| Hashing (sha256) for `hecate.lock` | `install`, `add` | not in the Lua standard library: native function, or an external tool |
 
-## Options
+Everything else the commands appear to need (`hecate.kernel`, `hecate.test`, `hecate.doc`, `hecate.openapi`,
+`hecate.migration`, the schemas, the reactor) runs **inside the project's interpreter**, on the project's
+rocks. The CLI starts that interpreter; it does not load those packages itself. This contradicts two texts, to
+be settled by the owner: the `Depends on` row of `packages/cli/README.md` (lists `reactor`, `kernel`, `test`,
+`doc`, `openapi`, `migration`, ...) and the wording of ADR 0010 (Accepted: "embedding Lua 5.5, the CLI modules
+and the native modules it needs"). I did not edit either.
 
-| Option | Description | For | Against |
-|---|---|---|---|
-| A. Own host (this prototype) | about 60 lines of C, bytecode or sources embedded, natives in `package.preload` | no new dependency (ADR rule), full control, same modules as the rocks, trivial to add the three-platform build | we maintain the host and the embed generator |
-| B. `luastatic`-like tools | generate such a host from Lua files | less code to write | third-party dependency (needs an ADR), designed for one script and rocks found on the system, not for several Rust and C natives |
-| C. Ship Lua + a zip | the executable unpacks or finds a bundled interpreter and `.so` files | no embedding | not one executable; ADR 0010 asks for one; `.so`/`.dll` loading restrictions on signed macOS binaries (library validation) |
+## Embed Lua in the binary, or download it with the toolchain?
+
+The toolchain (Lua, headers, LuaRocks) is downloaded per project in every case: native rocks compile against
+its headers and the project must run on its own interpreter. The question is only about the interpreter that
+runs the CLI's own code.
+
+| | Embedded interpreter | CLI as Lua code run by a downloaded interpreter |
+|---|---|---|
+| Bootstrap | nothing to fetch before `hecate version`, `doctor`, `new`, `toolchain install` | the first command needs a downloaded Lua, and a native launcher is needed anyway to fetch it |
+| Size | +285 KB total (the interpreter is a part of it) | smaller launcher, but the CLI code ships as separate files that must be kept in sync with the launcher |
+| Lua version | the CLI's Lua is independent of the project's (`lua = "5.5"` in the manifest); the CLI can move to a newer Lua without touching projects | the CLI would follow a toolchain version, or carry its own copy, which is an embedded interpreter again |
+| Process control | native code is already in the binary | the same need, unchanged |
+| Single file to install, sign, update | yes | no: a launcher plus data |
 
 ## Recommendation
 
-Option A. It is the smallest design that meets ADR 0010 and reuses what is already proven by the
-spike: the packages need no change; the only repository changes are in the build: `staticlib` next to `cdylib`
-for each Rust module, a static `hecate-host` target, and an embed step in `tools/`. Treat musl as the
-Linux target to settle (static, DNS-safe) and check macOS and Windows in a throwaway workflow before `cli` v1,
-as was done for OQ-4. Code signing is a release-pipeline concern and needs certificates only the owner can
-provide: Apple Developer ID and a Windows signing certificate or service. Decisions for the owner: which
-signing route for each platform, and whether unsigned binaries are acceptable for the first `0.1.0` release.
+1. **Embed the interpreter.** A host of about 40 lines of C plus the CLI modules as bytecode is 285 KB, needs no
+   download to start, and keeps the CLI independent of the Lua version of any project. Downloading it saves
+   nothing, because a native launcher is needed either way.
+2. **Keep the native layer to what the CLI uses**: process control (spawn, `exec`, signal forwarding) is
+   required by the `serve` result above; luv provides it for +390 KB and is already a project dependency, a
+   smaller own function is the alternative. Hashing needs a native function or a tool.
+3. **Decide download and unpacking separately**: shell out to `curl` and `tar` (nothing added to the binary,
+   to be confirmed on the platforms), or a native client. Not decided here; the cost is TLS (2.8 MB).
+4. **Toolchains**: publish prebuilt archives per platform (825 KB here), unpacked under
+   `~/.hecate/toolchains/` with the prefix rewritten by the CLI, or build at the final path (needs a C compiler,
+   absent on most Windows and macOS machines). The CLI must run LuaRocks through its own configuration, as the
+   specification already says.
+5. Signing and notarisation (macOS), Authenticode (Windows) apply to one small file per platform and need
+   certificates only the owner holds: Apple Developer ID and a Windows signing certificate or service. Unsigned
+   binaries from a download are quarantined (macOS) or warned about (Windows SmartScreen); Homebrew, Scoop and
+   `curl | sh` installs avoid part of it.
 
 ## Open points
 
-- musl build of luv, libuv and the Rust staticlib not tried.
-- The CLI modules (`hecate.cli`) do not exist yet; the prototype embedded the Phase 0 to 2 packages.
-- A native module with its own thread pool or `dlopen` use (SQLite, TLS) was not part of the prototype.
+- macOS, Windows, arm64 and musl were not built; `curl` and `tar` availability and flags on the three platforms
+  were not tested; a Windows toolchain needs the import library settings of OQ-2.
+- A prebuilt Lua 5.5 toolchain archive per platform is a release artefact that does not exist yet.
+- sha256 for lock files was not prototyped.
+- Decisions for the owner: embedded interpreter or not; luv or own process function; how downloads are done;
+  signing routes and whether unsigned binaries are acceptable for `0.1.0`; correct the `Depends on` row of
+  `packages/cli/README.md` and the wording of ADR 0010.
