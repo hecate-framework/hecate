@@ -79,7 +79,13 @@ Option (b) with Python `jsonschema` (option b2). Checkable form:
   every artefact of the three platforms, installed with `pip install --require-hashes --only-binary :all: --no-deps`, in a
   virtual environment under `.hecate/` (git-ignored). Python comes from `actions/setup-python` pinned by commit hash like the
   other actions, with an exact Python version, on the three runners, in a dedicated job or step of `ci.yml`, not in the
-  matrix of every package. Versions are those found on PyPI on 2026-11-14; the **owner verifies them (and the hashes
+  matrix of every package. **Caching** (CI only): `actions/setup-python` with `cache: pip` and `cache-dependency-path` set to
+  the requirements file, and the finished virtual environment under `.hecate/` cached with `actions/cache` (pinned by commit
+  hash), both keyed on the runner OS, the Python version and the hash of the requirements file, so that a change of any pin
+  or hash gives a new key; on a hit the install is skipped, on a miss it runs with `--require-hashes` as above. The caches
+  live only in the cache storage of GitHub Actions, scoped by branch (a pull request cannot write the cache of `main`);
+  nothing of them enters the repository or any artefact. The interpreter itself is not cached: the action uses the toolcache
+  of the runner or downloads it. Versions are those found on PyPI on 2026-11-14; the **owner verifies them (and the hashes
   produced by the next step) before promotion**. A change of any pin is a pull request that re-runs the check.
 - **Licence**: every package of the set is MIT, MIT-compatible or PSF-2.0 (permissive). `check-licenses` only covers
   directories with a `VENDORED.md` under `packages/` and `THIRD_PARTY_NOTICES`; a tool installed into `.hecate/` is not
@@ -94,7 +100,8 @@ Option (b) with Python `jsonschema` (option b2). Checkable form:
 - Easier: the documents are checked against the complete official schema, by a validator written by others; our reading of the
   specification is no longer the only one. The first run already finds a document error (`security` requirement `{}`).
 - Harder: a Python runtime and one pinned requirements file on the CI side only; a pin to maintain (updated with the
-  pinned OpenAPI schema); about a minute of setup on each runner (to be measured by the job; Linux is the cheapest).
+  pinned OpenAPI schema); about a minute of setup on each runner on a cache miss (to be measured by the job; Linux is the cheapest), a few
+  seconds on a hit.
 - To do (the `openapi` item of the roadmap): the `validate-openapi` task and its tests, the CI job on the three platforms,
   `docs/architecture/automation.md` catalogue entry, the test side that writes the documents, the fix of the finding above,
   and the update of the `packages/openapi/README.md` text on OQ-130.
@@ -105,5 +112,7 @@ Option (b) with Python `jsonschema` (option b2). Checkable form:
 - `ci.yml` runs `lua tools/run.lua validate-openapi` on Linux, macOS and Windows, after `fetch-fixtures openapi`.
 - The task's tests (in `tools/tests`) check the three outcomes: validates a good document, rejects a bad one, and the
   skip (local) and failure (`CI=true`) when the tool is absent.
+- The caches are keyed on the hash of the requirements file: a pin or hash change in a pull request misses the cache and
+  installs again with `--require-hashes`.
 - Review: no rockspec, Dockerfile or release script mentions Python or `jsonschema`; the requirements file has a hash for
   every line; no step of the workflow installs without `--require-hashes`.
