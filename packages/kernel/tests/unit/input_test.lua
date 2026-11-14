@@ -414,6 +414,28 @@ function T:test_the_400_and_415_of_the_input_step_are_logged_without_the_content
   self:assert_nil(string.find(json.encode(seen), SECRET, 1, true))
 end
 
+function T:test_a_content_422_is_logged_with_its_codes()
+  local seen, logger = recording_logger()
+  local serve = serve_with("POST", "/x", { content = { ["application/json"] = schema.object({ name = schema.string() }) } },
+    { logger = logger })
+  self:assert_equal(422, serve(request("POST", "/x", { content = '{"name":7}' })).status)
+  self:assert_equal(1, #seen)
+  self:assert_equal(422, seen[1][3].status)
+  self:assert_equal("string", type(seen[1][3].codes[1]))
+end
+
+function T:test_the_query_of_a_refused_request_is_never_logged()
+  local seen, logger = recording_logger()
+  local serve = serve_with("POST", "/orders/{id}", {
+    parameters = { path = { id = schema.integer() } },
+    content = { ["application/json"] = schema.object({ name = schema.string() }) },
+  }, { logger = logger })
+  self:assert_equal(422, serve(request("POST", "/orders/7?token=" .. SECRET, { content = '{"name":7}' })).status)
+  self:assert_equal(1, #seen)
+  self:assert_equal("/orders/7", seen[1][3].path)
+  self:assert_nil(string.find(json.encode(seen), SECRET, 1, true))
+end
+
 function T:test_a_request_that_conforms_logs_nothing()
   local seen, logger = recording_logger()
   local serve = serve_with("GET", "/items", { parameters = { query = { limit = schema.integer() } } },
