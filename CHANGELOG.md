@@ -11,6 +11,8 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- feat(kernel): the input step logs the `422`, `400` and `415` it answers, at `warning` through the logger of the application, like the guard does for a client-caused error: `method`, `path` without the query, `status`, `reason` and the violation `codes`, never a value, a name or a pointer (OQ-111).
+
 - docs(schema): the `Schema.check` example builds the `422` the kernel answers for invalid inputs (`pointer` and `code` per entry, the message only with `errors.expose_details`), instead of a `400` with the message in every entry.
 
 - docs(relay): an owner hold outlasts the relay lock. A relay run skips a pull request when the owner asked on it that no other run continue it, or when its `HANDOFF.md` has an `owner:` line naming another session, even after `lock_until` has passed (`.claude/commands/relay.md`, `docs/architecture/ai-assisted-development.md`, `CLAUDE.md`, the `HANDOFF.md` template). A later run had taken over pull request #195 against such a comment.

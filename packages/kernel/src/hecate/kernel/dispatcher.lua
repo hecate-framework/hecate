@@ -149,7 +149,7 @@ function dispatcher.build(entries, options)
     error(core.ArgumentError("hecate.kernel.dispatcher.build: options.inputs must be \"lax\" or \"strict\", got " .. tostring(policy)), 2)
   end
   local problem_options = { expose_details = options.expose_details, logger = options.logger }
-  local input_options = { expose_details = options.expose_details, strict = policy == "strict" }
+  local input_options = { expose_details = options.expose_details, strict = policy == "strict", logger = options.logger }
   local validate_responses = options.validate_responses
   if validate_responses ~= nil and type(validate_responses) ~= "boolean" then
     error(core.ArgumentError("hecate.kernel.dispatcher.build: options.validate_responses must be a boolean, got " .. type(validate_responses)), 2)

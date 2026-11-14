@@ -296,7 +296,7 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       concurrency and multi-process deployment; the schema keywords reference; the explanations on the architecture, the
       object model and the concurrency model) and submit them to the owner before any other Phase 3 item starts. Once
       approved, the website item applies it to the rest of the site.
-- [ ] `kernel`: log the answers of the input step (owner remark on pull request #195, 2026-11-13). The `422` of
+- [x] `kernel`: log the answers of the input step (owner remark on pull request #195, 2026-11-13). The `422` of
       inputs that do not conform, and the `400` and `415` of the same step, are built by `input.compile` before the
       action and never reach the guard, so nothing logs them. Meanwhile, a client-caused error that the guard maps
       below 500 (content over the limit, for example) is logged at `warning`. Make the two consistent: log these answers through the same logger,
