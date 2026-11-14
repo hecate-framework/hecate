@@ -51,6 +51,8 @@ headers and a compiler); Lua 5.4.
   tool: the list is empty, nothing is deployed, and a rock reports "installed" but cannot be required. The official
   `luarocks.exe` bundles `lfs` for this reason. It is optional on Linux and macOS, where the Unix tools exist.
   `THIRD_PARTY_NOTICES` records it when it is vendored (a new third-party dependency, accepted with this ADR).
+- Owner remark of 2026-11-14: with a setup installer on Windows, shipping `lua55.dll` beside `hecate.exe` and embedding `lfs`
+  are not a problem; the installer places everything together.
 - Source rocks that compile C need the Lua headers and a compiler; the executable can carry the headers and extract them
   on demand (not checked: the verification used the toolchain's headers), and binary rocks avoid the case.
 - Binary rocks must be built against the interface the executable exports (on Windows, `lua55.dll`).
