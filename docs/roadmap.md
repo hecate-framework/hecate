@@ -329,7 +329,8 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       defaults to it: `max(1, cores - 1)`, `cores` from `uv.available_parallelism()` (exposed by `reactor`), read on
       Linux within the cgroup CPU quota of a container when one is set (or documented as a limit); `hecate serve`
       without `--workers` reads `server.workers`; the generated `config/development.lua` and `config/test.lua` set
-      `server.workers = 1`.
+      `server.workers = 1`. Then update the pages that state today's default of 1: `website/en/how-to/
+      {multi-process-deployment, before-going-to-production}.md` and `website/en/explanation/multi-process-serving.md`.
       **Also (OQ-121):** `gen-meta`, the LuaLS `---@meta` files generated from schemas, as a `tools/` task and through
       the CLI (file layout, naming and when it runs decided with the item).
       **Also (from the `examples/hello` item):** turn `examples/hello` into a Hecate project (`hecate.project.lua`, run
@@ -361,14 +362,8 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       Mermaid diagrams (OQ-128): an ADR for the dependency (a vendored copy of `mermaid.js`, loaded only on the pages
       that hold a diagram, no CDN), then the support in `hecate.doc` (a ` ```mermaid ` block becomes a diagram) and
       diagrams in the explanation pages.
-      **Also (found while restyling, pull request #195):** the example files `packages/net/examples/hecate.net.{connect,
-      listen_pipe, bind_udp, resolve, TcpStream.read, TcpStream.shutdown, TlsError}.lua`,
-      `packages/reactor/examples/hecate.reactor.{run_process, offload}.lua` and `packages/log/examples/hecate.log.AsyncSink.lua`
-      write their `-- Prints:` block after the closing `end)` instead of directly under the printing line (rule 2 of
-      "Code examples" in `docs/architecture/documentation.md`), and `check-examples` does not catch it: move the blocks
-      and make the check refuse them. `packages/schema/examples/hecate.schema.Schema.check.lua` builds a `400` with
-      `detail` per entry, unlike the kernel's `422` (`pointer`, `source`, `code`): align it. The `serve-http` how-to
-      writes through `io.stderr:write` in an inline `on_error` snippet, which the rule refuses in example files.
+      **Also (found while restyling, pull request #195):** the `serve-http` how-to writes through `io.stderr:write` in an
+      inline `on_error` snippet, which the output rule refuses in example files.
 - [ ] Meta-rock `hecate` (standard edition).
 - [ ] Read-only mirrors (ADR 0017): `split`, `mirrors ensure`, `check-mirrors`,
       `split.yml`; Homebrew tap and Scoop bucket repositories (resolves OQ-17).
