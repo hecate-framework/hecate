@@ -370,7 +370,10 @@ end
 --- `message`), so equal inputs give the same list; messages name rules and property names, never a value of the
 --- contract. `$ref` into `components.schemas` is resolved. Request schemas are inputs: a narrowed type, a new required
 --- property or parameter, removed enum values or stricter bounds are breaking. Response schemas are outputs: a removed
---- response, property or media type, or a changed type, is breaking. Neither document is modified. Raises
+--- response, property or media type, or a changed type, is breaking. Changes of `default`, `description`, `summary`,
+--- `example`/`examples`, `tags`, `deprecated` and `security` are listed too (kinds `default_changed`,
+--- `description_changed`, `summary_changed`, `example_changed`, `tags_changed`, `deprecated_changed`,
+--- `security_changed`) and are never breaking, except a security requirement that became stricter. Neither document is modified. Raises
 --- `hecate.core.ArgumentError` when an argument is not a table.
 ---@param old table  the previous contract
 ---@param new table  the current contract

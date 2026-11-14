@@ -4,7 +4,9 @@
 -- is resolved on each side (section 4.8.24, JSON Schema 2020-12 section 8.2.3.1). A request schema (parameter, body)
 -- is an input: a change that rejects what the old contract accepted is breaking. A response schema is an output: a
 -- change that withdraws what the old contract promised is breaking. The classification of the cases the
--- specification does not list is recorded in OQ-129 (11).
+-- specification does not list is recorded in OQ-129 (11). Changes to documentation and metadata (`default`,
+-- `description`, `summary`, `example`, `examples`, `tags`, `deprecated`, `security`) are reported too, as non-breaking
+-- changes, except a security requirement that became stricter.
 global <const> require, type, pairs, ipairs, error, table, string, tostring, math
 
 local core = require("hecate.core")
@@ -57,6 +59,27 @@ end
 local function add(context, kind, breaking, path, message)
   context.changes[#context.changes + 1] = { kind = kind, breaking = breaking, path = path, message = message }
 end
+
+--- Reports `keyword` of `old` and `new` as changed with `kind` (never breaking, never holding a value).
+local function compare_keyword(context, kind, old, new, where, keyword)
+  if canonical(old[keyword]) ~= canonical(new[keyword]) then
+    add(context, kind, false, where, keyword .. " changed")
+  end
+end
+
+--- Documentation keywords shared by schemas, parameters, media types, responses, request bodies and operations.
+local function compare_documentation(context, old, new, where, keywords)
+  for _, keyword in ipairs(keywords) do
+    local kind = (keyword == "example" or keyword == "examples") and "example_changed" or keyword .. "_changed"
+    compare_keyword(context, kind, old, new, where, keyword)
+  end
+end
+
+local SCHEMA_DOCUMENTATION <const> = { "default", "deprecated", "description", "example", "examples" }
+local PARAMETER_DOCUMENTATION <const> = { "deprecated", "description", "example", "examples" }
+local MEDIA_DOCUMENTATION <const> = { "example", "examples" }
+local BODY_DOCUMENTATION <const> = { "description" }
+local OPERATION_DOCUMENTATION <const> = { "deprecated", "description", "summary" }
 
 --- Follows `$ref` into `components.schemas` of `document`; an unresolvable reference is the empty schema.
 local function resolve(document, value)
@@ -238,6 +261,7 @@ function compare_schema(context, raw_old, raw_new, where, input, depth)
     add(context, "schema_changed", true, where, "items was added or removed; the change is not analysed")
   end
   compare_opaque(context, old, new, where, input)
+  compare_documentation(context, old, new, where, SCHEMA_DOCUMENTATION)
   if key then context.active[key] = nil end
 end
 
@@ -248,6 +272,7 @@ local function compare_content(context, old, new, where, input)
     local at = where .. "/" .. media_type
     if old_map[media_type] ~= nil and new_map[media_type] ~= nil then
       compare_schema(context, as_table(old_map[media_type]).schema, as_table(new_map[media_type]).schema, at, input, 0)
+      compare_documentation(context, as_table(old_map[media_type]), as_table(new_map[media_type]), at, MEDIA_DOCUMENTATION)
     elseif old_map[media_type] ~= nil then
       add(context, "media_type_removed", true, at, "a media type was removed")
     else
@@ -279,6 +304,7 @@ local function compare_parameters(context, old, new, where)
         add(context, "parameter_optional", false, at, "a required parameter became optional")
       end
       compare_schema(context, before.schema, after.schema, at, true, 0)
+      compare_documentation(context, before, after, at, PARAMETER_DOCUMENTATION)
     elseif before then
       add(context, "parameter_removed", true, at, "a parameter was removed")
     elseif after.required == true then
@@ -309,6 +335,7 @@ local function compare_request_body(context, old, new, where)
   elseif was and not is then
     add(context, "request_body_optional", false, at, "the request body became optional")
   end
+  compare_documentation(context, as_table(before), as_table(after), at, BODY_DOCUMENTATION)
   compare_content(context, as_table(before).content, as_table(after).content, at, true)
 end
 
@@ -317,6 +344,7 @@ local function compare_responses(context, old, new, where)
   for _, code in ipairs(sorted_union(old_map, new_map)) do
     local at = where .. " responses/" .. tostring(code)
     if old_map[code] ~= nil and new_map[code] ~= nil then
+      compare_documentation(context, as_table(old_map[code]), as_table(new_map[code]), at, BODY_DOCUMENTATION)
       compare_content(context, as_table(old_map[code]).content, as_table(new_map[code]).content, at, false)
     elseif old_map[code] ~= nil then
       add(context, "response_removed", true, at, "a response was removed")
@@ -326,7 +354,79 @@ local function compare_responses(context, old, new, where)
   end
 end
 
+--- The alternatives of a security requirement list as a list of maps (scheme to the set of its scopes). A missing or
+--- empty list, like an empty alternative, requires nothing (OpenAPI 3.1 section 4.8.10, `security`).
+local function alternatives(security)
+  local list = {}
+  for _, entry in ipairs(as_table(security)) do
+    local alternative = {}
+    for scheme, scopes in pairs(as_table(entry)) do alternative[scheme] = member_set(scopes) end
+    list[#list + 1] = alternative
+  end
+  if #list == 0 then list[1] = {} end
+  return list
+end
+
+local function alternative_key(alternative)
+  local parts = {}
+  for _, scheme in ipairs(sorted_union(alternative, {})) do
+    local scopes = sorted_union(alternative[scheme], {})
+    parts[#parts + 1] = scheme .. "[" .. table.concat(scopes, ",") .. "]"
+  end
+  return table.concat(parts, "+")
+end
+
+local function security_key(list)
+  local keys = {}
+  for _, alternative in ipairs(list) do keys[#keys + 1] = alternative_key(alternative) end
+  table.sort(keys)
+  return table.concat(keys, "|")
+end
+
+--- Whether every request that satisfies `strong` also satisfies `weak`: `weak` asks for no more schemes or scopes.
+local function implied_by(weak, strong)
+  for scheme, scopes in pairs(weak) do
+    local held = strong[scheme]
+    if held == nil then return false end
+    for scope in pairs(scopes) do
+      if not held[scope] then return false end
+    end
+  end
+  return true
+end
+
+--- The security of an operation is its own `security`, else the one of the document (section 4.8.10).
+local function compare_security(context, old, new, where)
+  local old_list = alternatives(old.security ~= nil and old.security or context.old.security)
+  local new_list = alternatives(new.security ~= nil and new.security or context.new.security)
+  if security_key(old_list) == security_key(new_list) then return end
+  -- A request that passed the old requirements must pass one alternative of the new ones.
+  local stricter = false
+  for _, alternative in ipairs(old_list) do
+    local passes = false
+    for _, candidate in ipairs(new_list) do
+      if implied_by(candidate, alternative) then passes = true; break end
+    end
+    if not passes then stricter = true; break end
+  end
+  if stricter then
+    add(context, "security_changed", true, where, "the security requirement became stricter")
+  else
+    add(context, "security_changed", false, where, "the security requirement changed")
+  end
+end
+
+local function compare_tags(context, old, new, where)
+  local old_tags, new_tags = member_set(old.tags), member_set(new.tags)
+  if table.concat(sorted_union(old_tags, {}), "\0") ~= table.concat(sorted_union(new_tags, {}), "\0") then
+    add(context, "tags_changed", false, where, "tags changed")
+  end
+end
+
 local function compare_operation(context, old, new, where)
+  compare_documentation(context, old, new, where, OPERATION_DOCUMENTATION)
+  compare_tags(context, old, new, where)
+  compare_security(context, old, new, where)
   compare_parameters(context, old, new, where)
   compare_request_body(context, old, new, where)
   compare_responses(context, old, new, where)
@@ -361,6 +461,7 @@ function diff.compare(old, new)
     end
   end
   local context = { old = old, new = new, changes = {}, active = {} }
+  compare_documentation(context, as_table(old.info), as_table(new.info), "info", { "description", "summary" })
   local old_paths, new_paths = as_table(old.paths), as_table(new.paths)
   for _, path in ipairs(sorted_union(old_paths, new_paths)) do
     if old_paths[path] == nil then

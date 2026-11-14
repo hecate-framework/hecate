@@ -347,4 +347,137 @@ function T:test_documents_are_not_modified()
     require("hecate.json").encode(old, { canonical = true }))
 end
 
+--- Asserts the only change of `kind` between the documents is non-breaking and nothing else was reported.
+local function sole(case, old, new, kind, breaking)
+  local changes = openapi.diff(old, new)
+  case:assert_equal(1, #changes, "expected only " .. kind)
+  only(case, changes, kind, breaking == true)
+  return changes[1]
+end
+
+function T:test_operation_documentation_changes_are_reported_as_non_breaking()
+  local base = document(op { summary = "s", description = "d", deprecated = false, tags = { "a" } })
+  for field, kind in pairs({ summary = "summary_changed", description = "description_changed" }) do
+    local new = copy(base)
+    get(new)[field] = "other secret text"
+    local change = sole(self, base, new, kind)
+    self:assert_equal("GET /items", change.path)
+    self:assert_nil(change.message:find("secret", 1, true))
+  end
+  local flagged = copy(base)
+  get(flagged).deprecated = true
+  sole(self, base, flagged, "deprecated_changed")
+  sole(self, flagged, base, "deprecated_changed")
+  local tagged = copy(base)
+  get(tagged).tags = { "a", "b" }
+  sole(self, base, tagged, "tags_changed")
+  local reordered = copy(tagged)
+  get(reordered).tags = { "b", "a" }
+  self:assert_equal(0, #openapi.diff(tagged, reordered))
+end
+
+function T:test_info_documentation_changes_are_reported()
+  local old = document(op())
+  old.info.description = "one"
+  local new = copy(old)
+  new.info.description = "two"
+  new.info.summary = "added"
+  local changes = openapi.diff(old, new)
+  self:assert_equal(2, #changes)
+  only(self, changes, "description_changed", false)
+  only(self, changes, "summary_changed", false)
+  self:assert_equal("info", changes[1].path)
+end
+
+function T:test_schema_documentation_and_default_changes_are_reported()
+  local old = input_document({ type = "string", default = "a", description = "x", example = "e", examples = { "e" } })
+  local new = input_document({ type = "string", default = "b", description = "y", example = "f", examples = { "f" }, deprecated = true })
+  local changes = openapi.diff(old, new)
+  only(self, changes, "default_changed", false)
+  only(self, changes, "description_changed", false)
+  only(self, changes, "deprecated_changed", false)
+  local examples = 0
+  for _, change in ipairs(changes) do
+    self:assert_false(change.breaking)
+    if change.kind == "example_changed" then examples = examples + 1 end
+    for _, value in ipairs({ '"a"', '"b"', '"e"', '"f"' }) do self:assert_nil(change.message:find(value, 1, true)) end
+  end
+  self:assert_equal(2, examples)
+end
+
+function T:test_documentation_changes_follow_refs()
+  local function with(description)
+    return document(op { requestBody = { required = true, content = { ["application/json"] = {
+      schema = { ["$ref"] = "#/components/schemas/U" } } } } }, { U = { type = "object", description = description } })
+  end
+  sole(self, with("a"), with("b"), "description_changed")
+end
+
+function T:test_parameter_body_response_and_media_type_documentation_changes_are_reported()
+  local base = document(op {
+    parameters = { { name = "q", ["in"] = "query", schema = { type = "string" }, description = "a" } },
+    requestBody = { required = true, description = "a", content = { ["application/json"] = { schema = { type = "object" } } } } })
+  local new = copy(base)
+  get(new).parameters[1].description = "b"
+  get(new).parameters[1].example = "x"
+  get(new).parameters[1].deprecated = true
+  get(new).requestBody.description = "b"
+  get(new).requestBody.content["application/json"].example = { a = 1 }
+  get(new).responses["200"].description = "Done"
+  local changes = openapi.diff(base, new)
+  self:assert_equal(6, #changes)
+  for _, change in ipairs(changes) do self:assert_false(change.breaking, change.kind) end
+  only(self, changes, "deprecated_changed", false)
+end
+
+function T:test_added_security_requirement_is_breaking()
+  local open = document(op())
+  local secured = copy(open)
+  get(secured).security = { { bearer = {} } }
+  sole(self, open, secured, "security_changed", true)
+  sole(self, secured, open, "security_changed", false)
+end
+
+function T:test_security_inherited_from_the_document_is_compared()
+  local old = document(op())
+  local new = copy(old)
+  new.security = { { bearer = {} } }
+  sole(self, old, new, "security_changed", true)
+  local overridden = copy(new)
+  get(overridden).security = {}
+  sole(self, new, overridden, "security_changed", false)
+end
+
+function T:test_security_alternatives_and_scopes()
+  local function with(security)
+    local doc = document(op { security = security })
+    return doc
+  end
+  local both = with { { bearer = {} }, { key = {} } }
+  local one = with { { bearer = {} } }
+  sole(self, both, one, "security_changed", true)
+  sole(self, one, both, "security_changed", false)
+  local scoped = with { { bearer = { "read", "write" } } }
+  local narrow = with { { bearer = { "read" } } }
+  sole(self, scoped, narrow, "security_changed", false)
+  sole(self, narrow, scoped, "security_changed", true)
+  local combined = with { { bearer = {}, key = {} } }
+  sole(self, one, combined, "security_changed", true)
+  sole(self, combined, one, "security_changed", false)
+  self:assert_equal(0, #openapi.diff(both, with { { key = {} }, { bearer = {} } }))
+  local anonymous = with { { bearer = {} }, {} }
+  sole(self, one, anonymous, "security_changed", false)
+  sole(self, anonymous, one, "security_changed", true)
+end
+
+function T:test_documentation_change_messages_hold_no_values()
+  local old = input_document({ type = "string", description = "needle-one" })
+  local new = input_document({ type = "string", description = "needle-two" })
+  get(new).summary = "needle-three"
+  get(new).security = { { needle_scheme = { "needle-scope" } } }
+  for _, change in ipairs(openapi.diff(old, new)) do
+    for _, text in ipairs({ change.message, change.path }) do self:assert_nil(text:find("needle", 1, true), text) end
+  end
+end
+
 return T
