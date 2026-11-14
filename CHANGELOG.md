@@ -11,6 +11,8 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- feat(kernel): optional request body: the route declaration flag `content_optional = true` (provisional name, OQ-129 (4)) makes the input step accept an absent body (no content and no `Content-Type`), the action getting a nil `content`; a body that is present is validated as before, and a declared `content` stays required by default. The route entry gets `content_optional` (boolean, `false` by default); a non-boolean value, or the flag without `content`, is a `RouteDeclarationError` with reason `invalid_content_optional`.
+
 - feat(core): the status table `hecate.core.status` (`reason`, `is_valid`, `is_error`, `class`, `forbids_content`; RFC 9110 section 15), the single copy that `http` and `openapi` are to use, and the marker interface `core.Problem`, which declares no method and no field and says that a class is serialisable as an RFC 9457 problem; a consumer recognises it with `core.implements(class, core.Problem)` and reads the class attributes `status` (integer from 400 to 599) and `title` (string, possibly empty) itself. Owner answers (6) and (7) of OQ-129, and the owner decisions of 2026-11-14 recorded in OQ-129 (12).
 
 - feat(openapi): the contract diff (step 2 of the `openapi` item): `openapi.diff(old, new)` compares two OpenAPI documents, resolving `$ref` into components, and returns a sorted, deterministic list of `{ kind, breaking, path, message }` (removed path, operation, parameter or response, newly required parameter or request body, narrowed input type, new required property, removed enum values and stricter bounds are breaking; added operations, optional parameters, input widening and added response properties are not). Messages hold no value of the contract. Choices to confirm in OQ-129 (11).
@@ -290,6 +292,10 @@ Each release heading states the supported Lua version.
 - Glossary: `spawn` (operating-system process, as opposed to `fork`) and `message pipe`.
 
 ### Changed
+
+- feat(kernel): the base class `hecate.kernel.problem.Problem` implements the marker interface `core.Problem` (inherited by every problem class) and carries the default class attributes `status = 500` and `title = "Internal Server Error"` (OQ-129 (12)); the classes of `declare` and `problem.define` keep their own, and the reason phrases come from `core.status`.
+
+- refactor(http): `hecate.http.Status` is an alias of `hecate.core.status` (`reason`, `is_valid`, `class`, `forbids_content`, and `is_error`): the table of status codes lives once, in `core`, no longer copied in `http` (OQ-129 (12)).
 
 - feat(kernel)!: a route has no automatic name (owner decision on OQ-129 (1), amending OQ-113 (2)). The `name` of a route declaration is mandatory and set explicitly, in both styles (route modules, controllers); the default `<METHOD> <path>` is removed, and a declaration without `name` is refused with `RouteDeclarationError` (`reason = "missing_name"`, the message gives the fix). The name stays the key of reverse routing and the `operationId` of the generated document. Every route of the examples, the benchmark, the tests, the website and the specifications now declares its `name`. Breaking, before 0.1.
 
