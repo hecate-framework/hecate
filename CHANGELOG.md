@@ -11,6 +11,7 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- feat(reactor, http): `reactor.random(n)` answers `n` (0 to 1048576) cryptographically secure bytes from the system generator through libuv `uv_random`; it does not suspend and has no pseudo-random fallback. The multipart boundaries of `http` use it instead of `/dev/urandom` and `math.random` (OQ-73).
 - docs: spike OQ-17 (`docs/spikes/OQ-17-split-tool.md`): `splitsh-lite`, `git subtree split` and `git filter-repo` measured on the history of the repository; recommendation for the owner.
 - feat(kernel): the input step logs the `422`, `400` and `415` it answers, at `warning` through the logger of the application, like the guard does for a client-caused error: `method`, `path` without the query, `status`, `reason` and the violation `codes`, never a value, a name or a pointer (OQ-111).
 
