@@ -19,16 +19,16 @@
 - Step 3 `openapi`: `core.status`, problems recognised by `core.Problem`, mandatory names, `content_optional`, ordered `tags` and `external_docs`, `{rest}` documented (ca7ac03).
 - Awaiting owner: OQ-129 (11) diff rules, `content_optional` name and empty-body rule, (13); then move OQ-129 to Resolved and close #199.
 - Diff reports default, description, summary, example, tags, deprecated, security changes (cece774); `content_optional` permanent, accepts an empty body even with a Content-Type (bacfae8); owner answers recorded in OQ-129.
+- Step 4 `openapi`: conformance test: structural self-check `tests/support/structure.lua` plus comparison with the pinned official schema (`oas/3.1/schema/2026-11-05` of OAI/spec.openapis.org, `fetch-fixtures openapi`, added to ci.yml and nightly.yml); a full validation is OQ-130 (issue #203).
 
 ## Next steps
 
-1. Validate output against the official OpenAPI 3.1 JSON Schema (vendor it; `conforms` helper in `packages/schema/tests/support`).
-2. Served `/openapi.json` (development default) and reference page; needs a kernel hook.
-3. YAML output and the `hecate contract export` hook (kernel/cli).
-4. Lint: names, descriptions, examples, undocumented responses as errors, unused listed tags.
-5. Integration tests and website reference pages (`{rest...}` documented).
-6. Later, optional: controller-level default `tags` (roadmap).
-7. CI green on three platforms, delete HANDOFF.md, tick roadmap, mark ready.
+1. Served `/openapi.json` (development default) and reference page; needs a kernel hook.
+2. YAML output and the `hecate contract export` hook (kernel/cli).
+3. Lint: names, descriptions, examples, undocumented responses as errors, unused listed tags.
+4. Integration tests and website reference pages (`{rest...}` documented).
+5. Later, optional: controller-level default `tags` (roadmap).
+6. CI green on three platforms, delete HANDOFF.md, tick roadmap, mark ready.
 
 ## Decisions taken (and where they are recorded)
 

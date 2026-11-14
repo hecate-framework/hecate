@@ -382,6 +382,11 @@ jobs:
         shell: bash
         run: lua tools/run.lua fetch-fixtures schema
 
+      - name: Download the OpenAPI 3.1 JSON Schema
+        if: contains(format(' {0} ', needs.plan.outputs.packages), ' openapi ')
+        shell: bash
+        run: lua tools/run.lua fetch-fixtures openapi
+
       - name: Lint the JSON encoder (Linux)
         if: runner.os == 'Linux' && contains(format(' {0} ', needs.plan.outputs.packages), ' json ')
         working-directory: packages/json/native

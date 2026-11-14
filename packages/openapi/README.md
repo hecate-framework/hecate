@@ -44,6 +44,18 @@
 - Schemas go through `Schema:to_json_schema`; their `$defs` become `components.schemas` (OQ-89). The problem details schema (RFC 9457) is the component `ProblemDetails`, referenced with `application/problem+json` by the responses declared with a problem class.
 - Choices taken conservatively are listed in OQ-129.
 
+## Tests
+
+- `tests/unit/` (run with `lua tools/run.lua test openapi`): assembly, golden file `tests/fixtures/shop.openapi.json`, diff.
+- `tests/unit/conformance_test.lua`: conformance to OpenAPI 3.1. The structural self-check `tests/support/structure.lua`
+  (fixed fields of the objects the assembly emits: required fields, no unknown fields, mandatory response description,
+  declared and required path parameters, resolvable `$ref`) runs always over the golden document and the documents of
+  the build tests. No checker of the repository can evaluate the official JSON Schema itself (`$dynamicRef`,
+  `unevaluatedProperties`, `if`/`then`/`else`, `format`, `pattern`; OQ-130), so when the pinned official schema is
+  downloaded (`lua tools/run.lua fetch-fixtures openapi`, `oas/3.1/schema/2026-11-05` of OAI/spec.openapis.org, pinned in
+  `tests/external.lua`) the test compares the `required` and `properties` of each object with the fixed-field tables of
+  the self-check. Without the download the comparison is skipped locally and fails in CI.
+
 ## Layout (once implemented)
 
 ```text
