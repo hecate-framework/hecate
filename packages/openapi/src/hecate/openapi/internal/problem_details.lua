@@ -1,6 +1,8 @@
 -- The problem details component (RFC 9457 section 3.1): the schema that error responses reference, and the media
 -- type they use (RFC 9457 section 6.1).
-global <const> type, math
+global <const> require, type
+
+local core = require("hecate.core")
 
 --- The problem details schema and media type.
 ---@class hecate.openapi.problem_details
@@ -32,12 +34,13 @@ function problem_details.schema()
   }
 end
 
---- Tells whether a response declaration is a problem class (`hecate.kernel.problem`): a table, not a schema, with an
---- integer `status` and a string `title`. Duck-typed, because this package does not depend on the kernel.
+--- Tells whether a response declaration is a problem class: a class that implements the marker interface
+--- `core.Problem` (a subclass inherits the declaration). The class attributes `status` and `title` are read and
+--- validated by the caller (OQ-129 (7), (12)).
 ---@param value any
 ---@return boolean
 function problem_details.is_class(value)
-  return type(value) == "table" and math.type(value.status) == "integer" and type(value.title) == "string"
+  return type(value) == "table" and core.implements(value, core.Problem)
 end
 
 return problem_details

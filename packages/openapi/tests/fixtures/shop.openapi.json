@@ -52,6 +52,10 @@
       }
     }
   },
+  "externalDocs": {
+    "description": "The guide.",
+    "url": "https://x.test/docs"
+  },
   "info": {
     "contact": {
       "name": "Ops"
@@ -280,6 +284,10 @@
   ],
   "tags": [
     {
+      "description": "Accounts of the shop.",
+      "externalDocs": {
+        "url": "https://x.test/users"
+      },
       "name": "users"
     }
   ]

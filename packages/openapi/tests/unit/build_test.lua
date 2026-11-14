@@ -1,4 +1,4 @@
----@diagnostic disable: need-check-nil, param-type-mismatch, missing-fields  -- the tests index tables they just asserted exist and pass invalid options on purpose
+---@diagnostic disable: need-check-nil, param-type-mismatch, assign-type-mismatch, missing-fields  -- the tests index tables they just asserted exist and pass invalid options on purpose
 local test = require("harness.test")
 local core = require("hecate.core")
 local json = require("hecate.json")
@@ -16,8 +16,15 @@ local Id = schema.integer { minimum = 1 }
 local User = schema.named("User", schema.object { id = Id, name = schema.string() })
 local NewUser = schema.object { name = schema.string(), email = schema.optional(schema.string()) }
 
---- A problem class, as `hecate.kernel.problem` produces them (only `status` and `title` are read).
-local NotFound = { status = 404, title = "Not Found", type = "about:blank" }
+--- A problem class, as `hecate.kernel.problem` produces them: it implements `core.Problem` and carries the class
+--- attributes `status` and `title` (the only ones read).
+local function problem_class(name, attributes)
+  local class = core.class(name, core.Error, { implements = { core.Problem } })
+  for key, value in pairs(attributes) do class[key] = value end
+  return core.finalise(class)
+end
+
+local NotFound = problem_class("NotFound", { status = 404, title = "Not Found", type = "about:blank" })
 
 --- A route entry as `hecate.kernel.route.normalise` produces it, completed by `fields`.
 local function entry(fields)
@@ -185,6 +192,8 @@ function T:test_golden_document()
   local document = openapi.build {
     info = { title = "Shop", version = "1.2.0", contact = { name = "Ops" }, license = { name = "MIT", identifier = "MIT" } },
     servers = { { url = "https://api.x.test" } }, routes = routes(),
+    tags = { { name = "users", description = "Accounts of the shop.", external_docs = { url = "https://x.test/users" } } },
+    external_docs = { url = "https://x.test/docs", description = "The guide." },
   }
   local actual = openapi.encode(document, { pretty = true })
   local path = here .. "/../fixtures/shop.openapi.json"
@@ -203,6 +212,122 @@ function T:test_tags_are_collected_sorted()
   local document = build()
   self:assert_equal("users", document.tags[1].name)
   self:assert_equal(1, #document.tags)
+end
+
+function T:test_listed_tags_keep_their_order_and_unlisted_ones_follow_alphabetically()
+  local list = {
+    entry { path = "/a", name = "a", tags = { "zeta", "users" } },
+    entry { path = "/b", name = "b", tags = { "alpha", "orders" } },
+  }
+  local document = openapi.build { info = INFO, routes = list, tags = {
+    { name = "users", description = "Accounts", external_docs = { url = "https://x.test/users", description = "More" } },
+    { name = "orders" }, { name = "unused" },
+  } }
+  local names = {}
+  for index, tag in ipairs(document.tags) do names[index] = tag.name end
+  self:assert_equal("users,orders,unused,alpha,zeta", table.concat(names, ","))
+  self:assert_equal("Accounts", document.tags[1].description)
+  self:assert_equal("https://x.test/users", document.tags[1].externalDocs.url)
+  self:assert_equal("More", document.tags[1].externalDocs.description)
+  self:assert_nil(document.tags[2].description)
+  self:assert_nil(document.tags[4].description)
+end
+
+function T:test_invalid_tags_are_refused()
+  raises_argument_error(self, function() openapi.build { info = INFO, routes = {}, tags = { { name = "a" }, { name = "a" } } } end, "duplicate")
+  raises_argument_error(self, function() openapi.build { info = INFO, routes = {}, tags = { { name = 1 } } } end, "tags[1].name")
+  raises_argument_error(self, function() openapi.build { info = INFO, routes = {}, tags = { {} } } end, "tags[1].name")
+  raises_argument_error(self, function() openapi.build { info = INFO, routes = {}, tags = { { name = "a", nonsense = 1 } } } end, "nonsense")
+  raises_argument_error(self, function() openapi.build { info = INFO, routes = {}, tags = { { name = "a", external_docs = {} } } } end, "url")
+  raises_argument_error(self, function() openapi.build { info = INFO, routes = {}, tags = "x" } end, "tags")
+end
+
+function T:test_external_docs()
+  local document = openapi.build { info = INFO, routes = {}, external_docs = { url = "https://x.test/docs", description = "Guide" } }
+  self:assert_equal("https://x.test/docs", document.externalDocs.url)
+  self:assert_equal("Guide", document.externalDocs.description)
+  self:assert_nil(openapi.build { info = INFO, routes = {} }.externalDocs)
+  raises_argument_error(self, function() openapi.build { info = INFO, routes = {}, external_docs = { description = "x" } } end, "external_docs.url")
+  raises_argument_error(self, function() openapi.build { info = INFO, routes = {}, external_docs = { url = "u", nonsense = 1 } } end, "nonsense")
+end
+
+function T:test_a_route_without_a_name_is_refused()
+  raises_argument_error(self, function() openapi.build { info = INFO, routes = { entry { path = "/a", name = false } } } end, "routes[1].name")
+  local nameless = entry { path = "/a" }
+  nameless.name = nil
+  raises_argument_error(self, function() openapi.build { info = INFO, routes = { nameless } } end, "routes[1].name")
+  local empty = entry { path = "/a" }
+  empty.name = ""
+  raises_argument_error(self, function() openapi.build { info = INFO, routes = { empty } } end, "routes[1].name")
+end
+
+function T:test_request_body_required_follows_content_optional()
+  local function body(optional)
+    local fields = { method = "POST", path = "/x", name = "x", content = { ["application/json"] = NewUser } }
+    if optional ~= nil then fields.content_optional = optional end
+    return openapi.build { info = INFO, routes = { entry(fields) } }.paths["/x"].post.requestBody
+  end
+  self:assert_true(body(nil).required)
+  self:assert_true(body(false).required)
+  self:assert_false(body(true).required)
+end
+
+function T:test_a_wildcard_is_documented_without_its_ellipsis()
+  local document = build()
+  self:assert_not_nil(document.paths["/files/{rest}"])
+  self:assert_nil(document.paths["/files/{rest...}"])
+  self:assert_equal("getFile", document.paths["/files/{rest}"].get.operationId)
+end
+
+function T:test_a_response_without_a_phrase_falls_back_to_the_class_label()
+  local document = openapi.build { info = INFO, routes = { entry { path = "/x", name = "x",
+    responses = { [299] = true, [499] = true, [599] = true, [199] = true, [399] = true, [418] = true } } } }
+  local responses = document.paths["/x"].get.responses
+  self:assert_equal("Success", responses["299"].description)
+  self:assert_equal("Client Error", responses["499"].description)
+  self:assert_equal("Server Error", responses["599"].description)
+  self:assert_equal("Informational", responses["199"].description)
+  self:assert_equal("Redirection", responses["399"].description)
+  self:assert_equal("I'm a teapot", responses["418"].description)
+end
+
+function T:test_a_problem_is_recognised_by_the_interface_not_by_its_shape()
+  -- a plain table with `status` and `title` is no problem class, and no schema either: refused
+  raises_argument_error(self, function()
+    openapi.build { info = INFO, routes = { entry { path = "/x", name = "x", responses = { [404] = { status = 404, title = "Not Found" } } } } }
+  end, "route \"x\"")
+  -- a class that does not implement core.Problem is no problem class
+  local PlainClass = core.class("Plain", core.Error)
+  PlainClass.status, PlainClass.title = 404, "Not Found"
+  local Plain = core.finalise(PlainClass)
+  raises_argument_error(self, function()
+    openapi.build { info = INFO, routes = { entry { path = "/x", name = "x", responses = { [404] = Plain } } } }
+  end, "route \"x\"")
+  -- a subclass inherits the declaration
+  local Child = core.finalise(core.class("ChildProblem", NotFound))
+  local document = openapi.build { info = INFO, routes = { entry { path = "/x", name = "x", responses = { [404] = Child } } } }
+  self:assert_equal("Not Found", document.paths["/x"].get.responses["404"].description)
+end
+
+function T:test_problem_attributes_are_validated()
+  local function refuses(attributes)
+    local class = problem_class("Bad" .. tostring(attributes.status), attributes)
+    local err = raises_argument_error(self, function()
+      openapi.build { info = INFO, routes = { entry { path = "/x", name = "createX", responses = { [400] = class } } } }
+    end, "createX")
+    self:assert_true(tostring(err):find("400", 1, true) ~= nil, tostring(err))
+    return err
+  end
+  refuses({ status = 200, title = "Fine" })
+  refuses({ status = 404.5, title = "Fractional" })
+  refuses({ status = "404", title = "Text" })
+  refuses({ status = 404, title = 7 })
+  local err = refuses({ status = 600, title = "Out of range secret-value" })
+  self:assert_nil(tostring(err):find("secret-value", 1, true), "no user data in the message")
+  -- an empty title is accepted
+  local ok = problem_class("EmptyTitle", { status = 409, title = "" })
+  local document = openapi.build { info = INFO, routes = { entry { path = "/x", name = "x", responses = { [409] = ok } } } }
+  self:assert_equal("", document.paths["/x"].get.responses["409"].description)
 end
 
 function T:test_invalid_options_are_refused()

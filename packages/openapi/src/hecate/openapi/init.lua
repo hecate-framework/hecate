@@ -9,7 +9,6 @@ local schema = require("hecate.schema")
 local Components = require("hecate.openapi.internal.components")
 local diff = require("hecate.openapi.internal.diff")
 local problem_details = require("hecate.openapi.internal.problem_details")
-local status = require("hecate.openapi.internal.status")
 
 --- The contact of the API (OpenAPI 3.1 section 4.8.3).
 ---@class hecate.openapi.Contact
@@ -42,22 +41,36 @@ local status = require("hecate.openapi.internal.status")
 --- kernel; the fields it does not read, such as `filters` and `action`, are ignored).
 ---@class hecate.openapi.RouteEntry
 ---@field method string  upper case
----@field path string  the full path template (`{id}`, and `{rest...}` for a wildcard)
----@field name string  unique; becomes the `operationId`
+---@field path string  the full path template (`{id}`, and `{rest...}` for a wildcard, documented as `{rest}`)
+---@field name string  mandatory, non-empty and unique; becomes the `operationId`
 ---@field summary? string
 ---@field description? string
 ---@field tags? string[]
 ---@field deprecated? boolean
 ---@field parameters? { path?: table<string, hecate.schema.Schema>, query?: table<string, hecate.schema.Schema>, fields?: table<string, hecate.schema.Schema>, cookies?: table<string, hecate.schema.Schema> }
 ---@field content? table<string, hecate.schema.Schema>  request schema per media type
----@field responses? table<integer, hecate.schema.Schema|table|true>  schema, problem class (`status`, `title`) or `true`
+---@field content_optional? boolean  true: the request body is not required (`required: false`); default and absent: required
+---@field responses? table<integer, hecate.schema.Schema|table|true>  schema, problem class (implements `core.Problem`; class attributes `status` 400..599 and `title`) or `true`
 ---@field security? table[]  requirements, kept as declared
+
+--- A tag of the document (section 4.8.22): `external_docs` is written `externalDocs`.
+---@class hecate.openapi.Tag
+---@field name string
+---@field description? string
+---@field external_docs? hecate.openapi.ExternalDocs
+
+--- External documentation (section 4.8.23).
+---@class hecate.openapi.ExternalDocs
+---@field url string
+---@field description? string
 
 --- Options of `build`.
 ---@class hecate.openapi.BuildOptions
 ---@field info hecate.openapi.Info
 ---@field routes hecate.openapi.RouteEntry[]
 ---@field servers? hecate.openapi.Server[]
+---@field tags? hecate.openapi.Tag[]  ordered: the display order is the list order; tags that routes use and the list omits are appended alphabetically
+---@field external_docs? hecate.openapi.ExternalDocs  rendered as `externalDocs`
 
 --- Document assembly and encoding.
 ---@class hecate.openapi
@@ -137,11 +150,46 @@ local function servers_list(servers)
   return list
 end
 
+--- External documentation (section 4.8.23) as an object, or nil when absent.
+local function external_docs_object(value, where)
+  if value == nil then return nil end
+  check_table(value, where, { url = true, description = true })
+  check_string(value.url, where .. ".url", true)
+  return { url = value.url, description = check_string(value.description, where .. ".description", false) }
+end
+
+--- The listed tags (section 4.8.22) in list order, validated; the names of the list in a set.
+local function listed_tags(tags)
+  if tags == nil then return {}, {} end
+  if type(tags) ~= "table" then refuse("tags must be a list, got " .. describe(tags)) end
+  local list, listed = {}, {}
+  for index, tag in ipairs(tags) do
+    local where = "tags[" .. index .. "]"
+    check_table(tag, where, { name = true, description = true, external_docs = true })
+    check_string(tag.name, where .. ".name", true)
+    if listed[tag.name] then refuse(("duplicate tag name in %s.name"):format(where), { index = index }) end
+    listed[tag.name] = true
+    list[index] = { name = tag.name, description = check_string(tag.description, where .. ".description", false),
+      externalDocs = external_docs_object(tag.external_docs, where .. ".external_docs") }
+  end
+  return list, listed
+end
+
 --- A path template of the router as an OpenAPI path template (section 4.8.2): `{rest...}` is written `{rest}`.
 ---@param path string
 ---@return string
 local function openapi_path(path)
   return (string.gsub(path, "{([%a_][%w_]*)%.%.%.}", "{%1}"))
+end
+
+--- The description of a response (section 4.8.17, required): the reason phrase of the code (RFC 9110 section 15), or the
+--- class of the code for a code without a phrase.
+---@param code integer
+---@return string
+local function description_of(code)
+  local phrase = core.status.reason(code)
+  if phrase ~= nil then return phrase end
+  return ({ "Informational", "Success", "Redirection", "Client Error", "Server Error" })[code // 100]
 end
 
 local function sorted_keys(map)
@@ -177,12 +225,12 @@ local function responses_of(entry, components, where)
     any = true
     local key = tostring(code)
     if declared == true then
-      responses[key] = { description = status.description(code) }
+      responses[key] = { description = description_of(code) }
     elseif problem_details.is_class(declared) then
       responses[key] = { description = declared.title, content = { [problem_details.MEDIA_TYPE] = {
         schema = { ["$ref"] = "#/components/schemas/" .. problem_details.NAME } } } }
     else
-      responses[key] = { description = status.description(code), content = { ["application/json"] = {
+      responses[key] = { description = description_of(code), content = { ["application/json"] = {
         schema = components:convert(declared, where .. " response " .. key) } } }
     end
   end
@@ -209,7 +257,7 @@ local function operation_of(entry, components)
     for media_type, s in pairs(entry.content) do
       content[media_type] = { schema = components:convert(s, where .. " request content " .. media_type) }
     end
-    operation.requestBody = { required = true, content = content }
+    operation.requestBody = { required = entry.content_optional ~= true, content = content }
   end
   if entry.security ~= nil and #entry.security > 0 then
     operation.security = {}
@@ -228,6 +276,9 @@ local function check_entry(entry, index)
     refuse(where .. ".path must be a path template starting with '/', got " .. describe(entry.path))
   end
   check_string(entry.name, where .. ".name", true)
+  if entry.content_optional ~= nil and type(entry.content_optional) ~= "boolean" then
+    refuse(where .. ".content_optional must be a boolean, got " .. describe(entry.content_optional))
+  end
   for _, field in ipairs({ "content", "responses" }) do
     if entry[field] ~= nil and type(entry[field]) ~= "table" then refuse(where .. "." .. field .. " must be a table, got " .. describe(entry[field])) end
   end
@@ -238,8 +289,15 @@ local function check_entry(entry, index)
     if math.type(code) ~= "integer" or code < 100 or code > 599 then
       refuse(where .. ".responses keys are status codes (100..599), got " .. describe(code))
     end
-    if declared ~= true and not schema.is_schema(declared) and not problem_details.is_class(declared) then
-      refuse(("%s.responses[%d] must be a schema, a problem class or true, got %s"):format(where, code, describe(declared)))
+    if problem_details.is_class(declared) then
+      -- the class attributes are data of the user's class: validated here, never echoed (no user data in messages)
+      local here = ("route %q response %d"):format(entry.name, code)
+      if not core.status.is_error(declared.status) then
+        refuse(here .. ": the problem class attribute status must be an integer from 400 to 599")
+      end
+      if type(declared.title) ~= "string" then refuse(here .. ": the problem class attribute title must be a string") end
+    elseif declared ~= true and not schema.is_schema(declared) then
+      refuse(("route %q response %d must be a schema, a problem class (implements core.Problem) or true, got %s"):format(entry.name, code, type(declared)))
     end
   end
   for _, location in pairs(entry.parameters or {}) do
@@ -254,15 +312,21 @@ end
 --- which keeps contract diffs stable. The schemas of `hecate.schema` are emitted with `to_json_schema`; their
 --- `$defs` become `components.schemas` and their references `#/components/schemas/...` (OQ-89). The problem details
 --- schema (RFC 9457) is the component `ProblemDetails`, referenced by the responses declared with a problem class.
---- Raises `hecate.core.ArgumentError` for invalid options, for two routes with the same method and path or the same
+--- A wildcard `{rest...}` of the router is written `{rest}` in the document: OpenAPI has no wildcard segment, so
+--- the document loses the information that the parameter spans several segments. `options.tags` lists the tags in
+--- display order with descriptions; `options.external_docs` becomes `externalDocs`. Every route needs a non-empty
+--- string `name`, which is its `operationId`. Raises `hecate.core.ArgumentError` for invalid options, for a route
+--- without a name, for a problem class whose `status` or `title` is invalid, for a duplicate or non-string tag name, for two routes with the same method and path or the same
 --- name, and for two different schemas under one component name.
 ---@param options hecate.openapi.BuildOptions
 ---@return table document
 function openapi.build(options)
-  check_table(options, "options", { info = true, routes = true, servers = true })
+  check_table(options, "options", { info = true, routes = true, servers = true, tags = true, external_docs = true })
   if options.info == nil then refuse("options.info is required") end
   if type(options.routes) ~= "table" then refuse("options.routes must be a list of route entries, got " .. describe(options.routes)) end
-  local document = { openapi = openapi.VERSION, info = info_object(options.info), servers = servers_list(options.servers) }
+  local document = { openapi = openapi.VERSION, info = info_object(options.info), servers = servers_list(options.servers),
+    externalDocs = external_docs_object(options.external_docs, "external_docs") }
+  local tags, listed = listed_tags(options.tags)
 
   local components = Components()
   components:define(problem_details.NAME, problem_details.schema(), "the built-in problem details schema")
@@ -292,8 +356,10 @@ function openapi.build(options)
     for _, tag in ipairs(entry.tags or {}) do tag_set[tag] = true end
   end
   document.paths = paths
-  local tags = {}
-  for _, name in ipairs(sorted_keys(tag_set)) do tags[#tags + 1] = { name = name } end
+  -- Listed tags first, in list order; the tags that routes use and the list omits follow alphabetically.
+  for _, name in ipairs(sorted_keys(tag_set)) do
+    if not listed[name] then tags[#tags + 1] = { name = name } end
+  end
   if #tags > 0 then document.tags = tags end
   document.components = { schemas = components.schemas }
   return document
