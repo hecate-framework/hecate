@@ -253,3 +253,27 @@ rock's own suite from a clone of its `v0.0.1` tag (all fixtures present), then t
   ADR 0023 on `sighup` in a primary (`Supervisor:reload`; I first wrote that the trigger was missing, which was wrong); the
   open parts are reload on Windows, the upgrade of the primary or of the binary (out of scope in ADR 0023) and
   whether the CLI adds commands. Recorded in the OQ-133 entry.
+
+### Verification of ADR 0029 (2026-11-14)
+
+A throwaway workflow (`spike-oq13-interpreter`, in the history of pull request #200 up to commit `8675396`, removed after the
+run) ran `verify_interpreter.sh` or `verify_interpreter.ps1` on each platform: a host program embedding Lua 5.5 with the Lua
+API exported (Windows: linked to `lua55.dll`) (1) loads a native rock built by the standard toolchain, (2) runs the LuaRocks
+3.13.0 sources and installs a pure-Lua rock, (3) runs LuaRocks to build a source rock with a C module from the Lua headers
+and loads it, (4) runs the sha256 contract test with the `digest` and `plc` backends.
+
+| Runner | Result |
+|---|---|
+| ubuntu-latest (x86_64) | all four checks pass |
+| ubuntu-24.04-arm (aarch64) | all four checks pass |
+| macos-latest (arm64) | all four checks pass |
+| macos-15-intel (x86_64) | all four checks pass |
+| windows-latest (MSVC, x86_64) | all four checks pass **with `lfs` available to the host**; checks 1 and 2 passed without it, check 3 failed |
+
+- The Windows failure, found from the verbose output of LuaRocks: without LuaFileSystem it lists the files of an installed rock with
+  the `find` command, which on Windows is the text-search tool; the list is empty, the rock manifest is empty, nothing is deployed,
+  and the rock reports "installed" yet cannot be required. Installing `luafilesystem` with the standard toolchain and giving the
+  host access to it fixed it. The official `luarocks.exe` bundles `lfs`.
+- Windows needs `lua55.dll` beside the executable: native rocks link against it, and the host shares it.
+- Not verified: Windows arm64, musl, Lua 5.4, embedding the LuaRocks sources and the Lua headers in the executable, and the
+  installers. ADR 0029 is Accepted on these results.

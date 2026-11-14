@@ -327,7 +327,7 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
 - [ ] `cli` v1: self-contained executable, `new`, `install`, `add`, `remove`, `update`,
       `serve [--watch]`, `test`, `doc`, `contract`, `toolchain`, `doctor`, `version`.
       **Also (OQ-13, resolved 2026-11-14):** the executable embeds Lua 5.5 and LuaRocks and is the interpreter of Lua
-      5.5 projects (OQ-131, ADR 0029 Proposed: verify on Windows and macOS first, then ask the owner to accept it); framework
+      5.5 projects (OQ-131, ADR 0029 Accepted and verified on the CI platforms; on Windows `lua55.dll` ships beside `hecate.exe` and `lfs` is embedded for LuaRocks); framework
       packages stay project dependencies; settle OQ-132 (how the CLI runs the project's interpreter: child process through
       `reactor`, signals, exit code, `--watch`) and OQ-133 (managing running instances in production) first; toolchain
       archives per platform and architecture only for other Lua versions; installers (Windows setup executable, macOS
