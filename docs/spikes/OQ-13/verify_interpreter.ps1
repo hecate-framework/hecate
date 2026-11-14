@@ -47,6 +47,8 @@ Run $host_ $LuaRocksBin --tree "$Work\t2" install $PureRock
 
 Step "3. LuaRocks runs inside the host and builds a source rock ($NativeRock) from the Lua headers"
 Run $host_ $LuaRocksBin --tree "$Work\t3" install $NativeRock
+Write-Host 'files installed in t3:'
+Get-ChildItem -Recurse -File "$Work\t3" | ForEach-Object { Write-Host "  $($_.FullName)" }
 $env:LUA_PATH = "$LuaRocksLib\?.lua;;"
 $env:LUA_CPATH = "$Work\t3\lib\lua\5.5\?.dll;;"
 Run $host_ "$here\check_native.lua" $NativeRock
