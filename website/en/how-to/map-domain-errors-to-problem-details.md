@@ -203,6 +203,15 @@ a `reason` (`invalid_input`, `malformed_content`, `unsupported_media_type`, `rep
 JSON Pointer: a query can carry a credential, and a key can be personal data. A request whose inputs conform logs
 nothing.
 
+### Accept a request without a body
+
+A route that declares `content` requires its body: a request without one is a `422`, the schema reporting the
+missing value. To accept a request with no body, add `content_optional = true` to the declaration of the route. The
+input step then lets an absent body through, and the action reads `request.content` as `nil`. A body that is present is
+validated as before: a body that does not conform is still a `422`, malformed JSON a `400`, another media type a `415`.
+An empty body that comes with a `Content-Type` field counts as present, so it is a `400`. The flag needs a declared
+`content` and a boolean value; the declaration is refused otherwise, with the reason `invalid_content_optional`.
+
 ### The record of the guard
 
 The logged record carries the message of the error, its class (`error_class`) and code (`error_code`), the method, the

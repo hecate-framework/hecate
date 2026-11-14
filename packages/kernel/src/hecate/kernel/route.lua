@@ -1,7 +1,7 @@
 -- The route entry: the single normalised shape that both declaration styles (controllers and route modules) produce
 -- and that `hecate.router` compiles (ADR 0006, http-and-routing.md "Route declaration"). Everything is validated here,
 -- when a route is declared, never lazily at the first request.
-global <const> require, type, error, pairs, ipairs, tostring, table, string, math
+global <const> require, type, error, pairs, ipairs, tostring, table, string, math, next
 
 local schema = require("hecate.schema")
 local template = require("hecate.router").template
@@ -22,6 +22,7 @@ local errors = require("hecate.kernel.errors")
 ---@field deprecated boolean
 ---@field parameters hecate.kernel.RouteParameters
 ---@field content table<string, hecate.schema.Schema>  request schema per media type
+---@field content_optional boolean  false by default: a declared `content` means the request body is required; true accepts an absent body (the action gets a nil `content`), a present body being validated all the same (OQ-129 (4))
 ---@field responses table<integer, hecate.schema.Schema|table|true>  schema, problem class, or `true` (declared without content) per status code
 ---@field security table[]  requirements, kept as declared (the `security` package defines their shape)
 ---@field filters hecate.kernel.Filter[]  outermost first: those of the controller, then those of the route
@@ -49,6 +50,7 @@ local errors = require("hecate.kernel.errors")
 ---@field deprecated? boolean
 ---@field parameters? { path?: table<string, hecate.schema.Schema>, query?: table<string, hecate.schema.Schema>, fields?: table<string, hecate.schema.Schema>, cookies?: table<string, hecate.schema.Schema> }
 ---@field content? table<string, hecate.schema.Schema>
+---@field content_optional? boolean  accept a request without body (needs `content`); default false
 ---@field responses? table<integer, hecate.schema.Schema|table|true>  `true` declares a status without content (`[204] = true`)
 ---@field security? table[]
 ---@field filters? hecate.kernel.Filter[]
@@ -67,7 +69,7 @@ for _, method in ipairs(route.METHODS) do METHOD_SET[method] = true end
 
 local KNOWN <const> = {
   method = true, path = true, name = true, summary = true, description = true, tags = true, deprecated = true,
-  parameters = true, content = true, responses = true, security = true, filters = true, action = true,
+  parameters = true, content = true, content_optional = true, responses = true, security = true, filters = true, action = true,
 }
 local LOCATIONS <const> = { "path", "query", "fields", "cookies" }
 
@@ -257,6 +259,15 @@ function route.normalise(spec, options)
     end
   end
 
+  if spec.content_optional ~= nil then
+    if type(spec.content_optional) ~= "boolean" then
+      refuse(NORMALISE, origin, "invalid_content_optional", "content_optional", "content_optional must be a boolean, got " .. got(spec.content_optional))
+    end
+    if spec.content_optional and next(content) == nil then
+      refuse(NORMALISE, origin, "invalid_content_optional", "content_optional", "content_optional = true needs a declared content: there is no request body to make optional")
+    end
+  end
+
   local responses = {}
   if spec.responses ~= nil then
     if type(spec.responses) ~= "table" then refuse(NORMALISE, origin, "invalid_responses", "responses", "responses must be a table by status code, got " .. got(spec.responses)) end
@@ -317,6 +328,7 @@ function route.normalise(spec, options)
     deprecated = spec.deprecated or false,
     parameters = parameters,
     content = content,
+    content_optional = spec.content_optional or false,
     responses = responses,
     security = security,
     filters = filters,

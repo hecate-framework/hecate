@@ -94,7 +94,7 @@
   catches cancellation or deadline errors. Choices: OQ-112.
 
 - `kernel.problem`: problem classes (RFC 9457), built with the object model of `hecate.core`. `Problem` is a subclass of
-  `hecate.core.Error`, so an instance is raisable (`error(NotFound { ... })`, mapped by `problems.guard`) and returnable
+  `hecate.core.Error` that implements the marker interface `core.Problem` (inherited by every problem class, so that `hecate.openapi` recognises one with `core.implements`) and carries the default class attributes `status = 500` and `title = "Internal Server Error"`; the classes below, and those of `problem.define`, set their own. So an instance is raisable (`error(NotFound { ... })`, mapped by `problems.guard`) and returnable
   by an action (`results.serialise` answers it as `application/problem+json`). Classes: `BadRequest` 400, `Unauthorized`
   401, `Forbidden` 403, `NotFound` 404, `MethodNotAllowed` 405, `NotAcceptable` 406, `RequestTimeout` 408, `Conflict` 409,
   `Gone` 410, `PreconditionFailed` 412, `ContentTooLarge` 413, `UnsupportedMediaType` 415, `UnprocessableContent` 422,
@@ -149,16 +149,16 @@
   binding name) are resolved in `request.services` in the sorted order of the field names, one new instance per request.
 - `kernel.route.normalise(spec, options)`, `kernel.route.METHODS`, `kernel.route.check_action(entry)`: the single route entry
   (`hecate.kernel.RouteEntry`: `method`, `path`, `name`, `summary`, `description`, `tags`, `deprecated`, `parameters`
-  with `path`, `query`, `fields` and `cookies`, `content`, `responses`, `security`, `filters`, `action`, plus `controller`
+  with `path`, `query`, `fields` and `cookies`, `content`, `content_optional`, `responses`, `security`, `filters`, `action`, plus `controller`
   and `origin`), usable as a `hecate.router.Route`. A `responses` value is a schema, a problem class or `true`, which
   declares a status without content (`[204] = true`). The `name` is mandatory and set explicitly in both styles (OQ-129 (1)): a route has no automatic name, and a declaration
-  without `name` is refused with `RouteDeclarationError` (`missing_name`), so equivalent declarations give equal tables. The parameters of the path template and `parameters.path` must match both ways.
+  without `name` is refused with `RouteDeclarationError` (`missing_name`), so equivalent declarations give equal tables. A declared `content` means the request body is required; `content_optional = true` (a boolean, `false` by default, refused with `invalid_content_optional` when it is not a boolean or the route declares no `content`; provisional name, OQ-129 (4)) lets the input step accept an absent body, the action getting a nil `content`, while a body that is present is still validated. The parameters of the path template and `parameters.path` must match both ways.
 - `kernel.routing.collect(sources, module_filters?)`: the flat route table of route modules and controller classes, ready for
   `router.Router`. With `module_filters`, each entry is a copy tagged `module_filters` (the second layer of its chain).
 - `kernel.RouteDeclarationError`: a `ConfigurationError`, the one error of a route declaration, at declaration or at boot:
   a type mistake in an argument of `kernel.routes`, a verb or `Controller.route` is `reason = "invalid_argument"`.
   `context.reason` (`invalid_argument`, `invalid_options`, `unknown_field`, `invalid_method`, `invalid_path`, `missing_name`, `invalid_name`,
-  `invalid_text`, `invalid_tags`, `invalid_deprecated`, `invalid_parameters`, `parameter_mismatch`, `invalid_content`,
+  `invalid_text`, `invalid_tags`, `invalid_deprecated`, `invalid_parameters`, `parameter_mismatch`, `invalid_content`, `invalid_content_optional`,
   `invalid_responses`, `invalid_security`, `invalid_filters`, `invalid_action`, `missing_action`, `invalid_controller`,
   `invalid_routes`, `invalid_source`, `incomplete_route`, `missing_container`, `unsupported_content_type`; the list is
   on the class), `context.origin`, `context.field`. Choices: OQ-113.

@@ -142,6 +142,36 @@ function T:test_json_content_is_built_with_a_class_bound_schema_and_consumed()
   self:assert_equal(200, with_charset.status)
 end
 
+function T:test_an_absent_body_is_a_422_by_default_and_accepted_with_content_optional()
+  local content = { ["application/json"] = schema.object({ name = schema.string() }) }
+  local required = serve_with("POST", "/r", { content = content })
+  self:assert_equal(422, required(request("POST", "/r")).status)
+
+  local seen, called = "unset", false
+  local serve = serve_with("POST", "/o", {
+    content = content, content_optional = true,
+    action = function(r) called = true; seen = r.content; return { ok = true } end,
+  })
+  self:assert_equal(200, serve(request("POST", "/o")).status)
+  self:assert_true(called)
+  self:assert_nil(seen)
+end
+
+function T:test_a_present_body_is_still_validated_with_content_optional()
+  local seen
+  local serve = serve_with("POST", "/o", {
+    content = { ["application/json"] = schema.object({ name = schema.string() }) }, content_optional = true,
+    action = function(r) seen = r.content; return { ok = true } end,
+  })
+  self:assert_equal(200, serve(request("POST", "/o", { content = '{"name":"Ada"}' })).status)
+  self:assert_equal("Ada", seen.name)
+  self:assert_equal(422, serve(request("POST", "/o", { content = '{"name":5}' })).status)
+  self:assert_equal(400, serve(request("POST", "/o", { content = "{" })).status)
+  self:assert_equal(415, serve(request("POST", "/o", { content = '{"name":"Ada"}', type = "text/plain" })).status)
+  -- An empty body that declares a media type is malformed JSON, not an absent body.
+  self:assert_equal(400, serve(request("POST", "/o", { content = "" })).status)
+end
+
 function T:test_content_with_a_plain_schema_is_validated_and_defaults_apply()
   local seen
   local serve = serve_with("POST", "/items", {

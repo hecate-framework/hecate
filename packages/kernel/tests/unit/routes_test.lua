@@ -30,7 +30,8 @@ local function pair(spec)
   for key, value in pairs(spec) do declared[key] = value end
   declared.method, declared.path = nil, nil
   module[spec.method:lower()](module, spec.path, { action = action, summary = spec.summary, parameters = spec.parameters,
-    responses = spec.responses, tags = spec.tags, deprecated = spec.deprecated, name = spec.name, content = spec.content })
+    responses = spec.responses, tags = spec.tags, deprecated = spec.deprecated, name = spec.name, content = spec.content,
+    content_optional = spec.content_optional })
 
   local Users = core.class("UsersController", Controller)
   Users.prefix = "/users"
@@ -38,6 +39,7 @@ local function pair(spec)
     method = spec.method, path = spec.path:sub(#"/users" + 1) == "" and "/" or spec.path:sub(#"/users" + 1),
     action = "act", summary = spec.summary, parameters = spec.parameters, responses = spec.responses, tags = spec.tags,
     deprecated = spec.deprecated, name = spec.name, content = spec.content,
+    content_optional = spec.content_optional,
   })
   Users.act = action
   core.finalise(Users)
@@ -112,6 +114,7 @@ function T:test_entry_shape_is_complete_with_defaults()
   local entry = module:routes()[1]
   self:assert_equal("get_x", entry.name)
   self:assert_equal(false, entry.deprecated)
+  self:assert_equal(false, entry.content_optional)
   for _, field in ipairs({ "tags", "content", "responses", "security", "filters" }) do
     self:assert_equal("table", type(entry[field]), field)
   end
@@ -119,6 +122,16 @@ function T:test_entry_shape_is_complete_with_defaults()
     self:assert_equal("table", type(entry.parameters[location]), location)
   end
   self:assert_equal("route module m", entry.origin)
+end
+
+function T:test_content_optional_is_kept_and_both_styles_agree()
+  local a, b = pair({ method = "POST", path = "/users", name = "create", content = { ["application/json"] = User },
+    content_optional = true })
+  self:assert_equal(true, a.content_optional)
+  self:assert_equal(true, b.content_optional)
+  local c, d = pair({ method = "POST", path = "/users", name = "create", content = { ["application/json"] = User } })
+  self:assert_equal(false, c.content_optional)
+  self:assert_equal(false, d.content_optional)
 end
 
 function T:test_chained_and_direct_spellings_are_the_same()
@@ -201,6 +214,9 @@ function T:test_invalid_shapes_are_refused_with_a_reason()
   bad("invalid_parameters", { action = action, parameters = { query = { q = "string" } } })
   bad("invalid_content", { action = action, content = { json = User } })
   bad("invalid_content", { action = action, content = { ["application/json"] = 1 } })
+  bad("invalid_content_optional", { action = action, content = { ["application/json"] = User }, content_optional = "yes" })
+  bad("invalid_content_optional", { action = action, content_optional = true }) -- no content declared
+  bad("invalid_content_optional", { action = action, content_optional = 1 })
   bad("invalid_responses", { action = action, responses = { ["200"] = User } })
   bad("invalid_responses", { action = action, responses = { [200] = {} } })
   bad("invalid_responses", { action = action, responses = { [99] = User } })
