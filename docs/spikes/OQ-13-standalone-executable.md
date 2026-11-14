@@ -97,3 +97,20 @@ runs the CLI's own code.
 - Decisions for the owner: embedded interpreter or not; luv or own process function; how downloads are done;
   signing routes and whether unsigned binaries are acceptable for `0.1.0`; correct the `Depends on` row of
   `packages/cli/README.md` and the wording of ADR 0010.
+
+## Owner answers (2026-11-14, pull request #200) and follow-up measurements
+
+- The interpreter is embedded (adopted). Once Hecate supports Lua 5.4, a command switches the interpreter of a
+  project, which downloads the interpreter that the binary does not carry (the toolchain archives above).
+- Interpreters are shipped **compiled**: one archive per platform and architecture, each built by a CI job;
+  building from sources stays the fallback for unsupported platforms. The embedded interpreter is compiled and
+  linked by the release CI of each target.
+- Native modules ship inside rocks as binary rocks (already verified, [OQ-41](OQ-41-rock-binaries.md));
+  rock downloads are LuaRocks's job; the CLI does not download rocks itself.
+- Unsigned binaries are acceptable for `0.1.0`; signed is better.
+- Installers: Windows setup executable that installs the binary; Linux and macOS channel not chosen yet.
+- sha256: use an existing rock if one fits. Checked on Lua 5.5.1 (2026-11-14): `sha2` 0.2.0 (C) does not
+  compile (`luaL_openlib`, `luaL_reg` removed from the Lua 5.5 headers); `lsha2` could not be fetched (GitHub
+  archive blocked in this environment); `lua-hashings-and-nums` 1.0.3 (pure Lua, MIT) installs and loads but
+  hashed 1 MB in **61 s**, so a toolchain archive (825 KB) would take about 50 s: too slow. A rock the CLI
+  depends on must also be linked into the embedded interpreter at build time (a C rock) or embedded as Lua.
