@@ -402,7 +402,7 @@ end
 function T:test_the_400_and_415_of_the_input_step_are_logged_without_the_content()
   local seen, logger = recording_logger()
   local serve = serve_with("POST", "/x", { content = { ["application/json"] = schema.object({ a = schema.integer() }) } },
-    { logger = logger })
+    { logger = logger, inputs = "lax" })
   self:assert_equal(400, serve(request("POST", "/x?token=" .. SECRET, { content = '{"a": ' .. SECRET })).status)
   self:assert_equal(415, serve(request("POST", "/x", { content = "{}", type = "text/plain" })).status)
   self:assert_equal(2, #seen)
