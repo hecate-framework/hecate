@@ -7,30 +7,31 @@ order: 9
 
 # Stream HTTP content
 
-This guide shows how to read the content of a request and write the content of a response
-without holding it all in memory. It assumes you know
-[how to serve HTTP](serve-http.md).
+This guide shows how to read the content of a request, and write the content of a response, without holding it all
+in memory. It is written for hecate 0.x and Lua 5.5, and assumes you know [how to serve HTTP](serve-http.md).
 
-Streaming relies on [back-pressure](../reference/glossary.md#concurrency). A client that sends
-faster than your action reads waits in the kernel buffers. A client that reads more slowly than
-your action writes makes the write suspend.
+Streaming relies on [back-pressure](../reference/glossary.md#concurrency): a producer suspends while its consumer is
+slower, instead of buffering without bound. On the server it works in both directions:
+
+- A client that sends faster than your action reads waits in the kernel buffers.
+- A client that reads more slowly than your action writes makes the write suspend.
 
 ## Read the content of a request
 
-The server reads the content when the action asks for it. There are two ways.
+The server reads the content of a request only when the action asks for it. There are two ways to ask.
 
-`request:read_content(limit?)` returns the whole content as a string. It is bounded by the
-`max_content` option of the server (1 MiB by default) and by `limit` when that is lower. Content
-over the bound raises a `ContentError` with status 413. When the request declares a
-`Content-Length` over the bound, the action does not even run.
+`request:read_content(limit?)` returns the whole content as a string:
 
 ```lua
 local body = request:read_content(64 * 1024)
 ```
 
-`request:stream_content()` returns a `ContentStream`. Call `read()` for the next chunk. It returns
-`nil` after the last one. `read_all(limit?)` collects the rest, and `is_finished()` tells whether
-the end was reached.
+The content is bounded by the `max_content` option of the server (1 MiB by default), and by `limit` when that is
+lower. Content over the bound raises a `ContentError` with status 413. When the request declares a `Content-Length`
+over `max_content`, the action does not even run.
+
+`request:stream_content()` returns a `ContentStream`, which you read chunk by chunk. Its `read()` returns the next
+chunk, and `nil` after the last one:
 
 ```lua
 local stream = request:stream_content()
@@ -42,16 +43,24 @@ while true do
 end
 ```
 
-What the action leaves unread is drained after the response, up to `max_content` and within
-`drain_timeout` (5 seconds), so the next request on the connection can be parsed. A client may send
-`Expect: 100-continue` and wait before it sends the content. The server answers `100 Continue` when
-the action first reads. If the action answers without reading, the content was never asked for, so
-the server closes the connection after its answer, and the client must open a new one.
+A `ContentStream` also has `read_all(limit?)`, which collects the rest, and `is_finished()`, which tells whether
+the end was reached. The stream of a request is bounded by `max_content` too.
+
+### What happens to content the action does not read
+
+What the action leaves unread is drained after the response, so that the next request on the connection can be
+parsed. The drain reads up to `max_content`, within `drain_timeout` (5 seconds).
+
+A client may send `Expect: 100-continue` and wait before it sends the content. The server answers `100 Continue`
+when the action first reads. If the action answers without reading, the content was never asked for. The server
+then closes the connection after its answer, and the client must open a new one.
 
 ## Stream a response
 
-Give `content` a function. It receives `write` and `flush`. Each `write(data)` sends a chunk.
-`flush()` pushes what was written to the client at once.
+Give `content` a function. It receives two functions, `write` and `flush`:
+
+- each `write(data)` sends a chunk;
+- `flush()` pushes what was written to the client at once.
 
 <!-- example: packages/http/examples/hecate.http.Response.stream.lua -->
 ```lua
@@ -95,22 +104,27 @@ reactor.run(function()
 end)
 ```
 
-The framing depends on what you declared:
+The framing of the content depends on what you declared:
 
-- No `Content-Length`: the server uses the chunked transfer coding.
-- A `Content-Length` field that you set: the raw bytes are sent, and you must write exactly that
-  many.
-- An HTTP/1.0 client: the content ends when the connection closes.
+| You declared | The server sends |
+|---|---|
+| no `Content-Length` | the content with the chunked transfer coding |
+| a `Content-Length` field | the raw bytes; you must write exactly that many |
+| nothing, to an HTTP/1.0 client | the content, which ends when the connection closes |
 
-The function runs inside the request's scope. The `write` call suspends while the client is slow,
-and `write_timeout` (60 seconds) closes the connection of a reader that never reads. The writing
-action then gets a `DeadlineExceededError`.
+### A slow reader
+
+The function runs inside the [scope](../reference/glossary.md#concurrency) of the request. The `write` call
+suspends while the client is slow.
+
+`write_timeout` (60 seconds) bounds one write. It closes the connection of a reader that never reads, and the
+writing action then gets a `DeadlineExceededError`.
 
 > [!WARNING] A disconnected client is not detected yet
-> While your action runs, nothing reads the connection. A client that left is noticed at the
-> next write, which fails. A long computation keeps running until then (OQ-70).
+> While your action runs, nothing reads the connection. A client that left is noticed only at the next write, which
+> fails. A long computation keeps running until then (OQ-70).
 
-## Next steps
+## See also
 
 - [Handle forms and multipart](handle-forms-and-multipart.md)
 - [Set limits, timeouts and TLS on the HTTP server](http-limits-timeouts-and-tls.md)

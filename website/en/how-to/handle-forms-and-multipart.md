@@ -7,19 +7,21 @@ order: 11
 
 # Handle forms and multipart
 
-This guide shows how to read `application/x-www-form-urlencoded` and `multipart/form-data`
-content in an action, and how to send both with the client. It assumes you know [how to serve HTTP](serve-http.md).
+This guide shows how to read `application/x-www-form-urlencoded` and `multipart/form-data` content in an
+[action](../reference/glossary.md#object-model-and-architecture), the function that serves a request. It also shows
+how to send both with the client. It is written for hecate 0.x and Lua 5.5, and assumes you know
+[how to serve HTTP](serve-http.md).
 
 The form parsers are pure Lua. They need no native module.
 
 ## Read a urlencoded form
 
-`request:read_form(limits?)` reads the content and returns a `Form`. It raises a `FormError` with
-status 415 when the `Content-Type` is not urlencoded. The content is bounded by `max_content` of the server (1 MiB by default): a larger form is a 413 `ContentError`
-while it is read, and `limits.max_size` can only lower that bound.
+`request:read_form(limits?)` reads the content and returns a `Form`. A `Form` has these methods, and its names can
+repeat:
 
-A `Form` has `get(name)` (the first value, or `nil`), `get_all(name)` (every value, in order),
-`count()` and `pairs()`. Names can repeat.
+- `get(name)`, the first value, or `nil`;
+- `get_all(name)`, every value, in order;
+- `count()` and `pairs()`.
 
 <!-- example: packages/http/examples/hecate.http.Request.read_form.lua -->
 ```lua
@@ -50,8 +52,16 @@ reactor.run(function()
 end)
 ```
 
-The limits are `max_pairs` (1000) and `max_size` (1 MiB). Over either, the form is refused with a
-413. The `max_content` of the server applies first.
+`read_form` raises a `FormError` with status 415 when the `Content-Type` is not urlencoded.
+
+### Limits
+
+The limits of a form are `max_pairs` (1000) and `max_size` (1 MiB). Over either, the form is refused with a 413.
+
+The `max_content` of the server applies first (1 MiB by default). A larger form is a 413 `ContentError` while it is
+read, and `limits.max_size` can only lower that bound.
+
+### What the parser accepts
 
 The parser is strict by choice. These inputs are refused with a 400 instead of being guessed at:
 
@@ -59,19 +69,22 @@ The parser is strict by choice. These inputs are refused with a 400 instead of b
 - text that is not valid UTF-8;
 - a NUL byte.
 
-`+` is a space, `%XX` is a byte, and the first `=` splits a name from its value. Empty pairs
-between `&` are skipped.
+`+` is a space, `%XX` is a byte, and the first `=` splits a name from its value. Empty pairs between `&` are skipped.
 
-To build the text yourself, use `http.form.encode_urlencoded(pairs)`. `http.form.parse_urlencoded(text, limits?)`
-parses a string without a request.
+To build the text yourself, use `http.form.encode_urlencoded(pairs)`. To parse a string without a request, use
+`http.form.parse_urlencoded(text, limits?)`.
 
 ## Read a multipart upload
 
-`request:stream_parts(limits?)` returns a reader. `reader:next_part()` suspends until the next
-part is ready and returns a `Part`, or `nil` after the last one.
+`request:stream_parts(limits?)` returns a reader. `reader:next_part()` suspends until the next part is ready, then
+returns a `Part`, or `nil` after the last one.
 
-A part has `name`, `filename`, `content_type`, `fields` (its own `Fields`), `read_content(limit?)`,
-`stream_content()` and `safe_filename()`.
+A part has:
+
+- `name`, `filename` and `content_type`;
+- `fields`, its own `Fields`;
+- `read_content(limit?)` and `stream_content()`;
+- `safe_filename()`.
 
 <!-- example: packages/http/examples/hecate.http.Request.stream_parts.lua -->
 ```lua
@@ -121,11 +134,11 @@ reactor.run(function()
 end)
 ```
 
-The reader pulls content only when it needs it. It keeps one chunk, the header fields of the
-current part and the tail of a possible delimiter. A part you leave unread is skipped, within
-`max_part_size`. Parts arrive in order, and duplicate names are delivered in order too.
+The reader pulls content only when it needs it. It keeps one chunk, the header fields of the current part, and the
+tail of a possible delimiter. A part you leave unread is skipped, within `max_part_size`. Parts arrive in order, and
+duplicate names are delivered in order too.
 
-The limits are:
+### Limits
 
 | Limit | Default | When exceeded |
 |---|---|---|
@@ -134,22 +147,33 @@ The limits are:
 | `max_part_size` | 1 MiB | 413 (`ContentError`) |
 | `max_total_size` | 1 MiB | 413 |
 
-The `max_content` of the server bounds the whole message first. Raise both when you accept
-larger uploads.
+The `max_content` of the server bounds the whole message first. Raise both when you accept larger uploads.
+
+### Never trust a client filename
 
 > [!WARNING] Never use a client filename as a path
-> `part.filename` is the raw value the client sent. `part:safe_filename()` reduces it to a base
-> name and returns `nil` for names it cannot make safe (directories, control characters, device
-> names). It is still the client's choice. Store the file under a name you generate, and keep the
-> client's name as data. No code of `hecate.http` opens a file by a client name.
+> `part.filename` is the raw value the client sent. Store the file under a name you generate, and keep the client's
+> name as data. No code of `hecate.http` opens a file by a client name.
 
-A nested `multipart/mixed` is not parsed: it arrives as one part with the inner message as its
-content. `Content-Transfer-Encoding` is ignored.
+`part:safe_filename()` reduces the filename to a conservative base name:
+
+- it removes the directories (`/` and `\`), the control characters and the characters `< > : " | ? *`;
+- it removes leading dots, and trailing dots and spaces;
+- it cuts the name to 255 bytes, never inside a UTF-8 character;
+- it returns `nil` for a Windows device name (`CON`, `PRN`, `AUX`, `NUL`, `COM1` to `COM9`, `LPT1` to `LPT9`, with or
+  without an extension), and when nothing is left.
+
+The result is still the client's choice. It reduces the risk of a path trick; it does not make the name trustworthy.
+
+### What the reader does not parse
+
+- A nested `multipart/mixed` is not parsed: it arrives as one part, with the inner message as its content.
+- `Content-Transfer-Encoding` is ignored.
 
 ## Refusals
 
-A `FormError` carries `context.reason` and `context.status`. In an action you can let it escape:
-the server answers with problem details that echo nothing of the input.
+A `FormError` carries `context.reason` and `context.status`. In an action you can let it escape: the server answers
+with [problem details](../reference/glossary.md#http) that echo nothing of the input.
 
 | Reason | Status |
 |---|---|
@@ -167,8 +191,8 @@ Pass `form` to send urlencoded content. It is a list of `{ name, value }` pairs.
 client:post(url, nil, { form = { { "q", "lua 5.5" }, { "page", "2" } } })
 ```
 
-Pass `multipart` to send `multipart/form-data`. Each part is `{ name, filename?, content_type?,
-content }`, and `content` is a string or a function that streams.
+Pass `multipart` to send `multipart/form-data`. Each part is `{ name, filename?, content_type?, content }`, and
+`content` is a string or a function that streams.
 
 ```lua
 client:post(url, nil, {
@@ -180,10 +204,13 @@ client:post(url, nil, {
 })
 ```
 
-The boundary is random. With only string parts the message is sent with `Content-Length` and can
-be replayed. With a function part it is streamed with the chunked coding.
+The boundary is random. The framing depends on the parts:
 
-## Next steps
+- With only string parts, the message is sent with `Content-Length`, and it can be replayed.
+- With a function part, it is streamed with the chunked coding.
 
+## See also
+
+- [Stream HTTP content](stream-http-content.md)
 - [Set limits, timeouts and TLS on the HTTP server](http-limits-timeouts-and-tls.md)
 - [The HTTP model](../explanation/http-model.md)

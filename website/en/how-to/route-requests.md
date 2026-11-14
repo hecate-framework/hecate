@@ -7,16 +7,27 @@ order: 13
 
 # Route requests
 
-`hecate.router` turns a table of routes into a compiled radix tree and answers one question: which route serves
-this method and this path? It does not call the action, validate parameters or build responses; the kernel does that
-with the answer.
+This guide shows how to declare routes, match requests against them and build URLs from route names with
+`hecate.router`. It is written for hecate 0.x and Lua 5.5.
+
+`hecate.router` answers one question: which route serves this method and this path? It turns a table of routes into
+a compiled radix tree, once. It does not call the
+[action](../reference/glossary.md#object-model-and-architecture) (the function that serves a request), validate
+parameters or build responses. The kernel does that with the answer.
 
 The router depends only on `hecate.core`. It needs no native module.
 
 ## Declare and match
 
-A route is a table with a `method` (or a list of methods), a [path template](../reference/glossary.md#http) in `path`, an optional `name`, and any
-metadata you want back. The router keeps the table you gave it; the list of routes is the [route table](../reference/glossary.md#http).
+A route is a table with these keys:
+
+- `method`, one method or a list of methods;
+- `path`, a [path template](../reference/glossary.md#http): a path whose segments can be parameters, such as
+  `/users/{id}`;
+- an optional `name`;
+- any metadata you want back.
+
+The router keeps the table you gave it. The list of routes is the [route table](../reference/glossary.md#http).
 
 <!-- example: packages/router/examples/hecate.router.Router.lua -->
 ```lua
@@ -69,29 +80,40 @@ print(routes:url_for("users.show", { id = "Ada Lovelace" }))
 
 ## Path templates
 
-Templates are a subset of RFC 6570 level 1:
+Templates are a subset of RFC 6570 level 1. A segment is one of three kinds:
 
-- `/users` is a literal path. Literal segments are case-sensitive and may hold percent-encoded bytes.
-- `{id}` binds one non-empty segment. Literal text may surround the expression inside a segment: `/files/{name}.json`
-  binds `name` to `data` for `/files/data.json`, and `v{major}` binds `major` to `2` for `/v2`. A segment holds one
-  expression only, so `{a}-{b}` is refused.
-- `{path...}` as the last segment binds the rest of the path (at least one segment) as one string whose `/` separate
-  the segments. The notation `...` is the router's own, it is not RFC 6570.
+- **Literal.** `/users` is a literal path. Literal segments are case-sensitive and may hold percent-encoded bytes.
+- **Parameter.** `{id}` binds one non-empty segment. Literal text may surround the expression inside a segment:
+  `/files/{name}.json` binds `name` to `data` for `/files/data.json`, and `v{major}` binds `major` to `2` for `/v2`.
+  A segment holds one expression only, so `{a}-{b}` is refused.
+- **Wildcard.** `{path...}`, as the last segment, binds the rest of the path (at least one segment) as one string.
+  The `/` in that string separate the segments. The notation `...` is the router's own; it is not RFC 6570.
 
-When several routes could serve a path, a static segment wins over a parameter with literal text around it
-(the longer text first), that over a plain parameter, and a plain parameter over a wildcard, segment by segment, going back to a lower-precedence branch when the preferred one has no route for the method.
-Two parameters with literal text of the same length that can match one segment have no precedence between them:
+### Precedence
+
+When several routes could serve a path, the router prefers, segment by segment:
+
+1. a static segment;
+2. a parameter with literal text around it, the longer text first;
+3. a plain parameter;
+4. a wildcard.
+
+When the preferred branch has no route for the method, the router goes back to a branch of lower precedence.
+
+Two parameters with literal text of the same length, that can match one segment, have no precedence between them.
 `/f/a{x}` and `/f/{y}b` both match `/f/a1b`, so two such routes for one method are refused at boot
-(`ambiguous_route`). `/f/a{x}` and `/f/b{x}` never match the same segment and are accepted.
+(`ambiguous_route`). `/f/a{x}` and `/f/b{x}` never match the same segment, and are accepted.
+
+### Cost
 
 A static segment costs one table access, whatever the number of routes. The parameters with literal text at one
-position are tried one by one, so their cost grows with their number there, and going back to another branch visits
-at most the part of the tree the path reaches.
+position are tried one by one, so their cost grows with their number there. Going back to another branch visits at
+most the part of the tree the path reaches.
 
 ## The request path
 
-`http.Request.path` is raw. The router decodes each segment on its own and resolves dot segments, in this order
-(RFC 3986 sections 2.1 and 5.2.4):
+`http.Request.path` is raw. The router decodes each segment on its own, and resolves
+[dot segments](../reference/glossary.md#http) (`.` and `..`) before it matches (RFC 3986 sections 2.1 and 5.2.4):
 
 <!-- example: packages/router/examples/hecate.router.path.lua -->
 ```lua
@@ -122,19 +144,20 @@ print(bad.status, bad.reason)
 
 - `%2F` stays inside its segment. A wildcard refuses a segment whose decoded text holds a `/`, so `..%2F..%2Fsecret`
   never reaches an action as `../../secret`.
-- `%2E` is a dot, as RFC 3986 section 6.2.2.2 says. A decoded `.` or `..` is a dot segment; `%252e` is the text `%2e`.
+- `%2E` is a dot, as RFC 3986 section 6.2.2.2 says. A decoded `.` or `..` is a dot segment. `%252e` is the text `%2e`.
 - Empty segments are kept: `/a//b` does not match `/a/{x}/b`.
-- A malformed percent sequence and an encoded NUL byte give status 400.
+- A malformed percent sequence and an encoded NUL byte give status 400. So does a path that does not start with `/`
+  (`reason` is `not_absolute`).
 
 ## Differences from the standards and from common expectations
 
-The router follows RFC 6570 (templates), RFC 3986 (paths) and RFC 9110 (methods, `Allow`). Where it does not, the gap is
-listed here with its reason. Only security and major performance reasons justify a gap.
+The router follows RFC 6570 (templates), RFC 3986 (paths) and RFC 9110 (methods, `Allow`). Where it does not, the gap
+is listed here with its reason. Only security and major performance reasons justify a gap.
 
 | Gap | What the router does | Reason |
 |---|---|---|
 | RFC 6570 levels 2 to 4 | Only level 1 expressions: no `{+path}`, `{/path*}`, `{?query}`, no modifiers. | Matching a request back to a template is not defined by RFC 6570, and the query is not part of the route (`schema` validates it). Level 1 is what a radix tree can match without ambiguity. |
-| Several expressions in one segment | `{a}-{b}` is refused at boot (`mixed_segment`). | The split of `x-y-z` between `a` and `b` is ambiguous, and a matcher that tries them all costs more than a table access per segment (performance). |
+| Several expressions in one segment | `{a}-{b}` is refused at boot (`invalid_template`, with `template_reason` `mixed_segment`). | The split of `x-y-z` between `a` and `b` is ambiguous, and a matcher that tries them all costs more than a table access per segment (performance). |
 | Wildcard | `{path...}` is the router's own notation, last segment only, one or more non-empty segments. Under `trailing_slash = "strict"` it does not match a path ending with a slash: `/static/a/` ends with an empty segment, which `/static/{path...}` refuses (404 or 405). | RFC 6570 has no notation to match several segments. The notation is not an RFC 6570 expression. An empty segment is refused for the reason of the row "Empty value". |
 | Empty value | `{id}` never matches an empty segment: `/a//b` does not match `/a/{x}/b`, and `/files/.json` binds `name` to nothing, so it does not match `/files/{name}.json`. | RFC 6570 allows an empty expansion. An empty identifier is not a value users expect a route to bind, and an empty segment is a classic way to confuse path checks (security). |
 | Encoded slash in a wildcard | A wildcard refuses a segment whose decoded text holds `/` (404 or 405). A `{id}` accepts it. | RFC 3986 says `%2F` is data. Accepting it in a wildcard lets `..%2F..%2Fsecret` look like a path a file action then trusts (security, hardening that other frameworks apply to their wildcards too). |
@@ -146,20 +169,31 @@ listed here with its reason. Only security and major performance reasons justify
 
 ## Trailing slash, HEAD and OPTIONS
 
-By default `/users` and `/users/` are the same path (`trailing_slash = "ignore"`), whichever form the route declares,
-and two routes that differ only by the slash are ambiguous. `url_for` keeps the form the route declares. With
-`trailing_slash = "strict"` they are two different paths, as RFC 3986 has it. The router never redirects.
+By default `/users` and `/users/` are the same path (`trailing_slash = "ignore"`), whichever form the route
+declares. Two routes that differ only by the slash are therefore ambiguous. `url_for` keeps the form the route
+declares.
 
-`HEAD` is served by the `GET` route unless you declare a `HEAD` route (`automatic_head = false` turns this off).
-`OPTIONS` answers status 204 with `Allow` unless you declare an `OPTIONS` route (`automatic_options = false` turns
-this off, and the answer is then 405). The `Allow` of a 405 lists these automatic methods too.
+With `trailing_slash = "strict"`, `/users` and `/users/` are two different paths, as RFC 3986 has it. In either
+mode, the router never redirects.
+
+The router answers two methods for you:
+
+- `HEAD` is served by the `GET` route, unless you declare a `HEAD` route. `automatic_head = false` turns this off.
+- `OPTIONS` answers status 204 with `Allow`, unless you declare an `OPTIONS` route. `automatic_options = false` turns
+  this off, and the answer is then 405.
+
+The `Allow` of a 405 lists these automatic methods too.
 
 ## Mistakes found at boot
 
-`router.Router(routes, options)` compiles once and never changes. `routes` is a list with exactly the keys 1..n:
-a map or a list with a hole is an `ArgumentError`. It raises `router.RouteTableError`, a
-`ConfigurationError`, with a stable `context.reason`, the position of the route (`context.index`) and, for conflicts,
-the other route (`context.other_index`):
+`router.Router(routes, options)` compiles the routes once, and the result never changes. `routes` is a list with
+exactly the keys 1..n: a map, or a list with a hole, raises an `ArgumentError`.
+
+A route table the router refuses raises `router.RouteTableError`, a `ConfigurationError`. Its context holds:
+
+- a stable `context.reason`;
+- the position of the route, `context.index`;
+- for conflicts, the other route, `context.other_index`.
 
 | Reason | Cause |
 |---|---|
@@ -173,10 +207,21 @@ the other route (`context.other_index`):
 
 ## Reverse routing and introspection
 
-`routes:url_for(name, parameters)` builds the path of a named route. Values are strings or integers and are
-percent-encoded, for a wildcard too; a wildcard string keeps its `/`. It raises `ArgumentError` for an unknown name, a missing or unknown
-parameter, and a value no request path could carry (empty, a NUL byte, or a value that makes the segment `.` or `..`). `routes:routes()` lists the
-declared routes in order and `routes:route(name)` finds one by name, for OpenAPI generation and documentation.
+`routes:url_for(name, parameters)` builds the path of a named route. Values are strings or integers, and they are
+percent-encoded, for a wildcard too. A wildcard string keeps its `/`.
 
-For the reasons behind the design, see [The HTTP model](../explanation/http-model.md) and the code reference of
-[`hecate.router`](../reference/router/index.md).
+`url_for` raises an `ArgumentError` for:
+
+- an unknown name;
+- a missing or unknown parameter;
+- a value no request path could carry: empty, a NUL byte, or a value that makes the segment `.` or `..`.
+
+For OpenAPI generation and documentation, the router gives its routes back. `routes:routes()` lists the declared
+routes in order, and `routes:route(name)` finds one by name.
+
+## See also
+
+- [Serve HTTP](serve-http.md)
+- [Filters](filters.md)
+- [The HTTP model](../explanation/http-model.md)
+- Reference: [`hecate.router`](../reference/router/index.md)
