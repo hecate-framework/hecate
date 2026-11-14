@@ -232,4 +232,22 @@ rock's own suite from a clone of its `v0.0.1` tag (all fixtures present), then t
   interpreter are OQ-132 (issue [#206](https://github.com/hecate-framework/hecate/issues/206)).
 - OQ-45: the owner's direction is that `digest` serves the CLI only and that security cryptography belongs to the
   `security` package over `luasodium`, with argon2id by default; recorded in the OQ-45 entry. `luasodium` and
-  `argon2` rocks exist on luarocks.org (versions up to 0.0.11-1 and 3.0.0-1); neither was installed or tested here.
+  `argon2` rocks exist on luarocks.org (correction in the ninth round: `luasodium` is at 2.4.1-2, not 0.0.11-1); neither was installed or tested here.
+
+### Ninth round (owner answers, 2026-11-14)
+
+- ADR 0029: the owner accepts it once it is verified on all platforms, which is the purpose of this spike. The
+  verification is a throwaway workflow (`spike-oq13-interpreter`, scripts `verify_interpreter.sh` and
+  `verify_interpreter.ps1` in [`OQ-13/`](OQ-13/)); its result is recorded below.
+- libsodium, checked with its headers (1.0.18, Ubuntu 24.04) and a C test: SHA-256, SHA-512, HMAC-SHA-256/512,
+  argon2id and scrypt are there, and its HMAC-SHA-256 matches OpenSSL's; **PBKDF2, MD5 and SHA-1 are absent**.
+  `luasodium` is at 2.4.1-2 (about 31,700 downloads, MIT; I wrote 0.0.11-1 earlier, which was only an old version
+  in a listing); its source tarball is on `buffering.party`, blocked in the cloud environment, so it was not built
+  on Lua 5.5. The consequences for the database login methods are in the OQ-45 entry.
+- Supply chain: LuaRocks.org published a security incident report (September 2026): a remote code execution on the
+  server, exploited between 9 July and 20 August 2026, fixed on 26 September, no evidence found of modified existing
+  packages, three attacker-uploaded packages removed, and a recommendation to use LuaRocks 3.12 or newer. The bootstrap
+  and the embedded LuaRocks are 3.13.0; the checksums of `hecate.lock` are the mitigation for rocks fetched later.
+  I read the report page only, not the details of what was checked.
+- OQ-133: ADR 0023 already specifies the rolling reload of workers by the `kernel` supervisor; the open part is its
+  trigger and the upgrade of the primary or the binary (out of scope in ADR 0023). Recorded in the OQ-133 entry.

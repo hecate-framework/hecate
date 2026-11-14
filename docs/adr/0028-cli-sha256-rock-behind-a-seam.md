@@ -43,6 +43,9 @@ Candidates were installed on Lua 5.5.1 and checked against `sha256sum` on `abc` 
 ## Decision
 
 - The CLI uses `digest` for sha256 (option 2), with `plc` (option 1, pure Lua) as the fallback backend.
+- `digest` is a dependency of the CLI only (lock-file checksums, downloaded archives). It is not a general
+  cryptography dependency: cryptography and hashing for security purposes belong to the `security` package, which is
+  to depend on `luasodium` (owner direction of 2026-11-14, see OQ-45).
 - It reaches it only through `hecate.cli.digest` (`cli_digest` in the prototype), whose interface is `sha256(data)` and `sha256_file(path)`, both
   returning 64 lowercase hexadecimal characters. The rock is chosen in **one** module (the backend), so that
   switching to `digest`, `hmac` or another rock changes that module and the rockspec dependency, and no caller.
