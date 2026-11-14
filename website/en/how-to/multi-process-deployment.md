@@ -121,7 +121,8 @@ adds it to the rotation, then stops the old one with the grace period.
 
 - A replacement that exits or is not ready in time aborts the reload: the old worker keeps serving. The workers
   already replaced stay replaced.
-- A second reload while one runs, or a reload during a shutdown, is refused with a warning.
+- A second reload while one runs, or a reload during a shutdown, is refused with a warning. A `SIGHUP` that arrives
+  after `SIGINT` or `SIGTERM` is ignored without one.
 - With one process, `SIGHUP` is ignored. On Windows it is not watched.
 
 The reload logs `reload_started`, then `reload_done` or `reload_failed`.
