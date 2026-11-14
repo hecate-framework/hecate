@@ -46,7 +46,7 @@ Throwaway prototype in `spikes/OQ-13/` (git-ignored); sources kept in [`OQ-13/`]
 | Lua to evaluate the manifest in a sandbox, lock files, templates, `--json` output | all | the embedded interpreter, standard library only |
 | Spawn and supervise child processes, forward signals, exit codes | `install`, `serve`, `test`, `doc`, `migrate`, `run` | a native layer: luv (+390 KB), or a smaller own C function (`exec` on Unix, `CreateProcess` plus a job object on Windows) |
 | Download toolchains and rocks index, verify sha256, unpack archives | `toolchain install`, `new`, `self update` | not decided: shell out to `curl` and `tar` (Windows 10 and later ship both), or a native HTTPS client and archive reader (hecate's Rust TLS module is 2.8 MB, OQ-4) |
-| Hashing (sha256) for `hecate.lock` | `install`, `add` | not in the Lua standard library: native function, or an external tool |
+| Hashing (sha256) for `hecate.lock` | `install`, `add` | not in the Lua standard library: an existing rock fits (`plc`, pure Lua, or `hmac`, C; see the sha256 table), or an external tool |
 
 Everything else the commands appear to need (`hecate.kernel`, `hecate.test`, `hecate.doc`, `hecate.openapi`,
 `hecate.migration`, the schemas, the reactor) runs **inside the project's interpreter**, on the project's
@@ -93,7 +93,7 @@ runs the CLI's own code.
 - macOS, Windows, arm64 and musl were not built; `curl` and `tar` availability and flags on the three platforms
   were not tested; a Windows toolchain needs the import library settings of OQ-2.
 - A prebuilt Lua 5.5 toolchain archive per platform is a release artefact that does not exist yet.
-- sha256 for lock files was not prototyped.
+- sha256 rocks were checked in isolation on Lua 5.5, not yet embedded in the CLI host or used on a lock file.
 - Decisions for the owner: embedded interpreter or not; luv or own process function; how downloads are done;
   signing routes and whether unsigned binaries are acceptable for `0.1.0`; correct the `Depends on` row of
   `packages/cli/README.md` and the wording of ADR 0010.
