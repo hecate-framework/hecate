@@ -3,18 +3,20 @@
 
 - roadmap_item: `kernel`: log the answers of the input step (owner remark on pull request #195, 2026-11-13).
 - status: in-progress
-- lock_until: 2026-11-14T10:58:32Z
+- lock_until: 2026-11-14T11:11:13Z
 - last_update: 2026-11-14T09:28:32Z
 
 ## Done
 
+- Input step logs 400/415/422 at warning (input.lua, dispatcher passes logger), tests, website how-to, README, CHANGELOG, roadmap ticked.
+
 ## Next steps
 
-1. Read packages/kernel (input.lua, logging.lua, dispatcher.lua, problems.lua) and the guard's logging.
-2. Write tests first, then log 400/415/422 of the input step.
-3. Update website how-to, README, CHANGELOG, tick roadmap.
+1. Wait for CI on the three platforms; when green delete HANDOFF.md, mark PR ready, ask owner review.
 
 ## Decisions taken (and where they are recorded)
+
+- Severity `warning`, in line with the guard; fields method, path, status, reason, codes (README, how-to).
 
 ## Doubts and questions for the owner
 

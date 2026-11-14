@@ -211,7 +211,7 @@
   an explicit `inputs` option wins). Example:
   `GET /users?limit=5&page=2` on a route declaring only `limit` answers `422` with the entry
   `{ "pointer": "/page", "source": "query", "code": "additional_properties" }`.
-- `kernel.input.compile(entry, options?)`: `options.strict` (default false) is what the dispatcher sets from `inputs`.
+- `kernel.input.compile(entry, options?)`: `options.strict` (default false) is what the dispatcher sets from `inputs`; `options.logger` (default `log.default()`) receives one `warning` `request refused` record per answer the step builds (`422`, `400`, `415`) with `method`, `path` (no query), `status`, `reason` and, for a `422`, `codes`; never a value, a name or a pointer (OQ-111).
 - Response validation in development and test (http-and-routing.md, "Results and serialisation"): `options.validate_responses`
   of `kernel.dispatcher.build` and of `results.serialise` (boolean, default false; anything else raises `ArgumentError` in the
   dispatcher). When true, the representation of a result that has a schema declared for its status (or given to `respond`)
