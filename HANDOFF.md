@@ -4,8 +4,8 @@
 - roadmap_item: `openapi`: OpenAPI 3.1 assembly, served endpoint, export, contract diff.
 - status: in-progress            <!-- in-progress | waiting-ci | waiting-owner -->
 <!-- Optional, only when the owner holds this pull request for one run: - owner: session `<session id>`, why. -->
-- lock_until: 2026-11-14T20:25:00Z
-- last_update: 2026-11-14T18:55:00Z
+- lock_until: 2026-11-14T22:44:04Z
+- last_update: 2026-11-14T21:14:04Z
 
 ## Done
 
@@ -22,7 +22,8 @@
 - Step 4 `openapi`: conformance test: structural self-check `tests/support/structure.lua` plus comparison with the pinned official schema (`oas/3.1/schema/2026-11-05` of OAI/spec.openapis.org, `fetch-fixtures openapi`, added to ci.yml and nightly.yml); a full validation is OQ-130 (issue #203).
 - Step 5 `openapi`/`kernel`: owner decision on OQ-134: `kernel` depends on `openapi` and serves `/openapi.json` itself (`Application` option `openapi`, `kernel/contract.lua`, development-only default, `Application.entries`); the provider indirection was removed. Kernel tests could not run locally (no luv, no native json): CI decides.
 - Step 6 `openapi`: task `validate-openapi` (`tools/tasks/validate_openapi.lua`, `tools/lib/openapi_validate.lua`, `tools/lib/validate_openapi.py`, `tools/ci/openapi-validator-requirements.txt`, tests), per ADR 0031 (Accepted).
-- Step 7 `openapi`: `validate-openapi` wired into `ci.yml` as steps of the `ci` matrix job (guarded by `openapi` affected): `actions/setup-python` 3.13.18, venv cache, hashed install, `validate-openapi` with `CI=true`; only CI can verify it.
+- Step 7 `openapi`: `validate-openapi` wired into `ci.yml` as steps of the `ci` matrix job (guarded by `openapi` affected): `actions/setup-python` 3.13.17, venv cache, hashed install, `validate-openapi` with `CI=true`; only CI can verify it.
+- CI fixes: the kernel-json benchmark server lists `openapi` among its packages (kernel now depends on it); Python 3.13.17 (3.13.18 has no Windows/macOS build).
 
 ## Next steps
 

@@ -6,7 +6,7 @@
 -- `json` and `http` (`lua tools/run.lua build-native json`, then `http`).
 global <const> io, arg, print, require, tonumber, dofile, ipairs, pcall
 dofile("benchmarks/lib/setup.lua")({ "core", "reactor", "net", "json", "log", "http", "router", "schema", "container",
-  "config", "kernel" })
+  "config", "openapi", "kernel" })
 
 for _, native in ipairs({ { "hecate.json", "json" }, { "hecate.http.native", "http" } }) do
   if not pcall(require, native[1]) then

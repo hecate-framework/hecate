@@ -1,8 +1,9 @@
 # Development-only validator of the OpenAPI documents (ADR 0031): `lua tools/run.lua validate-openapi`.
 # Nothing here is shipped: no rockspec, rock, image or installer uses it.
 #
-# Python for CI: exactly 3.13.18 (actions/setup-python, python-version: "3.13.18"). The wheels of rpds-py are per
-# interpreter version (cp313), so a change of the Python version changes the hashes below.
+# Python for CI: exactly 3.13.17 (actions/setup-python, python-version: "3.13.17"). The wheels of rpds-py are per
+# minor version (cp313: any 3.13.x), so a change of the minor version changes the hashes below. 3.13.18 has no
+# Windows or macOS build in the python-versions manifest of actions/setup-python (2026-11-14), hence 3.13.17.
 # Platforms covered: Linux x86_64 (manylinux_2_17), macOS x86_64 and arm64, Windows amd64. The other packages are
 # pure Python (one wheel).
 #
