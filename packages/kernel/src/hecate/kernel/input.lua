@@ -151,8 +151,8 @@ local DECODE_STATUS <const> = { size_limit = 413 }
 --- than `application/json`, `413` for content over the limit (a `ContentError` of the reader is raised, the guard maps it).
 --- It suspends while it reads the content.
 ---
---- A route declared with `content_optional = true` accepts a request without body (no content and no `Content-Type`
---- field): the content schema is not applied and `request.content` is nil. A body that is present is validated as for any
+--- A route declared with `content_optional = true` accepts a request with an empty body, with or without a `Content-Type`
+--- field: the content schema is not applied and `request.content` is nil. A body that is not empty is validated as for any
 --- other route.
 ---
 --- Raises `RouteDeclarationError` (`unsupported_content_type`) for content declared only for another media type.
@@ -254,20 +254,22 @@ function input.compile(entry, options)
       return refuse(request, problems.response(400, "The request has more than one Content-Type field."),
         "repeated_content_type")
     end
+    local unsupported = false
     if media ~= nil then
       local parsed = request:media_type()
-      if parsed == nil or parsed:essence() ~= JSON then
-        return refuse(request, problems.response(415), "unsupported_media_type")
-      end
+      unsupported = parsed == nil or parsed:essence() ~= JSON
     end
+    -- Without `content_optional`, an unsupported media type is refused before the body is read.
+    if unsupported and not optional then return refuse(request, problems.response(415), "unsupported_media_type") end
     local text = request:read_content()
     local value
-    if text == "" and media == nil and optional then
-      -- `content_optional` (OQ-129 (4)): an absent body (no content and no `Content-Type`) is accepted, the action gets a
-      -- nil `content`; a present body is validated below as usual.
+    if text == "" and optional then
+      -- `content_optional`: an empty body is an absent body whatever the `Content-Type` field says; the action gets a nil
+      -- `content`. A body that is not empty is validated below as usual.
       request:set_validated_content(nil)
       return nil
     end
+    if unsupported then return refuse(request, problems.response(415), "unsupported_media_type") end
     if text == "" then
       -- No content: the schema decides whether that is acceptable (`optional`, `default`) or a violation.
       if media == nil then

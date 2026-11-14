@@ -22,7 +22,7 @@ local errors = require("hecate.kernel.errors")
 ---@field deprecated boolean
 ---@field parameters hecate.kernel.RouteParameters
 ---@field content table<string, hecate.schema.Schema>  request schema per media type
----@field content_optional boolean  false by default: a declared `content` means the request body is required; true accepts an absent body (the action gets a nil `content`), a present body being validated all the same (OQ-129 (4))
+---@field content_optional boolean  false by default: a declared `content` means the request body is required; true accepts an empty body, with or without `Content-Type` (the action gets a nil `content`), a body that is not empty being validated all the same
 ---@field responses table<integer, hecate.schema.Schema|table|true>  schema, problem class, or `true` (declared without content) per status code
 ---@field security table[]  requirements, kept as declared (the `security` package defines their shape)
 ---@field filters hecate.kernel.Filter[]  outermost first: those of the controller, then those of the route

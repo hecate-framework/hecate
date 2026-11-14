@@ -168,8 +168,24 @@ function T:test_a_present_body_is_still_validated_with_content_optional()
   self:assert_equal(422, serve(request("POST", "/o", { content = '{"name":5}' })).status)
   self:assert_equal(400, serve(request("POST", "/o", { content = "{" })).status)
   self:assert_equal(415, serve(request("POST", "/o", { content = '{"name":"Ada"}', type = "text/plain" })).status)
-  -- An empty body that declares a media type is malformed JSON, not an absent body.
-  self:assert_equal(400, serve(request("POST", "/o", { content = "" })).status)
+  -- A non-empty body without a Content-Type field is still refused.
+  self:assert_equal(415, serve(request("POST", "/o", { content = '{"name":"Ada"}', type = false })).status)
+end
+
+function T:test_an_empty_body_with_a_content_type_is_absent_with_content_optional()
+  local content = { ["application/json"] = schema.object({ name = schema.string() }) }
+  local seen, calls = "unset", 0
+  local serve = serve_with("POST", "/o", {
+    content = content, content_optional = true,
+    action = function(r) calls = calls + 1; seen = r.content; return { ok = true } end,
+  })
+  self:assert_equal(200, serve(request("POST", "/o", { content = "" })).status)
+  self:assert_nil(seen)
+  self:assert_equal(200, serve(request("POST", "/o", { content = "", type = "text/plain" })).status)
+  self:assert_equal(2, calls)
+  -- Without the flag, an empty body that declares a media type stays malformed JSON.
+  local required = serve_with("POST", "/r", { content = content })
+  self:assert_equal(400, required(request("POST", "/r", { content = "" })).status)
 end
 
 function T:test_content_with_a_plain_schema_is_validated_and_defaults_apply()

@@ -207,9 +207,9 @@ nothing.
 
 A route that declares `content` requires its body: a request without one is a `422`, the schema reporting the
 missing value. To accept a request with no body, add `content_optional = true` to the declaration of the route. The
-input step then lets an absent body through, and the action reads `request.content` as `nil`. A body that is present is
-validated as before: a body that does not conform is still a `422`, malformed JSON a `400`, another media type a `415`.
-An empty body that comes with a `Content-Type` field counts as present, so it is a `400`. The flag needs a declared
+input step then lets an empty body through, with or without a `Content-Type` field, and the action reads
+`request.content` as `nil`. A body that is not empty is validated as before: a body that does not conform is still a
+`422`, malformed JSON a `400`, another media type, or none, a `415`. The flag needs a declared
 `content` and a boolean value; the declaration is refused otherwise, with the reason `invalid_content_optional`.
 
 ### The record of the guard
