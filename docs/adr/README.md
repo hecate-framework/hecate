@@ -40,4 +40,4 @@ Use [`template.md`](template.md) or the `/new-adr` command.
 | [0025](0025-ambient-context.md) | Ambient context: `reactor.with_ambient` and `reactor.ambient` | Accepted |
 | [0026](0026-query-sql-layering.md) | Data access layering: abstract API in `query`, translators in `sql` | Proposed |
 | [0027](0027-kernel-depends-on-net.md) | `kernel` depends on `net` for the listening strategies | Accepted |
-| [0028](0028-cli-sha256-rock-behind-a-seam.md) | sha256 in the CLI: the `plc` rock behind a one-line seam | Proposed |
+| [0028](0028-cli-sha256-rock-behind-a-seam.md) | sha256 in the CLI: the `digest` rock behind a one-line seam | Proposed |

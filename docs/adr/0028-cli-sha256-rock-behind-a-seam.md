@@ -1,4 +1,4 @@
-# 0028 — sha256 in the CLI: the `plc` rock behind a one-line seam
+# 0028 — sha256 in the CLI: the `digest` rock behind a one-line seam
 
 - **Status:** Proposed
 - **Date:** 2026-11-14
@@ -20,6 +20,9 @@ Candidates were installed on Lua 5.5.1 and checked against `sha256sum` on `abc` 
 |---|---|---|
 | `plc` 0.5 | pure Lua, MIT | correct, 16 MB in 6.1 s |
 | `hmac` 0.4.1 | C, MIT | correct, 16 MB in 0.07 s; builds with `configh`, `lauxhlib`, `luarocks-build-hooks` |
+| `digest` 0.0.1 (osch) | C, one source file plus two vendored cores, MIT AND BSD-3-Clause | correct, 16 MB in 0.07 s, streams, MD5 and SHA-2 and HMAC, no other rock; built by hand from the raw sources (the rockspec downloads a GitHub archive, blocked in the cloud environment); 1741 of its own assertions pass, 1 check fails because its fixture directory could only be partly fetched |
+| `lua-resty-crypto` | LuaJIT `ffi` over OpenSSL, no licence declared | cannot run on PUC Lua 5.5 |
+| `lua-hashings` | no listing for Lua 5.5 | its 5.5 successor is `lua-hashings-and-nums` (above) |
 | `lua-hashings-and-nums` 1.0.3 | pure Lua, MIT | correct, about 50 s per MB |
 | `sha2` 0.2.0 | C for Lua 5.1 | does not compile |
 | `lsha2` 0.1 | Lua 5.1/5.2, GPL-3 | licence excludes it |
@@ -28,30 +31,38 @@ Candidates were installed on Lua 5.5.1 and checked against `sha256sum` on `abc` 
 
 1. **`plc`** (`plc.sha2`, from Roberto Ierusalimschy's Lua implementation). Embeds as Lua source, nothing to
    compile on three platforms; one-shot only; about 2.6 MB/s, so an 825 KB toolchain archive takes about 0.3 s.
-2. **`hmac`.** Fast, streams, also provides HMAC; a C module to link into the embedded interpreter for each of
-   the six targets, plus three build-time rocks.
-3. **A vendored C implementation** (as yyjson is vendored): no rock, but code to maintain and audit.
-4. **System tools** (`sha256sum`, `shasum`, `certutil`): nothing embedded, three different command lines and
+2. **`digest`.** Fast, streams, also MD5, SHA-384/512 and HMAC; one C file (it includes the two hash cores) to link
+   into the embedded interpreter for each of the six targets, no other rock. Compiled here with GCC on Linux only;
+   macOS and MSVC were not tried.
+3. **`hmac`.** As fast, also provides HMAC; a C module to link in, plus three build-time rocks (`configh`,
+   `lauxhlib`, `luarocks-build-hooks`).
+4. **A vendored C implementation** (as yyjson is vendored): no rock, but code to maintain and audit.
+5. **System tools** (`sha256sum`, `shasum`, `certutil`): nothing embedded, three different command lines and
    outputs to parse, and a tool that may be absent.
 
 ## Decision
 
-- The CLI uses `plc` for sha256 (option 1).
-- It reaches it only through `hecate.cli.digest`, whose interface is `sha256(data)` and `sha256_file(path)`, both
+- The CLI uses `digest` for sha256 (option 2), with `plc` (option 1, pure Lua) as the fallback backend.
+- It reaches it only through `hecate.cli.digest` (`cli_digest` in the prototype), whose interface is `sha256(data)` and `sha256_file(path)`, both
   returning 64 lowercase hexadecimal characters. The rock is chosen in **one** module (the backend), so that
-  switching to `hmac` or another rock changes that module and the rockspec dependency, and no caller.
-- The prototype in [`docs/spikes/OQ-13/`](../spikes/OQ-13/) (`digest.lua`, `digest_backend.lua`,
-  `digest_backend_plc.lua`, `digest_backend_hmac.lua`, `digest_test.lua`) shows the shape; both backends pass the
-  same contract test.
-- Not decided here: replacing `plc` by `hmac` if archives grow or hashing shows up in a measurement. The seam
-  makes that a small change.
+  switching to `digest`, `hmac` or another rock changes that module and the rockspec dependency, and no caller.
+- The prototype in [`docs/spikes/OQ-13/`](../spikes/OQ-13/) (`cli_digest.lua`, `digest_backend.lua`,
+  `digest_backend_plc.lua`, `digest_backend_hmac.lua`, `digest_backend_digest.lua`, `digest_test.lua`) shows the
+  shape; the three backends pass the same contract test, and `digest_backend.lua` selects `digest`.
+- Not decided here: replacing `digest` by `plc`, `hmac` or another rock if a risk below materialises. The seam makes
+  that a small change.
 
 ## Consequences
 
-- `hecate-cli` depends on `plc` when this ADR is accepted (the rockspec is not changed before), and
-  `THIRD_PARTY_NOTICES` records it (MIT, with the Ierusalimschy notice carried by the rock).
-- Files are read whole before hashing with `plc` (no streaming); acceptable for toolchain archives and lock
-  data, to be revisited with the `hmac` backend if larger inputs appear.
+- `hecate-cli` depends on `digest` when this ADR is accepted (the rockspec is not changed before), and
+  `THIRD_PARTY_NOTICES` records it: MIT for the binding, BSD-3-Clause for `sha2.c` (a notice obligation), MIT for
+  `md5.c` (the rock ships `LICENSE-THIRD-PARTY`).
+- Files are streamed in chunks (`digest.new("sha256")`), so large archives need no extra memory.
+- Risks, accepted with the seam as the mitigation: the rock is young (24 days on 2026-11-14, one maintainer, 215
+  downloads); if it is abandoned, its single C file and two cores can be vendored (as yyjson is) or the backend
+  switched to `plc`. Its README claims CI on macOS and on Windows (MSVC and MinGW) for Lua 5.5, which we have not
+  verified: a throwaway workflow compiling and testing it on the three platforms is required before this ADR is
+  accepted. It was compiled here with GCC on Linux only, and its own suite was run with part of its fixtures.
 - The contract test of the seam runs against every backend present, so a switch is checked by the same vectors.
 
 ## Verification

@@ -1,8 +1,8 @@
 -- Contract test: the same expectations for every backend.
---   lua digest_test.lua plc|hmac     (paths of the installed rocks in LUA_PATH / LUA_CPATH)
+--   lua digest_test.lua plc|hmac|digest     (paths of the installed rocks in LUA_PATH / LUA_CPATH)
 local name = assert(arg[1], "backend name expected")
 package.loaded["digest_backend"] = require("digest_backend_" .. name)
-local digest = require("digest")
+local digest = require("cli_digest")
 
 local vectors = {
   { "", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" },

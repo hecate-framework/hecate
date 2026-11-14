@@ -1,6 +1,7 @@
--- The only sha256 interface the CLI uses. Callers never require a hash rock directly.
---   digest.sha256(data)        -> 64 lowercase hexadecimal characters
---   digest.sha256_file(path)   -> the same, for the content of a file
+-- The only sha256 interface the CLI uses (`hecate.cli.digest` in the package; named `cli_digest` here because the
+-- `digest` rock has a module of the same name). Callers never require a hash rock directly.
+--   cli_digest.sha256(data)  -> 64 lowercase hexadecimal characters
+--   cli_digest.sha256_file(path) -> the same, for the content of a file
 -- The rock behind it is chosen in ONE place: digest_backend.lua.
 local backend = require("digest_backend")
 

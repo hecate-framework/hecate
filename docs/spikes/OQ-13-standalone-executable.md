@@ -120,10 +120,12 @@ runs the CLI's own code.
   | `plc` 0.5 | pure Lua, MIT | loads | yes | 6.1 s (about 2.6 MB/s) |
   | `lua-hashings-and-nums` 1.0.3 | pure Lua, MIT | loads | yes | about 50 s per MB: unusable |
   | `sha2` 0.2.0 | C, written for Lua 5.1 | does not compile (`luaL_openlib`, `luaL_reg`) | n/a | n/a |
-  | `lsha2` 0.1 | Lua for 5.1/5.2 with `bit32`, GPL-3 | not tried: licence | n/a | n/a |
-  | `luagcrypt` | C binding of libgcrypt | needs the libgcrypt headers and library on the machine | not tried | not tried |
-  | `digest` 0.0.1 | C | source only on GitHub archives (blocked here) | not tried | not tried |
-
+  | `digest` 0.0.1 (osch) | C, one file, MIT AND BSD-3-Clause | built by hand from the raw sources (the rockspec downloads a GitHub archive, blocked here); compiles on 5.5 without warning | yes | **0.07 s**; also MD5, SHA-384/512, HMAC, streaming; its own suite: 1741 assertions pass, 1 check fails (it counts fixture files, I could fetch only some) |
+| `lua-resty-crypto` | LuaJIT `ffi` over OpenSSL, no licence declared | cannot run on PUC Lua 5.5 | n/a | n/a |
+| `lua-hashings` | not listed for Lua 5.5; its 5.5 successor is `lua-hashings-and-nums` | see above | n/a | n/a |
+| `lsha2` 0.1 | Lua for 5.1/5.2 with `bit32`, GPL-3 | not tried: licence | n/a | n/a |
+| `luagcrypt` | C binding of libgcrypt | needs the libgcrypt headers and library on the machine | not tried | not tried |
+  
   `plc` is fast enough for the CLI (an 825 KB toolchain archive in about 0.3 s) and is embedded as Lua source, no
   native code to build on three platforms. `hmac` is 80 times faster and also gives HMAC, but a C rock must be
   linked into the embedded interpreter on every target, and it builds with three other rocks
@@ -150,6 +152,21 @@ runs the CLI's own code.
 
 - sha256: the owner leans towards `plc` and asks that switching to another rock (such as `hmac`) stays easy. A
   one-module seam, `digest`, with a backend per rock and a contract test run for both backends, is in
-  [`OQ-13/`](OQ-13/) (`digest.lua`, `digest_backend*.lua`, `digest_test.lua`; both backends pass). The dependency
+  [`OQ-13/`](OQ-13/) (`cli_digest.lua`, `digest_backend*.lua`, `digest_test.lua`; the `plc`, `hmac` and `digest` backends pass). The dependency
   is proposed in [ADR 0028](../adr/0028-cli-sha256-rock-behind-a-seam.md) (Proposed): a new third-party
   dependency needs the owner's acceptance, so no rockspec was changed.
+- Fourth round: `digest`, `lua-hashings` and `lua-resty-crypto` (named by the owner) were checked. `digest` is the
+  strongest C candidate: correct, as fast as `hmac`, one C file, no other rock; it is now a third backend of the
+  seam. `lua-resty-crypto` needs LuaJIT's `ffi`; `lua-hashings` has no Lua 5.5 listing and `lua-hashings-and-nums`
+  is its successor. The earlier note "`digest` not tried" was my omission, caused by the blocked GitHub archive,
+  which I worked around with the raw files.
+- Fifth round (owner: "we might as well want `digest` instead of the other rocks"): `digest` becomes the proposed
+  choice, `plc` the pure-Lua fallback. Facts behind it, read on 2026-11-14: published 24 days earlier, 215
+  downloads on the module page, one maintainer, used as a dependency by one other rock. It continues `lua-sha2`
+  (itself the revival of the 2010 `sha2` binding of Cosmin Apreutesei, the lineage of the old `sha2` rock that does
+  not compile on Lua 5.5), with the hash cores of Gifford (`sha2.c`, BSD-3-Clause) and of the Kepler Project
+  (`md5.c`, MIT). Its README claims CI on Lua 5.1 to 5.5 and LuaJIT on Linux, and Lua 5.5 on macOS and on Windows
+  (MSVC and MinGW): the author's claim, not checked here. "Best one out there" is not established: only the
+  candidates found by the searches above were tested. Risks recorded in ADR 0028: a young single-maintainer
+  project (mitigated by the seam, and by vendoring the single C file with its two cores as yyjson is), and no
+  compilation on macOS or MSVC by us yet (to be checked in a throwaway workflow before the ADR is accepted).
