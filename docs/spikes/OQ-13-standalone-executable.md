@@ -277,3 +277,20 @@ and loads it, (4) runs the sha256 contract test with the `digest` and `plc` back
 - Windows needs `lua55.dll` beside the executable: native rocks link against it, and the host shares it.
 - Not verified: Windows arm64, musl, Lua 5.4, embedding the LuaRocks sources and the Lua headers in the executable, and the
   installers. ADR 0029 is Accepted on these results.
+
+### luasodium on Lua 5.5 (2026-11-14, tarball supplied by the owner)
+
+The owner supplied the source tarball of `luasodium` 2.4.1 (sha256 `7f7e61fff2c8cf30d4e8248cee482c9b2028ac5cbeebe78341ef1ecb95914b02`)
+because its host, `buffering.party`, is blocked in the cloud environment. It was treated as untrusted: the file list was read first
+(255 entries, all under one directory, no absolute or `..` paths, no links), then it was built through LuaRocks from its own rockspec
+with the source URL pointing at the local file, in a git-ignored directory (`spikes/OQ-45/`).
+
+- It builds on Lua 5.5.1 against libsodium 1.0.18 (Ubuntu 24.04), with only libsodium's own deprecation warnings.
+- SHA-256 (16 MB in 0.064 s) and HMAC-SHA-256 match `sha256sum` and OpenSSL; argon2id is the default password hash and
+  `crypto_pwhash_str` and `crypto_pwhash_str_verify` work (`$argon2id$v=19$m=65536,t=2,p=1$...`).
+- Its HMAC functions take a fixed 32-byte key and have no streaming form; there is no PBKDF2, MD5, SHA-1 or HKDF.
+- PBKDF2-HMAC-SHA-256 over `crypto_hash_sha256` alone (RFC 2104 HMAC, any key length) matches OpenSSL on two vectors (the
+  `password`/`salt`/4096 vector; a 100-byte password with 40 bytes of output) and takes 14 ms for 4096 iterations, the PostgreSQL
+  SCRAM default. So SCRAM-SHA-256 needs nothing but `luasodium`.
+- Not checked: Windows and macOS builds of `luasodium` (it needs the libsodium library on each), and its FFI bindings (LuaJIT only).
+
