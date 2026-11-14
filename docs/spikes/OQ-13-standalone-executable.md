@@ -195,3 +195,27 @@ rock's own suite from a clone of its `v0.0.1` tag (all fixtures present), then t
 - Earlier doubt resolved: the single failed check of the partial local run (fixtures not fetched) passes with the full
   fixtures. Not covered: Windows arm64, musl, the embedded build into the CLI host (not written yet), and the
   stricter release toolchains (code signing, minimum macOS version).
+
+### Seventh round (owner questions, 2026-11-14)
+
+- **What has to be downloaded?** Rocks all go through LuaRocks. What LuaRocks cannot fetch is its own interpreter:
+  ADR 0010 has the CLI install a *toolchain* per project (Lua, LuaRocks and headers), and `hecate self update` fetches
+  the executable itself. That is all, and only the toolchain depends on the open choice (`curl` and `tar`, or a
+  native client).
+- **A possible alternative, not in ADR 0010:** the executable embeds Lua 5.5, so it could also be the interpreter of
+  a Lua 5.5 project and run LuaRocks (pure Lua) itself, which would remove every download for the default Lua. Two
+  Linux checks (`lua_host.c` in [`OQ-13/`](OQ-13/), linked with the Lua API exported): the host loaded a native rock
+  built separately (`digest.so`), and it ran LuaRocks 3.13 and installed a binary rock into a tree. Not checked:
+  Windows (native rocks link against `lua55.dll`, so the executable would have to export the Lua API under that
+  name), macOS, building a source rock (needs the headers and a compiler), the embedded copy of LuaRocks, and Lua
+  5.4 (a downloaded toolchain would still be needed). The choice between the two designs is the owner's.
+- **"Supervises processes" meant this:** the CLI starts the project's interpreter for `install`, `serve`, `test`, `doc`,
+  `migrate` and `run`, and must forward signals (Ctrl-C, `SIGTERM` from a container runtime), return the exit code,
+  and, for `serve --watch`, restart it when files change. The worker processes of multi-process serving are
+  supervised by `kernel`, not by the CLI (ADR 0023). On Unix the CLI could replace itself by the interpreter
+  (`exec`) for everything but `--watch`; Windows has no `exec`.
+- **OQ-45 and the hashing primitives:** the DBMS stores the password hashed, but a driver must still compute the
+  *login proof*: PostgreSQL SCRAM-SHA-256 needs PBKDF2 with HMAC-SHA-256 over the password and a salt sent by the
+  server, MySQL `caching_sha2_password` a SHA-256 scramble with the server's nonce, legacy PostgreSQL an MD5 of the
+  password, the user and a salt. The password itself is not sent. `digest` (SHA-256, HMAC, MD5) covers all but
+  PBKDF2, which is a loop over HMAC; this is a possible option for OQ-45, not decided here.
