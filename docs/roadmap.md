@@ -308,9 +308,10 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       reporters (TAP, JUnit XML), coverage. **Also (T2, from the `http` test review):** a hand-built `Request` whose
       `content` is a table must be JSON-encoded or raise, not read as empty (`Request:read_content` today reads only a
       string); the in-process client uses the dispatch seam of OQ-78. **Also (from the `schema` review, OQ-96):** property-based generators derived from `hecate.schema` types (`generate`, `generate_invalid`, shrinking), which `schema` does not implement.
-- [ ] Spike OQ-13 (standalone CLI executable: Lua 5.5, the CLI modules and the native modules in one binary per
+- [x] Spike OQ-13 (standalone CLI executable: Lua 5.5, the CLI modules and the native modules in one binary per
       platform; code signing on macOS and Windows), time-boxed, report and recommendation to the owner before the
-      `cli` v1 item (owner decision of 2026-11-13).
+      `cli` v1 item (owner decision of 2026-11-13). Report: [OQ-13](spikes/OQ-13-standalone-executable.md) (Linux
+      prototype works; macOS, Windows and musl to check before `cli` v1; recommendation awaits the owner).
 - [ ] Spike OQ-17 (split tool for the read-only mirrors: `splitsh-lite`, `git subtree split`, `git filter-repo`;
       determinism and speed), report to the owner before the mirrors item (owner decision of 2026-11-13).
 - [ ] `reactor.random(n)`, cryptographically secure bytes over libuv `uv_random`, used by the multipart boundaries of
