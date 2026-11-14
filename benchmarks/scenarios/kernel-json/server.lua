@@ -22,6 +22,7 @@ local log = require("hecate.log")
 
 local routes = kernel.routes("benchmark")
 routes:get("/json", {
+  name = "json",
   summary = "A fixed message",
   responses = { [200] = schema.object({ message = schema.string() }) },
   action = function() return { message = "Hello, World!" } end,

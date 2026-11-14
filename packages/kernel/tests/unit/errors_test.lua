@@ -49,8 +49,8 @@ function T:test_a_type_mistake_in_a_declaration_is_an_invalid_argument()
     function() kernel.routes("") end,
     function() kernel.routes("m"):get(nil, { action = action }) end,
     function() kernel.routes("m"):get("/x", 5) end,
-    function() Controller.route(42, { method = "GET", path = "/x", action = "a" }) end,
-    function() Controller.route(core.class("NotAController"), { method = "GET", path = "/x", action = "a" }) end,
+    function() Controller.route(42, { method = "GET", path = "/x", name = "get_x", action = "a" }) end,
+    function() Controller.route(core.class("NotAController"), { method = "GET", path = "/x", name = "get_x", action = "a" }) end,
   }
   for index, case in ipairs(cases) do
     local err = declaration_error(self, case)
@@ -68,10 +68,10 @@ function T:test_messages_start_with_the_module_and_function_and_name_what_was_go
     { function() Controller.route(42, {}) end, "^hecate%.kernel%.controller%.route: ", "got number" },
     { function() Controller.entries(42) end, "^hecate%.kernel%.controller%.entries: ", "got number" },
     { function() kernel.routes("m", { prefx = "/a" }) end, "^hecate%.kernel%.routes%.init: ", "unknown option 'prefx' (valid: filters, prefix)" },
-    { function() kernel.routes("m"):get("/x", { actoin = action }) end, "^hecate%.kernel%.route%.normalise: ",
+    { function() kernel.routes("m"):get("/x", { name = "get_x", actoin = action }) end, "^hecate%.kernel%.route%.normalise: ",
       "unknown field 'actoin' (valid: " },
-    { function() kernel.routes("m"):get("/x", { action = "name" }) end, "^hecate%.kernel%.route%.normalise: ", "got string" },
-    { function() kernel.routes("m"):get("/x", { action = action, tags = "a" }) end, "^hecate%.kernel%.route%.normalise: ", "got string" },
+    { function() kernel.routes("m"):get("/x", { name = "get_x", action = "name" }) end, "^hecate%.kernel%.route%.normalise: ", "got string" },
+    { function() kernel.routes("m"):get("/x", { name = "get_x", action = action, tags = "a" }) end, "^hecate%.kernel%.route%.normalise: ", "got string" },
     { function() kernel.routes("m", { filters = 1 }) end, "^hecate%.kernel%.route%.check_filters: ", "got number" },
     { function() kernel.routes("m", { prefix = 1 }) end, "^hecate%.kernel%.routes%.init: ", "got number" },
   }
@@ -84,7 +84,7 @@ end
 
 function T:test_a_method_choice_lists_the_valid_methods()
   local err = declaration_error(self, function()
-    kernel.routes("m"):get("/x", { method = "GET", action = action })
+    kernel.routes("m"):get("/x", { name = "get_x", method = "GET", action = action })
   end)
   self:assert_equal("invalid_argument", err.context.reason)
   local Users = core.class("MethodController", Controller)
@@ -98,12 +98,12 @@ end
 
 function T:test_the_schema_check_names_the_type_it_got()
   local err = declaration_error(self, function()
-    kernel.routes("m"):get("/x", { action = action, parameters = { query = { limit = 5 } } })
+    kernel.routes("m"):get("/x", { name = "get_x", action = action, parameters = { query = { limit = 5 } } })
   end)
   self:assert_equal("invalid_parameters", err.context.reason)
   self:assert_not_nil(err.message:find("got number", 1, true), err.message)
   local ok = schema.integer()
-  kernel.routes("m"):get("/x", { action = action, parameters = { query = { limit = ok } } })
+  kernel.routes("m"):get("/x", { name = "get_x", action = action, parameters = { query = { limit = ok } } })
 end
 
 return T

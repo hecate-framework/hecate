@@ -166,7 +166,7 @@ end
 ---@return hecate.kernel.RouteModule
 local function canary_routes(loaded)
   local routes = kernel.routes("canary")
-  routes:post("/users", {
+  routes:post("/users", { name = "post_users",
     parameters = {
       query = { limit = schema.optional(schema.integer()) },
       fields = { ["X-Page"] = schema.optional(schema.integer()) },
@@ -180,7 +180,7 @@ local function canary_routes(loaded)
     }) },
     action = function() return { created = true } end,
   })
-  routes:get("/log", { action = function()
+  routes:get("/log", { name = "get_log", action = function()
     log.default():warning("login attempt", {
       password = CANARY, Authorization = "Bearer " .. CANARY, headers = { cookie = "sid=" .. CANARY },
       national_id = CANARY, -- added by `logging.redact`
@@ -188,28 +188,28 @@ local function canary_routes(loaded)
     })
     return { logged = true }
   end })
-  routes:get("/secret", { action = function()
+  routes:get("/secret", { name = "get_secret", action = function()
     -- Logged under a name that is not in the list: only the secret object keeps it out of the output.
     log.default():informational("connecting", { database_credential = loaded:get("database.password") })
     return { connected = true }
   end })
   -- The query parameter is declared: with `requests.inputs = "strict"` an undeclared one would be refused with a 422.
   local query = { access_token = schema.optional(schema.string()) }
-  routes:get("/fail", { parameters = { query = query }, action = function()
+  routes:get("/fail", { name = "get_fail", parameters = { query = query }, action = function()
     error("cannot connect with password " .. CANARY)
   end })
-  routes:get("/fail-object", { parameters = { query = query }, action = function()
+  routes:get("/fail-object", { name = "get_fail_object", parameters = { query = query }, action = function()
     error(core.Error({ message = "the lookup failed", context = { password = CANARY, email = CANARY } }))
   end })
-  routes:get("/fail-cause", { action = function()
+  routes:get("/fail-cause", { name = "get_fail_cause", action = function()
     error(core.Error({ message = "the lookup failed", cause = core.Error({ message = "driver said " .. CANARY }) }))
   end })
-  routes:get("/fail-check", { action = function()
+  routes:get("/fail-check", { name = "get_fail_check", action = function()
     -- A key supplied by a user (a map key) that fails a check inside the action: its JSON Pointer holds the canary.
     schema.map(schema.integer()):check({ [CANARY] = "not an integer" })
     return { checked = true }
   end })
-  routes:get("/unencodable", { action = function()
+  routes:get("/unencodable", { name = "get_unencodable", action = function()
     error(kernel.problem.Conflict({ extensions = { info = { [CANARY] = function() end } } }))
   end })
   return routes

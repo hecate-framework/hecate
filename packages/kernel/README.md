@@ -133,8 +133,7 @@
   without its table of declarations (`module:get "/x"` alone), which would otherwise drop the route silently.
   `kernel.routes(name, options?)` takes `options = { prefix?, filters? }`, validated at once (`RouteDeclarationError`
   for an unknown field, a non-string or malformed `prefix`, a non-list `filters` or a non-filter element). `prefix` has
-  the rule of a controller prefix and is prepended to every route, so the default name `<METHOD> <full path>` includes
-  it. `filters` are the DEFAULT filters of each route, not a layer of the chain: a route that declares `filters`
+  the rule of a controller prefix and is prepended to the path of every route (not to its name). `filters` are the DEFAULT filters of each route, not a layer of the chain: a route that declares `filters`
   replaces them, it does not extend them, and an explicit empty list `filters = {}` removes them (a conservative
   choice). The filters of a controller differ: they stay a layer, always before those of the route, never overridable.
   A route module with defaults gives the same entries as the equivalent controller whose routes declare no own filters;
@@ -152,13 +151,13 @@
   (`hecate.kernel.RouteEntry`: `method`, `path`, `name`, `summary`, `description`, `tags`, `deprecated`, `parameters`
   with `path`, `query`, `fields` and `cookies`, `content`, `responses`, `security`, `filters`, `action`, plus `controller`
   and `origin`), usable as a `hecate.router.Route`. A `responses` value is a schema, a problem class or `true`, which
-  declares a status without content (`[204] = true`). The name defaults to `<METHOD> <path>` in both styles, so equivalent
-  declarations give equal tables. The parameters of the path template and `parameters.path` must match both ways.
+  declares a status without content (`[204] = true`). The `name` is mandatory and set explicitly in both styles (OQ-129 (1)): a route has no automatic name, and a declaration
+  without `name` is refused with `RouteDeclarationError` (`missing_name`), so equivalent declarations give equal tables. The parameters of the path template and `parameters.path` must match both ways.
 - `kernel.routing.collect(sources, module_filters?)`: the flat route table of route modules and controller classes, ready for
   `router.Router`. With `module_filters`, each entry is a copy tagged `module_filters` (the second layer of its chain).
 - `kernel.RouteDeclarationError`: a `ConfigurationError`, the one error of a route declaration, at declaration or at boot:
   a type mistake in an argument of `kernel.routes`, a verb or `Controller.route` is `reason = "invalid_argument"`.
-  `context.reason` (`invalid_argument`, `invalid_options`, `unknown_field`, `invalid_method`, `invalid_path`, `invalid_name`,
+  `context.reason` (`invalid_argument`, `invalid_options`, `unknown_field`, `invalid_method`, `invalid_path`, `missing_name`, `invalid_name`,
   `invalid_text`, `invalid_tags`, `invalid_deprecated`, `invalid_parameters`, `parameter_mismatch`, `invalid_content`,
   `invalid_responses`, `invalid_security`, `invalid_filters`, `invalid_action`, `missing_action`, `invalid_controller`,
   `invalid_routes`, `invalid_source`, `incomplete_route`, `missing_container`, `unsupported_content_type`; the list is

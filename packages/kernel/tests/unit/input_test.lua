@@ -21,6 +21,7 @@ end
 local function serve_with(method, path, spec, options)
   local module = kernel.routes("t")
   spec.action = spec.action or function(r) return { ok = true } end
+  spec.name = spec.name or "t"
   module[method:lower()](module, path, spec)
   local serve = dispatcher.build(module:routes(), options)
   return serve
@@ -372,7 +373,7 @@ end
 
 function T:test_a_route_without_inputs_gets_no_step()
   local input = require("hecate.kernel.input")
-  local entry = kernel.route.normalise({ method = "GET", path = "/plain", action = function() end }, { origin = "t" })
+  local entry = kernel.route.normalise({ method = "GET", path = "/plain", name = "get_plain", action = function() end }, { origin = "t" })
   self:assert_nil(input.compile(entry))
 end
 local function recording_logger()

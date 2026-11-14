@@ -75,7 +75,7 @@ local Reports = core.class("Reports", hecate.Controller)
 Reports.prefix = "/reports"
 Reports.filters = { trace("controller") }
 hecate.Controller.route(Reports, {
-  method = "GET", path = "/daily", action = "daily",
+  method = "GET", path = "/daily", name = "report.daily", action = "daily",
   filters = { trace("route") },
 })
 function Reports:daily()
@@ -205,6 +205,7 @@ local cors = {
 -- The filters of a route module are the default filters of its routes.
 local accounts = hecate.routes("accounts", { filters = { authenticate } })
 accounts:get("/me", {
+  name = "account.me",
   ---@param request app.Request
   action = function(request) return { user = request.principal } end,
 })

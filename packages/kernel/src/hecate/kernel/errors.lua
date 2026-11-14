@@ -29,7 +29,7 @@ end
 ---   is a field);
 --- - `invalid_options`: the options of a route module are not a table;
 --- - `unknown_field`: a declaration or an option has a field the kernel does not know;
---- - `invalid_method`, `invalid_path` (also a malformed `prefix`), `invalid_name`, `invalid_text`, `invalid_tags`,
+--- - `invalid_method`, `invalid_path` (also a malformed `prefix`), `missing_name` (a route has no automatic name, OQ-129 (1)), `invalid_name`, `invalid_text`, `invalid_tags`,
 ---   `invalid_deprecated`, `invalid_parameters`, `invalid_content`, `invalid_responses`, `invalid_security`,
 ---   `invalid_filters`: a field of a declaration is malformed;
 --- - `parameter_mismatch`: the path template and `parameters.path` disagree;

@@ -289,6 +289,8 @@ Each release heading states the supported Lua version.
 
 ### Changed
 
+- feat(kernel)!: a route has no automatic name (owner decision on OQ-129 (1), amending OQ-113 (2)). The `name` of a route declaration is mandatory and set explicitly, in both styles (route modules, controllers); the default `<METHOD> <path>` is removed, and a declaration without `name` is refused with `RouteDeclarationError` (`reason = "missing_name"`, the message gives the fix). The name stays the key of reverse routing and the `operationId` of the generated document. Every route of the examples, the benchmark, the tests, the website and the specifications now declares its `name`. Breaking, before 0.1.
+
 - feat(core)!: `PreconditionError` (the caller broke the contract of an operation, after Meyer's Design by Contract) with the subclasses `ArgumentError` (code unchanged) and the new `StateError`. The wrong-state uses of `reactor`, `net`, `http`, `kernel` and `container` raise `StateError`: a closed client or container, a server that already serves, a second concurrent reader or acceptor, a nested `run`, `prepare` twice, `reload` when not serving; the wrong-state errors of `container` are no longer `ContainerError`s (OQ-77, owner decision of 2026-11-13).
 
 - feat(http)!: on the client, a response content that stalls past `content_timeout` raises `ContentError` with `reason = "timeout"` (`DeadlineExceededError` stays for `request_timeout`), and a response over `max_content` raises `ContentError` with `reason = "too_large"` and no `status` (was 413); `http.problem` maps a `ContentError` without a status to 500, so a failing downstream call never blames the requester (OQ-82, owner decision of 2026-11-13).

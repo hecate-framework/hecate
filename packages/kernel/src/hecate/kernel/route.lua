@@ -15,7 +15,7 @@ local errors = require("hecate.kernel.errors")
 ---@class hecate.kernel.RouteEntry
 ---@field method string  an HTTP method, upper case (RFC 9110 section 9.1)
 ---@field path string  the full path template: the prefix of a controller, then the declared path
----@field name string  unique in the route table; `<method> <path>` unless declared
+---@field name string  mandatory, set explicitly by the declaration (OQ-129 (1)); unique in the route table
 ---@field summary? string
 ---@field description? string
 ---@field tags string[]
@@ -42,7 +42,7 @@ local errors = require("hecate.kernel.errors")
 ---@class hecate.kernel.RouteSpec
 ---@field method? string  controllers only
 ---@field path? string  controllers only (relative to the prefix)
----@field name? string
+---@field name string  mandatory
 ---@field summary? string
 ---@field description? string
 ---@field tags? string[]
@@ -190,7 +190,10 @@ function route.normalise(spec, options)
   ---@cast parsed hecate.router.Template
   local name = spec.name
   if name == nil then
-    name = method .. " " .. path
+    -- OQ-129 (1): a route has no automatic name; the name is the public identifier of the route (reverse routing,
+    -- `operationId`), so the declaration states it.
+    refuse(NORMALISE, origin, "missing_name", "name",
+      ("route %s %s has no name: add name = \"...\" to the declaration (a route has no automatic name)"):format(method, path))
   elseif type(name) ~= "string" or name == "" then
     refuse(NORMALISE, origin, "invalid_name", "name", "name must be a non-empty string, got " .. got(name))
   end
