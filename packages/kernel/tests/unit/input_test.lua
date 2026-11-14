@@ -370,6 +370,62 @@ function T:test_content_declared_only_for_another_media_type_is_refused_at_build
   self:assert_equal("unsupported_content_type", err.context.reason)
 end
 
+-- Documented in website/en/how-to/map-domain-errors-to-problem-details.md ("Where the guard logs").
+local function logged_serve(method, path, spec)
+  local seen = {}
+  local logger = { log = function(_, severity, message, fields) seen[#seen + 1] = { severity, message, fields } end }
+  return serve_with(method, path, spec, { logger = logger }), seen
+end
+
+function T:test_a_422_is_logged_as_a_warning_with_the_violation_codes_and_never_the_values()
+  local serve, seen = logged_serve("POST", "/orders/{id}", {
+    parameters = { path = { id = schema.integer() } },
+    content = { ["application/json"] = schema.object({ name = schema.string() }) },
+  })
+  local response = serve(request("POST", "/orders/" .. SECRET .. "?token=" .. SECRET, { content = '{"name":7}' }))
+  self:assert_equal(422, response.status)
+  self:assert_equal(1, #seen)
+  self:assert_equal("warning", seen[1][1])
+  self:assert_equal("request refused", seen[1][2])
+  local fields = seen[1][3]
+  self:assert_equal("POST", fields.method)
+  self:assert_equal(422, fields.status)
+  self:assert_equal("string", type(fields.codes[1]))
+  self:assert_nil(string.find(fields.path, "token", 1, true))
+  for _, value in pairs(fields) do
+    local text = type(value) == "table" and table.concat(value, ",") or tostring(value)
+    self:assert_nil(string.find(text, "token=", 1, true))
+  end
+  self:assert_nil(string.find(table.concat(fields.codes, ","), SECRET, 1, true))
+end
+
+function T:test_a_content_422_is_logged_with_its_codes()
+  local serve, seen = logged_serve("POST", "/x", { content = { ["application/json"] = schema.object({ name = schema.string() }) } })
+  self:assert_equal(422, serve(request("POST", "/x", { content = '{"name":7}' })).status)
+  self:assert_equal(1, #seen)
+  self:assert_equal(422, seen[1][3].status)
+  self:assert_equal("string", type(seen[1][3].codes[1]))
+end
+
+function T:test_a_400_and_a_415_are_logged_with_their_status()
+  local serve, seen = logged_serve("POST", "/x", { content = { ["application/json"] = schema.any() } })
+  self:assert_equal(400, serve(request("POST", "/x", { content = "{" .. SECRET })).status)
+  self:assert_equal(415, serve(request("POST", "/x", { content = "a", type = "text/plain" })).status)
+  self:assert_equal(2, #seen)
+  self:assert_equal(400, seen[1][3].status)
+  self:assert_equal(415, seen[2][3].status)
+  for _, record in ipairs(seen) do
+    self:assert_equal("warning", record[1])
+    for _, value in pairs(record[3]) do self:assert_nil(string.find(tostring(value), SECRET, 1, true)) end
+  end
+end
+
+function T:test_a_conforming_request_logs_nothing()
+  local serve, seen = logged_serve("POST", "/x", { content = { ["application/json"] = schema.any() } })
+  self:assert_equal(200, serve(request("POST", "/x", { content = "{}" })).status)
+  self:assert_equal(0, #seen)
+end
+
 function T:test_a_route_without_inputs_gets_no_step()
   local input = require("hecate.kernel.input")
   local entry = kernel.route.normalise({ method = "GET", path = "/plain", action = function() end }, { origin = "t" })

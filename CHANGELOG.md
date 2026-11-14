@@ -11,6 +11,7 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- feat(kernel): the input step logs its refusals (`422`, `400`, `415`) at `warning` as `request refused`, with the method, the path without the query, the status and the violation codes, never the values.
 - docs(schema): the `Schema.check` example builds the `422` the kernel answers for invalid inputs (`pointer` and `code` per entry, the message only with `errors.expose_details`), instead of a `400` with the message in every entry.
 
 - docs(relay): an owner hold outlasts the relay lock. A relay run skips a pull request when the owner asked on it that no other run continue it, or when its `HANDOFF.md` has an `owner:` line naming another session, even after `lock_until` has passed (`.claude/commands/relay.md`, `docs/architecture/ai-assisted-development.md`, `CLAUDE.md`, the `HANDOFF.md` template). A later run had taken over pull request #195 against such a comment.

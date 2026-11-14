@@ -178,7 +178,7 @@ the action into a response:
 | anything else | a generic `500` |
 
 The `422` of invalid inputs does not come from the guard: the step that reads the inputs answers it before the
-action runs, and does not log it. It lists one entry per
+action runs. It logs the answer itself (see below). It lists one entry per
 [violation](../reference/glossary.md#types-and-validation), at most 100: `pointer` (a JSON Pointer, RFC 6901),
 `source` (`path`, `query`, `header`, `cookie` or `content`) and `code`. A
 `ValidationError` raised by your own code, by `schema:check` for example, is not about the request: it is a `500`.
@@ -192,6 +192,11 @@ that raised them.
 > from a `configuration`. Without either, it logs through the default logger of `hecate.log`, on the standard error
 > stream, so a `500` is never silent. A problem below 500 is a normal answer and is never logged; a problem from 500
 > is logged at `error`.
+
+The step that reads the inputs logs its refusals too, through the same logger: the `422`, and the `400` and `415`
+of the content, at `warning` like the guard does for a client-caused error. The record, `request refused`, carries the
+method, the path without the query string, the `status` and, for a `422`, the `codes` of the violations. It never
+carries a value, a parameter name or a pointer.
 
 The logged record carries the message of the error, its class (`error_class`) and code (`error_code`), the method, the
 path without the query string, and the traceback where it was raised. While `errors.expose_details` is `false`, the

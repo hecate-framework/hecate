@@ -9,6 +9,7 @@ local schema = require("hecate.schema")
 local form = require("hecate.http.form")
 local problems = require("hecate.kernel.problems")
 local errors = require("hecate.kernel.errors")
+local log = require("hecate.log")
 
 --- Validation and coercion of the inputs of a request.
 ---@class hecate.kernel.input
@@ -140,6 +141,7 @@ local DECODE_STATUS <const> = { size_limit = 413 }
 --- Options of `input.compile`.
 ---@class hecate.kernel.input.CompileOptions
 ---@field expose_details? boolean  see `hecate.kernel.problems.GuardOptions`
+---@field logger? { log: fun(self: any, severity: string, message: string, fields?: table) }  receives every refusal of the step at `warning` (default `log.default()` at the time of each record, OQ-79)
 ---@field strict? boolean  refuse a request that carries an undeclared query parameter (`inputs = "strict"`, OQ-114 (8)); default false here, the dispatcher passes its policy
 
 --- Builds the step of an entry that reads, coerces and validates its inputs, or nil when it declares none (such a route
@@ -161,14 +163,35 @@ function input.compile(entry, options)
   if names ~= nil and names.query ~= nil then
     for _, name in ipairs(names.query) do declared_query[name] = true end
   end
+  local logger = options ~= nil and options.logger or nil
   local problem_options = { input = true, expose_details = options ~= nil and options.expose_details or nil }
+  --- Logs a refusal of the step through the logger of the guard's severity for a client-caused answer (`warning`):
+  --- the method, the path without the query, the status and the violation codes, never a value, a name or a pointer
+  --- (OQ-111). Returns the response.
+  ---@param request hecate.http.Request
+  ---@param response hecate.http.Response
+  ---@param violations? table[]
+  local function refused(request, response, violations)
+    local codes
+    if violations ~= nil then
+      codes = {}
+      for i, violation in ipairs(violations) do codes[i] = violation.code end
+    end
+    local sink = logger or log.default()
+    sink:log("warning", "request refused", { method = request.method, path = request.path, status = response.status, codes = codes })
+    return response
+  end
+  --- The `422` of `violations`, logged.
+  local function unprocessable(request, violations)
+    return refused(request, problems.from_error(failure(violations), problem_options), violations)
+  end
   --- The refusal of undeclared query parameters for a route that declares no parameter (`strict` only): a request
   --- without a query string passes it with one comparison, no allocation.
   local function refuse_query(request)
     local text = request.query
     if text == nil or text == "" then return nil end
     local found = undeclared_names(form.parse_urlencoded(text), declared_query)
-    if found ~= nil then return problems.from_error(failure(found), problem_options) end
+    if found ~= nil then return unprocessable(request, found) end
     return nil
   end
   if root == nil and content == nil then
@@ -190,7 +213,7 @@ function input.compile(entry, options)
       if strict then
         -- Undeclared names are refused first, before any coercion: one 422 that names them (OQ-114 (8)).
         local found = undeclared_names(parsed, declared_query)
-        if found ~= nil then return problems.from_error(failure(found), problem_options) end
+        if found ~= nil then return unprocessable(request, found) end
       end
     end
     for _, location in ipairs(LOCATIONS) do
@@ -207,7 +230,7 @@ function input.compile(entry, options)
       end
     end
     local ok, built = root:build(raw, build_options)
-    if not ok then return problems.from_error(failure(with_sources(built)), problem_options) end
+    if not ok then return unprocessable(request, with_sources(built)) end
     for location in pairs(names) do supplied[location] = built[location] end
     return nil
   end
@@ -217,24 +240,24 @@ function input.compile(entry, options)
     -- RFC 9110, section 5.3: a field that is not a list may not be repeated; two `Content-Type` lines are ambiguous (a
     -- proxy and the server may read different ones), so the request is refused instead of guessing.
     if media ~= nil and request.fields:get_all("Content-Type")[2] ~= nil then
-      return problems.response(400, "The request has more than one Content-Type field.")
+      return refused(request, problems.response(400, "The request has more than one Content-Type field."))
     end
     if media ~= nil then
       local parsed = request:media_type()
-      if parsed == nil or parsed:essence() ~= JSON then return problems.response(415) end
+      if parsed == nil or parsed:essence() ~= JSON then return refused(request, problems.response(415)) end
     end
     local text = request:read_content()
     local value
     if text == "" then
       -- No content: the schema decides whether that is acceptable (`optional`, `default`) or a violation.
-      if media == nil then value = nil else return problems.response(400, "The request content is not valid JSON.") end
+      if media == nil then value = nil else return refused(request, problems.response(400, "The request content is not valid JSON.")) end
     else
-      if media == nil then return problems.response(415) end
+      if media == nil then return refused(request, problems.response(415)) end
       local ok, decoded = pcall(json.decode, text)
       if not ok then
         if not core.is_instance_of(decoded, json.DecodeError) then error(decoded, 0) end
         local status = DECODE_STATUS[decoded.context and decoded.context.reason] or 400
-        return problems.response(status, status == 400 and "The request content is not valid JSON." or nil)
+        return refused(request, problems.response(status, status == 400 and "The request content is not valid JSON." or nil))
       end
       value = decoded
     end
@@ -244,7 +267,7 @@ function input.compile(entry, options)
       for i, violation in ipairs(built) do
         mapped[i] = { path = violation.path, code = violation.code, message = violation.message, source = "content" }
       end
-      return problems.from_error(failure(mapped), problem_options)
+      return unprocessable(request, mapped)
     end
     request:set_validated_content(built)
     return nil
