@@ -260,8 +260,16 @@ local function operation_of(entry, components)
     operation.requestBody = { required = entry.content_optional ~= true, content = content }
   end
   if entry.security ~= nil and #entry.security > 0 then
-    operation.security = {}
-    for index, requirement in ipairs(entry.security) do operation.security[index] = requirement end
+    operation.security = json.array()
+    for index, requirement in ipairs(entry.security) do
+      -- OpenAPI 3.1 section 4.8.30: a requirement maps each scheme name to an ARRAY of scopes, `[]` when none. The
+      -- declared requirement is copied (never modified) and every scope list marked, so that `encode` writes `[]`.
+      local copy = {}
+      for scheme, scopes in pairs(requirement) do
+        copy[scheme] = json.array({ table.unpack(scopes) })
+      end
+      operation.security[index] = copy
+    end
   end
   return operation
 end
@@ -281,6 +289,20 @@ local function check_entry(entry, index)
   end
   for _, field in ipairs({ "content", "responses" }) do
     if entry[field] ~= nil and type(entry[field]) ~= "table" then refuse(where .. "." .. field .. " must be a table, got " .. describe(entry[field])) end
+  end
+  if entry.security ~= nil then
+    if type(entry.security) ~= "table" then refuse(where .. ".security must be a list of requirements, got " .. describe(entry.security)) end
+    for position, requirement in ipairs(entry.security) do
+      if type(requirement) ~= "table" then refuse(("%s.security[%d] must be a table (scheme name to list of scopes), got %s"):format(where, position, describe(requirement))) end
+      for scheme, scopes in pairs(requirement) do
+        if type(scheme) ~= "string" or type(scopes) ~= "table" then
+          refuse(("%s.security[%d] must map scheme names to lists of scopes"):format(where, position))
+        end
+        for _, scope in ipairs(scopes) do
+          if type(scope) ~= "string" then refuse(("%s.security[%d] scopes must be strings"):format(where, position)) end
+        end
+      end
+    end
   end
   for _, map in pairs(entry.content or {}) do
     if not schema.is_schema(map) then refuse(where .. ".content must hold schemas (hecate.schema)") end

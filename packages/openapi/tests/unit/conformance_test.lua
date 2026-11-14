@@ -128,6 +128,11 @@ function T:test_the_self_check_detects_defects()
   detects(function(d) d.paths["/users"].post.requestBody.content["application/json"].schema = { ["$ref"] = "#/components/schemas/Nope" } end, "does not resolve")
   detects(function(d) d.paths["users"] = {} end, "must start with '/'")
   detects(function(d) d.externalDocs = { description = "x" } end, "missing required field 'url'")
+  detects(function(d) d.paths["/users/{id}"].delete.security[1].bearer = json.object() end, "scopes must be an array")
+  detects(function(d) d.paths["/users/{id}"].delete.security[1].bearer = json.array({ 1 }) end, "a scope must be a string")
+  detects(function(d) d.paths["/users/{id}"].delete.security[1].bearer = json.array({ "a", 1 }) end, "a scope must be a string")
+  detects(function(d) d.paths["/users/{id}"].delete.security = { bearer = json.array() } end, "must be an array of security")
+  detects(function(d) d.security = json.array { { bearer = json.object() } } end, "scopes must be an array")
   -- a specification extension is allowed
   local doc = document()
   doc["x-extra"] = true

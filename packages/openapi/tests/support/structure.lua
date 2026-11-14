@@ -4,6 +4,7 @@
 -- `openapi.build` emits: the fixed fields of OpenAPI 3.1, section 4.8 (the Objects), restricted to the objects the
 -- assembly produces, with the allowed and required fields of each object written in `OBJECTS` and cross-checked against
 -- the official schema by `conformance_test.lua` whenever the pinned schema is downloaded.
+local json = require("hecate.json")
 local M = {}
 
 --- Fixed fields per object (OpenAPI 3.1, 4.8): `allowed` is the whole set of the official schema (`unevaluatedProperties`
@@ -112,7 +113,30 @@ function M.check(document)
     end
   end
 
+  --- 4.8.30 Security Requirement Object: an object whose values are arrays of strings (scopes, `[]` when none). The
+  --- document is decoded by `hecate.json`, so an empty `{}` where an array belongs is an unmarked or object-marked table.
+  local function check_security(where, list)
+    if not json.is_array(list) then return problem(where, "must be an array of security requirements") end
+    for index, requirement in ipairs(list) do
+      local at = where .. "/" .. (index - 1)
+      if type(requirement) ~= "table" or json.is_array(requirement) then
+        problem(at, "a security requirement must be an object")
+      else
+        for scheme, scopes in pairs(requirement) do
+          if not json.is_array(scopes) then
+            problem(at .. "/" .. tostring(scheme), "the scopes must be an array of strings, got a non-array")
+          else
+            for _, scope in ipairs(scopes) do
+              if type(scope) ~= "string" then problem(at .. "/" .. tostring(scheme), "a scope must be a string") end
+            end
+          end
+        end
+      end
+    end
+  end
+
   fixed("#", "document", document)
+  if document.security ~= nil then check_security("#/security", document.security) end
   if type(document.openapi) ~= "string" or not document.openapi:find("^3%.1%.%d+") then problem("#/openapi", "must be a 3.1.x version string") end
   if is_object(document.info) then
     fixed("#/info", "info", document.info)
@@ -181,6 +205,7 @@ function M.check(document)
               if operation_ids[operation.operationId] then problem(where, "duplicate operationId (4.8.10)") end
               operation_ids[operation.operationId] = true
             end
+            if operation.security ~= nil then check_security(where .. "/security", operation.security) end
             for _, tag in ipairs(operation.tags or {}) do
               if type(tag) ~= "string" then problem(where .. "/tags", "must contain strings") end
             end

@@ -102,6 +102,46 @@ function T:test_every_route_appears_with_its_operation()
   self:assert_equal("bearer", next(document.paths["/users/{id}"].delete.security[1]))
 end
 
+function T:test_security_scopes_are_json_arrays()
+  -- OpenAPI 3.1 section 4.8.30: a Security Requirement Object maps a scheme name to an array of scopes, `[]` when none.
+  local declared = { { bearer = {} }, { oauth = { "read", "write" }, key = {} } }
+  local document = openapi.build { info = INFO, routes = { entry { method = "GET", path = "/s", name = "s", security = declared } } }
+  local security = document.paths["/s"].get.security
+  self:assert_true(json.is_array(security))
+  self:assert_true(json.is_array(security[1].bearer))
+  self:assert_true(json.is_array(security[2].key))
+  self:assert_true(json.is_array(security[2].oauth))
+  self:assert_equal("read,write", table.concat(security[2].oauth, ","))
+  self:assert_false(json.is_array(declared[1].bearer), "the declared requirements are not modified")
+  local text = openapi.encode(document)
+  self:assert_true(text:find('"security":[{"bearer":[]},{"key":[],"oauth":["read","write"]}]', 1, true) ~= nil, text)
+  local decoded = json.decode(text)
+  self:assert_true(json.is_array(decoded.paths["/s"].get.security[1].bearer))
+  self:assert_equal(0, #openapi.diff(document, decoded))
+end
+
+function T:test_invalid_security_is_refused()
+  for _, security in ipairs({ "x", { "bearer" }, { { bearer = "read" } }, { { bearer = { 1 } } }, { { [1] = {} } } }) do
+    raises_argument_error(self, function()
+      openapi.build { info = INFO, routes = { entry { method = "GET", path = "/s", name = "s", security = security } } }
+    end, "security")
+  end
+end
+
+function T:test_no_empty_list_is_encoded_as_an_object()
+  local document = openapi.build { info = INFO, servers = {}, tags = {}, routes = {
+    entry { method = "GET", path = "/e", name = "e", tags = {}, security = {}, responses = { [200] = schema.object {} } },
+    entry { method = "GET", path = "/enum", name = "enum", responses = { [200] = schema.array(schema.object {}) } } } }
+  for _, list in ipairs({ "servers", "tags" }) do self:assert_nil(document[list], list .. " is omitted when empty") end
+  local get = document.paths["/e"].get
+  for _, list in ipairs({ "tags", "security", "parameters" }) do self:assert_nil(get[list], list .. " is omitted when empty") end
+  -- the generated schemas: every empty list keyword must be marked (`required`, `enum`, `allOf`, ...)
+  local text = openapi.encode(document)
+  for _, keyword in ipairs({ "required", "enum", "allOf", "anyOf", "oneOf", "prefixItems", "examples" }) do
+    self:assert_nil(text:find('"' .. keyword .. '":{}', 1, true), keyword .. " encoded as {}")
+  end
+end
+
 function T:test_a_route_without_declared_responses_still_appears_with_a_default_response()
   local document = openapi.build { info = INFO, routes = { entry { method = "GET", path = "/x" } } }
   self:assert_not_nil(document.paths["/x"].get.responses.default.description)

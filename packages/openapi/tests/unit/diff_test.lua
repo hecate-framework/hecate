@@ -1,6 +1,7 @@
 ---@diagnostic disable: need-check-nil, param-type-mismatch  -- the tests index tables they just asserted exist and pass invalid arguments on purpose
 local test = require("harness.test")
 local core = require("hecate.core")
+local json = require("hecate.json")
 local schema = require("hecate.schema")
 local openapi = require("hecate.openapi")
 local T = test.Case("OpenApiDiffTest")
@@ -468,6 +469,20 @@ function T:test_security_alternatives_and_scopes()
   local anonymous = with { { bearer = {} }, {} }
   sole(self, one, anonymous, "security_changed", false)
   sole(self, anonymous, one, "security_changed", true)
+end
+
+function T:test_security_compares_marked_arrays_and_plain_tables()
+  local plain = document(op { security = { { oauth = { "read" }, bearer = {} } } })
+  local marked = document(op { security = json.array { { oauth = json.array { "read" }, bearer = json.array() } } })
+  self:assert_equal(0, #openapi.diff(plain, marked))
+  self:assert_equal(0, #openapi.diff(marked, plain))
+  local decoded = json.decode(json.encode(marked))
+  self:assert_equal(0, #openapi.diff(marked, decoded))
+  local narrower = json.decode('{"openapi":"3.1.0","info":{"title":"T","version":"1"},"paths":{"/items":{"get":{"security":[{"oauth":[],"bearer":[]}],"responses":{"200":{"description":"OK"}}}}}}')
+  local wider = copy(decoded)
+  wider.paths["/items"].get.responses = narrower.paths["/items"].get.responses
+  wider.components = nil
+  sole(self, narrower, wider, "security_changed", true)
 end
 
 function T:test_documentation_change_messages_hold_no_values()

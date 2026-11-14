@@ -360,6 +360,8 @@ Each release heading states the supported Lua version.
 
 ### Fixed
 
+- fix(openapi): a security requirement lists its scopes as a JSON array (`"bearer": []`, OpenAPI 3.1 section 4.8.30); `openapi.build` copied the declared requirement and `openapi.encode` wrote an empty scope list as `{}` (found by validating the golden document against the official schema, ADR 0031). The scope lists are now marked with `json.array`, a requirement that is not a list of tables mapping scheme names to lists of strings is an `ArgumentError`, the self-check `tests/support/structure.lua` rejects a scope list that is not an array of strings, and the golden file is regenerated (only that member changes).
+
 - test(router): the cost test of a static segment beside affixed siblings builds 500 siblings instead of 5 000 (33 s to 0.4 s; the boot check of R-1 compares the siblings of a node pairwise, and 5 000 at one node is no real table).
 
 - fix(ci): the caches of the `ci` job (toolchain, LuaLS, rocks, the native modules and the cargo build) are restored and saved in separate steps, saved even when a later step fails and only when the restore missed (a native module or rocks cache only once verified): `actions/cache` saved them only on a green job, so a failing platform rebuilt luv and every native module on each run (about 3 minutes on Windows).

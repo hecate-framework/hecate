@@ -214,7 +214,7 @@
         },
         "security": [
           {
-            "bearer": {}
+            "bearer": []
           }
         ]
       },
