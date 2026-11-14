@@ -109,11 +109,27 @@ runs the CLI's own code.
   rock downloads are LuaRocks's job; the CLI does not download rocks itself.
 - Unsigned binaries are acceptable for `0.1.0`; signed is better.
 - Installers: Windows setup executable that installs the binary; Linux and macOS channel not chosen yet.
-- sha256: use an existing rock if one fits. Checked on Lua 5.5.1 (2026-11-14): `sha2` 0.2.0 (C) does not
-  compile (`luaL_openlib`, `luaL_reg` removed from the Lua 5.5 headers); `lsha2` could not be fetched (GitHub
-  archive blocked in this environment); `lua-hashings-and-nums` 1.0.3 (pure Lua, MIT) installs and loads but
-  hashed 1 MB in **61 s**, so a toolchain archive (825 KB) would take about 50 s: too slow. A rock the CLI
-  depends on must also be linked into the embedded interpreter at build time (a C rock) or embedded as Lua.
+- sha256: use an existing rock if one fits. **First check (wrong conclusion, corrected below):** I tried `sha2`,
+  `lsha2` and `lua-hashings-and-nums` only, concluded that none fitted, and had misused the API of the last one.
+  Redone on 2026-11-14 with Lua 5.5.1: every candidate was installed in its own tree and checked against
+  `sha256sum` on `abc` and on 16 MB of data, then timed.
+
+  | Rock | Kind, licence | Lua 5.5 | Correct | Speed (16 MB) |
+  |---|---|---|---|---|
+  | `hmac` 0.4.1 | C, MIT | builds and loads | yes | **0.07 s** (about 220 MB/s) |
+  | `plc` 0.5 | pure Lua, MIT | loads | yes | 6.1 s (about 2.6 MB/s) |
+  | `lua-hashings-and-nums` 1.0.3 | pure Lua, MIT | loads | yes | about 50 s per MB: unusable |
+  | `sha2` 0.2.0 | C, written for Lua 5.1 | does not compile (`luaL_openlib`, `luaL_reg`) | n/a | n/a |
+  | `lsha2` 0.1 | Lua for 5.1/5.2 with `bit32`, GPL-3 | not tried: licence | n/a | n/a |
+  | `luagcrypt` | C binding of libgcrypt | needs the libgcrypt headers and library on the machine | not tried | not tried |
+  | `digest` 0.0.1 | C | source only on GitHub archives (blocked here) | not tried | not tried |
+
+  `plc` is fast enough for the CLI (an 825 KB toolchain archive in about 0.3 s) and is embedded as Lua source, no
+  native code to build on three platforms. `hmac` is 80 times faster and also gives HMAC, but a C rock must be
+  linked into the embedded interpreter on every target, and it builds with three other rocks
+  (`configh`, `lauxhlib`, `luarocks-build-hooks`). The luarocks.org search for "sha" returns 50 rows, most of them
+  noise (`shared`, `shape`, `shadow`); about ten are hash libraries.
+
 
 ### Second round of answers (2026-11-14)
 
@@ -124,7 +140,7 @@ runs the CLI's own code.
   `raw.githubusercontent.com` and `luarocks.org` are reachable, so the rockspec and the sources were read
   (2026-11-14). Rejected on its own metadata: "SHA224/SHA256 in Lua 5.1/5.2", depends on the `bit32` rock, and
   licence **GPL-3**, which cannot be a dependency of an MIT project.
-- sha256, at worst: a small vendored C implementation (as yyjson is vendored).
+- sha256: a rock fits after all (see the table above); the vendored C implementation stays the fallback.
 - Signing: issues [#201](https://github.com/hecate-framework/hecate/issues/201) (Apple Developer ID) and [#202](https://github.com/hecate-framework/hecate/issues/202) (Windows signing route) record the prerequisites.
 - The CLI dependencies are corrected in this pull request: `Depends on` of `packages/cli/README.md`, the
   rockspec and the overview graph now list `core`, `reactor`, `log`, `json` and `schema` only (the confinement of
