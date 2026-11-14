@@ -11,6 +11,7 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- docs(cli): ADR 0028 (Proposed): sha256 through the `plc` rock behind `hecate.cli.digest`, a one-module seam that also supports `hmac`; prototype and contract test in `docs/spikes/OQ-13/`.
 - docs(cli): the dependencies of `hecate-cli` are `core`, `reactor`, `log`, `json` and `schema`: the framework packages (`kernel`, `test`, `doc`, `openapi`, `migration`) are dependencies of the user's project, run by its interpreter, not loaded by the executable (owner decision of 2026-11-14, spike OQ-13).
 - docs(cli): spike OQ-13 (`docs/spikes/OQ-13-standalone-executable.md`, code in `docs/spikes/OQ-13/`): what the `hecate` executable must contain (a 285 KB prototype with an embedded interpreter drives a relocated toolchain through install and serve), embedded or downloaded interpreter, process control, recommendation for the owner.
 - feat(kernel): the input step logs the `422`, `400` and `415` it answers, at `warning` through the logger of the application, like the guard does for a client-caused error: `method`, `path` without the query, `status`, `reason` and the violation `codes`, never a value, a name or a pointer (OQ-111).

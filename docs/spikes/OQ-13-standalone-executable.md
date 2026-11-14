@@ -145,3 +145,11 @@ runs the CLI's own code.
   rockspec and the overview graph now list `core`, `reactor`, `log`, `json` and `schema` only (the confinement of
   luv to `reactor` makes `reactor` the way to supervise processes). ADR 0010 is unchanged: its wording ("the native
   modules it needs") already fits.
+
+### Third round (2026-11-14)
+
+- sha256: the owner leans towards `plc` and asks that switching to another rock (such as `hmac`) stays easy. A
+  one-module seam, `digest`, with a backend per rock and a contract test run for both backends, is in
+  [`OQ-13/`](OQ-13/) (`digest.lua`, `digest_backend*.lua`, `digest_test.lua`; both backends pass). The dependency
+  is proposed in [ADR 0028](../adr/0028-cli-sha256-rock-behind-a-seam.md) (Proposed): a new third-party
+  dependency needs the owner's acceptance, so no rockspec was changed.
