@@ -11,6 +11,8 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- feat(openapi): the document assembly (step 1 of the `openapi` item): `openapi.build` turns route entries, project information and `hecate.schema` schemas into an OpenAPI 3.1 document table (paths, operations, parameters, request bodies, responses, `components.schemas` with `#/$defs/` rewritten to `#/components/schemas/`, the RFC 9457 `ProblemDetails` component referenced by problem responses), and `openapi.encode` writes it in a canonical order; the result does not depend on the order of the routes. Choices to confirm in OQ-129.
+
 - feat(kernel): the input step logs the `422`, `400` and `415` it answers, at `warning` through the logger of the application, like the guard does for a client-caused error: `method`, `path` without the query, `status`, `reason` and the violation `codes`, never a value, a name or a pointer (OQ-111).
 
 - docs(schema): the `Schema.check` example builds the `422` the kernel answers for invalid inputs (`pointer` and `code` per entry, the message only with `errors.expose_details`), instead of a `400` with the message in every entry.

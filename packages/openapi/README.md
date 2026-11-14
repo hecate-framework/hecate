@@ -8,7 +8,7 @@
 | Rock | `hecate-openapi` |
 | Layer | 3 — Framework |
 | Roadmap phase | 3 |
-| Status | specified — no code yet |
+| Status | in progress — document assembly implemented (step 1); served endpoint, export, lint and diff to come |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |
 | Depends on | [`core`](../core), [`schema`](../schema), [`router`](../router), [`json`](../json) |
 | Used by | `cli`, `doc`, `hecate`, `test` |
@@ -37,13 +37,17 @@
 
 ## Public API
 
-*To be filled during implementation: list every exported class and function with a one-line
-description, linking to the generated reference.*
+- `openapi.build(options)` assembles an OpenAPI 3.1 document table from `options.info` (`title`, `version`, `summary`, `description`, `terms_of_service`, `contact`, `license`), `options.servers` and `options.routes`, a list of route entries given as plain data (the shape of `hecate.kernel.RouteEntry`; the kernel is not required). Every route appears; the result does not depend on the order of the routes. Raises `ArgumentError` for invalid options, duplicate operations or names, and two different schemas under one component name.
+- `openapi.encode(document, { pretty? })` writes the document as JSON with canonically ordered members (RFC 8785 section 3.2.3), so equal documents give equal bytes.
+- `openapi.VERSION` is `"3.1.0"`.
+- Schemas go through `Schema:to_json_schema`; their `$defs` become `components.schemas` (OQ-89). The problem details schema (RFC 9457) is the component `ProblemDetails`, referenced with `application/problem+json` by the responses declared with a problem class.
+- Choices taken conservatively are listed in OQ-129.
 
 ## Layout (once implemented)
 
 ```text
 src/hecate/openapi/init.lua   public entry point
+src/hecate/openapi/internal/  components, problem details, status phrases
 tests/unit/  tests/integration/  tests/fixtures/
 examples/    benchmarks/
 ```
