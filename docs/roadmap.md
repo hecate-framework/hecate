@@ -326,14 +326,13 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       the hecate marks are never recoloured.
 - [ ] `cli` v1: self-contained executable, `new`, `install`, `add`, `remove`, `update`,
       `serve [--watch]`, `test`, `doc`, `contract`, `toolchain`, `doctor`, `version`.
-      **Also (OQ-13, resolved 2026-11-14):** the executable embeds Lua 5.5 and only what the CLI needs (framework packages
-      stay project dependencies); settle first how the CLI runs the project's interpreter (spawn, forward signals, return the exit code,
-      restart for `--watch`: `reactor`, or an own function; plain Lua cannot `exec` or forward signals, see the spike) and
-      whether it downloads toolchains at all (`curl` and `tar`, or a native client, or the executable acting as the
-      Lua 5.5 interpreter and running LuaRocks itself, see the seventh round of the report); prebuilt toolchain archives per platform and architecture; installers (Windows
-      setup executable, macOS `.pkg`, Linux archives, Homebrew, winget, Scoop); `hecate.cli.digest` over the `digest` rock
-      (ADR 0028), compiled into the host and checked on the platforms; a command to switch interpreters once Lua 5.4 is
-      supported.
+      **Also (OQ-13, resolved 2026-11-14):** the executable embeds Lua 5.5 and LuaRocks and is the interpreter of Lua
+      5.5 projects (OQ-131, ADR 0029 Proposed: verify on Windows and macOS first, then ask the owner to accept it); framework
+      packages stay project dependencies; settle OQ-132 (how the CLI runs the project's interpreter: child process through
+      `reactor`, signals, exit code, `--watch`) and OQ-133 (managing running instances in production) first; toolchain
+      archives per platform and architecture only for other Lua versions; installers (Windows setup executable, macOS
+      `.pkg`, Linux archives, Homebrew, winget, Scoop); `hecate.cli.digest` over the `digest` rock (ADR 0028), compiled
+      into the host and checked on the platforms; a command to switch interpreters once Lua 5.4 is supported.
       **Also (OQ-122, owner decision of 2026-11-13, ADR 0023 amended):** `server.workers` accepts `"auto"` and
       defaults to it: `max(1, cores - 1)`, `cores` from `uv.available_parallelism()` (exposed by `reactor`), read on
       Linux within the cgroup CPU quota of a container when one is set (or documented as a limit); `hecate serve`

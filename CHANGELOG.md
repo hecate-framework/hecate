@@ -11,6 +11,7 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- docs(cli): ADR 0029 (Proposed): the `hecate` executable embeds Lua and LuaRocks and is the interpreter of Lua 5.5 projects (amends ADR 0010 on toolchain downloads); OQ-131 resolved, OQ-132 and OQ-133 opened (how the CLI runs the project's interpreter, managing running instances in production); OQ-45 records the owner's direction on `security` and `luasodium`.
 - docs(cli): ADR 0028 (Accepted by the owner, 2026-11-14): sha256 through the `digest` rock (with `plc` as fallback) behind `hecate.cli.digest`, a one-module seam with backends for `plc`, `hmac` and `digest`; prototype and contract test in `docs/spikes/OQ-13/`; `hecate-cli` declares the `digest` rock; checked on Linux (x86_64, arm64), macOS (arm64, x86_64) and Windows by a throwaway workflow (results in the spike report).
 - docs(cli): the dependencies of `hecate-cli` are `core`, `reactor`, `log`, `json` and `schema`: the framework packages (`kernel`, `test`, `doc`, `openapi`, `migration`) are dependencies of the user's project, run by its interpreter, not loaded by the executable (owner decision of 2026-11-14, spike OQ-13).
 - docs(cli): spike OQ-13 (`docs/spikes/OQ-13-standalone-executable.md`, code in `docs/spikes/OQ-13/`): what the `hecate` executable must contain (a 285 KB prototype with an embedded interpreter drives a relocated toolchain through install and serve), embedded or downloaded interpreter, process control, recommendation for the owner.

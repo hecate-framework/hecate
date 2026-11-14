@@ -144,6 +144,10 @@ and repeated in the website guide:**
 The CLI runs LuaRocks with an isolated configuration pointing to the project tree and
 the selected toolchain, so user and system LuaRocks configurations never interfere.
 
+> Proposed change ([ADR 0029](../adr/0029-executable-is-the-lua-5.5-interpreter.md)): the executable embeds Lua 5.5
+> and LuaRocks and acts as the interpreter of a Lua 5.5 project, so `toolchains/lua-5.5.1/` is not downloaded; a
+> toolchain is installed only for another Lua version. This section is rewritten with the `cli` v1 item.
+
 ## Generated workflows
 
 `hecate generate workflow` writes `.github/workflows/<kind>.yml` from templates in

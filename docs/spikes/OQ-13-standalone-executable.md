@@ -219,3 +219,18 @@ rock's own suite from a clone of its `v0.0.1` tag (all fixtures present), then t
   server, MySQL `caching_sha2_password` a SHA-256 scramble with the server's nonce, legacy PostgreSQL an MD5 of the
   password, the user and a salt. The password itself is not sent. `digest` (SHA-256, HMAC, MD5) covers all but
   PBKDF2, which is a loop over HMAC; this is a possible option for OQ-45, not decided here.
+
+### Eighth round (owner answers, 2026-11-14)
+
+- Toolchain: "Lua and LuaRocks binaries included in the binary too": the executable is the interpreter and `luarocks` of
+  a Lua 5.5 project. Recorded as OQ-131 (resolved, issue [#205](https://github.com/hecate-framework/hecate/issues/205))
+  and [ADR 0029](../adr/0029-executable-is-the-lua-5.5-interpreter.md) (Proposed; Windows, macOS and source-rock
+  builds to verify before acceptance). A risk noted there: native rocks built against the official `lua55.dll` would
+  not load in an executable that does not provide that interface.
+- Managing running instances in production is the open question the owner sees, not the signal handling: OQ-133
+  (issue [#207](https://github.com/hecate-framework/hecate/issues/207)); the mechanics of running the project's
+  interpreter are OQ-132 (issue [#206](https://github.com/hecate-framework/hecate/issues/206)).
+- OQ-45: the owner's direction is that `digest` serves the CLI only and that security cryptography belongs to the
+  `security` package over `luasodium`, with argon2id by default; recorded in the OQ-45 entry. `luasodium` and
+  `argon2` rocks exist on luarocks.org (versions up to 0.0.11-1 and 3.0.0-1); neither was installed or tested here.
+
