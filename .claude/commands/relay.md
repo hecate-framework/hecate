@@ -12,6 +12,11 @@ at all times. Specification: `docs/architecture/ai-assisted-development.md#relay
 1. **Resume.** List open pull requests labelled `relay` (`gh pr list --label relay`).
    For each, read `HANDOFF.md` at the root of its branch.
    - If `lock_until` is in the future, another run owns it: skip it.
+   - **Owner hold.** Read the pull request's comments. If the project owner asked there that no other relay run
+     continue it (for example "if you are not the run already working on this PR, take another item"), skip it, and
+     do not comment on it. Likewise, if `HANDOFF.md` has an `owner:` line naming another session than this run's
+     (the `Claude-Session` trailer of its commits), skip it, whatever `lock_until` says. An expired lock never lifts
+     an owner hold; only the owner does, by removing the line or saying so on the pull request.
    - If CI failed or `status: in-progress`, check out the branch and continue from
      "Next steps". Pick the oldest such pull request. **Push to that pull request's own
      branch**, even when the session designates another one: never redo its work on a
@@ -29,6 +34,8 @@ at all times. Specification: `docs/architecture/ai-assisted-development.md#relay
 
 - Branch `claude/relay-<roadmap-slug>`; create `HANDOFF.md` from
   `.github/relay/HANDOFF.template.md`, set `lock_until` to now + 90 minutes (UTC).
+- Leave the `owner:` line of the template out unless the owner asks to hold the pull request for this run; then
+  write this run's session there with the owner's instruction (see "Owner hold" above).
 - Commit, push, open a **draft** pull request labelled `relay` and the relevant
   `package:*` labels, linking the roadmap item.
 

@@ -7,16 +7,16 @@ order: 12
 
 # Set limits, timeouts and TLS on the HTTP server
 
-This guide shows how to tighten or relax the bounds of `http.Server`, and how to serve and call
-HTTPS. Every limit is an option of the server, and
-every option has a default, so a server is never unbounded by accident. This page is also the list of every
-limit; the explanation says why each one exists. For the reasons behind
-the values, read [The HTTP model](../explanation/http-model.md#why-these-defaults).
+This guide shows how to tighten or relax the bounds of `http.Server`, and how to serve and call HTTPS. It is written
+for hecate 0.x and Lua 5.5, and assumes you know [how to serve HTTP](serve-http.md).
+
+Every limit is an option of the server, and every option has a default, so a server is never unbounded by accident.
+This page is also the list of every limit. For the reasons behind the values, read
+[The HTTP model](../explanation/http-model.md#why-these-defaults).
 
 ## Set limits
 
 Pass the options when you create the server. The parser limits go in the `parser` table.
-`http.Server.DEFAULTS` holds the values the server applies.
 
 <!-- example: packages/http/examples/hecate.http.Server.limits.lua -->
 ```lua
@@ -58,8 +58,11 @@ end)
 ```
 
 An unknown option, or a value out of range, raises an `ArgumentError` when the server is created.
-A limit that is exceeded is answered with problem details and the connection closes, except where
-the table says otherwise.
+`http.Server.DEFAULTS` holds the values the server applies.
+
+A limit that is exceeded is answered with [problem details](../reference/glossary.md#http), and the connection
+closes, except where the table says otherwise. Several limits apply to the
+[head](../reference/glossary.md#http) of a request: its start line and its fields.
 
 | Limit | Option | Default | When exceeded |
 |---|---|---|---|
@@ -78,26 +81,23 @@ the table says otherwise.
 | Pending connections in the kernel | `backlog` | 128 | the kernel refuses |
 
 > [!WARNING] `max_connections` has no limit by default
-> The descriptor limit of the process, `idle_timeout` and `head_timeout` bound the resource. An
-> internet-facing server should set it: about 80 percent of the descriptor limit, for instance
-> 50000 with `ulimit -n 65536`. Raise the descriptor limit too (`ulimit -n`, or `LimitNOFILE` in
-> systemd).
+> The descriptor limit of the process, `idle_timeout` and `head_timeout` bound the resource. An internet-facing
+> server should set it: about 80 percent of the descriptor limit, for instance 50000 with `ulimit -n 65536`. Raise
+> the descriptor limit too (`ulimit -n`, or `LimitNOFILE` in systemd).
 
-A few rules help when you choose values:
+### Choose the values
 
-- `head_timeout` is a deadline on the whole head. Bytes that keep arriving do not extend it. That
-  is what stops a client that sends one byte per interval.
-- `content_timeout` is a timeout between reads. A slow but steady upload is not cut. The total
-  time of a body is bounded by `request_timeout`, so raise it for uploads that legitimately last
-  longer than five minutes.
-- Behind a reverse proxy, give the proxy an upstream keep-alive timeout shorter than
-  `idle_timeout`.
-- Pipelining needs no option: the server reads at most 16 KiB at a time, and only after it has
-  answered every request already parsed.
+- `head_timeout` is a [deadline](../reference/glossary.md#concurrency) on the whole head. Bytes that keep arriving
+  do not extend it. That is what stops a client that sends one byte per interval.
+- `content_timeout` is a timeout between reads, so a slow but steady upload is not cut. The total time of a body is
+  bounded by `request_timeout`. Raise it for uploads that legitimately last longer than five minutes.
+- Behind a reverse proxy, give the proxy an upstream keep-alive timeout shorter than `idle_timeout`.
+- [Pipelining](../reference/glossary.md#http) needs no option. The server reads at most 16 KiB at a time, and only
+  after it has answered every request already parsed.
 
 ## Deadline for an action
 
-The server has no per-request timeout for the action. Bound it inside:
+The server has no per-request timeout for the action. Bound the action inside, with `reactor.deadline`:
 
 ```lua
 local function action(request)
@@ -107,17 +107,17 @@ local function action(request)
 end
 ```
 
-When the deadline expires, `reactor.deadline` raises `DeadlineExceededError`, and the server
-answers with a generic 500. Catch it yourself to answer 503 instead.
+When the deadline expires, `reactor.deadline` raises `DeadlineExceededError`, and the server answers with a generic
+500. Catch the error yourself to answer 503 instead.
 
 ## TLS
 
-Pass the `tls` option to serve HTTPS. It takes the options of `net.tls.server_config`, or a
-configuration built by it. The ALPN protocol list defaults to `http/1.1`. TLS needs the TLS native
-module of `hecate.net`.
+Pass the `tls` option to serve HTTPS. It takes the options of `net.tls.server_config`, or a configuration built by
+that function. The ALPN protocol list defaults to `http/1.1`. TLS needs the TLS native module of `hecate.net`
+(`lua tools/run.lua build-native net`).
 
-The example serves HTTPS with the throwaway keys of the `net` tests and calls it with a client that trusts
-their authority. Use your own certificate and key.
+The example serves HTTPS with the throwaway keys of the `net` tests, and calls it with a client that trusts their
+authority. Use your own certificate and key.
 
 <!-- example: packages/http/examples/hecate.http.Server.tls.lua -->
 ```lua
@@ -148,14 +148,25 @@ reactor.run(function()
 end)
 ```
 
-To make a certificate for local work: `openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes -days 30
--keyout server.key -out server.pem -subj "/CN=localhost" -addext "subjectAltName=DNS:localhost,IP:127.0.0.1"`. Then
-`curl --cacert server.pem https://localhost:8443/` trusts it. A client that does not know the
-authority, such as `http.Client()` with only the system store, raises a `net.TlsError` (its
-`context.reason` is `untrusted_issuer`): the certificate is refused, and there is no option to skip the check.
+### A certificate for local work
 
-Each accepted connection handshakes in its own computation, never in the accept loop. A client
-that stays silent holds nothing but its own slot. Three options bound handshakes. They need `tls`:
+To make a certificate for local work, run:
+
+```sh
+openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes -days 30 \
+  -keyout server.key -out server.pem -subj "/CN=localhost" \
+  -addext "subjectAltName=DNS:localhost,IP:127.0.0.1"
+```
+
+Then `curl --cacert server.pem https://localhost:8443/` trusts it.
+
+A client that does not know the authority refuses the certificate. `http.Client()` with only the system store, for
+example, raises a `net.TlsError` whose `context.reason` is `untrusted_issuer`. There is no option to skip the check.
+
+### Bound the handshakes
+
+Each accepted connection runs its handshake in its own computation, never in the accept loop. A client that stays
+silent holds nothing but its own slot. Three options bound the handshakes, and they need `tls`:
 
 | Option | Default | Bounds |
 |---|---|---|
@@ -164,15 +175,14 @@ that stays silent holds nothing but its own slot. Three options bound handshakes
 | `max_handshake_bytes` | 65536 | bytes read from a client before the handshake ends |
 
 A failed handshake sends the client nothing. The logger (the `logger` option, or `log.default()`) receives
-`http.Server: TLS handshake failed` with the peer address and the class of the reason. Nothing
-else leaves the server. For client certificates and ALPN, see
-[TLS client and server](tls-client-and-server.md).
+`http.Server: TLS handshake failed`, with the peer address and the class of the reason. Nothing else leaves the
+server. For client certificates and ALPN, see [TLS client and server](tls-client-and-server.md).
 
 ### The client
 
-`http.Client` trusts the system store, and verification cannot be turned off
-([TLS trust and security defaults](../explanation/tls-trust-and-security.md)). The `tls` option
-of the client adds to that:
+`http.Client` trusts the system store, and verification cannot be turned off (see
+[TLS trust and security defaults](../explanation/tls-trust-and-security.md)). The `tls` option of the client adds to
+that trust:
 
 ```lua
 local client = http.Client({
@@ -184,9 +194,10 @@ local client = http.Client({
 - `system_roots = false` trusts `ca_pem` only.
 - `cert_pem` and `key_pem` present a client certificate.
 
-The client's `connect_timeout` covers the TLS handshake too.
+The `connect_timeout` of the client covers the TLS handshake too.
 
-## Next steps
+## See also
 
 - [Serve HTTP](serve-http.md)
+- [Use the HTTP client](use-the-http-client.md)
 - [The HTTP model](../explanation/http-model.md)

@@ -11,6 +11,12 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- docs(schema): the `Schema.check` example builds the `422` the kernel answers for invalid inputs (`pointer` and `code` per entry, the message only with `errors.expose_details`), instead of a `400` with the message in every entry.
+
+- docs(relay): an owner hold outlasts the relay lock. A relay run skips a pull request when the owner asked on it that no other run continue it, or when its `HANDOFF.md` has an `owner:` line naming another session, even after `lock_until` has passed (`.claude/commands/relay.md`, `docs/architecture/ai-assisted-development.md`, `CLAUDE.md`, the `HANDOFF.md` template). A later run had taken over pull request #195 against such a comment.
+
+- docs: a "Writing style" for the website (owner decision 2026-11-13, `docs/architecture/documentation.md`), after the manner of *Programming in Lua*: one idea per paragraph, a short example right after each new concept, a brief reminder of a term the first time a page uses it, short sentences, the precise term and the exact claim always kept. Applied to every English page of the website; while restyling, every statement that did not fit the code was corrected after a check in the code, its tests and a run (among them: the kernel's input step, not the guard, answers the `422` of invalid inputs; `max_depth` cannot be raised above 1000; the server adds `Date` only when the response has none; workers default to 1 today; the default TLS client configuration is cached per ALPN list).
+
 - docs(website): how-tos "Map domain errors to problem details", "Filters", "Concurrency" and "Multi-process deployment, graceful shutdown and health checks", the hand-written reference "Schema keywords and formats", and the explanations "Architecture and layers", "The object model" and "The concurrency model", with tested examples in `hecate`, `reactor` and `core` (OQ-121).
 
 - feat(tools): `gen-error-codes` and `gen-config-reference` generate the "Error codes" reference page (55 error classes with their codes, parents, descriptions and documented reasons) and the "Configuration keys" page (each framework key with its type, default, range, environment variable and meaning), git-ignored and built by `website.yml`; their `--check` runs in CI and fails when an error class has an unknown parent or a framework key is not documented in `configuration.md` (OQ-121). `.gitignore` now covers the generated reference of every Phase 2 package.

@@ -47,8 +47,10 @@ return hecate.problem.NotFound {
 
 - `detail` is a string you write for the client. It is never an error message.
 - `extensions` are extra members of the JSON object (RFC 9457, section 3.2). The names `type`, `title`, `status`,
-  `detail` and `instance` are reserved and refused with an `ArgumentError`, as is any other field. A function, a
-  coroutine, a userdata or a number that is not finite is refused too, because JSON cannot carry it.
+  `detail` and `instance` are reserved and refused with an `ArgumentError`, as is any field other than `detail`,
+  `extensions` and `fields`. A function, a coroutine, a userdata or a number that is not finite is refused too at the
+  first level of `extensions`, because JSON cannot carry it; nested deeper, it makes the answer a generic `500`,
+  logged at `error`.
 
 ## Declare your own problem
 
@@ -172,12 +174,13 @@ the action into a response:
 | Raised | Answer |
 |---|---|
 | a problem | its own status, title, type, detail and extensions |
-| a `ValidationError` from reading the inputs of the request | `422` with an `errors` list |
 | an error of `hecate.http` that carries a client status (a malformed form, content over the limit) | that status |
 | anything else | a generic `500` |
 
-The `422` of the inputs lists one entry per [violation](../reference/glossary.md#types-and-validation), at most 100:
-`pointer` (a JSON Pointer, RFC 6901), `source` (`path`, `query`, `header`, `cookie` or `content`) and `code`. A
+The `422` of invalid inputs does not come from the guard: the step that reads the inputs answers it before the
+action runs, and does not log it. It lists one entry per
+[violation](../reference/glossary.md#types-and-validation), at most 100: `pointer` (a JSON Pointer, RFC 6901),
+`source` (`path`, `query`, `header`, `cookie` or `content`) and `code`. A
 `ValidationError` raised by your own code, by `schema:check` for example, is not about the request: it is a `500`.
 To answer a `422` from an action, return or raise `UnprocessableContent`.
 

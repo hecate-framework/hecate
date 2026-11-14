@@ -97,6 +97,8 @@ platforms. Never push to `main`, never force-push, never create tags, never publ
 head branch and push there, even when the session designates another branch. Never carry the
 work over to a session branch: parallel branches for one subject mean the same work is redone
 and has to be merged by hand. Open a new branch only for a subject that has no open pull request.
+Exception: a pull request under an **owner hold** (the owner asked on it that no other run continue it, or its
+`HANDOFF.md` has an `owner:` line naming another session) is left alone; see `.claude/commands/relay.md`.
 
 ## Cloud sessions
 

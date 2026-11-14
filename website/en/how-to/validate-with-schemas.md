@@ -7,16 +7,31 @@ order: 7
 
 # Validate values with schemas
 
-This guide shows how to declare a [schema](../reference/glossary.md#types-and-validation), validate a value against it, convert the
-texts of a request, build instances of your classes and emit the matching JSON Schema document with
-`hecate.schema`. It is written for hecate 0.x and Lua 5.5. To understand why schemas work this way,
-read [Schemas and contracts](../explanation/schemas-and-contracts.md).
+This guide shows how to declare a [schema](../reference/glossary.md#types-and-validation) with `hecate.schema`, and
+what to do with it. A schema is the declaration of a type: one value that validates, converts and describes the data
+of your API. The guide is written for hecate 0.x and Lua 5.5.
+
+It covers, in order:
+
+- validating a value and reporting what is wrong with it;
+- giving a class its schema, and building instances of that class;
+- representing an instance in a response;
+- emitting the matching JSON Schema 2020-12 document;
+- the constructs that need care: strings, numbers, maps, enumerations, unions and names.
+
+To understand why schemas work this way, read [Schemas and contracts](../explanation/schemas-and-contracts.md).
+Every constructor, option and violation code is listed in
+[Schema keywords and formats](../reference/schema-keywords-and-formats.md).
 
 ## Declare and validate
 
-A schema is an immutable value built from constructors (`string`, `integer`, `object`, `array`,
-`optional`, `union`, ...) with refinements as options. `validate` collects every
-[violation](../reference/glossary.md#types-and-validation); the `path` of each one is an RFC 6901 JSON Pointer.
+A schema is an immutable value. You build it from constructors such as `string`, `integer`, `object`, `array`,
+`optional` and `union`. Their options are refinements: `integer` with `minimum = 0` is a
+[refinement type](../reference/glossary.md#types-and-validation), a base type restricted by a predicate.
+
+`validate` checks a value against the schema and collects every
+[violation](../reference/glossary.md#types-and-validation), one reason why the value does not conform. The `path` of
+each violation is an RFC 6901 JSON Pointer to the wrong value.
 
 <!-- example: packages/schema/examples/hecate.schema.validate.lua -->
 ```lua
@@ -35,26 +50,30 @@ print(("%s %d %s %s"):format(tostring(ok), #violations, violations[1].path, viol
 -- Prints: false 2 /age /name
 ```
 
-Undeclared properties of an `object` are rejected (violation `additional_properties`) unless the option
-`additional_properties = true` says otherwise. The violation codes are stable; the list is in the
-[specification](https://github.com/hecate-framework/hecate/blob/main/docs/architecture/schemas-and-contracts.md#violation-codes).
+An `object` rejects the properties it does not declare, with the violation `additional_properties`. The option
+`additional_properties = true` accepts them instead. The violation codes are stable; the list is in
+[Schema keywords and formats](../reference/schema-keywords-and-formats.md#violation-codes).
 
-`check(value)` is the raising form of `validate`: it returns the value when it conforms, and raises a
-`ValidationError` whose `context.violations` holds the same list otherwise. `coerce` and `build` do not raise: they
-return two values, `true` and the result, or `false` and the list of violations.
+`check(value)` is the raising form of `validate`. It returns the value when the value conforms. Otherwise it raises a
+`ValidationError` whose `context.violations` holds the same list.
+
+`coerce` and `build`, shown below, do not raise. They return two values: `true` and the result, or `false` and the
+list of violations.
 
 ### Report violations to a client
 
-A client needs the JSON Pointer of each wrong value, a stable code and a message, not a Lua error. `check` raises a
-`ValidationError`; turn `context.violations` into the plain table of a problem details response (RFC 9457) with
-one entry per violation. The `message` of a violation never contains the value the client sent, so it is safe to
-return. The kernel does this conversion for you; the example shows what it sends.
+A client that sent a wrong value needs to know what to fix: the JSON Pointer of each wrong value, a stable code and a
+message. A Lua error tells it nothing.
+
+`check` raises a `ValidationError`. Its `context.violations` become the `errors` of a
+[problem details](../reference/glossary.md#http) response (RFC 9457), one entry per violation. The example builds the
+`422` the kernel answers for the inputs of a request:
 
 <!-- example: packages/schema/examples/hecate.schema.Schema.check.lua -->
 ```lua
 -- Report violations to a client: `check` raises a `ValidationError`, and its
--- violations become the plain table of a problem details response (the kernel
--- does this conversion for you).
+-- violations become the `errors` of a problem details response (RFC 9457).
+-- The kernel builds this 422 for you from the inputs of a request.
 local core = require("hecate.core")
 local schema = require("hecate.schema")
 
@@ -67,32 +86,53 @@ local ok, err = pcall(user.check, user, { name = "", age = -1 })
 print(ok, core.is_instance_of(err, core.ValidationError))
 -- Prints: false	true
 
--- One entry per violation: the JSON Pointer of the value, the stable code and
--- the message (no client value in it).
-local problem = { type = "about:blank", title = "The content is not valid", status = 400, errors = {} }
+-- The 422 of the kernel: one entry per violation, with the JSON Pointer of the
+-- value and the stable code (the kernel adds the `source` of an input).
+local problem = {
+  type = "about:blank",
+  title = "Unprocessable Content",
+  status = 422,
+  detail = "The request content does not conform to the contract.",
+  errors = {},
+}
 for _, violation in ipairs(err.context.violations) do
-  problem.errors[#problem.errors + 1] = { pointer = violation.path, code = violation.code, detail = violation.message }
+  local entry = { pointer = violation.path, code = violation.code }
+  problem.errors[#problem.errors + 1] = entry
 end
 for _, entry in ipairs(problem.errors) do
-  print(entry.pointer, entry.code, entry.detail)
+  print(entry.pointer, entry.code)
 end
--- Prints: /age	minimum	the value is less than 0
--- /name	min_length	the string is shorter than 1
+-- Prints: /age	minimum
+-- /name	min_length
+
+-- Each violation also has a message, with no client value in it. The kernel
+-- adds it to the entries only when `errors.expose_details` is true.
+print(err.context.violations[1].message)
+-- Prints: the value is less than 0
 
 -- A conforming value is returned as it is.
 print(user:check({ name = "Ada", age = 36 }).name)
 -- Prints: Ada
 ```
 
+The kernel does this conversion for you when it reads the inputs of a request. Each entry also carries the `source`
+of the input (`path`, `query`, `header`, `cookie` or `content`). The `message` of a violation never contains the value
+the client sent; the kernel still adds it only when `errors.expose_details` is `true`. A `ValidationError` raised by
+your own code, by `check` in an action for example, answers `500` instead. See
+[Map domain errors to problem details](map-domain-errors-to-problem-details.md#know-what-the-guard-does).
+
 ## Give a class its schema
 
-A class owns the name of its schema. Declare a class-level function `schema()` that returns the schema,
-and use `schema.of(Class)` wherever the class is a part of another schema. To make the rule checkable,
-declare the interface `schema.Representable`, which requires `schema`: `finalise` then raises a `ConformanceError` for a
-class that declares it without a `schema` function. Declaring it is mandatory: `schema.of` refuses a class that does
-not declare it, even when it has `schema()`, with an `ArgumentError` that names the class and the interface. The
-refusal comes at declaration for a class that is already finalised, otherwise at first use. The emission puts the definition once in the root `$defs` under the name of the class and uses a
-`$ref` at each use. Classes may refer to each other or to themselves.
+A class of your application can own the schema of its instances. That schema is then a
+[class-bound schema](../reference/glossary.md#types-and-validation): the class owns its name, and `build` makes
+instances of the class.
+
+To bind a schema to a class:
+
+1. Declare the [interface](../reference/glossary.md#object-model-and-architecture) `schema.Representable` in the
+   options of the class. It requires a class-level function `schema`.
+2. Write that class-level function `schema()`, which returns the schema.
+3. Use `schema.of(Class)` wherever the class is a part of another schema.
 
 <!-- example: packages/schema/examples/hecate.schema.of.lua -->
 ```lua
@@ -139,22 +179,47 @@ print(document["$ref"], document["$defs"].User.properties.address["$ref"])
 -- Prints: #/$defs/User	#/$defs/Address
 ```
 
+The interface makes the rule checkable. `finalise` raises a `ConformanceError` for a class that declares
+`schema.Representable` without a `schema` function.
+
+Declaring the interface is mandatory. `schema.of` refuses a class that does not declare it, even when the class has
+`schema()`, with an `ArgumentError` that names the class and the interface. The refusal comes at declaration for a
+class that is already finalised, and otherwise at first use.
+
+The emission puts the definition once in the root `$defs`, under the name of the class, and uses a `$ref` at each use.
+Classes may refer to each other or to themselves.
+
 ## Build instances
 
-`build(content, { method })` validates decoded JSON content and returns `true` and the value, or `false`
-and the violations. A part declared with `schema.of(Class)` becomes an instance of its class, in
-properties, arrays, maps and unions. The `init` of the class is not called. An absent attribute, or an
-explicit `null`, is `nil` in the instance. When a class is a `value_class`, its instances are built frozen.
+[`build`](../reference/glossary.md#types-and-validation) validates decoded JSON content, then makes the instance of
+each class-bound part. Call it as `build(content, { method })`. It returns `true` and the value, or `false` and the
+violations.
 
-`method` is `"POST"` or `"PUT"` (strict, the default) or `"PATCH"`. The rule for a PATCH is in the next
-sections.
+What `build` makes:
+
+- A part declared with `schema.of(Class)` becomes an instance of its class, in properties, arrays, maps and unions.
+- The `init` of the class is not called.
+- An absent attribute, or an explicit `null`, is `nil` in the instance.
+- When a class is a `value_class`, its instances are built frozen.
+
+`method` is `"POST"` or `"PUT"` (strict, the default) or `"PATCH"`. The rule for a PATCH is in the sections below.
 
 ### Build from path, query and header field texts
 
-Query, path and header field values are texts. Pass `coerce = true` to convert them with the rules of `coerce`
-and build the instances in one call. A text that cannot be converted gives the same `coercion` violation,
-at the same path, as `coerce`. Defaults apply once, in the conversion, and never for a PATCH.
-`schema.sent` records only the attributes the client provided. `coerce` must be a boolean.
+Query, path and header field values are texts. [Coercion](../reference/glossary.md#types-and-validation), the
+conversion of a text to a typed value, is the work of `coerce`. `validate` never converts:
+
+```lua
+local schema = require("hecate.schema")
+
+local page = schema.integer({ minimum = 1 })
+print(page:coerce("3"))
+-- Prints: true	3
+print((page:validate("3")))
+-- Prints: false
+```
+
+Pass `coerce = true` to `build` to convert the texts with the rules of `coerce` and build the instances in one call:
 
 <!-- example: packages/schema/examples/hecate.schema.Schema.build.lua -->
 ```lua
@@ -191,12 +256,15 @@ print(ok, violations[1].path, violations[1].code)
 -- Prints: false	/limit	coercion
 ```
 
+- A text that cannot be converted gives the same `coercion` violation, at the same path, as `coerce`.
+- Defaults apply once, in the conversion, and never for a PATCH.
+- `schema.sent` records only the attributes the client provided.
+- `coerce` must be a boolean; any other value raises an `ArgumentError`.
+
 ### Fill absent properties with defaults
 
-`schema.default(inner, value)` makes a property optional. `coerce` (texts) and `build` (JSON content) give
-an absent property a fresh deep copy of the default, so no table is shared between requests and the content
-you passed is never modified. The default must conform to `inner`, checked at declaration. An explicit
-`null` stays `null` and never takes the default. `validate` never supplies a value.
+`schema.default(inner, value)` makes a property optional and gives it a value when it is absent. `coerce` (texts) and
+`build` (JSON content) give an absent property a fresh deep copy of the default.
 
 <!-- example: packages/schema/examples/hecate.schema.default.lua -->
 ```lua
@@ -236,14 +304,16 @@ print((schema.object({ tags = schema.default(schema.string(), "x") }):validate({
 -- Prints: true
 ```
 
+Because the default is copied, no table is shared between requests, and the content you passed is never modified.
+
+The default must conform to `inner`; this is checked at declaration. An explicit `null` stays `null` and never takes
+the default. `validate` never supplies a value.
+
 ### Tell unchanged from cleared in a PATCH
 
-In a PATCH, an absent attribute means unchanged and an explicit `null` means cleared. Both leave the
-attribute `nil` in the instance, so `schema.sent(instance, name)` tells them apart. It is true when the
-attribute was in the content, `null` included, and false for an attribute filled by a default. A PATCH
-relaxes only the required properties of the top-level object. Nested objects stay strict, and a `null`
-fails unless the property is `nullable`. A value that `build` did not make has sent nothing, and `sent`
-returns false without raising.
+In a PATCH, an absent attribute means unchanged, and an explicit `null` means cleared. Both leave the attribute `nil`
+in the instance. The [presence set](../reference/glossary.md#types-and-validation), the names of the attributes that
+were in the content, tells them apart: read it with `schema.sent(instance, name)`.
 
 <!-- example: packages/schema/examples/hecate.schema.sent.lua -->
 ```lua
@@ -286,24 +356,23 @@ print(schema.sent({ name = "Ada" }, "name"))
 -- Prints: false
 ```
 
+`schema.sent` is true when the attribute was in the content, `null` included. It is false for an attribute filled by a
+default.
+
+A PATCH relaxes only the required properties of the top-level object. Nested objects stay strict, and a `null` fails
+unless the property is `nullable`.
+
+A value that `build` did not make has sent nothing: `sent` returns false without raising.
+
 ## Represent an instance in a response
 
-`represent(value)` is the other direction of `build`: it turns an instance into plain values that
-`json.encode` can write, its [representation](../reference/glossary.md#types-and-validation). `hecate.json` knows
-nothing about classes, so the schema does the conversion. A class-bound part becomes a plain table of the
-attributes its schema declares, and only those: an attribute the schema does not declare, such as a
-`password`, never appears, even if the instance has it. A member of a `core` enumeration becomes its name.
-Nested parts, arrays, maps, unions and tagged unions convert recursively, and an empty array still encodes as
-`[]` and an empty map as `{}`.
+[`represent`](../reference/glossary.md#types-and-validation) is the other direction of `build`. It turns an instance
+into plain values that `json.encode` can write: its
+[representation](../reference/glossary.md#types-and-validation). `hecate.json` knows nothing about classes, so the
+schema does the conversion.
 
-`represent` does not validate: it trusts the value, because a response that does not conform is a bug of the
-server (call `validate` where you want to check it). An absent attribute is omitted, `json.null` stays null, and
-a default is never applied. An attribute that was sent as `null` (an instance made by `build`) comes back as `null`,
-so the content round-trips. A method or a prototype field of the class never appears. The input is not modified and the
-result shares no table with it. A union uses the
-alternative that accepts the value, and raises `ValidationError` when none does. The nesting guard and the work
-budget apply as for `validate`: a cycle in the object graph raises `ValidationError` whose violation has the code
-`depth_limit` and the JSON Pointer where it stopped.
+A class-bound part becomes a plain table of the attributes its schema declares, and only those. An attribute the
+schema does not declare, such as a `password`, never appears, even if the instance has it.
 
 <!-- example: packages/schema/examples/hecate.schema.Schema.represent.lua -->
 ```lua
@@ -349,6 +418,26 @@ print(ok, err.context.violations[1].code)
 -- Prints: false	depth_limit
 ```
 
+The conversion follows the schema:
+
+- A member of a `core` enumeration becomes its name.
+- Nested parts, arrays, maps, unions and tagged unions convert recursively.
+- An empty array still encodes as `[]`, and an empty map as `{}`.
+- An absent attribute is omitted, `json.null` stays null, and a default is never applied.
+- An attribute that was sent as `null` (an instance made by `build`) comes back as `null`, so the content
+  round-trips.
+- A method or a prototype field of the class never appears.
+
+`represent` does not validate: it trusts the value, because a response that does not conform is a bug of the server.
+Call `validate` where you want to check it. The one exception is a union: it uses the alternative that accepts the
+value, and raises `ValidationError` when none does.
+
+The input is not modified, and the result shares no table with it.
+
+The nesting guard and the [work budget](../reference/glossary.md#types-and-validation) apply as for `validate`. A
+cycle in the object graph raises a `ValidationError` whose violation has the code `depth_limit` and the JSON Pointer
+where it stopped.
+
 ## Emit JSON Schema
 
 `to_json_schema()` returns a JSON Schema 2020-12 document as plain values.
@@ -369,20 +458,15 @@ print(("%s %d"):format(document.type, #document.required))
 -- Prints: object 1
 ```
 
-Choices taken conservatively (for example, `integer` refuses `1.0`) are listed in the package
-README and in the open questions.
+Choices taken conservatively (for example, `integer` refuses `1.0`) are listed in the package README and in the open
+questions.
 
-## Edge cases
+## Constrain strings
 
-The sections below cover the options and constructs that behave in a way you may not expect.
+`format` checks a well-known format: `uuid`, `date`, `date-time`, `email`, `ipv4` or `uri`.
 
-### Constrain strings
-
-`format` checks a well-known format: `uuid`, `date`, `date-time`, `email`, `ipv4` or `uri`. `pattern`
-is a Lua pattern, not a regular expression. Validation uses it as written. The emission translates it
-to an ECMA-262 regular expression for the contract. Lua patterns can backtrack, so anchor them with `^` and `$` and
-declare `max_length`: without it, a string longer than 65536 bytes is not matched and gets a `pattern` violation with
-`context.reason` set to `too_long_for_pattern`. A malformed pattern such as `ab%` is refused when you declare it.
+`pattern` is a Lua pattern, not a regular expression. Validation uses it as written. The emission translates it to an
+ECMA-262 regular expression for the contract.
 
 <!-- example: packages/schema/examples/hecate.schema.string.lua -->
 ```lua
@@ -414,25 +498,35 @@ schema.string({ pattern = "%bxy", logger = { warning = function(_, message) prin
 -- Prints: schema: pattern "%bxy" cannot be emitted: %b has no exact translation
 ```
 
-The translation is exact for a defined subset and refuses the rest. The refused constructs are `%b`,
-`%f`, the position capture `()` and any non-ASCII byte in the pattern. A schema with such a pattern still
-validates in Lua, but `to_json_schema()` raises an `ArgumentError` that says so and how to rewrite the pattern:
-use sets, classes, `format`, `min_length` or `enum`. Pass a `logger` (any object with a
-`warning(message, fields)` method) to be told at declaration: the text of the warning carries the pattern and
-the reason, and `fields` carries them too. The subset is in
+Lua patterns can backtrack, so anchor them with `^` and `$` and declare `max_length`. Without `max_length`, a string
+longer than 65536 bytes is not matched: it gets a `pattern` violation with `context.reason` set to
+`too_long_for_pattern`. A malformed pattern such as `ab%` is refused when you declare it.
+
+The translation is exact for a defined subset and refuses the rest. Among the refused constructs are `%b`, `%f`, the
+position capture `()`, any non-ASCII byte in the pattern, and a complemented class inside a set (`[%W]`). The subset
+is in
 [the specification](https://github.com/hecate-framework/hecate/blob/main/docs/architecture/schemas-and-contracts.md#the-pattern-option).
 
-### Limit numbers and decimals
+A schema with such a pattern still validates in Lua. But `to_json_schema()` raises an `ArgumentError` that says so,
+and says how to rewrite the pattern: use sets, classes, `format`, `min_length` or `enum`.
 
-`integer` accepts only Lua integers, so `1.0` is refused. `multiple_of` takes a whole-number divisor
-greater than zero. A fractional divisor such as `0.01` is refused at declaration, because binary floats
-cannot express a decimal step: `19.99` would be rejected for `0.01`, while a validator with decimal
-arithmetic accepts it, and the contract and the validator would disagree. To limit the decimal places,
-choose one of two alternatives.
+To be told at declaration instead, pass a `logger`: any object with a `warning(message, fields)` method. The text of
+the warning carries the pattern and the reason, and `fields` carries them too.
 
-- Use an integer in minor units, for example cents, which is the right model for money.
-- Use a string with a `pattern`, for example exactly two decimals. JSON Schema has no other keyword for a
-  number of decimal places.
+## Limit numbers and decimals
+
+`integer` accepts only Lua integers, so `1.0` is refused.
+
+`multiple_of` takes a whole-number divisor greater than zero. A fractional divisor such as `0.01` is refused at
+declaration, because binary floats cannot express a decimal step. `19.99` would be rejected for `0.01`, while a
+validator with decimal arithmetic accepts it: the contract and the validator would disagree.
+
+To limit the decimal places, choose one of two alternatives:
+
+- Use an integer in [minor units](../reference/glossary.md#types-and-validation), for example cents, which is the
+  right model for money.
+- Use a string with a `pattern`, for example exactly two decimals. JSON Schema has no other keyword for a number of
+  decimal places.
 
 <!-- example: packages/schema/examples/hecate.schema.integer.lua -->
 ```lua
@@ -461,10 +555,10 @@ print((price:validate("19.99")), (price:validate("19.9")))
 -- Prints: true	false
 ```
 
-### Declare maps and enumerations
+## Declare a map
 
-A `map` has string keys that are not known in advance and one schema for all the values. It takes no key
-schema, because JSON object keys are always strings. `min_properties` and `max_properties` bound its size.
+A `map` has string keys that are not known in advance, and one schema for all the values. `min_properties` and
+`max_properties` bound its size.
 
 <!-- example: packages/schema/examples/hecate.schema.map.lua -->
 ```lua
@@ -493,9 +587,12 @@ print(stock:to_json_schema().additionalProperties.type)
 -- Prints: integer
 ```
 
-`schema.enumeration` also takes an enumeration of `hecate.core`. The JSON form of a member is its name, so
-`validate` and `coerce` accept exactly the names and never a member object. `build` replaces a name by the
-member, also inside objects, arrays and maps. A default is given as a name.
+A `map` takes no key schema, because JSON object keys are always strings.
+
+## Use an enumeration of `hecate.core`
+
+`schema.enumeration` also takes an [enumeration](../reference/glossary.md#object-model-and-architecture) of
+`hecate.core`, a closed set of named values. The JSON form of a member is its name.
 
 <!-- example: packages/schema/examples/hecate.schema.enumeration.lua -->
 ```lua
@@ -525,13 +622,17 @@ print(emitted.type, #emitted.enum)
 -- Prints: string	3
 ```
 
-### Choose between `union` and `tagged_union`
+- `validate` and `coerce` accept exactly the names, and never a member object.
+- `build` replaces a name by the member, also inside objects, arrays and maps.
+- A default is given as a name.
 
-When the alternatives of a sum differ by a property that holds a constant (a `type` or `kind`
-field), declare a `tagged_union`: the validator reads the tag once and validates only the selected
-variant, with no re-validation. A violation inside the variant keeps its own path. A missing tag is a
-`required` violation at the tag property, and an unknown or non-string tag is a `tagged_union` violation
-that lists the variants in `context.values`.
+## Choose between `union` and `tagged_union`
+
+A [sum type](../reference/glossary.md#types-and-validation) is a value that is exactly one of several variants.
+`hecate.schema` has two constructors for it: `union` and `tagged_union`.
+
+When the alternatives differ by a property that holds a constant (a `type` or `kind` field), declare a
+`tagged_union`. The validator reads the tag once and validates only the selected variant, with no re-validation.
 
 <!-- example: packages/schema/examples/hecate.schema.tagged_union.lua -->
 ```lua
@@ -568,11 +669,14 @@ print(#shape:to_json_schema().oneOf)
 -- Prints: 2
 ```
 
-A union never accepts null on its own: `nullable` is the only way for a property to accept
-`json.null`. `schema.union` refuses at declaration (an `ArgumentError`) every alternative that accepts null:
-`schema.null()`, a `nullable` schema, `schema.literal(json.null)` or an enumeration containing `json.null`, also
-under `named`, `optional` or `default`. Wrap the union instead,
-as `nullable(union(...))`:
+- A violation inside the variant keeps its own path.
+- A missing tag is a `required` violation at the tag property.
+- An unknown or non-string tag is a `tagged_union` violation that lists the variants in `context.values`.
+
+### Make a union accept null
+
+A union never accepts null on its own: `nullable` is the only way for a property to accept `json.null`. Wrap the
+union instead, as `nullable(union(...))`.
 
 <!-- example: packages/schema/examples/hecate.schema.union.lua -->
 ```lua
@@ -601,22 +705,44 @@ print((schema.union({ schema.string(), schema.any() }):validate(json.null)))
 -- Prints: true
 ```
 
-`schema.any()` is not refused: it accepts every value, null included, as an explicit, different choice.
+`schema.union` refuses at declaration, with an `ArgumentError`, every alternative that accepts null:
 
-A `union` decides each alternative in turn (stopping at the first violation, literal properties first) and
-remembers its answer for each table of the content during one call, so the work is proportional to the
-tables times the unions. As a backstop, a call that needs more than 1,000,000 steps ends with a
-`complexity_limit` violation at the path where it stopped. A failed `union` reports the violations of its
-alternatives in `context.alternatives` only at the outermost union.
+- `schema.null()`;
+- a `nullable` schema;
+- `schema.literal(json.null)`;
+- an enumeration containing `json.null`.
 
-### Name a schema without a class
+The refusal also applies under `named`, `optional` or `default`.
 
-A schema that has neither a class nor a call to `named` is inlined and never receives a name.
+`schema.any()` is not refused. It accepts every value, null included, as an explicit, different choice.
 
-For an inline schema that has no class, `schema.named("User", definition)` is the explicit opt-in: it
-validates and coerces like `definition`, and the emission names it in the same way. A name is made of letters,
-digits, `_`, `.` and `-`.
+### Know what a union costs
 
-Two different definitions under one name in one emission raise an `ArgumentError` that names the colliding name
-and says where each comes from: a class or `named`. This covers an inline name equal to the name of a
+A `union` decides each alternative in turn, in
+[fail-fast mode](../reference/glossary.md#types-and-validation): it stops at the first violation, and checks literal
+properties first. It remembers its answer for each table of the content during one call. The work is therefore
+proportional to the tables times the unions.
+
+As a backstop, a call that needs more than 1,000,000 steps ends with a `complexity_limit` violation at the path where
+it stopped.
+
+A failed `union` reports the violations of its alternatives in `context.alternatives`, only at the outermost union.
+
+## Name a schema without a class
+
+A schema that has neither a class nor a call to `named` is inlined, and never receives a name.
+
+For an inline schema that has no class, `schema.named("User", definition)` is the explicit opt-in. It validates and
+coerces like `definition`, and the emission names it in the same way as a class. A name is made of letters, digits,
+`_`, `.` and `-`.
+
+Two different definitions under one name in one emission raise an `ArgumentError`. The error names the colliding name
+and says where each definition comes from: a class or `named`. This covers an inline name equal to the name of a
 class. Equal definitions share one definition.
+
+## See also
+
+- [Schemas and contracts](../explanation/schemas-and-contracts.md): why schemas work this way, and their limits.
+- [Schema keywords and formats](../reference/schema-keywords-and-formats.md): every constructor, option and code.
+- [Map domain errors to problem details](map-domain-errors-to-problem-details.md): how the kernel answers violations.
+- [Encode and decode JSON](encode-and-decode-json.md): the codec that `represent` feeds.

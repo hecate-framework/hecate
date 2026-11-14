@@ -114,7 +114,9 @@ makes every interruption harmless instead.
   findings of a gate itself: a defect of something the phase delivered is fixed in the gate's pull request, anything
   that needs a later phase or a measurement is deferred into that phase's roadmap item, so nothing is forgotten.
 - **Locking**: `lock_until` in `HANDOFF.md` prevents two runs from working on the same
-  item.
+  item. An **owner hold** outlasts the lock: when the owner asks on a relay pull request that no other run continue
+  it, or `HANDOFF.md` carries an `owner:` line naming another session, later runs skip that pull request even after
+  `lock_until` has passed, and take the next item instead. Only the owner lifts a hold.
 - **Automatic restart**: a Claude Code **routine** (claude.ai/code/routines) using the
   `hecate` environment and the prompt "Follow `.claude/commands/relay.md` exactly."
   - schedule trigger: every 3 hours (custom cron via `/schedule update`; the minimum is

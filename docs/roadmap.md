@@ -288,7 +288,7 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
 
 ## Phase 3 — Contracts and tooling → `0.1.0`
 
-- [ ] **First item of Phase 3 (owner decision of 2026-11-13): a readable writing style.** Write a "Writing style"
+- [x] **First item of Phase 3 (owner decision of 2026-11-13): a readable writing style.** Write a "Writing style"
       section in `docs/architecture/documentation.md`, after the manner of *Programming in Lua* (Ierusalimschy): one
       idea per paragraph, a short example right after each new concept, a brief reminder of what a term means the first
       time a page uses it (linked to the glossary), short sentences and a lower density, the precise term and the exact
@@ -296,6 +296,13 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       concurrency and multi-process deployment; the schema keywords reference; the explanations on the architecture, the
       object model and the concurrency model) and submit them to the owner before any other Phase 3 item starts. Once
       approved, the website item applies it to the rest of the site.
+- [ ] `kernel`: log the answers of the input step (owner remark on pull request #195, 2026-11-13). The `422` of
+      inputs that do not conform, and the `400` and `415` of the same step, are built by `input.compile` before the
+      action and never reach the guard, so nothing logs them. Meanwhile, a client-caused error that the guard maps
+      below 500 (content over the limit, for example) is logged at `warning`. Make the two consistent: log these answers through the same logger,
+      with the method, the path without the query and the violation codes, never the values (OQ-111, safe content).
+      Choose the severity in line with the guard, test it first, and update
+      `website/en/how-to/map-domain-errors-to-problem-details.md` ("The 422 of the inputs", "Where the guard logs").
 - [ ] `openapi`: OpenAPI 3.1 assembly, served endpoint, export, contract diff.
 - [ ] `test`: test framework, runner, in-process client, fixtures, contract conformance,
       reporters (TAP, JUnit XML), coverage. **Also (T2, from the `http` test review):** a hand-built `Request` whose
@@ -322,7 +329,8 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       defaults to it: `max(1, cores - 1)`, `cores` from `uv.available_parallelism()` (exposed by `reactor`), read on
       Linux within the cgroup CPU quota of a container when one is set (or documented as a limit); `hecate serve`
       without `--workers` reads `server.workers`; the generated `config/development.lua` and `config/test.lua` set
-      `server.workers = 1`.
+      `server.workers = 1`. Then update the pages that state today's default of 1: `website/en/how-to/
+      {multi-process-deployment, before-going-to-production}.md` and `website/en/explanation/multi-process-serving.md`.
       **Also (OQ-121):** `gen-meta`, the LuaLS `---@meta` files generated from schemas, as a `tools/` task and through
       the CLI (file layout, naming and when it runs decided with the item).
       **Also (from the `examples/hello` item):** turn `examples/hello` into a Hecate project (`hecate.project.lua`, run
@@ -349,10 +357,13 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       English one in Phase 2: *violation*, *class-bound schema*, *presence set*, *work budget*, *validator*, *build*,
       *Representable*, *represent*, *fail-fast mode*, *minor units*, *union (sum type)*, *path template*, *route table*,
       *dot segment* and *service scope* (finding C9 of `docs/reviews/phase-2-coherence-findings.md`).
-      **Also (owner decisions of 2026-11-13):** apply the writing style of the first Phase 3 item to every page;
+      **Also (owner decisions of 2026-11-13):** apply the writing style of the first Phase 3 item to every page (done
+      for every English page in pull request #195; the French pages follow with their translation);
       Mermaid diagrams (OQ-128): an ADR for the dependency (a vendored copy of `mermaid.js`, loaded only on the pages
       that hold a diagram, no CDN), then the support in `hecate.doc` (a ` ```mermaid ` block becomes a diagram) and
       diagrams in the explanation pages.
+      **Also (found while restyling, pull request #195):** the `serve-http` how-to writes through `io.stderr:write` in an
+      inline `on_error` snippet, which the output rule refuses in example files.
 - [ ] Meta-rock `hecate` (standard edition).
 - [ ] Read-only mirrors (ADR 0017): `split`, `mirrors ensure`, `check-mirrors`,
       `split.yml`; Homebrew tap and Scoop bucket repositories (resolves OQ-17).

@@ -7,18 +7,19 @@ order: 4
 
 # UDP, Unix sockets, named pipes and DNS
 
-This guide covers the transports of `hecate.net` other than TCP: datagrams, local sockets and
-name resolution. It is written for hecate 0.x and Lua 5.5. All calls suspend the running
-[coroutine](../reference/glossary.md#concurrency), so run them inside `reactor.run`.
+This guide covers the transports of `hecate.net` other than TCP: datagrams, local sockets and name resolution. It is
+written for hecate 0.x and Lua 5.5. It assumes you know [how to connect and serve over TCP](connect-and-serve-over-tcp.md).
+
+All the calls below that wait suspend the running [coroutine](../reference/glossary.md#concurrency): it pauses and
+lets the others run. Run them inside `reactor.run`.
 
 ## Exchange datagrams
 
-`net.bind_udp(host, port, options?)` binds a `UdpSocket` to the first address `host` resolves
-to. Port `0` picks a free port. The only option is `family`.
+`net.bind_udp(host, port, options?)` binds a `UdpSocket` to the first address `host` resolves to. Port `0` picks a
+free port. The only option is `family`.
 
-Each `send_to` sends one datagram, and each `receive_from` returns one datagram together with
-the address of its sender, as `{ ip, port, family }`. The payload may be empty. A datagram is
-never split or merged, unlike the bytes of a stream.
+Each `send_to` sends one datagram. Each `receive_from` returns one datagram, together with the address of its sender
+as `{ ip, port, family }`.
 
 <!-- example: packages/net/examples/hecate.net.bind_udp.lua -->
 ```lua
@@ -43,24 +44,29 @@ end)
 -- Prints: PING
 ```
 
-Things to know:
+A datagram is never split or merged, unlike the bytes of a [stream](../reference/glossary.md#concurrency). Its
+payload may be empty.
 
-- `send_to(host, port, data)` puts the destination first, like `net.connect`.
-- A UDP socket serves one `receive_from` at a time. A second concurrent call raises an error.
-- A `receive_from` that is cancelled loses no datagram. A `send_to` that is cancelled closes
-  the socket. See [Deadlines and cancellation on streams](deadlines-and-cancellation.md).
-- Datagram truncation and loss are neither specified nor tested yet: size your datagrams below
-  the path MTU and do not assume delivery.
-- `::` is dual-stack on Linux and macOS, and IPv6 only on Windows by default. There is no option
-  to change it.
+`send_to(host, port, data)` puts the destination first, like `net.connect`.
+
+A UDP socket serves one `receive_from` at a time. A second concurrent call raises `StateError`.
+
+A `receive_from` that is cancelled loses no datagram. A `send_to` that is cancelled closes the socket. See
+[Deadlines and cancellation on streams](deadlines-and-cancellation.md).
+
+### Limits
+
+- Datagram truncation and loss are neither specified nor tested yet. Size your datagrams below the path MTU, and do
+  not assume delivery.
+- `::` is dual-stack on Linux and macOS, and IPv6 only on Windows by default. There is no option to change it.
 
 ## Resolve a name before you send
 
-`send_to` accepts a numeric address only. A host name raises `ArgumentError` that points to
-`net.resolve`. A datagram has no connection, so there is no second address to retry on.
+`send_to` accepts a numeric address only. A host name raises `ArgumentError`, whose message points to `net.resolve`.
+A datagram has no connection, so there is no second address to retry on: you choose the address.
 
-`net.resolve(host, options?)` returns the numeric addresses in the resolver's order, as a list of
-`{ ip, family }`. `family` (`"inet"` or `"inet6"`) keeps one kind.
+`net.resolve(host, options?)` returns the numeric addresses in the resolver's order, as a list of `{ ip, family }`.
+The option `family` (`"inet"` or `"inet6"`) keeps one kind.
 
 <!-- example: packages/net/examples/hecate.net.resolve.lua -->
 ```lua
@@ -80,19 +86,19 @@ end)
 -- Prints: 127.0.0.1 hello
 ```
 
-When a name does not resolve, `resolve` raises a `reactor.TransportError`. Its message and
-`context.host` carry the name, and `context.errno` is the resolver's code, for example
-`EAI_NONAME`. A cancelled resolution returns at once and its late result is discarded.
+When a name does not resolve, `resolve` raises a `reactor.TransportError`. Its message and `context.host` carry the
+name. `context.errno` is the resolver's code, for example `EAI_NONAME`.
 
 Resolution runs on the libuv thread pool (four threads by default) and is not cached. Bound it with
-`reactor.deadline` like any other call.
+`reactor.deadline` like any other call. A cancelled resolution returns at once, and its late result is discarded.
 
 ## Listen on a Unix socket or a named pipe
 
-`net.listen_pipe(path, options?)` listens on a Unix-domain socket. On Windows the same call
-listens on a named pipe, whose path has the form `\\.\pipe\name`. The streams are `PipeStream`
-objects with the same API as `TcpStream`: `reader`, `writer`, `shutdown`, `close` and so on, plus
-`path()`.
+`net.listen_pipe(path, options?)` listens on a Unix-domain socket. On Windows, the same call listens on a named pipe,
+whose path has the form `\\.\pipe\name`.
+
+The streams are `PipeStream` objects. They have the same API as `TcpStream` (`reader`, `writer`, `shutdown`, `close`
+and so on), plus `path()`.
 
 <!-- example: packages/net/examples/hecate.net.listen_pipe.lua -->
 ```lua
@@ -125,24 +131,35 @@ end)
 
 `listen_pipe` does not suspend. `net.connect_pipe(path)` suspends and returns the `PipeStream`.
 
-### Options and limits
+### Options
 
 - `backlog` is a positive integer, 128 by default. It is ignored on Windows.
-- `mode` sets the permissions of the socket file: `"owner"` (the default), `"readable"`,
-  `"writable"` or `"readwrite"`. Connecting to a Unix-domain socket needs write permission, so
-  `"readable"` is of no use for connecting on POSIX: use `"writable"` or `"readwrite"` to let
-  other users connect. It has no effect on Windows. On Unix the socket is created in a private
-  directory with its final permissions, then linked to your path, so no other user can connect
-  in between. If the file system refuses the link, the socket is bound directly and restricted
-  right after.
-- The path must not exist. Binding an existing path fails with `EADDRINUSE`. The listener
-  removes its socket file when it closes. After a crash a stale file stays: remove it before you
-  listen again.
-- A process that is killed at the wrong moment can leave an empty directory named `.hs-XXXXXX` next
-  to your socket path, and any crash leaves the stale socket file. Clean them up from time to time,
-  for example `find /run/myapp -maxdepth 1 -name '.hs-*' -type d -empty -delete`.
-- A Windows pipe name is at most 256 characters. A Unix socket path is at most 107 bytes (103
-  on macOS), the terminating NUL excluded. A longer path raises `ArgumentError`.
+- `mode` sets the permissions of the socket file: `"owner"` (the default), `"readable"`, `"writable"` or
+  `"readwrite"`. It has no effect on Windows.
+
+Connecting to a Unix-domain socket needs write permission. `"readable"` is therefore of no use for connecting on
+POSIX. Use `"writable"` or `"readwrite"` to let other users connect.
+
+On Unix, the socket is created in a private directory with its final permissions, then linked to your path. No other
+user can connect in between. If the file system refuses the link, the socket is bound directly and restricted right
+after.
+
+### The path and its leftovers
+
+The path must not exist. Binding an existing path fails with `EADDRINUSE`.
+
+The listener removes its socket file when it closes. After a crash, a stale file stays: remove it before you listen
+again.
+
+A process that is killed at the wrong moment can also leave an empty directory named `.hs-XXXXXX` next to your socket
+path. Clean these leftovers up from time to time, for example:
+
+```sh
+find /run/myapp -maxdepth 1 -name '.hs-*' -type d -empty -delete
+```
+
+A Windows pipe name is at most 256 characters. A Unix socket path is at most 107 bytes (103 on macOS), the
+terminating NUL excluded. A longer path raises `ArgumentError`.
 
 ### Differences on Windows
 

@@ -130,7 +130,7 @@ Other formats of JSON Schema (`hostname`, `ipv6`, `time`, `uri-reference`, ...) 
 | `schema.union(alternatives)` | a value accepted by at least one alternative ([sum type](glossary.md#types-and-validation)) | `anyOf` |
 | `schema.tagged_union(tag, variants)` | `variants` maps a name to an `object` schema; the property `tag` holds the name | `oneOf`, each variant with its tag as `const` |
 
-A `union` refuses at declaration every alternative that accepts null: write `schema.nullable(schema.union(...))`.
+A `union` refuses at declaration every alternative that accepts null, except `schema.any()`: write `schema.nullable(schema.union(...))`.
 Prefer `tagged_union` for objects that differ by a tag: it dispatches on the tag and costs less.
 
 ## Names and classes
@@ -178,7 +178,7 @@ a `context`. The codes are stable.
 | `union` | `alternatives` | `union` |
 | `tagged_union` | `tag`, `values` | `tagged_union`, for an unknown tag |
 | `coercion` | `expected` | `coerce`, and `build` with `coerce = true` |
-| `depth_limit` | `max_depth` | every container, beyond 1000 levels |
+| `depth_limit` | `max_depth` | every container, beyond 1000 levels, or beyond `limits.max_depth` when it is lower |
 | `complexity_limit` | `max_steps` | a call that spends more than 1,000,000 steps |
 | `too_many_violations` | `max` | a call that keeps 100 violations; it replaces the 101st |
 

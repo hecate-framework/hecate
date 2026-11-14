@@ -3,6 +3,7 @@
 
 - roadmap_item: <exact text of the roadmap line>
 - status: in-progress            <!-- in-progress | waiting-ci | waiting-owner -->
+<!-- Optional, only when the owner holds this pull request for one run: - owner: session `<session id>`, why. -->
 - lock_until: YYYY-MM-DDTHH:MM:SSZ
 - last_update: YYYY-MM-DDTHH:MM:SSZ
 
