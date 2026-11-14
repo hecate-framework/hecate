@@ -87,8 +87,8 @@ the primary. Give `worker_command` when the program was not started as a script,
 | `round_robin` | the primary accepts each connection and hands it over to the next worker; works everywhere |
 | `reuseport` | each worker accepts on its own socket; needs a luv version that does not exist yet (OQ-43) |
 
-When you ask for `reuseport` and it is not supported, the primary logs a warning and uses `round_robin`. `auto` falls
-back to `round_robin` without a warning. Nothing else in your code depends on the strategy.
+When the chosen strategy is not supported, the primary logs a warning and uses `round_robin`. Nothing else in your
+code depends on the strategy.
 
 ## Stop gracefully
 
