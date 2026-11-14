@@ -121,15 +121,15 @@ runs the CLI's own code.
   | `lua-hashings-and-nums` 1.0.3 | pure Lua, MIT | loads | yes | about 50 s per MB: unusable |
   | `sha2` 0.2.0 | C, written for Lua 5.1 | does not compile (`luaL_openlib`, `luaL_reg`) | n/a | n/a |
   | `digest` 0.0.1 (osch) | C, one file, MIT AND BSD-3-Clause | built by hand from the raw sources (the rockspec downloads a GitHub archive, blocked here); compiles on 5.5 without warning | yes | **0.07 s**; also MD5, SHA-384/512, HMAC, streaming; its own suite: 1741 assertions pass, 1 check fails (it counts fixture files, I could fetch only some) |
-| `lua-resty-crypto` | LuaJIT `ffi` over OpenSSL, no licence declared | cannot run on PUC Lua 5.5 | n/a | n/a |
-| `lua-hashings` | not listed for Lua 5.5; its 5.5 successor is `lua-hashings-and-nums` | see above | n/a | n/a |
-| `lsha2` 0.1 | Lua for 5.1/5.2 with `bit32`, GPL-3 | not tried: licence | n/a | n/a |
-| `luagcrypt` | C binding of libgcrypt | needs the libgcrypt headers and library on the machine | not tried | not tried |
+  | `lua-resty-crypto` | LuaJIT `ffi` over OpenSSL, no licence declared | cannot run on PUC Lua 5.5 | n/a | n/a |
+  | `lua-hashings` | not listed for Lua 5.5; its 5.5 successor is `lua-hashings-and-nums` | see above | n/a | n/a |
+  | `lsha2` 0.1 | Lua for 5.1/5.2 with `bit32`, GPL-3 | not tried: licence | n/a | n/a |
+  | `luagcrypt` | C binding of libgcrypt | needs the libgcrypt headers and library on the machine | not tried | not tried |
   
   `plc` is fast enough for the CLI (an 825 KB toolchain archive in about 0.3 s) and is embedded as Lua source, no
-  native code to build on three platforms. `hmac` is 80 times faster and also gives HMAC, but a C rock must be
-  linked into the embedded interpreter on every target, and it builds with three other rocks
-  (`configh`, `lauxhlib`, `luarocks-build-hooks`). The luarocks.org search for "sha" returns 50 rows, most of them
+  native code to build on three platforms. `digest` and `hmac` are about 80 times faster and also give HMAC, but a
+  C module must be linked into the embedded interpreter on every target; `hmac` also builds with three other rocks
+  (`configh`, `lauxhlib`, `luarocks-build-hooks`), `digest` with none. The luarocks.org search for "sha" returns 50 rows, most of them
   noise (`shared`, `shape`, `shadow`); about ten are hash libraries.
 
 ### Second round of answers (2026-11-14)
