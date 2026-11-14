@@ -130,7 +130,6 @@ runs the CLI's own code.
   (`configh`, `lauxhlib`, `luarocks-build-hooks`). The luarocks.org search for "sha" returns 50 rows, most of them
   noise (`shared`, `shape`, `shadow`); about ten are hash libraries.
 
-
 ### Second round of answers (2026-11-14)
 
 - Shipping: like Node.js. A Windows setup executable, a macOS `.pkg` installer and Linux archives, with Homebrew,
