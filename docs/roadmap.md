@@ -303,7 +303,13 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       with the method, the path without the query and the violation codes, never the values (OQ-111, safe content).
       Choose the severity in line with the guard, test it first, and update
       `website/en/how-to/map-domain-errors-to-problem-details.md` ("The 422 of the inputs", "Where the guard logs").
-- [ ] `openapi`: OpenAPI 3.1 assembly, served endpoint, export, contract diff.
+- [ ] `openapi`: OpenAPI 3.1 assembly, served endpoint, export, contract diff. **Also (owner answers on OQ-129,
+      2026-11-14):** routes are always named explicitly by the user (`kernel` refuses a route without `name`; no
+      default name), `operationId` is that name; an optional request body (`content_optional`); a shared HTTP status
+      table in `core`, used by `http` and `openapi` (confirmed); the interface `Problem` in `core`, which the problem
+      classes of `kernel` declare and `openapi` tests (confirmed); the ordered `tags` list
+      with descriptions and `externalDocs` in the project settings. **Later, optional:** a controller-level default
+      `tags` field, so that the routes of a controller need not repeat them.
 - [ ] `test`: test framework, runner, in-process client, fixtures, contract conformance,
       reporters (TAP, JUnit XML), coverage. **Also (T2, from the `http` test review):** a hand-built `Request` whose
       `content` is a table must be JSON-encoded or raise, not read as empty (`Request:read_content` today reads only a
