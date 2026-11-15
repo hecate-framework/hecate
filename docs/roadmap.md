@@ -303,7 +303,7 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       with the method, the path without the query and the violation codes, never the values (OQ-111, safe content).
       Choose the severity in line with the guard, test it first, and update
       `website/en/how-to/map-domain-errors-to-problem-details.md` ("The 422 of the inputs", "Where the guard logs").
-- [ ] `openapi`: OpenAPI 3.1 assembly, served endpoint, export, contract diff. **Also (owner answers on OQ-129,
+- [x] `openapi`: OpenAPI 3.1 assembly, served endpoint, export, contract diff. **Also (owner answers on OQ-129,
       2026-11-14):** routes are always named explicitly by the user (`kernel` refuses a route without `name`; no
       default name), `operationId` is that name; an optional request body (`content_optional`); a shared HTTP status
       table in `core`, used by `http` and `openapi` (confirmed); the interface `Problem` in `core`, which the problem
@@ -332,6 +332,9 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       the hecate marks are never recoloured.
 - [ ] `cli` v1: self-contained executable, `new`, `install`, `add`, `remove`, `update`,
       `serve [--watch]`, `test`, `doc`, `contract`, `toolchain`, `doctor`, `version`.
+      **Also (from the `openapi` item):** `hecate contract export` (JSON, over `Application:contract`; YAML later, OQ-137),
+      `hecate contract lint` (over `openapi.lint`, nonzero exit on an error finding) and `hecate contract diff <ref>`
+      (over `openapi.diff`, nonzero exit on a breaking change).
       **Also (OQ-13, resolved 2026-11-14):** the executable embeds Lua 5.5 and LuaRocks and is the interpreter of Lua
       5.5 projects (OQ-131, ADR 0029 Accepted and verified on the CI platforms; on Windows `lua55.dll` ships beside `hecate.exe` and `lfs` is embedded for LuaRocks); framework
       packages stay project dependencies; settle OQ-132 (how the CLI runs the project's interpreter: child process through

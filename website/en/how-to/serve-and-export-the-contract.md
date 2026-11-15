@@ -43,6 +43,12 @@ file:close()
 Calling it before `boot`, or without the `openapi` option, raises `hecate.kernel.ModuleError` (`not_booted`,
 `no_contract`). The `hecate contract export` command will wrap this call. Only JSON is written in 0.1.0.
 
+## Know the limits
+
+A wildcard segment `{rest...}` of the router is documented as the path parameter `{rest}`: OpenAPI has no wildcard
+segment, so the document does not say that the parameter spans several segments. A request body is required unless
+the route sets `content_optional = true`.
+
 ## Lint and compare
 
 `openapi.lint(document)` returns findings sorted by path and rule: errors (`operation-id-missing`,
