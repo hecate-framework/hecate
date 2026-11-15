@@ -3,7 +3,7 @@
 
 - roadmap_item: `test`: test framework, runner, in-process client, fixtures, contract conformance, reporters (TAP, JUnit XML), coverage (Phase 3)
 - status: in-progress
-- last_update: 2026-11-15T14:26:03Z
+- last_update: 2026-11-15T14:31:13Z
 
 ## Done
 
@@ -21,9 +21,11 @@
 
 - Step 6: tags: `Case.tags`, `Case.test_tags[method]`, runner options `tags` (any of) and `exclude_tags` (wins); validated at `Runner:init`.
 
+- Step 7: parametrised tests via `Case.test_parameters`.
+
 ## Next steps
 
-1. Parametrise, targeting by name from the command line (tags are done), fake clock.
+1. Targeting by name from the command line (tags are done), fake clock.
 2. In-process client over the dispatch seam of OQ-78 (table `content` JSON-encoded or raise, T2), fixtures with container overrides.
 3. Contract conformance report; property-based testing from schema types (OQ-96); coverage (LCOV); parallel workers.
 4. Docs (README, website reference, CHANGELOG), roadmap tick.

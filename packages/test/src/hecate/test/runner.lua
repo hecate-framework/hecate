@@ -215,7 +215,7 @@ end
 
 --- Runs one test on a fresh instance of `class`: set_up, the test, tear_down (when set_up
 --- succeeded), each failure contained.
-local function run_test(class, case_instance, name)
+local function run_test(class, case_instance, name, arguments)
   local instance = core.allocate(class)
   for key, value in pairs(case_instance) do instance[key] = value end
   local counter = { assertions = 0 }
@@ -226,7 +226,7 @@ local function run_test(class, case_instance, name)
       if not ok then return classify(err, "set_up") end
     end
     local outcome = { status = "passed" }
-    local ok, err = xpcall(class[name], capture, instance)
+    local ok, err = xpcall(class[name], capture, instance, arguments)
     if not ok then outcome = classify(err) end
     if instance.tear_down then
       local tok, terr = xpcall(instance.tear_down, capture, instance)
@@ -241,7 +241,7 @@ end
 
 --- Lists the tests of `cases` that pass the filter, in order: `{ case, name, full_name }`.
 ---@param cases table[]  test cases
----@return { case: table, name: string, full_name: string, suite: string }[] tests
+---@return { case: table, name: string, full_name: string, suite: string, arguments?: any }[] tests
 function Runner:plan(cases)
   local tests = {}
   for _, class in ipairs(cases) do
@@ -252,15 +252,37 @@ function Runner:plan(cases)
     -- a suite is a test script: the file a case was loaded from, else the name of the case
     local suite = discovery.origin(class) or core.name(class)
     for _, name in ipairs(case_module.test_names(class)) do
-      local full_name = core.name(class) .. "." .. name
-      local selected = self._filter == nil or full_name:find(self._filter)
-      if selected and (self._tags or self._exclude_tags) then
-        local set = tags_of(class, name)
-        if self._tags and not any_of(set, self._tags) then selected = false end
-        if self._exclude_tags and any_of(set, self._exclude_tags) then selected = false end
+      -- a parametrised test is one test per entry of `test_parameters[name]`
+      local entries = type(class.test_parameters) == "table" and class.test_parameters[name] or nil
+      if entries ~= nil and (type(entries) ~= "table" or #entries == 0) then
+        error(core.ArgumentError(("test.Runner: test_parameters.%s of %s must be a non-empty list"):format(
+          name, core.name(class))), 2)
       end
-      if selected then
-        tests[#tests + 1] = { case = class, name = name, full_name = full_name, suite = suite }
+      local variants = { { full_name = core.name(class) .. "." .. name } }
+      if entries then
+        variants = {}
+        local seen = {}
+        for index, entry in ipairs(entries) do
+          local label = type(entry) == "table" and type(entry.label) == "string" and entry.label or tostring(index)
+          if seen[label] then
+            error(core.ArgumentError(("test.Runner: test_parameters.%s of %s has the label '%s' twice"):format(
+              name, core.name(class), label)), 2)
+          end
+          seen[label] = true
+          variants[#variants + 1] = { full_name = ("%s.%s[%s]"):format(core.name(class), name, label), arguments = entry }
+        end
+      end
+      for _, variant in ipairs(variants) do
+        local full_name = variant.full_name
+        local selected = self._filter == nil or full_name:find(self._filter)
+        if selected and (self._tags or self._exclude_tags) then
+          local set = tags_of(class, name)
+          if self._tags and not any_of(set, self._tags) then selected = false end
+          if self._exclude_tags and any_of(set, self._exclude_tags) then selected = false end
+        end
+        if selected then
+          tests[#tests + 1] = { case = class, name = name, full_name = full_name, suite = suite, arguments = variant.arguments }
+        end
       end
     end
   end
@@ -332,7 +354,7 @@ function Runner:run(cases)
         if setup_failure then
           outcome = { status = "errored", message = setup_failure.message, traceback = setup_failure.traceback }
         else
-          outcome = run_test(class, case_instance, tests[i].name)
+          outcome = run_test(class, case_instance, tests[i].name, tests[i].arguments)
         end
         local duration = os.clock() - clock
         if i < end_of_case then

@@ -201,6 +201,36 @@ function T:test_tags_select_and_exclude_tests_of_a_case_or_of_a_single_test()
   self:assert_error(function() hecate_test.Runner({ exclude_tags = numbers }) end, { class = core.ArgumentError })
 end
 
+function T:test_a_parametrised_test_runs_once_per_entry_with_its_own_name_and_result()
+  local C = hecate_test.Case("Param")
+  C.test_parameters = { test_add = { { label = "small", 1, 2, 3 }, { 2, 2, 5 }, { label = "big", 10, 20, 30 } } }
+  local seen = {}
+  function C:test_add(entry)
+    seen[#seen + 1] = entry[1] .. "+" .. entry[2]
+    self:assert_equal(entry[3], entry[1] + entry[2])
+  end
+  function C:test_plain() end
+  local summary = run({ C })
+  self:assert_equal("1+2,2+2,10+20", table.concat(seen, ","))
+  self:assert_equal(4, summary.total)
+  self:assert_equal(1, summary.failed)
+  local names = {}
+  for _, r in ipairs(summary.results) do names[#names + 1] = r.name .. ":" .. r.status end
+  self:assert_equal("Param.test_add[small]:passed,Param.test_add[2]:failed,Param.test_add[big]:passed,Param.test_plain:passed",
+    table.concat(names, ","))
+end
+
+function T:test_parameter_entries_are_selectable_by_filter_and_bad_declarations_raise()
+  local C = hecate_test.Case("Sel")
+  C.test_parameters = { test_x = { { label = "a" }, { label = "b" } } }
+  function C:test_x() end
+  self:assert_equal(1, #hecate_test.Runner({ filter = "%[b%]$" }):plan({ C }))
+  C.test_parameters = { test_x = {} }
+  self:assert_error(function() hecate_test.Runner():plan({ C }) end, { class = core.ArgumentError })
+  C.test_parameters = { test_x = { { label = "a" }, { label = "a" } } }
+  self:assert_error(function() hecate_test.Runner():plan({ C }) end, { class = core.ArgumentError })
+end
+
 function T:test_the_filter_selects_tests_by_full_name()
   local C = hecate_test.Case("C")
   function C:test_alpha() end
