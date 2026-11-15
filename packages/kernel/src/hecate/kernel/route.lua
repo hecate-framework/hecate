@@ -1,7 +1,7 @@
 -- The route entry: the single normalised shape that both declaration styles (controllers and route modules) produce
 -- and that `hecate.router` compiles (ADR 0006, http-and-routing.md "Route declaration"). Everything is validated here,
 -- when a route is declared, never lazily at the first request.
-global <const> require, type, error, pairs, ipairs, tostring, table, string, math
+global <const> require, type, error, pairs, ipairs, tostring, table, string, math, next
 
 local schema = require("hecate.schema")
 local template = require("hecate.router").template
@@ -15,13 +15,14 @@ local errors = require("hecate.kernel.errors")
 ---@class hecate.kernel.RouteEntry
 ---@field method string  an HTTP method, upper case (RFC 9110 section 9.1)
 ---@field path string  the full path template: the prefix of a controller, then the declared path
----@field name string  unique in the route table; `<method> <path>` unless declared
+---@field name string  mandatory, set explicitly by the declaration (OQ-129 (1)); unique in the route table
 ---@field summary? string
 ---@field description? string
 ---@field tags string[]
 ---@field deprecated boolean
 ---@field parameters hecate.kernel.RouteParameters
 ---@field content table<string, hecate.schema.Schema>  request schema per media type
+---@field content_optional boolean  false by default: a declared `content` means the request body is required; true accepts an empty body, with or without `Content-Type` (the action gets a nil `content`), a body that is not empty being validated all the same
 ---@field responses table<integer, hecate.schema.Schema|table|true>  schema, problem class, or `true` (declared without content) per status code
 ---@field security table[]  requirements, kept as declared (the `security` package defines their shape)
 ---@field filters hecate.kernel.Filter[]  outermost first: those of the controller, then those of the route
@@ -42,13 +43,14 @@ local errors = require("hecate.kernel.errors")
 ---@class hecate.kernel.RouteSpec
 ---@field method? string  controllers only
 ---@field path? string  controllers only (relative to the prefix)
----@field name? string
+---@field name string  mandatory
 ---@field summary? string
 ---@field description? string
 ---@field tags? string[]
 ---@field deprecated? boolean
 ---@field parameters? { path?: table<string, hecate.schema.Schema>, query?: table<string, hecate.schema.Schema>, fields?: table<string, hecate.schema.Schema>, cookies?: table<string, hecate.schema.Schema> }
 ---@field content? table<string, hecate.schema.Schema>
+---@field content_optional? boolean  accept a request without body (needs `content`); default false
 ---@field responses? table<integer, hecate.schema.Schema|table|true>  `true` declares a status without content (`[204] = true`)
 ---@field security? table[]
 ---@field filters? hecate.kernel.Filter[]
@@ -67,7 +69,7 @@ for _, method in ipairs(route.METHODS) do METHOD_SET[method] = true end
 
 local KNOWN <const> = {
   method = true, path = true, name = true, summary = true, description = true, tags = true, deprecated = true,
-  parameters = true, content = true, responses = true, security = true, filters = true, action = true,
+  parameters = true, content = true, content_optional = true, responses = true, security = true, filters = true, action = true,
 }
 local LOCATIONS <const> = { "path", "query", "fields", "cookies" }
 
@@ -190,7 +192,10 @@ function route.normalise(spec, options)
   ---@cast parsed hecate.router.Template
   local name = spec.name
   if name == nil then
-    name = method .. " " .. path
+    -- OQ-129 (1): a route has no automatic name; the name is the public identifier of the route (reverse routing,
+    -- `operationId`), so the declaration states it.
+    refuse(NORMALISE, origin, "missing_name", "name",
+      ("route %s %s has no name: add name = \"...\" to the declaration (a route has no automatic name)"):format(method, path))
   elseif type(name) ~= "string" or name == "" then
     refuse(NORMALISE, origin, "invalid_name", "name", "name must be a non-empty string, got " .. got(name))
   end
@@ -254,6 +259,15 @@ function route.normalise(spec, options)
     end
   end
 
+  if spec.content_optional ~= nil then
+    if type(spec.content_optional) ~= "boolean" then
+      refuse(NORMALISE, origin, "invalid_content_optional", "content_optional", "content_optional must be a boolean, got " .. got(spec.content_optional))
+    end
+    if spec.content_optional and next(content) == nil then
+      refuse(NORMALISE, origin, "invalid_content_optional", "content_optional", "content_optional = true needs a declared content: there is no request body to make optional")
+    end
+  end
+
   local responses = {}
   if spec.responses ~= nil then
     if type(spec.responses) ~= "table" then refuse(NORMALISE, origin, "invalid_responses", "responses", "responses must be a table by status code, got " .. got(spec.responses)) end
@@ -314,6 +328,7 @@ function route.normalise(spec, options)
     deprecated = spec.deprecated or false,
     parameters = parameters,
     content = content,
+    content_optional = spec.content_optional or false,
     responses = responses,
     security = security,
     filters = filters,

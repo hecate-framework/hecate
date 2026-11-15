@@ -303,7 +303,13 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       with the method, the path without the query and the violation codes, never the values (OQ-111, safe content).
       Choose the severity in line with the guard, test it first, and update
       `website/en/how-to/map-domain-errors-to-problem-details.md` ("The 422 of the inputs", "Where the guard logs").
-- [ ] `openapi`: OpenAPI 3.1 assembly, served endpoint, export, contract diff.
+- [x] `openapi`: OpenAPI 3.1 assembly, served endpoint, export, contract diff. **Also (owner answers on OQ-129,
+      2026-11-14):** routes are always named explicitly by the user (`kernel` refuses a route without `name`; no
+      default name), `operationId` is that name; an optional request body (`content_optional`); a shared HTTP status
+      table in `core`, used by `http` and `openapi` (confirmed); the interface `Problem` in `core`, which the problem
+      classes of `kernel` declare and `openapi` tests (confirmed); the ordered `tags` list
+      with descriptions and `externalDocs` in the project settings. **Later, optional:** a controller-level default
+      `tags` field, so that the routes of a controller need not repeat them.
 - [ ] `test`: test framework, runner, in-process client, fixtures, contract conformance,
       reporters (TAP, JUnit XML), coverage. **Also (T2, from the `http` test review):** a hand-built `Request` whose
       `content` is a table must be JSON-encoded or raise, not read as empty (`Request:read_content` today reads only a
@@ -326,6 +332,9 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       the hecate marks are never recoloured.
 - [ ] `cli` v1: self-contained executable, `new`, `install`, `add`, `remove`, `update`,
       `serve [--watch]`, `test`, `doc`, `contract`, `toolchain`, `doctor`, `version`.
+      **Also (from the `openapi` item):** `hecate contract export` (JSON, over `Application:contract`; YAML later, OQ-137),
+      `hecate contract lint` (over `openapi.lint`, nonzero exit on an error finding) and `hecate contract diff <ref>`
+      (over `openapi.diff`, nonzero exit on a breaking change).
       **Also (OQ-13, resolved 2026-11-14):** the executable embeds Lua 5.5 and LuaRocks and is the interpreter of Lua
       5.5 projects (OQ-131, ADR 0029 Accepted and verified on the CI platforms; on Windows `lua55.dll` ships beside `hecate.exe` and `lfs` is embedded for LuaRocks); framework
       packages stay project dependencies; settle OQ-132 (how the CLI runs the project's interpreter: child process through
@@ -344,7 +353,13 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       **Also (from the `examples/hello` item):** turn `examples/hello` into a Hecate project (`hecate.project.lua`, run
       by `hecate serve`, tested by `hecate test`, `hecate contract lint` in CI), as `examples/README.md` requires of
       every example from Phase 3 on; today it is `lua main.lua` and the repository harness.
-- [ ] Docker images (runtime and build variants, amd64 + arm64).
+- [ ] Docker images (runtime and build variants, amd64 + arm64). **Also (OQ-135, owner decision of 2026-11-15):**
+      document a compose stack that shows the contract rendered: the application (`development`, or
+      `openapi.enabled = true`), a reverse proxy so that the viewer and the application share one origin (no CORS
+      needed), and a viewer image such as Swagger UI reading `/openapi.json`; every image pinned by tag or digest.
+- [ ] `kernel`, `config`: shipped CORS filter configured by keys (OQ-136, owner direction of 2026-11-15): a global
+      filter driven by `cors.*` configuration keys, settable from the environment of a container; tests first
+      (preflight, credentials, refused combinations); how-to `filters` and the configuration reference updated.
 - [ ] Website: Diátaxis structure, English source, French locale enabled, MDN-like
       theme, getting-started tutorial, reference generated from annotations, built by
       `hecate doc` (ADR 0012, after OQ-11). Pages may be drafted as Markdown earlier.
@@ -427,6 +442,10 @@ Exit: `examples/crud` works unchanged on PostgreSQL, MySQL, MariaDB and SQLite.
       restructuring of OQ-70 (a client that disconnects during an action) is separate work, not needed by upgrades.
 - [ ] HTTP/2.
 - [ ] Further NoSQL drivers by demand (e.g. Cassandra/ScyllaDB CQL).
+- [ ] `openapi`, `cli`: YAML output of the contract (OQ-137, owner decision of 2026-11-15), by demand: `hecate contract
+      export --format yaml`, produced by a YAML library (a rock, never an emitter of our own). First a `Proposed` ADR for
+      the dependency (licence, maintenance, Lua 5.5 support, handling of integers and floats, key ordering, quoting of
+      strings such as `yes` or `1e3`); the owner accepts it. Deterministic output as for JSON, golden-file tests.
 
 - [ ] `schema`: a decimal type for exact decimal numbers such as money, with a limit on decimal places (OQ-87: `multiple_of` takes integer divisors only; until then integers in minor units, or a string with a pattern).
 

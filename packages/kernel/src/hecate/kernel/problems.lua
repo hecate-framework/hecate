@@ -34,7 +34,7 @@ local DETAIL <const> = {
 local function build(status, detail, extension)
   local body = {
     type = "about:blank", -- RFC 9457, section 4.2.1: the default when no type is defined
-    title = http.Status.reason(status) or "Error",
+    title = core.status.reason(status) or "Error",
     status = status,
     detail = detail,
   }
@@ -54,7 +54,7 @@ end
 ---@param detail? string
 ---@return hecate.http.Response
 function problems.response(status, detail)
-  if math.type(status) ~= "integer" or status < 400 or status > 599 then
+  if not core.status.is_error(status) then
     error(core.ArgumentError("hecate.kernel.problems.response: the status must be an integer from 400 to 599, got " .. tostring(status)), 2)
   end
   if detail == nil and DETAIL[status] ~= nil then return build(status, DETAIL[status]) end

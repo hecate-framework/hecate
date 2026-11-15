@@ -36,7 +36,9 @@ local problem = {}
 ---@field extensions? table<string, any>  extension members (section 3.2)
 ---@field fields? table<string, string|string[]>  header fields of the response, a name to a value or a list of values (one field line each): `WWW-Authenticate` for a 401 (RFC 9110, sections 11.6.1 and 15.5.2), `Allow` for a 405 (section 15.5.6), `Retry-After` for a 429 or a 503 (section 10.2.3). Names and values follow `hecate.http.Fields`; `Content-Type`, `Content-Length`, `Transfer-Encoding` and `Connection` belong to the kernel and are refused. Never part of the JSON content nor of the contract of a route (OQ-126)
 
---- A problem details occurrence. The class carries `status`, `title` and `type`; the instance copies them.
+--- A problem details occurrence. The class carries `status`, `title` and `type`; the instance copies them. Every problem
+--- class implements the marker interface `core.Problem` (inherited from this base class), by which a consumer such as
+--- `hecate.openapi` recognises it.
 ---@class hecate.kernel.problem.ProblemDetails : hecate.core.Error
 ---@field status integer
 ---@field title string
@@ -46,7 +48,11 @@ local problem = {}
 ---@field extensions table<string, any>
 ---@field fields? hecate.http.Fields  the header fields given at construction (a copy), added to the response; nil when none were given
 ---@overload fun(fields?: hecate.kernel.problem.Fields): hecate.kernel.problem.ProblemDetails
-local Problem = core.class("Problem", core.Error)
+local Problem = core.class("Problem", core.Error, { implements = { core.Problem } })
+-- The defaults of the base class (OQ-129 (12)): a problem that says nothing more is an internal server error. A class made
+-- by `declare` or `define` sets its own `status` and `title`.
+Problem.status = 500
+Problem.title = "Internal Server Error" -- the reason phrase of 500 (`core.status.reason`)
 Problem.code = "hecate.problem.Problem"
 Problem.type = "about:blank"
 
@@ -178,7 +184,7 @@ local COMMON <const> = {
 
 for _, entry in ipairs(COMMON) do
   local name, status = entry[1], entry[2]
-  problem[name] = declare(name, "hecate.problem." .. name, status, http.Status.reason(status) or "Error", "about:blank")
+  problem[name] = declare(name, "hecate.problem." .. name, status, core.status.reason(status) or "Error", "about:blank")
 end
 
 --- Declares an application's own problem class. Its `code` has the shape of the built-in ones, `<namespace>.problem.<Name>`
@@ -197,7 +203,7 @@ function problem.define(name, spec)
     error(core.ArgumentError(where .. "the name must be a non-empty string, got " .. type(name)), 2)
   end
   if type(spec) ~= "table" then error(core.ArgumentError(where .. "the declaration must be a table, got " .. type(spec)), 2) end
-  if math.type(spec.status) ~= "integer" or spec.status < 400 or spec.status > 599 then
+  if not core.status.is_error(spec.status) then
     error(core.ArgumentError(where .. "the status must be an integer from 400 to 599, got " .. tostring(spec.status)), 2)
   end
   if type(spec.title) ~= "string" or spec.title == "" then

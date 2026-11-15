@@ -382,6 +382,11 @@ jobs:
         shell: bash
         run: lua tools/run.lua fetch-fixtures schema
 
+      - name: Download the OpenAPI 3.1 JSON Schema
+        if: contains(format(' {0} ', needs.plan.outputs.packages), ' openapi ')
+        shell: bash
+        run: lua tools/run.lua fetch-fixtures openapi
+
       - name: Lint the JSON encoder (Linux)
         if: runner.os == 'Linux' && contains(format(' {0} ', needs.plan.outputs.packages), ' json ')
         working-directory: packages/json/native
@@ -530,6 +535,55 @@ jobs:
               echo "::endgroup::"
               ;;
           esac
+
+      # Development-only validation of the OpenAPI documents against the official OpenAPI 3.1 JSON Schema with Python
+      # `jsonschema` (ADR 0031). Steps of this matrix job, not a job of their own: a dedicated job would repeat the
+      # whole toolchain, rocks and native json setup above, and the documents to validate are written by the `openapi`
+      # tests of the Test step (`.hecate/openapi-validate/`). Run when `openapi` or a package it depends on is
+      # affected, which includes any change outside `packages/` (tools, workflows). Python is pinned exactly; the
+      # environment is created from the hashed requirements file, with no dependency resolution.
+      - name: Set up Python (OpenAPI validation)
+        id: python
+        if: contains(format(' {0} ', needs.plan.outputs.packages), ' openapi ')
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13.17"
+          cache: pip
+          cache-dependency-path: tools/ci/openapi-validator-requirements.txt
+
+      - name: Cache the OpenAPI validator environment
+        id: venv
+        if: contains(format(' {0} ', needs.plan.outputs.packages), ' openapi ')
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: .hecate/venv-openapi
+          key: venv-openapi-${{ runner.os }}-${{ runner.arch }}-${{ env.ImageVersion }}-${{ steps.python.outputs.python-version }}-${{ hashFiles('tools/ci/openapi-validator-requirements.txt') }}
+
+      - name: Create the OpenAPI validator environment
+        id: venv_create
+        if: contains(format(' {0} ', needs.plan.outputs.packages), ' openapi ') && steps.venv.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          set -e
+          python -m venv .hecate/venv-openapi
+          if [ "$RUNNER_OS" = Windows ]; then bin=Scripts; else bin=bin; fi
+          ".hecate/venv-openapi/$bin/python" -m pip install --require-hashes --only-binary :all: --no-deps -r tools/ci/openapi-validator-requirements.txt
+
+      - name: Save cache of the OpenAPI validator environment
+        if: steps.venv_create.outcome == 'success'
+        continue-on-error: true
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: .hecate/venv-openapi
+          key: ${{ steps.venv.outputs.cache-primary-key }}
+
+      # CI=true: a missing document, schema or environment fails the task instead of skipping it.
+      - name: Validate the OpenAPI documents
+        if: contains(format(' {0} ', needs.plan.outputs.packages), ' openapi ')
+        shell: bash
+        env:
+          CI: "true"
+        run: lua tools/run.lua validate-openapi
 
       # Saved even when a step failed (actions/cache saves only on a green job: a red run would leave every later
       # run without cache), and only when the restore missed. A native module or rocks cache is saved only when its

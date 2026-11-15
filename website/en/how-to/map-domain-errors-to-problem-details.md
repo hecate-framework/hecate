@@ -100,6 +100,7 @@ end
 
 local orders = hecate.routes("orders")
 orders:post("/orders/{item}", {
+  name = "order.reserve",
   parameters = { path = { item = schema.string({ max_length = 20 }) } },
   responses = {
     [204] = true, [404] = hecate.problem.NotFound, [409] = OutOfStock,
@@ -201,6 +202,15 @@ a `reason` (`invalid_input`, `malformed_content`, `unsupported_media_type`, `rep
 `content_too_large`) and, for a `422`, the `codes` of the violations. It never holds a value, a parameter name or a
 JSON Pointer: a query can carry a credential, and a key can be personal data. A request whose inputs conform logs
 nothing.
+
+### Accept a request without a body
+
+A route that declares `content` requires its body: a request without one is a `422`, the schema reporting the
+missing value. To accept a request with no body, add `content_optional = true` to the declaration of the route. The
+input step then lets an empty body through, with or without a `Content-Type` field, and the action reads
+`request.content` as `nil`. A body that is not empty is validated as before: a body that does not conform is still a
+`422`, malformed JSON a `400`, another media type, or none, a `415`. The flag needs a declared
+`content` and a boolean value; the declaration is refused otherwise, with the reason `invalid_content_optional`.
 
 ### The record of the guard
 

@@ -24,6 +24,7 @@ dependencies = {
   "hecate-container",
   "hecate-config",
   "hecate-json",
+  "hecate-openapi",
 }
 
 build = {

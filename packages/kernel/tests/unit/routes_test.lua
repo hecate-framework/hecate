@@ -30,7 +30,8 @@ local function pair(spec)
   for key, value in pairs(spec) do declared[key] = value end
   declared.method, declared.path = nil, nil
   module[spec.method:lower()](module, spec.path, { action = action, summary = spec.summary, parameters = spec.parameters,
-    responses = spec.responses, tags = spec.tags, deprecated = spec.deprecated, name = spec.name, content = spec.content })
+    responses = spec.responses, tags = spec.tags, deprecated = spec.deprecated, name = spec.name, content = spec.content,
+    content_optional = spec.content_optional })
 
   local Users = core.class("UsersController", Controller)
   Users.prefix = "/users"
@@ -38,6 +39,7 @@ local function pair(spec)
     method = spec.method, path = spec.path:sub(#"/users" + 1) == "" and "/" or spec.path:sub(#"/users" + 1),
     action = "act", summary = spec.summary, parameters = spec.parameters, responses = spec.responses, tags = spec.tags,
     deprecated = spec.deprecated, name = spec.name, content = spec.content,
+    content_optional = spec.content_optional,
   })
   Users.act = action
   core.finalise(Users)
@@ -71,12 +73,12 @@ end
 
 function T:test_both_styles_produce_identical_route_tables()
   local a, b = pair {
-    method = "GET", path = "/users/{id}", summary = "Fetch a user", tags = { "users" },
+    method = "GET", path = "/users/{id}", name = "get_users_id", summary = "Fetch a user", tags = { "users" },
     parameters = { path = { id = Id }, query = { verbose = schema.optional(schema.boolean()) } },
     responses = { [200] = User, [404] = problem.NotFound },
   }
   same(self, a, b)
-  self:assert_equal("GET /users/{id}", a.name)
+  self:assert_equal("get_users_id", a.name)
   self:assert_equal("act", b.action)
   self:assert_true(a.action == action)
 end
@@ -91,11 +93,11 @@ end
 
 function T:test_whole_tables_are_equal_and_router_accepts_them()
   local module = kernel.routes("health")
-  module:get "/health" { action = action, responses = { [200] = User } }
-  module:post "/things/{id}" { action = action, parameters = { path = { id = Id } } }
+  module:get "/health" { name = "get_health", action = action, responses = { [200] = User } }
+  module:post "/things/{id}" { name = "post_things_id", action = action, parameters = { path = { id = Id } } }
   local Things = core.class("ThingsController", Controller)
   Things.prefix = "/things"
-  Controller.route(Things, { method = "GET", path = "/{id}", action = "show", parameters = { path = { id = Id } } })
+  Controller.route(Things, { method = "GET", path = "/{id}", name = "get_id", action = "show", parameters = { path = { id = Id } } })
   Things.show = action
   core.finalise(Things)
   local entries = kernel.routing.collect({ module, Things })
@@ -108,10 +110,11 @@ end
 
 function T:test_entry_shape_is_complete_with_defaults()
   local module = kernel.routes("m")
-  module:get("/x", { action = action })
+  module:get("/x", { name = "get_x", action = action })
   local entry = module:routes()[1]
-  self:assert_equal("GET /x", entry.name)
+  self:assert_equal("get_x", entry.name)
   self:assert_equal(false, entry.deprecated)
+  self:assert_equal(false, entry.content_optional)
   for _, field in ipairs({ "tags", "content", "responses", "security", "filters" }) do
     self:assert_equal("table", type(entry[field]), field)
   end
@@ -121,18 +124,28 @@ function T:test_entry_shape_is_complete_with_defaults()
   self:assert_equal("route module m", entry.origin)
 end
 
+function T:test_content_optional_is_kept_and_both_styles_agree()
+  local a, b = pair({ method = "POST", path = "/users", name = "create", content = { ["application/json"] = User },
+    content_optional = true })
+  self:assert_equal(true, a.content_optional)
+  self:assert_equal(true, b.content_optional)
+  local c, d = pair({ method = "POST", path = "/users", name = "create", content = { ["application/json"] = User } })
+  self:assert_equal(false, c.content_optional)
+  self:assert_equal(false, d.content_optional)
+end
+
 function T:test_chained_and_direct_spellings_are_the_same()
   local a, b = kernel.routes("m"), kernel.routes("m")
-  a:get "/x" { action = action }
-  b:get("/x", { action = action })
+  a:get "/x" { name = "get_x", action = action }
+  b:get("/x", { name = "get_x", action = action })
   same(self, a:routes()[1], b:routes()[1])
-  self:assert_true(a:get("/y", { action = action }) == a)
+  self:assert_true(a:get("/y", { name = "get_y", action = action }) == a)
 end
 
 function T:test_routes_returns_a_copy_in_declaration_order()
   local module = kernel.routes("m")
-  module:get "/a" { action = action }
-  module:get "/b" { action = action }
+  module:get "/a" { name = "get_a", action = action }
+  module:get "/b" { name = "get_b", action = action }
   local list = module:routes()
   list[1] = nil
   self:assert_equal("/a", module:routes()[1].path)
@@ -144,30 +157,52 @@ function T:test_route_module_name_must_be_non_empty_string()
   refused(self, "invalid_argument", function() kernel.routes(nil) end)
 end
 
+-- OQ-129 (1): a route has no automatic name; a declaration without `name` is refused, in both styles.
+function T:test_a_route_without_a_name_is_refused_in_both_styles()
+  local module = kernel.routes("m")
+  local err = refused(self, "missing_name", function() module:get("/users/{id}", { action = action, parameters = { path = { id = Id } } }) end)
+  self:assert_equal("name", err.context.field)
+  self:assert_true(err.message:find('add name = "..."', 1, true) ~= nil, err.message)
+  self:assert_true(err.message:find("GET /users/{id}", 1, true) ~= nil, err.message)
+  local Users = core.class("UsersController", Controller)
+  refused(self, "missing_name", function() Controller.route(Users, { method = "GET", path = "/x", action = "act" }) end)
+  local Listed = core.class("ListedController", Controller)
+  Listed.routes = { { method = "GET", path = "/x", action = "act" } }
+  Listed.act = action
+  core.finalise(Listed)
+  refused(self, "missing_name", function() Controller.entries(Listed) end)
+  for _, name in ipairs({ "", 3 }) do
+    refused(self, "invalid_name", function() module:get("/x", { action = action, name = name }) end)
+  end
+end
+
 function T:test_verb_arguments_are_checked()
   local module = kernel.routes("m")
   refused(self, "invalid_argument", function() module:get(1, {}) end)
   refused(self, "invalid_argument", function() module:get("/x", 3) end)
-  refused(self, "invalid_argument", function() module:get("/x", { path = "/y", action = action }) end)
+  refused(self, "invalid_argument", function() module:get("/x", { name = "get_x", path = "/y", action = action }) end)
 end
 
 function T:test_path_parameters_must_match_the_template_both_ways()
   local module = kernel.routes("m")
-  local missing = refused(self, "parameter_mismatch", function() module:get "/u/{id}" { action = action } end)
+  local missing = refused(self, "parameter_mismatch", function() module:get "/u/{id}" { name = "get_u_id", action = action } end)
   self:assert_true(missing.message:find("{id}", 1, true) ~= nil)
   refused(self, "parameter_mismatch", function()
-    module:get "/u" { action = action, parameters = { path = { id = Id } } }
+    module:get "/u" { name = "get_u", action = action, parameters = { path = { id = Id } } }
   end)
   refused(self, "parameter_mismatch", function()
-    module:get "/u/{id}" { action = action, parameters = { path = { id = Id, other = Id } } }
+    module:get "/u/{id}" { name = "get_u_id", action = action, parameters = { path = { id = Id, other = Id } } }
   end)
-  module:get "/files/{path...}" { action = action, parameters = { path = { path = schema.string() } } }
+  module:get "/files/{path...}" { name = "get_files_path", action = action, parameters = { path = { path = schema.string() } } }
   self:assert_equal(1, #module:routes())
 end
 
 function T:test_invalid_shapes_are_refused_with_a_reason()
   local module = kernel.routes("m")
-  local function bad(reason, spec) refused(self, reason, function() module:get("/x", spec) end) end
+  local function bad(reason, spec)
+    if spec.name == nil then spec.name = "x" end
+    refused(self, reason, function() module:get("/x", spec) end)
+  end
   bad("unknown_field", { action = action, sumary = "typo" })
   bad("invalid_action", {})
   bad("invalid_action", { action = "show" })
@@ -179,6 +214,9 @@ function T:test_invalid_shapes_are_refused_with_a_reason()
   bad("invalid_parameters", { action = action, parameters = { query = { q = "string" } } })
   bad("invalid_content", { action = action, content = { json = User } })
   bad("invalid_content", { action = action, content = { ["application/json"] = 1 } })
+  bad("invalid_content_optional", { action = action, content = { ["application/json"] = User }, content_optional = "yes" })
+  bad("invalid_content_optional", { action = action, content_optional = true }) -- no content declared
+  bad("invalid_content_optional", { action = action, content_optional = 1 })
   bad("invalid_responses", { action = action, responses = { ["200"] = User } })
   bad("invalid_responses", { action = action, responses = { [200] = {} } })
   bad("invalid_responses", { action = action, responses = { [99] = User } })
@@ -186,26 +224,26 @@ function T:test_invalid_shapes_are_refused_with_a_reason()
   bad("invalid_security", { action = action, security = "bearer" })
   bad("invalid_filters", { action = action, filters = { {} } })
   refused(self, "invalid_path", function() module:get("x", { action = action }) end)
-  refused(self, "invalid_path", function() module:get("/a/{b}-{c}", { action = action }) end)
+  refused(self, "invalid_path", function() module:get("/a/{b}-{c}", { name = "get_a_b_c", action = action }) end)
   self:assert_equal(0, #module:routes())
 end
 
 function T:test_a_failed_declaration_leaves_the_module_unchanged()
   local module = kernel.routes("m")
-  module:get "/a" { action = action }
-  refused(self, "invalid_action", function() module:get "/b" {} end)
+  module:get "/a" { name = "get_a", action = action }
+  refused(self, "invalid_action", function() module:get "/b" { name = "get_b" } end)
   self:assert_equal(1, #module:routes())
 end
 
 function T:test_error_names_the_origin()
-  local err = refused(self, "invalid_action", function() kernel.routes("users"):get("/x", {}) end)
+  local err = refused(self, "invalid_action", function() kernel.routes("users"):get("/x", { name = "get_x" }) end)
   self:assert_equal("route module users", err.context.origin)
   self:assert_true(err.message:find("route module users", 1, true) ~= nil)
 end
 
 function T:test_problem_class_is_a_valid_response()
   local module = kernel.routes("m")
-  module:get "/x" { action = action, responses = { [404] = problem.NotFound } }
+  module:get "/x" { name = "get_x", action = action, responses = { [404] = problem.NotFound } }
   self:assert_true(module:routes()[1].responses[404] == problem.NotFound)
 end
 
@@ -213,7 +251,7 @@ function T:test_filters_of_a_controller_come_before_those_of_the_route()
   local outer, inner = { handle = function() end }, { handle = function() end }
   local Users = core.class("UsersController", Controller)
   Users.filters = { outer }
-  Controller.route(Users, { method = "GET", path = "/x", action = "act", filters = { inner } })
+  Controller.route(Users, { method = "GET", path = "/x", name = "get_x", action = "act", filters = { inner } })
   Users.act = action
   core.finalise(Users)
   local filters = Controller.entries(Users)[1].filters
@@ -222,23 +260,23 @@ end
 
 local function filter() return { handle = function() end } end
 
-function T:test_module_prefix_is_prepended_and_in_the_default_name()
+function T:test_module_prefix_is_prepended_to_the_path_and_not_to_the_name()
   local module = kernel.routes("admin", { prefix = "/admin" })
-  module:get "/users" { action = action }
-  module:get "/" { action = action }
+  module:get "/users" { name = "get_users", action = action }
+  module:get "/" { name = "get_root", action = action }
   local entries = module:routes()
   self:assert_equal("/admin/users", entries[1].path)
-  self:assert_equal("GET /admin/users", entries[1].name)
+  self:assert_equal("get_users", entries[1].name)
   self:assert_equal("/admin", entries[2].path)
-  self:assert_equal("GET /admin", entries[2].name)
+  self:assert_equal("get_root", entries[2].name)
 end
 
 function T:test_module_default_filters_apply_and_a_route_list_replaces_them()
   local auth, audit, own = filter(), filter(), filter()
   local module = kernel.routes("admin", { filters = { auth, audit } })
-  module:get "/a" { action = action }
-  module:get "/b" { action = action, filters = { own } }
-  module:get "/c" { action = action, filters = {} }
+  module:get "/a" { name = "get_a", action = action }
+  module:get "/b" { name = "get_b", action = action, filters = { own } }
+  module:get "/c" { name = "get_c", action = action, filters = {} }
   local entries = module:routes()
   self:assert_true(#entries[1].filters == 2 and entries[1].filters[1] == auth and entries[1].filters[2] == audit)
   self:assert_true(#entries[2].filters == 1 and entries[2].filters[1] == own)
@@ -248,21 +286,21 @@ end
 function T:test_module_defaults_equal_the_spelled_out_declaration()
   local auth = filter()
   local defaults = kernel.routes("m", { prefix = "/admin", filters = { auth } })
-  defaults:get "/users/{id}" { action = action, parameters = { path = { id = Id } } }
+  defaults:get "/users/{id}" { name = "get_users_id", action = action, parameters = { path = { id = Id } } }
   local spelled = kernel.routes("m")
-  spelled:get "/admin/users/{id}" { action = action, parameters = { path = { id = Id } }, filters = { auth } }
+  spelled:get "/admin/users/{id}" { name = "get_users_id", action = action, parameters = { path = { id = Id } }, filters = { auth } }
   same(self, defaults:routes()[1], spelled:routes()[1])
 end
 
 function T:test_module_defaults_equal_a_controller_with_the_same_prefix_and_filters()
   local auth = filter()
   local module = kernel.routes("users", { prefix = "/users", filters = { auth } })
-  module:get "/{id}" { action = action, parameters = { path = { id = Id } } }
-  module:post "/" { action = action }
+  module:get "/{id}" { name = "get_id", action = action, parameters = { path = { id = Id } } }
+  module:post "/" { name = "post_root", action = action }
   local Users = core.class("UsersController", Controller)
   Users.prefix, Users.filters = "/users", { auth }
-  Controller.route(Users, { method = "GET", path = "/{id}", action = "act", parameters = { path = { id = Id } } })
-  Controller.route(Users, { method = "POST", path = "/", action = "act" })
+  Controller.route(Users, { method = "GET", path = "/{id}", name = "get_id", action = "act", parameters = { path = { id = Id } } })
+  Controller.route(Users, { method = "POST", path = "/", name = "post_root", action = "act" })
   Users.act = action
   core.finalise(Users)
   local a, b = module:routes(), Controller.entries(Users)
@@ -274,7 +312,7 @@ function T:test_module_defaults_do_not_change_controller_filters()
   local outer, inner = filter(), filter()
   local Users = core.class("UsersController", Controller)
   Users.filters = { outer }
-  Controller.route(Users, { method = "GET", path = "/x", action = "act", filters = { inner } })
+  Controller.route(Users, { method = "GET", path = "/x", name = "get_x", action = "act", filters = { inner } })
   Users.act = action
   core.finalise(Users)
   local filters = Controller.entries(Users)[1].filters
@@ -299,24 +337,24 @@ function T:test_module_default_filters_are_a_snapshot()
   local list = { auth }
   local module = kernel.routes("m", { filters = list })
   list[2] = filter()
-  module:get "/x" { action = action }
+  module:get "/x" { name = "get_x", action = action }
   self:assert_equal(1, #module:routes()[1].filters)
 end
 
 function T:test_controller_declared_methods_may_come_after_the_declaration()
   local Users = core.class("UsersController", Controller)
-  Controller.route(Users, { method = "GET", path = "/x", action = "late" })
+  Controller.route(Users, { method = "GET", path = "/x", name = "get_x", action = "late" })
   function Users:late() end
   core.finalise(Users)
   self:assert_equal("late", Controller.entries(Users)[1].action)
-  self:assert_equal("GET /x", Controller.entries(Users)[1].name)
+  self:assert_equal("get_x", Controller.entries(Users)[1].name)
 end
 
 function T:test_routes_field_after_route_declarations()
   local Users = core.class("UsersController", Controller)
   Users.prefix = "/users"
-  Users.routes = { { method = "GET", path = "/{id}", action = "show", parameters = { path = { id = Id } } } }
-  Controller.route(Users, { method = "GET", path = "/", action = "list" })
+  Users.routes = { { method = "GET", path = "/{id}", name = "get_id", action = "show", parameters = { path = { id = Id } } } }
+  Controller.route(Users, { method = "GET", path = "/", name = "get_root", action = "list" })
   function Users:list() end
   function Users:show() end
   core.finalise(Users)
@@ -329,7 +367,7 @@ end
 
 function T:test_routes_field_errors_surface_at_boot()
   local Users = core.class("UsersController", Controller)
-  Users.routes = { { method = "GET", path = "/x", action = "nothing" } }
+  Users.routes = { { method = "GET", path = "/x", name = "get_x", action = "nothing" } }
   core.finalise(Users)
   refused(self, "missing_action", function() Controller.entries(Users) end)
   local Bad = core.class("BadController", Controller)
@@ -340,7 +378,7 @@ end
 
 function T:test_controller_missing_action_is_a_boot_error()
   local Users = core.class("UsersController", Controller)
-  Controller.route(Users, { method = "GET", path = "/x", action = "nothing" })
+  Controller.route(Users, { method = "GET", path = "/x", name = "get_x", action = "nothing" })
   core.finalise(Users)
   local err = refused(self, "missing_action", function() Controller.entries(Users) end)
   self:assert_equal("controller UsersController", err.context.origin)
@@ -348,10 +386,10 @@ end
 
 function T:test_controller_declaration_is_validated_at_once()
   local Users = core.class("UsersController", Controller)
-  refused(self, "parameter_mismatch", function() Controller.route(Users, { method = "GET", path = "/{id}", action = "a" }) end)
+  refused(self, "parameter_mismatch", function() Controller.route(Users, { method = "GET", path = "/{id}", name = "get_id", action = "a" }) end)
   refused(self, "invalid_method", function() Controller.route(Users, { method = "get", path = "/x", action = "a" }) end)
   refused(self, "invalid_method", function() Controller.route(Users, { path = "/x", action = "a" }) end)
-  refused(self, "invalid_action", function() Controller.route(Users, { method = "GET", path = "/x", action = action }) end)
+  refused(self, "invalid_action", function() Controller.route(Users, { method = "GET", path = "/x", name = "get_x", action = action }) end)
   self:assert_equal(0, #(function() core.finalise(Users) return Controller.entries(Users) end)())
 end
 
@@ -361,13 +399,13 @@ function T:test_controller_routes_need_a_finalised_controller_class()
   refused(self, "invalid_controller", function() Controller.entries({}) end)
   refused(self, "invalid_controller", function() Controller.entries(core.class("Other")) end)
   refused(self, "invalid_argument", function()
-    Controller.route(core.class("Other"), { method = "GET", path = "/x", action = "a" })
+    Controller.route(core.class("Other"), { method = "GET", path = "/x", name = "get_x", action = "a" })
   end)
 end
 
 function T:test_prefix_is_validated_when_routes_are_read()
   local Users = core.class("UsersController", Controller)
-  Controller.route(Users, { method = "GET", path = "/x", action = "a" })
+  Controller.route(Users, { method = "GET", path = "/x", name = "get_x", action = "a" })
   Users.prefix = "users/"
   Users.a = action
   core.finalise(Users)
@@ -376,7 +414,7 @@ end
 
 function T:test_routes_of_a_controller_are_not_inherited()
   local Base = core.class("BaseController", Controller)
-  Controller.route(Base, { method = "GET", path = "/x", action = "a" })
+  Controller.route(Base, { method = "GET", path = "/x", name = "get_x", action = "a" })
   Base.a = action
   core.finalise(Base)
   local Sub = core.class("SubController", Base)
@@ -388,24 +426,24 @@ end
 function T:test_a_controller_does_not_inherit_the_prefix_of_its_superclass()
   local Base = core.class("PrefixedBaseController", Controller)
   Base.prefix = "/base"
-  Controller.route(Base, { method = "GET", path = "/x", action = "a" })
+  Controller.route(Base, { method = "GET", path = "/x", name = "get_x", action = "a" })
   Base.a = action
   core.finalise(Base)
   local Sub = core.class("PrefixedSubController", Base)
-  Controller.route(Sub, { method = "GET", path = "/y", action = "a" })
+  Controller.route(Sub, { method = "GET", path = "/y", name = "get_y", action = "a" })
   core.finalise(Sub)
   self:assert_equal("/base/x", Controller.entries(Base)[1].path)
   self:assert_equal("/y", Controller.entries(Sub)[1].path)
   local Own = core.class("PrefixedOwnController", Base)
   Own.prefix = "/own"
-  Controller.route(Own, { method = "GET", path = "/y", action = "a" })
+  Controller.route(Own, { method = "GET", path = "/y", name = "get_y", action = "a" })
   core.finalise(Own)
   self:assert_equal("/own/y", Controller.entries(Own)[1].path)
 end
 
 function T:test_controller_route_keeps_a_copy_of_the_declaration()
   local Users = core.class("CopiedController", Controller)
-  local spec = { method = "GET", path = "/x", action = "a" }
+  local spec = { method = "GET", path = "/x", name = "get_x", action = "a" }
   Controller.route(Users, spec)
   spec.path, spec.action = "/changed", "other"
   Users.a = action
@@ -418,8 +456,8 @@ end
 function T:test_collect_refuses_other_sources_and_router_refuses_duplicates()
   refused(self, "invalid_source", function() kernel.routing.collect({ {} }) end)
   local a, b = kernel.routes("a"), kernel.routes("b")
-  a:get "/x" { action = action }
-  b:get "/x" { action = action }
+  a:get "/x" { name = "get_x", action = action }
+  b:get "/x" { name = "get_x", action = action }
   local err = self:assert_error(function() router.Router(kernel.routing.collect({ a, b })) end)
   self:assert_true(core.is_instance_of(err, router.RouteTableError))
 end
@@ -428,13 +466,13 @@ function T:test_a_prefix_that_is_a_single_slash_is_refused_because_the_prefix_is
   refused(self, "invalid_path", function() kernel.routes("m", { prefix = "/" }) end)
   refused(self, "invalid_path", function() kernel.routes("m", { prefix = "/users/" }) end)
   local module = kernel.routes("m", { prefix = "" })
-  module:get("/x", { action = action })
+  module:get("/x", { name = "get_x", action = action })
   self:assert_equal("/x", module:routes()[1].path)
 end
 
 function T:test_a_status_declared_with_true_has_no_content_schema()
   local module = kernel.routes("m")
-  module:delete "/x" { action = action, responses = { [204] = true, [404] = problem.NotFound } }
+  module:delete "/x" { name = "delete_x", action = action, responses = { [204] = true, [404] = problem.NotFound } }
   local entry = module:routes()[1]
   self:assert_equal(true, entry.responses[204])
   self:assert_equal(problem.NotFound, entry.responses[404])
@@ -442,7 +480,7 @@ end
 
 function T:test_a_verb_whose_declarations_were_never_given_is_reported_by_routes()
   local module = kernel.routes("m")
-  module:get "/a" { action = action }
+  module:get "/a" { name = "get_a", action = action }
   local _ = module:get "/forgotten" -- the table of declarations is missing: the route would be dropped silently
   local err = refused(self, "incomplete_route", function() module:routes() end)
   self:assert_true(err.message:find("GET /forgotten", 1, true) ~= nil, err.message)
@@ -452,13 +490,13 @@ end
 function T:test_a_curried_declaration_completed_later_is_not_incomplete()
   local module = kernel.routes("m")
   local pending = module:post "/later"
-  pending { action = action }
+  pending { name = "post_later", action = action }
   self:assert_equal(1, #module:routes())
 end
 
 function T:test_a_curried_declaration_that_is_refused_is_not_reported_as_incomplete()
   local module = kernel.routes("m")
-  refused(self, "invalid_action", function() module:get "/bad" {} end)
+  refused(self, "invalid_action", function() module:get "/bad" { name = "get_bad" } end)
   self:assert_equal(0, #module:routes())
 end
 
@@ -475,18 +513,18 @@ local function both_styles(trace)
   local created = { [200] = schema.object { created = schema.boolean() } } -- one schema object, shared by both styles
 
   local module = kernel.routes("users", { prefix = "/users", filters = { auth } })
-  module:get "/" { action = list, summary = "List users", tags = { "users" } }
+  module:get "/" { name = "get_root", action = list, summary = "List users", tags = { "users" } }
   module:post "/" { action = create, name = "users.create", responses = created }
-  module:get "/{id}" { action = show, summary = "Fetch a user", parameters = { path = { id = Id } }, responses = responses }
-  module:delete "/{id}" { action = remove, deprecated = true, parameters = { path = { id = Id } } }
+  module:get "/{id}" { name = "get_id", action = show, summary = "Fetch a user", parameters = { path = { id = Id } }, responses = responses }
+  module:delete "/{id}" { name = "delete_id", action = remove, deprecated = true, parameters = { path = { id = Id } } }
 
   local Users = core.class("UsersController", Controller)
   Users.prefix, Users.filters = "/users", { auth }
-  Controller.route(Users, { method = "GET", path = "/", action = "list", summary = "List users", tags = { "users" } })
+  Controller.route(Users, { method = "GET", path = "/", name = "get_root", action = "list", summary = "List users", tags = { "users" } })
   Controller.route(Users, { method = "POST", path = "/", action = "create", name = "users.create", responses = created })
-  Controller.route(Users, { method = "GET", path = "/{id}", action = "show", summary = "Fetch a user",
+  Controller.route(Users, { method = "GET", path = "/{id}", name = "get_id", action = "show", summary = "Fetch a user",
     parameters = { path = { id = Id } }, responses = responses })
-  Controller.route(Users, { method = "DELETE", path = "/{id}", action = "remove", deprecated = true,
+  Controller.route(Users, { method = "DELETE", path = "/{id}", name = "delete_id", action = "remove", deprecated = true,
     parameters = { path = { id = Id } } })
   Users.list, Users.create, Users.remove = list, create, remove
   function Users:show(request) return show(request) end
@@ -505,7 +543,7 @@ function T:test_a_whole_api_gives_the_same_route_table_in_both_styles()
     self:assert_equal(#a[index].filters, #b[index].filters)
     self:assert_true(a[index].filters[1] == b[index].filters[1], "the same filter object in both")
   end
-  self:assert_equal("GET /users", a[1].name)
+  self:assert_equal("get_root", a[1].name)
   self:assert_equal("users.create", a[2].name)
   self:assert_equal(true, a[4].deprecated)
 end

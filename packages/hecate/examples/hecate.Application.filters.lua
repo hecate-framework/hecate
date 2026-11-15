@@ -22,7 +22,7 @@ local Reports = core.class("Reports", hecate.Controller)
 Reports.prefix = "/reports"
 Reports.filters = { trace("controller") }
 hecate.Controller.route(Reports, {
-  method = "GET", path = "/daily", action = "daily",
+  method = "GET", path = "/daily", name = "report.daily", action = "daily",
   filters = { trace("route") },
 })
 function Reports:daily()

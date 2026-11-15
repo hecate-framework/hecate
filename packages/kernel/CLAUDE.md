@@ -17,7 +17,7 @@ The application: feature modules, controllers, route modules, filters (chain of 
 
 ## Boundaries
 
-- Allowed dependencies: `hecate.core`, `hecate.reactor`, `hecate.net` (ADR 0027), `hecate.log`, `hecate.http`, `hecate.router`, `hecate.schema`, `hecate.container`, `hecate.config`, `hecate.json`.
+- Allowed dependencies: `hecate.core`, `hecate.reactor`, `hecate.net` (ADR 0027), `hecate.log`, `hecate.http`, `hecate.router`, `hecate.schema`, `hecate.openapi` (OQ-134), `hecate.container`, `hecate.config`, `hecate.json`.
   Anything else requires an ADR; `check-boundaries` fails otherwise.
 - Native code: none.
 - Out of scope: templating (later, `template`).

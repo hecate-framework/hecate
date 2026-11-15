@@ -113,7 +113,8 @@ Two styles, one data structure ([ADR 0006](../adr/0006-declarative-routes-as-run
 2. **Route modules**: `hecate.routes(name)` objects with `get`, `post`, ... declarations
    taking an action function.
 
-A route declaration contains: `method`, `path`, `name` (defaults derived), `summary`,
+A route declaration contains: `method`, `path`, `name` (mandatory, set explicitly by the user: a route has no automatic name, and a
+declaration without `name` is refused with `RouteDeclarationError`, reason `missing_name`; OQ-129), `summary`,
 `description`, `tags`, `deprecated`, `parameters` (`path`, `query`, `fields`,
 `cookies`), `content` (request schema per media type), `responses` (schema per status
 code), `security`, `filters`, and the action. The kernel verifies at boot that every

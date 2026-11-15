@@ -21,6 +21,7 @@ end
 local function serve_with(method, path, spec, options)
   local module = kernel.routes("t")
   spec.action = spec.action or function(r) return { ok = true } end
+  spec.name = spec.name or "t"
   module[method:lower()](module, path, spec)
   local serve = dispatcher.build(module:routes(), options)
   return serve
@@ -139,6 +140,52 @@ function T:test_json_content_is_built_with_a_class_bound_schema_and_consumed()
   -- A media type with parameters is accepted (RFC 9110 section 8.3.1).
   local with_charset = serve(request("POST", "/users", { content = '{"name":"Ada"}', type = "application/json; charset=utf-8" }))
   self:assert_equal(200, with_charset.status)
+end
+
+function T:test_an_absent_body_is_a_422_by_default_and_accepted_with_content_optional()
+  local content = { ["application/json"] = schema.object({ name = schema.string() }) }
+  local required = serve_with("POST", "/r", { content = content })
+  self:assert_equal(422, required(request("POST", "/r")).status)
+
+  local seen, called = "unset", false
+  local serve = serve_with("POST", "/o", {
+    content = content, content_optional = true,
+    action = function(r) called = true; seen = r.content; return { ok = true } end,
+  })
+  self:assert_equal(200, serve(request("POST", "/o")).status)
+  self:assert_true(called)
+  self:assert_nil(seen)
+end
+
+function T:test_a_present_body_is_still_validated_with_content_optional()
+  local seen
+  local serve = serve_with("POST", "/o", {
+    content = { ["application/json"] = schema.object({ name = schema.string() }) }, content_optional = true,
+    action = function(r) seen = r.content; return { ok = true } end,
+  })
+  self:assert_equal(200, serve(request("POST", "/o", { content = '{"name":"Ada"}' })).status)
+  self:assert_equal("Ada", seen.name)
+  self:assert_equal(422, serve(request("POST", "/o", { content = '{"name":5}' })).status)
+  self:assert_equal(400, serve(request("POST", "/o", { content = "{" })).status)
+  self:assert_equal(415, serve(request("POST", "/o", { content = '{"name":"Ada"}', type = "text/plain" })).status)
+  -- A non-empty body without a Content-Type field is still refused.
+  self:assert_equal(415, serve(request("POST", "/o", { content = '{"name":"Ada"}', type = false })).status)
+end
+
+function T:test_an_empty_body_with_a_content_type_is_absent_with_content_optional()
+  local content = { ["application/json"] = schema.object({ name = schema.string() }) }
+  local seen, calls = "unset", 0
+  local serve = serve_with("POST", "/o", {
+    content = content, content_optional = true,
+    action = function(r) calls = calls + 1; seen = r.content; return { ok = true } end,
+  })
+  self:assert_equal(200, serve(request("POST", "/o", { content = "" })).status)
+  self:assert_nil(seen)
+  self:assert_equal(200, serve(request("POST", "/o", { content = "", type = "text/plain" })).status)
+  self:assert_equal(2, calls)
+  -- Without the flag, an empty body that declares a media type stays malformed JSON.
+  local required = serve_with("POST", "/r", { content = content })
+  self:assert_equal(400, required(request("POST", "/r", { content = "" })).status)
 end
 
 function T:test_content_with_a_plain_schema_is_validated_and_defaults_apply()
@@ -372,7 +419,7 @@ end
 
 function T:test_a_route_without_inputs_gets_no_step()
   local input = require("hecate.kernel.input")
-  local entry = kernel.route.normalise({ method = "GET", path = "/plain", action = function() end }, { origin = "t" })
+  local entry = kernel.route.normalise({ method = "GET", path = "/plain", name = "get_plain", action = function() end }, { origin = "t" })
   self:assert_nil(input.compile(entry))
 end
 local function recording_logger()
