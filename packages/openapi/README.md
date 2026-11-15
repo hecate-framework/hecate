@@ -22,7 +22,7 @@
 
 - document assembly (info, servers, paths, components, security)
 - `/openapi.json` and an interactive reference page in development
-- export to JSON/YAML
+- export to JSON (YAML later, from a library, OQ-137)
 - contract diff with breaking-change classification
 - `openapi.lint(document)`: findings sorted by path and rule, as errors (`operation-id-missing`, `response-description-missing`, `response-undocumented`) or warnings (`description-missing`, `example-missing`, `tag-unused`)
 

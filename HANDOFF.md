@@ -32,7 +32,7 @@
 ## Next steps
 
 1. Check on CI that the kernel tests `contract_test` pass. (The interactive page: OQ-135 resolved, only the JSON is served.)
-2. YAML output and the `hecate contract export` hook (kernel/cli).
+2. The `hecate contract export` hook (kernel/cli), JSON only (YAML dropped from `0.1.0`: OQ-137, issue #213).
 3. Lint: wire `openapi.lint` into the export step and the CLI (`hecate contract lint`), lint website page.
 4. Integration tests and website reference pages (`{rest...}` documented).
 5. Later, optional: controller-level default `tags` (roadmap).

@@ -203,7 +203,8 @@ generation of `---@meta` files for LuaLS, carried by `doc` or `cli`.
   `version`, `servers`, `contact`, `license`, external docs).
 - The project version in the manifest becomes `info.version` by default.
 - Problem details schemas (RFC 9457) are included and referenced by error responses.
-- Output: JSON (default) and YAML. Deterministic ordering, so that diffs are stable.
+- Output: JSON. Deterministic ordering, so that diffs are stable. YAML is later, from a library and behind
+  `hecate contract export --format yaml`, after an ADR for the dependency (OQ-137).
 - Served at `/openapi.json` when enabled (default on in development), with an optional
   interactive reference page (embedded static assets; no CDN dependency).
 - `hecate contract export` writes it; `hecate contract diff <ref>` compares two
