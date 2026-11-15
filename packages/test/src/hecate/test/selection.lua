@@ -7,6 +7,8 @@ local core = require("hecate.core")
 ---@field options hecate.test.RunnerOptions  `filter`, `cases`, `tags`, `exclude_tags` as given
 ---@field paths string[]  files or directories to discover tests in (empty: the default directory)
 
+--- Parsing of the command-line arguments of a test run.
+---@class hecate.test.selection
 local M = {}
 
 local function fail(message) error(core.ArgumentError("test: " .. message), 3) end
