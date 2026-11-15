@@ -11,6 +11,8 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- feat(test): core of `hecate.test` (step 1 of the `test` item): `test.Case` on the object model with the bootstrap harness API plus structural `assert_equal` with diff, `assert_near`, `assert_match`, `assert_error` by class and code, `assert_shape`; `test.Runner` running each test in its own reactor and scope, failing a test that leaks coroutines, containing every failure; discovery of `*_test.lua`; console and TAP 14 reporters with golden-file tests.
+
 - fix(doc): `openapi` joins `reference_site.DEFAULT_PACKAGES` (the generated reference of `hecate.openapi`), and the link checker skips its generated pages like those of the other packages.
 
 - docs(openapi): the generated reference of `hecate.openapi` is listed in the reference index, git-ignored and checked by the website workflow; `ModuleError` documents the reasons `not_booted` and `no_contract`.

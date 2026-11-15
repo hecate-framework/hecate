@@ -21,7 +21,8 @@
 
 ## Decisions taken (and where they are recorded)
 
-none yet.
+- Each test runs in its own `Reactor` (not one shared reactor): full isolation, and it prepares the virtual clock.
+- A failing `tear_down_case` is reported on the last test of the case, so the TAP plan stays exact.
 
 ## Doubts and questions for the owner
 

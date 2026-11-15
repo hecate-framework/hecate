@@ -1,0 +1,14 @@
+Running 3 test(s)
+PASS  Sample.test_a_passes
+FAIL  Sample.test_b_fails
+ERROR Sample.test_c_errors #1
+
+FAIL Sample.test_b_fails
+  at tests/sample_test.lua:12
+  tables differ:
+    .b[1]: expected 2, got 3
+
+ERROR Sample.test_c_errors #1
+  hecate.core.StateError: bad "state"
+
+3 test(s): 1 passed, 1 failed, 1 errored
