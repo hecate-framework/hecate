@@ -4,7 +4,7 @@
 - roadmap_item: `openapi`: OpenAPI 3.1 assembly, served endpoint, export, contract diff.
 - status: in-progress              <!-- in-progress | waiting-ci | waiting-owner -->
 <!-- Optional, only when the owner holds this pull request for one run: - owner: session `<session id>`, why. -->
-- lock_until: 2026-11-15T08:30:00Z
+- lock_until: 2026-11-15T09:30:00Z
 - last_update: 2026-11-15T06:50:00Z
 
 ## Done
@@ -26,12 +26,12 @@
 - CI fixes: the kernel-json benchmark server lists `openapi` among its packages (kernel now depends on it); Python 3.13.17 (3.13.18 has no Windows/macOS build).
 - Step 8 `openapi`: `openapi.lint` (internal/lint.lua, 8 tests, README, CHANGELOG); typecheck ok; native json missing locally so build/diff tests cannot run here: CI decides.
 - CI run 43644282216 (e981a1b): windows failed only on `SupervisorTest.test_a_worker_that_stops_reading_its_message_pipe_does_not_stall_the_others` (expected 3 answered, got 6; kernel supervisor, untouched by this PR, likely a Windows backlog timing flake). Failed jobs re-run at 00:45Z. If it fails again, investigate the test (Windows backlog behaviour) in a separate commit.
-- Interactive reference page recorded as OQ-135 (needs an ADR for a vendored viewer, owner decision).
 - CI fix: markdownlint MD056 on the OQ-135 row of `docs/open-questions.md` (missing Blocks cell).
+- OQ-135 resolved by the owner (serve only `/openapi.json`; viewer = compose example of the images item); OQ-136 (CORS filter with `cors.*` keys, issue #212) and two roadmap items added.
 
 ## Next steps
 
-1. Check on CI that the kernel tests `contract_test` pass. (The interactive page is OQ-135, issue #211: waiting for the owner; nothing to build meanwhile.)
+1. Check on CI that the kernel tests `contract_test` pass. (The interactive page: OQ-135 resolved, only the JSON is served.)
 2. YAML output and the `hecate contract export` hook (kernel/cli).
 3. Lint: wire `openapi.lint` into the export step and the CLI (`hecate contract lint`), lint website page.
 4. Integration tests and website reference pages (`{rest...}` documented).

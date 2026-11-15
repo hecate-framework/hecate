@@ -350,7 +350,13 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       **Also (from the `examples/hello` item):** turn `examples/hello` into a Hecate project (`hecate.project.lua`, run
       by `hecate serve`, tested by `hecate test`, `hecate contract lint` in CI), as `examples/README.md` requires of
       every example from Phase 3 on; today it is `lua main.lua` and the repository harness.
-- [ ] Docker images (runtime and build variants, amd64 + arm64).
+- [ ] Docker images (runtime and build variants, amd64 + arm64). **Also (OQ-135, owner decision of 2026-11-15):**
+      document a compose stack that shows the contract rendered: the application (`development`, or
+      `openapi.enabled = true`), a reverse proxy so that the viewer and the application share one origin (no CORS
+      needed), and a viewer image such as Swagger UI reading `/openapi.json`; every image pinned by tag or digest.
+- [ ] `kernel`, `config`: shipped CORS filter configured by keys (OQ-136, owner direction of 2026-11-15): a global
+      filter driven by `cors.*` configuration keys, settable from the environment of a container; tests first
+      (preflight, credentials, refused combinations); how-to `filters` and the configuration reference updated.
 - [ ] Website: Diátaxis structure, English source, French locale enabled, MDN-like
       theme, getting-started tutorial, reference generated from annotations, built by
       `hecate doc` (ADR 0012, after OQ-11). Pages may be drafted as Markdown earlier.
