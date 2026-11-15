@@ -16,10 +16,15 @@
 
 1. Read docs/architecture/testing.md, ADR 0008, the bootstrap harness (tools/harness/); write the tests first.
 2. (done, steps 1 and 2) Core, runner, console, TAP and JSON-lines reporters.
-3. Parametrise, tags and targeting, JUnit XML reporter (consume the event stream), leak detection, fake clock.
-4. In-process client over the dispatch seam of OQ-78 (table `content` JSON-encoded or raise, T2), fixtures with container overrides.
-5. Contract conformance report; property-based testing from schema types (OQ-96); coverage (LCOV); parallel workers.
-6. Docs (README, website reference, CHANGELOG), roadmap tick.
+3. **Console follow-ups (owner-accepted, 2026-11-15), first thing of the next run, tests first:**
+   a. Explicit live switch for IDE consoles that run in a pty (indistinguishable from a terminal): `HECATE_TEST_LIVE=0` (and `1`) is read by the terminal resolution, after the `live` option and before the TTY guess; document in the README (an IDE adapter selects the JSON-lines reporter, or sets `live = false`, `HECATE_TEST_LIVE=0` or `TERM=dumb`) and add it to OQ-138 as a second point.
+   b. Layout: the line never exceeds the width. The bar absorbs the overflow (minimum about 10 cells) and the suite name is shortened first; a test with a suite of 1000 or more assertions in live mode comes first; no fixed reserve of three digits.
+   c. Test the terminal probe: under a pty (`script`, skipped when missing) live redraw; on a pipe, plain output with no escape codes (this runs on the three CI platforms).
+4. Parametrise, tags and targeting, JUnit XML reporter (consume the event stream), leak detection, fake clock.
+5. In-process client over the dispatch seam of OQ-78 (table `content` JSON-encoded or raise, T2), fixtures with container overrides.
+6. Contract conformance report; property-based testing from schema types (OQ-96); coverage (LCOV); parallel workers.
+7. Docs (README, website reference, CHANGELOG), roadmap tick.
+8. **Windows testing phase (owner, by hand on a Windows VM; do not tick the item before the owner reports):** the console reporter in a real Windows terminal (Windows Terminal and `cmd.exe`): colour, live redraw (`live = true`, since the probe never turns it on there), width, the bar and the plain fallback in a pipe; the JSON-lines stream and TAP output with CRLF handling; `hecate.test` discovery paths with backslashes. Record the owner's findings here.
 
 ## Decisions taken (and where they are recorded)
 
@@ -34,7 +39,7 @@
 
 ## Doubts and questions for the owner
 
-- OQ-138 (no GitHub issue created yet): `luv` is confined to `reactor`, so TTY detection is a POSIX shell probe (`test -t 1`); a `reactor.is_tty` would be exact.
+- OQ-138 (issue #215, still open; the owner accepted the explicit `HECATE_TEST_LIVE` switch, `reactor.is_tty` not yet decided): `luv` is confined to `reactor`, so TTY detection is a POSIX shell probe (`test -t 1`); a `reactor.is_tty` would be exact.
 - The old `start/report/finish` reporter interface is replaced (breaking for step-1 users; none exist outside the package).
 
 ## Commands to re-run
