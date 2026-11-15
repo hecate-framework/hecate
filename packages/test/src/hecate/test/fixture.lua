@@ -6,6 +6,7 @@ local core = require("hecate.core")
 local container_package = require("hecate.container")
 local kernel = require("hecate.kernel")
 local client = require("hecate.test.client")
+local RouteCoverage = require("hecate.test.coverage")
 
 --- One container override of a fixture: `value` binds an existing object (`Container:override_with_instance`), a
 --- `definition` (a class or a factory) with optional `options` replaces the binding (`Container:override`).
@@ -32,18 +33,23 @@ local function check(overrides)
   end
 end
 
---- Boots an application for a test and returns a client on it, and the application.
+--- Boots an application for a test and returns a client on it, the application, and the route coverage.
 ---
 --- `options` are the options of `hecate.kernel.Application` (not modified). `overrides` replace services of the
 --- container after every module has bound its own, so a fake takes the place of a real service whoever binds it;
 --- a key that is not bound raises `hecate.container.MissingBindingError`. The container is the one of `options` when
 --- given, else a new one.
 ---
+--- Responses are validated against the schemas the routes declare (`validate_responses`, true here unless `options`
+--- says otherwise), so a response that breaks the contract answers 500 and comes back with its failure. The coverage
+--- records the named routes the requests of the client reached.
+---
 --- Raises `hecate.core.ArgumentError` for malformed overrides, and what `Application:boot` raises.
 ---@param options? hecate.kernel.ApplicationOptions
 ---@param overrides? hecate.test.Override[]
 ---@return hecate.test.Client client
 ---@return hecate.kernel.Application application  booted: `application.container` is the validated container
+---@return hecate.test.RouteCoverage coverage  the routes exercised so far, and those never reached
 function M.boot(options, overrides)
   overrides = overrides or {}
   check(overrides)
@@ -51,6 +57,7 @@ function M.boot(options, overrides)
   for key, value in pairs(options or {}) do copy[key] = value end
   local container = copy.container or container_package.Container()
   copy.container = container
+  if copy.validate_responses == nil then copy.validate_responses = true end
   if #overrides > 0 then
     -- applied on the first validation, which the kernel runs once all the services are bound
     local validate = container.validate
@@ -67,7 +74,19 @@ function M.boot(options, overrides)
     end
   end
   local application = kernel.Application(copy)
-  return client(application:boot()), application
+  local action = application:boot()
+  local names = {}
+  for _, entry in ipairs(application.entries or {}) do
+    if entry.name ~= nil then names[#names + 1] = entry.name end
+  end
+  local coverage = RouteCoverage(names)
+  local router = application.router
+  local function observed(request)
+    local match = router and router:match(request.method, request.path)
+    if match and match.status == 200 and match.route.name ~= nil then coverage:record(match.route.name) end
+    return action(request)
+  end
+  return client(observed), application, coverage
 end
 
 return M
