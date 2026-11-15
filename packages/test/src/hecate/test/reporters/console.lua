@@ -21,7 +21,7 @@ local ConsoleReporter = core.class("ConsoleReporter")
 
 local DEFAULT_BAR_WIDTH = 40
 local TAB_COLUMNS = 8 -- a tab counts as the next multiple of 8 columns; the line starts with a 4-letter word
-local MIN_NAME, MIN_CELLS = 10, 10
+local MIN_NAME, MIN_CELLS, MIN_ROOM = 10, 10, 4
 
 local STATUS_WORD = { passed = "PASS", failed = "FAIL", errored = "ERROR" }
 local STATUS_COLOR = { passed = "green", failed = "red", errored = "red" }
@@ -52,12 +52,20 @@ local function fit(name, room)
 end
 
 -- Lays out the line of a suite whose statistics read `stats`: the name (shortened when it must be)
--- and the number of cells of the loading bar, so that the line stays within the width.
+-- and the number of cells of the loading bar, so that the line never exceeds the width. When it
+-- does not fit, the name is shortened first (down to MIN_NAME), then the bar (down to MIN_CELLS, then
+-- one cell), and only then the name again (down to a few letters).
 local function layout(self, stats)
   local suite = self._suite
-  local rest = TAB_COLUMNS + 1 + #stats + 3 -- tab, space, statistics, " [" and "]"
-  local name = fit(suite.name, math.max(MIN_NAME, self._width - rest - math.min(suite.total, MIN_CELLS)))
-  local cells = math.max(1, math.min(suite.total, self._bar_width, self._width - rest - #name))
+  local available = self._width - (TAB_COLUMNS + 1 + #stats + 3) -- tab, space, statistics, " [" and "]"
+  local wanted = math.max(1, math.min(suite.total, self._bar_width))
+  local room = math.max(MIN_NAME, math.min(#suite.name, available - math.min(wanted, MIN_CELLS)))
+  local name = fit(suite.name, room)
+  local cells = math.min(wanted, available - #name)
+  if cells < 1 then
+    cells = 1
+    name = fit(suite.name, math.max(MIN_ROOM, available - 1))
+  end
   return name, cells
 end
 
@@ -112,7 +120,9 @@ local function final_line(self, summary)
   local status = (summary.failed + summary.errored) == 0 and "passed" or "failed"
   local stats = ("(%s, %d failed, %d errored)"):format(
     plural(summary.assertions, "assertion"), summary.failed, summary.errored)
-  local name, cells = layout(self, self._live and reserved_stats(self) or stats)
+  -- a live line keeps the room it reserved, and gives way when the figures outgrow it
+  local reserved = self._live and reserved_stats(self) or stats
+  local name, cells = layout(self, #reserved > #stats and reserved or stats)
   return ("%s\t%s %s [%s]"):format(
     ansi.paint(STATUS_WORD[status], STATUS_COLOR[status], self._color), name, stats, draw_bar(self, cells))
 end

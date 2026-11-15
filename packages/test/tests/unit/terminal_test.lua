@@ -66,6 +66,29 @@ function T:test_the_probe_is_false_for_a_child_whose_output_is_a_pipe()
   self:assert_equal("pipe\n", out)
 end
 
+-- Runs `lua` on a one-line chunk that prints whether the terminal probe says "tty", through `prefix`.
+local function probe(wrap)
+  local chunk = 'package.path=[==[' .. package.path .. ']==];package.cpath=[==[' .. package.cpath .. ']==];'
+    .. 'local t=require("hecate.test.reporters.terminal");'
+    .. 'io.write(tostring(t.stdout_is_tty(function(n) if n=="TERM" then return "xterm" end end)))'
+  local command = "lua -e '" .. chunk .. "'"
+  local pipe = assert(io.popen((wrap and wrap(command) or command) .. " 2>&1"))
+  local out = pipe:read("a") or ""
+  pipe:close()
+  return out
+end
+
+function T:test_the_probe_says_tty_under_a_pty_and_no_on_a_pipe()
+  if package.config:sub(1, 1) ~= "/" then return end
+  self:assert_match("false$", probe())
+  local has_script = os.execute("command -v script >/dev/null 2>&1")
+  if has_script ~= true then return end -- util-linux or BSD `script` missing: skipped
+  -- util-linux: script -qec CMD /dev/null; the BSD form differs and is skipped when it fails
+  local out = probe(function(command) return 'script -qec "' .. command .. '" /dev/null' end)
+  if out:find("true", 1, true) == nil and out:find("false", 1, true) == nil then return end
+  self:assert_match("true", out)
+end
+
 function T:test_a_pipe_is_not_a_terminal_when_the_standard_output_is_redirected()
   self:assert_false(terminal.stdout_is_tty(env({ TERM = "dumb" })))
   self:assert_false(terminal.stdout_is_tty(env({})))

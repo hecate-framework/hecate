@@ -125,6 +125,27 @@ function T:test_a_line_never_outgrows_the_width_and_a_long_name_keeps_its_tail()
   end
 end
 
+function T:test_a_live_suite_of_thousands_of_assertions_still_fits_the_width()
+  for _, width in ipairs({ 60, 80, 120 }) do
+    local out = {}
+    local reporter = hecate_test.ConsoleReporter({ write = function(t) out[#out + 1] = t end, color = false, live = true,
+      width = width, getenv = function() return nil end })
+    local name = "packages/very/long/path/to/some/deeply/nested/tests/unit/feature_test.lua"
+    reporter:handle({ type = "suite_started", suite = name, total = 200 })
+    for index = 1, 200 do
+      reporter:handle({ type = "test_finished", index = index, result = { name = "t", case = "C", suite = name, status = "passed", assertions = 1, duration = 0 } })
+    end
+    reporter:handle({ type = "suite_finished", suite = name, summary = {
+      name = name, total = 200, passed = 200, failed = 0, errored = 0, assertions = 1234567, duration = 0 } })
+    for _, text in ipairs(out) do
+      local line = text:gsub("^\r\27%[2K", ""):gsub("\n$", "")
+      self:assert_true(#line + 3 <= width, ("width %d: %d columns: %s"):format(width, #line + 3, line))
+    end
+    self:assert_match("%(1234567 assertions", out[#out])
+    self:assert_match("%[[%.F ]+%]", out[#out])
+  end
+end
+
 function T:test_a_suite_of_few_tests_has_one_cell_per_test()
   local out = console({ color = false, live = false, width = 120 })
   self:assert_match("PASS\ttests/unit/alpha_test%.lua %(6 assertions, 0 failed, 0 errored%) %[%.%.%.%]\n", out)

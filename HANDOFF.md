@@ -13,17 +13,16 @@
 
 - Step 3a (commit fc44c2c): `HECATE_TEST_LIVE=0|1` read by the terminal resolution (after the `live` option, before the TTY guess); README, OQ-138 and CHANGELOG updated; a pipe probe test.
 
+- Step 3b and 3c (this commit): the layout never exceeds the width (name shortened first down to 10 letters, then the bar down to 10 cells, then 1 cell, then the name down to a few letters; a live line keeps its reserved room and gives way when the figures outgrow it); test of a live suite of 1 234 567 assertions at widths 60, 80, 120; terminal probe tested on a pipe and under a pty (`script -qec`, skipped when `script` is missing or has another form).
+
 ## Next steps
 
-1. **Console follow-ups (owner-accepted, 2026-11-15), first thing of the next run, tests first:**
-   b. Layout: the line never exceeds the width. The bar absorbs the overflow (minimum about 10 cells) and the suite name is shortened first; a test with a suite of 1000 or more assertions in live mode comes first; no fixed reserve of three digits.
-   c. Test the terminal probe under a pty (`script`, skipped when missing): live redraw (the pipe case is done: a child on a pipe is not a tty); plain output with no escape codes on a pipe (runs on the three CI platforms).
-2. Parametrise, tags and targeting, JUnit XML reporter (consume the event stream), leak detection, fake clock.
-3. In-process client over the dispatch seam of OQ-78 (table `content` JSON-encoded or raise, T2), fixtures with container overrides.
-4. Contract conformance report; property-based testing from schema types (OQ-96); coverage (LCOV); parallel workers.
-5. Docs (README, website reference, CHANGELOG), roadmap tick.
-6. **`reactor.is_tty(fd)`** (OQ-138, agreed): small step in `reactor` (over `uv.guess_handle`, tests on a pipe and a pty), then `test` drops the shell probe and the Windows exception; resolve OQ-138 and close #215 in that pull request. Do it before the `cli` item.
-7. **Windows testing phase (owner, by hand on a Windows VM; do not tick the item before the owner reports):** the console reporter in a real Windows terminal (Windows Terminal and `cmd.exe`): colour, live redraw (`live = true`, since the probe never turns it on there), width, the bar and the plain fallback in a pipe; the JSON-lines stream and TAP output with CRLF handling; `hecate.test` discovery paths with backslashes. Record the owner's findings here.
+1. Parametrise, tags and targeting, JUnit XML reporter (consume the event stream), leak detection, fake clock.
+2. In-process client over the dispatch seam of OQ-78 (table `content` JSON-encoded or raise, T2), fixtures with container overrides.
+3. Contract conformance report; property-based testing from schema types (OQ-96); coverage (LCOV); parallel workers.
+4. Docs (README, website reference, CHANGELOG), roadmap tick.
+5. **`reactor.is_tty(fd)`** (OQ-138, agreed): small step in `reactor` (over `uv.guess_handle`, tests on a pipe and a pty), then `test` drops the shell probe and the Windows exception; resolve OQ-138 and close #215 in that pull request. Do it before the `cli` item.
+6. **Windows testing phase (owner, by hand on a Windows VM; do not tick the item before the owner reports):** the console reporter in a real Windows terminal (Windows Terminal and `cmd.exe`): colour, live redraw (`live = true`, since the probe never turns it on there), width, the bar and the plain fallback in a pipe; the JSON-lines stream and TAP output with CRLF handling; `hecate.test` discovery paths with backslashes. Record the owner's findings here.
 
 ## Decisions taken (and where they are recorded)
 
