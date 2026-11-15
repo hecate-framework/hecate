@@ -13,6 +13,7 @@ local discovery = require("hecate.test.discovery")
 ---@field Runner hecate.test.Runner  executes cases, each test in its own reactor scope
 ---@field ConsoleReporter hecate.test.ConsoleReporter  one line per suite with a loading bar, for people
 ---@field TapReporter hecate.test.TapReporter  TAP 14 reporter
+---@field JUnitReporter hecate.test.JUnitReporter  JUnit XML reporter, for continuous-integration servers
 ---@field JsonLinesReporter hecate.test.JsonLinesReporter  event stream, one JSON object per line, for IDE adapters
 local test = {
   AssertionFailure = failure.AssertionFailure,
@@ -20,6 +21,7 @@ local test = {
   Runner = require("hecate.test.runner"),
   ConsoleReporter = require("hecate.test.reporters.console"),
   TapReporter = require("hecate.test.reporters.tap"),
+  JUnitReporter = require("hecate.test.reporters.junit"),
   JsonLinesReporter = require("hecate.test.reporters.json_lines"),
 }
 

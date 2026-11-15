@@ -167,6 +167,24 @@ function T:test_tap_output_of_an_all_passing_run_has_no_diagnostics()
   self:assert_equal("TAP version 14\n1..1\nok 1 - A.test_x\n", table.concat(out))
 end
 
+function T:test_junit_groups_tests_by_suite_and_escapes_text()
+  local C = hecate_test.Case("Xml")
+  function C:test_ok() self:assert_true(true) end
+  function C:test_bad() self:assert_equal("<a&b>", "c\1") end
+  function C:test_err() error("boom \"x\"", 0) end
+  local out = {}
+  local summary = hecate_test.Runner({ reporter = hecate_test.JUnitReporter(function(t) out[#out + 1] = t end) }):run({ C })
+  local text = table.concat(out)
+  self:assert_match('^<%?xml version="1%.0" encoding="UTF%-8"%?>\n<testsuites tests="3" failures="1" errors="1" time="', text)
+  self:assert_match('<testsuite name="Xml" tests="3" failures="1" errors="1" skipped="0"', text)
+  self:assert_match('<testcase classname="Xml" name="test_ok" time="[%d%.]+"/>', text)
+  self:assert_match('<failure message="[^"]*" type="AssertionFailure">', text)
+  self:assert_match('<error message="boom &quot;x&quot;" type="Error">', text)
+  self:assert_nil(text:find("<a&b>", 1, true))
+  self:assert_nil(text:find("\1", 1, true))
+  self:assert_equal(2, summary.failed + summary.errored)
+end
+
 function T:test_json_lines_output_matches_the_golden_file()
   self:assert_equal(read("events.jsonl.golden"), capture(function(o) return hecate_test.JsonLinesReporter(o.write) end))
 end

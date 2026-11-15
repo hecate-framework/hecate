@@ -3,7 +3,7 @@
 
 - roadmap_item: `test`: test framework, runner, in-process client, fixtures, contract conformance, reporters (TAP, JUnit XML), coverage (Phase 3)
 - status: in-progress
-- last_update: 2026-11-15T12:41:21Z
+- last_update: 2026-11-15T14:15:15Z
 
 ## Done
 
@@ -17,9 +17,11 @@
 
 - Step 4: `reactor.is_tty(fd)` (OQ-138); `test` drops the shell probe and the Windows exception. OQ-138 moved to Resolved in `docs/open-questions.md`; issue #215 closed.
 
+- Step 5: `test.JUnitReporter` (consumes the event stream, writes one document at `run_finished`; suite = `testsuite`, test = `testcase`, XML 1.0 escaping, control characters become U+FFFD); leak detection already existed in the runner. Test in `reporters_test.lua`.
+
 ## Next steps
 
-1. Parametrise, tags and targeting, JUnit XML reporter (consume the event stream), leak detection, fake clock.
+1. Parametrise, tags and targeting, fake clock.
 2. In-process client over the dispatch seam of OQ-78 (table `content` JSON-encoded or raise, T2), fixtures with container overrides.
 3. Contract conformance report; property-based testing from schema types (OQ-96); coverage (LCOV); parallel workers.
 4. Docs (README, website reference, CHANGELOG), roadmap tick.

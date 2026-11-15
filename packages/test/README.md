@@ -8,7 +8,7 @@
 | Rock | `hecate-test` |
 | Layer | Tooling |
 | Roadmap phase | 3 |
-| Status | alpha (steps 1 and 2 of the roadmap item) — `Case` with the bootstrap assertions plus deep equality with a structural diff, `assert_near`, `assert_match`, `assert_error` (class and code), `assert_shape`, and a count of the assertions of each test; `Runner` (each test in its own reactor, scope and leak detection, containment of every failure, name filter) emitting an event stream; discovery of `*_test.lua`; reporters: console (one line per suite with a loading bar, colour, live redraw on a terminal), TAP 14 and JSON lines for IDE adapters. Not yet: parametrisation, tags, JUnit XML, fake clock, in-process client, fixtures, contract conformance, property-based testing, coverage, parallel workers |
+| Status | alpha (steps 1 and 2 of the roadmap item) — `Case` with the bootstrap assertions plus deep equality with a structural diff, `assert_near`, `assert_match`, `assert_error` (class and code), `assert_shape`, and a count of the assertions of each test; `Runner` (each test in its own reactor, scope and leak detection, containment of every failure, name filter) emitting an event stream; discovery of `*_test.lua`; reporters: console (one line per suite with a loading bar, colour, live redraw on a terminal), TAP 14, JUnit XML (`test.JUnitReporter`, written at the end of the run) and JSON lines for IDE adapters. Not yet: parametrisation, tags, fake clock, in-process client, fixtures, contract conformance, property-based testing, coverage, parallel workers |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |
 | Depends on | [`core`](../core), [`reactor`](../reactor), [`log`](../log), [`schema`](../schema), [`kernel`](../kernel), [`openapi`](../openapi), [`json`](../json) |
 | Used by | `cli` |
