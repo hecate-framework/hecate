@@ -24,7 +24,8 @@
 5. In-process client over the dispatch seam of OQ-78 (table `content` JSON-encoded or raise, T2), fixtures with container overrides.
 6. Contract conformance report; property-based testing from schema types (OQ-96); coverage (LCOV); parallel workers.
 7. Docs (README, website reference, CHANGELOG), roadmap tick.
-8. **Windows testing phase (owner, by hand on a Windows VM; do not tick the item before the owner reports):** the console reporter in a real Windows terminal (Windows Terminal and `cmd.exe`): colour, live redraw (`live = true`, since the probe never turns it on there), width, the bar and the plain fallback in a pipe; the JSON-lines stream and TAP output with CRLF handling; `hecate.test` discovery paths with backslashes. Record the owner's findings here.
+8. **`reactor.is_tty(fd)`** (OQ-138, agreed): small step in `reactor` (over `uv.guess_handle`, tests on a pipe and a pty), then `test` drops the shell probe and the Windows exception; resolve OQ-138 and close #215 in that pull request. Do it before the `cli` item.
+9. **Windows testing phase (owner, by hand on a Windows VM; do not tick the item before the owner reports):** the console reporter in a real Windows terminal (Windows Terminal and `cmd.exe`): colour, live redraw (`live = true`, since the probe never turns it on there), width, the bar and the plain fallback in a pipe; the JSON-lines stream and TAP output with CRLF handling; `hecate.test` discovery paths with backslashes. Record the owner's findings here.
 
 ## Decisions taken (and where they are recorded)
 
@@ -39,7 +40,7 @@
 
 ## Doubts and questions for the owner
 
-- OQ-138 (issue #215, still open; the owner accepted the explicit `HECATE_TEST_LIVE` switch, `reactor.is_tty` not yet decided): `luv` is confined to `reactor`, so TTY detection is a POSIX shell probe (`test -t 1`); a `reactor.is_tty` would be exact.
+- OQ-138 (issue #215, still open until `reactor.is_tty` lands; the owner agreed to both the explicit `HECATE_TEST_LIVE` switch and `reactor.is_tty(fd)`): `luv` is confined to `reactor`, so TTY detection is a POSIX shell probe (`test -t 1`); a `reactor.is_tty` would be exact.
 - The old `start/report/finish` reporter interface is replaced (breaking for step-1 users; none exist outside the package).
 
 ## Commands to re-run
