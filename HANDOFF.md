@@ -3,7 +3,7 @@
 
 - roadmap_item: `test`: test framework, runner, in-process client, fixtures, contract conformance, reporters (TAP, JUnit XML), coverage (Phase 3)
 - status: in-progress
-- last_update: 2026-11-15T14:31:13Z
+- last_update: 2026-11-15T14:36:47Z
 
 ## Done
 
@@ -23,9 +23,11 @@
 
 - Step 7: parametrised tests via `Case.test_parameters`.
 
+- Step 8: virtual clock: runner option `clock`, case field `clock` (overrides); hooks and tests of the case share it. The README status line is refreshed (`alpha (in progress)`).
+
 ## Next steps
 
-1. Targeting by name from the command line (tags are done), fake clock.
+1. Targeting by name from the command line.
 2. In-process client over the dispatch seam of OQ-78 (table `content` JSON-encoded or raise, T2), fixtures with container overrides.
 3. Contract conformance report; property-based testing from schema types (OQ-96); coverage (LCOV); parallel workers.
 4. Docs (README, website reference, CHANGELOG), roadmap tick.

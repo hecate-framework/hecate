@@ -56,6 +56,7 @@ local AssertionFailure = failure.AssertionFailure
 ---@class hecate.test.RunnerOptions
 ---@field reporter? hecate.test.Reporter  receives the events of the run
 ---@field filter? string  Lua pattern: only tests whose full name matches are run
+---@field clock? "real"|"virtual"  clock of the reactor of each test (default `"real"`); a case overrides it with its `clock` field. The virtual clock jumps to the next timer when nothing is ready, so sleeps and deadlines cost no time
 ---@field tags? string[]  only tests carrying at least one of these tags are run
 ---@field exclude_tags? string[]  tests carrying any of these tags are not run (wins over `tags`)
 
@@ -109,6 +110,10 @@ function Runner:init(options)
       end
     end
   end
+  if options.clock ~= nil and options.clock ~= "real" and options.clock ~= "virtual" then
+    error(core.ArgumentError("test.Runner: clock must be \"real\" or \"virtual\""), 2)
+  end
+  self._clock = options.clock or "real"
   self._reporter = options.reporter
   self._filter = options.filter
   self._tags = options.tags
@@ -163,12 +168,14 @@ local function classify(captured, stage)
   return outcome
 end
 
+local clock_kind = "real" -- set by `Runner:run` for the case being run
+
 --- Runs `fn` in a reactor of its own, inside its own scope; `fn(scope)` returns an outcome (or
 --- nothing). Returns the outcome with the failure of the reactor, or a leak, folded in.
 ---@param fn fun(scope: hecate.reactor.Scope): table?
 ---@return table outcome
 local function in_reactor(fn)
-  local rt = Reactor()
+  local rt = Reactor({ clock = clock_kind })
   local outcome, leaked
   local ok, err = xpcall(rt.run, capture, rt, function()
     local scope_ok, scope_err = xpcall(reactor.scope, capture, function(scope)
@@ -345,6 +352,7 @@ function Runner:run(cases)
       local end_of_case = index
       while end_of_case + 1 <= last and tests[end_of_case + 1].case == class do end_of_case = end_of_case + 1 end
       local case_instance = core.allocate(class)
+      clock_kind = class.clock or self._clock
       local setup_failure = run_hook(case_instance, "set_up_case", "set_up_case")
       for i = index, end_of_case do
         local position = i - first + 1
@@ -380,6 +388,7 @@ function Runner:run(cases)
   end
 
   summary.duration = os.clock() - started
+  clock_kind = "real"
   emit({ type = "run_finished", summary = summary })
   return summary
 end

@@ -231,6 +231,32 @@ function T:test_parameter_entries_are_selectable_by_filter_and_bad_declarations_
   self:assert_error(function() hecate_test.Runner():plan({ C }) end, { class = core.ArgumentError })
 end
 
+function T:test_a_virtual_clock_makes_sleeps_instant_and_a_case_can_choose_it()
+  local reactor = require("hecate.reactor")
+  local C = hecate_test.Case("Virtual")
+  C.clock = "virtual"
+  function C:test_sleep()
+    local before = reactor.now()
+    reactor.sleep(3600)
+    self:assert_equal(3600, reactor.now() - before)
+  end
+  local R = hecate_test.Case("Real")
+  function R:test_is_real() self:assert_true(reactor.now() >= 0) end
+  local started = os.clock()
+  local summary = run({ C, R })
+  self:assert_true(summary.ok)
+  self:assert_true(os.clock() - started < 5)
+  local all = run({ (function()
+    local D = hecate_test.Case("Opt")
+    function D:test_sleep() reactor.sleep(1000) end
+    return D
+  end)() }, { clock = "virtual" })
+  self:assert_true(all.ok)
+  ---@type any
+  local fast = "fast"
+  self:assert_error(function() hecate_test.Runner({ clock = fast }) end, { class = core.ArgumentError })
+end
+
 function T:test_the_filter_selects_tests_by_full_name()
   local C = hecate_test.Case("C")
   function C:test_alpha() end

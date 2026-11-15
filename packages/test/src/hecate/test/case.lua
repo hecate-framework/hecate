@@ -7,6 +7,7 @@ local assertions = require("hecate.test.assertions")
 --- The base class of every test case: the assertions, and the lifecycle hooks (empty by default).
 ---@class hecate.test.Case : hecate.test.Assertions
 ---@field [string] any  tests, fixtures and attributes that a case declares on itself
+---@field clock? "real"|"virtual"  clock of the reactors of this case, over the option of the runner
 ---@field tags? string[]  tags of every test of the case, selected by the `tags` and `exclude_tags` options of the runner
 ---@field test_tags? table<string, string[]>  tags of single tests, by method name
 ---@field test_parameters? table<string, any[]>  parametrised tests by method name: the test runs once per entry, which it receives as its argument; an entry that is a table may set `label` (else its index) to name the test `Case.test_x[label]`
