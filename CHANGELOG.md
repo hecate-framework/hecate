@@ -11,6 +11,8 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- docs(openapi): how-to page "Serve and export the contract" (the `openapi` option, `Application:contract`, lint, diff).
+
 - feat(kernel): `Application:contract(pretty?)` returns the OpenAPI 3.1 document of the booted application as JSON, served or not: the hook of the future `hecate contract export` (JSON only, OQ-137); errors `not_booted` and `no_contract`; `contract.render` is shared with the served route.
 
 - ci(openapi): `ci.yml` runs `validate-openapi` (ADR 0031) on Linux, macOS and Windows whenever `openapi` is affected, as steps of the matrix job after the tests: `actions/setup-python` (pinned by commit, Python 3.13.17, pip cache), the validator environment `.hecate/venv-openapi` cached and created from the hashed requirements file, `CI=true` so that a missing prerequisite fails.
