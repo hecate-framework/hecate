@@ -4,8 +4,8 @@
 - roadmap_item: `openapi`: OpenAPI 3.1 assembly, served endpoint, export, contract diff.
 - status: in-progress              <!-- in-progress | waiting-ci | waiting-owner -->
 <!-- Optional, only when the owner holds this pull request for one run: - owner: session `<session id>`, why. -->
-- lock_until: 2026-11-15T09:30:00Z
-- last_update: 2026-11-15T06:50:00Z
+- lock_until: 2026-11-15T11:20:00Z
+- last_update: 2026-11-15T09:50:00Z
 
 ## Done
 
@@ -30,6 +30,8 @@
 - OQ-135 resolved by the owner (serve only `/openapi.json`; viewer = compose example of the images item); OQ-136 (CORS filter with `cors.*` keys, issue #212) and two roadmap items added.
 
 ## Next steps
+
+0. CI gap: the matrix run on the last code commit e981a1b was cancelled by a later push (docs-only pushes skip the matrix), so the Windows supervisor flake re-run and the kernel `contract_test` have no conclusive three-platform result. The next code commit will run the matrix: check it first. Locally (09:50Z): `build-native json` ok, `test openapi` ok; kernel tests need luv (not installable here).
 
 1. Check on CI that the kernel tests `contract_test` pass. (The interactive page: OQ-135 resolved, only the JSON is served.)
 2. The `hecate contract export` hook (kernel/cli), JSON only (YAML dropped from `0.1.0`: OQ-137, issue #213).
