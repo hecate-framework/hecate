@@ -34,6 +34,7 @@ test.discover = discovery.discover
 test.load = discovery.load
 test.Generator = require("hecate.test.generate").Generator
 test.generate = require("hecate.test.generate").generate
+test.check_property = require("hecate.test.property").check_property
 test.boot = require("hecate.test.fixture").boot
 test.parse_arguments = require("hecate.test.selection").parse
 

@@ -158,6 +158,21 @@ function Assertions:assert_error(fn, expectation)
   return err
 end
 
+--- Asserts that `property` holds for values generated from `schema` (`test.check_property`, with the same
+--- `options`). The failure names the seed, the failing run, the shrunk counterexample and why it fails.
+---@param schema hecate.schema.Schema
+---@param property fun(value: any): boolean?
+---@param options? hecate.test.PropertyOptions
+function Assertions:assert_property(schema, property, options)
+  local runner = require("hecate.test.property")
+  local result = runner.check_property(schema, property, options)
+  if not result.ok then
+    fail(("property falsified at run %d (seed %d): counterexample %s (shrunk in %d steps from %s): %s"):format(
+      result.run, result.seed, runner.render(result.counterexample), result.shrinks,
+      runner.render(result.original), result.failure), { counterexample = result.counterexample, seed = result.seed })
+  end
+end
+
 --- Returns a shape predicate: true for a value whose Lua type is `name`.
 ---@param name string  a result of `type`
 ---@return fun(value: any): boolean
