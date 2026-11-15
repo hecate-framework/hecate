@@ -11,6 +11,7 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- feat(reactor, http): `reactor.random(n)` answers `n` (0 to 1048576) cryptographically secure bytes from the system generator through libuv `uv_random`; it does not suspend and has no pseudo-random fallback. The multipart boundaries of `http` use it instead of `/dev/urandom` and `math.random` (OQ-73).
 - fix(doc): `openapi` joins `reference_site.DEFAULT_PACKAGES` (the generated reference of `hecate.openapi`), and the link checker skips its generated pages like those of the other packages.
 
 - docs(openapi): the generated reference of `hecate.openapi` is listed in the reference index, git-ignored and checked by the website workflow; `ModuleError` documents the reasons `not_booted` and `no_contract`.
