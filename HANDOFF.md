@@ -33,6 +33,8 @@
 
 - Step 10 website: how-to `serve-and-export-the-contract` (OUTLINE, index, llms.txt). luv installed locally (`luarocks --lua-version 5.5 --tree .hecate/rocks install luv`, then `build-native http`): `test kernel` passes here.
 
+- Step 11 `kernel`: integration tests of the contract lifecycle (`tests/unit/contract_lifecycle_test.lua`), pass locally.
+
 ## Next steps
 
 0. Check the CI matrix of the push of step 9 first (kernel `contract_test`, Windows supervisor flake). Earlier CI gap: the matrix run on the last code commit e981a1b was cancelled by a later push (docs-only pushes skip the matrix), so the Windows supervisor flake re-run and the kernel `contract_test` have no conclusive three-platform result. The next code commit will run the matrix: check it first. Locally (09:50Z): `build-native json` ok, `test openapi` ok; kernel tests need luv (not installable here).
@@ -40,7 +42,7 @@
 1. Check on CI that the kernel tests `contract_test` pass. (The interactive page: OQ-135 resolved, only the JSON is served.)
 2. The `hecate contract export` command itself (carried by `cli`, Phase 3): the kernel hook is done.
 3. Lint: wire `openapi.lint` into the export step and the CLI (`hecate contract lint`), lint website page.
-4. Integration tests (route table to document, round trip through `diff`/`lint`); `{rest...}` documented on the website; French translation of the new page is the translator's.
+4. `{rest...}` documented on the website; French translation of the new page is the translator's.
 5. Later, optional: controller-level default `tags` (roadmap).
 6. CI green on three platforms, delete HANDOFF.md, tick roadmap, mark ready.
 

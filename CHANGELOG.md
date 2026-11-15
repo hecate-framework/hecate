@@ -11,6 +11,8 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- test(kernel): `contract_lifecycle_test.lua`, the route table of an application through `Application:contract`, `openapi.lint` and `openapi.diff` (no lint error, stable export, added route not breaking, removed route breaking).
+
 - docs(openapi): how-to page "Serve and export the contract" (the `openapi` option, `Application:contract`, lint, diff).
 
 - feat(kernel): `Application:contract(pretty?)` returns the OpenAPI 3.1 document of the booted application as JSON, served or not: the hook of the future `hecate contract export` (JSON only, OQ-137); errors `not_booted` and `no_contract`; `contract.render` is shared with the served route.
