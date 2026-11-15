@@ -3,12 +3,11 @@
 
 - roadmap_item: `test`: test framework, runner, in-process client, fixtures, contract conformance, reporters (TAP, JUnit XML), coverage (Phase 3)
 - status: in-progress
-- lock_until: 2026-11-15T10:40:18Z
 - last_update: 2026-11-15T10:40:18Z
 
 ## Done
 
-- Claimed the item. Owner instruction (2026-11-15): do not lock a multi-run item, so `lock_until` stays at the claim time (already expired) and other relay runs may resume it.
+- Claimed the item. Owner instruction (2026-11-15): no lock in the handoff for this item (no `lock_until` line; do not add one), so other relay runs may resume it.
 
 - Step 2 (console and events): the runner emits events (`run_started`, `suite_started`, `test_started`, `test_finished`, `suite_finished`, `run_finished`) to `Reporter:handle`; assertions are counted per test; console reporter with a loading bar per suite (colour, live redraw on a TTY, plain elsewhere); `JsonLinesReporter` for IDE adapters; TAP on the same events; golden files (plain, colour, live, TAP, JSON lines) and scaling tests. README, testing.md, CHANGELOG updated; OQ-138 recorded.
 
@@ -17,7 +16,7 @@
 1. Read docs/architecture/testing.md, ADR 0008, the bootstrap harness (tools/harness/); write the tests first.
 2. (done, steps 1 and 2) Core, runner, console, TAP and JSON-lines reporters.
 3. **Console follow-ups (owner-accepted, 2026-11-15), first thing of the next run, tests first:**
-   a. Explicit live switch for IDE consoles that run in a pty (indistinguishable from a terminal): `HECATE_TEST_LIVE=0` (and `1`) is read by the terminal resolution, after the `live` option and before the TTY guess; document in the README (an IDE adapter selects the JSON-lines reporter, or sets `live = false`, `HECATE_TEST_LIVE=0` or `TERM=dumb`) and add it to OQ-138 as a second point.
+   a. (done) Explicit live switch for IDE consoles that run in a pty (indistinguishable from a terminal): `HECATE_TEST_LIVE=0` (and `1`) is read by the terminal resolution, after the `live` option and before the TTY guess; document in the README (an IDE adapter selects the JSON-lines reporter, or sets `live = false`, `HECATE_TEST_LIVE=0` or `TERM=dumb`) and add it to OQ-138 as a second point.
    b. Layout: the line never exceeds the width. The bar absorbs the overflow (minimum about 10 cells) and the suite name is shortened first; a test with a suite of 1000 or more assertions in live mode comes first; no fixed reserve of three digits.
    c. Test the terminal probe: under a pty (`script`, skipped when missing) live redraw; on a pipe, plain output with no escape codes (this runs on the three CI platforms).
 4. Parametrise, tags and targeting, JUnit XML reporter (consume the event stream), leak detection, fake clock.

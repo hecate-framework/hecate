@@ -45,6 +45,27 @@ function T:test_width_comes_from_the_option_then_columns_then_80()
   self:assert_equal(50, width({ width = 50 }, { COLUMNS = "132" }))
 end
 
+function T:test_hecate_test_live_decides_after_the_option_and_before_the_terminal_guess()
+  local function live(values, options)
+    options = options or {}
+    options.getenv = env(values); if options.is_tty == nil then options.is_tty = true end
+    return terminal.resolve(options).live
+  end
+  self:assert_false(live({ HECATE_TEST_LIVE = "0" }))
+  self:assert_true(live({ HECATE_TEST_LIVE = "1" }, { is_tty = false }))
+  self:assert_true(live({ HECATE_TEST_LIVE = "0" }, { live = true }), "the option wins")
+  self:assert_true(live({ HECATE_TEST_LIVE = "" }), "an empty value is ignored")
+  self:assert_true(live({ HECATE_TEST_LIVE = "maybe" }), "an unknown value is ignored")
+end
+
+function T:test_the_probe_is_false_for_a_child_whose_output_is_a_pipe()
+  if package.config:sub(1, 1) ~= "/" then return end
+  local pipe = assert(io.popen("test -t 1 && echo tty || echo pipe"))
+  local out = pipe:read("a") or ""
+  pipe:close()
+  self:assert_equal("pipe\n", out)
+end
+
 function T:test_a_pipe_is_not_a_terminal_when_the_standard_output_is_redirected()
   self:assert_false(terminal.stdout_is_tty(env({ TERM = "dumb" })))
   self:assert_false(terminal.stdout_is_tty(env({})))

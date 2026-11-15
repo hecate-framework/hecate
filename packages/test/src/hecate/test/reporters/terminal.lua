@@ -10,7 +10,7 @@ local M = {}
 --- Options that decide how a reporter talks to the terminal.
 ---@class hecate.test.TerminalOptions
 ---@field color? boolean  force colour on or off (default: `NO_COLOR`, `FORCE_COLOR`, then whether stdout is a terminal)
----@field live? boolean  redraw the line of the running suite in place (default: whether stdout is a terminal)
+---@field live? boolean  redraw the line of the running suite in place (default: `HECATE_TEST_LIVE` `0`/`1`, else whether stdout is a terminal)
 ---@field width? integer  columns of the terminal (default: `COLUMNS`, else 80)
 ---@field is_tty? boolean|fun(): boolean  whether stdout is a terminal (default: `M.stdout_is_tty`)
 ---@field getenv? fun(name: string): string?  environment lookup (default: `reactor.getenv`)
@@ -58,7 +58,13 @@ function M.resolve(options)
   end
 
   local live = options.live
-  if live == nil then live = tty() end
+  if live == nil then
+    -- explicit switch for consoles that run in a pty (IDEs), indistinguishable from a terminal
+    local switch = getenv("HECATE_TEST_LIVE")
+    if switch == "1" then live = true
+    elseif switch == "0" then live = false
+    else live = tty() end
+  end
 
   local width = options.width
   if width == nil then
