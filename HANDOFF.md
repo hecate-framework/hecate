@@ -3,7 +3,7 @@
 
 - roadmap_item: `test`: test framework, runner, in-process client, fixtures, contract conformance, reporters (TAP, JUnit XML), coverage (Phase 3)
 - status: in-progress
-- last_update: 2026-11-15T14:44:44Z
+- last_update: 2026-11-15T15:44:19Z
 
 ## Done
 
@@ -25,10 +25,12 @@
 
 - Step 8: virtual clock: runner option `clock`, case field `clock` (overrides); hooks and tests of the case share it. The README status line is refreshed (`alpha (in progress)`).
 
+- Step 9: `test.Client` (OQ-139 resolved by the owner: `hecate.http` is a dependency of `test`; rockspec and package CLAUDE.md updated). Minimal on purpose: no route-coverage or conformance yet (owner: keep it simple, add by usage).
+
 ## Next steps
 
 1. Targeting by name from the command line.
-2. **Blocked on OQ-139 (issue #216):** in-process client over the dispatch seam of OQ-78 (`Application:boot()` action + `http.serve_request`; table `content` JSON-encoded or raise, T2), fixtures with container overrides. Needs the owner to allow `hecate.http` as a dependency of `test`.
+2. Fixtures with container overrides (the client is done, step 9).
 3. Contract conformance report; property-based testing from schema types (OQ-96); coverage (LCOV); parallel workers.
 4. Docs (README, website reference, CHANGELOG), roadmap tick.
 5. **Windows testing phase (owner, by hand on a Windows VM; do not tick the item before the owner reports):** the console reporter in a real Windows terminal (Windows Terminal and `cmd.exe`): colour, live redraw (`live = true`, since the probe never turns it on there), width, the bar and the plain fallback in a pipe; the JSON-lines stream and TAP output with CRLF handling; `hecate.test` discovery paths with backslashes. Record the owner's findings here.
@@ -46,7 +48,6 @@
 
 ## Doubts and questions for the owner
 
-- OQ-139 (issue #216): may `test` depend directly on `hecate.http`? Recommended yes; blocks the in-process client.
 - OQ-138 (issue #215, still open until `reactor.is_tty` lands; the owner agreed to both the explicit `HECATE_TEST_LIVE` switch and `reactor.is_tty(fd)`): `luv` is confined to `reactor`, so TTY detection is a POSIX shell probe (`test -t 1`); a `reactor.is_tty` would be exact.
 - The old `start/report/finish` reporter interface is replaced (breaking for step-1 users; none exist outside the package).
 
