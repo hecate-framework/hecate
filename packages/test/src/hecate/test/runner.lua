@@ -56,6 +56,8 @@ local AssertionFailure = failure.AssertionFailure
 ---@class hecate.test.RunnerOptions
 ---@field reporter? hecate.test.Reporter  receives the events of the run
 ---@field filter? string  Lua pattern: only tests whose full name matches are run
+---@field tags? string[]  only tests carrying at least one of these tags are run
+---@field exclude_tags? string[]  tests carrying any of these tags are not run (wins over `tags`)
 
 --- One event of a run, delivered to `Reporter:handle` as it happens. `type` is one of:
 ---
@@ -94,8 +96,37 @@ function Runner:init(options)
   if options.filter ~= nil and type(options.filter) ~= "string" then
     error(core.ArgumentError("test.Runner: filter must be a Lua pattern string, got " .. type(options.filter)), 2)
   end
+  for _, key in ipairs({ "tags", "exclude_tags" }) do
+    local list = options[key]
+    if list ~= nil then
+      if type(list) ~= "table" then
+        error(core.ArgumentError("test.Runner: " .. key .. " must be a list of strings, got " .. type(list)), 2)
+      end
+      for _, tag in ipairs(list) do
+        if type(tag) ~= "string" then
+          error(core.ArgumentError("test.Runner: " .. key .. " must be a list of strings"), 2)
+        end
+      end
+    end
+  end
   self._reporter = options.reporter
   self._filter = options.filter
+  self._tags = options.tags
+  self._exclude_tags = options.exclude_tags
+end
+
+-- The tags of one test: those of its case (`tags`) and its own (`test_tags[name]`), as a set.
+local function tags_of(class, name)
+  local set = {}
+  local function add(list) for _, tag in ipairs(list or {}) do set[tag] = true end end
+  add(class.tags)
+  if type(class.test_tags) == "table" then add(class.test_tags[name]) end
+  return set
+end
+
+local function any_of(set, list)
+  for _, tag in ipairs(list) do if set[tag] then return true end end
+  return false
 end
 
 local LEAK = {} -- sentinel raised by the main computation of a test to cancel detached leaks
@@ -222,7 +253,13 @@ function Runner:plan(cases)
     local suite = discovery.origin(class) or core.name(class)
     for _, name in ipairs(case_module.test_names(class)) do
       local full_name = core.name(class) .. "." .. name
-      if self._filter == nil or full_name:find(self._filter) then
+      local selected = self._filter == nil or full_name:find(self._filter)
+      if selected and (self._tags or self._exclude_tags) then
+        local set = tags_of(class, name)
+        if self._tags and not any_of(set, self._tags) then selected = false end
+        if self._exclude_tags and any_of(set, self._exclude_tags) then selected = false end
+      end
+      if selected then
         tests[#tests + 1] = { case = class, name = name, full_name = full_name, suite = suite }
       end
     end

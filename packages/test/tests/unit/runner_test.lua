@@ -175,6 +175,32 @@ function T:test_a_deadlocked_test_errors_instead_of_hanging()
   self:assert_match("deadlock", r.message)
 end
 
+function T:test_tags_select_and_exclude_tests_of_a_case_or_of_a_single_test()
+  local C = hecate_test.Case("Tagged")
+  C.tags = { "unit" }
+  C.test_tags = { test_b = { "slow" }, test_c = { "slow", "net" } }
+  function C:test_a() end
+  function C:test_b() end
+  function C:test_c() end
+  local function names(options)
+    local list = {}
+    for _, t in ipairs(hecate_test.Runner(options):plan({ C })) do list[#list + 1] = t.name end
+    return table.concat(list, ",")
+  end
+  self:assert_equal("test_a,test_b,test_c", names({ tags = { "unit" } }))
+  self:assert_equal("test_b,test_c", names({ tags = { "slow" } }))
+  self:assert_equal("test_c", names({ tags = { "net", "nothing" } }))
+  self:assert_equal("test_a", names({ exclude_tags = { "slow" } }))
+  self:assert_equal("test_b", names({ tags = { "slow" }, exclude_tags = { "net" } }))
+  self:assert_equal("test_a,test_b,test_c", names({}))
+  ---@type any
+  local text = "slow"
+  ---@type any
+  local numbers = { 1 }
+  self:assert_error(function() hecate_test.Runner({ tags = text }) end, { class = core.ArgumentError })
+  self:assert_error(function() hecate_test.Runner({ exclude_tags = numbers }) end, { class = core.ArgumentError })
+end
+
 function T:test_the_filter_selects_tests_by_full_name()
   local C = hecate_test.Case("C")
   function C:test_alpha() end

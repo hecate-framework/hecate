@@ -7,6 +7,8 @@ local assertions = require("hecate.test.assertions")
 --- The base class of every test case: the assertions, and the lifecycle hooks (empty by default).
 ---@class hecate.test.Case : hecate.test.Assertions
 ---@field [string] any  tests, fixtures and attributes that a case declares on itself
+---@field tags? string[]  tags of every test of the case, selected by the `tags` and `exclude_tags` options of the runner
+---@field test_tags? table<string, string[]>  tags of single tests, by method name
 ---@field set_up? fun(self: hecate.test.Case)  runs before each test, on the instance of that test
 ---@field tear_down? fun(self: hecate.test.Case)  runs after each test whose `set_up` succeeded, whatever its outcome
 ---@field set_up_case? fun(self: hecate.test.Case)  runs once before the first test of the case, on a case-level instance whose fields are copied onto the instance of every test
