@@ -15,7 +15,7 @@
 
 - Step 3b and 3c (this commit): the layout never exceeds the width (name shortened first down to 10 letters, then the bar down to 10 cells, then 1 cell, then the name down to a few letters; a live line keeps its reserved room and gives way when the figures outgrow it); test of a live suite of 1 234 567 assertions at widths 60, 80, 120; terminal probe tested on a pipe and under a pty (`script -qec`, skipped when `script` is missing or has another form).
 
-- Step 4: `reactor.is_tty(fd)` (OQ-138); `test` drops the shell probe and the Windows exception. OQ-138 moved to Resolved in `docs/open-questions.md` (issue #215 still to close with a link to this pull request).
+- Step 4: `reactor.is_tty(fd)` (OQ-138); `test` drops the shell probe and the Windows exception. OQ-138 moved to Resolved in `docs/open-questions.md`; issue #215 closed.
 
 ## Next steps
 
