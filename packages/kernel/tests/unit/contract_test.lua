@@ -51,4 +51,22 @@ function T:test_invalid_option_is_refused()
   self:assert_error(function() app("x"):boot() end)
 end
 
+function T:test_contract_is_exported_whether_or_not_it_is_served()
+  local a = app { info = INFO, enabled = false }
+  a:boot()
+  local document = json.decode(a:contract())
+  self:assert_equal("Shop", document.info.title)
+  self:assert_true(document.paths["/health"] ~= nil)
+  self:assert_nil(document.paths["/openapi.json"])
+  self:assert_equal(a:contract(), a:contract(false))
+  self:assert_true(#a:contract(true) > #a:contract(false))
+end
+
+function T:test_contract_needs_a_booted_application_and_the_option()
+  self:assert_error(function() app({ info = INFO }):contract() end)
+  local a = app(nil)
+  a:boot()
+  self:assert_error(function() a:contract() end)
+end
+
 return T

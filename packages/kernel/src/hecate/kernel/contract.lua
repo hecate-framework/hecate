@@ -27,6 +27,18 @@ local function refuse(message)
   error(core.ArgumentError("hecate.kernel.contract.entries: " .. message), 3)
 end
 
+--- The OpenAPI document of `documented`, JSON-encoded (deterministic: the same routes give the same bytes). Serves both
+--- the route and `Application:contract`. Raises what `openapi.build` and `openapi.encode` raise.
+---@param options hecate.kernel.OpenApiOptions  validated by `contract.entries` or `contract.validate`
+---@param documented hecate.kernel.RouteEntry[]
+---@param pretty? boolean  indented output, default `options.pretty`
+---@return string
+function contract.render(options, documented, pretty)
+  if pretty == nil then pretty = options.pretty end
+  return openapi.encode(openapi.build({ info = options.info, servers = options.servers, tags = options.tags,
+    external_docs = options.external_docs, routes = documented }), { pretty = pretty })
+end
+
 --- The route entries that serve the document (none when it is not served). The document is built from `documented`, the
 --- route entries of the application, at the first request, then kept; a document that cannot be built is an internal
 --- failure of that request (generic 500, logged). Raises `hecate.core.ArgumentError` for options that are not a table,
@@ -57,8 +69,7 @@ function contract.entries(options, documented, served_in_development)
     name = options.name or "openapi", summary = "OpenAPI document of this application", responses = { [200] = true },
     action = function()
       if body == nil then
-        body = openapi.encode(openapi.build({ info = options.info, servers = options.servers, tags = options.tags,
-          external_docs = options.external_docs, routes = documented }), { pretty = options.pretty })
+        body = contract.render(options, documented)
       end
       return http.Response(200, { fields = fields, content = body })
     end,

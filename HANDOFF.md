@@ -29,12 +29,14 @@
 - CI fix: markdownlint MD056 on the OQ-135 row of `docs/open-questions.md` (missing Blocks cell).
 - OQ-135 resolved by the owner (serve only `/openapi.json`; viewer = compose example of the images item); OQ-136 (CORS filter with `cors.*` keys, issue #212) and two roadmap items added.
 
+- Step 9 `kernel`: `Application:contract(pretty?)`, the export hook (JSON only, OQ-137); unit tests added in `tests/unit/contract_test.lua` but not run locally (no luv): CI decides. typecheck ok.
+
 ## Next steps
 
-0. CI gap: the matrix run on the last code commit e981a1b was cancelled by a later push (docs-only pushes skip the matrix), so the Windows supervisor flake re-run and the kernel `contract_test` have no conclusive three-platform result. The next code commit will run the matrix: check it first. Locally (09:50Z): `build-native json` ok, `test openapi` ok; kernel tests need luv (not installable here).
+0. Check the CI matrix of the push of step 9 first (kernel `contract_test`, Windows supervisor flake). Earlier CI gap: the matrix run on the last code commit e981a1b was cancelled by a later push (docs-only pushes skip the matrix), so the Windows supervisor flake re-run and the kernel `contract_test` have no conclusive three-platform result. The next code commit will run the matrix: check it first. Locally (09:50Z): `build-native json` ok, `test openapi` ok; kernel tests need luv (not installable here).
 
 1. Check on CI that the kernel tests `contract_test` pass. (The interactive page: OQ-135 resolved, only the JSON is served.)
-2. The `hecate contract export` hook (kernel/cli), JSON only (YAML dropped from `0.1.0`: OQ-137, issue #213).
+2. The `hecate contract export` command itself (carried by `cli`, Phase 3): the kernel hook is done.
 3. Lint: wire `openapi.lint` into the export step and the CLI (`hecate contract lint`), lint website page.
 4. Integration tests and website reference pages (`{rest...}` documented).
 5. Later, optional: controller-level default `tags` (roadmap).

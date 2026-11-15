@@ -8,7 +8,7 @@
 | Rock | `hecate-openapi` |
 | Layer | 3 — Framework |
 | Roadmap phase | 3 |
-| Status | in progress — document assembly (step 1) and contract diff (step 2) implemented; served endpoint implemented in `kernel`; lint (`openapi.lint`) implemented; export to come |
+| Status | in progress — document assembly (step 1) and contract diff (step 2) implemented; served endpoint implemented in `kernel`; lint (`openapi.lint`) implemented; export hook `Application:contract()` in `kernel` (the `hecate contract export` command itself belongs to `cli`) |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |
 | Depends on | [`core`](../core), [`schema`](../schema), [`router`](../router), [`json`](../json) |
 | Used by | `cli`, `doc`, `hecate`, `kernel`, `test` |

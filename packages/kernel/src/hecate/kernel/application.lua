@@ -277,6 +277,25 @@ function Application:boot()
   return serve
 end
 
+--- The OpenAPI 3.1 document of the routes of the application, JSON-encoded, whether or not it is served: the hook of
+--- `hecate contract export` (the file is written by the caller). Needs the `openapi` option (with `info`); the document
+--- describes the routes gathered by `boot`, without the route that serves it. Deterministic.
+---
+--- Raises `hecate.kernel.ModuleError` with `context.reason = "not_booted"` before `boot`, or `"no_contract"` without
+--- the `openapi` option, and what `hecate.openapi.build` raises.
+---@param pretty? boolean  indented output (default: the `pretty` field of the `openapi` option, else false)
+---@return string json
+function Application:contract(pretty)
+  if not self._booted then
+    error(errors.ModuleError("hecate.kernel.application.contract: the application is not booted", { context = { reason = "not_booted" } }), 2)
+  end
+  local options = self._options.openapi
+  if type(options) ~= "table" or options.info == nil then
+    error(errors.ModuleError("hecate.kernel.application.contract: the application has no `openapi` option with `info`", { context = { reason = "no_contract" } }), 2)
+  end
+  return contract.render(options, self.entries, pretty)
+end
+
 --- The reason, the cause and the message of a failed reload (nil and nil for an error that is not a `SupervisorError`).
 ---@param err any
 ---@return string? reason
