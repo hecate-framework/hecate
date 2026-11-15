@@ -32,5 +32,6 @@ test.is_case = case_module.is_case
 test.of_type = assertions.of_type
 test.discover = discovery.discover
 test.load = discovery.load
+test.parse_arguments = require("hecate.test.selection").parse
 
 return test

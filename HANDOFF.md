@@ -3,7 +3,7 @@
 
 - roadmap_item: `test`: test framework, runner, in-process client, fixtures, contract conformance, reporters (TAP, JUnit XML), coverage (Phase 3)
 - status: in-progress
-- last_update: 2026-11-15T15:44:19Z
+- last_update: 2026-11-15T15:53:51Z
 
 ## Done
 
@@ -27,13 +27,14 @@
 
 - Step 9: `test.Client` (OQ-139 resolved by the owner: `hecate.http` is a dependency of `test`; rockspec and package CLAUDE.md updated). Minimal on purpose: no route-coverage or conformance yet (owner: keep it simple, add by usage).
 
+- Step 10: targeting: runner option `cases`; `hecate.test.selection` (`test.parse_arguments`) parses `--filter`, `--case`, `--tag`, `--exclude-tag`, paths. No command runs it yet (the `cli` package will call it). Tests in `selection_test.lua`.
+
 ## Next steps
 
-1. Targeting by name from the command line.
-2. Fixtures with container overrides (the client is done, step 9).
-3. Contract conformance report; property-based testing from schema types (OQ-96); coverage (LCOV); parallel workers.
-4. Docs (README, website reference, CHANGELOG), roadmap tick.
-5. **Windows testing phase (owner, by hand on a Windows VM; do not tick the item before the owner reports):** the console reporter in a real Windows terminal (Windows Terminal and `cmd.exe`): colour, live redraw (`live = true`, since the probe never turns it on there), width, the bar and the plain fallback in a pipe; the JSON-lines stream and TAP output with CRLF handling; `hecate.test` discovery paths with backslashes. Record the owner's findings here.
+1. Fixtures with container overrides (the client is done, step 9).
+2. Contract conformance report; property-based testing from schema types (OQ-96); coverage (LCOV); parallel workers.
+3. Docs (README, website reference, CHANGELOG), roadmap tick.
+4. **Windows testing phase (owner, by hand on a Windows VM; do not tick the item before the owner reports):** the console reporter in a real Windows terminal (Windows Terminal and `cmd.exe`): colour, live redraw (`live = true`, since the probe never turns it on there), width, the bar and the plain fallback in a pipe; the JSON-lines stream and TAP output with CRLF handling; `hecate.test` discovery paths with backslashes. Record the owner's findings here.
 
 ## Decisions taken (and where they are recorded)
 

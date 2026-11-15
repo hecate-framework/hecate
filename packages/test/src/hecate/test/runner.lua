@@ -57,6 +57,7 @@ local AssertionFailure = failure.AssertionFailure
 ---@field reporter? hecate.test.Reporter  receives the events of the run
 ---@field filter? string  Lua pattern: only tests whose full name matches are run
 ---@field clock? "real"|"virtual"  clock of the reactor of each test (default `"real"`); a case overrides it with its `clock` field. The virtual clock jumps to the next timer when nothing is ready, so sleeps and deadlines cost no time
+---@field cases? string[]  only the cases with one of these names are run
 ---@field tags? string[]  only tests carrying at least one of these tags are run
 ---@field exclude_tags? string[]  tests carrying any of these tags are not run (wins over `tags`)
 
@@ -97,7 +98,7 @@ function Runner:init(options)
   if options.filter ~= nil and type(options.filter) ~= "string" then
     error(core.ArgumentError("test.Runner: filter must be a Lua pattern string, got " .. type(options.filter)), 2)
   end
-  for _, key in ipairs({ "tags", "exclude_tags" }) do
+  for _, key in ipairs({ "cases", "tags", "exclude_tags" }) do
     local list = options[key]
     if list ~= nil then
       if type(list) ~= "table" then
@@ -116,6 +117,7 @@ function Runner:init(options)
   self._clock = options.clock or "real"
   self._reporter = options.reporter
   self._filter = options.filter
+  self._cases = options.cases
   self._tags = options.tags
   self._exclude_tags = options.exclude_tags
 end
@@ -258,7 +260,8 @@ function Runner:plan(cases)
     core.finalise(class)
     -- a suite is a test script: the file a case was loaded from, else the name of the case
     local suite = discovery.origin(class) or core.name(class)
-    for _, name in ipairs(case_module.test_names(class)) do
+    local wanted = self._cases == nil or any_of({ [core.name(class)] = true }, self._cases)
+    for _, name in ipairs(wanted and case_module.test_names(class) or {}) do
       -- a parametrised test is one test per entry of `test_parameters[name]`
       local entries = type(class.test_parameters) == "table" and class.test_parameters[name] or nil
       if entries ~= nil and (type(entries) ~= "table" or #entries == 0) then
