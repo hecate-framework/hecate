@@ -3,12 +3,12 @@
 
 - roadmap_item: `test`: test framework, runner, in-process client, fixtures, contract conformance, reporters (TAP, JUnit XML), coverage (Phase 3)
 - status: in-progress
-- lock_until: 2026-11-15T12:09:51Z
-- last_update: 2026-11-15T10:39:51Z
+- lock_until: 2026-11-15T10:40:18Z
+- last_update: 2026-11-15T10:40:18Z
 
 ## Done
 
-- Claimed the item (this commit).
+- Claimed the item. Owner instruction (2026-11-15): do not lock a multi-run item, so `lock_until` stays at the claim time (already expired) and other relay runs may resume it.
 
 ## Next steps
 
