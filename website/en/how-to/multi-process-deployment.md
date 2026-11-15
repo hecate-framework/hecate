@@ -135,6 +135,7 @@ example:
 ```lua
 local health = hecate.routes("health")
 health:get("/health", {
+  name = "health.check",
   responses = { [200] = schema.object({ status = schema.string() }) },
   action = function() return { status = "ok" } end,
 })

@@ -88,6 +88,7 @@ UserController.routes = {
   {
     method     = "GET",
     path       = "/{id}",
+    name       = "user.show",
     summary    = "Fetch a user",
     parameters = { path = { id = schema.integer { minimum = 1 } } },
     responses  = { [200] = schema.of(User), [404] = hecate.problem.NotFound },
@@ -120,6 +121,7 @@ local schema = require "hecate.schema"
 local health = hecate.routes "health"
 
 health:get "/health" {
+  name      = "health.check",
   summary   = "Liveness probe",
   responses = { [200] = schema.object { status = schema.literal "ok" } },
   action    = function(request) return { status = "ok" } end,
@@ -134,7 +136,7 @@ A route module may carry a path prefix and default filters. A route that declare
 ```lua
 local admin = hecate.routes("admin", { prefix = "/admin", filters = { RequireAuth } })
 
-admin:get "/users" { action = function(request) return {} end }   -- GET /admin/users, behind RequireAuth
+admin:get "/users" { name = "admin.users", action = function(request) return {} end }   -- GET /admin/users, behind RequireAuth
 ```
 
 Both styles produce the same route table, so validation, contracts and documentation

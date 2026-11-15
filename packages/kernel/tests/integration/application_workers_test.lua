@@ -334,7 +334,7 @@ function T:test_sighup_is_ignored_by_a_single_process()
   hup_guard:start("sighup", function() end)
   local memory = log.MemorySink()
   local routes = kernel.routes("single")
-  routes:get("/ping", { action = function() return { pong = true } end })
+  routes:get("/ping", { name = "get_ping", action = function() return { pong = true } end })
   local app = kernel.Application({
     routes = { routes }, logger = log.Logger({ sinks = { memory }, severity = "debug" }), server = { host = "127.0.0.1", port = 0 },
   })

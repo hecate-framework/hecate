@@ -10,6 +10,8 @@ local enumeration_module = require("hecate.core.enumeration")
 local errors = require("hecate.core.error")
 local compat = require("hecate.core.compat")
 local weak_module = require("hecate.core.weak")
+local status = require("hecate.core.status")
+local Problem = require("hecate.core.problem")
 
 --- The object model of hecate: classes, traits, interfaces, enumerations and value classes,
 --- introspection, the error hierarchy and Lua-version shims.
@@ -30,9 +32,13 @@ local weak_module = require("hecate.core.weak")
 ---@field ValidationError hecate.core.ValidationError
 ---@field DatabaseError hecate.core.DatabaseError
 ---@field compat hecate.core.compat  Lua-version shims (ADR 0001)
+---@field status hecate.core.status  the table of HTTP status codes and reason phrases (RFC 9110 section 15)
+---@field Problem table  marker interface of a problem class (RFC 9457): declares no member; the class attributes `status` (integer 400..599) and `title` (string) are its documented contract
 local core = {
   Error = errors.Error --[[@as hecate.core.Error]],
   compat = compat,
+  status = status,
+  Problem = Problem,
 }
 core.class = class_module.class
 core.finalise = class_module.finalise

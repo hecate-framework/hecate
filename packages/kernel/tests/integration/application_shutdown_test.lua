@@ -19,7 +19,7 @@ local wait_until, get = workers.wait_until, workers.get
 local function slow_application()
   local state = { started = reactor.Channel(8), release = reactor.Channel(8), cancelled = false, finished = false }
   local routes = kernel.routes("slow")
-  routes:get("/slow", { action = function()
+  routes:get("/slow", { name = "get_slow", action = function()
     state.started:send(true)
     local ok, err = pcall(state.release.receive, state.release)
     if not ok then
@@ -29,7 +29,7 @@ local function slow_application()
     state.finished = true
     return { done = true }
   end })
-  routes:get("/fast", { action = function() return { fast = true } end })
+  routes:get("/fast", { name = "get_fast", action = function() return { fast = true } end })
   state.app = kernel.Application({
     routes = { routes }, signals = false, logger = log.Logger({ sinks = {} }), server = { host = "127.0.0.1", port = 0 },
   })

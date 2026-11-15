@@ -29,6 +29,7 @@ end
 
 local orders = hecate.routes("orders")
 orders:post("/orders/{item}", {
+  name = "order.reserve",
   parameters = { path = { item = schema.string({ max_length = 20 }) } },
   responses = {
     [204] = true, [404] = hecate.problem.NotFound, [409] = OutOfStock,

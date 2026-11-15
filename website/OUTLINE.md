@@ -22,6 +22,7 @@ written is listed with its file in `website/en/`.
 - Validation: refinement types, custom formats, unions, error formats (P2)
 - Problem details: mapping domain errors to RFC 9457 responses: built-in classes, `problem.define`, returned or raised, `responses`, the guard, `errors.expose_details` (`how-to/map-domain-errors-to-problem-details.md`)
 - Filters: the four layers and their order, authentication and CORS written as filters; compression and request identifiers not available yet (`how-to/filters.md`)
+- Serve and export the contract: the `openapi` option, served document, JSON export with `Application:contract`, lint and diff (`how-to/serve-and-export-the-contract.md`)
 - Configuration per environment, secrets (P2)
 - Concurrency: fork/join, select, deadlines, channels, protecting shared state (`how-to/concurrency.md`)
 - Connect and serve over TCP: connect, accept loop, reader and writer, half-close, name resolution (P1; `how-to/connect-and-serve-over-tcp.md`)

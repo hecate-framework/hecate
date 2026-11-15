@@ -21,6 +21,7 @@ documented package.
 - [`hecate.http`](http/index.md): the HTTP/1.1 server and client, messages, content streams, forms and problem details.
 - [`hecate.router`](router/index.md): the radix-tree router, path templates, matching, reverse routing and route table errors.
 - [`hecate.schema`](schema/index.md): refinement types, validation, coercion and JSON Schema emission.
+- [`hecate.openapi`](openapi/index.md): the OpenAPI 3.1 document assembled from the route table, its canonical encoding, lint and breaking-change diff.
 - [`hecate.container`](container/index.md): the inversion-of-control container, lifetimes, constructor injection, boot validation and disposal.
 - [`hecate.config`](config/index.md): layered configuration validated by schemas, environment variables, secrets and the immutable `Configuration`.
 - [`hecate.kernel`](kernel/index.md): the application, feature modules, controllers, route modules, filters, problem details, the supervisor and the listening strategies of multi-process serving.

@@ -21,12 +21,12 @@ local GREETINGS <const> = { en = "Hello", fr = "Bonjour", es = "Hola" }
 local GreetingController = core.class("GreetingController", hecate.Controller)
 
 hecate.Controller.route(GreetingController, {
-  method = "GET", path = "/hello/{name}", action = "show", summary = "Greets a name",
+  method = "GET", path = "/hello/{name}", name = "greeting.show", action = "show", summary = "Greets a name",
   parameters = { path = { name = schema.string({ min_length = 1, max_length = 40 }) } },
   responses = { [200] = Greeting, [422] = hecate.problem.UnprocessableContent },
 })
 hecate.Controller.route(GreetingController, {
-  method = "POST", path = "/greetings", action = "create", summary = "Records a greeting",
+  method = "POST", path = "/greetings", name = "greeting.create", action = "create", summary = "Records a greeting",
   content = { ["application/json"] = NewGreeting },
   responses = { [201] = Created, [422] = hecate.problem.UnprocessableContent },
 })
@@ -57,6 +57,7 @@ core.finalise(GreetingController)
 function hello.health_routes()
   local health = hecate.routes("health")
   health:get("/health", {
+    name = "health.check",
     summary = "Liveness probe",
     responses = { [200] = schema.object({ status = schema.string() }) },
     action = function() return { status = "ok" } end,

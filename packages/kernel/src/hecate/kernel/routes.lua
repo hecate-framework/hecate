@@ -31,7 +31,7 @@ local RouteModule = core.class("RouteModule")
 local OPTION_FIELDS <const> = { prefix = true, filters = true }
 
 --- Creates a route module. `name` is a non-empty string, used in diagnostics. `options.prefix` is prepended to every
---- route (the default route name includes it). `options.filters` are the default filters of each route: they are not
+--- route (it is part of the full path of each route). `options.filters` are the default filters of each route: they are not
 --- a layer of the chain, a route that declares its own `filters` replaces them (an empty list removes them), unlike
 --- the filters of a controller, which always come before those of the route.
 ---

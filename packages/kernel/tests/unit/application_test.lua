@@ -10,7 +10,7 @@ end
 
 local function route_module(name, path)
   local m = kernel.routes(name)
-  m:get(path, { action = function() return { ok = name } end })
+  m:get(path, { name = name, action = function() return { ok = name } end })
   return m
 end
 
@@ -369,7 +369,7 @@ function T:test_a_booted_application_in_development_refuses_a_nonconforming_resp
   local schema = require("hecate.schema")
   local http = require("hecate.http")
   local module = kernel.routes("v")
-  module:get("/v", { responses = { [200] = schema.object({ id = schema.integer() }) }, action = function() return { id = "x" } end })
+  module:get("/v", { name = "get_v", responses = { [200] = schema.object({ id = schema.integer() }) }, action = function() return { id = "x" } end })
   local app = kernel.Application({ routes = { module }, configuration = configuration({}, "development") })
   local serve = app:boot()
   self:assert_equal(500, serve(http.Request({ method = "GET", target = "/v", fields = http.Fields() })).status)
@@ -396,7 +396,7 @@ function T:test_an_application_without_logger_or_configuration_logs_through_the_
   local memory = log.MemorySink()
   log.set_default(log.Logger({ sinks = { memory } })) -- stands for the console logger on standard error (OQ-79)
   local m = kernel.routes("failing")
-  m:get("/fail", { action = function() error("an unhandled defect") end })
+  m:get("/fail", { name = "get_fail", action = function() error("an unhandled defect") end })
   local ok, failure = pcall(function()
     local app = kernel.Application({
       routes = { m },
@@ -534,7 +534,7 @@ function T:test_sigint_shuts_the_server_down_gracefully()
   local routes = kernel.routes("slow")
   local started, finished, cancelled = false, false, false
   local release = reactor.Channel(1)
-  routes:get("/slow", { action = function()
+  routes:get("/slow", { name = "get_slow", action = function()
     started = true
     local ok, err = pcall(release.receive, release)
     if not ok then cancelled = true; error(err, 0) end
@@ -586,7 +586,7 @@ function T:test_a_second_signal_forces_the_stop()
   local memory = log.MemorySink()
   local routes = kernel.routes("slow")
   local started, cancelled = false, false
-  routes:get("/slow", { action = function()
+  routes:get("/slow", { name = "get_slow", action = function()
     started = true
     local ok, err = pcall(reactor.sleep, 60)
     if not ok then cancelled = true; error(err, 0) end
@@ -637,7 +637,7 @@ function T:test_a_served_writer_uses_open_scoped_services_and_they_close_after_t
   function Session:__close() self.open = false; trace[#trace + 1] = "closed" end
   core.finalise(Session)
   local module = kernel.routes("stream")
-  module:get("/stream", { action = function(request)
+  module:get("/stream", { name = "get_stream", action = function(request)
     local session = request.services:resolve("session")
     return http.Response(200, { content = function(write)
       trace[#trace + 1] = session.open and "open" or "already closed"
@@ -933,12 +933,12 @@ local function controller_with(declaration)
 end
 
 function T:test_boot_rejects_a_route_that_names_a_missing_action()
-  local err = boot_failure(self, { routes = { controller_with({ method = "GET", path = "/x", action = "nothing" }) } })
+  local err = boot_failure(self, { routes = { controller_with({ method = "GET", path = "/x", name = "get_x", action = "nothing" }) } })
   self:assert_equal("missing_action", err.context.reason)
   self:assert_equal("hecate.kernel.RouteDeclarationError.missing_action", err.code)
   self:assert_equal("controller BootController", err.context.origin)
   -- The same through a feature module, which gathers its routes at boot too.
-  local through_module = boot_failure(self, { modules = { { name = "m", routes = { controller_with({ method = "GET", path = "/x", action = "nothing" }) } } } })
+  local through_module = boot_failure(self, { modules = { { name = "m", routes = { controller_with({ method = "GET", path = "/x", name = "get_x", action = "nothing" }) } } } })
   self:assert_equal("missing_action", through_module.context.reason)
 end
 
@@ -946,7 +946,7 @@ function T:test_boot_rejects_a_controller_dependency_that_names_no_binding()
   local core = require("hecate.core")
   local Hello = core.class("BootTypoController", kernel.Controller)
   Hello.dependencies = { repository = "users.UserRepositry" }
-  kernel.Controller.route(Hello, { method = "GET", path = "/h", action = "say" })
+  kernel.Controller.route(Hello, { method = "GET", path = "/h", name = "get_h", action = "say" })
   function Hello:say() return nil end
   core.finalise(Hello)
   local app = kernel.Application({
@@ -959,21 +959,21 @@ function T:test_boot_rejects_a_controller_dependency_that_names_no_binding()
 end
 
 function T:test_boot_rejects_a_malformed_route_schema()
-  local err = boot_failure(self, { routes = { controller_with({ method = "GET", path = "/x", action = "a", responses = { [200] = {} } }) } })
+  local err = boot_failure(self, { routes = { controller_with({ method = "GET", path = "/x", name = "get_x", action = "a", responses = { [200] = {} } }) } })
   self:assert_equal("invalid_responses", err.context.reason)
   self:assert_equal("hecate.kernel.RouteDeclarationError.invalid_responses", err.code)
   local parameters = boot_failure(self, { routes = { controller_with({
-    method = "GET", path = "/x", action = "a", parameters = { query = { q = "string" } } }) } })
+    method = "GET", path = "/x", name = "get_x", action = "a", parameters = { query = { q = "string" } } }) } })
   self:assert_equal("invalid_parameters", parameters.context.reason)
   local content = boot_failure(self, { routes = { controller_with({
-    method = "POST", path = "/x", action = "a", content = { ["application/json"] = 1 } }) } })
+    method = "POST", path = "/x", name = "post_x", action = "a", content = { ["application/json"] = 1 } }) } })
   self:assert_equal("invalid_content", content.context.reason)
 end
 
 function T:test_boot_rejects_content_declared_for_an_unsupported_media_type()
   local schema = require("hecate.schema")
   local module = kernel.routes("xml")
-  module:post("/x", { action = function() return nil end, content = { ["application/xml"] = schema.any() } })
+  module:post("/x", { name = "post_x", action = function() return nil end, content = { ["application/xml"] = schema.any() } })
   local err = boot_failure(self, { routes = { module } })
   self:assert_equal("unsupported_content_type", err.context.reason)
   self:assert_equal("hecate.kernel.RouteDeclarationError.unsupported_content_type", err.code)
@@ -985,7 +985,7 @@ function T:test_serve_fails_at_boot_before_it_listens_or_answers_anything()
   local core = require("hecate.core")
   local app = kernel.Application({
     signals = false, server = { host = "127.0.0.1", port = 0 },
-    routes = { controller_with({ method = "GET", path = "/x", action = "nothing" }) },
+    routes = { controller_with({ method = "GET", path = "/x", name = "get_x", action = "nothing" }) },
   })
   local err
   reactor.run(function()
@@ -1003,7 +1003,7 @@ end
 
 local function failing_application(options)
   local module = kernel.routes("boom")
-  module:get("/boom", { action = function() error("secret") end })
+  module:get("/boom", { name = "get_boom", action = function() error("secret") end })
   options = options or {}
   options.routes = { module }
   return kernel.Application(options)
@@ -1077,9 +1077,9 @@ end
 function T:test_a_problem_below_500_that_an_action_returns_or_raises_is_not_logged()
   local problem = kernel.problem
   local module = kernel.routes("problems")
-  module:get("/returned", { action = function() return problem.NotFound({ detail = "no such order" }) end })
-  module:get("/conflict", { action = function() return problem.Conflict() end })
-  module:get("/raised", { action = function() error(problem.Forbidden()) end })
+  module:get("/returned", { name = "get_returned", action = function() return problem.NotFound({ detail = "no such order" }) end })
+  module:get("/conflict", { name = "get_conflict", action = function() return problem.Conflict() end })
+  module:get("/raised", { name = "get_raised", action = function() error(problem.Forbidden()) end })
   local memory = log.MemorySink()
   local serve = kernel.Application({
     routes = { module }, logger = log.Logger({ sinks = { memory }, severity = "debug" }),
@@ -1094,7 +1094,7 @@ end
 function T:test_an_expired_deadline_gives_a_500_and_the_server_record_without_traceback()
   local memory = log.MemorySink()
   local module = kernel.routes("late")
-  module:get("/late", { action = function()
+  module:get("/late", { name = "get_late", action = function()
     reactor.deadline(0.01, reactor.sleep, 5) -- not caught by the action
     return { never = true }
   end })
@@ -1161,7 +1161,7 @@ function T:test_every_layer_of_filters_sees_a_streaming_response_unchanged()
     end }
   end
   local module = kernel.routes("stream")
-  module:get("/stream", {
+  module:get("/stream", { name = "get_stream",
     action = function() return produced end, responses = { [200] = schema.string() }, filters = { observer("route") },
   })
   local app = kernel.Application({
@@ -1188,7 +1188,7 @@ end
 function T:test_a_filter_may_add_a_field_to_a_streaming_response_and_it_keeps_streaming()
   local function writer(write) write("x") end
   local module = kernel.routes("stream")
-  module:get("/s", { action = function() return http.Response(200, { content = writer }) end })
+  module:get("/s", { name = "get_s", action = function() return http.Response(200, { content = writer }) end })
   local app = kernel.Application({
     routes = { module },
     filters = { { handle = function(_, request, next)

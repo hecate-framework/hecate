@@ -29,8 +29,8 @@ end
 ---   is a field);
 --- - `invalid_options`: the options of a route module are not a table;
 --- - `unknown_field`: a declaration or an option has a field the kernel does not know;
---- - `invalid_method`, `invalid_path` (also a malformed `prefix`), `invalid_name`, `invalid_text`, `invalid_tags`,
----   `invalid_deprecated`, `invalid_parameters`, `invalid_content`, `invalid_responses`, `invalid_security`,
+--- - `invalid_method`, `invalid_path` (also a malformed `prefix`), `missing_name` (a route has no automatic name, OQ-129 (1)), `invalid_name`, `invalid_text`, `invalid_tags`,
+---   `invalid_deprecated`, `invalid_parameters`, `invalid_content`, `invalid_content_optional`, `invalid_responses`, `invalid_security`,
 ---   `invalid_filters`: a field of a declaration is malformed;
 --- - `parameter_mismatch`: the path template and `parameters.path` disagree;
 --- - `invalid_action`: the action is not a function (route module) or a method name (controller);
@@ -53,8 +53,9 @@ local RouteDeclarationError = declare("RouteDeclarationError", core.Configuratio
 
 --- An application composition the kernel refuses at boot. `context.reason` is the stable identifier (and the end of
 --- `code`): `invalid_module` (a module is malformed), `duplicate_module`, `missing_dependency` (a module requires one
---- that is not registered), `dependency_cycle` (`context.cycle` lists the module names), `already_booted` and
---- `already_served` (`Application:serve` runs once). `context.module` names the faulty module.
+--- that is not registered), `dependency_cycle` (`context.cycle` lists the module names), `already_booted`,
+--- `already_served` (`Application:serve` runs once), `not_booted` and `no_contract` (`Application:contract` needs a booted
+--- application with the `openapi` option). `context.module` names the faulty module.
 ---@class hecate.kernel.ModuleError : hecate.core.ConfigurationError
 ---@field context { reason: string, module?: string, cycle?: string[] }
 local ModuleError = declare("ModuleError", core.ConfigurationError)

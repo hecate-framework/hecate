@@ -10,7 +10,7 @@
 | Roadmap phase | 2 |
 | Status | alpha — implemented in Phase 2: filter chain, results, problems, route declarations, dispatcher, validation of the request inputs (refusals logged at `warning` as `request refused`), response validation in development and test, `Application` skeleton and feature modules, listening strategies and supervisor of multi-process serving, wired into `Application` (`workers`, `strategy`), rolling reload of the workers (`Supervisor:reload`, `Application:reload`, `sighup`) |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |
-| Depends on | [`core`](../core), [`reactor`](../reactor), [`net`](../net), [`log`](../log), [`http`](../http), [`router`](../router), [`schema`](../schema), [`container`](../container), [`config`](../config), [`json`](../json) |
+| Depends on | [`core`](../core), [`reactor`](../reactor), [`net`](../net), [`log`](../log), [`http`](../http), [`router`](../router), [`schema`](../schema), [`openapi`](../openapi), [`container`](../container), [`config`](../config), [`json`](../json) |
 | Used by | `cli`, `hecate`, `security`, `template`, `test` |
 | Native code | none |
 | Specification | [http-and-routing.md](../../docs/architecture/http-and-routing.md) |
@@ -94,7 +94,7 @@
   catches cancellation or deadline errors. Choices: OQ-112.
 
 - `kernel.problem`: problem classes (RFC 9457), built with the object model of `hecate.core`. `Problem` is a subclass of
-  `hecate.core.Error`, so an instance is raisable (`error(NotFound { ... })`, mapped by `problems.guard`) and returnable
+  `hecate.core.Error` that implements the marker interface `core.Problem` (inherited by every problem class, so that `hecate.openapi` recognises one with `core.implements`) and carries the default class attributes `status = 500` and `title = "Internal Server Error"`; the classes below, and those of `problem.define`, set their own. So an instance is raisable (`error(NotFound { ... })`, mapped by `problems.guard`) and returnable
   by an action (`results.serialise` answers it as `application/problem+json`). Classes: `BadRequest` 400, `Unauthorized`
   401, `Forbidden` 403, `NotFound` 404, `MethodNotAllowed` 405, `NotAcceptable` 406, `RequestTimeout` 408, `Conflict` 409,
   `Gone` 410, `PreconditionFailed` 412, `ContentTooLarge` 413, `UnsupportedMediaType` 415, `UnprocessableContent` 422,
@@ -133,8 +133,7 @@
   without its table of declarations (`module:get "/x"` alone), which would otherwise drop the route silently.
   `kernel.routes(name, options?)` takes `options = { prefix?, filters? }`, validated at once (`RouteDeclarationError`
   for an unknown field, a non-string or malformed `prefix`, a non-list `filters` or a non-filter element). `prefix` has
-  the rule of a controller prefix and is prepended to every route, so the default name `<METHOD> <full path>` includes
-  it. `filters` are the DEFAULT filters of each route, not a layer of the chain: a route that declares `filters`
+  the rule of a controller prefix and is prepended to the path of every route (not to its name). `filters` are the DEFAULT filters of each route, not a layer of the chain: a route that declares `filters`
   replaces them, it does not extend them, and an explicit empty list `filters = {}` removes them (a conservative
   choice). The filters of a controller differ: they stay a layer, always before those of the route, never overridable.
   A route module with defaults gives the same entries as the equivalent controller whose routes declare no own filters;
@@ -150,16 +149,16 @@
   binding name) are resolved in `request.services` in the sorted order of the field names, one new instance per request.
 - `kernel.route.normalise(spec, options)`, `kernel.route.METHODS`, `kernel.route.check_action(entry)`: the single route entry
   (`hecate.kernel.RouteEntry`: `method`, `path`, `name`, `summary`, `description`, `tags`, `deprecated`, `parameters`
-  with `path`, `query`, `fields` and `cookies`, `content`, `responses`, `security`, `filters`, `action`, plus `controller`
+  with `path`, `query`, `fields` and `cookies`, `content`, `content_optional`, `responses`, `security`, `filters`, `action`, plus `controller`
   and `origin`), usable as a `hecate.router.Route`. A `responses` value is a schema, a problem class or `true`, which
-  declares a status without content (`[204] = true`). The name defaults to `<METHOD> <path>` in both styles, so equivalent
-  declarations give equal tables. The parameters of the path template and `parameters.path` must match both ways.
+  declares a status without content (`[204] = true`). The `name` is mandatory and set explicitly in both styles (OQ-129 (1)): a route has no automatic name, and a declaration
+  without `name` is refused with `RouteDeclarationError` (`missing_name`), so equivalent declarations give equal tables. A declared `content` means the request body is required; `content_optional = true` (a boolean, `false` by default, refused with `invalid_content_optional` when it is not a boolean or the route declares no `content`) lets the input step accept an empty body, with or without a `Content-Type` field, the action getting a nil `content`, while a body that is not empty is still validated. The parameters of the path template and `parameters.path` must match both ways.
 - `kernel.routing.collect(sources, module_filters?)`: the flat route table of route modules and controller classes, ready for
   `router.Router`. With `module_filters`, each entry is a copy tagged `module_filters` (the second layer of its chain).
 - `kernel.RouteDeclarationError`: a `ConfigurationError`, the one error of a route declaration, at declaration or at boot:
   a type mistake in an argument of `kernel.routes`, a verb or `Controller.route` is `reason = "invalid_argument"`.
-  `context.reason` (`invalid_argument`, `invalid_options`, `unknown_field`, `invalid_method`, `invalid_path`, `invalid_name`,
-  `invalid_text`, `invalid_tags`, `invalid_deprecated`, `invalid_parameters`, `parameter_mismatch`, `invalid_content`,
+  `context.reason` (`invalid_argument`, `invalid_options`, `unknown_field`, `invalid_method`, `invalid_path`, `missing_name`, `invalid_name`,
+  `invalid_text`, `invalid_tags`, `invalid_deprecated`, `invalid_parameters`, `parameter_mismatch`, `invalid_content`, `invalid_content_optional`,
   `invalid_responses`, `invalid_security`, `invalid_filters`, `invalid_action`, `missing_action`, `invalid_controller`,
   `invalid_routes`, `invalid_source`, `incomplete_route`, `missing_container`, `unsupported_content_type`; the list is
   on the class), `context.origin`, `context.field`. Choices: OQ-113.
@@ -279,3 +278,5 @@ tests/unit/  tests/integration/  tests/fixtures/  tests/helpers/
 ```
 
 Benchmark: the repository scenario `benchmarks/scenarios/kernel-json`. Tested example: `examples/hello`.
+
+- `openapi` (Application option, OQ-134): `{ info, servers?, tags?, external_docs?, path?, name?, enabled?, pretty? }` serves the OpenAPI 3.1 document of the routes (`hecate.openapi`) with `GET /openapi.json`. The document is built from the application routes at the first request and kept; the serving route is not in it. Without the option nothing is served; with it, `enabled` defaults to true in the `development` environment of the configuration and false otherwise (no configuration: false). `Application.entries` holds the route entries after `boot`. `Application:contract(pretty?)` returns that document as canonical JSON text for a booted application, served or not (the hook of `hecate contract export`); it raises `ModuleError` with `not_booted` before `boot` and `no_contract` without the option.

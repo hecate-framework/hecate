@@ -60,6 +60,9 @@ read the matching page of the [explanation](../explanation/index.md) section.
 - [Use the container](use-the-container.md): bind services, choose lifetimes, validate the graph at boot,
   resolve by constructor injection, close services and replace them in tests.
 
+- [Serve and export the contract](serve-and-export-the-contract.md): the `openapi` option, the served document, export
+  as JSON, lint and breaking-change diff.
+
 ## Performance
 
 - [Measure performance](measure-performance.md): run the TCP echo benchmark, read its figures and

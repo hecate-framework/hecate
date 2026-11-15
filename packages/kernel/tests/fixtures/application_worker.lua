@@ -7,7 +7,7 @@ local kernel = require("hecate.kernel")
 local log = require("hecate.log")
 
 local routes = kernel.routes("whoami")
-routes:get("/whoami", { action = function() return { pid = uv.os_getpid() } end })
+routes:get("/whoami", { name = "get_whoami", action = function() return { pid = uv.os_getpid() } end })
 
 local app = kernel.Application({
   routes = { routes }, workers = 2, strategy = "round_robin", grace_timeout = 5,

@@ -52,6 +52,7 @@ local cors = {
 -- The filters of a route module are the default filters of its routes.
 local accounts = hecate.routes("accounts", { filters = { authenticate } })
 accounts:get("/me", {
+  name = "account.me",
   ---@param request app.Request
   action = function(request) return { user = request.principal } end,
 })

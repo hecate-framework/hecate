@@ -22,7 +22,7 @@ end
 
 function T:test_a_matched_route_serves_a_value_as_json_with_the_path_parameters()
   local serve = serve_with(function(m)
-    m:get("/users/{id}", { parameters = { path = { id = schema.string() } },
+    m:get("/users/{id}", { name = "get_users_id", parameters = { path = { id = schema.string() } },
       action = function(r) return { id = r.parameters.path.id } end })
   end)
   local response = serve(request("GET", "/users/42"))
@@ -31,7 +31,7 @@ function T:test_a_matched_route_serves_a_value_as_json_with_the_path_parameters(
 end
 
 function T:test_routing_failures_are_problem_responses()
-  local serve = serve_with(function(m) m:get("/a", { action = function() return nil end }) end)
+  local serve = serve_with(function(m) m:get("/a", { name = "get_a", action = function() return nil end }) end)
   self:assert_equal(404, serve(request("GET", "/nope")).status)
   local not_allowed = serve(request("POST", "/a"))
   self:assert_equal(405, not_allowed.status)
@@ -52,7 +52,7 @@ function T:test_filters_run_global_first_then_the_route_and_wrap_the_action()
     end }
   end
   local serve = serve_with(function(m)
-    m:get("/x", { filters = { filter("route") }, action = function() trace[#trace + 1] = "action" end })
+    m:get("/x", { name = "get_x", filters = { filter("route") }, action = function() trace[#trace + 1] = "action" end })
   end, { filters = { filter("global") } })
   serve(request("GET", "/x"))
   self:assert_equal("global> route> action <route <global", table.concat(trace, " "))
@@ -70,7 +70,7 @@ end
 
 function T:test_global_filters_also_see_the_routing_answers()
   local trace = {}
-  local serve = serve_with(function(m) m:get("/a", { action = function() return nil end }) end,
+  local serve = serve_with(function(m) m:get("/a", { name = "get_a", action = function() return nil end }) end,
     { filters = { recording(trace, "global") } })
   self:assert_equal(404, serve(request("GET", "/nope")).status)
   self:assert_equal(405, serve(request("POST", "/a")).status)
@@ -86,7 +86,7 @@ function T:test_a_global_filter_sees_no_matched_route_before_the_action()
     seen[#seen + 1] = empty and "empty" or "filled"
     return next(req)
   end }
-  local serve = serve_with(function(m) m:get("/a/{id}", { parameters = { path = { id = schema.string() } },
+  local serve = serve_with(function(m) m:get("/a/{id}", { name = "get_a_id", parameters = { path = { id = schema.string() } },
     action = function() return nil end }) end, { filters = { filter } })
   self:assert_equal(404, serve(request("GET", "/nope")).status)
   self:assert_equal("empty", seen[1])
@@ -94,7 +94,7 @@ end
 
 function T:test_an_error_in_an_action_flows_back_through_the_global_filters_as_a_problem()
   local trace = {}
-  local serve = serve_with(function(m) m:get("/boom", { action = function() error("secret") end }) end,
+  local serve = serve_with(function(m) m:get("/boom", { name = "get_boom", action = function() error("secret") end }) end,
     { filters = { recording(trace, "global") } })
   local response = serve(request("GET", "/boom"))
   self:assert_equal(500, response.status)
@@ -103,7 +103,7 @@ end
 
 function T:test_an_error_in_a_global_filter_is_still_a_500_problem()
   local failing = { handle = function() error("secret") end }
-  local serve = serve_with(function(m) m:get("/a", { action = function() return nil end }) end,
+  local serve = serve_with(function(m) m:get("/a", { name = "get_a", action = function() return nil end }) end,
     { filters = { failing } })
   local response = serve(request("GET", "/a"))
   self:assert_equal(500, response.status)
@@ -118,7 +118,7 @@ function T:test_the_layers_run_global_module_controller_route()
   local Things = core.class("LayeredController", kernel.Controller)
   Things.prefix = "/c"
   Things.filters = { filter("controller") }
-  kernel.Controller.route(Things, { method = "GET", path = "/", filters = { filter("route") }, action = "list" })
+  kernel.Controller.route(Things, { method = "GET", path = "/", name = "get_root", filters = { filter("route") }, action = "list" })
   function Things:list() return nil end
   core.finalise(Things)
   local serve = dispatcher.build(kernel.routing.collect({ Things }, { filter("module") }), { filters = { filter("global") } })
@@ -128,7 +128,7 @@ end
 
 function T:test_an_error_in_an_action_becomes_a_500_problem_and_is_logged()
   local logged = {}
-  local serve = serve_with(function(m) m:get("/boom", { action = function() error("secret") end }) end,
+  local serve = serve_with(function(m) m:get("/boom", { name = "get_boom", action = function() error("secret") end }) end,
     { logger = { log = function(_, severity, message) logged[#logged + 1] = severity .. ": " .. message end } })
   local response = serve(request("GET", "/boom"))
   self:assert_equal(500, response.status)
@@ -143,7 +143,7 @@ function T:test_a_controller_gets_its_dependencies_from_the_request_services()
   local Hello = core.class("HelloController", kernel.Controller)
   Hello.prefix = "/hello"
   Hello.dependencies = { greeter = "greeter" }
-  kernel.Controller.route(Hello, { method = "GET", path = "/", action = "say" })
+  kernel.Controller.route(Hello, { method = "GET", path = "/", name = "get_root", action = "say" })
   function Hello:say() return { text = self.greeter:greet() } end
   core.finalise(Hello)
   local c = container.Container():bind("greeter", Greeter, { lifetime = "scoped" }):validate()
@@ -159,7 +159,7 @@ function T:test_request_services_is_the_service_scope_and_leaves_the_reactor_sco
   local c = container.Container():bind("greeter", Greeter, { lifetime = "scoped" }):validate()
   local seen
   local serve = serve_with(function(m)
-    m:get("/s", { action = function(r)
+    m:get("/s", { name = "get_s", action = function(r)
       seen = { services = r.services, reactor_scope = r.scope, first = r.services:resolve("greeter"),
         second = r.services:resolve("greeter") }
     end })
@@ -191,7 +191,7 @@ end
 function T:test_the_service_scope_ends_when_serve_returns_a_response_without_a_writer()
   local log = {}
   local serve = serve_with(function(m)
-    m:get("/s", { action = function(r) r.services:resolve("session"); log[#log + 1] = "action"; return { ok = true } end })
+    m:get("/s", { name = "get_s", action = function(r) r.services:resolve("session"); log[#log + 1] = "action"; return { ok = true } end })
   end, { container = closable_session(log) })
   self:assert_equal(200, serve(request("GET", "/s")).status)
   self:assert_equal("action,closed", table.concat(log, ","))
@@ -200,7 +200,7 @@ end
 function T:test_a_writer_uses_the_scoped_services_of_its_request_and_finish_closes_them()
   local log = {}
   local module = kernel.routes("t")
-  module:get("/stream", { action = function(r)
+  module:get("/stream", { name = "get_stream", action = function(r)
     local session = r.services:resolve("session")
     return http.Response(200, { content = function(write)
       log[#log + 1] = session.open and "open while writing" or "closed while writing"
@@ -222,8 +222,8 @@ function T:test_a_request_with_a_reactor_scope_keeps_its_service_scope_until_fin
   -- response is written and every computation of the request has ended.
   local log = {}
   local module = kernel.routes("t")
-  module:get("/s", { action = function(r) r.services:resolve("session"); return { ok = true } end })
-  module:get("/fail", { action = function(r) r.services:resolve("session"); error("boom") end })
+  module:get("/s", { name = "get_s", action = function(r) r.services:resolve("session"); return { ok = true } end })
+  module:get("/fail", { name = "get_fail", action = function(r) r.services:resolve("session"); error("boom") end })
   local serve, _, finish = dispatcher.build(module:routes(), { container = closable_session(log) })
   for index, path in ipairs({ "/s", "/fail" }) do
     local req = request("GET", path)
@@ -239,7 +239,7 @@ function T:test_finish_closes_the_service_scope_of_a_cancelled_request_under_a_s
   local reactor = require("hecate.reactor")
   local log = {}
   local module = kernel.routes("t")
-  module:get("/s", { action = function(r) r.services:resolve("session"); return { ok = true } end })
+  module:get("/s", { name = "get_s", action = function(r) r.services:resolve("session"); return { ok = true } end })
   -- A `__close` that suspends: in a cancelled computation it completes only under a shield.
   local serve, _, finish = dispatcher.build(module:routes(), {
     container = closable_session(log, function() reactor.sleep(0.01) end),
@@ -265,7 +265,7 @@ function T:test_the_dependencies_of_a_controller_are_resolved_in_sorted_key_orde
   end
   local Hello = core.class("OrderedController", kernel.Controller)
   Hello.dependencies = { zeta = "z", alpha = "a", mid = "m" }
-  kernel.Controller.route(Hello, { method = "GET", path = "/", action = "say" })
+  kernel.Controller.route(Hello, { method = "GET", path = "/", name = "get_root", action = "say" })
   function Hello:say() return nil end
   core.finalise(Hello)
   local c = container.Container():bind("z", service("z"), { lifetime = "transient" })
@@ -281,7 +281,7 @@ end
 function T:test_a_controller_with_dependencies_and_no_container_is_refused_at_build()
   local Hello = core.class("HelloController2", kernel.Controller)
   Hello.dependencies = { greeter = "greeter" }
-  kernel.Controller.route(Hello, { method = "GET", path = "/h", action = "say" })
+  kernel.Controller.route(Hello, { method = "GET", path = "/h", name = "get_h", action = "say" })
   function Hello:say() return nil end
   core.finalise(Hello)
   local err = self:assert_error(function() dispatcher.build(kernel.routing.collect({ Hello })) end)
@@ -292,7 +292,7 @@ end
 local function controller_with(name, dependencies)
   local class = core.class(name, kernel.Controller)
   class.dependencies = dependencies
-  kernel.Controller.route(class, { method = "GET", path = "/" .. name, action = "say" })
+  kernel.Controller.route(class, { method = "GET", path = "/" .. name, name = name, action = "say" })
   function class:say() return nil end
   return core.finalise(class)
 end
@@ -325,7 +325,7 @@ function T:test_validate_responses_turns_a_nonconforming_result_into_a_logged_50
   local options = { validate_responses = true,
     logger = { log = function(_, severity, message) logged[#logged + 1] = severity .. ": " .. message end } }
   local serve = serve_with(function(m)
-    m:get("/bad", { responses = { [200] = schema.object({ id = schema.integer() }) },
+    m:get("/bad", { name = "get_bad", responses = { [200] = schema.object({ id = schema.integer() }) },
       action = function() return { id = "not-an-integer" } end })
   end, options)
   local response = serve(request("GET", "/bad"))
@@ -336,7 +336,7 @@ end
 
 function T:test_responses_are_not_validated_by_default()
   local serve = serve_with(function(m)
-    m:get("/bad", { responses = { [200] = schema.object({ id = schema.integer() }) },
+    m:get("/bad", { name = "get_bad", responses = { [200] = schema.object({ id = schema.integer() }) },
       action = function() return { id = "x" } end })
   end)
   self:assert_equal(200, serve(request("GET", "/bad")).status)
@@ -351,10 +351,10 @@ end
 function T:test_the_fields_of_a_problem_returned_or_raised_by_an_action_reach_the_response()
   local problem = require("hecate.kernel.problem")
   local serve = serve_with(function(m)
-    m:get("/returned", { action = function()
+    m:get("/returned", { name = "get_returned", action = function()
       return problem.Unauthorized({ fields = { ["WWW-Authenticate"] = 'Bearer realm="api"' } })
     end })
-    m:get("/raised", { action = function()
+    m:get("/raised", { name = "get_raised", action = function()
       error(problem.ServiceUnavailable({ fields = { ["Retry-After"] = "30" } }))
     end })
   end)
