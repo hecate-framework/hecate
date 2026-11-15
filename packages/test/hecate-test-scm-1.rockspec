@@ -19,6 +19,7 @@ dependencies = {
   "hecate-log",
   "hecate-schema",
   "hecate-http",
+  "hecate-container",
   "hecate-kernel",
   "hecate-openapi",
   "hecate-json",

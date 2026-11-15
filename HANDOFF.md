@@ -3,7 +3,7 @@
 
 - roadmap_item: `test`: test framework, runner, in-process client, fixtures, contract conformance, reporters (TAP, JUnit XML), coverage (Phase 3)
 - status: in-progress
-- last_update: 2026-11-15T15:53:51Z
+- last_update: 2026-11-15T16:09:15Z
 
 ## Done
 
@@ -29,12 +29,13 @@
 
 - Step 10: targeting: runner option `cases`; `hecate.test.selection` (`test.parse_arguments`) parses `--filter`, `--case`, `--tag`, `--exclude-tag`, paths. No command runs it yet (the `cli` package will call it). Tests in `selection_test.lua`.
 
+- Step 11: fixtures: `test.boot(options, overrides)` (`fixture.lua`): wraps `validate` of the container to apply overrides after the modules bound their services. OQ-140 (issue #217) records the new dependency on `hecate.container`; implemented with the conservative default. Tests in `fixture_test.lua`.
+
 ## Next steps
 
-1. Fixtures with container overrides (the client is done, step 9).
-2. Contract conformance report; property-based testing from schema types (OQ-96); coverage (LCOV); parallel workers.
-3. Docs (README, website reference, CHANGELOG), roadmap tick.
-4. **Windows testing phase (owner, by hand on a Windows VM; do not tick the item before the owner reports):** the console reporter in a real Windows terminal (Windows Terminal and `cmd.exe`): colour, live redraw (`live = true`, since the probe never turns it on there), width, the bar and the plain fallback in a pipe; the JSON-lines stream and TAP output with CRLF handling; `hecate.test` discovery paths with backslashes. Record the owner's findings here.
+1. Database fixtures (transactional rollback, after the `sql` package); contract conformance report; property-based testing from schema types (OQ-96); coverage (LCOV); parallel workers.
+2. Docs (README, website reference, CHANGELOG), roadmap tick.
+3. **Windows testing phase (owner, by hand on a Windows VM; do not tick the item before the owner reports):** the console reporter in a real Windows terminal (Windows Terminal and `cmd.exe`): colour, live redraw (`live = true`, since the probe never turns it on there), width, the bar and the plain fallback in a pipe; the JSON-lines stream and TAP output with CRLF handling; `hecate.test` discovery paths with backslashes. Record the owner's findings here.
 
 ## Decisions taken (and where they are recorded)
 

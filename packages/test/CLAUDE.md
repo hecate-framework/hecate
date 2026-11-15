@@ -16,7 +16,7 @@ xUnit test framework running inside the reactor: cases, suites, fixtures, assert
 
 ## Boundaries
 
-- Allowed dependencies: `hecate.core`, `hecate.reactor`, `hecate.log`, `hecate.schema`, `hecate.http`, `hecate.kernel`, `hecate.openapi`, `hecate.json`.
+- Allowed dependencies: `hecate.core`, `hecate.reactor`, `hecate.log`, `hecate.schema`, `hecate.http`, `hecate.container`, `hecate.kernel`, `hecate.openapi`, `hecate.json`.
   Anything else requires an ADR; `check-boundaries` fails otherwise.
 - Native code: none.
 - Out of scope: browser testing.
