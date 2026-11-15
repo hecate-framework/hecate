@@ -3,7 +3,7 @@
 
 - roadmap_item: `test`: test framework, runner, in-process client, fixtures, contract conformance, reporters (TAP, JUnit XML), coverage (Phase 3)
 - status: in-progress
-- last_update: 2026-11-15T16:36:52Z
+- last_update: 2026-11-15T16:50:43Z
 
 ## Done
 
@@ -35,9 +35,11 @@
 
 - Step 13: property runner (`property.lua`): `test.check_property`, `Case:assert_property`; structural shrinking filtered by `schema:validate`. Known limit: integers shrink toward zero, one step at a time near a far bound (`max_shrinks`, default 1000). Tests in `property_test.lua`.
 
+- Step 14: invalid values (`invalid.lua`): `test.generate_invalid`, `Generator:next_invalid`; candidates verified by `schema:validate` (exactly one violation), the expectation is the actual violation. Tests in `invalid_test.lua`. CI of steps 1 to 13 is green on the three platforms.
+
 ## Next steps
 
-1. Database fixtures (transactional rollback, after the `sql` package); contract conformance report; `generate_invalid` (one violated constraint, with the expected violation, OQ-96); `pattern` generation (needs a decision: ECMA subset to strings); coverage (LCOV); parallel workers.
+1. Database fixtures (transactional rollback, after the `sql` package); contract conformance report; `pattern` generation (needs a decision: ECMA subset to strings); coverage (LCOV); parallel workers.
 2. Docs (README, website reference, CHANGELOG), roadmap tick.
 3. **Windows testing phase (owner, by hand on a Windows VM; do not tick the item before the owner reports):** the console reporter in a real Windows terminal (Windows Terminal and `cmd.exe`): colour, live redraw (`live = true`, since the probe never turns it on there), width, the bar and the plain fallback in a pipe; the JSON-lines stream and TAP output with CRLF handling; `hecate.test` discovery paths with backslashes. Record the owner's findings here.
 

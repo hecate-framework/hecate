@@ -241,6 +241,7 @@ function Generator:init(schema, seed)
   if seed ~= nil and math.type(seed) ~= "integer" then
     error(core.ArgumentError("test.Generator: the seed must be an integer"), 3)
   end
+  self._schema = schema
   self._document = schema:to_json_schema()
   self._rng = { state = seed or 0 }
 end
@@ -259,10 +260,35 @@ function Generator:next()
   return value
 end
 
+--- Returns the next invalid value of the sequence: a valid value broken in exactly one place, and the violation
+--- `schema:validate` reports for it (`path`, a JSON Pointer, and `code`).
+---
+--- Raises `hecate.core.ArgumentError` for a schema that cannot be generated, or has no invalid value (it accepts
+--- every value) or none the generator can build with one violation.
+---@return any value
+---@return { path: string, code: string } expected
+function Generator:next_invalid()
+  local valid = self:next()
+  local ok, value, expected = pcall(require("hecate.test.invalid").break_value, self._schema, self._document, valid,
+    between, self._rng)
+  if not ok then
+    if core.is_instance_of(value, core.ArgumentError) then error(value, 2) end
+    error(value, 0)
+  end
+  return value, expected
+end
+
+--- The first invalid value of the sequence of `seed`: `Generator(schema, seed):next_invalid()`.
+---@param schema hecate.schema.Schema
+---@param seed? integer  default 0
+---@return any value
+---@return { path: string, code: string } expected
+local function generate_invalid(schema, seed) return Generator(schema, seed):next_invalid() end
+
 --- The first value of the sequence of `seed`: `Generator(schema, seed):next()`.
 ---@param schema hecate.schema.Schema
 ---@param seed? integer  default 0
 ---@return any value
 local function generate_one(schema, seed) return Generator(schema, seed):next() end
 
-return { Generator = core.finalise(Generator), generate = generate_one }
+return { Generator = core.finalise(Generator), generate = generate_one, generate_invalid = generate_invalid }
