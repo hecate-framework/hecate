@@ -3,7 +3,7 @@
 
 - roadmap_item: `test`: test framework, runner, in-process client, fixtures, contract conformance, reporters (TAP, JUnit XML), coverage (Phase 3)
 - status: in-progress
-- last_update: 2026-11-15T17:32:45Z
+- last_update: 2026-11-15T21:25:48Z
 
 ## Done
 
@@ -45,7 +45,7 @@
 
 1. Database fixtures (transactional rollback, after the `sql` package); `pattern` generation (needs a decision: ECMA subset to strings); coverage (LCOV); parallel workers.
 2. Docs: the how-to page is written (English); remaining: the generated reference (`gen-reference` covers it once the package is in the catalogue), the French translation (`translator-fr`, Phase 3 `check-translations`), and a final read once the rest lands; then the roadmap tick.
-3. **Windows testing phase (owner, by hand on a Windows VM; do not tick the item before the owner reports):** the console reporter in a real Windows terminal (Windows Terminal and `cmd.exe`): colour, live redraw (`live = true`, since the probe never turns it on there), width, the bar and the plain fallback in a pipe; the JSON-lines stream and TAP output with CRLF handling; `hecate.test` discovery paths with backslashes. Record the owner's findings here.
+3. **Windows testing phase (owner, by hand on a Windows VM; do not tick the item before the owner reports):** the console reporter in a real Windows terminal (Windows Terminal and `cmd.exe`): colour, live redraw (`live = true`, since the probe never turns it on there), width, the bar and the plain fallback in a pipe; the JSON-lines stream and TAP output with CRLF handling; `hecate.test` discovery paths with backslashes. Record the owner's findings here. The material and the procedure are in `packages/test/manual/` (`README.md`, `run.lua`, `demo/`).
 
 ## Decisions taken (and where they are recorded)
 

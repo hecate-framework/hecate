@@ -123,3 +123,7 @@ src/hecate/test/init.lua   public entry point
 tests/unit/  tests/integration/  tests/fixtures/
 examples/    benchmarks/
 ```
+
+## Manual checks
+
+`manual/` holds a demo suite and a runner script (`lua packages/test/manual/run.lua [console|tap|junit|json]`) to look at the reporters on a real terminal. `manual/README.md` is the procedure for a fresh Windows machine.
