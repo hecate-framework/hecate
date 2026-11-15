@@ -439,6 +439,10 @@ Exit: `examples/crud` works unchanged on PostgreSQL, MySQL, MariaDB and SQLite.
       restructuring of OQ-70 (a client that disconnects during an action) is separate work, not needed by upgrades.
 - [ ] HTTP/2.
 - [ ] Further NoSQL drivers by demand (e.g. Cassandra/ScyllaDB CQL).
+- [ ] `openapi`, `cli`: YAML output of the contract (OQ-137, owner decision of 2026-11-15), by demand: `hecate contract
+      export --format yaml`, produced by a YAML library (a rock, never an emitter of our own). First a `Proposed` ADR for
+      the dependency (licence, maintenance, Lua 5.5 support, handling of integers and floats, key ordering, quoting of
+      strings such as `yes` or `1e3`); the owner accepts it. Deterministic output as for JSON, golden-file tests.
 
 - [ ] `schema`: a decimal type for exact decimal numbers such as money, with a limit on decimal places (OQ-87: `multiple_of` takes integer divisors only; until then integers in minor units, or a string with a pattern).
 
