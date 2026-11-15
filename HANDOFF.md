@@ -3,7 +3,7 @@
 
 - roadmap_item: `test`: test framework, runner, in-process client, fixtures, contract conformance, reporters (TAP, JUnit XML), coverage (Phase 3)
 - status: in-progress
-- last_update: 2026-11-15T16:09:15Z
+- last_update: 2026-11-15T16:23:56Z
 
 ## Done
 
@@ -31,9 +31,11 @@
 
 - Step 11: fixtures: `test.boot(options, overrides)` (`fixture.lua`): wraps `validate` of the container to apply overrides after the modules bound their services. The dependency of `test` on `hecate.container` was planned by `container.md` and `testing.md` (no open question). Tests in `fixture_test.lua`.
 
+- Step 12: generators (`generate.lua`): `test.generate`, `test.Generator`, from `to_json_schema()`, SplitMix64 seed. Tests in `generate_test.lua` (30 schemas x 60 seeds validated by `schema:validate`; recursion through `schema.of`).
+
 ## Next steps
 
-1. Database fixtures (transactional rollback, after the `sql` package); contract conformance report; property-based testing from schema types (OQ-96); coverage (LCOV); parallel workers.
+1. Database fixtures (transactional rollback, after the `sql` package); contract conformance report; `generate_invalid` (one violated constraint, with the expected violation) and a property runner with shrinking (OQ-96); `pattern` generation (needs a decision: ECMA subset to strings); coverage (LCOV); parallel workers.
 2. Docs (README, website reference, CHANGELOG), roadmap tick.
 3. **Windows testing phase (owner, by hand on a Windows VM; do not tick the item before the owner reports):** the console reporter in a real Windows terminal (Windows Terminal and `cmd.exe`): colour, live redraw (`live = true`, since the probe never turns it on there), width, the bar and the plain fallback in a pipe; the JSON-lines stream and TAP output with CRLF handling; `hecate.test` discovery paths with backslashes. Record the owner's findings here.
 
