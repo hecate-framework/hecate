@@ -11,6 +11,8 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- docs(openapi): the generated reference of `hecate.openapi` is listed in the reference index, git-ignored and checked by the website workflow; `ModuleError` documents the reasons `not_booted` and `no_contract`.
+
 - test(kernel): `contract_lifecycle_test.lua`, the route table of an application through `Application:contract`, `openapi.lint` and `openapi.diff` (no lint error, stable export, added route not breaking, removed route breaking).
 
 - docs(openapi): how-to page "Serve and export the contract" (the `openapi` option, `Application:contract`, lint, diff).
