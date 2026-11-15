@@ -11,14 +11,16 @@ local discovery = require("hecate.test.discovery")
 ---@field AssertionFailure hecate.test.AssertionFailure  raised by a failed assertion
 ---@field LoadError hecate.test.LoadError  raised when a test file cannot be loaded
 ---@field Runner hecate.test.Runner  executes cases, each test in its own reactor scope
----@field ConsoleReporter hecate.test.ConsoleReporter  line-oriented reporter for people
+---@field ConsoleReporter hecate.test.ConsoleReporter  one line per suite with a loading bar, for people
 ---@field TapReporter hecate.test.TapReporter  TAP 14 reporter
+---@field JsonLinesReporter hecate.test.JsonLinesReporter  event stream, one JSON object per line, for IDE adapters
 local test = {
   AssertionFailure = failure.AssertionFailure,
   LoadError = discovery.LoadError,
   Runner = require("hecate.test.runner"),
   ConsoleReporter = require("hecate.test.reporters.console"),
   TapReporter = require("hecate.test.reporters.tap"),
+  JsonLinesReporter = require("hecate.test.reporters.json_lines"),
 }
 
 test.Case = case_module.Case

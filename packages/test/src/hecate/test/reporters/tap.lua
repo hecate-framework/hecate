@@ -16,12 +16,6 @@ function TapReporter:init(write)
   self._count = 0
 end
 
---- Writes the version line and the plan.
----@param plan { total: integer }
-function TapReporter:start(plan)
-  self._write("TAP version 14\n1.." .. plan.total .. "\n")
-end
-
 -- A YAML double-quoted scalar (YAML 1.2, section 7.3.1).
 local function quoted(text)
   return '"' .. text:gsub('[%c"\\]', function(c)
@@ -33,9 +27,8 @@ end
 -- A test name goes on the point line: `#` and `\` are escaped (TAP 14, "Test Points").
 local function describe(name) return (name:gsub("[\\#]", "\\%0")) end
 
---- Writes the point of one result.
----@param result hecate.test.Result
-function TapReporter:report(result)
+-- Writes the point of one result.
+function TapReporter:_point(result)
   self._count = self._count + 1
   local ok = result.status == "passed"
   self._write(("%s %d - %s\n"):format(ok and "ok" or "not ok", self._count, describe(result.name)))
@@ -51,8 +44,15 @@ function TapReporter:report(result)
   self._write(table.concat(lines, "\n") .. "\n")
 end
 
---- Writes nothing: the plan was announced at the start.
----@param summary hecate.test.Summary
-function TapReporter:finish(summary) end -- luacheck: ignore
+--- Handles one event of the run: the version line and the plan at `run_started` (the plan comes
+--- first, as TAP 14 allows), one point per `test_finished`; other events write nothing.
+---@param event hecate.test.Event
+function TapReporter:handle(event)
+  if event.type == "run_started" then
+    self._write("TAP version 14\n1.." .. event.total .. "\n")
+  elseif event.type == "test_finished" then
+    self:_point(event.result)
+  end
+end
 
 return core.finalise(TapReporter)

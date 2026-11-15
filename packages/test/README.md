@@ -8,7 +8,7 @@
 | Rock | `hecate-test` |
 | Layer | Tooling |
 | Roadmap phase | 3 |
-| Status | alpha (step 1 of the roadmap item) — `Case` with the bootstrap assertions plus deep equality with a structural diff, `assert_near`, `assert_match`, `assert_error` (class and code), `assert_shape`; `Runner` (each test in its own reactor, scope and leak detection, containment of every failure, name filter); discovery of `*_test.lua`; console and TAP 14 reporters. Not yet: parametrisation, tags, JUnit XML and JSON reporters, fake clock, in-process client, fixtures, contract conformance, property-based testing, coverage, parallel workers |
+| Status | alpha (steps 1 and 2 of the roadmap item) — `Case` with the bootstrap assertions plus deep equality with a structural diff, `assert_near`, `assert_match`, `assert_error` (class and code), `assert_shape`, and a count of the assertions of each test; `Runner` (each test in its own reactor, scope and leak detection, containment of every failure, name filter) emitting an event stream; discovery of `*_test.lua`; reporters: console (one line per suite with a loading bar, colour, live redraw on a terminal), TAP 14 and JSON lines for IDE adapters. Not yet: parametrisation, tags, JUnit XML, fake clock, in-process client, fixtures, contract conformance, property-based testing, coverage, parallel workers |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |
 | Depends on | [`core`](../core), [`reactor`](../reactor), [`log`](../log), [`schema`](../schema), [`kernel`](../kernel), [`openapi`](../openapi), [`json`](../json) |
 | Used by | `cli` |
@@ -57,10 +57,57 @@ local test = require("hecate.test")
 | `self:assert_shape(shape, value, message?)` | Shape of a table: predicates, nested shapes and literals. `test.of_type(name)` builds a type predicate. |
 | `self:fail(message?)` | Fails unconditionally. |
 | `test.AssertionFailure` | Error class (`hecate.test.AssertionFailure`) raised by a failed assertion; `context` has `location`, `expected`, `actual`, `differences`. |
-| `test.Runner(options?)` | `plan(cases)` and `run(cases)`; options `reporter`, `filter` (pattern on `Case.test_name`). Returns a `Summary` (`total`, `passed`, `failed`, `errored`, `ok`, `results`). Each test runs in a new `Reactor` and scope; a test that leaves coroutines running fails and they are cancelled. |
-| `test.ConsoleReporter(write?)`, `test.TapReporter(write?)` | Reporters (TAP version 14 with YAML diagnostics). |
+| `test.Runner(options?)` | `plan(cases)` and `run(cases)`; options `reporter`, `filter` (pattern on `Case.test_name`). Returns a `Summary` (`total`, `passed`, `failed`, `errored`, `assertions`, `ok`, `exit_code`, `results`, `suites`). Each test runs in a new `Reactor` and scope; a test that leaves coroutines running fails and they are cancelled. A suite is a test script: the file a case was loaded from by `test.load`, else the name of the case. |
+| `Reporter:handle(event)` | The reporter interface: one method receiving the events of the run (see "Event stream"). |
+| `test.ConsoleReporter(options?)` | One line per suite with a loading bar; options `write`, `color`, `live`, `width`, `bar_width`, `is_tty`, `getenv` (see "Console output"). |
+| `test.TapReporter(write?)` | TAP version 14 with YAML diagnostics; the plan comes first. |
+| `test.JsonLinesReporter(write?)` | The event stream as JSON lines, for IDE adapters (see "Event stream"). |
 | `test.discover(directory)` | `---@async`. Sorted paths of `*_test.lua` under a directory. |
 | `test.load(path)` | Loads a test file and returns its case; raises `test.LoadError`. |
+
+## Console output
+
+```text
+Running 8 test(s)
+PASS	tests/unit/alpha_test.lua (6 assertions, 0 failed, 0 errored) [...]
+FAIL	tests/unit/beta_test.lua (4 assertions, 1 failed, 1 errored) [.FF.]
+```
+
+- One line per suite; dots stand for tests, assertions are counted in the line. `failed` and `errored`
+  count tests (an assertion did not hold, or anything else was raised).
+- The bar has at most 40 cells (`bar_width`) and never makes the line wider than the terminal
+  (`width`, else `COLUMNS`, else 80); beyond that cells stand for several tests in proportion, and a cell
+  is red when any test it stands for failed or errored. A long suite name keeps its tail.
+- On a terminal the line of the running suite is redrawn in place (orange `TEST`, becoming `PASS` or
+  `FAIL`). Anywhere else (pipes, CI, IDE consoles) each suite line is written once, completed, with no cursor control.
+- Colour: `color` option, else `NO_COLOR` (off), `FORCE_COLOR` (on), else on for a terminal. Without
+  colour a failed cell is drawn `F`. Escape sequences live in one module (`reporters/ansi.lua`).
+- Failures and errors are listed with their details after the last suite.
+- Whether stdout is a terminal is decided in plain Lua (POSIX, `TERM`, `test -t 1`); pass `is_tty`, `live` or
+  `color` to override it (an exact primitive in `reactor` is OQ-138).
+
+## Event stream
+
+The runner delivers `run_started`, `suite_started`, `test_started`, `test_finished`, `suite_finished` and
+`run_finished` events, as they happen, to `Reporter:handle`. The stream is the integration point for tools:
+an IDE adapter, a CI annotator or the future JUnit XML reporter consume it and nothing else. A reporter only
+writes through its `write` function; the framework writes nothing else to stdout.
+
+`JsonLinesReporter` writes one JSON object per line (keys in canonical order, flushed per line, no colour, no
+cursor control), schema version 1. Every object has `type`:
+
+| `type` | Fields |
+|---|---|
+| `run_started` | `version` (1), `total` (tests), `suites` |
+| `suite_started` | `suite` (name), `total` |
+| `test_started` | `suite`, `test` (full name), `index` (1-based in the suite) |
+| `test_finished` | `suite`, `test`, `index`, `case`, `status` (`passed`, `failed`, `errored`), `assertions`, `duration` (seconds), and when present `message`, `location`, `traceback`, `differences` |
+| `suite_finished` | `suite`, `total`, `passed`, `failed`, `errored`, `assertions`, `duration` |
+| `run_finished` | `total`, `passed`, `failed`, `errored`, `assertions`, `ok`, `exit_code`, `duration` |
+
+New fields may be added to the objects without a new version; removing or renaming one raises `version`.
+The last test of a case finishes after its `tear_down_case`, whose failure is reported on it. The exit
+status of a command line runner is `Summary.exit_code` (0, or 1 when a test failed or errored).
 
 Self-hosting: a test file may use `hecate.test` itself; return `core.finalise(Case)` so the bootstrap
 harness can run it until it is deleted (ADR 0008).

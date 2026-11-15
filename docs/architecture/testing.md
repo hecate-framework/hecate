@@ -65,6 +65,27 @@ return RouterTest
   the source; an untested tagged function must be in its justified allowlist.
 - Cross-platform: the whole suite runs on Linux, macOS and Windows.
 
+## Console output and IDE integration
+
+The runner reports a run as a stream of events (`run_started`, `suite_started`, `test_started`,
+`test_finished`, `suite_finished`, `run_finished`) delivered as they happen to a reporter
+(`Reporter:handle`); reporters never read the results after the fact. A *suite* is a test script (the
+file a case is loaded from; a case declared in code is a suite of its own name).
+
+The console reporter writes one line per suite, `PASS`, `FAIL` or `TEST` (in progress) with the number
+of assertions, failed and errored tests, and a loading bar with one cell per test. The bar is capped
+(40 cells) and by the terminal width; beyond that, cells are scaled and a cell is red when any test it stands
+for failed or errored. On a terminal the line is redrawn in place; elsewhere each suite line is written
+once, completed, with no cursor control. Colour honours `NO_COLOR`, `FORCE_COLOR` and terminal detection
+or an explicit option; escape sequences are confined to one module. Details of failures and errors are
+printed after the last suite.
+
+For IDE embedding, the JSON-lines reporter writes the same events as one JSON object per line (documented
+schema, flushed per line, no colour, no cursor control); an adapter reads it, and so will the JUnit XML
+reporter. The TAP reporter announces its plan first and reports on the same events. Reporters write only
+through their `write` function, so standard output carries nothing but the reporter's output, and the exit
+status is `Summary.exit_code`.
+
 ## Bootstrap harness
 
 Before `hecate.test` exists, `tools/harness/` provides `Case`, `assert_*`, discovery and

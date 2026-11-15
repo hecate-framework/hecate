@@ -200,4 +200,22 @@ function Assertions:assert_shape(shape, value, message)
   end
 end
 
-return { Assertions = Assertions, of_type = of_type }
+-- Counting (testing.md, "Console output and IDE integration"): every assertion call, passing or
+-- failing, adds one to the counter the runner installed for the running test. Outside a run there is
+-- no counter and nothing is counted. Tests run one at a time in a process, so one slot is enough;
+-- assertions made by a coroutine the test forked are counted for that test.
+local counter
+
+--- Installs the counter (`{ assertions = integer }`) that receives the assertions of the running
+--- test, or removes it with `nil`. Used by the runner.
+---@param target? { assertions: integer }
+local function count_into(target) counter = target end
+
+for name, method in pairs(Assertions) do
+  Assertions[name] = function(self, ...)
+    if counter then counter.assertions = counter.assertions + 1 end
+    return method(self, ...)
+  end
+end
+
+return { Assertions = Assertions, of_type = of_type, count_into = count_into }

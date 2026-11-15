@@ -184,17 +184,125 @@ function T:test_the_filter_selects_tests_by_full_name()
   self:assert_equal("C.test_alpha", summary.results[1].name)
 end
 
-function T:test_the_reporter_receives_plan_results_and_summary()
+local function recorder()
   local events = {}
-  local reporter = {
-    start = function(_, plan) events[#events + 1] = "start:" .. plan.total end,
-    report = function(_, r) events[#events + 1] = r.name .. ":" .. r.status end,
-    finish = function(_, s) events[#events + 1] = "finish:" .. s.passed end,
-  }
+  return events, { handle = function(_, event) events[#events + 1] = event end }
+end
+
+local function describe(events)
+  local out = {}
+  for i, e in ipairs(events) do
+    local detail = e.test or e.suite or ""
+    if e.type == "test_finished" then detail = e.test .. ":" .. e.result.status end
+    out[i] = e.type .. (detail ~= "" and (" " .. detail) or "")
+  end
+  return out
+end
+
+function T:test_the_reporter_receives_the_events_of_the_run_as_they_happen()
+  local events, reporter = recorder()
   local C = hecate_test.Case("C")
   function C:test_a() end
+  function C:test_b() self:fail("no") end
   run({ C }, { reporter = reporter })
-  self:assert_equal({ "start:1", "C.test_a:passed", "finish:1" }, events)
+  self:assert_equal({
+    "run_started", "suite_started C", "test_started C.test_a", "test_finished C.test_a:passed",
+    "test_started C.test_b", "test_finished C.test_b:failed", "suite_finished C", "run_finished",
+  }, describe(events))
+  self:assert_equal({ total = 2, suites = 1 }, { total = events[1].total, suites = events[1].suites })
+  self:assert_equal(2, events[2].total)
+  self:assert_equal(2, events[#events - 1].summary.total)
+  self:assert_equal(1, events[#events].summary.failed)
+end
+
+function T:test_a_test_is_announced_before_it_runs_and_reported_after()
+  local log = {}
+  local reporter = { handle = function(_, e) if e.type:find("^test_") then log[#log + 1] = e.type end end }
+  local C = hecate_test.Case("C")
+  function C:test_a() log[#log + 1] = "body" end
+  run({ C }, { reporter = reporter })
+  self:assert_equal({ "test_started", "body", "test_finished" }, log)
+end
+
+function T:test_a_test_finishes_as_soon_as_it_has_run_except_the_last_of_a_case_that_waits_for_tear_down_case()
+  local log = {}
+  local reporter = { handle = function(_, e) if e.type == "test_finished" then log[#log + 1] = e.test end end }
+  local C = hecate_test.Case("C")
+  function C:tear_down_case() log[#log + 1] = "tear_down_case" end
+  function C:test_a() log[#log + 1] = "a" end
+  function C:test_b() log[#log + 1] = "b" end
+  run({ C }, { reporter = reporter })
+  self:assert_equal({ "a", "C.test_a", "b", "tear_down_case", "C.test_b" }, log)
+end
+
+function T:test_the_suite_is_the_case_by_default_and_groups_the_events_of_its_tests()
+  local events, reporter = recorder()
+  local A, B = hecate_test.Case("A"), hecate_test.Case("B")
+  function A:test_1() end
+  function A:test_2() end
+  function B:test_1() self:fail("no") end
+  local summary = run({ A, B }, { reporter = reporter })
+  self:assert_equal({ "A", "B" }, { summary.suites[1].name, summary.suites[2].name })
+  self:assert_equal({ 2, 0, 1 }, { summary.suites[1].total, summary.suites[1].failed, summary.suites[2].failed })
+  self:assert_equal("B", summary.results[3].suite)
+  self:assert_equal(2, events[1].suites)
+end
+
+function T:test_a_loaded_case_is_a_suite_named_after_its_file()
+  local fixtures = (debug.getinfo(1, "S").source:sub(2):gsub("\\", "/"):match("^(.*)/[^/]*$") or ".") .. "/../fixtures/discovery"
+  local case = hecate_test.load(fixtures .. "/a_test.lua")
+  local summary = run({ case })
+  self:assert_equal(fixtures .. "/a_test.lua", summary.suites[1].name)
+end
+
+function T:test_assertions_are_counted_per_test_whether_they_pass_or_fail()
+  local C = hecate_test.Case("C")
+  function C:test_a_three() self:assert_true(true); self:assert_equal(1, 1); self:assert_nil(nil) end
+  function C:test_b_fails_on_the_second() self:assert_true(true); self:assert_equal(1, 2); self:assert_true(true) end
+  function C:test_c_none() end
+  function C:test_d_nested() self:assert_error(function() error("x") end) end
+  local summary = run({ C })
+  self:assert_equal({ 3, 2, 0, 1 }, {
+    summary.results[1].assertions, summary.results[2].assertions, summary.results[3].assertions,
+    summary.results[4].assertions })
+  self:assert_equal(6, summary.assertions)
+  self:assert_equal(6, summary.suites[1].assertions)
+end
+
+function T:test_assertions_of_set_up_and_tear_down_count_for_the_test_but_those_of_the_case_hooks_do_not()
+  local C = hecate_test.Case("C")
+  function C:set_up_case() self:assert_true(true) end
+  function C:set_up() self:assert_true(true) end
+  function C:tear_down() self:assert_true(true) end
+  function C:tear_down_case() self:assert_true(true) end
+  function C:test_a() self:assert_true(true) end
+  self:assert_equal(3, run({ C }).results[1].assertions)
+end
+
+function T:test_assertions_made_outside_a_run_are_not_counted_into_the_next_test()
+  local C = hecate_test.Case("C")
+  function C:test_a() end
+  require("hecate.test.case").Base.assert_true({}, true) -- a call outside any run
+  self:assert_equal(0, run({ C }).results[1].assertions)
+end
+
+function T:test_the_exit_code_is_zero_when_every_test_passed_and_one_otherwise()
+  local C = hecate_test.Case("C")
+  function C:test_a() end
+  self:assert_equal(0, run({ C }).exit_code)
+  local D = hecate_test.Case("D")
+  function D:test_a() error("x", 0) end
+  local summary = run({ D })
+  self:assert_equal(1, summary.exit_code)
+  self:assert_false(summary.ok)
+end
+
+function T:test_a_run_without_tests_emits_only_the_run_events()
+  local events, reporter = recorder()
+  local C = hecate_test.Case("C")
+  function C:test_a() end
+  run({ C }, { reporter = reporter, filter = "nothing" })
+  self:assert_equal({ "run_started", "run_finished" }, describe(events))
 end
 
 function T:test_running_something_that_is_not_a_case_raises()

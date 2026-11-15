@@ -1,0 +1,24 @@
+{"suites":3,"total":8,"type":"run_started","version":1}
+{"suite":"tests/unit/alpha_test.lua","total":3,"type":"suite_started"}
+{"index":1,"suite":"tests/unit/alpha_test.lua","test":"Alpha.test_a","type":"test_started"}
+{"assertions":2,"case":"C","duration":0,"index":1,"status":"passed","suite":"tests/unit/alpha_test.lua","test":"Alpha.test_a","type":"test_finished"}
+{"index":2,"suite":"tests/unit/alpha_test.lua","test":"Alpha.test_b","type":"test_started"}
+{"assertions":1,"case":"C","duration":0,"index":2,"status":"passed","suite":"tests/unit/alpha_test.lua","test":"Alpha.test_b","type":"test_finished"}
+{"index":3,"suite":"tests/unit/alpha_test.lua","test":"Alpha.test_c","type":"test_started"}
+{"assertions":3,"case":"C","duration":0,"index":3,"status":"passed","suite":"tests/unit/alpha_test.lua","test":"Alpha.test_c","type":"test_finished"}
+{"assertions":6,"duration":0,"errored":0,"failed":0,"passed":3,"suite":"tests/unit/alpha_test.lua","total":3,"type":"suite_finished"}
+{"suite":"tests/unit/beta_test.lua","total":4,"type":"suite_started"}
+{"index":1,"suite":"tests/unit/beta_test.lua","test":"Beta.test_a","type":"test_started"}
+{"assertions":1,"case":"C","duration":0,"index":1,"status":"passed","suite":"tests/unit/beta_test.lua","test":"Beta.test_a","type":"test_finished"}
+{"index":2,"suite":"tests/unit/beta_test.lua","test":"Beta.test_b_fails","type":"test_started"}
+{"assertions":2,"case":"Beta","differences":[".b[1]: expected 2, got 3"],"duration":0,"index":2,"location":"tests/unit/beta_test.lua:12","message":"tables differ:\n  .b[1]: expected 2, got 3","status":"failed","suite":"tests/unit/beta_test.lua","test":"Beta.test_b_fails","type":"test_finished"}
+{"index":3,"suite":"tests/unit/beta_test.lua","test":"Beta.test_c_errors #1","type":"test_started"}
+{"assertions":0,"case":"Beta","duration":0,"index":3,"message":"hecate.core.StateError: bad \"state\"","status":"errored","suite":"tests/unit/beta_test.lua","test":"Beta.test_c_errors #1","type":"test_finished"}
+{"index":4,"suite":"tests/unit/beta_test.lua","test":"Beta.test_d","type":"test_started"}
+{"assertions":1,"case":"C","duration":0,"index":4,"status":"passed","suite":"tests/unit/beta_test.lua","test":"Beta.test_d","type":"test_finished"}
+{"assertions":4,"duration":0,"errored":1,"failed":1,"passed":2,"suite":"tests/unit/beta_test.lua","total":4,"type":"suite_finished"}
+{"suite":"tests/unit/gamma_test.lua","total":1,"type":"suite_started"}
+{"index":1,"suite":"tests/unit/gamma_test.lua","test":"Gamma.test_a","type":"test_started"}
+{"assertions":1,"case":"C","duration":0,"index":1,"status":"passed","suite":"tests/unit/gamma_test.lua","test":"Gamma.test_a","type":"test_finished"}
+{"assertions":1,"duration":0,"errored":0,"failed":0,"passed":1,"suite":"tests/unit/gamma_test.lua","total":1,"type":"suite_finished"}
+{"assertions":11,"duration":0,"errored":1,"exit_code":1,"failed":1,"ok":false,"passed":6,"total":8,"type":"run_finished"}

@@ -1,0 +1,14 @@
+Running 8 test(s)
+PASS	tests/unit/alpha_test.lua (6 assertions, 0 failed, 0 errored) [...]
+FAIL	tests/unit/beta_test.lua (4 assertions, 1 failed, 1 errored) [.FF.]
+PASS	tests/unit/gamma_test.lua (1 assertion, 0 failed, 0 errored) [.]
+
+FAIL Beta.test_b_fails
+  at tests/unit/beta_test.lua:12
+  tables differ:
+    .b[1]: expected 2, got 3
+
+ERROR Beta.test_c_errors #1
+  hecate.core.StateError: bad "state"
+
+8 tests in 3 suites, 11 assertions: 6 passed, 1 failed, 1 errored

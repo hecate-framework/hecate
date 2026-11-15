@@ -10,6 +10,8 @@ local core = require("hecate.core")
 local reactor = require("hecate.reactor")
 local case_module = require("hecate.test.case")
 local failure = require("hecate.test.failure")
+local assertions = require("hecate.test.assertions")
+local discovery = require("hecate.test.discovery")
 
 local Reactor = reactor.Reactor
 local AssertionFailure = failure.AssertionFailure
@@ -18,11 +20,23 @@ local AssertionFailure = failure.AssertionFailure
 ---@class hecate.test.Result
 ---@field name string  full name, `Case.test_name`
 ---@field case string  name of the case
+---@field suite string  name of the suite the test belongs to
 ---@field status "passed"|"failed"|"errored"
+---@field assertions integer  assertions the test called, passing or failing (those of `set_up_case` and `tear_down_case` are not counted)
 ---@field message? string  why the test failed or errored (may span several lines)
 ---@field location? string  `file:line` of the failed assertion
 ---@field differences? string[]  structural differences of a failed comparison
 ---@field traceback? string  traceback of an error that is not an assertion failure
+---@field duration number  seconds of processor time
+
+--- The totals of one suite.
+---@class hecate.test.SuiteSummary
+---@field name string
+---@field total integer
+---@field passed integer
+---@field failed integer
+---@field errored integer
+---@field assertions integer
 ---@field duration number  seconds of processor time
 
 --- The totals of a run.
@@ -31,20 +45,42 @@ local AssertionFailure = failure.AssertionFailure
 ---@field passed integer
 ---@field failed integer
 ---@field errored integer
+---@field assertions integer
 ---@field ok boolean  true when every test passed
+---@field exit_code integer  0 when `ok`, 1 otherwise: the status a command line runner exits with
 ---@field results hecate.test.Result[]  in execution order
+---@field suites hecate.test.SuiteSummary[]  in execution order
 ---@field duration number  seconds of processor time
 
 --- Options of a runner.
 ---@class hecate.test.RunnerOptions
----@field reporter? hecate.test.Reporter  receives the progress of the run
+---@field reporter? hecate.test.Reporter  receives the events of the run
 ---@field filter? string  Lua pattern: only tests whose full name matches are run
 
---- Receives the events of a run: `start(plan)`, `report(result)` once per test in execution order, `finish(summary)`.
+--- One event of a run, delivered to `Reporter:handle` as it happens. `type` is one of:
+---
+--- - `run_started`: `total` (tests), `suites` (count);
+--- - `suite_started`: `suite` (name), `total` (tests of the suite);
+--- - `test_started`: `suite`, `test` (full name), `index` (1-based within the suite);
+--- - `test_finished`: `suite`, `test`, `index`, `result` (a `Result`);
+--- - `suite_finished`: `suite`, `summary` (a `SuiteSummary`);
+--- - `run_finished`: `summary` (a `Summary`).
+---
+--- The last test of a case finishes after `tear_down_case`, whose failure is reported on it.
+---@class hecate.test.Event
+---@field type "run_started"|"suite_started"|"test_started"|"test_finished"|"suite_finished"|"run_finished"
+---@field total? integer
+---@field suites? integer
+---@field suite? string
+---@field test? string
+---@field index? integer
+---@field result? hecate.test.Result
+---@field summary? hecate.test.SuiteSummary|hecate.test.Summary
+
+--- Consumes the events of a run, in order. Console, TAP and JSON-lines reporters implement it, and
+--- so can the adapter of an IDE.
 ---@class hecate.test.Reporter
----@field start fun(self: hecate.test.Reporter, plan: { total: integer })
----@field report fun(self: hecate.test.Reporter, result: hecate.test.Result)
----@field finish fun(self: hecate.test.Reporter, summary: hecate.test.Summary)
+---@field handle fun(self: hecate.test.Reporter, event: hecate.test.Event)
 
 --- Executes test cases and reports their results.
 ---@class hecate.test.Runner
@@ -151,7 +187,9 @@ end
 local function run_test(class, case_instance, name)
   local instance = core.allocate(class)
   for key, value in pairs(case_instance) do instance[key] = value end
-  return in_reactor(function()
+  local counter = { assertions = 0 }
+  assertions.count_into(counter)
+  local outcome = in_reactor(function()
     if instance.set_up then
       local ok, err = xpcall(instance.set_up, capture, instance)
       if not ok then return classify(err, "set_up") end
@@ -165,11 +203,14 @@ local function run_test(class, case_instance, name)
     end
     return outcome
   end)
+  assertions.count_into(nil)
+  outcome.assertions = counter.assertions
+  return outcome
 end
 
 --- Lists the tests of `cases` that pass the filter, in order: `{ case, name, full_name }`.
 ---@param cases table[]  test cases
----@return { case: table, name: string, full_name: string }[] tests
+---@return { case: table, name: string, full_name: string, suite: string }[] tests
 function Runner:plan(cases)
   local tests = {}
   for _, class in ipairs(cases) do
@@ -177,17 +218,20 @@ function Runner:plan(cases)
       error(core.ArgumentError("test.Runner: expects test cases created with test.Case, got " .. tostring(class)), 2)
     end
     core.finalise(class)
+    -- a suite is a test script: the file a case was loaded from, else the name of the case
+    local suite = discovery.origin(class) or core.name(class)
     for _, name in ipairs(case_module.test_names(class)) do
       local full_name = core.name(class) .. "." .. name
       if self._filter == nil or full_name:find(self._filter) then
-        tests[#tests + 1] = { case = class, name = name, full_name = full_name }
+        tests[#tests + 1] = { case = class, name = name, full_name = full_name, suite = suite }
       end
     end
   end
   return tests
 end
 
---- Runs the tests of `cases` and returns the summary. The reporter, when given, is notified.
+--- Runs the tests of `cases` and returns the summary. The reporter, when given, receives the
+--- events of the run (`hecate.test.Event`) as they happen.
 ---
 --- Raises `hecate.core.ArgumentError` when an element of `cases` is not a test case. Never
 --- raises for a failing test.
@@ -196,51 +240,88 @@ end
 function Runner:run(cases)
   local tests = self:plan(cases)
   local reporter = self._reporter
-  local summary = { total = #tests, passed = 0, failed = 0, errored = 0, ok = true, results = {}, duration = 0 }
-  if reporter then reporter:start({ total = #tests }) end
+  local summary = {
+    total = #tests, passed = 0, failed = 0, errored = 0, assertions = 0, ok = true, exit_code = 0,
+    results = {}, suites = {}, duration = 0,
+  }
+  local function emit(event) if reporter then reporter:handle(event) end end
   local started = os.clock()
 
-  local function record(test, outcome, duration)
-    local result = {
-      name = test.full_name, case = core.name(test.case), status = outcome.status, message = outcome.message,
-      location = outcome.location, differences = outcome.differences, traceback = outcome.traceback,
-      duration = duration,
-    }
-    summary.results[#summary.results + 1] = result
-    summary[result.status] = summary[result.status] + 1
-    if result.status ~= "passed" then summary.ok = false end
-    if reporter then reporter:report(result) end
+  local suite_count = 0
+  for i, test in ipairs(tests) do
+    if i == 1 or tests[i - 1].suite ~= test.suite then suite_count = suite_count + 1 end
   end
+  emit({ type = "run_started", total = #tests, suites = suite_count })
 
-  local index = 1
-  while index <= #tests do
-    local class = tests[index].case
-    local last = index
-    while tests[last + 1] and tests[last + 1].case == class do last = last + 1 end
-    local case_instance = core.allocate(class)
-    local setup_failure = run_hook(case_instance, "set_up_case", "set_up_case")
-    local pending, durations = {}, {}
-    for i = index, last do
-      local clock = os.clock()
-      local outcome
-      if setup_failure then
-        outcome = { status = "errored", message = setup_failure.message, traceback = setup_failure.traceback }
-      else
-        outcome = run_test(class, case_instance, tests[i].name)
+  local first = 1
+  while first <= #tests do
+    local suite_name = tests[first].suite
+    local last = first
+    while tests[last + 1] and tests[last + 1].suite == suite_name do last = last + 1 end
+    local suite = {
+      name = suite_name, total = last - first + 1, passed = 0, failed = 0, errored = 0, assertions = 0, duration = 0,
+    }
+    summary.suites[#summary.suites + 1] = suite
+    emit({ type = "suite_started", suite = suite_name, total = suite.total })
+    local suite_clock = os.clock()
+
+    local function finish(position, test, outcome, duration)
+      local result = {
+        name = test.full_name, case = core.name(test.case), suite = suite_name, status = outcome.status,
+        assertions = outcome.assertions or 0, message = outcome.message, location = outcome.location,
+        differences = outcome.differences, traceback = outcome.traceback, duration = duration,
+      }
+      summary.results[#summary.results + 1] = result
+      summary[result.status] = summary[result.status] + 1
+      suite[result.status] = suite[result.status] + 1
+      summary.assertions = summary.assertions + result.assertions
+      suite.assertions = suite.assertions + result.assertions
+      if result.status ~= "passed" then summary.ok, summary.exit_code = false, 1 end
+      emit({ type = "test_finished", suite = suite_name, test = test.full_name, index = position, result = result })
+    end
+
+    local index = first
+    while index <= last do
+      local class = tests[index].case
+      local end_of_case = index
+      while end_of_case + 1 <= last and tests[end_of_case + 1].case == class do end_of_case = end_of_case + 1 end
+      local case_instance = core.allocate(class)
+      local setup_failure = run_hook(case_instance, "set_up_case", "set_up_case")
+      for i = index, end_of_case do
+        local position = i - first + 1
+        emit({ type = "test_started", suite = suite_name, test = tests[i].full_name, index = position })
+        local clock = os.clock()
+        local outcome
+        if setup_failure then
+          outcome = { status = "errored", message = setup_failure.message, traceback = setup_failure.traceback }
+        else
+          outcome = run_test(class, case_instance, tests[i].name)
+        end
+        local duration = os.clock() - clock
+        if i < end_of_case then
+          finish(position, tests[i], outcome, duration)
+        else
+          -- the last test of the case finishes after tear_down_case, whose failure it reports (plan stays exact)
+          if not setup_failure then
+            local teardown_failure = run_hook(case_instance, "tear_down_case", "tear_down_case")
+            if teardown_failure and outcome.status == "passed" then
+              teardown_failure.assertions = outcome.assertions
+              outcome = teardown_failure
+            end
+          end
+          finish(position, tests[i], outcome, os.clock() - clock)
+        end
       end
-      pending[#pending + 1], durations[#durations + 1] = outcome, os.clock() - clock
+      index = end_of_case + 1
     end
-    if not setup_failure then
-      local teardown_failure = run_hook(case_instance, "tear_down_case", "tear_down_case")
-      -- reported on the last test of the case, so the plan stays exact
-      if teardown_failure and pending[#pending].status == "passed" then pending[#pending] = teardown_failure end
-    end
-    for i = index, last do record(tests[i], pending[i - index + 1], durations[i - index + 1]) end
-    index = last + 1
+
+    suite.duration = os.clock() - suite_clock
+    emit({ type = "suite_finished", suite = suite_name, summary = suite })
+    first = last + 1
   end
 
   summary.duration = os.clock() - started
-  if reporter then reporter:finish(summary) end
+  emit({ type = "run_finished", summary = summary })
   return summary
 end
 

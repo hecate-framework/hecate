@@ -13,6 +13,15 @@ local LoadError = core.error_class("LoadError", "hecate.test.LoadError")
 ---@field LoadError hecate.test.LoadError
 local M = { LoadError = LoadError }
 
+-- The file each loaded case came from: the default name of its suite (a suite is a test script).
+-- A plain table: a loaded case lives as long as the run anyway.
+local origins = {}
+
+--- Returns the path a case was loaded from by `load`, or nil for a case declared in code.
+---@param case table
+---@return string? path
+function M.origin(case) return origins[case] end
+
 --- Returns the paths of the files named `*_test.lua` under `directory`, recursively, sorted.
 --- A missing directory yields an empty list.
 ---@async
@@ -50,6 +59,7 @@ function M.load(path)
   if not case_module.is_case(value) then
     error(LoadError({ message = path .. " does not return a test case (test.Case)", context = { path = path } }), 0)
   end
+  origins[value] = path
   return value
 end
 

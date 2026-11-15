@@ -1,17 +1,22 @@
 TAP version 14
-1..3
-ok 1 - Sample.test_a_passes
-not ok 2 - Sample.test_b_fails
+1..8
+ok 1 - Alpha.test_a
+ok 2 - Alpha.test_b
+ok 3 - Alpha.test_c
+ok 4 - Beta.test_a
+not ok 5 - Beta.test_b_fails
   ---
   severity: fail
   message: |-
     tables differ:
       .b[1]: expected 2, got 3
-  at: "tests/sample_test.lua:12"
+  at: "tests/unit/beta_test.lua:12"
   ...
-not ok 3 - Sample.test_c_errors \#1
+not ok 6 - Beta.test_c_errors \#1
   ---
   severity: error
   message: |-
     hecate.core.StateError: bad "state"
   ...
+ok 7 - Beta.test_d
+ok 8 - Gamma.test_a
