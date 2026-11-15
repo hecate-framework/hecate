@@ -2,10 +2,10 @@
 # Handoff
 
 - roadmap_item: `openapi`: OpenAPI 3.1 assembly, served endpoint, export, contract diff.
-- status: in-progress            <!-- in-progress | waiting-ci | waiting-owner -->
+- status: waiting-ci              <!-- in-progress | waiting-ci | waiting-owner -->
 <!-- Optional, only when the owner holds this pull request for one run: - owner: session `<session id>`, why. -->
-- lock_until: 2026-11-14T23:20:00Z
-- last_update: 2026-11-14T21:50:00Z
+- lock_until: 2026-11-15T02:15:00Z
+- last_update: 2026-11-15T00:45:00Z
 
 ## Done
 
@@ -25,6 +25,7 @@
 - Step 7 `openapi`: `validate-openapi` wired into `ci.yml` as steps of the `ci` matrix job (guarded by `openapi` affected): `actions/setup-python` 3.13.17, venv cache, hashed install, `validate-openapi` with `CI=true`; only CI can verify it.
 - CI fixes: the kernel-json benchmark server lists `openapi` among its packages (kernel now depends on it); Python 3.13.17 (3.13.18 has no Windows/macOS build).
 - Step 8 `openapi`: `openapi.lint` (internal/lint.lua, 8 tests, README, CHANGELOG); typecheck ok; native json missing locally so build/diff tests cannot run here: CI decides.
+- CI run 43644282216 (e981a1b): windows failed only on `SupervisorTest.test_a_worker_that_stops_reading_its_message_pipe_does_not_stall_the_others` (expected 3 answered, got 6; kernel supervisor, untouched by this PR, likely a Windows backlog timing flake). Failed jobs re-run at 00:45Z. If it fails again, investigate the test (Windows backlog behaviour) in a separate commit.
 
 ## Next steps
 
