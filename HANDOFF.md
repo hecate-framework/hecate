@@ -4,8 +4,8 @@
 - roadmap_item: `openapi`: OpenAPI 3.1 assembly, served endpoint, export, contract diff.
 - status: in-progress              <!-- in-progress | waiting-ci | waiting-owner -->
 <!-- Optional, only when the owner holds this pull request for one run: - owner: session `<session id>`, why. -->
-- lock_until: 2026-11-15T05:15:00Z
-- last_update: 2026-11-15T03:45:00Z
+- lock_until: 2026-11-15T08:30:00Z
+- last_update: 2026-11-15T06:50:00Z
 
 ## Done
 
@@ -27,6 +27,7 @@
 - Step 8 `openapi`: `openapi.lint` (internal/lint.lua, 8 tests, README, CHANGELOG); typecheck ok; native json missing locally so build/diff tests cannot run here: CI decides.
 - CI run 43644282216 (e981a1b): windows failed only on `SupervisorTest.test_a_worker_that_stops_reading_its_message_pipe_does_not_stall_the_others` (expected 3 answered, got 6; kernel supervisor, untouched by this PR, likely a Windows backlog timing flake). Failed jobs re-run at 00:45Z. If it fails again, investigate the test (Windows backlog behaviour) in a separate commit.
 - Interactive reference page recorded as OQ-135 (needs an ADR for a vendored viewer, owner decision).
+- CI fix: markdownlint MD056 on the OQ-135 row of `docs/open-questions.md` (missing Blocks cell).
 
 ## Next steps
 
