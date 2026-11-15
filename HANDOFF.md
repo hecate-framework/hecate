@@ -29,7 +29,7 @@
 
 - Step 10: targeting: runner option `cases`; `hecate.test.selection` (`test.parse_arguments`) parses `--filter`, `--case`, `--tag`, `--exclude-tag`, paths. No command runs it yet (the `cli` package will call it). Tests in `selection_test.lua`.
 
-- Step 11: fixtures: `test.boot(options, overrides)` (`fixture.lua`): wraps `validate` of the container to apply overrides after the modules bound their services. OQ-140 (issue #217) records the new dependency on `hecate.container`; implemented with the conservative default. Tests in `fixture_test.lua`.
+- Step 11: fixtures: `test.boot(options, overrides)` (`fixture.lua`): wraps `validate` of the container to apply overrides after the modules bound their services. The dependency of `test` on `hecate.container` was planned by `container.md` and `testing.md` (no open question). Tests in `fixture_test.lua`.
 
 ## Next steps
 
