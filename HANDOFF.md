@@ -3,7 +3,7 @@
 
 - roadmap_item: `test`: test framework, runner, in-process client, fixtures, contract conformance, reporters (TAP, JUnit XML), coverage (Phase 3)
 - status: in-progress
-- last_update: 2026-11-15T10:40:18Z
+- last_update: 2026-11-15T12:16:57Z
 
 ## Done
 
@@ -15,14 +15,15 @@
 
 - Step 3b and 3c (this commit): the layout never exceeds the width (name shortened first down to 10 letters, then the bar down to 10 cells, then 1 cell, then the name down to a few letters; a live line keeps its reserved room and gives way when the figures outgrow it); test of a live suite of 1 234 567 assertions at widths 60, 80, 120; terminal probe tested on a pipe and under a pty (`script -qec`, skipped when `script` is missing or has another form).
 
+- Step 4: `reactor.is_tty(fd)` (OQ-138); `test` drops the shell probe and the Windows exception. Still to do in this pull request: move OQ-138 to Resolved and close #215.
+
 ## Next steps
 
 1. Parametrise, tags and targeting, JUnit XML reporter (consume the event stream), leak detection, fake clock.
 2. In-process client over the dispatch seam of OQ-78 (table `content` JSON-encoded or raise, T2), fixtures with container overrides.
 3. Contract conformance report; property-based testing from schema types (OQ-96); coverage (LCOV); parallel workers.
 4. Docs (README, website reference, CHANGELOG), roadmap tick.
-5. **`reactor.is_tty(fd)`** (OQ-138, agreed): small step in `reactor` (over `uv.guess_handle`, tests on a pipe and a pty), then `test` drops the shell probe and the Windows exception; resolve OQ-138 and close #215 in that pull request. Do it before the `cli` item.
-6. **Windows testing phase (owner, by hand on a Windows VM; do not tick the item before the owner reports):** the console reporter in a real Windows terminal (Windows Terminal and `cmd.exe`): colour, live redraw (`live = true`, since the probe never turns it on there), width, the bar and the plain fallback in a pipe; the JSON-lines stream and TAP output with CRLF handling; `hecate.test` discovery paths with backslashes. Record the owner's findings here.
+5. **Windows testing phase (owner, by hand on a Windows VM; do not tick the item before the owner reports):** the console reporter in a real Windows terminal (Windows Terminal and `cmd.exe`): colour, live redraw (`live = true`, since the probe never turns it on there), width, the bar and the plain fallback in a pipe; the JSON-lines stream and TAP output with CRLF handling; `hecate.test` discovery paths with backslashes. Record the owner's findings here.
 
 ## Decisions taken (and where they are recorded)
 

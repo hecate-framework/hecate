@@ -57,4 +57,26 @@ function T:test_getenv_reads_a_non_ascii_value_as_utf8_on_windows()
   uv.os_unsetenv(name)
 end
 
+function T:test_is_tty_is_false_for_a_pipe_and_a_closed_descriptor()
+  local uv = require("luv")
+  local pipes = assert(uv.pipe({ nonblock = false }, { nonblock = false }))
+  self:assert_false(reactor.is_tty(pipes.read))
+  self:assert_false(reactor.is_tty(pipes.write))
+  uv.fs_close(pipes.read)
+  uv.fs_close(pipes.write)
+  self:assert_false(reactor.is_tty(987654), "an unknown descriptor is not a terminal")
+end
+
+function T:test_is_tty_is_a_boolean_for_the_standard_streams()
+  for fd = 0, 2 do self:assert_equal("boolean", type(reactor.is_tty(fd))) end
+end
+
+function T:test_is_tty_rejects_a_descriptor_that_is_not_a_non_negative_integer()
+  for _, bad in ipairs({ "1", -1, 1.5, true }) do
+    local ok, err = pcall(reactor.is_tty, bad)
+    self:assert_false(ok)
+    self:assert_true(core.is_instance_of(err, core.ArgumentError), tostring(err))
+  end
+end
+
 return T

@@ -17,18 +17,18 @@ local M = {}
 
 local DEFAULT_WIDTH = 80
 
---- Whether standard output is an interactive terminal, as far as plain Lua can tell: POSIX only,
---- `TERM` set and not `dumb`, and `test -t 1` succeeds. Elsewhere (Windows, pipes, IDE consoles,
---- CI) the answer is false; pass `is_tty` or `live` to override. A `reactor` primitive would be
---- exact (luv is confined to `reactor`); proposed in OQ-138.
+--- Whether standard output is an interactive terminal: `reactor.is_tty(1)` (libuv, exact on every platform), and, on
+--- POSIX, `TERM` set and not `dumb`. A pipe, a file, an IDE console or CI answers false; pass `is_tty` or `live` to
+--- override (OQ-138).
 ---@param getenv fun(name: string): string?
 ---@return boolean
 function M.stdout_is_tty(getenv)
-  if package.config:sub(1, 1) ~= "/" then return false end
-  local term = getenv("TERM")
-  if term == nil or term == "" or term == "dumb" then return false end
-  local ok, result = pcall(os.execute, "test -t 1")
-  return ok and result == true
+  if not reactor.is_tty(1) then return false end
+  if package.config:sub(1, 1) == "/" then
+    local term = getenv("TERM")
+    if term == nil or term == "" or term == "dumb" then return false end
+  end
+  return true
 end
 
 --- Resolves the options of a console reporter.

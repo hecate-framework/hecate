@@ -1,6 +1,6 @@
 -- Capability queries about the running system (ADR 0023, "Linux first, enforced": the policy in `kernel` asks the
 -- mechanism in `reactor`, the only package that reaches libuv).
-global <const> require, math, type, error
+global <const> require, math, type, error, tostring
 
 local uv = require("luv")
 local core = require("hecate.core")
@@ -43,6 +43,20 @@ function M.getenv(name)
   -- coverage: off (libuv answers ENOENT for every name that is not set; another failure is not reproducible)
   uv_call.fail("reactor.getenv", "os_getenv", message)
   -- coverage: on
+end
+
+--- Whether the file descriptor `fd` is an interactive terminal (libuv `uv_guess_handle` answering `"tty"`): `false` for a
+--- pipe, a file, a socket, or a descriptor that is not open. `0`, `1` and `2` are the standard streams. Does not suspend
+--- and needs no running reactor (OQ-138).
+---
+--- Raises `hecate.core.ArgumentError` when `fd` is not a non-negative integer.
+---@param fd integer  the descriptor number
+---@return boolean tty
+function M.is_tty(fd)
+  if math.type(fd) ~= "integer" or fd < 0 then
+    error(core.ArgumentError("reactor.is_tty: expects a non-negative integer descriptor, got " .. tostring(fd)), 2)
+  end
+  return uv.guess_handle(fd) == "tty"
 end
 
 return M

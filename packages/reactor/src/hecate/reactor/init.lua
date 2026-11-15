@@ -90,6 +90,7 @@ local system = require("hecate.reactor.system")
 reactor.system_name = system.system_name
 reactor.available_parallelism = system.available_parallelism
 reactor.getenv = system.getenv
+reactor.is_tty = system.is_tty
 reactor.resolve = require("hecate.reactor.dns").resolve
 reactor.offload = require("hecate.reactor.offload").offload
 local signal = require("hecate.reactor.signal")

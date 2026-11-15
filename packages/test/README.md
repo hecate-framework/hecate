@@ -83,8 +83,8 @@ FAIL	tests/unit/beta_test.lua (4 assertions, 1 failed, 1 errored) [.FF.]
 - Colour: `color` option, else `NO_COLOR` (off), `FORCE_COLOR` (on), else on for a terminal. Without
   colour a failed cell is drawn `F`. Escape sequences live in one module (`reporters/ansi.lua`).
 - Failures and errors are listed with their details after the last suite.
-- Whether stdout is a terminal is decided in plain Lua (POSIX, `TERM`, `test -t 1`); pass `is_tty`, `live` or
-  `color` to override it (an exact primitive in `reactor` is OQ-138). The environment variable `HECATE_TEST_LIVE`
+- Whether stdout is a terminal is decided by `reactor.is_tty(1)` (libuv, every platform) and, on POSIX, `TERM` set and
+  not `dumb`; pass `is_tty`, `live` or `color` to override it (OQ-138). The environment variable `HECATE_TEST_LIVE`
   (`1` or `0`) forces live redraw on or off, after the `live` option and before the terminal guess: an IDE console
   that runs in a pty looks like a terminal, so an IDE adapter selects the JSON-lines reporter, or sets `live = false`,
   `HECATE_TEST_LIVE=0` or `TERM=dumb`.
