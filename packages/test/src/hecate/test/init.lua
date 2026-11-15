@@ -38,5 +38,6 @@ test.check_property = require("hecate.test.property").check_property
 test.generate_invalid = require("hecate.test.generate").generate_invalid
 test.boot = require("hecate.test.fixture").boot
 test.parse_arguments = require("hecate.test.selection").parse
+test.run_parallel = require("hecate.test.parallel").run
 
 return test

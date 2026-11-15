@@ -41,9 +41,11 @@
 
 - Step 16: docs: `website/en/how-to/test-an-application.md`, OUTLINE, how-to index, `llms.txt` regenerated (no change); examples `hecate.test.boot` and `hecate.test.check_property` tested by `examples_test.lua`.
 
+- Step 17: parallel runs (owner chose option A: worker processes split by file, off by default, `--jobs`): `parallel.lua`, `test.run_parallel`; workers started with `reactor.run_process` print one JSON line behind a marker; replay in path order; load failures and dead workers become errored suites. Tests in `parallel_test.lua`. LCOV needs nothing (bootstrap `coverage` task already exists; owner confirmed no open question).
+
 ## Next steps
 
-1. Database fixtures (transactional rollback, after the `sql` package); `pattern` generation (needs a decision: ECMA subset to strings); coverage (LCOV); parallel workers.
+1. Database fixtures (transactional rollback, after the `sql` package); `pattern` generation (needs a decision: ECMA subset to strings); parallel follow-ups: live output (the plan needs all totals first), `--jobs` flag in the `cli` command, a rule for fixed ports and per-worker database schemas.
 2. Docs: the how-to page is written (English); remaining: the generated reference (`gen-reference` covers it once the package is in the catalogue), the French translation (`translator-fr`, Phase 3 `check-translations`), and a final read once the rest lands; then the roadmap tick.
 3. **Windows testing phase (owner, by hand on a Windows VM; do not tick the item before the owner reports):** the console reporter in a real Windows terminal (Windows Terminal and `cmd.exe`): colour, live redraw (`live = true`, since the probe never turns it on there), width, the bar and the plain fallback in a pipe; the JSON-lines stream and TAP output with CRLF handling; `hecate.test` discovery paths with backslashes. Record the owner's findings here. The material and the procedure are in `packages/test/manual/` (`README.md`, `run.lua`, `demo/`).
 

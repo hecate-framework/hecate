@@ -52,7 +52,7 @@ return RouterTest
 | Coverage | line coverage via debug hooks, LCOV output (the bootstrap harness implements it: task `coverage`, `HECATE_TEST_COVERAGE`; thresholds of 90 % for `core`, `reactor`, `router` and `schema`, run nightly) |
 | Leak detection | a test that leaves libuv handles open fails (the bootstrap harness: task `leaks`, `HECATE_TEST_LEAKS`; nightly) |
 | Targeting | by file, case, test name pattern, tag (`slow`, `integration`, `database:postgresql`) |
-| Parallelism | multiple worker processes, each with its own reactor |
+| Parallelism | multiple worker processes, each with its own reactor; one process per test file, events replayed in path order (`test.run_parallel`) |
 
 ## Framework test policy
 
