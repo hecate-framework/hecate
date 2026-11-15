@@ -79,4 +79,33 @@ function T:test_is_tty_rejects_a_descriptor_that_is_not_a_non_negative_integer()
   end
 end
 
+function T:test_random_answers_n_bytes()
+  for _, n in ipairs({ 0, 1, 16, 1000 }) do
+    local bytes = reactor.random(n)
+    self:assert_equal("string", type(bytes))
+    self:assert_equal(n, #bytes)
+  end
+end
+
+function T:test_random_answers_different_bytes_each_time()
+  self:assert_true(reactor.random(16) ~= reactor.random(16))
+end
+
+function T:test_random_needs_no_running_reactor_and_does_not_suspend()
+  local co = coroutine.wrap(function() return #reactor.random(8) end)
+  self:assert_equal(8, co())
+end
+
+function T:test_random_refuses_a_count_that_is_not_a_non_negative_integer()
+  for _, bad in ipairs({ -1, 1.5, "8", true, 1 << 30 }) do
+    local err = self:assert_error(function() reactor.random(bad) end)
+    self:assert_true(core.is_instance_of(err, core.ArgumentError), tostring(err))
+  end
+  local err = self:assert_error(function()
+    ---@diagnostic disable-next-line: missing-parameter
+    reactor.random()
+  end)
+  self:assert_true(core.is_instance_of(err, core.ArgumentError), tostring(err))
+end
+
 return T

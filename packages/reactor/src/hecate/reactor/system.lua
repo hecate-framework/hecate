@@ -59,4 +59,31 @@ function M.is_tty(fd)
   return uv.guess_handle(fd) == "tty"
 end
 
+-- Largest request of `random`: a bound that keeps one call short (the operating system answers without waiting) and
+-- turns a mistaken size into an `ArgumentError`.
+local MAX_RANDOM <const> = 1 << 20
+
+--- `n` cryptographically secure random bytes, from the operating system's generator through libuv (`uv_random`:
+--- `getrandom`, `arc4random_buf` or `BCryptGenRandom`). There is no fallback to a pseudo-random generator: a failure
+--- raises. Does not suspend and needs no running reactor; `n` is at most 1048576 (OQ-73).
+---
+--- Raises `hecate.core.ArgumentError` when `n` is not an integer from 0 to 1048576, and `hecate.reactor.IoError` when
+--- the system generator fails.
+---@param n integer  the number of bytes
+---@return string bytes  exactly `n` bytes
+function M.random(n)
+  if math.type(n) ~= "integer" or n < 0 or n > MAX_RANDOM then
+    error(core.ArgumentError("reactor.random: expects an integer from 0 to " .. MAX_RANDOM .. ", got " .. tostring(n)), 2)
+  end
+  if n == 0 then return "" end
+  local bytes, message = uv.random(n)
+  -- coverage: off (the system generator does not fail on a running system)
+  if bytes == nil or #bytes ~= n then
+    uv_call.fail("reactor.random", "random", message or "short read")
+  end
+  -- coverage: on
+  ---@cast bytes string
+  return bytes
+end
+
 return M

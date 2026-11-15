@@ -2,9 +2,10 @@
 -- A streaming parser: it pulls chunks from a content stream only when a consumer asks, keeps at most one chunk, the
 -- header fields of a part and the tail of a possible delimiter in memory, and finds delimiters with a plain search
 -- (CRLF "--" boundary), so a boundary inside content is content unless a line break and a valid ending frame it.
-global <const> require, type, error, pcall, string, table, math, ipairs, pairs, tostring, tonumber, utf8, io
+global <const> require, type, error, pcall, string, table, math, ipairs, pairs, tostring, tonumber, utf8
 
 local core = require("hecate.core")
+local reactor = require("hecate.reactor")
 local Fields = require("hecate.http.fields")
 local MediaType = require("hecate.http.media_type")
 local ContentStream = require("hecate.http.content")
@@ -397,19 +398,10 @@ local function quote(text, what)
   end))
 end
 
--- 16 random bytes as hexadecimal. The operating system's source is used where there is one (`/dev/urandom` on POSIX); no
--- Lua or reactor primitive offers a CSPRNG (OQ-73), so elsewhere `math.random` (seeded at start-up by Lua) stands in, with
--- extra entropy mixed in. A guessable boundary only matters for a function part (string parts are verified).
+-- 16 random bytes as hexadecimal, from the operating system's generator (`reactor.random`, OQ-73): no pseudo-random
+-- fallback, a failure raises.
 local function random_hex()
-  local file = io.open("/dev/urandom", "rb")
-  if file ~= nil then
-    local bytes = file:read(16)
-    file:close()
-    if bytes ~= nil and #bytes == 16 then return (string.gsub(bytes, ".", function(c) return string.format("%02x", string.byte(c)) end)) end
-  end
-  local out = {}
-  for i = 1, 32 do out[i] = string.format("%x", math.random(0, 15)) end
-  return table.concat(out)
+  return (string.gsub(reactor.random(16), ".", function(c) return string.format("%02x", string.byte(c)) end))
 end
 
 local function random_boundary()
