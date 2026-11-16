@@ -387,6 +387,9 @@ local function run_tests(self, cases)
             if teardown_failure and outcome.status == "passed" then
               teardown_failure.assertions = outcome.assertions
               outcome = teardown_failure
+            elseif teardown_failure then
+              -- the test failed already: its failure stays first, the cleanup failure is added to it
+              outcome.message = tostring(outcome.message) .. "\ntear_down_case also failed: " .. tostring(teardown_failure.message)
             end
           end
           finish(position, tests[i], outcome, os.clock() - clock)

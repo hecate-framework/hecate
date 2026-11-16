@@ -1,5 +1,5 @@
 -- Line coverage: the lines of the sources that ran, in the main thread and in coroutines, as an LCOV report.
-global <const> require, debug, coroutine, dofile, pairs, error
+global <const> require, debug, coroutine, dofile, pairs, error, table
 
 local core = require("hecate.core")
 local reactor = require("hecate.reactor")
@@ -173,6 +173,38 @@ function T:test_merge_refuses_a_malformed_hit_table()
   self:assert_error(function() coverage:merge(bad) end, { class = core.ArgumentError })
   coverage:merge({ path = { ["3"] = 2 } })
   self:assert_equal(2, coverage:hits().path[3])
+end
+
+local function lines_of(source)
+  local out = {}
+  for line in pairs(hecate_test.LineCoverage.executable_lines(source)) do out[#out + 1] = line end
+  table.sort(out)
+  return out
+end
+
+function T:test_the_executable_lines_skip_comments_strings_and_the_shebang()
+  self:assert_equal({ 2, 3 }, lines_of("#!/usr/bin/env lua\nlocal a = 1\nreturn a\n"))
+  self:assert_equal({ 1, 6 }, lines_of("local a = 1\n--[==[ a long\ncomment\nstill ]] comment\n]==]\nreturn a\n"))
+  -- the words inside a multi-line string are not code, whatever they look like
+  self:assert_equal({ 1, 6 }, lines_of("local text = [[\nwords that look like code\nend\nlocal x = 1\n]]\nreturn text\n"))
+  self:assert_equal({ 1, 6 }, lines_of("local t = [==[\nreturn 1\nlocal x = 2\n]]\n]==]\nreturn t\n"))
+end
+
+function T:test_a_code_line_after_a_closed_block_comment_counts()
+  self:assert_equal({ 1, 2 }, lines_of("--[[ note ]] local a = 1\nreturn a\n"))
+  self:assert_equal({ 2 }, lines_of("-- only a comment\nlocal a = 1\n-- another\n"))
+end
+
+function T:test_paths_are_normalised_segment_by_segment()
+  local normalise = hecate_test.LineCoverage.normalise
+  self:assert_equal("a/c", normalise("a/b/../c"))
+  self:assert_equal("../../y", normalise("../../x/../y"))
+  self:assert_equal("/b", normalise("/a/../b"))
+  self:assert_equal("x", normalise("./x"))
+  self:assert_equal("a/b", normalise("a//b"))
+  self:assert_equal("c:/f.lua", normalise("C:\\Dir\\..\\f.lua"))
+  self:assert_equal("//server/share/y", normalise("//server/share/x/../y"))
+  self:assert_equal("/", normalise("/.."))
 end
 
 return core.finalise(T)

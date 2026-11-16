@@ -22,36 +22,88 @@ local LineCoverage = core.class("LineCoverage")
 local STRUCTURAL = { ["end"] = true, ["else"] = true, ["do"] = true, ["then"] = true, ["repeat"] = true,
   ["}"] = true, ["{"] = true, [")"] = true, ["},"] = true, ["end)"] = true, ["end,"] = true, ["})"] = true }
 
--- Lines of a Lua source that hold code.
+-- Lines of a Lua source that hold code. Each line is read for its code: comments (line and long, of any level),
+-- the inside of strings (short, and long of any level, across lines) and a shebang are not code; a line that is
+-- only a block delimiter (`end`, `}`, `)`) is not counted either, since no instruction belongs to it. The region
+-- between the comments `-- coverage: off` and `-- coverage: on` is left out.
 local function executable_lines(source)
-  local lines, long, off, n = {}, false, false, 0
+  local lines, off, long, number = {}, false, nil, 0
   for line in (source .. "\n"):gmatch("(.-)\r?\n") do
-    n = n + 1
-    local text = line:match("^%s*(.-)%s*$")
-    if off then
-      if text:find("^%-%-%s*coverage:%s*on") then off = false end
-    elseif text:find("^%-%-%s*coverage:%s*off") then
+    number = number + 1
+    local trimmed = line:match("^%s*(.-)%s*$")
+    local marker
+    if not long then
+      if trimmed:find("^%-%-%s*coverage:%s*off") then marker = "off"
+      elseif trimmed:find("^%-%-%s*coverage:%s*on") then marker = "on" end
+    end
+    local code, position = {}, 1
+    if number == 1 and line:sub(1, 1) == "#" then position = #line + 1 end
+    while position <= #line do
+      if long then
+        local first, last = line:find("]" .. ("="):rep(long.level) .. "]", position, true)
+        if first then
+          position, long = last + 1, nil
+        else
+          position = #line + 1
+        end
+      elseif line:find("^%-%-%[=*%[", position) then
+        local level = #line:match("^%-%-%[(=*)%[", position)
+        long, position = { level = level }, position + 4 + level
+      elseif line:sub(position, position + 1) == "--" then
+        position = #line + 1
+      elseif line:find("^%[=*%[", position) then
+        local level = #line:match("^%[(=*)%[", position)
+        code[#code + 1] = "[["
+        long, position = { level = level }, position + 2 + level
+      else
+        local c = line:sub(position, position)
+        if c == '"' or c == "'" then
+          local close = position + 1
+          while close <= #line and line:sub(close, close) ~= c do
+            close = close + (line:sub(close, close) == "\\" and 2 or 1)
+          end
+          code[#code + 1] = "s"
+          position = close + 1
+        else
+          code[#code + 1] = c
+          position = position + 1
+        end
+      end
+    end
+    local text = table.concat(code):match("^%s*(.-)%s*$")
+    if marker == "off" then
       off = true
-    elseif long then
-      if text:find("]]", 1, true) then long = false end
-    elseif text:sub(1, 4) == "--[[" then
-      if not text:find("]]", 5, true) then long = true end
-    elseif text ~= "" and text:sub(1, 2) ~= "--" and not STRUCTURAL[text] then
-      lines[n] = true
+    elseif marker == "on" then
+      off = false
+    elseif not off and text ~= "" and not STRUCTURAL[text] then
+      lines[number] = true
     end
   end
   return lines
 end
 
--- A path with `/` separators and the `dir/..` segments collapsed.
+-- A path with `/` separators, the `.` and `..` segments resolved, repeated separators merged, and the drive letter of
+-- a Windows path in lower case (`C:` and `c:` name one file). A leading `/` or `//` (a UNC path) is kept.
 local function normalise(path)
   path = path:gsub("\\", "/")
-  local previous
-  repeat
-    previous = path
-    path = path:gsub("[^/]+/%.%./", function(segment) return segment == "../../" and segment or "" end, 1)
-  until path == previous
-  return (path:gsub("^%./", ""))
+  local root = path:match("^//") and "//" or path:match("^/") and "/" or ""
+  local out = {}
+  for segment in path:gmatch("[^/]+") do
+    if segment == "." then
+      -- stays where it is
+    elseif segment == ".." then
+      if #out > 0 and out[#out] ~= ".." then
+        out[#out] = nil
+      elseif root == "" then
+        out[#out + 1] = ".."
+      end
+    else
+      out[#out + 1] = segment
+    end
+  end
+  local joined = root .. table.concat(out, "/")
+  joined = joined:gsub("^(%a):", function(letter) return letter:lower() .. ":" end)
+  return joined == "" and (root ~= "" and root or ".") or joined
 end
 
 --- Creates a recorder.
@@ -85,6 +137,7 @@ end
 local function decide(self, source)
   local known = self._decided[source]
   if known ~= nil then return known end
+  ---@type string|false
   local path = false
   if source:sub(1, 1) == "@" then
     local candidate = normalise(source:sub(2))
@@ -279,5 +332,6 @@ function LineCoverage:lcov()
 end
 
 LineCoverage.executable_lines = executable_lines
+LineCoverage.normalise = normalise
 
 return core.finalise(LineCoverage)
