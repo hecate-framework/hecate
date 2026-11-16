@@ -19,7 +19,7 @@ local Base = core.class("Case")
 for name, method in pairs(assertions.Assertions) do Base[name] = method end
 core.finalise(Base)
 
----@class hecate.test.case
+---@class hecate.test.case_module
 ---@field Base hecate.test.Case
 local M = { Base = Base }
 

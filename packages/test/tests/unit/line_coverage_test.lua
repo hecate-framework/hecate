@@ -8,8 +8,8 @@ local hecate_test = require("hecate.test")
 local T = hecate_test.Case("LineCoverageTest")
 
 local here = debug.getinfo(1, "S").source:sub(2):gsub("\\", "/"):match("^(.*)/[^/]*$") or "."
-local fixtures = here .. "/../fixtures/coverage"
-local INCLUDE = "fixtures/coverage/"
+local fixtures = here .. "/../fixtures/line_coverage"
+local INCLUDE = "fixtures/line_coverage/"
 
 local function normal(path) return (path:gsub("\\", "/")) end
 

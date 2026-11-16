@@ -32,6 +32,11 @@ raisons d’une recette, lisez la page correspondante de la section
 - [Valider des valeurs avec des schémas](validate-with-schemas.md) : déclarer des schémas, collecter les
   violations avec des chemins JSON Pointer, émettre du JSON Schema.
 
+## Structure de l’application
+
+- [Tester une application](test-an-application.md) : cas de test, démarrage de l’application avec des fakes, client
+  en processus, couverture de routes, valeurs générées et propriétés avec réduction.
+
 ## Performances
 
 - [Mesurer les performances](measure-performance.md) : exécuter le benchmark d’écho TCP, lire ses

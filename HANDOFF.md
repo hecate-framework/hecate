@@ -3,7 +3,7 @@
 
 - roadmap_item: `test`: test framework, runner, in-process client, fixtures, contract conformance, reporters (TAP, JUnit XML), coverage (Phase 3)
 - status: in-progress
-- last_update: 2026-11-16T21:41:36Z
+- last_update: 2026-11-16T21:49:22Z
 
 ## Done
 
@@ -52,6 +52,8 @@
 - Step 18: `pattern` generation (`pattern_text.lua`, parses the ECMA form of the translation; tests in `generate_test.lua`, `invalid_test.lua`, `pattern_text_test.lua`). Roadmap: `cli` pointer and a new `test` item for the migration of the repository's tests (owner decisions of 2026-11-16: `core.finalise` at the end of cases; the `tools/CLAUDE.md` rule relaxed for `tools/tests`).
 
 - Step 19: line coverage (`line_coverage.lua`): `test.LineCoverage`, runner option `coverage`, `run_parallel` option `coverage` (workers send hits as JSON, merged by the coordinator). Tests in `line_coverage_test.lua` (fixtures `tests/fixtures/coverage/`). The executable-line heuristic is a copy of `tools/lib/coverage.lua`; the migration item removes the duplicate. Owner decision (2026-11-16): the self-test solution is the complete one (pinned release plus current checkout), recorded in the migration item.
+
+- Step 20: CI failed on step 19 because `.gitignore` ignores `coverage/` and swallowed the new fixture folder: renamed to `fixtures/line_coverage/` (lesson: after adding fixtures, run `git status --short --ignored` on the package). Generated reference: `test` added to `DEFAULT_PACKAGES` (doc package, one name) and to `.gitignore`; two page-name collisions fixed. French page written by `translator-fr`.
 
 ## Next steps
 

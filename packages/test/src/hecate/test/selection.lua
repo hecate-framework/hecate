@@ -3,7 +3,7 @@ global <const> require, type, ipairs, error, table
 
 local core = require("hecate.core")
 
----@class hecate.test.Selection
+---@class hecate.test.ParsedArguments
 ---@field options hecate.test.RunnerOptions  `filter`, `cases`, `tags`, `exclude_tags` as given
 ---@field paths string[]  files or directories to discover tests in (empty: the default directory)
 
@@ -21,7 +21,7 @@ local function fail(message) error(core.ArgumentError("test: " .. message), 3) e
 ---
 --- Raises `hecate.core.ArgumentError` for an unknown option, a missing or empty value, or a repeated `--filter`.
 ---@param args string[]
----@return hecate.test.Selection selection
+---@return hecate.test.ParsedArguments selection
 function M.parse(args)
   local options, paths = {}, {}
   local lists = { ["--case"] = "cases", ["--tag"] = "tags", ["--exclude-tag"] = "exclude_tags" }
