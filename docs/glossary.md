@@ -33,8 +33,8 @@ for public APIs, documentation and internal code.
 | stream | Ordered sequence of bytes read, written and closed in order, over a file, a connection or another stream | Ritchie, *A Stream Input-Output System* (1984) | socket (for transports that are not sockets), channel (a channel carries values between coroutines) |
 | back-pressure | A producer suspends while its consumer is slower, instead of buffering without bound | *Reactive Streams* specification (2015) | throttling, rate limiting |
 | half-close | Ending one direction of a connection while the other stays usable (`shutdown`) | RFC 9293, section 3.6 | — |
-| primary | The process that starts, supervises and, for some strategies, feeds the workers | Buschmann et al., *Pattern-Oriented Software Architecture* vol. 1 (1996), Master-Slave pattern | master, parent (for the operating-system relation, "parent process" is accepted) |
-| worker | A process with its own reactor that serves requests; workers share nothing | Buschmann et al. (1996), Master-Slave pattern | slave, child process (for the operating-system relation) |
+| primary | The process that starts, supervises and, for some strategies, feeds the workers (in `test.run_parallel`, the process that runs the test files in workers and replays their events) | Buschmann et al., *Pattern-Oriented Software Architecture* vol. 1 (1996), Master-Slave pattern | master, coordinator, parent (for the operating-system relation, "parent process" is accepted) |
+| worker | A process with its own reactor that does the work the primary hands to it (it serves requests; in `test.run_parallel` it runs one test file); workers share nothing | Buschmann et al. (1996), Master-Slave pattern | slave, child process (for the operating-system relation) |
 | message pipe | A framed connection between two processes that carries string messages and, optionally, a stream handle (`reactor.ipc`). Not to be confused with `PipeStream`, a local stream socket (Unix-domain socket, named pipe on Windows) | POSIX `pipe(2)`; ADR 0023 | channel (reserved for communication between coroutines) |
 | hand-over | The primary passes an accepted connection to a worker through the message pipe (`round_robin` listening strategy; `hand_over`, `HandOverTarget`, `HandOverListener`) | ADR 0023 | dispatch, pass, forward |
 | peer | The remote end of a connection (`peer_address`) or of a message pipe (`Peer`) | RFC 9293 | remote (in "remote address"), client (when the role is unknown) |
@@ -179,3 +179,24 @@ A *severity* is the urgency of a record; a logger records the severities at leas
 
 A *named severity* is an entry of `logging.severities`: the severity of the logger whose `name` is that key, matched exactly
 (`configuration.md`; never "per-logger level").
+
+## Testing
+
+xUnit terms (ADR 0008, `docs/architecture/testing.md`) and the terms of property-based testing.
+
+| Term | Meaning | Reference | Instead of |
+|---|---|---|---|
+| test case | A class whose `test_*` methods are tests (`test.Case`) | Meszaros, *xUnit Test Patterns* (2007) | test class, spec |
+| test suite | The cases loaded from one test file; the unit of reporting (`suite_started`) | Meszaros (2007) | test group |
+| fixture | The state a test sets up before it runs; in `test.boot`, the container overrides of a booted application | Meszaros (2007) | context, scenario |
+| fake | A working substitute of a service, bound over the real one in a test (a test double) | Meszaros (2007) | mock, stub, spy |
+| assertion | A check a test makes; a failed one raises `AssertionFailure` | Meszaros (2007) | expectation, matcher |
+| lifecycle methods | `set_up`, `tear_down`, `set_up_case` and `tear_down_case` of a test case | Meszaros (2007) | hooks, before and after |
+| runner | Executes test cases, each test in its own reactor, and reports events | Meszaros (2007) | test harness |
+| reporter | Consumes the events of a run: console, TAP, JUnit XML or JSON lines | Meszaros (2007) | formatter, listener |
+| property | A predicate that must hold for every value a generator produces | Claessen and Hughes, QuickCheck (2000) | invariant test, fuzz test |
+| generator | A seeded source of values valid for a schema (`test.Generator`) | QuickCheck (2000) | factory, faker |
+| seed | The integer that fixes the sequence of a generator | QuickCheck (2000) | random state |
+| counterexample | A value for which a property fails | QuickCheck (2000) | failing input |
+| shrinking | Reducing a counterexample to a smaller one that still fails | QuickCheck (2000) | minimisation, reduction |
+| line coverage | The lines of the sources that ran during a run (`test.LineCoverage`, LCOV) | none | code coverage (accepted in prose) |

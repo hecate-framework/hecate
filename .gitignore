@@ -38,6 +38,7 @@ website/en/reference/container/
 website/en/reference/config/
 website/en/reference/kernel/
 website/en/reference/openapi/
+website/en/reference/test/
 # Generated reference pages (gen-error-codes, gen-config-reference; the website workflow generates them).
 website/en/reference/error-codes.md
 website/en/reference/configuration-keys.md

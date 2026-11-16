@@ -80,3 +80,14 @@ page (avec un lien vers le glossaire), puis le terme français seul.
 | Representable | Représentable | interface `schema.Representable` en code ; classe dont les instances ont une représentation ; jamais « contrat » |
 | represent | représenter | `Schema:represent` en code |
 | union (sum type) | union (type somme) | `schema.union` ; à distinguer de l’union relationnelle (`UNION` SQL) |
+| test case | cas de test | `test.Case` ; en code, `Case` |
+| test suite | suite de tests | les cas d’un fichier de test ; l’unité de rapport |
+| fixture | fixture | terme établi, gardé en anglais (« jeu d’essai » seulement en prose, jamais dans l’interface) |
+| fake | fake (doublure) | une doublure fonctionnelle d’un service ; jamais « mock » ni « stub » |
+| lifecycle methods | méthodes de cycle de vie | `set_up`, `tear_down`, `set_up_case`, `tear_down_case` ; jamais « hooks » |
+| property (testing) | propriété | un prédicat qui doit tenir pour toute valeur d’un générateur |
+| generator (testing) | générateur | `test.Generator` |
+| seed | graine (*seed*) | l’entier qui fixe la suite d’un générateur |
+| counterexample | contre-exemple | |
+| shrinking | réduction (*shrinking*) | réduire un contre-exemple à un plus petit qui échoue encore |
+| line coverage | couverture de lignes | |

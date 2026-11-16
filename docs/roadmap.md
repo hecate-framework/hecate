@@ -310,10 +310,18 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       classes of `kernel` declare and `openapi` tests (confirmed); the ordered `tags` list
       with descriptions and `externalDocs` in the project settings. **Later, optional:** a controller-level default
       `tags` field, so that the routes of a controller need not repeat them.
-- [ ] `test`: test framework, runner, in-process client, fixtures, contract conformance,
+- [x] `test`: test framework, runner, in-process client, fixtures, contract conformance,
       reporters (TAP, JUnit XML), coverage. **Also (T2, from the `http` test review):** a hand-built `Request` whose
       `content` is a table must be JSON-encoded or raise, not read as empty (`Request:read_content` today reads only a
-      string); the in-process client uses the dispatch seam of OQ-78. **Also (from the `schema` review, OQ-96):** property-based generators derived from `hecate.schema` types (`generate`, `generate_invalid`, shrinking), which `schema` does not implement.
+      string); the in-process client uses the dispatch seam of OQ-78. **Also (from the `schema` review, OQ-96):** property-based generators derived from `hecate.schema` types (`generate`, `generate_invalid`, shrinking), which `schema` does not implement. **Moved out (owner decision of 2026-11-16):** the database fixtures of the
+      fixtures item belong to the `sql` item (they need transactions); the `test` item delivers the container overrides.
+      **Delivered:** the runner with events and the console, TAP, JUnit XML and JSON-lines reporters; discovery and
+      command-line targeting; tags, parametrised tests and the virtual clock; the in-process client and `test.boot` with
+      container overrides, response validation and route coverage; generators (`generate`, `generate_invalid`, patterns
+      included) and properties with shrinking; line coverage with an LCOV report; parallel runs with live output; the
+      how-to page (English and French) with tested examples; the manual Windows check; the package review
+      ([test-review-package.md](reviews/test-review-package.md)). The repository's own tests move to it in the item
+      below, the bootstrap harness is deleted there.
 - [x] Spike OQ-13 (standalone CLI executable: Lua 5.5, the CLI modules and the native modules in one binary per
       platform; code signing on macOS and Windows), time-boxed, report and recommendation to the owner before the
       `cli` v1 item (owner decision of 2026-11-13). Report: [OQ-13](spikes/OQ-13-standalone-executable.md) (Linux
@@ -332,6 +340,14 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       the hecate marks are never recoloured.
 - [ ] `cli` v1: self-contained executable, `new`, `install`, `add`, `remove`, `update`,
       `serve [--watch]`, `test`, `doc`, `contract`, `toolchain`, `doctor`, `version`.
+      **Also (from the `test` item, owner go-ahead of 2026-11-16):** `hecate test` takes the options of
+      `test.parse_arguments` (`--filter`, `--case`, `--tag`, `--exclude-tag`, paths) and a `--jobs` flag that sets the
+      workers of `test.run_parallel`; a project that runs tests in parallel needs the rule for fixed ports and shared
+      databases (see the `sql` item). **To do or check (package review of the `test` item, owner, 2026-11-16):** the
+      console reporter should print, after the failures, the command that reruns them (the `--filter` of the failed
+      tests); the default of `--jobs` (the package default is 2: `min(cores, 4)` is the candidate); and how long file
+      names are shown in the suite lines (they are cut from the left at the width, so two files with the same tail look
+      alike).
       **Also (from the `openapi` item):** `hecate contract export` (JSON, over `Application:contract`; YAML later, OQ-137),
       `hecate contract lint` (over `openapi.lint`, nonzero exit on an error finding) and `hecate contract diff <ref>`
       (over `openapi.diff`, nonzero exit on a breaking change).
@@ -399,6 +415,29 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
 
       **Also (OQ-46, owner decision of 2026-11-13):** fill `modules` of every rockspec (Lua sources and native
       modules) and extend `check-rockspecs` to compare `modules` with `src/`.
+- [ ] `test`: the repository's own tests run under `hecate.test`, and the bootstrap harness is deleted (ADR 0008,
+      verification: "Phase 3 exit: every package's tests run under `hecate test`; the bootstrap harness is deleted";
+      owner confirmation of 2026-11-16). After the `test` item. To do: (1) give `hecate.test` what the harness has
+      and the tasks rely on: the per-test timeout (`HECATE_TEST_TIMEOUT`), the leak check (`HECATE_TEST_LEAKS`), line
+      coverage with the LCOV report and the thresholds (task `coverage`), the examples runner
+      (`tools/harness/examples.lua`, which checks the `-- Prints:` blocks) and a command-line entry point that the
+      `test`, `coverage` and `leaks` tasks call, with `test.run_parallel` in place of the worker pool of the tasks;
+      **also (package review of the `test` item, finding N1):** a test runs inside a reactor and a reactor cannot start
+      inside another, so a test that calls `Runner:run` (the tests of the runner, of the reactor and of the reporters)
+      cannot run under `hecate.test` as it is: add a case field that runs the tests of that case outside a reactor
+      (design it in this item) before those files are migrated (owner, 2026-11-16: these tests simply run
+      synchronously, although they are unit tests);
+      (2) migrate the test files (about 260, of which about 240 use `harness.test`): `require("hecate.test")`, and each
+      file ends with `core.finalise(T)` (owner decision of 2026-11-16: keep the object-model paradigm, no shim),
+      package by package in layer order, checking every package on the three platforms; (3) **owner decision of
+      2026-11-16:** the rule of `tools/CLAUDE.md` that tools must not require Hecate packages is relaxed for the tests
+      under `tools/tests`, so that no test lives outside the one framework (ADR 0015 does not state that rule; update
+      `tools/CLAUDE.md`, `tools/README.md` and `docs/architecture/testing.md`, "Bootstrap harness"); (4) **owner decision of
+      2026-11-16:** the complete solution for a framework that tests itself, as the established test frameworks do:
+      a CI job runs the whole suite of the repository under a pinned earlier release of `hecate.test` (its version
+      recorded in the repository, bumped deliberately) and the same suite under the current checkout; a disagreement
+      between the two is a finding. Until a first release exists, the pinned build is a recorded commit. The job is
+      written and documented in this item, and the migration stays reversible until every package passes; (5) delete `tools/harness/`.
 - [ ] **Phase 3 gate**: verification of the phase, as described in [Phase gates](#phase-gates). Open
       questions to put to the owner before Phase 4: OQ-18 and OQ-45.
 
@@ -410,7 +449,10 @@ in under five minutes; tutorial reproducible verbatim.
 - [ ] Spike OQ-18 (Data Mapper versus Active Record prototypes), report submitted to the
       owner before any `orm` work.
 - [ ] `sql`: driver interfaces, connection pool, transactions and savepoints, type
-      mapping, instrumentation.
+      mapping, instrumentation. **Also (from the `test` item, owner decision of 2026-11-16):** the database fixtures of
+      `hecate.test`: a fixture that opens a transaction before each test and rolls it back after it (testing.md,
+      "Fixtures"), built on the transactions and savepoints of this package, and the rule for parallel test runs that
+      share a database (one schema per worker process, see `test.run_parallel`).
 - [ ] `query`: relational-algebra query builder, dialects.
 - [ ] `postgresql`: protocol v3, SCRAM-SHA-256, TLS, prepared statements, COPY,
       LISTEN/NOTIFY.

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites tests="8" failures="1" errors="1" time="0.000000">
+  <testsuite name="tests/unit/alpha_test.lua" tests="3" failures="0" errors="0" skipped="0" time="0.000000">
+    <testcase classname="C" name="Alpha.test_a" time="0.000000"/>
+    <testcase classname="C" name="Alpha.test_b" time="0.000000"/>
+    <testcase classname="C" name="Alpha.test_c" time="0.000000"/>
+  </testsuite>
+  <testsuite name="tests/unit/beta_test.lua" tests="4" failures="1" errors="1" skipped="0" time="0.000000">
+    <testcase classname="C" name="Beta.test_a" time="0.000000"/>
+    <testcase classname="Beta" name="test_b_fails" time="0.000000">
+      <failure message="tables differ:" type="AssertionFailure">tables differ:
+  .b[1]: expected 2, got 3
+at tests/unit/beta_test.lua:12</failure>
+    </testcase>
+    <testcase classname="Beta" name="test_c_errors #1" time="0.000000">
+      <error message="hecate.core.StateError: bad &quot;state&quot;" type="Error">hecate.core.StateError: bad &quot;state&quot;
+</error>
+    </testcase>
+    <testcase classname="C" name="Beta.test_d" time="0.000000"/>
+  </testsuite>
+  <testsuite name="tests/unit/gamma_test.lua" tests="1" failures="0" errors="0" skipped="0" time="0.000000">
+    <testcase classname="C" name="Gamma.test_a" time="0.000000"/>
+  </testsuite>
+</testsuites>

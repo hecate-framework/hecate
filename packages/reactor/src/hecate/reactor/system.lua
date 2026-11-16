@@ -45,6 +45,20 @@ function M.getenv(name)
   -- coverage: on
 end
 
+--- Whether the file descriptor `fd` is an interactive terminal (libuv `uv_guess_handle` answering `"tty"`): `false` for a
+--- pipe, a file, a socket, or a descriptor that is not open. `0`, `1` and `2` are the standard streams. Does not suspend
+--- and needs no running reactor (OQ-138).
+---
+--- Raises `hecate.core.ArgumentError` when `fd` is not a non-negative integer.
+---@param fd integer  the descriptor number
+---@return boolean tty
+function M.is_tty(fd)
+  if math.type(fd) ~= "integer" or fd < 0 then
+    error(core.ArgumentError("reactor.is_tty: expects a non-negative integer descriptor, got " .. tostring(fd)), 2)
+  end
+  return uv.guess_handle(fd) == "tty"
+end
+
 -- Largest request of `random`: a bound that keeps one call short (the operating system answers without waiting) and
 -- turns a mistaken size into an `ArgumentError`.
 local MAX_RANDOM <const> = 1 << 20

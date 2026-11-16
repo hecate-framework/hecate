@@ -16,6 +16,8 @@ end
 local structural = { ["end"] = true, ["else"] = true, ["do"] = true, ["then"] = true, ["repeat"] = true,
   ["}"] = true, ["{"] = true, [")"] = true, ["},"] = true, ["end)"] = true, ["end,"] = true, ["})"] = true }
 
+--- Kept in sync with `packages/test/src/hecate/test/line_coverage.lua` (`executable_lines`) until the bootstrap harness is
+--- deleted (roadmap, migration of the tests).
 --- Lines of a Lua source that hold code (an approximation of the debug line table: blank lines,
 --- comments, long comments and lines made only of block delimiters are not executable). A region between a
 --- comment `-- coverage: off` and a comment `-- coverage: on` is not counted either: it is for code that runs in

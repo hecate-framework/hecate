@@ -60,6 +60,9 @@ read the matching page of the [explanation](../explanation/index.md) section.
 - [Use the container](use-the-container.md): bind services, choose lifetimes, validate the graph at boot,
   resolve by constructor injection, close services and replace them in tests.
 
+- [Test an application](test-an-application.md): test cases, booting the application with fakes, the in-process client,
+  route coverage, generated values and properties with shrinking.
+
 - [Serve and export the contract](serve-and-export-the-contract.md): the `openapi` option, the served document, export
   as JSON, lint and breaking-change diff.
 
