@@ -17,6 +17,7 @@ local navigation = require("hecate.doc.navigation")
 local search = require("hecate.doc.search")
 local theme = require("hecate.doc.theme")
 local html = require("hecate.doc.internal.html")
+local file_names = require("hecate.doc.internal.page_id")
 local Page = require("hecate.doc.page")
 
 --- Name of the marker file that identifies an output directory written by the builder.
@@ -91,7 +92,19 @@ local function scan(self, locale)
       elseif entry.is_directory then
         visit(path, child)
       elseif entry.name:sub(-3) == ".md" then
-        local id = child:sub(1, -4)
+        local written = child:sub(1, -4)
+        -- A page id becomes a directory name of the output, so it must be a valid file name on every
+        -- platform (see `internal.page_id`), and is compared in NFC: a tree authored on macOS may carry
+        -- decomposed names (UAX #15).
+        local problem = file_names.windows_problem(written)
+        if problem then
+          fail(("%s: the page id %q is not portable: %s"):format(locale .. "/" .. child, written, problem), path)
+        end
+        local id = file_names.nfc(written)
+        if pages[id] then
+          fail(("pages %s and %s differ only in Unicode normalisation (NFC and NFD): they are one page"):format(
+            pages[id].relative, locale .. "/" .. child), path)
+        end
         pages[id] = { id = id, path = path, relative = locale .. "/" .. child, locale = locale }
       else
         assets[child] = { path = path, relative = child, locale = locale }
@@ -163,7 +176,7 @@ local function link_resolver(self, locale, page_id, problems_prefix)
     local written, suffix = href:match("^([^#?]*)(.*)$")
     if written == "" then return href end
     if written:sub(1, 1) == "/" then return base .. written:sub(2) .. suffix end
-    local path = decode_path(written)
+    local path = file_names.nfc(decode_path(written))
     local joined = normalise_path(directory == "" and path or (directory .. "/" .. path))
     if joined == nil then
       note(self, ("%s: link %s leaves the content root"):format(problems_prefix, href))
@@ -430,7 +443,7 @@ local function render_page(self, page)
           url = nil
           note(self, ("%s: action link with an unsafe URL scheme %s dropped"):format(page.relative_path, target))
         elseif not target:find("^%a[%w+.%-]*:") then
-          local id = target:gsub("/+$", "")
+          local id = file_names.nfc((target:gsub("/+$", "")))
           if self._pages[page.locale][id] then
             url = self._pages[page.locale][id].url
           elseif self._pages[page.locale][id .. "/index"] then

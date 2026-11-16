@@ -300,6 +300,59 @@ function T:test_two_files_for_one_url_raise()
   self:assert_true(err.message:find("same URL", 1, true) ~= nil)
 end
 
+function T:test_page_ids_that_are_not_windows_file_names_raise()
+  local names = { "what?", "a:b", "star*", 'quote"', "lt<", "gt>", "pipe|", "dot.", "space ", "CON", "con", "Aux", "NUL",
+    "COM1", "lpt9", "CON.txt", "guide/prn", "guide./a" }
+  for _, name in ipairs(names) do
+    local err = self:assert_error(function()
+      build({ ["en/index.md"] = page("Home"), ["en/" .. name .. ".md"] = page("X") }, { locales = { { code = "en", label = "English" } } })
+    end)
+    self:assert_true(core.is_instance_of(err, doc.BuildError), name)
+    self:assert_true(err.message:find("Windows", 1, true) ~= nil, name .. ": " .. err.message)
+    self:assert_true(err.context.path:find("c/en/", 1, true) == 1, name .. ": the path names the file")
+  end
+end
+
+function T:test_a_page_id_that_is_not_a_windows_file_name_raises_in_a_translation_too()
+  local err = self:assert_error(function() build({ ["en/index.md"] = page("Home"), ["fr/a?.md"] = page("A") }) end)
+  self:assert_true(core.is_instance_of(err, doc.BuildError))
+end
+
+function T:test_names_that_only_look_reserved_are_pages()
+  local fs = build({ ["en/index.md"] = page("Home"), ["en/console.md"] = page("C"), ["en/com10.md"] = page("D"),
+    ["en/.hidden?.md"] = page("H") }, { locales = { { code = "en", label = "English" } } })
+  self:assert_not_nil(fs:read("o/en/console/index.html"))
+  self:assert_not_nil(fs:read("o/en/com10/index.html"))
+end
+
+function T:test_ids_that_differ_only_in_unicode_normalisation_raise()
+  local err = self:assert_error(function()
+    build({ ["en/index.md"] = page("Home"), ["en/caf\u{E9}.md"] = page("A"), ["en/cafe\u{301}.md"] = page("B") },
+      { locales = { { code = "en", label = "English" } } })
+  end)
+  self:assert_true(core.is_instance_of(err, doc.BuildError))
+  self:assert_true(err.message:find("normalisation", 1, true) ~= nil, err.message)
+  local in_directory = self:assert_error(function()
+    build({ ["en/index.md"] = page("Home"), ["en/\u{C5}/a.md"] = page("A"), ["en/A\u{30A}/a.md"] = page("B") },
+      { locales = { { code = "en", label = "English" } } })
+  end)
+  self:assert_true(core.is_instance_of(in_directory, doc.BuildError))
+end
+
+function T:test_a_decomposed_name_is_the_same_page_as_the_composed_one_in_another_locale()
+  local fs = build({ ["en/index.md"] = page("Home"), ["en/caf\u{E9}.md"] = page("Coffee"),
+    ["fr/index.md"] = page("Accueil"), ["fr/cafe\u{301}.md"] = page("Caf\u{E9}") })
+  self:assert_not_nil(fs:read("o/fr/caf\u{E9}/index.html"))
+  self:assert_true(fs.files["o/fr/cafe\u{301}/index.html"] == nil, "one directory, in composed form")
+  self:assert_true(fs:read("o/fr/caf\u{E9}/index.html"):find("Caf\u{E9}", 1, true) ~= nil)
+end
+
+function T:test_a_link_written_in_decomposed_form_finds_the_composed_page()
+  local fs = build({ ["en/index.md"] = "---\ntitle: Home\n---\n[go](cafe\u{301}.md)\n", ["en/caf\u{E9}.md"] = page("Coffee") },
+    { locales = { { code = "en", label = "English" } } })
+  self:assert_true(fs:read("o/en/index.html"):find("caf%C3%A9/", 1, true) ~= nil)
+end
+
 function T:test_a_site_without_default_locale_pages_raises()
   local err = self:assert_error(function() build({ ["fr/a.md"] = page("A") }) end)
   self:assert_true(core.is_instance_of(err, doc.BuildError))
@@ -412,10 +465,10 @@ end
 
 function T:test_page_ids_are_percent_encoded_in_urls_and_links()
   local files = {
-    ["en/index.md"] = page("Home", "[odd](a%20b/caf\u{e9}.md) [h](a%20b/caf\u{e9}.md#frag)\n\n![i](img%20x.svg) [q](a%20b/q%3F%23.md)"),
+    ["en/index.md"] = page("Home", "[odd](a%20b/caf\u{e9}.md) [h](a%20b/caf\u{e9}.md#frag)\n\n![i](img%20x.svg) [q](a%20b/q%23%25.md)"),
     ["en/guide/index.md"] = page("Guide", "g"),
     ["en/a b/caf\u{e9}.md"] = page("Cafe", "c"),
-    ["en/a b/q?#.md"] = page("Query", "q"),
+    ["en/a b/q#%.md"] = page("Query", "q"),
     ["en/img x.svg"] = "<svg/>",
   }
   local fs = build(files, { url = "https://x.test", locales = { { code = "en", label = "English" } } })
@@ -423,7 +476,7 @@ function T:test_page_ids_are_percent_encoded_in_urls_and_links()
   self:assert_true(home:find('href="/en/a%20b/caf%C3%A9/"', 1, true) ~= nil, "link to a page with a space and an accent")
   self:assert_true(home:find('href="/en/a%20b/caf%C3%A9/#frag"', 1, true) ~= nil)
   self:assert_nil(home:find('href="/en/a b/', 1, true))
-  self:assert_true(home:find("/en/a%20b/q%3F%23/", 1, true) ~= nil, "? and # are encoded")
+  self:assert_true(home:find("/en/a%20b/q%23%25/", 1, true) ~= nil, "# and % are encoded")
   local sitemap = fs:read("o/sitemap.xml")
   self:assert_true(sitemap:find("https://x.test/en/a%20b/caf%C3%A9/", 1, true) ~= nil)
   self:assert_nil(sitemap:find("a b", 1, true))
