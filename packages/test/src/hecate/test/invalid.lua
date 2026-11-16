@@ -78,6 +78,10 @@ local function collect(node, value, keys, defs, out)
     if (node.minLength or 0) > 0 then add(value:sub(1, node.minLength - 1)) end
     if node.maxLength ~= nil then add(value .. string.rep("a", node.maxLength + 1 - #value)) end
     if node.format ~= nil then add("not valid") end
+    if node.pattern ~= nil then
+      -- a few strings no ordinary pattern accepts; validation keeps the ones that break exactly the pattern
+      for _, text in ipairs({ "", "\0", "~~~~", "\0invalid", "!" }) do add(text) end
+    end
   elseif (kind == "integer" or kind == "number") and type(value) == "number" then
     if node.minimum ~= nil then add(node.minimum - 1) end
     if node.maximum ~= nil then add(node.maximum + 1) end

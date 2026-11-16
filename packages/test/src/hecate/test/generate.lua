@@ -6,6 +6,7 @@ global <const> require, type, error, pairs, ipairs, table, math, string, tostrin
 local core = require("hecate.core")
 local schema_package = require("hecate.schema")
 local json = require("hecate.json")
+local pattern_text = require("hecate.test.pattern_text")
 
 --- A seeded generator of values valid for a schema.
 ---@class hecate.test.Generator
@@ -74,7 +75,13 @@ local FORMATS = {
 local generate
 
 local function string_value(node, rng)
-  if node.pattern ~= nil then refuse("a string with a pattern cannot be generated") end
+  if node.pattern ~= nil then
+    if node.format ~= nil then refuse("a string with both a pattern and a format cannot be generated") end
+    local text = pattern_text.generate(node.pattern, function(low, high) return between(rng, low, high) end,
+      node.minLength, node.maxLength)
+    if text == nil then refuse("no string matching the pattern fits minLength and maxLength") end
+    return text
+  end
   if node.format ~= nil then
     local make = FORMATS[node.format]
     if make == nil then refuse("the format " .. tostring(node.format) .. " cannot be generated") end

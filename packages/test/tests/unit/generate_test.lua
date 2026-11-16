@@ -48,6 +48,20 @@ local SCHEMAS = {
     square = schema.object({ side = schema.integer({ minimum = 1 }) }),
   }),
   named = schema.named("Address", address()),
+  pattern_digits = schema.string({ pattern = "^%d+$" }),
+  pattern_code = schema.string({ pattern = "^%u%u%d%d%d$" }),
+  pattern_set = schema.string({ pattern = "^[a-f0-9]+$", min_length = 4, max_length = 8 }),
+  pattern_optional = schema.string({ pattern = "^%a+%-?%d?$" }),
+  pattern_group = schema.string({ pattern = "^(%a%a)%1$" }),
+  pattern_negated = schema.string({ pattern = "^%S+$" }),
+  pattern_not_digit = schema.string({ pattern = "^[^%d]+$" }),
+  pattern_any = schema.string({ pattern = "^.+$", max_length = 5 }),
+  pattern_lazy = schema.string({ pattern = "^a-b$" }),
+  pattern_unanchored = schema.string({ pattern = "%d%d" }),
+  pattern_escaped = schema.string({ pattern = "^%$%d%.%d%d$" }),
+  pattern_control = schema.string({ pattern = "^%c+$" }),
+  pattern_range = schema.string({ pattern = "^[a-c%d_]*$" }),
+  pattern_long = schema.string({ pattern = "^%d*$", min_length = 12, max_length = 14 }),
 }
 
 function T:test_generated_values_are_valid_for_the_schema()
@@ -98,7 +112,8 @@ end
 
 function T:test_what_cannot_be_generated_raises_argument_error()
   local function refused(s) self:assert_error(function() hecate_test.generate(s, 1) end, { class = core.ArgumentError }) end
-  refused(schema.string({ pattern = "^%d+$" }))
+  refused(schema.string({ pattern = "^%d$", min_length = 3 }))
+  refused(schema.string({ pattern = "^%d+$", format = "email" }))
   refused(schema.array(schema.literal(1), { min_items = 2, unique_items = true }))
   ---@type any
   local not_a_schema = {}

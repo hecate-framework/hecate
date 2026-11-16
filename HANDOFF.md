@@ -3,7 +3,7 @@
 
 - roadmap_item: `test`: test framework, runner, in-process client, fixtures, contract conformance, reporters (TAP, JUnit XML), coverage (Phase 3)
 - status: in-progress
-- last_update: 2026-11-16T21:04:21Z
+- last_update: 2026-11-16T21:31:52Z
 
 ## Done
 
@@ -49,10 +49,12 @@
 
 - Step 17: the how-to page documents `test.run_parallel` (checked on the demo directory: same totals as a sequential run). Coverage: the spec makes the bootstrap harness the implementation of line coverage (task `coverage`), so `hecate.test` has none of its own yet.
 
+- Step 18: `pattern` generation (`pattern_text.lua`, parses the ECMA form of the translation; tests in `generate_test.lua`, `invalid_test.lua`, `pattern_text_test.lua`). Roadmap: `cli` pointer and a new `test` item for the migration of the repository's tests (owner decisions of 2026-11-16: `core.finalise` at the end of cases; the `tools/CLAUDE.md` rule relaxed for `tools/tests`).
+
 ## Next steps
 
-1. `pattern` generation (a generator for the exact Lua-pattern subset that `hecate.schema.pattern` accepts; no decision needed); coverage in `hecate.test` (the roadmap item lists it: port the harness line hook and LCOV report); the database fixtures moved to the `sql` item (owner, 2026-11-16: roadmap, testing.md and README updated); parallel follow-ups: live output (the plan needs all totals first), `--jobs` flag in the `cli` command, a rule for fixed ports and per-worker database schemas.
-2. Docs: the how-to page is written (English); remaining: the generated reference (`gen-reference` covers it once the package is in the catalogue), the French translation (`translator-fr`, Phase 3 `check-translations`), and a final read once the rest lands; then the roadmap tick.
+1. Coverage in `hecate.test` (owner: in this pull request): port the harness line hook (main thread and coroutines), an LCOV writer and the thresholds; the runner option and the command-line entry point come with the migration item. Optional: live output during a parallel run (needs the plan of all files first). The `--jobs` flag and the fixed-ports and database rule are pointers in the `cli` and `sql` roadmap items (done).
+2. Docs (owner: yes to both): run `gen-reference` for `test` and check the page; the French translation of the how-to page (`translator-fr`); a final read once the rest lands; then the roadmap tick and the review request.
 
 ## Decisions taken (and where they are recorded)
 

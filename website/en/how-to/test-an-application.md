@@ -170,7 +170,8 @@ a shared database should not run in parallel until the rule for them is written.
 
 ## Limits
 
-- A schema with a `pattern` cannot be generated, and raises `ArgumentError`.
+- A `pattern` is generated from the subset that `hecate.schema` accepts, in ASCII only. A string schema that also has
+  a `format`, or whose `min_length` and `max_length` no string of the pattern fits, raises `ArgumentError`.
 - Integers shrink toward zero, one step at a time near a far bound.
 - Not available yet: database fixtures with a transaction rolled back per test (they come with the `sql` package),
   and line coverage output (LCOV)

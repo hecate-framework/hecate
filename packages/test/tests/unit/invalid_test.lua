@@ -29,6 +29,8 @@ local SCHEMAS = {
   }),
   nullable = schema.nullable(schema.integer()),
   union = schema.union({ schema.integer(), schema.string({ min_length = 1 }) }),
+  pattern = schema.string({ pattern = "^%d+$" }),
+  pattern_bounded = schema.string({ pattern = "^[a-f]+$", min_length = 2, max_length = 6 }),
   tagged = schema.tagged_union("kind", {
     circle = schema.object({ radius = schema.number({ minimum = 0 }) }),
     square = schema.object({ side = schema.integer({ minimum = 1 }) }),

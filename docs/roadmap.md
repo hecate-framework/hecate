@@ -333,6 +333,10 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       the hecate marks are never recoloured.
 - [ ] `cli` v1: self-contained executable, `new`, `install`, `add`, `remove`, `update`,
       `serve [--watch]`, `test`, `doc`, `contract`, `toolchain`, `doctor`, `version`.
+      **Also (from the `test` item, owner go-ahead of 2026-11-16):** `hecate test` takes the options of
+      `test.parse_arguments` (`--filter`, `--case`, `--tag`, `--exclude-tag`, paths) and a `--jobs` flag that sets the
+      workers of `test.run_parallel`; a project that runs tests in parallel needs the rule for fixed ports and shared
+      databases (see the `sql` item).
       **Also (from the `openapi` item):** `hecate contract export` (JSON, over `Application:contract`; YAML later, OQ-137),
       `hecate contract lint` (over `openapi.lint`, nonzero exit on an error finding) and `hecate contract diff <ref>`
       (over `openapi.diff`, nonzero exit on a breaking change).
@@ -400,6 +404,22 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
 
       **Also (OQ-46, owner decision of 2026-11-13):** fill `modules` of every rockspec (Lua sources and native
       modules) and extend `check-rockspecs` to compare `modules` with `src/`.
+- [ ] `test`: the repository's own tests run under `hecate.test`, and the bootstrap harness is deleted (ADR 0008,
+      verification: "Phase 3 exit: every package's tests run under `hecate test`; the bootstrap harness is deleted";
+      owner confirmation of 2026-11-16). After the `test` item. To do: (1) give `hecate.test` what the harness has
+      and the tasks rely on: the per-test timeout (`HECATE_TEST_TIMEOUT`), the leak check (`HECATE_TEST_LEAKS`), line
+      coverage with the LCOV report and the thresholds (task `coverage`), the examples runner
+      (`tools/harness/examples.lua`, which checks the `-- Prints:` blocks) and a command-line entry point that the
+      `test`, `coverage` and `leaks` tasks call, with `test.run_parallel` in place of the worker pool of the tasks;
+      (2) migrate the test files (about 260, of which about 240 use `harness.test`): `require("hecate.test")`, and each
+      file ends with `core.finalise(T)` (owner decision of 2026-11-16: keep the object-model paradigm, no shim),
+      package by package in layer order, checking every package on the three platforms; (3) **owner decision of
+      2026-11-16:** the rule of `tools/CLAUDE.md` that tools must not require Hecate packages is relaxed for the tests
+      under `tools/tests`, so that no test lives outside the one framework (ADR 0015 does not state that rule; update
+      `tools/CLAUDE.md`, `tools/README.md` and `docs/architecture/testing.md`, "Bootstrap harness"); (4) decide and write
+      down how the framework is trusted to test itself (a pinned earlier build of `hecate.test` run in CI beside the
+      current one is the usual answer, see the pull request discussion), and keep the migration reversible until every
+      package passes; (5) delete `tools/harness/`.
 - [ ] **Phase 3 gate**: verification of the phase, as described in [Phase gates](#phase-gates). Open
       questions to put to the owner before Phase 4: OQ-18 and OQ-45.
 
