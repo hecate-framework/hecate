@@ -124,6 +124,15 @@ tests/unit/  tests/integration/  tests/fixtures/
 examples/    benchmarks/
 ```
 
+## Windows
+
+Checked by hand on a fresh Windows x64 machine, in Windows Terminal and in the old console (`cmd.exe`): colours, the
+loading bar, width, live redraw (on by default in a real terminal, off when the output is redirected), TAP, JUnit XML
+and JSON lines, discovery of nested directories. Notes: standard output is a text-mode stream on Windows, so a redirected
+report has `\r\n` line ends; the console shows UTF-8 text correctly after `chcp 65001` (the default code page, 437,
+garbles accents); a suite name always uses `/` (`discover` turns the backslashes of the given directory into `/`).
+PowerShell 5.1 re-encodes the output of `>` (UTF-16); redirect from `cmd.exe` or with `cmd /c`.
+
 ## Manual checks
 
 `manual/` holds a demo suite and a runner script (`lua packages/test/manual/run.lua [console|tap|junit|json]`) to look at the reporters on a real terminal. `manual/README.md` is the procedure for a fresh Windows machine.

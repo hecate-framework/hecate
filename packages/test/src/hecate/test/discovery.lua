@@ -1,5 +1,5 @@
 -- Discovery: finds `*_test.lua` files under a directory and loads the case each returns.
-global <const> require, table, loadfile, pcall, type, ipairs, error
+global <const> require, table, loadfile, pcall, type, ipairs, error, package
 
 local core = require("hecate.core")
 local fs = require("hecate.reactor").fs
@@ -22,6 +22,18 @@ local origins = {}
 ---@return string? path
 function M.origin(case) return origins[case] end
 
+--- Returns `path` as it is displayed and joined: on Windows (`separator` is a backslash) the backslashes become
+--- forward slashes, which Windows accepts everywhere, so that a suite name reads the same on every platform and
+--- never mixes both separators. Elsewhere the path is unchanged (a backslash is an ordinary character of a name).
+---@param path string
+---@param separator? string  the path separator of the platform (default `package.config:sub(1, 1)`)
+---@return string path
+function M.display_path(path, separator)
+  separator = separator or package.config:sub(1, 1)
+  if separator == "\\" then return (path:gsub("\\", "/")) end
+  return path
+end
+
 --- Returns the paths of the files named `*_test.lua` under `directory`, recursively, sorted.
 --- A missing directory yields an empty list.
 ---@async
@@ -38,7 +50,7 @@ function M.discover(directory)
       elseif entry.name:find("_test%.lua$") then found[#found + 1] = path end
     end
   end
-  walk((directory:gsub("[/\\]+$", "")))
+  walk((M.display_path(directory):gsub("/+$", "")))
   table.sort(found)
   return found
 end
