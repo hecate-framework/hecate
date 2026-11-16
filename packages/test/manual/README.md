@@ -39,7 +39,10 @@ winget install --id Microsoft.WindowsTerminal -e
 winget install --id Kitware.CMake -e
 winget install --id Microsoft.VisualStudio.2022.BuildTools -e --override "--passive --wait --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"
 winget install --id Rustlang.Rustup -e
+winget install --id Ninja-build.Ninja -e
 ```
+
+If `winget` fails with `msstore` or a certificate error, add `--source winget` to each command.
 
 - The Build Tools install is large (several GB, 10 to 30 minutes) and opens a progress window by itself. Wait for the
   command to return. If `winget` fails on it, download "Build Tools for Visual Studio 2022" from
@@ -56,7 +59,7 @@ cmake --version
 cargo --version
 ```
 
-All three must print a version. (If `cmake` is not found, the Build Tools bring their own, available in the window of
+All three must print a version (and `ninja --version`). (If `cmake` is not found, the Build Tools bring their own, available in the window of
 step 3; check it there with `cmake --version`.)
 
 ## 3. Open the build window
@@ -102,11 +105,17 @@ $env:LUAROCKS_CONFIG = "$PWD\.hecate\toolchain\luarocks-config.lua"
 lua -v
 ```
 
-`lua -v` must print `Lua 5.5.1`. Then install the library the runtime uses (`luv`, compiled from C, a few minutes):
+`lua -v` must print `Lua 5.5.1`. Then install the library the runtime uses (`luv`, compiled from C, a few minutes). LuaRocks asks CMake for the
+MinGW generator by default, which this setup does not have, so first tell it to use Ninja (observed on a fresh
+machine, 2026-11-15):
 
 ```powershell
+Add-Content -Path .hecate\toolchain\luarocks-config.lua -Value 'cmake_generator = "Ninja"' -Encoding ASCII
 luarocks --tree .hecate\rocks install luv 1.53.0-0
 ```
+
+This must run in the **x64 Native Tools** window (step 3). "No CMAKE_C_COMPILER could be found" means the window is a
+plain terminal: `cl` is not on its PATH.
 
 ## 5. The `json` reporter's native module (only for row D)
 
@@ -179,6 +188,11 @@ as UTF-16, which is not what the program wrote.
 | H | `lua packages\test\manual\run.lua console --no-color` | No colours; failed cells of the bar are drawn as `F`. |
 | I | `lua packages\test\manual\run.lua console packages\test\tests\fixtures\discovery` | Discovery with backslashes and a nested directory. Which suite names are printed, with `/` or `\`? |
 | J | `set HECATE_TEST_LIVE=1` then `lua packages\test\manual\run.lua console` (then `set HECATE_TEST_LIVE=`). PowerShell: `$env:HECATE_TEST_LIVE = "1"`, later `Remove-Item Env:HECATE_TEST_LIVE`. | The environment switch turns live redraw on, as in B. |
+
+Observed on a fresh machine (2026-11-15): in both windows the accents of `failing_test` read `h├-llo w╢rld Γ£ô`
+(the UTF-8 bytes shown in code page 437). For a file, redirect in `cmd.exe`, or write
+`cmd /c "lua ... > out.jsonl"` in PowerShell, then open it in Notepad: a PowerShell `>` converts the text through the
+console code page first, and the file then holds the garbled text, which hides the real result of row D.
 
 **Accents look broken in the console** (for example `hÃ©llo` or `h?llo`)? The program writes UTF-8 and the console
 may use an older code page. Run `chcp 65001`, then repeat the row, and report both results: it is a console setting

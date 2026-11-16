@@ -3,7 +3,7 @@
 
 - roadmap_item: `test`: test framework, runner, in-process client, fixtures, contract conformance, reporters (TAP, JUnit XML), coverage (Phase 3)
 - status: in-progress
-- last_update: 2026-11-15T22:05:01Z
+- last_update: 2026-11-16T00:26:27Z
 
 ## Done
 
@@ -42,6 +42,8 @@
 - Step 16: docs: `website/en/how-to/test-an-application.md`, OUTLINE, how-to index, `llms.txt` regenerated (no change); examples `hecate.test.boot` and `hecate.test.check_property` tested by `examples_test.lua`.
 
 - Step 17: parallel runs (owner chose option A: worker processes split by file, off by default, `--jobs`): `parallel.lua`, `test.run_parallel`; workers started with `reactor.run_process` print one JSON line behind a marker; replay in path order; load failures and dead workers become errored suites. Tests in `parallel_test.lua`. LCOV needs nothing (bootstrap `coverage` task already exists; owner confirmed no open question).
+
+- Windows testing, first findings (owner, fresh Windows x64, 2026-11-15 and 16): rows A, B, C of `packages/test/manual/README.md` ok in a Windows Terminal PowerShell tab and in `cmd.exe` (colours, bar, width; the stack trace is not wrapped to the width, accepted). Row D: the JSON lines are valid, but the accents were garbled in the file because the redirection was made from PowerShell (to redo with `cmd /c` or in `cmd.exe`). Accents show as `h├-llo` in both consoles: UTF-8 bytes read in code page 437 (to retest after `chcp 65001`). Rows E to J not run yet. Setup findings: `winget` failed on the `msstore` source (use `--source winget`); the `luv` rock built through CMake needs `cmake_generator = "Ninja"` in the LuaRocks configuration (LuaRocks defaults to MinGW) and must run in the x64 Native Tools window; the procedure is corrected. Doubt: `bootstrap.ps1` could write that setting itself (CI on `windows-latest` builds `luv` without it, with another generator found on the runner); not changed, because the bootstrap hash is part of the CI cache keys.
 
 ## Next steps
 
