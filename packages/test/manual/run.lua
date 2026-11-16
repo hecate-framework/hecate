@@ -1,7 +1,7 @@
 -- Manual check of hecate.test on a real terminal (used on Windows by hand; works anywhere).
 --
 --   lua packages/test/manual/run.lua [console|tap|junit|json] [--live|--no-live] [--color|--no-color]
---                                    [--width=N] [directory]
+--                                    [--width=N] [--jobs=N] [directory]
 --
 -- Runs the `*_test.lua` files under `directory` (default: the `demo` directory next to this script). The demo
 -- holds passing, failing and erroring tests, a slow suite (to see the live line redraw), a suite with many
@@ -30,13 +30,14 @@ end
 local reactor = require("hecate.reactor")
 local test = require("hecate.test")
 
-local reporter_name, directory, options = "console", here .. "/demo", {}
+local reporter_name, directory, options, jobs = "console", here .. "/demo", {}, nil
 for _, argument in ipairs(arg) do
   if argument == "--live" then options.live = true
   elseif argument == "--no-live" then options.live = false
   elseif argument == "--color" then options.color = true
   elseif argument == "--no-color" then options.color = false
   elseif argument:find("^%-%-width=%d+$") then options.width = tonumber(argument:match("=(%d+)$"))
+  elseif argument:find("^%-%-jobs=%d+$") then jobs = tonumber(argument:match("=(%d+)$"))
   elseif argument == "console" or argument == "tap" or argument == "junit" or argument == "json" then
     reporter_name = argument
   elseif argument:sub(1, 2) == "--" then
@@ -54,10 +55,16 @@ elseif reporter_name == "junit" then reporter = test.JUnitReporter()
 else reporter = test.JsonLinesReporter() end
 
 -- Discovery suspends, so it runs in a reactor; the runner starts a reactor of its own for each test.
-local cases = {}
+local paths, cases, summary = {}, {}, nil
 reactor.run(function()
-  for _, path in ipairs(test.discover(directory)) do cases[#cases + 1] = test.load(path) end
+  paths = test.discover(directory)
+  if jobs then
+    -- one worker process per file; the events reach the reporter live, in the order of the paths
+    summary = test.run_parallel(paths, { jobs = jobs, reporter = reporter })
+  else
+    for _, path in ipairs(paths) do cases[#cases + 1] = test.load(path) end
+  end
 end)
-local summary = test.Runner({ reporter = reporter }):run(cases)
+if not summary then summary = test.Runner({ reporter = reporter }):run(cases) end
 io.stdout:flush()
 os.exit(summary.exit_code)

@@ -35,22 +35,28 @@ function M.display_path(path, separator)
 end
 
 --- Returns the paths of the files named `*_test.lua` under `directory`, recursively, sorted.
---- A missing directory yields an empty list.
+--- Raises `hecate.core.ArgumentError` when `directory` cannot be read (missing, not a directory, no permission).
 ---@async
 ---@param directory string
 ---@return string[] paths
 function M.discover(directory)
   local found = {}
-  local function walk(dir)
-    local ok, entries = pcall(fs.list, dir)
-    if not ok then return end
-    for _, entry in ipairs(entries) do
+  local root = M.display_path(directory):gsub("/+$", "")
+  -- the root must be readable: a mistyped path is an error, not a run without tests
+  local ok, entries = pcall(fs.list, root)
+  if not ok then
+    error(core.ArgumentError("test.discover: the directory cannot be read", { context = { path = root, cause = entries } }), 2)
+  end
+  local function walk(dir, listed)
+    for _, entry in ipairs(listed) do
       local path = dir .. "/" .. entry.name
-      if entry.type == "directory" then walk(path)
+      if entry.type == "directory" then
+        local readable, children = pcall(fs.list, path) -- a subdirectory that cannot be read is skipped
+        if readable then walk(path, children) end
       elseif entry.name:find("_test%.lua$") then found[#found + 1] = path end
     end
   end
-  walk((M.display_path(directory):gsub("/+$", "")))
+  walk(root, entries)
   table.sort(found)
   return found
 end

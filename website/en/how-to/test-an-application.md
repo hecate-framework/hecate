@@ -150,8 +150,14 @@ what it must refuse.
 `test.run_parallel(paths, options)` runs each test file in a worker process of its own, with its own reactor, and
 returns the same summary as `Runner:run`. It suspends, so call it inside `reactor.run`. The option `jobs` is the
 number of workers running at once (default 2), `runner` holds the runner options each worker gets (`filter`, `cases`,
-`tags`, `exclude_tags`, `clock`), and `reporter` receives the events in the order of the paths, so the stream has the
-shape of a sequential run.
+`tags`, `exclude_tags`, `clock`), `reporter` receives the events, and `lua` names the interpreter that runs a worker
+(default: the one that started the script).
+
+The primary, the process that calls `run_parallel`, first asks the worker of each file for its plan, so `run_started`
+announces the total of the whole run. It then runs the files `jobs` at a time. The events of the first unfinished file
+reach the reporter as they happen, and those of later files wait for their turn, so the stream has the shape of a
+sequential run and a console shows progress while the files run. A worker that cannot start, dies or sends something
+unreadable becomes an errored suite; it never stops the run.
 
 ```lua
 local reactor = require("hecate.reactor")
@@ -164,9 +170,9 @@ reactor.run(function()
 end)
 ```
 
-Two limits of this first version: the reporter sees nothing until every worker has finished, because the plan of a run
-needs the total of all files, and what a test prints to its standard output is dropped. Tests that use a fixed port or
-a shared database should not run in parallel until the rule for them is written.
+Two limits: each file is loaded twice, once to plan and once to run, and what a test prints to its standard output is
+dropped (its standard error reaches that of the primary). Tests that use a fixed port or a shared database should not
+run in parallel until the rule for them is written.
 
 ## Measure line coverage
 

@@ -1,6 +1,6 @@
 -- Fixtures: an application booted for a test, its container overrides applied once every module has bound its
 -- services and before the kernel validates the graph (container.md, "Overrides for tests").
-global <const> require, type, ipairs, error, pairs, setmetatable
+global <const> require, type, ipairs, error, pairs, setmetatable, pcall, rawget
 
 local core = require("hecate.core")
 local container_package = require("hecate.container")
@@ -58,11 +58,16 @@ function M.boot(options, overrides)
   local container = copy.container or container_package.Container()
   copy.container = container
   if copy.validate_responses == nil then copy.validate_responses = true end
+  -- The overrides are applied on the first validation, which the kernel runs once all the services are bound. The
+  -- container is patched for the duration of `boot` only: what it held before (nothing, or an own `validate`) comes
+  -- back on every path, and a boot that never validated is reported instead of running with the real services.
+  local raw = rawget(container, "validate")
+  local applied = #overrides == 0
   if #overrides > 0 then
-    -- applied on the first validation, which the kernel runs once all the services are bound
     local validate = container.validate
     container.validate = function(self)
-      container.validate = nil
+      container.validate = raw
+      applied = true
       for _, entry in ipairs(overrides) do
         if entry.value ~= nil then
           self:override_with_instance(entry.key, entry.value)
@@ -73,8 +78,15 @@ function M.boot(options, overrides)
       return validate(self)
     end
   end
-  local application = kernel.Application(copy)
-  local action = application:boot()
+  local booted, application, action = pcall(function()
+    local created = kernel.Application(copy)
+    return created, created:boot()
+  end)
+  container.validate = raw
+  if not booted then error(application, 0) end
+  if not applied then
+    error(core.StateError("test.boot: the overrides were not applied: the application did not validate its container"), 2)
+  end
   local names = {}
   for _, entry in ipairs(application.entries or {}) do
     if entry.name ~= nil then names[#names + 1] = entry.name end

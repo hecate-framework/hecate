@@ -222,9 +222,15 @@ end
 local counter
 
 --- Installs the counter (`{ assertions = integer }`) that receives the assertions of the running
---- test, or removes it with `nil`. Used by the runner.
+--- test, or removes it with `nil`, and returns the counter that was installed before, so that a runner used inside a
+--- test puts the outer counter back. Used by the runner.
 ---@param target? { assertions: integer }
-local function count_into(target) counter = target end
+---@return { assertions: integer }? previous
+local function count_into(target)
+  local previous = counter
+  counter = target
+  return previous
+end
 
 for name, method in pairs(Assertions) do
   Assertions[name] = function(self, ...)

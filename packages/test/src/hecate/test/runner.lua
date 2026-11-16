@@ -48,6 +48,7 @@ local AssertionFailure = failure.AssertionFailure
 ---@field assertions integer
 ---@field ok boolean  true when every test passed
 ---@field exit_code integer  0 when `ok`, 1 otherwise: the status a command line runner exits with
+---@field empty boolean  no test ran (a filter that selects nothing, no test file): `ok` stays true, so a command line runner can warn
 ---@field results hecate.test.Result[]  in execution order
 ---@field suites hecate.test.SuiteSummary[]  in execution order
 ---@field duration number  seconds of processor time
@@ -233,7 +234,7 @@ local function run_test(class, case_instance, name, arguments)
   local instance = core.allocate(class)
   for key, value in pairs(case_instance) do instance[key] = value end
   local counter = { assertions = 0 }
-  assertions.count_into(counter)
+  local outer_counter = assertions.count_into(counter)
   local outcome = in_reactor(function()
     if instance.set_up then
       local ok, err = xpcall(instance.set_up, capture, instance)
@@ -248,7 +249,7 @@ local function run_test(class, case_instance, name, arguments)
     end
     return outcome
   end)
-  assertions.count_into(nil)
+  assertions.count_into(outer_counter)
   outcome.assertions = counter.assertions
   return outcome
 end
@@ -313,6 +314,7 @@ local function run_tests(self, cases)
   }
   local function emit(event) if reporter then reporter:handle(event) end end
   local started = os.clock()
+  summary.empty = #tests == 0
 
   local suite_count = 0
   for i, test in ipairs(tests) do
@@ -402,11 +404,13 @@ end
 ---@param cases table[]  test cases created with `test.Case`
 ---@return hecate.test.Summary summary
 function Runner:run(cases)
+  -- a runner used inside a test (the framework tests itself) must leave the clock of the outer case as it was
+  local outer_clock = clock_kind
   local coverage = self._coverage
-  if coverage == nil then return run_tests(self, cases) end
-  coverage:start()
+  if coverage then coverage:start() end
   local ok, result = pcall(run_tests, self, cases)
-  coverage:stop()
+  if coverage then coverage:stop() end
+  clock_kind = outer_clock
   if not ok then error(result, 0) end
   return result
 end

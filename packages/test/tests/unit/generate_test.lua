@@ -120,4 +120,27 @@ function T:test_what_cannot_be_generated_raises_argument_error()
   refused(not_a_schema)
 end
 
+function T:test_hostile_sizes_and_cycles_are_refused_quickly()
+  local function refused(s) self:assert_error(function() hecate_test.generate(s, 1) end, { class = core.ArgumentError }) end
+  refused(schema.string({ min_length = 1000000000 }))
+  refused(schema.array(schema.integer(), { min_items = 1000000000 }))
+  refused(schema.map(schema.integer(), { min_properties = 1000000000 }))
+  refused(schema.string({ pattern = "^(a)(%1%1%1%1%1%1%1%1%1%1)(%2%2%2%2%2%2%2%2%2%2)(%3%3%3%3%3%3%3%3%3%3)"
+    .. "(%4%4%4%4%4%4%4%4%4%4)(%5%5%5%5%5%5%5%5%5%5)(%6%6%6%6%6%6%6%6%6%6)(%7%7%7%7%7%7%7%7%7%7)"
+    .. "(%8%8%8%8%8%8%8%8%8%8)(%9%9%9%9%9%9%9%9%9%9)$" }))
+  local Node = core.class("RequiredNode", nil, { implements = { schema.Representable } })
+  function Node.schema() return schema.object({ next = schema.of(Node) }) end
+  core.finalise(Node)
+  refused(schema.of(Node))
+end
+
+function T:test_a_large_bound_gives_short_values()
+  for seed = 1, 20 do
+    local text = hecate_test.generate(schema.string({ max_length = 1000000000 }), seed)
+    self:assert_true(#text <= 300)
+    local list = hecate_test.generate(schema.array(schema.integer(), { max_items = 1000000000 }), seed)
+    self:assert_true(#list <= 30)
+  end
+end
+
 return core.finalise(T)

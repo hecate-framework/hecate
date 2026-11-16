@@ -13,8 +13,16 @@ function T:test_finds_test_files_recursively_in_sorted_order()
   self:assert_equal({ "a_test.lua", "nested/b_test.lua" }, names)
 end
 
-function T:test_a_missing_directory_yields_no_files()
-  self:assert_equal({}, reactor.run(hecate_test.discover, fixtures .. "/missing"))
+function T:test_a_missing_directory_is_an_error_not_an_empty_run()
+  self:assert_error(function() reactor.run(hecate_test.discover, fixtures .. "/missing") end,
+    { class = core.ArgumentError })
+  self:assert_error(function() reactor.run(hecate_test.discover, fixtures .. "/a_test.lua") end,
+    { class = core.ArgumentError })
+end
+
+function T:test_a_directory_without_tests_yields_an_empty_list()
+  self:assert_equal({}, reactor.run(hecate_test.discover, fixtures .. "/nested/.."
+    .. "/../discovery_bad/.."  .. "/line_coverage"))
 end
 
 function T:test_load_returns_the_case_of_a_file()

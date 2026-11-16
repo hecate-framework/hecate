@@ -16,12 +16,10 @@ dependencies = {
   "lua >= 5.5, < 5.6",
   "hecate-core",
   "hecate-reactor",
-  "hecate-log",
   "hecate-schema",
   "hecate-http",
   "hecate-container",
   "hecate-kernel",
-  "hecate-openapi",
   "hecate-json",
 }
 

@@ -10,6 +10,9 @@ local M = {}
 
 local MAX_ATTEMPTS = 300
 
+--- A bound above this is not used to build a value that crosses it (the value would be huge).
+M.MAX_SIZE = 10000
+
 local function copy(value)
   local out = {}
   for key, item in pairs(value) do out[key] = item end
@@ -76,7 +79,7 @@ local function collect(node, value, keys, defs, out)
   if wrong ~= nil then add(wrong) end
   if kind == "string" and type(value) == "string" then
     if (node.minLength or 0) > 0 then add(value:sub(1, node.minLength - 1)) end
-    if node.maxLength ~= nil then add(value .. string.rep("a", node.maxLength + 1 - #value)) end
+    if node.maxLength ~= nil and node.maxLength <= M.MAX_SIZE then add(value .. string.rep("a", node.maxLength + 1 - #value)) end
     if node.format ~= nil then add("not valid") end
     if node.pattern ~= nil then
       -- a few strings no ordinary pattern accepts; validation keeps the ones that break exactly the pattern
@@ -96,7 +99,7 @@ local function collect(node, value, keys, defs, out)
       for i = 1, node.minItems - 1 do shorter[i] = value[i] end
       add(shorter)
     end
-    if node.maxItems ~= nil and count > 0 then
+    if node.maxItems ~= nil and node.maxItems <= M.MAX_SIZE and count > 0 then
       local longer = {}
       for i = 1, count do longer[i] = value[i] end
       for i = count + 1, node.maxItems + 1 do longer[i] = value[(i - 1) % count + 1] end
@@ -123,7 +126,7 @@ local function collect(node, value, keys, defs, out)
       add(extended)
     end
     if node.minProperties ~= nil and node.minProperties > 0 then add({}) end
-    if node.maxProperties ~= nil then
+    if node.maxProperties ~= nil and node.maxProperties <= M.MAX_SIZE then
       local more = copy(value)
       for i = 1, node.maxProperties + 1 do more["extra" .. i] = value[names[1]] or 0 end
       add(more)

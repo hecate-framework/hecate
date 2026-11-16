@@ -4,7 +4,7 @@
 -- approximation: blank lines, comments and lines made only of block delimiters do not), and the region between the
 -- comments `-- coverage: off` and `-- coverage: on` is not counted (code that runs in another Lua state, which no hook
 -- sees; the comment says why).
-global <const> require, type, error, pairs, ipairs, pcall, io, string, table, tonumber, tostring, coroutine, debug
+global <const> require, type, error, pairs, ipairs, pcall, io, string, table, tonumber, tostring, coroutine, debug, math
 
 local core = require("hecate.core")
 
@@ -97,15 +97,19 @@ local function decide(self, source)
   return path
 end
 
---- Starts recording: a line hook on the running thread, and on every coroutine created from now on.
+--- Starts recording: a line hook on the running thread, and on every coroutine created from now on. Returns the
+--- recorder, so that `local recording <close> = coverage:start()` stops it when the block ends, also on an error.
 ---
 --- Raises `hecate.core.StateError` when it is already recording.
+---@return hecate.test.LineCoverage self
 function LineCoverage:start()
   if self._running then error(core.StateError("test.LineCoverage: already recording"), 2) end
   self._running = true
   local hits = self._hits
   local previous_hook, previous_mask, previous_count = debug.gethook()
   local function record(event, line)
+    -- a coroutine started while recording keeps its hook after `stop`: it must record nothing then
+    if not self._running then return end
     if event ~= "line" then
       if previous_hook then previous_hook(event, line) end
       return
@@ -136,6 +140,7 @@ function LineCoverage:start()
       return f(...)
     end)
   end
+  return self
 end
 
 --- Stops recording and restores the hook and the coroutine functions it replaced.
@@ -148,21 +153,39 @@ function LineCoverage:stop()
   self._restore = nil
 end
 
+--- Stops the recording when the recorder is closed while it is still recording (`local recording <close> = coverage:start()`).
+---@private
+function LineCoverage:__close()
+  if self._running then self:stop() end
+end
+
 --- The hits recorded so far: `{ [path] = { [line] = count } }`. The table is the recorder's own: do not change it.
 ---@return table<string, table<integer, integer>> hits
 function LineCoverage:hits() return self._hits end
 
 --- Adds the hits of another run, in the form of `hits()`. The keys of the lines may be numbers or their text (JSON
---- turns them into text).
+--- turns them into text); every count is a non-negative integer. Nothing is added when the table is malformed.
+---
+--- Raises `hecate.core.ArgumentError` for a table of another shape.
 ---@param hits table<string, table<integer|string, integer>>
 function LineCoverage:merge(hits)
+  local function malformed() error(core.ArgumentError("test.LineCoverage: merge expects { [path] = { [line] = count } }"), 3) end
+  if type(hits) ~= "table" then malformed() end
+  local checked = {}
   for path, lines in pairs(hits) do
-    local set = self._hits[path]
-    if not set then set = {}; self._hits[path] = set end
+    if type(path) ~= "string" or type(lines) ~= "table" then malformed() end
     for line, count in pairs(lines) do
-      local number = tonumber(line) --[[@as integer]]
-      set[number] = (set[number] or 0) + count
+      local number = tonumber(line)
+      if number == nil or math.type(number) ~= "integer" or number < 1 or math.type(count) ~= "integer" or count < 0 then
+        malformed()
+      end
+      checked[#checked + 1] = { path, number, count }
     end
+  end
+  for _, entry in ipairs(checked) do
+    local set = self._hits[entry[1]]
+    if not set then set = {}; self._hits[entry[1]] = set end
+    set[entry[2]] = (set[entry[2]] or 0) + entry[3]
   end
 end
 

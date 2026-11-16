@@ -154,8 +154,15 @@ qu’elle doit refuser.
 `test.run_parallel(paths, options)` exécute chaque fichier de test dans un processus worker qui lui est propre, avec son
 propre réacteur, et renvoie le même résumé que `Runner:run`. Il suspend, donc appelez-le dans `reactor.run`. L’option
 `jobs` est le nombre de workers actifs en même temps (2 par défaut), `runner` contient les options du runner que reçoit
-chaque worker (`filter`, `cases`, `tags`, `exclude_tags`, `clock`), et `reporter` reçoit les événements dans l’ordre des
-chemins, de sorte que le flux a la forme d’une exécution séquentielle.
+chaque worker (`filter`, `cases`, `tags`, `exclude_tags`, `clock`), `reporter` reçoit les événements, et `lua` nomme
+l’interpréteur qui exécute un worker (par défaut, celui qui a lancé le script).
+
+Le primaire, le processus qui appelle `run_parallel`, demande d’abord son plan au worker de chaque fichier, de sorte que
+`run_started` annonce le total de toute l’exécution. Il exécute ensuite les fichiers `jobs` à la fois. Les événements du
+premier fichier non terminé parviennent au reporter au fur et à mesure, ceux des fichiers suivants attendent leur tour :
+le flux a donc la forme d’une exécution séquentielle et une console montre la progression pendant que les fichiers
+s’exécutent. Un worker qui ne peut pas démarrer, qui meurt ou qui envoie quelque chose d’illisible devient une suite en
+erreur ; il n’arrête jamais l’exécution.
 
 ```lua
 local reactor = require("hecate.reactor")
@@ -168,10 +175,10 @@ reactor.run(function()
 end)
 ```
 
-Deux limites de cette première version : le reporter ne voit rien avant que tous les workers aient terminé, parce que
-le plan d’une exécution a besoin du total de tous les fichiers, et ce qu’un test écrit sur sa sortie standard est
-perdu. Les tests qui utilisent un port fixe ou une base de données partagée ne devraient pas s’exécuter en parallèle
-tant que la règle qui les concerne n’est pas écrite.
+Deux limites : chaque fichier est chargé deux fois, une fois pour planifier et une fois pour exécuter, et ce qu’un test
+écrit sur sa sortie standard est perdu (sa sortie d’erreur parvient à celle du primaire). Les tests qui utilisent un
+port fixe ou une base de données partagée ne devraient pas s’exécuter en parallèle tant que la règle qui les concerne
+n’est pas écrite.
 
 ## Mesurer la couverture de lignes
 

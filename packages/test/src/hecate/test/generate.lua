@@ -13,10 +13,18 @@ local pattern_text = require("hecate.test.pattern_text")
 ---@overload fun(schema: hecate.schema.Schema, seed?: integer): hecate.test.Generator
 local Generator = core.class("Generator")
 
+-- The most characters, items or properties that a bound may ask for, and how deep a schema may nest (a schema that
+-- refers to itself without end is refused instead of looping).
+local MAX_SIZE = 10000
+local MAX_NESTING = 100
 local MAX_DEPTH = 6 -- beyond it optional parts are omitted, arrays are as short and unions as plain as allowed
 local ALPHABET = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 _-"
 
 local function refuse(message) error(core.ArgumentError("test.generate: " .. message), 0) end
+
+local function check_size(value, name)
+  if value > MAX_SIZE then refuse(("%s is above the limit of %d"):format(name, MAX_SIZE)) end
+end
 
 -- SplitMix64 on Lua integers (wrapping arithmetic, logical shifts).
 local function bits(rng)
@@ -88,8 +96,10 @@ local function string_value(node, rng)
     return (make --[[@as function]])(rng)
   end
   local minimum = node.minLength or 0
+  check_size(minimum, "minLength")
   local maximum = node.maxLength or (minimum + 16)
   if maximum < minimum then refuse("minLength is above maxLength") end
+  maximum = math.min(maximum, minimum + 256) -- a large bound gives short values
   return letters(rng, between(rng, minimum, maximum))
 end
 
@@ -149,8 +159,10 @@ end
 
 local function array_value(node, rng, context, depth)
   local minimum = node.minItems or 0
+  check_size(minimum, "minItems")
   local maximum = node.maxItems or (minimum + 4)
   if maximum < minimum then refuse("minItems is above maxItems") end
+  maximum = math.min(maximum, minimum + 16)
   local count = depth > MAX_DEPTH and minimum or between(rng, minimum, maximum)
   local items, seen = {}, {}
   local item_node = node.items or {}
@@ -182,8 +194,10 @@ local function object_value(node, rng, context, depth)
   local extra = node.additionalProperties
   if type(extra) == "table" then
     local minimum = node.minProperties or 0
+    check_size(minimum, "minProperties")
     local maximum = node.maxProperties or (minimum + 3)
     if maximum < minimum then refuse("minProperties is above maxProperties") end
+    maximum = math.min(maximum, minimum + 16)
     local count = depth > MAX_DEPTH and minimum or between(rng, minimum, maximum)
     local made = 0
     while made < count do
@@ -200,13 +214,14 @@ end
 local function plain(alternative) return alternative["$ref"] == nil and alternative.type ~= "object" and alternative.type ~= "array" end
 
 function generate(node, rng, context, depth)
+  if depth > MAX_NESTING then refuse("the schema nests deeper than the limit, or refers to itself without end") end
   if type(node) ~= "table" then refuse("the schema holds a boolean schema, which is not generated") end
   local reference = node["$ref"]
   if reference ~= nil then
     local name = reference:match("^#/%$defs/(.+)$")
     local target = name and context.defs[name]
     if target == nil then refuse("unresolved reference " .. tostring(reference)) end
-    return generate(target, rng, context, depth)
+    return generate(target, rng, context, depth + 1)
   end
   if node.const ~= nil then return node.const end
   if node.enum ~= nil then return node.enum[between(rng, 1, #node.enum)] end

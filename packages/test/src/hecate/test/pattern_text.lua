@@ -163,21 +163,27 @@ local function pool(set)
   return #printable > 0 and printable or set
 end
 
-local function emit(node, between, cap, captured, out)
+-- `state.length` counts what was produced and `state.limit` stops an attempt that grows without bound (a chain of
+-- back-references multiplies the text it repeats).
+local function emit(node, between, cap, captured, out, state)
   if node.kind == "bytes" then
     local candidates = pool(node.set)
     if #candidates == 0 then return false end
     local high = node.high or math.max(node.low, cap)
     local count = node.low == high and node.low or between(node.low, high)
+    state.length = state.length + count
+    if state.length > state.limit then return false end
     for _ = 1, count do out[#out + 1] = char(candidates[between(1, #candidates)]) end
   elseif node.kind == "backref" then
     local text = captured[node.index]
     if text == nil then return false end
+    state.length = state.length + #text
+    if state.length > state.limit then return false end
     out[#out + 1] = text
   else
     local start = #out
     for _, child in ipairs(node) do
-      if not emit(child, between, cap, captured, out) then return false end
+      if not emit(child, between, cap, captured, out, state) then return false end
     end
     if node.kind == "group" then captured[node.index] = table.concat(out, "", start + 1) end
   end
@@ -185,6 +191,9 @@ local function emit(node, between, cap, captured, out)
 end
 
 local CAPS = { 0, 2, 3, 4, 6, 10, 16, 24, 40 }
+
+--- The longest string an attempt may build (characters), whatever `maximum` says.
+M.MAX_LENGTH = 65536
 
 --- Returns a string that matches `regex` (the ECMA-262 form of a `pattern`) and whose length is between `minimum` and
 --- `maximum` (bytes, which are characters here), or nil when no attempt fits the length. `between(low, high)` draws an
@@ -199,9 +208,10 @@ local CAPS = { 0, 2, 3, 4, 6, 10, 16, 24, 40 }
 function M.generate(regex, between, minimum, maximum)
   local tree = M.parse(regex)
   minimum, maximum = minimum or 0, maximum or math.huge
+  local limit = math.min(maximum, M.MAX_LENGTH)
   for attempt = 1, 90 do
     local out = {}
-    if emit(tree, between, CAPS[(attempt - 1) % #CAPS + 1], {}, out) then
+    if emit(tree, between, CAPS[(attempt - 1) % #CAPS + 1], {}, out, { length = 0, limit = limit }) then
       local text = table.concat(out)
       if #text >= minimum and #text <= maximum then return text end
     end

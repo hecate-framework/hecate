@@ -1,5 +1,5 @@
 -- Line coverage: the lines of the sources that ran, in the main thread and in coroutines, as an LCOV report.
-global <const> require, debug, coroutine, dofile, pairs
+global <const> require, debug, coroutine, dofile, pairs, error
 
 local core = require("hecate.core")
 local reactor = require("hecate.reactor")
@@ -104,7 +104,7 @@ function T:test_the_runner_records_while_it_runs_and_stops_afterwards()
   self:assert_true(hit_lines(coverage, "sample.lua")[4] ~= nil)
 end
 
-function T:test_workers_report_their_lines_to_the_coordinator()
+function T:test_workers_report_their_lines_to_the_primary()
   local coverage = hecate_test.LineCoverage({ include = INCLUDE })
   local summary = reactor.run(hecate_test.run_parallel, { normal(here .. "/../fixtures/parallel/d_case.lua") },
     { coverage = coverage })
@@ -121,6 +121,58 @@ function T:test_bad_options_raise_argument_error()
   self:assert_error(function()
     reactor.run(hecate_test.run_parallel, {}, { coverage = number })
   end, { class = core.ArgumentError })
+end
+
+function T:test_a_run_that_fails_leaves_no_hook_behind()
+  local create, wrap, hook = coroutine.create, coroutine.wrap, debug.gethook()
+  local C = hecate_test.Case("Failing")
+  function C:test_a_error() error("boom", 0) end
+  function C:test_b_leak() reactor.fork(function() reactor.sleep(30) end) end
+  function C:test_c_deadlock() reactor.Channel():receive() end
+  C.clock = "virtual"
+  local summary = hecate_test.Runner({ coverage = hecate_test.LineCoverage({ include = INCLUDE }) }):run({ C })
+  self:assert_false(summary.ok)
+  self:assert_equal(create, coroutine.create)
+  self:assert_equal(wrap, coroutine.wrap)
+  self:assert_equal(hook, debug.gethook())
+end
+
+function T:test_a_coroutine_that_outlives_stop_records_nothing_more()
+  local coverage = hecate_test.LineCoverage({ include = INCLUDE })
+  coverage:start()
+  local sample = dofile(fixtures .. "/sample.lua")
+  local co = coroutine.create(function() coroutine.yield() return sample.pick(-1) end)
+  coroutine.resume(co)
+  coverage:stop()
+  local before = hit_lines(coverage, "sample.lua")[6]
+  coroutine.resume(co)
+  self:assert_equal(before, hit_lines(coverage, "sample.lua")[6])
+end
+
+function T:test_closing_stops_the_recording_and_start_returns_the_recorder()
+  local create = coroutine.create
+  local coverage = hecate_test.LineCoverage({ include = INCLUDE })
+  do
+    local recorder <close> = coverage:start()
+    self:assert_equal(coverage, recorder)
+    self:assert_true(coroutine.create ~= create)
+  end
+  self:assert_equal(create, coroutine.create)
+  coverage:start()
+  coverage:stop()
+end
+
+function T:test_merge_refuses_a_malformed_hit_table()
+  local coverage = hecate_test.LineCoverage({ include = INCLUDE })
+  ---@type any
+  local bad = { path = "x" }
+  self:assert_error(function() coverage:merge(bad) end, { class = core.ArgumentError })
+  bad = { path = { ["3"] = "many" } }
+  self:assert_error(function() coverage:merge(bad) end, { class = core.ArgumentError })
+  bad = { path = { ["x"] = 1 } }
+  self:assert_error(function() coverage:merge(bad) end, { class = core.ArgumentError })
+  coverage:merge({ path = { ["3"] = 2 } })
+  self:assert_equal(2, coverage:hits().path[3])
 end
 
 return core.finalise(T)

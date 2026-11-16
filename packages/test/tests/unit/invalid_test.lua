@@ -1,5 +1,5 @@
 -- Generators of invalid values: a valid value broken in exactly one place, with the violation expected.
-global <const> require, ipairs, pairs, table
+global <const> require, ipairs, pairs, table, os, type
 
 local core = require("hecate.core")
 local schema = require("hecate.schema")
@@ -85,6 +85,13 @@ end
 
 function T:test_a_schema_that_accepts_everything_has_no_invalid_value()
   self:assert_error(function() hecate_test.generate_invalid(schema.any(), 1) end, { class = core.ArgumentError })
+end
+
+function T:test_a_huge_bound_does_not_allocate_it()
+  local started = os.clock()
+  local value = hecate_test.generate_invalid(schema.string({ max_length = 1000000000 }), 1)
+  self:assert_true(type(value) ~= "string" or #value < 1000000)
+  self:assert_true(os.clock() - started < 5)
 end
 
 return core.finalise(T)

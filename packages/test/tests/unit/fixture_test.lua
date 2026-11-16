@@ -1,4 +1,4 @@
--- Fixtures: an application booted for a test, with container overrides applied before validation.
+global <const> require, table, rawget, error
 global <const> require, table
 
 local hecate_test = require("hecate.test")
@@ -92,6 +92,29 @@ function T:test_responses_are_validated_against_their_schema_by_default()
   self:assert_equal(500, client:get("/item").status)
   local lenient = hecate_test.boot(typed(false))
   self:assert_equal(200, lenient:get("/item").status)
+end
+
+function T:test_a_failed_boot_leaves_a_given_container_as_it_was()
+  local container = require("hecate.container").Container()
+  local raw = rawget(container, "validate")
+  local broken = options()
+  broken.container = container
+  broken.modules = { { name = "broken", services = function() error("services failed", 0) end } }
+  self:assert_error(function() hecate_test.boot(broken, { { key = "greeter", value = "x" } }) end)
+  self:assert_equal(raw, rawget(container, "validate"))
+end
+
+function T:test_a_validate_of_the_given_container_is_kept()
+  local container = require("hecate.container").Container()
+  local original = container.validate
+  local calls = 0
+  local own = function(self) calls = calls + 1 return original(self) end
+  container.validate = own
+  local given = options()
+  given.container = container
+  hecate_test.boot(given, { { key = "greeter", value = "fake" } })
+  self:assert_equal(own, rawget(container, "validate"))
+  self:assert_equal(1, calls)
 end
 
 return core.finalise(T)
