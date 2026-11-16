@@ -145,9 +145,32 @@ print(age:validate(value), expected.code)
 validation reports, with its JSON Pointer `path` and its `code`, which makes it the way to test that a route refuses
 what it must refuse.
 
+## Run files in parallel
+
+`test.run_parallel(paths, options)` runs each test file in a worker process of its own, with its own reactor, and
+returns the same summary as `Runner:run`. It suspends, so call it inside `reactor.run`. The option `jobs` is the
+number of workers running at once (default 2), `runner` holds the runner options each worker gets (`filter`, `cases`,
+`tags`, `exclude_tags`, `clock`), and `reporter` receives the events in the order of the paths, so the stream has the
+shape of a sequential run.
+
+```lua
+local reactor = require("hecate.reactor")
+local test = require("hecate.test")
+
+reactor.run(function()
+  local paths = test.discover("tests")
+  local summary = test.run_parallel(paths, { jobs = 4 })
+  print(summary.exit_code)
+end)
+```
+
+Two limits of this first version: the reporter sees nothing until every worker has finished, because the plan of a run
+needs the total of all files, and what a test prints to its standard output is dropped. Tests that use a fixed port or
+a shared database should not run in parallel until the rule for them is written.
+
 ## Limits
 
 - A schema with a `pattern` cannot be generated, and raises `ArgumentError`.
 - Integers shrink toward zero, one step at a time near a far bound.
-- Not available yet: database fixtures with a transaction rolled back per test, line coverage output (LCOV) and
-  parallel workers.
+- Not available yet: database fixtures with a transaction rolled back per test, and line coverage output (LCOV)
+  from `hecate.test` itself (the `coverage` task of the repository measures the packages meanwhile).

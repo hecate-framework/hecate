@@ -3,7 +3,7 @@
 
 - roadmap_item: `test`: test framework, runner, in-process client, fixtures, contract conformance, reporters (TAP, JUnit XML), coverage (Phase 3)
 - status: in-progress
-- last_update: 2026-11-16T20:53:56Z
+- last_update: 2026-11-16T20:57:25Z
 
 ## Done
 
@@ -46,6 +46,8 @@
 - Windows testing, first findings (owner, fresh Windows x64, 2026-11-15 and 16): rows A, B, C of `packages/test/manual/README.md` ok in a Windows Terminal PowerShell tab and in `cmd.exe` (colours, bar, width; the stack trace is not wrapped to the width, accepted). Row D: the JSON lines are valid, but the accents were garbled in the file because the redirection was made from PowerShell (to redo with `cmd /c` or in `cmd.exe`). Accents show as `h├-llo` in both consoles: UTF-8 bytes read in code page 437 (to retest after `chcp 65001`). Owner confirmed (2026-11-16): the live redraw of row B works in both windows, and the garbled accents are accepted as the console code page (437), not a defect. Rows E to J, and row D redone with a clean redirect, not run yet. Setup findings: `winget` failed on the `msstore` source (use `--source winget`); the `luv` rock built through CMake needs `cmake_generator = "Ninja"` in the LuaRocks configuration (LuaRocks defaults to MinGW) and must run in the x64 Native Tools window; the procedure is corrected. Doubt: `bootstrap.ps1` could write that setting itself (CI on `windows-latest` builds `luv` without it, with another generator found on the runner); not changed, because the bootstrap hash is part of the CI cache keys.
 
 - Windows testing phase done (owner, fresh Windows x64, 2026-11-16): rows A to J of `packages/test/manual/README.md` pass in Windows Terminal (PowerShell) and `cmd.exe`. Findings: live redraw is on by default in a real terminal and off when redirected (as designed, `reactor.is_tty`); redirected reports have CRLF line ends (text-mode stdout, documented, not changed); accents garbled only by code page 437 (documented); PowerShell 5.1 `>` writes UTF-16 (documented); suite names mixed `/` and `\` on Windows: fixed (`discovery.display_path`, test first). The stack trace of an error is not wrapped to the width (accepted).
+
+- Step 17: the how-to page documents `test.run_parallel` (checked on the demo directory: same totals as a sequential run). Coverage: the spec makes the bootstrap harness the implementation of line coverage (task `coverage`), so `hecate.test` has none of its own yet.
 
 ## Next steps
 
