@@ -1,0 +1,65 @@
+# `test` item: `/review-package` findings
+
+Read-only review of the `test` roadmap item (pull request 214: `packages/test`, the one-name change of
+`hecate.doc` that adds `test` to the generated reference, the documentation and the French page) by eight reviewer
+agents (the package specialist, architect, API, developer experience, terminology, tests, portability, security), run on
+2026-11-16 at the head of `claude/relay-test` (`70c766b`). No layering or ADR violation. Status column: **open** until
+fixed (then "fixed" with the commit) or moved to a roadmap item or an owner decision. The findings come from reading,
+except where "verified" says that a probe reproduced it; each fix reproduces the failure first (test first).
+
+## Major
+
+| Id | Lens | Finding | Fix | Status |
+|---|---|---|---|---|
+| M1 | package, security | `parallel.lua:76-93, 119-128`: a corrupt or malformed worker payload raises in the coordinator (`json.decode` is not guarded, fields are trusted), which aborts the run and contradicts "never raises"; the semaphore permit is not released on that path. **Verified:** a fake interpreter printing a bad marker line makes `run_parallel` raise `DecodeError`. `merge` of the hits trusts the payload too (`line_coverage.lua:158-166`). | Guard the whole body of the fork with `pcall`, validate the payload (types, status values, finite integers), release the permit on every path, turn any failure into `synthetic(path, ...)`; validate hits before `merge`. Test with a corrupt marker, an `os.exit(3)` worker and stdout noise. | open |
+| M2 | package | `runner.lua:236, 251, 178, 356, 392`: a `Runner` used inside a test (the framework tests itself) clears the assertion counter of the outer test (`count_into(nil)`) and resets the module-level clock kind to real. | Save and restore the counter and the clock kind around a run (a stack), or pass the clock to `in_reactor`. Nested-runner test. | open |
+| M3 | package, portability, API | `parallel.lua:108`: `arg[-1]` is the interpreter only without options before the script (`lua -W script.lua`); `nil` when embedded, where the fallback `"lua"` may be wrong. | Take the smallest negative index of `arg`; raise `ArgumentError` when no interpreter is found; document `options.lua`. | open |
+| M4 | portability, security, package | `parallel.lua:79-81`: the job, `package.path` and `package.cpath` travel in one `-e` argument: non-ASCII characters of a Windows `argv`, the 32 KiB command line, visible in `ps`. | Pass the job on stdin or in a temporary file (UTF-8, read with `rb`); keep `-e` for a constant bootstrap. CI test from a directory with a space and an accent. | open |
+| M5 | security | Output injection: `reporters/tap.lua:28, 34` (a test name with a newline forges `ok 2 - x` or `1..0`), `reporters/console.lua:115, 137, 157-158` (escape sequences, and lines that start with `::error::`), `reporters/junit.lua:22` (invalid UTF-8 and U+FFFE pass through). | One `sanitize` in `reporters/ansi.lua` (controls and DEL to `\xNN`, newline in a name to a space), applied to names, locations, messages and tracebacks; `utf8.len` check in JUnit. Tests with hostile names. | open |
+| M6 | API | `discovery.lua:38-47`: a missing or unreadable root directory yields `{}`, so a mistyped path is a green run with zero tests. | Raise `ArgumentError` for a missing root; report an empty run in the summary (an `allow_empty` option for the opposite wish). | open |
+| M7 | security | Resource exhaustion: `pattern_text.lua:173-182` (a chain of back-references doubles the text per group), `generate.lua:93, 154-167, 187-195` and `invalid.lua:79, 96, 102, 128` (huge `min_length`, `min_items`, `max_items`, `min_properties`), `generate.lua:209` (a cyclic `$ref` loops without growing the depth). | A shared `MAX_SIZE`; abort an attempt above a length cap; pass `depth + 1` on `$ref` with a hop limit. Tests with hostile schemas. | open |
+| M8 | package, API, tests | `line_coverage.lua:108-138`: `record` ignores `_running` (coroutines that outlive `stop` keep adding hits); no `__close`, so an error between `start` and `stop` leaves `debug.sethook` and the patched `coroutine.create` and `wrap` in place; the failure path is untested. | Return at once when not running; `__close` that calls `stop`; `start()` returns the recorder. Tests with an erroring, a leaking and a deadlocked test under `coverage`. | open |
+| M9 | package, security, API | `fixture.lua:63-75`: the overrides need the kernel to call `container.validate` once on that object. A failed boot leaves a caller's container patched; a kernel that stops calling it skips them silently; `container.validate = nil` deletes a caller's own instance field. | Assert after `boot` that the overrides ran; restore the previous raw field in every path. | open |
+
+## Medium
+
+| Id | Lens | Finding | Fix | Status |
+|---|---|---|---|---|
+| D1 | API | Reporter constructors differ: `ConsoleReporter(options)` against `TapReporter(write)`, `JUnitReporter(write)`, `JsonLinesReporter(write)`. | `init(options?)` with `{ write? }` on all four (before the API freeze). | open |
+| D2 | API | `RunnerOptions` and `ParallelOptions` nest the same concept at two depths (`runner = { filter, ... }`). | Flatten `ParallelOptions` (`jobs`, `lua`, `reporter`, `coverage`, `filter`, `cases`, `tags`, `exclude_tags`, `clock`). | open |
+| D3 | API | Unknown options are ignored by `Runner` and `run_parallel` and rejected by `check_property` and `LineCoverage`. | Reject unknown keys everywhere with `ArgumentError`. | open |
+| D4 | DX, API | Default `seed` is 0 in `generate`, `Generator`, `generate_invalid` and 1 in `check_property`; defaults (`runs`, `seed`, `jobs`) are not all documented. | One default (1); document the defaults in the how-to. | open |
+| D5 | API, architect | `init.lua` annotates some members as fields and attaches others imperatively without annotations (`Case`, `Generator`, `generate`, `check_property`, `boot`, ...); `RouteCoverage` is not exported; internal functions are public (`LineCoverage:settings`, `merge`, `executable_lines`, `parallel.work`). | Build the table in one place with every member annotated; export `RouteCoverage`; mark internals `---@private`; a test that the exports are the documented set. | open |
+| D6 | API | `error` levels differ (2 and 3) for constructors and methods. | One rule that points at the caller's line. | open |
+| D7 | architect | `hecate-log` and `hecate-openapi` are declared (rockspec, `CLAUDE.md`) and never required; the README "Depends on" omits `http` and `container` (OQ-139, owner decisions). | Remove the unused rocks until code needs them (conformance), and align the README. | open |
+| D8 | package | `testing.md` promises `test.parametrise`, a schema-conformance assertion, a real-socket client mode and files returning a suite; none exists and no entry records the change. | Edit the spec table to what is delivered, or record the rest in `docs/open-questions.md`. | open |
+| D9 | package | `runner.lua:375`: a `tear_down_case` failure is dropped when the last test already failed. | Append it to that outcome's message. | open |
+| D10 | package, portability | `line_coverage.lua:26-44, 48-54`: the executable-line scan counts `--[==[ ]==]` blocks, multi-line strings and a shebang as code; `normalise` stops at the first `../../`; drive letters and case are not folded on Windows. | A small lexer or the debug line table; scan segment by segment; lowercase the drive letter on Windows. Tests. | open |
+| D11 | portability | `reporters/terminal.lua:20-31, 71`: no `COLUMNS` on Windows, so the width is 80; virtual-terminal processing is assumed. | Ask the real size (a `reactor` function) before 80; fall back to plain output when VT cannot be enabled. | open |
+| D12 | package | `fixture.lua:86`: the route coverage matches `router:match` a second time, so a route counts even if a filter short-circuited it; the how-to says "served a request"; the how-to writes overrides as `{ key, value }`. | Record from the dispatch seam, or soften the wording; write `{ key = ..., value = ... }`. | open |
+| D13 | terminology | No glossary rows for fake, test suite, property, generator, seed, counterexample, shrinking, line coverage; "suite" has two meanings in `testing.md`; "worker" (glossary: a serving process) is used for a test-file process, and "coordinator" is the glossary's "primary"; "hook" is used for `set_up` and friends. | Add the rows; fix the vocabulary entry of "suite"; widen the "worker" row or say "test process"; say "lifecycle methods". See the terminology report in the pull request. | open |
+| D14 | DX | Console error output prints about 14 traceback lines of runner and reactor internals; suite names are cut from the left; no rerun hint; messages that say what but not what to do (`generate_invalid`, overrides); the how-to has two inline snippets that exceed a few lines and are untested, and no "run it" script after the first example; the README status cell is one 3,000-character line. | Trim framework frames (with a full-trace option); print a rerun hint; better messages; move the snippets to `examples/`; add the run script; split the status cell. | open |
+| D15 | tests | Gaps listed by the test engineer: `run_parallel` failure modes (missing interpreter, exit code without result, noise around the marker, empty list, jobs below files, ordering by path not by completion), nested runner, hook error combinations, bounds reached by generators, unsatisfiable bounds, shrink budget and non-monotone properties, JUnit golden file, virtual-clock cases, machine-dependent tests (`terminal_test.lua:74` uses `lua` from `PATH`; the pty test passes vacuously without `script`), `sleep(30)` on the real clock in the leak tests, API parity with the harness. | Add the tests; use the virtual clock where a real wait bounds a test; count a skipped test as skipped. | open |
+
+## Low
+
+| Id | Lens | Finding | Fix | Status |
+|---|---|---|---|---|
+| L1 | package | `generate.lua`: no bias to the bounds, empty strings and arrays; ASCII only; refusals print `tostring(table)`. | Bias a fraction of draws; name the keyword. | open |
+| L2 | package | `invalid.lua:~46`: `pairs` order of tag properties makes the result depend on the hash seed. | Sort the names. | open |
+| L3 | package | `pattern_text.lua:112-155`: `.`, `\|`, `{}` and a quantifier after `)` are read as literals. | Raise `unreadable`. | open |
+| L4 | package | `property.lua:159-168`: a property can mutate the value it receives, which corrupts `original`. | Pass a deep copy. | open |
+| L5 | package | `runner.lua:30, 335`: durations are CPU time; no per-test timeout. | Open question (the migration item must bring the harness timeout). | open |
+| L6 | security | The marker of the worker is constant (a test can print it); `LCOV` `SF:` and `read` of the sources take paths as they come; selection and filter patterns are not validated; messages echo paths, formats and patterns (OQ-111: developer data, truncate and escape); discovery executes any `*_test.lua` (say so in the README). | Per-run nonce in the marker; reject control characters in paths and bound the read; validate `--filter` with `pcall`; `%.80s`; a sentence in the README. | open |
+| L7 | API | Annotations: `discovery.load` returns `table`; `parse_arguments` and `run_parallel` are named differently from `selection.parse` and `parallel.run`; `generate` against `generate_invalid`; `test.load` reads like the Lua global. | Annotate with `hecate.test.Case`; pick one convention before the freeze. | open |
+| L8 | DX | `jobs` default 2 is arbitrary; the option is `jobs` while the code says workers. | `min(cores, 4)` or document why; decide the name with D13. | open |
+| L9 | architect | The executable-line heuristic exists twice (`line_coverage.lua:26`, `tools/lib/coverage.lua:25`). | A comment on both until the migration item removes one. | open |
+
+## Owner decisions that the findings need
+
+- D13: widen the glossary row "worker" to cover the test-file process of `run_parallel` (lighter), or rename the
+  concept to "test process" in the package and the option `jobs`. Recommendation: widen the row, keep `jobs`.
+- D7: remove `hecate-log` and `hecate-openapi` from the dependencies now (recommended; they return with the code that
+  needs them), or keep them reserved.
+
+Everything else follows the specification and the conservative rule; none of it needs a decision.

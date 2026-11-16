@@ -3,7 +3,7 @@
 
 - roadmap_item: `test`: test framework, runner, in-process client, fixtures, contract conformance, reporters (TAP, JUnit XML), coverage (Phase 3)
 - status: in-progress
-- last_update: 2026-11-16T21:49:22Z
+- last_update: 2026-11-16T21:53:38Z
 
 ## Done
 
@@ -55,8 +55,11 @@
 
 - Step 20: CI failed on step 19 because `.gitignore` ignores `coverage/` and swallowed the new fixture folder: renamed to `fixtures/line_coverage/` (lesson: after adding fixtures, run `git status --short --ignored` on the package). Generated reference: `test` added to `DEFAULT_PACKAGES` (doc package, one name) and to `.gitignore`; two page-name collisions fixed. French page written by `translator-fr`.
 
+- Step 21: `/review-package test` by eight reviewers: `docs/reviews/test-review-package.md` (9 major, 15 medium, 9 low; M1 verified by a probe). No code changed yet.
+
 ## Next steps
 
+0. **Fix the findings of `docs/reviews/test-review-package.md`** (majors first, test first), then update the status column; two owner decisions (D13, D7) are listed at its end. Then the final read, the roadmap tick and the review request.
 1. Optional: live output during a parallel run (needs the plan of all files first). Not part of this item: the command-line entry point, the timeout, the leak check and the thresholds come with the migration item (roadmap).
 2. Docs (owner: yes to both): run `gen-reference` for `test` and check the page; the French translation of the how-to page (`translator-fr`); a final read once the rest lands; then the roadmap tick and the review request.
 
