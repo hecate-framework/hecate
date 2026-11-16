@@ -3,7 +3,7 @@ description: Tester une application avec hecate.test, écrire des cas de test, d
 hecate: "0.x"
 lua: "5.5"
 order: 21
-source_revision: 77d2f008e08b163e785a724c5f3caeb46fd5089f
+source_revision: aa39cc772601fb1823b18a3fd678e98a08fda700
 ---
 
 # Tester une application
