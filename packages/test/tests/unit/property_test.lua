@@ -98,4 +98,15 @@ function T:test_bad_arguments_raise_argument_error()
   bad(schema.boolean(), function() end, { unknown = 1 })
 end
 
+function T:test_the_default_seed_is_the_same_for_generators_and_properties()
+  local s = schema.integer({ minimum = 0, maximum = 1000000 })
+  local first = hecate_test.generate(s)
+  self:assert_equal(hecate_test.generate(s, 1), first)
+  self:assert_equal(hecate_test.Generator(s):next(), first)
+  self:assert_equal(hecate_test.generate_invalid(s), hecate_test.generate_invalid(s, 1))
+  local result = hecate_test.check_property(s, function() return false end)
+  self:assert_equal(1, result.seed)
+  self:assert_equal(first, result.original)
+end
+
 return core.finalise(T)

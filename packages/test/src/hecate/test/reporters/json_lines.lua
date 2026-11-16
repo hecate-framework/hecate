@@ -7,19 +7,17 @@ local core = require("hecate.core")
 
 --- Writes the events of a run as JSON lines (schema version 1).
 ---@class hecate.test.JsonLinesReporter : hecate.test.Reporter
----@overload fun(write?: fun(text: string)): hecate.test.JsonLinesReporter
+---@overload fun(options?: hecate.test.ReporterOptions): hecate.test.JsonLinesReporter
 local JsonLinesReporter = core.class("JsonLinesReporter")
 
 --- The version of the event schema, repeated in the `run_started` line.
 JsonLinesReporter.SCHEMA_VERSION = 1
 
 --- Creates a reporter.
----@param write? fun(text: string)  receives each line with its newline, default `io.stdout:write` then flush
-function JsonLinesReporter:init(write)
-  self._write = write or function(text)
-    io.stdout:write(text)
-    io.stdout:flush()
-  end
+---@param options? hecate.test.ReporterOptions  `write` receives each line with its newline
+function JsonLinesReporter:init(options)
+  local reporter_options = require("hecate.test.reporters.options")
+  self._write = reporter_options.writer(reporter_options.check("JsonLinesReporter", options), true)
   -- required here so that the other reporters do not need the native encoder
   self._encode = require("hecate.json").encode
 end

@@ -6,13 +6,14 @@ local core = require("hecate.core")
 
 --- Writes the results of a run as JUnit XML.
 ---@class hecate.test.JUnitReporter : hecate.test.Reporter
----@overload fun(write?: fun(text: string)): hecate.test.JUnitReporter
+---@overload fun(options?: hecate.test.ReporterOptions): hecate.test.JUnitReporter
 local JUnitReporter = core.class("JUnitReporter")
 
 --- Creates a JUnit XML reporter.
----@param write? fun(text: string)  receives the document, default `io.stdout:write`
-function JUnitReporter:init(write)
-  self._write = write or function(text) io.stdout:write(text) end
+---@param options? hecate.test.ReporterOptions  `write` receives the document
+function JUnitReporter:init(options)
+  local reporter_options = require("hecate.test.reporters.options")
+  self._write = reporter_options.writer(reporter_options.check("JUnitReporter", options))
   self._suites, self._order = {}, {}
 end
 

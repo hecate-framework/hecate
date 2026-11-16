@@ -1,3 +1,4 @@
+local core = require("hecate.core")
 local hecate_test = require("hecate.test")
 local T = hecate_test.Case("ReportersTest")
 
@@ -153,12 +154,12 @@ function T:test_a_suite_of_few_tests_has_one_cell_per_test()
 end
 
 function T:test_tap_output_matches_the_golden_file()
-  self:assert_equal(read("tap.golden"), capture(function(o) return hecate_test.TapReporter(o.write) end))
+  self:assert_equal(read("tap.golden"), capture(function(o) return hecate_test.TapReporter({ write = o.write }) end))
 end
 
 function T:test_tap_output_of_an_all_passing_run_has_no_diagnostics()
   local out = {}
-  local reporter = hecate_test.TapReporter(function(text) out[#out + 1] = text end)
+  local reporter = hecate_test.TapReporter({ write = function(text) out[#out + 1] = text end })
   reporter:handle({ type = "run_started", total = 1, suites = 1 })
   reporter:handle({ type = "suite_started", suite = "A", total = 1 })
   reporter:handle({ type = "test_started", suite = "A", test = "A.test_x", index = 1 })
@@ -173,7 +174,7 @@ function T:test_junit_groups_tests_by_suite_and_escapes_text()
   function C:test_bad() self:assert_equal("<a&b>", "c\1") end
   function C:test_err() error("boom \"x\"", 0) end
   local out = {}
-  local summary = hecate_test.Runner({ reporter = hecate_test.JUnitReporter(function(t) out[#out + 1] = t end) }):run({ C })
+  local summary = hecate_test.Runner({ reporter = hecate_test.JUnitReporter({ write = function(t) out[#out + 1] = t end }) }):run({ C })
   local text = table.concat(out)
   self:assert_match('^<%?xml version="1%.0" encoding="UTF%-8"%?>\n<testsuites tests="3" failures="1" errors="1" time="', text)
   self:assert_match('<testsuite name="Xml" tests="3" failures="1" errors="1" skipped="0"', text)
@@ -186,12 +187,12 @@ function T:test_junit_groups_tests_by_suite_and_escapes_text()
 end
 
 function T:test_json_lines_output_matches_the_golden_file()
-  self:assert_equal(read("events.jsonl.golden"), capture(function(o) return hecate_test.JsonLinesReporter(o.write) end))
+  self:assert_equal(read("events.jsonl.golden"), capture(function(o) return hecate_test.JsonLinesReporter({ write = o.write }) end))
 end
 
 function T:test_json_lines_writes_one_decodable_object_per_line_without_escape_sequences()
   local json = require("hecate.json")
-  local text = capture(function(o) return hecate_test.JsonLinesReporter(o.write) end)
+  local text = capture(function(o) return hecate_test.JsonLinesReporter({ write = o.write }) end)
   self:assert_nil(text:find("\27", 1, true))
   local kinds = {}
   for line in text:gmatch("[^\n]+") do kinds[#kinds + 1] = json.decode(line).type end
@@ -208,8 +209,8 @@ function T:test_a_real_run_keeps_the_tap_plan_exact_and_the_event_stream_complet
   function C:test_c() self:assert_true(true) end
   local tap, lines = {}, {}
   local json = require("hecate.json")
-  local summary = hecate_test.Runner({ reporter = hecate_test.TapReporter(function(t) tap[#tap + 1] = t end) }):run({ C })
-  hecate_test.Runner({ reporter = hecate_test.JsonLinesReporter(function(t) lines[#lines + 1] = t end) }):run({ C })
+  local summary = hecate_test.Runner({ reporter = hecate_test.TapReporter({ write = function(t) tap[#tap + 1] = t end }) }):run({ C })
+  hecate_test.Runner({ reporter = hecate_test.JsonLinesReporter({ write = function(t) lines[#lines + 1] = t end }) }):run({ C })
   local text = table.concat(tap)
   self:assert_match("^TAP version 14\n1%.%.3\n", text)
   local points = 0
@@ -226,4 +227,20 @@ function T:test_a_real_run_keeps_the_tap_plan_exact_and_the_event_stream_complet
   self:assert_equal({ "Real.test_a:passed:1", "Real.test_b:failed:1", "Real.test_c:errored:1" }, finished)
 end
 
-return require("hecate.core").finalise(T)
+function T:test_every_reporter_takes_an_options_table_with_a_write_function()
+  for _, name in ipairs({ "ConsoleReporter", "TapReporter", "JUnitReporter", "JsonLinesReporter" }) do
+    local out = {}
+    local reporter = hecate_test[name]({ write = function(text) out[#out + 1] = text end })
+    local C = hecate_test.Case("C")
+    function C:test_x() end
+    hecate_test.Runner({ reporter = reporter }):run({ C })
+    self:assert_true(#out > 0, name .. " wrote nothing to its write function")
+    ---@type any
+    local text, unknown, not_function = "x", { nope = true }, { write = 1 }
+    self:assert_error(function() hecate_test[name](text) end, { class = core.ArgumentError })
+    self:assert_error(function() hecate_test[name](unknown) end, { class = core.ArgumentError })
+    self:assert_error(function() hecate_test[name](not_function) end, { class = core.ArgumentError })
+  end
+end
+
+return core.finalise(T)

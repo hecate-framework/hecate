@@ -6,13 +6,14 @@ local core = require("hecate.core")
 
 --- Writes the results of a run as TAP 14.
 ---@class hecate.test.TapReporter : hecate.test.Reporter
----@overload fun(write?: fun(text: string)): hecate.test.TapReporter
+---@overload fun(options?: hecate.test.ReporterOptions): hecate.test.TapReporter
 local TapReporter = core.class("TapReporter")
 
 --- Creates a TAP reporter.
----@param write? fun(text: string)  receives the output, default `io.stdout:write`
-function TapReporter:init(write)
-  self._write = write or function(text) io.stdout:write(text) end
+---@param options? hecate.test.ReporterOptions
+function TapReporter:init(options)
+  local reporter_options = require("hecate.test.reporters.options")
+  self._write = reporter_options.writer(reporter_options.check("TapReporter", options))
   self._count = 0
 end
 

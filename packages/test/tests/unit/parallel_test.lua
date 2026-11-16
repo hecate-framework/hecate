@@ -31,7 +31,7 @@ function T:test_files_run_in_workers_and_replay_in_path_order()
 end
 
 function T:test_runner_options_reach_the_workers()
-  local summary = run({ fixtures .. "/a_case.lua" }, { runner = { filter = "test_two" } })
+  local summary = run({ fixtures .. "/a_case.lua" }, { filter = "test_two" })
   self:assert_equal(1, summary.total)
   self:assert_true(summary.ok)
 end
@@ -132,6 +132,15 @@ function T:test_a_recorder_with_a_predicate_cannot_be_used_by_workers()
   local coverage = hecate_test.LineCoverage({ include = function() return true end })
   self:assert_error(function() run({ fixtures .. "/a_case.lua" }, { coverage = coverage }) end,
     { class = core.ArgumentError })
+end
+
+function T:test_options_are_flat_and_unknown_ones_are_refused()
+  local summary = run({ fixtures .. "/a_case.lua" }, { cases = { "ParallelA" }, tags = nil, exclude_tags = { "none" } })
+  self:assert_equal(2, summary.total)
+  ---@type any
+  local nested, typo = { runner = { filter = "x" } }, { job = 2 }
+  self:assert_error(function() run({}, nested) end, { class = core.ArgumentError })
+  self:assert_error(function() run({}, typo) end, { class = core.ArgumentError })
 end
 
 return core.finalise(T)

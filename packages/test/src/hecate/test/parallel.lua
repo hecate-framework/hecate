@@ -17,9 +17,19 @@ local discovery = require("hecate.test.discovery")
 ---@class hecate.test.parallel
 local M = {}
 
+-- The options a runner accepts that cross a process boundary, and those of the run itself.
+local RUNNER_KEYS = { filter = true, cases = true, tags = true, exclude_tags = true, clock = true }
+local PARALLEL_KEYS = { jobs = true, lua = true, reporter = true, coverage = true }
+
+--- Options of `run_parallel`: the options of a runner that cross a process boundary (`filter`, `cases`, `tags`,
+--- `exclude_tags`, `clock`, flat, as for `Runner`) and those of the run itself.
 ---@class hecate.test.ParallelOptions
 ---@field jobs? integer  workers running at once (default 2)
----@field runner? hecate.test.RunnerOptions  `filter`, `cases`, `tags`, `exclude_tags`, `clock` of each worker (no reporter)
+---@field filter? string  as for `Runner`: Lua pattern on the full test name
+---@field cases? string[]  as for `Runner`
+---@field tags? string[]  as for `Runner`
+---@field exclude_tags? string[]  as for `Runner`
+---@field clock? "real"|"virtual"  as for `Runner`
 ---@field reporter? hecate.test.Reporter  receives the events of the run, live and in the order of the paths
 ---@field coverage? hecate.test.LineCoverage  receives the lines the workers ran (its `include` must be a pattern, not a predicate)
 ---@field lua? string  Lua interpreter that runs a worker (default: the running one, found in `arg`)
@@ -197,7 +207,15 @@ end
 ---@param options? hecate.test.ParallelOptions
 ---@return hecate.test.Summary summary
 function M.run(paths, options)
+  if options ~= nil and type(options) ~= "table" then
+    error(core.ArgumentError("test.run_parallel: expects an options table, got " .. type(options)), 2)
+  end
   options = options or {}
+  local runner = {}
+  for key, value in pairs(options) do
+    if RUNNER_KEYS[key] then runner[key] = value
+    elseif not PARALLEL_KEYS[key] then error(core.ArgumentError("test.run_parallel: unknown option " .. tostring(key)), 2) end
+  end
   local jobs = options.jobs or 2
   if math.type(jobs) ~= "integer" or jobs < 1 then
     error(core.ArgumentError("test.run_parallel: jobs must be a positive integer"), 2)
@@ -230,7 +248,7 @@ function M.run(paths, options)
   local planning = {}
   for index, path in ipairs(paths) do
     planning[index] = reactor.fork(function()
-      return within_gate(function() return plan_file(lua, path, options.runner) end)
+      return within_gate(function() return plan_file(lua, path, runner) end)
     end)
   end
   local plans, total, suites = {}, 0, 0
@@ -255,7 +273,7 @@ function M.run(paths, options)
     running[index] = reactor.fork(function()
       within_gate(function()
         local seen = false
-        local failure = converse(lua, { mode = "run", path = path, options = options.runner, coverage = settings },
+        local failure = converse(lua, { mode = "run", path = path, options = runner, coverage = settings },
           function(message)
             if message.t == "event" then
               if valid_event(message.event) then

@@ -18,7 +18,7 @@ local M = { LoadError = LoadError }
 local origins = {}
 
 --- Returns the path a case was loaded from by `load`, or nil for a case declared in code.
----@param case table
+---@param case hecate.test.Case
 ---@return string? path
 function M.origin(case) return origins[case] end
 
@@ -65,7 +65,7 @@ end
 ---
 --- Raises `hecate.test.LoadError` when the file does not load, raises, or returns something else.
 ---@param path string
----@return table case
+---@return hecate.test.Case case
 function M.load(path)
   local chunk, message = loadfile(path)
   if not chunk then error(LoadError({ message = message, context = { path = path } }), 0) end

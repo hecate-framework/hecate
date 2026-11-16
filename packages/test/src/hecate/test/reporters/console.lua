@@ -29,11 +29,10 @@ local STATUS_COLOR = { passed = "green", failed = "red", errored = "red" }
 --- Creates a console reporter.
 ---@param options? hecate.test.ConsoleOptions
 function ConsoleReporter:init(options)
-  options = options or {}
-  self._write = options.write or function(text)
-    io.stdout:write(text)
-    io.stdout:flush()
-  end
+  local reporter_options = require("hecate.test.reporters.options")
+  options = reporter_options.check("ConsoleReporter", options,
+    { color = true, live = true, width = true, is_tty = true, getenv = true, bar_width = true })
+  self._write = reporter_options.writer(options, true)
   local resolved = terminal.resolve(options)
   self._color, self._live, self._width = resolved.color, resolved.live, resolved.width
   self._bar_width = options.bar_width or DEFAULT_BAR_WIDTH

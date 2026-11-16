@@ -255,7 +255,7 @@ end
 ---
 --- Raises `hecate.core.ArgumentError` when `schema` is not a schema or `seed` is not an integer.
 ---@param schema hecate.schema.Schema
----@param seed? integer  default 0
+---@param seed? integer  default 1
 function Generator:init(schema, seed)
   if not core.is_instance_of(schema, schema_package.Schema) then
     error(core.ArgumentError("test.Generator: expects a schema (hecate.schema)"), 3)
@@ -265,7 +265,7 @@ function Generator:init(schema, seed)
   end
   self._schema = schema
   self._document = schema:to_json_schema()
-  self._rng = { state = seed or 0 }
+  self._rng = { state = seed or 1 }
 end
 
 --- Returns the next valid value of the sequence.
@@ -302,14 +302,14 @@ end
 
 --- The first invalid value of the sequence of `seed`: `Generator(schema, seed):next_invalid()`.
 ---@param schema hecate.schema.Schema
----@param seed? integer  default 0
+---@param seed? integer  default 1
 ---@return any value
 ---@return { path: string, code: string } expected
 local function generate_invalid(schema, seed) return Generator(schema, seed):next_invalid() end
 
 --- The first value of the sequence of `seed`: `Generator(schema, seed):next()`.
 ---@param schema hecate.schema.Schema
----@param seed? integer  default 0
+---@param seed? integer  default 1
 ---@return any value
 local function generate_one(schema, seed) return Generator(schema, seed):next() end
 

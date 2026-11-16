@@ -93,10 +93,20 @@ local AssertionFailure = failure.AssertionFailure
 ---@overload fun(options?: hecate.test.RunnerOptions): hecate.test.Runner
 local Runner = core.class("Runner")
 
+-- The options a runner accepts; `run_parallel` forwards the same ones (except `reporter` and `coverage`) to its workers.
+local RUNNER_OPTIONS = { reporter = true, filter = true, clock = true, tags = true, exclude_tags = true, cases = true,
+  coverage = true }
+
 --- Creates a runner.
 ---@param options? hecate.test.RunnerOptions
 function Runner:init(options)
+  if options ~= nil and type(options) ~= "table" then
+    error(core.ArgumentError("test.Runner: expects an options table, got " .. type(options)), 2)
+  end
   options = options or {}
+  for key in pairs(options) do
+    if not RUNNER_OPTIONS[key] then error(core.ArgumentError("test.Runner: unknown option " .. tostring(key)), 2) end
+  end
   if options.filter ~= nil and type(options.filter) ~= "string" then
     error(core.ArgumentError("test.Runner: filter must be a Lua pattern string, got " .. type(options.filter)), 2)
   end
