@@ -97,7 +97,7 @@ local test = require("hecate.test")
 | `test.boot(options?, overrides?)` | Boots a `hecate.kernel` application for a test: overrides are `{ key, value }` or `{ key, definition, options? }`, applied after every module bound its services. Returns a `Client`, the application and a `RouteCoverage` (`record`, `exercised`, `missed`, `report`). Responses are validated against their schemas (`validate_responses`, true here). |
 | `test.generate(schema, seed?)`, `test.generate_invalid(schema, seed?)`, `test.Generator(schema, seed?)` | Valid values from a schema, a valid value broken in one place with its `{ path, code }`, and the seeded sequence (`next`, `next_invalid`). The seed defaults to 1. |
 | `test.check_property(schema, property, options?)`, `self:assert_property(schema, property, options?)` | Runs a property over `runs` values (default 100, `seed` default 1) and shrinks the first counterexample (`max_shrinks`, default 1000); the assertion fails with the seed, the run and the counterexample. |
-| `test.LineCoverage(options?)` | Records the lines of the sources that run (`include` pattern or predicate, `exclude` pattern): `start`, `stop`, `report`, `percent(pattern)`, `lcov`, `merge`, `hits`. |
+| `test.LineCoverage(options?)` | Records the lines of the sources that run (`include` pattern or predicate, `exclude` pattern, `case_insensitive`, true by default on Windows): `start`, `stop`, `report`, `percent(pattern)`, `lcov`, `merge`, `hits`. |
 
 ## Console output
 

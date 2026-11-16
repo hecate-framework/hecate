@@ -336,7 +336,11 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       **Also (from the `test` item, owner go-ahead of 2026-11-16):** `hecate test` takes the options of
       `test.parse_arguments` (`--filter`, `--case`, `--tag`, `--exclude-tag`, paths) and a `--jobs` flag that sets the
       workers of `test.run_parallel`; a project that runs tests in parallel needs the rule for fixed ports and shared
-      databases (see the `sql` item).
+      databases (see the `sql` item). **To do or check (package review of the `test` item, owner, 2026-11-16):** the
+      console reporter should print, after the failures, the command that reruns them (the `--filter` of the failed
+      tests); the default of `--jobs` (the package default is 2: `min(cores, 4)` is the candidate); and how long file
+      names are shown in the suite lines (they are cut from the left at the width, so two files with the same tail look
+      alike).
       **Also (from the `openapi` item):** `hecate contract export` (JSON, over `Application:contract`; YAML later, OQ-137),
       `hecate contract lint` (over `openapi.lint`, nonzero exit on an error finding) and `hecate contract diff <ref>`
       (over `openapi.diff`, nonzero exit on a breaking change).
@@ -414,7 +418,8 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       **also (package review of the `test` item, finding N1):** a test runs inside a reactor and a reactor cannot start
       inside another, so a test that calls `Runner:run` (the tests of the runner, of the reactor and of the reporters)
       cannot run under `hecate.test` as it is: add a case field that runs the tests of that case outside a reactor
-      (design it in this item) before those files are migrated;
+      (design it in this item) before those files are migrated (owner, 2026-11-16: these tests simply run
+      synchronously, although they are unit tests);
       (2) migrate the test files (about 260, of which about 240 use `harness.test`): `require("hecate.test")`, and each
       file ends with `core.finalise(T)` (owner decision of 2026-11-16: keep the object-model paradigm, no shim),
       package by package in layer order, checking every package on the three platforms; (3) **owner decision of

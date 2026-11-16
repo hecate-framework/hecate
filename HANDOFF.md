@@ -3,7 +3,7 @@
 
 - roadmap_item: `test`: test framework, runner, in-process client, fixtures, contract conformance, reporters (TAP, JUnit XML), coverage (Phase 3)
 - status: in-progress
-- last_update: 2026-11-16T22:51:40Z
+- last_update: 2026-11-16T23:02:42Z
 
 ## Done
 
@@ -55,13 +55,14 @@
 
 - Step 20: CI failed on step 19 because `.gitignore` ignores `coverage/` and swallowed the new fixture folder: renamed to `fixtures/line_coverage/` (lesson: after adding fixtures, run `git status --short --ignored` on the package). Generated reference: `test` added to `DEFAULT_PACKAGES` (doc package, one name) and to `.gitignore`; two page-name collisions fixed. French page written by `translator-fr`.
 
+- Step 24: CI failed on Windows: the new traceback test of the console reporter looked for `hecate/test/runner.lua` and a Windows path reads `hecate\\test\\runner.lua` (the filter was right, the test was not); fixed. `LineCoverage` option `case_insensitive`. Owner decisions: D11 not needed; D14 leftovers go to the `cli` item; N1 tests simply run synchronously.
 - Step 23: the medium findings D1 to D15 handled (statuses in the report); found while testing: the runner tests of steps 5 to 14 for M2, D3, D9 and the empty run had never been inserted (a replace that matched nothing); now present and passing. New finding N1: a test cannot call `Runner:run` (a reactor cannot start inside another), which the migration item must solve before the runner tests move. Deferred: D11 (terminal size needs a `reactor` function over `uv.tty_get_winsize`; owner decision), the lows.
 - Step 22: the majors of the review are fixed (M1 to M4, M6 to M9; M5 declined by the owner as not useful), D7 (unused dependencies) and the glossary rows `worker`/`primary`; the parallel run now plans first and streams events live over a message pipe, replayed in path order (owner: required). Remaining findings (medium and low) to triage; the status column of the report is the list.
 - Step 21: `/review-package test` by eight reviewers: `docs/reviews/test-review-package.md` (9 major, 15 medium, 9 low; M1 verified by a probe). No code changed yet.
 
 ## Next steps
 
-0. Triage the low findings (L1 to L9) of `docs/reviews/test-review-package.md`; D11 waits for an owner decision (a `reactor.tty_size`). Then the final read, the roadmap tick and the review request.
+0. Triage the low findings (L1 to L9) of `docs/reviews/test-review-package.md`; Then the final read, the roadmap tick and the review request.
 1. **Required (owner, 2026-11-16, not optional): live output during a parallel run** (plan of all files first, then events streamed and replayed in path order). Not part of this item: the command-line entry point, the timeout, the leak check and the thresholds come with the migration item (roadmap).
 2. Docs (owner: yes to both): run `gen-reference` for `test` and check the page; the French translation of the how-to page (`translator-fr`); a final read once the rest lands; then the roadmap tick and the review request.
 

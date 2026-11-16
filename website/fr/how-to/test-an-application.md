@@ -246,7 +246,7 @@ print(coverage:lcov():find("^SF:") ~= nil)
 ```
 
 `include` est un motif Lua (ou un prédicat) comparé au chemin de chaque source, avec des séparateurs `/` ; `exclude`
-retire des sources à nouveau. Seules les lignes qui portent du code comptent : les commentaires et les lignes faites de
+retire des sources à nouveau. Sur Windows, les deux ignorent la casse (l’option `case_insensitive` la règle). Seules les lignes qui portent du code comptent : les commentaires et les lignes faites de
 délimiteurs de bloc ne comptent pas. Une région entre les commentaires `-- coverage: off` et `-- coverage: on` est
 exclue : servez-vous-en pour le code qui s’exécute dans un autre état Lua, comme un thread du pool, que le hook de
 lignes ne peut pas voir. Le rapport est du LCOV simple, que lisent `genhtml` et la plupart des services de couverture.

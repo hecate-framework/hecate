@@ -260,10 +260,10 @@ function T:test_an_error_shows_the_frames_of_the_test_and_hides_those_of_the_fra
   local trimmed = output({})
   self:assert_match("stack traceback:", trimmed)
   self:assert_match("reporters_test%.lua", trimmed)
-  self:assert_nil((trimmed:find("hecate/test/runner%.lua")))
-  self:assert_nil((trimmed:find("hecate/reactor/")))
+  self:assert_nil((trimmed:find("hecate[/\\]test[/\\]runner%.lua")))
+  self:assert_nil((trimmed:find("hecate[/\\]reactor[/\\]")))
   local full = output({ full_trace = true })
-  self:assert_match("hecate/test/runner%.lua", full)
+  self:assert_match("hecate[/\\]test[/\\]runner%.lua", full)
 end
 
 return core.finalise(T)

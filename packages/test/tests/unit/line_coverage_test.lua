@@ -207,4 +207,26 @@ function T:test_paths_are_normalised_segment_by_segment()
   self:assert_equal("/", normalise("/.."))
 end
 
+function T:test_a_case_insensitive_recorder_selects_sources_whatever_their_case()
+  local fold = hecate_test.LineCoverage.fold_case
+  self:assert_equal("/[sS][rR][cC]/", fold("/src/"))
+  self:assert_equal("%d+[xX]", fold("%d+x"))
+  self:assert_equal("[aAbB%w_]", fold("[ab%w_]"))
+  self:assert_equal("[a-zA-Z]", fold("[a-z]"))
+  local coverage = hecate_test.LineCoverage({ include = "FIXTURES/LINE_COVERAGE/", case_insensitive = true })
+  coverage:start()
+  dofile(fixtures .. "/sample.lua").pick(1)
+  coverage:stop()
+  self:assert_equal(1, #coverage:report().files)
+  local exact = hecate_test.LineCoverage({ include = "FIXTURES/LINE_COVERAGE/", case_insensitive = false })
+  exact:start()
+  dofile(fixtures .. "/sample.lua").pick(1)
+  exact:stop()
+  self:assert_equal(0, #exact:report().files)
+  ---@type any
+  local not_a_boolean = "yes"
+  self:assert_error(function() hecate_test.LineCoverage({ case_insensitive = not_a_boolean }) end,
+    { class = core.ArgumentError })
+end
+
 return core.finalise(T)

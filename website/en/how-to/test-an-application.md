@@ -239,7 +239,7 @@ print(coverage:lcov():find("^SF:") ~= nil)
 ```
 
 `include` is a Lua pattern (or a predicate) matched against the path of each source, with `/` separators; `exclude`
-removes sources again. Only lines that hold code count, so comments and lines made of block delimiters do not. A
+removes sources again. On Windows both ignore case (the option `case_insensitive` sets it). Only lines that hold code count, so comments and lines made of block delimiters do not. A
 region between the comments `-- coverage: off` and `-- coverage: on` is left out: use it for code that runs in another
 Lua state, such as a pool thread, which the line hook cannot see. The report is plain LCOV, which `genhtml` and most
 coverage services read. Recording slows the run, so turn it on for a coverage run only.

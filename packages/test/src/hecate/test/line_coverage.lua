@@ -4,7 +4,7 @@
 -- approximation: blank lines, comments and lines made only of block delimiters do not), and the region between the
 -- comments `-- coverage: off` and `-- coverage: on` is not counted (code that runs in another Lua state, which no hook
 -- sees; the comment says why).
-global <const> require, type, error, pairs, ipairs, pcall, io, string, table, tonumber, tostring, coroutine, debug, math
+global <const> require, type, error, pairs, ipairs, pcall, io, string, table, tonumber, tostring, coroutine, debug, math, package
 
 local core = require("hecate.core")
 
@@ -18,6 +18,7 @@ local LineCoverage = core.class("LineCoverage")
 ---@class hecate.test.LineCoverageOptions
 ---@field include? string|fun(path: string): boolean  sources to record: a Lua pattern matched against the path (with `/` separators), or a predicate; default `"/src/"`
 ---@field exclude? string  a Lua pattern: sources that match are not recorded, whatever `include` says
+---@field case_insensitive? boolean  match `include` and `exclude` without regard to case (default: true on Windows, whose file names ignore case, false elsewhere)
 
 local STRUCTURAL = { ["end"] = true, ["else"] = true, ["do"] = true, ["then"] = true, ["repeat"] = true,
   ["}"] = true, ["{"] = true, [")"] = true, ["},"] = true, ["end)"] = true, ["end,"] = true, ["})"] = true }
@@ -82,6 +83,53 @@ local function executable_lines(source)
   return lines
 end
 
+-- A Lua pattern that matches what `pattern` matches in either case: each letter becomes a set of both cases, in sets
+-- too (single letters and ranges); `%` escapes and everything else are kept.
+local function fold_case(pattern)
+  local out, i, n = {}, 1, #pattern
+  local function other(c)
+    local lower = c:lower()
+    return lower == c and c:upper() or lower
+  end
+  while i <= n do
+    local c = pattern:sub(i, i)
+    if c == "%" then
+      out[#out + 1] = pattern:sub(i, i + 1)
+      i = i + 2
+    elseif c == "[" then
+      out[#out + 1] = "["
+      local j = i + 1
+      if pattern:sub(j, j) == "^" then out[#out + 1], j = "^", j + 1 end
+      local first = true
+      while j <= n and (first or pattern:sub(j, j) ~= "]") do
+        first = false
+        local d = pattern:sub(j, j)
+        if d == "%" then
+          out[#out + 1], j = pattern:sub(j, j + 1), j + 2
+        elseif pattern:sub(j + 1, j + 1) == "-" and j + 2 <= n and pattern:sub(j + 2, j + 2) ~= "]" then
+          local high = pattern:sub(j + 2, j + 2)
+          out[#out + 1] = d .. "-" .. high
+          if d:find("^%a$") and high:find("^%a$") then out[#out + 1] = other(d) .. "-" .. other(high) end
+          j = j + 3
+        else
+          out[#out + 1] = d
+          if d:find("^%a$") then out[#out + 1] = other(d) end
+          j = j + 1
+        end
+      end
+      out[#out + 1] = "]"
+      i = j + 1
+    elseif c:find("^%a$") then
+      out[#out + 1] = "[" .. c:lower() .. c:upper() .. "]"
+      i = i + 1
+    else
+      out[#out + 1] = c
+      i = i + 1
+    end
+  end
+  return table.concat(out)
+end
+
 -- A path with `/` separators, the `.` and `..` segments resolved, repeated separators merged, and the drive letter of
 -- a Windows path in lower case (`C:` and `c:` name one file). A leading `/` or `//` (a UNC path) is kept.
 local function normalise(path)
@@ -116,7 +164,7 @@ function LineCoverage:init(options)
   end
   options = options or {}
   for key in pairs(options) do
-    if key ~= "include" and key ~= "exclude" then
+    if key ~= "include" and key ~= "exclude" and key ~= "case_insensitive" then
       error(core.ArgumentError("test.LineCoverage: unknown option " .. tostring(key)), 3)
     end
   end
@@ -126,6 +174,17 @@ function LineCoverage:init(options)
   end
   if exclude ~= nil and type(exclude) ~= "string" then
     error(core.ArgumentError("test.LineCoverage: exclude must be a pattern"), 3)
+  end
+  local folded = options.case_insensitive
+  if folded ~= nil and type(folded) ~= "boolean" then
+    error(core.ArgumentError("test.LineCoverage: case_insensitive must be a boolean"), 3)
+  end
+  if folded == nil then folded = package.config:sub(1, 1) == "\\" end
+  self._case_insensitive = folded
+  self._given = { include = include, exclude = exclude } -- as given: a worker folds them itself
+  if folded then
+    if type(include) == "string" then include = fold_case(include) end
+    if exclude then exclude = fold_case(exclude) end
   end
   self._include, self._exclude = include, exclude
   self._hits = {}
@@ -245,12 +304,12 @@ end
 --- The settings a worker process needs to record the same sources: `{ include, exclude }`.
 ---
 --- Raises `hecate.core.ArgumentError` when `include` is a predicate, which cannot be sent to another process.
----@return { include: string, exclude: string? } settings
+---@return { include: string, exclude: string?, case_insensitive: boolean } settings
 function LineCoverage:settings()
   if type(self._include) ~= "string" then
     error(core.ArgumentError("test.LineCoverage: a recorder with a predicate cannot be used by worker processes; give a pattern"), 2)
   end
-  return { include = self._include, exclude = self._exclude }
+  return { include = self._given.include, exclude = self._given.exclude, case_insensitive = self._case_insensitive }
 end
 
 --- Per-file figures, sorted by path.
@@ -333,5 +392,6 @@ end
 
 LineCoverage.executable_lines = executable_lines
 LineCoverage.normalise = normalise
+LineCoverage.fold_case = fold_case
 
 return core.finalise(LineCoverage)
