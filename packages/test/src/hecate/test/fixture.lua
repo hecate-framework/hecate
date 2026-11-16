@@ -21,14 +21,16 @@ local M = {}
 
 local function check(overrides)
   if type(overrides) ~= "table" then
-    error(core.ArgumentError("test.boot: overrides must be a list of { key, value } or { key, definition, options? }"), 3)
+    error(core.ArgumentError("test.boot: overrides must be a list of { key = ..., value = ... } or { key = ..., definition = ..., options = ... }"), 3)
   end
   for index, entry in ipairs(overrides) do
     if type(entry) ~= "table" or entry.key == nil then
       error(core.ArgumentError(("test.boot: override %d has no key"):format(index)), 3)
     end
-    if (entry.value == nil) == (entry.definition == nil) then
-      error(core.ArgumentError(("test.boot: override %d needs exactly one of value and definition"):format(index)), 3)
+    if entry.value == nil and entry.definition == nil then
+      error(core.ArgumentError(("test.boot: override %d has neither a value (an existing object) nor a definition (a class or a factory)"):format(index)), 3)
+    elseif entry.value ~= nil and entry.definition ~= nil then
+      error(core.ArgumentError(("test.boot: override %d has both a value and a definition: give one"):format(index)), 3)
     end
   end
 end

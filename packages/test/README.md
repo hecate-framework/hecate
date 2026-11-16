@@ -8,7 +8,7 @@
 | Rock | `hecate-test` |
 | Layer | Tooling |
 | Roadmap phase | 3 |
-| Status | alpha (in progress) — `Case` with the bootstrap assertions plus deep equality with a structural diff, `assert_near`, `assert_match`, `assert_error` (class and code), `assert_shape`, and a count of the assertions of each test; `Runner` (each test in its own reactor, scope and leak detection, containment of every failure, name filter) emitting an event stream; discovery of `*_test.lua`; reporters: console (one line per suite with a loading bar, colour, live redraw on a terminal), TAP 14, JUnit XML (`test.JUnitReporter`, written at the end of the run) and JSON lines for IDE adapters. Tags (`Case.tags`, `Case.test_tags`; runner options `tags`, `exclude_tags`). Targeting: runner option `cases` and `test.parse_arguments(args)` for the command line (`--filter`, `--case`, `--tag`, `--exclude-tag`, paths). Parametrised tests (`Case.test_parameters`, one test per entry named `Case.test_x[label]`). In-process HTTP client (`test.Client`). Fixtures: `test.boot(options, overrides)` boots an application with container overrides and returns a client, the application and a `RouteCoverage` (`exercised()`, `missed()`, `report()`: the named routes the requests reached); responses are validated against the schemas the routes declare unless `validate_responses = false` (contract conformance). Generators of valid values from a schema: `test.generate(schema, seed?)`, `test.Generator(schema, seed?):next()` (seeded, reproducible; from the emitted JSON Schema; a `pattern` is generated from the subset `hecate.schema.pattern` translates). Invalid values: `test.generate_invalid(schema, seed?)` and `Generator:next_invalid()` return a valid value broken in exactly one place and the `{ path, code }` that validation reports. Line coverage: `test.LineCoverage({ include, exclude })` with `start`, `stop`, `report`, `percent(pattern)`, `lcov` and `merge` (a debug line hook on the thread and on every coroutine; `-- coverage: off` and `-- coverage: on` mark code that runs in another Lua state), the runner option `coverage` and the `run_parallel` option `coverage` (workers send their lines to the primary). Property-based testing: `test.check_property(schema, property, { runs, seed, max_shrinks })` returns a result with the shrunk `counterexample` (still valid for the schema), and `Case:assert_property` fails with the seed, the run and the counterexample. Virtual clock (runner option `clock`, case field `clock`). Parallel runs: `test.run_parallel(paths, { jobs, runner, reporter })` (one worker process per file, a planning pass first, then the events of each file streamed over a message pipe and replayed live in path order; the Lua interpreter is found in `arg` (option `lua` overrides); a worker that fails becomes an errored suite). Not yet: database fixtures (they come with `sql`) (the bootstrap `coverage` task exists) |
+| Status | alpha (in progress); see "Delivered" below |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |
 | Depends on | [`core`](../core), [`reactor`](../reactor), [`schema`](../schema), [`http`](../http), [`container`](../container), [`kernel`](../kernel), [`json`](../json) |
 | Used by | `cli` |
@@ -17,6 +17,32 @@
 | Decisions | [ADR 0008](../../docs/adr/0008-own-test-framework.md) |
 | Agent | [`pkg-test`](../../.claude/agents/pkg-test.md) |
 | Repository | read-only mirror `hecate-framework/hecate-test`, generated from this directory (ADR 0017) |
+
+## Delivered
+
+- `Case` with assertions: equality with a structural diff, `assert_near`, `assert_match`, `assert_error` (class and
+  code), `assert_shape`, `assert_property`; the assertions of each test are counted.
+- `Runner`: each test in its own reactor and scope, with leak detection and containment of every failure; the name
+  `filter`, `cases`, `tags` and `exclude_tags` select tests; the virtual `clock`; an event stream.
+- Discovery of `*_test.lua` (`discover` raises for a directory it cannot read) and command-line targeting
+  (`parse_arguments`: `--filter`, `--case`, `--tag`, `--exclude-tag`, paths).
+- Parametrised tests: `Case.test_parameters`, one test per entry, named `Case.test_x[label]`. Tags: `Case.tags`,
+  `Case.test_tags`.
+- Reporters, each built with an options table whose `write` receives the output: console (one line per suite with a
+  loading bar, colour, live redraw on a terminal), TAP 14, JUnit XML and JSON lines for IDE adapters.
+- In-process HTTP client (`Client`) and fixtures: `boot(options, overrides)` boots an application with container
+  overrides and returns a client, the application and a `RouteCoverage` (`exercised()`, `missed()`, `report()`);
+  responses are checked against the schemas the routes declare unless `validate_responses = false`.
+- Generators from a schema: `generate`, `Generator`, `generate_invalid` (seed default 1; a `pattern` is generated
+  from the subset `hecate.schema.pattern` translates), and `check_property` with shrinking.
+- Line coverage: `LineCoverage` (`start`, `stop`, `report`, `percent`, `lcov`, `merge`), the runner option `coverage`
+  and the `run_parallel` option `coverage`; `-- coverage: off` and `-- coverage: on` mark code that runs in another Lua
+  state.
+- Parallel runs: `run_parallel(paths, { jobs, lua, reporter, coverage, filter, ... })`: one worker process per file, a
+  planning pass first, then the events streamed over a message pipe and replayed live in path order; a worker that
+  fails becomes an errored suite.
+- Not yet: database fixtures (they come with `sql`); the repository's own tests still run under the bootstrap harness
+  (roadmap).
 
 ## Responsibilities
 
@@ -61,10 +87,17 @@ local test = require("hecate.test")
 | `test.Runner(options?)` | `plan(cases)` and `run(cases)`; options `reporter`, `filter` (pattern on the full test name), `clock` (`"real"` or `"virtual"`), `cases` (run only the cases with these names), `tags` (run only tests carrying one of them), `exclude_tags` (skip tests carrying any; wins). Tags come from the case field `tags` and the map `test_tags[method]`. Returns a `Summary` (`total`, `passed`, `failed`, `errored`, `assertions`, `ok`, `exit_code`, `results`, `suites`). Each test runs in a new `Reactor` and scope; a test that leaves coroutines running fails and they are cancelled. A suite is a test script: the file a case was loaded from by `test.load`, else the name of the case. |
 | `Reporter:handle(event)` | The reporter interface: one method receiving the events of the run (see "Event stream"). |
 | `test.ConsoleReporter(options?)` | One line per suite with a loading bar; options `write`, `color`, `live`, `width`, `bar_width`, `is_tty`, `getenv` (see "Console output"). |
-| `test.TapReporter(write?)` | TAP version 14 with YAML diagnostics; the plan comes first. |
-| `test.JsonLinesReporter(write?)` | The event stream as JSON lines, for IDE adapters (see "Event stream"). |
-| `test.discover(directory)` | `---@async`. Sorted paths of `*_test.lua` under a directory. |
+| `test.TapReporter(options?)` | TAP version 14 with YAML diagnostics; the plan comes first. |
+| `test.JsonLinesReporter(options?)` | The event stream as JSON lines, for IDE adapters (see "Event stream"). |
+| `test.discover(directory)` | `---@async`. Sorted paths of `*_test.lua` under a directory; raises `ArgumentError` when the directory cannot be read. |
 | `test.load(path)` | Loads a test file and returns its case; raises `test.LoadError`. |
+| `test.JUnitReporter(options?)` | JUnit XML, one document written at the end of the run. |
+| `test.parse_arguments(args)` | Command-line arguments to `{ options, paths }`: `--filter`, `--case`, `--tag`, `--exclude-tag`, paths, `--`; raises `ArgumentError`. |
+| `test.run_parallel(paths, options?)` | `---@async`. One worker process per file, a planning pass, then events replayed live in path order; options `jobs` (default 2), `lua`, `reporter`, `coverage` and the runner options `filter`, `cases`, `tags`, `exclude_tags`, `clock`. Returns a `Summary`. |
+| `test.boot(options?, overrides?)` | Boots a `hecate.kernel` application for a test: overrides are `{ key, value }` or `{ key, definition, options? }`, applied after every module bound its services. Returns a `Client`, the application and a `RouteCoverage` (`record`, `exercised`, `missed`, `report`). Responses are validated against their schemas (`validate_responses`, true here). |
+| `test.generate(schema, seed?)`, `test.generate_invalid(schema, seed?)`, `test.Generator(schema, seed?)` | Valid values from a schema, a valid value broken in one place with its `{ path, code }`, and the seeded sequence (`next`, `next_invalid`). The seed defaults to 1. |
+| `test.check_property(schema, property, options?)`, `self:assert_property(schema, property, options?)` | Runs a property over `runs` values (default 100, `seed` default 1) and shrinks the first counterexample (`max_shrinks`, default 1000); the assertion fails with the seed, the run and the counterexample. |
+| `test.LineCoverage(options?)` | Records the lines of the sources that run (`include` pattern or predicate, `exclude` pattern): `start`, `stop`, `report`, `percent(pattern)`, `lcov`, `merge`, `hits`. |
 
 ## Console output
 

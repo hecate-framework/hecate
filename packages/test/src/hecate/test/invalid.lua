@@ -168,7 +168,7 @@ function M.break_value(schema, document, valid, between, rng)
       return value, { path = only.path, code = only.code }
     end
   end
-  error(core.ArgumentError("test.generate_invalid: no value violating exactly one constraint could be built for this schema"), 0)
+  error(core.ArgumentError("test.generate_invalid: no value violating exactly one constraint could be built for this schema (it accepts every value, or only combined constraints apply): add a constraint such as a bound, or write the invalid value by hand"), 0)
 end
 
 return M

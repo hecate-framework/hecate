@@ -190,3 +190,24 @@ A *severity* is the urgency of a record; a logger records the severities at leas
 
 A *named severity* is an entry of `logging.severities`: the severity of the logger whose `name` is that key, matched exactly
 (never "per-logger level").
+
+## Testing
+
+xUnit terms (ADR 0008, `docs/architecture/testing.md`) and the terms of property-based testing.
+
+| Term | Meaning | Reference | Instead of |
+|---|---|---|---|
+| test case | A class whose `test_*` methods are tests (`test.Case`) | Meszaros, *xUnit Test Patterns* (2007) | test class, spec |
+| test suite | The cases loaded from one test file; the unit of reporting (`suite_started`) | Meszaros (2007) | test group |
+| fixture | The state a test sets up before it runs; in `test.boot`, the container overrides of a booted application | Meszaros (2007) | context, scenario |
+| fake | A working substitute of a service, bound over the real one in a test (a test double) | Meszaros (2007) | mock, stub, spy |
+| assertion | A check a test makes; a failed one raises `AssertionFailure` | Meszaros (2007) | expectation, matcher |
+| lifecycle methods | `set_up`, `tear_down`, `set_up_case` and `tear_down_case` of a test case | Meszaros (2007) | hooks, before and after |
+| runner | Executes test cases, each test in its own reactor, and reports events | Meszaros (2007) | test harness |
+| reporter | Consumes the events of a run: console, TAP, JUnit XML or JSON lines | Meszaros (2007) | formatter, listener |
+| property | A predicate that must hold for every value a generator produces | Claessen and Hughes, QuickCheck (2000) | invariant test, fuzz test |
+| generator | A seeded source of values valid for a schema (`test.Generator`) | QuickCheck (2000) | factory, faker |
+| seed | The integer that fixes the sequence of a generator | QuickCheck (2000) | random state |
+| counterexample | A value for which a property fails | QuickCheck (2000) | failing input |
+| shrinking | Reducing a counterexample to a smaller one that still fails | QuickCheck (2000) | minimisation, reduction |
+| line coverage | The lines of the sources that ran during a run (`test.LineCoverage`, LCOV) | none | code coverage (accepted in prose) |

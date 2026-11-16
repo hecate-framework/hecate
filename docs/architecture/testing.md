@@ -12,8 +12,11 @@ Status: specification; decision in [ADR 0008](../adr/0008-own-test-framework.md)
 
 ## Vocabulary (xUnit)
 
-*test case* (class whose `test_*` methods are tests), *test suite* (collection of
-cases), *fixture* (set-up state), *assertion*, *runner*, *reporter*.
+*test case* (class whose `test_*` methods are tests), *test suite* (the cases of one test file: the unit of
+reporting), *fixture* (set-up state; in `test.boot`, the container overrides of a booted application), *fake* (a
+working substitute of a service bound over the real one), *assertion*, *lifecycle methods* (`set_up`, `tear_down`,
+`set_up_case`, `tear_down_case`), *runner*, *reporter*; and, for property-based testing, *property*, *generator*, *seed*,
+*counterexample* and *shrinking*. The glossary has one row for each (`docs/glossary.md`, "Testing").
 
 ## Surface (illustrative)
 
@@ -38,16 +41,16 @@ return RouterTest
 
 | Feature | Description |
 |---|---|
-| Discovery | `tests/**/*_test.lua` returning a case or a suite |
+| Discovery | `tests/**/*_test.lua`, each file returning one test case (a file that returns several cases is not supported; a directory that cannot be read is an error) |
 | Lifecycle | `set_up`/`tear_down` per test, `set_up_case`/`tear_down_case` per case |
 | Scope | each test runs in its own reactor scope; leaked coroutines fail the test |
-| Assertions | equality (deep, with diff), errors (class + code), schema conformance, approximate numbers, pattern, table shape |
-| Parametrisation | `test.parametrise(cases, fn)` producing named tests |
-| Property-based testing | generators derived from `hecate.schema` types; shrinking (QuickCheck, Claessen & Hughes 2000) |
-| HTTP client | in-process client hitting the kernel without sockets; optional real-socket mode |
+| Assertions | equality (deep, with diff), errors (class + code), approximate numbers, pattern, table shape, properties (`assert_property`); the conformance of responses to their schemas is checked by `test.boot`, not by an assertion |
+| Parametrisation | `Case.test_parameters`: one test per entry, named `Case.test_x[label]` (a `test.parametrise` function was not built: the data stays next to the method) |
+| Property-based testing | generators derived from `hecate.schema` types (`test.generate`, `test.Generator`, `test.generate_invalid`, patterns included); properties with shrinking (`test.check_property`, `Case:assert_property`; QuickCheck, Claessen & Hughes 2000) |
+| HTTP client | in-process client hitting the kernel without sockets (`test.Client`); a real-socket mode is not built: `Application:serve` with `hecate.http.Client` does it |
 | Contract conformance | in test mode, every response is validated against its declared schema; a report lists routes never exercised |
 | Fixtures | container overrides (`test.boot`); database fixtures with transactional rollback per test, delivered by the `sql` item |
-| Fakes | fake clock for `reactor` (virtual time for deadlines and sleeps) |
+| Fakes | fake clock for `reactor` (the runner option and case field `clock`, `"virtual"`: virtual time for deadlines and sleeps) |
 | Reporters | console, TAP 14, JUnit XML, JSON |
 | Coverage | line coverage via debug hooks, LCOV output (`test.LineCoverage`, runner option `coverage`, `run_parallel` option `coverage`; the bootstrap harness implements the same until the migration: task `coverage`, `HECATE_TEST_COVERAGE`; thresholds of 90 % for `core`, `reactor`, `router` and `schema`, run nightly) |
 | Leak detection | a test that leaves libuv handles open fails (the bootstrap harness: task `leaks`, `HECATE_TEST_LEAKS`; nightly) |

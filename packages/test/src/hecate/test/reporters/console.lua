@@ -13,6 +13,7 @@ local terminal = require("hecate.test.reporters.terminal")
 ---@class hecate.test.ConsoleOptions : hecate.test.TerminalOptions
 ---@field write? fun(text: string)  receives the output, default `io.stdout:write` then flush
 ---@field bar_width? integer  most cells of a loading bar (default 40)
+---@field full_trace? boolean  keep the frames of the framework in the traceback of an error (default false: only the frames of your code)
 
 --- Writes the events of a run for a person.
 ---@class hecate.test.ConsoleReporter : hecate.test.Reporter
@@ -31,13 +32,27 @@ local STATUS_COLOR = { passed = "green", failed = "red", errored = "red" }
 function ConsoleReporter:init(options)
   local reporter_options = require("hecate.test.reporters.options")
   options = reporter_options.check("ConsoleReporter", options,
-    { color = true, live = true, width = true, is_tty = true, getenv = true, bar_width = true })
+    { color = true, live = true, width = true, is_tty = true, getenv = true, bar_width = true, full_trace = true })
   self._write = reporter_options.writer(options, true)
   local resolved = terminal.resolve(options)
   self._color, self._live, self._width = resolved.color, resolved.live, resolved.width
   self._bar_width = options.bar_width or DEFAULT_BAR_WIDTH
+  self._full_trace = options.full_trace == true
   self._problems = {}
   self._suite = nil
+end
+
+-- A traceback without the frames of the framework (the runner, the reactor internals, the protected calls that wrap a
+-- test): what remains are the frames of the code under test.
+local function own_frames(trace)
+  local kept = {}
+  for line in (trace .. "\n"):gmatch("(.-)\n") do
+    local internal = line:find("[/\\]hecate[/\\]test[/\\]") or line:find("[/\\]hecate[/\\]reactor[/\\]")
+      or line:find("%[C%]: in global 'x?pcall'") or line:find("%(%.%.%.tail calls%.%.%.%)")
+    if not internal and line ~= "" then kept[#kept + 1] = line end
+  end
+  if #kept <= 1 then kept[#kept + 1] = "\t(no frame of your code; use full_trace to see the framework's)" end
+  return table.concat(kept, "\n")
 end
 
 local function plural(count, word) return ("%d %s%s"):format(count, word, count == 1 and "" or "s") end
@@ -157,7 +172,10 @@ function ConsoleReporter:_finish(summary)
     if result.location then self._write("  at " .. result.location .. "\n") end
     if result.message then self._write("  " .. result.message:gsub("\n", "\n  ") .. "\n") end
     local trace = result.traceback and result.traceback:match("stack traceback:.*") -- its first line repeats the message
-    if trace then self._write("  " .. trace:gsub("\n", "\n  ") .. "\n") end
+    if trace then
+      if not self._full_trace then trace = own_frames(trace) end
+      self._write("  " .. trace:gsub("\n", "\n  ") .. "\n")
+    end
   end
   self._write(("\n%s in %s, %s: %d passed, %d failed, %d errored\n"):format(
     plural(summary.total, "test"), plural(#summary.suites, "suite"), plural(summary.assertions, "assertion"),

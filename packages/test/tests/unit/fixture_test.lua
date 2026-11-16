@@ -1,4 +1,4 @@
-global <const> require, table, rawget, error
+global <const> require, table, rawget, error, pcall
 global <const> require, table
 
 local hecate_test = require("hecate.test")
@@ -115,6 +115,21 @@ function T:test_a_validate_of_the_given_container_is_kept()
   hecate_test.boot(given, { { key = "greeter", value = "fake" } })
   self:assert_equal(own, rawget(container, "validate"))
   self:assert_equal(1, calls)
+end
+
+function T:test_override_errors_say_what_is_wrong_with_which_override()
+  ---@type any
+  local neither, both = { { key = "greeter" } }, { { key = "greeter", value = 1, definition = function() end } }
+  local function message_of(overrides)
+    local ok, err = pcall(hecate_test.boot, options(), overrides)
+    self:assert_false(ok)
+    return (err --[[@as hecate.core.Error]]).message
+  end
+  self:assert_match("override 1 has neither", message_of(neither))
+  self:assert_match("override 1 has both", message_of(both))
+  ---@type any
+  local not_a_list = "x"
+  self:assert_match("key = ", message_of(not_a_list))
 end
 
 return core.finalise(T)

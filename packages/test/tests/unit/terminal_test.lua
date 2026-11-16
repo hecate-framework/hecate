@@ -71,7 +71,8 @@ local function probe(wrap)
   local chunk = 'package.path=[==[' .. package.path .. ']==];package.cpath=[==[' .. package.cpath .. ']==];'
     .. 'local t=require("hecate.test.reporters.terminal");'
     .. 'io.write(tostring(t.stdout_is_tty(function(n) if n=="TERM" then return "xterm" end end)))'
-  local command = "lua -e '" .. chunk .. "'"
+  local lua = require("hecate.test.parallel").interpreter(arg) or "lua"
+  local command = lua .. " -e '" .. chunk .. "'"
   local pipe = assert(io.popen((wrap and wrap(command) or command) .. " 2>&1"))
   local out = pipe:read("a") or ""
   pipe:close()

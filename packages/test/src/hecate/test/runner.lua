@@ -4,7 +4,7 @@
 --   * Every raise is contained: a failing test never affects another test (invariant).
 -- Outcomes follow the xUnit taxonomy (Meszaros 2007): passed, failed (an assertion did not
 -- hold) and errored (anything else was raised, including a failure of set_up or tear_down).
-global <const> type, xpcall, tostring, ipairs, pairs, require, os, debug, error, rawequal, pcall
+global <const> type, xpcall, tostring, ipairs, pairs, require, os, debug, error, rawequal, pcall, string
 
 local core = require("hecate.core")
 local reactor = require("hecate.reactor")
@@ -109,6 +109,9 @@ function Runner:init(options)
   end
   if options.filter ~= nil and type(options.filter) ~= "string" then
     error(core.ArgumentError("test.Runner: filter must be a Lua pattern string, got " .. type(options.filter)), 2)
+  end
+  if options.filter ~= nil and not pcall(string.find, "", options.filter) then
+    error(core.ArgumentError("test.Runner: filter is not a valid Lua pattern"), 2)
   end
   for _, key in ipairs({ "cases", "tags", "exclude_tags" }) do
     local list = options[key]
@@ -227,8 +230,8 @@ local function in_reactor(fn)
 end
 
 --- Runs a hook (`set_up_case`, ...) in its own reactor; returns nil, or the outcome that failed.
-local function run_hook(instance, hook, stage)
-  local fn = instance[hook]
+local function run_hook(instance, method, stage)
+  local fn = instance[method]
   if fn == nil then return nil end
   local outcome = in_reactor(function()
     local ok, err = xpcall(fn, capture, instance)

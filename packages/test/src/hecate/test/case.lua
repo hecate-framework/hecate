@@ -4,7 +4,7 @@ global <const> type, pairs, require, table
 local core = require("hecate.core")
 local assertions = require("hecate.test.assertions")
 
---- The base class of every test case: the assertions, and the lifecycle hooks (empty by default).
+--- The base class of every test case: the assertions, and the lifecycle methods (empty by default).
 ---@class hecate.test.Case : hecate.test.Assertions
 ---@field [string] any  tests, fixtures and attributes that a case declares on itself
 ---@field clock? "real"|"virtual"  clock of the reactors of this case, over the option of the runner

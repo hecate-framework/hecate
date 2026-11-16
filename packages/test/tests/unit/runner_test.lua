@@ -142,6 +142,7 @@ end
 function T:test_a_test_that_leaks_a_coroutine_fails_and_the_leak_is_cancelled()
   local C = hecate_test.Case("C")
   local finished = false
+  C.clock = "virtual" -- the sleep of the leak costs no time
   function C:test_a_leaks() reactor.fork(function() reactor.sleep(30); finished = true end) end
   function C:test_b_clean() end
   local summary = run({ C })
@@ -153,6 +154,7 @@ end
 
 function T:test_a_detached_leak_fails_the_test_without_hanging()
   local C = hecate_test.Case("C")
+  C.clock = "virtual"
   function C:test_a_leaks() reactor.detach(function() reactor.sleep(30) end) end
   function C:test_b_after() end
   local summary = run({ C })
@@ -391,6 +393,126 @@ function T:test_running_something_that_is_not_a_case_raises()
   self:assert_error(function() run({ {} }) end, { class = core.ArgumentError })
   ---@diagnostic disable-next-line: assign-type-mismatch  -- the argument error is the point
   self:assert_error(function() hecate_test.Runner({ filter = 1 }) end, { class = core.ArgumentError })
+end
+
+-- A test runs inside a reactor, and a reactor cannot start inside another: the inner run reports its tests as errored.
+-- What must hold is that the outer test keeps its assertion counter and its clock.
+function T:test_a_runner_inside_a_test_leaves_the_outer_counter_and_clock_alone()
+  local Outer = hecate_test.Case("Outer")
+  Outer.clock = "virtual"
+  function Outer:test_a_nested()
+    self:assert_true(true)
+    local Inner = hecate_test.Case("Inner")
+    function Inner:test_y() self:assert_true(true) end
+    local inner = hecate_test.Runner():run({ Inner })
+    self:assert_equal("errored", inner.results[1].status)
+    self:assert_match("already running", inner.results[1].message)
+    self:assert_true(true)
+  end
+  function Outer:test_b_virtual_clock_still_applies()
+    local started = os.time()
+    reactor.sleep(2)
+    self:assert_true(os.time() - started < 2, "the clock of the case was lost")
+  end
+  local summary = run({ Outer })
+  self:assert_true(summary.ok)
+  self:assert_equal(4, summary.results[1].assertions)
+  self:assert_equal(1, summary.results[2].assertions)
+end
+
+function T:test_a_run_without_tests_is_marked_empty()
+  self:assert_true(run({}).empty)
+  local C = hecate_test.Case("C")
+  function C:test_x() end
+  self:assert_false(run({ C }).empty)
+  self:assert_true(run({ C }, { filter = "nothing" }).empty)
+end
+
+function T:test_unknown_runner_options_are_refused()
+  ---@type any
+  local typo = { exclude_tag = { "slow" } }
+  self:assert_error(function() hecate_test.Runner(typo) end, { class = core.ArgumentError })
+  ---@type any
+  local not_a_table = "filter"
+  self:assert_error(function() hecate_test.Runner(not_a_table) end, { class = core.ArgumentError })
+end
+
+function T:test_a_tear_down_case_failure_is_kept_when_the_last_test_failed()
+  local C = hecate_test.Case("C")
+  function C:test_a() self:assert_equal(1, 2) end
+  function C:tear_down_case() error("cleanup went wrong", 0) end
+  local summary = run({ C })
+  self:assert_equal(1, summary.failed)
+  self:assert_equal("failed", summary.results[1].status)
+  self:assert_match("expected 1, got 2", summary.results[1].message)
+  self:assert_match("cleanup went wrong", summary.results[1].message)
+end
+
+function T:test_tear_down_does_not_run_after_a_set_up_that_failed()
+  local order = {}
+  local C = hecate_test.Case("C")
+  function C:set_up() order[#order + 1] = "set_up" if #order > 2 then error("set_up failed", 0) end end
+  function C:tear_down() order[#order + 1] = "tear_down" end
+  function C:test_a() end
+  function C:test_b() end
+  local summary = run({ C })
+  self:assert_equal("passed", summary.results[1].status)
+  self:assert_equal("errored", summary.results[2].status)
+  self:assert_equal({ "set_up", "tear_down", "set_up" }, order)
+end
+
+function T:test_tear_down_case_does_not_run_when_set_up_case_failed()
+  local calls = {}
+  local C = hecate_test.Case("C")
+  function C:set_up_case() calls[#calls + 1] = "set_up_case"; error("no fixture", 0) end
+  function C:tear_down_case() calls[#calls + 1] = "tear_down_case" end
+  function C:test_a() end
+  local summary = run({ C })
+  self:assert_equal("errored", summary.results[1].status)
+  self:assert_equal({ "set_up_case" }, calls)
+end
+
+function T:test_virtual_timers_fire_in_order_and_cancellation_works()
+  local C = hecate_test.Case("C")
+  C.clock = "virtual"
+  function C:test_order()
+    local order = {}
+    local late = reactor.fork(function() reactor.sleep(5); order[#order + 1] = "late" end)
+    local early = reactor.fork(function() reactor.sleep(1); order[#order + 1] = "early" end)
+    reactor.sleep(0)
+    reactor.join(early)
+    reactor.join(late)
+    self:assert_equal({ "early", "late" }, order)
+    self:assert_equal(5, math.floor(reactor.now()))
+  end
+  function C:test_cancel_while_sleeping()
+    local finished = false
+    reactor.scope(function(scope)
+      scope:fork(function() reactor.sleep(1000); finished = true end)
+      scope:cancel()
+    end)
+    self:assert_false(finished)
+  end
+  local summary = run({ C })
+  self:assert_true(summary.ok, summary.results[1].message or summary.results[2].message)
+end
+
+function T:test_a_real_clock_case_after_a_virtual_one_keeps_the_real_clock()
+  local V, R = hecate_test.Case("V"), hecate_test.Case("R")
+  V.clock = "virtual"
+  function V:test_x() reactor.sleep(100) end
+  function R:test_x()
+    local started = os.time()
+    reactor.sleep(0.05)
+    self:assert_true(os.time() - started < 2)
+    self:assert_true(reactor.now() < 100, "the clock of the previous case leaked")
+  end
+  self:assert_true(run({ V, R }).ok)
+end
+
+function T:test_a_malformed_filter_pattern_is_refused_when_the_runner_is_made()
+  self:assert_error(function() hecate_test.Runner({ filter = "[a" }) end, { class = core.ArgumentError })
+  self:assert_error(function() hecate_test.Runner({ filter = "%" }) end, { class = core.ArgumentError })
 end
 
 return require("hecate.core").finalise(T)

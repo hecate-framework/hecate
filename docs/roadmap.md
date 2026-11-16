@@ -411,6 +411,10 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       coverage with the LCOV report and the thresholds (task `coverage`), the examples runner
       (`tools/harness/examples.lua`, which checks the `-- Prints:` blocks) and a command-line entry point that the
       `test`, `coverage` and `leaks` tasks call, with `test.run_parallel` in place of the worker pool of the tasks;
+      **also (package review of the `test` item, finding N1):** a test runs inside a reactor and a reactor cannot start
+      inside another, so a test that calls `Runner:run` (the tests of the runner, of the reactor and of the reporters)
+      cannot run under `hecate.test` as it is: add a case field that runs the tests of that case outside a reactor
+      (design it in this item) before those files are migrated;
       (2) migrate the test files (about 260, of which about 240 use `harness.test`): `require("hecate.test")`, and each
       file ends with `core.finalise(T)` (owner decision of 2026-11-16: keep the object-model paradigm, no shim),
       package by package in layer order, checking every package on the three platforms; (3) **owner decision of

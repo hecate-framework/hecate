@@ -1,4 +1,4 @@
-global <const> require, ipairs, debug
+global <const> require, ipairs, debug, pairs
 local core = require("hecate.core")
 local reactor = require("hecate.reactor")
 local hecate_test = require("hecate.test")
@@ -141,6 +141,23 @@ function T:test_options_are_flat_and_unknown_ones_are_refused()
   local nested, typo = { runner = { filter = "x" } }, { job = 2 }
   self:assert_error(function() run({}, nested) end, { class = core.ArgumentError })
   self:assert_error(function() run({}, typo) end, { class = core.ArgumentError })
+end
+
+function T:test_events_replay_in_the_order_of_the_paths_not_of_completion()
+  local summary = run({ fixtures .. "/slow_case.lua", fixtures .. "/a_case.lua" }, { jobs = 2 })
+  self:assert_match("^ParallelSlow", summary.results[1].name)
+  self:assert_match("^ParallelSlow", summary.results[2].name)
+  self:assert_match("^ParallelA", summary.results[3].name)
+end
+
+function T:test_workers_report_coverage_with_several_jobs()
+  local coverage = hecate_test.LineCoverage({ include = "fixtures/line_coverage/" })
+  local d = fixtures .. "/d_case.lua"
+  local summary = reactor.run(hecate_test.run_parallel, { d, d }, { jobs = 2, coverage = coverage })
+  self:assert_true(summary.ok)
+  for path, lines in pairs(coverage:hits()) do
+    if path:find("sample.lua", 1, true) then self:assert_true(lines[4] >= 2, "both workers must have counted") end
+  end
 end
 
 return core.finalise(T)

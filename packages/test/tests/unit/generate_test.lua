@@ -1,5 +1,5 @@
 -- Generators of valid values from a schema (the basis of property-based tests).
-global <const> require, ipairs, pairs, table
+global <const> require, ipairs, pairs, table, math, pcall
 
 local core = require("hecate.core")
 local schema = require("hecate.schema")
@@ -141,6 +141,33 @@ function T:test_a_large_bound_gives_short_values()
     local list = hecate_test.generate(schema.array(schema.integer(), { max_items = 1000000000 }), seed)
     self:assert_true(#list <= 30)
   end
+end
+
+function T:test_the_bounds_of_a_schema_are_reached()
+  local seen_low, seen_high, shortest, longest = false, false, math.huge, 0
+  for seed = 1, 400 do
+    local n = hecate_test.generate(schema.integer({ minimum = -5, maximum = 5 }), seed)
+    seen_low, seen_high = seen_low or n == -5, seen_high or n == 5
+    local text = hecate_test.generate(schema.string({ min_length = 2, max_length = 6 }), seed)
+    shortest, longest = math.min(shortest, #text), math.max(longest, #text)
+  end
+  self:assert_true(seen_low and seen_high, "the ends of the integer range never came up")
+  self:assert_equal(2, shortest)
+  self:assert_equal(6, longest)
+end
+
+function T:test_bounds_that_no_value_satisfies_are_refused()
+  local function refused(make)
+    local ok, built = pcall(make)
+    if not ok then return end -- the schema itself refuses this declaration: nothing to generate
+    self:assert_error(function() hecate_test.generate(built, 1) end, { class = core.ArgumentError })
+  end
+  refused(function() return schema.string({ min_length = 5, max_length = 2 }) end)
+  refused(function() return schema.integer({ minimum = 5, maximum = 2 }) end)
+  refused(function() return schema.integer({ exclusive_minimum = 3, exclusive_maximum = 3 }) end)
+  refused(function() return schema.integer({ minimum = 8, maximum = 9, multiple_of = 5 }) end)
+  refused(function() return schema.array(schema.integer(), { min_items = 4, max_items = 1 }) end)
+  refused(function() return schema.enumeration({}) end)
 end
 
 return core.finalise(T)

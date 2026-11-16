@@ -1,5 +1,5 @@
 -- The property runner: runs a property over generated values and shrinks a counterexample.
-global <const> require, ipairs, pcall, error, table
+global <const> require, ipairs, pcall, error, table, math
 
 local core = require("hecate.core")
 local schema = require("hecate.schema")
@@ -107,6 +107,41 @@ function T:test_the_default_seed_is_the_same_for_generators_and_properties()
   local result = hecate_test.check_property(s, function() return false end)
   self:assert_equal(1, result.seed)
   self:assert_equal(first, result.original)
+end
+
+function T:test_shrinking_stops_within_its_budget_and_when_nothing_gets_simpler()
+  local always = hecate_test.check_property(schema.integer({ minimum = 0, maximum = 1000000 }),
+    function() return false end, { max_shrinks = 5 })
+  self:assert_false(always.ok)
+  self:assert_true(always.shrinks <= 5)
+  local evens = hecate_test.check_property(schema.integer({ minimum = 0, maximum = 1000 }),
+    function(n) return n % 2 == 1 end)
+  self:assert_false(evens.ok)
+  self:assert_equal(0, evens.counterexample % 2)
+end
+
+function T:test_unions_nullables_maps_and_tagged_unions_shrink_and_stay_valid()
+  local cases = {
+    schema.map(schema.integer({ minimum = 0, maximum = 9 }), { min_properties = 1, max_properties = 6 }),
+    schema.nullable(schema.integer({ minimum = 0, maximum = 1000 })),
+    schema.union({ schema.integer({ minimum = 0, maximum = 1000 }), schema.string({ min_length = 1, max_length = 20 }) }),
+    schema.tagged_union("kind", {
+      a = schema.object({ n = schema.integer({ minimum = 0, maximum = 1000 }) }),
+      b = schema.object({ s = schema.string({ max_length = 20 }) }),
+    }),
+  }
+  for index, s in ipairs(cases) do
+    local result = hecate_test.check_property(s, function(value) return value == json.null end)
+    self:assert_false(result.ok, "schema " .. index)
+    self:assert_true(s:validate(result.counterexample), "the counterexample of schema " .. index .. " is not valid")
+  end
+end
+
+function T:test_different_seeds_give_different_values()
+  local s = schema.integer({ minimum = 0, maximum = 1000000 })
+  local first = hecate_test.check_property(s, function() return false end, { seed = 1 })
+  local second = hecate_test.check_property(s, function() return false end, { seed = 2 })
+  self:assert_true(first.original ~= second.original)
 end
 
 return core.finalise(T)

@@ -186,6 +186,10 @@ function T:test_junit_groups_tests_by_suite_and_escapes_text()
   self:assert_equal(2, summary.failed + summary.errored)
 end
 
+function T:test_junit_output_matches_the_golden_file()
+  self:assert_equal(read("junit.golden"), capture(function(o) return hecate_test.JUnitReporter({ write = o.write }) end))
+end
+
 function T:test_json_lines_output_matches_the_golden_file()
   self:assert_equal(read("events.jsonl.golden"), capture(function(o) return hecate_test.JsonLinesReporter({ write = o.write }) end))
 end
@@ -241,6 +245,25 @@ function T:test_every_reporter_takes_an_options_table_with_a_write_function()
     self:assert_error(function() hecate_test[name](unknown) end, { class = core.ArgumentError })
     self:assert_error(function() hecate_test[name](not_function) end, { class = core.ArgumentError })
   end
+end
+
+function T:test_an_error_shows_the_frames_of_the_test_and_hides_those_of_the_framework()
+  local C = hecate_test.Case("Boom")
+  function C:test_x() error("kaput", 0) end
+  local function output(options)
+    local out = {}
+    options.write = function(text) out[#out + 1] = text end
+    options.live, options.color, options.width = false, false, 100
+    hecate_test.Runner({ reporter = hecate_test.ConsoleReporter(options) }):run({ C })
+    return table.concat(out)
+  end
+  local trimmed = output({})
+  self:assert_match("stack traceback:", trimmed)
+  self:assert_match("reporters_test%.lua", trimmed)
+  self:assert_nil((trimmed:find("hecate/test/runner%.lua")))
+  self:assert_nil((trimmed:find("hecate/reactor/")))
+  local full = output({ full_trace = true })
+  self:assert_match("hecate/test/runner%.lua", full)
 end
 
 return core.finalise(T)
