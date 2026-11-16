@@ -172,5 +172,6 @@ a shared database should not run in parallel until the rule for them is written.
 
 - A schema with a `pattern` cannot be generated, and raises `ArgumentError`.
 - Integers shrink toward zero, one step at a time near a far bound.
-- Not available yet: database fixtures with a transaction rolled back per test, and line coverage output (LCOV)
+- Not available yet: database fixtures with a transaction rolled back per test (they come with the `sql` package),
+  and line coverage output (LCOV)
   from `hecate.test` itself (the `coverage` task of the repository measures the packages meanwhile).

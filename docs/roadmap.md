@@ -313,7 +313,8 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
 - [ ] `test`: test framework, runner, in-process client, fixtures, contract conformance,
       reporters (TAP, JUnit XML), coverage. **Also (T2, from the `http` test review):** a hand-built `Request` whose
       `content` is a table must be JSON-encoded or raise, not read as empty (`Request:read_content` today reads only a
-      string); the in-process client uses the dispatch seam of OQ-78. **Also (from the `schema` review, OQ-96):** property-based generators derived from `hecate.schema` types (`generate`, `generate_invalid`, shrinking), which `schema` does not implement.
+      string); the in-process client uses the dispatch seam of OQ-78. **Also (from the `schema` review, OQ-96):** property-based generators derived from `hecate.schema` types (`generate`, `generate_invalid`, shrinking), which `schema` does not implement. **Moved out (owner decision of 2026-11-16):** the database fixtures of the
+      fixtures item belong to the `sql` item (they need transactions); the `test` item delivers the container overrides.
 - [x] Spike OQ-13 (standalone CLI executable: Lua 5.5, the CLI modules and the native modules in one binary per
       platform; code signing on macOS and Windows), time-boxed, report and recommendation to the owner before the
       `cli` v1 item (owner decision of 2026-11-13). Report: [OQ-13](spikes/OQ-13-standalone-executable.md) (Linux
@@ -410,7 +411,10 @@ in under five minutes; tutorial reproducible verbatim.
 - [ ] Spike OQ-18 (Data Mapper versus Active Record prototypes), report submitted to the
       owner before any `orm` work.
 - [ ] `sql`: driver interfaces, connection pool, transactions and savepoints, type
-      mapping, instrumentation.
+      mapping, instrumentation. **Also (from the `test` item, owner decision of 2026-11-16):** the database fixtures of
+      `hecate.test`: a fixture that opens a transaction before each test and rolls it back after it (testing.md,
+      "Fixtures"), built on the transactions and savepoints of this package, and the rule for parallel test runs that
+      share a database (one schema per worker process, see `test.run_parallel`).
 - [ ] `query`: relational-algebra query builder, dialects.
 - [ ] `postgresql`: protocol v3, SCRAM-SHA-256, TLS, prepared statements, COPY,
       LISTEN/NOTIFY.

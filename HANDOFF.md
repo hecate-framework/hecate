@@ -3,7 +3,7 @@
 
 - roadmap_item: `test`: test framework, runner, in-process client, fixtures, contract conformance, reporters (TAP, JUnit XML), coverage (Phase 3)
 - status: in-progress
-- last_update: 2026-11-16T20:57:25Z
+- last_update: 2026-11-16T21:04:21Z
 
 ## Done
 
@@ -51,7 +51,7 @@
 
 ## Next steps
 
-1. Database fixtures (transactional rollback, after the `sql` package); `pattern` generation (needs a decision: ECMA subset to strings); parallel follow-ups: live output (the plan needs all totals first), `--jobs` flag in the `cli` command, a rule for fixed ports and per-worker database schemas.
+1. `pattern` generation (a generator for the exact Lua-pattern subset that `hecate.schema.pattern` accepts; no decision needed); coverage in `hecate.test` (the roadmap item lists it: port the harness line hook and LCOV report); the database fixtures moved to the `sql` item (owner, 2026-11-16: roadmap, testing.md and README updated); parallel follow-ups: live output (the plan needs all totals first), `--jobs` flag in the `cli` command, a rule for fixed ports and per-worker database schemas.
 2. Docs: the how-to page is written (English); remaining: the generated reference (`gen-reference` covers it once the package is in the catalogue), the French translation (`translator-fr`, Phase 3 `check-translations`), and a final read once the rest lands; then the roadmap tick.
 
 ## Decisions taken (and where they are recorded)

@@ -25,7 +25,7 @@
 - assertions with structural diffs
 - in-process client and contract conformance report
 - property-based testing with shrinking from `schema` generators
-- fixtures (container overrides, database transactions)
+- fixtures (container overrides; database transactions come with the `sql` package)
 - coverage (LCOV)
 - parallel workers (by file; `test.run_parallel`)
 

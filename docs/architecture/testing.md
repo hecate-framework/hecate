@@ -46,7 +46,7 @@ return RouterTest
 | Property-based testing | generators derived from `hecate.schema` types; shrinking (QuickCheck, Claessen & Hughes 2000) |
 | HTTP client | in-process client hitting the kernel without sockets; optional real-socket mode |
 | Contract conformance | in test mode, every response is validated against its declared schema; a report lists routes never exercised |
-| Fixtures | container overrides, database fixtures with transactional rollback per test |
+| Fixtures | container overrides (`test.boot`); database fixtures with transactional rollback per test, delivered by the `sql` item |
 | Fakes | fake clock for `reactor` (virtual time for deadlines and sleeps) |
 | Reporters | console, TAP 14, JUnit XML, JSON |
 | Coverage | line coverage via debug hooks, LCOV output (the bootstrap harness implements it: task `coverage`, `HECATE_TEST_COVERAGE`; thresholds of 90 % for `core`, `reactor`, `router` and `schema`, run nightly) |
