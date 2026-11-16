@@ -161,7 +161,7 @@ print(result.ok, result.counterexample)
 -- Values that break the schema in exactly one place, with the violation.
 local value, expected = test.generate_invalid(age, 1)
 print(age:validate(value), expected.code)
--- Prints: false	maximum
+-- Prints: false	minimum
 ```
 
 `generate_invalid` va dans l’autre sens. Il casse une valeur valide en un seul endroit et renvoie la violation que la

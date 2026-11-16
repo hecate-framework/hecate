@@ -103,6 +103,14 @@ function candidates(value)
   return out
 end
 
+-- A copy of a generated value, so that a property that changes its argument cannot corrupt the value that is shrunk.
+local function copy_value(value)
+  if type(value) ~= "table" or value == json.null then return value end
+  local out = {}
+  for key, item in pairs(value) do out[key] = copy_value(item) end
+  return out
+end
+
 local function describe(error_value)
   if type(error_value) == "table" and error_value.message ~= nil then return tostring(error_value.message) end
   return tostring(error_value)
@@ -110,7 +118,7 @@ end
 
 -- Runs the property: nil when it holds, else the reason it fails (it returned false, or raised).
 local function falsified(property, value)
-  local ok, result = pcall(property, value)
+  local ok, result = pcall(property, copy_value(value))
   if not ok then return describe(result) end
   if result == false then return "the property returned false" end
   return nil

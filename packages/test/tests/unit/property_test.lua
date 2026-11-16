@@ -144,4 +144,16 @@ function T:test_different_seeds_give_different_values()
   self:assert_true(first.original ~= second.original)
 end
 
+function T:test_a_property_that_changes_its_value_does_not_corrupt_the_counterexample()
+  local s = schema.array(schema.integer({ minimum = 0, maximum = 100 }), { min_items = 1, max_items = 6 })
+  local result = hecate_test.check_property(s, function(list)
+    local fails = #list >= 1
+    list[#list + 1] = -1 -- the property abuses its argument
+    return not fails
+  end)
+  self:assert_false(result.ok)
+  self:assert_true(s:validate(result.original), "the original value was changed by the property")
+  self:assert_true(s:validate(result.counterexample))
+end
+
 return core.finalise(T)

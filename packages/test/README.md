@@ -55,6 +55,8 @@
 - coverage (LCOV)
 - parallel workers (by file; `test.run_parallel`)
 
+Discovery runs the `*_test.lua` files it finds, as code: run `hecate.test` only on code you trust.
+
 ## Non-goals
 
 - browser testing

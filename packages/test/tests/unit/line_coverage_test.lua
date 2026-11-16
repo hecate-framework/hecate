@@ -1,4 +1,4 @@
--- Line coverage: the lines of the sources that ran, in the main thread and in coroutines, as an LCOV report.
+global <const> require, debug, coroutine, dofile, pairs, error, table, ipairs
 global <const> require, debug, coroutine, dofile, pairs, error, table
 
 local core = require("hecate.core")
@@ -227,6 +227,13 @@ function T:test_a_case_insensitive_recorder_selects_sources_whatever_their_case(
   local not_a_boolean = "yes"
   self:assert_error(function() hecate_test.LineCoverage({ case_insensitive = not_a_boolean }) end,
     { class = core.ArgumentError })
+end
+
+function T:test_a_source_whose_path_holds_a_control_character_is_left_out_of_the_report()
+  local coverage = hecate_test.LineCoverage({ include = "x" })
+  coverage:merge({ ["x/ok.lua"] = { ["1"] = 1 }, ["x/bad\nSF:forged.lua"] = { ["1"] = 1 } })
+  for _, file in ipairs(coverage:report().files) do self:assert_nil((file.path:find("%c"))) end
+  self:assert_nil((coverage:lcov():find("SF:forged", 1, true)))
 end
 
 return core.finalise(T)

@@ -23,7 +23,8 @@ local LineCoverage = core.class("LineCoverage")
 local STRUCTURAL = { ["end"] = true, ["else"] = true, ["do"] = true, ["then"] = true, ["repeat"] = true,
   ["}"] = true, ["{"] = true, [")"] = true, ["},"] = true, ["end)"] = true, ["end,"] = true, ["})"] = true }
 
--- Lines of a Lua source that hold code. Each line is read for its code: comments (line and long, of any level),
+-- Lines of a Lua source that hold code. Kept in sync with `tools/lib/coverage.lua` (`executable_lines`) until the
+-- bootstrap harness is deleted (roadmap, migration of the tests). Each line is read for its code: comments (line and long, of any level),
 -- the inside of strings (short, and long of any level, across lines) and a shebang are not code; a line that is
 -- only a block delimiter (`end`, `}`, `)`) is not counted either, since no instruction belongs to it. The region
 -- between the comments `-- coverage: off` and `-- coverage: on` is left out.
@@ -344,7 +345,8 @@ function LineCoverage:report()
   for path in pairs(self._hits) do paths[#paths + 1] = path end
   table.sort(paths)
   for _, path in ipairs(paths) do
-    local text = read(path)
+    -- a path with a control character (a newline would forge a record of the LCOV file) is not reported
+    local text = not path:find("%c") and read(path) or nil
     if text then
       local lines, count, ran = {}, 0, 0
       for line in pairs(executable_lines(text)) do

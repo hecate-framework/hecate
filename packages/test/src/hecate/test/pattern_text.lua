@@ -149,6 +149,8 @@ function M.parse(regex)
       i = quantified({ value }, i)
     else
       if byte(c) > 127 then unreadable(regex, i) end
+      -- the translation escapes these when they are literal, so a bare one is not its output
+      if c:find("^[.|{}*+?^$]$") then unreadable(regex, i) end
       i = quantified({ byte(c) }, i + 1)
     end
   end

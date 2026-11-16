@@ -54,4 +54,12 @@ function T:test_a_regular_expression_outside_the_subset_raises_argument_error()
   end
 end
 
+function T:test_characters_the_translation_never_leaves_bare_are_refused()
+  for _, regex in ipairs({ "a|b", "a.b", "a{2}", "a}", "*a", "+", "a^b", "a$b", "(a)*" }) do
+    self:assert_error(function() pattern_text.generate(regex, source()) end, { class = core.ArgumentError })
+  end
+  -- what the translation does emit stays accepted
+  self:assert_true(pattern_text.generate("a\\|b\\.c[\\s\\S]\\*", source()) ~= nil)
+end
+
 return core.finalise(T)

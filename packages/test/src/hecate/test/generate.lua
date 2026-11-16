@@ -45,6 +45,17 @@ end
 -- A float strictly between 0 and 1.
 local function unit(rng) return ((bits(rng) >> 11) + 1) / 9007199254740993 end
 
+-- One draw in eight is an end of the range: the bounds are where the faults are, and chance alone rarely finds them.
+local function ends_of(rng, low, high)
+  if between(rng, 1, 8) ~= 1 then return nil end
+  return between(rng, 0, 1) == 0 and low or high
+end
+
+-- A length or a count in [low, high], leaning on the ends.
+local function size_between(rng, low, high)
+  return ends_of(rng, low, high) or between(rng, low, high)
+end
+
 local function letters(rng, length)
   local out = {}
   for i = 1, length do
@@ -100,7 +111,7 @@ local function string_value(node, rng)
   local maximum = node.maxLength or (minimum + 16)
   if maximum < minimum then refuse("minLength is above maxLength") end
   maximum = math.min(maximum, minimum + 256) -- a large bound gives short values
-  return letters(rng, between(rng, minimum, maximum))
+  return letters(rng, size_between(rng, minimum, maximum))
 end
 
 -- The bounds of a numeric node as { low, high, low_open, high_open }, with a window of 1000 when one side is free.
@@ -131,10 +142,11 @@ local function integer_value(node, rng)
   if step ~= nil then
     local k_low, k_high = math.ceil(low / step), math.floor(high / step)
     if k_low > k_high then refuse("no integer multiple fits the bounds") end
-    return math.tointeger(between(rng, k_low, k_high) * step) or refuse("multipleOf must give integers")
+    return math.tointeger((ends_of(rng, k_low, k_high) or between(rng, k_low, k_high)) * step)
+      or refuse("multipleOf must give integers")
   end
   if low > high then refuse("no integer fits the bounds") end
-  return math.tointeger(between(rng, low, high)) or refuse("the bounds are not integers")
+  return math.tointeger(ends_of(rng, low, high) or between(rng, low, high)) or refuse("the bounds are not integers")
 end
 
 local function number_value(node, rng)
@@ -163,7 +175,7 @@ local function array_value(node, rng, context, depth)
   local maximum = node.maxItems or (minimum + 4)
   if maximum < minimum then refuse("minItems is above maxItems") end
   maximum = math.min(maximum, minimum + 16)
-  local count = depth > MAX_DEPTH and minimum or between(rng, minimum, maximum)
+  local count = depth > MAX_DEPTH and minimum or size_between(rng, minimum, maximum)
   local items, seen = {}, {}
   local item_node = node.items or {}
   for _ = 1, count do
@@ -244,7 +256,7 @@ function generate(node, rng, context, depth)
   elseif kind == "object" then return object_value(node, rng, context, depth)
   elseif kind == nil then return between(rng, -1000, 1000) -- `any`: a small integer
   end
-  refuse("the type " .. tostring(kind) .. " cannot be generated")
+  refuse("the type " .. type(kind) .. " (a list of types, or an unknown one) cannot be generated")
 end
 
 --- Creates a generator. The emission of the schema is read once; `pattern` options and unknown formats cannot be

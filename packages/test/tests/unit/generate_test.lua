@@ -170,4 +170,19 @@ function T:test_bounds_that_no_value_satisfies_are_refused()
   refused(function() return schema.enumeration({}) end)
 end
 
+function T:test_boundary_values_come_up_often_not_by_chance()
+  local s = schema.integer({ minimum = 0, maximum = 120 })
+  local edges = 0
+  for seed = 1, 200 do
+    local n = hecate_test.generate(s, seed)
+    if n == 0 or n == 120 then edges = edges + 1 end
+  end
+  self:assert_true(edges >= 12, "only " .. edges .. " of 200 values were at a bound")
+  local empty = 0
+  for seed = 1, 200 do
+    if #hecate_test.generate(schema.string({ max_length = 20 }), seed) == 0 then empty = empty + 1 end
+  end
+  self:assert_true(empty >= 8, "only " .. empty .. " of 200 strings were empty")
+end
+
 return core.finalise(T)
