@@ -6,7 +6,7 @@
 --   * Limits of this first version: the reporter sees nothing before every worker has finished (the
 --     plan of a run, `run_started`, needs the total of all files); what a test prints to its standard
 --     output is dropped.
-global <const> require, type, ipairs, error, io, os, package, arg, string, table, pcall, tostring
+global <const> require, type, ipairs, error, io, os, package, arg, string, table, pcall, tostring, pairs
 
 local core = require("hecate.core")
 local reactor = require("hecate.reactor")
@@ -21,6 +21,7 @@ local M = {}
 ---@field jobs? integer  workers running at once (default 2)
 ---@field runner? hecate.test.RunnerOptions  `filter`, `cases`, `tags`, `exclude_tags`, `clock` of each worker (no reporter)
 ---@field reporter? hecate.test.Reporter  receives the events of the run, in the order of the paths
+---@field coverage? hecate.test.LineCoverage  receives the lines the workers ran (its `include` must be a pattern, not a predicate)
 ---@field lua? string  Lua interpreter that runs a worker (default: the running one)
 
 --- Body of a worker: runs the test file `job.path` and prints its events. Called by the coordinator
@@ -29,18 +30,32 @@ local M = {}
 function M.work(encoded)
   local json = require("hecate.json")
   local job = json.decode(encoded)
-  local events = {}
+  local events, coverage = {}, nil
   local function write(payload) io.write(MARKER, json.encode(payload), "\n") end
   local ok, err = pcall(function()
     local case = discovery.load(job.path)
     local options = job.options or {}
     options.reporter = { handle = function(_, event) events[#events + 1] = event end }
+    if job.coverage then
+      coverage = require("hecate.test.line_coverage")(job.coverage)
+      options.coverage = coverage
+    end
     require("hecate.test.runner")(options):run({ case })
   end)
   if not ok then
     write({ failure = tostring(err) })
   else
-    write({ events = events })
+    local hits
+    if coverage then
+      -- JSON object keys are text: a line number becomes the text of the number
+      hits = {}
+      for path, lines in pairs(coverage:hits()) do
+        local copy = {}
+        for line, count in pairs(lines) do copy[tostring(line)] = count end
+        hits[path] = copy
+      end
+    end
+    write({ events = events, hits = hits })
   end
 end
 
@@ -58,9 +73,9 @@ local function synthetic(path, message)
   }
 end
 
-local function launch(path, options, lua)
+local function launch(path, options, lua, coverage)
   local json = require("hecate.json")
-  local job = json.encode({ path = path, options = options })
+  local job = json.encode({ path = path, options = options, coverage = coverage })
   local code = ("package.path=%q package.cpath=%q require('hecate.test.parallel').work(%q)"):format(
     package.path, package.cpath, job)
   local ok, result = pcall(reactor.run_process, lua, { "-e", code })
@@ -74,7 +89,7 @@ local function launch(path, options, lua)
   end
   local payload = json.decode(line)
   if payload.failure then return synthetic(path, payload.failure) end
-  return payload.events
+  return payload.events, payload.hits
 end
 
 --- Runs the test files `paths` in worker processes, at most `options.jobs` at once, and returns the
@@ -91,18 +106,29 @@ function M.run(paths, options)
     error(core.ArgumentError("test.run_parallel: jobs must be a positive integer"), 2)
   end
   local lua = options.lua or (arg and arg[-1]) or "lua"
+  local coverage, settings = options.coverage, nil
+  if coverage ~= nil then
+    if not core.is_instance_of(coverage, require("hecate.test.line_coverage")) then
+      error(core.ArgumentError("test.run_parallel: coverage must be a test.LineCoverage"), 2)
+    end
+    settings = coverage:settings()
+  end
   local gate = reactor.Semaphore(jobs)
   local futures = {}
   for index, path in ipairs(paths) do
     futures[index] = reactor.fork(function()
       local permit = gate:acquire()
-      local events = launch(path, options.runner, lua)
+      local events, hits = launch(path, options.runner, lua, settings)
       permit:release()
-      return events
+      return { events = events, hits = hits }
     end)
   end
   local batches = {}
-  for index, future in ipairs(futures) do batches[index] = reactor.join(future) end
+  for index, future in ipairs(futures) do
+    local done = reactor.join(future)
+    batches[index] = done.events
+    if coverage and done.hits then coverage:merge(done.hits) end
+  end
 
   local summary = {
     total = 0, passed = 0, failed = 0, errored = 0, assertions = 0, ok = true, exit_code = 0,

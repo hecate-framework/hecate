@@ -4,7 +4,7 @@
 --   * Every raise is contained: a failing test never affects another test (invariant).
 -- Outcomes follow the xUnit taxonomy (Meszaros 2007): passed, failed (an assertion did not
 -- hold) and errored (anything else was raised, including a failure of set_up or tear_down).
-global <const> type, xpcall, tostring, ipairs, pairs, require, os, debug, error, rawequal
+global <const> type, xpcall, tostring, ipairs, pairs, require, os, debug, error, rawequal, pcall
 
 local core = require("hecate.core")
 local reactor = require("hecate.reactor")
@@ -58,6 +58,7 @@ local AssertionFailure = failure.AssertionFailure
 ---@field filter? string  Lua pattern: only tests whose full name matches are run
 ---@field clock? "real"|"virtual"  clock of the reactor of each test (default `"real"`); a case overrides it with its `clock` field. The virtual clock jumps to the next timer when nothing is ready, so sleeps and deadlines cost no time
 ---@field cases? string[]  only the cases with one of these names are run
+---@field coverage? hecate.test.LineCoverage  records the lines that run while `run` executes (started before the first test, stopped after the last)
 ---@field tags? string[]  only tests carrying at least one of these tags are run
 ---@field exclude_tags? string[]  tests carrying any of these tags are not run (wins over `tags`)
 
@@ -118,6 +119,10 @@ function Runner:init(options)
   self._reporter = options.reporter
   self._filter = options.filter
   self._cases = options.cases
+  if options.coverage ~= nil and not core.is_instance_of(options.coverage, require("hecate.test.line_coverage")) then
+    error(core.ArgumentError("test.Runner: coverage must be a test.LineCoverage"), 2)
+  end
+  self._coverage = options.coverage
   self._tags = options.tags
   self._exclude_tags = options.exclude_tags
 end
@@ -299,14 +304,7 @@ function Runner:plan(cases)
   return tests
 end
 
---- Runs the tests of `cases` and returns the summary. The reporter, when given, receives the
---- events of the run (`hecate.test.Event`) as they happen.
----
---- Raises `hecate.core.ArgumentError` when an element of `cases` is not a test case. Never
---- raises for a failing test.
----@param cases table[]  test cases created with `test.Case`
----@return hecate.test.Summary summary
-function Runner:run(cases)
+local function run_tests(self, cases)
   local tests = self:plan(cases)
   local reporter = self._reporter
   local summary = {
@@ -394,6 +392,23 @@ function Runner:run(cases)
   clock_kind = "real"
   emit({ type = "run_finished", summary = summary })
   return summary
+end
+
+--- Runs the tests of `cases` and returns the summary. The reporter, when given, receives the
+--- events of the run (`hecate.test.Event`) as they happen.
+---
+--- Raises `hecate.core.ArgumentError` when an element of `cases` is not a test case. Never
+--- raises for a failing test.
+---@param cases table[]  test cases created with `test.Case`
+---@return hecate.test.Summary summary
+function Runner:run(cases)
+  local coverage = self._coverage
+  if coverage == nil then return run_tests(self, cases) end
+  coverage:start()
+  local ok, result = pcall(run_tests, self, cases)
+  coverage:stop()
+  if not ok then error(result, 0) end
+  return result
 end
 
 return core.finalise(Runner)

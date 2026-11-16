@@ -3,7 +3,7 @@
 
 - roadmap_item: `test`: test framework, runner, in-process client, fixtures, contract conformance, reporters (TAP, JUnit XML), coverage (Phase 3)
 - status: in-progress
-- last_update: 2026-11-16T21:31:52Z
+- last_update: 2026-11-16T21:41:36Z
 
 ## Done
 
@@ -51,9 +51,11 @@
 
 - Step 18: `pattern` generation (`pattern_text.lua`, parses the ECMA form of the translation; tests in `generate_test.lua`, `invalid_test.lua`, `pattern_text_test.lua`). Roadmap: `cli` pointer and a new `test` item for the migration of the repository's tests (owner decisions of 2026-11-16: `core.finalise` at the end of cases; the `tools/CLAUDE.md` rule relaxed for `tools/tests`).
 
+- Step 19: line coverage (`line_coverage.lua`): `test.LineCoverage`, runner option `coverage`, `run_parallel` option `coverage` (workers send hits as JSON, merged by the coordinator). Tests in `line_coverage_test.lua` (fixtures `tests/fixtures/coverage/`). The executable-line heuristic is a copy of `tools/lib/coverage.lua`; the migration item removes the duplicate. Owner decision (2026-11-16): the self-test solution is the complete one (pinned release plus current checkout), recorded in the migration item.
+
 ## Next steps
 
-1. Coverage in `hecate.test` (owner: in this pull request): port the harness line hook (main thread and coroutines), an LCOV writer and the thresholds; the runner option and the command-line entry point come with the migration item. Optional: live output during a parallel run (needs the plan of all files first). The `--jobs` flag and the fixed-ports and database rule are pointers in the `cli` and `sql` roadmap items (done).
+1. Optional: live output during a parallel run (needs the plan of all files first). Not part of this item: the command-line entry point, the timeout, the leak check and the thresholds come with the migration item (roadmap).
 2. Docs (owner: yes to both): run `gen-reference` for `test` and check the page; the French translation of the how-to page (`translator-fr`); a final read once the rest lands; then the roadmap tick and the review request.
 
 ## Decisions taken (and where they are recorded)

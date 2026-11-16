@@ -14,6 +14,7 @@ local discovery = require("hecate.test.discovery")
 ---@field ConsoleReporter hecate.test.ConsoleReporter  one line per suite with a loading bar, for people
 ---@field TapReporter hecate.test.TapReporter  TAP 14 reporter
 ---@field Client hecate.test.Client  in-process HTTP client: serves requests to an application's action without a socket
+---@field LineCoverage hecate.test.LineCoverage  records and reports the lines of the sources that ran (LCOV)
 ---@field JUnitReporter hecate.test.JUnitReporter  JUnit XML reporter, for continuous-integration servers
 ---@field JsonLinesReporter hecate.test.JsonLinesReporter  event stream, one JSON object per line, for IDE adapters
 local test = {
@@ -36,6 +37,7 @@ test.Generator = require("hecate.test.generate").Generator
 test.generate = require("hecate.test.generate").generate
 test.check_property = require("hecate.test.property").check_property
 test.generate_invalid = require("hecate.test.generate").generate_invalid
+test.LineCoverage = require("hecate.test.line_coverage")
 test.boot = require("hecate.test.fixture").boot
 test.parse_arguments = require("hecate.test.selection").parse
 test.run_parallel = require("hecate.test.parallel").run

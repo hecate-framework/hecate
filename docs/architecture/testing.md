@@ -49,7 +49,7 @@ return RouterTest
 | Fixtures | container overrides (`test.boot`); database fixtures with transactional rollback per test, delivered by the `sql` item |
 | Fakes | fake clock for `reactor` (virtual time for deadlines and sleeps) |
 | Reporters | console, TAP 14, JUnit XML, JSON |
-| Coverage | line coverage via debug hooks, LCOV output (the bootstrap harness implements it: task `coverage`, `HECATE_TEST_COVERAGE`; thresholds of 90 % for `core`, `reactor`, `router` and `schema`, run nightly) |
+| Coverage | line coverage via debug hooks, LCOV output (`test.LineCoverage`, runner option `coverage`, `run_parallel` option `coverage`; the bootstrap harness implements the same until the migration: task `coverage`, `HECATE_TEST_COVERAGE`; thresholds of 90 % for `core`, `reactor`, `router` and `schema`, run nightly) |
 | Leak detection | a test that leaves libuv handles open fails (the bootstrap harness: task `leaks`, `HECATE_TEST_LEAKS`; nightly) |
 | Targeting | by file, case, test name pattern, tag (`slow`, `integration`, `database:postgresql`) |
 | Parallelism | multiple worker processes, each with its own reactor; one process per test file, events replayed in path order (`test.run_parallel`) |

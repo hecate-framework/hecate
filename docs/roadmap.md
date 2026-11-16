@@ -416,10 +416,12 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       package by package in layer order, checking every package on the three platforms; (3) **owner decision of
       2026-11-16:** the rule of `tools/CLAUDE.md` that tools must not require Hecate packages is relaxed for the tests
       under `tools/tests`, so that no test lives outside the one framework (ADR 0015 does not state that rule; update
-      `tools/CLAUDE.md`, `tools/README.md` and `docs/architecture/testing.md`, "Bootstrap harness"); (4) decide and write
-      down how the framework is trusted to test itself (a pinned earlier build of `hecate.test` run in CI beside the
-      current one is the usual answer, see the pull request discussion), and keep the migration reversible until every
-      package passes; (5) delete `tools/harness/`.
+      `tools/CLAUDE.md`, `tools/README.md` and `docs/architecture/testing.md`, "Bootstrap harness"); (4) **owner decision of
+      2026-11-16:** the complete solution for a framework that tests itself, as the established test frameworks do:
+      a CI job runs the whole suite of the repository under a pinned earlier release of `hecate.test` (its version
+      recorded in the repository, bumped deliberately) and the same suite under the current checkout; a disagreement
+      between the two is a finding. Until a first release exists, the pinned build is a recorded commit. The job is
+      written and documented in this item, and the migration stays reversible until every package passes; (5) delete `tools/harness/`.
 - [ ] **Phase 3 gate**: verification of the phase, as described in [Phase gates](#phase-gates). Open
       questions to put to the owner before Phase 4: OQ-18 and OQ-45.
 

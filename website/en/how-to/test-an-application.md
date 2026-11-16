@@ -168,11 +168,31 @@ Two limits of this first version: the reporter sees nothing until every worker h
 needs the total of all files, and what a test prints to its standard output is dropped. Tests that use a fixed port or
 a shared database should not run in parallel until the rule for them is written.
 
+## Measure line coverage
+
+`test.LineCoverage` records which lines of your sources run. Pass one to the runner, or to `run_parallel`, whose
+workers send their lines back, then read the figures.
+
+```lua
+local coverage = test.LineCoverage({ include = "/src/" })
+test.Runner({ coverage = coverage }):run(cases)
+print(coverage:report().percent)
+print(coverage:percent("/src/users/"))
+local file = io.open("lcov.info", "w")
+file:write(coverage:lcov())
+file:close()
+```
+
+`include` is a Lua pattern (or a predicate) matched against the path of each source, with `/` separators; `exclude`
+removes sources again. Only lines that hold code count, so comments and lines made of block delimiters do not. A
+region between the comments `-- coverage: off` and `-- coverage: on` is left out: use it for code that runs in another
+Lua state, such as a pool thread, which the line hook cannot see. The report is plain LCOV, which `genhtml` and most
+coverage services read. Recording slows the run, so turn it on for a coverage run only.
+
 ## Limits
 
 - A `pattern` is generated from the subset that `hecate.schema` accepts, in ASCII only. A string schema that also has
   a `format`, or whose `min_length` and `max_length` no string of the pattern fits, raises `ArgumentError`.
 - Integers shrink toward zero, one step at a time near a far bound.
-- Not available yet: database fixtures with a transaction rolled back per test (they come with the `sql` package),
-  and line coverage output (LCOV)
-  from `hecate.test` itself (the `coverage` task of the repository measures the packages meanwhile).
+- Not available yet: database fixtures with a transaction rolled back per test (they come with the `sql` package).
+- Coverage counts lines, not branches, and it sees only code running in the Lua state of the test.
