@@ -310,11 +310,18 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       classes of `kernel` declare and `openapi` tests (confirmed); the ordered `tags` list
       with descriptions and `externalDocs` in the project settings. **Later, optional:** a controller-level default
       `tags` field, so that the routes of a controller need not repeat them.
-- [ ] `test`: test framework, runner, in-process client, fixtures, contract conformance,
+- [x] `test`: test framework, runner, in-process client, fixtures, contract conformance,
       reporters (TAP, JUnit XML), coverage. **Also (T2, from the `http` test review):** a hand-built `Request` whose
       `content` is a table must be JSON-encoded or raise, not read as empty (`Request:read_content` today reads only a
       string); the in-process client uses the dispatch seam of OQ-78. **Also (from the `schema` review, OQ-96):** property-based generators derived from `hecate.schema` types (`generate`, `generate_invalid`, shrinking), which `schema` does not implement. **Moved out (owner decision of 2026-11-16):** the database fixtures of the
       fixtures item belong to the `sql` item (they need transactions); the `test` item delivers the container overrides.
+      **Delivered:** the runner with events and the console, TAP, JUnit XML and JSON-lines reporters; discovery and
+      command-line targeting; tags, parametrised tests and the virtual clock; the in-process client and `test.boot` with
+      container overrides, response validation and route coverage; generators (`generate`, `generate_invalid`, patterns
+      included) and properties with shrinking; line coverage with an LCOV report; parallel runs with live output; the
+      how-to page (English and French) with tested examples; the manual Windows check; the package review
+      ([test-review-package.md](reviews/test-review-package.md)). The repository's own tests move to it in the item
+      below, the bootstrap harness is deleted there.
 - [x] Spike OQ-13 (standalone CLI executable: Lua 5.5, the CLI modules and the native modules in one binary per
       platform; code signing on macOS and Windows), time-boxed, report and recommendation to the owner before the
       `cli` v1 item (owner decision of 2026-11-13). Report: [OQ-13](spikes/OQ-13-standalone-executable.md) (Linux
