@@ -19,8 +19,8 @@
 
 ## Next steps
 
-2. Theme extension points (OQ-38): site configuration `logo`, CSS custom-properties override file for colours; marks never recoloured.
-3. Website reference, README, CHANGELOG, tick the roadmap item, delete this file.
+1. Theme extension points (OQ-38): site configuration `logo`, CSS custom-properties override file for colours; marks never recoloured.
+2. Website reference, README, CHANGELOG, tick the roadmap item, delete this file.
 
 ## Decisions taken (and where they are recorded)
 
