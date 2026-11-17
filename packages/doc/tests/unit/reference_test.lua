@@ -304,4 +304,73 @@ for name, method in pairs(T) do
   end
 end
 
+-- Audiences (OQ-144): internal modules and non-public symbols are maintainer documentation.
+local function export_with_visibility()
+  local export = json.decode(export_text)
+  for _, entry in ipairs(export) do
+    if entry.name == "hecate.demo.Counter" then
+      for _, field in ipairs(entry.fields) do
+        if field.name == "_secret" then
+          for index, name in ipairs({ "pkg_only", "priv_only", "prot_only" }) do
+            local copy = json.decode(json.encode(field))
+            copy.name = name
+            copy.visible = ({ "package", "private", "protected" })[index]
+            entry.fields[#entry.fields + 1] = copy
+          end
+        end
+      end
+    end
+  end
+  export[#export + 1] = { name = "hecate.demo.internal.Hidden", type = "type", fields = {}, rawdesc = " Hidden.",
+    defines = { { type = "doc.class", file = "hecate/demo/internal/hidden.lua", visible = "public", rawdesc = " Hidden." } } }
+  export[#export + 1] = { name = "hecate.demo.Restricted", type = "type", fields = {}, rawdesc = " Restricted.",
+    defines = { { type = "doc.class", file = "hecate/demo/restricted.lua", visible = "package", rawdesc = " Restricted." } } }
+  return export
+end
+
+local function audience_of(content)
+  return content:match("\naudience: (%a+)\n")
+end
+
+function T:test_symbols_that_are_not_public_are_never_listed_as_members()
+  local result = generate({ { name = "demo", export = export_with_visibility() } }, { examples = examples })
+  for _, path in ipairs(result.order) do
+    for _, name in ipairs({ "pkg_only", "priv_only", "prot_only" }) do
+      self:assert_nil(result.pages[path]:find(name, 1, true), path .. " lists " .. name)
+    end
+  end
+end
+
+function T:test_by_default_internal_and_non_public_classes_are_not_generated_and_pages_carry_no_audience()
+  local plain = generate()
+  local result = generate({ { name = "demo", export = export_with_visibility() } }, { examples = examples })
+  self:assert_equal(#plain.order, #result.order)
+  for _, path in ipairs(result.order) do self:assert_nil(audience_of(result.pages[path]), path) end
+end
+
+function T:test_with_internal_the_internal_and_non_public_classes_are_maintainer_pages()
+  local result = generate({ { name = "demo", export = export_with_visibility() } },
+    { examples = examples, internal = true, label_audiences = true })
+  local plain = generate()
+  self:assert_equal(#plain.order + 2, #result.order)
+  local maintainer, user = {}, 0
+  for _, path in ipairs(result.order) do
+    local audience = audience_of(result.pages[path])
+    self:assert_not_nil(audience, path)
+    if audience == "maintainer" then maintainer[#maintainer + 1] = path else user = user + 1 end
+  end
+  self:assert_equal("reference/demo/Hidden.md,reference/demo/Restricted.md", table.concat(maintainer, ","))
+  self:assert_equal(#plain.order, user)
+end
+
+function T:test_with_internal_alone_pages_carry_no_audience_key()
+  local result = generate({ { name = "demo", export = export_with_visibility() } }, { examples = examples, internal = true })
+  for _, path in ipairs(result.order) do self:assert_nil(audience_of(result.pages[path]), path) end
+end
+
+function T:test_labelled_public_pages_are_user_pages()
+  local result = generate(nil, { examples = examples, label_audiences = true })
+  for _, path in ipairs(result.order) do self:assert_equal("user", audience_of(result.pages[path]), path) end
+end
+
 return T

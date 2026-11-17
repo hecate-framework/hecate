@@ -53,10 +53,10 @@ decided in [ADR 0022](../../docs/adr/0022-doc-dependencies.md).
 
 | Name | Description |
 |---|---|
-| `build(options)` | Reads `<source>/<locale>/**/*.md`, renders every page of every locale, writes pages, search indexes, theme files and static files to `options.out`, returns a `BuildReport` (`files`, `bytes`, `locales`, `problems`). Options: `config`, `source`, `out`, `fs`, `clean`, `strict`, `last_updated`. Output is deterministic. |
+| `build(options)` | Reads `<source>/<locale>/**/*.md`, renders every page of every locale, writes pages, search indexes, theme files and static files to `options.out`, returns a `BuildReport` (`files`, `bytes`, `locales`, `problems`). Options: `config`, `source`, `out`, `fs`, `clean`, `strict`, `last_updated`. `BuildReport.locales[code]` has `pages`, `fallbacks` and `unpublished` (pages left out by their audience). Output is deterministic. |
 | `load_config(path, fs)` | Loads a `site.lua` (data only: it runs with an empty environment). |
 | `normalise_config(raw)` | Validates every key of a site configuration (type and shape; `base` must be an absolute path and not protocol-relative, `url` an http(s) origin) and fills the defaults; raises `core.ConfigurationError` with `context.field` naming the offending key. |
-| `Site(options)` | The site model: `load()`, `pages(locale)`, `page(locale, id)`, `emit(write)`, `problems`. |
+| `Site(options)` | The site model: `load()`, `pages(locale)`, `page(locale, id)`, `unpublished(locale)`, `emit(write)`, `problems`. |
 | `Page` | One page in one locale: `id`, `url`, `title`, `html`, `headings`, `sections`, `fallback`, `meta`. |
 | `FileSystem` | Interface (`read`, `write`, `list`, `exists`, `remove_tree`; optional `is_link`) the builder reads and writes through. `remove_tree` unlinks a symbolic link at its path, never its target; `build` with `clean` refuses an output directory that is a symbolic link. |
 | `MemoryFileSystem(files?)` | In-memory implementation (tests, embedders). |
@@ -68,10 +68,10 @@ decided in [ADR 0022](../../docs/adr/0022-doc-dependencies.md).
 | `highlight.render(language, code)` | Syntax highlighting by syntect (two-face syntaxes, `hl-` classes); an unknown language is escaped and left plain. |
 | `navigation` | `sidebar`, `reading_order`, `neighbours`, `top_links`, `section_of` (pure functions). |
 | `search.build(locale, pages)`, `search.encode(index)` | The client-side search index. |
-| `theme` | `page(context)`, `not_found(context)`, `strings`, `asset_files`, `assets_directory()`. |
-| `reference` (`hecate.doc.reference`) | `generate(inputs, options)`: pages of the code reference from LuaLS exports (pure); `is_generated(text)`; `GENERATED` (the marker). |
+| `theme` | `page(context)`, `not_found(context)`, `strings`, `asset_files`, `diagram_files` (written only when a page holds a diagram), `assets_directory()`. |
+| `reference` (`hecate.doc.reference`) | `generate(inputs, options)`: pages of the code reference from LuaLS exports (pure; option `internal` adds the `maintainer` pages of `*.internal` modules and of non-public classes, `label_audiences` writes the `audience` key on every page); `is_generated(text)`; `GENERATED` (the marker). |
 | `reference_site` (`hecate.doc.reference_site`) | `run(options)`: runs LuaLS on the packages, generates and writes the pages (skips with `report.skipped` without LuaLS); `write(fs, out, result, packages)`; `DEFAULT_PACKAGES`. |
-| `project` (`hecate.doc.project`) | `configuration_page(schema)`: the configuration reference from a JSON Schema; `build(options)`: writes the guides and the generated pages below `<source>/<locale>/` and builds (everything is checked before anything is written; a generated page never overwrites a file that is not generated, and generated pages no longer produced are removed); `meta(schemas, namespace)`: a LuaLS `---@meta` declaration file (classes, aliases) from named JSON Schemas (OQ-96); `is_generated(text)`. Text from the schema is escaped, and the expansion of a schema is bounded (500 rows per table, cycles shown as one row). There is no API reference: the OpenAPI contract is the external documentation of the API (served by `openapi`), and a viewer is the wiring of the user (OQ-141, owner decision of 2026-11-17). The option `code` runs LuaLS, which reads the `.luarc.json` of `code.root` and runs the plugin it declares: `code.root` must be trusted (OQ-142). |
+| `project` (`hecate.doc.project`) | `configuration_page(schema, options?)`: the configuration reference from a JSON Schema, a `maintainer` page that prints `[redacted]` for the default of a secret key (`writeOnly`, `format: "password"`, or `options.secrets`); `build(options)`: writes the guides and the generated pages below `<source>/<locale>/` and builds (everything is checked before anything is written; a generated page never overwrites a file that is not generated, and generated pages no longer produced are removed); `meta(schemas, namespace)`: a LuaLS `---@meta` declaration file (classes, aliases) from named JSON Schemas (OQ-96); `is_generated(text)`. Text from the schema is escaped, and the expansion of a schema is bounded (500 rows per table, cycles shown as one row). There is no API reference: the OpenAPI contract is the external documentation of the API (served by `openapi`), and a viewer is the wiring of the user (OQ-141, owner decision of 2026-11-17). The options `config.audiences` (default `{ "user" }`) and `secrets` apply (see "Audiences"). The option `code` runs LuaLS, which reads the `.luarc.json` of `code.root` and runs the plugin it declares: `code.root` must be trusted (OQ-142). |
 
 ### Building a site
 
@@ -87,6 +87,27 @@ project sites), `--url` (the origin, for canonical links and the sitemap, overri
 configuration), `--clean` (empties the output directory, only if a previous build wrote it),
 `--strict` (broken links and similar problems fail the build), `--no-git-dates`. Exit codes:
 0 built, 1 failed, 2 usage error. Serve the output with any static server.
+
+### Audiences
+
+Documentation has two audiences: *user documentation* (build, run and operate an application on the public
+API) and *maintainer documentation* (change Hecate or the project itself: architecture, ADRs, internals, CI and
+release, the reference of `*.internal` modules). The generated site is the project team's own documentation, and it
+publishes only what it is asked to (OQ-144, [documentation.md](../../docs/architecture/documentation.md)).
+
+| Where | Key | Meaning |
+|---|---|---|
+| front matter | `audience` | `user` or `maintainer`; anything else is a `BuildError` naming the file. |
+| site configuration | `default_audience` | Audience of a page without the key (default `user`). |
+| site configuration | `audiences` | Audiences published (default `{ "user" }`, for `hecate.doc.build` and `hecate.doc.project.build`). The Hecate website asks for both. |
+
+A page of an audience that is not published is absent from the pages, the navigation, the search index, the
+sitemap and the previous and next links, and a link to it is reported like a broken link (an error with `strict`).
+The configuration reference is a `maintainer` page; the code reference lists public symbols, and the pages of
+`*.internal` modules and of `private` or `package` classes are `maintainer` pages, generated only when `audiences`
+includes `maintainer`. Members that are not public are never listed. Limits: images next to a hidden page are still
+copied; the LuaLS export gives the visibility of classes and members, but a project module path is matched against the
+`hecate.<name>` prefix of the reference generator (a project namespace other than `hecate.<name>` is not documented yet).
 
 ### Code reference
 
@@ -142,6 +163,26 @@ search dialog), STIX Two Text / Fira Sans / Fira Code, header with logo, section
 search, locale switch, theme toggle and repository link, sidebar, "On this page" outline,
 previous/next cards, edit link, last updated, callouts, responsive down to 390 px. Pages are
 readable without JavaScript. Vendored material: [THIRD_PARTY_NOTICES](../../THIRD_PARTY_NOTICES).
+
+### Diagrams
+
+A fenced block with the info string `mermaid` renders as a code block, and `markdown.render` sets `diagrams` on its
+result (the page flag `Page.diagrams`). A page with the flag loads, after `theme.js`, the vendored `mermaid.min.js`
+(Mermaid 12.3.0, MIT, no CDN) and `mermaid-init.js`, which draws every such block as an SVG in the reader's browser
+and hides the code block; the files are written to the output only when a page needs them. Without JavaScript, or when
+a diagram cannot be drawn (a notice appears), the source stays readable. The initialiser runs Mermaid with
+`securityLevel: "strict"` and SVG labels, locks the theme against `%%{init}%%` directives, takes every colour from the
+theme's custom properties (brand tokens) and draws again when the colour theme changes. A page with a diagram
+needs `style-src 'unsafe-inline'` under a Content Security Policy; `script-src 'self'` is enough. Decision and update
+procedure: [ADR 0033](../../docs/adr/0033-vendored-browser-libraries.md) (`Proposed`).
+
+Manual check (not in CI; Chromium and Playwright): build a small site whose page holds a flowchart, a sequence diagram,
+a diagram with `%%{init: {"securityLevel": "loose", "theme": "dark"}}%%` and a malformed block
+(`lua packages/doc/bin/build.lua <source> --out <out> --no-git-dates`), serve `<out>` on `127.0.0.1`, open the page
+with `colorScheme` light and dark at `deviceScaleFactor` 1, click the theme toggle, and check that: every valid block
+is an SVG in the brand colours with no shadow, the directive changed nothing, the malformed block is a code block
+after a notice, a page without a diagram requests nothing named `mermaid`, and the request log holds no address outside
+the origin (13 requests on the check of 2026-11-17).
 
 ### Limits of the current implementation
 

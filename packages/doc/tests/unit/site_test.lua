@@ -567,4 +567,118 @@ function T:test_decomposed_sidebar_ids_and_asset_links_resolve()
   self:assert_equal("<svg/>", fs:read("o/en/img/\u{E9}.svg"))
 end
 
+-- Audiences (OQ-144): a site publishes only the audiences it is asked to.
+local AUDIENCE_FILES = {
+  ["en/index.md"] = page("Home", "welcome [internals](guide/zeta.md)"),
+  ["en/guide/index.md"] = page("Guide", "start", "order: 1\n"),
+  ["en/guide/a.md"] = page("Alpha", "alphaword", "order: 2\n"),
+  ["en/guide/zeta.md"] = page("Zeta", "xylophone", "order: 3\naudience: maintainer\n"),
+  ["en/guide/b.md"] = page("Beta", "betaword", "order: 4\naudience: user\n"),
+}
+
+local function with_files(extra)
+  local files = {}
+  for path, data in pairs(AUDIENCE_FILES) do files[path] = data end
+  for path, data in pairs(extra or {}) do files[path] = data end
+  return files
+end
+
+local ONE_LOCALE = { locales = { { code = "en", label = "English" } }, url = "https://x.test" }
+
+function T:test_a_page_of_an_unpublished_audience_is_absent_everywhere()
+  local fs, report = build(with_files(), ONE_LOCALE)
+  self:assert_nil(fs:read("o/en/guide/zeta/index.html"))
+  self:assert_equal(4, report.locales.en.pages)
+  self:assert_equal(1, report.locales.en.unpublished)
+  for _, path in ipairs({ "o/en/guide/a/index.html", "o/en/guide/b/index.html", "o/en/guide/index.html" }) do
+    local page_html = fs:read(path)
+    self:assert_nil(page_html:find("zeta", 1, true), path)
+    self:assert_nil(page_html:find("Zeta", 1, true), path)
+  end
+  -- Alpha's next page is Beta, not the hidden Zeta.
+  self:assert_true(fs:read("o/en/guide/a/index.html"):find('rel="next" href="/en/guide/b/"', 1, true) ~= nil)
+  self:assert_true(fs:read("o/en/guide/b/index.html"):find('rel="prev" href="/en/guide/a/"', 1, true) ~= nil)
+  local sitemap = fs:read("o/sitemap.xml")
+  self:assert_nil(sitemap:find("zeta", 1, true))
+  self:assert_true(sitemap:find("/en/guide/a/", 1, true) ~= nil)
+  local search_index = fs:read("o/assets/search-en.json")
+  self:assert_nil(search_index:find("xylophone", 1, true))
+  self:assert_nil(search_index:find("zeta", 1, true))
+  self:assert_true(search_index:find("alphaword", 1, true) ~= nil)
+end
+
+function T:test_a_link_to_an_unpublished_page_is_reported_like_a_broken_link()
+  local _, report = build(with_files(), ONE_LOCALE)
+  self:assert_equal(1, #report.problems, table.concat(report.problems, "\n"))
+  self:assert_true(report.problems[1]:find("en/index.md", 1, true) ~= nil)
+  self:assert_true(report.problems[1]:find("guide/zeta.md", 1, true) ~= nil)
+  self:assert_true(report.problems[1]:find("maintainer", 1, true) ~= nil)
+  local err = self:assert_error(function() build(with_files(), ONE_LOCALE, { strict = true }) end)
+  self:assert_true(core.is_instance_of(err, doc.BuildError))
+  self:assert_true(err.message:find("guide/zeta.md", 1, true) ~= nil)
+end
+
+function T:test_asking_for_both_audiences_publishes_everything()
+  local extra = { audiences = { "user", "maintainer" }, locales = ONE_LOCALE.locales, url = ONE_LOCALE.url }
+  local fs, report = build(with_files(), extra, { strict = true })
+  self:assert_not_nil(fs:read("o/en/guide/zeta/index.html"))
+  self:assert_equal(5, report.locales.en.pages)
+  self:assert_equal(0, report.locales.en.unpublished)
+  self:assert_true(fs:read("o/sitemap.xml"):find("/en/guide/zeta/", 1, true) ~= nil)
+end
+
+function T:test_the_plain_builder_publishes_the_user_audience_and_pages_without_the_key_are_user_pages()
+  -- Backward compatible: a tree without the key is entirely published.
+  local fs, report = build(BASIC)
+  self:assert_equal(4, report.locales.en.pages)
+  self:assert_not_nil(fs:read("o/en/guide/b/index.html"))
+end
+
+function T:test_default_audience_labels_the_pages_without_the_key()
+  local files = with_files()
+  files["en/index.md"] = page("Home", "welcome", "audience: user\n")
+  local fs = build(files, { locales = ONE_LOCALE.locales, default_audience = "maintainer" })
+  self:assert_not_nil(fs:read("o/en/index.html"), "labelled user")
+  self:assert_not_nil(fs:read("o/en/guide/b/index.html"), "labelled user")
+  self:assert_nil(fs:read("o/en/guide/a/index.html"), "unlabelled, so maintainer")
+  self:assert_nil(fs:read("o/en/guide/index.html"))
+end
+
+function T:test_an_unknown_audience_is_a_build_error_naming_the_file()
+  for _, value in ipairs({ "operator", "User", "3", "true", "[user]" }) do
+    local err = self:assert_error(function()
+      build(with_files({ ["en/guide/a.md"] = page("Alpha", "x", "audience: " .. value .. "\n") }), ONE_LOCALE)
+    end)
+    self:assert_true(core.is_instance_of(err, doc.BuildError), value)
+    self:assert_true(tostring(err):find("guide/a.md", 1, true) ~= nil, tostring(err))
+    self:assert_true(tostring(err):find("audience", 1, true) ~= nil, tostring(err))
+  end
+end
+
+function T:test_an_unpublished_page_is_still_validated()
+  local err = self:assert_error(function()
+    build(with_files({ ["en/guide/zeta.md"] = "---\ntitle: Z\naudience: nobody\n---\nx\n" }), ONE_LOCALE)
+  end)
+  self:assert_true(tostring(err):find("guide/zeta.md", 1, true) ~= nil, tostring(err))
+end
+
+function T:test_a_translation_does_not_publish_what_its_default_locale_page_hides()
+  local files = with_files({ ["fr/guide/zeta.md"] = page("Zeta FR", "x", "audience: user\n") })
+  local fs = build(files)
+  self:assert_nil(fs:read("o/fr/guide/zeta/index.html"), "the audience of the translation does not override...")
+  local files_fr = with_files({ ["fr/guide/zeta.md"] = page("Zeta FR", "x", "audience: maintainer\n") })
+  files_fr["en/guide/zeta.md"] = page("Zeta", "x", "order: 3\n")
+  local fs2 = build(files_fr)
+  self:assert_not_nil(fs2:read("o/en/guide/zeta/index.html"))
+  self:assert_nil(fs2:read("o/fr/guide/zeta/index.html"), "...and a hidden translation is not replaced by the English page")
+end
+
+function T:test_explicit_sidebar_and_home_actions_naming_an_unpublished_page_are_reported()
+  local files = with_files({ ["en/index.md"] = page("Home", "x", "layout: home\nactions: [\"Go | guide/zeta\"]\n") })
+  local _, report = build(files, { locales = ONE_LOCALE.locales, sidebar = { guide = { "guide/a", "guide/zeta" } } })
+  local text = table.concat(report.problems, "\n")
+  self:assert_true(text:find("zeta", 1, true) ~= nil, text)
+  self:assert_true(#report.problems >= 2, text)
+end
+
 return T

@@ -1,7 +1,8 @@
 -- Project documentation: the pages `hecate doc build` generates for a user project from its
 -- configuration schema, the LuaLS meta files of its schemas, and the build that joins them with the
--- guides and the code reference of the project (documentation.md, "Project documentation generated
--- for users"). There is no API reference: the OpenAPI contract is the external documentation of the
+-- guides and the code reference of the project (documentation.md, "Documentation of a project"). The
+-- generated site is the documentation of the project's own team: it publishes the `user` audience unless
+-- the project asks for more (`audiences`, OQ-144). There is no API reference: the OpenAPI contract is the external documentation of the
 -- API, and its viewer is the wiring of the user (OQ-141).
 -- The page generators are pure: tables in, Markdown out, deterministic. Every piece of text
 -- that comes from the schema is escaped, because the schema is data of the project, not Markdown.
@@ -9,6 +10,7 @@ global <const> require, type, ipairs, pairs, next, table, string, error, tostrin
 
 local core = require("hecate.core")
 local build = require("hecate.doc.build")
+local config_module = require("hecate.doc.config")
 local errors = require("hecate.doc.errors")
 local page_id = require("hecate.doc.internal.page_id")
 
@@ -33,6 +35,7 @@ local MAX_DEPTH = 6        -- nesting of object properties
 local MAX_TYPE_DEPTH = 8   -- nesting of the type expression of a cell
 local MAX_VALUES = 50      -- values of an enumeration shown
 local MAX_SERIALISED_DEPTH = 8
+local REDACTED = "[redacted]" -- what stands for the default of a secret key
 
 local function list(value) return type(value) == "table" and value or {} end
 
@@ -189,10 +192,22 @@ local function property_rows(document, schema, prefix, state, depth, visiting)
     if nested then
       property_rows(document, property, path .. ".", state, depth + 1, visiting)
     else
+      -- A secret shows neither its default nor the values it may take (enumeration, constant): the schema of a
+      -- project is published as it is, and a default is where a development password hides.
+      local secret = state.secrets[path] == true
+        or (type(resolved) == "table" and (resolved.writeOnly == true or resolved.format == "password"))
+      local default = type(resolved) == "table" and resolved.default
+      local shown = resolved
+      if secret and type(resolved) == "table" then
+        shown = {}
+        for key, value in pairs(resolved) do
+          if key ~= "enum" and key ~= "const" and key ~= "pattern" then shown[key] = value end
+        end
+      end
       state.rows[#state.rows + 1] = {
         path = path, type = type_of(document, property), required = required[name] == true,
-        default = type(resolved) == "table" and resolved.default,
-        constraints = constraints(resolved),
+        default = secret and default ~= nil and REDACTED or default,
+        constraints = constraints(shown),
         description = type(property) == "table" and (property.description or (type(resolved) == "table" and resolved.description)) or nil,
       }
     end
@@ -200,8 +215,9 @@ local function property_rows(document, schema, prefix, state, depth, visiting)
   for _, ref in ipairs(crossed) do visiting[ref] = nil end
 end
 
-local function rows_of(document, schema)
-  local state = { rows = {} }
+local function rows_of(document, schema, secrets)
+  local state = { rows = {}, secrets = {} }
+  for _, path in ipairs(list(secrets)) do state.secrets[path] = true end
   property_rows(document, schema, "", state, 0, {})
   return state
 end
@@ -231,22 +247,31 @@ local function yaml_quote(text)
   return '"' .. text .. '"'
 end
 
-local function front(title, description, order)
+local function front(title, description, order, audience)
   return { "---", "description: " .. yaml_quote(description or title),
-    "order: " .. tostring(order), "---", "", M.GENERATED, "", "# " .. plain(title), "" }
+    "order: " .. tostring(order), "audience: " .. audience, "---", "", M.GENERATED, "", "# " .. plain(title), "" }
 end
 
 --- Generates the configuration reference (`configuration.md`) from the JSON Schema of the
 --- configuration: one row per key, nested objects flattened with dotted paths (`$ref` into the
 --- `$defs` of the schema are followed).
+---
+--- The page is `maintainer` documentation (front matter `audience`): the keys of the configuration are what a
+--- team that runs the application needs, not part of what the application offers to its users. The default of a
+--- secret key is never printed (`[redacted]`): a key is a secret when its schema says `writeOnly: true` (JSON Schema
+--- 2020-12, 9.4) or `format: "password"` (OpenAPI 3.1, 4.4), or when `options.secrets` lists its dotted path (the
+--- secrets of `hecate.config` are declared at load time, not in the schema).
 ---@param schema table  JSON Schema 2020-12 table (`schema:emit()` of the configuration schema)
+---@param options? { secrets?: string[] }  `secrets`: dotted paths of the keys that hold secrets
 ---@return string markdown
-function M.configuration_page(schema)
+function M.configuration_page(schema, options)
   if type(schema) ~= "table" then
     error(core.ArgumentError("doc.project.configuration_page: expects a JSON Schema table"), 2)
   end
-  local lines = front("Configuration", schema.description or "Configuration keys, their types and defaults.", 50)
-  local state = rows_of(schema, schema)
+  options = options or {}
+  local lines = front("Configuration", schema.description or "Configuration keys, their types and defaults.", 50,
+    "maintainer")
+  local state = rows_of(schema, schema, options.secrets)
   if #state.rows == 0 then
     lines[#lines + 1] = "The configuration declares no keys."
   else
@@ -387,9 +412,10 @@ function M.meta(schemas, namespace)
 end
 
 ---@class hecate.doc.ProjectBuildOptions : hecate.doc.BuildOptions
----@field configuration? table  JSON Schema of the configuration: adds the configuration reference
+---@field configuration? table  JSON Schema of the configuration: adds the configuration reference (a `maintainer` page)
+---@field secrets? string[]  dotted paths of the configuration keys that hold secrets: their defaults are not printed in the configuration reference
 ---@field pages? table<string, string>  guides of the project, path below the locale root to Markdown (`.md`, relative, no `..`)
----@field code? { root: string, name: string, executable?: string, config?: string }  document the annotated sources `<root>/src` of the project as the code reference `reference/<name>/` (skipped with a problem when LuaLS is missing). LuaLS reads the `.luarc.json` of `root` (or `config`) and runs the plugin it declares: `root` must be trusted
+---@field code? { root: string, name: string, executable?: string, config?: string }  document the annotated sources `<root>/src` of the project as the code reference `reference/<name>/` (skipped with a problem when LuaLS is missing). The reference lists the public symbols (pages of `user` audience); the pages of `*.internal` modules and of non-public classes are generated, as `maintainer` pages, only when `config.audiences` includes `maintainer`. LuaLS reads the `.luarc.json` of `root` (or `config`) and runs the plugin it declares: `root` must be trusted
 ---@field locale? string  locale directory the pages are written to (default the default locale, "en")
 
 ---@class hecate.doc.ProjectBuildReport : hecate.doc.BuildReport
@@ -426,6 +452,12 @@ local function validate(options)
   if options.configuration ~= nil and type(options.configuration) ~= "table" then
     bad_option("configuration", "a JSON Schema table")
   end
+  if options.secrets ~= nil then
+    if type(options.secrets) ~= "table" then bad_option("secrets", "a list of dotted paths") end
+    for _, path in ipairs(options.secrets) do
+      if type(path) ~= "string" then bad_option("secrets", "a list of dotted paths (strings)") end
+    end
+  end
   local locale = options.locale
   if locale == nil then locale = type(options.config) == "table" and options.config.default_locale or "en" end
   if type(locale) ~= "string" or not locale:match("^[%w%-]+$") then
@@ -453,7 +485,10 @@ local function validate(options)
       if code[key] ~= nil and type(code[key]) ~= "string" then bad_option("code." .. key, "a string") end
     end
   end
-  return locale, pages
+  -- The audiences are checked before anything is written (a wrong one raises `core.ConfigurationError`);
+  -- a project site publishes the `user` audience unless it asks for more (OQ-144).
+  local audiences = config_module.normalise(options.config or {}).audiences
+  return locale, pages, audiences
 end
 
 -- Generated files of the previous builds that this build no longer produces.
@@ -475,11 +510,13 @@ end
 ---@param options hecate.doc.ProjectBuildOptions
 ---@return hecate.doc.ProjectBuildReport
 function M.build(options)
-  local locale, pages = validate(options)
+  local locale, pages, audiences = validate(options)
+  local maintainer = false
+  for _, audience in ipairs(audiences) do maintainer = maintainer or audience == "maintainer" end
   local fs = options.fs
   local root = options.source:gsub("/+$", "") .. "/" .. locale
   local generated = {}
-  if options.configuration then generated["configuration.md"] = M.configuration_page(options.configuration) end
+  if options.configuration then generated["configuration.md"] = M.configuration_page(options.configuration, { secrets = options.secrets }) end
   -- On a case-insensitive file system two paths that differ only by case are one file.
   local folded = {}
   for path in pairs(generated) do folded[path:lower()] = path end
@@ -508,6 +545,7 @@ function M.build(options)
     code_report = require("hecate.doc.reference_site").run({
       root = options.code.root, packages = { options.code.name }, layout = "src", out = root,
       fs = fs, executable = options.code.executable, config = options.code.config,
+      internal = maintainer, label_audiences = true,
     })
   end
   local report = build.build(options) --[[@as hecate.doc.ProjectBuildReport]]

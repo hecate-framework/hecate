@@ -25,6 +25,8 @@ M.DEFAULT_PACKAGES = { "core", "reactor", "net", "json", "log", "http", "router"
 ---@field executable? string  `lua-language-server` (default: found on the path)
 ---@field config? string  `.luarc.json` (default `<root>/.luarc.json`)
 ---@field since? string
+---@field internal? boolean  also generate the `maintainer` pages of `*.internal` modules and of non-public classes (default false)
+---@field label_audiences? boolean  write the `audience` front matter key on every page (default false)
 ---@field layout? string  `string.format` pattern of a package's source directory below `root` (default `packages/%s/src`; a project uses `src`, with one name)
 
 ---@class hecate.doc.ReferenceSiteReport
@@ -111,6 +113,8 @@ function M.run(options)
   end
   local result = reference.generate(inputs, {
     since = options.since,
+    internal = options.internal,
+    label_audiences = options.label_audiences,
     examples = function(symbol)
       local package_name = symbol:match("^hecate%.([^.]+)")
       local path = ("packages/%s/examples/%s.lua"):format(package_name or "", symbol)

@@ -12,6 +12,27 @@ order: 3
 `hecate.doc` builds the documentation site of a user project with the same theme as the hecate website.
 This page covers what a project can configure and what is generated for it, for hecate 0.x and Lua 5.5.
 
+## Audiences
+
+The site that `doc.project.build` writes is the documentation of the project's own team, and it publishes only what
+you ask for. Pages have an audience: `user` (build, run and operate an application on the public API) or `maintainer`
+(change the project itself: architecture, decisions, internals, CI and release).
+
+| Where | Key | Meaning |
+|---|---|---|
+| Front matter of a page | `audience` | `user` or `maintainer`. Any other value fails the build with a `BuildError` naming the file. |
+| Site configuration | `default_audience` | The audience of a page without the key. Default `user`. |
+| Site configuration | `audiences` | The audiences the site publishes. Default `{ "user" }`. Ask for `{ "user", "maintainer" }` to publish everything. |
+
+A page of an audience that is not published is left out of the pages, the navigation, the search index, the sitemap
+and the previous and next links. A link to it is reported like a broken link, and fails the build under `--strict`, so
+that you notice it. Images next to a hidden page are still copied. A translation never publishes a page that the
+original keeps back.
+
+The configuration reference is a `maintainer` page. The code reference lists public symbols; the pages of `*.internal`
+modules and of `private` or `package` classes are `maintainer` pages, generated only when `audiences` includes
+`maintainer`. A field or method that is not public is never listed.
+
 ## Generated pages
 
 `doc.project.build(options)` writes the guides of the project and the generated pages below the locale
@@ -19,7 +40,7 @@ directory, then runs the site build.
 
 | Option | Adds |
 |---|---|
-| `configuration` | `configuration.md`, one row per key, from the JSON Schema of the configuration. |
+| `configuration` | `configuration.md`, one row per key, from the JSON Schema of the configuration (a `maintainer` page). The default of a secret key is never printed: mark the key `writeOnly: true` or `format: "password"` in the schema, or list its path in the option `secrets`. |
 | `code` | The code reference `reference/<name>/`, from the annotated sources in `<root>/src` (needs LuaLS). LuaLS reads the `.luarc.json` of the project and runs the plugin it declares: `root` must be a project you trust. |
 | `pages` | The guides of the project. |
 

@@ -13,6 +13,8 @@ local M = {}
 ---@field label string  name shown in the locale switch, in that language ("Français")
 ---@field lang string  BCP 47 tag for the `lang` attribute (defaults to `code`)
 
+---@alias hecate.doc.Audience "user"|"maintainer"  who a page is written for (glossary: user documentation, maintainer documentation)
+
 ---@alias hecate.doc.Text string|table<string, string>  a string, or one string per locale code
 
 ---@class hecate.doc.NavLink
@@ -42,6 +44,8 @@ local M = {}
 ---@field logo? string|{ light: string, dark?: string }  logo of the project: file(s) of `public/` replacing the brand logo (shown as they are, never recoloured); a string is used for both colour schemes
 ---@field colors? string  CSS file of `public/` loaded after the theme stylesheet, to override the custom properties of the colours
 ---@field exclude? string[]  file names left out of the site (default { "README.md" })
+---@field audiences? hecate.doc.Audience[]  audiences published (default `{ "user" }`): a page whose audience is not listed is absent from the site and links to it are reported
+---@field default_audience? hecate.doc.Audience  audience of a page without the `audience` front matter key (default "user")
 
 local function invalid(field, message)
   error(core.ConfigurationError({
@@ -134,6 +138,9 @@ local function check_public_path(field, value)
   end
 end
 
+--- The audiences a page can be written for.
+M.AUDIENCES = { user = true, maintainer = true }
+
 --- Validates a configuration table and fills in the defaults. Raises
 --- `hecate.core.ConfigurationError` (with `context.field`) on the first problem.
 ---@param raw hecate.doc.SiteConfig
@@ -158,6 +165,21 @@ function M.normalise(raw)
     check_list("outline", raw.outline, function(_, level)
       if math.type(level) ~= "integer" or level < 1 or level > 6 then invalid("outline", "expected heading levels 1 to 6") end
     end)
+  end
+  local audiences = { "user" }
+  if raw.audiences ~= nil then
+    local seen_audience = {}
+    check_list("audiences", raw.audiences, function(name, item)
+      if type(item) ~= "string" or not M.AUDIENCES[item] then invalid(name, 'expected "user" or "maintainer"') end
+      if seen_audience[item] then invalid(name, "duplicate audience " .. item) end
+      seen_audience[item] = true
+    end)
+    if #raw.audiences == 0 then invalid("audiences", 'expected at least one of "user", "maintainer"') end
+    audiences = {}
+    for index, item in ipairs(raw.audiences) do audiences[index] = item end
+  end
+  if raw.default_audience ~= nil and (type(raw.default_audience) ~= "string" or not M.AUDIENCES[raw.default_audience]) then
+    invalid("default_audience", 'expected "user" or "maintainer"')
   end
   local logo
   if raw.logo ~= nil then
@@ -194,6 +216,8 @@ function M.normalise(raw)
     strings = raw.strings or {},
     exclude = raw.exclude or { "README.md" },
     outline = raw.outline or { 2, 3 },
+    audiences = audiences,
+    default_audience = raw.default_audience or "user",
   }
   local base = raw.base
   if base == nil then base = "/" end

@@ -130,4 +130,20 @@ function T:test_logo_and_colour_paths_are_plain_files_of_public()
   self:assert_equal("my logo.svg", config.normalise({ title = "t", logo = "my logo.svg" }).logo.light)
 end
 
+function T:test_audiences_default_to_user_and_are_validated()
+  local normalised = config.normalise({ title = "t" })
+  self:assert_equal("user", table.concat(normalised.audiences, ","))
+  self:assert_equal("user", normalised.default_audience)
+  local both = config.normalise({ title = "t", audiences = { "maintainer", "user" }, default_audience = "maintainer" })
+  self:assert_equal("maintainer,user", table.concat(both.audiences, ","))
+  self:assert_equal("maintainer", both.default_audience)
+  invalid(self, { title = "t", audiences = {} }, "audiences")
+  invalid(self, { title = "t", audiences = "user" }, "audiences")
+  invalid(self, { title = "t", audiences = { "user", "user" } }, "audiences[2]")
+  invalid(self, { title = "t", audiences = { "operator" } }, "audiences[1]")
+  invalid(self, { title = "t", audiences = { 1 } }, "audiences[1]")
+  invalid(self, { title = "t", default_audience = "public" }, "default_audience")
+  invalid(self, { title = "t", default_audience = 3 }, "default_audience")
+end
+
 return T

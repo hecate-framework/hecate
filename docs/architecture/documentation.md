@@ -61,7 +61,12 @@ gradients or glows, the name never capitalised, earth as the single accent). Pag
   Lua 5.5" line;
 - callouts (the five GFM alerts NOTE, TIP, IMPORTANT, WARNING and CAUTION), code blocks with a language label
   and a copy button, tables, task lists;
-- search: one JSON index per locale, queried by about 150 lines of vanilla JavaScript.
+- search: one JSON index per locale, queried by about 150 lines of vanilla JavaScript;
+- diagrams: a fenced block whose info string is `mermaid` stays a code block, and on a page that holds one the
+  theme loads a vendored copy of `mermaid.js` (no CDN) that draws it in the reader's browser, in the brand
+  colours of the light or the dark theme ([ADR 0033](../adr/0033-vendored-browser-libraries.md), `Proposed`;
+  OQ-128). The library and its initialiser are loaded, and written to the output, only for pages with a diagram;
+  without JavaScript the source stays readable.
 
 Implementation and conventions: [`packages/doc`](../../packages/doc/README.md); open
 choices OQ-33 to OQ-38. Build: `lua packages/doc/bin/build.lua website --strict` (bootstrap
@@ -213,11 +218,44 @@ helper's line, so examples print inline. Every phase gate checks both rules on t
   descriptions; `llms-full.txt` concatenates the reference for ingestion.
 - Every reference page has a stable anchor per symbol.
 
-## Project documentation generated for users
+## Documentation of a project (audiences)
 
-`hecate doc build` on a user's project produces a static site, the documentation of the
-project's own team: the code reference from the project's annotations, the configuration
-reference, and the guides of the project (Markdown pages the project writes).
+Documentation has two audiences, a second axis next to Diátaxis (which sorts pages by what they do
+for the reader, not by who the reader is; [OQ-144](../open-questions.md), owner remarks of 2026-11-17):
+
+- **user documentation**: build, run and operate an application on the public API, with the concepts
+  and the public extension points that help to do so;
+- **maintainer documentation**: change Hecate, or the project itself: architecture, ADRs, internals,
+  CI and release, the reference of `*.internal` modules.
+
+`hecate doc build` on a project produces a static site that is the project team's own documentation:
+the guides the project writes, the configuration reference, and the code reference from the
+project's annotations. It publishes only what it is asked to: the public output of a project is a
+request (`audiences`), not a default.
+
+- A page declares its audience in the front matter key `audience` (`user` or `maintainer`; any other
+  value is a `BuildError` naming the file). The site configuration key `default_audience` (default
+  `user`) is the audience of a page without the key.
+- The site configuration key `audiences` lists the audiences the site publishes. Default: `{ "user" }`,
+  for a project site (`hecate.doc.project.build`) and for the plain builder (`hecate.doc.build`) alike,
+  so a tree without any `audience` key builds as before. The website of the framework asks for
+  `{ "user", "maintainer" }` and keeps publishing everything.
+- A page whose audience is not published is absent from the output, the navigation, the search index,
+  the sitemap and the previous and next links. A link to it is reported like a broken link (an error
+  under `--strict`). Files next to pages (images) are not filtered. A translation never publishes a
+  page that the page of the default locale keeps back.
+- Generated pages: the configuration reference is `maintainer`. The code reference lists public
+  symbols (`user`); the pages of `*.internal` modules and of classes that LuaLS reports as `private`
+  or `package` are `maintainer`, and are generated only when `audiences` includes `maintainer`. A member
+  (field or method) that is `private`, `protected` or `package`, or whose name starts with `_`, is never
+  listed: a member is a part of a class page, not a page.
+- The configuration reference never prints the default of a secret key (`[redacted]` in its place). A
+  key is a secret when its schema says `writeOnly: true` or `format: "password"`, or when the project
+  lists its path in the option `secrets`: the secrets of `hecate.config` are declared at load time, not
+  in the schema, so the generator cannot know them otherwise.
+
+The audience split of the website of the framework (the pages of `website/` moved or labelled) is a
+separate item, and a `check-audience` gate is not written yet ([OQ-144](../open-questions.md)).
 
 There is no API reference. The OpenAPI contract is the external documentation of the API:
 `openapi` serves it (`/openapi.json`) and `hecate contract export` writes it. A viewer for

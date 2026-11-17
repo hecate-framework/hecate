@@ -349,11 +349,16 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       mirrors item:** the `split` and release tasks do not exist yet; when written, the mirror tag of `unicode-data` is
       the Unicode version (`v18.0.0`) and not `VERSION` (ADR 0032, "Publishing").
 - [ ] `doc` follow-up, audience (owner remarks on pull request #218, 2026-11-17; the decision is OQ-144): documentation is
-      user documentation or maintainer documentation, and the `doc` generator targets a project's own team. To do once
-      OQ-144 is decided: the audience split of the Hecate website; a project site that publishes nothing it was not
-      asked to (sections switchable, internal symbols left out of the code reference by default, a `draft` or `internal`
-      page flag); the error-code reference of a project; `llms.txt` and `llms-full.txt` for a project. The tick of the
-      `doc` item above covers the Lua API only; `hecate doc build` belongs to the `cli` item below.
+      user documentation or maintainer documentation, and the `doc` generator targets a project's own team.
+      **Delivered (conservative first half of OQ-144 option (c)):** front matter `audience`, site configuration
+      `audiences` (default `{ "user" }`) and `default_audience`; pages of an unpublished audience absent from the output,
+      navigation, search, sitemap and previous and next links, and links to them reported; the configuration reference
+      is `maintainer`; the code reference lists public symbols, with `*.internal` and non-public classes as
+      `maintainer` pages; the default of a secret key is not printed in the configuration reference. **To do once
+      OQ-144 is decided:** the audience split of the Hecate website (option (a): sections, `llms.txt`, French mirror;
+      the website pages are not labelled yet) and a `check-audience` gate; sections of a project site switchable by the
+      project; a `draft` page flag; the error-code reference of a project; `llms.txt` and `llms-full.txt` for a
+      project. The tick of the `doc` item above covers the Lua API only; `hecate doc build` belongs to the `cli` item below.
 - [ ] `cli` v1: self-contained executable, `new`, `install`, `add`, `remove`, `update`,
       `serve [--watch]`, `test`, `doc`, `contract`, `toolchain`, `doctor`, `version`.
       **Also (from the `test` item, owner go-ahead of 2026-11-16):** `hecate test` takes the options of
@@ -414,9 +419,10 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       *dot segment* and *service scope* (finding C9 of `docs/reviews/phase-2-coherence-findings.md`).
       **Also (owner decisions of 2026-11-13):** apply the writing style of the first Phase 3 item to every page (done
       for every English page in pull request #195; the French pages follow with their translation);
-      Mermaid diagrams (OQ-128): an ADR for the dependency (a vendored copy of `mermaid.js`, loaded only on the pages
-      that hold a diagram, no CDN), then the support in `hecate.doc` (a ` ```mermaid ` block becomes a diagram) and
-      diagrams in the explanation pages.
+      Mermaid diagrams (OQ-128): the ADR for the dependency ([ADR 0033](adr/0033-vendored-browser-libraries.md),
+      `Proposed`: a vendored copy of `mermaid.js`, loaded only on the pages that hold a diagram, no CDN) and the
+      support in `hecate.doc` (a ` ```mermaid ` block becomes a diagram) are written; diagrams in the explanation
+      pages remain.
       **Also (found while restyling, pull request #195):** the `serve-http` how-to writes through `io.stderr:write` in an
       inline `on_error` snippet, which the output rule refuses in example files.
 - [ ] Meta-rock `hecate` (standard edition).

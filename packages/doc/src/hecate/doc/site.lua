@@ -51,6 +51,7 @@ function Site:init(options)
   self._theme_directory = options.theme_directory
   self._files = {} -- locale -> { pages = { id -> file }, assets = { relative -> file } }
   self._pages = {} -- locale -> { id -> Page }
+  self._hidden = {} -- locale -> { id -> audience }: pages whose audience is not published (OQ-144)
   self._locale_codes = {}
   for index, locale in ipairs(self.config.locales) do self._locale_codes[index] = locale.code end
   self._loaded = false
@@ -173,8 +174,31 @@ end
 
 -- Pages ---------------------------------------------------------------------------------
 
---- Returns the file a locale uses for a page id: its own, or the default locale's.
+--- Reads a page source once: its text must be UTF-8, its front matter must parse and its `audience`
+--- (OQ-144) must be one of the audiences. Sets `file.meta`, `file.body` and `file.audience`. A page of an
+--- audience that is not published is validated like any other: a mistake does not wait for the day it is published.
+local function read_page(self, file)
+  if file.meta then return file end
+  local source = read_required(self, file.path)
+  if not utf8.len(source) then
+    fail(("%s is not valid UTF-8 (Markdown pages are UTF-8 text)"):format(file.path), file.path)
+  end
+  local meta, body = front_matter.parse(source, file.path)
+  local audience = meta.audience
+  if audience == nil then
+    audience = self.config.default_audience
+  elseif type(audience) ~= "string" or not config_module.AUDIENCES[audience] then
+    fail(("%s: front matter `audience` must be \"user\" or \"maintainer\", got %s"):format(file.relative,
+      type(audience) == "string" and ("%q"):format(audience) or ("a " .. type(audience))), file.path)
+  end
+  file.meta, file.body, file.audience = meta, body, audience
+  return file
+end
+
+--- Returns the file a locale uses for a page id: its own, or the default locale's. A page whose audience is
+--- not published has no source: it is absent from the site, and a link to it is a broken link.
 local function source_for(self, locale, id)
+  if self._hidden[locale] and self._hidden[locale][id] then return nil, false end
   local own = self._files[locale].pages[id]
   if own then return own, false end
   local default = self._files[self.config.default_locale].pages[id]
@@ -202,7 +226,14 @@ local function link_resolver(self, locale, page_id, problems_prefix)
         or (source_for(self, locale, id .. "/index") and id .. "/index")
         or (id == "" and source_for(self, locale, "index") and "index")
       if not target then
-        note(self, ("%s: broken link %s"):format(problems_prefix, href))
+        local hidden = self._hidden[locale] or {}
+        local hidden_audience = hidden[id] or hidden[id .. "/index"] or (id == "" and hidden["index"]) or nil
+        if hidden_audience then
+          note(self, ("%s: link %s targets a page of the %s audience, which is not published"):format(
+            problems_prefix, href, hidden_audience))
+        else
+          note(self, ("%s: broken link %s"):format(problems_prefix, href))
+        end
         return href
       end
       return page_url(self, locale, target) .. suffix
@@ -219,11 +250,7 @@ end
 local function build_page(self, locale, id)
   local file, fallback = source_for(self, locale, id)
   assert(file, "no source for page " .. id)
-  local source = read_required(self, file.path)
-  if not utf8.len(source) then
-    fail(("%s is not valid UTF-8 (Markdown pages are UTF-8 text)"):format(file.path), file.path)
-  end
-  local meta, body = front_matter.parse(source, file.path)
+  local meta, body = read_page(self, file).meta, file.body
   local strings = theme.strings.for_locale(locale, self.config.strings)
   local rendered = markdown.render(body, {
     labels = { note = strings.note, tip = strings.tip, warning = strings.warning, danger = strings.danger },
@@ -247,6 +274,7 @@ local function build_page(self, locale, id)
     meta = meta,
     html = rendered.html,
     headings = rendered.headings,
+    diagrams = rendered.diagrams,
     sections = rendered.sections,
     fallback = fallback,
     source_locale = file.locale,
@@ -268,6 +296,26 @@ function Site:load()
   if next(self._files[default].pages) == nil then
     fail(("no pages found in %s/%s"):format(self._source, default), self._source .. "/" .. default)
   end
+  -- Audiences (OQ-144): every page is read first, so that a page of an unpublished audience is known
+  -- before any link is resolved. A page is hidden in a locale when its own file or the default locale's file
+  -- is of an audience that is not published: a translation never publishes what the original keeps back.
+  local published = {}
+  for _, audience in ipairs(self.config.audiences) do published[audience] = true end
+  for _, code in ipairs(self._locale_codes) do
+    local pages = self._files[code].pages
+    local ids_of_locale = {}
+    for id in pairs(pages) do ids_of_locale[#ids_of_locale + 1] = id end
+    table.sort(ids_of_locale)
+    for _, id in ipairs(ids_of_locale) do read_page(self, pages[id]) end
+  end
+  for _, code in ipairs(self._locale_codes) do
+    self._hidden[code] = {}
+    for _, file in ipairs({ self._files[code].pages, self._files[default].pages }) do
+      for id, entry in pairs(file) do
+        if not published[entry.audience] and not self._hidden[code][id] then self._hidden[code][id] = entry.audience end
+      end
+    end
+  end
   for _, code in ipairs(self._locale_codes) do
     local ids, seen = {}, {}
     local function add(id)
@@ -278,6 +326,9 @@ function Site:load()
     end
     for id in pairs(self._files[default].pages) do add(id) end
     for id in pairs(self._files[code].pages) do add(id) end
+    for index = #ids, 1, -1 do
+      if self._hidden[code][ids[index]] then table.remove(ids, index) end
+    end
     table.sort(ids)
     local urls = {}
     self._pages[code] = {}
@@ -304,6 +355,17 @@ function Site:pages(locale)
   ensure_loaded(self)
   local list = {}
   for _, page in pairs(self._pages[locale] or {}) do list[#list + 1] = page end
+  table.sort(list, function(a, b) return a.id < b.id end)
+  return list
+end
+
+--- Returns the pages of a locale that are not published because of their audience, sorted by id.
+---@param locale string
+---@return { id: string, audience: hecate.doc.Audience }[]
+function Site:unpublished(locale)
+  ensure_loaded(self)
+  local list = {}
+  for id, audience in pairs(self._hidden[locale] or {}) do list[#list + 1] = { id = id, audience = audience } end
   table.sort(list, function(a, b) return a.id < b.id end)
   return list
 end
@@ -410,6 +472,7 @@ local function render_page(self, page)
   context.description = page.description or context.description
   context.layout = page.layout
   context.html = page.html
+  context.diagrams = page.diagrams
   context.fallback = page.fallback
   context.hecate_version = type(page.meta.hecate) == "string" and page.meta.hecate or nil
   context.lua_version = type(page.meta.lua) == "string" and page.meta.lua or nil
@@ -601,6 +664,18 @@ function Site:emit(write)
     local data = theme_fs:read(directory .. "/" .. file)
     if not data then fail("missing theme file " .. file, directory .. "/" .. file) end
     put("assets/" .. file, data)
+  end
+  -- The library of the diagrams is written only when a page needs it (ADR 0033).
+  local diagrams = false
+  for _, code in ipairs(self._locale_codes) do
+    for _, page in ipairs(self:pages(code)) do diagrams = diagrams or page.diagrams == true end
+  end
+  if diagrams then
+    for _, file in ipairs(theme.diagram_files) do
+      local data = theme_fs:read(directory .. "/" .. file)
+      if not data then fail("missing theme file " .. file, directory .. "/" .. file) end
+      put("assets/" .. file, data)
+    end
   end
   local public = self._fs:list(self._source .. "/public")
   if public then

@@ -30,8 +30,8 @@ end
 function T:test_build_writes_a_site_with_the_guides_and_the_configuration_reference()
   local fs = doc.MemoryFileSystem({})
   local report = project.build({
-    config = { title = "Shop docs" }, source = "docs", out = "dist", fs = fs, clean = true, strict = true,
-    configuration = config_schema,
+    config = { title = "Shop docs", audiences = { "user", "maintainer" } }, source = "docs", out = "dist", fs = fs,
+    clean = true, strict = true, configuration = config_schema,
     pages = { ["index.md"] = "# Shop\n\nWelcome.\n" },
   })
   self:assert_equal(0, #report.problems, table.concat(report.problems, "\n"))
@@ -277,8 +277,8 @@ end
 
 function T:test_the_locale_option_and_the_default_locale_choose_the_directory()
   local fs = doc.MemoryFileSystem({})
-  project.build(build_options(fs, { locale = "fr", config = { title = "S", default_locale = "fr", locales = { { code = "fr" } } },
-    configuration = config_schema }))
+  project.build(build_options(fs, { locale = "fr", config = { title = "S", default_locale = "fr", locales = { { code = "fr" } },
+    audiences = { "user", "maintainer" } }, configuration = config_schema }))
   self:assert_not_nil(fs:read("docs/fr/configuration.md"))
   self:assert_not_nil(fs:read("dist/fr/configuration/index.html"))
   local other = doc.MemoryFileSystem({})
@@ -309,6 +309,62 @@ function T:test_meta_edge_cases()
   self:assert_false(ok)
   local err = self:assert_error(function() project.meta({ A = { type = "object", properties = { [1] = {} } } }, "shop") end)
   self:assert_true(core.is_instance_of(err, core.ArgumentError))
+end
+
+-- Audiences (OQ-144): the generated site is the project team's own documentation.
+function T:test_the_configuration_reference_is_maintainer_documentation()
+  local meta = front_matter.parse(project.configuration_page(config_schema))
+  self:assert_equal("maintainer", meta.audience)
+end
+
+local function build_with(config)
+  local fs = doc.MemoryFileSystem({})
+  local report = project.build({
+    config = config, source = "docs", out = "dist", fs = fs, configuration = config_schema,
+    pages = { ["index.md"] = "# Shop\n\nWelcome.\n" },
+  })
+  return fs, report
+end
+
+function T:test_a_project_site_publishes_the_user_audience_only_by_default()
+  local fs, report = build_with({ title = "Shop docs" })
+  self:assert_nil(fs:read("dist/en/configuration/index.html"))
+  self:assert_nil(fs:read("dist/assets/search-en.json"):find("1 to 65535", 1, true))
+  self:assert_not_nil(fs:read("dist/en/index.html"))
+  self:assert_equal(1, report.locales.en.unpublished)
+  -- The page stays in the source tree: generated pages are written, publication is a build decision.
+  self:assert_not_nil(fs:read("docs/en/configuration.md"))
+end
+
+function T:test_a_project_that_asks_for_both_audiences_gets_everything()
+  local fs, report = build_with({ title = "Shop docs", audiences = { "user", "maintainer" } })
+  self:assert_not_nil(fs:read("dist/en/configuration/index.html"))
+  self:assert_equal(0, report.locales.en.unpublished)
+end
+
+function T:test_a_wrong_audiences_option_fails_before_anything_is_written()
+  local fs = doc.MemoryFileSystem({})
+  local err = self:assert_error(function()
+    ---@diagnostic disable-next-line: assign-type-mismatch  -- the wrong value is the point of the test
+    project.build({ config = { title = "x", audiences = { "everyone" } }, source = "docs", out = "dist", fs = fs,
+      configuration = config_schema })
+  end)
+  self:assert_true(core.is_instance_of(err, core.ConfigurationError))
+  self:assert_equal("audiences[1]", err.context.field)
+  self:assert_nil(fs:read("docs/en/configuration.md"))
+end
+
+function T:test_the_configuration_reference_never_prints_the_default_of_a_secret()
+  local page = project.configuration_page(configuration_of({
+    token = { type = "string", default = "hunter2-token", writeOnly = true },
+    pass = { type = "string", default = "hunter2-pass", format = "password" },
+    key = { type = "string", default = "hunter2-key", enum = { "hunter2-key", "other" } },
+    db = { type = "object", properties = { password = { type = "string", default = "hunter2-db" } } },
+    mode = { type = "string", default = "dev" },
+  }), { secrets = { "key", "db.password" } })
+  self:assert_nil(page:find("hunter2", 1, true), page)
+  self:assert_not_nil(page:find("[redacted]", 1, true), page)
+  self:assert_not_nil(page:find("`dev`", 1, true), "other defaults are kept")
 end
 
 return T

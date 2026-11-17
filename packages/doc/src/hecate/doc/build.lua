@@ -17,7 +17,7 @@ local M = {}
 ---@class hecate.doc.BuildReport
 ---@field files integer  files written, the marker file included
 ---@field bytes integer
----@field locales table<string, { pages: integer, fallbacks: integer }>
+---@field locales table<string, { pages: integer, fallbacks: integer, unpublished: integer }>  `unpublished`: pages left out because their audience is not published
 ---@field problems string[]  broken links, missing titles and similar, sorted and unique
 
 --- Loads a site configuration file. The file is Lua that returns a table; it runs with an
@@ -88,7 +88,7 @@ function M.build(options)
   end
   table.sort(report.problems)
   for _, locale in ipairs(site.config.locales) do
-    local entry = { pages = 0, fallbacks = 0 }
+    local entry = { pages = 0, fallbacks = 0, unpublished = #site:unpublished(locale.code) }
     for _, page in ipairs(site:pages(locale.code)) do
       entry.pages = entry.pages + 1
       if page.fallback then entry.fallbacks = entry.fallbacks + 1 end
