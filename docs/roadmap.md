@@ -338,6 +338,20 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       **Also (OQ-38, owner decision of 2026-11-13):** the theme extension points for user projects: a site
       configuration `logo`, a CSS custom-properties override file for the colours, template overrides later if users ask;
       the hecate marks are never recoloured.
+- [ ] `unicode` and `unicode-data` (owner decision of 2026-11-17 on OQ-140, [ADR 0032](adr/0032-unicode-normalisation-packages.md),
+      Accepted): the code package `hecate.unicode` (NFC, NFD, Hangul, canonical reordering, layer 0) and the generated
+      data rock `hecate-unicode-data` versioned by the Unicode version; the task `gen-unicode`; a `url` plus `sha256`
+      entry kind for `fetch-fixtures`; conformance against `NormalizationTest.txt`; the nightly job `unicode-version`;
+      the Latin table of `hecate.doc.internal.page_id` replaced; `check-versions`, `gen-rockspecs`, the release task and
+      the mirror tag take the Unicode-version rule of the data rock. Needs `www.unicode.org` in the cloud allowed domains
+      (`tools/cloud/README.md`).
+- [ ] `doc` follow-up, audience (owner remarks on pull request #218, 2026-11-17; the decision is OQ-144): documentation is
+      user documentation or maintainer documentation, and the `doc` generator targets a project's own team. To do once
+      OQ-144 is decided: the audience split of the Hecate website; a project site that publishes nothing it was not
+      asked to (sections switchable, internal symbols left out of the code reference by default, a `draft` or `internal`
+      page flag); the error-code reference of a project; `llms.txt` and `llms-full.txt` for a project; richer inline
+      response schemas and parameter descriptions in the API reference (found by running the generator). The tick of the
+      `doc` item above covers the Lua API only; `hecate doc build` belongs to the `cli` item below.
 - [ ] `cli` v1: self-contained executable, `new`, `install`, `add`, `remove`, `update`,
       `serve [--watch]`, `test`, `doc`, `contract`, `toolchain`, `doctor`, `version`.
       **Also (from the `test` item, owner go-ahead of 2026-11-16):** `hecate test` takes the options of
