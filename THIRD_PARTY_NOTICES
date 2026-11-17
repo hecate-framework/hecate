@@ -167,3 +167,21 @@ git-ignored.
     not be used in advertising or otherwise to promote the sale, use or other
     dealings in these Data Files or Software without prior written
     authorization of the copyright holder.
+
+
+8. Mermaid (diagrams in the browser)
+------------------------------------
+
+Location: packages/doc/src/hecate/doc/theme/assets/mermaid/ (mermaid.min.js, LICENSE; version, upstream, SHA-256
+of each file and the bundled components in VENDORED.md in the same directory). The initialiser
+packages/doc/src/hecate/doc/theme/assets/mermaid-init.js is original Hecate work. The file is written to a built
+site, and loaded by a page, only when the page holds a diagram.
+Source: https://github.com/mermaid-js/mermaid, npm package mermaid 12.3.0, file dist/mermaid.min.js.
+Unmodified by Hecate (ADR 0033, Proposed).
+Licence: MIT, Copyright (c) 2014 - 2022 Knut Sveidqvist (text in LICENSE next to the file).
+The file bundles other packages, with the licences they declare on npm (checked 2026-11-17): MIT (@braintree/sanitize-url,
+@iconify/utils, @upsetjs/venn.js, cytoscape, cytoscape-cose-bilkent, cytoscape-fcose, dagre-d3-es, dayjs, es-toolkit,
+katex, khroma, marked, roughjs, stylis, ts-dedent, @mermaid-js/parser), ISC (d3), BSD-3-Clause (d3-sankey), Apache-2.0
+(chevrotain), MPL-2.0 OR Apache-2.0 (dompurify, used under Apache-2.0; its notice stays in the file as a comment) and
+EPL-2.0 OR GPL-3.0-or-later (elkjs, used under EPL-2.0). The full licence texts of the bundled packages are not
+reproduced: whether naming them is enough for release artefacts is for the owner to decide (ADR 0033).

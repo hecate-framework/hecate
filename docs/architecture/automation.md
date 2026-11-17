@@ -47,7 +47,7 @@ Status column: `done` = implemented in `tools/`, `now` = workflow exists today, 
 | `check-examples` | the code examples (`packages/*/examples/**`, `examples/**`, the Lua blocks of `website/<locale>/**` not copied from an example file) have no line holding a comment longer than 80 characters, indentation and code before the comment included, unless the line above is a comment holding `check-examples: allow-long-comment`; where printed output is written (a `-- Prints:` block directly under the line that prints it) is checked when the examples run, by the shared runner `tools/harness/examples.lua` (examples write through `print` only) (owner request, 2026-11-12) | done |
 | `check-translations` | missing/stale translations (front matter `source_revision`) | P3 |
 | `check-links` | internal Markdown links and anchors | done |
-| `check-licenses` | third-party code and rocks have compatible licences; `THIRD_PARTY_NOTICES` up to date | done (every directory with a `VENDORED.md` has a `LICENSE` and an entry in the notices, a `vendor` or `third_party` directory without a `VENDORED.md` is reported, every path the notices name must exist; Rust crates by cargo-deny; run by `ci`) |
+| `check-licenses` | third-party code and rocks have compatible licences; `THIRD_PARTY_NOTICES` up to date | done (every directory with a `VENDORED.md` has a `LICENSE` and an entry in the notices, a `vendor` or `third_party` directory without a `VENDORED.md` is reported, every path the notices name must exist, the SHA-256 table of each `VENDORED.md` must match the files; Rust crates by cargo-deny; run by `ci`) |
 
 ### Tests and measurements
 

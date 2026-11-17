@@ -47,6 +47,7 @@ local M = {}
 ---@field description? string
 ---@field layout "doc"|"home"
 ---@field html string  rendered body
+---@field diagrams? boolean  the body holds a diagram: load the vendored library and its initialiser (ADR 0033)
 ---@field content_lang string  language of the body (differs from the locale on fallback)
 ---@field fallback boolean
 ---@field top_links hecate.doc.ResolvedLink[]
@@ -301,6 +302,10 @@ local function script_config(context)
   local s = context.strings
   local keys = { "switch_to_dark", "switch_to_light", "copy", "copy_code", "copied", "copy_failed", "table",
     "search_hint", "no_results", "results", "search_failed" }
+  if context.diagrams then
+    keys[#keys + 1] = "diagram"
+    keys[#keys + 1] = "diagram_failed"
+  end
   local subset = {}
   for _, key in ipairs(keys) do subset[key] = s[key] end
   -- `<`, `>` and `&` are written as escapes so that the text cannot close the script element.
@@ -368,6 +373,12 @@ function M.page(context)
   add(search_dialog(context))
   add(script_config(context))
   add(("<script src=\"%s\" defer></script>"):format(escape(context.asset("assets/theme.js"))))
+  if context.diagrams then
+    -- Only a page that holds a diagram loads the vendored library and its initialiser (ADR 0033). Deferred
+    -- scripts run in document order: the library defines its global before the initialiser uses it.
+    add(("<script src=\"%s\" defer></script>"):format(escape(context.asset("assets/mermaid/mermaid.min.js"))))
+    add(("<script src=\"%s\" defer></script>"):format(escape(context.asset("assets/mermaid-init.js"))))
+  end
   return ("<!doctype html>\n<html lang=\"%s\">\n<head>\n%s\n</head>\n<body%s>\n%s\n</body>\n</html>\n"):format(
     escape(context.locale.lang), head(context, title), attributes({ class = is_home and "home" or "doc-page" }),
     table.concat(body, "\n"))

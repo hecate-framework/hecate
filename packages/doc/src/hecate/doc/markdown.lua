@@ -14,6 +14,10 @@ end
 
 local core = require("hecate.core")
 
+--- Opening of the code block that the native renderer writes for a fence whose info string is `mermaid`. Text
+--- inside code is escaped and raw HTML is not passed through, so only a real fence produces it.
+local DIAGRAM_BLOCK = "<div class=\"code-block\" data-language=\"mermaid\">"
+
 --- Markdown renderer (native module).
 ---@class hecate.doc.markdown
 local M = {}
@@ -42,6 +46,7 @@ local M = {}
 ---@field headings hecate.doc.Heading[]
 ---@field sections hecate.doc.Section[]
 ---@field links string[]  every link and image destination met, as written
+---@field diagrams boolean  the body holds a fenced block with the info string `mermaid` (ADR 0033)
 
 --- Renders GitHub Flavoured Markdown to HTML in safe mode. Raises `hecate.core.ArgumentError` when `source` is
 --- not a valid UTF-8 string, or when a line opens more than 100 block containers (quotes and list items;
@@ -58,6 +63,7 @@ function M.render(source, options)
   if result == nil then
     error(core.ArgumentError("doc.markdown.render: " .. refusal), 2)
   end
+  result.diagrams = result.html:find(DIAGRAM_BLOCK, 1, true) ~= nil
   return result
 end
 

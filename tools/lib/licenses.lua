@@ -59,4 +59,40 @@ function M.check(dirs, exists, notices, unrecorded)
   return problems
 end
 
+--- The `File | SHA-256` table of a VENDORED.md: one entry per row whose cells are a file name and 64 hexadecimal
+--- digits, both in backquotes.
+---@param text string content of VENDORED.md
+---@return { file: string, sha256: string }[]
+function M.digests(text)
+  local found = {}
+  for file, digest in text:gmatch("|%s*`([^`|]+)`%s*|%s*`(%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x)`%s*|") do
+    found[#found + 1] = { file = file, sha256 = digest:lower() }
+  end
+  return found
+end
+
+--- Problems of the digests of one vendored directory: a listed file that is missing or whose SHA-256 differs
+--- from the table (the vendored copy must stay byte-identical to upstream), and a VENDORED.md without a table.
+---@param dir string vendored directory, relative to the repository root
+---@param digests { file: string, sha256: string }[]
+---@param read fun(path: string): string?
+---@param hash fun(data: string): string
+---@return string[]
+function M.verify(dir, digests, read, hash)
+  local problems = {}
+  if #digests == 0 then
+    problems[#problems + 1] = dir .. "/VENDORED.md: no `File | SHA-256` table"
+  end
+  for _, entry in ipairs(digests) do
+    local path = dir .. "/" .. entry.file
+    local data = read(path)
+    if data == nil then
+      problems[#problems + 1] = path .. ": listed in VENDORED.md but missing"
+    elseif hash(data) ~= entry.sha256 then
+      problems[#problems + 1] = path .. ": SHA-256 differs from the one recorded in VENDORED.md"
+    end
+  end
+  return problems
+end
+
 return M

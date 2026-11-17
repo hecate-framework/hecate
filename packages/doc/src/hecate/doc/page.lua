@@ -13,6 +13,7 @@ local core = require("hecate.core")
 ---@field meta table<string, any>  front matter
 ---@field html string  rendered body (without the leading title heading)
 ---@field headings hecate.doc.Heading[]
+---@field diagrams? boolean  the body holds a diagram: the page loads the vendored library (ADR 0033)
 ---@field sections hecate.doc.Section[]
 ---@field fallback boolean  true when the content is the default locale's, shown in this locale
 ---@field source_locale string  locale of the file the content comes from
