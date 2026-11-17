@@ -10,7 +10,7 @@ global <const> string
 
 local script = arg[0]:gsub("\\", "/")
 local here = script:match("^(.*)/[^/]*$") or "."
-for _, package_name in ipairs({ "doc", "core", "reactor", "json", "schema", "openapi" }) do
+for _, package_name in ipairs({ "doc", "core", "reactor", "json", "schema", "openapi", "unicode", "unicode-data" }) do
   local base = here .. "/../../" .. package_name .. "/src/"
   package.path = base .. "?.lua;" .. base .. "?/init.lua;" .. package.path
 end

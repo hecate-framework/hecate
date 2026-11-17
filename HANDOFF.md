@@ -3,8 +3,8 @@
 
 - roadmap_item: Owner follow-up on PR #218 (2026-11-17): the Unicode packages (ADR 0032), the scope correction of `doc` (no API reference), Mermaid, and the audience split (OQ-144)
 - status: in-progress
-- lock_until: 2026-11-17T16:27:57Z
-- last_update: 2026-11-17T14:57:57Z
+- lock_until: 2026-11-17T20:20:00Z
+- last_update: 2026-11-17T18:50:00Z
 
 ## Done
 
@@ -17,7 +17,7 @@
 
 ## Next steps
 
-1. CI on the three platforms for the last pushes; fix what fails.
+1. CI on the three platforms for the push fixing `bin/reference.lua` (unicode packages missing from its package path; ubuntu failed on the previous head, local tests need luv which this sandbox lacks); fix what fails.
 2. Final pass: roadmap items ticked/unticked coherent, `/review-package doc` (reviewers), then ask the owner for review (mark ready only when the owner's follow-ups are all done).
 
 ## Decisions taken (and where they are recorded)
