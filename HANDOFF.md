@@ -4,8 +4,8 @@
 - roadmap_item: `doc`: project documentation generator for user projects (OpenAPI reference, `hecate doc build`), with the Phase 1 gate deferrals (Windows-valid page ids, NFC/NFD), `---@meta` generation, and theme extension points (OQ-38)
 - status: in-progress            <!-- in-progress | waiting-ci | waiting-owner -->
 <!-- Optional, only when the owner holds this pull request for one run: - owner: session `<session id>`, why. -->
-- lock_until: 2026-11-17T11:30:00Z
-- last_update: 2026-11-17T10:00:00Z
+- lock_until: 2026-11-17T12:00:00Z
+- last_update: 2026-11-17T10:30:00Z
 
 ## Done
 
@@ -18,10 +18,13 @@
 - Step 4: `project.meta(schemas, namespace)` generates `---@meta` files from named schemas (OQ-96); `gen-meta` CLI wiring stays with `cli` (OQ-121).
 
 - Step 5: theme extension points (OQ-38): `logo` and `colors` site options, tests in `config_test.lua` and `site_test.lua`.
+- Step 6: website reference page `reference/project-documentation.md`, linked from the reference index.
 
 ## Next steps
 
-1. Website reference, README, CHANGELOG, tick the roadmap item, delete this file.
+1. Check CI of the three platforms on this branch.
+2. Run `/review-package` on `doc` (api, terminology, test, security reviewers); fix findings.
+3. Tick the roadmap item, delete this file, mark the pull request ready, ask for the owner's review.
 
 ## Decisions taken (and where they are recorded)
 
