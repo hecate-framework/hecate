@@ -1,40 +1,13 @@
 ---@diagnostic disable: need-check-nil, undefined-field  -- tests index generated pages that a failing assertion would reveal
--- The project documentation: API reference and route table from an OpenAPI document, the
--- configuration reference from a JSON Schema, and the site that `project.build` writes.
+-- The project documentation: the configuration reference from a JSON Schema, the LuaLS meta files, and
+-- the site that `project.build` writes. The generator produces no API reference: the contract is the
+-- external documentation (documentation.md, OQ-141).
 local test = require("harness.test")
 local doc = require("hecate.doc")
 local project = require("hecate.doc.project")
 local front_matter = require("hecate.doc.front_matter")
 local core = require("hecate.core")
 local T = test.Case("ProjectTest")
-
-local document = {
-  openapi = "3.1.0",
-  info = { title = "Shop", version = "1.2.0", description = "The shop API." },
-  tags = { { name = "users", description = "Accounts." } },
-  paths = {
-    ["/users"] = {
-      post = {
-        operationId = "createUser", summary = "Create a user", tags = { "users" },
-        requestBody = { required = true, content = { ["application/json"] = { schema = { ["$ref"] = "#/components/schemas/User" } } } },
-        responses = {
-          ["201"] = { description = "Created", content = { ["application/json"] = { schema = { ["$ref"] = "#/components/schemas/User" } } } },
-          ["422"] = { description = "Unprocessable Content" },
-        },
-      },
-    },
-    ["/users/{id}"] = {
-      get = {
-        operationId = "getUser", summary = "Fetch a user", description = "Fetch one.", tags = { "users" }, deprecated = true,
-        parameters = { { name = "id", ["in"] = "path", required = true, schema = { type = "integer", minimum = 1 } } },
-        responses = { ["200"] = { description = "OK" } },
-      },
-    },
-    ["/health"] = { get = { operationId = "health", responses = { ["200"] = { description = "OK" } } } },
-  },
-  components = { schemas = { User = { type = "object", required = { "name" },
-    properties = { name = { type = "string", description = "Display name." }, age = { type = "integer" } } } } },
-}
 
 local config_schema = {
   type = "object", required = { "port" },
@@ -45,30 +18,6 @@ local config_schema = {
   },
 }
 
-function T:test_api_pages_cover_every_operation_and_the_route_map()
-  local pages = project.api_pages(document)
-  self:assert_not_nil(pages["api/index.md"])
-  self:assert_not_nil(pages["api/users.md"])
-  self:assert_not_nil(pages["api/untagged-operations.md"])
-  local index = pages["api/index.md"]
-  self:assert_not_nil(index:find("| `POST` | `/users` | [createUser](users.md#createuser) |", 1, true), index)
-  self:assert_not_nil(index:find("`/health`", 1, true))
-  local users = pages["api/users.md"]
-  self:assert_not_nil(users:find("## getUser", 1, true))
-  self:assert_not_nil(users:find("Deprecated", 1, true))
-  self:assert_not_nil(users:find("`id`", 1, true))
-  self:assert_not_nil(users:find("`422`", 1, true))
-  self:assert_not_nil(users:find("`name`", 1, true), "the schema reference is resolved")
-end
-
-function T:test_pages_are_marked_as_generated_and_deterministic()
-  local first, second = project.api_pages(document), project.api_pages(document)
-  for path, text in pairs(first) do
-    self:assert_equal(text, second[path], path)
-    self:assert_true(project.is_generated(text), path)
-  end
-end
-
 function T:test_configuration_page_lists_keys_with_dotted_paths()
   local page = project.configuration_page(config_schema)
   self:assert_not_nil(page:find("`port`", 1, true))
@@ -78,28 +27,14 @@ function T:test_configuration_page_lists_keys_with_dotted_paths()
   self:assert_not_nil(page:find("1 to 65535", 1, true), page)
 end
 
-function T:test_text_from_the_contract_cannot_break_the_table()
-  local nasty = { openapi = "3.1.0", info = { title = "T", version = "1" }, paths = { ["/a|b"] = { get = { operationId = "x|y",
-    summary = "line1\nline2 | pipe", responses = { ["200"] = { description = "OK" } } } } } }
-  local index = project.api_pages(nasty)["api/index.md"]
-  for line in index:gmatch("[^\n]+") do
-    if line:find("^| `GET`") then
-      local _, pipes = line:gsub("\\|", "")
-      local _, all = line:gsub("|", "")
-      self:assert_equal(5, all - pipes, line)
-    end
-  end
-end
-
-function T:test_build_writes_a_site_with_all_sections()
+function T:test_build_writes_a_site_with_the_guides_and_the_configuration_reference()
   local fs = doc.MemoryFileSystem({})
   local report = project.build({
     config = { title = "Shop docs" }, source = "docs", out = "dist", fs = fs, clean = true, strict = true,
-    document = document, configuration = config_schema,
+    configuration = config_schema,
     pages = { ["index.md"] = "# Shop\n\nWelcome.\n" },
   })
   self:assert_equal(0, #report.problems, table.concat(report.problems, "\n"))
-  self:assert_not_nil(fs:read("dist/en/api/users/index.html"))
   self:assert_not_nil(fs:read("dist/en/configuration/index.html"))
   self:assert_not_nil(fs:read("dist/en/index.html"))
 end
@@ -153,10 +88,20 @@ function T:test_meta_refuses_names_that_are_not_lua_identifiers()
   self:assert_not_nil(tostring(err):find("bad name", 1, true))
 end
 
-local function doc_with(operations, extra)
-  local d = { openapi = "3.1.0", info = { title = "T", version = "1" }, paths = operations }
-  for key, value in pairs(extra or {}) do d[key] = value end
-  return d
+function T:test_the_generator_produces_no_api_reference()
+  -- The contract is the external documentation (OQ-141): no function, no option, no page.
+  self:assert_nil(project.api_pages)
+  local contract = { openapi = "3.1.0", info = { title = "Shop", version = "1" },
+    paths = { ["/users"] = { get = { operationId = "listUsers", responses = { ["200"] = { description = "OK" } } } } } }
+  local fs = doc.MemoryFileSystem({})
+  -- A stray `document` option is not an option of the build: it is ignored, and nothing below `api/` is written.
+  project.build({ config = { title = "Shop" }, source = "docs", out = "dist", fs = fs, document = contract,
+    configuration = config_schema, pages = { ["index.md"] = "# Shop\n" } })
+  for path in pairs(fs.files) do
+    self:assert_nil(path:find("/api/", 1, true), path)
+    self:assert_nil(path:find("listUsers", 1, true), path)
+  end
+  self:assert_not_nil(fs:read("docs/en/configuration.md"))
 end
 
 local function configuration_of(properties)
@@ -188,36 +133,9 @@ function T:test_table_defaults_and_values_are_rendered_deterministically()
   self:assert_not_nil(meta:find("---@alias shop.schemas.E any\n", 1, true), meta)
 end
 
-function T:test_tag_pages_get_unique_safe_file_names_and_the_index_is_reserved()
-  local function op(tag, id) return { get = { operationId = id, tags = { tag }, responses = {} } } end
-  local pages = project.api_pages(doc_with({
-    ["/1"] = op("Index", "a"), ["/2"] = op("index!", "b"), ["/3"] = op("Con", "c"), ["/4"] = op("A b", "d"),
-    ["/5"] = op("a-b", "e"), ["/6"] = op("Untagged", "f"),
-  }))
-  local names = {}
-  for path in pairs(pages) do names[#names + 1] = path end
-  table.sort(names)
-  self:assert_equal("api/a-b-2.md,api/a-b.md,api/con-tag.md,api/index-2.md,api/index-3.md,api/index.md,api/untagged-operations.md",
-    table.concat(names, ","))
-  self:assert_not_nil(pages["api/index.md"]:find("## Routes", 1, true))
-  self:assert_not_nil(pages["api/index.md"]:find("](index-3.md#b)", 1, true), pages["api/index.md"])
-  self:assert_not_nil(pages["api/a-b-2.md"]:find("## e", 1, true))
-end
-
-function T:test_anchors_are_unique_per_page()
-  local function op(id) return { get = { operationId = id, tags = { "t" }, responses = {} } } end
-  local pages = project.api_pages(doc_with({ ["/1"] = op("dup"), ["/2"] = { post = op("dup").get }, ["/3"] = op("Responses"),
-    ["/4"] = op("responses-1") }))
-  local page = pages["api/t.md"]
-  self:assert_not_nil(page:find("## dup\n", 1, true))
-  self:assert_not_nil(page:find("## dup (2)\n", 1, true), page)
-  self:assert_not_nil(page:find("## Responses operation\n", 1, true), page)
-  self:assert_not_nil(page:find("## responses-1 operation\n", 1, true), page)
-  self:assert_not_nil(pages["api/index.md"]:find("](t.md#dup-2)", 1, true), pages["api/index.md"])
-end
-
 function T:test_front_matter_description_is_a_valid_double_quoted_scalar()
-  local text = project.api_pages(doc_with({}, { info = { title = "T", version = "1", description = 'tab\there \1 "q" back\\slash\nnext' } }))["api/index.md"]
+  local text = project.configuration_page({ type = "object", properties = {},
+    description = 'tab\there \1 "q" back\\slash\nnext' })
   local meta = front_matter.parse(text)
   self:assert_equal('tab here   "q" back\\slash next', meta.description)
 end
@@ -250,58 +168,22 @@ local function assert_safe(self, text, label)
   end
 end
 
-function T:test_every_contract_field_is_escaped()
+function T:test_every_schema_field_is_escaped()
   for _, hostile in ipairs(HOSTILE) do
-    local d = doc_with({
-      ["/p"] = { get = { operationId = hostile, summary = hostile, description = hostile, tags = { hostile },
-        parameters = { { name = hostile, ["in"] = "query", description = hostile,
-          schema = { type = "string", enum = { hostile }, pattern = hostile, format = hostile } } },
-        responses = { ["200"] = { description = hostile, content = { [hostile] = { schema = { type = "string" } } } } } } },
-    }, { info = { title = hostile, version = hostile, description = hostile }, tags = { { name = hostile, description = hostile } } })
-    local pages = project.api_pages(d)
-    for path, text in pairs(pages) do assert_safe(self, text, hostile .. " in " .. path) end
-    local config = project.configuration_page(configuration_of({
-      key = { type = "string", default = hostile, enum = { hostile }, pattern = hostile, description = hostile },
-    }))
+    local config = project.configuration_page({ type = "object", description = hostile, properties = {
+      [hostile] = { type = "string", default = hostile, enum = { hostile }, pattern = hostile, format = hostile, description = hostile },
+    } })
     assert_safe(self, config, hostile .. " in configuration")
   end
-  -- A line that would start a block is escaped.
-  local page = project.api_pages(doc_with({ ["/p"] = { get = { summary = "- item", responses = {} } } }))["api/index.md"]
+  -- A description that would start a block is escaped.
+  local page = project.configuration_page(configuration_of({ key = { type = "string", description = "- item" } }))
   self:assert_not_nil(page:find("\\- item", 1, true), page)
 end
 
-function T:test_a_pipe_is_escaped_in_table_cells_only()
-  local d = doc_with({ ["/p"] = { get = { operationId = "o", parameters = { { name = "a|b", ["in"] = "query" } },
-    responses = { ["200"] = { description = "ok", content = { ["x/a|b"] = { schema = { type = "string" } } } } } } } })
-  local page = project.api_pages(d)["api/untagged-operations.md"]
-  self:assert_not_nil(page:find("| `a\\|b` |", 1, true), page)
-  self:assert_not_nil(page:find("  - `x/a|b` of string", 1, true), page)
-end
-
-function T:test_components_are_resolved_for_parameters_bodies_and_responses()
-  local d = doc_with({ ["/u/{id}"] = { parameters = { { name = "id", ["in"] = "path", description = "path level", schema = { type = "string" } },
-      { ["$ref"] = "#/components/parameters/Page" } },
-    post = { operationId = "o", parameters = { { name = "id", ["in"] = "path", description = "operation level", schema = { type = "integer" } } },
-      requestBody = { ["$ref"] = "#/components/requestBodies/Body" },
-      responses = { ["404"] = { ["$ref"] = "#/components/responses/Missing" } } } } },
-    { components = { parameters = { Page = { name = "page", ["in"] = "query", description = "Page number." } },
-      requestBodies = { Body = { required = true, content = { ["application/json"] = { schema = { type = "object",
-        properties = { title = { type = "string" } } } } } } },
-      responses = { Missing = { description = "Not found.", content = { ["text/plain"] = { schema = { type = "string" } } } } } } })
-  local page = project.api_pages(d)["api/untagged-operations.md"]
-  self:assert_not_nil(page:find("`page`", 1, true), page)
-  self:assert_not_nil(page:find("operation level", 1, true))
-  self:assert_nil(page:find("path level", 1, true), "an operation parameter overrides the path-level one")
-  self:assert_not_nil(page:find("`title`", 1, true), page)
-  self:assert_not_nil(page:find("Not found", 1, true), page)
-  self:assert_not_nil(page:find("`text/plain` of string", 1, true), page)
-end
-
 function T:test_untrusted_schemas_are_expanded_within_bounds()
-  local cyclic = { type = "object", properties = { self = { ["$ref"] = "#/components/schemas/Node" }, name = { type = "string" } } }
-  local d = doc_with({ ["/n"] = { post = { requestBody = { content = { ["application/json"] = { schema = { ["$ref"] = "#/components/schemas/Node" } } } },
-    responses = {} } } }, { components = { schemas = { Node = cyclic } } })
-  local page = project.api_pages(d)["api/untagged-operations.md"]
+  local cyclic = { type = "object", properties = { self = { ["$ref"] = "#/$defs/Node" }, name = { type = "string" } } }
+  local page = project.configuration_page({ type = "object", properties = { root = { ["$ref"] = "#/$defs/Node" } },
+    ["$defs"] = { Node = cyclic } })
   local _, rows = page:gsub("\n| `", "")
   self:assert_equal(true, rows <= 3, page)
   local wide = {}
@@ -312,7 +194,7 @@ function T:test_untrusted_schemas_are_expanded_within_bounds()
   self:assert_not_nil(text:find("truncated", 1, true))
   local deep = { type = "string" }
   for _ = 1, 5000 do deep = { type = "array", items = deep } end
-  local ok = pcall(project.api_pages, doc_with({ ["/d"] = { get = { parameters = { { name = "x", ["in"] = "query", schema = deep } }, responses = {} } } }))
+  local ok = pcall(project.configuration_page, configuration_of({ x = deep }))
   self:assert_true(ok)
   self:assert_equal("any", project.meta({ D = deep }, "shop.schemas"):match("%-%-%-@alias shop%.schemas%.D (.-)\n"):gsub("%[%]", ""))
 end
@@ -332,12 +214,11 @@ end
 
 function T:test_pages_are_independent_of_insertion_order()
   local function make(order)
-    local paths = {}
-    for _, name in ipairs(order) do paths["/" .. name] = { get = { operationId = name, tags = { name }, responses = {} } } end
-    return project.api_pages(doc_with(paths))
+    local properties = {}
+    for _, name in ipairs(order) do properties[name] = { type = "string", description = name } end
+    return project.configuration_page(configuration_of(properties))
   end
-  local one, two = make({ "a", "b", "c" }), make({ "c", "a", "b" })
-  for path, text in pairs(one) do self:assert_equal(text, two[path], path) end
+  self:assert_equal(make({ "a", "b", "c" }), make({ "c", "a", "b" }))
 end
 
 local function build_options(fs, extra)
@@ -347,10 +228,10 @@ local function build_options(fs, extra)
 end
 
 function T:test_a_guide_on_a_generated_path_fails_before_anything_is_written()
-  for _, key in ipairs({ "api/index.md", "./api/index.md", "api//index.md", "API/index.md" }) do
+  for _, key in ipairs({ "configuration.md", "./configuration.md", ".//configuration.md", "Configuration.md" }) do
     local fs = doc.MemoryFileSystem({})
     local err = self:assert_error(function()
-      project.build(build_options(fs, { document = document, pages = { ["index.md"] = "# S\n", [key] = "# mine\n" } }))
+      project.build(build_options(fs, { configuration = config_schema, pages = { ["index.md"] = "# S\n", [key] = "# mine\n" } }))
     end)
     self:assert_true(core.is_instance_of(err, doc.BuildError), key .. ": " .. tostring(err))
     self:assert_nil(next(fs.files), key .. " left partial files")
@@ -367,13 +248,10 @@ end
 
 function T:test_generated_pages_that_are_no_longer_produced_are_removed()
   local fs = doc.MemoryFileSystem({})
-  project.build(build_options(fs, { document = document, configuration = config_schema }))
-  self:assert_not_nil(fs:read("docs/en/api/users.md"))
+  project.build(build_options(fs, { configuration = config_schema }))
   self:assert_not_nil(fs:read("docs/en/configuration.md"))
-  project.build(build_options(fs, { document = { openapi = "3.1.0", info = { title = "S", version = "1" }, paths = {} } }))
-  self:assert_nil(fs:read("docs/en/api/users.md"))
+  project.build(build_options(fs, {}))
   self:assert_nil(fs:read("docs/en/configuration.md"))
-  self:assert_not_nil(fs:read("docs/en/api/index.md"))
   self:assert_not_nil(fs:read("docs/en/index.md"), "guides stay")
 end
 
@@ -384,7 +262,7 @@ function T:test_options_are_validated_up_front_naming_the_field()
     { { pages = { ["x.txt"] = "a" } }, "pages" }, { { pages = { ["x.md"] = 3 } }, "pages" },
     { { pages = { ["x.md"] = "a", ["./x.md"] = "b" } }, "pages" }, { { pages = { [".h.md"] = "a" } }, "pages" },
     { { locale = "../x" }, "locale" }, { { locale = 3 }, "locale" }, { { locale = "" }, "locale" },
-    { { document = "x" }, "document" }, { { configuration = 3 }, "configuration" }, { { config = "x" }, "config" },
+    { { configuration = 3 }, "configuration" }, { { config = "x" }, "config" },
     { { code = "x" }, "code" }, { { code = { root = "r", name = "../x" } }, "code" }, { { code = { root = "r" } }, "code" },
     { { code = { root = "r", name = "x", executable = 3 } }, "code.executable" },
   }
@@ -400,12 +278,12 @@ end
 function T:test_the_locale_option_and_the_default_locale_choose_the_directory()
   local fs = doc.MemoryFileSystem({})
   project.build(build_options(fs, { locale = "fr", config = { title = "S", default_locale = "fr", locales = { { code = "fr" } } },
-    document = document }))
-  self:assert_not_nil(fs:read("docs/fr/api/index.md"))
-  self:assert_not_nil(fs:read("dist/fr/api/users/index.html"))
+    configuration = config_schema }))
+  self:assert_not_nil(fs:read("docs/fr/configuration.md"))
+  self:assert_not_nil(fs:read("dist/fr/configuration/index.html"))
   local other = doc.MemoryFileSystem({})
-  project.build(build_options(other, { config = { title = "S", default_locale = "fr", locales = { { code = "fr" } } }, document = document }))
-  self:assert_not_nil(other:read("docs/fr/api/index.md"))
+  project.build(build_options(other, { config = { title = "S", default_locale = "fr", locales = { { code = "fr" } } }, configuration = config_schema }))
+  self:assert_not_nil(other:read("docs/fr/configuration.md"))
 end
 
 function T:test_meta_edge_cases()

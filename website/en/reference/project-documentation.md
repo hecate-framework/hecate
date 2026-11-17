@@ -1,5 +1,5 @@
 ---
-description: The documentation generator for user projects: the site configuration, the pages generated from the contract and the configuration schema, LuaLS meta files, and the theme extension points.
+description: The documentation generator for user projects: the site configuration, the pages generated from the configuration schema, LuaLS meta files, and the theme extension points.
 hecate: "0.x"
 lua: "5.5"
 order: 3
@@ -19,13 +19,14 @@ directory, then runs the site build.
 
 | Option | Adds |
 |---|---|
-| `document` | The API reference: `api/index.md` (the route table) and one page per tag, from the OpenAPI 3.1 document. |
 | `configuration` | `configuration.md`, one row per key, from the JSON Schema of the configuration. |
 | `code` | The code reference `reference/<name>/`, from the annotated sources in `<root>/src` (needs LuaLS). LuaLS reads the `.luarc.json` of the project and runs the plugin it declares: `root` must be a project you trust. |
 | `pages` | The guides of the project. |
 
 Generated pages carry a notice and are replaced at each build. A guide cannot overwrite one, and a generated page never overwrites a file that is not generated (a `BuildError` before anything is written). Generated pages that a build no longer produces are removed. A wrong option raises an `ArgumentError` naming it. The text that
-comes from the contract is escaped, because it is data of the project and not Markdown.
+comes from the schema is escaped, because it is data of the project and not Markdown.
+
+The generator produces no API reference. The OpenAPI contract is the external documentation of the API: the application serves it (`/openapi.json`) and `hecate contract export` writes it. A viewer for it, such as Swagger UI, is your own wiring, for example a Docker compose file next to the application.
 
 ## LuaLS meta files
 

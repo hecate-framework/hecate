@@ -116,8 +116,7 @@ tested examples. The OQ-11 spike decides.
 ## Dependencies of the generator
 
 Owner decision 2026-10-13 ([ADR 0012](../adr/0012-website-generator.md)): Markdown (complete
-GitHub Flavoured Markdown), syntax highlighting and, where one exists, OpenAPI rendering
-come from third-party Lua, C or Rust dependencies rather than from code written in the
+GitHub Flavoured Markdown) and syntax highlighting come from third-party Lua, C or Rust dependencies rather than from code written in the
 package; the site must remain deployable as static files on GitHub Pages. The candidates
 were measured in the spike [OQ-39](../spikes/OQ-39-doc-dependencies.md); the decision is
 ADR 0022 (Accepted).
@@ -216,6 +215,12 @@ helper's line, so examples print inline. Every phase gate checks both rules on t
 
 ## Project documentation generated for users
 
-`hecate doc build` on a user's project produces a static site with: the API reference
-(OpenAPI, static HTML with no interactive console: [OQ-141](../open-questions.md)), the code reference from the
-project's annotations, the configuration reference, and the module and route table.
+`hecate doc build` on a user's project produces a static site, the documentation of the
+project's own team: the code reference from the project's annotations, the configuration
+reference, and the guides of the project (Markdown pages the project writes).
+
+There is no API reference. The OpenAPI contract is the external documentation of the API:
+`openapi` serves it (`/openapi.json`) and `hecate contract export` writes it. A viewer for
+it (Swagger UI, for example) is the wiring of the user, such as a Docker compose file
+([OQ-135](../open-questions.md), [OQ-141](../open-questions.md), owner decision of
+2026-11-17). `hecate.doc` neither renders the contract nor ships a viewer.
