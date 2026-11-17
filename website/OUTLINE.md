@@ -33,6 +33,7 @@ written is listed with its file in `website/en/`.
 - Run child processes and pass connections between processes: `run_process`, `spawn`, the message pipe (P2; `how-to/run-processes-and-pass-connections.md`)
 - Offload CPU-bound work to the thread pool: `reactor.offload`, self-contained functions, values that cross, errors, cancellation, pool size (P2; `how-to/offload-cpu-bound-work.md`)
 - Encode and decode JSON (P1; `how-to/encode-and-decode-json.md`)
+- Normalise Unicode strings: NFC and NFD, canonical order, Hangul, errors, the Unicode version of the data rock (P3; `how-to/normalise-unicode-strings.md`)
 - Log structured records: severities, sinks, redaction, ambient context (P2; `how-to/log-structured-records.md`)
 - Serve HTTP: server, action, JSON and problem details, cookies, graceful shutdown (P2; `how-to/serve-http.md`)
 - Stream HTTP content: request content as a stream, streamed responses (P2; `how-to/stream-http-content.md`)

@@ -330,27 +330,29 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       determinism and speed), report to the owner before the mirrors item (owner decision of 2026-11-13).
 - [x] `reactor.random(n)`, cryptographically secure bytes over libuv `uv_random`, used by the multipart boundaries of
       `http` (no `math.random` fallback), before `0.1.0` (OQ-73, owner decision of 2026-11-13).
-- [x] `doc`: project documentation generator for user projects (OpenAPI reference,
-      `hecate doc build`); the minimal generator and the code reference moved to Phase 1. **Carries deferrals
+- [x] `doc`: project documentation generator for user projects (configuration reference, code reference, guides,
+      `hecate doc build`; the API reference was removed by the owner on 2026-11-17: the OpenAPI contract is the external
+      documentation and a viewer is the user's wiring, OQ-141); the minimal generator and the code reference moved to Phase 1. **Carries deferrals
       from the Phase 1 gate review** (cross-platform review): refuse, with a `BuildError`, page ids that are not valid
       file names on Windows (`? : * " < > |`, trailing dots or spaces, reserved names such as `CON`) and normalise
       NFC/NFD names before the collision check, because a site is built from a tree authored elsewhere. **Also (from the `schema` review, OQ-96):** the `---@meta` file generation for LuaLS from the schemas of a project (carried here or by `cli`, to settle when `cli` is specified), which `schema` does not implement.
       **Also (OQ-38, owner decision of 2026-11-13):** the theme extension points for user projects: a site
       configuration `logo`, a CSS custom-properties override file for the colours, template overrides later if users ask;
       the hecate marks are never recoloured.
-- [ ] `unicode` and `unicode-data` (owner decision of 2026-11-17 on OQ-140, [ADR 0032](adr/0032-unicode-normalisation-packages.md),
+- [x] `unicode` and `unicode-data` (owner decision of 2026-11-17 on OQ-140, [ADR 0032](adr/0032-unicode-normalisation-packages.md),
       Accepted): the code package `hecate.unicode` (NFC, NFD, Hangul, canonical reordering, layer 0) and the generated
-      data rock `hecate-unicode-data` versioned by the Unicode version; the task `gen-unicode`; a `url` plus `sha256`
-      entry kind for `fetch-fixtures`; conformance against `NormalizationTest.txt`; the nightly job `unicode-version`;
-      the Latin table of `hecate.doc.internal.page_id` replaced; `check-versions`, `gen-rockspecs`, the release task and
-      the mirror tag take the Unicode-version rule of the data rock. Needs `www.unicode.org` in the cloud allowed domains
-      (`tools/cloud/README.md`).
+      data rock `hecate-unicode-data` versioned by the Unicode version (Unicode 18.0.0, `18.0.0-1`); the task `gen-unicode`;
+      a `url` plus `sha256` entry kind for `fetch-fixtures`; conformance against `NormalizationTest.txt` (100% of the NFC
+      and NFD columns); the nightly job `unicode-version`; the Latin table of `hecate.doc.internal.page_id` replaced
+      (OQ-140 closed); `check-versions`, `gen-rockspecs` and `check-rockspecs` take the Unicode-version rule of the data
+      rock. Needs `www.unicode.org` in the cloud allowed domains (`tools/cloud/README.md`, done). **Carried to the
+      mirrors item:** the `split` and release tasks do not exist yet; when written, the mirror tag of `unicode-data` is
+      the Unicode version (`v18.0.0`) and not `VERSION` (ADR 0032, "Publishing").
 - [ ] `doc` follow-up, audience (owner remarks on pull request #218, 2026-11-17; the decision is OQ-144): documentation is
       user documentation or maintainer documentation, and the `doc` generator targets a project's own team. To do once
       OQ-144 is decided: the audience split of the Hecate website; a project site that publishes nothing it was not
       asked to (sections switchable, internal symbols left out of the code reference by default, a `draft` or `internal`
-      page flag); the error-code reference of a project; `llms.txt` and `llms-full.txt` for a project; richer inline
-      response schemas and parameter descriptions in the API reference (found by running the generator). The tick of the
+      page flag); the error-code reference of a project; `llms.txt` and `llms-full.txt` for a project. The tick of the
       `doc` item above covers the Lua API only; `hecate doc build` belongs to the `cli` item below.
 - [ ] `cli` v1: self-contained executable, `new`, `install`, `add`, `remove`, `update`,
       `serve [--watch]`, `test`, `doc`, `contract`, `toolchain`, `doctor`, `version`.
@@ -418,7 +420,7 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       **Also (found while restyling, pull request #195):** the `serve-http` how-to writes through `io.stderr:write` in an
       inline `on_error` snippet, which the output rule refuses in example files.
 - [ ] Meta-rock `hecate` (standard edition).
-- [ ] Read-only mirrors (ADR 0017): `split`, `mirrors ensure`, `check-mirrors`,
+- [ ] Read-only mirrors (ADR 0017): `split`, `mirrors ensure`, `check-mirrors`, the tag of the `unicode-data` mirror is the Unicode version and not `VERSION` (ADR 0032),
       `split.yml`; Homebrew tap and Scoop bucket repositories (applies OQ-17: `splitsh-lite` pinned, `git subtree split` as fallback, see the [spike](spikes/OQ-17-split-tool.md)).
 - [ ] Publish all rocks to luarocks.org (sources from mirrors).
 - [ ] `hecate generate workflow` (ci, contract, docs-pages, release) and its templates;

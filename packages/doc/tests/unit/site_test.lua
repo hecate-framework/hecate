@@ -339,6 +339,17 @@ function T:test_ids_that_differ_only_in_unicode_normalisation_raise()
   self:assert_true(core.is_instance_of(in_directory, doc.BuildError))
 end
 
+function T:test_ids_of_other_scripts_that_differ_only_in_normalisation_raise()
+  local locales = { locales = { { code = "en", label = "English" } } }
+  for name, pair in pairs({ cyrillic = { "\u{439}", "\u{438}\u{306}" }, greek = { "\u{3AC}", "\u{3B1}\u{301}" },
+    hangul = { "\u{AC01}", "\u{1100}\u{1161}\u{11A8}" }, marks = { "a\u{301}\u{323}", "a\u{323}\u{301}" } }) do
+    local err = self:assert_error(function()
+      build({ ["en/index.md"] = page("Home"), ["en/" .. pair[1] .. ".md"] = page("A"), ["en/" .. pair[2] .. ".md"] = page("B") }, locales)
+    end)
+    self:assert_true(core.is_instance_of(err, doc.BuildError), name)
+  end
+end
+
 function T:test_a_decomposed_name_is_the_same_page_as_the_composed_one_in_another_locale()
   local fs = build({ ["en/index.md"] = page("Home"), ["en/caf\u{E9}.md"] = page("Coffee"),
     ["fr/index.md"] = page("Accueil"), ["fr/cafe\u{301}.md"] = page("Caf\u{E9}") })

@@ -1,6 +1,6 @@
 # `hecate-doc`
 
-> Documentation generator and static site builder with an MDN-like theme: guides in Markdown, code reference from LuaLS annotations, API reference from OpenAPI, configuration and error-code references, locales, search.
+> Documentation generator and static site builder with an MDN-like theme: guides in Markdown, code reference from LuaLS annotations, configuration and error-code references, locales, search.
 
 | | |
 |---|---|
@@ -8,9 +8,9 @@
 | Rock | `hecate-doc` |
 | Layer | Tooling |
 | Roadmap phase | 3 |
-| Status | alpha — minimal slice done (Phase 1 roadmap item); the roadmap phase stays 3 because the package is still in progress for it: Markdown rendering and highlighting by the native module (comrak, syntect), site model (locales with fallback, sidebar, previous/next), original theme on the brand kit, search index, `build` and the LuaLS code reference (reference generator, `gen-reference`) implemented; the project documentation (`hecate.doc.project`: API reference and route table from an OpenAPI document, configuration reference, LuaLS meta files, `project.build`) and the theme extension points (`logo`, `colors`) implemented; versioned documentation, development server, runnable examples, the `hecate doc build` command and the prebuilt binary rocks of the native module pending (Phase 3) |
+| Status | alpha — minimal slice done (Phase 1 roadmap item); the roadmap phase stays 3 because the package is still in progress for it: Markdown rendering and highlighting by the native module (comrak, syntect), site model (locales with fallback, sidebar, previous/next), original theme on the brand kit, search index, `build` and the LuaLS code reference (reference generator, `gen-reference`) implemented; the project documentation (`hecate.doc.project`: configuration reference, LuaLS meta files, `project.build`) and the theme extension points (`logo`, `colors`) implemented; versioned documentation, development server, runnable examples, the `hecate doc build` command and the prebuilt binary rocks of the native module pending (Phase 3) |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |
-| Depends on | [`core`](../core), [`reactor`](../reactor), [`openapi`](../openapi), [`schema`](../schema), [`json`](../json) |
+| Depends on | [`core`](../core), [`reactor`](../reactor), [`openapi`](../openapi), [`schema`](../schema), [`json`](../json), [`unicode`](../unicode) |
 | Used by | `cli` |
 | Native code | Rust (`native/`): comrak (Markdown) and syntect with two-face (highlighting), through `mlua` (ADR 0022) |
 | Specification | [documentation.md](../../docs/architecture/documentation.md) |
@@ -20,7 +20,7 @@
 
 ## Responsibilities
 
-- consume `lua-language-server --doc` JSON export and the route/schema metadata
+- consume `lua-language-server --doc` JSON export and the schema metadata
 - render Markdown guides (CommonMark + front matter) and generated reference pages with one MDN-like theme (page template in documentation.md)
 - locales with fallback and translation status (`source_revision`)
 - static search index
@@ -33,6 +33,7 @@
 ## Non-goals
 
 - a general-purpose CMS
+- an API reference: the OpenAPI contract is the external documentation, and any viewer is the user's own wiring (OQ-141)
 
 ## Standards and references
 
@@ -70,7 +71,7 @@ decided in [ADR 0022](../../docs/adr/0022-doc-dependencies.md).
 | `theme` | `page(context)`, `not_found(context)`, `strings`, `asset_files`, `assets_directory()`. |
 | `reference` (`hecate.doc.reference`) | `generate(inputs, options)`: pages of the code reference from LuaLS exports (pure); `is_generated(text)`; `GENERATED` (the marker). |
 | `reference_site` (`hecate.doc.reference_site`) | `run(options)`: runs LuaLS on the packages, generates and writes the pages (skips with `report.skipped` without LuaLS); `write(fs, out, result, packages)`; `DEFAULT_PACKAGES`. |
-| `project` (`hecate.doc.project`) | `api_pages(document)`: the API reference and the route table from an OpenAPI document (static HTML, no interactive console: OQ-141); `configuration_page(schema)`: the configuration reference from a JSON Schema; `build(options)`: writes the guides and the generated pages below `<source>/<locale>/` and builds (everything is checked before anything is written; a generated page never overwrites a file that is not generated, and generated pages no longer produced are removed); `meta(schemas, namespace)`: a LuaLS `---@meta` declaration file (classes, aliases) from named JSON Schemas (OQ-96); `is_generated(text)`. Text from the contract is escaped, and the expansion of a schema is bounded (500 rows per table, cycles shown as one row). The option `code` runs LuaLS, which reads the `.luarc.json` of `code.root` and runs the plugin it declares: `code.root` must be trusted (OQ-142). |
+| `project` (`hecate.doc.project`) | `configuration_page(schema)`: the configuration reference from a JSON Schema; `build(options)`: writes the guides and the generated pages below `<source>/<locale>/` and builds (everything is checked before anything is written; a generated page never overwrites a file that is not generated, and generated pages no longer produced are removed); `meta(schemas, namespace)`: a LuaLS `---@meta` declaration file (classes, aliases) from named JSON Schemas (OQ-96); `is_generated(text)`. Text from the schema is escaped, and the expansion of a schema is bounded (500 rows per table, cycles shown as one row). There is no API reference: the OpenAPI contract is the external documentation of the API (served by `openapi`), and a viewer is the wiring of the user (OQ-141, owner decision of 2026-11-17). The option `code` runs LuaLS, which reads the `.luarc.json` of `code.root` and runs the plugin it declares: `code.root` must be trusted (OQ-142). |
 
 ### Building a site
 
@@ -114,7 +115,7 @@ are the tested files `packages/<package>/examples/<symbol>.lua`. The pages are n
 
 `<source>/<locale>/` holds Markdown pages with front matter; `<source>/public/` is copied to
 the site root (hidden files excepted). A file of `public/` that has the path of a generated file (a page, `404.html`, `index.html`, `sitemap.xml`, `assets/...`) is a `BuildError`: generated files are never overwritten, and never overwrite hand-made ones silently. Page paths are percent-encoded in URLs (RFC 3986), files keep their real names on disk. `en` is the default locale; a page missing in another locale is built from the
-default locale with a visible notice. Page ids are compared in NFC, so `cafe` + U+0301 and U+00E9 are one page whatever the file system that authored the tree (Latin letters only, OQ-140); links are normalised the same way. The page title is the single `#` heading of the body; front matter `title` is an optional
+default locale with a visible notice. Page ids are compared in NFC through `hecate.unicode` (every script, ADR 0032), so `cafe` + U+0301 and U+00E9 are one page whatever the file system that authored the tree; links are normalised the same way. The page title is the single `#` heading of the body; front matter `title` is an optional
 override of the label used in navigation, search and `<title>` (OQ-35). Front matter keys: `title`, `description`, `order`
 (sidebar order), `hecate` and `lua` (the "written for" line), `layout: home` with
 `actions: ["Text | page or URL | primary"]`, `outline: false`, `sidebar: false`,
@@ -144,7 +145,7 @@ readable without JavaScript. Vendored material: [THIRD_PARTY_NOTICES](../../THIR
 
 ### Limits of the current implementation
 
-Not implemented: the error-code reference of a project, the interactive console of the API reference (OQ-141), translations of generated pages keyed by symbol, `llms.txt`,
+Not implemented: the error-code reference of a project, translations of generated pages keyed by symbol, `llms.txt`,
 versioned documentation, development server, runnable examples, translation status report,
 template overrides of the theme (not planned until users ask, OQ-38). Markdown is GFM through comrak; the CommonMark 0.31.2 and GFM extension examples run as a test through the module (OQ-37). The search ranking is client-side JavaScript without an automated test (OQ-36).
 Verified on Linux; macOS and Windows are verified by CI only (the shell calls of
@@ -158,7 +159,7 @@ src/hecate/doc/markdown.lua    Markdown (comrak) and highlight.lua (syntect) ove
 native/                        the Rust crate (comrak, syntect, two-face; `lua tools/run.lua build-native doc`)
 src/hecate/doc/site.lua        content tree, locales, links, navigation, output
 src/hecate/doc/reference.lua   code reference pages from the LuaLS export; reference_site.lua, luals.lua
-src/hecate/doc/project.lua     project documentation: API reference, configuration reference, meta files, `project.build`
+src/hecate/doc/project.lua     project documentation: configuration reference, meta files, `project.build`
 src/hecate/doc/internal/       page_id.lua (portable and NFC page ids), html.lua
 src/hecate/doc/theme/          templates (layout.lua), strings, assets/ (css, js, fonts, brand)
 bin/build.lua                  build runner (`--reference` generates the code reference first)

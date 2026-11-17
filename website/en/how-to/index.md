@@ -75,5 +75,7 @@ read the matching page of the [explanation](../explanation/index.md) section.
 
 - [Encode and decode JSON](encode-and-decode-json.md): integers and floats, `null`, empty
   arrays, canonical output and decode errors.
+- [Normalise Unicode strings](normalise-unicode-strings.md): compare names in Normalization Form C, decompose,
+  read the errors, know and change the Unicode version.
 - [Log structured records](log-structured-records.md): severities, context, sinks, secrets and
   volume limits.

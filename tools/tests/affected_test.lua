@@ -33,4 +33,9 @@ function T:test_needs_follows_dependencies_transitively()
   self:assert_false(affected.needs({}, "json", graph))
   self:assert_false(affected.needs({ "unknown" }, "json", graph))
 end
+function T:test_a_change_of_the_data_rock_affects_its_dependants_by_the_hyphenated_name()
+  local graph = { core = {}, ["unicode-data"] = {}, unicode = { "core", "unicode-data" }, doc = { "unicode" }, json = { "core" } }
+  local list = affected.compute({ "packages/unicode-data/src/hecate/unicode_data/decomposition.lua" }, graph)
+  self:assert_equal("doc,unicode,unicode-data", table.concat(list, ","))
+end
 return T

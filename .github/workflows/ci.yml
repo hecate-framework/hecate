@@ -387,6 +387,11 @@ jobs:
         shell: bash
         run: lua tools/run.lua fetch-fixtures openapi
 
+      - name: Download the Unicode normalisation test file
+        if: contains(format(' {0} ', needs.plan.outputs.packages), ' unicode ')
+        shell: bash
+        run: lua tools/run.lua fetch-fixtures unicode
+
       - name: Lint the JSON encoder (Linux)
         if: runner.os == 'Linux' && contains(format(' {0} ', needs.plan.outputs.packages), ' json ')
         working-directory: packages/json/native
@@ -509,6 +514,11 @@ jobs:
             lua tools/run.lua "$task" --check
             echo "::endgroup::"
           done
+          # The committed Unicode tables equal the ones generated from the pinned UCD files (ADR 0032).
+          echo "::group::gen-unicode --check"
+          lua tools/run.lua fetch-fixtures unicode-data
+          lua tools/run.lua gen-unicode --check
+          echo "::endgroup::"
           echo "::group::lint"
           lua tools/run.lua lint $PACKAGES
           echo "::endgroup::"

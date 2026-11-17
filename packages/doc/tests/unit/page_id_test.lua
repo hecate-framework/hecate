@@ -36,7 +36,7 @@ function T:test_nfc_composes_decomposed_latin_letters()
 end
 
 function T:test_nfc_leaves_composed_ascii_and_other_text_alone()
-  for _, name in ipairs({ "\u{E9}", "plain", "guide/a", "\u{4E2D}\u{6587}", "\u{3B1}\u{301}", "x\u{301}", "" }) do
+  for _, name in ipairs({ "\u{E9}", "plain", "guide/a", "\u{4E2D}\u{6587}", "x\u{301}", "" }) do
     self:assert_equal(name, page_id.nfc(name))
   end
   self:assert_equal("e\u{301}\xFF", page_id.nfc("e\u{301}\xFF"), "invalid UTF-8 is returned unchanged")
@@ -53,15 +53,26 @@ function T:test_nfc_handles_names_longer_than_the_stack()
   self:assert_equal(("\u{E9}"):rep(300000), page_id.nfc(name))
 end
 
-function T:test_the_composition_table_is_consistent()
-  local seen = {}
-  for _, row in ipairs(page_id.COMPOSITIONS) do
-    local composed, first, mark = row[1], row[2], row[3]
-    self:assert_nil(seen[composed], ("duplicate composed letter %X"):format(composed))
-    seen[composed] = true
-    self:assert_equal(utf8.char(composed), page_id.nfc(utf8.char(first, mark)), ("%X"):format(composed))
-    self:assert_equal(utf8.char(composed), page_id.nfc(utf8.char(composed)), "idempotent")
-  end
+-- The scripts of OQ-140, closed by `hecate.unicode` (ADR 0032).
+function T:test_nfc_composes_greek_cyrillic_and_hangul()
+  self:assert_equal("\u{3AC}", page_id.nfc("\u{3B1}\u{301}"), "Greek with tonos")
+  self:assert_equal("\u{439}", page_id.nfc("\u{438}\u{306}"), "Cyrillic short i")
+  self:assert_equal("\u{43F}\u{440}\u{438}\u{432}\u{435}\u{442}/\u{451}", page_id.nfc("\u{43F}\u{440}\u{438}\u{432}\u{435}\u{442}/\u{435}\u{308}"))
+  self:assert_equal("\u{AC01}", page_id.nfc("\u{1100}\u{1161}\u{11A8}"), "Hangul jamo")
+  self:assert_equal("\u{D55C}\u{AE00}", page_id.nfc("\u{1112}\u{1161}\u{11AB}\u{1100}\u{1173}\u{11AF}"))
+end
+
+function T:test_nfc_handles_the_gaps_of_the_latin_table()
+  self:assert_equal("\u{219}", page_id.nfc("s\u{326}"), "Romanian comma below")
+  self:assert_equal("\u{C5}", page_id.nfc("\u{212B}"), "ANGSTROM SIGN")
+  self:assert_equal("\u{3A9}", page_id.nfc("\u{2126}"), "OHM SIGN")
+  self:assert_equal("\u{1EAD}", page_id.nfc("a\u{302}\u{323}"), "two marks, either order")
+  self:assert_equal("\u{1EAD}", page_id.nfc("a\u{323}\u{302}"))
+end
+
+function T:test_nfc_reorders_several_combining_marks()
+  self:assert_equal("\u{1EA1}\u{301}", page_id.nfc("a\u{301}\u{323}"), "canonical ordering, then composition")
+  self:assert_equal(page_id.nfc("a\u{323}\u{301}"), page_id.nfc("a\u{301}\u{323}"))
 end
 
 return T

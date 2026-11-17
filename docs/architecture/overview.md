@@ -11,6 +11,9 @@ forbidden and checked in CI.
 flowchart TB
   subgraph L0[Layer 0 — Foundation]
     core
+    unicode --> core
+    unicode --> unicode-data
+    unicode-data
   end
   subgraph L1[Layer 1 — Runtime]
     json --> core
@@ -58,6 +61,7 @@ flowchart TB
     cli --> schema
     doc --> openapi
     doc --> reactor
+    doc --> unicode
     test --> kernel
   end
   subgraph M[Meta]
@@ -67,13 +71,22 @@ flowchart TB
 <!-- gen-dependency-graph:end -->
 
 The graph is generated from the rockspecs by `gen-dependency-graph`; edges implied by other edges are omitted. Each package's
-README lists its exact dependencies: `http` declares `core`, `reactor`, `net`, `json` and `log` (the graph shows only `net` and `log`, which imply the others); `doc` declares `core`, `reactor`, `openapi`, `schema` and `json` (the graph shows only `openapi` and `reactor`).
+README lists its exact dependencies: `http` declares `core`, `reactor`, `net`, `json` and `log` (the graph shows only `net` and `log`, which imply the others); `doc` declares `core`, `reactor`, `openapi`, `schema`, `json` and `unicode` (the graph shows only `openapi`, `reactor` and `unicode`). `unicode` and `unicode-data` are in layer 0 next to `core` ([ADR 0032](../adr/0032-unicode-normalisation-packages.md)): no I/O and no reactor, so that `schema` and `router` may use them.
 
 ## Naming
 
 - Directory: `packages/<name>/`
 - Rock: `hecate-<name>` (the meta-rock is `hecate`)
 - Lua module root: `hecate.<name>` (e.g. `require "hecate.router"`)
+- A name is lowercase words (letters and digits) joined by single hyphens. In a multi-word name the module root
+  replaces each hyphen with an underscore, because `hecate.unicode-data` cannot be written as a field access and a
+  module inside `hecate.unicode` would make two rocks share one directory: the package `unicode-data` has the rock
+  `hecate-unicode-data` and the module root `hecate.unicode_data` (directory `src/hecate/unicode_data/`).
+  `check-package-structure` enforces it, and `check-boundaries` reads `hecate.unicode_data` as the package
+  `unicode-data` ([ADR 0032](../adr/0032-unicode-normalisation-packages.md)).
+- The rock version of a package is the lockstep `VERSION` ([ADR 0005](../adr/0005-single-brand-monorepo-lockstep-versioning.md)),
+  except `hecate-unicode-data`, whose version is the Unicode version followed by a revision (`18.0.0-1`) and which is
+  released on the Unicode schedule.
 - The meta-module `hecate` re-exports the framework surface (controllers,
   routes, problem details) so that typical application code needs one `require`. It does not
   re-export the object-model entry points: applications declare classes with `core.class`

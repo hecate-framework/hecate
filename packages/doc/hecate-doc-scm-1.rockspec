@@ -7,7 +7,7 @@ source = {
 }
 
 description = {
-  summary = "Documentation generator and static site builder with an MDN-like theme: guides in Markdown, code reference from LuaLS annotations, API reference from OpenAPI, configuration and error-code references, locales, search.",
+  summary = "Documentation generator and static site builder with an MDN-like theme: guides in Markdown, code reference from LuaLS annotations, configuration and error-code references, locales, search.",
   homepage = "https://github.com/hecate-framework/hecate",
   license = "MIT",
 }
@@ -19,6 +19,7 @@ dependencies = {
   "hecate-openapi",
   "hecate-schema",
   "hecate-json",
+  "hecate-unicode",
 }
 
 build = {
