@@ -23,6 +23,7 @@ local build = require("hecate.doc.build")
 ---@field navigation table  sidebar, previous/next and top links (pure functions)
 ---@field search table  search index builder
 ---@field theme hecate.doc.Theme
+---@field project hecate.doc.project
 local doc = {
   build = build.build,
   load_config = build.load_config,
@@ -43,6 +44,7 @@ local doc = {
   navigation = require("hecate.doc.navigation"),
   search = require("hecate.doc.search"),
   theme = require("hecate.doc.theme"),
+  project = require("hecate.doc.project"),
 }
 
 return doc
