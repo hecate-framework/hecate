@@ -4,8 +4,8 @@
 - roadmap_item: `doc`: project documentation generator for user projects (OpenAPI reference, `hecate doc build`), with the Phase 1 gate deferrals (Windows-valid page ids, NFC/NFD), `---@meta` generation, and theme extension points (OQ-38)
 - status: in-progress            <!-- in-progress | waiting-ci | waiting-owner -->
 <!-- Optional, only when the owner holds this pull request for one run: - owner: session `<session id>`, why. -->
-- lock_until: 2026-11-17T05:15:59Z
-- last_update: 2026-11-17T03:45:59Z
+- lock_until: 2026-11-17T08:30:00Z
+- last_update: 2026-11-17T06:50:00Z
 
 ## Done
 
@@ -15,9 +15,10 @@
 
 - Step 3: project code reference: `project.build{ code = { root, name } }` runs `reference_site` on `<root>/src` (new `layout` option); OQ-141 was already recorded (issue #220).
 
+- Step 4: `project.meta(schemas, namespace)` generates `---@meta` files from named schemas (OQ-96); `gen-meta` CLI wiring stays with `cli` (OQ-121).
+
 ## Next steps
 
-1. `---@meta` generation for LuaLS from the schemas of a project (OQ-96).
 2. Theme extension points (OQ-38): site configuration `logo`, CSS custom-properties override file for colours; marks never recoloured.
 3. Website reference, README, CHANGELOG, tick the roadmap item, delete this file.
 

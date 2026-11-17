@@ -117,4 +117,38 @@ function T:test_build_reports_the_code_reference_of_the_project()
   end
 end
 
+function T:test_meta_declares_classes_for_the_schemas_of_a_project()
+  local text = project.meta({
+    User = { type = "object", required = { "name" }, description = "An account.",
+      properties = { name = { type = "string", description = "Display\nname." }, age = { type = "integer" },
+        role = { enum = { "admin", "user" } }, tags = { type = "array", items = { type = "string" } },
+        owner = { ["$ref"] = "#/$defs/Owner" }, extra = { type = "object" } } },
+    Owner = { type = "object", properties = { id = { type = "integer" } } },
+    Kind = { enum = { "a", "b" } },
+  }, "shop.models")
+  self:assert_equal("---@meta shop.models", text:match("^[^\n]*"))
+  self:assert_not_nil(text:find("---@class shop.models.User\n", 1, true))
+  self:assert_not_nil(text:find("---@field name string  Display name.", 1, true))
+  self:assert_not_nil(text:find("---@field age? integer", 1, true))
+  self:assert_not_nil(text:find('---@field role? "admin"|"user"', 1, true))
+  self:assert_not_nil(text:find("---@field tags? string[]", 1, true))
+  self:assert_not_nil(text:find("---@field owner? shop.models.Owner", 1, true))
+  self:assert_not_nil(text:find("---@field extra? table", 1, true))
+  self:assert_not_nil(text:find('---@alias shop.models.Kind "a"|"b"', 1, true))
+  self:assert_equal(text, project.meta({
+    Kind = { enum = { "a", "b" } },
+    Owner = { type = "object", properties = { id = { type = "integer" } } },
+    User = { type = "object", required = { "name" }, description = "An account.",
+      properties = { name = { type = "string", description = "Display\nname." }, age = { type = "integer" },
+        role = { enum = { "admin", "user" } }, tags = { type = "array", items = { type = "string" } },
+        owner = { ["$ref"] = "#/$defs/Owner" }, extra = { type = "object" } } },
+  }, "shop.models"))
+end
+
+function T:test_meta_refuses_names_that_are_not_lua_identifiers()
+  local ok, err = pcall(project.meta, { ["bad name"] = { type = "object" } }, "shop")
+  self:assert_equal(false, ok)
+  self:assert_not_nil(tostring(err):find("bad name", 1, true))
+end
+
 return T

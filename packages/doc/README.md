@@ -70,7 +70,7 @@ decided in [ADR 0022](../../docs/adr/0022-doc-dependencies.md).
 | `theme` | `page(context)`, `not_found(context)`, `strings`, `asset_files`, `assets_directory()`. |
 | `reference` (`hecate.doc.reference`) | `generate(inputs, options)`: pages of the code reference from LuaLS exports (pure); `is_generated(text)`; `GENERATED` (the marker). |
 | `reference_site` (`hecate.doc.reference_site`) | `run(options)`: runs LuaLS on the packages, generates and writes the pages (skips with `report.skipped` without LuaLS); `write(fs, out, result, packages)`; `DEFAULT_PACKAGES`. |
-| `project` (`hecate.doc.project`) | `api_pages(document)`: the API reference and the route map from an OpenAPI document (static, not interactive: OQ-141); `configuration_page(schema)`: the configuration reference from a JSON Schema; `build(options)`: writes the guides and the generated pages below `<source>/<locale>/` and builds; `is_generated(text)`. Text from the contract is escaped. |
+| `project` (`hecate.doc.project`) | `api_pages(document)`: the API reference and the route map from an OpenAPI document (static, not interactive: OQ-141); `configuration_page(schema)`: the configuration reference from a JSON Schema; `build(options)`: writes the guides and the generated pages below `<source>/<locale>/` and builds; `meta(schemas, namespace)`: a LuaLS `---@meta` declaration file (classes, aliases) from named JSON Schemas (OQ-96); `is_generated(text)`. Text from the contract is escaped. |
 | `luals` (`hecate.doc.luals`) | `locate()`, `version(executable)`, `export(executable, source, options)` (the `--doc` JSON export), `PINNED`. |
 
 ### Building a site
