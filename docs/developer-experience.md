@@ -220,5 +220,5 @@ $ hecate contract diff v0.2.0        # breaking-change detection between two ver
 $ hecate doc build                   # code reference + configuration reference + guides, static HTML
 ```
 
-In development, the running application serves `/openapi.json` and an interactive
-reference page.
+In development, the running application serves `/openapi.json`. A viewer such as Swagger UI
+is your own wiring (the Docker images ship a compose example).
