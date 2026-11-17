@@ -4,8 +4,8 @@
 - roadmap_item: `doc`: project documentation generator for user projects (OpenAPI reference, `hecate doc build`), with the Phase 1 gate deferrals (Windows-valid page ids, NFC/NFD), `---@meta` generation, and theme extension points (OQ-38)
 - status: in-progress            <!-- in-progress | waiting-ci | waiting-owner -->
 <!-- Optional, only when the owner holds this pull request for one run: - owner: session `<session id>`, why. -->
-- lock_until: 2026-11-17T08:30:00Z
-- last_update: 2026-11-17T06:50:00Z
+- lock_until: 2026-11-17T11:30:00Z
+- last_update: 2026-11-17T10:00:00Z
 
 ## Done
 
@@ -17,10 +17,11 @@
 
 - Step 4: `project.meta(schemas, namespace)` generates `---@meta` files from named schemas (OQ-96); `gen-meta` CLI wiring stays with `cli` (OQ-121).
 
+- Step 5: theme extension points (OQ-38): `logo` and `colors` site options, tests in `config_test.lua` and `site_test.lua`.
+
 ## Next steps
 
-1. Theme extension points (OQ-38): site configuration `logo`, CSS custom-properties override file for colours; marks never recoloured.
-2. Website reference, README, CHANGELOG, tick the roadmap item, delete this file.
+1. Website reference, README, CHANGELOG, tick the roadmap item, delete this file.
 
 ## Decisions taken (and where they are recorded)
 

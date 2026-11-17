@@ -122,7 +122,7 @@ override of the label used in navigation, search and `<title>` (OQ-35). Front ma
 `last_updated`, `source_revision`, `source` (generated pages: repository path of the Lua file). Callouts are GFM alerts: `> [!NOTE|TIP|IMPORTANT|WARNING|CAUTION] [title]`. Raw HTML
 is not supported (shown as text, comments are dropped). Conventions: OQ-35. Site configuration (`site.lua`):
 `title`, `description`, `base`, `url`, `default_locale`, `locales`, `nav`, `sidebar`,
-`repository`, `edit_link`, `source_edit_link` (edit link of generated pages, from their `source`),
+`repository`, `logo` (a file of `public/`, or `{ light, dark }`, shown as it is and never recoloured), `colors` (a CSS file of `public/` loaded after the theme to override the colour custom properties; OQ-38), `edit_link`, `source_edit_link` (edit link of generated pages, from their `source`),
 `footer`, `outline`, `strings`, `exclude`; see
 `hecate.doc.SiteConfig` and [website/site.lua](../../website/site.lua).
 
@@ -147,7 +147,7 @@ readable without JavaScript. Vendored material: [THIRD_PARTY_NOTICES](../../THIR
 
 Not implemented: OpenAPI reference, error-code and configuration references, translations of generated pages keyed by symbol, `llms.txt`,
 versioned documentation, development server, runnable examples, translation status report,
-extension points of the theme for user projects (OQ-38). Markdown is GFM through comrak; the CommonMark 0.31.2 and GFM extension examples run as a test through the module (OQ-37). The search ranking is client-side JavaScript without an automated test (OQ-36).
+template overrides of the theme (not planned until users ask, OQ-38). Markdown is GFM through comrak; the CommonMark 0.31.2 and GFM extension examples run as a test through the module (OQ-37). The search ranking is client-side JavaScript without an automated test (OQ-36).
 Verified on Linux; macOS and Windows are verified by CI only (the shell calls of
 `SystemFileSystem` are the platform-specific part, OQ-33).
 

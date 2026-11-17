@@ -98,10 +98,20 @@ local function header(context)
   add("<header class=\"site-header\"><div class=\"header-inner\">")
   add(("<a class=\"logo\" href=\"%s\" aria-label=\"%s\">"):format(escape(context.home_url),
     escape(context.config.title .. ", " .. s.home)))
-  add(("<img class=\"logo-light\" src=\"%s\" alt=\"\" width=\"160\" height=\"45\">"):format(
-    escape(context.asset("assets/brand/hecate-logo-horizontal.svg"))))
-  add(("<img class=\"logo-dark\" src=\"%s\" alt=\"\" width=\"160\" height=\"45\">"):format(
-    escape(context.asset("assets/brand/hecate-logo-horizontal-on-dark.svg"))))
+  local logo = context.config.logo
+  if logo then
+    add(("<img class=\"logo-custom%s\" src=\"%s\" alt=\"\" height=\"45\">"):format(
+      logo.dark and " logo-light" or "", escape(context.public_url(logo.light))))
+    if logo.dark then
+      add(("<img class=\"logo-custom logo-dark\" src=\"%s\" alt=\"\" height=\"45\">"):format(
+        escape(context.public_url(logo.dark))))
+    end
+  else
+    add(("<img class=\"logo-light\" src=\"%s\" alt=\"\" width=\"160\" height=\"45\">"):format(
+      escape(context.asset("assets/brand/hecate-logo-horizontal.svg"))))
+    add(("<img class=\"logo-dark\" src=\"%s\" alt=\"\" width=\"160\" height=\"45\">"):format(
+      escape(context.asset("assets/brand/hecate-logo-horizontal-on-dark.svg"))))
+  end
   add("</a>")
   add(("<button class=\"search-button\" type=\"button\" data-search-open aria-haspopup=\"dialog\">%s"
     .. "<span class=\"label\">%s</span><kbd class=\"search-shortcut\">Ctrl K</kbd></button>"):format(
@@ -280,6 +290,9 @@ local function head(context, title)
       escape(context.asset("assets/fonts/" .. font .. ".woff2")))
   end
   out[#out + 1] = ("<link rel=\"stylesheet\" href=\"%s\">"):format(escape(context.asset("assets/theme.css")))
+  if context.config.colors then
+    out[#out + 1] = ("<link rel=\"stylesheet\" href=\"%s\">"):format(escape(context.public_url(context.config.colors)))
+  end
   out[#out + 1] = ("<script src=\"%s\"></script>"):format(escape(context.asset("assets/theme-init.js")))
   return table.concat(out, "\n")
 end

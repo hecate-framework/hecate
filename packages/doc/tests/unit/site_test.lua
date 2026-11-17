@@ -485,4 +485,32 @@ function T:test_page_ids_are_percent_encoded_in_urls_and_links()
   self:assert_not_nil(fs:read("o/en/a b/café/index.html"), "files keep their real names on disk")
 end
 
+function T:test_a_logo_or_colour_file_missing_from_public_fails_the_build()
+  local missing = self:assert_error(function() build(BASIC, { logo = "nope.svg" }) end)
+  self:assert_true(core.is_instance_of(missing, doc.BuildError))
+  local css = self:assert_error(function() build(BASIC, { colors = "nope.css" }) end)
+  self:assert_true(core.is_instance_of(css, doc.BuildError))
+end
+
+function T:test_logo_and_colours_are_served_from_public()
+  local files = {}
+  for path, data in pairs(BASIC) do files[path] = data end
+  files["public/brand/logo.svg"] = "<svg/>"
+  files["public/brand/logo-dark.svg"] = "<svg/>"
+  files["public/colors.css"] = ":root { --moon: #123456; }"
+  local fs = build(files, { logo = { light = "brand/logo.svg", dark = "brand/logo-dark.svg" }, colors = "colors.css" })
+  local home = fs:read("o/en/index.html")
+  self:assert_true(home:find('src="/brand/logo.svg"', 1, true) ~= nil)
+  self:assert_true(home:find('src="/brand/logo-dark.svg"', 1, true) ~= nil)
+  self:assert_nil(home:find("hecate-logo-horizontal", 1, true))
+  local theme_at = home:find("assets/theme.css", 1, true)
+  local colors_at = home:find('href="/colors.css"', 1, true)
+  self:assert_true(theme_at ~= nil and colors_at ~= nil and colors_at > theme_at, "colour file after the theme")
+  files["public/brand/logo.svg"] = nil
+  local single = build({ ["en/index.md"] = BASIC["en/index.md"], ["public/l.svg"] = "<svg/>" }, { logo = "l.svg" })
+  local text = single:read("o/en/index.html")
+  self:assert_true(text:find('src="/l.svg"', 1, true) ~= nil)
+  self:assert_nil(text:find("logo-dark", 1, true))
+end
+
 return T

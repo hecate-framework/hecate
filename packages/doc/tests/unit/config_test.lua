@@ -104,4 +104,18 @@ function T:test_localise_falls_back_to_the_default_locale()
   self:assert_nil(config.localise(nil, "fr", "en"))
 end
 
+function T:test_logo_and_colors()
+  local normalised = config.normalise({ title = "t", logo = "a.svg", colors = "c.css" })
+  self:assert_equal("a.svg", normalised.logo.light)
+  self:assert_nil(normalised.logo.dark)
+  self:assert_equal("c.css", normalised.colors)
+  local both = config.normalise({ title = "t", logo = { light = "a.svg", dark = "b.svg" } })
+  self:assert_equal("b.svg", both.logo.dark)
+  invalid(self, { title = "t", logo = "../a.svg" }, "logo")
+  invalid(self, { title = "t", logo = "https://x.test/a.svg" }, "logo")
+  invalid(self, { title = "t", logo = { dark = "b.svg" } }, "logo.light")
+  invalid(self, { title = "t", colors = "/abs.css" }, "colors")
+  invalid(self, { title = "t", colors = 3 }, "colors")
+end
+
 return T

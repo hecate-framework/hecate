@@ -378,6 +378,7 @@ local function context_for(self, locale_code, page)
     home_url = home_url,
     search_index_url = config.base .. "assets/search-" .. locale_code .. ".json",
     asset = asset,
+    public_url = asset,
     footer_text = config_module.localise(config.footer, locale_code, config.default_locale),
     content_lang = locale.lang,
     description = config_module.localise(config.description, locale_code, config.default_locale),
@@ -573,6 +574,17 @@ function Site:emit(write)
     local data = theme_fs:read(directory .. "/" .. file)
     if not data then fail("missing theme file " .. file, directory .. "/" .. file) end
     put("assets/" .. file, data)
+  end
+  local named = {}
+  if self.config.logo then
+    named[#named + 1] = self.config.logo.light
+    named[#named + 1] = self.config.logo.dark
+  end
+  named[#named + 1] = self.config.colors
+  for _, path in ipairs(named) do
+    if self._fs:read(self._source .. "/public/" .. path) == nil then
+      fail(("the file %s named by the site configuration is not in public/"):format(path), path)
+    end
   end
   local public = self._fs:list(self._source .. "/public")
   if public then

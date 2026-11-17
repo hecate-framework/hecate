@@ -39,6 +39,8 @@ local M = {}
 ---@field footer? hecate.doc.Text
 ---@field outline? integer[]  heading levels listed in "On this page" (default { 2, 3 })
 ---@field strings? table<string, table<string, string>>  overrides of the interface strings per locale
+---@field logo? string|{ light: string, dark?: string }  logo of the project: file(s) of `public/` replacing the brand logo (shown as they are, never recoloured); a string is used for both colour schemes
+---@field colors? string  CSS file of `public/` loaded after the theme stylesheet, to override the custom properties of the colours
 ---@field exclude? string[]  file names left out of the site (default { "README.md" })
 
 local function invalid(field, message)
@@ -117,6 +119,14 @@ local function check_base(value)
   end
 end
 
+-- A file of `public/`: a relative path of plain segments (no scheme, no `..`, no backslash, no query).
+local function check_public_path(field, value)
+  if type(value) ~= "string" or value == "" or value:find("^/") or value:find("[%c\\?#:]") or value:find("%%")
+    or value:find("^%.%.?/") or value:find("/%.%.?/") or value:find("/%.%.?$") or value:find("//", 1, true) then
+    invalid(field, "expected the path of a file of public/, relative and without `..`")
+  end
+end
+
 --- Validates a configuration table and fills in the defaults. Raises
 --- `hecate.core.ConfigurationError` (with `context.field`) on the first problem.
 ---@param raw hecate.doc.SiteConfig
@@ -142,6 +152,20 @@ function M.normalise(raw)
       if math.type(level) ~= "integer" or level < 1 or level > 6 then invalid("outline", "expected heading levels 1 to 6") end
     end)
   end
+  local logo
+  if raw.logo ~= nil then
+    if type(raw.logo) == "string" then
+      check_public_path("logo", raw.logo)
+      logo = { light = raw.logo }
+    elseif type(raw.logo) == "table" then
+      check_public_path("logo.light", raw.logo.light)
+      if raw.logo.dark ~= nil then check_public_path("logo.dark", raw.logo.dark) end
+      logo = { light = raw.logo.light, dark = raw.logo.dark }
+    else
+      invalid("logo", "expected a path or { light, dark }")
+    end
+  end
+  if raw.colors ~= nil then check_public_path("colors", raw.colors) end
   if raw.sidebar ~= nil then check_sidebar(raw.sidebar) end
   if raw.strings ~= nil then check_strings(raw.strings) end
   for _, key in ipairs({ "edit_link", "source_edit_link" }) do
@@ -155,6 +179,8 @@ function M.normalise(raw)
     footer = raw.footer,
     url = raw.url and (raw.url:gsub("/+$", "")),
     repository = raw.repository,
+    logo = logo,
+    colors = raw.colors,
     edit_link = raw.edit_link,
     source_edit_link = raw.source_edit_link,
     sidebar = raw.sidebar or {},
