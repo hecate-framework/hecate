@@ -3,6 +3,7 @@
 global <const> require, type, ipairs, pairs, table, string
 
 local config_module = require("hecate.doc.config")
+local file_names = require("hecate.doc.internal.page_id")
 
 --- Sidebar, previous/next and top links, as pure functions.
 ---@class hecate.doc.navigation
@@ -97,14 +98,14 @@ local function explicit_nodes(by_id, items, locale, default_locale, problems)
   local out = {}
   for _, item in ipairs(items) do
     if type(item) == "string" then
-      local page = by_id[item]
+      local page = by_id[file_names.nfc(item)]
       if page then
         out[#out + 1] = { text = page.title, link = page.id }
       else
         problems[#problems + 1] = ("sidebar: no page %s"):format(item)
       end
     else
-      local page = item.link and by_id[item.link]
+      local page = item.link and by_id[file_names.nfc(item.link)]
       if item.link and not page then problems[#problems + 1] = ("sidebar: no page %s"):format(item.link) end
       local node = {
         text = config_module.localise(item.text, locale, default_locale) or (page and page.title) or "",

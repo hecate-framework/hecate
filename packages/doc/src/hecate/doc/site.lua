@@ -76,11 +76,20 @@ local function read_required(self, path)
   return text
 end
 
+--- Path of a page below its locale, with a trailing slash ("guide/concurrency/"; "" for the
+--- locale's home page).
+local function url_path(id)
+  if id == "index" then return "" end
+  return (id:gsub("/index$", "")) .. "/"
+end
+
+local function output_path(locale, id) return locale .. "/" .. url_path(id) .. "index.html" end
+
 --- Lists the pages and the other files below `directory`.
 local function scan(self, locale)
   local excluded = {}
   for _, name in ipairs(self.config.exclude) do excluded[name] = true end
-  local pages, assets = {}, {}
+  local pages, assets, folded = {}, {}, {}
   local function visit(directory, relative)
     local entries = self._fs:list(directory)
     if not entries then return end
@@ -105,21 +114,27 @@ local function scan(self, locale)
           fail(("pages %s and %s differ only in Unicode normalisation (NFC and NFD): they are one page"):format(
             pages[id].relative, locale .. "/" .. child), path)
         end
+        -- On macOS and Windows two ids that differ only by case are one directory of the output.
+        local key = html.lower(id)
+        if folded[key] then
+          fail(("pages %s and %s differ only by case: the output files %s and %s are one file on a case-insensitive file system"):format(
+            folded[key].relative, locale .. "/" .. child, folded[key].output, output_path(locale, id)), path)
+        end
+        folded[key] = { relative = locale .. "/" .. child, output = output_path(locale, id) }
         pages[id] = { id = id, path = path, relative = locale .. "/" .. child, locale = locale }
       else
-        assets[child] = { path = path, relative = child, locale = locale }
+        -- Files next to the pages are named in NFC like the pages (a link is normalised the same way).
+        local name = file_names.nfc(child)
+        if assets[name] then
+          fail(("files %s and %s differ only in Unicode normalisation (NFC and NFD): they are one file"):format(
+            locale .. "/" .. assets[name].original, locale .. "/" .. child), path)
+        end
+        assets[name] = { path = path, relative = name, original = child, locale = locale }
       end
     end
   end
   visit(self._source .. "/" .. locale, "")
   return { pages = pages, assets = assets }
-end
-
---- Path of a page below its locale, with a trailing slash ("guide/concurrency/"; "" for the
---- locale's home page).
-local function url_path(id)
-  if id == "index" then return "" end
-  return (id:gsub("/index$", "")) .. "/"
 end
 
 --- Percent-encodes every byte of a URL path that is not an unreserved character or a `/` (RFC 3986, 2.3 and
@@ -135,7 +150,6 @@ end
 
 local function page_url(self, locale, id) return self.config.base .. locale .. "/" .. encode_path(url_path(id)) end
 
-local function output_path(locale, id) return locale .. "/" .. url_path(id) .. "index.html" end
 
 local function normalise_path(path)
   local parts = {}
@@ -378,7 +392,7 @@ local function context_for(self, locale_code, page)
     home_url = home_url,
     search_index_url = config.base .. "assets/search-" .. locale_code .. ".json",
     asset = asset,
-    public_url = asset,
+    public_url = function(path) return asset(encode_path(path)) end,
     footer_text = config_module.localise(config.footer, locale_code, config.default_locale),
     content_lang = locale.lang,
     description = config_module.localise(config.description, locale_code, config.default_locale),
@@ -539,6 +553,19 @@ function Site:emit(write)
     write(path, data)
     count = count + 1
   end
+  -- The files that the configuration names are checked before anything is written: a failing build leaves
+  -- no partial output.
+  local named = {}
+  if self.config.logo then
+    named[#named + 1] = self.config.logo.light
+    named[#named + 1] = self.config.logo.dark
+  end
+  named[#named + 1] = self.config.colors
+  for _, path in ipairs(named) do
+    if self._fs:read(self._source .. "/public/" .. path) == nil then
+      fail(("the file %s named by the site configuration is not in public/"):format(path), path)
+    end
+  end
   -- First, so that an interrupted build can still be cleaned by the next one.
   put(MARKER, "Written by hecate.doc. This directory is emptied by builds that ask for a clean output.\n")
   local default = self.config.default_locale
@@ -574,17 +601,6 @@ function Site:emit(write)
     local data = theme_fs:read(directory .. "/" .. file)
     if not data then fail("missing theme file " .. file, directory .. "/" .. file) end
     put("assets/" .. file, data)
-  end
-  local named = {}
-  if self.config.logo then
-    named[#named + 1] = self.config.logo.light
-    named[#named + 1] = self.config.logo.dark
-  end
-  named[#named + 1] = self.config.colors
-  for _, path in ipairs(named) do
-    if self._fs:read(self._source .. "/public/" .. path) == nil then
-      fail(("the file %s named by the site configuration is not in public/"):format(path), path)
-    end
   end
   local public = self._fs:list(self._source .. "/public")
   if public then

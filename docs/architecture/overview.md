@@ -67,7 +67,7 @@ flowchart TB
 <!-- gen-dependency-graph:end -->
 
 The graph is generated from the rockspecs by `gen-dependency-graph`; edges implied by other edges are omitted. Each package's
-README lists its exact dependencies: `http` declares `core`, `reactor`, `net`, `json` and `log` (the graph shows only `net` and `log`, which imply the others).
+README lists its exact dependencies: `http` declares `core`, `reactor`, `net`, `json` and `log` (the graph shows only `net` and `log`, which imply the others); `doc` declares `core`, `reactor`, `openapi`, `schema` and `json` (the graph shows only `openapi` and `reactor`).
 
 ## Naming
 

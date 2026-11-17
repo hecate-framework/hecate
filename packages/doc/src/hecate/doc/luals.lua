@@ -12,6 +12,9 @@ local errors = require("hecate.doc.errors")
 ---@class hecate.doc.luals
 local M = {}
 
+--- Limits of the LuaLS output quoted in an error message.
+M.MAX_LINES, M.MAX_COLUMNS = 5, 200
+
 --- The LuaLS version whose export format the generator and its fixtures are written for.
 M.PINNED = "3.19.1"
 
@@ -144,7 +147,24 @@ function M.command_line(executable, source, directory, config, windows)
     config and (" --configpath=" .. quote(config, windows)) or "")
 end
 
---- Exports the documentation of the Lua sources below `source`. Raises
+--- The first lines of the output of a failed LuaLS run (at most `MAX_LINES` lines of `MAX_COLUMNS` bytes), so
+--- that an error message stays short and does not carry a whole log.
+---@param output string
+---@return string
+function M.excerpt(output)
+  local lines, total = {}, 0
+  for line in (output or ""):gmatch("[^\r\n]+") do
+    total = total + 1
+    if #lines < M.MAX_LINES then
+      lines[#lines + 1] = #line > M.MAX_COLUMNS and (line:sub(1, M.MAX_COLUMNS) .. "...") or line
+    end
+  end
+  if total > #lines then lines[#lines + 1] = ("(%d more lines)"):format(total - #lines) end
+  return table.concat(lines, "\n")
+end
+
+--- Exports the documentation of the Lua sources below `source`. The `.luarc.json` named by `config` is read
+--- by LuaLS and may declare a plugin, which LuaLS runs: only document a `source` and a `config` that you trust. Raises
 --- `hecate.doc.BuildError` if LuaLS fails or writes no export.
 ---@param executable string  full path of `lua-language-server`
 ---@param source string  directory to document (a package `src`)
@@ -166,7 +186,7 @@ function M.export(executable, source, options)
   if not ok or not export then
     error(errors.BuildError({
       message = ("doc.luals.export: lua-language-server could not export the documentation of %s: %s"):format(source,
-        (output:gsub("%s+$", ""))),
+        M.excerpt(output)),
       context = { path = source },
     }), 0)
   end

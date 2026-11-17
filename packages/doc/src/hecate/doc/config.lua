@@ -119,11 +119,18 @@ local function check_base(value)
   end
 end
 
--- A file of `public/`: a relative path of plain segments (no scheme, no `..`, no backslash, no query).
+-- A file of `public/`: a relative path of plain segments (no scheme, no `.`, `..` or hidden segment, no
+-- backslash, no query). Hidden files are not copied to the site, so naming one could never work.
 local function check_public_path(field, value)
-  if type(value) ~= "string" or value == "" or value:find("^/") or value:find("[%c\\?#:]") or value:find("%%")
-    or value:find("^%.%.?/") or value:find("/%.%.?/") or value:find("/%.%.?$") or value:find("//", 1, true) then
-    invalid(field, "expected the path of a file of public/, relative and without `..`")
+  local ok = type(value) == "string" and value ~= "" and not value:find("^/") and not value:find("[%c\\?#:%%]")
+    and not value:find("//", 1, true) and not value:find("/$")
+  if ok then
+    for segment in value:gmatch("[^/]+") do
+      if segment:sub(1, 1) == "." then ok = false end
+    end
+  end
+  if not ok then
+    invalid(field, "expected the path of a file of public/, relative, without `.`, `..` or hidden segments")
   end
 end
 

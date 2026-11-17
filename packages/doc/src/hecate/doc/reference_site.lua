@@ -18,7 +18,7 @@ local M = {}
 M.DEFAULT_PACKAGES = { "core", "reactor", "net", "json", "log", "http", "router", "schema", "openapi", "container", "config", "kernel", "test" }
 
 ---@class hecate.doc.ReferenceSiteOptions
----@field root string  repository root (holds `packages/`)
+---@field root string  repository root (holds `packages/`); must be trusted: LuaLS runs the plugin that its `.luarc.json` declares (OQ-142)
 ---@field packages? string[]  package names, in sidebar order (default `DEFAULT_PACKAGES`)
 ---@field out string  locale directory of the site, for example `website/en`
 ---@field fs hecate.doc.FileSystem

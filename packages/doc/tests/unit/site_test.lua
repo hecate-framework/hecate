@@ -513,4 +513,47 @@ function T:test_logo_and_colours_are_served_from_public()
   self:assert_nil(text:find("logo-dark", 1, true))
 end
 
+function T:test_a_missing_logo_fails_before_any_output_is_written()
+  local files = {}
+  for path, data in pairs(BASIC) do files["c/" .. path] = data end
+  local fs = doc.MemoryFileSystem(files)
+  self:assert_error(function()
+    doc.build({ config = config_with({ logo = { light = "a.svg", dark = "missing.svg" } }), source = "c", out = "o", fs = fs })
+  end)
+  for path in pairs(fs.files) do self:assert_nil(path:find("^o/"), path .. " was written") end
+end
+
+function T:test_the_logo_is_served_on_every_page_under_a_sub_path_base()
+  local files = {}
+  for path, data in pairs(BASIC) do files[path] = data end
+  files["fr/index.md"] = page("Accueil", "bonjour")
+  files["public/my logo.svg"] = "<svg/>"
+  files["public/c.css"] = "x"
+  local fs = build(files, { base = "/docs", logo = "my logo.svg", colors = "c.css" })
+  for _, path in ipairs({ "o/en/index.html", "o/fr/index.html", "o/404.html" }) do
+    local text = fs:read(path)
+    self:assert_not_nil(text:find('src="/docs/my%20logo.svg"', 1, true), path)
+    self:assert_not_nil(text:find('href="/docs/c.css"', 1, true), path)
+  end
+end
+
+function T:test_case_variants_of_a_page_id_and_normalised_asset_names_are_detected_when_scanning()
+  local err = self:assert_error(function()
+    build({ ["en/index.md"] = page("Home", "ok"), ["en/A.md"] = page("A", "a"), ["en/a.md"] = page("a", "b") })
+  end)
+  self:assert_not_nil(tostring(err):find("differ only by case", 1, true), tostring(err))
+  local files = { ["en/index.md"] = page("Home", "ok"), ["en/img/e\u{301}.svg"] = "<svg/>", ["en/img/\u{E9}.svg"] = "<svg/>" }
+  local clash = self:assert_error(function() build(files) end)
+  self:assert_not_nil(tostring(clash):find("Unicode normalisation", 1, true), tostring(clash))
+end
+
+function T:test_decomposed_sidebar_ids_and_asset_links_resolve()
+  local fs, report = build({
+    ["en/index.md"] = page("Home", "![p](img/e\u{301}.svg)"), ["en/caf\u{E9}.md"] = page("Cafe", "x"),
+    ["en/img/e\u{301}.svg"] = "<svg/>",
+  }, { sidebar = { ["caf\u{E9}"] = { "cafe\u{301}" } } })
+  self:assert_equal(0, #report.problems, table.concat(report.problems, "\n"))
+  self:assert_equal("<svg/>", fs:read("o/en/img/\u{E9}.svg"))
+end
+
 return T

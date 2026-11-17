@@ -42,4 +42,26 @@ function T:test_nfc_leaves_composed_ascii_and_other_text_alone()
   self:assert_equal("e\u{301}\xFF", page_id.nfc("e\u{301}\xFF"), "invalid UTF-8 is returned unchanged")
 end
 
+function T:test_console_devices_with_a_dollar_are_refused()
+  for _, id in ipairs({ "CONIN$", "conout$", "Clock$", "CONIN$.txt", "a/CLOCK$" }) do
+    self:assert_not_nil(page_id.windows_problem(id), id)
+  end
+end
+
+function T:test_nfc_handles_names_longer_than_the_stack()
+  local name = ("e\u{301}"):rep(300000)
+  self:assert_equal(("\u{E9}"):rep(300000), page_id.nfc(name))
+end
+
+function T:test_the_composition_table_is_consistent()
+  local seen = {}
+  for _, row in ipairs(page_id.COMPOSITIONS) do
+    local composed, first, mark = row[1], row[2], row[3]
+    self:assert_nil(seen[composed], ("duplicate composed letter %X"):format(composed))
+    seen[composed] = true
+    self:assert_equal(utf8.char(composed), page_id.nfc(utf8.char(first, mark)), ("%X"):format(composed))
+    self:assert_equal(utf8.char(composed), page_id.nfc(utf8.char(composed)), "idempotent")
+  end
+end
+
 return T

@@ -118,4 +118,16 @@ function T:test_logo_and_colors()
   invalid(self, { title = "t", colors = 3 }, "colors")
 end
 
+function T:test_logo_and_colour_paths_are_plain_files_of_public()
+  for _, bad in ipairs({ "", ".", "..", "a/..", "a/./b", "a//b", "a\\b", "a?b", "C:/x", "%2e%2e/x", "/abs.svg", "a/", ".hidden.svg",
+    "dir/.x/logo.svg", "../x", "a#b" }) do
+    invalid(self, { title = "t", logo = bad }, "logo")
+    invalid(self, { title = "t", colors = bad }, "colors")
+    invalid(self, { title = "t", logo = { light = "ok.svg", dark = bad } }, "logo.dark")
+  end
+  invalid(self, { title = "t", logo = 3 }, "logo")
+  invalid(self, { title = "t", logo = { dark = "d.svg" } }, "logo.light")
+  self:assert_equal("my logo.svg", config.normalise({ title = "t", logo = "my logo.svg" }).logo.light)
+end
+
 return T

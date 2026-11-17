@@ -122,6 +122,9 @@ local COMPOSITIONS = {
   { 0x1EF8, 0x59, 0x303 }, { 0x1EF9, 0x79, 0x303 },
 }
 
+--- The canonical compositions `{ composed, first, mark }` (exposed for the integrity test of the table).
+M.COMPOSITIONS = COMPOSITIONS
+
 local composed_of = {}
 for _, row in ipairs(COMPOSITIONS) do composed_of[row[2] * 0x110000 + row[3]] = row[1] end
 
@@ -141,7 +144,9 @@ function M.nfc(name)
     local composed = last and is_combining_mark(codepoint) and composed_of[last * 0x110000 + codepoint]
     if composed then out[#out] = composed else out[#out + 1] = codepoint end
   end
-  return utf8.char(table.unpack(out))
+  -- One `utf8.char` per code point: `table.unpack` would fail on a name with more code points than the stack holds.
+  for index, codepoint in ipairs(out) do out[index] = utf8.char(codepoint) end
+  return table.concat(out)
 end
 
 local RESERVED_CHARACTERS = '[\0-\31<>:"\\|?*]'
@@ -151,6 +156,9 @@ for digit = 1, 9 do
   DEVICES["COM" .. digit] = true
   DEVICES["LPT" .. digit] = true
 end
+-- The console devices, which carry a `$` (Microsoft, "Naming Files, Paths, and Namespaces"; `CLOCK$` is the
+-- legacy clock device that older Windows versions still reserve).
+for _, name in ipairs({ "CONIN$", "CONOUT$", "CLOCK$" }) do DEVICES[name] = true end
 -- COM and LPT followed by a superscript one, two or three are reserved too.
 for _, superscript in ipairs({ "\u{B9}", "\u{B2}", "\u{B3}" }) do
   DEVICES["COM" .. superscript] = true
@@ -159,7 +167,7 @@ end
 
 --- Returns why `id` (a page id: file names joined by `/`, without `.md`) is not valid as a file name on Windows,
 --- or nil. Every segment is checked: a reserved character (`< > : " \ | ? *` and controls), a trailing dot or
---- space, a reserved device name (`CON`, `PRN`, `AUX`, `NUL`, `COM1` to `COM9`, `LPT1` to `LPT9`), case-insensitive
+--- space, a reserved device name (`CON`, `PRN`, `AUX`, `NUL`, `COM1` to `COM9`, `LPT1` to `LPT9`, `CONIN$`, `CONOUT$`, `CLOCK$`), case-insensitive
 --- and also with an extension (`con.txt`).
 ---@param id string
 ---@return string? reason

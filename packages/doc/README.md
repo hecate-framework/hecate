@@ -8,7 +8,7 @@
 | Rock | `hecate-doc` |
 | Layer | Tooling |
 | Roadmap phase | 3 |
-| Status | alpha — minimal slice done (Phase 1 roadmap item); the roadmap phase stays 3 because the package is still in progress for it: Markdown rendering and highlighting by the native module (comrak, syntect), site model (locales with fallback, sidebar, previous/next), original theme on the brand kit, search index, `build` and the LuaLS code reference (reference generator, `gen-reference`) implemented; OpenAPI reference, versioned documentation, development server, runnable examples, `hecate doc build` for user projects and the prebuilt binary rocks of the native module pending (Phase 3) |
+| Status | alpha — minimal slice done (Phase 1 roadmap item); the roadmap phase stays 3 because the package is still in progress for it: Markdown rendering and highlighting by the native module (comrak, syntect), site model (locales with fallback, sidebar, previous/next), original theme on the brand kit, search index, `build` and the LuaLS code reference (reference generator, `gen-reference`) implemented; the project documentation (`hecate.doc.project`: API reference and route table from an OpenAPI document, configuration reference, LuaLS meta files, `project.build`) and the theme extension points (`logo`, `colors`) implemented; versioned documentation, development server, runnable examples, the `hecate doc build` command and the prebuilt binary rocks of the native module pending (Phase 3) |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |
 | Depends on | [`core`](../core), [`reactor`](../reactor), [`openapi`](../openapi), [`schema`](../schema), [`json`](../json) |
 | Used by | `cli` |
@@ -60,18 +60,17 @@ decided in [ADR 0022](../../docs/adr/0022-doc-dependencies.md).
 | `FileSystem` | Interface (`read`, `write`, `list`, `exists`, `remove_tree`; optional `is_link`) the builder reads and writes through. `remove_tree` unlinks a symbolic link at its path, never its target; `build` with `clean` refuses an output directory that is a symbolic link. |
 | `MemoryFileSystem(files?)` | In-memory implementation (tests, embedders). |
 | `SystemFileSystem()` | Real file system over `hecate.reactor.fs`; every method suspends, so call it inside `reactor.run` (OQ-33). |
-| `BuildError` | `hecate.doc.BuildError` (a `core.Error`): malformed front matter, unreadable source, clashing URLs, `strict` problems, a file system failure (`SystemFileSystem`), a failed LuaLS export, a page that is not valid UTF-8, a page id that is not a valid file name on Windows (`? : * " < > \| \` and control characters, a trailing dot or space, the device names `CON`, `PRN`, `AUX`, `NUL`, `COM1` to `COM9`, `LPT1` to `LPT9` in any case and with an extension), two files whose ids differ only in Unicode normalisation (NFC and NFD), a file of `public/` that collides with a generated file, two output files whose paths differ only by case (one file on macOS and Windows). |
+| `BuildError` | `hecate.doc.BuildError` (a `core.Error`): malformed front matter, unreadable source, clashing URLs, `strict` problems, a file system failure (`SystemFileSystem`), a failed LuaLS export, a page that is not valid UTF-8, a page id that is not a valid file name on Windows (`? : * " < > \| \` and control characters, a trailing dot or space, the device names `CON`, `PRN`, `AUX`, `NUL`, `COM1` to `COM9`, `LPT1` to `LPT9`, `CONIN$`, `CONOUT$`, `CLOCK$` in any case and with an extension; only page ids are checked, not the names of other files of the tree or of `public/`), two pages whose ids differ only by case, two files whose ids differ only in Unicode normalisation (NFC and NFD), a file of `public/` that collides with a generated file, two output files whose paths differ only by case (one file on macOS and Windows). |
 | `markdown.render(source, options?)` | Markdown to HTML (`html`, `title`, `headings`, `sections`, `links`); safe mode only (raw HTML is not passed through); a source that is not valid UTF-8, or in which a line opens more than 100 block containers (`>` quotes and list items; the nesting limit), raises `core.ArgumentError`. |
 | `front_matter.parse(source, path?)` | Splits front matter (flat YAML subset) from the body; double-quoted scalars accept only the escapes `\\`, `\"`, `\n`, `\t` (any other backslash sequence is a `BuildError`). |
-| `luals` (`hecate.doc.luals`) | `locate()`, `version(executable)`, `export(executable, source, options)` (output in a private directory removed afterwards: `mktemp -d` on POSIX; on Windows a new directory below `TEMP`/`TMP` with an unpredictable name, never reused if it exists: `windows_temporary_directory(getenv, parts)`, `claim_directory(fs, path)`), `command_line(...)` and `quote(path, windows?)` (pure; shell quoting for POSIX and `cmd.exe`). |
+| `luals` (`hecate.doc.luals`) | `locate()`, `version(executable)`, `export(executable, source, options)` (output in a private directory removed afterwards: `mktemp -d` on POSIX; on Windows a new directory below `TEMP`/`TMP` with an unpredictable name, never reused if it exists: `windows_temporary_directory(getenv, parts)`, `claim_directory(fs, path)`), `command_line(...)` and `quote(path, windows?)` (pure; shell quoting for POSIX and `cmd.exe`), `excerpt(output)` (the first lines of a failed run, used in the `BuildError`), `PINNED`. `export` runs the plugin of the `.luarc.json` it is given: document trusted sources only. |
 | `highlight.render(language, code)` | Syntax highlighting by syntect (two-face syntaxes, `hl-` classes); an unknown language is escaped and left plain. |
 | `navigation` | `sidebar`, `reading_order`, `neighbours`, `top_links`, `section_of` (pure functions). |
 | `search.build(locale, pages)`, `search.encode(index)` | The client-side search index. |
 | `theme` | `page(context)`, `not_found(context)`, `strings`, `asset_files`, `assets_directory()`. |
 | `reference` (`hecate.doc.reference`) | `generate(inputs, options)`: pages of the code reference from LuaLS exports (pure); `is_generated(text)`; `GENERATED` (the marker). |
 | `reference_site` (`hecate.doc.reference_site`) | `run(options)`: runs LuaLS on the packages, generates and writes the pages (skips with `report.skipped` without LuaLS); `write(fs, out, result, packages)`; `DEFAULT_PACKAGES`. |
-| `project` (`hecate.doc.project`) | `api_pages(document)`: the API reference and the route map from an OpenAPI document (static, not interactive: OQ-141); `configuration_page(schema)`: the configuration reference from a JSON Schema; `build(options)`: writes the guides and the generated pages below `<source>/<locale>/` and builds; `meta(schemas, namespace)`: a LuaLS `---@meta` declaration file (classes, aliases) from named JSON Schemas (OQ-96); `is_generated(text)`. Text from the contract is escaped. |
-| `luals` (`hecate.doc.luals`) | `locate()`, `version(executable)`, `export(executable, source, options)` (the `--doc` JSON export), `PINNED`. |
+| `project` (`hecate.doc.project`) | `api_pages(document)`: the API reference and the route table from an OpenAPI document (static HTML, no interactive console: OQ-141); `configuration_page(schema)`: the configuration reference from a JSON Schema; `build(options)`: writes the guides and the generated pages below `<source>/<locale>/` and builds (everything is checked before anything is written; a generated page never overwrites a file that is not generated, and generated pages no longer produced are removed); `meta(schemas, namespace)`: a LuaLS `---@meta` declaration file (classes, aliases) from named JSON Schemas (OQ-96); `is_generated(text)`. Text from the contract is escaped, and the expansion of a schema is bounded (500 rows per table, cycles shown as one row). The option `code` runs LuaLS, which reads the `.luarc.json` of `code.root` and runs the plugin it declares: `code.root` must be trusted (OQ-142). |
 
 ### Building a site
 
@@ -122,7 +121,7 @@ override of the label used in navigation, search and `<title>` (OQ-35). Front ma
 `last_updated`, `source_revision`, `source` (generated pages: repository path of the Lua file). Callouts are GFM alerts: `> [!NOTE|TIP|IMPORTANT|WARNING|CAUTION] [title]`. Raw HTML
 is not supported (shown as text, comments are dropped). Conventions: OQ-35. Site configuration (`site.lua`):
 `title`, `description`, `base`, `url`, `default_locale`, `locales`, `nav`, `sidebar`,
-`repository`, `logo` (a file of `public/`, or `{ light, dark }`, shown as it is and never recoloured), `colors` (a CSS file of `public/` loaded after the theme to override the colour custom properties; OQ-38), `edit_link`, `source_edit_link` (edit link of generated pages, from their `source`),
+`repository`, `logo` (a file of `public/`, or `{ light, dark }`, shown as it is and never recoloured; a path without `.`, `..` or hidden segments, and a file missing from `public/` fails the build before anything is written), `colors` (a CSS file of `public/` loaded after the theme to override the colour custom properties; OQ-38), `edit_link`, `source_edit_link` (edit link of generated pages, from their `source`),
 `footer`, `outline`, `strings`, `exclude`; see
 `hecate.doc.SiteConfig` and [website/site.lua](../../website/site.lua).
 
@@ -145,7 +144,7 @@ readable without JavaScript. Vendored material: [THIRD_PARTY_NOTICES](../../THIR
 
 ### Limits of the current implementation
 
-Not implemented: OpenAPI reference, error-code and configuration references, translations of generated pages keyed by symbol, `llms.txt`,
+Not implemented: the error-code reference of a project, the interactive console of the API reference (OQ-141), translations of generated pages keyed by symbol, `llms.txt`,
 versioned documentation, development server, runnable examples, translation status report,
 template overrides of the theme (not planned until users ask, OQ-38). Markdown is GFM through comrak; the CommonMark 0.31.2 and GFM extension examples run as a test through the module (OQ-37). The search ranking is client-side JavaScript without an automated test (OQ-36).
 Verified on Linux; macOS and Windows are verified by CI only (the shell calls of
@@ -159,6 +158,8 @@ src/hecate/doc/markdown.lua    Markdown (comrak) and highlight.lua (syntect) ove
 native/                        the Rust crate (comrak, syntect, two-face; `lua tools/run.lua build-native doc`)
 src/hecate/doc/site.lua        content tree, locales, links, navigation, output
 src/hecate/doc/reference.lua   code reference pages from the LuaLS export; reference_site.lua, luals.lua
+src/hecate/doc/project.lua     project documentation: API reference, configuration reference, meta files, `project.build`
+src/hecate/doc/internal/       page_id.lua (portable and NFC page ids), html.lua
 src/hecate/doc/theme/          templates (layout.lua), strings, assets/ (css, js, fonts, brand)
 bin/build.lua                  build runner (`--reference` generates the code reference first)
 bin/reference.lua              code reference runner (used by `tools/run.lua gen-reference`)

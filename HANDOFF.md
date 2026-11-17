@@ -4,8 +4,8 @@
 - roadmap_item: `doc`: project documentation generator for user projects (OpenAPI reference, `hecate doc build`), with the Phase 1 gate deferrals (Windows-valid page ids, NFC/NFD), `---@meta` generation, and theme extension points (OQ-38)
 - status: in-progress            <!-- in-progress | waiting-ci | waiting-owner -->
 <!-- Optional, only when the owner holds this pull request for one run: - owner: session `<session id>`, why. -->
-- lock_until: 2026-11-17T12:00:00Z
-- last_update: 2026-11-17T10:30:00Z
+- lock_until: 2026-11-17T14:30:00Z
+- last_update: 2026-11-17T13:15:00Z
 
 ## Done
 
@@ -20,11 +20,13 @@
 - Step 5: theme extension points (OQ-38): `logo` and `colors` site options, tests in `config_test.lua` and `site_test.lua`.
 - Step 6: website reference page `reference/project-documentation.md`, linked from the reference index.
 
+- Step 7: CI green on the three platforms; `/review-package` on `doc` (pkg-doc, architect, test-engineer, security); findings fixed (tag collisions, YAML escaping, stale/overwritten generated pages, `$ref` resolution, bounds, public path checks, NFC for assets, docs). OQ-142 (LuaLS plugin, limitation) and OQ-143 (option names, decision) recorded.
+
 ## Next steps
 
-1. Check CI of the three platforms on this branch.
-2. Run `/review-package` on `doc` (api, terminology, test, security reviewers); fix findings.
-3. Tick the roadmap item, delete this file, mark the pull request ready, ask for the owner's review.
+1. Open the mirror issues of OQ-142 and OQ-143 (template `.github/ISSUE_TEMPLATE/open-question.md`).
+2. Check CI of the three platforms on the new commit.
+3. Tick the roadmap item, delete this file, mark the pull request ready, ask for the owner's review (OQ-143 is a `decision`: not blocking, conservative option kept).
 
 ## Decisions taken (and where they are recorded)
 

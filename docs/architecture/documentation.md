@@ -217,5 +217,5 @@ helper's line, so examples print inline. Every phase gate checks both rules on t
 ## Project documentation generated for users
 
 `hecate doc build` on a user's project produces a static site with: the API reference
-(OpenAPI, interactive), the code reference from the project's annotations, the
-configuration reference, and the module/route map.
+(OpenAPI, static HTML with no interactive console: [OQ-141](../open-questions.md)), the code reference from the
+project's annotations, the configuration reference, and the module and route table.
