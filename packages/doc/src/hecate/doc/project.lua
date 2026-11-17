@@ -289,13 +289,17 @@ end
 ---@field document? table  OpenAPI document: adds the API reference and the route map
 ---@field configuration? table  JSON Schema of the configuration: adds the configuration reference
 ---@field pages? table<string, string>  guides of the project, path below the locale root to Markdown
+---@field code? { root: string, name: string, executable?: string, config?: string }  document the annotated sources `<root>/src` of the project as the code reference `reference/<name>/` (skipped with a problem when LuaLS is missing)
 ---@field locale? string  locale directory the pages are written to (default the default locale, "en")
+
+---@class hecate.doc.ProjectBuildReport : hecate.doc.BuildReport
+---@field code? hecate.doc.ReferenceSiteReport  the code reference, when `code` was given
 
 --- Builds the site of a project. The pages (guides and generated) are written below
 --- `<source>/<locale>/`, then `build` runs. Generated pages replace the previous ones; a guide that
 --- would overwrite a generated page raises `hecate.doc.BuildError`.
 ---@param options hecate.doc.ProjectBuildOptions
----@return hecate.doc.BuildReport
+---@return hecate.doc.ProjectBuildReport
 function M.build(options)
   if type(options) ~= "table" or type(options.fs) ~= "table" or type(options.source) ~= "string" then
     error(core.ArgumentError("doc.project.build: expects { config, source, out, fs }"), 2)
@@ -318,7 +322,20 @@ function M.build(options)
     options.fs:write(root .. "/" .. path, text)
   end
   for _, path in ipairs(sorted_keys(generated)) do options.fs:write(root .. "/" .. path, generated[path]) end
-  return build.build(options)
+  local code_report
+  if options.code then
+    code_report = require("hecate.doc.reference_site").run({
+      root = options.code.root, packages = { options.code.name }, layout = "src", out = root,
+      fs = options.fs, executable = options.code.executable, config = options.code.config,
+    })
+  end
+  local report = build.build(options) --[[@as hecate.doc.ProjectBuildReport]]
+  if code_report then
+    report.code = code_report
+    for _, problem in ipairs(code_report.problems) do report.problems[#report.problems + 1] = problem end
+    if code_report.skipped then report.problems[#report.problems + 1] = code_report.skipped end
+  end
+  return report
 end
 
 return M

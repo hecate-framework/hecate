@@ -102,4 +102,19 @@ function T:test_build_writes_a_site_with_all_sections()
   self:assert_not_nil(fs:read("dist/en/index.html"))
 end
 
+function T:test_build_reports_the_code_reference_of_the_project()
+  local fs = doc.MemoryFileSystem({})
+  local report = project.build({
+    config = { title = "Shop docs" }, source = "docs", out = "dist", fs = fs,
+    pages = { ["index.md"] = "# Shop\n\nWelcome.\n" },
+    code = { root = "shop", name = "shop" },
+  })
+  self:assert_not_nil(report.code)
+  if report.code.skipped then
+    self:assert_equal(true, #report.problems >= 1)
+  else
+    self:assert_equal(0, report.code.pages) -- no src directory in the memory file system
+  end
+end
+
 return T
