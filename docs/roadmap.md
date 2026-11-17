@@ -330,7 +330,7 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       determinism and speed), report to the owner before the mirrors item (owner decision of 2026-11-13).
 - [x] `reactor.random(n)`, cryptographically secure bytes over libuv `uv_random`, used by the multipart boundaries of
       `http` (no `math.random` fallback), before `0.1.0` (OQ-73, owner decision of 2026-11-13).
-- [ ] `doc`: project documentation generator for user projects (OpenAPI reference,
+- [x] `doc`: project documentation generator for user projects (OpenAPI reference,
       `hecate doc build`); the minimal generator and the code reference moved to Phase 1. **Carries deferrals
       from the Phase 1 gate review** (cross-platform review): refuse, with a `BuildError`, page ids that are not valid
       file names on Windows (`? : * " < > |`, trailing dots or spaces, reserved names such as `CON`) and normalise
