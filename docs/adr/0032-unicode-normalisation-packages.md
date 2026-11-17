@@ -1,8 +1,8 @@
 # 0032 — Unicode normalisation: the `unicode` package and the `unicode-data` rock versioned by Unicode version
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-11-17
-- **Deciders:** project owner (route chosen in chat on 2026-11-17, on pull request #218; this ADR awaits promotion)
+- **Deciders:** project owner (route chosen in chat on 2026-11-17, on pull request #218; accepted by the owner in chat on 2026-11-17)
 - **Packages:** unicode (new), unicode-data (new), doc (first user), schema and router (later users), and the generator, CI and release tooling
 - **Related:** OQ-140 ([issue #219](https://github.com/hecate-framework/hecate/issues/219)), [ADR 0005](0005-single-brand-monorepo-lockstep-versioning.md) (lockstep versions), [ADR 0017](0017-monorepo-with-read-only-mirrors.md), [ADR 0018](0018-error-signalling.md), [ADR 0021](0021-rust-native-modules.md), [ADR 0022](0022-doc-dependencies.md), [overview.md](../architecture/overview.md)
 
