@@ -24,7 +24,7 @@
 
 ## Next steps
 
-1. Open the mirror issues of OQ-142 and OQ-143 (template `.github/ISSUE_TEMPLATE/open-question.md`).
+1. (done) Mirror issues #221 and #222 opened.
 2. Check CI of the three platforms on the new commit.
 3. Tick the roadmap item, delete this file, mark the pull request ready, ask for the owner's review (OQ-143 is a `decision`: not blocking, conservative option kept).
 
