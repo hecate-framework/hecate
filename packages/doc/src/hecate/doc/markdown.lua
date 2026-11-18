@@ -64,6 +64,10 @@ function M.render(source, options)
     error(core.ArgumentError("doc.markdown.render: " .. refusal), 2)
   end
   result.diagrams = result.html:find(DIAGRAM_BLOCK, 1, true) ~= nil
+  -- A table scrolls horizontally inside its own wrapper instead of overflowing the content column. Text is
+  -- escaped and raw HTML is not passed through, so these tags only come from real tables. The theme script
+  -- makes a wrapper that actually scrolls focusable (keyboard access, WCAG 2.1 SC 2.1.1).
+  result.html = result.html:gsub("<table>", "<div class=\"table-wrap\"><table>"):gsub("</table>", "</table></div>")
   return result
 end
 
