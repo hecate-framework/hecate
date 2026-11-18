@@ -458,6 +458,11 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       the native modules of `net` and `json`, ADR 0021), `docker.yml`, `cli-e2e.yml`, `website.yml`
       and the `release *` tasks.
 
+      **Also (owner request of 2026-11-18):** every binary rock of a native Rust module ships the licence page of
+      its module, `packages/<name>/native/LICENSES-rust.md` (generated and checked in CI by `gen-rust-licences`;
+      the licence of each crate compiled into the binary requires its notice to accompany the binary), as the
+      licence file of the rock, and `check-rockspecs` or the `release` tasks verify that it is there.
+
       **Also (OQ-46, owner decision of 2026-11-13):** fill `modules` of every rockspec (Lua sources and native
       modules) and extend `check-rockspecs` to compare `modules` with `src/`.
 - [ ] `test`: the repository's own tests run under `hecate.test`, and the bootstrap harness is deleted (ADR 0008,
