@@ -22,25 +22,24 @@ do
 end
 
 local doc = require("hecate.doc")
-local project = require("hecate.doc.project")
 local reactor = require("hecate.reactor")
 
-local source = here .. "/docs"
-local out = arg[1] or (source .. "/dist")
+-- The example follows the conventional layout of a project: guides in
+-- `docs/`, site configuration in `docs/site.lua`, site in `docs/dist`.
+-- Only the project directory is given; an output directory of the command
+-- line is relative to it unless it is absolute.
+local output_dir = arg[1] or "docs/dist"
 
 local ok, report = pcall(reactor.run, function()
-  local fs = doc.SystemFileSystem()
-  return project.build({
-    config = doc.load_config(source .. "/site.lua", fs),
-    source = source,
-    out = out,
-    fs = fs,
-    clean = true,
-    strict = true,
+  return doc.generate_project_documentation({
+    project_dir = here,
+    output_dir = output_dir,
+    clean_output_dir = true,
+    fail_on_problems = true,
   })
 end)
 if not ok then
   io.stderr:write(tostring(report), "\n")
   os.exit(1)
 end
-io.stdout:write(("hello docs: %d files in %s\n"):format(report.files, out))
+io.stdout:write(("hello docs: %d files in %s\n"):format(report.files, output_dir))

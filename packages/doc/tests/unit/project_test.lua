@@ -1,7 +1,7 @@
 ---@diagnostic disable: need-check-nil, undefined-field  -- tests index generated pages that a failing assertion would reveal
 -- The project documentation: the configuration reference from a JSON Schema, the LuaLS meta files, and
--- the site that `project.build` writes. The generator produces no API reference: the contract is the
--- external documentation (documentation.md, OQ-141).
+-- the site that `doc.generate_project_documentation` writes. The generator produces no API reference: the
+-- contract is the external documentation (documentation.md, OQ-141).
 local test = require("harness.test")
 local doc = require("hecate.doc")
 local project = require("hecate.doc.project")
@@ -18,6 +18,11 @@ local config_schema = {
   },
 }
 
+-- The application is duck-typed: `hecate.doc` calls `configuration_schema()` and never requires `hecate.kernel`.
+local function application(schema, secrets)
+  return { configuration_schema = function() return schema, secrets end }
+end
+
 function T:test_configuration_page_lists_keys_with_dotted_paths()
   local page = project.configuration_page(config_schema)
   self:assert_not_nil(page:find("`port`", 1, true))
@@ -29,10 +34,11 @@ end
 
 function T:test_build_writes_a_site_with_the_guides_and_the_configuration_reference()
   local fs = doc.MemoryFileSystem({})
-  local report = project.build({
-    config = { title = "Shop docs", audiences = { "user", "maintainer" }, audience_sites = "merged" }, source = "docs",
-    out = "dist", fs = fs, clean = true, strict = true, configuration = config_schema,
-    pages = { ["index.md"] = "# Shop\n\nWelcome.\n" },
+  local report = doc.generate_project_documentation({
+    site_configuration = { title = "Shop docs", audiences = { "user", "maintainer" }, audience_sites = "merged" },
+    guides_dir = "docs", output_dir = "dist", file_system = fs, clean_output_dir = true, fail_on_problems = true,
+    application = application(config_schema),
+    guide_texts = { ["index.md"] = "# Shop\n\nWelcome.\n" },
   })
   self:assert_equal(0, #report.problems, table.concat(report.problems, "\n"))
   self:assert_not_nil(fs:read("dist/en/configuration/index.html"))
@@ -41,10 +47,10 @@ end
 
 function T:test_build_reports_the_code_reference_of_the_project()
   local fs = doc.MemoryFileSystem({})
-  local report = project.build({
-    config = { title = "Shop docs" }, source = "docs", out = "dist", fs = fs,
-    pages = { ["index.md"] = "# Shop\n\nWelcome.\n" },
-    code = { root = "shop", name = "shop" },
+  local report = doc.generate_project_documentation({
+    site_configuration = { title = "Shop docs" }, project_dir = "shop", guides_dir = "docs", output_dir = "dist",
+    file_system = fs, guide_texts = { ["index.md"] = "# Shop\n\nWelcome.\n" },
+    package_name = "shop",
   })
   self:assert_not_nil(report.code)
   if report.code.skipped then
@@ -95,8 +101,9 @@ function T:test_the_generator_produces_no_api_reference()
     paths = { ["/users"] = { get = { operationId = "listUsers", responses = { ["200"] = { description = "OK" } } } } } }
   local fs = doc.MemoryFileSystem({})
   -- A stray `document` option is not an option of the build: it is ignored, and nothing below `api/` is written.
-  project.build({ config = { title = "Shop" }, source = "docs", out = "dist", fs = fs, document = contract,
-    configuration = config_schema, pages = { ["index.md"] = "# Shop\n" } })
+  doc.generate_project_documentation({ site_configuration = { title = "Shop" }, guides_dir = "docs", output_dir = "dist",
+    file_system = fs, document = contract, application = application(config_schema),
+    guide_texts = { ["index.md"] = "# Shop\n" } })
   for path in pairs(fs.files) do
     self:assert_nil(path:find("/api/", 1, true), path)
     self:assert_nil(path:find("listUsers", 1, true), path)
@@ -222,16 +229,20 @@ function T:test_pages_are_independent_of_insertion_order()
 end
 
 local function build_options(fs, extra)
-  local options = { config = { title = "Shop" }, source = "docs", out = "dist", fs = fs, pages = { ["index.md"] = "# Shop\n" } }
+  local options = { site_configuration = { title = "Shop" }, guides_dir = "docs", output_dir = "dist", file_system = fs,
+    guide_texts = { ["index.md"] = "# Shop\n" } }
   for key, value in pairs(extra or {}) do options[key] = value end
   return options
 end
+
+local generate = doc.generate_project_documentation
 
 function T:test_a_guide_on_a_generated_path_fails_before_anything_is_written()
   for _, key in ipairs({ "configuration.md", "./configuration.md", ".//configuration.md", "Configuration.md" }) do
     local fs = doc.MemoryFileSystem({})
     local err = self:assert_error(function()
-      project.build(build_options(fs, { configuration = config_schema, pages = { ["index.md"] = "# S\n", [key] = "# mine\n" } }))
+      generate(build_options(fs, { application = application(config_schema),
+        guide_texts = { ["index.md"] = "# S\n", [key] = "# mine\n" } }))
     end)
     self:assert_true(core.is_instance_of(err, doc.BuildError), key .. ": " .. tostring(err))
     self:assert_nil(next(fs.files), key .. " left partial files")
@@ -240,7 +251,7 @@ end
 
 function T:test_a_file_that_is_not_generated_is_never_overwritten()
   local fs = doc.MemoryFileSystem({ ["docs/en/configuration.md"] = "# Mine\n" })
-  local err = self:assert_error(function() project.build(build_options(fs, { configuration = config_schema })) end)
+  local err = self:assert_error(function() generate(build_options(fs, { application = application(config_schema) })) end)
   self:assert_true(core.is_instance_of(err, doc.BuildError), tostring(err))
   self:assert_equal("# Mine\n", fs:read("docs/en/configuration.md"))
   self:assert_nil(fs:read("docs/en/index.md"), "nothing was written")
@@ -248,41 +259,87 @@ end
 
 function T:test_generated_pages_that_are_no_longer_produced_are_removed()
   local fs = doc.MemoryFileSystem({})
-  project.build(build_options(fs, { configuration = config_schema }))
+  generate(build_options(fs, { application = application(config_schema) }))
   self:assert_not_nil(fs:read("docs/en/configuration.md"))
-  project.build(build_options(fs, {}))
+  generate(build_options(fs, {}))
   self:assert_nil(fs:read("docs/en/configuration.md"))
   self:assert_not_nil(fs:read("docs/en/index.md"), "guides stay")
 end
 
 function T:test_options_are_validated_up_front_naming_the_field()
   local cases = {
-    { { pages = 3 }, "pages" }, { { pages = { ["../x.md"] = "a" } }, "pages" }, { { pages = { ["/x.md"] = "a" } }, "pages" },
-    { { pages = { ["con.md"] = "a" } }, "pages" }, { { pages = { ["a\\b.md"] = "a" } }, "pages" },
-    { { pages = { ["x.txt"] = "a" } }, "pages" }, { { pages = { ["x.md"] = 3 } }, "pages" },
-    { { pages = { ["x.md"] = "a", ["./x.md"] = "b" } }, "pages" }, { { pages = { [".h.md"] = "a" } }, "pages" },
-    { { locale = "../x" }, "locale" }, { { locale = 3 }, "locale" }, { { locale = "" }, "locale" },
-    { { configuration = 3 }, "configuration" }, { { config = "x" }, "config" },
-    { { code = "x" }, "code" }, { { code = { root = "r", name = "../x" } }, "code" }, { { code = { root = "r" } }, "code" },
-    { { code = { root = "r", name = "x", executable = 3 } }, "code.executable" },
+    { { guide_texts = 3 }, "guide_texts" }, { { guide_texts = { ["../x.md"] = "a" } }, "guide_texts" },
+    { { guide_texts = { ["/x.md"] = "a" } }, "guide_texts" },
+    { { guide_texts = { ["con.md"] = "a" } }, "guide_texts" }, { { guide_texts = { ["a\\b.md"] = "a" } }, "guide_texts" },
+    { { guide_texts = { ["x.txt"] = "a" } }, "guide_texts" }, { { guide_texts = { ["x.md"] = 3 } }, "guide_texts" },
+    { { guide_texts = { ["x.md"] = "a", ["./x.md"] = "b" } }, "guide_texts" },
+    { { guide_texts = { [".h.md"] = "a" } }, "guide_texts" },
+    { { content_locale = "../x" }, "content_locale" }, { { content_locale = 3 }, "content_locale" },
+    { { content_locale = "" }, "content_locale" },
+    { { site_configuration = "x" }, "site_configuration" },
+    { { project_dir = "" }, "project_dir" }, { { guides_dir = 3 }, "guides_dir" }, { { output_dir = "" }, "output_dir" },
+    { { sources_dir = "/abs/src" }, "sources_dir" }, { { site_configuration_path = {} }, "site_configuration_path" },
+    { { language_server_config_path = "" }, "language_server_config_path" },
+    { { package_name = "../x" }, "package_name" }, { { package_name = 3 }, "package_name" },
+    { { language_server_path = 3 }, "language_server_path" }, { { clean_output_dir = "yes" }, "clean_output_dir" },
+    { { fail_on_problems = 1 }, "fail_on_problems" }, { { file_system = "disk" }, "file_system" },
   }
   for _, case in ipairs(cases) do
     local fs = doc.MemoryFileSystem({})
-    local err = self:assert_error(function() project.build(build_options(fs, case[1])) end)
+    local err = self:assert_error(function() generate(build_options(fs, case[1])) end)
     self:assert_true(core.is_instance_of(err, core.ArgumentError), case[2] .. ": " .. tostring(err))
     self:assert_not_nil(tostring(err):find("`" .. case[2] .. "`", 1, true), tostring(err))
     self:assert_nil(next(fs.files), case[2] .. " left files")
   end
 end
 
+function T:test_the_old_option_names_and_the_explicit_configuration_schema_are_gone()
+  self:assert_nil(project.build, "the entry point is `hecate.doc.generate_project_documentation`")
+  -- Without an application there is nothing to document: a hand-passed schema or secrets list is not an option.
+  local fs = doc.MemoryFileSystem({})
+  generate(build_options(fs, { configuration = config_schema, secrets = { "port" } }))
+  self:assert_nil(fs:read("docs/en/configuration.md"))
+end
+
+-- The defaults are those of the conventional layout of a project (OQ-143): `docs`, `docs/dist`, `src`.
+function T:test_every_path_option_has_a_default_of_the_conventional_layout()
+  local fs = doc.MemoryFileSystem({ ["docs/site.lua"] = 'return { title = "Shop" }', ["docs/en/index.md"] = "# Shop\n" })
+  local report = generate({ file_system = fs, application = application(config_schema) })
+  self:assert_equal(0, #report.problems, table.concat(report.problems, "\n"))
+  self:assert_not_nil(fs:read("docs/en/configuration.md"), "guides_dir defaults to docs, read from docs/site.lua")
+  self:assert_not_nil(fs:read("docs/dist/en/configuration/index.html"), "output_dir defaults to docs/dist")
+  self:assert_not_nil(fs:read("docs/dist/en/index.html"))
+end
+
+function T:test_relative_paths_are_resolved_against_the_project_directory()
+  local fs = doc.MemoryFileSystem({ ["acme/docs/site.lua"] = 'return { title = "Acme" }', ["acme/docs/en/index.md"] = "# Acme\n",
+    ["acme/config/site.lua"] = 'return { title = "Other" }' })
+  generate({ file_system = fs, project_dir = "acme", application = application(config_schema) })
+  self:assert_not_nil(fs:read("acme/docs/en/configuration.md"))
+  self:assert_not_nil(fs:read("acme/docs/dist/en/index.html"))
+  generate({ file_system = fs, project_dir = "acme", guides_dir = "docs", output_dir = "site",
+    site_configuration_path = "config/site.lua" })
+  self:assert_not_nil(fs:read("acme/site/en/index.html"))
+  self:assert_nil(fs:read("acme/docs/en/configuration.md"), "no application: the stale reference is removed")
+end
+
+function T:test_a_missing_site_configuration_file_is_a_build_error()
+  local fs = doc.MemoryFileSystem({})
+  local err = self:assert_error(function() generate({ file_system = fs }) end)
+  self:assert_true(core.is_instance_of(err, doc.BuildError), tostring(err))
+  self:assert_not_nil(tostring(err):find("docs/site.lua", 1, true), tostring(err))
+end
+
 function T:test_the_locale_option_and_the_default_locale_choose_the_directory()
   local fs = doc.MemoryFileSystem({})
-  project.build(build_options(fs, { locale = "fr", config = { title = "S", default_locale = "fr", locales = { { code = "fr" } },
-    audiences = { "user", "maintainer" }, audience_sites = "merged" }, configuration = config_schema }))
+  generate(build_options(fs, { content_locale = "fr", site_configuration = { title = "S", default_locale = "fr",
+    locales = { { code = "fr" } }, audiences = { "user", "maintainer" }, audience_sites = "merged" },
+    application = application(config_schema) }))
   self:assert_not_nil(fs:read("docs/fr/configuration.md"))
   self:assert_not_nil(fs:read("dist/fr/configuration/index.html"))
   local other = doc.MemoryFileSystem({})
-  project.build(build_options(other, { config = { title = "S", default_locale = "fr", locales = { { code = "fr" } } }, configuration = config_schema }))
+  generate(build_options(other, { site_configuration = { title = "S", default_locale = "fr", locales = { { code = "fr" } } },
+    application = application(config_schema) }))
   self:assert_not_nil(other:read("docs/fr/configuration.md"))
 end
 
@@ -319,9 +376,9 @@ end
 
 local function build_with(config)
   local fs = doc.MemoryFileSystem({})
-  local report = project.build({
-    config = config, source = "docs", out = "dist", fs = fs, configuration = config_schema,
-    pages = { ["index.md"] = "# Shop\n\nWelcome.\n" },
+  local report = generate({
+    site_configuration = config, guides_dir = "docs", output_dir = "dist", file_system = fs,
+    application = application(config_schema), guide_texts = { ["index.md"] = "# Shop\n\nWelcome.\n" },
   })
   return fs, report
 end
@@ -364,8 +421,8 @@ function T:test_a_wrong_audiences_option_fails_before_anything_is_written()
   local fs = doc.MemoryFileSystem({})
   local err = self:assert_error(function()
     ---@diagnostic disable-next-line: assign-type-mismatch  -- the wrong value is the point of the test
-    project.build({ config = { title = "x", audiences = { "everyone" } }, source = "docs", out = "dist", fs = fs,
-      configuration = config_schema })
+    generate({ site_configuration = { title = "x", audiences = { "everyone" } }, guides_dir = "docs",
+      output_dir = "dist", file_system = fs, application = application(config_schema) })
   end)
   self:assert_true(core.is_instance_of(err, core.ConfigurationError))
   self:assert_equal("audiences[1]", err.context.field)
@@ -385,11 +442,6 @@ function T:test_the_configuration_reference_never_prints_the_default_of_a_secret
   self:assert_not_nil(page:find("`dev`", 1, true), "other defaults are kept")
 end
 
--- The application is duck-typed: `hecate.doc` calls `configuration_schema()` and never requires `hecate.kernel`.
-local function application(schema, secrets)
-  return { configuration_schema = function() return schema, secrets end }
-end
-
 local app_schema = {
   type = "object",
   properties = {
@@ -400,7 +452,7 @@ local app_schema = {
 
 function T:test_build_reads_the_configuration_schema_and_the_secrets_from_the_application()
   local fs = doc.MemoryFileSystem({})
-  project.build(build_options(fs, { application = application(app_schema, { "database.password" }) }))
+  generate(build_options(fs, { application = application(app_schema, { "database.password" }) }))
   local page = fs:read("docs/en/configuration.md")
   self:assert_not_nil(page:find("`database.password`", 1, true), page)
   self:assert_not_nil(page:find("`8080`", 1, true), page)
@@ -408,33 +460,25 @@ function T:test_build_reads_the_configuration_schema_and_the_secrets_from_the_ap
   self:assert_nil(page:find("dev-password", 1, true), "the default of a secret is not printed")
 end
 
-function T:test_build_adds_the_secrets_of_the_option_to_those_of_the_application()
+function T:test_the_application_is_the_only_source_of_the_configuration_reference()
   local fs = doc.MemoryFileSystem({})
-  project.build(build_options(fs, { application = application(app_schema, { "database.password" }), secrets = { "port" } }))
+  generate(build_options(fs, { application = application(app_schema, {}), configuration = config_schema }))
   local page = fs:read("docs/en/configuration.md")
-  self:assert_nil(page:find("8080", 1, true))
-  self:assert_nil(page:find("dev-password", 1, true))
-end
-
-function T:test_an_explicit_schema_wins_over_the_application()
-  local fs = doc.MemoryFileSystem({})
-  project.build(build_options(fs, { application = application(app_schema, {}), configuration = config_schema }))
-  local page = fs:read("docs/en/configuration.md")
-  self:assert_not_nil(page:find("`database.url`", 1, true))
-  self:assert_nil(page:find("8080", 1, true))
+  self:assert_nil(page:find("`database.url`", 1, true), "a hand-passed schema is not an option")
+  self:assert_not_nil(page:find("8080", 1, true))
 end
 
 function T:test_an_application_without_a_configuration_adds_no_page()
   local fs = doc.MemoryFileSystem({})
-  project.build(build_options(fs, { application = application(nil) }))
+  generate(build_options(fs, { application = application(nil) }))
   self:assert_nil(fs:read("docs/en/configuration.md"))
 end
 
 function T:test_the_application_must_have_the_method_and_return_a_schema()
   local fs = doc.MemoryFileSystem({})
-  local err = self:assert_error(function() project.build(build_options(fs, { application = {} })) end)
+  local err = self:assert_error(function() generate(build_options(fs, { application = {} })) end)
   self:assert_not_nil(tostring(err):find("application", 1, true))
-  err = self:assert_error(function() project.build(build_options(fs, { application = application("no") })) end)
+  err = self:assert_error(function() generate(build_options(fs, { application = application("no") })) end)
   self:assert_not_nil(tostring(err):find("configuration_schema", 1, true))
   self:assert_nil(fs:read("docs/en/index.md"), "nothing is written when an option is wrong")
 end

@@ -9,7 +9,8 @@ global <const> require
 local build = require("hecate.doc.build")
 
 ---@class hecate.doc
----@field build fun(options: hecate.doc.BuildOptions): hecate.doc.BuildReport
+---@field build fun(options: hecate.doc.BuildOptions): hecate.doc.BuildReport  the plain site builder: a content tree in, a static site out
+---@field generate_project_documentation fun(options?: hecate.doc.ProjectDocumentationOptions): hecate.doc.ProjectDocumentationReport  the documentation of a Hecate project: guides, configuration reference from the application, code reference, licences page, then the site; every option has a default of the conventional project layout
 ---@field load_config fun(path: string, fs: hecate.doc.FileSystem): hecate.doc.SiteConfig
 ---@field normalise_config fun(raw: hecate.doc.SiteConfig): hecate.doc.SiteConfig
 ---@field Site hecate.doc.Site
@@ -24,9 +25,10 @@ local build = require("hecate.doc.build")
 ---@field navigation table  sidebar, previous/next and top links (pure functions)
 ---@field search table  search index builder
 ---@field theme hecate.doc.Theme
----@field project hecate.doc.project
+---@field project hecate.doc.project  page generators: the configuration reference and the LuaLS meta files
 local doc = {
   build = build.build,
+  generate_project_documentation = require("hecate.doc.internal.project_documentation").generate,
   load_config = build.load_config,
   normalise_config = require("hecate.doc.config").normalise,
   ---@diagnostic disable-next-line: assign-type-mismatch  -- class constructor exported as its class

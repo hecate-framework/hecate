@@ -102,7 +102,10 @@ lua examples/hello/build_docs.lua            # writes examples/hello/docs/dist (
 lua examples/hello/build_docs.lua /tmp/site  # or elsewhere
 ```
 
-The build is strict: a broken link fails it. Serve the output with any static server. The page "Theme tokens" of the
+`build_docs.lua` calls `hecate.doc.generate_project_documentation` with the project directory and nothing else:
+the guides (`docs/`), the site configuration (`docs/site.lua`) and the output (`docs/dist`) are the defaults of the
+conventional layout. An output directory in the command line is relative to `examples/hello` unless it is absolute.
+The build is strict (`fail_on_problems`): a broken link fails it. Serve the output with any static server. The page "Theme tokens" of the
 website lists every property the CSS file can override.
 
 ## Not built yet

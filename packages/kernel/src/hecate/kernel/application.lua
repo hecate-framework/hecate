@@ -297,7 +297,7 @@ function Application:contract(pretty)
 end
 
 --- The declaration of the configuration the application was given (`configuration` option), for tools that document it
---- (`hecate.doc.project.build` reads it by duck-typing, with no dependency on `kernel`): the JSON Schema 2020-12 of every
+--- (`hecate.doc.generate_project_documentation` reads it by duck-typing, with no dependency on `kernel`): the JSON Schema 2020-12 of every
 --- declared key, framework keys included (`Configuration:schema()`), and the dotted paths of the keys that hold secrets
 --- (`Configuration:secrets()`; the schema does not mark them). Read-only, usable before `boot`; `nil` without a
 --- `configuration`.

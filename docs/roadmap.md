@@ -378,6 +378,12 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       **Also (from the `openapi` item):** `hecate contract export` (JSON, over `Application:contract`; YAML later, OQ-137),
       `hecate contract lint` (over `openapi.lint`, nonzero exit on an error finding) and `hecate contract diff <ref>`
       (over `openapi.diff`, nonzero exit on a breaking change).
+      **Also (from the `doc` item, owner direction of 2026-11-18, OQ-143):** like `package.json`, `hecate.project.lua`
+      holds a `doc` section with the options of `hecate.doc.generate_project_documentation` (`guides_dir`,
+      `output_dir`, `sources_dir`, `package_name`, `site_configuration_path`, ...), filled with the defaults of the
+      conventional layout when `hecate new` generates the project (`package_name` from the `name` of the manifest) and
+      read by `hecate doc build`; the command's flags override the section. The manifest schema (ADR 0009,
+      `cli-and-packaging.md`) gets the `doc` section then. Not implemented: the library takes the options as a table.
       **Also (OQ-13, resolved 2026-11-14):** the executable embeds Lua 5.5 and LuaRocks and is the interpreter of Lua
       5.5 projects (OQ-131, ADR 0029 Accepted and verified on the CI platforms; on Windows `lua55.dll` ships beside `hecate.exe` and `lfs` is embedded for LuaRocks); framework
       packages stay project dependencies; settle OQ-132 (how the CLI runs the project's interpreter: child process through
@@ -395,11 +401,15 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       the CLI (file layout, naming and when it runs decided with the item).
       **Also (from the `doc` item, owner decisions of 2026-11-18):** `hecate doc build` (one site per audience, OQ-144; by
       default the maintainer one) and `hecate doc serve [--watch]`, a local server that rebuilds on change and reloads, to
-      write pages. When the project asks for a code reference (`code`), the command warns that LuaLS runs the plugin
-      declared by the `.luarc.json` of the documented root (OQ-142, option (a) kept) and lets the user bail out
+      write pages. When the project asks for a code reference (`package_name`), the command warns that LuaLS runs the plugin
+      declared by the `.luarc.json` of the project directory (OQ-142, option (a) kept) and lets the user bail out
       (`[y/N]`, default no when nothing answers); a flag or environment variable makes it quiet and non-interactive for
       CI workflows (`--yes`, to settle with the CLI conventions). `hecate doc build` reads the configuration schema
-      from the application (`Application:configuration_schema()`).
+      from the application (`Application:configuration_schema()`), the only source of the configuration reference.
+      **Delivered (owner direction of 2026-11-18, OQ-143, names to confirm before the API is frozen):** the Lua entry
+      point is `hecate.doc.generate_project_documentation(options)` (it replaces `hecate.doc.project.build`, no
+      alias) with named options and defaults of the conventional layout (`sources_dir = "src"`, `guides_dir = "docs"`,
+      `output_dir = "docs/dist"`, relative to `project_dir`).
       **Also (from the `examples/hello` item):** turn `examples/hello` into a Hecate project (`hecate.project.lua`, run
       by `hecate serve`, tested by `hecate test`, `hecate contract lint` in CI), as `examples/README.md` requires of
       every example from Phase 3 on; today it is `lua main.lua` and the repository harness.

@@ -245,7 +245,7 @@ mixed in one site unless the configuration says so.
   value is a `BuildError` naming the file). The site configuration key `default_audience` (default
   `maintainer`) is the audience of a page without the key.
 - The site configuration key `audiences` lists the audiences the site publishes. Default: `{ "maintainer" }`,
-  for a project site (`hecate.doc.project.build`) and for the plain builder (`hecate.doc.build`) alike,
+  for a project site (`hecate.doc.generate_project_documentation`) and for the plain builder (`hecate.doc.build`) alike,
   so a tree without any `audience` key builds as before (every page is maintainer documentation and published).
 - **One site per audience** (key `audience_sites`, default `separate`): with several audiences published,
   the build writes a complete site for each below `<out>/<audience>/` (pages, navigation, search index,
@@ -265,14 +265,22 @@ mixed in one site unless the configuration says so.
   (field or method) that is `private`, `protected` or `package`, or whose name starts with `_`, is never
   listed: a member is a part of a class page, not a page.
 - The configuration reference never prints the default of a secret key (`[redacted]` in its place). A
-  key is a secret when its schema says `writeOnly: true` or `format: "password"`, or when the project
-  lists its path in the option `secrets`: the secrets of `hecate.config` are declared at load time, not
-  in the schema. When the project gives its application (`application`, a `hecate.kernel.Application`,
-  duck-typed on `configuration_schema()`, so that `doc` does not depend on `kernel`), the schema of the
-  configuration and the secrets declared at load time are read from it, and `secrets` adds to them; the
-  explicit `configuration` schema stays for a project without a kernel application and wins.
-- The third-party licences page (`project.build` option `licenses`, off by default, `maintainer` by
-  default): the rocks of an installed tree read as files (name, version, declared licence, licence text,
+  key is a secret when its schema says `writeOnly: true` or `format: "password"`, or when the
+  application declares it a secret at load time: the secrets of `hecate.config` are not in the
+  schema. The application (`application`, a `hecate.kernel.Application`, duck-typed on
+  `configuration_schema()`, so that `doc` does not depend on `kernel`) is the single source: the schema of
+  the configuration and the secrets declared at load time are read from it. A project without a Hecate
+  application has no configuration to document, so there is no option for a hand-passed schema or secrets.
+- The generation is `hecate.doc.generate_project_documentation(options)`, distinct from the plain site builder
+  `hecate.doc.build`. Its path options are named by what they are (`_dir` a directory, `_path` a file) and have
+  defaults from the conventional project layout, relative to `project_dir`: `sources_dir = "src"`,
+  `guides_dir = "docs"`, `output_dir = "docs/dist"`, `site_configuration_path = "<guides_dir>/site.lua"`,
+  `rocks_tree_dir = "lua_modules"` (the layout of `developer-experience.md` specifies `src/`, `config/`,
+  `tests/` and `lua_modules/` but no documentation directory: OQ-143). Like `package.json`, `hecate.project.lua`
+  will hold a `doc` section with these options, filled with the defaults by `hecate new` and read by
+  `hecate doc build` (roadmap, item `cli`).
+- The third-party licences page (`generate_project_documentation` option `licenses_page`, off by default,
+  `maintainer` by default): the rocks of an installed tree read as files (name, version, declared licence, licence text,
   dependencies resolved transitively and sorted) and what the generated site bundles, with the licence
   texts of the theme. A rockspec is data: it is parsed without being run (no call, loop or loader
   accepted; an empty environment and an instruction limit for the rest), and no `luarocks` process runs.

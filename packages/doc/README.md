@@ -8,7 +8,7 @@
 | Rock | `hecate-doc` |
 | Layer | Tooling |
 | Roadmap phase | 3 |
-| Status | alpha — minimal slice done (Phase 1 roadmap item); the roadmap phase stays 3 because the package is still in progress for it: Markdown rendering and highlighting by the native module (comrak, syntect), site model (locales with fallback, sidebar, previous/next), original theme on the brand kit, search index, `build` and the LuaLS code reference (reference generator, `gen-reference`) implemented; the project documentation (`hecate.doc.project`: configuration reference, LuaLS meta files, `project.build`) and the theme extension points (`logo`, `favicon`, `sidebar_marker`, `theme`) and `llms.txt` / `llms-full.txt` (opt-in) implemented; versioned documentation, development server, runnable examples, the `hecate doc build` command and the prebuilt binary rocks of the native module pending (Phase 3) |
+| Status | alpha — minimal slice done (Phase 1 roadmap item); the roadmap phase stays 3 because the package is still in progress for it: Markdown rendering and highlighting by the native module (comrak, syntect), site model (locales with fallback, sidebar, previous/next), original theme on the brand kit, search index, `build` and the LuaLS code reference (reference generator, `gen-reference`) implemented; the project documentation (`hecate.doc.project`: configuration reference, LuaLS meta files) and `generate_project_documentation` (the documentation of a project with the defaults of the conventional layout) and the theme extension points (`logo`, `favicon`, `sidebar_marker`, `theme`) and `llms.txt` / `llms-full.txt` (opt-in) implemented; versioned documentation, development server, runnable examples, the `hecate doc build` command and the prebuilt binary rocks of the native module pending (Phase 3) |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |
 | Depends on | [`core`](../core), [`reactor`](../reactor), [`openapi`](../openapi), [`schema`](../schema), [`json`](../json), [`unicode`](../unicode) |
 | Used by | `cli` |
@@ -54,6 +54,7 @@ decided in [ADR 0022](../../docs/adr/0022-doc-dependencies.md).
 | Name | Description |
 |---|---|
 | `build(options)` | Reads `<source>/<locale>/**/*.md`, renders every page of every locale, writes pages, search indexes, theme files and static files to `options.out`, returns a `BuildReport` (`files`, `bytes`, `locales`, `problems`, `sites`: one entry per site written with its `audiences`, `directory`, `files`, `bytes`, `locales` and `problems`). Options: `config`, `source`, `out`, `fs`, `clean`, `strict`, `last_updated`. `BuildReport.locales[code]` has `pages`, `fallbacks` and `unpublished` (pages left out by their audience). Output is deterministic. |
+| `generate_project_documentation(options?)` | The documentation of a Hecate project: writes the guides given as text and the generated pages (configuration reference, licences page, code reference) into the guides directory, then builds the site. Every option has a default of the conventional layout (see "Documentation of a project"); returns a `ProjectDocumentationReport` (a `BuildReport`, plus `code`). Unlike `build`, which only turns a content tree into a site. |
 | `load_config(path, fs)` | Loads a `site.lua` (data only: it runs with an empty environment). |
 | `normalise_config(raw)` | Validates every key of a site configuration (type and shape; `base` must be an absolute path and not protocol-relative, `url` an http(s) origin) and fills the defaults; raises `core.ConfigurationError` with `context.field` naming the offending key. |
 | `Site(options)` | The site model: `load()`, `pages(locale)`, `page(locale, id)`, `unpublished(locale)`, `emit(write)`, `problems`. |
@@ -71,7 +72,7 @@ decided in [ADR 0022](../../docs/adr/0022-doc-dependencies.md).
 | `theme` | `page(context)`, `not_found(context)`, `strings`, `asset_files`, `diagram_files` (written only when a page holds a diagram), `assets_directory()`. |
 | `reference` (`hecate.doc.reference`) | `generate(inputs, options)`: pages of the code reference from LuaLS exports (pure; option `internal` adds the `maintainer` pages of `*.internal` modules and of non-public classes, `label_audiences` writes the `audience` key on every page); `is_generated(text)`; `GENERATED` (the marker). |
 | `reference_site` (`hecate.doc.reference_site`) | `run(options)`: runs LuaLS on the packages, generates and writes the pages (skips with `report.skipped` without LuaLS); `write(fs, out, result, packages)`; `DEFAULT_PACKAGES`. |
-| `project` (`hecate.doc.project`) | `configuration_page(schema, options?)`: the configuration reference from a JSON Schema, a `maintainer` page that prints `[redacted]` for the default of a secret key (`writeOnly`, `format: "password"`, or `options.secrets`); `build(options)`: writes the guides and the generated pages below `<source>/<locale>/` and builds (everything is checked before anything is written; a generated page never overwrites a file that is not generated, and generated pages no longer produced are removed); `meta(schemas, namespace)`: a LuaLS `---@meta` declaration file (classes, aliases) from named JSON Schemas (OQ-96); `is_generated(text)`. Text from the schema is escaped, and the expansion of a schema is bounded (500 rows per table, cycles shown as one row). There is no API reference: the OpenAPI contract is the external documentation of the API (served by `openapi`), and a viewer is the wiring of the user (OQ-141, owner decision of 2026-11-17). The options `config.audiences` (default `{ "maintainer" }`) and `secrets` apply (see "Audiences"). The option `code` runs LuaLS, which reads the `.luarc.json` of `code.root` and runs the plugin it declares: `code.root` must be trusted (OQ-142). The option `application` takes the application object (a `hecate.kernel.Application`; duck-typed: only `application:configuration_schema()` is called, `doc` never requires `kernel`) and adds the configuration reference from the schema of its configuration, with its secrets feeding the `[redacted]` rows; the explicit `configuration` option (a JSON Schema) wins and stays for projects without a kernel application, and `secrets` is added to the application's. The option `licenses` (default off; `true` or `{ tree?, roots?, audience?, bundled? }`) adds the third-party licences page (see below). |
+| `project` (`hecate.doc.project`) | `configuration_page(schema, options?)`: the configuration reference from a JSON Schema, a `maintainer` page that prints `[redacted]` for the default of a secret key (`writeOnly`, `format: "password"`, or `options.secrets`); `meta(schemas, namespace)`: a LuaLS `---@meta` declaration file (classes, aliases) from named JSON Schemas (OQ-96); `is_generated(text)`. Text from the schema is escaped, and the expansion of a schema is bounded (500 rows per table, cycles shown as one row). There is no API reference: the OpenAPI contract is the external documentation of the API (served by `openapi`), and a viewer is the wiring of the user (OQ-141, owner decision of 2026-11-17). The generation of the documentation of a project is `hecate.doc.generate_project_documentation` (see "Documentation of a project"); it is not a function of this module. |
 | `licenses` (`hecate.doc.licenses`) | `read(fs, { tree, roots?, max_rocks? })`: the installed rocks of a tree (`<tree>/lib/luarocks/rocks-<lua>/<rock>/<version>/`), read through `fs`, as `{ rocks, problems }` (name, version, declared licence, `required_by`, licence text); `parse_rockspec(text)`: the data of a rockspec without running it; `bundled({ diagrams, theme_fs?, theme_directory? })`: what the generated site bundles, with the licence texts of the theme; `markdown(model, header, bundled?)`: the page. |
 
 ### Building a site
@@ -100,7 +101,7 @@ publishes only what it is asked to (OQ-144, [documentation.md](../../docs/archit
 |---|---|---|
 | front matter | `audience` | `user` or `maintainer`; anything else is a `BuildError` naming the file. |
 | site configuration | `default_audience` | Audience of a page without the key (default `maintainer`). |
-| site configuration | `audiences` | Audiences published (default `{ "maintainer" }`, for `hecate.doc.build` and `hecate.doc.project.build`). The Hecate website asks for both. |
+| site configuration | `audiences` | Audiences published (default `{ "maintainer" }`, for `hecate.doc.build` and `hecate.doc.generate_project_documentation`). The Hecate website asks for both. |
 | site configuration | `audience_sites` | `separate` (default) or `merged`: how several published audiences are written (see below). The Hecate website sets `merged` until its restructure. |
 
 By default `hecate.doc` serves the maintainers of a project (owner decision of 2026-11-18): a page without the key is
@@ -120,30 +121,72 @@ A page of an audience that is not published is absent from the pages, the naviga
 sitemap and the previous and next links, and a link to it is reported like a broken link (an error with `strict`).
 The configuration reference is a `maintainer` page; the code reference lists public symbols, and the pages of
 `*.internal` modules and of `private` or `package` classes are `maintainer` pages, generated only when `audiences`
-includes `maintainer`. Members that are not public are never listed. When one audience is published, `project.build` puts the whole code reference in that site, every page labelled with it (the default maintainer site holds the public symbols too); with both audiences, public symbols are `user` pages and internals `maintainer` pages. Limits: images next to a hidden page are still
+includes `maintainer`. Members that are not public are never listed. When one audience is published, `generate_project_documentation` puts the whole code reference in that site, every page labelled with it (the default maintainer site holds the public symbols too); with both audiences, public symbols are `user` pages and internals `maintainer` pages. Limits: images next to a hidden page are still
 copied; the LuaLS export gives the visibility of classes and members, but a project module path is matched against the
 `hecate.<name>` prefix of the reference generator (a project namespace other than `hecate.<name>` is not documented yet).
 
+### Documentation of a project
+
+```lua
+local doc = require("hecate.doc")
+-- Inside a reactor, from the root of a project laid out as `hecate new` does:
+doc.generate_project_documentation({ application = application, package_name = "shop" })
+```
+
+`hecate.doc.generate_project_documentation(options?)` writes the generated pages (configuration reference from the
+application, licences page, code reference) and the guides given as text into the guides directory, then builds
+the site (it is not the plain builder `hecate.doc.build`, which only turns a content tree into a site). Every
+path option has a default of the conventional layout of a project, relative to `project_dir`; a name that ends in
+`_dir` is a directory and a name that ends in `_path` a file. The conventional layout of `developer-experience.md`
+(`src/`, `config/`, `tests/`, `lua_modules/`) says nothing about documentation: `docs/` and `docs/dist` are the
+conservative choice, as in `examples/hello`, to be confirmed by the owner (OQ-143).
+
+| Option | Default | Meaning |
+|---|---|---|
+| `project_dir` | `.` | Directory of the project; relative paths below are relative to it, and LuaLS reads its `.luarc.json`. |
+| `guides_dir` | `docs` | Content root of the site: `<guides_dir>/<locale>/*.md`, `public/`, `site.lua`. Generated pages are written into it. |
+| `output_dir` | `docs/dist` | Where the static site is written. |
+| `site_configuration` | none | The site configuration as a table (wins over the file). |
+| `site_configuration_path` | `<guides_dir>/site.lua` | The Lua file that returns the site configuration (title, audiences, locales, theme). A missing file is a `BuildError`. |
+| `application` | none | The application (`hecate.kernel.Application`, duck-typed on `configuration_schema()`). It is the single source of the configuration reference and of the secrets whose defaults are redacted; without it there is no configuration reference. |
+| `package_name` | none | Lua package name of the project (`shop`): asks for the code reference `reference/<package_name>/`. |
+| `sources_dir` | `src` | The Lua sources the code reference documents, relative to `project_dir`. |
+| `language_server_path`, `language_server_config_path` | found on the path, `<project_dir>/.luarc.json` | The LuaLS executable and its configuration. LuaLS runs the plugin that the configuration declares: the project must be trusted (OQ-142). |
+| `licenses_page` | off | `true`, or `{ rocks_tree_dir = "lua_modules", root_rocks, audience, include_bundled }` (see below). |
+| `guide_texts` | none | Guides given as text, path below the locale directory to Markdown. |
+| `content_locale` | default locale of the site | Locale directory the generated pages and `guide_texts` are written to. |
+| `file_system` | `SystemFileSystem` | Where the project is read and the site written (the real one must run inside a reactor). |
+| `clean_output_dir`, `fail_on_problems` | `false` | Empty `output_dir` first (only if a previous build wrote it); raise a `BuildError` when the report has problems. |
+| `last_updated`, `theme_file_system`, `theme_files_dir` | none | As the options of `build` (`last_updated`, `theme_fs`, `theme_directory`). |
+
+Everything is checked before anything is written: a guide that would overwrite a generated page, or a generated page
+that would overwrite a file that is not generated, raises `BuildError` and leaves the tree untouched; generated
+pages that a build no longer produces are removed; a wrong option raises `ArgumentError` naming it. There is no
+option for a hand-passed configuration schema or for a list of secrets: the application is the single source, and a
+schema marks a secret with `writeOnly` or `format: "password"`. The command `hecate doc build` and the section `doc`
+of `hecate.project.lua` (same options, filled with these defaults by `hecate new`) are the `cli` item of the roadmap.
+
 ### Third-party licences page
 
-`project.build` generates `third-party-licences.md` when asked (`licenses = true`, which reads the tree
-`lua_modules`, or `licenses = { tree = "lua_modules", roots = { "my-app" }, audience = "maintainer", bundled = true }`; off by default). The page
+`generate_project_documentation` generates `third-party-licences.md` when asked (`licenses_page = true`, which reads
+the tree `lua_modules` of the project, or `licenses_page = { rocks_tree_dir = "lua_modules", root_rocks = { "my-app" },
+audience = "maintainer", include_bundled = true }`; off by default). The page
 is a `maintainer` page unless `audience = "user"` (OQ-144) and lists:
 
 - the rocks of the installed tree: name, version, licence as the rockspec declares it (`description.license`, an SPDX
   identifier when the rock uses one), the rocks that require it, and the licence text found in the installed rock
   (`LICENSE`, `LICENCE`, `COPYING` or `UNLICENSE`, in the rock directory or its `doc` directory), each distinct text
-  once. With `roots`, only those rocks and their dependencies, resolved transitively by name over every installed
+  once. With `root_rocks`, only those rocks and their dependencies, resolved transitively by name over every installed
   version; without it, every installed rock. A dependency that is not installed, an unreadable rockspec, a text that is
   not UTF-8 or larger than 64 KiB, and more than 2000 rocks are problems of the report, never errors;
 - what the generated site bundles, with the licence texts reproduced from the files of the theme: STIX Two Text, Fira
   Sans and Fira Code (OFL-1.1), the Hecate brand marks and the Octicons mark (MIT), Mermaid (MIT, with the licences of
-  its components named) when a guide holds a `mermaid` block (`bundled = false` leaves this section out). The Rust crates
+  its components named) when a guide holds a `mermaid` block (`include_bundled = false` leaves this section out). The Rust crates
   of the native module (comrak, syntect, two-face) are named as build tools; their texts ship with the release artefacts
   of the native module and are not reproduced (THIRD_PARTY_NOTICES, section 5). No syntax-highlighting colour theme is
   bundled: the highlight colours are the own CSS properties of the theme.
 
-The rocks are files read through `options.fs`: no `luarocks` process runs. A rockspec is Lua but its content is data,
+The rocks are files read through `options.file_system`: no `luarocks` process runs. A rockspec is Lua but its content is data,
 and it is never executed as code: `hecate.doc.licenses.parse_rockspec` refuses a rockspec that, outside strings and
 comments, holds a call (`(` or `:`), a loop, a `goto` or a loader, and evaluates the rest with an empty environment and an
 instruction limit. Links in the tree are not followed. Not generated for the Hecate website: its rocks are not an
@@ -252,8 +295,9 @@ src/hecate/doc/markdown.lua    Markdown (comrak) and highlight.lua (syntect) ove
 native/                        the Rust crate (comrak, syntect, two-face; `lua tools/run.lua build-native doc`)
 src/hecate/doc/site.lua        content tree, locales, links, navigation, output
 src/hecate/doc/reference.lua   code reference pages from the LuaLS export; reference_site.lua, luals.lua
-src/hecate/doc/project.lua     project documentation: configuration reference, meta files, `project.build`
-src/hecate/doc/internal/       page_id.lua (portable and NFC page ids), html.lua
+src/hecate/doc/project.lua     page generators for a project: configuration reference, meta files
+src/hecate/doc/internal/       page_id.lua (portable and NFC page ids), html.lua, generated_page.lua (notice and front
+                               matter of generated pages), project_documentation.lua (`generate_project_documentation`)
 src/hecate/doc/theme/          templates (layout.lua), strings, assets/ (css, js, fonts, brand)
 bin/build.lua                  build runner (`--reference` generates the code reference first)
 bin/reference.lua              code reference runner (used by `tools/run.lua gen-reference`)

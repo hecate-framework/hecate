@@ -14,7 +14,7 @@ This page covers what a project can configure and what is generated for it, for 
 
 ## Audiences
 
-The site that `doc.project.build` writes is the documentation of the project's own team. By default it serves the
+The site that `doc.generate_project_documentation` writes is the documentation of the project's own team. By default it serves the
 maintainers: it publishes only what you ask for. Pages have an audience: `user` (build, run and operate an application on the public API) or `maintainer`
 (change the project itself: architecture, decisions, internals, CI and release).
 
@@ -43,14 +43,26 @@ modules and of `private` or `package` classes are `maintainer` pages, generated 
 
 ## Generated pages
 
-`doc.project.build(options)` writes the guides of the project and the generated pages below the locale
-directory, then runs the site build.
+`doc.generate_project_documentation(options)` writes the guides of the project and the generated pages below the
+locale directory of the guides directory, then runs the site build. It is not the plain builder `doc.build`, which
+only turns a content tree into a site. Every option has a default taken from the conventional layout of a project,
+so `doc.generate_project_documentation({ application = application })` works from the project directory. A name that
+ends in `_dir` is a directory and a name that ends in `_path` is a file; relative paths are relative to `project_dir`.
 
-| Option | Adds |
-|---|---|
-| `configuration` | `configuration.md`, one row per key, from the JSON Schema of the configuration (a `maintainer` page). The default of a secret key is never printed: mark the key `writeOnly: true` or `format: "password"` in the schema, or list its path in the option `secrets`. |
-| `code` | The code reference `reference/<name>/`, from the annotated sources in `<root>/src` (needs LuaLS). LuaLS reads the `.luarc.json` of the project and runs the plugin it declares: `root` must be a project you trust. |
-| `pages` | The guides of the project. |
+| Option | Default | Effect |
+|---|---|---|
+| `project_dir` | `.` | The directory of the project. |
+| `guides_dir` | `docs` | The content root: `<guides_dir>/<locale>/*.md`, `public/` and `site.lua`. Generated pages are written into it. |
+| `output_dir` | `docs/dist` | Where the static site is written. |
+| `site_configuration_path` | `<guides_dir>/site.lua` | The file that returns the site configuration. `site_configuration` passes the table instead. |
+| `application` | none | Adds `configuration.md`, one row per key, from the JSON Schema of the configuration the application was given (a `maintainer` page). The application is the only source: a project without one has no configuration reference. The default of a secret key is never printed: the application declares its secrets, or mark the key `writeOnly: true` or `format: "password"` in the schema. |
+| `package_name` | none | Asks for the code reference `reference/<package_name>/`, from the annotated sources in `sources_dir` (default `src`; needs LuaLS). LuaLS reads the `.luarc.json` of the project and runs the plugin it declares: the project must be one you trust. |
+| `licenses_page` | off | Adds the third-party licences page. |
+| `guide_texts` | none | Guides given as text, by path. |
+
+The other options are `content_locale`, `file_system`, `clean_output_dir`, `fail_on_problems`, `last_updated`,
+`language_server_path`, `language_server_config_path`, `theme_file_system` and `theme_files_dir`; they are described in
+the README of the package.
 
 Generated pages carry a notice and are replaced at each build. A guide cannot overwrite one, and a generated page never overwrites a file that is not generated (a `BuildError` before anything is written). Generated pages that a build no longer produces are removed. A wrong option raises an `ArgumentError` naming it. The text that
 comes from the schema is escaped, because it is data of the project and not Markdown.
