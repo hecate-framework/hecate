@@ -363,6 +363,11 @@ function T:test_with_internal_the_internal_and_non_public_classes_are_maintainer
   self:assert_equal(#plain.order, user)
 end
 
+function T:test_an_audience_as_label_audiences_labels_every_page_with_it()
+  local result = generate(nil, { examples = examples, internal = true, label_audiences = "maintainer" })
+  for _, path in ipairs(result.order) do self:assert_equal("maintainer", audience_of(result.pages[path]), path) end
+end
+
 function T:test_with_internal_alone_pages_carry_no_audience_key()
   local result = generate({ { name = "demo", export = export_with_visibility() } }, { examples = examples, internal = true })
   for _, path in ipairs(result.order) do self:assert_nil(audience_of(result.pages[path]), path) end

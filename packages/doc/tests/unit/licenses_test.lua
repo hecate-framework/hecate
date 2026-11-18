@@ -229,7 +229,7 @@ end
 
 local function build_options(fs, extra)
   local options = {
-    config = { title = "Shop", audiences = { "user", "maintainer" } }, source = "docs", out = "dist", fs = fs,
+    config = { title = "Shop", audiences = { "user", "maintainer" }, audience_sites = "merged" }, source = "docs", out = "dist", fs = fs,
     pages = { ["index.md"] = "# Shop\n" },
   }
   for key, value in pairs(extra or {}) do options[key] = value end
@@ -265,13 +265,14 @@ end
 
 function T:test_build_does_not_publish_the_maintainer_page_to_the_user_audience()
   local fs = doc.MemoryFileSystem(tree_files())
-  project.build(build_options(fs, { licenses = { tree = "lm/tree" }, config = { title = "Shop" } }))
+  project.build(build_options(fs, { licenses = { tree = "lm/tree" }, config = { title = "Shop", audiences = { "user" } } }))
   self:assert_nil(fs:read("dist/en/third-party-licences/index.html"))
 end
 
 function T:test_build_can_publish_the_page_to_users()
   local fs = doc.MemoryFileSystem(tree_files())
-  project.build(build_options(fs, { licenses = { tree = "lm/tree", audience = "user" }, config = { title = "Shop" } }))
+  project.build(build_options(fs, { licenses = { tree = "lm/tree", audience = "user" },
+    config = { title = "Shop", audiences = { "user" } } }))
   self:assert_not_nil(fs:read("dist/en/third-party-licences/index.html"))
 end
 

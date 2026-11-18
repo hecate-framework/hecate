@@ -178,4 +178,9 @@ for code, entry in pairs(report.locales) do
 end
 table.sort(locales)
 print(("hecate.doc: %d files, %d bytes; %s"):format(report.files, report.bytes, table.concat(locales, "; ")))
+if #report.sites > 1 then
+  for _, entry in ipairs(report.sites) do
+    print(("  site %s/: %d files, %d problem(s)"):format(entry.directory, entry.files, #entry.problems))
+  end
+end
 os.exit(0)

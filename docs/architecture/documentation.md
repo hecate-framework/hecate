@@ -237,23 +237,31 @@ for the reader, not by who the reader is; [OQ-144](../open-questions.md), owner 
 
 `hecate doc build` on a project produces a static site that is the project team's own documentation:
 the guides the project writes, the configuration reference, and the code reference from the
-project's annotations. It publishes only what it is asked to: the public output of a project is a
-request (`audiences`), not a default.
+project's annotations. `hecate.doc` serves maintainers by default (owner decision of 2026-11-18): the
+public output of a project is a request (`audiences`), not a default, and the two audiences are never
+mixed in one site unless the configuration says so.
 
 - A page declares its audience in the front matter key `audience` (`user` or `maintainer`; any other
   value is a `BuildError` naming the file). The site configuration key `default_audience` (default
-  `user`) is the audience of a page without the key.
-- The site configuration key `audiences` lists the audiences the site publishes. Default: `{ "user" }`,
+  `maintainer`) is the audience of a page without the key.
+- The site configuration key `audiences` lists the audiences the site publishes. Default: `{ "maintainer" }`,
   for a project site (`hecate.doc.project.build`) and for the plain builder (`hecate.doc.build`) alike,
-  so a tree without any `audience` key builds as before. The website of the framework asks for
-  `{ "user", "maintainer" }` and keeps publishing everything.
-- A page whose audience is not published is absent from the output, the navigation, the search index,
-  the sitemap and the previous and next links. A link to it is reported like a broken link (an error
-  under `--strict`). Files next to pages (images) are not filtered. A translation never publishes a
+  so a tree without any `audience` key builds as before (every page is maintainer documentation and published).
+- **One site per audience** (key `audience_sites`, default `separate`): with several audiences published,
+  the build writes a complete site for each below `<out>/<audience>/` (pages, navigation, search index,
+  sitemap, `llms.txt`, theme files, `404.html`; the base URL is `<base><audience>/`) and none holds a page
+  of another audience; `<out>/` holds a marker and a redirect to the first audience. With one audience the
+  layout stays `<out>/`, so that URLs do not change when a second audience is added later. `merged` writes
+  one combined site; the website of the framework sets it until its restructure (OQ-144, option (a)).
+  `BuildReport.sites` lists each site with its problems.
+- A page whose audience is not published (in this site) is absent from the output, the navigation, the
+  search index, the sitemap and the previous and next links. A link to it, including a link to a page of
+  another audience's site, is reported like a broken link naming the audience (an error under `--strict`). Files next to pages (images) are not filtered. A translation never publishes a
   page that the page of the default locale keeps back.
 - Generated pages: the configuration reference is `maintainer`. The code reference lists public
   symbols (`user`); the pages of `*.internal` modules and of classes that LuaLS reports as `private`
-  or `package` are `maintainer`, and are generated only when `audiences` includes `maintainer`. A member
+  or `package` are `maintainer`, and are generated only when `audiences` includes `maintainer`; a project
+  site that publishes one audience holds the whole code reference, labelled with it. A member
   (field or method) that is `private`, `protected` or `package`, or whose name starts with `_`, is never
   listed: a member is a part of a class page, not a page.
 - The configuration reference never prints the default of a secret key (`[redacted]` in its place). A
@@ -269,8 +277,9 @@ request (`audiences`), not a default.
   texts of the theme. A rockspec is data: it is parsed without being run (no call, loop or loader
   accepted; an empty environment and an instruction limit for the rest), and no `luarocks` process runs.
 
-The audience split of the website of the framework (the pages of `website/` moved or labelled) is a
-separate item, and a `check-audience` gate is not written yet ([OQ-144](../open-questions.md)).
+The audience split of the website of the framework (the pages of `website/` moved or labelled, then
+`audience_sites` left at `separate`) is a separate item, and a `check-audience` gate is not written yet
+([OQ-144](../open-questions.md)).
 
 There is no API reference. The OpenAPI contract is the external documentation of the API:
 `openapi` serves it (`/openapi.json`) and `hecate contract export` writes it. A viewer for

@@ -1,7 +1,7 @@
 -- Project documentation: the pages `hecate doc build` generates for a user project from its
 -- configuration schema, the LuaLS meta files of its schemas, and the build that joins them with the
 -- guides and the code reference of the project (documentation.md, "Documentation of a project"). The
--- generated site is the documentation of the project's own team: it publishes the `user` audience unless
+-- generated site is the documentation of the project's own team: it publishes the `maintainer` audience unless
 -- the project asks for more (`audiences`, OQ-144). There is no API reference: the OpenAPI contract is the external documentation of the
 -- API, and its viewer is the wiring of the user (OQ-141).
 -- The page generators are pure: tables in, Markdown out, deterministic. Every piece of text
@@ -403,7 +403,7 @@ end
 ---@field secrets? string[]  dotted paths of the configuration keys that hold secrets: their defaults are not printed in the configuration reference (added to the secrets of `application`)
 ---@field licenses? true|hecate.doc.ProjectLicensesOptions  adds the third-party licences page (default: off); `true` reads the tree `lua_modules`
 ---@field pages? table<string, string>  guides of the project, path below the locale root to Markdown (`.md`, relative, no `..`)
----@field code? { root: string, name: string, executable?: string, config?: string }  document the annotated sources `<root>/src` of the project as the code reference `reference/<name>/` (skipped with a problem when LuaLS is missing). The reference lists the public symbols (pages of `user` audience); the pages of `*.internal` modules and of non-public classes are generated, as `maintainer` pages, only when `config.audiences` includes `maintainer`. LuaLS reads the `.luarc.json` of `root` (or `config`) and runs the plugin it declares: `root` must be trusted
+---@field code? { root: string, name: string, executable?: string, config?: string }  document the annotated sources `<root>/src` of the project as the code reference `reference/<name>/` (skipped with a problem when LuaLS is missing). The reference lists the public symbols (pages of `user` audience); the pages of `*.internal` modules and of non-public classes are generated, as `maintainer` pages, only when `config.audiences` includes `maintainer`. When `config.audiences` holds one audience (the default is `maintainer`), the site holds the whole reference and every page is labelled with that audience; with both, each page goes to the site of its audience. LuaLS reads the `.luarc.json` of `root` (or `config`) and runs the plugin it declares: `root` must be trusted
 ---@field locale? string  locale directory the pages are written to (default the default locale, "en")
 
 ---@class hecate.doc.ProjectBuildReport : hecate.doc.BuildReport
@@ -498,7 +498,7 @@ local function validate(options)
     end
   end
   -- The audiences are checked before anything is written (a wrong one raises `core.ConfigurationError`);
-  -- a project site publishes the `user` audience unless it asks for more (OQ-144).
+  -- a project site publishes the `maintainer` audience unless it asks for more (OQ-144).
   local audiences = config_module.normalise(options.config or {}).audiences
   return locale, pages, audiences
 end
@@ -579,6 +579,9 @@ function M.build(options)
   local locale, pages, audiences = validate(options)
   local maintainer = false
   for _, audience in ipairs(audiences) do maintainer = maintainer or audience == "maintainer" end
+  -- The code reference is labelled by audience (public symbols `user`, internals `maintainer`) when both audiences
+  -- are published; a site that publishes one audience holds the whole reference, labelled with it.
+  local label = #audiences == 1 and audiences[1] or true
   local fs = options.fs
   local root = options.source:gsub("/+$", "") .. "/" .. locale
   local generated = {}
@@ -625,7 +628,7 @@ function M.build(options)
     code_report = require("hecate.doc.reference_site").run({
       root = options.code.root, packages = { options.code.name }, layout = "src", out = root,
       fs = fs, executable = options.code.executable, config = options.code.config,
-      internal = maintainer, label_audiences = true,
+      internal = maintainer, label_audiences = label,
     })
   end
   local report = build.build(options) --[[@as hecate.doc.ProjectBuildReport]]

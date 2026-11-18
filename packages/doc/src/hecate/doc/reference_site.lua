@@ -26,7 +26,7 @@ M.DEFAULT_PACKAGES = { "core", "reactor", "net", "json", "log", "http", "router"
 ---@field config? string  `.luarc.json` (default `<root>/.luarc.json`)
 ---@field since? string
 ---@field internal? boolean  also generate the `maintainer` pages of `*.internal` modules and of non-public classes (default false)
----@field label_audiences? boolean  write the `audience` front matter key on every page (default false)
+---@field label_audiences? boolean|hecate.doc.Audience  write the `audience` front matter key on every page: `true` by class, an audience for all pages (default false)
 ---@field layout? string  `string.format` pattern of a package's source directory below `root` (default `packages/%s/src`; a project uses `src`, with one name)
 
 ---@class hecate.doc.ReferenceSiteReport

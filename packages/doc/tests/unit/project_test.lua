@@ -30,8 +30,8 @@ end
 function T:test_build_writes_a_site_with_the_guides_and_the_configuration_reference()
   local fs = doc.MemoryFileSystem({})
   local report = project.build({
-    config = { title = "Shop docs", audiences = { "user", "maintainer" } }, source = "docs", out = "dist", fs = fs,
-    clean = true, strict = true, configuration = config_schema,
+    config = { title = "Shop docs", audiences = { "user", "maintainer" }, audience_sites = "merged" }, source = "docs",
+    out = "dist", fs = fs, clean = true, strict = true, configuration = config_schema,
     pages = { ["index.md"] = "# Shop\n\nWelcome.\n" },
   })
   self:assert_equal(0, #report.problems, table.concat(report.problems, "\n"))
@@ -278,7 +278,7 @@ end
 function T:test_the_locale_option_and_the_default_locale_choose_the_directory()
   local fs = doc.MemoryFileSystem({})
   project.build(build_options(fs, { locale = "fr", config = { title = "S", default_locale = "fr", locales = { { code = "fr" } },
-    audiences = { "user", "maintainer" } }, configuration = config_schema }))
+    audiences = { "user", "maintainer" }, audience_sites = "merged" }, configuration = config_schema }))
   self:assert_not_nil(fs:read("docs/fr/configuration.md"))
   self:assert_not_nil(fs:read("dist/fr/configuration/index.html"))
   local other = doc.MemoryFileSystem({})
@@ -326,19 +326,37 @@ local function build_with(config)
   return fs, report
 end
 
-function T:test_a_project_site_publishes_the_user_audience_only_by_default()
+function T:test_a_project_site_publishes_the_maintainer_audience_only_by_default()
   local fs, report = build_with({ title = "Shop docs" })
-  self:assert_nil(fs:read("dist/en/configuration/index.html"))
-  self:assert_nil(fs:read("dist/assets/search-en.json"):find("1 to 65535", 1, true))
-  self:assert_not_nil(fs:read("dist/en/index.html"))
-  self:assert_equal(1, report.locales.en.unpublished)
+  self:assert_not_nil(fs:read("dist/en/configuration/index.html"), "the configuration reference is maintainer documentation")
+  self:assert_not_nil(fs:read("dist/assets/search-en.json"):find("1 to 65535", 1, true))
+  self:assert_not_nil(fs:read("dist/en/index.html"), "a guide without the key is maintainer documentation")
+  self:assert_equal(0, report.locales.en.unpublished)
+  self:assert_equal(1, #report.sites)
+  -- A site for the users has no configuration reference.
+  local users, user_report = build_with({ title = "Shop docs", audiences = { "user" } })
+  self:assert_nil(users:read("dist/en/configuration/index.html"))
+  self:assert_nil(users:read("dist/assets/search-en.json"):find("1 to 65535", 1, true))
+  self:assert_equal(2, user_report.locales.en.unpublished, "the guide without the key and the configuration reference")
   -- The page stays in the source tree: generated pages are written, publication is a build decision.
   self:assert_not_nil(fs:read("docs/en/configuration.md"))
 end
 
-function T:test_a_project_that_asks_for_both_audiences_gets_everything()
-  local fs, report = build_with({ title = "Shop docs", audiences = { "user", "maintainer" } })
+function T:test_a_project_that_asks_for_both_audiences_gets_everything_in_a_merged_site()
+  local fs, report = build_with({ title = "Shop docs", audiences = { "user", "maintainer" }, audience_sites = "merged" })
   self:assert_not_nil(fs:read("dist/en/configuration/index.html"))
+  self:assert_equal(0, report.locales.en.unpublished)
+end
+
+function T:test_a_project_that_asks_for_both_audiences_gets_one_site_each_with_every_generated_page_in_its_own()
+  local fs, report = build_with({ title = "Shop docs", audiences = { "user", "maintainer" } })
+  self:assert_equal(2, #report.sites)
+  -- The configuration reference is maintainer documentation; the guide below is labelled by the front matter.
+  self:assert_not_nil(fs:read("dist/maintainer/en/configuration/index.html"))
+  self:assert_nil(fs:read("dist/user/en/configuration/index.html"))
+  self:assert_nil(fs:read("dist/user/assets/search-en.json"):find("1 to 65535", 1, true))
+  self:assert_not_nil(fs:read("dist/maintainer/assets/search-en.json"):find("1 to 65535", 1, true))
+  self:assert_nil(fs:read("dist/en/index.html"))
   self:assert_equal(0, report.locales.en.unpublished)
 end
 
