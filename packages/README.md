@@ -22,7 +22,7 @@ agent in `.claude/agents/pkg-<name>.md`.
 | [`unicode-data`](unicode-data) | `hecate-unicode-data` | 0 — Foundation | 3 | alpha | Generated Unicode Character Database tables (combining classes, canonical decompositions and compositions), versioned by the Unicode version. |
 | [`openapi`](openapi) | `hecate-openapi` | 3 — Framework | 3 | alpha | OpenAPI 3.1 document assembly from the route table, schemas and project settings; served endpoint, export, lint and breaking-change diff. |
 | [`cli`](cli) | `hecate-cli` | Tooling | 3 | specified | The `hecate` command: toolchains, projects, dependencies (LuaRocks), development server, tests, contracts, documentation, migrations, scaffolding, packaging. |
-| [`doc`](doc) | `hecate-doc` | Tooling | 3 | alpha | Documentation generator and static site builder with an MDN-like theme: guides in Markdown, code reference from LuaLS annotations, configuration and error-code references, locales, search. |
+| [`doc`](doc) | `hecate-doc` | Tooling | 3 | alpha | Documentation generator and static site builder with an MDN-like theme: guides in Markdown, code reference from LuaLS annotations, configuration reference, locales, search. |
 | [`test`](test) | `hecate-test` | Tooling | 3 | alpha | xUnit test framework running inside the reactor: cases, suites, fixtures, assertions, in-process HTTP client, contract conformance, property-based testing, coverage. |
 | [`hecate`](hecate) | `hecate` | Meta | 3 | in progress | Meta-rock `hecate`: depends on the standard edition and provides the `hecate` meta-module re-exporting the framework surface. |
 | [`migration`](migration) | `hecate-migration` | Data | 4 | specified | Versioned, reversible database schema migrations with checksums and CLI integration. |
