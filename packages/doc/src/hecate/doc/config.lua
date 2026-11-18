@@ -42,11 +42,14 @@ local M = {}
 ---@field outline? integer[]  heading levels listed in "On this page" (default { 2, 3 })
 ---@field strings? table<string, table<string, string>>  overrides of the interface strings per locale
 ---@field logo? string|{ light: string, dark?: string }  logo of the project: file(s) of `public/` replacing the brand logo (shown as they are, never recoloured); a string is used for both colour schemes
+---@field favicon? string|{ light: string, dark?: string }  favicon of the project: file(s) of `public/` (`.svg`, `.png` or `.ico`) replacing the Hecate favicon; with `dark`, each file is announced with a `prefers-color-scheme` media query
+---@field sidebar_marker? boolean  draw an accent bar at the left of the current page in the sidebar tree; default false (the current page is then shown by a stronger weight and a tint)
 ---@field theme? string  CSS file (`.css`) of `public/` loaded after the stylesheet of the theme, to override its custom properties: colours (light and dark), highlighting, the three font families, radii, spacing, sidebar width (OQ-38); it may declare its own `@font-face` for font files of `public/`
 ---@field llms? boolean  write `llms.txt` and `llms-full.txt` (llmstxt.org) for the published pages of the default locale; default false
 ---@field exclude? string[]  file names left out of the site (default { "README.md" })
----@field audiences? hecate.doc.Audience[]  audiences published (default `{ "user" }`): a page whose audience is not listed is absent from the site and links to it are reported
----@field default_audience? hecate.doc.Audience  audience of a page without the `audience` front matter key (default "user")
+---@field audiences? hecate.doc.Audience[]  audiences published (default `{ "maintainer" }`: `hecate.doc` serves the team of a project first): a page whose audience is not listed is absent from the site and links to it are reported
+---@field default_audience? hecate.doc.Audience  audience of a page without the `audience` front matter key (default "maintainer")
+---@field audience_sites? "separate"|"merged"  with several audiences published: `separate` (default) writes one complete site per audience below `<out>/<audience>/`, `merged` one site holding every published audience (the Hecate website, until its restructure, OQ-144); with one audience published both write `<out>/`
 
 local function invalid(field, message)
   error(core.ConfigurationError({
@@ -139,6 +142,23 @@ local function check_public_path(field, value)
   end
 end
 
+-- Media types of the favicon formats a browser accepts in `<link rel="icon">` (HTML Living Standard, 4.6.7.9 and
+-- 4.2.6: the `type` attribute is a hint that lets a browser skip a format it does not support).
+local FAVICON_TYPES = { svg = "image/svg+xml", png = "image/png", ico = "image/x-icon" }
+
+--- Media type of a favicon file, from its extension; `nil` when the extension is not supported.
+---@param path string
+---@return string?
+function M.favicon_type(path)
+  local extension = path:match("%.(%w+)$")
+  return extension and FAVICON_TYPES[extension:lower()] or nil
+end
+
+local function check_favicon_path(field, value)
+  check_public_path(field, value)
+  if not M.favicon_type(value) then invalid(field, "expected an .svg, .png or .ico file") end
+end
+
 --- The audiences a page can be written for.
 M.AUDIENCES = { user = true, maintainer = true }
 
@@ -167,7 +187,7 @@ function M.normalise(raw)
       if math.type(level) ~= "integer" or level < 1 or level > 6 then invalid("outline", "expected heading levels 1 to 6") end
     end)
   end
-  local audiences = { "user" }
+  local audiences = { "maintainer" }
   if raw.audiences ~= nil then
     local seen_audience = {}
     check_list("audiences", raw.audiences, function(name, item)
@@ -182,6 +202,9 @@ function M.normalise(raw)
   if raw.default_audience ~= nil and (type(raw.default_audience) ~= "string" or not M.AUDIENCES[raw.default_audience]) then
     invalid("default_audience", 'expected "user" or "maintainer"')
   end
+  if raw.audience_sites ~= nil and raw.audience_sites ~= "separate" and raw.audience_sites ~= "merged" then
+    invalid("audience_sites", 'expected "separate" or "merged"')
+  end
   local logo
   if raw.logo ~= nil then
     if type(raw.logo) == "string" then
@@ -194,6 +217,22 @@ function M.normalise(raw)
     else
       invalid("logo", "expected a path or { light, dark }")
     end
+  end
+  local favicon
+  if raw.favicon ~= nil then
+    if type(raw.favicon) == "string" then
+      check_favicon_path("favicon", raw.favicon)
+      favicon = { light = raw.favicon }
+    elseif type(raw.favicon) == "table" then
+      check_favicon_path("favicon.light", raw.favicon.light)
+      if raw.favicon.dark ~= nil then check_favicon_path("favicon.dark", raw.favicon.dark) end
+      favicon = { light = raw.favicon.light, dark = raw.favicon.dark }
+    else
+      invalid("favicon", "expected a path or { light, dark }")
+    end
+  end
+  if raw.sidebar_marker ~= nil and type(raw.sidebar_marker) ~= "boolean" then
+    invalid("sidebar_marker", "expected true or false")
   end
   if raw.theme ~= nil then
     check_public_path("theme", raw.theme)
@@ -214,6 +253,8 @@ function M.normalise(raw)
     url = raw.url and (raw.url:gsub("/+$", "")),
     repository = raw.repository,
     logo = logo,
+    favicon = favicon,
+    sidebar_marker = raw.sidebar_marker == true,
     theme = raw.theme,
     llms = raw.llms == true,
     edit_link = raw.edit_link,
@@ -223,7 +264,8 @@ function M.normalise(raw)
     exclude = raw.exclude or { "README.md" },
     outline = raw.outline or { 2, 3 },
     audiences = audiences,
-    default_audience = raw.default_audience or "user",
+    default_audience = raw.default_audience or "maintainer",
+    audience_sites = raw.audience_sites or "separate",
   }
   local base = raw.base
   if base == nil then base = "/" end

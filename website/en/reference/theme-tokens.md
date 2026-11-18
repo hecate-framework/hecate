@@ -130,12 +130,15 @@ A logo is shown at 45 px high, so keep `--header-height` at 56px or more if you 
 - The properties `--show-light`, `--show-dark`, `--show-light-inline`, `--show-dark-inline`, `--callout` and `--icon`
   belong to the theme: they switch the logo and the toggle icon, and style callouts. Do not set them.
 - The hecate marks are never recoloured. The `logo` key replaces the logo, and the image is shown as it is, never
-  recoloured. Two hecate assets remain in a project site: the favicon, and the pattern strip of the home layout
-  (`layout: home`). A project that wants neither avoids the home layout, and the favicon cannot be replaced yet.
+  recoloured. The `favicon` key replaces the favicon. One hecate asset remains in a project site: the pattern strip of the
+  home layout (`layout: home`); a project that does not want it avoids that layout.
+- The accent bar of the current page in the sidebar is opt-in: set `sidebar_marker = true` in `site.lua`. Without it
+  the current page is shown by a stronger weight and a tint (`--surface-100`), so `--earth` is not used there.
 - Templates are not overridable.
 
 ## Example
 
 The documentation of the `hello` example, `examples/hello/docs`, has its own palette in both sets, its own radii and
-sidebar width, the Fira Sans family for the body, a system font stack for the rest, and its own logo. Build it with
+sidebar width, the Inter family for the body (shipped in its `public/fonts/`), a system monospace stack for code, and its own logo
+and favicon. Build it with
 `lua examples/hello/build_docs.lua`.

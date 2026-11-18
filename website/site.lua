@@ -9,6 +9,7 @@ return {
     fr = "Un cadre applicatif modulaire, piloté par contrat, pour les API web en Lua 5.5.",
   },
   base = "/",
+  sidebar_marker = true, -- the accent bar of the current page in the sidebar is opt-in; the website keeps it
   url = "https://hecate.theandre.dev", -- provisional domain (OQ-10)
   default_locale = "en",
   locales = {
@@ -26,8 +27,11 @@ return {
   repository = "https://github.com/hecate-framework/hecate",
   edit_link = "https://github.com/hecate-framework/hecate/edit/main/website/{path}",
   source_edit_link = "https://github.com/hecate-framework/hecate/edit/main/{path}", -- generated reference pages
-  -- The website of the framework publishes both audiences (OQ-144); a project site publishes `user` only by default.
+  -- The website of the framework publishes both audiences (OQ-144), as ONE combined site until its restructure
+  -- (option (a) of OQ-144): by default several audiences are written as separate sites, one per audience.
   audiences = { "user", "maintainer" },
+  default_audience = "user", -- no page of website/ is labelled yet: every page stays what it was, a user page
+  audience_sites = "merged",
   llms = true, -- writes llms.txt and llms-full.txt (default locale, published pages)
   exclude = { "README.md", "glossary-terms.md" }, -- the translators' notes are not pages
 }

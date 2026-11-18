@@ -30,6 +30,22 @@ The three licence files name no Reserved Font Name. Open question OQ-34 asks the
 confirm that redistributing the subsetted files under their original names is acceptable.
 
 
+1b. Font of the hello example documentation
+-------------------------------------------
+
+Location: examples/hello/docs/public/fonts/ (inter-latin-400-normal.woff2, -500-, -600-; licence text in
+OFL-inter.txt).
+Licence: SIL Open Font License, Version 1.1.
+Obtained from: the npm package @fontsource/inter, version 5.3.0 (Fontsource, MIT; Latin subset of the Google Fonts
+distribution, in WOFF2). Unmodified by Hecate.
+
+- Inter (400, 500, 600)
+  Copyright 2016 The Inter Project Authors (https://github.com/rsms/inter)
+
+The licence file names no Reserved Font Name. The files are shipped as the showcase site's own font, loaded by its
+own @font-face; the documentation theme does not use them.
+
+
 2. Hecate brand kit
 -------------------
 

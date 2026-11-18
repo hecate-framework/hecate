@@ -726,6 +726,10 @@ function Site:emit(write)
     named[#named + 1] = self.config.logo.light
     named[#named + 1] = self.config.logo.dark
   end
+  if self.config.favicon then
+    named[#named + 1] = self.config.favicon.light
+    named[#named + 1] = self.config.favicon.dark
+  end
   named[#named + 1] = self.config.theme
   for _, path in ipairs(named) do
     if self._fs:read(self._source .. "/public/" .. path) == nil then

@@ -223,7 +223,9 @@ button { font: inherit; color: inherit; }
 .sidebar li ul { margin-left: var(--space-2); padding-left: var(--space-2); border-left: 1px solid var(--border); }
 .sidebar a { display: block; padding: 6px 8px; color: var(--ink-muted); text-decoration: none; border-radius: var(--radius-sm); }
 .sidebar a:hover { color: var(--ink); background: var(--surface-100); }
-.sidebar a[aria-current="page"] { color: var(--earth); font-weight: 500; background: var(--surface-100); box-shadow: inset 2px 0 0 var(--earth); }
+/* The current page: a calm style by default (stronger weight, tint); the accent bar is opt-in (`sidebar_marker`). */
+.sidebar a[aria-current="page"] { color: var(--ink); font-weight: 600; background: var(--surface-100); }
+.sidebar-marker .sidebar a[aria-current="page"] { color: var(--earth); font-weight: 500; box-shadow: inset 2px 0 0 var(--earth); }
 .sidebar details { margin: 0; }
 .sidebar summary { display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; color: var(--ink); font-weight: 500; cursor: pointer; list-style: none; border-radius: var(--radius-sm); }
 .sidebar summary::-webkit-details-marker { display: none; }

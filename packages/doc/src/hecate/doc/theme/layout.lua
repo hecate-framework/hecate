@@ -9,6 +9,7 @@ global <const> require, table, string, ipairs, tostring
 
 local html = require("hecate.doc.internal.html")
 local json = require("hecate.json")
+local config_module = require("hecate.doc.config")
 local strings_module = require("hecate.doc.theme.strings")
 
 local escape, attributes = html.escape, html.attributes
@@ -270,8 +271,20 @@ local function head(context, title)
     "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">",
     ("<title>%s</title>"):format(escape(title)),
     "<meta name=\"color-scheme\" content=\"light dark\">",
-    ("<link rel=\"icon\" href=\"%s\" type=\"image/svg+xml\">"):format(escape(context.asset("assets/brand/favicon.svg"))),
   }
+  local favicon = context.config.favicon
+  if favicon then
+    -- The pair is told apart by `prefers-color-scheme`; a single file is used for both schemes.
+    local function icon_link(path, media)
+      out[#out + 1] = ("<link rel=\"icon\" href=\"%s\" type=\"%s\"%s>"):format(escape(context.public_url(path)),
+        config_module.favicon_type(path), media and (" media=\"(prefers-color-scheme: " .. media .. ")\"") or "")
+    end
+    icon_link(favicon.light, favicon.dark and "light" or nil)
+    if favicon.dark then icon_link(favicon.dark, "dark") end
+  else
+    out[#out + 1] = ("<link rel=\"icon\" href=\"%s\" type=\"image/svg+xml\">"):format(
+      escape(context.asset("assets/brand/favicon.svg")))
+  end
   if context.description and context.description ~= "" then
     out[#out + 1] = ("<meta name=\"description\" content=\"%s\">"):format(escape(context.description))
     out[#out + 1] = ("<meta property=\"og:description\" content=\"%s\">"):format(escape(context.description))
@@ -380,7 +393,9 @@ function M.page(context)
     add(("<script src=\"%s\" defer></script>"):format(escape(context.asset("assets/mermaid-init.js"))))
   end
   return ("<!doctype html>\n<html lang=\"%s\">\n<head>\n%s\n</head>\n<body%s>\n%s\n</body>\n</html>\n"):format(
-    escape(context.locale.lang), head(context, title), attributes({ class = is_home and "home" or "doc-page" }),
+    escape(context.locale.lang), head(context, title), attributes({
+      class = (is_home and "home" or "doc-page") .. (context.config.sidebar_marker and " sidebar-marker" or ""),
+    }),
     table.concat(body, "\n"))
 end
 

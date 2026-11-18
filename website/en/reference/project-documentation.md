@@ -14,15 +14,23 @@ This page covers what a project can configure and what is generated for it, for 
 
 ## Audiences
 
-The site that `doc.project.build` writes is the documentation of the project's own team, and it publishes only what
-you ask for. Pages have an audience: `user` (build, run and operate an application on the public API) or `maintainer`
+The site that `doc.project.build` writes is the documentation of the project's own team. By default it serves the
+maintainers: it publishes only what you ask for. Pages have an audience: `user` (build, run and operate an application on the public API) or `maintainer`
 (change the project itself: architecture, decisions, internals, CI and release).
 
 | Where | Key | Meaning |
 |---|---|---|
 | Front matter of a page | `audience` | `user` or `maintainer`. Any other value fails the build with a `BuildError` naming the file. |
-| Site configuration | `default_audience` | The audience of a page without the key. Default `user`. |
-| Site configuration | `audiences` | The audiences the site publishes. Default `{ "user" }`. Ask for `{ "user", "maintainer" }` to publish everything. |
+| Site configuration | `default_audience` | The audience of a page without the key. Default `maintainer`. |
+| Site configuration | `audiences` | The audiences the site publishes. Default `{ "maintainer" }`. Ask for `{ "user" }` for a site for the users, or for both. |
+| Site configuration | `audience_sites` | `"separate"` (default) or `"merged"`: what to write when several audiences are published. |
+
+With several audiences published, the build writes one complete site per audience, `<out>/user/` and
+`<out>/maintainer/`: each has its own pages, navigation, search index, sitemap, `llms.txt`, theme files and
+`404.html`, and no page of the other audience. Give each audience its own home page (`index.md`). A link from a page
+to a page of the other audience is reported like a broken link, naming the audience. With one audience the site is
+written at `<out>/`. Set `audience_sites = "merged"` to write one combined site instead (the Hecate website does, for
+now). The build report lists each site and its problems.
 
 A page of an audience that is not published is left out of the pages, the navigation, the search index, the sitemap
 and the previous and next links. A link to it is reported like a broken link, and fails the build under `--strict`, so
@@ -57,13 +65,17 @@ deterministic.
 
 ## Theme extension points
 
-The site configuration has two options to give a project its own identity. Both name files of the `public/`
+The site configuration has options to give a project its own identity. The first three name files of the `public/`
 directory of the content root, which the build copies to the root of the site.
 
 | Option | Effect |
 |---|---|
 | `logo` | A path, or `{ light, dark }`. Replaces the hecate logo in the header. The image is shown as it is. |
+| `favicon` | A path, or `{ light, dark }`, of an `.svg`, `.png` or `.ico` file. Replaces the hecate favicon; the `type` attribute of the `<link rel="icon">` follows the extension. With a pair, each file carries a `prefers-color-scheme` media query. |
 | `theme` | A CSS file (`.css`) loaded after the theme stylesheet. It overrides the custom properties of the theme: colours in light and dark, code highlighting, the three font families, radii, spacing and the width of the sidebar. It may declare its own `@font-face` for font files of `public/`. |
+
+The option `sidebar_marker` (a boolean, default `false`) draws an accent bar at the left of the current page in the
+sidebar. Without it, the current page is shown by a stronger weight and a subtle tint.
 
 A path must be relative, without `..`, a scheme or a query. A file missing from `public/` fails the build
 with a `BuildError`. The hecate marks are never recoloured. Template overrides are not offered. Every property,

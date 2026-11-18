@@ -351,17 +351,20 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
 - [ ] `doc` follow-up, audience (owner remarks on pull request #218, 2026-11-17; the decision is OQ-144): documentation is
       user documentation or maintainer documentation, and the `doc` generator targets a project's own team.
       **Delivered (conservative first half of OQ-144 option (c)):** front matter `audience`, site configuration
-      `audiences` (default `{ "user" }`) and `default_audience`; pages of an unpublished audience absent from the output,
+      `audiences` and `default_audience` (default `maintainer`, owner decision of 2026-11-18); pages of an unpublished audience absent from the output,
       navigation, search, sitemap and previous and next links, and links to them reported; the configuration reference
       is `maintainer`; the code reference lists public symbols, with `*.internal` and non-public classes as
-      `maintainer` pages; the default of a secret key is not printed in the configuration reference. **To do once
-      OQ-144 is decided:** the audience split of the Hecate website (option (a): sections, `llms.txt`, French mirror;
-      the website pages are not labelled yet) and a `check-audience` gate; a `draft` page flag. The error-code reference of a project and
+      `maintainer` pages; the default of a secret key is not printed in the configuration reference. **Delivered
+      (owner decisions of 2026-11-18):** the defaults are maintainer, and several published audiences are written as
+      separate sites (`audience_sites`, `<out>/<audience>/`, each with its own navigation, search, sitemap and
+      `llms.txt`; the website keeps `merged`). **To do:** the restructure of the Hecate website (OQ-144 option (a):
+      sections, `llms.txt`, French mirror; the website pages are not labelled yet; then `audience_sites` left at
+      `separate`) and a `check-audience` gate; a `draft` page flag. The error-code reference of a project and
       "switchable sections" are dropped (owner, 2026-11-18). **Delivered since (owner requests of
       2026-11-18):** `llms.txt` and `llms-full.txt` for a project (site configuration `llms`, off by default, default locale
       and published pages only; the website turns it on); the theme key `colors` renamed `theme` (fonts, radii, spacing
-      and sidebar width as well as colours; page "Theme tokens"); the showcase `examples/hello/docs`; **still to do:**
-      `llms.txt` of other locales, a replaceable favicon. The tick of the `doc` item above covers the Lua API only; `hecate doc build` belongs to the `cli` item below.
+      and sidebar width as well as colours; page "Theme tokens"); the showcase `examples/hello/docs`; a replaceable favicon (site configuration `favicon`) and an opt-in sidebar marker (`sidebar_marker`); **still to do:**
+      `llms.txt` of other locales. The tick of the `doc` item above covers the Lua API only; `hecate doc build` belongs to the `cli` item below.
 - [ ] `cli` v1: self-contained executable, `new`, `install`, `add`, `remove`, `update`,
       `serve [--watch]`, `test`, `doc`, `contract`, `toolchain`, `doctor`, `version`.
       **Also (from the `test` item, owner go-ahead of 2026-11-16):** `hecate test` takes the options of

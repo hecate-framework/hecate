@@ -121,6 +121,37 @@ function T:test_logo_and_theme()
   self:assert_equal("fonts/Own.CSS", config.normalise({ title = "t", theme = "fonts/Own.CSS" }).theme)
 end
 
+function T:test_sidebar_marker_is_an_opt_in_boolean()
+  self:assert_equal(false, config.normalise({ title = "t" }).sidebar_marker)
+  self:assert_equal(true, config.normalise({ title = "t", sidebar_marker = true }).sidebar_marker)
+  self:assert_equal(false, config.normalise({ title = "t", sidebar_marker = false }).sidebar_marker)
+  invalid(self, { title = "t", sidebar_marker = "yes" }, "sidebar_marker")
+  invalid(self, { title = "t", sidebar_marker = 1 }, "sidebar_marker")
+end
+
+function T:test_favicon_is_a_file_of_public_with_a_known_type()
+  self:assert_nil(config.normalise({ title = "t" }).favicon)
+  local single = config.normalise({ title = "t", favicon = "icons/a.svg" }).favicon
+  self:assert_not_nil(single)
+  ---@cast single -nil
+  self:assert_equal("icons/a.svg", single.light)
+  self:assert_nil(single.dark)
+  local both = config.normalise({ title = "t", favicon = { light = "a.png", dark = "b.ICO" } }).favicon
+  self:assert_not_nil(both)
+  ---@cast both -nil
+  self:assert_equal("a.png", both.light)
+  self:assert_equal("b.ICO", both.dark)
+  invalid(self, { title = "t", favicon = "../a.svg" }, "favicon")
+  invalid(self, { title = "t", favicon = "https://x.test/a.svg" }, "favicon")
+  invalid(self, { title = "t", favicon = ".hidden.svg" }, "favicon")
+  invalid(self, { title = "t", favicon = "a.gif" }, "favicon")
+  invalid(self, { title = "t", favicon = "a" }, "favicon")
+  invalid(self, { title = "t", favicon = 3 }, "favicon")
+  invalid(self, { title = "t", favicon = { dark = "b.svg" } }, "favicon.light")
+  invalid(self, { title = "t", favicon = { light = "a.svg", dark = "../b.svg" } }, "favicon.dark")
+  invalid(self, { title = "t", favicon = { light = "a.svg", dark = "b.txt" } }, "favicon.dark")
+end
+
 function T:test_logo_and_theme_paths_are_plain_files_of_public()
   for _, bad in ipairs({ "", ".", "..", "a/..", "a/./b", "a//b", "a\\b", "a?b", "C:/x", "%2e%2e/x", "/abs.svg", "a/", ".hidden.svg",
     "dir/.x/logo.svg", "../x", "a#b" }) do
@@ -133,10 +164,14 @@ function T:test_logo_and_theme_paths_are_plain_files_of_public()
   self:assert_equal("my logo.svg", config.normalise({ title = "t", logo = "my logo.svg" }).logo.light)
 end
 
-function T:test_audiences_default_to_user_and_are_validated()
+function T:test_audiences_default_to_maintainer_and_are_validated()
   local normalised = config.normalise({ title = "t" })
-  self:assert_equal("user", table.concat(normalised.audiences, ","))
-  self:assert_equal("user", normalised.default_audience)
+  self:assert_equal("maintainer", table.concat(normalised.audiences, ","))
+  self:assert_equal("maintainer", normalised.default_audience)
+  self:assert_equal("separate", normalised.audience_sites)
+  self:assert_equal("merged", config.normalise({ title = "t", audience_sites = "merged" }).audience_sites)
+  invalid(self, { title = "t", audience_sites = "both" }, "audience_sites")
+  invalid(self, { title = "t", audience_sites = true }, "audience_sites")
   local both = config.normalise({ title = "t", audiences = { "maintainer", "user" }, default_audience = "maintainer" })
   self:assert_equal("maintainer,user", table.concat(both.audiences, ","))
   self:assert_equal("maintainer", both.default_audience)
