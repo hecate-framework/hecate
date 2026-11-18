@@ -1,8 +1,8 @@
 # 0033 — Vendored browser libraries: Mermaid diagrams in the documentation theme
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-11-17
-- **Deciders:** project owner (option (a) of OQ-128 chosen on 2026-11-13 and reaffirmed on 2026-11-17; acceptance of this ADR pending)
+- **Deciders:** project owner (option (a) of OQ-128 chosen on 2026-11-13 and reaffirmed on 2026-11-17; accepted by the owner in chat on 2026-11-18)
 - **Packages:** doc (theme and renderer), website, and the CI tooling (`check-licenses`)
 - **Related:** OQ-128 ([issue #194](https://github.com/hecate-framework/hecate/issues/194)), [ADR 0012](0012-website-generator.md), [ADR 0022](0022-doc-dependencies.md) (precedent for third-party material of the generator), [ADR 0032](0032-unicode-normalisation-packages.md) (precedent for a licence notice and pinned data), [documentation.md](../architecture/documentation.md), OQ-34 (vendored theme assets), `THIRD_PARTY_NOTICES`
 

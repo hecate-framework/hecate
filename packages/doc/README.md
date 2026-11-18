@@ -268,7 +268,7 @@ a diagram cannot be drawn (a notice appears), the source stays readable. The ini
 `securityLevel: "strict"` and SVG labels, locks the theme against `%%{init}%%` directives, takes every colour from the
 theme's custom properties (brand tokens) and draws again when the colour theme changes. A page with a diagram
 needs `style-src 'unsafe-inline'` under a Content Security Policy; `script-src 'self'` is enough. Decision and update
-procedure: [ADR 0033](../../docs/adr/0033-vendored-browser-libraries.md) (`Proposed`).
+procedure: [ADR 0033](../../docs/adr/0033-vendored-browser-libraries.md) (Accepted).
 
 Manual check (not in CI; Chromium and Playwright): build a small site whose page holds a flowchart, a sequence diagram,
 a diagram with `%%{init: {"securityLevel": "loose", "theme": "dark"}}%%` and a malformed block

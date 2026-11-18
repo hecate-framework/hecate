@@ -443,7 +443,7 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       **Also (owner decisions of 2026-11-13):** apply the writing style of the first Phase 3 item to every page (done
       for every English page in pull request #195; the French pages follow with their translation);
       Mermaid diagrams (OQ-128): the ADR for the dependency ([ADR 0033](adr/0033-vendored-browser-libraries.md),
-      `Proposed`: a vendored copy of `mermaid.js`, loaded only on the pages that hold a diagram, no CDN) and the
+      Accepted: a vendored copy of `mermaid.js`, loaded only on the pages that hold a diagram, no CDN) and the
       support in `hecate.doc` (a ` ```mermaid ` block becomes a diagram) are written; diagrams in the explanation
       pages remain.
       **Also (found while restyling, pull request #195):** the `serve-http` how-to writes through `io.stderr:write` in an
