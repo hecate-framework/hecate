@@ -99,16 +99,34 @@ ADR 0022; the crates are compiled into the native module and are not vendored in
   Apache conf) and BSD-3-Clause (1: HTML (Twig)). No copyleft, no custom or non-commercial
   licence, no entry of type "Sublime". All of them require the copyright notice and licence text
   to accompany binary distributions: the release artefacts of the native module must ship the full
-  text, which `acknowledgements_full.md` of two-face (two_face::acknowledgement::url()) compiles;
-  the release tooling generates it. The themes of two-face are not used. The default Sublime
+  text. State of 2026-11-18: `lua tools/run.lua gen-rust-licences` reproduces it, in
+  packages/doc/native/LICENSES-rust.md, from `two_face::acknowledgement::listing()` of the locked
+  version (the crate ships the texts only inside a compressed dump, so the task reads them with a
+  helper, packages/doc/native/examples/acknowledgements.rs, which uses crates the module already
+  depends on; the Markdown page `acknowledgements_full.md` of two-face is a page of its repository,
+  not a file of the crate). The locked two-face 0.5.2 (bat 0.26.1) lists 66 licence files, more than
+  the audit above: MIT (50), Apache-2.0 (13), BSD-2-Clause (2, one of them tagged FreeBSD by the
+  crate) and BSD-3-Clause (1); still no copyleft, custom, non-commercial or "Sublime" entry. The themes of two-face are not used. The default Sublime
   packages bundled by syntect itself are not used either (the `two_face::syntax::extra_newlines`
   set is).
 Test data, not shipped: the examples of the CommonMark specification 0.31.2
 (https://github.com/commonmark/commonmark-spec, CC BY-SA 4.0) and of the GFM specification
 0.29.gfm.13 (https://github.com/github/cmark-gfm) are downloaded by `fetch-fixtures doc` for
 the tests (packages/doc/tests/external.lua) and git-ignored.
-The notices of the whole crate tree (about 70 crates) are to be generated for the release
-artefacts by the release tooling.
+The notices of the whole crate tree are generated, not hand-written: `lua tools/run.lua
+gen-rust-licences` writes one page per Rust native module (packages/doc/native/LICENSES-rust.md,
+packages/json/native/LICENSES-rust.md, packages/net/native/LICENSES-rust.md) with, for every crate of
+the locked normal dependency graph (the targets of deny.toml), its name, version, declared SPDX
+expression, the licence it relies on (the first permissive alternative of an `OR`) and the text of
+its licence files (LICENSE*, COPYING*, NOTICE*, UNICODE*, ...), identical texts once. A crate that
+declares an SPDX identifier and ships no file (mlua-sys and mlua_derive) gets the standard SPDX text,
+which the page says; a crate without a permissive choice or without any text fails the task. The
+pages are committed; `gen-rust-licences --check` (CI static checks) and `check-licenses` fail when
+a Cargo.lock changed without regenerating its page. These pages, not the lists above, are the
+reference. The binary release artefacts of the native modules must ship the page of their module:
+that remains a release-time item (roadmap, release automation), done when the binary rocks exist.
+The Rust crates are build tools of the documentation module: the sites it generates do not bundle
+them and their licences are not on the licences page of a generated site.
 
 
 6. Not third-party

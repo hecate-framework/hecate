@@ -519,6 +519,11 @@ jobs:
           lua tools/run.lua fetch-fixtures unicode-data
           lua tools/run.lua gen-unicode --check
           echo "::endgroup::"
+          # The licence pages of the Rust native modules follow their Cargo.lock (fetches the crates, builds the
+          # two-face helper of the module doc).
+          echo "::group::gen-rust-licences --check"
+          lua tools/run.lua gen-rust-licences --check
+          echo "::endgroup::"
           echo "::group::lint"
           lua tools/run.lua lint $PACKAGES
           echo "::endgroup::"
