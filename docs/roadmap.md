@@ -356,8 +356,8 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       is `maintainer`; the code reference lists public symbols, with `*.internal` and non-public classes as
       `maintainer` pages; the default of a secret key is not printed in the configuration reference. **To do once
       OQ-144 is decided:** the audience split of the Hecate website (option (a): sections, `llms.txt`, French mirror;
-      the website pages are not labelled yet) and a `check-audience` gate; sections of a project site switchable by the
-      project; a `draft` page flag; the error-code reference of a project. **Delivered since (owner requests of
+      the website pages are not labelled yet) and a `check-audience` gate; a `draft` page flag. The error-code reference of a project and
+      "switchable sections" are dropped (owner, 2026-11-18). **Delivered since (owner requests of
       2026-11-18):** `llms.txt` and `llms-full.txt` for a project (site configuration `llms`, off by default, default locale
       and published pages only; the website turns it on); the theme key `colors` renamed `theme` (fonts, radii, spacing
       and sidebar width as well as colours; page "Theme tokens"); the showcase `examples/hello/docs`; **still to do:**
@@ -390,6 +390,13 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       {multi-process-deployment, before-going-to-production}.md` and `website/en/explanation/multi-process-serving.md`.
       **Also (OQ-121):** `gen-meta`, the LuaLS `---@meta` files generated from schemas, as a `tools/` task and through
       the CLI (file layout, naming and when it runs decided with the item).
+      **Also (from the `doc` item, owner decisions of 2026-11-18):** `hecate doc build` (one site per audience, OQ-144; by
+      default the maintainer one) and `hecate doc serve [--watch]`, a local server that rebuilds on change and reloads, to
+      write pages. When the project asks for a code reference (`code`), the command warns that LuaLS runs the plugin
+      declared by the `.luarc.json` of the documented root (OQ-142, option (a) kept) and lets the user bail out
+      (`[y/N]`, default no when nothing answers); a flag or environment variable makes it quiet and non-interactive for
+      CI workflows (`--yes`, to settle with the CLI conventions). `hecate doc build` reads the configuration schema
+      from the application (`Application:configuration_schema()`).
       **Also (from the `examples/hello` item):** turn `examples/hello` into a Hecate project (`hecate.project.lua`, run
       by `hecate serve`, tested by `hecate test`, `hecate contract lint` in CI), as `examples/README.md` requires of
       every example from Phase 3 on; today it is `lua main.lua` and the repository harness.

@@ -1,6 +1,6 @@
 # `hecate-doc`
 
-> Documentation generator and static site builder with an MDN-like theme: guides in Markdown, code reference from LuaLS annotations, configuration and error-code references, locales, search.
+> Documentation generator and static site builder with an MDN-like theme: guides in Markdown, code reference from LuaLS annotations, configuration reference, locales, search.
 
 | | |
 |---|---|
@@ -224,7 +224,7 @@ the origin (13 requests on the check of 2026-11-17).
 
 ### Limits of the current implementation
 
-Not implemented: the error-code reference of a project, translations of generated pages keyed by symbol, `llms.txt` for locales other than the default,
+Not implemented: translations of generated pages keyed by symbol, `llms.txt` for locales other than the default,
 versioned documentation, development server, runnable examples, translation status report,
 template overrides of the theme (not planned until users ask, OQ-38). Markdown is GFM through comrak; the CommonMark 0.31.2 and GFM extension examples run as a test through the module (OQ-37). The search ranking is client-side JavaScript without an automated test (OQ-36).
 Verified on Linux; macOS and Windows are verified by CI only (the shell calls of
