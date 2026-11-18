@@ -367,4 +367,58 @@ function T:test_the_configuration_reference_never_prints_the_default_of_a_secret
   self:assert_not_nil(page:find("`dev`", 1, true), "other defaults are kept")
 end
 
+-- The application is duck-typed: `hecate.doc` calls `configuration_schema()` and never requires `hecate.kernel`.
+local function application(schema, secrets)
+  return { configuration_schema = function() return schema, secrets end }
+end
+
+local app_schema = {
+  type = "object",
+  properties = {
+    port = { type = "integer", default = 8080 },
+    database = { type = "object", properties = { password = { type = "string", default = "dev-password" } } },
+  },
+}
+
+function T:test_build_reads_the_configuration_schema_and_the_secrets_from_the_application()
+  local fs = doc.MemoryFileSystem({})
+  project.build(build_options(fs, { application = application(app_schema, { "database.password" }) }))
+  local page = fs:read("docs/en/configuration.md")
+  self:assert_not_nil(page:find("`database.password`", 1, true), page)
+  self:assert_not_nil(page:find("`8080`", 1, true), page)
+  self:assert_not_nil(page:find("[redacted]", 1, true), page)
+  self:assert_nil(page:find("dev-password", 1, true), "the default of a secret is not printed")
+end
+
+function T:test_build_adds_the_secrets_of_the_option_to_those_of_the_application()
+  local fs = doc.MemoryFileSystem({})
+  project.build(build_options(fs, { application = application(app_schema, { "database.password" }), secrets = { "port" } }))
+  local page = fs:read("docs/en/configuration.md")
+  self:assert_nil(page:find("8080", 1, true))
+  self:assert_nil(page:find("dev-password", 1, true))
+end
+
+function T:test_an_explicit_schema_wins_over_the_application()
+  local fs = doc.MemoryFileSystem({})
+  project.build(build_options(fs, { application = application(app_schema, {}), configuration = config_schema }))
+  local page = fs:read("docs/en/configuration.md")
+  self:assert_not_nil(page:find("`database.url`", 1, true))
+  self:assert_nil(page:find("8080", 1, true))
+end
+
+function T:test_an_application_without_a_configuration_adds_no_page()
+  local fs = doc.MemoryFileSystem({})
+  project.build(build_options(fs, { application = application(nil) }))
+  self:assert_nil(fs:read("docs/en/configuration.md"))
+end
+
+function T:test_the_application_must_have_the_method_and_return_a_schema()
+  local fs = doc.MemoryFileSystem({})
+  local err = self:assert_error(function() project.build(build_options(fs, { application = {} })) end)
+  self:assert_not_nil(tostring(err):find("application", 1, true))
+  err = self:assert_error(function() project.build(build_options(fs, { application = application("no") })) end)
+  self:assert_not_nil(tostring(err):find("configuration_schema", 1, true))
+  self:assert_nil(fs:read("docs/en/index.md"), "nothing is written when an option is wrong")
+end
+
 return T

@@ -13,6 +13,8 @@ local build = require("hecate.doc.build")
 local config_module = require("hecate.doc.config")
 local errors = require("hecate.doc.errors")
 local page_id = require("hecate.doc.internal.page_id")
+local text_helpers = require("hecate.doc.internal.text")
+local licenses = require("hecate.doc.licenses")
 
 --- Pages generated from the configuration and the schemas of a project.
 ---@class hecate.doc.project
@@ -39,29 +41,7 @@ local REDACTED = "[redacted]" -- what stands for the default of a secret key
 
 local function list(value) return type(value) == "table" and value or {} end
 
--- Escapes text for a paragraph or a table cell: one line, no Markdown syntax, no raw HTML, nothing that
--- starts a block at the beginning of the line (CommonMark 0.31.2, 4.1 thematic breaks, 4.3 setext
--- underlines, 5.2 list items) and no character reference (2.5).
-local function plain(text)
-  text = tostring(text or ""):gsub("%s*[\r\n]+%s*", " ")
-  text = text:gsub("^%s+", ""):gsub("%s+$", "")
-  text = text:gsub("([\\`*_{}%[%]<>|#~&])", "\\%1")
-  text = text:gsub("^([%-+=])", "\\%1")
-  text = text:gsub("^(%d+)([.)])", "%1\\%2")
-  return text
-end
-
--- An inline code span (CommonMark 6.1). In a table cell a pipe is escaped even inside the span
--- (GFM 4.10); elsewhere it is literal.
-local function code(text, in_cell)
-  text = tostring(text):gsub("%c+", " ")
-  if text == "" then return "" end
-  local ticks = "`"
-  while text:find(ticks, 1, true) do ticks = ticks .. "`" end
-  if in_cell then text = text:gsub("|", "\\|") end
-  local pad = (text:find("^`") or text:find("`$")) and " " or ""
-  return ticks .. pad .. text .. pad .. ticks
-end
+local plain, code = text_helpers.plain, text_helpers.code
 
 local function sorted_keys(map)
   local keys = {}
@@ -411,9 +391,17 @@ function M.meta(schemas, namespace)
   return table.concat(lines, "\n")
 end
 
+---@class hecate.doc.ProjectLicensesOptions
+---@field tree? string  root of the installed rocks tree (default `lua_modules`): `<tree>/lib/luarocks/rocks-<lua>/<rock>/<version>/<rock>-<version>.rockspec`, read through `fs`, never run
+---@field roots? string[]  the rocks the project depends on: only they and their dependencies (resolved transitively) are listed; default: every installed rock
+---@field audience? hecate.doc.Audience  audience of the page (default `maintainer`, OQ-144)
+---@field bundled? boolean  list what the generated site bundles (fonts, brand marks, icon, Mermaid when a guide holds a diagram) with its licence texts (default true)
+
 ---@class hecate.doc.ProjectBuildOptions : hecate.doc.BuildOptions
----@field configuration? table  JSON Schema of the configuration: adds the configuration reference (a `maintainer` page)
----@field secrets? string[]  dotted paths of the configuration keys that hold secrets: their defaults are not printed in the configuration reference
+---@field application? { configuration_schema: fun(self: table): table?, string[]? }  the application of the project (a `hecate.kernel.Application`, by duck-typing: only its method `configuration_schema` is called, `hecate.doc` does not depend on `kernel`): adds the configuration reference from the schema of the configuration the application was given, and its secrets feed the redaction; an application without a configuration adds nothing
+---@field configuration? table  JSON Schema of the configuration, for a project without a kernel application: adds the configuration reference (a `maintainer` page); it wins over the schema of `application`
+---@field secrets? string[]  dotted paths of the configuration keys that hold secrets: their defaults are not printed in the configuration reference (added to the secrets of `application`)
+---@field licenses? true|hecate.doc.ProjectLicensesOptions  adds the third-party licences page (default: off); `true` reads the tree `lua_modules`
 ---@field pages? table<string, string>  guides of the project, path below the locale root to Markdown (`.md`, relative, no `..`)
 ---@field code? { root: string, name: string, executable?: string, config?: string }  document the annotated sources `<root>/src` of the project as the code reference `reference/<name>/` (skipped with a problem when LuaLS is missing). The reference lists the public symbols (pages of `user` audience); the pages of `*.internal` modules and of non-public classes are generated, as `maintainer` pages, only when `config.audiences` includes `maintainer`. LuaLS reads the `.luarc.json` of `root` (or `config`) and runs the plugin it declares: `root` must be trusted
 ---@field locale? string  locale directory the pages are written to (default the default locale, "en")
@@ -458,6 +446,30 @@ local function validate(options)
       if type(path) ~= "string" then bad_option("secrets", "a list of dotted paths (strings)") end
     end
   end
+  if options.application ~= nil and (type(options.application) ~= "table"
+    or type(options.application.configuration_schema) ~= "function") then
+    bad_option("application", "an object with a `configuration_schema` method (a hecate.kernel.Application)")
+  end
+  local licenses_option = options.licenses
+  if licenses_option ~= nil and licenses_option ~= false and licenses_option ~= true then
+    if type(licenses_option) ~= "table" then bad_option("licenses", "true or a table") end
+    if licenses_option.tree ~= nil and (type(licenses_option.tree) ~= "string" or licenses_option.tree == "") then
+      bad_option("licenses.tree", "a non-empty string")
+    end
+    if licenses_option.roots ~= nil then
+      if type(licenses_option.roots) ~= "table" then bad_option("licenses.roots", "a list of rock names") end
+      for _, name in ipairs(licenses_option.roots) do
+        if type(name) ~= "string" then bad_option("licenses.roots", "a list of rock names (strings)") end
+      end
+    end
+    local audience = licenses_option.audience
+    if audience ~= nil and audience ~= "user" and audience ~= "maintainer" then
+      bad_option("licenses.audience", '"user" or "maintainer"')
+    end
+    if licenses_option.bundled ~= nil and type(licenses_option.bundled) ~= "boolean" then
+      bad_option("licenses.bundled", "a boolean")
+    end
+  end
   local locale = options.locale
   if locale == nil then locale = type(options.config) == "table" and options.config.default_locale or "en" end
   if type(locale) ~= "string" or not locale:match("^[%w%-]+$") then
@@ -491,14 +503,68 @@ local function validate(options)
   return locale, pages, audiences
 end
 
+local LICENSES_PAGE = "third-party-licences.md"
+local GENERATED_PAGES = { "configuration.md", LICENSES_PAGE }
+
 -- Generated files of the previous builds that this build no longer produces.
 local function stale_files(fs, root, generated)
   local stale = {}
-  if fs:exists(root .. "/configuration.md") and not generated["configuration.md"]
-    and M.is_generated(fs:read(root .. "/configuration.md")) then
-    stale[#stale + 1] = "configuration.md"
+  for _, name in ipairs(GENERATED_PAGES) do
+    if fs:exists(root .. "/" .. name) and not generated[name] and M.is_generated(fs:read(root .. "/" .. name)) then
+      stale[#stale + 1] = name
+    end
   end
   return stale
+end
+
+-- The schema and the secrets of the configuration: the explicit schema wins over the application's; the secrets of
+-- both are used.
+local function configuration_of(options)
+  local schema, secrets = options.configuration, {}
+  for _, path in ipairs(options.secrets or {}) do secrets[#secrets + 1] = path end
+  if options.application ~= nil then
+    local declared, declared_secrets = options.application:configuration_schema()
+    if declared ~= nil and type(declared) ~= "table" then
+      error(core.ArgumentError("doc.project.build: `application:configuration_schema()` must return a JSON Schema table or nil"), 3)
+    end
+    schema = schema or declared
+    for _, path in ipairs(type(declared_secrets) == "table" and declared_secrets or {}) do
+      if type(path) == "string" then secrets[#secrets + 1] = path end
+    end
+  end
+  return schema, secrets
+end
+
+-- Whether a guide of the project holds a fenced `mermaid` block (CommonMark 4.5), in the given pages or in the Markdown
+-- files below the source directory: the licences page then names Mermaid.
+local MAX_SCANNED_FILES = 5000
+local function holds_diagram(fs, source, pages)
+  local function has_fence(text)
+    for line in (text .. "\n"):gmatch("([^\n]*)\n") do
+      if line:match("^ ? ? ?[`~][`~][`~]+%s*mermaid%f[%W]") then return true end
+    end
+    return false
+  end
+  for _, path in ipairs(sorted_keys(pages)) do
+    if has_fence(pages[path]) then return true end
+  end
+  local scanned = 0
+  local function visit(directory)
+    for _, entry in ipairs(fs:list(directory) or {}) do
+      local path = directory .. "/" .. entry.name
+      if entry.name:sub(1, 1) ~= "." and entry.name ~= "public" and not (fs.is_link and fs:is_link(path)) then
+        if entry.is_directory then
+          if visit(path) then return true end
+        elseif entry.name:match("%.md$") and scanned < MAX_SCANNED_FILES then
+          scanned = scanned + 1
+          local text = fs:read(path)
+          if text and has_fence(text) then return true end
+        end
+      end
+    end
+    return false
+  end
+  return visit(source:gsub("/+$", ""))
 end
 
 --- Builds the site of a project. The pages (guides and generated) are written below
@@ -516,7 +582,21 @@ function M.build(options)
   local fs = options.fs
   local root = options.source:gsub("/+$", "") .. "/" .. locale
   local generated = {}
-  if options.configuration then generated["configuration.md"] = M.configuration_page(options.configuration, { secrets = options.secrets }) end
+  local schema, secrets = configuration_of(options)
+  if schema then generated["configuration.md"] = M.configuration_page(schema, { secrets = secrets }) end
+  local licence_problems = {}
+  if options.licenses then
+    ---@type hecate.doc.ProjectLicensesOptions
+    local licence = options.licenses == true and {} or options.licenses --[[@as hecate.doc.ProjectLicensesOptions]]
+    local model = licenses.read(fs, { tree = licence.tree or "lua_modules", roots = licence.roots })
+    licence_problems = model.problems
+    local bundled = licence.bundled ~= false and licenses.bundled({
+      diagrams = holds_diagram(fs, options.source, pages), theme_fs = options.theme_fs, theme_directory = options.theme_directory,
+    }) or nil
+    generated[LICENSES_PAGE] = licenses.markdown(model, front("Third-party licences",
+      "The rocks and libraries the project uses and what the site bundles, with their licences.", 60,
+      licence.audience or "maintainer"), bundled)
+  end
   -- On a case-insensitive file system two paths that differ only by case are one file.
   local folded = {}
   for path in pairs(generated) do folded[path:lower()] = path end
@@ -549,6 +629,7 @@ function M.build(options)
     })
   end
   local report = build.build(options) --[[@as hecate.doc.ProjectBuildReport]]
+  for _, problem in ipairs(licence_problems) do report.problems[#report.problems + 1] = problem end
   if code_report then
     report.code = code_report
     for _, problem in ipairs(code_report.problems) do report.problems[#report.problems + 1] = problem end
