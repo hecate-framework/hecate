@@ -253,6 +253,28 @@ together with `limits.max_depth` and the logging keys; an explicit option of `Ap
 `config/development.lua` and `config/test.lua` (a `cli` task) set `expose_details = true` and `inputs = "lax"`, and
 `server.grace_timeout` to a low value so that Ctrl+C is quick (OQ-115 (6): 2 seconds, to be confirmed by the owner).
 
+## The CORS keys
+
+The shipped CORS filter of `hecate.kernel` (OQ-136, owner decision of 2026-11-18). Disabled by default, and no origin is
+allowed.
+
+| Key | Type | Default | Meaning |
+|---|---|---|---|
+| `cors.enabled` | boolean | `false` | installs the filter as the outermost global filter |
+| `cors.allowed_origins` | list of strings | none | serialised origins (`https://app.example.com`: scheme, host, optional port, no path), or the single entry `*`; required when enabled |
+| `cors.allowed_methods` | list of strings | `GET`, `HEAD`, `POST` | the methods a preflight request may ask for |
+| `cors.allowed_headers` | list of strings | none | the header fields a preflight request may ask for, compared without regard to case |
+| `cors.exposed_headers` | list of strings | none | the response header fields a page may read |
+| `cors.allow_credentials` | boolean | `false` | refused together with `*` |
+| `cors.max_age` | integer, at least 0 | `600` | seconds a browser may cache a preflight answer |
+
+Environment variables: `HECATE_CORS__ENABLED`, `HECATE_CORS__ALLOWED_ORIGINS` (comma-separated), and so on. The name
+`cors` is reserved. The `cors` option of `Application` takes the same keys and wins, key by key. An enabled filter
+without an origin, an origin that is not `scheme://host[:port]`, `*` together with other origins or with credentials, and
+an unknown key raise `ArgumentError` at boot (`context.key` names the key). A preflight that asks for a method or a header
+that is not allowed is answered `204` without any permission, so the browser blocks the call. `Vary: Origin` is added
+unless the origin is `*`.
+
 ## The server keys
 
 | Key | Type | Default | Meaning |

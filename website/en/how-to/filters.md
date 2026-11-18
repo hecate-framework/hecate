@@ -248,6 +248,24 @@ The `cors` filter of the example is global, for two reasons. The preflight reque
 receives a `Response`, so it can set the `Access-Control-Allow-Origin` field on every answer, a `401` from an inner
 filter included. Add `Vary: Origin` so that a cache keeps one answer per origin.
 
+### Use the shipped CORS filter
+
+When the policy is a list of origins, you need not write the filter: `hecate.kernel` ships one, driven by keys, so that a
+container can set it from its environment. It is off until you enable it and allows no origin by default.
+
+```text
+HECATE_CORS__ENABLED=true
+HECATE_CORS__ALLOWED_ORIGINS=https://app.example.com,https://admin.example.com
+HECATE_CORS__ALLOWED_HEADERS=Authorization,Content-Type
+HECATE_CORS__ALLOW_CREDENTIALS=true
+```
+
+The same keys go in `config/default.lua` (under `cors`) or in the `cors` option of `Application`, which wins key by key.
+The filter is the outermost global filter. It answers a preflight request itself, with `204`, and marks the responses of
+an allowed origin. A preflight that asks for a method or a header field you did not allow gets no permission, so the
+browser blocks the call. `*` is accepted alone, and never together with credentials: boot fails with an `ArgumentError`
+that names the key. See "The CORS keys" in the configuration specification for every key and default.
+
 ## What does not exist yet
 
 - **Compression.** hecate has no compression codec. A filter could replace the content of a response with a compressed
@@ -258,7 +276,7 @@ filter included. Add `Vary: Origin` so that a cache keeps one answer per origin.
   global filter can read or create an `X-Request-Id` field and set it on the response, and
   `log.bind({ request_id = id }, next, request)` binds it for the records written while the rest of the chain runs
   (see [Log structured records](log-structured-records.md)).
-- **Built-in filters.** No access log, CORS, rate limiting or authentication filter ships with the kernel. The access
+- **Built-in filters.** No access log, rate limiting or authentication filter ships with the kernel. The access
   log is the `on_response` hook of the server (see `examples/hello`).
 
 ## See also
