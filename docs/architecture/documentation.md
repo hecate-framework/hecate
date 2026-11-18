@@ -271,6 +271,8 @@ mixed in one site unless the configuration says so.
   `configuration_schema()`, so that `doc` does not depend on `kernel`) is the single source: the schema of
   the configuration and the secrets declared at load time are read from it. A project without a Hecate
   application has no configuration to document, so there is no option for a hand-passed schema or secrets.
+  The only input of guides is the directory `guides_dir`: there is no option that gives guides as in-memory text
+  (owner decision 2026-11-18, OQ-143).
 - The generation is `hecate.doc.generate_project_documentation(options)`, distinct from the plain site builder
   `hecate.doc.build`. Its path options are named by what they are (`_dir` a directory, `_path` a file) and have
   defaults from the conventional project layout, relative to `project_dir`: `sources_dir = "src"`,

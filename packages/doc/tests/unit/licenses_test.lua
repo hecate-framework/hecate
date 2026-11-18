@@ -230,9 +230,11 @@ end
 local function build_options(fs, extra)
   local options = {
     site_configuration = { title = "Shop", audiences = { "user", "maintainer" }, audience_sites = "merged" },
-    guides_dir = "docs", output_dir = "dist", file_system = fs, guide_texts = { ["index.md"] = "# Shop\n" },
+    guides_dir = "docs", output_dir = "dist", file_system = fs,
   }
   for key, value in pairs(extra or {}) do options[key] = value end
+  -- The guides come from the guides directory: the guide `index.md` is written there first.
+  fs:write("docs/en/index.md", "# Shop\n")
   return options
 end
 
@@ -281,8 +283,9 @@ end
 
 function T:test_build_names_mermaid_only_when_a_guide_holds_a_diagram()
   local fs = doc.MemoryFileSystem(tree_files())
-  generate(build_options(fs, { licenses_page = { rocks_tree_dir = "lm/tree" },
-    guide_texts = { ["index.md"] = "# Shop\n\n```mermaid\ngraph TD\n  A --> B\n```\n" } }))
+  local options = build_options(fs, { licenses_page = { rocks_tree_dir = "lm/tree" } })
+  fs:write("docs/en/index.md", "# Shop\n\n```mermaid\ngraph TD\n  A --> B\n```\n")
+  generate(options)
   self:assert_true(has(fs:read("docs/en/third-party-licences.md"), "Knut Sveidqvist"))
   local plain = doc.MemoryFileSystem(tree_files())
   generate(build_options(plain, { licenses_page = { rocks_tree_dir = "lm/tree" } }))

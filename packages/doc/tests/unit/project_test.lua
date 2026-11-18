@@ -33,12 +33,11 @@ function T:test_configuration_page_lists_keys_with_dotted_paths()
 end
 
 function T:test_build_writes_a_site_with_the_guides_and_the_configuration_reference()
-  local fs = doc.MemoryFileSystem({})
+  local fs = doc.MemoryFileSystem({ ["docs/en/index.md"] = "# Shop\n\nWelcome.\n" })
   local report = doc.generate_project_documentation({
     site_configuration = { title = "Shop docs", audiences = { "user", "maintainer" }, audience_sites = "merged" },
     guides_dir = "docs", output_dir = "dist", file_system = fs, clean_output_dir = true, fail_on_problems = true,
     application = application(config_schema),
-    guide_texts = { ["index.md"] = "# Shop\n\nWelcome.\n" },
   })
   self:assert_equal(0, #report.problems, table.concat(report.problems, "\n"))
   self:assert_not_nil(fs:read("dist/en/configuration/index.html"))
@@ -46,11 +45,10 @@ function T:test_build_writes_a_site_with_the_guides_and_the_configuration_refere
 end
 
 function T:test_build_reports_the_code_reference_of_the_project()
-  local fs = doc.MemoryFileSystem({})
+  local fs = doc.MemoryFileSystem({ ["shop/docs/en/index.md"] = "# Shop\n\nWelcome.\n" })
   local report = doc.generate_project_documentation({
     site_configuration = { title = "Shop docs" }, project_dir = "shop", guides_dir = "docs", output_dir = "dist",
-    file_system = fs, guide_texts = { ["index.md"] = "# Shop\n\nWelcome.\n" },
-    package_name = "shop",
+    file_system = fs, package_name = "shop",
   })
   self:assert_not_nil(report.code)
   if report.code.skipped then
@@ -99,11 +97,10 @@ function T:test_the_generator_produces_no_api_reference()
   self:assert_nil(project.api_pages)
   local contract = { openapi = "3.1.0", info = { title = "Shop", version = "1" },
     paths = { ["/users"] = { get = { operationId = "listUsers", responses = { ["200"] = { description = "OK" } } } } } }
-  local fs = doc.MemoryFileSystem({})
+  local fs = doc.MemoryFileSystem({ ["docs/en/index.md"] = "# Shop\n" })
   -- A stray `document` option is not an option of the build: it is ignored, and nothing below `api/` is written.
   doc.generate_project_documentation({ site_configuration = { title = "Shop" }, guides_dir = "docs", output_dir = "dist",
-    file_system = fs, document = contract, application = application(config_schema),
-    guide_texts = { ["index.md"] = "# Shop\n" } })
+    file_system = fs, document = contract, application = application(config_schema) })
   for path in pairs(fs.files) do
     self:assert_nil(path:find("/api/", 1, true), path)
     self:assert_nil(path:find("listUsers", 1, true), path)
@@ -228,33 +225,25 @@ function T:test_pages_are_independent_of_insertion_order()
   self:assert_equal(make({ "a", "b", "c" }), make({ "c", "a", "b" }))
 end
 
+-- The options of a build of the guides directory `docs` of `fs`; the guide `index.md` is written into `fs` first,
+-- below the locale directory of the build, as the only way to give a guide is to put it in the guides directory.
 local function build_options(fs, extra)
-  local options = { site_configuration = { title = "Shop" }, guides_dir = "docs", output_dir = "dist", file_system = fs,
-    guide_texts = { ["index.md"] = "# Shop\n" } }
+  local options = { site_configuration = { title = "Shop" }, guides_dir = "docs", output_dir = "dist", file_system = fs }
   for key, value in pairs(extra or {}) do options[key] = value end
+  local locale = options.content_locale or options.site_configuration.default_locale or "en"
+  fs:write("docs/" .. locale .. "/index.md", "# Shop\n")
   return options
 end
 
 local generate = doc.generate_project_documentation
 
-function T:test_a_guide_on_a_generated_path_fails_before_anything_is_written()
-  for _, key in ipairs({ "configuration.md", "./configuration.md", ".//configuration.md", "Configuration.md" }) do
-    local fs = doc.MemoryFileSystem({})
-    local err = self:assert_error(function()
-      generate(build_options(fs, { application = application(config_schema),
-        guide_texts = { ["index.md"] = "# S\n", [key] = "# mine\n" } }))
-    end)
-    self:assert_true(core.is_instance_of(err, doc.BuildError), key .. ": " .. tostring(err))
-    self:assert_nil(next(fs.files), key .. " left partial files")
-  end
-end
-
-function T:test_a_file_that_is_not_generated_is_never_overwritten()
+function T:test_a_hand_written_guide_on_a_generated_path_is_never_overwritten_and_nothing_is_written()
   local fs = doc.MemoryFileSystem({ ["docs/en/configuration.md"] = "# Mine\n" })
   local err = self:assert_error(function() generate(build_options(fs, { application = application(config_schema) })) end)
   self:assert_true(core.is_instance_of(err, doc.BuildError), tostring(err))
   self:assert_equal("# Mine\n", fs:read("docs/en/configuration.md"))
-  self:assert_nil(fs:read("docs/en/index.md"), "nothing was written")
+  self:assert_nil(fs:read("dist/en/index.html"), "the site was not built")
+  self:assert_nil(fs:read("docs/en/third-party-licences.md"), "no generated page was written")
 end
 
 function T:test_generated_pages_that_are_no_longer_produced_are_removed()
@@ -268,12 +257,6 @@ end
 
 function T:test_options_are_validated_up_front_naming_the_field()
   local cases = {
-    { { guide_texts = 3 }, "guide_texts" }, { { guide_texts = { ["../x.md"] = "a" } }, "guide_texts" },
-    { { guide_texts = { ["/x.md"] = "a" } }, "guide_texts" },
-    { { guide_texts = { ["con.md"] = "a" } }, "guide_texts" }, { { guide_texts = { ["a\\b.md"] = "a" } }, "guide_texts" },
-    { { guide_texts = { ["x.txt"] = "a" } }, "guide_texts" }, { { guide_texts = { ["x.md"] = 3 } }, "guide_texts" },
-    { { guide_texts = { ["x.md"] = "a", ["./x.md"] = "b" } }, "guide_texts" },
-    { { guide_texts = { [".h.md"] = "a" } }, "guide_texts" },
     { { content_locale = "../x" }, "content_locale" }, { { content_locale = 3 }, "content_locale" },
     { { content_locale = "" }, "content_locale" },
     { { site_configuration = "x" }, "site_configuration" },
@@ -286,7 +269,9 @@ function T:test_options_are_validated_up_front_naming_the_field()
   }
   for _, case in ipairs(cases) do
     local fs = doc.MemoryFileSystem({})
-    local err = self:assert_error(function() generate(build_options(fs, case[1])) end)
+    local options = { site_configuration = { title = "Shop" }, guides_dir = "docs", output_dir = "dist", file_system = fs }
+    for key, value in pairs(case[1]) do options[key] = value end
+    local err = self:assert_error(function() generate(options) end)
     self:assert_true(core.is_instance_of(err, core.ArgumentError), case[2] .. ": " .. tostring(err))
     self:assert_not_nil(tostring(err):find("`" .. case[2] .. "`", 1, true), tostring(err))
     self:assert_nil(next(fs.files), case[2] .. " left files")
@@ -375,10 +360,10 @@ function T:test_the_configuration_reference_is_maintainer_documentation()
 end
 
 local function build_with(config)
-  local fs = doc.MemoryFileSystem({})
+  local fs = doc.MemoryFileSystem({ ["docs/en/index.md"] = "# Shop\n\nWelcome.\n" })
   local report = generate({
     site_configuration = config, guides_dir = "docs", output_dir = "dist", file_system = fs,
-    application = application(config_schema), guide_texts = { ["index.md"] = "# Shop\n\nWelcome.\n" },
+    application = application(config_schema),
   })
   return fs, report
 end
@@ -480,7 +465,8 @@ function T:test_the_application_must_have_the_method_and_return_a_schema()
   self:assert_not_nil(tostring(err):find("application", 1, true))
   err = self:assert_error(function() generate(build_options(fs, { application = application("no") })) end)
   self:assert_not_nil(tostring(err):find("configuration_schema", 1, true))
-  self:assert_nil(fs:read("docs/en/index.md"), "nothing is written when an option is wrong")
+  self:assert_nil(fs:read("dist/en/index.html"), "nothing is written when an option is wrong")
+  self:assert_nil(fs:read("docs/en/configuration.md"), "nothing is written when an option is wrong")
 end
 
 return T

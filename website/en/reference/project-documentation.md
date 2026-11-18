@@ -58,7 +58,6 @@ ends in `_dir` is a directory and a name that ends in `_path` is a file; relativ
 | `application` | none | Adds `configuration.md`, one row per key, from the JSON Schema of the configuration the application was given (a `maintainer` page). The application is the only source: a project without one has no configuration reference. The default of a secret key is never printed: the application declares its secrets, or mark the key `writeOnly: true` or `format: "password"` in the schema. |
 | `package_name` | none | Asks for the code reference `reference/<package_name>/`, from the annotated sources in `sources_dir` (default `src`; needs LuaLS). LuaLS reads the `.luarc.json` of the project and runs the plugin it declares: the project must be one you trust. |
 | `licenses_page` | off | Adds the third-party licences page. |
-| `guide_texts` | none | Guides given as text, by path. |
 
 The other options are `content_locale`, `file_system`, `clean_output_dir`, `fail_on_problems`, `last_updated`,
 `language_server_path`, `language_server_config_path`, `theme_file_system` and `theme_files_dir`; they are described in

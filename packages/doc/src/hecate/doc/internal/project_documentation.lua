@@ -9,7 +9,6 @@ local build = require("hecate.doc.build")
 local config_module = require("hecate.doc.config")
 local errors = require("hecate.doc.errors")
 local generated_page = require("hecate.doc.internal.generated_page")
-local page_id = require("hecate.doc.internal.page_id")
 local licenses = require("hecate.doc.licenses")
 local project = require("hecate.doc.project")
 local system_file_system = require("hecate.doc.system_file_system")
@@ -46,8 +45,7 @@ M.DEFAULTS = {
 ---@field language_server_path? string  the `lua-language-server` executable (default: found on the path)
 ---@field language_server_config_path? string  the `.luarc.json` LuaLS reads (default `<project_dir>/.luarc.json`). LuaLS runs the plugin that this file declares: the project must be trusted (OQ-142)
 ---@field licenses_page? boolean|hecate.doc.ProjectLicensesOptions  adds the third-party licences page (default: off); `true` reads the tree `lua_modules`
----@field guide_texts? table<string, string>  guides given as text instead of files: path below the locale directory to Markdown (`.md`, relative, no `..`), written into `<guides_dir>/<content_locale>/`
----@field content_locale? string  locale directory the generated pages and `guide_texts` are written to (default `default_locale` of the site configuration, "en")
+---@field content_locale? string  locale directory the generated pages are written to (default `default_locale` of the site configuration, "en")
 ---@field file_system? hecate.doc.FileSystem  where the project is read from and the site written to (default a `hecate.doc.SystemFileSystem`, which must run inside a reactor)
 ---@field clean_output_dir? boolean  empty `output_dir` first (only if a previous build wrote it)
 ---@field fail_on_problems? boolean  raise `hecate.doc.BuildError` when the report holds problems (broken links, a missing LuaLS, ...)
@@ -77,24 +75,6 @@ local function sorted_keys(map)
   for key in pairs(map) do keys[#keys + 1] = key end
   table.sort(keys, function(a, b) return tostring(a) < tostring(b) end)
   return keys
-end
-
--- A page path given by the caller, normalised (`./` and `//` dropped), or nil and the reason.
-local function normalise_page_path(path)
-  if type(path) ~= "string" or path == "" then return nil, "a non-empty string" end
-  if is_absolute(path) then return nil, "relative (it is absolute)" end
-  if path:find("\\", 1, true) then return nil, "free of backslashes" end
-  local parts = {}
-  for segment in path:gmatch("[^/]+") do
-    if segment == ".." then return nil, "free of `..` segments" end
-    if segment:sub(1, 1) == "." and segment ~= "." then return nil, "free of hidden segments (they are not part of a site)" end
-    if segment ~= "." then parts[#parts + 1] = segment end
-  end
-  local normal = table.concat(parts, "/")
-  if not normal:find("%.md$") or #parts == 0 then return nil, "a Markdown file name (`.md`)" end
-  local problem = page_id.windows_problem(normal)
-  if problem then return nil, "a portable file name: " .. problem end
-  return normal
 end
 
 local function check_path(options, field)
@@ -152,19 +132,6 @@ local function validate(options)
     or package_name:find("..", 1, true)) then
     bad_option("package_name", "a package name such as `shop`")
   end
-  local guide_texts = {}
-  if options.guide_texts ~= nil then
-    if type(options.guide_texts) ~= "table" then bad_option("guide_texts", "a table of Markdown texts by path") end
-    for path, text in pairs(options.guide_texts) do
-      local normal, reason = normalise_page_path(path)
-      if not normal then bad_option("guide_texts", ("keyed by page paths: %q is not %s"):format(tostring(path), reason)) end
-      ---@cast normal string
-      if type(text) ~= "string" then bad_option("guide_texts", ("a table of strings: the value of %q is not a string"):format(path)) end
-      if guide_texts[normal] then bad_option("guide_texts", ("keyed by distinct page paths: %q names the same page as another key"):format(path)) end
-      guide_texts[normal] = text
-    end
-  end
-  return guide_texts
 end
 
 local LICENSES_PAGE = "third-party-licences.md"
@@ -195,18 +162,15 @@ local function configuration_of(application)
   return schema, secrets
 end
 
--- Whether a guide of the project holds a fenced `mermaid` block (CommonMark 4.5), in the given texts or in the Markdown
--- files below the guides directory: the licences page then names Mermaid.
+-- Whether a guide of the project holds a fenced `mermaid` block (CommonMark 4.5), in the Markdown files below the
+-- guides directory: the licences page then names Mermaid.
 local MAX_SCANNED_FILES = 5000
-local function holds_diagram(fs, guides_dir, guide_texts)
+local function holds_diagram(fs, guides_dir)
   local function has_fence(text)
     for line in (text .. "\n"):gmatch("([^\n]*)\n") do
       if line:match("^ ? ? ?[`~][`~][`~]+%s*mermaid%f[%W]") then return true end
     end
     return false
-  end
-  for _, path in ipairs(sorted_keys(guide_texts)) do
-    if has_fence(guide_texts[path]) then return true end
   end
   local scanned = 0
   local function visit(directory)
@@ -227,17 +191,17 @@ local function holds_diagram(fs, guides_dir, guide_texts)
   return visit(guides_dir:gsub("/+$", ""))
 end
 
---- Generates the documentation site of a project. The guides given as text and the generated pages are written
---- below `<guides_dir>/<locale>/`, then the site is built into `output_dir`. Generated pages replace the previous
---- ones, and the generated pages that this build no longer produces are removed. Everything is checked before
---- anything is written: a guide that would overwrite a generated page, or a generated page that would overwrite a
---- file that is not generated, raises `hecate.doc.BuildError` and leaves the tree untouched. A wrong option raises
+--- Generates the documentation site of a project. The generated pages are written below
+--- `<guides_dir>/<locale>/` next to the guides, then the site is built into `output_dir`. Generated pages replace
+--- the previous ones, and the generated pages that this build no longer produces are removed. Everything is checked
+--- before anything is written: a generated page that would overwrite a file that is not generated (a hand-written
+--- guide) raises `hecate.doc.BuildError` and leaves the tree untouched. A wrong option raises
 --- `core.ArgumentError` naming it.
 ---@param options? hecate.doc.ProjectDocumentationOptions
 ---@return hecate.doc.ProjectDocumentationReport
 function M.generate(options)
   options = options or {}
-  local guide_texts = validate(options)
+  validate(options)
   local defaults = M.DEFAULTS
   local project_dir = options.project_dir or defaults.project_dir
   local guides_dir = resolve(project_dir, options.guides_dir or defaults.guides_dir)
@@ -275,23 +239,12 @@ function M.generate(options)
     })
     licence_problems = model.problems
     local bundled = licence.include_bundled ~= false and licenses.bundled({
-      diagrams = holds_diagram(fs, guides_dir, guide_texts), theme_fs = options.theme_file_system,
+      diagrams = holds_diagram(fs, guides_dir), theme_fs = options.theme_file_system,
       theme_directory = options.theme_files_dir,
     }) or nil
     generated[LICENSES_PAGE] = licenses.markdown(model, generated_page.front("Third-party licences",
       "The rocks and libraries the project uses and what the site bundles, with their licences.", 60,
       licence.audience or "maintainer"), bundled)
-  end
-  -- On a case-insensitive file system two paths that differ only by case are one file.
-  local folded = {}
-  for path in pairs(generated) do folded[path:lower()] = path end
-  for _, path in ipairs(sorted_keys(guide_texts)) do
-    if folded[path:lower()] then
-      error(errors.BuildError({
-        message = ("doc.generate_project_documentation: the page %s is generated; remove the guide or rename it"):format(path),
-        context = { path = path },
-      }), 0)
-    end
   end
   for _, path in ipairs(sorted_keys(generated)) do
     local target = root .. "/" .. path
@@ -303,7 +256,6 @@ function M.generate(options)
     end
   end
   for _, path in ipairs(stale_files(fs, root, generated)) do fs:remove_tree(root .. "/" .. path) end
-  for _, path in ipairs(sorted_keys(guide_texts)) do fs:write(root .. "/" .. path, guide_texts[path]) end
   for _, path in ipairs(sorted_keys(generated)) do fs:write(root .. "/" .. path, generated[path]) end
   local code_report
   if options.package_name then

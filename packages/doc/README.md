@@ -54,7 +54,7 @@ decided in [ADR 0022](../../docs/adr/0022-doc-dependencies.md).
 | Name | Description |
 |---|---|
 | `build(options)` | Reads `<source>/<locale>/**/*.md`, renders every page of every locale, writes pages, search indexes, theme files and static files to `options.out`, returns a `BuildReport` (`files`, `bytes`, `locales`, `problems`, `sites`: one entry per site written with its `audiences`, `directory`, `files`, `bytes`, `locales` and `problems`). Options: `config`, `source`, `out`, `fs`, `clean`, `strict`, `last_updated`. `BuildReport.locales[code]` has `pages`, `fallbacks` and `unpublished` (pages left out by their audience). Output is deterministic. |
-| `generate_project_documentation(options?)` | The documentation of a Hecate project: writes the guides given as text and the generated pages (configuration reference, licences page, code reference) into the guides directory, then builds the site. Every option has a default of the conventional layout (see "Documentation of a project"); returns a `ProjectDocumentationReport` (a `BuildReport`, plus `code`). Unlike `build`, which only turns a content tree into a site. |
+| `generate_project_documentation(options?)` | The documentation of a Hecate project: writes the generated pages (configuration reference, licences page, code reference) next to the guides, into the guides directory, then builds the site. Every option has a default of the conventional layout (see "Documentation of a project"); returns a `ProjectDocumentationReport` (a `BuildReport`, plus `code`). Unlike `build`, which only turns a content tree into a site. |
 | `load_config(path, fs)` | Loads a `site.lua` (data only: it runs with an empty environment). |
 | `normalise_config(raw)` | Validates every key of a site configuration (type and shape; `base` must be an absolute path and not protocol-relative, `url` an http(s) origin) and fills the defaults; raises `core.ConfigurationError` with `context.field` naming the offending key. |
 | `Site(options)` | The site model: `load()`, `pages(locale)`, `page(locale, id)`, `unpublished(locale)`, `emit(write)`, `problems`. |
@@ -134,7 +134,7 @@ doc.generate_project_documentation({ application = application, package_name = "
 ```
 
 `hecate.doc.generate_project_documentation(options?)` writes the generated pages (configuration reference from the
-application, licences page, code reference) and the guides given as text into the guides directory, then builds
+application, licences page, code reference) next to the guides, into the guides directory, then builds
 the site (it is not the plain builder `hecate.doc.build`, which only turns a content tree into a site). Every
 path option has a default of the conventional layout of a project, relative to `project_dir`; a name that ends in
 `_dir` is a directory and a name that ends in `_path` a file. The conventional layout of `developer-experience.md`
@@ -153,8 +153,7 @@ conservative choice, as in `examples/hello`, to be confirmed by the owner (OQ-14
 | `sources_dir` | `src` | The Lua sources the code reference documents, relative to `project_dir`. |
 | `language_server_path`, `language_server_config_path` | found on the path, `<project_dir>/.luarc.json` | The LuaLS executable and its configuration. LuaLS runs the plugin that the configuration declares: the project must be trusted (OQ-142). |
 | `licenses_page` | off | `true`, or `{ rocks_tree_dir = "lua_modules", root_rocks, audience, include_bundled }` (see below). |
-| `guide_texts` | none | Guides given as text, path below the locale directory to Markdown. |
-| `content_locale` | default locale of the site | Locale directory the generated pages and `guide_texts` are written to. |
+| `content_locale` | default locale of the site | Locale directory the generated pages are written to. |
 | `file_system` | `SystemFileSystem` | Where the project is read and the site written (the real one must run inside a reactor). |
 | `clean_output_dir`, `fail_on_problems` | `false` | Empty `output_dir` first (only if a previous build wrote it); raise a `BuildError` when the report has problems. |
 | `last_updated`, `theme_file_system`, `theme_files_dir` | none | As the options of `build` (`last_updated`, `theme_fs`, `theme_directory`). |
