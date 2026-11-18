@@ -13,6 +13,8 @@ local Section, List = values.Section, values.List
 ---@field index hecate.config.Node
 ---@field sources table<string, string>
 ---@field environment string
+---@field declaration hecate.schema.Schema  the object schema of every declared key
+---@field secrets string[]  dotted paths of the secret keys, sorted
 
 ---@type table<hecate.config.Configuration, hecate.config.ConfigurationState>
 local state = core.weak_table("k")
@@ -21,15 +23,18 @@ local state = core.weak_table("k")
 --- after `config.load` returned it. Invariant "configuration is immutable after boot": the object is a value class of
 --- `hecate.core` with no field (a write raises `hecate.core.ConformanceError`), compared by identity.
 ---@class hecate.config.Configuration
----@overload fun(root: hecate.config.Section, index: hecate.config.Node, sources: table<string, string>, environment: string): hecate.config.Configuration
+---@overload fun(root: hecate.config.Section, index: hecate.config.Node, sources: table<string, string>, environment: string, declaration: hecate.schema.Schema, secrets: string[]): hecate.config.Configuration
 local Configuration = core.value_class("Configuration")
 
 ---@param root hecate.config.Section
 ---@param index hecate.config.Node
 ---@param sources table<string, string>  JSON Pointer to the name of the layer that supplied the value (not copied: the caller gives it up)
 ---@param environment string
-function Configuration:init(root, index, sources, environment)
-  state[self] = { root = root, index = index, sources = sources, environment = environment }
+---@param declaration hecate.schema.Schema  the object schema of every declared key (not copied: the caller gives it up)
+---@param secrets string[]  dotted paths of the secret keys, sorted (not copied)
+function Configuration:init(root, index, sources, environment, declaration, secrets)
+  state[self] = { root = root, index = index, sources = sources, environment = environment,
+    declaration = declaration, secrets = secrets }
 end
 
 --- Identity, not the structural equality of value classes (a configuration has no field to compare).
@@ -114,6 +119,20 @@ end
 ---@return hecate.config.Section
 function Configuration:values()
   return state[self].root
+end
+
+--- The JSON Schema (2020-12) of every declared key, the framework keys included: what a tool needs to document the
+--- configuration. A new table at each call, so that a caller cannot change what the next one reads. The schema does
+--- not mark secrets: see `secrets`.
+---@return table schema
+function Configuration:schema()
+  return state[self].declaration:to_json_schema()
+end
+
+--- The dotted paths of the keys declared secret at load time (the `secrets` option), sorted. A new list at each call.
+---@return string[] paths
+function Configuration:secrets()
+  return { table.unpack(state[self].secrets) }
 end
 
 --- The name of the environment the configuration was loaded for (the `environment` option, else `<PREFIX>_ENV`, else `production`).

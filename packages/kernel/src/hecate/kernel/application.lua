@@ -296,6 +296,19 @@ function Application:contract(pretty)
   return contract.render(options, self.entries, pretty)
 end
 
+--- The declaration of the configuration the application was given (`configuration` option), for tools that document it
+--- (`hecate.doc.project.build` reads it by duck-typing, with no dependency on `kernel`): the JSON Schema 2020-12 of every
+--- declared key, framework keys included (`Configuration:schema()`), and the dotted paths of the keys that hold secrets
+--- (`Configuration:secrets()`; the schema does not mark them). Read-only, usable before `boot`; `nil` without a
+--- `configuration`.
+---@return table? schema
+---@return string[]? secrets
+function Application:configuration_schema()
+  local configuration = self._options.configuration
+  if configuration == nil then return nil end
+  return configuration:schema(), configuration:secrets()
+end
+
 --- The reason, the cause and the message of a failed reload (nil and nil for an error that is not a `SupervisorError`).
 ---@param err any
 ---@return string? reason
