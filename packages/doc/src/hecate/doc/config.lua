@@ -42,7 +42,8 @@ local M = {}
 ---@field outline? integer[]  heading levels listed in "On this page" (default { 2, 3 })
 ---@field strings? table<string, table<string, string>>  overrides of the interface strings per locale
 ---@field logo? string|{ light: string, dark?: string }  logo of the project: file(s) of `public/` replacing the brand logo (shown as they are, never recoloured); a string is used for both colour schemes
----@field colors? string  CSS file of `public/` loaded after the theme stylesheet, to override the custom properties of the colours
+---@field theme? string  CSS file (`.css`) of `public/` loaded after the stylesheet of the theme, to override its custom properties: colours (light and dark), highlighting, the three font families, radii, spacing, sidebar width (OQ-38); it may declare its own `@font-face` for font files of `public/`
+---@field llms? boolean  write `llms.txt` and `llms-full.txt` (llmstxt.org) for the published pages of the default locale; default false
 ---@field exclude? string[]  file names left out of the site (default { "README.md" })
 ---@field audiences? hecate.doc.Audience[]  audiences published (default `{ "user" }`): a page whose audience is not listed is absent from the site and links to it are reported
 ---@field default_audience? hecate.doc.Audience  audience of a page without the `audience` front matter key (default "user")
@@ -194,7 +195,11 @@ function M.normalise(raw)
       invalid("logo", "expected a path or { light, dark }")
     end
   end
-  if raw.colors ~= nil then check_public_path("colors", raw.colors) end
+  if raw.theme ~= nil then
+    check_public_path("theme", raw.theme)
+    if not raw.theme:lower():find("%.css$") then invalid("theme", "expected a CSS file (a name ending in .css)") end
+  end
+  if raw.llms ~= nil and type(raw.llms) ~= "boolean" then invalid("llms", "expected true or false") end
   if raw.sidebar ~= nil then check_sidebar(raw.sidebar) end
   if raw.strings ~= nil then check_strings(raw.strings) end
   for _, key in ipairs({ "edit_link", "source_edit_link" }) do
@@ -209,7 +214,8 @@ function M.normalise(raw)
     url = raw.url and (raw.url:gsub("/+$", "")),
     repository = raw.repository,
     logo = logo,
-    colors = raw.colors,
+    theme = raw.theme,
+    llms = raw.llms == true,
     edit_link = raw.edit_link,
     source_edit_link = raw.source_edit_link,
     sidebar = raw.sidebar or {},

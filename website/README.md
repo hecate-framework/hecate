@@ -23,7 +23,7 @@ The glossary page is a hand-adapted public copy of `docs/glossary.md`: keep it i
 ```text
 website/
   site.lua                  site configuration for hecate.doc: locales, navigation, edit link
-  public/llms.txt           generated (not yet)
+  (llms.txt, llms-full.txt   written by the build: `llms = true` in site.lua)
   en/                       English source
     tutorials/ how-to/ reference/ explanation/ community/
     reference/              generated (never edited by hand)

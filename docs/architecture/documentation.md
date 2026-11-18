@@ -214,8 +214,15 @@ helper's line, so examples print inline. Every phase gate checks both rules on t
 
 ## LLM-facing documentation
 
-- `llms.txt` (repository root and website root) lists the key pages with one-line
-  descriptions; `llms-full.txt` concatenates the reference for ingestion.
+- `llms.txt` at the repository root is curated by hand (`gen-llms-txt` keeps its package list). The site builder
+  writes `llms.txt` and `llms-full.txt` at the root of a site (llmstxt.org) only when the site configuration says
+  `llms = true`; the default is off, so a project publishes nothing for language models unless it asks. `llms.txt` has
+  the site title and description, then one link per published page with the `description` of its front matter,
+  grouped by top-level section in navigation order (pages at the root first); `llms-full.txt` concatenates the
+  Markdown of the same pages, each after a `Source:` line. Only the pages that the site publishes appear (a page of an
+  audience that is not published is left out, OQ-144) and only the default locale is written. A file of `public/`
+  with the same name fails the build when the key is on. The Hecate website turns it on. The output is
+  deterministic.
 - Every reference page has a stable anchor per symbol.
 
 ## Documentation of a project (audiences)
@@ -252,7 +259,15 @@ request (`audiences`), not a default.
 - The configuration reference never prints the default of a secret key (`[redacted]` in its place). A
   key is a secret when its schema says `writeOnly: true` or `format: "password"`, or when the project
   lists its path in the option `secrets`: the secrets of `hecate.config` are declared at load time, not
-  in the schema, so the generator cannot know them otherwise.
+  in the schema. When the project gives its application (`application`, a `hecate.kernel.Application`,
+  duck-typed on `configuration_schema()`, so that `doc` does not depend on `kernel`), the schema of the
+  configuration and the secrets declared at load time are read from it, and `secrets` adds to them; the
+  explicit `configuration` schema stays for a project without a kernel application and wins.
+- The third-party licences page (`project.build` option `licenses`, off by default, `maintainer` by
+  default): the rocks of an installed tree read as files (name, version, declared licence, licence text,
+  dependencies resolved transitively and sorted) and what the generated site bundles, with the licence
+  texts of the theme. A rockspec is data: it is parsed without being run (no call, loop or loader
+  accepted; an empty environment and an instruction limit for the rest), and no `luarocks` process runs.
 
 The audience split of the website of the framework (the pages of `website/` moved or labelled) is a
 separate item, and a `check-audience` gate is not written yet ([OQ-144](../open-questions.md)).

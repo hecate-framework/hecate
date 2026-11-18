@@ -84,6 +84,23 @@ HTTP of these tests is in `tests/helpers/wire.lua`.
 
 CI runs both files on Linux, macOS and Windows whenever the kernel or the example changes.
 
+## Documentation site
+
+`docs/` holds the documentation of the example, written by hand: guides in `docs/en/`, the site configuration
+`docs/site.lua`, and `docs/public/` with the logo and the CSS file of the theme. It is a showcase of the theme
+extension points of `hecate.doc`: its own palette in light and dark, its own radii and sidebar width, the Fira Sans
+family of the theme for the body and a system font stack for the rest, and its own logo. It also turns on `llms.txt`.
+Build it from the repository root, with `luv` installed and the native module of `doc` built (`lua tools/run.lua
+build-native doc`), and the Hecate packages on the search path (`build_docs.lua` adds them itself):
+
+```sh
+lua examples/hello/build_docs.lua            # writes examples/hello/docs/dist (git-ignored)
+lua examples/hello/build_docs.lua /tmp/site  # or elsewhere
+```
+
+The build is strict: a broken link fails it. Serve the output with any static server. The page "Theme tokens" of the
+website lists every property the CSS file can override.
+
 ## Not built yet
 
 - No OpenAPI document (`contract`, later) and no `hecate.project.lua` or `hecate test` /

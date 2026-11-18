@@ -64,6 +64,7 @@ written is listed with its file in `website/en/`.
 - Configuration keys: every framework key, its type, default, allowed values, environment variable and meaning (`gen-config-reference`; `reference/configuration-keys.md`)
 - Error codes: every error class, its code, package, parent and `context.reason` values (`gen-error-codes`; `reference/error-codes.md`)
 - Schema keywords and formats: constructors, options, emitted JSON Schema keywords, `format` values, violation codes (hand-written; `reference/schema-keywords-and-formats.md`)
+- Theme tokens: every custom property of the `hecate.doc` theme a project can override, what it affects, own fonts (hand-written; `reference/theme-tokens.md`)
 - Compatibility matrix: Hecate × Lua × platforms (hand-written) (P3)
 - Glossary (hand-written, public version, kept in step with `docs/glossary.md`) (P2)
 - Relational algebra ↔ SQL correspondence (hand-written) (P4)

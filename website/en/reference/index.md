@@ -37,6 +37,7 @@ Hand-written pages:
 
 - [Schema keywords and formats](schema-keywords-and-formats.md): every constructor and option of `hecate.schema`, the
   JSON Schema keyword it emits, the supported `format` values and the violation codes.
-- [Project documentation](project-documentation.md): the pages generated for a user project, the LuaLS meta files and the theme extension points.
+- [Project documentation](project-documentation.md): the pages generated for a user project, the LuaLS meta files, the theme extension points and `llms.txt`.
+- [Theme tokens](theme-tokens.md): every custom property a project can override (colours in light and dark, highlighting, fonts, radii, spacing, sidebar width) and how to ship its own fonts.
 
 The [glossary](glossary.md) defines the vocabulary used everywhere.

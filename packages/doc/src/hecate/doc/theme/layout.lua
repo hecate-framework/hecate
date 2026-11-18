@@ -291,8 +291,8 @@ local function head(context, title)
       escape(context.asset("assets/fonts/" .. font .. ".woff2")))
   end
   out[#out + 1] = ("<link rel=\"stylesheet\" href=\"%s\">"):format(escape(context.asset("assets/theme.css")))
-  if context.config.colors then
-    out[#out + 1] = ("<link rel=\"stylesheet\" href=\"%s\">"):format(escape(context.public_url(context.config.colors)))
+  if context.config.theme then
+    out[#out + 1] = ("<link rel=\"stylesheet\" href=\"%s\">"):format(escape(context.public_url(context.config.theme)))
   end
   out[#out + 1] = ("<script src=\"%s\"></script>"):format(escape(context.asset("assets/theme-init.js")))
   return table.concat(out, "\n")

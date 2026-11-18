@@ -1,0 +1,87 @@
+/*
+ * Theme of the hello documentation: overrides of the custom properties of
+ * the hecate.doc theme (reference page "Theme tokens").
+ * Loaded after the stylesheet of the theme, so equal selectors win here.
+ * A dark block is needed twice: for the system preference and for the toggle.
+ */
+
+:root {
+  /* Fonts: the theme declares Fira Sans, so it can be used here as it is.
+     The rest is the system font stack; nothing is downloaded. */
+  --serif: "Fira Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, "Cascadia Code", "SF Mono", Menlo, Consolas, "DejaVu Sans Mono", monospace;
+
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --sidebar-width: 300px;
+
+  --surface-100: #FFF8F0;
+  --surface-200: #FCEBDA;
+  --surface-300: #FFFFFF;
+  --border: #EBD3BC;
+  --border-strong: #8A6A56;
+  --ink: #2B1B17;
+  --ink-muted: #6B4F44;
+  --moon: #7A2E12;
+  --earth: #C2410C;
+  --on-earth: #FFFFFF;
+  --success: #2F6B2F;
+  --danger: #B3261E;
+  --hl-keyword: #B4236B;
+  --hl-string: #2F6B2F;
+  --hl-number: #B45309;
+  --hl-function: #1D4ED8;
+  --hl-type: #0F766E;
+  --hl-parameter: #92400E;
+  --hl-escape: #BE123C;
+  --hl-comment: #7A6358;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --surface-100: #1C1412;
+    --surface-200: #261B18;
+    --surface-300: #33241F;
+    --border: #4A3730;
+    --border-strong: #A07F70;
+    --ink: #FBEFE6;
+    --ink-muted: #D3B9AA;
+    --moon: #FFB38A;
+    --earth: #FF8A4C;
+    --on-earth: #1C1412;
+    --success: #9AD38A;
+    --danger: #FF9A92;
+    --hl-keyword: #FF8FC3;
+    --hl-string: #A4DE8E;
+    --hl-number: #FFC27A;
+    --hl-function: #8DB4FF;
+    --hl-type: #6FE0D0;
+    --hl-parameter: #F4CB7F;
+    --hl-escape: #FF9FB4;
+    --hl-comment: #BFA698;
+  }
+}
+
+:root[data-theme="dark"] {
+  --surface-100: #1C1412;
+  --surface-200: #261B18;
+  --surface-300: #33241F;
+  --border: #4A3730;
+  --border-strong: #A07F70;
+  --ink: #FBEFE6;
+  --ink-muted: #D3B9AA;
+  --moon: #FFB38A;
+  --earth: #FF8A4C;
+  --on-earth: #1C1412;
+  --success: #9AD38A;
+  --danger: #FF9A92;
+  --hl-keyword: #FF8FC3;
+  --hl-string: #A4DE8E;
+  --hl-number: #FFC27A;
+  --hl-function: #8DB4FF;
+  --hl-type: #6FE0D0;
+  --hl-parameter: #F4CB7F;
+  --hl-escape: #FF9FB4;
+  --hl-comment: #BFA698;
+}

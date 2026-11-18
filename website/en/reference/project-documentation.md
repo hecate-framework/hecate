@@ -63,14 +63,35 @@ directory of the content root, which the build copies to the root of the site.
 | Option | Effect |
 |---|---|
 | `logo` | A path, or `{ light, dark }`. Replaces the hecate logo in the header. The image is shown as it is. |
-| `colors` | A CSS file loaded after the theme stylesheet. It overrides the custom properties of the colours (`--moon`, `--earth`, `--ink`, and so on). |
+| `theme` | A CSS file (`.css`) loaded after the theme stylesheet. It overrides the custom properties of the theme: colours in light and dark, code highlighting, the three font families, radii, spacing and the width of the sidebar. It may declare its own `@font-face` for font files of `public/`. |
 
 A path must be relative, without `..`, a scheme or a query. A file missing from `public/` fails the build
-with a `BuildError`. The hecate marks are never recoloured. Template overrides are not offered.
+with a `BuildError`. The hecate marks are never recoloured. Template overrides are not offered. Every property,
+what it affects and how to ship your own fonts are in [Theme tokens](theme-tokens.md).
 
-Example of `public/colors.css`, with a dark variant:
+Example of `public/theme.css`, with a dark variant (the dark set is written twice: for the system preference and for
+the toggle):
 
 ```css
-:root { --moon: #7a1f3d; }
+:root { --moon: #7a1f3d; --sans: system-ui, sans-serif; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --moon: #f2b8c9; }
+}
 :root[data-theme="dark"] { --moon: #f2b8c9; }
 ```
+
+## llms.txt
+
+Set `llms = true` in the site configuration to have the build write `llms.txt` and `llms-full.txt` at the root of
+the site, following the convention of [llmstxt.org](https://llmstxt.org). It is off by default: a project site
+publishes nothing for language models until you ask. Without the key, a file `public/llms.txt` of your own is copied
+as it is; with the key, a file of `public/` with one of these two names fails the build, because the generated file
+would replace it.
+
+- `llms.txt` has the site title, the description of the site, then a link to each published page with the `description` of
+  its front matter, grouped by top-level section in the order of the navigation. The links are absolute when `url` is set.
+- `llms-full.txt` holds the Markdown of the same pages one after the other, each after a `Source:` line with its URL, in
+  the same order. Links between pages are kept as written in the sources.
+
+Only the pages the site publishes appear: a page of an audience that is not published is left out. Only the default
+locale is written. The output is deterministic.

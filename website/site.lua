@@ -28,5 +28,6 @@ return {
   source_edit_link = "https://github.com/hecate-framework/hecate/edit/main/{path}", -- generated reference pages
   -- The website of the framework publishes both audiences (OQ-144); a project site publishes `user` only by default.
   audiences = { "user", "maintainer" },
+  llms = true, -- writes llms.txt and llms-full.txt (default locale, published pages)
   exclude = { "README.md", "glossary-terms.md" }, -- the translators' notes are not pages
 }

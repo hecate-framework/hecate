@@ -104,25 +104,28 @@ function T:test_localise_falls_back_to_the_default_locale()
   self:assert_nil(config.localise(nil, "fr", "en"))
 end
 
-function T:test_logo_and_colors()
-  local normalised = config.normalise({ title = "t", logo = "a.svg", colors = "c.css" })
+function T:test_logo_and_theme()
+  local normalised = config.normalise({ title = "t", logo = "a.svg", theme = "c.css" })
   self:assert_equal("a.svg", normalised.logo.light)
   self:assert_nil(normalised.logo.dark)
-  self:assert_equal("c.css", normalised.colors)
+  self:assert_equal("c.css", normalised.theme)
   local both = config.normalise({ title = "t", logo = { light = "a.svg", dark = "b.svg" } })
   self:assert_equal("b.svg", both.logo.dark)
   invalid(self, { title = "t", logo = "../a.svg" }, "logo")
   invalid(self, { title = "t", logo = "https://x.test/a.svg" }, "logo")
   invalid(self, { title = "t", logo = { dark = "b.svg" } }, "logo.light")
-  invalid(self, { title = "t", colors = "/abs.css" }, "colors")
-  invalid(self, { title = "t", colors = 3 }, "colors")
+  invalid(self, { title = "t", theme = "/abs.css" }, "theme")
+  invalid(self, { title = "t", theme = 3 }, "theme")
+  invalid(self, { title = "t", theme = "style.txt" }, "theme")
+  invalid(self, { title = "t", theme = "style" }, "theme")
+  self:assert_equal("fonts/Own.CSS", config.normalise({ title = "t", theme = "fonts/Own.CSS" }).theme)
 end
 
-function T:test_logo_and_colour_paths_are_plain_files_of_public()
+function T:test_logo_and_theme_paths_are_plain_files_of_public()
   for _, bad in ipairs({ "", ".", "..", "a/..", "a/./b", "a//b", "a\\b", "a?b", "C:/x", "%2e%2e/x", "/abs.svg", "a/", ".hidden.svg",
     "dir/.x/logo.svg", "../x", "a#b" }) do
     invalid(self, { title = "t", logo = bad }, "logo")
-    invalid(self, { title = "t", colors = bad }, "colors")
+    invalid(self, { title = "t", theme = bad }, "theme")
     invalid(self, { title = "t", logo = { light = "ok.svg", dark = bad } }, "logo.dark")
   end
   invalid(self, { title = "t", logo = 3 }, "logo")
@@ -144,6 +147,15 @@ function T:test_audiences_default_to_user_and_are_validated()
   invalid(self, { title = "t", audiences = { 1 } }, "audiences[1]")
   invalid(self, { title = "t", default_audience = "public" }, "default_audience")
   invalid(self, { title = "t", default_audience = 3 }, "default_audience")
+end
+
+function T:test_llms_is_off_unless_asked_and_must_be_a_boolean()
+  self:assert_equal(false, config.normalise({ title = "t" }).llms)
+  self:assert_equal(true, config.normalise({ title = "t", llms = true }).llms)
+  self:assert_equal(false, config.normalise({ title = "t", llms = false }).llms)
+  invalid(self, { title = "t", llms = "yes" }, "llms")
+  invalid(self, { title = "t", llms = 1 }, "llms")
+  invalid(self, { title = "t", llms = {} }, "llms")
 end
 
 return T

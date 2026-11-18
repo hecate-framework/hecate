@@ -496,27 +496,27 @@ function T:test_page_ids_are_percent_encoded_in_urls_and_links()
   self:assert_not_nil(fs:read("o/en/a b/café/index.html"), "files keep their real names on disk")
 end
 
-function T:test_a_logo_or_colour_file_missing_from_public_fails_the_build()
+function T:test_a_logo_or_theme_file_missing_from_public_fails_the_build()
   local missing = self:assert_error(function() build(BASIC, { logo = "nope.svg" }) end)
   self:assert_true(core.is_instance_of(missing, doc.BuildError))
-  local css = self:assert_error(function() build(BASIC, { colors = "nope.css" }) end)
+  local css = self:assert_error(function() build(BASIC, { theme = "nope.css" }) end)
   self:assert_true(core.is_instance_of(css, doc.BuildError))
 end
 
-function T:test_logo_and_colours_are_served_from_public()
+function T:test_logo_and_theme_are_served_from_public()
   local files = {}
   for path, data in pairs(BASIC) do files[path] = data end
   files["public/brand/logo.svg"] = "<svg/>"
   files["public/brand/logo-dark.svg"] = "<svg/>"
-  files["public/colors.css"] = ":root { --moon: #123456; }"
-  local fs = build(files, { logo = { light = "brand/logo.svg", dark = "brand/logo-dark.svg" }, colors = "colors.css" })
+  files["public/theme.css"] = ":root { --moon: #123456; }"
+  local fs = build(files, { logo = { light = "brand/logo.svg", dark = "brand/logo-dark.svg" }, theme = "theme.css" })
   local home = fs:read("o/en/index.html")
   self:assert_true(home:find('src="/brand/logo.svg"', 1, true) ~= nil)
   self:assert_true(home:find('src="/brand/logo-dark.svg"', 1, true) ~= nil)
   self:assert_nil(home:find("hecate-logo-horizontal", 1, true))
   local theme_at = home:find("assets/theme.css", 1, true)
-  local colors_at = home:find('href="/colors.css"', 1, true)
-  self:assert_true(theme_at ~= nil and colors_at ~= nil and colors_at > theme_at, "colour file after the theme")
+  local theme_file_at = home:find('href="/theme.css"', 1, true)
+  self:assert_true(theme_at ~= nil and theme_file_at ~= nil and theme_file_at > theme_at, "override file after the theme")
   files["public/brand/logo.svg"] = nil
   local single = build({ ["en/index.md"] = BASIC["en/index.md"], ["public/l.svg"] = "<svg/>" }, { logo = "l.svg" })
   local text = single:read("o/en/index.html")
@@ -540,7 +540,7 @@ function T:test_the_logo_is_served_on_every_page_under_a_sub_path_base()
   files["fr/index.md"] = page("Accueil", "bonjour")
   files["public/my logo.svg"] = "<svg/>"
   files["public/c.css"] = "x"
-  local fs = build(files, { base = "/docs", logo = "my logo.svg", colors = "c.css" })
+  local fs = build(files, { base = "/docs", logo = "my logo.svg", theme = "c.css" })
   for _, path in ipairs({ "o/en/index.html", "o/fr/index.html", "o/404.html" }) do
     local text = fs:read(path)
     self:assert_not_nil(text:find('src="/docs/my%20logo.svg"', 1, true), path)
@@ -679,6 +679,114 @@ function T:test_explicit_sidebar_and_home_actions_naming_an_unpublished_page_are
   local text = table.concat(report.problems, "\n")
   self:assert_true(text:find("zeta", 1, true) ~= nil, text)
   self:assert_true(#report.problems >= 2, text)
+end
+
+function T:test_the_theme_file_can_change_fonts_and_ship_font_files_from_public()
+  local files = {}
+  for path, data in pairs(BASIC) do files[path] = data end
+  files["public/own.css"] = '@font-face { font-family: "Own"; src: url("fonts/own.woff2") format("woff2"); }\n'
+    .. ":root { --serif: \"Own\", serif; --sans: \"Own\", sans-serif; --mono: \"Own Mono\", monospace; }\n"
+  files["public/fonts/own.woff2"] = "wOF2"
+  local fs = build(files, { theme = "own.css" })
+  self:assert_equal("wOF2", fs:read("o/fonts/own.woff2"), "a font file of public/ is copied, next to the theme file")
+  self:assert_not_nil(fs:read("o/own.css"):find('url("fonts/own.woff2")', 1, true), "the theme file is served as written")
+  -- The theme file comes after the stylesheet of the theme, so its custom properties win at equal specificity.
+  local home = fs:read("o/en/index.html")
+  self:assert_true(home:find("assets/theme.css", 1, true) < home:find('href="/own.css"', 1, true))
+end
+
+function T:test_a_file_of_public_cannot_replace_the_stylesheet_of_the_theme()
+  local files = {}
+  for path, data in pairs(BASIC) do files[path] = data end
+  files["public/assets/theme.css"] = ":root { --earth: red; }"
+  local err = self:assert_error(function() build(files) end)
+  self:assert_true(core.is_instance_of(err, doc.BuildError))
+end
+
+-- llms.txt and llms-full.txt (llmstxt.org): opt-in, the published pages of the default locale.
+local LLMS_FILES = {
+  ["en/index.md"] = page("Home", "welcome", "description: Start page.\n"),
+  ["en/guide/index.md"] = page("Guide", "start", "order: 1\ndescription: Where to begin.\n"),
+  ["en/guide/a.md"] = page("Alpha [one]", "alphaword", "order: 2\n"),
+  ["en/guide/b.md"] = page("Beta", "betaword", "order: 3\ndescription: \"Second\\nline.\"\n"),
+  ["en/guide/zeta.md"] = page("Zeta", "xylophone", "order: 4\naudience: maintainer\ndescription: Hidden.\n"),
+  ["en/other/x.md"] = "---\ndescription: An x.\n---\nno heading here\n",
+  ["fr/index.md"] = page("Accueil", "bonjour"),
+  ["fr/guide/a.md"] = page("Alpha FR", "frenchword"),
+}
+
+function T:test_llms_files_are_not_written_unless_asked_and_public_files_pass_through()
+  local files = {}
+  for path, data in pairs(LLMS_FILES) do files[path] = data end
+  files["public/llms.txt"] = "hand-written\n"
+  local fs = build(files, { url = "https://x.test" })
+  self:assert_equal("hand-written\n", fs:read("o/llms.txt"))
+  self:assert_nil(fs:read("o/llms-full.txt"))
+end
+
+function T:test_llms_txt_lists_the_published_pages_of_the_default_locale_by_section()
+  local fs = build(LLMS_FILES, { url = "https://x.test/", llms = true, description = { en = "A site.", fr = "Un site." } })
+  local expected = table.concat({
+    "# hecate",
+    "",
+    "> A site.",
+    "",
+    "- [Home](https://x.test/en/): Start page.",
+    "",
+    "## Guide",
+    "",
+    "- [Guide](https://x.test/en/guide/): Where to begin.",
+    "- [Alpha \\[one\\]](https://x.test/en/guide/a/)",
+    "- [Beta](https://x.test/en/guide/b/): Second line.",
+    "",
+    "## Other",
+    "",
+    "- [X](https://x.test/en/other/x/): An x.",
+    "",
+  }, "\n")
+  self:assert_equal(expected, fs:read("o/llms.txt"))
+end
+
+function T:test_llms_links_follow_the_base_without_a_public_url()
+  local fs = build(LLMS_FILES, { llms = true, base = "/docs/" })
+  local text = fs:read("o/llms.txt")
+  self:assert_not_nil(text:find("- [Home](/docs/en/): Start page.", 1, true), text)
+  self:assert_nil(text:find("> ", 1, true), "no summary without a description")
+end
+
+function T:test_llms_full_txt_concatenates_the_markdown_of_the_published_pages()
+  local fs = build(LLMS_FILES, { url = "https://x.test", llms = true })
+  local text = fs:read("o/llms-full.txt")
+  self:assert_not_nil(text:find("alphaword", 1, true))
+  self:assert_not_nil(text:find("betaword", 1, true))
+  self:assert_not_nil(text:find("Source: https://x.test/en/guide/a/", 1, true))
+  self:assert_nil(text:find("xylophone", 1, true), "an unpublished audience is absent")
+  self:assert_nil(text:find("frenchword", 1, true), "the default locale only")
+  self:assert_nil(text:find("description:", 1, true), "front matter is not part of the Markdown")
+  self:assert_true(text:find("alphaword", 1, true) < text:find("betaword", 1, true), "reading order")
+  -- A page without a heading in its body gets one from its title.
+  self:assert_not_nil(text:find("# X\n\nno heading here", 1, true), text)
+  self:assert_equal("\n", text:sub(-1))
+  self:assert_nil(text:find("\n\n\n", 1, true))
+end
+
+function T:test_llms_files_are_deterministic_and_ask_for_the_published_audiences()
+  local first = build(LLMS_FILES, { url = "https://x.test", llms = true })
+  local second = build(LLMS_FILES, { url = "https://x.test", llms = true })
+  self:assert_equal(first:read("o/llms.txt"), second:read("o/llms.txt"))
+  self:assert_equal(first:read("o/llms-full.txt"), second:read("o/llms-full.txt"))
+  local both = build(LLMS_FILES, { url = "https://x.test", llms = true, audiences = { "user", "maintainer" } })
+  self:assert_not_nil(both:read("o/llms.txt"):find("[Zeta](https://x.test/en/guide/zeta/): Hidden.", 1, true))
+  self:assert_not_nil(both:read("o/llms-full.txt"):find("xylophone", 1, true))
+end
+
+function T:test_a_file_of_public_named_like_a_llms_file_collides_when_llms_is_on()
+  local files = {}
+  for path, data in pairs(LLMS_FILES) do files[path] = data end
+  files["public/llms-full.txt"] = "mine"
+  local err = self:assert_error(function() build(files, { llms = true }) end)
+  self:assert_true(core.is_instance_of(err, doc.BuildError))
+  self:assert_not_nil(tostring(err):find("llms-full.txt", 1, true), tostring(err))
 end
 
 return T

@@ -357,8 +357,11 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       `maintainer` pages; the default of a secret key is not printed in the configuration reference. **To do once
       OQ-144 is decided:** the audience split of the Hecate website (option (a): sections, `llms.txt`, French mirror;
       the website pages are not labelled yet) and a `check-audience` gate; sections of a project site switchable by the
-      project; a `draft` page flag; the error-code reference of a project; `llms.txt` and `llms-full.txt` for a
-      project. The tick of the `doc` item above covers the Lua API only; `hecate doc build` belongs to the `cli` item below.
+      project; a `draft` page flag; the error-code reference of a project. **Delivered since (owner requests of
+      2026-11-18):** `llms.txt` and `llms-full.txt` for a project (site configuration `llms`, off by default, default locale
+      and published pages only; the website turns it on); the theme key `colors` renamed `theme` (fonts, radii, spacing
+      and sidebar width as well as colours; page "Theme tokens"); the showcase `examples/hello/docs`; **still to do:**
+      `llms.txt` of other locales, a replaceable favicon. The tick of the `doc` item above covers the Lua API only; `hecate doc build` belongs to the `cli` item below.
 - [ ] `cli` v1: self-contained executable, `new`, `install`, `add`, `remove`, `update`,
       `serve [--watch]`, `test`, `doc`, `contract`, `toolchain`, `doctor`, `version`.
       **Also (from the `test` item, owner go-ahead of 2026-11-16):** `hecate test` takes the options of

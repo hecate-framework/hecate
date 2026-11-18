@@ -8,7 +8,7 @@
 | Rock | `hecate-doc` |
 | Layer | Tooling |
 | Roadmap phase | 3 |
-| Status | alpha — minimal slice done (Phase 1 roadmap item); the roadmap phase stays 3 because the package is still in progress for it: Markdown rendering and highlighting by the native module (comrak, syntect), site model (locales with fallback, sidebar, previous/next), original theme on the brand kit, search index, `build` and the LuaLS code reference (reference generator, `gen-reference`) implemented; the project documentation (`hecate.doc.project`: configuration reference, LuaLS meta files, `project.build`) and the theme extension points (`logo`, `colors`) implemented; versioned documentation, development server, runnable examples, the `hecate doc build` command and the prebuilt binary rocks of the native module pending (Phase 3) |
+| Status | alpha — minimal slice done (Phase 1 roadmap item); the roadmap phase stays 3 because the package is still in progress for it: Markdown rendering and highlighting by the native module (comrak, syntect), site model (locales with fallback, sidebar, previous/next), original theme on the brand kit, search index, `build` and the LuaLS code reference (reference generator, `gen-reference`) implemented; the project documentation (`hecate.doc.project`: configuration reference, LuaLS meta files, `project.build`) and the theme extension points (`logo`, `theme`) and `llms.txt` / `llms-full.txt` (opt-in) implemented; versioned documentation, development server, runnable examples, the `hecate doc build` command and the prebuilt binary rocks of the native module pending (Phase 3) |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |
 | Depends on | [`core`](../core), [`reactor`](../reactor), [`openapi`](../openapi), [`schema`](../schema), [`json`](../json), [`unicode`](../unicode) |
 | Used by | `cli` |
@@ -27,7 +27,7 @@
 - versioned documentation per minor release
 - runnable examples for pure-Lua packages if Lua 5.5 builds to WebAssembly (OQ-11)
 - `hecate doc build|serve` for user projects with the same theme, with a base URL option for GitHub Pages project sites
-- `llms.txt` and `llms-full.txt` generation
+- `llms.txt` and `llms-full.txt` generation (site configuration `llms`, off by default)
 - stable anchors per symbol
 
 ## Non-goals
@@ -71,7 +71,8 @@ decided in [ADR 0022](../../docs/adr/0022-doc-dependencies.md).
 | `theme` | `page(context)`, `not_found(context)`, `strings`, `asset_files`, `diagram_files` (written only when a page holds a diagram), `assets_directory()`. |
 | `reference` (`hecate.doc.reference`) | `generate(inputs, options)`: pages of the code reference from LuaLS exports (pure; option `internal` adds the `maintainer` pages of `*.internal` modules and of non-public classes, `label_audiences` writes the `audience` key on every page); `is_generated(text)`; `GENERATED` (the marker). |
 | `reference_site` (`hecate.doc.reference_site`) | `run(options)`: runs LuaLS on the packages, generates and writes the pages (skips with `report.skipped` without LuaLS); `write(fs, out, result, packages)`; `DEFAULT_PACKAGES`. |
-| `project` (`hecate.doc.project`) | `configuration_page(schema, options?)`: the configuration reference from a JSON Schema, a `maintainer` page that prints `[redacted]` for the default of a secret key (`writeOnly`, `format: "password"`, or `options.secrets`); `build(options)`: writes the guides and the generated pages below `<source>/<locale>/` and builds (everything is checked before anything is written; a generated page never overwrites a file that is not generated, and generated pages no longer produced are removed); `meta(schemas, namespace)`: a LuaLS `---@meta` declaration file (classes, aliases) from named JSON Schemas (OQ-96); `is_generated(text)`. Text from the schema is escaped, and the expansion of a schema is bounded (500 rows per table, cycles shown as one row). There is no API reference: the OpenAPI contract is the external documentation of the API (served by `openapi`), and a viewer is the wiring of the user (OQ-141, owner decision of 2026-11-17). The options `config.audiences` (default `{ "user" }`) and `secrets` apply (see "Audiences"). The option `code` runs LuaLS, which reads the `.luarc.json` of `code.root` and runs the plugin it declares: `code.root` must be trusted (OQ-142). |
+| `project` (`hecate.doc.project`) | `configuration_page(schema, options?)`: the configuration reference from a JSON Schema, a `maintainer` page that prints `[redacted]` for the default of a secret key (`writeOnly`, `format: "password"`, or `options.secrets`); `build(options)`: writes the guides and the generated pages below `<source>/<locale>/` and builds (everything is checked before anything is written; a generated page never overwrites a file that is not generated, and generated pages no longer produced are removed); `meta(schemas, namespace)`: a LuaLS `---@meta` declaration file (classes, aliases) from named JSON Schemas (OQ-96); `is_generated(text)`. Text from the schema is escaped, and the expansion of a schema is bounded (500 rows per table, cycles shown as one row). There is no API reference: the OpenAPI contract is the external documentation of the API (served by `openapi`), and a viewer is the wiring of the user (OQ-141, owner decision of 2026-11-17). The options `config.audiences` (default `{ "user" }`) and `secrets` apply (see "Audiences"). The option `code` runs LuaLS, which reads the `.luarc.json` of `code.root` and runs the plugin it declares: `code.root` must be trusted (OQ-142). The option `application` takes the application object (a `hecate.kernel.Application`; duck-typed: only `application:configuration_schema()` is called, `doc` never requires `kernel`) and adds the configuration reference from the schema of its configuration, with its secrets feeding the `[redacted]` rows; the explicit `configuration` option (a JSON Schema) wins and stays for projects without a kernel application, and `secrets` is added to the application's. The option `licenses` (default off; `true` or `{ tree?, roots?, audience?, bundled? }`) adds the third-party licences page (see below). |
+| `licenses` (`hecate.doc.licenses`) | `read(fs, { tree, roots?, max_rocks? })`: the installed rocks of a tree (`<tree>/lib/luarocks/rocks-<lua>/<rock>/<version>/`), read through `fs`, as `{ rocks, problems }` (name, version, declared licence, `required_by`, licence text); `parse_rockspec(text)`: the data of a rockspec without running it; `bundled({ diagrams, theme_fs?, theme_directory? })`: what the generated site bundles, with the licence texts of the theme; `markdown(model, header, bundled?)`: the page. |
 
 ### Building a site
 
@@ -109,6 +110,31 @@ includes `maintainer`. Members that are not public are never listed. Limits: ima
 copied; the LuaLS export gives the visibility of classes and members, but a project module path is matched against the
 `hecate.<name>` prefix of the reference generator (a project namespace other than `hecate.<name>` is not documented yet).
 
+### Third-party licences page
+
+`project.build` generates `third-party-licences.md` when asked (`licenses = true`, which reads the tree
+`lua_modules`, or `licenses = { tree = "lua_modules", roots = { "my-app" }, audience = "maintainer", bundled = true }`; off by default). The page
+is a `maintainer` page unless `audience = "user"` (OQ-144) and lists:
+
+- the rocks of the installed tree: name, version, licence as the rockspec declares it (`description.license`, an SPDX
+  identifier when the rock uses one), the rocks that require it, and the licence text found in the installed rock
+  (`LICENSE`, `LICENCE`, `COPYING` or `UNLICENSE`, in the rock directory or its `doc` directory), each distinct text
+  once. With `roots`, only those rocks and their dependencies, resolved transitively by name over every installed
+  version; without it, every installed rock. A dependency that is not installed, an unreadable rockspec, a text that is
+  not UTF-8 or larger than 64 KiB, and more than 2000 rocks are problems of the report, never errors;
+- what the generated site bundles, with the licence texts reproduced from the files of the theme: STIX Two Text, Fira
+  Sans and Fira Code (OFL-1.1), the Hecate brand marks and the Octicons mark (MIT), Mermaid (MIT, with the licences of
+  its components named) when a guide holds a `mermaid` block (`bundled = false` leaves this section out). The Rust crates
+  of the native module (comrak, syntect, two-face) are named as build tools; their texts ship with the release artefacts
+  of the native module and are not reproduced (THIRD_PARTY_NOTICES, section 5). No syntax-highlighting colour theme is
+  bundled: the highlight colours are the own CSS properties of the theme.
+
+The rocks are files read through `options.fs`: no `luarocks` process runs. A rockspec is Lua but its content is data,
+and it is never executed as code: `hecate.doc.licenses.parse_rockspec` refuses a rockspec that, outside strings and
+comments, holds a call (`(` or `:`), a loop, a `goto` or a loader, and evaluates the rest with an empty environment and an
+instruction limit. Links in the tree are not followed. Not generated for the Hecate website: its rocks are not an
+installed tree (the website lists the same material in `THIRD_PARTY_NOTICES`).
+
 ### Code reference
 
 The reference pages are generated from the JSON export of `lua-language-server --doc` (LuaLS
@@ -143,7 +169,7 @@ override of the label used in navigation, search and `<title>` (OQ-35). Front ma
 `last_updated`, `source_revision`, `source` (generated pages: repository path of the Lua file). Callouts are GFM alerts: `> [!NOTE|TIP|IMPORTANT|WARNING|CAUTION] [title]`. Raw HTML
 is not supported (shown as text, comments are dropped). Conventions: OQ-35. Site configuration (`site.lua`):
 `title`, `description`, `base`, `url`, `default_locale`, `locales`, `nav`, `sidebar`,
-`repository`, `logo` (a file of `public/`, or `{ light, dark }`, shown as it is and never recoloured; a path without `.`, `..` or hidden segments, and a file missing from `public/` fails the build before anything is written), `colors` (a CSS file of `public/` loaded after the theme to override the colour custom properties; OQ-38), `edit_link`, `source_edit_link` (edit link of generated pages, from their `source`),
+`repository`, `logo` (a file of `public/`, or `{ light, dark }`, shown as it is and never recoloured; a path without `.`, `..` or hidden segments, and a file missing from `public/` fails the build before anything is written), `theme` (a `.css` file of `public/` loaded after the theme to override its custom properties: colours in light and dark, highlighting, fonts, radii, spacing, sidebar width, with its own `@font-face` for font files of `public/`; OQ-38; the reference page "Theme tokens" lists them), `llms` (boolean, default false: writes `llms.txt` and `llms-full.txt` for the published pages of the default locale, see "llms.txt" below), `edit_link`, `source_edit_link` (edit link of generated pages, from their `source`),
 `footer`, `outline`, `strings`, `exclude`; see
 `hecate.doc.SiteConfig` and [website/site.lua](../../website/site.lua).
 
@@ -163,6 +189,18 @@ search dialog), STIX Two Text / Fira Sans / Fira Code, header with logo, section
 search, locale switch, theme toggle and repository link, sidebar, "On this page" outline,
 previous/next cards, edit link, last updated, callouts, responsive down to 390 px. Pages are
 readable without JavaScript. Vendored material: [THIRD_PARTY_NOTICES](../../THIRD_PARTY_NOTICES).
+
+### llms.txt
+
+With `llms = true` in the site configuration, `build` also writes `llms.txt` and `llms-full.txt` at the root of the site
+(llmstxt.org; off by default, so no project publishes them unasked). `llms.txt`: `# title`, `> description`, a list of
+the pages at the root of the site, then one `##` section per top-level section (navigation order, then by name) with
+one `- [title](url): description` line per page, the description being the front matter `description` collapsed to one
+line, in the reading order of the sidebar. `llms-full.txt`: the Markdown of the same pages, without front matter, each
+after `---` and a `Source: <url>` line (a page without a `#` heading in its body gets one from its title); links between
+pages are kept as written. Only published pages (audiences, OQ-144) and the default locale appear; URLs are absolute
+when `url` is set. A file of `public/` named `llms.txt` or `llms-full.txt` fails the build when the key is on and is
+copied as it is when it is off. Output is deterministic. The repository `llms.txt` stays curated by hand.
 
 ### Diagrams
 
@@ -186,7 +224,7 @@ the origin (13 requests on the check of 2026-11-17).
 
 ### Limits of the current implementation
 
-Not implemented: the error-code reference of a project, translations of generated pages keyed by symbol, `llms.txt`,
+Not implemented: the error-code reference of a project, translations of generated pages keyed by symbol, `llms.txt` for locales other than the default,
 versioned documentation, development server, runnable examples, translation status report,
 template overrides of the theme (not planned until users ask, OQ-38). Markdown is GFM through comrak; the CommonMark 0.31.2 and GFM extension examples run as a test through the module (OQ-37). The search ranking is client-side JavaScript without an automated test (OQ-36).
 Verified on Linux; macOS and Windows are verified by CI only (the shell calls of

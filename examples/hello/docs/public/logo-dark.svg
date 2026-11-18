@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="150" height="45" viewBox="0 0 150 45" role="img" aria-label="hello">
+  <path d="M5 33a14 14 0 0 1 28 0z" fill="#FF8A4C"/>
+  <g stroke="#FF8A4C" stroke-width="3" stroke-linecap="round">
+    <path d="M19 10v4M7.5 17l3 3M30.5 17l-3 3M3 27h3M32 27h3"/>
+  </g>
+  <path d="M2 37.5h34" stroke="#FBEFE6" stroke-width="2.5" stroke-linecap="round"/>
+  <text x="46" y="32" font-family="system-ui, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="26" font-weight="700" fill="#FBEFE6">hello</text>
+</svg>

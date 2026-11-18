@@ -589,10 +589,113 @@ local function redirect_page(self)
     html.escape(self.config.title))
 end
 
+-- llms.txt and llms-full.txt (https://llmstxt.org, "Format"). Both describe the published pages of the default
+-- locale, in the reading order of the navigation: the pages at the root of the site first, then one section
+-- per top-level section (the top navigation order, then the other sections by name). Pages of an audience that
+-- is not published are not in `self:pages`, so they never appear.
+local function one_line(text)
+  return ((text:gsub("%s+", " "):gsub("^ ", ""):gsub(" $", "")))
+end
+
+local function llms_sections(self)
+  local code = self.config.default_locale
+  local pages = self:pages(code)
+  local list = infos(pages)
+  local by_id, in_section, root = {}, {}, {}
+  for _, page in ipairs(pages) do
+    by_id[page.id] = page
+    local section = navigation.section_of(page.id)
+    if section then
+      in_section[section] = in_section[section] or {}
+      table.insert(in_section[section], page)
+    else
+      root[#root + 1] = page
+    end
+  end
+  table.sort(root, function(a, b)
+    if (a.id == "index") ~= (b.id == "index") then return a.id == "index" end
+    local order_a, order_b = a.order or 1000, b.order or 1000
+    if order_a ~= order_b then return order_a < order_b end
+    return a.id < b.id
+  end)
+  local sections, seen = {}, {}
+  local function add(section, text)
+    if seen[section] or not in_section[section] then return end
+    seen[section] = true
+    local ordered, listed = {}, {}
+    local nodes = navigation.sidebar(section, list, self.config, code)
+    for _, id in ipairs(navigation.reading_order(nodes)) do
+      if by_id[id] and not listed[id] then
+        listed[id] = true
+        ordered[#ordered + 1] = by_id[id]
+      end
+    end
+    for _, page in ipairs(in_section[section]) do -- sorted by id
+      if not listed[page.id] then ordered[#ordered + 1] = page end
+    end
+    sections[#sections + 1] = { text = text, pages = ordered }
+  end
+  for _, link in ipairs(navigation.top_links(list, self.config, code)) do
+    if link.section then add(link.section, link.text) end
+  end
+  local others = {}
+  for section in pairs(in_section) do others[#others + 1] = section end
+  table.sort(others)
+  for _, section in ipairs(others) do add(section, humanise(section)) end
+  return root, sections
+end
+
+--- The text of `llms.txt` and of `llms-full.txt`.
+local function llms_files(self)
+  local code = self.config.default_locale
+  local root, sections = llms_sections(self)
+  local function location(page) return self.config.url and (self.config.url .. page.url) or page.url end
+  local function item(page)
+    local title = one_line(page.title):gsub("[%[%]\\]", "\\%0")
+    local text = ("- [%s](%s)"):format(title, location(page))
+    if page.description and one_line(page.description) ~= "" then text = text .. ": " .. one_line(page.description) end
+    return text
+  end
+  local head = { "# " .. one_line(self.config.title) }
+  local summary = config_module.localise(self.config.description, code, code)
+  if type(summary) == "string" and one_line(summary) ~= "" then head[#head + 1] = "> " .. one_line(summary) end
+  local index = table.move(head, 1, #head, 1, {})
+  local ordered = {}
+  local function list(pages)
+    local lines = {}
+    for _, page in ipairs(pages) do
+      lines[#lines + 1] = item(page)
+      ordered[#ordered + 1] = page
+    end
+    return table.concat(lines, "\n")
+  end
+  if #root > 0 then index[#index + 1] = list(root) end
+  for _, section in ipairs(sections) do
+    index[#index + 1] = "## " .. one_line(section.text)
+    index[#index + 1] = list(section.pages)
+  end
+  local full = head
+  for _, page in ipairs(ordered) do
+    local body = read_page(self, (source_for(self, code, page.id))).body
+    local first = body:find("%S")
+    local last = body:match(".*()%S")
+    body = first and body:sub(first, last) or ""
+    full[#full + 1] = "---"
+    full[#full + 1] = "Source: " .. location(page)
+    -- A page whose title is in its front matter has no heading in the body: the concatenation needs one.
+    if not (body:find("^#[ \t]") or body:find("^#\r?\n") or body:find("^[^\n]*\n=+[ \t]*\r?\n")) then
+      full[#full + 1] = "# " .. one_line(page.title)
+    end
+    full[#full + 1] = body
+  end
+  return table.concat(index, "\n\n") .. "\n", table.concat(full, "\n\n") .. "\n"
+end
+
 --- Writes the site through `write(relative_path, data)`, in a fixed order: the marker file,
 --- the pages of each locale, the search indexes, the static files of the theme and of the
---- content, the not-found page, the sitemap (when `config.url` is set) and the root
---- redirect. Returns the number of files written.
+--- content, the not-found page, the sitemap (when `config.url` is set), `llms.txt` and
+--- `llms-full.txt` (when `config.llms` is true) and the root redirect. Returns the number
+--- of files written.
 ---@param write fun(path: string, data: string)
 ---@return integer count
 function Site:emit(write)
@@ -623,7 +726,7 @@ function Site:emit(write)
     named[#named + 1] = self.config.logo.light
     named[#named + 1] = self.config.logo.dark
   end
-  named[#named + 1] = self.config.colors
+  named[#named + 1] = self.config.theme
   for _, path in ipairs(named) do
     if self._fs:read(self._source .. "/public/" .. path) == nil then
       fail(("the file %s named by the site configuration is not in public/"):format(path), path)
@@ -692,6 +795,11 @@ function Site:emit(write)
   context.alternates = {}
   put("404.html", theme.not_found(context))
   if self.config.url then put("sitemap.xml", sitemap(self)) end
+  if self.config.llms then
+    local short, full = llms_files(self)
+    put("llms.txt", short)
+    put("llms-full.txt", full)
+  end
   put("index.html", redirect_page(self))
   return count
 end
