@@ -117,4 +117,84 @@ function T:test_the_initialiser_makes_no_network_request_of_its_own()
   end
 end
 
+-- Navigation: toolbar, pan, zoom, full screen (owner request of 2026-11-18) --------------------------------------
+
+local CONTROL_KEYS = { "diagram_controls", "diagram_zoom_in", "diagram_zoom_out", "diagram_reset", "diagram_fullscreen",
+  "diagram_exit_fullscreen" }
+
+function T:test_the_control_strings_exist_in_english_and_french_and_are_not_empty()
+  local catalogue = doc.theme.strings.catalogue
+  for _, key in ipairs(CONTROL_KEYS) do
+    for _, locale in ipairs({ "en", "fr" }) do
+      self:assert_true(type(catalogue[locale][key]) == "string" and catalogue[locale][key] ~= "", locale .. " " .. key)
+    end
+    self:assert_true(catalogue.en[key] ~= catalogue.fr[key], key .. " is translated")
+  end
+end
+
+function T:test_only_a_page_with_a_diagram_carries_the_control_strings_in_its_script_configuration()
+  local fs = build({ ["en/index.md"] = page("Home", "text"), ["en/a.md"] = page("A", DIAGRAM) })
+  local with = fs:read("o/en/a/index.html")
+  local without = fs:read("o/en/index.html")
+  for _, key in ipairs(CONTROL_KEYS) do
+    self:assert_true(has(with, '"' .. key .. '"'), key)
+    self:assert_nil(without:find('"' .. key .. '"', 1, true), key .. " on a page without a diagram")
+  end
+  self:assert_true(has(with, '"diagram_zoom_in":"Zoom in"'))
+end
+
+function T:test_the_french_page_carries_the_french_control_strings()
+  local fs = doc.MemoryFileSystem({ ["c/en/index.md"] = page("Home", DIAGRAM), ["c/fr/index.md"] = page("Accueil", DIAGRAM) })
+  doc.build({
+    config = { title = "hecate", locales = { { code = "en", label = "English", lang = "en" },
+      { code = "fr", label = "Français", lang = "fr" } } },
+    source = "c", out = "o", fs = fs,
+  })
+  local french = fs:read("o/fr/index.html")
+  self:assert_true(has(french, '"diagram_fullscreen":"Plein '), "French label")
+  self:assert_true(has(french, "Zoom avant"))
+  self:assert_true(has(fs:read("o/en/index.html"), '"diagram_fullscreen":"Full screen"'))
+end
+
+function T:test_the_initialiser_builds_the_controls_without_markup_eval_or_inline_handlers()
+  for _, forbidden in ipairs({ "innerHTML", "outerHTML", "insertAdjacentHTML", "document.write", "eval(", "new Function",
+    'setAttribute("style"', "setAttribute('style'", "setAttribute(\"on", "javascript:", ".onclick", "srcdoc" }) do
+    self:assert_nil(INIT:find(forbidden, 1, true), forbidden)
+  end
+  self:assert_nil(INIT:find("%f[%w]on%l+%s*=%s*[\"']"), "no inline handler attribute")
+  for _, part in ipairs({ 'createElement("button")', 'element.type = "button"', "aria-label", "aria-keyshortcuts",
+    'role", "toolbar"', "pointerdown", "pointermove", "setPointerCapture", "wheel", "{ passive: false }" }) do
+    self:assert_true(has(INIT, part), part)
+  end
+end
+
+function T:test_the_wheel_zooms_only_with_ctrl_or_cmd_or_in_full_screen()
+  self:assert_true(has(INIT, "if (!(state.full || event.ctrlKey || event.metaKey)) return;"),
+    "a plain wheel in the page is left to the browser")
+end
+
+function T:test_the_full_screen_uses_the_api_when_present_and_an_overlay_class_always()
+  for _, part in ipairs({ "requestFullscreen", "webkitRequestFullscreen", "fullscreenchange", "exitFullscreen",
+    '"is-fullscreen"', '"diagram-fullscreen"', '"Escape"' }) do
+    self:assert_true(has(INIT, part), part)
+  end
+end
+
+function T:test_the_stylesheet_locks_the_page_on_the_root_element_only_and_the_toolbar_uses_tokens()
+  local css = read(doc.theme.assets_directory() .. "/theme.css")
+  self:assert_true(has(css, "html.diagram-fullscreen { overflow: hidden; }"))
+  self:assert_nil(css:find("body[^{}]*diagram[^{}]*{[^}]*overflow", 1), "never overflow on body")
+  self:assert_true(has(css, ".diagram.is-fullscreen { position: fixed; inset: 0;"))
+  local toolbar = css:match("\n(%.diagram%-toolbar [^\n]*)")
+  self:assert_not_nil(toolbar)
+  self:assert_true(has(toolbar, "padding: var(--space-2)"), "8px offsets")
+  local button = css:match("\n(%.diagram%-button [^\n]*)")
+  self:assert_not_nil(button)
+  for _, token in ipairs({ "--surface-300", "--border-strong", "--ink", "--radius-sm" }) do self:assert_true(has(button, token), token) end
+  self:assert_nil(css:match("%.diagram[^{]*{[^}]*#%x%x%x"), "no colour literal in the diagram rules")
+  self:assert_nil(css:match("%.diagram[^{]*{[^}]*transition"), "nothing is animated")
+  self:assert_nil(INIT:find("transition", 1, true))
+  self:assert_nil(INIT:find("behavior", 1, true), "no smooth scrolling")
+end
+
 return T

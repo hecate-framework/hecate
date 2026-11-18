@@ -120,7 +120,9 @@ Option 1, and the rules below for this library and for any browser library that 
 - `theme/assets/mermaid/` (`mermaid.min.js`, `LICENSE`, `VENDORED.md`), `theme/assets/mermaid-init.js`.
 - Mermaid 12.3.0, SHA-256 `336df803d87a38b70a01e736e666c8f7601d2ce42f5e47c8fafe5d721074b9a3`.
 - The renderer flag in `hecate.doc.markdown`, the page flag in `hecate.doc.site`, the two script elements in the
-  theme layout, the strings `diagram` and `diagram_failed` in the interface strings.
+  theme layout, the strings `diagram`, `diagram_failed` and the `diagram_*` control labels in the interface strings. The initialiser
+  also holds the navigation of a drawn diagram (toolbar, pan, zoom, full screen; owner request of 2026-11-18), as
+  plain code under the rules above: no new library, no markup assigned, no request.
 
 ## Consequences
 

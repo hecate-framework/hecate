@@ -316,8 +316,10 @@ local function script_config(context)
   local keys = { "switch_to_dark", "switch_to_light", "copy", "copy_code", "copied", "copy_failed", "table",
     "search_hint", "no_results", "results", "search_failed" }
   if context.diagrams then
-    keys[#keys + 1] = "diagram"
-    keys[#keys + 1] = "diagram_failed"
+    for _, key in ipairs({ "diagram", "diagram_failed", "diagram_controls", "diagram_zoom_in", "diagram_zoom_out",
+      "diagram_reset", "diagram_fullscreen", "diagram_exit_fullscreen" }) do
+      keys[#keys + 1] = key
+    end
   end
   local subset = {}
   for _, key in ipairs(keys) do subset[key] = s[key] end
