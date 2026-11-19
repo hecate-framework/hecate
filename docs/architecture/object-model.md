@@ -107,7 +107,11 @@ A single hierarchy rooted at `hecate.core.Error`:
   `ArgumentError` (a wrong argument) and `StateError` (the operation is not allowed in the current state
   of the object: closed, already serving, not prepared; OQ-77), `CancellationError`,
   `DeadlineExceededError`, `NonYieldableContextError`, `ClosedChannelError`, `NetworkError`, `IoError`, `ProtocolError`, `ValidationError`,
-  `DatabaseError` (with SQLSTATE when available), etc.;
+  `DatabaseError` (with SQLSTATE when available), etc.; `hecate.unicode.UnicodeError` (the root of the
+  failures of the Unicode algorithms, [ADR 0032](../adr/0032-unicode-normalisation-packages.md)) with
+  `InvalidUtf8Error` (`context.position`, the byte position of the first invalid byte) and `DataFormatError`
+  (the data rock has a table layout the algorithms do not know), each with the code
+  `hecate.unicode.<Class>`;
 - `message` defaults to the class name when none is given;
 - `__tostring` renders the cause chain;
 - errors that cross the HTTP boundary map to problem details (RFC 9457) through an

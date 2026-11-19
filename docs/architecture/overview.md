@@ -59,7 +59,7 @@ flowchart TB
   subgraph T[Tooling]
     cli --> log
     cli --> schema
-    doc --> openapi
+    doc --> json
     doc --> reactor
     doc --> unicode
     test --> kernel
@@ -71,7 +71,7 @@ flowchart TB
 <!-- gen-dependency-graph:end -->
 
 The graph is generated from the rockspecs by `gen-dependency-graph`; edges implied by other edges are omitted. Each package's
-README lists its exact dependencies: `http` declares `core`, `reactor`, `net`, `json` and `log` (the graph shows only `net` and `log`, which imply the others); `doc` declares `core`, `reactor`, `openapi`, `schema`, `json` and `unicode` (the graph shows only `openapi`, `reactor` and `unicode`). `unicode` and `unicode-data` are in layer 0 next to `core` ([ADR 0032](../adr/0032-unicode-normalisation-packages.md)): no I/O and no reactor, so that `schema` and `router` may use them.
+README lists its exact dependencies: `http` declares `core`, `reactor`, `net`, `json` and `log` (the graph shows only `net` and `log`, which imply the others); `doc` declares `core`, `reactor`, `json` and `unicode` (the graph shows `json`, `reactor` and `unicode`; `core` is implied by them). `unicode` and `unicode-data` are in layer 0 next to `core` ([ADR 0032](../adr/0032-unicode-normalisation-packages.md)): no I/O and no reactor, so that `schema` and `router` may use them.
 
 ## Naming
 

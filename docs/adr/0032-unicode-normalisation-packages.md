@@ -3,6 +3,7 @@
 - **Status:** Accepted
 - **Date:** 2026-11-17
 - **Deciders:** project owner (route chosen in chat on 2026-11-17, on pull request #218; accepted by the owner in chat on 2026-11-17)
+- **Amended:** 2026-11-19 by the owner, in place, status unchanged: first pinned version Unicode 18.0.0; error classes listed
 - **Packages:** unicode (new), unicode-data (new), doc (first user), schema and router (later users), and the generator, CI and release tooling
 - **Related:** OQ-140 ([issue #219](https://github.com/hecate-framework/hecate/issues/219)), [ADR 0005](0005-single-brand-monorepo-lockstep-versioning.md) (lockstep versions), [ADR 0017](0017-monorepo-with-read-only-mirrors.md), [ADR 0018](0018-error-signalling.md), [ADR 0021](0021-rust-native-modules.md), [ADR 0022](0022-doc-dependencies.md), [overview.md](../architecture/overview.md)
 
@@ -68,8 +69,7 @@ Option 5.
   version in use (`unicode.version`). Out of scope: NFKC and NFKD (they need the compatibility
   mappings, a larger table: additive later, in the same data rock), case mapping and case folding,
   grapheme and word segmentation, collation, identifier profiles. Invalid UTF-8 is an error object
-  of the Hecate hierarchy (ADR 0018; the class is chosen at implementation, listed in the error
-  catalogue).
+  of the Hecate hierarchy (ADR 0018), one of the classes listed under "Error classes" below.
 - **`packages/unicode-data`**, rock `hecate-unicode-data`, **module `hecate.unicode_data`**: pure
   Lua, generated tables only, no code other than the loader that returns them, no dependency. The
   directory and rock follow the rule of ADR 0017 and the overview (`packages/<name>`,
@@ -89,16 +89,17 @@ Option 5.
   depend on `unicode`, so there is no cycle. `gen-dependency-graph` and `check-boundaries` get the
   two entries when the packages are scaffolded.
 - **Version and lockstep.** The rock version of `hecate-unicode-data` **is the Unicode version**,
-  `17.0.0-1` for Unicode 17.0.0 (the revision after the dash is for repackaging of the same
-  Unicode version, such as a generator fix). This is an **exception to the lockstep versioning of
+  `18.0.0-1` for Unicode 18.0.0, the first pinned version (the draft of this ADR used 17.0.0 as its
+  example; the revision after the dash is for repackaging of the same Unicode version, such as a
+  generator fix). This is an **exception to the lockstep versioning of
   ADR 0005**, recorded here: `hecate-unicode-data` is released on the Unicode schedule, not with
   `VERSION`; `check-versions` and `gen-rockspecs` exempt it, and the framework's release process
   does not bump it. `hecate-unicode` is lockstep like every other package.
-- **Dependency range.** `hecate-unicode` declares `hecate-unicode-data >= 17.0.0` (the version it
+- **Dependency range.** `hecate-unicode` declares `hecate-unicode-data >= 18.0.0` (the version it
   was tested against and whose conformance fixture it pins), with **no exact pin and no upper
   bound**. The meta-rock `hecate` depends on `hecate-unicode` (through `doc` and, later, `schema`
   and `router`), so the data comes along at its minimum version unless the user installs a newer
-  one. The data module exposes `unicode_version` (a string `"17.0.0"`) and `format` (an integer,
+  one. The data module exposes `unicode_version` (a string `"18.0.0"`) and `format` (an integer,
   the layout of the tables). `hecate.unicode` checks `format` when it loads the tables and fails
   with a precise error if it does not know it. The layout is meant to be stable for the whole life
   of a Hecate major version; a change of layout requires a new ADR and a release of `hecate-unicode`
@@ -114,6 +115,19 @@ Option 5.
   `package.loaded` convention to substitute the tables at run time: the version in use is the
   installed `hecate-unicode-data`, and `unicode.version` reports it. The only way to change it is
   to install another rock version.
+
+### Error classes
+
+Chosen at implementation (`packages/unicode/src/hecate/unicode/errors.lua`) and listed in the error
+catalogue ([object-model.md](../architecture/object-model.md), "Errors"; the generated page of error
+codes is produced from the sources by `gen-error-codes`). The root of the package extends `core.Error`
+(ADR 0018); the two others extend it.
+
+| Code | Class | Parent | Raised when |
+|---|---|---|---|
+| `hecate.unicode.UnicodeError` | `UnicodeError` | `core.Error` | Root of the failures of the Unicode algorithms; callers that do not care which one failed catch it. |
+| `hecate.unicode.InvalidUtf8Error` | `InvalidUtf8Error` | `UnicodeError` | A string is not well-formed UTF-8 (Unicode Standard 3.9, Table 3-7). `context.position` is the 1-based byte position of the first invalid byte. |
+| `hecate.unicode.DataFormatError` | `DataFormatError` | `UnicodeError` | The installed `hecate-unicode-data` has a table `format` that this version of `hecate-unicode` does not know. `context` holds `format`, `supported` and `unicode_version`. |
 
 ### Data, generator and tests
 
@@ -168,7 +182,7 @@ Option 5.
 Publishing a rock is an owner gate (CLAUDE.md). That includes every Unicode data revision: the
 release process produces the rock, the owner publishes it. The monorepo split (ADR 0017) creates
 the read-only mirror `hecate-framework/hecate-unicode-data` like any other package; its tag is the
-Unicode version (`v17.0.0`) and not the framework version, which the `split` and `release` tasks
+Unicode version (`v18.0.0`) and not the framework version, which the `split` and `release` tasks
 must handle for this one package.
 
 ### What would tip towards `luautf8` (or a native module)
