@@ -24,6 +24,12 @@ function T:test_an_example_readme_affects_none()
   local graph = { core = {}, kernel = { "core" } }
   self:assert_equal(0, #affected.compute({ "examples/hello/README.md", "examples/README.md" }, graph))
 end
+function T:test_the_site_of_an_example_affects_doc_markdown_included()
+  local graph = { core = {}, kernel = { "core" }, doc = { "core" } }
+  self:assert_equal("doc", table.concat(affected.compute({ "examples/hello/docs/en/index.md" }, graph), ","))
+  self:assert_equal("doc", table.concat(affected.compute({ "examples/hello/docs/public/logo.svg" }, graph), ","))
+  self:assert_equal("doc,kernel", table.concat(affected.compute({ "examples/hello/docs/en/index.md", "examples/hello/main.lua" }, graph), ","))
+end
 function T:test_needs_follows_dependencies_transitively()
   local graph = { core = {}, json = { "core" }, http = { "json" }, router = { "core" }, app = { "http", "router" } }
   self:assert_true(affected.needs({ "json" }, "json", graph))

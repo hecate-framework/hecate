@@ -84,6 +84,12 @@ HTTP of these tests is in `tests/helpers/wire.lua`.
 
 CI runs both files on Linux, macOS and Windows whenever the kernel or the example changes.
 
+`tests/docs_build_test.lua` builds the documentation site (below) into temporary directories with the real file
+system and the native module of `doc`: no problem, the home page, the endpoints and request-flow pages, the logos,
+the favicons, `hello-theme.css` (linked) and `llms.txt` exist, and two builds are byte-identical. It is skipped
+without the native module, except in CI, whenever `doc` or the site of the example changes
+(`lua tools/run.lua test examples/hello:docs_build_test` runs it alone).
+
 ## Documentation site
 
 `docs/` holds the documentation of the example, written by hand: guides in `docs/en/`, the site configuration

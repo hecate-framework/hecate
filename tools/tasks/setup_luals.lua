@@ -1,4 +1,4 @@
--- setup-luals: installs the LuaLS release pinned in .github/workflows/ci.yml (version and sha256 per
+-- setup-luals: installs the LuaLS release pinned in .github/workflows/ci.yml (`LUALS_VERSION` and `LUALS_PINS`: asset and sha256 per
 -- platform, read from that file so there is a single pin) into `spikes/luals/` (git-ignored), after
 -- checking the sha256 of the download. `typecheck` finds it there when `lua-language-server` is not on PATH.
 -- Needs network access to github.com. Idempotent: does nothing when the pinned version is installed.
@@ -42,6 +42,7 @@ local function runner_name()
 end
 
 return {
+  pin = pin, -- exported for the tests
   description = "install the pinned LuaLS into spikes/luals (sha256 checked), for typecheck",
   run = function(ctx)
     local runner = runner_name()
@@ -61,7 +62,7 @@ return {
     local archive = ctx.root .. "/spikes/" .. file
     util.mkdir(dir)
     local url = ("https://github.com/LuaLS/lua-language-server/releases/download/%s/%s"):format(version, file)
-    local out, ok = util.capture(("curl -fsSL -o %s %s 2>&1"):format(util.quote(archive), '"' .. url .. '"'))
+    local out, ok = util.capture(("curl -fsSL --retry 5 --retry-all-errors --retry-delay 5 -o %s %s 2>&1"):format(util.quote(archive), '"' .. url .. '"'))
     if not ok then return { ok = false, problems = { "download failed (is github.com allowed?): " .. out } } end
 
     local data = read(archive)

@@ -203,6 +203,12 @@ jobs:
           lua tools/run.lua fetch-fixtures doc
           lua tools/run.lua fetch-fixtures unicode
 
+      # The tests of `doc` that read the code reference fail in CI without LuaLS (the pin of ci.yml).
+      - name: Install LuaLS
+        run: |
+          lua tools/run.lua setup-luals
+          echo "$GITHUB_WORKSPACE/spikes/luals/bin" >> "$GITHUB_PATH"
+
       - name: Coverage and thresholds
         run: lua tools/run.lua coverage
 
