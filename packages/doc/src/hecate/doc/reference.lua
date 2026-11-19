@@ -648,12 +648,26 @@ local function member_signature(class, member)
   return line
 end
 
+-- The identifiers of the elements of the theme (kept in step with RESERVED_IDS of site.lua): a member with one of these names
+-- would give two elements of the page the same id.
+local RESERVED_ANCHORS = {}
+for _, name in ipairs({ "header-panel", "sidebar", "outline", "outline-title", "search-dialog", "search-results",
+  "doc-config", "content", "main", "search" }) do RESERVED_ANCHORS[name] = true end
+
+--- The anchor of a member: its name, except for the names the theme uses for its own elements, which get a `member-` prefix.
+---@param name string
+---@return string
+local function anchor_of(name)
+  if RESERVED_ANCHORS[name] then return "member-" .. name end
+  return name
+end
+
 --- A member of a class (field, function or method): the heading with a stable anchor and its details.
 local function render_member(context, class, member)
   local out = {}
   local label = member.kind == "method" and (alias_of(class) .. ":" .. member.name)
     or member.kind == "function" and (alias_of(class) .. "." .. member.name) or member.name
-  out[#out + 1] = ("#### `%s` {#%s}"):format(label, member.name)
+  out[#out + 1] = ("#### `%s` {#%s}"):format(label, anchor_of(member.name))
   out[#out + 1] = ""
   out[#out + 1] = member.summary ~= "" and link_prose(context, member.summary) or "No description yet."
   for _, paragraph in ipairs(member.details) do
@@ -697,7 +711,7 @@ local function member_index(context, class, members)
     if target then
       text = link(context, class.name .. "." .. member.name, label)
     else
-      text = ("[%s](#%s)"):format(label, member.name)
+      text = ("[%s](#%s)"):format(label, anchor_of(member.name))
     end
     out[#out + 1] = ("| %s | %s |"):format(text, cell(member.summary ~= "" and link_prose(context, member.summary) or "-"))
   end
@@ -823,7 +837,7 @@ local function render_class(context, options, class, classes_of_package, errors_
         local target = member.kind == "function" and context.targets[class.name .. "." .. member.name]
         local label = (member.kind == "method" and (alias_of(class) .. ":") or (alias_of(class) .. ".")) .. member.name
         rows[#rows + 1] = "- " .. (target and link(context, class.name .. "." .. member.name, "`" .. label .. "`")
-          or ("[`%s`](#%s)"):format(label, member.name))
+          or ("[`%s`](#%s)"):format(label, anchor_of(member.name)))
       end
     end
     add("## May suspend", "These members may suspend the running coroutine (`---@async`); call them from a "
@@ -907,7 +921,7 @@ function M.generate(inputs, options)
         end
       elseif not (class.is_root and member.kind == "field") then
         -- The fields of the module page are rows of a table: they have no heading, so no anchor.
-        targets[class.name .. (member.kind == "method" and ":" or ".") .. member.name] = class.path .. "#" .. member.name
+        targets[class.name .. (member.kind == "method" and ":" or ".") .. member.name] = class.path .. "#" .. anchor_of(member.name)
       end
     end
   end

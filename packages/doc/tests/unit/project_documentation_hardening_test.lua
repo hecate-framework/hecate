@@ -185,8 +185,10 @@ function T:test_the_sources_directory_must_be_relative_in_every_form()
     local message = refused(self, fs, { guides_dir = "docs", output_dir = "dist", sources_dir = value }, "sources_dir")
     self:assert_not_nil(message:find("plugin", 1, true), "the message says why: " .. message)
   end
-  local fs = doc.MemoryFileSystem(files({}))
-  generate(options(fs, { guides_dir = "docs", output_dir = "dist", sources_dir = "v:1" })) -- a plain name off Windows
+  if package.config:sub(1, 1) ~= "\\" then -- `v:1` is a plain name off Windows, a drive-relative path on it
+    local fs = doc.MemoryFileSystem(files({}))
+    generate(options(fs, { guides_dir = "docs", output_dir = "dist", sources_dir = "v:1" }))
+  end
 end
 
 -- Strict mode ------------------------------------------------------------------------------------------------------
