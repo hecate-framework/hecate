@@ -298,6 +298,15 @@ mixed in one site unless the configuration says so.
   texts of the theme. A rockspec is data: it is parsed without being run (no call, `..`, loop or loader
   accepted; an empty environment, an instruction limit and a limit of memory growth for the rest), and no `luarocks`
   process runs.
+- Names of files are portable (owner decision of 2026-11-19). One check, `portable_name`, applies to page ids, the files
+  next to the guides, the files of `public/` and the files `logo_path`, `favicon_path` and `stylesheet_path` name: the
+  naming rules of Windows for every segment (reserved device names, reserved characters, trailing dot or space),
+  Normalization Form C, and a case-fold key that must be unique over the pages, the files and `public/` together
+  (and a path may not be a file for one source and a directory for another), because macOS and Windows file systems are
+  case-insensitive; a `BuildError` before anything is written. The fold is the Unicode simple case folding for Latin,
+  Greek, Cyrillic, Armenian and fullwidth letters (OQ-145 for the rest). A segment over 255 bytes and an output path of
+  260 characters or more are problems (errors under `fail_on_problems`). The `.md` suffix and `exclude_file_names` are
+  matched without regard to case.
 - The tree of the guides is data of the project and is read defensively. A symbolic link (a file, a directory, a
   cycle) in `guides_dir` or in `public/` is never followed: it is skipped with a problem (an error under
   `fail_on_problems`). A walk stops at 32 levels and at 100,000 entries, with a problem. Hidden entries of `public/` are

@@ -39,14 +39,19 @@ for _, superscript in ipairs({ "\u{B9}", "\u{B2}", "\u{B3}" }) do
   DEVICES["LPT" .. superscript] = true
 end
 
---- Returns why `id` (a page id: file names joined by `/`, without `.md`) is not valid as a file name on Windows,
---- or nil. Every segment is checked: a reserved character (`< > : " \ | ? *` and controls), a trailing dot or
+--- Returns why `id` (a page id: file names joined by `/`, without `.md`) is not valid as a file name on Windows
+--- (or on macOS, for a name that is not well-formed UTF-8), or nil. Every segment is checked: a reserved character (`< > : " \ | ? *` and controls), a trailing dot or
 --- space, a reserved device name (`CON`, `PRN`, `AUX`, `NUL`, `COM1` to `COM9`, `LPT1` to `LPT9`, `CONIN$`, `CONOUT$`, `CLOCK$`), case-insensitive
 --- and also with an extension (`con.txt`).
 ---@param id string
 ---@return string? reason
 function M.windows_problem(id)
   for segment in id:gmatch("[^/]+") do
+    -- A name that is not well-formed UTF-8 (a lone surrogate, an overlong form) is a sequence of bytes on Linux only:
+    -- macOS (APFS) and Windows refuse to create it, so the output directory could not be written there.
+    if not utf8.len(segment) then
+      return ("the segment %q is not well-formed UTF-8, which macOS and Windows do not allow in a file name"):format(segment)
+    end
     local character = segment:match(RESERVED_CHARACTERS)
     if character then
       return ("the segment %q contains %s, which Windows does not allow in a file name"):format(

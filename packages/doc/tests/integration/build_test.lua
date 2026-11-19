@@ -20,10 +20,14 @@ local function quote(path)
   return "'" .. path:gsub("'", "'\\''") .. "'"
 end
 
+-- A name that two processes started together cannot share: a counter of this process, the address of a fresh table (it varies
+-- between processes) and `math.random`, which Lua seeds randomly at start (a reseed from the clock would make the names of two
+-- runs that start in the same second equal).
+local counter = 0
 local function temporary()
   local base = (os.getenv("TMPDIR") or os.getenv("TEMP") or os.getenv("TMP") or "/tmp"):gsub("\\", "/"):gsub("/+$", "")
-  math.randomseed(os.time() + math.floor(os.clock() * 1e6))
-  return ("%s/hecate-doc-it-%d"):format(base, math.random(1, 1e9))
+  counter = counter + 1
+  return ("%s/hecate-doc-it-%s-%d-%d"):format(base, tostring({}):match("%x+$") or "0", counter, math.random(1, 1e9))
 end
 
 local function run(arguments)

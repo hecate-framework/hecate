@@ -53,6 +53,8 @@ function T:test_build_reports_the_code_reference_of_the_project()
   })
   self:assert_not_nil(report.code)
   if report.code.skipped then
+    -- Skipped locally without LuaLS; CI installs it on every platform (lua tools/run.lua setup-luals).
+    if os.getenv("CI") then self:fail("lua-language-server is not installed (CI installs it: lua tools/run.lua setup-luals)") end
     self:assert_equal(true, #report.problems >= 1)
   else
     self:assert_equal(0, report.code.pages) -- no src directory in the memory file system

@@ -53,8 +53,7 @@ end
 function T:test_system_file_system_satisfies_the_contract()
   local base = os.getenv("TMPDIR") or os.getenv("TEMP") or os.getenv("TMP") or "/tmp"
   base = base:gsub("\\", "/"):gsub("/+$", "")
-  math.randomseed(os.time() + math.floor(os.clock() * 1e6))
-  local root = ("%s/hecate-doc-test-%d-it's here"):format(base, math.random(1, 1e9))
+  local root = ("%s/hecate-doc-test-%s-%d-it's here"):format(base, tostring({}):match("%x+$") or "0", math.random(1, 1e9))
   local fs = doc.SystemFileSystem()
   self:assert_true(core.implements(fs, doc.FileSystem))
   reactor.run(function()
@@ -88,9 +87,13 @@ end
 
 local is_windows = package.config:sub(1, 1) == "\\"
 
+-- A name that two processes started together cannot share: a counter of this process, the address of a fresh table and
+-- `math.random` (seeded randomly by Lua at start; never reseeded from the clock).
+local root_counter = 0
 local function temporary_root()
   local base = (os.getenv("TMPDIR") or os.getenv("TEMP") or os.getenv("TMP") or "/tmp"):gsub("\\", "/"):gsub("/+$", "")
-  return ("%s/hecate-doc-link-%d-%d"):format(base, math.random(1, 1e9), os.time())
+  root_counter = root_counter + 1
+  return ("%s/hecate-doc-link-%s-%d-%d"):format(base, tostring({}):match("%x+$") or "0", root_counter, math.random(1, 1e9))
 end
 
 function T:test_remove_tree_unlinks_a_symlink_and_never_touches_its_target()

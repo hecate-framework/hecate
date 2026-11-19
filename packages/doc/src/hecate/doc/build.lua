@@ -7,6 +7,7 @@ local errors = require("hecate.doc.errors")
 local html = require("hecate.doc.internal.html")
 local options_module = require("hecate.doc.internal.options")
 local paths = require("hecate.doc.internal.paths")
+local portable = require("hecate.doc.internal.portable_name")
 local safe_write = require("hecate.doc.internal.safe_write")
 local sandbox = require("hecate.doc.internal.sandbox")
 local Site = require("hecate.doc.site")
@@ -193,6 +194,9 @@ function M.build(options)
     local prefix = spec.directory == "" and "" or (spec.directory .. "/")
     local site_bytes = 0
     local site_files = spec.site:emit(function(path, data)
+      -- A path of 260 characters or more does not open on Windows (a problem, an error under `fail_on_problems`).
+      local too_long = portable.path_limit_problem(output_dir .. "/" .. prefix .. path)
+      if too_long then spec.site.problems[#spec.site.problems + 1] = too_long end
       site_bytes = site_bytes + #data
       write(prefix .. path, data)
     end)

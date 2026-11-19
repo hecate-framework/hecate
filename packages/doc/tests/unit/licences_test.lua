@@ -198,6 +198,17 @@ function T:test_bundled_reproduces_the_texts_of_the_theme()
   self:assert_nil(by_name["Mermaid"], "Mermaid is bundled only when a page holds a diagram")
 end
 
+function T:test_the_note_of_two_face_gives_the_counts_of_the_locked_version()
+  -- THIRD_PARTY_NOTICES, section 5 (two-face 0.5.2): 66 licence files, MIT 50, Apache-2.0 13, BSD-2-Clause 2, BSD-3-Clause 1.
+  local by_name = {}
+  for _, item in ipairs(licences.bundled({ diagrams = false })) do by_name[item.name] = item end
+  local note = by_name["two-face"].note
+  for _, text in ipairs({ "66 licence files", "MIT (50)", "Apache-2.0 (13)", "BSD-2-Clause (2)", "BSD-3-Clause (1)" }) do
+    self:assert_not_nil(note:find(text, 1, true), text)
+  end
+  self:assert_nil(note:find("MIT (48)", 1, true), "the counts of the audit of 2026-10-21 are superseded")
+end
+
 function T:test_bundled_adds_mermaid_with_its_components_when_a_diagram_is_used()
   local items = licences.bundled({ diagrams = true })
   local mermaid

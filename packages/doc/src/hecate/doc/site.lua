@@ -20,6 +20,7 @@ local html = require("hecate.doc.internal.html")
 local file_names = require("hecate.doc.internal.page_id")
 local options_module = require("hecate.doc.internal.options")
 local paths = require("hecate.doc.internal.paths")
+local portable = require("hecate.doc.internal.portable_name")
 local Page = require("hecate.doc.page")
 
 --- Name of the marker file that identifies an output directory written by the builder.
@@ -135,44 +136,70 @@ local function walk(self, root, label, visit_file, skip_name)
   visit(root, "", 0)
 end
 
---- Lists the pages and the other files below `directory`.
+--- Fails when the output path `path` (of the source named `label`) collides with one already in `namespace`. `source_kind`
+--- is "page" for the output file of a page: two pages with one URL are reported later, with the URL.
+local function claim(namespace, path, label, source_kind, source)
+  local kind, other = namespace:claim(path, label, source_kind)
+  if kind == "same" and source_kind == "page" and other.kind == "page" then return end
+  if kind == "case" then
+    fail(("%s and %s differ only by case: the output files %s and %s are one file on a case-insensitive file system"):format(
+      other.label, label, other.path, path), source)
+  elseif kind == "same" then
+    fail(("%s and %s are written to the same output file %s"):format(other.label, label, path), source)
+  elseif kind then
+    fail(("%s (output %s) and %s (output %s) cannot both be written: one is a file where the other needs a directory"):format(
+      other.label, other.path, label, path), source)
+  end
+end
+
+--- Reports the length limits a path goes beyond (problems, and errors under `fail_on_problems`), once for the file.
+local function note_limits(self, checked, label)
+  for _, limit in ipairs(checked.limits) do note(self, ("%s: %s"):format(label, limit)) end
+end
+
+--- Lists the pages and the other files below `directory`. Every name goes through `portable_name`: it must be a valid
+--- file name on Windows, is compared in NFC (UAX #15: a tree authored on macOS may carry decomposed names) and by its
+--- case-fold key over the pages and the other files together (a case-insensitive file system, macOS and Windows,
+--- makes `A.md` and `a.md`, or `Img/a.svg` and `img/a.svg`, one file; a file `a` and a page or a directory `a/` cannot
+--- both be written). The `.md` suffix and `exclude_file_names` are matched without regard to case, for the same reason.
 local function scan(self, locale)
   local excluded = {}
-  for _, name in ipairs(self.site_configuration.exclude_file_names) do excluded[name] = true end
-  local pages, assets, folded = {}, {}, {}
+  for _, name in ipairs(self.site_configuration.exclude_file_names) do excluded[portable.key(name)] = true end
+  local pages, assets = {}, {}
+  local namespace = portable.namespace()
   walk(self, self._guides_dir .. "/" .. locale, locale, function(entry, child, path)
-    if entry.name:sub(-3) == ".md" then
+    local relative = locale .. "/" .. child
+    if portable.is_markdown(entry.name) then
       local written = child:sub(1, -4)
-      -- A page id becomes a directory name of the output, so it must be a valid file name on every
-      -- platform (see `internal.page_id`), and is compared in NFC: a tree authored on macOS may carry
-      -- decomposed names (UAX #15).
-      local problem = file_names.windows_problem(written)
-      if problem then
-        fail(("%s: the page id %q is not portable: %s"):format(locale .. "/" .. child, written, problem), path)
+      -- A page id becomes a directory name of the output, so it must be a valid file name on every platform.
+      local checked = portable.portable_name(written)
+      if checked.problem then
+        fail(("%s: the page id %q is not portable: %s"):format(relative, written, checked.problem), path)
       end
-      local id = file_names.nfc(written)
+      note_limits(self, checked, relative)
+      local id = checked.name
       if pages[id] then
         fail(("pages %s and %s differ only in Unicode normalisation (NFC and NFD): they are one page"):format(
-          pages[id].relative, locale .. "/" .. child), path)
+          pages[id].relative, relative), path)
       end
-      -- On macOS and Windows two ids that differ only by case are one directory of the output.
-      local key = html.lower(id)
-      if folded[key] then
-        fail(("pages %s and %s differ only by case: the output files %s and %s are one file on a case-insensitive file system"):format(
-          folded[key].relative, locale .. "/" .. child, folded[key].output, output_path(locale, id)), path)
-      end
-      folded[key] = { relative = locale .. "/" .. child, output = output_path(locale, id) }
-      pages[id] = { id = id, path = path, relative = locale .. "/" .. child, locale = locale }
+      claim(namespace, output_path(locale, id), relative, "page", path)
+      pages[id] = { id = id, path = path, relative = relative, locale = locale }
     else
       -- Files next to the pages are named in NFC like the pages (a link is normalised the same way).
-      local name = file_names.nfc(child)
+      local checked = portable.portable_name(child)
+      if checked.problem then
+        fail(("%s: the file name %q is not portable: %s"):format(relative, child, checked.problem), path)
+      end
+      note_limits(self, checked, relative)
+      local name = checked.name
       if assets[name] then
         fail(("files %s and %s differ only in Unicode normalisation (NFC and NFD): they are one file"):format(
-          locale .. "/" .. assets[name].original, locale .. "/" .. child), path)
+          locale .. "/" .. assets[name].original, relative), path)
       end
+      claim(namespace, locale .. "/" .. name, relative, "file", path)
       assets[name] = { path = path, relative = name, original = child, locale = locale }
     end
-  end, function(name) return excluded[name] == true end)
+  end, function(name) return excluded[portable.key(name)] == true end)
   return { pages = pages, assets = assets }
 end
 
@@ -274,8 +301,8 @@ local function link_resolver(self, locale, page_id, problems_prefix)
       note(self, ("%s: link %s leaves the content root"):format(problems_prefix, href))
       return href
     end
-    if joined:sub(-3) == ".md" or path:sub(-1) == "/" or not path:match("%.[%w]+$") then
-      local id = joined:gsub("%.md$", "")
+    if portable.is_markdown(joined) or path:sub(-1) == "/" or not path:match("%.[%w]+$") then
+      local id = portable.is_markdown(joined) and joined:sub(1, -4) or joined
       local target = (source_for(self, locale, id) and id)
         or (source_for(self, locale, id .. "/index") and id .. "/index")
         or (id == "" and source_for(self, locale, "index") and "index")
@@ -458,6 +485,18 @@ function Site:unpublished(locale)
   for id, audience in pairs(self._hidden[locale] or {}) do list[#list + 1] = { id = id, audience = audience } end
   table.sort(list, function(a, b) return a.id < b.id end)
   return list
+end
+
+--- Whether a published page holds a diagram: the library of the diagrams is then part of the site (ADR 0033).
+---@return boolean
+function Site:uses_diagrams()
+  ensure_loaded(self)
+  for _, code in ipairs(self._locale_codes) do
+    for _, page in ipairs(self:pages(code)) do
+      if page.diagrams == true then return true end
+    end
+  end
+  return false
 end
 
 --- Returns one page, or nil.
@@ -798,9 +837,10 @@ function Site:emit(write)
   local function put(path, data)
     -- A file of `public/` that has the path of a generated file is refused, never overwritten (or
     -- overwriting a generated file): generated pages are never replaced by hand-made files.
-    -- The key is case-folded: on a case-insensitive file system (macOS, Windows) two paths that differ only
-    -- by case are one file.
-    local key = path:lower()
+    -- The key is the case-fold key (`portable_name`): on a case-insensitive file system (macOS, Windows) two paths that
+    -- differ only by case are one file. The pre-pass below finds the collisions before anything is written; this is
+    -- the backstop for a file that no pre-pass knows.
+    local key = portable.key(path)
     if written[key] then
       local other = written[key]
       fail(other == path
@@ -812,8 +852,25 @@ function Site:emit(write)
     write(path, data)
     count = count + 1
   end
-  -- The files that the configuration names are checked before anything is written: a failing build leaves
-  -- no partial output.
+  local default = self.site_configuration.default_locale
+  -- The files of `public/` are listed once, before anything is written: every name goes through `portable_name`, and
+  -- the configuration names, the files of the locales and the generated files are checked with them, so that a failing
+  -- build leaves no partial output.
+  local public_files = {}
+  if self._fs:list(self._guides_dir .. "/public") then
+    walk(self, self._guides_dir .. "/public", "public", function(_, relative, path)
+      local checked = portable.portable_name(relative)
+      if checked.problem then
+        fail(("public/%s: the file name %q is not portable: %s"):format(relative, relative, checked.problem), path)
+      end
+      note_limits(self, checked, "public/" .. relative)
+      public_files[#public_files + 1] = { name = checked.name, label = "public/" .. relative, path = path, original = relative }
+    end)
+  end
+  local public_names = {}
+  for _, file in ipairs(public_files) do public_names[file.name] = file end
+  -- The files that the configuration names are in `public/`, spelt as the file is (a name that opens only on a
+  -- case-insensitive file system is a broken link on the others), in NFC, and valid names.
   local named = {}
   if self.site_configuration.logo_path then
     named[#named + 1] = self.site_configuration.logo_path.light
@@ -825,13 +882,60 @@ function Site:emit(write)
   end
   named[#named + 1] = self.site_configuration.stylesheet_path
   for _, path in ipairs(named) do
-    if self._fs:read(self._guides_dir .. "/public/" .. path) == nil then
-      fail(("the file %s named by the site configuration is not in public/"):format(path), path)
+    local checked = portable.portable_name(path)
+    if checked.problem then
+      fail(("the file %s named by the site configuration is not portable: %s"):format(path, checked.problem), path)
+    end
+    note_limits(self, checked, "public/" .. path)
+    if checked.name ~= path then
+      fail(("the file %s named by the site configuration is not written in Unicode Normalization Form C (NFC), the form of the names of the output"):format(path), path)
+    end
+    if public_names[path] == nil then
+      local same
+      for _, file in ipairs(public_files) do
+        if portable.key(file.name) == checked.key then same = file end
+      end
+      fail(same and ("the file %s named by the site configuration differs only by case from %s: spell it as the file is, a name that opens on macOS and Windows only is a broken link elsewhere"):format(path, same.label)
+        or ("the file %s named by the site configuration is not in public/"):format(path), path)
     end
   end
+  -- The output paths of the whole site, in one namespace: the generated files first (so that a file of `public/` is the
+  -- one reported), then the files of every locale, then `public/`.
+  local namespace = portable.namespace()
+  local function reserve(path, label, kind, source)
+    claim(namespace, path, label, kind, source)
+  end
+  reserve(MARKER, "the marker file " .. MARKER, "generated", MARKER)
+  for _, code in ipairs(self._locale_codes) do
+    reserve("assets/search-" .. code .. ".json", "the search index of " .. code, "generated", code)
+  end
+  for _, file in ipairs(theme.asset_files) do reserve("assets/" .. file, "the theme file assets/" .. file, "generated", file) end
+  if self:uses_diagrams() then
+    for _, file in ipairs(theme.diagram_files) do reserve("assets/" .. file, "the theme file assets/" .. file, "generated", file) end
+  end
+  reserve("404.html", "the not-found page 404.html", "generated", "404.html")
+  reserve("index.html", "the root redirect index.html", "generated", "index.html")
+  if self.site_configuration.site_origin then reserve("sitemap.xml", "the sitemap sitemap.xml", "generated", "sitemap.xml") end
+  if self.site_configuration.generate_llms_txt then
+    reserve("llms.txt", "llms.txt", "generated", "llms.txt")
+    reserve("llms-full.txt", "llms-full.txt", "generated", "llms-full.txt")
+  end
+  for _, code in ipairs(self._locale_codes) do
+    for _, page in ipairs(self:pages(code)) do
+      reserve(output_path(code, page.id), page.relative_path, "page", page.source_path)
+    end
+    local seen = {}
+    for relative, file in pairs(self._files[code].assets) do
+      seen[relative] = true
+      reserve(code .. "/" .. relative, code .. "/" .. file.original, "file", file.path)
+    end
+    for relative, file in pairs(self._files[default].assets) do
+      if not seen[relative] then reserve(code .. "/" .. relative, default .. "/" .. file.original, "file", file.path) end
+    end
+  end
+  for _, file in ipairs(public_files) do reserve(file.name, file.label, "public", file.path) end
   -- First, so that an interrupted build can still be cleaned by the next one.
   put(MARKER, "Written by hecate.doc. This directory is emptied by builds that ask for a clean output.\n")
-  local default = self.site_configuration.default_locale
   for _, code in ipairs(self._locale_codes) do
     for _, page in ipairs(self:pages(code)) do put(output_path(code, page.id), render_page(self, page)) end
     local index = search.build(code, search_documents(self, code))
@@ -866,22 +970,14 @@ function Site:emit(write)
     put("assets/" .. file, data)
   end
   -- The library of the diagrams is written only when a page needs it (ADR 0033).
-  local diagrams = false
-  for _, code in ipairs(self._locale_codes) do
-    for _, page in ipairs(self:pages(code)) do diagrams = diagrams or page.diagrams == true end
-  end
-  if diagrams then
+  if self:uses_diagrams() then
     for _, file in ipairs(theme.diagram_files) do
       local data = theme_file_system:read(directory .. "/" .. file)
       if not data then fail("missing theme file " .. file, directory .. "/" .. file) end
       put("assets/" .. file, data)
     end
   end
-  if self._fs:list(self._guides_dir .. "/public") then
-    walk(self, self._guides_dir .. "/public", "public", function(_, relative, path)
-      put(relative, read_required(self, path))
-    end)
-  end
+  for _, file in ipairs(public_files) do put(file.name, read_required(self, file.path)) end
   local context = context_for(self, default, nil)
   context.alternates = {}
   put("404.html", theme.not_found(context))

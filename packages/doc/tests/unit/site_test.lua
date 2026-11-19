@@ -530,13 +530,16 @@ function T:test_the_sidebar_marker_is_off_unless_the_configuration_asks_for_it()
   local plain = build(BASIC, {}):read("o/en/index.html")
   self:assert_nil(plain:find("sidebar-marker", 1, true))
   local marked = build(BASIC, { sidebar_marker = true }):read("o/en/index.html")
-  self:assert_true(marked:find('<body class="doc-page sidebar-marker">', 1, true) ~= nil or
-    marked:find('<body class="home sidebar-marker">', 1, true) ~= nil)
+  -- BASIC's `en/index.md` is a documentation page (no `layout: home`): exactly this body class, not either of two
+  -- (the home layout and the 404 page are in `theme_details_test.lua`).
+  self:assert_true(marked:find('<body class="doc-page sidebar-marker">', 1, true) ~= nil, marked:match("<body[^>]*>"))
+  self:assert_nil(marked:find('<body class="home', 1, true))
 end
 
 function T:test_the_default_favicon_is_the_adaptive_hecate_one()
   local home = build(BASIC, {}):read("o/en/index.html")
   self:assert_true(home:find('<link rel="icon" href="/assets/brand/favicon.svg" type="image/svg+xml">', 1, true) ~= nil)
+  self:assert_nil(home:find('<link rel="icon"', home:find('<link rel="icon"', 1, true) + 1, true), "one icon link, not one per scheme")
 end
 
 function T:test_a_favicon_of_public_replaces_the_default_with_its_type_and_media()

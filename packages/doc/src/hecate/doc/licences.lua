@@ -426,7 +426,7 @@ function M.bundled(options)
   items[#items + 1] = { name = "syntect", use = "syntax highlighting (native module)", licence = "MIT", shipped = false }
   items[#items + 1] = { name = "two-face", use = "syntax definitions for syntect (native module)", licence = "MIT OR Apache-2.0",
     shipped = false,
-    note = "Its embedded syntax definitions are under MIT (48), Apache-2.0 (8), BSD-2-Clause (2) and BSD-3-Clause (1); their notices are shipped with the release artefacts of the native module. No colour theme of syntect or two-face is used: the highlight colours are the own CSS properties of the theme (THIRD_PARTY_NOTICES, section 5)." }
+    note = "Its embedded syntax definitions are covered by 66 licence files of the locked version, MIT (50), Apache-2.0 (13), BSD-2-Clause (2) and BSD-3-Clause (1) (THIRD_PARTY_NOTICES, section 5); their notices are shipped with the release artefacts of the native module. No colour theme of syntect or two-face is used: the highlight colours are the own CSS properties of the theme (THIRD_PARTY_NOTICES, section 5)." }
   return items
 end
 

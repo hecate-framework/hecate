@@ -337,7 +337,7 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       file names on Windows (`? : * " < > |`, trailing dots or spaces, reserved names such as `CON`) and normalise
       NFC/NFD names before the collision check, because a site is built from a tree authored elsewhere. **Also (from the `schema` review, OQ-96):** the `---@meta` file generation for LuaLS from the schemas of a project (carried here or by `cli`, to settle when `cli` is specified), which `schema` does not implement.
       **Also (OQ-38, owner decision of 2026-11-13):** the theme extension points for user projects: a site
-      configuration `logo`, a CSS custom-properties override file for the colours, template overrides later if users ask;
+      configuration `logo_path`, a CSS custom-properties override file for the colours, template overrides later if users ask;
       the hecate marks are never recoloured.
 - [x] `unicode` and `unicode-data` (owner decision of 2026-11-17 on OQ-140, [ADR 0032](adr/0032-unicode-normalisation-packages.md),
       Accepted): the code package `hecate.unicode` (NFC, NFD, Hangul, canonical reordering, layer 0) and the generated

@@ -11,6 +11,7 @@ local errors = require("hecate.doc.errors")
 local generated_page = require("hecate.doc.internal.generated_page")
 local options_module = require("hecate.doc.internal.options")
 local paths = require("hecate.doc.internal.paths")
+local portable = require("hecate.doc.internal.portable_name")
 local safe_write = require("hecate.doc.internal.safe_write")
 -- `hecate.doc.licences`: our own identifiers use British spelling; American `license` stays only in external names
 -- (the rockspec field `description.license`, SPDX, the task `check-licenses`, `THIRD_PARTY_NOTICES`).
@@ -180,7 +181,7 @@ local function holds_diagram(fs, guides_dir, output_dir)
           elseif visit(path, depth + 1) then
             return true
           end
-        elseif entry.name:match("%.md$") then
+        elseif portable.is_markdown(entry.name) then
           if scanned >= M.LIMITS.scanned_files then
             stopped = stopped or ("the scan for diagrams stopped after %d Markdown files; Mermaid is named in the licences only if a diagram is found before"):format(M.LIMITS.scanned_files)
           else
