@@ -12,7 +12,8 @@ local algorithm = {}
 
 -- Runs of non-starters at most this long are ordered by insertion; a longer run is sorted with integer keys, so that a
 -- hostile string of thousands of marks costs n log n and not n squared.
-local INSERTION_LIMIT = 24
+-- The limit is a field so that a test can force either path (it is read once per call of `reorder`).
+algorithm.INSERTION_LIMIT = 24
 
 --- Appends the full canonical decomposition of every code point of `text` (well-formed UTF-8) to `out`; returns the count.
 local function decompose(text, tables)
@@ -46,6 +47,7 @@ end
 
 --- Canonical ordering of the runs of non-starters, in place (stable).
 local function reorder(out, n, classes)
+  local limit = algorithm.INSERTION_LIMIT
   local i = 1
   while i <= n do
     if classes[out[i]] then
@@ -53,7 +55,7 @@ local function reorder(out, n, classes)
       while j < n and classes[out[j + 1]] do j = j + 1 end
       if j > i then
         local length = j - i + 1
-        if length <= INSERTION_LIMIT then
+        if length <= limit then
           for k = i + 1, j do
             local codepoint = out[k]
             local class = classes[codepoint]
