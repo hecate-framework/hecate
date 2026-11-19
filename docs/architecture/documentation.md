@@ -262,12 +262,12 @@ mixed in one site unless the configuration says so.
   another audience's site, is reported like a broken link naming the audience (an error under `--strict`): the
   message tells an audience that is published in another site (use an absolute URL or move the page) from one that
   is not published. A published locale without a page, and a site without a home page (`index`) in its default
-  locale, are problems too, with the label to add or the file to create. Files next to pages (images) are not filtered. A translation never publishes a
+  locale, are problems too, with the label to add or the file to create. Files next to pages (images) follow their neighbours: a file in a directory that holds pages, all of them unpublished in this site, is not copied there; a file in a directory without a page, or with one published page, is copied. A translation never publishes a
   page that the page of the default locale keeps back.
 - Generated pages: the configuration reference is `maintainer`. The code reference lists public
   symbols (`user`); the pages of `*.internal` modules and of classes that LuaLS reports as `private`
   or `package` are `maintainer`, and are generated only when `audiences` includes `maintainer`; a project
-  site that publishes one audience holds the whole code reference, labelled with it. A member
+  site that publishes one audience holds the whole code reference, labelled with it. With both audiences and separate sites, a reference page links only to pages of its audience and the module page lists only the classes of its audience (a link may not leave its site). A translation labelled for another audience than its original is published in no site: a problem naming both files. A member
   (field or method) that is `private`, `protected` or `package`, or whose name starts with `_`, is never
   listed: a member is a part of a class page, not a page.
 - The configuration reference never prints the default of a secret key (`[redacted]` in its place), nor its

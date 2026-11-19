@@ -33,12 +33,12 @@ written at `<output_dir>/`. Set `audience_sites = "merged"` to write one combine
 
 A page of an audience that is not published is left out of the pages, the navigation, the search index, the sitemap
 and the previous and next links. A link to it is reported like a broken link, and fails the build under `--strict`, so
-that you notice it. Images next to a hidden page are still copied. A translation never publishes a page that the
-original keeps back.
+that you notice it. A file next to pages, such as an image, follows its neighbours: when the directory of the file holds pages and the site publishes none of them, the file is not copied into that site; a file in a directory without a page, or with at least one published page, is copied. A translation never publishes a page that the
+original keeps back, and a translation labelled for another audience than its original is published in no site: the build reports a problem naming both files.
 
 The configuration reference is a `maintainer` page. The code reference lists public symbols; the pages of `*.internal`
 modules and of `private` or `package` classes are `maintainer` pages, generated only when `audiences` includes
-`maintainer`. A field or method that is not public is never listed.
+`maintainer`. With both audiences and separate sites, a reference page links only to pages of its own audience, and the module page lists only the classes of its own audience. A field or method that is not public is never listed.
 
 A worked example, a site for the users of a project, whose pages carry no `audience` key:
 

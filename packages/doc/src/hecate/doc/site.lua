@@ -266,6 +266,31 @@ local function read_page(self, file)
   return file
 end
 
+-- The directory of a page id or of a file path below a locale directory (`""` for the locale directory itself).
+local function directory_of(path) return path:match("^(.*)/[^/]+$") or "" end
+
+-- The directories of a locale that hold pages, all of them hidden in this site: the files next to them are of their audience.
+-- A directory without a page, or with one published page, is not in the set (OQ-144).
+local function directories_of_hidden_pages(self, locale)
+  local count, hidden = {}, {}
+  local seen = {}
+  for _, code in ipairs({ locale, self.site_configuration.default_locale }) do
+    for id in pairs(self._files[code].pages) do
+      if not seen[id] then
+        seen[id] = true
+        local directory = directory_of(id)
+        count[directory] = (count[directory] or 0) + 1
+        if self._hidden[locale][id] then hidden[directory] = (hidden[directory] or 0) + 1 end
+      end
+    end
+  end
+  local out = {}
+  for directory, total in pairs(count) do
+    if hidden[directory] == total then out[directory] = true end
+  end
+  return out
+end
+
 --- Returns the file a locale uses for a page id: its own, or the default locale's. A page whose audience is
 --- not published has no source: it is absent from the site, and a link to it is a broken link.
 local function source_for(self, locale, id)
@@ -414,6 +439,20 @@ function Site:load()
     for _, file in ipairs({ self._files[code].pages, self._files[default].pages }) do
       for id, entry in pairs(file) do
         if not published[entry.audience] and not self._hidden[code][id] then self._hidden[code][id] = entry.audience end
+      end
+    end
+    -- A translation labelled for another audience than its original is published in no site (a site that publishes the one
+    -- audience lacks the other file): a mistake of the labels, reported with both files.
+    if code ~= default then
+      local own_ids = {}
+      for id in pairs(self._files[code].pages) do own_ids[#own_ids + 1] = id end
+      table.sort(own_ids)
+      for _, id in ipairs(own_ids) do
+        local own, original = self._files[code].pages[id], self._files[default].pages[id]
+        if original and own.audience ~= original.audience and self._hidden[code][id] then
+          note(self, ("%s has audience %q and its original %s has audience %q: the translation is published in no site; label both with the same audience")
+            :format(own.relative, own.audience, original.relative, original.audience))
+        end
       end
     end
   end
@@ -950,7 +989,11 @@ function Site:emit(write)
       if not seen[relative] then assets[#assets + 1] = file end
     end
     table.sort(assets, function(a, b) return a.relative < b.relative end)
-    for _, file in ipairs(assets) do put(code .. "/" .. file.relative, read_required(self, file.path)) end
+    local only_hidden = directories_of_hidden_pages(self, code)
+    for _, file in ipairs(assets) do
+      -- A file next to pages that this site does not publish belongs to their audience (OQ-144): it is not copied.
+      if not only_hidden[directory_of(file.relative)] then put(code .. "/" .. file.relative, read_required(self, file.path)) end
+    end
   end
   -- The theme's own files are read with `io` (no directory listing), so that a build on an
   -- in-memory tree needs no reactor.

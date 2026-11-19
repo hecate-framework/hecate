@@ -114,14 +114,44 @@ function T:test_in_separate_sites_the_public_symbols_are_in_the_user_site_and_th
     self:assert_nil(fs:read("shop/dist/user/en/reference/shop/" .. name .. "index.html"), "user site: " .. name)
     self:assert_not_nil(fs:read("shop/dist/maintainer/en/reference/shop/" .. name .. "index.html"), "maintainer site: " .. name)
   end
-  -- The search index of a site has the pages of its audience only. (Not asserted: the table "Classes and types" of the page of the
-  -- module, a user page, still names the internal classes with links to pages of the other site; see the report of this test.)
+  -- The search index of a site has the pages of its audience only.
   local user_search = fs:read("shop/dist/user/assets/search-en.json")
   self:assert_nil(user_search:find("/user/en/reference/shop/Store/", 1, true), "no document for a page of the other audience")
   self:assert_nil(user_search:find("/user/en/reference/shop/Restricted/", 1, true))
   local maintainer_search = fs:read("shop/dist/maintainer/assets/search-en.json")
   self:assert_not_nil(maintainer_search:find("/maintainer/en/reference/shop/Store/", 1, true))
   self:assert_nil(maintainer_search:find("/maintainer/en/reference/shop/Cart/", 1, true))
+end
+
+function T:test_a_clean_project_build_with_both_audiences_and_separate_sites_reports_no_problem()
+  local fs = doc.MemoryFileSystem(files())
+  local separate = { title = "Shop", audiences = { "user", "maintainer" }, audience_sites = "separate" }
+  local report = generate(self, fs, { site_configuration = separate })
+  -- No link problem, no problem of the code reference. The one problem left is not about the reference: `en/index.md` is the home
+  -- of the user site, so the maintainer site has none (one page id, one file: OQ-144, open point (b)).
+  local others = {}
+  for _, problem in ipairs(report.problems) do
+    if not problem:find('site "maintainer" (locale en) has no home page', 1, true) then others[#others + 1] = problem end
+  end
+  self:assert_equal(0, #others, table.concat(others, "\n"))
+  self:assert_equal(0, #report.code.problems)
+  -- The module page of the user site names the classes of its audience only, and no page of one site links to the other.
+  local module = fs:read("shop/docs/en/reference/shop/index.md")
+  self:assert_not_nil(module:find("](Cart.md)", 1, true), module)
+  self:assert_nil(module:find("Store", 1, true), "the internal class is not")
+  self:assert_nil(module:find("Restricted", 1, true))
+  self:assert_nil(module:find("The store behind the cart", 1, true), "nor its summary")
+  for _, name in ipairs({ "Store.md", "Restricted.md" }) do
+    self:assert_nil(fs:read(REFERENCE .. name):find("](index.md", 1, true), name .. " does not link to the user module page")
+  end
+  -- Merged sites, or one audience: the module page lists every class it has.
+  local merged_fs = doc.MemoryFileSystem(files())
+  self.calls = {}
+  generate(self, merged_fs)
+  local merged_module = merged_fs:read("shop/docs/en/reference/shop/index.md")
+  self:assert_not_nil(merged_module:find("Store", 1, true))
+  self:assert_not_nil(merged_module:find("Restricted", 1, true))
+  self:assert_not_nil(merged_fs:read(REFERENCE .. "Store.md"):find("index.md", 1, true), "a merged site keeps the link back")
 end
 
 function T:test_with_one_audience_every_page_carries_it_and_the_user_site_holds_no_internal_page()

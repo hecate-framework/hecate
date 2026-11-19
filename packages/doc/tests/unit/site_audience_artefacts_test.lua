@@ -71,8 +71,57 @@ function T:test_the_images_of_a_site_are_in_the_site_that_publishes_the_pages_th
   self:assert_equal("SHARED-PNG", fs:read("o/user/en/img/shared.png"))
   self:assert_true(contains(fs:read("o/user/en/guide/a/index.html"), 'src="/user/en/guide/chart.png"'))
   self:assert_true(contains(fs:read("o/maintainer/en/internals/design/index.html"), 'src="/maintainer/en/internals/secret.png"'))
-  -- Not asserted here, because it does not hold (see the report of this test): `en/internals/secret.png`, an image next to
-  -- pages that no user can read, is copied into the user site too (assets carry no audience).
+  -- `en/internals/secret.png` is next to pages that no user can read only: it is of their audience, not in the user site.
+  self:assert_nil(fs:read("o/user/en/internals/secret.png"))
+  self:assert_nil(fs:read("o/user/en/internals/design.png"))
+  self:assert_nil(fs:read("o/maintainer/en/guide/chart.png"), "and the user image is not in the maintainer site")
+  self:assert_nil(fs:read("o/user/fr/internals/plan.png"))
+  self:assert_equal("PLAN-PNG", fs:read("o/maintainer/fr/internals/plan.png"))
+end
+
+function T:test_an_image_in_a_directory_with_a_published_page_or_without_pages_is_kept_and_a_merged_site_keeps_everything()
+  -- `mixed/` has a user page and a maintainer page: the file is kept in both sites. `bare/` has no page: kept in both.
+  local extra = {
+    ["en/mixed/a.md"] = page("Mixed A", "a"), ["en/mixed/b.md"] = page("Mixed B", "b", "audience: maintainer\n"),
+    ["en/mixed/pic.png"] = "MIXED-PNG", ["en/bare/pic.png"] = "BARE-PNG",
+  }
+  local fs = build(tree(extra))
+  for _, site in ipairs({ "user", "maintainer" }) do
+    self:assert_equal("MIXED-PNG", fs:read("o/" .. site .. "/en/mixed/pic.png"), site)
+    self:assert_equal("BARE-PNG", fs:read("o/" .. site .. "/en/bare/pic.png"), site)
+  end
+  self:assert_equal("CHART-PNG", fs:read("o/user/en/guide/chart.png"), "next to published pages")
+  local merged = build(tree(extra), { audience_sites = "merged" })
+  for _, path in ipairs({ "en/internals/secret.png", "en/internals/design.png", "fr/internals/plan.png", "en/guide/chart.png", "en/mixed/pic.png", "en/bare/pic.png" }) do
+    self:assert_not_nil(merged:read("o/" .. path), path)
+  end
+  -- A single audience published: the files of the pages left out are left out with them.
+  local user_only = build(tree(), { audiences = { "user" } })
+  self:assert_nil(user_only:read("o/en/internals/secret.png"))
+  self:assert_equal("CHART-PNG", user_only:read("o/en/guide/chart.png"))
+end
+
+function T:test_a_translation_labelled_for_another_audience_than_its_original_is_a_problem_naming_both_files()
+  local _, report = build(tree())
+  local found
+  for _, problem in ipairs(report.problems) do
+    if problem:find("fr/guide/b.md", 1, true) and problem:find("en/guide/b.md", 1, true) then found = problem end
+  end
+  self:assert_not_nil(found, table.concat(report.problems, "\n"))
+  self:assert_true(contains(found, "published in no site"))
+  -- The same labels on both files: no such problem.
+  local _, clean = build(tree({ ["fr/guide/b.md"] = page("Beta fr", "betamot") }))
+  for _, problem in ipairs(clean.problems) do self:assert_nil(problem:find("published in no site", 1, true), problem) end
+  -- Merged: both audiences are published, the page is there, nothing to report.
+  local _, merged = build(tree(), { audience_sites = "merged" })
+  for _, problem in ipairs(merged.problems) do self:assert_nil(problem:find("published in no site", 1, true), problem) end
+  -- `fail_on_problems` raises.
+  local prefixed = {}
+  for path, data in pairs(tree()) do prefixed["c/" .. path] = data end
+  local ok, err = pcall(doc.build, { site_configuration = config(), guides_dir = "c", output_dir = "o",
+    file_system = doc.MemoryFileSystem(prefixed), fail_on_problems = true })
+  self:assert_false(ok)
+  self:assert_true(contains(tostring(err), "published in no site"))
 end
 
 function T:test_a_hidden_translation_is_not_in_the_locale_switcher_nor_in_the_alternates()

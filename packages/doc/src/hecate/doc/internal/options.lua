@@ -35,10 +35,10 @@ M.LICENCES_BUNDLED = { "diagrams", "theme_file_system", "theme_files_dir" }
 
 --- The options of `hecate.doc.reference_site.run`.
 M.REFERENCE_SITE = { "project_dir", "packages", "locale_dir", "file_system", "language_server_path",
-  "language_server_config_path", "since", "internal", "label_audiences", "sources_dir_pattern" }
+  "language_server_config_path", "since", "internal", "label_audiences", "separate_audience_sites", "sources_dir_pattern" }
 
 --- The options of `hecate.doc.reference.generate`.
-M.REFERENCE = { "since", "internal", "label_audiences", "examples", "pages_dir" }
+M.REFERENCE = { "since", "internal", "label_audiences", "separate_audience_sites", "examples", "pages_dir" }
 
 --- The options of `hecate.doc.luals.export`.
 M.LUALS_EXPORT = { "language_server_config_path", "file_system" }

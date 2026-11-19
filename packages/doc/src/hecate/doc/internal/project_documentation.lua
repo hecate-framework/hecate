@@ -324,6 +324,8 @@ function M.generate(options)
       language_server_config_path = options.language_server_config_path
         and resolve(project_dir, options.language_server_config_path) or nil,
       internal = maintainer, label_audiences = label,
+      -- Separate sites with both audiences: the pages of one audience link only to pages of that audience.
+      separate_audience_sites = #audiences > 1 and normalised.audience_sites == "separate",
     })
   end
   -- The build does not fail here: its problems are merged with those of the licences page and of the code reference, and

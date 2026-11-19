@@ -378,4 +378,27 @@ function T:test_labelled_public_pages_are_user_pages()
   for _, path in ipairs(result.order) do self:assert_equal("user", audience_of(result.pages[path]), path) end
 end
 
+function T:test_separate_audience_sites_make_each_page_link_only_to_pages_of_its_audience()
+  local inputs = { { name = "demo", export = export_with_visibility() } }
+  local function opts(separate)
+    return { examples = examples, internal = true, label_audiences = true, separate_audience_sites = separate }
+  end
+  local joined = generate(inputs, opts(false))
+  local separate = generate(inputs, opts(true))
+  self:assert_equal(table.concat(joined.order, ","), table.concat(separate.order, ","), "the same pages")
+  -- The module page names the classes of its audience only.
+  self:assert_not_nil(joined.pages["reference/demo/index.md"]:find("Hidden", 1, true))
+  self:assert_nil(separate.pages["reference/demo/index.md"]:find("Hidden", 1, true))
+  self:assert_nil(separate.pages["reference/demo/index.md"]:find("Restricted", 1, true))
+  -- A page of the other audience has no link to the module page, a page of its own has.
+  self:assert_nil(separate.pages["reference/demo/Hidden.md"]:find("](index.md", 1, true))
+  self:assert_not_nil(joined.pages["reference/demo/Hidden.md"]:find("](index.md", 1, true))
+  -- One audience for every page, or no labels: the option changes nothing.
+  local one = generate(inputs, { examples = examples, internal = true, label_audiences = "maintainer", separate_audience_sites = true })
+  local same = generate(inputs, { examples = examples, internal = true, label_audiences = "maintainer" })
+  for _, path in ipairs(same.order) do self:assert_equal(same.pages[path], one.pages[path], path) end
+  -- A wrong name is refused by the closed list.
+  self:assert_error(function() generate(inputs, { separate_sites = true }) end)
+end
+
 return T
