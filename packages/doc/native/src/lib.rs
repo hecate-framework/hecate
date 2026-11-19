@@ -27,12 +27,84 @@ use syntect::html::{ClassStyle, ClassedHTMLGenerator};
 use syntect::parsing::SyntaxSet;
 use syntect::util::LinesWithEndings;
 
-/// The most block containers (`>` quotes and list items) that one line may open. Comrak parses and
-/// formats iteratively and caps list nesting itself (100), so this is not what keeps the stack
-/// safe: it is a documented bound on what one page may ask of the renderer (without it a run of
-/// 100000 `>` takes tens of seconds, quadratic in the depth) that stays far above real
-/// documentation, which rarely nests beyond five levels.
+/// The most block containers (`>` quotes and list items) that one line may open, counted by
+/// [`check_nesting`] from the leading prefix of the line only. It bounds nothing else: not inline
+/// nesting (emphasis, links, images), not the number of lines, not a container opened by a lazy
+/// continuation. Comrak parses and formats iteratively, so this is not what keeps the stack safe: it
+/// is a documented bound on what one line may ask of the renderer (without it a run of 100000 `>`
+/// takes tens of seconds, quadratic in the depth) that stays far above real documentation, which
+/// rarely nests beyond five levels. [`MAX_INPUT_BYTES`] and [`MAX_OUTPUT_BYTES`] bound the rest.
 pub const MAX_NESTING: usize = 100;
+
+/// The largest Markdown text (or code text) an entry point accepts, in bytes: 8 MiB. A page of
+/// documentation is a few tens of kilobytes; the cap keeps the memory and the time of one call
+/// bounded.
+pub const MAX_INPUT_BYTES: usize = 8 * 1024 * 1024;
+
+/// The largest HTML a render may produce, in bytes: 64 MiB (eight times [`MAX_INPUT_BYTES`]).
+pub const MAX_OUTPUT_BYTES: usize = 64 * 1024 * 1024;
+
+/// The HTML of a render may be at most this many times the size of its Markdown (footnote
+/// references amplify by about 27, highlighted code by less than 10), but never less than
+/// [`OUTPUT_FLOOR_BYTES`] and never more than [`MAX_OUTPUT_BYTES`].
+pub const MAX_OUTPUT_RATIO: usize = 32;
+
+/// A render may always produce this much HTML (1 MiB), so that a short page with a lot of markup
+/// per character is not refused by the ratio.
+pub const OUTPUT_FLOOR_BYTES: usize = 1024 * 1024;
+
+/// The most HTML a render of `input_len` bytes of Markdown may produce.
+pub fn output_limit(input_len: usize) -> usize {
+    input_len
+        .saturating_mul(MAX_OUTPUT_RATIO)
+        .clamp(OUTPUT_FLOOR_BYTES, MAX_OUTPUT_BYTES)
+}
+
+/// Checks the size of a text received from Lua, then that it is UTF-8.
+///
+/// # Errors
+///
+/// A message naming the limit, or the position (1-based, like `utf8.len`) of the first invalid byte.
+pub fn check_input<'a>(what: &str, bytes: &'a [u8]) -> Result<&'a str, String> {
+    if bytes.len() > MAX_INPUT_BYTES {
+        return Err(format!(
+            "the {what} is {} bytes, more than the limit of {MAX_INPUT_BYTES} bytes (8 MiB)",
+            bytes.len()
+        ));
+    }
+    std::str::from_utf8(bytes).map_err(|e| {
+        format!(
+            "the {what} is not valid UTF-8 (invalid byte at position {})",
+            e.valid_up_to() + 1
+        )
+    })
+}
+
+/// A `fmt::Write` that fails once it would hold more than `limit` bytes, so that an amplifying
+/// document is stopped while it renders instead of after it has used the memory.
+struct Bounded {
+    out: String,
+    limit: usize,
+    exceeded: bool,
+}
+
+impl fmt::Write for Bounded {
+    fn write_str(&mut self, s: &str) -> fmt::Result {
+        if self.out.len().saturating_add(s.len()) > self.limit {
+            self.exceeded = true;
+            return Err(fmt::Error);
+        }
+        self.out.push_str(s);
+        Ok(())
+    }
+}
+
+fn output_refusal(limit: usize) -> String {
+    format!(
+        "the rendered HTML is larger than {limit} bytes (the limit is {MAX_OUTPUT_RATIO} times the size of the \
+         Markdown, between 1 MiB and {MAX_OUTPUT_BYTES} bytes)"
+    )
+}
 
 /// Class prefix of every highlighted token.
 const CLASS_PREFIX: &str = "hl-";
@@ -217,15 +289,30 @@ fn custom_id(text: &str) -> Option<(&str, &str)> {
     Some((body[..at].trim_end(), id))
 }
 
-fn unique(taken: &mut HashSet<String>, base: &str) -> String {
-    let mut id = base.to_string();
-    let mut suffix = 0;
-    while taken.contains(&id) {
-        suffix += 1;
-        id = format!("{base}-{suffix}");
+/// The heading identifiers handed out so far. `next` remembers, per base identifier, the last
+/// suffix given: every `base-1` to `base-n` is taken, so the search resumes after `n` and a run of
+/// identical headings costs amortised O(1) each instead of O(n).
+#[derive(Default)]
+struct Identifiers {
+    taken: HashSet<String>,
+    next: HashMap<String, usize>,
+}
+
+impl Identifiers {
+    fn unique(&mut self, base: &str) -> String {
+        if self.taken.insert(base.to_string()) {
+            return base.to_string();
+        }
+        let counter = self.next.entry(base.to_string()).or_insert(0);
+        loop {
+            *counter += 1;
+            let id = format!("{base}-{counter}");
+            // A custom identifier (`{#h-1}`) may have taken the candidate already.
+            if self.taken.insert(id.clone()) {
+                return id;
+            }
+        }
     }
-    taken.insert(id.clone());
-    id
 }
 
 /// The language of a code block: the first word of the info string, when it is a plain name.
@@ -366,12 +453,14 @@ fn options() -> Options<'static> {
 ///
 /// # Errors
 ///
-/// The first error returned by `resolve`.
+/// The first error returned by `resolve`, or a message when the Markdown is larger than
+/// [`MAX_INPUT_BYTES`] or the HTML would exceed [`output_limit`].
 pub fn render(
     markdown: &str,
     config: &Config,
     resolve: &mut dyn FnMut(&str) -> Result<String, String>,
 ) -> Result<Rendered, String> {
+    check_input("markdown", markdown.as_bytes())?;
     let options = options();
     let arena = Arena::new();
     let root = parse_document(&arena, markdown, &options);
@@ -444,7 +533,7 @@ pub fn render(
     }
 
     // Headings: strip `{#custom}` ids from their text, then number them.
-    let mut taken = HashSet::new();
+    let mut identifiers = Identifiers::default();
     let mut headings = Vec::new();
     for node in root.descendants() {
         let level = match node.data.borrow().value {
@@ -462,7 +551,7 @@ pub fn render(
             }
         }
         let text = plain(node);
-        let id = unique(&mut taken, &custom.unwrap_or_else(|| slug(&text)));
+        let id = identifiers.unique(&custom.unwrap_or_else(|| slug(&text)));
         headings.push(Heading { level, id, text });
     }
 
@@ -477,7 +566,9 @@ pub fn render(
     for block in root.children() {
         let is_heading = matches!(block.data.borrow().value, NodeValue::Heading(_));
         if is_heading {
-            let heading = &headings[heading_index];
+            let heading = headings
+                .get(heading_index)
+                .ok_or_else(|| "internal: heading count mismatch".to_string())?;
             heading_index += 1;
             if heading.level == 2 || heading.level == 3 {
                 sections.push(Section {
@@ -496,7 +587,9 @@ pub fn render(
                 .filter(|n| matches!(n.data.borrow().value, NodeValue::Heading(_)))
                 .count();
         }
-        let current = sections.last_mut().expect("one section at least");
+        let current = sections
+            .last_mut()
+            .ok_or_else(|| "internal: heading count mismatch".to_string())?;
         current.text.push(' ');
         current.text.push_str(&plain(block));
     }
@@ -533,9 +626,23 @@ pub fn render(
     let mut plugins = Plugins::default();
     plugins.render.heading_adapter = Some(&heading_adapter);
     plugins.render.codefence_syntax_highlighter = Some(&code_adapter);
-    let mut html = String::new();
-    format_html_with_plugins(root, &options, &mut html, &plugins).map_err(|e| e.to_string())?;
-    let html = html.replace("</code></pre>", "</code></pre></div>");
+    let limit = output_limit(markdown.len());
+    let mut bounded = Bounded {
+        out: String::new(),
+        limit,
+        exceeded: false,
+    };
+    if let Err(e) = format_html_with_plugins(root, &options, &mut bounded, &plugins) {
+        return Err(if bounded.exceeded {
+            output_refusal(limit)
+        } else {
+            e.to_string()
+        });
+    }
+    let html = bounded.out.replace("</code></pre>", "</code></pre></div>");
+    if html.len() > limit {
+        return Err(output_refusal(limit));
+    }
     Ok(Rendered {
         html,
         title,
@@ -643,14 +750,18 @@ fn module(lua: &Lua) -> LuaResult<LuaTable> {
     exports.set(
         "render",
         lua.create_function(|lua, (markdown, options): (LuaString, Option<LuaTable>)| {
-            let markdown = markdown.to_str()?;
             // A refusal is `nil, message`; the Lua wrapper raises it as an argument error.
-            if let Err(message) = check_nesting(&markdown) {
+            let bytes = markdown.as_bytes();
+            let markdown = match check_input("markdown", &bytes) {
+                Ok(text) => text,
+                Err(message) => return (LuaNil, message).into_lua_multi(lua),
+            };
+            if let Err(message) = check_nesting(markdown) {
                 return (LuaNil, message).into_lua_multi(lua);
             }
             let (config, resolve) = config_from(options)?;
             let mut failure: Option<LuaError> = None;
-            let rendered = render(&markdown, &config, &mut |href| match &resolve {
+            let rendered = render(markdown, &config, &mut |href| match &resolve {
                 None => Ok(href.to_string()),
                 Some(f) => f.call::<String>(href).map_err(|e| {
                     failure = Some(e);
@@ -659,7 +770,11 @@ fn module(lua: &Lua) -> LuaResult<LuaTable> {
             });
             match rendered {
                 Ok(rendered) => rendered_to_lua(lua, rendered)?.into_lua_multi(lua),
-                Err(message) => Err(failure.unwrap_or_else(|| LuaError::runtime(message))),
+                Err(message) => match failure {
+                    Some(error) => Err(error),
+                    // A refusal of the renderer itself (the output cap) is `nil, message` too.
+                    None => (LuaNil, message).into_lua_multi(lua),
+                },
             }
         })?,
     )?;
@@ -670,15 +785,24 @@ fn module(lua: &Lua) -> LuaResult<LuaTable> {
             let extension = extension
                 .map(|e| e.to_str().map(|e| e.to_string()))
                 .transpose()?;
-            Ok(commonmark(&markdown.to_str()?, extension.as_deref()))
+            let bytes = markdown.as_bytes();
+            let text = check_input("markdown", &bytes).map_err(LuaError::runtime)?;
+            Ok(commonmark(text, extension.as_deref()))
         })?,
     )?;
     exports.set(
         "highlight",
         lua.create_function(|_, (code, lang): (LuaString, LuaString)| {
-            Ok(highlight(&code.to_str()?, &lang.to_str()?))
+            let (code, lang) = (code.as_bytes(), lang.as_bytes());
+            let code = check_input("code", &code).map_err(LuaError::runtime)?;
+            let lang = check_input("language", &lang).map_err(LuaError::runtime)?;
+            Ok(highlight(code, lang))
         })?,
     )?;
+    exports.set("MAX_INPUT_BYTES", MAX_INPUT_BYTES)?;
+    exports.set("MAX_OUTPUT_BYTES", MAX_OUTPUT_BYTES)?;
+    exports.set("MAX_OUTPUT_RATIO", MAX_OUTPUT_RATIO)?;
+    exports.set("MAX_NESTING", MAX_NESTING)?;
     Ok(exports)
 }
 
@@ -817,6 +941,116 @@ mod tests {
     fn plain_text_of_deep_documents_does_not_recurse() {
         let r = run(&format!("{}x *a _b_ c*\n", "> ".repeat(MAX_NESTING)));
         assert_eq!(r.sections[0].text, "x a b c");
+    }
+
+    fn ids(r: &Rendered) -> Vec<&str> {
+        r.headings.iter().map(|h| h.id.as_str()).collect()
+    }
+
+    #[test]
+    fn duplicate_headings_are_numbered_in_order() {
+        let r = run("# h\n\n# h\n\n# h\n\n# h\n");
+        assert_eq!(ids(&r), ["h", "h-1", "h-2", "h-3"]);
+    }
+
+    #[test]
+    fn a_custom_identifier_that_collides_with_a_suffix_is_skipped() {
+        let r = run("# h\n\n# x {#h-1}\n\n# h\n\n# h-1\n\n# h\n");
+        assert_eq!(ids(&r), ["h", "h-1", "h-2", "h-1-1", "h-3"]);
+        // The custom identifier comes first: the generated one must step over it.
+        let r = run("# x {#h-1}\n\n# h\n\n# h\n\n# h\n");
+        assert_eq!(ids(&r), ["h-1", "h", "h-2", "h-3"]);
+        let unique: HashSet<_> = ids(&r).into_iter().collect();
+        assert_eq!(unique.len(), 4);
+    }
+
+    #[test]
+    fn identical_headings_cost_amortised_constant_time() {
+        let count = 20_000;
+        let source = "# h\n\n".repeat(count);
+        let started = std::time::Instant::now();
+        let r = run(&source);
+        let elapsed = started.elapsed();
+        assert_eq!(r.headings.len(), count);
+        assert_eq!(r.headings[0].id, "h");
+        assert_eq!(r.headings[1].id, "h-1");
+        assert_eq!(r.headings[2].id, "h-2");
+        assert_eq!(r.headings[count - 1].id, format!("h-{}", count - 1));
+        // 40000 headings took 62 s when the search restarted at 1; generous bound for a slow CI host.
+        assert!(
+            elapsed < std::time::Duration::from_secs(20),
+            "took {elapsed:?}"
+        );
+    }
+
+    #[test]
+    fn input_is_checked_for_size_then_utf8() {
+        assert_eq!(check_input("markdown", b"fine"), Ok("fine"));
+        let big = vec![b'a'; MAX_INPUT_BYTES + 1];
+        let err = check_input("markdown", &big).unwrap_err();
+        assert!(err.contains(&MAX_INPUT_BYTES.to_string()), "{err}");
+        assert!(err.contains("8 MiB"), "{err}");
+        assert!(check_input("markdown", &big[..MAX_INPUT_BYTES]).is_ok());
+        let err = check_input("markdown", b"ab\xFFcd").unwrap_err();
+        assert!(err.contains("not valid UTF-8"), "{err}");
+        assert!(err.contains("position 3"), "{err}");
+        assert!(check_input("code", b"\xC3")
+            .unwrap_err()
+            .starts_with("the code is not valid UTF-8"));
+    }
+
+    #[test]
+    fn render_refuses_input_above_the_cap() {
+        let big = "a".repeat(MAX_INPUT_BYTES + 1);
+        let err = render(&big, &Config::default(), &mut |h| Ok(h.to_string())).unwrap_err();
+        assert!(
+            err.contains("more than the limit of 8388608 bytes"),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn the_output_limit_has_a_floor_a_ratio_and_a_ceiling() {
+        assert_eq!(output_limit(0), OUTPUT_FLOOR_BYTES);
+        assert_eq!(output_limit(10), OUTPUT_FLOOR_BYTES);
+        assert_eq!(
+            output_limit(OUTPUT_FLOOR_BYTES),
+            MAX_OUTPUT_RATIO * OUTPUT_FLOOR_BYTES
+        );
+        assert_eq!(
+            output_limit(2 * OUTPUT_FLOOR_BYTES),
+            2 * MAX_OUTPUT_RATIO * OUTPUT_FLOOR_BYTES
+        );
+        assert_eq!(output_limit(MAX_INPUT_BYTES), MAX_OUTPUT_BYTES);
+        assert_eq!(output_limit(usize::MAX), MAX_OUTPUT_BYTES);
+    }
+
+    #[test]
+    fn the_ratio_limit_stops_an_amplifying_document() {
+        // Each reference writes a superscript link and a back-reference in the footnote: far more
+        // than 32 bytes of HTML per 4 bytes of source, and the source is above the floor (1 MiB / 32).
+        let source = format!("{}\n\n[^a]: note\n", "[^a]".repeat(100_000));
+        let limit = MAX_OUTPUT_RATIO * source.len();
+        assert!(limit > OUTPUT_FLOOR_BYTES && limit < MAX_OUTPUT_BYTES);
+        let err = render(&source, &Config::default(), &mut |h| Ok(h.to_string())).unwrap_err();
+        assert!(err.contains(&format!("larger than {limit} bytes")), "{err}");
+        // The same document with a few references is well inside the limit.
+        assert!(
+            render("[^a]\n\n[^a]: note\n", &Config::default(), &mut |h| Ok(
+                h.to_string()
+            ))
+            .is_ok()
+        );
+    }
+
+    #[test]
+    fn the_absolute_output_limit_stops_a_large_amplifying_document() {
+        // About 7.5 MiB of source, so the ratio allows 240 MiB and the 64 MiB ceiling decides.
+        let source = format!("{}\n\n[^a]: note\n", "[^a]".repeat(1_900_000));
+        assert!(source.len() < MAX_INPUT_BYTES);
+        assert!(output_limit(source.len()) == MAX_OUTPUT_BYTES);
+        let err = render(&source, &Config::default(), &mut |h| Ok(h.to_string())).unwrap_err();
+        assert!(err.contains(&MAX_OUTPUT_BYTES.to_string()), "{err}");
     }
 
     #[test]

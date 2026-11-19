@@ -74,12 +74,28 @@ local function tokens(expression)
   return list
 end
 
---- Reads an SPDX licence expression and returns the identifiers relied on: every term of an `AND`, and for an `OR`
---- the first alternative (in the declared order) made of permissive licences only. The legacy separator `/` of old
---- manifests is an `OR`.
----@param expression string
----@return string[]? ids, string? problem
-function M.parse_expression(expression)
+--- Reads the licences of the `allow` list of the `[licenses]` table of a deny.toml (comments ignored).
+---@param text string  the text of deny.toml
+---@return table<string, true>? allowed  nil when the file has no `allow` list
+function M.parse_allow_list(text)
+  local inside, collecting, allowed, found = false, false, {}, false
+  for raw in (text:gsub("\r\n", "\n") .. "\n"):gmatch("([^\n]*)\n") do
+    local line = raw:gsub("#.*$", "")
+    local header = line:match("^%s*%[([^%]]+)%]%s*$")
+    if header and not collecting then inside = header == "licenses" end
+    if inside and not collecting and line:match("^%s*allow%s*=%s*%[") then
+      collecting, found = true, true
+      line = line:gsub("^%s*allow%s*=%s*%[", "")
+    end
+    if collecting then
+      for id in line:gsub("%].*$", ""):gmatch('"([^"]+)"') do allowed[id] = true end
+      if line:find("]", 1, true) then collecting = false end
+    end
+  end
+  return found and allowed or nil
+end
+
+local function permitted(expression, accepts)
   local list = tokens(expression or "")
   if #list == 0 then return nil, "no licence expression" end
   local position = 1
@@ -104,7 +120,7 @@ function M.parse_expression(expression)
       id = ("%s WITH %s"):format(token, list[position + 1])
       position = position + 2
     end
-    if PERMISSIVE[token] then return { id } end
+    if accepts[token] then return { id } end
     rejected[#rejected + 1] = token
     return nil
   end
@@ -140,6 +156,22 @@ function M.parse_expression(expression)
       table.concat(rejected, ", "))
   end
   return ids
+end
+
+--- Reads an SPDX licence expression and returns the identifiers relied on: every term of an `AND`, and for an `OR`
+--- the first alternative (in the declared order) made of accepted licences only. The legacy separator `/` of old
+--- manifests is an `OR`. With `allowed` (the allow list of deny.toml), an alternative made of licences of that list is
+--- preferred, so that the licence relied on is one the licence audit accepts; when the expression offers none, the
+--- first alternative made of permissive licences is used.
+---@param expression string
+---@param allowed? table<string, true>
+---@return string[]? ids, string? problem
+function M.parse_expression(expression, allowed)
+  if allowed then
+    local ids = permitted(expression, allowed)
+    if ids then return ids end
+  end
+  return permitted(expression, PERMISSIVE)
 end
 
 --- Whether a file name of the root of a crate is a licence file (LICENSE*, LICENCE*, COPYING*, NOTICE*, UNICODE*,
@@ -329,8 +361,9 @@ function M.render(model)
   add("`UNICODE*`, `COPYRIGHT*`).")
   add("Identical texts are given once. Build-only and development dependencies are not listed.")
   add("")
-  add("When a crate offers a choice (`MIT OR Apache-2.0`), Hecate relies on the first permissive alternative in the")
-  add("order the crate declares it (column \"Relied on\"); an `AND` requires every term. The texts of the other")
+  add("When a crate offers a choice (`MIT OR Apache-2.0`), Hecate relies on the first alternative, in the order the")
+  add("crate declares it, that the allow list of `deny.toml` accepts (column \"Relied on\"), else on the first")
+  add("permissive alternative; an `AND` requires every term. The texts of the other")
   add("alternatives are reproduced when the crate ships them. A crate that declares an SPDX identifier and ships no")
   add("licence file is given the standard SPDX text of that identifier, marked in the column \"Notes\": the")
   add("placeholders of the standard text (year, copyright holders) are kept as they are.")

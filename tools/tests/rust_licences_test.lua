@@ -1,5 +1,6 @@
 local test = require("harness.test")
 local rust = require("lib.rust_licences")
+local sha256 = require("lib.sha256")
 local T = test.Case("RustLicencesTest")
 
 local TREE = table.concat({
@@ -40,6 +41,52 @@ function T:test_expression_relies_on_the_first_permissive_alternative()
   self:assert_equal("Apache-2.0", table.concat(assert(rust.parse_expression("Apache-2.0 / MIT")), ","))
   self:assert_equal("Unlicense", table.concat(assert(rust.parse_expression("Unlicense/MIT")), ","))
   self:assert_equal("0BSD", table.concat(assert(rust.parse_expression("0BSD OR MIT OR Apache-2.0")), ","))
+end
+
+local DENY = [[
+[graph]
+targets = ["x86_64-unknown-linux-gnu"]
+
+[licenses]
+# comment with a "quoted" word ] and a bracket
+allow = [
+  "MIT",
+  "Apache-2.0",   # first
+  "BSD-2-Clause", # second ]
+  "Unicode-3.0",
+]
+confidence-threshold = 0.93
+
+[bans]
+allow = ["NotALicence"]
+]]
+
+function T:test_allow_list_is_read_from_the_licenses_table_only()
+  local allowed = assert(rust.parse_allow_list(DENY))
+  self:assert_true(allowed["MIT"] and allowed["Apache-2.0"] and allowed["BSD-2-Clause"] and allowed["Unicode-3.0"])
+  self:assert_nil(allowed["NotALicence"])
+  self:assert_nil(allowed["0BSD"])
+  self:assert_nil(rust.parse_allow_list("[licenses]\nconfidence-threshold = 0.9\n"))
+  local one = assert(rust.parse_allow_list('[licenses]\nallow = ["MIT", "ISC"]\n'))
+  self:assert_true(one["MIT"] and one["ISC"])
+end
+
+function T:test_expression_prefers_an_alternative_of_the_allow_list()
+  local allowed = assert(rust.parse_allow_list(DENY))
+  local function relied(expression) return table.concat(assert(rust.parse_expression(expression, allowed)), ",") end
+  self:assert_equal("MIT", relied("0BSD OR MIT OR Apache-2.0"))
+  self:assert_equal("MIT", relied("Zlib OR MIT"))
+  self:assert_equal("MIT", relied("MIT OR Zlib OR Apache-2.0"))
+  self:assert_equal("MIT", relied("Unlicense OR MIT"))
+  self:assert_equal("Apache-2.0", relied("Apache-2.0 / MIT"))
+  self:assert_equal("MIT,Unicode-3.0", relied("(0BSD OR MIT) AND Unicode-3.0"))
+  -- No alternative in the list: the first permissive one (the audit will refuse the crate, not this page).
+  self:assert_equal("0BSD", relied("0BSD OR Zlib"))
+  -- Without a list, the declared order decides, as before.
+  self:assert_equal("0BSD", table.concat(assert(rust.parse_expression("0BSD OR MIT")), ","))
+  local none, problem = rust.parse_expression("GPL-3.0-only", allowed)
+  self:assert_nil(none)
+  self:assert_true(assert(problem):find("GPL-3.0-only", 1, true) ~= nil)
 end
 
 function T:test_expression_relies_on_every_term_of_an_and()
@@ -127,7 +174,7 @@ end
 function T:test_render_says_which_alternative_is_relied_on()
   local page = rust.render(model({ crate("a", "1.0.0", "Apache-2.0 OR MIT", { { name = "LICENSE-MIT", text = "m\n" } }) }))
   self:assert_true(page:find("| `a` | 1.0.0 | Apache-2.0 OR MIT | Apache-2.0 |", 1, true) ~= nil)
-  self:assert_true(page:find("first permissive alternative", 1, true) ~= nil)
+  self:assert_true(page:find("allow list of `deny.toml`", 1, true) ~= nil)
 end
 
 function T:test_render_marks_a_fallback_text()
@@ -187,6 +234,66 @@ function T:test_check_page()
   self:assert_true(rust.check_page("d", "abc", nil, hex):find("missing", 1, true) ~= nil)
   self:assert_true(rust.check_page("d", "abc", "Cargo.lock SHA-256: `ab12`", hex):find("does not match", 1, true) ~= nil)
   self:assert_true(rust.check_page("d", "abc", "no digest", hex):find("does not match", 1, true) ~= nil)
+end
+
+function T:test_check_page_accepts_a_page_that_records_the_real_digest_of_the_lock()
+  local lock = "# Cargo.lock\nversion = 4\n"
+  local page = rust.render(model({ crate("a", "1.0.0", "MIT", { { name = "LICENSE", text = "m\n" } }) },
+    { lock_sha256 = sha256.hex(lock) }))
+  self:assert_nil(rust.check_page("d", lock, page, sha256.hex))
+  self:assert_nil(rust.check_page("d", (lock:gsub("\n", "\r\n")), page, sha256.hex), "a CRLF checkout of the lock gives the same digest")
+  local changed = rust.check_page("d", lock .. "# edited\n", page, sha256.hex)
+  self:assert_true(assert(changed):find("does not match", 1, true) ~= nil)
+  self:assert_equal(sha256.hex("a\nb\n"), rust.lock_digest("a\r\nb\r\n", sha256.hex))
+end
+
+function T:test_expression_with_unbalanced_or_repeated_tokens_is_a_problem()
+  for _, expression in ipairs({ "MIT )", "MIT MIT", "()", "(", ")", "MIT OR", "OR MIT", "AND", "MIT AND", "MIT OR OR ISC",
+    "MIT WITH", "WITH MIT", "( )", "MIT (Apache-2.0)", "MIT or Apache-2.0", "MIT and ISC", "MIT Or ISC" }) do
+    local ids, problem = rust.parse_expression(expression)
+    self:assert_nil(ids, expression)
+    self:assert_not_nil(problem, expression)
+  end
+  local _, trailing = rust.parse_expression("MIT )")
+  self:assert_true(assert(trailing):find("trailing ')'", 1, true) ~= nil, trailing)
+  local _, twice = rust.parse_expression("MIT MIT")
+  self:assert_true(assert(twice):find("trailing 'MIT'", 1, true) ~= nil, twice)
+  local _, lower = rust.parse_expression("MIT or Apache-2.0")
+  self:assert_true(assert(lower):find("'or'", 1, true) ~= nil, "the operators are upper case, as SPDX writes them: " .. lower)
+end
+
+function T:test_expression_keeps_the_exception_of_a_with()
+  local ids = assert(rust.parse_expression("Apache-2.0 WITH LLVM-exception"))
+  self:assert_equal(1, #ids)
+  self:assert_equal("Apache-2.0 WITH LLVM-exception", ids[1])
+  local both = assert(rust.parse_expression("(Apache-2.0 WITH LLVM-exception) OR MIT"))
+  self:assert_equal("Apache-2.0 WITH LLVM-exception", both[1])
+  local copyleft = rust.parse_expression("GPL-2.0-only WITH Classpath-exception-2.0")
+  self:assert_nil(copyleft, "an exception does not make a copyleft licence permissive")
+end
+
+function T:test_expression_binds_and_tighter_than_or()
+  self:assert_equal("MIT,Apache-2.0", table.concat(assert(rust.parse_expression("MIT AND Apache-2.0 OR ISC")), ","))
+  self:assert_equal("ISC", table.concat(assert(rust.parse_expression("ISC OR MIT AND Apache-2.0")), ","))
+  self:assert_equal("ISC", table.concat(assert(rust.parse_expression("GPL-3.0-only AND MIT OR ISC")), ","))
+  self:assert_equal("MIT,Apache-2.0,ISC", table.concat(assert(rust.parse_expression("MIT AND (Apache-2.0 OR GPL-3.0-only) AND ISC")), ","))
+  local none, problem = rust.parse_expression("GPL-3.0-only AND MIT")
+  self:assert_nil(none, "an AND needs every term")
+  self:assert_true(assert(problem):find("GPL-3.0-only", 1, true) ~= nil)
+end
+
+function T:test_parse_tree_skips_a_path_crate_of_a_windows_checkout_and_keeps_a_git_crate()
+  local crates = assert(rust.parse_tree(table.concat({
+    "hecate-x-native v0.0.0 (C:\\Users\\u\\hecate\\packages\\x\\native)|MIT",
+    "hecate-y v0.0.0 (D:/a/hecate/hecate/packages/y/native)|MIT",
+    "local-dep v0.1.0 (/home/u/hecate/packages/z)|MIT",
+    "forked v1.2.3 (https://github.com/example/forked?rev=abc123#abc123de)|MIT OR Apache-2.0",
+    "other v2.0.0 (ssh://git@example.com/o.git#abcdef12)|Apache-2.0",
+    "plain v1.0.0|ISC",
+  }, "\r\n")))
+  local names = {}
+  for _, c in ipairs(crates) do names[#names + 1] = c.name end
+  self:assert_equal("forked,other,plain", table.concat(names, ","), "path crates are the workspace, git crates are dependencies")
 end
 
 function T:test_fallback_text_exists_for_mit_only()

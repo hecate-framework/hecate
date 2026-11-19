@@ -33,7 +33,6 @@ return {
     local f = io.open(ctx.root .. "/THIRD_PARTY_NOTICES", "rb")
     local notices = f and f:read("a") or ""
     if f then f:close() end
-    local problems = licenses.check(dirs, function(p) return util.exists(ctx.root .. "/" .. p) end, notices, unrecorded)
     local function read(path)
       local file = io.open(ctx.root .. "/" .. path, "rb")
       if not file then return nil end
@@ -41,10 +40,14 @@ return {
       file:close()
       return data
     end
+    -- A directory whose licence text is not named LICENSE (the SIL OFL texts of fonts, `OFL-*.txt`) says so in its table.
+    local licence_files = {}
+    for _, dir in ipairs(dirs) do licence_files[dir] = licenses.licence_files(licenses.digests(read(dir .. "/VENDORED.md") or "")) end
+    local problems = licenses.check(dirs, function(p) return util.exists(ctx.root .. "/" .. p) end, notices, unrecorded,
+      licence_files)
     -- The vendored copies stay byte-identical to upstream: re-verify the digests of every VENDORED.md.
     for _, dir in ipairs(dirs) do
-      local text = read(dir .. "/VENDORED.md") or ""
-      for _, problem in ipairs(licenses.verify(dir, licenses.digests(text), read, sha256.hex)) do
+      for _, problem in ipairs(licenses.verify_text(dir, read(dir .. "/VENDORED.md") or "", read, sha256.hex)) do
         problems[#problems + 1] = problem
       end
     end

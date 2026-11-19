@@ -101,8 +101,13 @@ function M.parse_unicode_data(text)
     local codepoint = tonumber(fields[1], 16)
     local class = tonumber(fields[4])
     if not (codepoint and class and #fields >= 6) then error("UnicodeData.txt: malformed line: " .. line, 0) end
-    if class ~= 0 then combining[codepoint] = class end
     local mapping = fields[6]
+    -- The first and last line of a range (`<..., First>`, `<..., Last>`) stand for every code point between them, which
+    -- this reader does not expand: a range that carried a class or a mapping would be silently reduced to its two ends.
+    if (fields[2]:find(", First>$") or fields[2]:find(", Last>$")) and (class ~= 0 or mapping ~= "") then
+      error("UnicodeData.txt: a range line with a combining class or a decomposition mapping: " .. line, 0)
+    end
+    if class ~= 0 then combining[codepoint] = class end
     if mapping ~= "" and not mapping:find("^<") then mappings[codepoint] = codepoints(mapping) end
   end
   return { combining = combining, mappings = mappings }

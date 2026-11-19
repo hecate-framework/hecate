@@ -20,3 +20,30 @@
 | --- | --- |
 | `mermaid.min.js` | `336df803d87a38b70a01e736e666c8f7601d2ce42f5e47c8fafe5d721074b9a3` |
 | `LICENSE` | `ec9fb67dcb25eccc416ed56e1aab819222c805a2a4bfe4cb19e7556bf2ffde80` |
+
+## Provenance in the npm registry
+
+Reproduce the files (in an empty directory; the registry is `https://registry.npmjs.org/`, tarball
+`https://registry.npmjs.org/mermaid/-/mermaid-12.3.0.tgz`):
+
+```sh
+npm pack mermaid@12.3.0
+tar -xzf mermaid-12.3.0.tgz
+sha256sum package/dist/mermaid.min.js package/LICENSE
+```
+
+`npm pack` prints the `shasum` and the `integrity` below, which are the `dist.shasum` and `dist.integrity` the registry
+publishes for the version (`npm view mermaid@12.3.0 dist.integrity dist.shasum`). Recorded on 2026-11-19; the registry
+also lists a SLSA provenance attestation for this version. `dist.integrity` is the SHA-512 of the tarball
+(Subresource Integrity form); `dist.shasum` is its SHA-1 as the registry prints it, kept for comparison with `npm view`.
+`lua tools/run.lua check-vendored --online` (nightly job `vendored`) downloads the tarball again, compares the SHA-512,
+and compares the SHA-256 of each file below with the table above.
+
+| Package | Version | `dist.integrity` | `dist.shasum` |
+| --- | --- | --- | --- |
+| `mermaid` | `12.3.0` | `sha512-4113TdXeLAsMruJ79OpFL5O8+LTFXhQqZ260rF3tgUmiNAtRm4Uume04I+65PRN6yZ69J4f8rVYWW8zRk65UYw==` | `e860165e0a19778ebef98038c0436bbee6783ba9` |
+
+| Vendored file | Package | Path in the package |
+| --- | --- | --- |
+| `mermaid.min.js` | `mermaid` | `dist/mermaid.min.js` |
+| `LICENSE` | `mermaid` | `LICENSE` |

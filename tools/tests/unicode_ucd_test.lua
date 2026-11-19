@@ -1,5 +1,6 @@
 local test = require("harness.test")
 local ucd = require("lib.unicode_ucd")
+local util = require("lib.util")
 local T = test.Case("UnicodeUcdTest")
 
 -- A few real lines of UnicodeData.txt: a letter, two marks, a decomposable letter and a letter that decomposes in
@@ -109,14 +110,76 @@ function T:test_versions_compare_numerically()
   self:assert_equal(-1, ucd.compare_versions("15.0.0", "15.0.1"))
 end
 
+function T:test_a_cyclic_decomposition_mapping_is_an_error_and_not_a_hang()
+  local cyclic = "0041;A;Lu;0;L;0042;;;;N;;;;;\n0042;B;Lu;0;L;0041;;;;N;;;;;\n"
+  local err = self:assert_error(function() ucd.build(cyclic, PROPERTIES) end, "does not end")
+  self:assert_true(tostring(err):find("U+00", 1, true) ~= nil, "the message names the code point")
+  local selfref = "0041;A;Lu;0;L;0041;;;;N;;;;;\n"
+  self:assert_error(function() ucd.build(selfref, PROPERTIES) end, "does not end")
+end
+
+function T:test_an_empty_or_unrelated_properties_file_is_an_error()
+  self:assert_error(function() ucd.build(UNICODE_DATA, "") end, "no Full_Composition_Exclusion")
+  self:assert_error(function() ucd.build(UNICODE_DATA, "# only a comment\n0958 ; FC_NFKC; 0915 093C # x\n") end,
+    "no Full_Composition_Exclusion")
+  self:assert_equal(0, next(ucd.parse_exclusions("")) or 0)
+end
+
+function T:test_a_range_line_with_a_combining_class_or_a_mapping_is_an_error()
+  local ranged = "4E00;<CJK Ideograph, First>;Lo;0;L;;;;;N;;;;;\n9FFF;<CJK Ideograph, Last>;Lo;0;L;;;;;N;;;;;\n"
+  local parsed = ucd.parse_unicode_data(ranged)
+  self:assert_nil(parsed.combining[0x4E00], "a range with class 0 is accepted")
+  self:assert_error(function()
+    ucd.parse_unicode_data("0300;<Marks, First>;Mn;230;NSM;;;;;N;;;;;\n0301;<Marks, Last>;Mn;230;NSM;;;;;N;;;;;\n")
+  end, "range line")
+  self:assert_error(function()
+    ucd.parse_unicode_data("0301;<Marks, Last>;Mn;230;NSM;;;;;N;;;;;\n")
+  end, "range line")
+  self:assert_error(function()
+    ucd.parse_unicode_data("4E00;<CJK Ideograph, First>;Lo;0;L;0041;;;;N;;;;;\n")
+  end, "range line")
+end
+
+function T:test_a_malformed_unicode_data_line_is_an_error()
+  self:assert_error(function() ucd.parse_unicode_data("0041;A;Lu;xx;L;;;;;N;;;;;\n") end, "malformed")
+  self:assert_error(function() ucd.parse_unicode_data("0041;A;Lu;0;L\n") end, "malformed")
+  self:assert_error(function() ucd.parse_unicode_data("\nzz;A;Lu;0;L;;;;;N;;;;;\n") end, "malformed")
+end
+
+function T:test_a_malformed_version_is_refused()
+  for _, version in ipairs({ "18.0", "18", "18.0.0.1", "v18.0.0", "18.0.x", "", "18.0.0 " }) do
+    self:assert_error(function() ucd.compare_versions(version, "18.0.0") end, "not a Unicode version")
+    self:assert_error(function() ucd.compare_versions("18.0.0", version) end, "not a Unicode version")
+  end
+  self:assert_nil(ucd.version_of_url("https://www.unicode.org/Public/18.0/ucd/UnicodeData.txt"))
+  self:assert_nil(ucd.version_of_url("https://www.unicode.org/Public/18.0.0.1/ucd/UnicodeData.txt"))
+  self:assert_nil(ucd.latest_version("for version 18.0 of the Unicode Character Database"))
+end
+
+local ROOT = ((debug.getinfo(1, "S").source:match("^@(.*)[/\\][^/\\]*$") or ".") .. "/../.."):gsub("\\", "/")
+
+function T:set_up()
+  self.dir = assert(util.make_temp_dir(ROOT .. "/.hecate/tmp", "ucd-test"))
+end
+
+function T:tear_down() util.remove_tree(self.dir) end
+
+local function write(path, data)
+  local f = assert(io.open(path, "wb"))
+  f:write(data)
+  f:close()
+end
+
+local function readme_text(version)
+  return ("final data files for version %s of the\nUnicode Character Database.\n"):format(version)
+end
+
 function T:test_the_nightly_task_fails_on_a_newer_version_only()
   local task = require("tasks.check_unicode_version")
-  local root = (debug.getinfo(1, "S").source:match("^@(.*)[/\\][^/\\]*$") or ".") .. "/../.."
+  local root = ROOT
   local function readme(version)
-    local path = os.tmpname()
-    local f = assert(io.open(path, "wb"))
-    f:write(("final data files for version %s of the\nUnicode Character Database.\n"):format(version))
-    f:close()
+    local path = self.dir .. "/ReadMe-" .. version
+    write(path, readme_text(version))
     return path
   end
   local pinned = ucd.version_of_url(assert(loadfile(root .. "/packages/unicode-data/tests/external.lua"))()[1].url)
@@ -128,6 +191,51 @@ function T:test_the_nightly_task_fails_on_a_newer_version_only()
   self:assert_true(newer.problems[1]:find("99.0.0", 1, true) ~= nil)
   self:assert_true(task.run({ root = root, args = { "--readme", readme("1.0.0") } }).ok, "an older latest is not a failure")
   self:assert_false(task.run({ root = root, args = { "--bogus" } }).ok)
+  self:assert_false(task.run({ root = root, args = { "--readme", self.dir .. "/absent" } }).ok)
+end
+
+local function scratch_directories()
+  local found = {}
+  for _, name in ipairs(util.list_dir(ROOT .. "/.hecate/tmp")) do
+    if name:find("^unicode%-version%-") then found[#found + 1] = name end
+  end
+  return found
+end
+
+function T:test_the_online_check_downloads_a_small_https_file_into_a_directory_it_removes()
+  local task = require("tasks.check_unicode_version")
+  local before = #scratch_directories()
+  local call
+  local function download(url, path, max)
+    call = { url = url, path = path, max = max }
+    write(path, readme_text("1.0.0"))
+    return "", true
+  end
+  local report = task.run({ root = ROOT, args = {}, download = download })
+  self:assert_true(report.ok, table.concat(report.problems, "; "))
+  self:assert_equal("https://www.unicode.org/Public/UCD/latest/ReadMe.txt", call.url)
+  self:assert_equal(1048576, call.max, "at most 1 MiB")
+  self:assert_true(call.path:find("/.hecate/tmp/unicode-version-", 1, true) ~= nil, call.path)
+  self:assert_nil(call.path:find("^/tmp/"), "not the system temporary directory")
+  self:assert_equal(before, #scratch_directories(), "the scratch directory is removed")
+  self:assert_false(util.exists(call.path))
+end
+
+function T:test_the_online_check_fails_on_a_failed_empty_or_oversized_download()
+  local task = require("tasks.check_unicode_version")
+  local before = #scratch_directories()
+  local failed = task.run({ root = ROOT, args = {}, download = function() return "boom", false end })
+  self:assert_false(failed.ok)
+  self:assert_true(failed.problems[1]:find("boom", 1, true) ~= nil)
+  local empty = task.run({ root = ROOT, args = {}, download = function(_, path) write(path, "") return "", true end })
+  self:assert_false(empty.ok)
+  local big = task.run({ root = ROOT, args = {}, download = function(_, path, max)
+    write(path, readme_text("1.0.0") .. ("x"):rep(max))
+    return "", true
+  end })
+  self:assert_false(big.ok)
+  self:assert_true(big.problems[1]:find("larger", 1, true) ~= nil, big.problems[1])
+  self:assert_equal(before, #scratch_directories(), "every failure removes the scratch directory")
 end
 
 return T

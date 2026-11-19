@@ -34,6 +34,12 @@ local function targets(root)
   return list
 end
 
+-- The licences the audit accepts: the `[licenses] allow` list of deny.toml (the one of the module when it has its own).
+local function allowed_licences(root, crate_dir)
+  local text = read(crate_dir .. "/deny.toml") or read(root .. "/deny.toml") or ""
+  return rust.parse_allow_list(text)
+end
+
 local function registry_sources()
   local home = os.getenv("CARGO_HOME")
   if not home or home == "" then
@@ -111,12 +117,13 @@ local function module_model(ctx, name, registries, platforms, problems)
     lock_sha256 = rust.lock_digest(lock, require("lib.sha256").hex),
     crates = {},
   }
+  local allowed = allowed_licences(ctx.root, crate_dir)
   local two_face
   for _, crate in ipairs(crates) do
     local label = ("%s: %s %s"):format(directory, crate.name, crate.version)
     local entry = { name = crate.name, version = crate.version, license = crate.license, proc_macro = crate.proc_macro,
       files = {} }
-    local relied, why = rust.parse_expression(crate.license)
+    local relied, why = rust.parse_expression(crate.license, allowed)
     if not relied then
       problems[#problems + 1] = ("%s: %s"):format(label, why)
     else

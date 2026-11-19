@@ -2,12 +2,15 @@
 -- job `unicode-version`). The pinned version is the one of the URLs of packages/unicode-data/tests/external.lua; the
 -- latest is announced by https://www.unicode.org/Public/UCD/latest/ReadMe.txt. It regenerates and publishes
 -- nothing: updating is a human step (new pins, `fetch-fixtures`, `gen-unicode`, conformance, a new rock revision).
+-- The download is hardened like `fetch-fixtures` (https only, redirects included, at most 1 MiB, a directory under
+-- `.hecate/tmp` that is removed afterwards).
 -- Usage: check-unicode-version [--readme <file>]   (`--readme` reads a local copy of the ReadMe instead of the network)
 local ucd = require("lib.unicode_ucd")
 local fixtures = require("lib.fixtures")
 local util = require("lib.util")
 
 local LATEST = "https://www.unicode.org/Public/UCD/latest/ReadMe.txt"
+local MAX_BYTES = 1048576
 
 return {
   description = "fail when a Unicode version newer than the pinned one is published (--readme <file> for an offline copy)",
@@ -35,13 +38,19 @@ return {
       if f then f:close() end
       if not text then return { ok = false, problems = { "cannot read " .. readme_path } } end
     else
-      local path = os.tmpname()
-      local out, ok = fixtures.download(LATEST, path)
-      local f = ok and io.open(path, "rb")
+      -- The ReadMe is a few kilobytes: a larger answer is not the ReadMe (the limit also guards the memory).
+      local directory = util.make_temp_dir(ctx.root .. "/.hecate/tmp", "unicode-version")
+      if not directory then return { ok = false, problems = { "cannot create a directory under .hecate/tmp" } } end
+      local path = directory .. "/ReadMe.txt"
+      local out, ok = (ctx.download or fixtures.download)(LATEST, path, MAX_BYTES)
+      local size = ok and fixtures.size(path)
+      local f = size and size > 0 and size <= MAX_BYTES and io.open(path, "rb")
       text = f and f:read("a")
       if f then f:close() end
-      os.remove(path)
-      if not text then return { ok = false, problems = { "cannot download " .. LATEST .. ": " .. out } } end
+      util.remove_tree(directory)
+      if not text then
+        return { ok = false, problems = { "cannot download " .. LATEST .. ": " .. (ok and "empty or larger than " .. MAX_BYTES .. " bytes" or out) } }
+      end
     end
     local latest = ucd.latest_version(text)
     if not latest then return { ok = false, problems = { "the ReadMe of " .. LATEST .. " names no Unicode version" } } end

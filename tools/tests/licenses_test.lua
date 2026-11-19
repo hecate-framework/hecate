@@ -80,4 +80,55 @@ function T:test_a_vendored_file_without_digest_table_is_reported()
   self:assert_true(problems[1]:find("VENDORED.md", 1, true) ~= nil)
 end
 
+function T:test_a_digest_of_63_digits_among_valid_rows_names_the_row()
+  local text = VENDORED:format(("a"):rep(64), ("b"):rep(63))
+  local digests = licenses.digests(text)
+  self:assert_equal(2, #digests, "the short row is kept, not silently dropped")
+  self:assert_nil(digests[1].malformed)
+  self:assert_true(digests[2].malformed)
+  local problems = licenses.verify("d", digests, function() return "data" end, function() return ("a"):rep(64) end)
+  self:assert_equal(1, #problems)
+  self:assert_true(problems[1]:find("d/sub/LICENSE", 1, true) ~= nil, problems[1])
+  self:assert_true(problems[1]:find("63 digits", 1, true) ~= nil, problems[1])
+end
+
+function T:test_a_digest_of_65_digits_or_a_short_one_is_reported_too()
+  for _, digest in ipairs({ ("c"):rep(65), ("c"):rep(8), "0" }) do
+    local problems = licenses.verify_text("d", VENDORED:format(("a"):rep(64), digest), function() return "x" end,
+      function() return ("a"):rep(64) end)
+    self:assert_equal(1, #problems, #digest .. " digits")
+    self:assert_true(problems[1]:find("d/sub/LICENSE", 1, true) ~= nil)
+  end
+end
+
+function T:test_a_file_listed_twice_is_reported()
+  local text = VENDORED:format(("a"):rep(64), ("a"):rep(64)) .. ("| `a.js` | `%s` |\n"):format(("a"):rep(64))
+  local problems = licenses.verify_text("d", text, function() return "x" end, function() return ("a"):rep(64) end)
+  self:assert_equal(1, #problems)
+  self:assert_true(problems[1]:find("d/a.js: listed twice", 1, true) ~= nil, problems[1])
+end
+
+function T:test_a_table_with_crlf_line_endings_is_read()
+  local text = VENDORED:format(("a"):rep(64), ("b"):rep(64)):gsub("\n", "\r\n")
+  local digests = licenses.digests(text)
+  self:assert_equal(2, #digests)
+  self:assert_equal("sub/LICENSE", digests[2].file)
+  self:assert_equal(("b"):rep(64), digests[2].sha256)
+  local problems = licenses.verify("d", digests, function(path) return path end,
+    function(path) return path == "d/a.js" and ("a"):rep(64) or ("b"):rep(64) end)
+  self:assert_equal(0, #problems, table.concat(problems, "; "))
+end
+
+function T:test_the_licence_file_of_a_directory_may_be_named_in_its_table()
+  local digests = licenses.digests("| `OFL-x.txt` | `" .. ("a"):rep(64) .. "` |\n| `sub/LICENSE` | `" .. ("b"):rep(64)
+    .. "` |\n| `f.woff2` | `" .. ("c"):rep(64) .. "` |\n")
+  local names = licenses.licence_files(digests)
+  self:assert_equal(1, #names, "a licence file of a subdirectory is not the licence of the directory")
+  self:assert_equal("OFL-x.txt", names[1])
+  local notices = "Location: packages/a/fonts/"
+  local no_plain_licence = function(path) return path ~= "packages/a/fonts/LICENSE" end
+  self:assert_equal(0, #licenses.check({ "packages/a/fonts" }, no_plain_licence, notices, nil, { ["packages/a/fonts"] = names }))
+  self:assert_equal(1, #licenses.check({ "packages/a/fonts" }, no_plain_licence, notices, nil, {}),
+    "no LICENSE and no other file named: one problem")
+end
 return T

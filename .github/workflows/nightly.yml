@@ -1,8 +1,9 @@
 name: nightly
 
 # Slow checks that do not belong in a pull request (docs/architecture/automation.md): leak detection,
-# coverage with its thresholds and long fuzzing, and the watch for a new Unicode version (`unicode-version`,
-# ADR 0032: informational, it regenerates and publishes nothing). The integration services, the freshness report of the
+# coverage with its thresholds and long fuzzing, the watch for a new Unicode version (`unicode-version`,
+# ADR 0032: informational, it regenerates and publishes nothing) and the check of the vendored npm files against the
+# registry (`vendored`). The integration services, the freshness report of the
 # pinned dependencies and `check-mirrors` join this workflow with their phases.
 on:
   schedule:
@@ -42,6 +43,32 @@ jobs:
 
       - name: Compare the pinned Unicode version with the latest one
         run: lua tools/run.lua check-unicode-version
+
+  # Downloads again the npm tarball recorded in each VENDORED.md (mermaid, the fonts: ADR 0033, ADR 0012), compares its
+  # SHA-512 with the recorded `dist.integrity` and the vendored files with the files of the tarball. Changes nothing.
+  vendored:
+    name: vendored
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Cache toolchain
+        id: toolchain
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: .hecate/toolchain
+          key: toolchain-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('tools/bootstrap/**') }}
+
+      - name: Bootstrap
+        if: steps.toolchain.outputs.cache-hit != 'true'
+        run: tools/bootstrap/bootstrap.sh --prefix .hecate/toolchain
+
+      - name: Add toolchain to PATH
+        run: echo "$GITHUB_WORKSPACE/.hecate/toolchain/bin" >> "$GITHUB_PATH"
+
+      - name: Verify the vendored npm files against the registry
+        run: lua tools/run.lua check-vendored --online
 
   leaks:
     name: leaks

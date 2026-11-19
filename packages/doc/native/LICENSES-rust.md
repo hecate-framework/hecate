@@ -10,8 +10,9 @@ build it), the licence files found in the source of the crate (`LICENSE*`, `LICE
 `UNICODE*`, `COPYRIGHT*`).
 Identical texts are given once. Build-only and development dependencies are not listed.
 
-When a crate offers a choice (`MIT OR Apache-2.0`), Hecate relies on the first permissive alternative in the
-order the crate declares it (column "Relied on"); an `AND` requires every term. The texts of the other
+When a crate offers a choice (`MIT OR Apache-2.0`), Hecate relies on the first alternative, in the order the
+crate declares it, that the allow list of `deny.toml` accepts (column "Relied on"), else on the first
+permissive alternative; an `AND` requires every term. The texts of the other
 alternatives are reproduced when the crate ships them. A crate that declares an SPDX identifier and ships no
 licence file is given the standard SPDX text of that identifier, marked in the column "Notes": the
 placeholders of the standard text (year, copyright holders) are kept as they are.
@@ -20,7 +21,7 @@ placeholders of the standard text (year, copyright holders) are kept as they are
 
 | Crate | Version | Declared licence | Relied on | Texts | Notes |
 |---|---|---|---|---|---|
-| `adler2` | 2.0.1 | 0BSD OR MIT OR Apache-2.0 | 0BSD | [1](#licence-text-1), [2](#licence-text-2), [3](#licence-text-3) |  |
+| `adler2` | 2.0.1 | 0BSD OR MIT OR Apache-2.0 | MIT | [1](#licence-text-1), [2](#licence-text-2), [3](#licence-text-3) |  |
 | `aho-corasick` | 1.1.5 | Unlicense OR MIT | Unlicense | [4](#licence-text-4), [5](#licence-text-5) |  |
 | `bincode` | 1.3.3 | MIT | MIT | [6](#licence-text-6) |  |
 | `bit-set` | 0.8.0 | Apache-2.0 OR MIT | Apache-2.0 | [7](#licence-text-7), [8](#licence-text-8) |  |
@@ -69,7 +70,7 @@ placeholders of the standard text (year, copyright holders) are kept as they are
 | `syntect` | 5.3.0 | MIT | MIT | [45](#licence-text-45) |  |
 | `thiserror` | 2.0.21 | MIT OR Apache-2.0 | MIT | [22](#licence-text-22), [3](#licence-text-3) |  |
 | `thiserror-impl` | 2.0.21 | MIT OR Apache-2.0 | MIT | [22](#licence-text-22), [3](#licence-text-3) | procedural macro, run at compile time and not linked |
-| `tinyvec` | 1.13.3 | Zlib OR Apache-2.0 OR MIT | Zlib | [42](#licence-text-42), [46](#licence-text-46), [47](#licence-text-47) |  |
+| `tinyvec` | 1.13.3 | Zlib OR Apache-2.0 OR MIT | Apache-2.0 | [42](#licence-text-42), [46](#licence-text-46), [47](#licence-text-47) |  |
 | `two-face` | 0.5.2+bat-0.26.1 | MIT OR Apache-2.0 | MIT | [48](#licence-text-48), [49](#licence-text-49) |  |
 | `typed-arena` | 2.0.2 | MIT | MIT | [50](#licence-text-50) |  |
 | `unicode-ident` | 1.0.27 | (MIT OR Apache-2.0) AND Unicode-3.0 | MIT, Unicode-3.0 | [22](#licence-text-22), [3](#licence-text-3), [23](#licence-text-23) |  |
