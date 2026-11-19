@@ -17,16 +17,30 @@ end
 function M.rockspec_deps(rockspec)
   local deps = {}
   local block = rockspec:match("\ndependencies%s*=%s*(%b{})") or ""
-  for name in block:gmatch('"hecate%-([%w_]+)') do deps[#deps + 1] = name end
+  for name in block:gmatch('"hecate%-([%w_%-]+)') do deps[#deps + 1] = name end
   return deps
 end
 
+--- True for a package name: lowercase words (letters and digits) joined by single hyphens (`core`, `unicode-data`).
+---@param name string
+---@return boolean
+function M.valid_name(name)
+  return name:match("^[a-z][a-z0-9]*$") ~= nil or name:match("^[a-z][a-z0-9]*%-[a-z0-9%-]*$") ~= nil
+    and not name:find("%-%-") and not name:find("%-$")
+end
+
+--- The Lua module root of a package: `hecate.<module>`, where a hyphen of the package name becomes an
+--- underscore (`unicode-data` is `hecate.unicode_data`, ADR 0032).
+---@param name string
+---@return string
+function M.module_name(name) return (name:gsub("%-", "_")) end
+
 --- Modules `hecate.<pkg>` required by a Lua source; returns package names.
 ---@param source string
----@return string[]
+---@return string[]  package names (`unicode_data` is reported as `unicode-data`)
 function M.required_packages(source)
   local out = {}
-  for name in source:gmatch("require%s*%(?%s*[\"']hecate%.([%w_]+)") do out[#out + 1] = name end
+  for name in source:gmatch("require%s*%(?%s*[\"']hecate%.([%w_]+)") do out[#out + 1] = (name:gsub("_", "-")) end
   return out
 end
 

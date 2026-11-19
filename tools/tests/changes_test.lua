@@ -16,6 +16,13 @@ function T:test_anything_else_is_code()
   end
 end
 
+function T:test_the_site_of_an_example_is_code_because_a_test_builds_it()
+  for _, path in ipairs({ "examples/hello/docs/en/index.md", "examples/hello/docs/public/logo.svg" }) do
+    self:assert_false(changes.is_documentation(path), path)
+  end
+  self:assert_true(changes.is_documentation("examples/hello/README.md"))
+end
+
 function T:test_a_diff_is_code_when_one_file_is_code_or_when_it_is_empty()
   self:assert_false(changes.code_changed({ "docs/a.md", "README.md" }))
   self:assert_true(changes.code_changed({ "docs/a.md", "tools/run.lua" }))

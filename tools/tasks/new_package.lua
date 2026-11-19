@@ -42,7 +42,9 @@ return {
     local opts, err = parse(ctx.args)
     if not opts then return fail(err) end
     local name = opts.name
-    if not (name and name:match("^[a-z][a-z0-9]*$")) then return fail("package name must match [a-z][a-z0-9]*") end
+    if not (name and boundaries.valid_name(name)) then
+      return fail("package name must be lowercase words joined by hyphens, [a-z][a-z0-9]*(-[a-z0-9]+)*")
+    end
     if not (opts.layer and boundaries.rank(opts.layer)) then return fail("--layer is required and must be a known layer label") end
     if not (opts.phase and opts.phase:match("^%d+$")) then return fail("--phase <n> is required") end
     if not (opts.summary and opts.summary ~= "") then return fail("--summary is required") end
@@ -110,8 +112,9 @@ src/hecate/%s/init.lua   public entry point
 tests/unit/  tests/integration/  tests/fixtures/
 examples/    benchmarks/
 ```
-]]):format(name, opts.summary, name, name, opts.layer, opts.phase, deps_cell, spec_cell, name, name, name, name))
-    local allowed = #opts.deps == 0 and "none" or ("`hecate." .. table.concat(opts.deps, "`, `hecate.") .. "`")
+]]):format(name, opts.summary, boundaries.module_name(name), name, opts.layer, opts.phase, deps_cell, spec_cell, name, name, name,
+      boundaries.module_name(name)))
+    local allowed = agent.allowed(opts.deps)
     write(dir .. "/CLAUDE.md", ([[
 # Agent context — `hecate.%s`
 
@@ -129,7 +132,7 @@ package-specific context. Specialist agent: `pkg-%s`.
 
 ## Boundaries
 
-- Allowed dependencies: %s.
+- Allowed dependencies: %s
   Anything else requires an ADR; `check-boundaries` fails otherwise.
 - If your task needs a change in another package, stop and describe the needed change
   instead of making it (unless the task explicitly spans packages).
@@ -140,9 +143,10 @@ package-specific context. Specialist agent: `pkg-%s`.
 
 Plus, for every change: unit tests for public behaviour, LuaLS annotations on public API
 (`---@async` on anything that may suspend), README "Public API" section updated.
-]]):format(name, name, name, opts.summary, allowed))
+]]):format(boundaries.module_name(name), name, name, opts.summary, allowed))
     write(ctx.root .. "/.claude/agents/pkg-" .. name .. ".md", agent.render({
       name = name,
+      module = "hecate." .. boundaries.module_name(name),
       scope = opts.summary,
       doc = opts.spec or "docs/roadmap.md",
       allowed = agent.allowed(opts.deps),

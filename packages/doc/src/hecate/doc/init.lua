@@ -2,15 +2,17 @@
 -- Markdown with front matter, one original theme built on the hecate brand kit, locales
 -- with fallback, a client-side search index. Status: Markdown renderer, site model, theme,
 -- search index, `build` and the LuaLS code reference (`reference`, `luals`, `reference_site`) are
--- implemented; the OpenAPI reference and versioned documentation are not (see README.md).
+-- implemented; versioned documentation is not (see README.md). There is no API reference: the OpenAPI
+-- contract is the external documentation (OQ-141).
 global <const> require
 
 local build = require("hecate.doc.build")
 
 ---@class hecate.doc
----@field build fun(options: hecate.doc.BuildOptions): hecate.doc.BuildReport
----@field load_config fun(path: string, fs: hecate.doc.FileSystem): hecate.doc.SiteConfig
----@field normalise_config fun(raw: hecate.doc.SiteConfig): hecate.doc.SiteConfig
+---@field build fun(options: hecate.doc.BuildOptions): hecate.doc.BuildReport  the plain site builder: a content tree in, a static site out
+---@field generate_project_documentation fun(options?: hecate.doc.ProjectDocumentationOptions): hecate.doc.ProjectDocumentationReport  the documentation of a Hecate project: guides, configuration reference from the application, code reference, licences page, then the site; every option has a default of the conventional project layout
+---@field load_site_configuration fun(file_system: hecate.doc.FileSystem, path: string): hecate.doc.SiteConfiguration  reads a `site.lua` file: Lua that returns a table, run with an empty environment
+---@field normalise_site_configuration fun(raw: hecate.doc.SiteConfiguration): hecate.doc.SiteConfiguration  validates a site configuration and fills in the defaults
 ---@field Site hecate.doc.Site
 ---@field Page hecate.doc.Page
 ---@field FileSystem table  interface of file system accessors
@@ -23,10 +25,12 @@ local build = require("hecate.doc.build")
 ---@field navigation table  sidebar, previous/next and top links (pure functions)
 ---@field search table  search index builder
 ---@field theme hecate.doc.Theme
+---@field project hecate.doc.project  page generators: the configuration reference and the LuaLS meta files
 local doc = {
   build = build.build,
-  load_config = build.load_config,
-  normalise_config = require("hecate.doc.config").normalise,
+  generate_project_documentation = require("hecate.doc.internal.project_documentation").generate,
+  load_site_configuration = build.load_site_configuration,
+  normalise_site_configuration = require("hecate.doc.config").normalise,
   ---@diagnostic disable-next-line: assign-type-mismatch  -- class constructor exported as its class
   Site = require("hecate.doc.site"),
   ---@diagnostic disable-next-line: assign-type-mismatch  -- class constructor exported as its class
@@ -43,6 +47,7 @@ local doc = {
   navigation = require("hecate.doc.navigation"),
   search = require("hecate.doc.search"),
   theme = require("hecate.doc.theme"),
+  project = require("hecate.doc.project"),
 }
 
 return doc

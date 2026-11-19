@@ -3,6 +3,7 @@
 global <const> require, type, ipairs, pairs, table, string
 
 local config_module = require("hecate.doc.config")
+local file_names = require("hecate.doc.internal.page_id")
 
 --- Sidebar, previous/next and top links, as pure functions.
 ---@class hecate.doc.navigation
@@ -97,14 +98,14 @@ local function explicit_nodes(by_id, items, locale, default_locale, problems)
   local out = {}
   for _, item in ipairs(items) do
     if type(item) == "string" then
-      local page = by_id[item]
+      local page = by_id[file_names.nfc(item)]
       if page then
         out[#out + 1] = { text = page.title, link = page.id }
       else
         problems[#problems + 1] = ("sidebar: no page %s"):format(item)
       end
     else
-      local page = item.link and by_id[item.link]
+      local page = item.link and by_id[file_names.nfc(item.link)]
       if item.link and not page then problems[#problems + 1] = ("sidebar: no page %s"):format(item.link) end
       local node = {
         text = config_module.localise(item.text, locale, default_locale) or (page and page.title) or "",
@@ -122,7 +123,7 @@ end
 --- pages directly in the section, then each sub-directory forms a group.
 ---@param section string
 ---@param pages hecate.doc.PageInfo[]
----@param config hecate.doc.SiteConfig
+---@param config hecate.doc.SiteConfiguration
 ---@param locale string
 ---@return hecate.doc.SidebarNode[] nodes
 ---@return string[] problems  explicit entries that name no page
@@ -186,15 +187,15 @@ end
 
 --- Computes the top navigation: the configured links, or one link per top-level section.
 ---@param pages hecate.doc.PageInfo[]
----@param config hecate.doc.SiteConfig
+---@param config hecate.doc.SiteConfiguration
 ---@param locale string
 ---@return hecate.doc.TopLink[]
 function M.top_links(pages, config, locale)
   local by_id = {}
   for _, page in ipairs(pages) do by_id[page.id] = page end
   local links = {}
-  if config.nav then
-    for _, entry in ipairs(config.nav) do
+  if config.top_links then
+    for _, entry in ipairs(config.top_links) do
       local text = config_module.localise(entry.text, locale, config.default_locale)
       if entry.link:find("^%a[%w+.%-]*:") then
         links[#links + 1] = { text = text or entry.link, url = entry.link }

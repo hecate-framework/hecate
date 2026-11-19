@@ -1,6 +1,9 @@
 -- check-versions: every rockspec is at scm-1 or at the version in VERSION (ADR 0005) and
--- requires "lua >= 5.5, < 5.6".
+-- requires "lua >= 5.5, < 5.6". The data rock `hecate-unicode-data` is exempt from the lockstep (ADR 0032): a
+-- released rockspec of it is at `<Unicode version>-<revision>`, the Unicode version being the one of its
+-- generated tables; the tree itself holds the development version `scm-1` of every package.
 local util = require("lib.util")
+local rockspec = require("lib.rockspec")
 
 local function read(path)
   local f = io.open(path, "rb")
@@ -29,6 +32,15 @@ return {
         if not text:find('\npackage = "' .. rock .. '"', 1, true) then
           problems[#problems + 1] = rel .. ": package field is not '" .. rock .. "'"
         end
+      end
+    end
+    local unicode_version = (read(pkgs .. "/unicode-data/src/hecate/unicode_data/init.lua") or ""):match('unicode_version%s*=%s*"([%d%.]+)"')
+    for _, name in ipairs(util.list_dir(pkgs)) do
+      local rock = name == "hecate" and "hecate" or "hecate-" .. name
+      for _, file in ipairs(util.list_dir(pkgs .. "/" .. name)) do
+        local version = file:match("^" .. rock:gsub("%p", "%%%0") .. "%-(.+)%.rockspec$")
+        local problem = version and rockspec.version_problem(name, version, version and (read(ctx.root .. "/VERSION") or ""):match("%S+") or "", unicode_version)
+        if problem then problems[#problems + 1] = ("packages/%s/%s: %s"):format(name, file, problem) end
       end
     end
     return { ok = #problems == 0, problems = problems }

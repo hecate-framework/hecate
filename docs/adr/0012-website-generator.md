@@ -4,6 +4,7 @@
 - **Date:** 2026-10-11
 - **Packages:** doc, website, cli
 - **Deciders:** project owner (accepted by the project owner, 2026-10-19)
+- **Amended:** 2026-11-19 by the owner, in place, status unchanged (see "Amendment of 2026-11-19")
 - **Related:** [documentation.md](../architecture/documentation.md), [ADR 0022](0022-doc-dependencies.md), OQ-11 (resolved: [report](../spikes/OQ-11-doc-tooling.md))
 
 ## Context
@@ -22,8 +23,9 @@ module, so that the framework site and the documentation of user projects
    theme; LDoc with custom templates (reference only); the Lua Web Docs stack (Next.js
    with MDX).
 2. **`hecate.doc` as a complete static site generator** (owner preference): guides
-   in Markdown, reference from LuaLS annotations, API reference from OpenAPI, one
-   MDN-like theme, locales, search index, versioning, runnable examples where possible.
+   in Markdown, code reference from LuaLS annotations, one MDN-like theme, locales,
+   search index, versioning, runnable examples where possible (an API reference from
+   OpenAPI was part of this option and was removed on 2026-11-19: see the amendment).
 
 ## Decision
 
@@ -75,12 +77,11 @@ replaced by decision 4.
    `.github` repository); agents may read it.
 4. **Third-party dependencies:** do not code from scratch where a Lua, C or Rust dependency
    saves time. Wanted: complete GitHub Flavoured Markdown; syntax highlighting for many
-   languages through a dependency (no own lexers); OpenAPI reference rendering with no new
-   JavaScript development tool (a Lua, C or Rust dependency if one exists, otherwise own
-   rendering of the OpenAPI document into static pages). Each dependency still needs an
-   ADR: see the spike [OQ-39](../spikes/OQ-39-doc-dependencies.md) and ADR 0022 (Accepted),
-   which settles the OpenAPI point differently: the document is served by a route, not
-   rendered (decision D).
+   languages through a dependency (no own lexers). The point on OpenAPI reference rendering
+   no longer applies: the generator produces no API reference (amendment of 2026-11-19).
+   Each dependency still needs an ADR: see the spike
+   [OQ-39](../spikes/OQ-39-doc-dependencies.md) and ADR 0022 (Accepted), which settles the
+   OpenAPI point earlier: the document is served by a route, not rendered (decision D).
 5. **WebAssembly:** as much as possible, provided the site stays deployable as static
    GitHub Pages files.
 6. **Content conventions (agent's choice, recorded in
@@ -90,6 +91,20 @@ replaced by decision 4.
 7. **Reference generation:** every module table is annotated as a `---@class`, so the
    LuaLS export contains its functions; no annotation parser is written; parameters and
    returns are described with the standard `---@param name type description`.
+
+### Amendment of 2026-11-19 by the owner
+
+Amended by the project owner on 2026-11-19, in place; the status stays Accepted. The lines
+above that mention an "API reference from OpenAPI" (option 2) and "OpenAPI reference
+rendering" (owner decision 4) are replaced by this:
+
+- `hecate.doc` produces **no API reference**. The OpenAPI contract is the external
+  documentation of an application's HTTP API; it is served by `openapi` (ADR 0022,
+  decision D) and exported by the command line. A viewer of the contract (Swagger UI or
+  another) is the user's own wiring, not a feature of the generator (OQ-141 and OQ-135,
+  both resolved).
+- What the generator does produce from code is the **code reference**: Lua modules,
+  classes and functions from LuaLS annotations, never HTTP routes.
 
 ## Licence finding (2026-10-11)
 

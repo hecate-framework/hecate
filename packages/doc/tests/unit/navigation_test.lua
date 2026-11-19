@@ -107,7 +107,7 @@ end
 
 function T:test_configured_top_links_are_localised_external_or_skipped_when_empty()
   local links = navigation.top_links(PAGES, site_config({
-    nav = {
+    top_links = {
       { text = { en = "Guides", fr = "Guides FR" }, link = "guide/" },
       { text = "Source", link = "https://example.test/repo" },
       { text = "Nothing", link = "tutorials/" },

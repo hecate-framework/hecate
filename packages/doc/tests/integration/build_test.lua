@@ -20,10 +20,14 @@ local function quote(path)
   return "'" .. path:gsub("'", "'\\''") .. "'"
 end
 
+-- A name that two processes started together cannot share: a counter of this process, the address of a fresh table (it varies
+-- between processes) and `math.random`, which Lua seeds randomly at start (a reseed from the clock would make the names of two
+-- runs that start in the same second equal).
+local counter = 0
 local function temporary()
   local base = (os.getenv("TMPDIR") or os.getenv("TEMP") or os.getenv("TMP") or "/tmp"):gsub("\\", "/"):gsub("/+$", "")
-  math.randomseed(os.time() + math.floor(os.clock() * 1e6))
-  return ("%s/hecate-doc-it-%d"):format(base, math.random(1, 1e9))
+  counter = counter + 1
+  return ("%s/hecate-doc-it-%s-%d-%d"):format(base, tostring({}):match("%x+$") or "0", counter, math.random(1, 1e9))
 end
 
 local function run(arguments)
@@ -35,13 +39,13 @@ local function run(arguments)
   return output, ok == true
 end
 
-local function load_config()
-  return doc.load_config(fixture .. "/site.lua", fs)
+local function load_site_configuration()
+  return doc.load_site_configuration(fs, fixture .. "/site.lua")
 end
 
 function T:test_the_library_builds_the_fixture_site_to_disk()
   local out = temporary()
-  local report = doc.build({ config = load_config(), source = fixture, out = out, fs = fs, clean = true })
+  local report = doc.build({ site_configuration = load_site_configuration(), guides_dir = fixture, output_dir = out, file_system = fs, clean_output_dir = true })
   local ok, err = pcall(function()
     self:assert_equal(0, #report.problems, table.concat(report.problems, "\n"))
     self:assert_equal(6, report.locales.en.pages)
@@ -81,10 +85,10 @@ function T:test_two_builds_produce_the_same_files()
     visit(root, "")
     return out
   end
-  local config = load_config()
+  local config = load_site_configuration()
   local ok, err = pcall(function()
-    doc.build({ config = config, source = fixture, out = first, fs = fs })
-    doc.build({ config = load_config(), source = fixture, out = second, fs = fs })
+    doc.build({ site_configuration = config, guides_dir = fixture, output_dir = first, file_system = fs })
+    doc.build({ site_configuration = load_site_configuration(), guides_dir = fixture, output_dir = second, file_system = fs })
     local a, b = listing(first), listing(second)
     local count = 0
     for path, data in pairs(a) do
@@ -104,10 +108,10 @@ function T:test_clean_refuses_an_output_directory_that_is_a_symlink()
   local uv = require("luv")
   local root = temporary()
   local ok, err = pcall(function()
-    doc.build({ config = load_config(), source = fixture, out = root .. "/real", fs = fs, clean = true })
+    doc.build({ site_configuration = load_site_configuration(), guides_dir = fixture, output_dir = root .. "/real", file_system = fs, clean_output_dir = true })
     assert(uv.fs_symlink(root .. "/real", root .. "/link"))
     local failure = self:assert_error(function()
-      doc.build({ config = load_config(), source = fixture, out = root .. "/link", fs = fs, clean = true })
+      doc.build({ site_configuration = load_site_configuration(), guides_dir = fixture, output_dir = root .. "/link", file_system = fs, clean_output_dir = true })
     end)
     self:assert_true(core.is_instance_of(failure, doc.BuildError), tostring(failure))
     self:assert_true(tostring(failure):find("symbolic link", 1, true) ~= nil, tostring(failure))
@@ -183,12 +187,94 @@ function T:test_the_runner_fails_on_a_missing_source_and_on_strict_problems()
   fs:remove_tree(out)
 end
 
+function T:test_the_runner_in_strict_mode_fails_once_for_every_problem_including_the_reference()
+  local root = temporary()
+  local ok, err = pcall(function()
+    fs:write(root .. "/en/index.md", "# Home\n\n[broken](missing.md)\n")
+    fs:write(root .. "/site.lua", 'return { title = "T" }\n')
+    local lenient, lenient_ok = run(("%s --out %s/out --reference --root %s --packages nopackage"):format(quote(root), root, quote(root)))
+    self:assert_true(lenient_ok, lenient)
+    self:assert_true(lenient:find("broken link", 1, true) ~= nil, lenient)
+    local output, strict_ok = run(("%s --out %s/out2 --strict --reference --root %s --packages nopackage"):format(quote(root), root, quote(root)))
+    self:assert_false(strict_ok, output)
+    self:assert_true(output:find("broken link", 1, true) ~= nil, output)
+    -- The problem of the reference is in the same error: no package, or no LuaLS to read it with.
+    self:assert_true(output:find("nopackage", 1, true) ~= nil or output:find("lua-language-server", 1, true) ~= nil, output)
+    self:assert_true(fs:exists(root .. "/out2/en/index.html"), "the site was written before the error")
+  end)
+  fs:remove_tree(root)
+  if not ok then error(err, 0) end
+end
+
+function T:test_a_link_in_the_content_tree_is_not_followed_on_the_real_file_system()
+  if is_windows then return end
+  local uv = require("luv")
+  local root = temporary()
+  local ok, err = pcall(function()
+    fs:write(root .. "/c/en/index.md", "# Home\n")
+    fs:write(root .. "/outside/id_rsa", "SSH-KEY-CANARY")
+    fs:write(root .. "/outside/page.md", "# Out\n\nOUTSIDE-CANARY\n")
+    fs:write(root .. "/c/public/ok.txt", "fine")
+    assert(uv.fs_symlink(root .. "/outside/id_rsa", root .. "/c/public/id_rsa"))
+    assert(uv.fs_symlink(root .. "/outside/id_rsa", root .. "/c/en/key.txt"))
+    assert(uv.fs_symlink(root .. "/outside", root .. "/c/en/outside"))
+    assert(uv.fs_symlink(root .. "/c", root .. "/c/en/up"))
+    local report = doc.build({ site_configuration = { title = "T" }, guides_dir = root .. "/c", output_dir = root .. "/o", file_system = fs })
+    self:assert_equal("fine", fs:read(root .. "/o/ok.txt"))
+    self:assert_nil(fs:read(root .. "/o/id_rsa"))
+    self:assert_nil(fs:read(root .. "/o/en/key.txt"))
+    self:assert_false(fs:exists(root .. "/o/en/outside"))
+    local linked = 0
+    for _, problem in ipairs(report.problems) do
+      if problem:find("symbolic link", 1, true) then linked = linked + 1 end
+    end
+    self:assert_equal(4, linked, table.concat(report.problems, "\n"))
+    local failure = self:assert_error(function()
+      doc.build({ site_configuration = { title = "T" }, guides_dir = root .. "/c", output_dir = root .. "/o", file_system = fs,
+        fail_on_problems = true })
+    end)
+    self:assert_true(core.is_instance_of(failure, doc.BuildError), tostring(failure))
+  end)
+  fs:remove_tree(root)
+  if not ok then error(err, 0) end
+end
+
+function T:test_a_generated_page_is_not_written_through_a_dangling_link_on_the_real_file_system()
+  if is_windows then return end
+  local uv = require("luv")
+  local root = temporary()
+  local ok, err = pcall(function()
+    fs:write(root .. "/docs/en/index.md", "# Home\n")
+    assert(uv.fs_symlink(root .. "/victim.txt", root .. "/docs/en/configuration.md"))
+    local failure = self:assert_error(function()
+      doc.generate_project_documentation({ project_dir = root, site_configuration = { title = "T" },
+        application = { configuration_schema = function() return { type = "object", properties = { a = { type = "string" } } } end },
+        file_system = fs })
+    end)
+    self:assert_true(core.is_instance_of(failure, doc.BuildError), tostring(failure))
+    self:assert_false(fs:exists(root .. "/victim.txt"), "the target of the link was not created")
+    -- A build whose output has a link at the place of an output file is refused the same way.
+    fs:write(root .. "/c/en/index.md", "# Home\n")
+    fs:write(root .. "/victim2.txt", "VICTIM")
+    assert(uv.fs_mkdir(root .. "/o", 493))
+    assert(uv.fs_mkdir(root .. "/o/en", 493))
+    assert(uv.fs_symlink(root .. "/victim2.txt", root .. "/o/en/index.html"))
+    local second = self:assert_error(function()
+      doc.build({ site_configuration = { title = "T" }, guides_dir = root .. "/c", output_dir = root .. "/o", file_system = fs })
+    end)
+    self:assert_true(core.is_instance_of(second, doc.BuildError), tostring(second))
+    self:assert_equal("VICTIM", fs:read(root .. "/victim2.txt"))
+  end)
+  fs:remove_tree(root)
+  if not ok then error(err, 0) end
+end
+
 function T:test_building_the_repository_website_has_no_problem()
   local website = package_dir .. "/../../website"
   if not fs:exists(website .. "/site.lua") then return end
   local out = temporary()
   local report = doc.build({
-    config = doc.load_config(website .. "/site.lua", fs), source = website, out = out, fs = fs, strict = false,
+    site_configuration = doc.load_site_configuration(fs, website .. "/site.lua"), guides_dir = website, output_dir = out, file_system = fs, fail_on_problems = false,
   })
   fs:remove_tree(out)
   -- The code reference (website/en/reference/<package>/) is generated and not in a clean checkout, so

@@ -3,6 +3,9 @@ local M = {}
 
 -- The package whose CI run also runs the examples (ci.yml).
 local EXAMPLES_PACKAGE <const> = "kernel"
+-- The package that builds the documentation sites of the examples (`examples/<name>/docs/`, tested by
+-- `examples/<name>/tests/docs_build_test.lua`): its run builds the native module, which the test needs.
+local EXAMPLES_DOCS_PACKAGE <const> = "doc"
 
 --- Builds the set of packages affected by changed files, following reverse dependencies.
 ---@param files string[]  repository-relative changed paths
@@ -14,6 +17,9 @@ function M.compute(files, deps)
     local pkg = file:match("^packages/([^/]+)/")
     if pkg then
       if deps[pkg] then affected[pkg] = true end
+    elseif file:match("^examples/[^/]+/docs/") then
+      -- The site of an example, Markdown included: its build is a test, run with `doc` (ci.yml).
+      if deps[EXAMPLES_DOCS_PACKAGE] then affected[EXAMPLES_DOCS_PACKAGE] = true end
     elseif file:match("^examples/[^/]+/") and not file:match("%.md$") then
       -- The examples are applications of the kernel: CI runs them in the run of `kernel` (ci.yml), so a change
       -- to an example affects `kernel`, and the example is tested on the three platforms.

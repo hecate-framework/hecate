@@ -1,5 +1,6 @@
 -- test [packages...]: runs tests/**/*_test.lua of the given packages (default: all)
--- under the bootstrap harness. The name `tools` selects tools/tests, `examples/<name>` selects an example.
+-- under the bootstrap harness. The name `tools` selects tools/tests, `examples/<name>` selects an example,
+-- `examples/<name>:<file>` one test file of it (`examples/hello:docs_build_test` runs tests/docs_build_test.lua; the name without `.lua`).
 --
 -- Concurrency: the files of `tests/unit/`, `tests/conformance/` and `tools/tests` run in a pool of worker
 -- processes (HECATE_TEST_JOBS, default min(cores, 4); 1 is the serial run, in file order). The integration
@@ -25,8 +26,10 @@ return {
     -- sanitizer run are set on the command of each file.
     local inline = os.getenv("HECATE_SANITIZE_ENV")
     local jobs = {} -- in discovery order: { name, command }
+    local unmatched = {} -- test files named by `examples/<name>:<file>` that do not exist
     for _, name in ipairs(selected) do
-      local example = name:match("^examples/([%w_%-]+)$")
+      local example, only = name:match("^examples/([%w_%-]+)$"), nil
+      if not example then example, only = name:match("^examples/([%w_%-]+):([%w_]+)$") end
       local base = name == "tools" and (ctx.root .. "/tools") or example and (ctx.root .. "/examples/" .. example)
         or (ctx.root .. "/packages/" .. name)
       -- Every package source tree is on the path so a package can require its declared
@@ -38,15 +41,19 @@ return {
       end
       local quoted = {}
       for i, dir in ipairs(srcs) do quoted[i] = util.quote(dir) end
+      local before = #jobs
       for _, file in ipairs(files_in(base .. "/tests")) do
         local relative = file:sub(#ctx.root + 2)
-        jobs[#jobs + 1] = {
-          name = relative,
-          concurrent = not example and concurrent(relative),
-          command = ("%s%s %s %s %s 2>&1"):format(inline and (inline .. " ") or "", util.quote(util.interpreter()),
-            util.quote(runner), util.quote(file), table.concat(quoted, " ")),
-        }
+        if only == nil or relative:match("[^/]*$") == only .. ".lua" then
+          jobs[#jobs + 1] = {
+            name = relative,
+            concurrent = not example and concurrent(relative),
+            command = ("%s%s %s %s %s 2>&1"):format(inline and (inline .. " ") or "", util.quote(util.interpreter()),
+              util.quote(runner), util.quote(file), table.concat(quoted, " ")),
+          }
+        end
       end
+      if only and #jobs == before then unmatched[#unmatched + 1] = "no test file " .. only .. ".lua in " .. base .. "/tests" end
     end
 
     local workers = pool.workers()
@@ -59,7 +66,7 @@ return {
       ordered = { parallel, serial }
     end
 
-    local problems = {}
+    local problems = unmatched
     for phase, group in ipairs(ordered) do
       local commands = {}
       for i, job in ipairs(group) do commands[i] = job.command end

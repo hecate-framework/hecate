@@ -1,0 +1,108 @@
+/*
+ * Theme of the hello documentation: overrides of the custom properties of
+ * the hecate.doc theme (reference page "Theme tokens"), in a plain, neutral
+ * style: white and slate greys, one cool accent (sky), thin borders.
+ * Loaded after the stylesheet of the theme, so equal selectors win here.
+ * A dark block is needed twice: for the system preference and for the toggle.
+ *
+ * Font: Inter, SIL Open Font License 1.1 (fonts/OFL-inter.txt), Latin subset
+ * in WOFF2 from @fontsource/inter 5.3.0. Code uses a system monospace stack.
+ */
+
+@font-face { font-family: "Inter"; font-style: normal; font-weight: 400; font-display: swap; src: url("fonts/inter-latin-400-normal.woff2") format("woff2"); }
+@font-face { font-family: "Inter"; font-style: normal; font-weight: 500; font-display: swap; src: url("fonts/inter-latin-500-normal.woff2") format("woff2"); }
+@font-face { font-family: "Inter"; font-style: normal; font-weight: 600; font-display: swap; src: url("fonts/inter-latin-600-normal.woff2") format("woff2"); }
+
+:root {
+  --serif: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --sans: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, "Cascadia Code", "SF Mono", Menlo, Consolas, "DejaVu Sans Mono", monospace;
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --sidebar-width: 280px;
+
+  --surface-100: #FFFFFF;
+  --surface-200: #F8FAFC;
+  --surface-300: #FFFFFF;
+  --border: #E2E8F0;
+  --border-strong: #64748B;
+  --ink: #0F172A;
+  --ink-muted: #475569;
+  --moon: #0F172A;
+  --moonlight: #0F172A;
+  --earth: #0369A1;
+  --on-earth: #FFFFFF;
+  --success: #15803D;
+  --danger: #B91C1C;
+  --hl-keyword: #7E22CE;
+  --hl-string: #15803D;
+  --hl-number: #B45309;
+  --hl-function: #1D4ED8;
+  --hl-type: #0E7490;
+  --hl-parameter: #9A3412;
+  --hl-escape: #BE123C;
+  --hl-comment: #64748B;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --surface-100: #020617;
+    --surface-200: #0F172A;
+    --surface-300: #0F172A;
+    --border: #1E293B;
+    --border-strong: #64748B;
+    --ink: #F1F5F9;
+    --ink-muted: #94A3B8;
+    --moon: #F8FAFC;
+    --moonlight: #F8FAFC;
+    --earth: #38BDF8;
+    --on-earth: #020617;
+    --success: #4ADE80;
+    --danger: #F87171;
+    --hl-keyword: #C084FC;
+    --hl-string: #86EFAC;
+    --hl-number: #FCD34D;
+    --hl-function: #93C5FD;
+    --hl-type: #67E8F9;
+    --hl-parameter: #FDBA74;
+    --hl-escape: #FDA4AF;
+    --hl-comment: #94A3B8;
+  }
+}
+
+:root[data-theme="dark"] {
+  --surface-100: #020617;
+  --surface-200: #0F172A;
+  --surface-300: #0F172A;
+  --border: #1E293B;
+  --border-strong: #64748B;
+  --ink: #F1F5F9;
+  --ink-muted: #94A3B8;
+  --moon: #F8FAFC;
+  --moonlight: #F8FAFC;
+  --earth: #38BDF8;
+  --on-earth: #020617;
+  --success: #4ADE80;
+  --danger: #F87171;
+  --hl-keyword: #C084FC;
+  --hl-string: #86EFAC;
+  --hl-number: #FCD34D;
+  --hl-function: #93C5FD;
+  --hl-type: #67E8F9;
+  --hl-parameter: #FDBA74;
+  --hl-escape: #FDA4AF;
+  --hl-comment: #94A3B8;
+}
+
+/* Shape: plain rules on top of the tokens (the theme has no token for these). */
+body { font-size: 16px; line-height: 28px; }
+.sidebar { background: var(--surface-100); }
+.sidebar a[aria-current="page"] { background: var(--surface-200); color: var(--earth); }
+.logo img.logo-custom { height: 30px; }
+.doc-content h1, .doc-content .page-title { font-size: 30px; line-height: 38px; font-weight: 600; letter-spacing: -0.02em; }
+.doc-content h2 { font-size: 22px; line-height: 30px; font-weight: 600; letter-spacing: -0.01em; border-top: 0; padding-top: 0; }
+.doc-content h3 { font-size: 18px; line-height: 26px; font-weight: 600; }
+.hero-title { font-size: 48px; line-height: 54px; font-weight: 600; letter-spacing: -0.03em; font-variant-caps: normal; }
+.hero-tagline, .page-description { font-size: 18px; line-height: 28px; }
+.pager-card, .search-button, .button { border-color: var(--border); }

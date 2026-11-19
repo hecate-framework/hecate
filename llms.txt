@@ -40,6 +40,7 @@
 - [TLS client and server](website/en/how-to/tls-client-and-server.md): system trust store, private authority, two-step accept, mutual TLS, error reasons
 - [Deadlines and cancellation on streams](website/en/how-to/deadlines-and-cancellation.md): what each cancelled operation leaves behind
 - [Encode and decode JSON](website/en/how-to/encode-and-decode-json.md): integers and floats apart, null and empty arrays, decode errors
+- [Normalise Unicode strings](website/en/how-to/normalise-unicode-strings.md): NFC and NFD, canonical order, Hangul, errors, the Unicode version of the data rock
 - [Structured logging](website/en/how-to/log-structured-records.md): keep a context on a logger, hide secrets, limit the volume
 - [Measure performance](website/en/how-to/measure-performance.md): run the TCP echo benchmark, read its figures, compare with a Git reference
 - [UDP, Unix sockets, named pipes and DNS](website/en/how-to/udp-pipes-and-dns.md): the transports other than TCP
@@ -84,9 +85,11 @@
 - [hecate-config](packages/config/README.md): Layered configuration (defaults, environment files, environment variables, secrets) validated by schemas at boot.
 - [hecate-container](packages/container/README.md): Inversion-of-control container: bindings, lifetimes (singleton, scoped, transient), constructor injection, cycle detection at boot.
 - [hecate-kernel](packages/kernel/README.md): The application: feature modules, controllers, route modules, filters (chain of responsibility), problem details, lifecycle, workers and graceful shutdown.
+- [hecate-unicode](packages/unicode/README.md): Unicode normalisation of UTF-8 strings: NFC, NFD, Hangul syllable arithmetic and canonical reordering.
+- [hecate-unicode-data](packages/unicode-data/README.md): Generated Unicode Character Database tables (combining classes, canonical decompositions and compositions), versioned by the Unicode version.
 - [hecate-openapi](packages/openapi/README.md): OpenAPI 3.1 document assembly from the route table, schemas and project settings; served endpoint, export, lint and breaking-change diff.
 - [hecate-cli](packages/cli/README.md): The `hecate` command: toolchains, projects, dependencies (LuaRocks), development server, tests, contracts, documentation, migrations, scaffolding, packaging.
-- [hecate-doc](packages/doc/README.md): Documentation generator and static site builder with an MDN-like theme: guides in Markdown, code reference from LuaLS annotations, API reference from OpenAPI, configuration and error-code references, locales, search.
+- [hecate-doc](packages/doc/README.md): Documentation generator and static site builder with an MDN-like theme: guides in Markdown, code reference from LuaLS annotations, configuration reference, locales, search.
 - [hecate-test](packages/test/README.md): xUnit test framework running inside the reactor: cases, suites, fixtures, assertions, in-process HTTP client, contract conformance, property-based testing, coverage.
 - [hecate](packages/hecate/README.md): Meta-rock `hecate`: depends on the standard edition and provides the `hecate` meta-module re-exporting the framework surface.
 - [hecate-migration](packages/migration/README.md): Versioned, reversible database schema migrations with checksums and CLI integration.

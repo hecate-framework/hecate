@@ -86,7 +86,7 @@ function T:test_the_page_title_and_description_are_escaped_in_the_theme()
     ["c/en/index.md"] = '---\ntitle: "</title><script>alert(1)</script>"\ndescription: "\\"><script>alert(2)</script>"\n---\nbody',
   })
   doc.build({
-    config = { title = 'Site "<b>"', description = "d" }, source = "c", out = "o", fs = fs,
+    site_configuration = { title = 'Site "<b>"', description = "d" }, guides_dir = "c", output_dir = "o", file_system = fs,
   })
   local page = fs:read("o/en/index.html")
   self:assert_nil(page:find("<script>alert", 1, true))

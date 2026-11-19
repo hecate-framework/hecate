@@ -26,6 +26,8 @@ luarocks.github.io
 dist.libuv.org
 www.sqlite.org
 sqlite.org
+www.unicode.org
+unicode.org
 ```
 
 GitHub, the Docker registries, Ubuntu archives and the npm/PyPI registries are already in

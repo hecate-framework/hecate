@@ -507,5 +507,8 @@ return function(options)
   end
 
   local frozen = values.freeze(built, wrapper_of(options), secret_paths, "", root)
-  return Configuration(frozen, index, sources, environment)
+  local declared_secrets = {}
+  for path in pairs(secret_paths) do declared_secrets[#declared_secrets + 1] = path end
+  table.sort(declared_secrets)
+  return Configuration(frozen, index, sources, environment, root, declared_secrets)
 end

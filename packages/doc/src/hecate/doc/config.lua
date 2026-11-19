@@ -3,6 +3,7 @@ global <const> require, type, ipairs, pairs, next, error, tostring, table, strin
 
 local core = require("hecate.core")
 local html = require("hecate.doc.internal.html")
+local options = require("hecate.doc.internal.options")
 
 --- Validation and defaults of the site configuration.
 ---@class hecate.doc.config
@@ -13,9 +14,11 @@ local M = {}
 ---@field label string  name shown in the locale switch, in that language ("Français")
 ---@field lang string  BCP 47 tag for the `lang` attribute (defaults to `code`)
 
+---@alias hecate.doc.Audience "user"|"maintainer"  who a page is written for (glossary: user documentation, maintainer documentation)
+
 ---@alias hecate.doc.Text string|table<string, string>  a string, or one string per locale code
 
----@class hecate.doc.NavLink
+---@class hecate.doc.TopLinkEntry
 ---@field text hecate.doc.Text
 ---@field link string  path relative to the locale root ("reference/"), or an absolute URL
 
@@ -24,22 +27,30 @@ local M = {}
 ---@field link? string  page path without extension, relative to the locale root
 ---@field items? (string|hecate.doc.SidebarItem)[]
 
----@class hecate.doc.SiteConfig
+---@class hecate.doc.SiteConfiguration
 ---@field title string  site name; the name of the project is never capitalised (brand kit)
 ---@field description? hecate.doc.Text
----@field base? string  URL path the site is served under ("/" or "/hecate/"), default "/"
----@field url? string  public origin, for canonical links and the sitemap
+---@field base_path? string  URL path the site is served under ("/" or "/hecate/"), default "/"
+---@field site_origin? string  public origin of the site (scheme, host, port), for canonical links and the sitemap
 ---@field default_locale? string  default "en"
 ---@field locales? hecate.doc.Locale[]  default: the default locale only
----@field nav? hecate.doc.NavLink[]  top navigation; default: the top-level sections
+---@field top_links? hecate.doc.TopLinkEntry[]  links of the top navigation; default: the top-level sections
 ---@field sidebar? table<string, (string|hecate.doc.SidebarItem)[]>  explicit sidebar per top-level section
----@field repository? string  repository URL, shown as the GitHub link
----@field edit_link? string  pattern with `{path}` (path of the source file below the content root)
----@field source_edit_link? string  pattern with `{path}` for generated pages (repository path of the source file in their `source` front matter)
+---@field repository_url? string  repository URL, shown as the GitHub link
+---@field edit_link_template? string  URL template with `{path}` (path of the source file below the content root)
+---@field source_edit_link_template? string  URL template with `{path}` for generated pages (repository path of the source file in their `source` front matter)
 ---@field footer? hecate.doc.Text
----@field outline? integer[]  heading levels listed in "On this page" (default { 2, 3 })
----@field strings? table<string, table<string, string>>  overrides of the interface strings per locale
----@field exclude? string[]  file names left out of the site (default { "README.md" })
+---@field outline_levels? integer[]  heading levels listed in "On this page" (default { 2, 3 })
+---@field interface_strings? table<string, table<string, string>>  overrides of the interface strings per locale
+---@field logo_path? string|{ light: string, dark?: string }  logo of the project: file(s) of `public/` replacing the brand logo (shown as they are, never recoloured); a string is used for both colour schemes
+---@field favicon_path? string|{ light: string, dark?: string }  favicon of the project: file(s) of `public/` (`.svg`, `.png` or `.ico`) replacing the Hecate favicon; with `dark`, each file is announced with a `prefers-color-scheme` media query
+---@field sidebar_marker? boolean  draw an accent bar at the left of the current page in the sidebar tree; default false (the current page is then shown by a stronger weight and a tint)
+---@field stylesheet_path? string  CSS file (`.css`) of `public/` loaded after the stylesheet of the theme, to override its custom properties: colours (light and dark), highlighting, the three font families, radii, spacing, sidebar width (OQ-38); it may declare its own `@font-face` for font files of `public/`
+---@field generate_llms_txt? boolean  write `llms.txt` and `llms-full.txt` (llmstxt.org) for the published pages of the default locale; default false
+---@field exclude_file_names? string[]  file names left out of the site (default { "README.md" })
+---@field audiences? hecate.doc.Audience[]  audiences published (default `{ "maintainer" }`: `hecate.doc` serves the team of a project first): a page whose audience is not listed is absent from the site and links to it are reported
+---@field default_audience? hecate.doc.Audience  audience of a page without the `audience` front matter key (default: the first of `audiences`, so `audiences = { "user" }` publishes the unlabelled pages; with `audiences = { "user", "maintainer" }` they are `user` pages)
+---@field audience_sites? "separate"|"merged"  with several audiences published: `separate` (default) writes one complete site per audience below `<output_dir>/<audience>/`, `merged` one site holding every published audience (the Hecate website, until its restructure, OQ-144); with one audience published both write `<output_dir>/`
 
 local function invalid(field, message)
   error(core.ConfigurationError({
@@ -85,11 +96,11 @@ local function check_sidebar(value)
   end
 end
 
-local function check_strings(value)
-  if type(value) ~= "table" then invalid("strings", "expected a table of interface strings per locale") end
+local function check_interface_strings(value)
+  if type(value) ~= "table" then invalid("interface_strings", "expected a table of interface strings per locale") end
   for code, overrides in pairs(value) do
-    if type(code) ~= "string" then invalid("strings", "expected locale codes as keys") end
-    local field = "strings." .. code
+    if type(code) ~= "string" then invalid("interface_strings", "expected locale codes as keys") end
+    local field = "interface_strings." .. code
     if type(overrides) ~= "table" then invalid(field, "expected a table of interface strings") end
     for key, text in pairs(overrides) do
       if type(key) ~= "string" or type(text) ~= "string" then
@@ -102,50 +113,143 @@ end
 -- A public origin: http or https, a host, no whitespace or control characters (RFC 3986, 3.1 and 3.2).
 local function check_origin(value)
   if type(value) ~= "string" or value:find("[%c%s\\]") or not value:lower():find("^https?://[^/?#]+") then
-    invalid("url", "expected an origin such as https://example.org")
+    invalid("site_origin", "expected an origin such as https://example.org")
   end
 end
 
 -- The path the site is served under: absolute, not protocol-relative (RFC 3986, 4.2: a reference starting with
 -- `//` is a network-path reference that names another host), made of unreserved characters, sub-delimiters
 -- and percent-encodings only.
-local function check_base(value)
-  if type(value) ~= "string" or not value:find("^/") then invalid("base", "expected a path starting with /") end
-  if value:find("^//") then invalid("base", "expected a path starting with a single / (a protocol-relative base names another host)") end
+local function check_base_path(value)
+  if type(value) ~= "string" or not value:find("^/") then invalid("base_path", "expected a path starting with /") end
+  if value:find("^//") then invalid("base_path", "expected a path starting with a single / (a protocol-relative base names another host)") end
   if value:find("[^%w%-._~!$&'()*+,;=:@/%%]") then
-    invalid("base", "expected a path without spaces, backslashes, `?`, `#` or control characters")
+    invalid("base_path", "expected a path without spaces, backslashes, `?`, `#` or control characters")
   end
 end
 
+-- A file of `public/`: a relative path of plain segments (no scheme, no `.`, `..` or hidden segment, no
+-- backslash, no query). Hidden files are not copied to the site, so naming one could never work.
+local function check_public_path(field, value)
+  local ok = type(value) == "string" and value ~= "" and not value:find("^/") and not value:find("[%c\\?#:%%]")
+    and not value:find("//", 1, true) and not value:find("/$")
+  if ok then
+    for segment in value:gmatch("[^/]+") do
+      if segment:sub(1, 1) == "." then ok = false end
+    end
+  end
+  if not ok then
+    invalid(field, "expected the path of a file of public/, relative, without `.`, `..` or hidden segments")
+  end
+end
+
+-- Media types of the favicon formats a browser accepts in `<link rel="icon">` (HTML Living Standard, 4.6.7.9 and
+-- 4.2.6: the `type` attribute is a hint that lets a browser skip a format it does not support).
+local FAVICON_TYPES = { svg = "image/svg+xml", png = "image/png", ico = "image/x-icon" }
+
+--- Media type of a favicon file, from its extension; `nil` when the extension is not supported.
+---@param path string
+---@return string?
+function M.favicon_type(path)
+  local extension = path:match("%.(%w+)$")
+  return extension and FAVICON_TYPES[extension:lower()] or nil
+end
+
+local function check_favicon_path(field, value)
+  check_public_path(field, value)
+  if not M.favicon_type(value) then invalid(field, "expected an .svg, .png or .ico file") end
+end
+
+--- The audiences a page can be written for.
+M.AUDIENCES = { user = true, maintainer = true }
+
 --- Validates a configuration table and fills in the defaults. Raises
 --- `hecate.core.ConfigurationError` (with `context.field`) on the first problem.
----@param raw hecate.doc.SiteConfig
----@return hecate.doc.SiteConfig
+---@param raw hecate.doc.SiteConfiguration
+---@return hecate.doc.SiteConfiguration
 function M.normalise(raw)
-  if type(raw) ~= "table" then invalid("config", "expected a table") end
+  if type(raw) ~= "table" then invalid("site_configuration", "expected a table") end
+  -- A key that is not on the list does nothing: an old name (`colors`, `theme`, `logo`) or a typo is refused.
+  options.check_site_keys(raw, invalid)
   if type(raw.title) ~= "string" or raw.title == "" then invalid("title", "expected a non-empty string") end
   check_text("description", raw.description)
   check_text("footer", raw.footer)
-  if raw.repository ~= nil and (type(raw.repository) ~= "string" or not html.is_safe_url(raw.repository)) then
-    invalid("repository", "expected a URL with a safe scheme (http, https)")
+  if raw.repository_url ~= nil and (type(raw.repository_url) ~= "string" or not html.is_safe_url(raw.repository_url)) then
+    invalid("repository_url", "expected a URL with a safe scheme (http, https)")
   end
-  if raw.url ~= nil then check_origin(raw.url) end
-  if raw.exclude ~= nil then
-    check_list("exclude", raw.exclude, function(name, item)
+  if raw.site_origin ~= nil then check_origin(raw.site_origin) end
+  if raw.exclude_file_names ~= nil then
+    check_list("exclude_file_names", raw.exclude_file_names, function(name, item)
       if type(item) ~= "string" or item == "" or item:find("/", 1, true) then
         invalid(name, "expected a file name without a directory part")
       end
     end)
   end
-  if raw.outline ~= nil then
-    check_list("outline", raw.outline, function(_, level)
-      if math.type(level) ~= "integer" or level < 1 or level > 6 then invalid("outline", "expected heading levels 1 to 6") end
+  if raw.outline_levels ~= nil then
+    check_list("outline_levels", raw.outline_levels, function(_, level)
+      if math.type(level) ~= "integer" or level < 1 or level > 6 then invalid("outline_levels", "expected heading levels 1 to 6") end
     end)
   end
+  local audiences = { "maintainer" }
+  if raw.audiences ~= nil then
+    local seen_audience = {}
+    check_list("audiences", raw.audiences, function(name, item)
+      if type(item) ~= "string" or not M.AUDIENCES[item] then invalid(name, 'expected "user" or "maintainer"') end
+      if seen_audience[item] then invalid(name, "duplicate audience " .. item) end
+      seen_audience[item] = true
+    end)
+    if #raw.audiences == 0 then invalid("audiences", 'expected at least one of "user", "maintainer"') end
+    audiences = {}
+    for index, item in ipairs(raw.audiences) do audiences[index] = item end
+  end
+  if raw.default_audience ~= nil and (type(raw.default_audience) ~= "string" or not M.AUDIENCES[raw.default_audience]) then
+    invalid("default_audience", 'expected "user" or "maintainer"')
+  end
+  if raw.audience_sites ~= nil and raw.audience_sites ~= "separate" and raw.audience_sites ~= "merged" then
+    invalid("audience_sites", 'expected "separate" or "merged"')
+  end
+  local logo
+  if raw.logo_path ~= nil then
+    if type(raw.logo_path) == "string" then
+      check_public_path("logo_path", raw.logo_path)
+      logo = { light = raw.logo_path }
+    elseif type(raw.logo_path) == "table" then
+      check_public_path("logo_path.light", raw.logo_path.light)
+      if raw.logo_path.dark ~= nil then check_public_path("logo_path.dark", raw.logo_path.dark) end
+      logo = { light = raw.logo_path.light, dark = raw.logo_path.dark }
+    else
+      invalid("logo_path", "expected a path or { light, dark }")
+    end
+  end
+  local favicon
+  if raw.favicon_path ~= nil then
+    if type(raw.favicon_path) == "string" then
+      check_favicon_path("favicon_path", raw.favicon_path)
+      favicon = { light = raw.favicon_path }
+    elseif type(raw.favicon_path) == "table" then
+      check_favicon_path("favicon_path.light", raw.favicon_path.light)
+      if raw.favicon_path.dark ~= nil then check_favicon_path("favicon_path.dark", raw.favicon_path.dark) end
+      favicon = { light = raw.favicon_path.light, dark = raw.favicon_path.dark }
+    else
+      invalid("favicon_path", "expected a path or { light, dark }")
+    end
+  end
+  if raw.sidebar_marker ~= nil and type(raw.sidebar_marker) ~= "boolean" then
+    invalid("sidebar_marker", "expected true or false")
+  end
+  if raw.stylesheet_path ~= nil then
+    check_public_path("stylesheet_path", raw.stylesheet_path)
+    if not raw.stylesheet_path:lower():find("%.css$") then
+      invalid("stylesheet_path", "expected a CSS file (a name ending in .css)")
+    end
+  end
+  if raw.generate_llms_txt ~= nil and type(raw.generate_llms_txt) ~= "boolean" then
+    invalid("generate_llms_txt", "expected true or false")
+  end
   if raw.sidebar ~= nil then check_sidebar(raw.sidebar) end
-  if raw.strings ~= nil then check_strings(raw.strings) end
-  for _, key in ipairs({ "edit_link", "source_edit_link" }) do
-    if raw[key] ~= nil and type(raw[key]) ~= "string" then invalid(key, "expected a pattern containing {path}") end
+  if raw.interface_strings ~= nil then check_interface_strings(raw.interface_strings) end
+  for _, key in ipairs({ "edit_link_template", "source_edit_link_template" }) do
+    if raw[key] ~= nil and type(raw[key]) ~= "string" then invalid(key, "expected a template containing {path}") end
   end
   if raw.default_locale ~= nil and type(raw.default_locale) ~= "string" then invalid("default_locale", "expected a locale code") end
   if raw.locales ~= nil and type(raw.locales) ~= "table" then invalid("locales", "expected a list of { code, label, lang }") end
@@ -153,20 +257,28 @@ function M.normalise(raw)
     title = raw.title,
     description = raw.description,
     footer = raw.footer,
-    url = raw.url and (raw.url:gsub("/+$", "")),
-    repository = raw.repository,
-    edit_link = raw.edit_link,
-    source_edit_link = raw.source_edit_link,
+    site_origin = raw.site_origin and (raw.site_origin:gsub("/+$", "")),
+    repository_url = raw.repository_url,
+    logo_path = logo,
+    favicon_path = favicon,
+    sidebar_marker = raw.sidebar_marker == true,
+    stylesheet_path = raw.stylesheet_path,
+    generate_llms_txt = raw.generate_llms_txt == true,
+    edit_link_template = raw.edit_link_template,
+    source_edit_link_template = raw.source_edit_link_template,
     sidebar = raw.sidebar or {},
-    strings = raw.strings or {},
-    exclude = raw.exclude or { "README.md" },
-    outline = raw.outline or { 2, 3 },
+    interface_strings = raw.interface_strings or {},
+    exclude_file_names = raw.exclude_file_names or { "README.md" },
+    outline_levels = raw.outline_levels or { 2, 3 },
+    audiences = audiences,
+    default_audience = raw.default_audience or audiences[1],
+    audience_sites = raw.audience_sites or "separate",
   }
-  local base = raw.base
-  if base == nil then base = "/" end
-  check_base(base)
-  ---@cast base string
-  config.base = (base:gsub("/*$", "/"))
+  local base_path = raw.base_path
+  if base_path == nil then base_path = "/" end
+  check_base_path(base_path)
+  ---@cast base_path string
+  config.base_path = (base_path:gsub("/*$", "/"))
   config.default_locale = raw.default_locale or "en"
   local locales = raw.locales or { { code = config.default_locale, label = config.default_locale } }
   config.locales = {}
@@ -188,24 +300,24 @@ function M.normalise(raw)
   if not seen[config.default_locale] then
     invalid("default_locale", "the default locale " .. config.default_locale .. " is not in `locales`")
   end
-  config.nav = nil
-  if raw.nav ~= nil then
-    if type(raw.nav) ~= "table" then invalid("nav", "expected a list of { text, link }") end
-    config.nav = {}
-    for index, entry in ipairs(raw.nav) do
+  config.top_links = nil
+  if raw.top_links ~= nil then
+    if type(raw.top_links) ~= "table" then invalid("top_links", "expected a list of { text, link }") end
+    config.top_links = {}
+    for index, entry in ipairs(raw.top_links) do
       if type(entry) ~= "table" or type(entry.link) ~= "string" then
-        invalid("nav[" .. index .. "]", "expected { text = ..., link = \"path/\" }")
+        invalid("top_links[" .. index .. "]", "expected { text = ..., link = \"path/\" }")
       end
-      if not html.is_safe_url(entry.link) then invalid("nav[" .. index .. "].link", "unsafe URL scheme") end
-      check_text("nav[" .. index .. "].text", entry.text)
-      config.nav[index] = { text = entry.text, link = entry.link }
+      if not html.is_safe_url(entry.link) then invalid("top_links[" .. index .. "].link", "unsafe URL scheme") end
+      check_text("top_links[" .. index .. "].text", entry.text)
+      config.top_links[index] = { text = entry.text, link = entry.link }
     end
   end
-  if config.edit_link and not config.edit_link:find("{path}", 1, true) then
-    invalid("edit_link", "expected a pattern containing {path}")
+  if config.edit_link_template and not config.edit_link_template:find("{path}", 1, true) then
+    invalid("edit_link_template", "expected a template containing {path}")
   end
-  if config.source_edit_link and not config.source_edit_link:find("{path}", 1, true) then
-    invalid("source_edit_link", "expected a pattern containing {path}")
+  if config.source_edit_link_template and not config.source_edit_link_template:find("{path}", 1, true) then
+    invalid("source_edit_link_template", "expected a template containing {path}")
   end
   return config
 end

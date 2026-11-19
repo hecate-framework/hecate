@@ -278,14 +278,14 @@ end
 
 function T:test_a_site_with_the_generated_pages_builds_in_strict_mode_with_a_sidebar_entry_per_page()
   local files = {
-    ["site.lua"] = "return { title = 'demo', nav = { { text = 'Reference', link = 'reference/' } } }",
+    ["site.lua"] = "return { title = 'demo', top_links = { { text = 'Reference', link = 'reference/' } } }",
     ["en/index.md"] = "---\ntitle: Home\n---\n\n# Home\n\nSee the [reference](reference/demo/index.md).\n",
   }
   local result = generate()
   for path, content in pairs(result.pages) do files["en/" .. path] = content end
   local memory = doc.MemoryFileSystem(files)
   local report = doc.build({
-    config = doc.load_config("site.lua", memory), source = ".", out = "dist", fs = memory, strict = true,
+    site_configuration = doc.load_site_configuration(memory, "site.lua"), guides_dir = ".", output_dir = "dist", file_system = memory, fail_on_problems = true,
   })
   self:assert_equal(0, #report.problems, table.concat(report.problems, "\n"))
   local page = memory:read("dist/en/reference/demo/Counter/index.html")
@@ -302,6 +302,103 @@ for name, method in pairs(T) do
   if type(name) == "string" and name:find("^test_") and type(method) == "function" then
     T[name] = function(...) return reactor.run(method, ...) end
   end
+end
+
+-- Audiences (OQ-144): internal modules and non-public symbols are maintainer documentation.
+local function export_with_visibility()
+  local export = json.decode(export_text)
+  for _, entry in ipairs(export) do
+    if entry.name == "hecate.demo.Counter" then
+      for _, field in ipairs(entry.fields) do
+        if field.name == "_secret" then
+          for index, name in ipairs({ "pkg_only", "priv_only", "prot_only" }) do
+            local copy = json.decode(json.encode(field))
+            copy.name = name
+            copy.visible = ({ "package", "private", "protected" })[index]
+            entry.fields[#entry.fields + 1] = copy
+          end
+        end
+      end
+    end
+  end
+  export[#export + 1] = { name = "hecate.demo.internal.Hidden", type = "type", fields = {}, rawdesc = " Hidden.",
+    defines = { { type = "doc.class", file = "hecate/demo/internal/hidden.lua", visible = "public", rawdesc = " Hidden." } } }
+  export[#export + 1] = { name = "hecate.demo.Restricted", type = "type", fields = {}, rawdesc = " Restricted.",
+    defines = { { type = "doc.class", file = "hecate/demo/restricted.lua", visible = "package", rawdesc = " Restricted." } } }
+  return export
+end
+
+local function audience_of(content)
+  return content:match("\naudience: (%a+)\n")
+end
+
+function T:test_symbols_that_are_not_public_are_never_listed_as_members()
+  local result = generate({ { name = "demo", export = export_with_visibility() } }, { examples = examples })
+  for _, path in ipairs(result.order) do
+    for _, name in ipairs({ "pkg_only", "priv_only", "prot_only" }) do
+      self:assert_nil(result.pages[path]:find(name, 1, true), path .. " lists " .. name)
+    end
+  end
+end
+
+function T:test_by_default_internal_and_non_public_classes_are_not_generated_and_pages_carry_no_audience()
+  local plain = generate()
+  local result = generate({ { name = "demo", export = export_with_visibility() } }, { examples = examples })
+  self:assert_equal(#plain.order, #result.order)
+  for _, path in ipairs(result.order) do self:assert_nil(audience_of(result.pages[path]), path) end
+end
+
+function T:test_with_internal_the_internal_and_non_public_classes_are_maintainer_pages()
+  local result = generate({ { name = "demo", export = export_with_visibility() } },
+    { examples = examples, internal = true, label_audiences = true })
+  local plain = generate()
+  self:assert_equal(#plain.order + 2, #result.order)
+  local maintainer, user = {}, 0
+  for _, path in ipairs(result.order) do
+    local audience = audience_of(result.pages[path])
+    self:assert_not_nil(audience, path)
+    if audience == "maintainer" then maintainer[#maintainer + 1] = path else user = user + 1 end
+  end
+  self:assert_equal("reference/demo/Hidden.md,reference/demo/Restricted.md", table.concat(maintainer, ","))
+  self:assert_equal(#plain.order, user)
+end
+
+function T:test_an_audience_as_label_audiences_labels_every_page_with_it()
+  local result = generate(nil, { examples = examples, internal = true, label_audiences = "maintainer" })
+  for _, path in ipairs(result.order) do self:assert_equal("maintainer", audience_of(result.pages[path]), path) end
+end
+
+function T:test_with_internal_alone_pages_carry_no_audience_key()
+  local result = generate({ { name = "demo", export = export_with_visibility() } }, { examples = examples, internal = true })
+  for _, path in ipairs(result.order) do self:assert_nil(audience_of(result.pages[path]), path) end
+end
+
+function T:test_labelled_public_pages_are_user_pages()
+  local result = generate(nil, { examples = examples, label_audiences = true })
+  for _, path in ipairs(result.order) do self:assert_equal("user", audience_of(result.pages[path]), path) end
+end
+
+function T:test_separate_audience_sites_make_each_page_link_only_to_pages_of_its_audience()
+  local inputs = { { name = "demo", export = export_with_visibility() } }
+  local function opts(separate)
+    return { examples = examples, internal = true, label_audiences = true, separate_audience_sites = separate }
+  end
+  local joined = generate(inputs, opts(false))
+  local separate = generate(inputs, opts(true))
+  self:assert_equal(table.concat(joined.order, ","), table.concat(separate.order, ","), "the same pages")
+  -- The module page names the classes of its audience only.
+  self:assert_not_nil(joined.pages["reference/demo/index.md"]:find("Hidden", 1, true))
+  self:assert_nil(separate.pages["reference/demo/index.md"]:find("Hidden", 1, true))
+  self:assert_nil(separate.pages["reference/demo/index.md"]:find("Restricted", 1, true))
+  -- A page of the other audience has no link to the module page, a page of its own has.
+  self:assert_nil(separate.pages["reference/demo/Hidden.md"]:find("](index.md", 1, true))
+  self:assert_not_nil(joined.pages["reference/demo/Hidden.md"]:find("](index.md", 1, true))
+  -- One audience for every page, or no labels: the option changes nothing.
+  local one = generate(inputs, { examples = examples, internal = true, label_audiences = "maintainer", separate_audience_sites = true })
+  local same = generate(inputs, { examples = examples, internal = true, label_audiences = "maintainer" })
+  for _, path in ipairs(same.order) do self:assert_equal(same.pages[path], one.pages[path], path) end
+  -- A wrong name is refused by the closed list.
+  self:assert_error(function() generate(inputs, { separate_sites = true }) end)
 end
 
 return T

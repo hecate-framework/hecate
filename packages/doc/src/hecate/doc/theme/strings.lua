@@ -1,5 +1,5 @@
 -- Interface strings of the theme, per locale. English is the source; a locale without a
--- string falls back to English. Sites override or add locales with `config.strings`.
+-- string falls back to English. Sites override or add locales with `interface_strings`.
 -- The name of the project is never capitalised (brand kit), including in these strings.
 global <const> pairs, ipairs, tostring, tonumber
 
@@ -42,6 +42,14 @@ M.catalogue = {
     copied = "Copied",
     copy_failed = "Copy failed",
     table = "Table",
+    diagram = "Diagram",
+    diagram_failed = "The diagram could not be drawn; its source is shown instead.",
+    diagram_controls = "Diagram controls",
+    diagram_zoom_in = "Zoom in",
+    diagram_zoom_out = "Zoom out",
+    diagram_reset = "Reset the view",
+    diagram_fullscreen = "Full screen",
+    diagram_exit_fullscreen = "Exit full screen",
     note = "Note",
     tip = "Tip",
     warning = "Warning",
@@ -87,6 +95,14 @@ M.catalogue = {
     copied = "Copié",
     copy_failed = "Échec de la copie",
     table = "Tableau",
+    diagram = "Diagramme",
+    diagram_failed = "Le diagramme n’a pas pu être dessiné ; sa source est affichée à la place.",
+    diagram_controls = "Commandes du diagramme",
+    diagram_zoom_in = "Zoom avant",
+    diagram_zoom_out = "Zoom arrière",
+    diagram_reset = "Réinitialiser la vue",
+    diagram_fullscreen = "Plein écran",
+    diagram_exit_fullscreen = "Quitter le plein écran",
     note = "Note",
     tip = "Astuce",
     warning = "Attention",

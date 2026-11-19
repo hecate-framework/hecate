@@ -30,6 +30,22 @@ The three licence files name no Reserved Font Name. Open question OQ-34 asks the
 confirm that redistributing the subsetted files under their original names is acceptable.
 
 
+1b. Font of the hello example documentation
+-------------------------------------------
+
+Location: examples/hello/docs/public/fonts/ (inter-latin-400-normal.woff2, -500-, -600-; licence text in
+OFL-inter.txt).
+Licence: SIL Open Font License, Version 1.1.
+Obtained from: the npm package @fontsource/inter, version 5.3.0 (Fontsource, MIT; Latin subset of the Google Fonts
+distribution, in WOFF2). Unmodified by Hecate.
+
+- Inter (400, 500, 600)
+  Copyright 2016 The Inter Project Authors (https://github.com/rsms/inter)
+
+The licence file names no Reserved Font Name. The files are shipped as the showcase site's own font, loaded by its
+own @font-face; the documentation theme does not use them.
+
+
 2. Hecate brand kit
 -------------------
 
@@ -69,30 +85,50 @@ are pinned in packages/json/native/Cargo.lock and audited by `cargo deny` (ADR 0
 
 Location: packages/doc/native/ (pinned in Cargo.lock, checked by `cargo deny` and `cargo audit`,
 ADR 0022; the crates are compiled into the native module and are not vendored in the repository).
-- comrak 0.52: Markdown. Licence: BSD-2-Clause, Copyright (c) 2017-2025, Comrak contributors
+- comrak 0.59.0: Markdown. Licence: BSD-2-Clause, Copyright (c) 2017–2025, Comrak contributors
   (https://github.com/kivikakk/comrak, file COPYING; it also carries the notice of cmark-gfm,
   from which comrak is derived). The licence requires that binary distributions reproduce this
   notice and disclaimer: the release artefacts of the native module must ship it.
-- finl_unicode 1.5 (a dependency of comrak): (MIT OR Apache-2.0) AND Unicode-DFS-2016; the Unicode
+- finl_unicode 1.5.0 (a dependency of comrak): (MIT OR Apache-2.0) AND Unicode-DFS-2016; the Unicode
   licence of its data files is in the crate (LICENSE-UNICODE), to be shipped the same way.
-- syntect 5.3 (MIT) and two-face 0.4.5 (MIT OR Apache-2.0): syntax highlighting. two-face embeds
+- syntect 5.3.0 (MIT) and two-face 0.5.2 (MIT OR Apache-2.0, bat 0.26.1): syntax highlighting. two-face embeds
   syntax definitions (from the `bat` project, themselves from Sublime Text packages) under their
-  own licences. Audit (ADR 0022), made 2026-10-21 from `two_face::acknowledgement::listing()` of
-  the locked version: 59 licence files cover the embedded syntaxes: MIT (48), Apache-2.0 (8:
+  own licences. Audit of 2026-10-21, superseded by the generated page below (ADR 0022; made from
+  `two_face::acknowledgement::listing()` of two-face 0.4.5, the version locked then): 59 licence files cover the embedded syntaxes: MIT (48), Apache-2.0 (8:
   Crystal, Jsonnet, Kotlin, Lean, NSIS, SLS, SystemVerilog, TypeScript), BSD-2-Clause (2: Org mode,
   Apache conf) and BSD-3-Clause (1: HTML (Twig)). No copyleft, no custom or non-commercial
   licence, no entry of type "Sublime". All of them require the copyright notice and licence text
   to accompany binary distributions: the release artefacts of the native module must ship the full
-  text, which `acknowledgements_full.md` of two-face (two_face::acknowledgement::url()) compiles;
-  the release tooling generates it. The themes of two-face are not used. The default Sublime
+  text. State of 2026-11-18: `lua tools/run.lua gen-rust-licences` reproduces it, in
+  packages/doc/native/LICENSES-rust.md, from `two_face::acknowledgement::listing()` of the locked
+  version (the crate ships the texts only inside a compressed dump, so the task reads them with a
+  helper, packages/doc/native/examples/acknowledgements.rs, which uses crates the module already
+  depends on; the Markdown page `acknowledgements_full.md` of two-face is a page of its repository,
+  not a file of the crate). The locked two-face 0.5.2 (bat 0.26.1) lists 66 licence files, more than
+  the audit above: MIT (50), Apache-2.0 (13), BSD-2-Clause (2, one of them tagged FreeBSD by the
+  crate) and BSD-3-Clause (1); still no copyleft, custom, non-commercial or "Sublime" entry. The
+  themes of two-face are not used. The default Sublime
   packages bundled by syntect itself are not used either (the `two_face::syntax::extra_newlines`
   set is).
 Test data, not shipped: the examples of the CommonMark specification 0.31.2
 (https://github.com/commonmark/commonmark-spec, CC BY-SA 4.0) and of the GFM specification
 0.29.gfm.13 (https://github.com/github/cmark-gfm) are downloaded by `fetch-fixtures doc` for
 the tests (packages/doc/tests/external.lua) and git-ignored.
-The notices of the whole crate tree (about 70 crates) are to be generated for the release
-artefacts by the release tooling.
+The notices of the whole crate tree are generated, not hand-written: `lua tools/run.lua
+gen-rust-licences` writes one page per Rust native module (packages/doc/native/LICENSES-rust.md,
+packages/json/native/LICENSES-rust.md, packages/net/native/LICENSES-rust.md) with, for every crate of
+the locked normal dependency graph (the targets of deny.toml), its name, version, declared SPDX
+expression, the licence it relies on (the first alternative of an `OR` that the allow list of deny.toml accepts, else
+the first permissive one) and the text of
+its licence files (LICENSE*, COPYING*, NOTICE*, UNICODE*, ...), identical texts once. A crate that
+declares an SPDX identifier and ships no file (mlua-sys and mlua_derive) gets the standard SPDX text,
+which the page says; a crate without a permissive choice or without any text fails the task. The
+pages are committed; `gen-rust-licences --check` (CI static checks) and `check-licenses` fail when
+a Cargo.lock changed without regenerating its page. These pages, not the lists above, are the
+reference. The binary release artefacts of the native modules must ship the page of their module:
+that remains a release-time item (roadmap, release automation), done when the binary rocks exist.
+The Rust crates are build tools of the documentation module: the sites it generates do not bundle
+them and their licences are not on the licences page of a generated site.
 
 
 6. Not third-party
@@ -110,3 +146,78 @@ upstream and SHA-256 of each file in VENDORED.md in the same directory).
 Source: https://github.com/nodejs/llhttp, `release` branch, tag release/v9.4.3, commit
 0e815792b167a9bd8ace259b95b7da953776c288. Licence: MIT, Copyright Fedor Indutny, 2018.
 Unmodified by Hecate (ADR 0019).
+
+
+7. Unicode Character Database (tables of hecate-unicode-data)
+-------------------------------------------------------------
+
+Location: packages/unicode-data/src/hecate/unicode_data/ (generated tables; the licence text is also in
+packages/unicode-data/LICENSE, and every generated file starts with the notice below).
+Source: the Unicode Character Database, version 18.0.0, files UnicodeData.txt and
+DerivedNormalizationProps.txt (https://www.unicode.org/Public/18.0.0/ucd/). The tables are derived from
+these files by `lua tools/run.lua gen-unicode` (canonical combining classes, canonical decompositions
+and primary composition pairs). The input files are downloaded for the generator and are not vendored.
+Licence: Unicode License v3 (SPDX Unicode-3.0), a permissive licence that requires this notice to
+accompany the data and its derivatives. The rock hecate-unicode-data declares Unicode-3.0; the rest of
+Hecate is MIT. Decision: ADR 0032.
+Test data, not shipped: NormalizationTest.txt of the same version is downloaded by
+`fetch-fixtures unicode` for the conformance test (packages/unicode/tests/external.lua) and
+git-ignored.
+
+    UNICODE LICENSE V3
+
+    COPYRIGHT AND PERMISSION NOTICE
+
+    Copyright © 1991-2026 Unicode, Inc.
+
+    NOTICE TO USER: Carefully read the following legal agreement. BY
+    DOWNLOADING, INSTALLING, COPYING OR OTHERWISE USING DATA FILES, AND/OR
+    SOFTWARE, YOU UNEQUIVOCALLY ACCEPT, AND AGREE TO BE BOUND BY, ALL OF THE
+    TERMS AND CONDITIONS OF THIS AGREEMENT. IF YOU DO NOT AGREE, DO NOT
+    DOWNLOAD, INSTALL, COPY, DISTRIBUTE OR USE THE DATA FILES OR SOFTWARE.
+
+    Permission is hereby granted, free of charge, to any person obtaining a
+    copy of data files and any associated documentation (the "Data Files") or
+    software and any associated documentation (the "Software") to deal in the
+    Data Files or Software without restriction, including without limitation
+    the rights to use, copy, modify, merge, publish, distribute, and/or sell
+    copies of the Data Files or Software, and to permit persons to whom the
+    Data Files or Software are furnished to do so, provided that either (a)
+    this copyright and permission notice appear with all copies of the Data
+    Files or Software, or (b) this copyright and permission notice appear in
+    associated Documentation.
+
+    THE DATA FILES AND SOFTWARE ARE PROVIDED "AS IS", WITHOUT WARRANTY OF ANY
+    KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+    MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT OF
+    THIRD PARTY RIGHTS.
+
+    IN NO EVENT SHALL THE COPYRIGHT HOLDER OR HOLDERS INCLUDED IN THIS NOTICE
+    BE LIABLE FOR ANY CLAIM, OR ANY SPECIAL INDIRECT OR CONSEQUENTIAL DAMAGES,
+    OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS,
+    WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION,
+    ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THE DATA
+    FILES OR SOFTWARE.
+
+    Except as contained in this notice, the name of a copyright holder shall
+    not be used in advertising or otherwise to promote the sale, use or other
+    dealings in these Data Files or Software without prior written
+    authorization of the copyright holder.
+
+
+8. Mermaid (diagrams in the browser)
+------------------------------------
+
+Location: packages/doc/src/hecate/doc/theme/assets/mermaid/ (mermaid.min.js, LICENSE; version, upstream, SHA-256
+of each file and the bundled components in VENDORED.md in the same directory). The initialiser
+packages/doc/src/hecate/doc/theme/assets/mermaid-init.js is original Hecate work. The file is written to a built
+site, and loaded by a page, only when the page holds a diagram.
+Source: https://github.com/mermaid-js/mermaid, npm package mermaid 12.3.0, file dist/mermaid.min.js.
+Unmodified by Hecate (ADR 0033, Proposed).
+Licence: MIT, Copyright (c) 2014 - 2022 Knut Sveidqvist (text in LICENSE next to the file).
+The file bundles other packages, with the licences they declare on npm (checked 2026-11-17): MIT (@braintree/sanitize-url,
+@iconify/utils, @upsetjs/venn.js, cytoscape, cytoscape-cose-bilkent, cytoscape-fcose, dagre-d3-es, dayjs, es-toolkit,
+katex, khroma, marked, roughjs, stylis, ts-dedent, @mermaid-js/parser), ISC (d3), BSD-3-Clause (d3-sankey), Apache-2.0
+(chevrotain), MPL-2.0 OR Apache-2.0 (dompurify, used under Apache-2.0; its notice stays in the file as a comment) and
+EPL-2.0 OR GPL-3.0-or-later (elkjs, used under EPL-2.0). The full licence texts of the bundled packages are not
+reproduced: whether naming them is enough for release artefacts is for the owner to decide (ADR 0033).

@@ -205,8 +205,9 @@ generation of `---@meta` files for LuaLS, carried by `doc` or `cli`.
 - Problem details schemas (RFC 9457) are included and referenced by error responses.
 - Output: JSON. Deterministic ordering, so that diffs are stable. YAML is later, from a library and behind
   `hecate contract export --format yaml`, after an ADR for the dependency (OQ-137).
-- Served at `/openapi.json` when enabled (default on in development), with an optional
-  interactive reference page (embedded static assets; no CDN dependency).
+- Served at `/openapi.json` when enabled (default on in development). The application serves no
+  reference page: a viewer is the user's own wiring, shown as a compose example of the Docker
+  images item (OQ-135).
 - `hecate contract export` writes it; `hecate contract diff <ref>` compares two
   contracts and classifies changes as breaking or non-breaking (removed route, narrowed
   input type, removed response field, new required parameter, ...). CI can fail on

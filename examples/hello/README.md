@@ -84,6 +84,36 @@ HTTP of these tests is in `tests/helpers/wire.lua`.
 
 CI runs both files on Linux, macOS and Windows whenever the kernel or the example changes.
 
+`tests/docs_build_test.lua` builds the documentation site (below) into temporary directories with the real file
+system and the native module of `doc`: no problem, the home page, the endpoints and request-flow pages, the logos,
+the favicons, `hello-theme.css` (linked) and `llms.txt` exist, and two builds are byte-identical. It is skipped
+without the native module, except in CI, whenever `doc` or the site of the example changes
+(`lua tools/run.lua test examples/hello:docs_build_test` runs it alone).
+
+## Documentation site
+
+`docs/` holds the documentation of the example, written by hand: guides in `docs/en/`, the site configuration
+`docs/site.lua`, and `docs/public/` with the logo, the favicon, the fonts and the CSS file of the theme. It is a
+showcase of the theme extension points of `hecate.doc`, in a plain, neutral style (white and slate greys, one sky
+accent, thin borders, small radii): its own palette in light and dark, its own radii and sidebar width, the Inter
+family (SIL OFL 1.1, Latin subset in `docs/public/fonts/`, loaded by the `@font-face` of the CSS file; recorded in
+`THIRD_PARTY_NOTICES`) for the text and a system monospace stack for code, its own logo and favicon (each in a
+light and a dark variant, through `logo_path` and `favicon_path`). The sidebar marker (`sidebar_marker`) is left off, which
+is the default. It also turns on `llms.txt` (`generate_llms_txt`).
+Build it from the repository root, with `luv` installed and the native module of `doc` built (`lua tools/run.lua
+build-native doc`), and the Hecate packages on the search path (`build_docs.lua` adds them itself):
+
+```sh
+lua examples/hello/build_docs.lua            # writes examples/hello/docs/dist (git-ignored)
+lua examples/hello/build_docs.lua /tmp/site  # or elsewhere
+```
+
+`build_docs.lua` calls `hecate.doc.generate_project_documentation` with the project directory and nothing else:
+the guides (`docs/`), the site configuration (`docs/site.lua`) and the output (`docs/dist`) are the defaults of the
+conventional layout. An output directory in the command line is relative to `examples/hello` unless it is absolute.
+The build is strict (`fail_on_problems`): a broken link fails it. Serve the output with any static server. The page "Theme tokens" of the
+website lists every property the CSS file can override.
+
 ## Not built yet
 
 - No OpenAPI document (`contract`, later) and no `hecate.project.lua` or `hecate test` /

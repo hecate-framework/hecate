@@ -50,6 +50,29 @@ function M.mkdir(path)
   return os.execute(cmd) == true
 end
 
+--- Creates a new, empty directory `<base>/<prefix>-<time>-<random>` (and `base`) and returns its path, or nil. A
+--- repository task keeps its scratch files under `.hecate/` (git-ignored) rather than in the system temporary directory,
+--- where `os.tmpname()` leaves a file behind and its name is predictable.
+---@param base string
+---@param prefix string
+---@return string?
+function M.make_temp_dir(base, prefix)
+  for _ = 1, 10 do
+    local path = ("%s/%s-%d-%d"):format(base, prefix, os.time(), math.random(1, 1 << 30))
+    if not M.exists(path) and M.mkdir(path) then return path end
+  end
+  return nil
+end
+
+--- Removes a directory and everything under it (no error when it is absent).
+---@param path string
+---@return boolean
+function M.remove_tree(path)
+  if path == "" or path == "/" or path == "." then return false end
+  local cmd = is_windows and ("rmdir /s /q %s >nul 2>&1"):format(M.quote(path)) or ("rm -rf %s"):format(M.quote(path))
+  return os.execute(cmd) == true
+end
+
 --- Lists the entries of a directory (names only), sorted.
 ---@param dir string
 ---@return string[]

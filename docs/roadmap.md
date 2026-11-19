@@ -330,14 +330,33 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       determinism and speed), report to the owner before the mirrors item (owner decision of 2026-11-13).
 - [x] `reactor.random(n)`, cryptographically secure bytes over libuv `uv_random`, used by the multipart boundaries of
       `http` (no `math.random` fallback), before `0.1.0` (OQ-73, owner decision of 2026-11-13).
-- [ ] `doc`: project documentation generator for user projects (OpenAPI reference,
-      `hecate doc build`); the minimal generator and the code reference moved to Phase 1. **Carries deferrals
+- [x] `doc`: project documentation generator for user projects (configuration reference, code reference, guides,
+      `hecate doc build`; the API reference was removed by the owner on 2026-11-17: the OpenAPI contract is the external
+      documentation and a viewer is the user's wiring, OQ-141); the minimal generator and the code reference moved to Phase 1. **Carries deferrals
       from the Phase 1 gate review** (cross-platform review): refuse, with a `BuildError`, page ids that are not valid
       file names on Windows (`? : * " < > |`, trailing dots or spaces, reserved names such as `CON`) and normalise
       NFC/NFD names before the collision check, because a site is built from a tree authored elsewhere. **Also (from the `schema` review, OQ-96):** the `---@meta` file generation for LuaLS from the schemas of a project (carried here or by `cli`, to settle when `cli` is specified), which `schema` does not implement.
       **Also (OQ-38, owner decision of 2026-11-13):** the theme extension points for user projects: a site
-      configuration `logo`, a CSS custom-properties override file for the colours, template overrides later if users ask;
+      configuration `logo_path`, a CSS custom-properties override file for the colours, template overrides later if users ask;
       the hecate marks are never recoloured.
+- [x] `unicode` and `unicode-data` (owner decision of 2026-11-17 on OQ-140, [ADR 0032](adr/0032-unicode-normalisation-packages.md),
+      Accepted): the code package `hecate.unicode` (NFC, NFD, Hangul, canonical reordering, layer 0) and the generated
+      data rock `hecate-unicode-data` versioned by the Unicode version (Unicode 18.0.0, `18.0.0-1`); the task `gen-unicode`;
+      a `url` plus `sha256` entry kind for `fetch-fixtures`; conformance against `NormalizationTest.txt` (100% of the NFC
+      and NFD columns); the nightly job `unicode-version`; the Latin table of `hecate.doc.internal.page_id` replaced
+      (OQ-140 closed); `check-versions`, `gen-rockspecs` and `check-rockspecs` take the Unicode-version rule of the data
+      rock. Needs `www.unicode.org` in the cloud allowed domains (`tools/cloud/README.md`, done). **Carried to the
+      mirrors item:** the `split` and release tasks do not exist yet; when written, the mirror tag of `unicode-data` is
+      the Unicode version (`v18.0.0`) and not `VERSION` (ADR 0032, "Publishing").
+- [ ] `doc` follow-up, audience (owner remarks on pull request #218, 2026-11-17; the part still open is OQ-144, the rest
+      is resolved there). Delivered: audiences in the library (front matter `audience`, `audiences` and
+      `default_audience`, default `maintainer`, one site per audience), `llms.txt` and `llms-full.txt` of a project, the
+      theme extension points. **To do:** the restructure of the Hecate website into user and maintainer parts (OQ-144
+      option (a): sections, French mirror, labels; then `audience_sites = "merged"` is removed from `website/site.lua`,
+      which is the removal condition of `merged`; if the restructure is never done, the owner revisits `merged` at the
+      Phase 3 gate); the `check-audience` gate; an audience switcher in the theme and links between the sites;
+      `llms.txt` of other locales; a `draft` page flag. `hecate doc build|serve` and the `doc` section of
+      `hecate.project.lua` belong to the `cli` item below.
 - [ ] `cli` v1: self-contained executable, `new`, `install`, `add`, `remove`, `update`,
       `serve [--watch]`, `test`, `doc`, `contract`, `toolchain`, `doctor`, `version`.
       **Also (from the `test` item, owner go-ahead of 2026-11-16):** `hecate test` takes the options of
@@ -351,6 +370,12 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       **Also (from the `openapi` item):** `hecate contract export` (JSON, over `Application:contract`; YAML later, OQ-137),
       `hecate contract lint` (over `openapi.lint`, nonzero exit on an error finding) and `hecate contract diff <ref>`
       (over `openapi.diff`, nonzero exit on a breaking change).
+      **Also (from the `doc` item, owner direction of 2026-11-18, OQ-143):** like `package.json`, `hecate.project.lua`
+      holds a `doc` section with the options of `hecate.doc.generate_project_documentation` (`guides_dir`,
+      `output_dir`, `sources_dir`, `package_name`, `site_configuration_path`, ...), filled with the defaults of the
+      conventional layout when `hecate new` generates the project (`package_name` from the `name` of the manifest) and
+      read by `hecate doc build`; the command's flags override the section. The manifest schema (ADR 0009,
+      `cli-and-packaging.md`) gets the `doc` section then. Not implemented: the library takes the options as a table.
       **Also (OQ-13, resolved 2026-11-14):** the executable embeds Lua 5.5 and LuaRocks and is the interpreter of Lua
       5.5 projects (OQ-131, ADR 0029 Accepted and verified on the CI platforms; on Windows `lua55.dll` ships beside `hecate.exe` and `lfs` is embedded for LuaRocks); framework
       packages stay project dependencies; settle OQ-132 (how the CLI runs the project's interpreter: child process through
@@ -366,6 +391,19 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       {multi-process-deployment, before-going-to-production}.md` and `website/en/explanation/multi-process-serving.md`.
       **Also (OQ-121):** `gen-meta`, the LuaLS `---@meta` files generated from schemas, as a `tools/` task and through
       the CLI (file layout, naming and when it runs decided with the item).
+      **Also (from the `doc` item, owner decisions of 2026-11-18):** `hecate doc build` (one site per audience, OQ-144; by
+      default the maintainer one) and `hecate doc serve [--watch]`, a local server that rebuilds on change and reloads, to
+      write pages. When the project asks for a code reference (`package_name`), the command warns that LuaLS runs the plugin
+      declared by any LuaLS configuration reachable from the documented directory (`.luarc.json`, `.luarc.jsonc`,
+      `.vscode/settings.json`, including a `.luarc.json` inside the sources directory even when `language_server_config_path`
+      points elsewhere), with full file and command access as the current user, and lets the user bail out
+      (`[y/N]`, default no when nothing answers); a flag or environment variable makes it quiet and non-interactive for
+      CI workflows (`--yes`, to settle with the CLI conventions). `hecate doc build` reads the configuration schema
+      from the application (`Application:configuration_schema()`), the only source of the configuration reference.
+      **Delivered (owner direction of 2026-11-18, OQ-143, names to confirm before the API is frozen):** the Lua entry
+      point is `hecate.doc.generate_project_documentation(options)` (it replaces `hecate.doc.project.build`, no
+      alias) with named options and defaults of the conventional layout (`sources_dir = "src"`, `guides_dir = "docs"`,
+      `output_dir = "docs/dist"`, relative to `project_dir`).
       **Also (from the `examples/hello` item):** turn `examples/hello` into a Hecate project (`hecate.project.lua`, run
       by `hecate serve`, tested by `hecate test`, `hecate contract lint` in CI), as `examples/README.md` requires of
       every example from Phase 3 on; today it is `lua main.lua` and the repository harness.
@@ -398,13 +436,14 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       *dot segment* and *service scope* (finding C9 of `docs/reviews/phase-2-coherence-findings.md`).
       **Also (owner decisions of 2026-11-13):** apply the writing style of the first Phase 3 item to every page (done
       for every English page in pull request #195; the French pages follow with their translation);
-      Mermaid diagrams (OQ-128): an ADR for the dependency (a vendored copy of `mermaid.js`, loaded only on the pages
-      that hold a diagram, no CDN), then the support in `hecate.doc` (a ` ```mermaid ` block becomes a diagram) and
-      diagrams in the explanation pages.
+      Mermaid diagrams (OQ-128): the ADR for the dependency ([ADR 0033](adr/0033-vendored-browser-libraries.md),
+      Accepted: a vendored copy of `mermaid.js`, loaded only on the pages that hold a diagram, no CDN) and the
+      support in `hecate.doc` (a ` ```mermaid ` block becomes a diagram) are written; diagrams in the explanation
+      pages remain.
       **Also (found while restyling, pull request #195):** the `serve-http` how-to writes through `io.stderr:write` in an
       inline `on_error` snippet, which the output rule refuses in example files.
 - [ ] Meta-rock `hecate` (standard edition).
-- [ ] Read-only mirrors (ADR 0017): `split`, `mirrors ensure`, `check-mirrors`,
+- [ ] Read-only mirrors (ADR 0017): `split`, `mirrors ensure`, `check-mirrors`, the tag of the `unicode-data` mirror is the Unicode version and not `VERSION` (ADR 0032),
       `split.yml`; Homebrew tap and Scoop bucket repositories (applies OQ-17: `splitsh-lite` pinned, `git subtree split` as fallback, see the [spike](spikes/OQ-17-split-tool.md)).
 - [ ] Publish all rocks to luarocks.org (sources from mirrors).
 - [ ] `hecate generate workflow` (ci, contract, docs-pages, release) and its templates;
@@ -412,6 +451,11 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
 - [ ] Release automation: `release.yml` (including one LuaRocks binary rock per platform for
       the native modules of `net` and `json`, ADR 0021), `docker.yml`, `cli-e2e.yml`, `website.yml`
       and the `release *` tasks.
+
+      **Also (owner request of 2026-11-18):** every binary rock of a native Rust module ships the licence page of
+      its module, `packages/<name>/native/LICENSES-rust.md` (generated and checked in CI by `gen-rust-licences`;
+      the licence of each crate compiled into the binary requires its notice to accompany the binary), as the
+      licence file of the rock, and `check-rockspecs` or the `release` tasks verify that it is there.
 
       **Also (OQ-46, owner decision of 2026-11-13):** fill `modules` of every rockspec (Lua sources and native
       modules) and extend `check-rockspecs` to compare `modules` with `src/`.

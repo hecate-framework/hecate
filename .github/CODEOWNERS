@@ -1,2 +1,7 @@
 # Every change requires the review of the project owner (OQ-16).
 *       @RedNeath
+
+# The vendored browser bundle of the documentation theme (ADR 0033): third-party code that runs in the browser of every
+# reader of a generated site. An update is a deliberate act of the owner, with the new SHA-256 and npm integrity
+# recorded in VENDORED.md (`check-vendored --online` verifies them).
+/packages/doc/src/hecate/doc/theme/assets/mermaid/ @RedNeath
