@@ -32,7 +32,7 @@ local function refuse(key, message)
   error(core.ArgumentError { message = "hecate.kernel.cors: cors." .. key .. ": " .. message, context = { key = "cors." .. key } }, 4)
 end
 
---- A list of strings that are tokens, or nil.
+--- A list of strings that are tokens; an absent value gives an empty list.
 ---@param key string
 ---@param value any
 ---@return string[]
@@ -125,6 +125,18 @@ local function headers_allowed(policy, requested)
   return true
 end
 
+--- Adds a field name to `Vary` unless the response already lists it (or `*`).
+---@param response hecate.http.Response
+---@param name string
+local function add_vary(response, name)
+  for _, line in ipairs(response.fields:get_all("Vary")) do
+    for token in line:gmatch("[^,%s]+") do
+      if token == "*" or token:lower() == name:lower() then return end
+    end
+  end
+  response.fields:add("Vary", name)
+end
+
 ---@param request hecate.kernel.Request
 ---@param next fun(request: hecate.kernel.Request): hecate.http.Response
 ---@return hecate.http.Response
@@ -155,7 +167,12 @@ function CorsFilter:handle(request, next)
     if not preflight and self._exposed ~= "" then response.fields:set("Access-Control-Expose-Headers", self._exposed) end
   end
   -- The answer depends on the Origin header unless every origin gets the same one (RFC 9110, 12.5.5).
-  if not policy.wildcard then response.fields:add("Vary", "Origin") end
+  -- A preflight answer also depends on what it asks for, so a shared cache must not reuse it for another request.
+  if not policy.wildcard then add_vary(response, "Origin") end
+  if preflight then
+    add_vary(response, "Access-Control-Request-Method")
+    add_vary(response, "Access-Control-Request-Headers")
+  end
   return response
 end
 

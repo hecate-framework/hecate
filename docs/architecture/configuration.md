@@ -153,8 +153,8 @@ local configuration = config.load({
 local port = configuration:get("database.port")
 ```
 
-- The root is `schema.object(properties)` plus the framework keys `logging`, `limits`, `errors`, `requests` and `server`. The
-  application must not declare those five names (`ArgumentError`). A property name, at any depth, is a non-empty string without
+- The root is `schema.object(properties)` plus the framework keys `logging`, `limits`, `errors`, `requests`, `server` and `cors`. The
+  application must not declare those six names (`ArgumentError`). A property name, at any depth, is a non-empty string without
   a `.` (the dot separates the segments of a path; `ArgumentError` otherwise). Undeclared properties are rejected at **every** depth: **unknown keys are errors**, with the
   violation code `additional_properties`; the misspelling of a key never goes unnoticed.
 - A required property (neither `optional` nor `default`) that no layer supplies is a `required` violation: there is no implicit

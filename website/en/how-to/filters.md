@@ -261,8 +261,10 @@ HECATE_CORS__ALLOW_CREDENTIALS=true
 ```
 
 The same keys go in `config/default.lua` (under `cors`) or in the `cors` option of `Application`, which wins key by key.
-The filter is the outermost global filter. It answers a preflight request itself, with `204`, and marks the responses of
-an allowed origin. A preflight that asks for a method or a header field you did not allow gets no permission, so the
+The filter is the outermost global filter. It answers a preflight request itself, with `204`, and adds
+`Access-Control-Allow-Origin` to the responses of an allowed origin. By default only `GET`, `HEAD` and `POST` are allowed and
+`max_age` is 600: list `allowed_methods` when you need `PUT` or `DELETE`, or their preflight is refused silently.
+Origins are compared exactly, as the browser writes them (`scheme://host[:port]`, lower case). A preflight that asks for a method or a header field you did not allow gets no permission, so the
 browser blocks the call. `*` is accepted alone, and never together with credentials: boot fails with an `ArgumentError`
 that names the key. See "The CORS keys" in the configuration specification for every key and default.
 

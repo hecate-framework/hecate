@@ -90,7 +90,17 @@ function T:test_a_preflight_is_answered_without_a_route()
   self:assert_equal("GET, POST", response.fields:get("Access-Control-Allow-Methods"))
   self:assert_equal("Authorization, Content-Type", response.fields:get("Access-Control-Allow-Headers"))
   self:assert_equal("120", response.fields:get("Access-Control-Max-Age"))
-  self:assert_equal("Origin", response.fields:get("Vary"))
+  self:assert_equal("Origin, Access-Control-Request-Method, Access-Control-Request-Headers", response.fields:combined("Vary"))
+end
+
+function T:test_vary_is_not_duplicated_when_the_handler_already_sets_it()
+  local routes = kernel.routes("items")
+  routes:get("/items", { name = "items.list", action = function()
+    return http.Response(200, { fields = http.Fields({ Vary = "origin" }) })
+  end })
+  local serve = kernel.Application({ routes = { routes }, cors = { enabled = true, allowed_origins = { APP } } }):boot()
+  local response = ask(serve, "GET", { Origin = APP })
+  self:assert_equal(1, #response.fields:get_all("Vary"))
 end
 
 function T:test_a_preflight_for_a_method_not_allowed_carries_no_permission()
