@@ -17,7 +17,7 @@ M.SEVERITIES = { "emergency", "alert", "critical", "error", "warning", "notice",
 --- `config` does not depend on `json`; a test compares the two.
 M.MAX_DEPTH_CEILING = 1000
 
-local FRAMEWORK = { logging = true, limits = true, errors = true, requests = true, server = true }
+local FRAMEWORK = { logging = true, limits = true, errors = true, requests = true, server = true, cors = true }
 
 --- The pattern of a prefix of environment variables (the `env_prefix` option).
 M.PREFIX_PATTERN = "^%u[%u%d_]*$"
@@ -73,6 +73,16 @@ function M.framework_properties()
       grace_timeout = schema.default(schema.number({ minimum = 0 }), 30),
       workers = schema.default(schema.integer({ minimum = 1 }), 1),
       strategy = schema.default(schema.enumeration({ "auto", "reuseport", "round_robin" }), "auto"),
+    }), {}),
+    -- CORS (OQ-136): the keys of the filter of `hecate.kernel`; disabled, and no origin allowed, by default.
+    cors = schema.default(schema.object({
+      enabled = schema.default(schema.boolean(), false),
+      allowed_origins = schema.default(schema.array(schema.string({ min_length = 1 })), {}),
+      allowed_methods = schema.default(schema.array(schema.string({ min_length = 1 })), { "GET", "HEAD", "POST" }),
+      allowed_headers = schema.default(schema.array(schema.string({ min_length = 1 })), {}),
+      exposed_headers = schema.default(schema.array(schema.string({ min_length = 1 })), {}),
+      allow_credentials = schema.default(schema.boolean(), false),
+      max_age = schema.default(schema.integer({ minimum = 0 }), 600),
     }), {}),
     requests = schema.default(schema.object({
       inputs = schema.default(schema.enumeration({ "strict", "lax" }), "strict"),

@@ -169,7 +169,9 @@ short-circuit, transform the request, or post-process the result. Filters are at
 globally, per module, per controller or per route, and execute in that order (outermost
 first). The filters of a feature module apply only to the routes of that module; the
 global filters apply to every request. Typical built-in filters: request identifiers,
-access logging, CORS, rate limiting (later), authentication (from `security`).
+access logging, CORS (shipped as `kernel.CorsFilter`: installed as the outermost global filter by the `cors`
+option of `Application` or by the `cors.*` keys, see `configuration.md`, "The CORS keys"; a user filter sees a preflight
+request only if CORS did not answer it), rate limiting (later), authentication (from `security`).
 
 The global filters wrap the routing step: the order is the global filters, then the guard
 (which turns an error into a problem response), then the route match and the dispatch to

@@ -7,6 +7,7 @@ local core = require("hecate.core")
 local json = require("hecate.json")
 local http = require("hecate.http")
 local container_package = require("hecate.container")
+local cors = require("hecate.kernel.cors")
 local modules = require("hecate.kernel.modules")
 local routing = require("hecate.kernel.routing")
 local contract = require("hecate.kernel.contract")
@@ -40,6 +41,7 @@ end
 ---@field filters? hecate.kernel.Filter[]  global filters, outermost: they also see the requests that match no route (404, 405, 400, automatic `OPTIONS`); the filters of a module apply to its own routes only
 ---@field container? hecate.container.Container  an existing container (not yet validated); default: a new one
 ---@field configuration? hecate.config.Configuration  binds `limits.max_depth`, `errors.expose_details`, `requests.inputs`, `server.grace_timeout`, `server.workers`, `server.strategy` and the logging keys; the options below override it
+---@field cors? hecate.kernel.CorsOptions  the CORS filter (OQ-136), installed as the outermost global filter when `enabled`; each key left out comes from the `cors.*` keys of `configuration`; raises `hecate.core.ArgumentError` at boot for a refused combination
 ---@field max_depth? integer  nesting depth limit of `json` and `schema` (`json.set_max_depth`, OQ-92)
 ---@field expose_details? boolean  see `hecate.kernel.DispatcherOptions`
 ---@field inputs? "lax"|"strict"  see `hecate.kernel.DispatcherOptions`
@@ -71,7 +73,7 @@ local Application = core.class("Application")
 local KNOWN = {
   modules = true, routes = true, openapi = true, configuration = true, services = true, filters = true, container = true, max_depth = true,
   expose_details = true, inputs = true, validate_responses = true, logger = true, router = true, server = true, signals = true, grace_timeout = true,
-  workers = true, strategy = true, worker_command = true, on_crash_loop = true, ready_timeout = true,
+  workers = true, strategy = true, cors = true, worker_command = true, on_crash_loop = true, ready_timeout = true,
 }
 
 local STRATEGIES <const> = { auto = true, reuseport = true, round_robin = true }
@@ -238,10 +240,21 @@ function Application:boot()
   if options.validate_responses == nil then options.validate_responses = false end
   if options.workers == nil then options.workers = 1 end
   if options.strategy == nil then options.strategy = "auto" end
+  local cors_options = {}
+  if configuration ~= nil then
+    for _, key in ipairs({ "enabled", "allowed_origins", "allowed_methods", "allowed_headers", "exposed_headers", "allow_credentials", "max_age" }) do
+      local value = configuration:get("cors." .. key)
+      if type(value) == "table" then value = { table.unpack(value) } end -- a frozen `List` becomes a plain list
+      cors_options[key] = value
+    end
+  end
+  for key, value in pairs(options.cors or {}) do cors_options[key] = value end
+  local cors_filter = cors.from_options(cors_options)
   local ordered = modules.order(options.modules or {})
   local container = options.container or container_package.Container()
   if options.services then options.services(container) end
   local sources, filters = {}, {}
+  if cors_filter ~= nil then filters[1] = cors_filter end
   for _, source in ipairs(options.routes or {}) do sources[#sources + 1] = source end
   for _, filter in ipairs(options.filters or {}) do filters[#filters + 1] = filter end
   -- The filters of a feature module are not global: they are kept with the routes of that module (second layer).
