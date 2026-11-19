@@ -108,6 +108,15 @@ Some keys hold values that must never reach a log: passwords, signing keys, toke
   value, and the logging sinks render it as `[redacted]`). The raw value is reachable only through `reveal()`. This is the
   invariant "secrets are never logged": `describe()`, the diagnostics and every error message print `[redacted]` in place of the
   value (a violation says what is wrong, never the value: the messages of `hecate.schema` do not contain it).
+- `Configuration:schema()` (the JSON Schema 2020-12 of every declared key, which tools such as `hecate.doc` document, and which
+  `Application:configuration_schema()` returns as its only value) marks each secret key `writeOnly = true` (JSON Schema 2020-12,
+  9.4), so that a consumer cannot forget the secrets: the `default` of such a key **stays** in the schema, and **a consumer must
+  honour `writeOnly` and never print, log or document the default (or an example) of a key so marked**. Path rules, those of the
+  dotted paths of `Configuration:secrets()`: a secret is a declared leaf, reached through objects (also optional, with a default,
+  nullable or named); a leaf that is a list (also of objects) is marked as a whole, its items inherit the mark (they have no dotted
+  path; a map is not a leaf and cannot be declared secret); a named object used at several places is emitted once, so a secret inside it marks that key at every use. The marks are
+  made on the fresh table of each call: neither the declaration nor the loaded values change. `secrets()` stays, for code that
+  needs the paths.
 - `hecate.config` cannot depend on `hecate.log` (layering). The wrapper is the `wrap_secret` option, a function that takes a value and
   returns the secret object; the kernel passes `hecate.log.Secret` (`kernel.load_configuration`), which the sinks recognise. Without the option, `config` uses
   `package.loaded["hecate.log"].Secret` when that module is already loaded (the same look-up, with no dependency, as OQ-86 for the

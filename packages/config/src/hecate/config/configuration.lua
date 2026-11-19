@@ -121,15 +121,60 @@ function Configuration:values()
   return state[self].root
 end
 
+local MAX_REFERENCE_DEPTH = 64
+
+--- The `properties` of the object that an emitted subschema describes, through `$ref` (into `$defs`) and `anyOf`
+--- (`nullable`); `nil` when it describes no object.
+local function properties_of(node, defs, depth)
+  if depth > MAX_REFERENCE_DEPTH then return nil end
+  if node.properties ~= nil then return node.properties end
+  local reference = node["$ref"]
+  if type(reference) == "string" then
+    local name = reference:match("^#/%$defs/(.+)$")
+    local target = name ~= nil and defs ~= nil and defs[name] or nil
+    if target ~= nil then return properties_of(target, defs, depth + 1) end
+  end
+  if node.anyOf ~= nil then
+    for _, alternative in ipairs(node.anyOf) do
+      local found = properties_of(alternative, defs, depth + 1)
+      if found ~= nil then return found end
+    end
+  end
+  return nil
+end
+
+--- Marks the key at a dotted path `writeOnly` in an emitted document (a fresh table: the marks touch no declaration).
+local function mark_write_only(document, path)
+  local node = document
+  for segment in path:gmatch("[^.]+") do
+    local properties = properties_of(node, document["$defs"], 0)
+    node = properties and properties[segment]
+    if node == nil then
+      error(core.ArgumentError(("config.Configuration.schema: the secret %s is not in the emitted schema"):format(path),
+        { context = { path = path } }), 0)
+    end
+  end
+  node.writeOnly = true
+end
+
 --- The JSON Schema (2020-12) of every declared key, the framework keys included: what a tool needs to document the
---- configuration. A new table at each call, so that a caller cannot change what the next one reads. The schema does
---- not mark secrets: see `secrets`.
+--- configuration. A new table at each call, so that a caller cannot change what the next one reads.
+---
+--- Every key declared secret (`secrets`, the `secrets` option of `config.load`) carries `writeOnly = true` (JSON Schema
+--- 2020-12, 9.4). The `default` of such a key stays in the schema: **a consumer must honour `writeOnly` and never
+--- print, log or document the `default` (nor any example) of a key marked so**. The path rules are those of `secrets`:
+--- a secret is a declared leaf, found by its dotted path through objects (also optional, with a default, nullable or
+--- named); a leaf that is a list (also of objects) is marked as a whole (its items are not addressable, and inherit the mark; a map is not a leaf, so it cannot be declared secret).
+--- A named object used at several places is emitted once in `$defs`: a secret inside it marks that key for every use.
 ---@return table schema
 function Configuration:schema()
-  return state[self].declaration:to_json_schema()
+  local document = state[self].declaration:to_json_schema()
+  for _, path in ipairs(state[self].secrets) do mark_write_only(document, path) end
+  return document
 end
 
 --- The dotted paths of the keys declared secret at load time (the `secrets` option), sorted. A new list at each call.
+--- `schema` marks the same keys `writeOnly`.
 ---@return string[] paths
 function Configuration:secrets()
   return { table.unpack(state[self].secrets) }
