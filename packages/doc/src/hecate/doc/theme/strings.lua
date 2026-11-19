@@ -1,5 +1,5 @@
 -- Interface strings of the theme, per locale. English is the source; a locale without a
--- string falls back to English. Sites override or add locales with `config.strings`.
+-- string falls back to English. Sites override or add locales with `interface_strings`.
 -- The name of the project is never capitalised (brand kit), including in these strings.
 global <const> pairs, ipairs, tostring, tonumber
 

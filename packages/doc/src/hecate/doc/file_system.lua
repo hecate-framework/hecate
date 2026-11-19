@@ -7,12 +7,13 @@ local core = require("hecate.core")
 
 ---@class hecate.doc.DirectoryEntry
 ---@field name string  file or directory name, without its parent
----@field is_directory boolean
+---@field is_directory boolean  what the entry points to: a symbolic link to a directory is a directory
+---@field is_link? boolean  the entry is itself a symbolic link (or a junction of Windows), whatever it points to; absent: not a link
 
 ---@class hecate.doc.FileSystem
 ---@field read fun(self: hecate.doc.FileSystem, path: string): string?  file content (binary), nil when absent
 ---@field write fun(self: hecate.doc.FileSystem, path: string, data: string)  creates parent directories; raises `hecate.doc.BuildError` on failure
----@field list fun(self: hecate.doc.FileSystem, directory: string): hecate.doc.DirectoryEntry[]?  entries sorted by name, nil when the directory is absent
+---@field list fun(self: hecate.doc.FileSystem, directory: string): hecate.doc.DirectoryEntry[]?  entries sorted by name, each saying whether it is a link; nil when the directory is absent
 ---@field exists fun(self: hecate.doc.FileSystem, path: string): boolean
 ---@field remove_tree fun(self: hecate.doc.FileSystem, path: string)  removes a directory and everything below it; a symbolic link at `path` is unlinked, never followed
 ---@field is_link? fun(self: hecate.doc.FileSystem, path: string): boolean  optional: whether `path` is itself a symbolic link (absent: no links)

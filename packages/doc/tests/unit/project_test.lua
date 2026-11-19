@@ -18,9 +18,10 @@ local config_schema = {
   },
 }
 
--- The application is duck-typed: `hecate.doc` calls `configuration_schema()` and never requires `hecate.kernel`.
-local function application(schema, secrets)
-  return { configuration_schema = function() return schema, secrets end }
+-- The application is duck-typed: `hecate.doc` calls `configuration_schema()` and never requires `hecate.kernel`. The schema is the
+-- only thing it gives: the secrets are marked in it (`writeOnly`).
+local function application(schema)
+  return { configuration_schema = function() return schema end }
 end
 
 function T:test_configuration_page_lists_keys_with_dotted_paths()
@@ -98,9 +99,14 @@ function T:test_the_generator_produces_no_api_reference()
   local contract = { openapi = "3.1.0", info = { title = "Shop", version = "1" },
     paths = { ["/users"] = { get = { operationId = "listUsers", responses = { ["200"] = { description = "OK" } } } } } }
   local fs = doc.MemoryFileSystem({ ["docs/en/index.md"] = "# Shop\n" })
-  -- A stray `document` option is not an option of the build: it is ignored, and nothing below `api/` is written.
+  -- A stray `document` option is not an option of the build: it is refused, and nothing below `api/` is written.
+  local err = self:assert_error(function()
+    doc.generate_project_documentation({ site_configuration = { title = "Shop" }, guides_dir = "docs", output_dir = "dist",
+      file_system = fs, document = contract, application = application(config_schema) })
+  end)
+  self:assert_equal("document", err.context.argument)
   doc.generate_project_documentation({ site_configuration = { title = "Shop" }, guides_dir = "docs", output_dir = "dist",
-    file_system = fs, document = contract, application = application(config_schema) })
+    file_system = fs, application = application(config_schema) })
   for path in pairs(fs.files) do
     self:assert_nil(path:find("/api/", 1, true), path)
     self:assert_nil(path:find("listUsers", 1, true), path)
@@ -280,10 +286,13 @@ end
 
 function T:test_the_old_option_names_and_the_explicit_configuration_schema_are_gone()
   self:assert_nil(project.build, "the entry point is `hecate.doc.generate_project_documentation`")
-  -- Without an application there is nothing to document: a hand-passed schema or secrets list is not an option.
-  local fs = doc.MemoryFileSystem({})
-  generate(build_options(fs, { configuration = config_schema, secrets = { "port" } }))
-  self:assert_nil(fs:read("docs/en/configuration.md"))
+  -- Without an application there is nothing to document: a hand-passed schema or secrets list is not an option, and says so.
+  for _, name in ipairs({ "configuration", "secrets" }) do
+    local fs = doc.MemoryFileSystem({})
+    local err = self:assert_error(function() generate(build_options(fs, { [name] = config_schema })) end)
+    self:assert_equal(name, err.context.argument)
+    self:assert_nil(fs:read("docs/en/configuration.md"))
+  end
 end
 
 -- The defaults are those of the conventional layout of a project (OQ-143): `docs`, `docs/dist`, `src`.
@@ -379,7 +388,9 @@ function T:test_a_project_site_publishes_the_maintainer_audience_only_by_default
   local users, user_report = build_with({ title = "Shop docs", audiences = { "user" } })
   self:assert_nil(users:read("dist/en/configuration/index.html"))
   self:assert_nil(users:read("dist/assets/search-en.json"):find("1 to 65535", 1, true))
-  self:assert_equal(2, user_report.locales.en.unpublished, "the guide without the key and the configuration reference")
+  -- `default_audience` is the first of `audiences`: the guide without the key is a user page and is published.
+  self:assert_equal(1, user_report.locales.en.unpublished, "the configuration reference")
+  self:assert_not_nil(users:read("dist/en/index.html"))
   -- The page stays in the source tree: generated pages are written, publication is a build decision.
   self:assert_not_nil(fs:read("docs/en/configuration.md"))
 end
@@ -418,10 +429,10 @@ function T:test_the_configuration_reference_never_prints_the_default_of_a_secret
   local page = project.configuration_page(configuration_of({
     token = { type = "string", default = "hunter2-token", writeOnly = true },
     pass = { type = "string", default = "hunter2-pass", format = "password" },
-    key = { type = "string", default = "hunter2-key", enum = { "hunter2-key", "other" } },
-    db = { type = "object", properties = { password = { type = "string", default = "hunter2-db" } } },
+    key = { type = "string", writeOnly = true, default = "hunter2-key", enum = { "hunter2-key", "other" } },
+    db = { type = "object", properties = { password = { type = "string", writeOnly = true, default = "hunter2-db" } } },
     mode = { type = "string", default = "dev" },
-  }), { secrets = { "key", "db.password" } })
+  }))
   self:assert_nil(page:find("hunter2", 1, true), page)
   self:assert_not_nil(page:find("[redacted]", 1, true), page)
   self:assert_not_nil(page:find("`dev`", 1, true), "other defaults are kept")
@@ -431,13 +442,13 @@ local app_schema = {
   type = "object",
   properties = {
     port = { type = "integer", default = 8080 },
-    database = { type = "object", properties = { password = { type = "string", default = "dev-password" } } },
+    database = { type = "object", properties = { password = { type = "string", writeOnly = true, default = "dev-password" } } },
   },
 }
 
-function T:test_build_reads_the_configuration_schema_and_the_secrets_from_the_application()
+function T:test_build_reads_the_configuration_schema_from_the_application_and_redacts_what_it_marks()
   local fs = doc.MemoryFileSystem({})
-  generate(build_options(fs, { application = application(app_schema, { "database.password" }) }))
+  generate(build_options(fs, { application = application(app_schema) }))
   local page = fs:read("docs/en/configuration.md")
   self:assert_not_nil(page:find("`database.password`", 1, true), page)
   self:assert_not_nil(page:find("`8080`", 1, true), page)
@@ -447,9 +458,13 @@ end
 
 function T:test_the_application_is_the_only_source_of_the_configuration_reference()
   local fs = doc.MemoryFileSystem({})
-  generate(build_options(fs, { application = application(app_schema, {}), configuration = config_schema }))
+  local err = self:assert_error(function()
+    generate(build_options(fs, { application = application(app_schema), configuration = config_schema }))
+  end)
+  self:assert_equal("configuration", err.context.argument, "a hand-passed schema is not an option")
+  generate(build_options(fs, { application = application(app_schema) }))
   local page = fs:read("docs/en/configuration.md")
-  self:assert_nil(page:find("`database.url`", 1, true), "a hand-passed schema is not an option")
+  self:assert_nil(page:find("`database.url`", 1, true))
   self:assert_not_nil(page:find("8080", 1, true))
 end
 

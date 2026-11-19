@@ -19,12 +19,10 @@ local M = {}
 --- The notice written at the top of every generated project page.
 M.GENERATED = generated_page.GENERATED
 
---- True for a page written by this module.
----@param text any  anything is accepted: a value that is not a string is not generated
----@return boolean
-function M.is_generated(text)
-  return type(text) == "string" and text:find(M.GENERATED, 1, true) ~= nil
-end
+--- True for a page written by `hecate.doc` (see `hecate.doc.internal.generated_page.is_generated`): the notice is the first
+--- line of the body, or the front matter says `generated: true`.
+---@type fun(text: any): boolean
+M.is_generated = generated_page.is_generated
 
 -- Limits for schemas that are data of the project and may be hostile or enormous.
 local MAX_ROWS = 500       -- property rows of one table
@@ -117,6 +115,19 @@ local function type_of(document, schema, depth)
   return kind or (schema.enum and "enum") or "any"
 end
 
+-- A finite number as text, or nil: the only kind of number a page may print (`tostring` of a table or a function is an
+-- address, which changes from one run to the next, and a text that is not a number is Markdown the project did not write).
+local function number_text(value)
+  if math.type(value) == nil or value ~= value or value == math.huge or value == -math.huge then return nil end
+  return tostring(value)
+end
+
+-- A string, or a finite number as text; anything else is not text of the schema.
+local function text_of(value)
+  if type(value) == "string" then return value end
+  return number_text(value)
+end
+
 local function constraints(schema)
   local parts = {}
   if type(schema) ~= "table" then return "" end
@@ -129,30 +140,114 @@ local function constraints(schema)
     parts[#parts + 1] = "one of " .. table.concat(values, ", ")
   end
   if schema.const ~= nil then parts[#parts + 1] = "always " .. code(value_text(schema.const), true) end
-  if schema.minimum ~= nil and schema.maximum ~= nil then
-    parts[#parts + 1] = ("%s to %s"):format(tostring(schema.minimum), tostring(schema.maximum))
-  elseif schema.minimum ~= nil then
-    parts[#parts + 1] = "at least " .. tostring(schema.minimum)
-  elseif schema.maximum ~= nil then
-    parts[#parts + 1] = "at most " .. tostring(schema.maximum)
+  local low = number_text(schema.minimum)
+  local high = number_text(schema.maximum)
+  if low and high then
+    parts[#parts + 1] = ("%s to %s"):format(low, high)
+  elseif low then
+    parts[#parts + 1] = "at least " .. low
+  elseif high then
+    parts[#parts + 1] = "at most " .. high
   end
-  if schema.minLength ~= nil then parts[#parts + 1] = "length at least " .. tostring(schema.minLength) end
-  if schema.maxLength ~= nil then parts[#parts + 1] = "length at most " .. tostring(schema.maxLength) end
+  local above, below = number_text(schema.exclusiveMinimum), number_text(schema.exclusiveMaximum)
+  if above then parts[#parts + 1] = "more than " .. above end
+  if below then parts[#parts + 1] = "less than " .. below end
+  local multiple = number_text(schema.multipleOf)
+  if multiple then parts[#parts + 1] = "multiple of " .. multiple end
+  local shortest, longest = number_text(schema.minLength), number_text(schema.maxLength)
+  if shortest then parts[#parts + 1] = "length at least " .. shortest end
+  if longest then parts[#parts + 1] = "length at most " .. longest end
+  local fewest, most = number_text(schema.minItems), number_text(schema.maxItems)
+  if fewest then parts[#parts + 1] = "items at least " .. fewest end
+  if most then parts[#parts + 1] = "items at most " .. most end
   if schema.pattern ~= nil then parts[#parts + 1] = "pattern " .. code(value_text(schema.pattern), true) end
   if schema.format ~= nil then parts[#parts + 1] = "format " .. code(value_text(schema.format), true) end
   return table.concat(parts, "; ")
 end
 
+-- Secrets ---------------------------------------------------------------------------------------------------------
+-- The schema is the single source: a key is a secret when its schema says `writeOnly: true` (JSON Schema 2020-12, 9.4) or
+-- `format: "password"` (OpenAPI 3.1, 4.4). A default is a value that may hold one, in any shape the schema gives it, so the
+-- search for a mark follows every keyword that leads to a subschema.
+
+local MAX_SCAN = 4000 -- nodes one search may visit: more than that, and the answer is "secret"
+
+local function marks_secret(node)
+  return node.writeOnly == true or node.format == "password"
+end
+
+-- The subschema keywords: those that compose the schema of a value (`flags`), then those that describe the parts of a value.
+local COMPOSITION_LISTS = { "allOf", "anyOf", "oneOf" }
+local COMPOSITION_SINGLES = { "if", "then", "else" }
+local STRUCTURE_SINGLES = { "items", "additionalProperties", "unevaluatedProperties", "unevaluatedItems", "contains" }
+local STRUCTURE_LISTS = { "prefixItems" }
+local STRUCTURE_MAPS = { "properties", "patternProperties", "dependentSchemas" }
+
+local function lookup(document, ref)
+  local name = ref:match("^#/%$defs/(.+)$")
+  local target = name and type(document["$defs"]) == "table" and document["$defs"][unescape_pointer(name)]
+  return type(target) == "table" and target or nil
+end
+
+-- Whether `node` is a secret, or (with `deep`) holds one below it: through `$ref`, `allOf`, `anyOf`, `oneOf`, `if/then/else`
+-- and, with `deep`, `items`, `prefixItems`, `properties`, `additionalProperties`, `patternProperties` and the other keywords
+-- that describe the parts of a value. A reference that cannot be resolved, and a search that is too large, answer yes:
+-- a default that might hold a secret is not printed.
+local function scan(document, node, deep, state)
+  if type(node) ~= "table" then return false end
+  state.budget = state.budget - 1
+  if state.budget < 0 then return true end
+  if state.seen[node] then return false end
+  state.seen[node] = true
+  if marks_secret(node) then return true end
+  if node["$ref"] ~= nil then
+    local target = type(node["$ref"]) == "string" and lookup(document, node["$ref"]) or nil
+    if target == nil or scan(document, target, deep, state) then return true end
+  end
+  local function visit_all(value)
+    if type(value) ~= "table" then return false end
+    for _, child in pairs(value) do
+      if scan(document, child, deep, state) then return true end
+    end
+    return false
+  end
+  for _, keyword in ipairs(COMPOSITION_LISTS) do
+    if visit_all(node[keyword]) then return true end
+  end
+  for _, keyword in ipairs(COMPOSITION_SINGLES) do
+    if scan(document, node[keyword], deep, state) then return true end
+  end
+  if not deep then return false end
+  for _, keyword in ipairs(STRUCTURE_SINGLES) do
+    -- `items` is one schema, or a list of schemas in the older tuple form.
+    local value = node[keyword]
+    if scan(document, value, deep, state) or (keyword == "items" and visit_all(value)) then return true end
+  end
+  for _, keyword in ipairs(STRUCTURE_LISTS) do
+    if visit_all(node[keyword]) then return true end
+  end
+  for _, keyword in ipairs(STRUCTURE_MAPS) do
+    if visit_all(node[keyword]) then return true end
+  end
+  return false
+end
+
+local function is_secret(document, node, deep)
+  return scan(document, node, deep, { seen = {}, budget = MAX_SCAN })
+end
+
 -- Property rows of an object schema, nested objects flattened with dotted paths. `state` bounds the work on an
 -- untrusted contract: `rows` is capped (`truncated` is set), a reference already being expanded on the
--- current path is shown as a row and not expanded again, and the nesting is limited.
-local function property_rows(document, schema, prefix, state, depth, visiting)
+-- current path is shown as a row and not expanded again, and the nesting is limited. `inherited` is true below an
+-- object that is itself a secret: nothing below it prints a default or a value it may take.
+local function property_rows(document, schema, prefix, state, depth, visiting, inherited)
   local target, crossed = resolve(document, schema)
   if type(target) ~= "table" or type(target.properties) ~= "table" or depth > MAX_DEPTH then return end
   for _, ref in ipairs(crossed) do
     if visiting[ref] then return end
   end
   for _, ref in ipairs(crossed) do visiting[ref] = true end
+  local secret_parent = inherited or is_secret(document, schema, false)
   local required = {}
   for _, name in ipairs(list(target.required)) do required[name] = true end
   for _, name in ipairs(sorted_keys(target.properties)) do
@@ -165,12 +260,12 @@ local function property_rows(document, schema, prefix, state, depth, visiting)
       if visiting[ref] then nested = false end
     end
     if nested then
-      property_rows(document, property, path .. ".", state, depth + 1, visiting)
+      property_rows(document, property, path .. ".", state, depth + 1, visiting, secret_parent)
     else
-      -- A secret shows neither its default nor the values it may take (enumeration, constant): the schema of a
-      -- project is published as it is, and a default is where a development password hides.
-      local secret = state.secrets[path] == true
-        or (type(resolved) == "table" and (resolved.writeOnly == true or resolved.format == "password"))
+      -- A secret shows neither its default nor the values it may take (enumeration, constant, pattern): the schema of a
+      -- project is published as it is, and a default is where a development password hides. A row is a secret when it
+      -- sits below one, when it is marked, or when anything below it is (a default is a value of the whole shape).
+      local secret = secret_parent or is_secret(document, property, true)
       local default = type(resolved) == "table" and resolved.default
       local shown = resolved
       if secret and type(resolved) == "table" then
@@ -179,21 +274,21 @@ local function property_rows(document, schema, prefix, state, depth, visiting)
           if key ~= "enum" and key ~= "const" and key ~= "pattern" then shown[key] = value end
         end
       end
+      local description = type(property) == "table" and (property.description or (type(resolved) == "table" and resolved.description)) or nil
       state.rows[#state.rows + 1] = {
         path = path, type = type_of(document, property), required = required[name] == true,
         default = secret and default ~= nil and REDACTED or default,
         constraints = constraints(shown),
-        description = type(property) == "table" and (property.description or (type(resolved) == "table" and resolved.description)) or nil,
+        description = text_of(description),
       }
     end
   end
   for _, ref in ipairs(crossed) do visiting[ref] = nil end
 end
 
-local function rows_of(document, schema, secrets)
-  local state = { rows = {}, secrets = {} }
-  for _, path in ipairs(list(secrets)) do state.secrets[path] = true end
-  property_rows(document, schema, "", state, 0, {})
+local function rows_of(document, schema)
+  local state = { rows = {} }
+  property_rows(document, schema, "", state, 0, {}, false)
   return state
 end
 
@@ -223,20 +318,21 @@ local front = generated_page.front
 ---
 --- The page is `maintainer` documentation (front matter `audience`): the keys of the configuration are what a
 --- team that runs the application needs, not part of what the application offers to its users. The default of a
---- secret key is never printed (`[redacted]`): a key is a secret when its schema says `writeOnly: true` (JSON Schema
---- 2020-12, 9.4) or `format: "password"` (OpenAPI 3.1, 4.4), or when `options.secrets` lists its dotted path (the
---- secrets of `hecate.config` are declared at load time, not in the schema).
----@param schema table  JSON Schema 2020-12 table (`schema:emit()` of the configuration schema)
----@param options? { secrets?: string[] }  `secrets`: dotted paths of the keys that hold secrets
+--- secret key is never printed (`[redacted]`), and neither are its enumeration, constant and pattern: the schema is the
+--- single source, and a key is a secret when its schema, or a subschema reachable from it (`$ref`, `allOf`, `anyOf`,
+--- `oneOf`, `if`/`then`/`else`, `items`, `properties`, `additionalProperties`, `patternProperties`, ...), says
+--- `writeOnly: true` (JSON Schema 2020-12, 9.4) or `format: "password"` (OpenAPI 3.1, 4.4), or when it lies below an object
+--- that does (`hecate.config` marks its secrets so: `Configuration:schema()`). A default that may hold a secret in any part
+--- is redacted whole. Every cell is escaped text; a value that is not text or a finite number is left out.
+---@param schema table  JSON Schema 2020-12 table (the schema of the configuration: `Application:configuration_schema()`)
 ---@return string markdown
-function M.configuration_page(schema, options)
+function M.configuration_page(schema)
   if type(schema) ~= "table" then
     error(core.ArgumentError("doc.project.configuration_page: expects a JSON Schema table"), 2)
   end
-  options = options or {}
-  local lines = front("Configuration", schema.description or "Configuration keys, their types and defaults.", 50,
-    "maintainer")
-  local state = rows_of(schema, schema, options.secrets)
+  local description = type(schema.description) == "string" and schema.description or nil
+  local lines = front("Configuration", description or "Configuration keys, their types and defaults.", 50, "maintainer")
+  local state = rows_of(schema, schema)
   if #state.rows == 0 then
     lines[#lines + 1] = "The configuration declares no keys."
   else

@@ -7,6 +7,7 @@ global <const> require, io, os, package, string, table, error, tostring, type, p
 
 local core = require("hecate.core")
 local errors = require("hecate.doc.errors")
+local options_module = require("hecate.doc.internal.options")
 
 --- Access to the LuaLS documentation export.
 ---@class hecate.doc.luals
@@ -50,7 +51,7 @@ local function capture(command)
 end
 
 --- Finds `lua-language-server` on the path. Returns its full path, or nil.
----@return string? executable
+---@return string? language_server_path
 function M.locate()
   local output, ok = capture(is_windows and "where lua-language-server 2>nul"
     or "command -v lua-language-server 2>/dev/null")
@@ -58,11 +59,11 @@ function M.locate()
   return output:match("[^\r\n]+")
 end
 
---- Returns the version `executable` reports ("3.19.1"), or nil.
----@param executable string
+--- Returns the version `language_server_path` reports ("3.19.1"), or nil.
+---@param language_server_path string
 ---@return string? version
-function M.version(executable)
-  local output = capture(("%s --version 2>%s"):format(quote(executable), is_windows and "nul" or "/dev/null"))
+function M.version(language_server_path)
+  local output = capture(("%s --version 2>%s"):format(quote(language_server_path), is_windows and "nul" or "/dev/null"))
   return output:match("(%d+%.%d+%.%d+)")
 end
 
@@ -135,16 +136,16 @@ end
 
 --- Builds the `lua-language-server` command line of an export. Pure (no I/O), so that the quoting is tested
 --- for both platforms.
----@param executable string
----@param source string  directory to document
+---@param language_server_path string
+---@param sources_dir string  directory to document
 ---@param directory string  output directory
----@param config? string  `.luarc.json`
+---@param language_server_config_path? string  `.luarc.json`
 ---@param windows? boolean  build for Windows instead of the running platform
 ---@return string command
-function M.command_line(executable, source, directory, config, windows)
-  return ("%s --doc=%s --doc_out_path=%s --logpath=%s%s"):format(quote(executable, windows), quote(source, windows),
-    quote(directory, windows), quote(directory .. "/log", windows),
-    config and (" --configpath=" .. quote(config, windows)) or "")
+function M.command_line(language_server_path, sources_dir, directory, language_server_config_path, windows)
+  return ("%s --doc=%s --doc_out_path=%s --logpath=%s%s"):format(quote(language_server_path, windows),
+    quote(sources_dir, windows), quote(directory, windows), quote(directory .. "/log", windows),
+    language_server_config_path and (" --configpath=" .. quote(language_server_config_path, windows)) or "")
 end
 
 --- The first lines of the output of a failed LuaLS run (at most `MAX_LINES` lines of `MAX_COLUMNS` bytes), so
@@ -163,31 +164,38 @@ function M.excerpt(output)
   return table.concat(lines, "\n")
 end
 
---- Exports the documentation of the Lua sources below `source`. The `.luarc.json` named by `config` is read
---- by LuaLS and may declare a plugin, which LuaLS runs: only document a `source` and a `config` that you trust. Raises
+--- Exports the documentation of the Lua sources below `sources_dir`. LuaLS runs arbitrary code: a plugin
+--- (`Lua.runtime.plugin`) declared by any LuaLS configuration it reads is executed, with full file and command access
+--- as the current user. It reads the file named by `language_server_config_path` (passed as `--configpath`; none is passed when it is
+--- nil) and also the configuration that lies in the directory it documents (`.luarc.json`, `.luarc.jsonc` and
+--- `.vscode/settings.json`), even when `language_server_config_path` points elsewhere. Only document a `sources_dir` tree that you trust. The
+--- executable is the one given (`locate` finds `lua-language-server` through `PATH`), so `PATH` is trusted too. This
+--- function does not warn; the command `hecate doc build` is to (roadmap, item `cli`). Raises
 --- `hecate.doc.BuildError` if LuaLS fails or writes no export.
----@param executable string  full path of `lua-language-server`
----@param source string  directory to document (a package `src`)
----@param options { config?: string, fs: hecate.doc.FileSystem }  `config`: a `.luarc.json`
+---@param language_server_path string  full path of `lua-language-server`
+---@param sources_dir string  directory to document (a package `src`)
+---@param options { language_server_config_path?: string, file_system: hecate.doc.FileSystem }  `language_server_config_path`: a `.luarc.json`
 ---@return string json  the content of `doc.json`
-function M.export(executable, source, options)
-  if type(executable) ~= "string" or type(source) ~= "string" or type(options) ~= "table" or not options.fs then
-    error(core.ArgumentError("doc.luals.export: expects an executable, a source directory and { fs = ... }"), 2)
+function M.export(language_server_path, sources_dir, options)
+  if type(language_server_path) ~= "string" or type(sources_dir) ~= "string" or type(options) ~= "table"
+    or not options.file_system then
+    error(core.ArgumentError("doc.luals.export: expects a language server path, a sources directory and { file_system = ... }"), 2)
   end
-  local fs = options.fs
+  options_module.check("doc.luals.export", "luals_export", options, options_module.LUALS_EXPORT, 3)
+  local fs = options.file_system
   local directory = temporary_directory(fs)
   -- The directory is removed whatever happens (a raised error included).
   local done, output, ok, export = pcall(function()
-    local text, success = capture(M.command_line(executable, source, directory, options.config) .. " 2>&1")
+    local text, success = capture(M.command_line(language_server_path, sources_dir, directory, options.language_server_config_path) .. " 2>&1")
     return text, success, fs:read(directory .. "/doc.json")
   end)
   fs:remove_tree(directory)
   if not done then error(output, 0) end
   if not ok or not export then
     error(errors.BuildError({
-      message = ("doc.luals.export: lua-language-server could not export the documentation of %s: %s"):format(source,
+      message = ("doc.luals.export: lua-language-server could not export the documentation of %s: %s"):format(sources_dir,
         M.excerpt(output)),
-      context = { path = source },
+      context = { path = sources_dir },
     }), 0)
   end
   return export

@@ -43,7 +43,8 @@
       flowchart: { htmlLabels: false },
       suppressErrorRendering: true,
       secure: ["secure", "securityLevel", "startOnLoad", "maxTextSize", "suppressErrorRendering", "maxEdges",
-        "htmlLabels", "theme", "themeVariables", "fontFamily"],
+        "htmlLabels", "theme", "themeVariables", "fontFamily", "themeCSS", "altFontFamily", "dompurifyConfig",
+        "fontSize", "look", "layout", "elk", "logLevel", "deterministicIds"],
       theme: "base",
       fontFamily: token("--sans"),
       themeVariables: {

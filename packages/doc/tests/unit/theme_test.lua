@@ -204,8 +204,8 @@ local function build_fixture()
     end
   end
   copy(source, "")
-  local config = doc.load_config("c/site.lua", memory)
-  doc.build({ config = config, source = "c", out = "o", fs = memory })
+  local config = doc.load_site_configuration(memory, "c/site.lua")
+  doc.build({ site_configuration = config, guides_dir = "c", output_dir = "o", file_system = memory })
   return memory
 end
 

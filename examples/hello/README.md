@@ -92,8 +92,8 @@ showcase of the theme extension points of `hecate.doc`, in a plain, neutral styl
 accent, thin borders, small radii): its own palette in light and dark, its own radii and sidebar width, the Inter
 family (SIL OFL 1.1, Latin subset in `docs/public/fonts/`, loaded by the `@font-face` of the CSS file; recorded in
 `THIRD_PARTY_NOTICES`) for the text and a system monospace stack for code, its own logo and favicon (each in a
-light and a dark variant, through `logo` and `favicon`). The sidebar marker (`sidebar_marker`) is left off, which
-is the default. It also turns on `llms.txt`.
+light and a dark variant, through `logo_path` and `favicon_path`). The sidebar marker (`sidebar_marker`) is left off, which
+is the default. It also turns on `llms.txt` (`generate_llms_txt`).
 Build it from the repository root, with `luv` installed and the native module of `doc` built (`lua tools/run.lua
 build-native doc`), and the Hecate packages on the search path (`build_docs.lua` adds them itself):
 

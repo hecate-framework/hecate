@@ -10,8 +10,9 @@ build it), the licence files found in the source of the crate (`LICENSE*`, `LICE
 `UNICODE*`, `COPYRIGHT*`).
 Identical texts are given once. Build-only and development dependencies are not listed.
 
-When a crate offers a choice (`MIT OR Apache-2.0`), Hecate relies on the first permissive alternative in the
-order the crate declares it (column "Relied on"); an `AND` requires every term. The texts of the other
+When a crate offers a choice (`MIT OR Apache-2.0`), Hecate relies on the first alternative, in the order the
+crate declares it, that the allow list of `deny.toml` accepts (column "Relied on"), else on the first
+permissive alternative; an `AND` requires every term. The texts of the other
 alternatives are reproduced when the crate ships them. A crate that declares an SPDX identifier and ships no
 licence file is given the standard SPDX text of that identifier, marked in the column "Notes": the
 placeholders of the standard text (year, copyright holders) are kept as they are.

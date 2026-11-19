@@ -3,15 +3,19 @@
 -- the files of the theme (THIRD_PARTY_NOTICES lists the same material). The rocks are read as files of the tree,
 -- never through a `luarocks` process, and a rockspec is data of the project: it is never run with the privileges
 -- of the build (see `parse_rockspec`).
+-- American spelling is kept for external names only: the rockspec field `description.license`, SPDX identifiers and the
+-- file names `LICENSE` of the theme.
 -- The functions are deterministic: rocks and texts are sorted, and the same tree gives the same page.
-global <const> require, type, ipairs, pairs, table, string, tostring, load, utf8, debug, coroutine, math, io, error
+global <const> require, type, ipairs, pairs, table, string, tostring, load, utf8, math, io, error
 
+local options_module = require("hecate.doc.internal.options")
+local sandbox = require("hecate.doc.internal.sandbox")
 local text_helpers = require("hecate.doc.internal.text")
 
 local plain, code, fenced = text_helpers.plain, text_helpers.code, text_helpers.fenced
 
 --- Reads the installed rocks of a tree and writes the third-party licences page.
----@class hecate.doc.licenses
+---@class hecate.doc.licences
 local M = {}
 
 -- Limits: a tree and its rockspecs are data of the project and may be hostile or enormous.
@@ -19,27 +23,28 @@ local MAX_ROCKSPEC_BYTES = 256 * 1024
 local MAX_TEXT_BYTES = 64 * 1024
 local MAX_ROCKS = 2000
 local MAX_DEPENDENCIES = 500
-local MAX_LICENSE_CHARS = 200
+local MAX_LICENCE_CHARS = 200
 local MAX_INSTRUCTIONS = 1000000
+local MAX_KILOBYTES = 4 * 1024 -- growth of the memory of the process while a rockspec runs
 
 ---@class hecate.doc.Rock
 ---@field name string
 ---@field version string
----@field license? string  as the rockspec declares it (`description.license`; an SPDX identifier when the rock uses one)
+---@field licence? string  as the rockspec declares it (`description.license`, the name of the rockspec format; an SPDX identifier when the rock uses one)
 ---@field homepage? string
 ---@field dependencies string[]  names of the rocks it depends on (`lua` excluded)
 ---@field required_by string[]  names of the selected rocks that depend on it, sorted
 ---@field text? string  the licence text found in the installed rock
 ---@field text_file? string  where it was found
 
----@class hecate.doc.LicensesModel
+---@class hecate.doc.LicencesModel
 ---@field rocks hecate.doc.Rock[]  sorted by name, then version
 ---@field problems string[]  what could not be read or resolved, in the order met
 
 ---@class hecate.doc.Bundled
 ---@field name string
 ---@field use string  what it is used for
----@field license string  SPDX expression
+---@field licence string  SPDX expression
 ---@field shipped boolean  part of the generated site (false: used to build it only)
 ---@field text? string  the licence text, when it is reproduced
 ---@field note? string
@@ -47,7 +52,7 @@ local MAX_INSTRUCTIONS = 1000000
 local NAME_PATTERN = "^[%w_%.%-]+$"
 
 -- The code of a Lua chunk without its strings and comments (Lua 5.5 manual, 3.1), or nil when a string is not
--- terminated.
+-- terminated. A comment becomes a space, a string (short or long) the byte `\1`, so that `f"x"` stays recognisable as a call.
 local function code_of(text)
   local out, position, length = {}, 1, #text
   while position <= length do
@@ -67,7 +72,7 @@ local function code_of(text)
       local _, finish = text:find("]" .. long .. "]", position + 2 + #long, true)
       if not finish then return nil end
       position = finish + 1
-      out[#out + 1] = " "
+      out[#out + 1] = "\1"
     elseif char == '"' or char == "'" then
       local cursor = position + 1
       while true do
@@ -78,13 +83,26 @@ local function code_of(text)
         else cursor = cursor + 1 end
       end
       position = cursor + 1
-      out[#out + 1] = " "
+      out[#out + 1] = "\1"
     else
       out[#out + 1] = char
       position = position + 1
     end
   end
   return table.concat(out)
+end
+
+-- Words that may stand before a string or a table without calling it (`a and "x"`, `return {}`).
+local EXPRESSION_WORDS = { ["and"] = true, ["or"] = true, ["not"] = true, ["in"] = true, ["return"] = true,
+  ["then"] = true, ["do"] = true, ["else"] = true, ["elseif"] = true, ["until"] = true, ["if"] = true }
+
+-- A call without parentheses (Lua 5.5 manual, 3.4.10): a name, `]` or `}` followed by a string or a table constructor.
+local function calls_without_parentheses(code_only)
+  if code_only:find("[%]}]%s*[\1{]") then return true end
+  for word in code_only:gmatch("([%a_][%w_]*)%s*[\1{]") do
+    if not EXPRESSION_WORDS[word] then return true end
+  end
+  return false
 end
 
 local FORBIDDEN_WORDS = { "function", "while", "repeat", "for", "goto", "load", "loadstring", "dofile", "require" }
@@ -112,10 +130,12 @@ local function names_of(dependencies)
 end
 
 --- Reads the data of a rockspec (the fields `package`, `version`, `description.license`, `description.homepage` and
---- `dependencies`) without running it. A rockspec is Lua, but its content is data: the text is refused when, outside
---- strings and comments, it holds a call (`(`, `:`), a loop, a `goto` or any name that loads code, so that nothing can run
---- or be allocated at will; what remains is evaluated with an empty environment and an instruction limit, the same
---- discipline as `hecate.doc.load_config`.
+--- `dependencies`). A rockspec is Lua, but its content is data: the text is refused when, outside strings and comments, it
+--- holds a call (`(`, `:`, or a name followed by a string or a table), a concatenation (`..`, which doubles a string at each
+--- use), a loop, a `goto` or any name that loads code. What remains is a list of assignments of constants and constructors;
+--- it is evaluated with an empty environment under the instruction and memory limits of `hecate.doc.internal.sandbox` (which
+--- bound runaway work in Lua code, not one call into C: there is none left in the text). The reader is total: it returns
+--- a rock or a problem and never raises.
 ---@param text string
 ---@return hecate.doc.Rock? rock  `required_by` is empty and `text` absent
 ---@return string? problem
@@ -124,7 +144,12 @@ function M.parse_rockspec(text)
   if #text > MAX_ROCKSPEC_BYTES then return nil, ("the rockspec is larger than %d bytes"):format(MAX_ROCKSPEC_BYTES) end
   local code_only = code_of(text)
   if not code_only then return nil, "the rockspec has an unterminated string or comment" end
-  if code_only:find("[():]") then return nil, "the rockspec holds a call, which is not data" end
+  if code_only:find("[():]") or calls_without_parentheses(code_only) then
+    return nil, "the rockspec holds a call, which is not data"
+  end
+  if code_only:find("..", 1, true) then
+    return nil, "the rockspec holds a concatenation (`..`), which is not data"
+  end
   for _, word in ipairs(FORBIDDEN_WORDS) do
     if code_only:find("%f[%w_]" .. word .. "%f[^%w_]") then
       return nil, ("the rockspec uses `%s`, which is not data"):format(word)
@@ -133,9 +158,7 @@ function M.parse_rockspec(text)
   local environment = {}
   local chunk, message = load(text, "=rockspec", "t", environment)
   if not chunk then return nil, "the rockspec is not valid Lua: " .. tostring(message):gsub("^[^:]*:%d+: ", "") end
-  local thread = coroutine.create(chunk)
-  debug.sethook(thread, function() error("instruction limit", 0) end, "", MAX_INSTRUCTIONS)
-  local ok, failure = coroutine.resume(thread)
+  local ok, failure = sandbox.run(chunk, { instructions = MAX_INSTRUCTIONS, kilobytes = MAX_KILOBYTES })
   if not ok then return nil, "the rockspec failed: " .. one_line(failure, 120) end
   local name, version = environment.package, environment.version
   if type(name) ~= "string" or #name > 128 or not name:match(NAME_PATTERN) then
@@ -145,11 +168,12 @@ function M.parse_rockspec(text)
     return nil, "the rockspec has no valid `version`"
   end
   local description = type(environment.description) == "table" and environment.description or {}
-  local license = type(description.license) == "string" and one_line(description.license, MAX_LICENSE_CHARS) or nil
-  if license == "" then license = nil end
+  -- `license` is American spelling here because it is the name of a field of the rockspec format (an external name).
+  local licence = type(description.license) == "string" and one_line(description.license, MAX_LICENCE_CHARS) or nil
+  if licence == "" then licence = nil end
   local homepage = type(description.homepage) == "string" and one_line(description.homepage, 300) or nil
   return {
-    name = name, version = version, license = license, homepage = homepage,
+    name = name, version = version, licence = licence, homepage = homepage,
     dependencies = names_of(environment.dependencies), required_by = {},
   }
 end
@@ -192,22 +216,24 @@ local function by_name_then_version(a, b)
   return a.version < b.version
 end
 
----@class hecate.doc.LicensesOptions
----@field tree string  root of the installed tree (a project's `lua_modules`): `<tree>/lib/luarocks/rocks-<lua>/<rock>/<version>/`
----@field roots? string[]  names of the rocks the project depends on: only they and their dependencies, resolved transitively, are listed (default: every installed rock)
+---@class hecate.doc.LicencesOptions
+---@field rocks_tree_dir string  root of the installed rocks tree (a project's `lua_modules`): `<rocks_tree_dir>/lib/luarocks/rocks-<lua>/<rock>/<version>/`
+---@field root_rocks? string[]  names of the rocks the project depends on: only they and their dependencies, resolved transitively, are listed (default: every installed rock)
 ---@field max_rocks? integer  default 2000
 
 --- Reads the rocks of an installed tree through `fs` (no process, no `luarocks`): every rock has a rockspec with
 --- `description.license` and `dependencies`. Dependencies are resolved by name over every installed version, so the
 --- result does not depend on the order of the files. Links are not followed. What cannot be read or resolved is a
 --- problem, never an error: the page lists what is known.
----@param fs hecate.doc.FileSystem
----@param options hecate.doc.LicensesOptions
----@return hecate.doc.LicensesModel
-function M.read(fs, options)
+---@param file_system hecate.doc.FileSystem
+---@param options hecate.doc.LicencesOptions
+---@return hecate.doc.LicencesModel
+function M.read(file_system, options)
+  local fs = file_system
+  options_module.check("doc.licences.read", "licences", options, options_module.LICENCES_READ, 3)
   local limit = options.max_rocks or MAX_ROCKS
   local problems, found, seen = {}, {}, {}
-  local base = options.tree:gsub("/+$", "") .. "/lib/luarocks"
+  local base = options.rocks_tree_dir:gsub("/+$", "") .. "/lib/luarocks"
   local kinds = {}
   for _, entry in ipairs(fs:list(base) or {}) do
     if entry.is_directory and entry.name:match("^rocks%-") and not is_link(fs, base .. "/" .. entry.name) then
@@ -215,7 +241,7 @@ function M.read(fs, options)
     end
   end
   if #kinds == 0 then
-    problems[#problems + 1] = ("licenses: the tree %s holds no installed rocks (expected %s/rocks-<version>)"):format(options.tree, base)
+    problems[#problems + 1] = ("licences: the rocks tree %s holds no installed rocks (expected %s/rocks-<version>)"):format(options.rocks_tree_dir, base)
   end
   local full = false
   for _, rocks_directory in ipairs(kinds) do
@@ -229,7 +255,7 @@ function M.read(fs, options)
             if #found >= limit then
               if not full then
                 full = true
-                problems[#problems + 1] = ("licenses: more than %d rocks are installed; only the first %d (by name) are listed")
+                problems[#problems + 1] = ("licences: more than %d rocks are installed; only the first %d (by name) are listed")
                   :format(limit, limit)
               end
             else
@@ -237,13 +263,13 @@ function M.read(fs, options)
               local path = ("%s/%s-%s.rockspec"):format(directory, rock_entry.name, version_entry.name)
               local source = not is_link(fs, path) and fs:read(path) or nil
               if source == nil then
-                problems[#problems + 1] = ("licenses: rock %s has no readable rockspec at %s"):format(label, path)
+                problems[#problems + 1] = ("licences: rock %s has no readable rockspec at %s"):format(label, path)
               else
                 local rock, problem = M.parse_rockspec(source)
                 if not rock then
-                  problems[#problems + 1] = ("licenses: rock %s: %s (%s)"):format(label, problem, path)
+                  problems[#problems + 1] = ("licences: rock %s: %s (%s)"):format(label, problem, path)
                 elseif rock.name ~= rock_entry.name or rock.version ~= version_entry.name then
-                  problems[#problems + 1] = ("licenses: rock %s: the rockspec declares %s %s (%s)"):format(
+                  problems[#problems + 1] = ("licences: rock %s: the rockspec declares %s %s (%s)"):format(
                     label, rock.name, rock.version, path)
                 else
                   local data, text_path = find_text(fs, directory)
@@ -252,7 +278,7 @@ function M.read(fs, options)
                     if usable then
                       rock.text, rock.text_file = usable, text_path
                     else
-                      problems[#problems + 1] = ("licenses: the licence text of rock %s is not reproduced (%s)"):format(label, reason)
+                      problems[#problems + 1] = ("licences: the licence text of rock %s is not reproduced (%s)"):format(label, reason)
                     end
                   end
                   found[#found + 1] = rock
@@ -277,10 +303,10 @@ function M.read(fs, options)
     selected[name] = true
     queue[#queue + 1] = name
   end
-  if options.roots then
-    for _, root in ipairs(options.roots) do
+  if options.root_rocks then
+    for _, root in ipairs(options.root_rocks) do
       if named[root] then select_name(root)
-      else problems[#problems + 1] = ("licenses: the root rock %s is not installed in the tree %s"):format(root, options.tree) end
+      else problems[#problems + 1] = ("licences: the root rock %s is not installed in the rocks tree %s"):format(root, options.rocks_tree_dir) end
     end
   else
     for _, rock in ipairs(found) do select_name(rock.name) end
@@ -297,7 +323,7 @@ function M.read(fs, options)
           requirers[dependency][name] = true
           select_name(dependency)
         else
-          problems[#problems + 1] = ("licenses: rock %s %s depends on %s, which is not installed in the tree"):format(
+          problems[#problems + 1] = ("licences: rock %s %s depends on %s, which is not installed in the tree"):format(
             rock.name, rock.version, dependency)
         end
       end
@@ -324,7 +350,7 @@ end
 
 -- The MIT licence of the Octicons "mark-github" icon (https://github.com/primer/octicons), whose text is the
 -- standard one with the copyright line recorded in THIRD_PARTY_NOTICES, section 3.
-local OCTICONS_LICENSE = [[
+local OCTICONS_LICENCE = [[
 MIT License
 
 Copyright (c) GitHub, Inc.
@@ -355,8 +381,8 @@ local MERMAID_COMPONENTS = "The bundle holds components under their own licences
 
 ---@class hecate.doc.BundledOptions
 ---@field diagrams boolean  a page holds a diagram: the site ships Mermaid
----@field theme_fs? hecate.doc.FileSystem  where the files of the theme are read (default: `io`)
----@field theme_directory? string  the `assets` directory of the theme (default: the theme's own)
+---@field theme_file_system? hecate.doc.FileSystem  where the files of the theme are read (default: `io`)
+---@field theme_files_dir? string  the `assets` directory of the theme (default: the theme's own)
 
 --- What a generated site bundles or is built with, with the licence texts the theme ships. Mermaid is listed only when a
 --- page holds a diagram. The highlight colours of the theme are its own CSS: no colour theme of syntect or two-face is
@@ -364,7 +390,8 @@ local MERMAID_COMPONENTS = "The bundle holds components under their own licences
 ---@param options hecate.doc.BundledOptions
 ---@return hecate.doc.Bundled[]
 function M.bundled(options)
-  local reader = options.theme_fs or {
+  options_module.check("doc.licences.bundled", "bundled", options, options_module.LICENCES_BUNDLED, 3)
+  local reader = options.theme_file_system or {
     read = function(_, path)
       local file = io.open(path, "rb")
       if not file then return nil end
@@ -373,31 +400,31 @@ function M.bundled(options)
       return data
     end,
   }
-  local directory = options.theme_directory or require("hecate.doc.theme").assets_directory()
+  local directory = options.theme_files_dir or require("hecate.doc.theme").assets_directory()
   local function text_of(path)
     local data = reader:read(directory .. "/" .. path)
     return data and (usable_text(data)) or nil
   end
   local items = {
-    { name = "STIX Two Text", use = "body typeface (WOFF2, Latin subset, unmodified)", license = "OFL-1.1", shipped = true,
+    { name = "STIX Two Text", use = "body typeface (WOFF2, Latin subset, unmodified)", licence = "OFL-1.1", shipped = true,
       text = text_of("fonts/OFL-stix-two-text.txt") },
-    { name = "Fira Sans", use = "interface typeface (WOFF2, Latin subset, unmodified)", license = "OFL-1.1", shipped = true,
+    { name = "Fira Sans", use = "interface typeface (WOFF2, Latin subset, unmodified)", licence = "OFL-1.1", shipped = true,
       text = text_of("fonts/OFL-fira-sans.txt") },
-    { name = "Fira Code", use = "monospace typeface (WOFF2, Latin subset, unmodified)", license = "OFL-1.1", shipped = true,
+    { name = "Fira Code", use = "monospace typeface (WOFF2, Latin subset, unmodified)", licence = "OFL-1.1", shipped = true,
       text = text_of("fonts/OFL-fira-code.txt") },
-    { name = "Hecate brand marks", use = "logo, compact mark, favicon, trivium pattern (replaced by the `logo` option)",
-      license = "MIT", shipped = true, text = text_of("brand/LICENSE") },
-    { name = "Octicons mark-github", use = "icon of the link to the repository", license = "MIT", shipped = true,
-      text = OCTICONS_LICENSE },
+    { name = "Hecate brand marks", use = "logo, compact mark, favicon, trivium pattern (replaced by the `logo_path` option)",
+      licence = "MIT", shipped = true, text = text_of("brand/LICENSE") },
+    { name = "Octicons mark-github", use = "icon of the link to the repository", licence = "MIT", shipped = true,
+      text = OCTICONS_LICENCE },
   }
   if options.diagrams then
-    items[#items + 1] = { name = "Mermaid", use = "diagrams (loaded only by the pages that hold one)", license = "MIT",
+    items[#items + 1] = { name = "Mermaid", use = "diagrams (loaded only by the pages that hold one)", licence = "MIT",
       shipped = true, text = text_of("mermaid/LICENSE"), note = MERMAID_COMPONENTS }
   end
-  items[#items + 1] = { name = "comrak", use = "Markdown rendering (native module)", license = "BSD-2-Clause", shipped = false,
+  items[#items + 1] = { name = "comrak", use = "Markdown rendering (native module)", licence = "BSD-2-Clause", shipped = false,
     note = "Also built in: finl_unicode ((MIT OR Apache-2.0) AND Unicode-DFS-2016). The licence texts of the crates are shipped with the release artefacts of the native module (THIRD_PARTY_NOTICES, section 5)." }
-  items[#items + 1] = { name = "syntect", use = "syntax highlighting (native module)", license = "MIT", shipped = false }
-  items[#items + 1] = { name = "two-face", use = "syntax definitions for syntect (native module)", license = "MIT OR Apache-2.0",
+  items[#items + 1] = { name = "syntect", use = "syntax highlighting (native module)", licence = "MIT", shipped = false }
+  items[#items + 1] = { name = "two-face", use = "syntax definitions for syntect (native module)", licence = "MIT OR Apache-2.0",
     shipped = false,
     note = "Its embedded syntax definitions are under MIT (48), Apache-2.0 (8), BSD-2-Clause (2) and BSD-3-Clause (1); their notices are shipped with the release artefacts of the native module. No colour theme of syntect or two-face is used: the highlight colours are the own CSS properties of the theme (THIRD_PARTY_NOTICES, section 5)." }
   return items
@@ -405,7 +432,7 @@ end
 
 --- Writes the page: after `header` (front matter, generated notice and title, built by the caller), the rocks, the bundled
 --- components and the licence texts, each distinct text once with the components it covers.
----@param model hecate.doc.LicensesModel
+---@param model hecate.doc.LicencesModel
 ---@param header string[]  the first lines of the page
 ---@param bundled? hecate.doc.Bundled[]  default: none
 ---@return string markdown
@@ -429,7 +456,7 @@ function M.markdown(model, header, bundled)
       local required = {}
       for _, name in ipairs(rock.required_by) do required[#required + 1] = code(name, true) end
       lines[#lines + 1] = ("| %s | %s | %s | %s |"):format(code(rock.name, true), plain(rock.version),
-        rock.license and code(rock.license, true) or "not declared", table.concat(required, ", "))
+        rock.licence and code(rock.licence, true) or "not declared", table.concat(required, ", "))
     end
     lines[#lines + 1] = ""
   end
@@ -444,7 +471,7 @@ function M.markdown(model, header, bundled)
     lines[#lines + 1] = "| Component | Used for | Licence |"
     lines[#lines + 1] = "|---|---|---|"
     for _, item in ipairs(rows) do
-      lines[#lines + 1] = ("| %s | %s | %s |"):format(plain(item.name), plain(item.use), code(item.license, true))
+      lines[#lines + 1] = ("| %s | %s | %s |"):format(plain(item.name), plain(item.use), code(item.licence, true))
     end
     lines[#lines + 1] = ""
     for _, item in ipairs(rows) do
@@ -463,23 +490,23 @@ function M.markdown(model, header, bundled)
   -- Licence texts, each distinct text once.
   local groups, order = {}, {}
   local without_rocks, without_bundled = {}, {}
-  local function add(text, license, label)
+  local function add(text, licence, label)
     local group = groups[text]
     if not group then
-      group = { text = text, licenses = {}, labels = {} }
+      group = { text = text, licences = {}, labels = {} }
       groups[text] = group
       order[#order + 1] = group
     end
-    group.licenses[license] = true
+    group.licences[licence] = true
     group.labels[#group.labels + 1] = label
   end
   for _, rock in ipairs(model.rocks) do
     local label = ("%s %s"):format(code(rock.name), plain(rock.version))
-    if rock.text then add(rock.text, rock.license or "not declared", label)
+    if rock.text then add(rock.text, rock.licence or "not declared", label)
     else without_rocks[#without_rocks + 1] = label end
   end
   for _, item in ipairs(bundled) do
-    if item.text then add(item.text, item.license, plain(item.name))
+    if item.text then add(item.text, item.licence, plain(item.name))
     else without_bundled[#without_bundled + 1] = plain(item.name) end
   end
   lines[#lines + 1] = "## Licence texts"
@@ -490,7 +517,7 @@ function M.markdown(model, header, bundled)
   end
   for _, group in ipairs(order) do
     local names = {}
-    for name in pairs(group.licenses) do names[#names + 1] = name end
+    for name in pairs(group.licences) do names[#names + 1] = name end
     table.sort(names)
     lines[#lines + 1] = "### " .. plain(table.concat(names, ", "))
     lines[#lines + 1] = ""

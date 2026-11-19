@@ -39,7 +39,7 @@ local M = {}
 ---@field current boolean
 
 ---@class hecate.doc.PageContext
----@field config hecate.doc.SiteConfig
+---@field site_configuration hecate.doc.SiteConfiguration
 ---@field locale hecate.doc.Locale
 ---@field locale_links hecate.doc.LocaleLink[]
 ---@field strings table<string, any>
@@ -99,8 +99,8 @@ local function header(context)
   local function add(text) parts[#parts + 1] = text end
   add("<header class=\"site-header\"><div class=\"header-inner\">")
   add(("<a class=\"logo\" href=\"%s\" aria-label=\"%s\">"):format(escape(context.home_url),
-    escape(context.config.title .. ", " .. s.home)))
-  local logo = context.config.logo
+    escape(context.site_configuration.title .. ", " .. s.home)))
+  local logo = context.site_configuration.logo_path
   if logo then
     add(("<img class=\"logo-custom%s\" src=\"%s\" alt=\"\" height=\"45\">"):format(
       logo.dark and " logo-light" or "", escape(context.public_url(logo.light))))
@@ -141,9 +141,9 @@ local function header(context)
   add("<div class=\"header-actions\">")
   add(("<button class=\"icon-button theme-toggle\" type=\"button\" aria-label=\"%s\">%s%s</button>"):format(
     escape(s.switch_to_dark), icon("sun", "icon-sun"), icon("moon", "icon-moon")))
-  if context.config.repository then
+  if context.site_configuration.repository_url then
     add(("<a class=\"icon-button\" href=\"%s\" aria-label=\"%s\">%s</a>"):format(
-      escape(context.config.repository), escape(s.repository), github_icon()))
+      escape(context.site_configuration.repository_url), escape(s.repository), github_icon()))
   end
   add("</div></div>")
   add(("<button class=\"icon-button menu-toggle\" type=\"button\" aria-controls=\"header-panel\" "
@@ -272,7 +272,7 @@ local function head(context, title)
     ("<title>%s</title>"):format(escape(title)),
     "<meta name=\"color-scheme\" content=\"light dark\">",
   }
-  local favicon = context.config.favicon
+  local favicon = context.site_configuration.favicon_path
   if favicon then
     -- The pair is told apart by `prefers-color-scheme`; a single file is used for both schemes.
     local function icon_link(path, media)
@@ -290,7 +290,7 @@ local function head(context, title)
     out[#out + 1] = ("<meta property=\"og:description\" content=\"%s\">"):format(escape(context.description))
   end
   out[#out + 1] = ("<meta property=\"og:title\" content=\"%s\">"):format(escape(title))
-  out[#out + 1] = ("<meta property=\"og:site_name\" content=\"%s\">"):format(escape(context.config.title))
+  out[#out + 1] = ("<meta property=\"og:site_name\" content=\"%s\">"):format(escape(context.site_configuration.title))
   out[#out + 1] = "<meta property=\"og:type\" content=\"website\">"
   if context.canonical then
     out[#out + 1] = ("<link rel=\"canonical\" href=\"%s\">"):format(escape(context.canonical))
@@ -304,8 +304,8 @@ local function head(context, title)
       escape(context.asset("assets/fonts/" .. font .. ".woff2")))
   end
   out[#out + 1] = ("<link rel=\"stylesheet\" href=\"%s\">"):format(escape(context.asset("assets/theme.css")))
-  if context.config.theme then
-    out[#out + 1] = ("<link rel=\"stylesheet\" href=\"%s\">"):format(escape(context.public_url(context.config.theme)))
+  if context.site_configuration.stylesheet_path then
+    out[#out + 1] = ("<link rel=\"stylesheet\" href=\"%s\">"):format(escape(context.public_url(context.site_configuration.stylesheet_path)))
   end
   out[#out + 1] = ("<script src=\"%s\"></script>"):format(escape(context.asset("assets/theme-init.js")))
   return table.concat(out, "\n")
@@ -325,7 +325,7 @@ local function script_config(context)
   for _, key in ipairs(keys) do subset[key] = s[key] end
   -- `<`, `>` and `&` are written as escapes so that the text cannot close the script element.
   local text = json.encode({
-    base = context.config.base, locale = context.locale.code, index = context.search_index_url, strings = subset,
+    base = context.site_configuration.base_path, locale = context.locale.code, index = context.search_index_url, strings = subset,
   }, { canonical = true }):gsub("[<>&]", function(char) return ("\\u%04x"):format(char:byte()) end)
   return ("<script type=\"application/json\" id=\"doc-config\">%s</script>"):format(text)
 end
@@ -339,7 +339,7 @@ function M.page(context)
   local has_sidebar = not is_home and #context.sidebar > 0
   local has_outline = not is_home and #context.outline > 0
   local title = context.title
-  if not is_home then title = title .. " | " .. context.config.title end
+  if not is_home then title = title .. " | " .. context.site_configuration.title end
   local body = {}
   local function add(text) body[#body + 1] = text end
   add(("<a class=\"skip-link\" href=\"#content\">%s</a>"):format(escape(s.skip_to_content)))
@@ -396,7 +396,7 @@ function M.page(context)
   end
   return ("<!doctype html>\n<html lang=\"%s\">\n<head>\n%s\n</head>\n<body%s>\n%s\n</body>\n</html>\n"):format(
     escape(context.locale.lang), head(context, title), attributes({
-      class = (is_home and "home" or "doc-page") .. (context.config.sidebar_marker and " sidebar-marker" or ""),
+      class = (is_home and "home" or "doc-page") .. (context.site_configuration.sidebar_marker and " sidebar-marker" or ""),
     }),
     table.concat(body, "\n"))
 end

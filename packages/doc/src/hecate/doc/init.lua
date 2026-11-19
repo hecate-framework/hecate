@@ -11,8 +11,8 @@ local build = require("hecate.doc.build")
 ---@class hecate.doc
 ---@field build fun(options: hecate.doc.BuildOptions): hecate.doc.BuildReport  the plain site builder: a content tree in, a static site out
 ---@field generate_project_documentation fun(options?: hecate.doc.ProjectDocumentationOptions): hecate.doc.ProjectDocumentationReport  the documentation of a Hecate project: guides, configuration reference from the application, code reference, licences page, then the site; every option has a default of the conventional project layout
----@field load_config fun(path: string, fs: hecate.doc.FileSystem): hecate.doc.SiteConfig
----@field normalise_config fun(raw: hecate.doc.SiteConfig): hecate.doc.SiteConfig
+---@field load_site_configuration fun(file_system: hecate.doc.FileSystem, path: string): hecate.doc.SiteConfiguration  reads a `site.lua` file: Lua that returns a table, run with an empty environment
+---@field normalise_site_configuration fun(raw: hecate.doc.SiteConfiguration): hecate.doc.SiteConfiguration  validates a site configuration and fills in the defaults
 ---@field Site hecate.doc.Site
 ---@field Page hecate.doc.Page
 ---@field FileSystem table  interface of file system accessors
@@ -29,8 +29,8 @@ local build = require("hecate.doc.build")
 local doc = {
   build = build.build,
   generate_project_documentation = require("hecate.doc.internal.project_documentation").generate,
-  load_config = build.load_config,
-  normalise_config = require("hecate.doc.config").normalise,
+  load_site_configuration = build.load_site_configuration,
+  normalise_site_configuration = require("hecate.doc.config").normalise,
   ---@diagnostic disable-next-line: assign-type-mismatch  -- class constructor exported as its class
   Site = require("hecate.doc.site"),
   ---@diagnostic disable-next-line: assign-type-mismatch  -- class constructor exported as its class

@@ -8,7 +8,7 @@ order: 4
 # Theme tokens
 
 The theme of `hecate.doc` is one stylesheet built on custom properties (CSS variables). A project changes the look of its
-documentation site by overriding them in one CSS file, named by the site configuration key `theme`. This page lists
+documentation site by overriding them in one CSS file, named by the site configuration key `stylesheet_path`. This page lists
 every property you can override and what it affects, for hecate 0.x and Lua 5.5. The configuration keys themselves are
 in [Project documentation](project-documentation.md).
 
@@ -16,7 +16,7 @@ in [Project documentation](project-documentation.md).
 
 1. Put the CSS file in the `public/` directory of the content root, for example `public/my-theme.css`. The build copies
    `public/` to the root of the site.
-2. Name it in `site.lua`: `theme = "my-theme.css"`. The path is relative to `public/`, ends with `.css`, and has no `..`,
+2. Name it in `site.lua`: `stylesheet_path = "my-theme.css"`. The path is relative to `public/`, ends with `.css`, and has no `..`,
    scheme, query or hidden segment. A file that is missing fails the build before anything is written.
 3. The file is linked after the stylesheet of the theme, on every page, so a rule of the same specificity wins.
 
@@ -129,8 +129,8 @@ A logo is shown at 45 px high, so keep `--header-height` at 56px or more if you 
 
 - The properties `--show-light`, `--show-dark`, `--show-light-inline`, `--show-dark-inline`, `--callout` and `--icon`
   belong to the theme: they switch the logo and the toggle icon, and style callouts. Do not set them.
-- The hecate marks are never recoloured. The `logo` key replaces the logo, and the image is shown as it is, never
-  recoloured. The `favicon` key replaces the favicon. One hecate asset remains in a project site: the pattern strip of the
+- The hecate marks are never recoloured. The `logo_path` key replaces the logo, and the image is shown as it is, never
+  recoloured. The `favicon_path` key replaces the favicon. One hecate asset remains in a project site: the pattern strip of the
   home layout (`layout: home`); a project that does not want it avoids that layout.
 - The accent bar of the current page in the sidebar is opt-in: set `sidebar_marker = true` in `site.lua`. Without it
   the current page is shown by a stronger weight and a tint (`--surface-100`), so `--earth` is not used there.

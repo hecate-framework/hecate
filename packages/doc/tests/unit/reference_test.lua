@@ -278,14 +278,14 @@ end
 
 function T:test_a_site_with_the_generated_pages_builds_in_strict_mode_with_a_sidebar_entry_per_page()
   local files = {
-    ["site.lua"] = "return { title = 'demo', nav = { { text = 'Reference', link = 'reference/' } } }",
+    ["site.lua"] = "return { title = 'demo', top_links = { { text = 'Reference', link = 'reference/' } } }",
     ["en/index.md"] = "---\ntitle: Home\n---\n\n# Home\n\nSee the [reference](reference/demo/index.md).\n",
   }
   local result = generate()
   for path, content in pairs(result.pages) do files["en/" .. path] = content end
   local memory = doc.MemoryFileSystem(files)
   local report = doc.build({
-    config = doc.load_config("site.lua", memory), source = ".", out = "dist", fs = memory, strict = true,
+    site_configuration = doc.load_site_configuration(memory, "site.lua"), guides_dir = ".", output_dir = "dist", file_system = memory, fail_on_problems = true,
   })
   self:assert_equal(0, #report.problems, table.concat(report.problems, "\n"))
   local page = memory:read("dist/en/reference/demo/Counter/index.html")

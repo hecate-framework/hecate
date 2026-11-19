@@ -123,7 +123,7 @@ end
 --- pages directly in the section, then each sub-directory forms a group.
 ---@param section string
 ---@param pages hecate.doc.PageInfo[]
----@param config hecate.doc.SiteConfig
+---@param config hecate.doc.SiteConfiguration
 ---@param locale string
 ---@return hecate.doc.SidebarNode[] nodes
 ---@return string[] problems  explicit entries that name no page
@@ -187,15 +187,15 @@ end
 
 --- Computes the top navigation: the configured links, or one link per top-level section.
 ---@param pages hecate.doc.PageInfo[]
----@param config hecate.doc.SiteConfig
+---@param config hecate.doc.SiteConfiguration
 ---@param locale string
 ---@return hecate.doc.TopLink[]
 function M.top_links(pages, config, locale)
   local by_id = {}
   for _, page in ipairs(pages) do by_id[page.id] = page end
   local links = {}
-  if config.nav then
-    for _, entry in ipairs(config.nav) do
+  if config.top_links then
+    for _, entry in ipairs(config.top_links) do
       local text = config_module.localise(entry.text, locale, config.default_locale)
       if entry.link:find("^%a[%w+.%-]*:") then
         links[#links + 1] = { text = text or entry.link, url = entry.link }

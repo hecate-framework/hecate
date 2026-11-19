@@ -6,9 +6,9 @@
 return {
   title = "hello",
   description = "A small JSON API on hecate: validated input, problem details, workers.",
-  base = "/",
-  logo = { light = "logo.svg", dark = "logo-dark.svg" },
-  favicon = { light = "favicon.svg", dark = "favicon-dark.svg" },
-  theme = "hello-theme.css",
-  llms = true, -- also writes llms.txt and llms-full.txt
+  base_path = "/",
+  logo_path = { light = "logo.svg", dark = "logo-dark.svg" },
+  favicon_path = { light = "favicon.svg", dark = "favicon-dark.svg" },
+  stylesheet_path = "hello-theme.css",
+  generate_llms_txt = true, -- also writes llms.txt and llms-full.txt
 }

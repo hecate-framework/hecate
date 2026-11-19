@@ -10,7 +10,8 @@
 -- `--reference` first generates the code reference (reference.lua: needs lua-language-server) into
 -- `<source>/<default locale>/reference/` from the packages of the checkout at `--root` (default:
 -- the parent of `source`) for the packages of `--packages` (default: the documented packages);
--- without LuaLS it warns, and with --strict it fails.
+-- without LuaLS it warns. With --strict every problem (those of the build and those of the reference) is listed in one
+-- error, after the site is written.
 -- Exit codes: 0 built, 1 build failed or, with --strict, problems were found, 2 usage error.
 global <const> _VERSION, arg, io, os, package, require, print, pcall, tostring, ipairs, pairs, table, error
 
@@ -98,12 +99,15 @@ do
 end
 
 -- `--base` and `--url` go through the same validation as the configuration file (a protocol-relative base is refused).
+-- The flags keep their short names; the keys of the site configuration they set are `base_path` and `site_origin`.
+local FLAG_KEYS = { base = "base_path", url = "site_origin" }
 for _, name in ipairs({ "base", "url" }) do
   if options[name] then
-    local candidate = { title = "hecate.doc", [name] = options[name] }
+    local key = FLAG_KEYS[name]
+    local candidate = { title = "hecate.doc", [key] = options[name] }
     local valid, checked = pcall(doc_config.normalise, candidate)
     if not valid then usage_error("invalid --" .. name .. ": " .. tostring(checked)) end
-    options[name] = checked[name]
+    options[name] = checked[key]
   end
 end
 
@@ -130,39 +134,54 @@ end
 
 local function run()
   local fs = doc.SystemFileSystem()
-  local config = doc.load_config(options.config or (options.source .. "/site.lua"), fs)
-  if options.base then config.base = options.base end
-  if options.url then config.url = options.url end
+  local site_configuration = doc.load_site_configuration(fs, options.config or (options.source .. "/site.lua"))
+  if options.base then site_configuration.base_path = options.base end
+  if options.url then site_configuration.site_origin = options.url end
   local generated = {}
   if flags.reference then
+    local root = options.root or (options.source .. "/..")
+    local luarc = root .. "/.luarc.json"
+    local luarc_file = io.open(luarc, "rb")
+    if luarc_file then luarc_file:close() end
     local report = reference_site.run({
-      root = options.root or (options.source .. "/.."),
+      project_dir = root,
+      -- The configuration of the repository is given explicitly: the library passes none by default.
+      language_server_config_path = luarc_file and luarc or nil,
       packages = options.packages and (function()
         local names = {}
         for name in options.packages:gmatch("[^,]+") do names[#names + 1] = name end
         return names
       end)() or nil,
-      out = options.source .. "/" .. (config.default_locale or "en"),
-      fs = fs,
+      locale_dir = options.source .. "/" .. (site_configuration.default_locale or "en"),
+      file_system = fs,
     })
     for _, problem in ipairs(report.problems) do generated[#generated + 1] = problem end
-    if report.skipped then
-      if flags.strict then
-        error(report.skipped .. " (--strict)", 0)
-      end
-      generated[#generated + 1] = report.skipped
-    end
+    if report.skipped then generated[#generated + 1] = report.skipped end
   end
   local result = doc.build({
-    config = config,
-    source = options.source,
-    out = options.out or (options.source .. "/dist"),
-    fs = fs,
-    clean = flags.clean,
-    strict = flags.strict,
+    site_configuration = site_configuration,
+    guides_dir = options.source,
+    output_dir = options.out or (options.source .. "/dist"),
+    file_system = fs,
+    clean_output_dir = flags.clean,
     last_updated = (not flags["no-git-dates"]) and git_date or nil,
   })
-  for _, problem in ipairs(generated) do result.problems[#result.problems + 1] = problem end
+  -- The build does not fail on its own problems: they are merged with those of the reference (sorted and unique, as the
+  -- report promises), and --strict raises once for all of them.
+  local seen, problems = {}, {}
+  for _, list in ipairs({ result.problems, generated }) do
+    for _, problem in ipairs(list) do
+      if not seen[problem] then
+        seen[problem] = true
+        problems[#problems + 1] = problem
+      end
+    end
+  end
+  table.sort(problems)
+  result.problems = problems
+  if flags.strict and #problems > 0 then
+    error(("hecate.doc: %d problem(s) (--strict):\n  %s"):format(#problems, table.concat(problems, "\n  ")), 0)
+  end
   return result
 end
 

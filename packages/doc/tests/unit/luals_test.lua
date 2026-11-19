@@ -52,7 +52,7 @@ function T:test_a_failed_export_leaves_no_temporary_directory_and_uses_an_unpred
     local spy = setmetatable({ remove_tree = function(_, path) removed[#removed + 1] = path; fs:remove_tree(path) end },
       { __index = fs })
     for index = 1, 2 do
-      local ok, err = pcall(luals.export, "/nonexistent/lua-language-server", "/nonexistent/src", { fs = spy })
+      local ok, err = pcall(luals.export, "/nonexistent/lua-language-server", "/nonexistent/src", { file_system = spy })
       errors[index] = ok and "no error" or err
     end
     for _, path in ipairs(removed) do left[#left + 1] = fs:exists(path) end

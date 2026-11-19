@@ -22,8 +22,8 @@ local function build(files)
   for path, data in pairs(files) do prefixed["c/" .. path] = data end
   local fs = doc.MemoryFileSystem(prefixed)
   doc.build({
-    config = { title = "hecate", locales = { { code = "en", label = "English", lang = "en" } } },
-    source = "c", out = "o", fs = fs,
+    site_configuration = { title = "hecate", locales = { { code = "en", label = "English", lang = "en" } } },
+    guides_dir = "c", output_dir = "o", file_system = fs,
   })
   return fs
 end
@@ -111,6 +111,22 @@ function T:test_the_initialiser_renders_strictly_and_takes_its_colours_from_the_
   self:assert_true(has(INIT, "data-theme"), "the diagrams are drawn again when the colour theme changes")
 end
 
+-- The `secure` list of Mermaid names the keys that a `%%{init}%%` directive or a front matter block of a diagram may not set;
+-- Mermaid removes a key of that name at any depth of the configuration it is given.
+function T:test_the_secure_list_names_every_key_that_changes_the_security_or_the_look()
+  local list = INIT:match("secure:%s*(%b[])")
+  self:assert_not_nil(list, "the initialiser has a secure list")
+  local secure = {}
+  for name in list:gmatch('"([%w_]+)"') do secure[name] = true end
+  for _, name in ipairs({ "secure", "securityLevel", "startOnLoad", "maxTextSize", "suppressErrorRendering", "maxEdges",
+    "htmlLabels", "theme", "themeVariables", "fontFamily", "themeCSS", "altFontFamily", "dompurifyConfig", "fontSize", "look",
+    "layout", "elk", "logLevel", "deterministicIds" }) do
+    self:assert_true(secure[name], name .. " is secure")
+  end
+  -- `htmlLabels` is matched at any depth: the one of `flowchart` is covered, and the initialiser sets it itself.
+  self:assert_true(has(INIT, "flowchart: { htmlLabels: false }"))
+end
+
 function T:test_the_initialiser_makes_no_network_request_of_its_own()
   for _, forbidden in ipairs({ "fetch(", "XMLHttpRequest", "import(", "http://", "https://", "sendBeacon" }) do
     self:assert_nil(INIT:find(forbidden, 1, true), forbidden)
@@ -146,9 +162,9 @@ end
 function T:test_the_french_page_carries_the_french_control_strings()
   local fs = doc.MemoryFileSystem({ ["c/en/index.md"] = page("Home", DIAGRAM), ["c/fr/index.md"] = page("Accueil", DIAGRAM) })
   doc.build({
-    config = { title = "hecate", locales = { { code = "en", label = "English", lang = "en" },
+    site_configuration = { title = "hecate", locales = { { code = "en", label = "English", lang = "en" },
       { code = "fr", label = "Français", lang = "fr" } } },
-    source = "c", out = "o", fs = fs,
+    guides_dir = "c", output_dir = "o", file_system = fs,
   })
   local french = fs:read("o/fr/index.html")
   self:assert_true(has(french, '"diagram_fullscreen":"Plein '), "French label")

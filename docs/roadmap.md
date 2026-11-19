@@ -348,23 +348,15 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       rock. Needs `www.unicode.org` in the cloud allowed domains (`tools/cloud/README.md`, done). **Carried to the
       mirrors item:** the `split` and release tasks do not exist yet; when written, the mirror tag of `unicode-data` is
       the Unicode version (`v18.0.0`) and not `VERSION` (ADR 0032, "Publishing").
-- [ ] `doc` follow-up, audience (owner remarks on pull request #218, 2026-11-17; the decision is OQ-144): documentation is
-      user documentation or maintainer documentation, and the `doc` generator targets a project's own team.
-      **Delivered (conservative first half of OQ-144 option (c)):** front matter `audience`, site configuration
-      `audiences` and `default_audience` (default `maintainer`, owner decision of 2026-11-18); pages of an unpublished audience absent from the output,
-      navigation, search, sitemap and previous and next links, and links to them reported; the configuration reference
-      is `maintainer`; the code reference lists public symbols, with `*.internal` and non-public classes as
-      `maintainer` pages; the default of a secret key is not printed in the configuration reference. **Delivered
-      (owner decisions of 2026-11-18):** the defaults are maintainer, and several published audiences are written as
-      separate sites (`audience_sites`, `<out>/<audience>/`, each with its own navigation, search, sitemap and
-      `llms.txt`; the website keeps `merged`). **To do:** the restructure of the Hecate website (OQ-144 option (a):
-      sections, `llms.txt`, French mirror; the website pages are not labelled yet; then `audience_sites` left at
-      `separate`) and a `check-audience` gate; a `draft` page flag. The error-code reference of a project and
-      "switchable sections" are dropped (owner, 2026-11-18). **Delivered since (owner requests of
-      2026-11-18):** `llms.txt` and `llms-full.txt` for a project (site configuration `llms`, off by default, default locale
-      and published pages only; the website turns it on); the theme key `colors` renamed `theme` (fonts, radii, spacing
-      and sidebar width as well as colours; page "Theme tokens"); the showcase `examples/hello/docs`; a replaceable favicon (site configuration `favicon`) and an opt-in sidebar marker (`sidebar_marker`); **still to do:**
-      `llms.txt` of other locales. The tick of the `doc` item above covers the Lua API only; `hecate doc build` belongs to the `cli` item below.
+- [ ] `doc` follow-up, audience (owner remarks on pull request #218, 2026-11-17; the part still open is OQ-144, the rest
+      is resolved there). Delivered: audiences in the library (front matter `audience`, `audiences` and
+      `default_audience`, default `maintainer`, one site per audience), `llms.txt` and `llms-full.txt` of a project, the
+      theme extension points. **To do:** the restructure of the Hecate website into user and maintainer parts (OQ-144
+      option (a): sections, French mirror, labels; then `audience_sites = "merged"` is removed from `website/site.lua`,
+      which is the removal condition of `merged`; if the restructure is never done, the owner revisits `merged` at the
+      Phase 3 gate); the `check-audience` gate; an audience switcher in the theme and links between the sites;
+      `llms.txt` of other locales; a `draft` page flag. `hecate doc build|serve` and the `doc` section of
+      `hecate.project.lua` belong to the `cli` item below.
 - [ ] `cli` v1: self-contained executable, `new`, `install`, `add`, `remove`, `update`,
       `serve [--watch]`, `test`, `doc`, `contract`, `toolchain`, `doctor`, `version`.
       **Also (from the `test` item, owner go-ahead of 2026-11-16):** `hecate test` takes the options of
@@ -402,7 +394,9 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       **Also (from the `doc` item, owner decisions of 2026-11-18):** `hecate doc build` (one site per audience, OQ-144; by
       default the maintainer one) and `hecate doc serve [--watch]`, a local server that rebuilds on change and reloads, to
       write pages. When the project asks for a code reference (`package_name`), the command warns that LuaLS runs the plugin
-      declared by the `.luarc.json` of the project directory (OQ-142, option (a) kept) and lets the user bail out
+      declared by any LuaLS configuration reachable from the documented directory (`.luarc.json`, `.luarc.jsonc`,
+      `.vscode/settings.json`, including a `.luarc.json` inside the sources directory even when `language_server_config_path`
+      points elsewhere), with full file and command access as the current user, and lets the user bail out
       (`[y/N]`, default no when nothing answers); a flag or environment variable makes it quiet and non-interactive for
       CI workflows (`--yes`, to settle with the CLI conventions). `hecate doc build` reads the configuration schema
       from the application (`Application:configuration_schema()`), the only source of the configuration reference.

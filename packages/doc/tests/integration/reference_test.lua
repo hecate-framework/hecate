@@ -43,7 +43,7 @@ function T:test_a_fresh_export_of_the_fixture_package_equals_the_checked_in_expo
   self:assert_equal(luals.PINNED, luals.version(executable),
     "the fixture export and the generator are written for the pinned LuaLS")
   local source = root .. "/packages/demo/src"
-  local fresh = luals.export(executable, source, { fs = fs, config = package_dir .. "/../../.luarc.json" })
+  local fresh = luals.export(executable, source, { file_system = fs, language_server_config_path = package_dir .. "/../../.luarc.json" })
   -- The export holds absolute paths (the `DOC` key, and the `file://` links of `---@see`).
   local function normalise(text)
     text = text:gsub('file://[^)"]*', "file://<DOC>")
@@ -96,7 +96,7 @@ function T:test_without_lua_language_server_nothing_is_written_and_the_skip_is_r
   ---@diagnostic disable-next-line: duplicate-set-field  -- replaced for the test, restored below
   luals.locate = function() return nil end
   local memory = doc.MemoryFileSystem()
-  local ok, report = pcall(reference_site.run, { root = root, out = "en", fs = memory })
+  local ok, report = pcall(reference_site.run, { project_dir = root, locale_dir = "en", file_system = memory })
   ---@diagnostic disable-next-line: duplicate-set-field
   luals.locate = original
   self:assert_true(ok, tostring(report))
@@ -108,7 +108,7 @@ end
 function T:test_the_site_builder_runs_the_generator_first_with_the_reference_flag()
   if not executable then return end
   local site = temporary()
-  fs:write(site .. "/site.lua", "return { title = 'demo', nav = { { text = 'Reference', link = 'reference/' } } }")
+  fs:write(site .. "/site.lua", "return { title = 'demo', top_links = { { text = 'Reference', link = 'reference/' } } }")
   fs:write(site .. "/en/index.md", "---\ntitle: Home\n---\n\n# Home\n\n[Demo](reference/demo/index.md)\n")
   local output, ok = run("build.lua", ("%s --reference --root %s --packages demo --strict --no-git-dates"):format(
     quote(site), quote(root)))
@@ -120,6 +120,38 @@ function T:test_the_site_builder_runs_the_generator_first_with_the_reference_fla
   end)
   fs:remove_tree(site)
   if not done then error(err, 0) end
+end
+
+-- OQ-142: with no `language_server_config_path` no `--configpath` is passed to LuaLS, and with one it is passed as given.
+function T:test_the_language_server_gets_a_config_path_only_when_one_is_given()
+  if package.config:sub(1, 1) == "\\" then return end
+  local directory = temporary()
+  local ok, err = pcall(function()
+    local log = directory .. "/arguments.log"
+    fs:write(directory .. "/fake-luals", ([[#!/bin/sh
+echo "$@" >> '%s'
+case "$1" in --version) echo "%s"; exit 0;; esac
+for argument in "$@"; do case "$argument" in --doc_out_path=*) out="${argument#--doc_out_path=}";; esac; done
+echo '[]' > "$out/doc.json"
+]]):format(log, luals.PINNED))
+    assert(os.execute("chmod +x '" .. directory .. "/fake-luals'"))
+    fs:write(directory .. "/project/packages/demo/src/x.lua", "return {}")
+    local function arguments_of(extra)
+      fs:write(log, "")
+      local options = { project_dir = directory .. "/project", locale_dir = directory .. "/en", file_system = fs,
+        packages = { "demo" }, language_server_path = directory .. "/fake-luals" }
+      for key, value in pairs(extra or {}) do options[key] = value end
+      local report = reference_site.run(options)
+      self:assert_nil(report.skipped)
+      return fs:read(log)
+    end
+    self:assert_nil(arguments_of():find("--configpath", 1, true), "none by default")
+    local given = arguments_of({ language_server_config_path = directory .. "/project/custom.json" })
+    self:assert_not_nil(given:find("--configpath=", 1, true), given)
+    self:assert_not_nil(given:find("custom.json", 1, true), given)
+  end)
+  fs:remove_tree(directory)
+  if not ok then error(err, 0) end
 end
 
 -- `SystemFileSystem` suspends: every test of this file runs inside a reactor.
