@@ -14,7 +14,7 @@ local M = {}
 ---@field label string  name shown in the locale switch, in that language ("Français")
 ---@field lang string  BCP 47 tag for the `lang` attribute (defaults to `code`)
 
----@alias hecate.doc.Audience "user"|"maintainer"  who a page is written for (glossary: user documentation, maintainer documentation)
+---@alias hecate.doc.Audience "user"|"maintainer"  who a content tree is written for (glossary: audience, user documentation, maintainer documentation): `generate_project_documentation` builds one tree per audience
 
 ---@alias hecate.doc.Text string|table<string, string>  a string, or one string per locale code
 
@@ -46,11 +46,8 @@ local M = {}
 ---@field favicon_path? string|{ light: string, dark?: string }  favicon of the project: file(s) of `public/` (`.svg`, `.png` or `.ico`) replacing the Hecate favicon; with `dark`, each file is announced with a `prefers-color-scheme` media query
 ---@field sidebar_marker? boolean  draw an accent bar at the left of the current page in the sidebar tree; default false (the current page is then shown by a stronger weight and a tint)
 ---@field stylesheet_path? string  CSS file (`.css`) of `public/` loaded after the stylesheet of the theme, to override its custom properties: colours (light and dark), highlighting, the three font families, radii, spacing, sidebar width (OQ-38); it may declare its own `@font-face` for font files of `public/`
----@field generate_llms_txt? boolean  write `llms.txt` and `llms-full.txt` (llmstxt.org) for the published pages of the default locale; default false
+---@field generate_llms_txt? boolean  write `llms.txt` and `llms-full.txt` (llmstxt.org) for the pages of the default locale; default false
 ---@field exclude_file_names? string[]  file names left out of the site (default { "README.md" })
----@field audiences? hecate.doc.Audience[]  audiences published (default `{ "maintainer" }`: `hecate.doc` serves the team of a project first): a page whose audience is not listed is absent from the site and links to it are reported
----@field default_audience? hecate.doc.Audience  audience of a page without the `audience` front matter key (default: the first of `audiences`, so `audiences = { "user" }` publishes the unlabelled pages; with `audiences = { "user", "maintainer" }` they are `user` pages)
----@field audience_sites? "separate"|"merged"  with several audiences published: `separate` (default) writes one complete site per audience below `<output_dir>/<audience>/`, `merged` one site holding every published audience (the Hecate website, until its restructure, OQ-144); with one audience published both write `<output_dir>/`
 
 local function invalid(field, message)
   error(core.ConfigurationError({
@@ -160,7 +157,7 @@ local function check_favicon_path(field, value)
   if not M.favicon_type(value) then invalid(field, "expected an .svg, .png or .ico file") end
 end
 
---- The audiences a page can be written for.
+--- The audiences a content tree can be written for (`<guides_dir>/<audience>/`).
 M.AUDIENCES = { user = true, maintainer = true }
 
 --- Validates a configuration table and fills in the defaults. Raises
@@ -189,24 +186,6 @@ function M.normalise(raw)
     check_list("outline_levels", raw.outline_levels, function(_, level)
       if math.type(level) ~= "integer" or level < 1 or level > 6 then invalid("outline_levels", "expected heading levels 1 to 6") end
     end)
-  end
-  local audiences = { "maintainer" }
-  if raw.audiences ~= nil then
-    local seen_audience = {}
-    check_list("audiences", raw.audiences, function(name, item)
-      if type(item) ~= "string" or not M.AUDIENCES[item] then invalid(name, 'expected "user" or "maintainer"') end
-      if seen_audience[item] then invalid(name, "duplicate audience " .. item) end
-      seen_audience[item] = true
-    end)
-    if #raw.audiences == 0 then invalid("audiences", 'expected at least one of "user", "maintainer"') end
-    audiences = {}
-    for index, item in ipairs(raw.audiences) do audiences[index] = item end
-  end
-  if raw.default_audience ~= nil and (type(raw.default_audience) ~= "string" or not M.AUDIENCES[raw.default_audience]) then
-    invalid("default_audience", 'expected "user" or "maintainer"')
-  end
-  if raw.audience_sites ~= nil and raw.audience_sites ~= "separate" and raw.audience_sites ~= "merged" then
-    invalid("audience_sites", 'expected "separate" or "merged"')
   end
   local logo
   if raw.logo_path ~= nil then
@@ -270,9 +249,6 @@ function M.normalise(raw)
     interface_strings = raw.interface_strings or {},
     exclude_file_names = raw.exclude_file_names or { "README.md" },
     outline_levels = raw.outline_levels or { 2, 3 },
-    audiences = audiences,
-    default_audience = raw.default_audience or audiences[1],
-    audience_sites = raw.audience_sites or "separate",
   }
   local base_path = raw.base_path
   if base_path == nil then base_path = "/" end

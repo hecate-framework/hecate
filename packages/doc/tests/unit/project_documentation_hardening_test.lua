@@ -13,7 +13,7 @@ local generate = doc.generate_project_documentation
 local application = { configuration_schema = function() return { type = "object", properties = { a = { type = "string" } } } end }
 
 local function files(extra)
-  local result = { ["docs/en/index.md"] = "# Home\n" }
+  local result = { ["docs/maintainer/en/index.md"] = "# Home\n" }
   for path, data in pairs(extra or {}) do result[path] = data end
   return result
 end
@@ -48,13 +48,13 @@ function T:test_the_output_may_not_be_the_guides_or_hold_them()
     { guides_dir = "docs", output_dir = "." }, { guides_dir = "docs/guides", output_dir = "docs" },
     { guides_dir = "docs", output_dir = ".." }, { guides_dir = "a/docs", output_dir = "a" },
   }) do
-    local fs = doc.MemoryFileSystem(files({ ["docs/guides/en/index.md"] = "# H\n", ["a/docs/en/index.md"] = "# H\n" }))
+    local fs = doc.MemoryFileSystem(files({ ["docs/guides/en/index.md"] = "# H\n", ["a/docs/maintainer/en/index.md"] = "# H\n" }))
     refused(self, fs, case, "output_dir")
   end
 end
 
 function T:test_the_output_may_not_be_the_project_directory_or_hold_it()
-  local fs = doc.MemoryFileSystem(files({ ["acme/docs/en/index.md"] = "# H\n" }))
+  local fs = doc.MemoryFileSystem(files({ ["acme/docs/maintainer/en/index.md"] = "# H\n" }))
   refused(self, fs, { project_dir = "acme", guides_dir = "docs", output_dir = "../acme" }, "output_dir")
   refused(self, fs, { project_dir = "acme/sub", guides_dir = "../docs", output_dir = ".." }, "output_dir")
   refused(self, fs, { project_dir = "acme", guides_dir = "docs", output_dir = "." }, "output_dir")
@@ -72,11 +72,11 @@ end
 function T:test_the_default_layout_stays_allowed()
   local fs = doc.MemoryFileSystem(files({ ["docs/site.lua"] = 'return { title = "Shop" }' }))
   local report = generate({ file_system = fs })
-  self:assert_not_nil(fs:read("docs/dist/en/index.html"), "the output below the guides")
+  self:assert_not_nil(fs:read("docs/dist/maintainer/en/index.html"), "the output below the guides")
   self:assert_equal(0, #report.problems, table.concat(report.problems, "\n"))
   local elsewhere = doc.MemoryFileSystem(files({}))
   generate(options(elsewhere, { guides_dir = "docs", output_dir = "build/site" }))
-  self:assert_not_nil(elsewhere:read("build/site/en/index.html"))
+  self:assert_not_nil(elsewhere:read("build/site/maintainer/en/index.html"))
 end
 
 function T:test_the_plain_builder_refuses_an_output_that_holds_the_guides()
@@ -98,9 +98,9 @@ end
 -- Writes through links ---------------------------------------------------------------------------------------------
 
 function T:test_a_generated_page_is_never_written_through_a_link()
-  for _, target in ipairs({ "outside/authorized_keys", "docs/en/other.md" }) do
-    local fs = doc.MemoryFileSystem(files({ ["docs/en/other.md"] = "# Other\n" }))
-    fs:link("docs/en/configuration.md", target)
+  for _, target in ipairs({ "outside/authorized_keys", "docs/maintainer/en/other.md" }) do
+    local fs = doc.MemoryFileSystem(files({ ["docs/maintainer/en/other.md"] = "# Other\n" }))
+    fs:link("docs/maintainer/en/configuration.md", target)
     local before = fs.files[target]
     local err = self:assert_error(function()
       generate(options(fs, { guides_dir = "docs", output_dir = "dist", application = application }))
@@ -108,13 +108,13 @@ function T:test_a_generated_page_is_never_written_through_a_link()
     self:assert_true(core.is_instance_of(err, doc.BuildError), tostring(err))
     self:assert_not_nil(tostring(err):find("symbolic link", 1, true), tostring(err))
     self:assert_equal(before, fs.files[target], target .. ": the target is untouched (a dangling one is not created)")
-    self:assert_nil(fs:read("dist/en/index.html"), "nothing was built")
+    self:assert_nil(fs:read("dist/maintainer/en/index.html"), "nothing was built")
   end
 end
 
 function T:test_the_locale_directory_of_the_guides_may_not_be_a_link()
   local fs = doc.MemoryFileSystem({ ["real/index.md"] = "# H\n" })
-  fs:link("docs/en", "real")
+  fs:link("docs/maintainer/en", "real")
   local err = self:assert_error(function()
     generate(options(fs, { guides_dir = "docs", output_dir = "dist", application = application }))
   end)
@@ -137,9 +137,9 @@ end
 
 function T:test_a_link_at_the_place_of_a_stale_page_is_left_alone()
   local fs = doc.MemoryFileSystem(files({ ["elsewhere/page.md"] = "---\ngenerated: true\n---\n# G\n" }))
-  fs:link("docs/en/configuration.md", "elsewhere/page.md")
+  fs:link("docs/maintainer/en/configuration.md", "elsewhere/page.md")
   generate(options(fs, { guides_dir = "docs", output_dir = "dist" }))
-  self:assert_true(fs:is_link("docs/en/configuration.md"), "not ours: not removed")
+  self:assert_true(fs:is_link("docs/maintainer/en/configuration.md"), "not ours: not removed")
   self:assert_not_nil(fs:read("elsewhere/page.md"))
 end
 
@@ -147,7 +147,7 @@ function T:test_the_code_reference_directory_with_a_link_is_left_alone()
   local reference_site = require("hecate.doc.reference_site")
   local fs = doc.MemoryFileSystem({ ["outside/keep.md"] = "KEEP" })
   fs:link("en/reference/demo/link.md", "outside/keep.md")
-  local problems = reference_site.write(fs, "en", { pages = { ["reference/demo/index.md"] = "x" }, order = { "reference/demo/index.md" }, problems = {} }, { "demo" })
+  local problems = reference_site.write(fs, "en", { pages = { ["reference/demo/index.md"] = "x" }, order = { "reference/demo/index.md" }, problems = {}, audiences = {} }, { "demo" })
   self:assert_equal(1, #problems, "left alone")
   self:assert_equal("KEEP", fs.files["outside/keep.md"])
 end
@@ -155,12 +155,12 @@ end
 -- Windows paths ----------------------------------------------------------------------------------------------------
 
 function T:test_backslashes_are_separators_at_the_entry_points()
-  local fs = doc.MemoryFileSystem({ ["C:/proj/docs/en/index.md"] = "# Home\n" })
+  local fs = doc.MemoryFileSystem({ ["C:/proj/docs/maintainer/en/index.md"] = "# Home\n" })
   local report = generate(options(fs, { project_dir = "C:\\proj", guides_dir = "docs\\", output_dir = "C:\\proj\\docs\\dist",
     application = application }))
   self:assert_equal(0, #report.problems, table.concat(report.problems, "\n"))
-  self:assert_not_nil(fs:read("C:/proj/docs/dist/en/index.html"))
-  self:assert_not_nil(fs:read("C:/proj/docs/en/configuration.md"))
+  self:assert_not_nil(fs:read("C:/proj/docs/dist/maintainer/en/index.html"))
+  self:assert_not_nil(fs:read("C:/proj/docs/maintainer/en/configuration.md"))
   local built = doc.MemoryFileSystem({ ["C:/c/en/index.md"] = "# Home\n" })
   doc.build({ site_configuration = { title = "T" }, guides_dir = "C:\\c", output_dir = "C:\\o\\", file_system = built })
   self:assert_not_nil(built:read("C:/o/en/index.html"))
@@ -207,7 +207,7 @@ function T:test_fail_on_problems_raises_for_the_problems_of_the_code_reference()
 end
 
 function T:test_fail_on_problems_raises_one_error_listing_every_problem_sorted_and_unique()
-  local fs = doc.MemoryFileSystem(files({ ["docs/en/a.md"] = "[broken](missing.md)\n" }))
+  local fs = doc.MemoryFileSystem(files({ ["docs/maintainer/en/a.md"] = "[broken](missing.md)\n" }))
   local err = self:assert_error(function()
     generate(options(fs, { guides_dir = "docs", output_dir = "dist", package_name = "shop", language_server_path = "/nonexistent",
       licences_page = { rocks_tree_dir = "nowhere" }, fail_on_problems = true }))
@@ -224,7 +224,7 @@ function T:test_fail_on_problems_raises_one_error_listing_every_problem_sorted_a
     self:assert_nil(seen[problem], "unique: " .. problem)
     seen[problem] = true
   end
-  local report = generate(options(doc.MemoryFileSystem(files({ ["docs/en/a.md"] = "[broken](missing.md)\n" })), {
+  local report = generate(options(doc.MemoryFileSystem(files({ ["docs/maintainer/en/a.md"] = "[broken](missing.md)\n" })), {
     guides_dir = "docs", output_dir = "dist", package_name = "shop", language_server_path = "/nonexistent",
     licences_page = { rocks_tree_dir = "nowhere" } }))
   sorted = {}
@@ -329,10 +329,10 @@ function T:test_content_locale_must_be_a_locale_of_the_site()
   local fs = doc.MemoryFileSystem(files({}))
   local message = refused(self, fs, { guides_dir = "docs", output_dir = "dist", content_locale = "fr" }, "content_locale")
   self:assert_not_nil(message:find("en", 1, true), message)
-  local with_fr = doc.MemoryFileSystem(files({ ["docs/fr/index.md"] = "# Accueil\n" }))
+  local with_fr = doc.MemoryFileSystem(files({ ["docs/maintainer/fr/index.md"] = "# Accueil\n" }))
   generate(options(with_fr, { guides_dir = "docs", output_dir = "dist", content_locale = "fr", application = application,
     site_configuration = { title = "S", locales = { { code = "en" }, { code = "fr" } } } }))
-  self:assert_not_nil(with_fr:read("docs/fr/configuration.md"))
+  self:assert_not_nil(with_fr:read("docs/maintainer/fr/configuration.md"))
 end
 
 function T:test_a_site_configuration_and_its_path_together_are_an_error()
@@ -343,16 +343,16 @@ function T:test_a_site_configuration_and_its_path_together_are_an_error()
 end
 
 function T:test_the_path_of_the_site_configuration_is_relative_to_the_project_not_the_guides()
-  local fs = doc.MemoryFileSystem({ ["acme/config/site.lua"] = 'return { title = "Acme" }', ["acme/docs/en/index.md"] = "# H\n" })
+  local fs = doc.MemoryFileSystem({ ["acme/config/site.lua"] = 'return { title = "Acme" }', ["acme/docs/maintainer/en/index.md"] = "# H\n" })
   generate({ file_system = fs, project_dir = "acme", site_configuration_path = "config/site.lua" })
-  self:assert_not_nil(fs:read("acme/docs/dist/en/index.html"))
-  local by_default = doc.MemoryFileSystem({ ["acme/docs/site.lua"] = 'return { title = "Acme" }', ["acme/docs/en/index.md"] = "# H\n" })
+  self:assert_not_nil(fs:read("acme/docs/dist/maintainer/en/index.html"))
+  local by_default = doc.MemoryFileSystem({ ["acme/docs/site.lua"] = 'return { title = "Acme" }', ["acme/docs/maintainer/en/index.md"] = "# H\n" })
   generate({ file_system = by_default, project_dir = "acme" })
-  self:assert_not_nil(by_default:read("acme/docs/dist/en/index.html"), "the default is below the guides")
+  self:assert_not_nil(by_default:read("acme/docs/dist/maintainer/en/index.html"), "the default is below the guides")
 end
 
 function T:test_a_missing_site_configuration_says_the_cause_and_the_remedy()
-  local fs = doc.MemoryFileSystem({ ["docs/en/index.md"] = "# H\n" })
+  local fs = doc.MemoryFileSystem({ ["docs/maintainer/en/index.md"] = "# H\n" })
   local err = self:assert_error(function() generate({ file_system = fs }) end)
   self:assert_true(core.is_instance_of(err, doc.BuildError), tostring(err))
   local text = tostring(err)
@@ -371,16 +371,16 @@ local function licences_text(fs, extra)
   local result = options(fs, { guides_dir = "docs", output_dir = "docs/dist", licences_page = { rocks_tree_dir = "nowhere" } })
   for key, value in pairs(extra or {}) do result[key] = value end
   local report = generate(result)
-  return fs:read("docs/en/third-party-licences.md"), report
+  return fs:read("docs/maintainer/en/third-party-licences.md"), report
 end
 
 function T:test_the_scan_for_diagrams_skips_the_output_directory_and_links()
-  local fs = doc.MemoryFileSystem(files({ ["docs/dist/en/old.md"] = FENCE, ["outside/d.md"] = FENCE }))
-  fs:link("docs/en/linked.md", "outside/d.md")
-  fs:link("docs/en/loop", "docs")
+  local fs = doc.MemoryFileSystem(files({ ["docs/dist/maintainer/en/old.md"] = FENCE, ["outside/d.md"] = FENCE }))
+  fs:link("docs/maintainer/en/linked.md", "outside/d.md")
+  fs:link("docs/maintainer/en/loop", "docs")
   local text = licences_text(fs)
   self:assert_nil(text:find("Mermaid", 1, true), "neither the output nor a link counts")
-  local with = doc.MemoryFileSystem(files({ ["docs/en/d.md"] = FENCE }))
+  local with = doc.MemoryFileSystem(files({ ["docs/maintainer/en/d.md"] = FENCE }))
   self:assert_not_nil(licences_text(with):find("Mermaid", 1, true))
 end
 
@@ -388,7 +388,7 @@ function T:test_the_scan_for_diagrams_reports_where_it_stops()
   local saved_files = project_documentation.LIMITS.scanned_files
   project_documentation.LIMITS.scanned_files = 3
   local pages = {}
-  for index = 1, 10 do pages["docs/en/p" .. index .. ".md"] = "# P\n" end
+  for index = 1, 10 do pages["docs/maintainer/en/p" .. index .. ".md"] = "# P\n" end
   local _, report = licences_text(doc.MemoryFileSystem(files(pages)))
   project_documentation.LIMITS.scanned_files = saved_files
   local found = false
@@ -396,7 +396,7 @@ function T:test_the_scan_for_diagrams_reports_where_it_stops()
   self:assert_true(found, table.concat(report.problems, "\n"))
   local deep = {}
   for _ = 1, 40 do deep[#deep + 1] = "d" end
-  local _, deep_report = licences_text(doc.MemoryFileSystem(files({ ["docs/en/" .. table.concat(deep, "/") .. "/x.md"] = "# X\n" })))
+  local _, deep_report = licences_text(doc.MemoryFileSystem(files({ ["docs/maintainer/en/" .. table.concat(deep, "/") .. "/x.md"] = "# X\n" })))
   found = false
   for _, problem in ipairs(deep_report.problems) do found = found or problem:find("deeper than 32", 1, true) ~= nil end
   self:assert_true(found, table.concat(deep_report.problems, "\n"))

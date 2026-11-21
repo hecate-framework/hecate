@@ -177,12 +177,12 @@ end
 
 function T:test_broken_links_missing_files_and_escaping_links_are_reported()
   local files = {
-    ["en/index.md"] = page("Home", "[a](nope.md) ![i](missing.png) [out](../../x.md) [ok](index.md)"),
+    ["en/index.md"] = page("Home", "[a](nope.md) ![i](missing.png) [out](../x.md) [ok](index.md)"),
   }
   local _, report = build(files, { locales = { { code = "en", label = "English" } } })
   self:assert_equal(3, #report.problems)
   self:assert_true(report.problems[1]:find("broken link nope.md", 1, true) ~= nil)
-  self:assert_true(report.problems[2]:find("leaves the content root", 1, true) ~= nil)
+  self:assert_true(report.problems[2]:find("leaves the locale directory", 1, true) ~= nil)
   self:assert_true(report.problems[3]:find("missing file missing.png", 1, true) ~= nil)
 end
 
@@ -607,131 +607,121 @@ function T:test_decomposed_sidebar_ids_and_asset_links_resolve()
   self:assert_equal("<svg/>", fs:read("o/en/img/\u{E9}.svg"))
 end
 
--- Audiences (OQ-144): a site publishes only the audiences it is asked to.
-local AUDIENCE_FILES = {
-  ["en/index.md"] = page("Home", "welcome [internals](guide/zeta.md)"),
-  ["en/guide/index.md"] = page("Guide", "start", "order: 1\n"),
-  ["en/guide/a.md"] = page("Alpha", "alphaword", "order: 2\n"),
-  ["en/guide/zeta.md"] = page("Zeta", "xylophone", "order: 3\naudience: maintainer\n"),
-  ["en/guide/b.md"] = page("Beta", "betaword", "order: 4\naudience: user\n"),
-}
-
-local function with_files(extra)
-  local files = {}
-  for path, data in pairs(AUDIENCE_FILES) do files[path] = data end
-  for path, data in pairs(extra or {}) do files[path] = data end
-  return files
-end
-
+-- Audiences (OQ-144, owner decision of 2026-11-21): the plain builder knows no audience. A documentation site is built from
+-- one content tree; the two audiences are two trees, each built into its own directory.
 local ONE_LOCALE = { locales = { { code = "en", label = "English" } }, site_origin = "https://x.test" }
--- A site for the users: unlabelled pages are user pages, and the maintainer pages are not published.
-local USER_SITE = { locales = ONE_LOCALE.locales, site_origin = ONE_LOCALE.site_origin, audiences = { "user" }, default_audience = "user" }
--- Both audiences in one combined site.
-local MERGED = { locales = ONE_LOCALE.locales, site_origin = ONE_LOCALE.site_origin, audiences = { "user", "maintainer" },
-  audience_sites = "merged" }
 
-function T:test_a_page_of_an_unpublished_audience_is_absent_everywhere()
-  local fs, report = build(with_files(), USER_SITE)
-  self:assert_nil(fs:read("o/en/guide/zeta/index.html"))
-  self:assert_equal(4, report.locales.en.pages)
-  self:assert_equal(1, report.locales.en.unpublished)
-  for _, path in ipairs({ "o/en/guide/a/index.html", "o/en/guide/b/index.html", "o/en/guide/index.html" }) do
-    local page_html = fs:read(path)
-    self:assert_nil(page_html:find("zeta", 1, true), path)
-    self:assert_nil(page_html:find("Zeta", 1, true), path)
-  end
-  -- Alpha's next page is Beta, not the hidden Zeta.
-  self:assert_true(fs:read("o/en/guide/a/index.html"):find('rel="next" href="/en/guide/b/"', 1, true) ~= nil)
-  self:assert_true(fs:read("o/en/guide/b/index.html"):find('rel="prev" href="/en/guide/a/"', 1, true) ~= nil)
-  local sitemap = fs:read("o/sitemap.xml")
-  self:assert_nil(sitemap:find("zeta", 1, true))
-  self:assert_true(sitemap:find("/en/guide/a/", 1, true) ~= nil)
-  local search_index = fs:read("o/assets/search-en.json")
-  self:assert_nil(search_index:find("xylophone", 1, true))
-  self:assert_nil(search_index:find("zeta", 1, true))
-  self:assert_true(search_index:find("alphaword", 1, true) ~= nil)
-end
-
-function T:test_a_link_to_an_unpublished_page_is_reported_like_a_broken_link()
-  local _, report = build(with_files(), USER_SITE)
-  self:assert_equal(1, #report.problems, table.concat(report.problems, "\n"))
-  self:assert_true(report.problems[1]:find("en/index.md", 1, true) ~= nil)
-  self:assert_true(report.problems[1]:find("guide/zeta.md", 1, true) ~= nil)
-  self:assert_true(report.problems[1]:find("maintainer", 1, true) ~= nil)
-  local err = self:assert_error(function() build(with_files(), USER_SITE, { fail_on_problems = true }) end)
-  self:assert_true(core.is_instance_of(err, doc.BuildError))
-  self:assert_true(err.message:find("guide/zeta.md", 1, true) ~= nil)
-end
-
-function T:test_asking_for_both_audiences_in_a_merged_site_publishes_everything()
-  local fs, report = build(with_files(), MERGED, { fail_on_problems = true })
-  self:assert_not_nil(fs:read("o/en/guide/zeta/index.html"))
-  self:assert_equal(5, report.locales.en.pages)
-  self:assert_equal(0, report.locales.en.unpublished)
-  self:assert_true(fs:read("o/sitemap.xml"):find("/en/guide/zeta/", 1, true) ~= nil)
-end
-
-function T:test_the_plain_builder_publishes_the_maintainer_audience_and_pages_without_the_key_are_maintainer_pages()
-  -- A tree without the key is entirely published: the pages are maintainer documentation.
-  local fs, report = build(BASIC)
-  self:assert_equal(4, report.locales.en.pages)
-  self:assert_not_nil(fs:read("o/en/guide/b/index.html"))
-end
-
-function T:test_default_audience_labels_the_pages_without_the_key()
-  local files = with_files()
-  files["en/index.md"] = page("Home", "welcome", "audience: user\n")
-  -- By default an unlabelled page is maintainer documentation and only the maintainer audience is published.
-  local fs = build(files, { locales = ONE_LOCALE.locales })
-  self:assert_nil(fs:read("o/en/index.html"), "labelled user")
-  self:assert_nil(fs:read("o/en/guide/b/index.html"), "labelled user")
-  self:assert_not_nil(fs:read("o/en/guide/a/index.html"), "unlabelled, so maintainer")
-  self:assert_not_nil(fs:read("o/en/guide/zeta/index.html"))
-  -- The other way round.
-  local users = build(files, { locales = ONE_LOCALE.locales, audiences = { "user" }, default_audience = "user" })
-  self:assert_not_nil(users:read("o/en/index.html"), "labelled user")
-  self:assert_not_nil(users:read("o/en/guide/b/index.html"), "labelled user")
-  self:assert_not_nil(users:read("o/en/guide/a/index.html"), "unlabelled, so user")
-  self:assert_nil(users:read("o/en/guide/zeta/index.html"))
-end
-
-function T:test_an_unknown_audience_is_a_build_error_naming_the_file()
-  for _, value in ipairs({ "operator", "User", "3", "true", "[user]" }) do
-    local err = self:assert_error(function()
-      build(with_files({ ["en/guide/a.md"] = page("Alpha", "x", "audience: " .. value .. "\n") }), ONE_LOCALE)
-    end)
+function T:test_the_old_front_matter_key_audience_is_refused_naming_the_file_and_the_new_layout()
+  for _, value in ipairs({ "user", "maintainer", "operator", "3", "true" }) do
+    local files = {}
+    for path, data in pairs(BASIC) do files[path] = data end
+    files["en/guide/a.md"] = page("Alpha", "x", "audience: " .. value .. "\n")
+    local err = self:assert_error(function() build(files, ONE_LOCALE) end)
     self:assert_true(core.is_instance_of(err, doc.BuildError), value)
-    self:assert_true(tostring(err):find("guide/a.md", 1, true) ~= nil, tostring(err))
-    self:assert_true(tostring(err):find("audience", 1, true) ~= nil, tostring(err))
+    local text = tostring(err)
+    self:assert_true(text:find("c/en/guide/a.md", 1, true) ~= nil, text)
+    self:assert_true(text:find("`audience`", 1, true) ~= nil, text)
+    self:assert_true(text:find("<guides_dir>/<audience>/<locale>/", 1, true) ~= nil, "the message names the new layout: " .. text)
   end
-end
-
-function T:test_an_unpublished_page_is_still_validated()
+  -- A translation that still carries the key is refused too, and nothing is written.
+  local files = {}
+  for path, data in pairs(BASIC) do files[path] = data end
+  files["fr/guide/a.md"] = page("Alpha FR", "x", "audience: user\n")
+  local prefixed = {}
+  for path, data in pairs(files) do prefixed["c/" .. path] = data end
+  local fs = doc.MemoryFileSystem(prefixed)
   local err = self:assert_error(function()
-    build(with_files({ ["en/guide/zeta.md"] = "---\ntitle: Z\naudience: nobody\n---\nx\n" }), ONE_LOCALE)
+    doc.build({ site_configuration = config_with(), guides_dir = "c", output_dir = "o", file_system = fs })
   end)
-  self:assert_true(tostring(err):find("guide/zeta.md", 1, true) ~= nil, tostring(err))
+  self:assert_true(tostring(err):find("c/fr/guide/a.md", 1, true) ~= nil, tostring(err))
+  self:assert_nil(fs:read("o/en/index.html"))
 end
 
-function T:test_a_translation_does_not_publish_what_its_default_locale_page_hides()
-  local files = with_files({ ["fr/guide/zeta.md"] = page("Zeta FR", "x", "audience: user\n") })
-  local users = { audiences = { "user" }, default_audience = "user" }
-  local fs = build(files, users)
-  self:assert_nil(fs:read("o/fr/guide/zeta/index.html"), "the audience of the translation does not override...")
-  local files_fr = with_files({ ["fr/guide/zeta.md"] = page("Zeta FR", "x", "audience: maintainer\n") })
-  files_fr["en/guide/zeta.md"] = page("Zeta", "x", "order: 3\n")
-  local fs2 = build(files_fr, users)
-  self:assert_not_nil(fs2:read("o/en/guide/zeta/index.html"))
-  self:assert_nil(fs2:read("o/fr/guide/zeta/index.html"), "...and a hidden translation is not replaced by the English page")
+function T:test_two_content_trees_are_two_independent_sites_built_by_the_plain_builder()
+  local files = {
+    ["user/en/index.md"] = page("Welcome users", "welcome ![x](pic.svg)"),
+    ["user/en/guide/index.md"] = page("Guide", "start", "order: 1\ndescription: For users.\n"),
+    ["user/en/guide/a.md"] = page("Alpha", "alphaword [there](https://x.test/maintainer/en/design/)", "order: 2\n"),
+    ["user/en/pic.svg"] = "<svg id=\"user\"/>",
+    ["user/public/logo.svg"] = "<svg id=\"user-logo\"/>",
+    ["maintainer/en/index.md"] = page("Welcome maintainers", "inside"),
+    ["maintainer/en/internals/index.md"] = page("Internals", "start", "order: 1\ndescription: For maintainers.\n"),
+    ["maintainer/en/internals/design.md"] = page("Design", "xylophone", "order: 2\n"),
+    ["maintainer/public/own.svg"] = "<svg id=\"maintainer\"/>",
+  }
+  local fs = doc.MemoryFileSystem((function()
+    local prefixed = {}
+    for path, data in pairs(files) do prefixed["c/" .. path] = data end
+    return prefixed
+  end)())
+  local reports = {}
+  for _, audience in ipairs({ "user", "maintainer" }) do
+    reports[audience] = doc.build({
+      site_configuration = config_with({ locales = ONE_LOCALE.locales, site_origin = ONE_LOCALE.site_origin, generate_llms_txt = true,
+        base_path = "/" .. audience .. "/" }),
+      guides_dir = "c/" .. audience, output_dir = "o/" .. audience, file_system = fs, fail_on_problems = true,
+    })
+    self:assert_equal(0, #reports[audience].problems, audience)
+  end
+  -- Each site has its own pages, files, navigation, search index, sitemap, llms.txt and 404 page.
+  for _, audience in ipairs({ "user", "maintainer" }) do
+    for _, file in ipairs({ "404.html", "index.html", "sitemap.xml", "llms.txt", "llms-full.txt", "assets/theme.css",
+      "assets/search-en.json", ".hecate-doc-output", "en/index.html" }) do
+      self:assert_not_nil(fs:read("o/" .. audience .. "/" .. file), audience .. "/" .. file)
+    end
+  end
+  self:assert_equal(3, reports.user.locales.en.pages)
+  self:assert_equal(3, reports.maintainer.locales.en.pages)
+  -- A page of one tree is in no file of the other site.
+  self:assert_nil(fs:read("o/user/en/internals/design/index.html"))
+  self:assert_nil(fs:read("o/maintainer/en/guide/a/index.html"))
+  for _, file in ipairs({ "assets/search-en.json", "sitemap.xml", "llms.txt", "llms-full.txt", "404.html", "en/index.html" }) do
+    local user_text, maintainer_text = fs:read("o/user/" .. file), fs:read("o/maintainer/" .. file)
+    self:assert_nil(user_text:find("xylophone", 1, true), "user " .. file)
+    self:assert_nil(user_text:find("internals", 1, true), "user " .. file)
+    self:assert_nil(maintainer_text:find("alphaword", 1, true), "maintainer " .. file)
+    self:assert_nil(maintainer_text:find("/guide/", 1, true), "maintainer " .. file)
+  end
+  self:assert_not_nil(fs:read("o/user/sitemap.xml"):find("https://x.test/user/en/guide/a/", 1, true))
+  self:assert_not_nil(fs:read("o/maintainer/sitemap.xml"):find("https://x.test/maintainer/en/internals/design/", 1, true))
+  self:assert_not_nil(fs:read("o/maintainer/llms.txt"):find("For maintainers.", 1, true))
+  self:assert_nil(fs:read("o/user/llms.txt"):find("For maintainers.", 1, true))
+  -- Own navigation, own theme assets (each tree is served below its own base path).
+  local user_page = fs:read("o/user/en/guide/a/index.html")
+  self:assert_not_nil(user_page:find('href="/user/assets/theme.css"', 1, true))
+  self:assert_nil(user_page:find("/maintainer/assets", 1, true))
+  self:assert_not_nil(fs:read("o/maintainer/en/internals/design/index.html"):find('href="/maintainer/assets/theme.css"', 1, true))
+  -- Each tree has its own `public/` and its own files next to the pages.
+  self:assert_equal("<svg id=\"user-logo\"/>", fs:read("o/user/logo.svg"))
+  self:assert_nil(fs:read("o/maintainer/logo.svg"))
+  self:assert_equal("<svg id=\"maintainer\"/>", fs:read("o/maintainer/own.svg"))
+  self:assert_nil(fs:read("o/user/own.svg"))
+  self:assert_equal("<svg id=\"user\"/>", fs:read("o/user/en/pic.svg"))
+  self:assert_nil(fs:read("o/maintainer/en/pic.svg"))
+  -- Each tree needs its own home page: the other tree's `index.md` does not count.
+  local lonely = doc.MemoryFileSystem({ ["c/user/en/index.md"] = page("Home"), ["c/maintainer/en/design.md"] = page("Design") })
+  local report = doc.build({ site_configuration = config_with({ locales = ONE_LOCALE.locales }), guides_dir = "c/maintainer",
+    output_dir = "o/maintainer", file_system = lonely })
+  self:assert_equal(1, #report.problems, table.concat(report.problems, "\n"))
+  self:assert_true(report.problems[1]:find("no home page in locale en: add c/maintainer/en/index.md", 1, true) ~= nil, report.problems[1])
 end
 
-function T:test_explicit_sidebar_and_home_actions_naming_an_unpublished_page_are_reported()
-  local files = with_files({ ["en/index.md"] = page("Home", "x", "layout: home\nactions: [\"Go | guide/zeta\"]\n") })
-  local _, report = build(files, { locales = ONE_LOCALE.locales, audiences = { "user" }, default_audience = "user",
-    sidebar = { guide = { "guide/a", "guide/zeta" } } })
-  local text = table.concat(report.problems, "\n")
-  self:assert_true(text:find("zeta", 1, true) ~= nil, text)
-  self:assert_true(#report.problems >= 2, text)
+function T:test_a_relative_link_that_leaves_the_tree_is_left_as_written_and_one_that_leaves_the_locale_is_a_problem()
+  -- The tree of another audience is a sibling directory, so a link to its site climbs out of the tree: the builder cannot
+  -- check it and leaves it for the browser, which reads it against the URL of the page. A link to the content root only
+  -- (`../x.md`: the locale directories are there) is a mistake or a link to another locale, and stays a problem.
+  local files = {
+    ["en/index.md"] = page("Home", "[a](../../user/en/) [b](../../../user/en/guide/) [c](../x.md) [d](index.md)"),
+    ["en/guide/index.md"] = page("Guide", "[e](../../../../user/en/) [f](../../x.md)"),
+  }
+  local fs, report = build(files, ONE_LOCALE)
+  self:assert_equal(2, #report.problems, table.concat(report.problems, "\n"))
+  self:assert_true(report.problems[1]:find("en/guide/index.md: link ../../x.md leaves the locale directory", 1, true) ~= nil, report.problems[1])
+  self:assert_true(report.problems[2]:find("en/index.md: link ../x.md leaves the locale directory", 1, true) ~= nil, report.problems[2])
+  local home = fs:read("o/en/index.html")
+  self:assert_true(home:find('href="../../user/en/"', 1, true) ~= nil, "left as written")
+  self:assert_true(home:find('href="../../../user/en/guide/"', 1, true) ~= nil, "left as written")
+  self:assert_true(fs:read("o/en/guide/index.html"):find('href="../../../../user/en/"', 1, true) ~= nil)
 end
 
 function T:test_the_theme_file_can_change_fonts_and_ship_font_files_from_public()
@@ -756,13 +746,13 @@ function T:test_a_file_of_public_cannot_replace_the_stylesheet_of_the_theme()
   self:assert_true(core.is_instance_of(err, doc.BuildError))
 end
 
--- llms.txt and llms-full.txt (llmstxt.org): opt-in, the published pages of the default locale.
+-- llms.txt and llms-full.txt (llmstxt.org): opt-in, the pages of the default locale.
 local LLMS_FILES = {
   ["en/index.md"] = page("Home", "welcome", "description: Start page.\n"),
   ["en/guide/index.md"] = page("Guide", "start", "order: 1\ndescription: Where to begin.\n"),
   ["en/guide/a.md"] = page("Alpha [one]", "alphaword", "order: 2\n"),
   ["en/guide/b.md"] = page("Beta", "betaword", "order: 3\ndescription: \"Second\\nline.\"\n"),
-  ["en/guide/zeta.md"] = page("Zeta", "xylophone", "order: 4\naudience: maintainer\ndescription: Hidden.\n"),
+  ["en/guide/zeta.md"] = page("Zeta", "xylophone", "order: 4\ndescription: Last page.\n"),
   ["en/other/x.md"] = "---\ndescription: An x.\n---\nno heading here\n",
   ["fr/index.md"] = page("Accueil", "bonjour"),
   ["fr/guide/a.md"] = page("Alpha FR", "frenchword"),
@@ -777,8 +767,8 @@ function T:test_llms_files_are_not_written_unless_asked_and_public_files_pass_th
   self:assert_nil(fs:read("o/llms-full.txt"))
 end
 
-function T:test_llms_txt_lists_the_published_pages_of_the_default_locale_by_section()
-  local fs = build(LLMS_FILES, { site_origin = "https://x.test/", generate_llms_txt = true, audiences = { "user" }, default_audience = "user", description = { en = "A site.", fr = "Un site." } })
+function T:test_llms_txt_lists_the_pages_of_the_default_locale_by_section()
+  local fs = build(LLMS_FILES, { site_origin = "https://x.test/", generate_llms_txt = true, description = { en = "A site.", fr = "Un site." } })
   local expected = table.concat({
     "# hecate",
     "",
@@ -791,6 +781,7 @@ function T:test_llms_txt_lists_the_published_pages_of_the_default_locale_by_sect
     "- [Guide](https://x.test/en/guide/): Where to begin.",
     "- [Alpha \\[one\\]](https://x.test/en/guide/a/)",
     "- [Beta](https://x.test/en/guide/b/): Second line.",
+    "- [Zeta](https://x.test/en/guide/zeta/): Last page.",
     "",
     "## Other",
     "",
@@ -801,19 +792,19 @@ function T:test_llms_txt_lists_the_published_pages_of_the_default_locale_by_sect
 end
 
 function T:test_llms_links_follow_the_base_without_a_public_url()
-  local fs = build(LLMS_FILES, { generate_llms_txt = true, audiences = { "user" }, default_audience = "user", base_path = "/docs/" })
+  local fs = build(LLMS_FILES, { generate_llms_txt = true, base_path = "/docs/" })
   local text = fs:read("o/llms.txt")
   self:assert_not_nil(text:find("- [Home](/docs/en/): Start page.", 1, true), text)
   self:assert_nil(text:find("> ", 1, true), "no summary without a description")
 end
 
-function T:test_llms_full_txt_concatenates_the_markdown_of_the_published_pages()
-  local fs = build(LLMS_FILES, { site_origin = "https://x.test", generate_llms_txt = true, audiences = { "user" }, default_audience = "user" })
+function T:test_llms_full_txt_concatenates_the_markdown_of_the_pages()
+  local fs = build(LLMS_FILES, { site_origin = "https://x.test", generate_llms_txt = true })
   local text = fs:read("o/llms-full.txt")
   self:assert_not_nil(text:find("alphaword", 1, true))
   self:assert_not_nil(text:find("betaword", 1, true))
   self:assert_not_nil(text:find("Source: https://x.test/en/guide/a/", 1, true))
-  self:assert_nil(text:find("xylophone", 1, true), "an unpublished audience is absent")
+  self:assert_not_nil(text:find("xylophone", 1, true))
   self:assert_nil(text:find("frenchword", 1, true), "the default locale only")
   self:assert_nil(text:find("description:", 1, true), "front matter is not part of the Markdown")
   self:assert_true(text:find("alphaword", 1, true) < text:find("betaword", 1, true), "reading order")
@@ -823,15 +814,13 @@ function T:test_llms_full_txt_concatenates_the_markdown_of_the_published_pages()
   self:assert_nil(text:find("\n\n\n", 1, true))
 end
 
-function T:test_llms_files_are_deterministic_and_ask_for_the_published_audiences()
-  local first = build(LLMS_FILES, { site_origin = "https://x.test", generate_llms_txt = true, audiences = { "user" }, default_audience = "user" })
-  local second = build(LLMS_FILES, { site_origin = "https://x.test", generate_llms_txt = true, audiences = { "user" }, default_audience = "user" })
+function T:test_llms_files_are_deterministic()
+  local first = build(LLMS_FILES, { site_origin = "https://x.test", generate_llms_txt = true })
+  local second = build(LLMS_FILES, { site_origin = "https://x.test", generate_llms_txt = true })
   self:assert_equal(first:read("o/llms.txt"), second:read("o/llms.txt"))
   self:assert_equal(first:read("o/llms-full.txt"), second:read("o/llms-full.txt"))
-  local both = build(LLMS_FILES, { site_origin = "https://x.test", generate_llms_txt = true, audiences = { "user", "maintainer" },
-    audience_sites = "merged" })
-  self:assert_not_nil(both:read("o/llms.txt"):find("[Zeta](https://x.test/en/guide/zeta/): Hidden.", 1, true))
-  self:assert_not_nil(both:read("o/llms-full.txt"):find("xylophone", 1, true))
+  self:assert_not_nil(first:read("o/llms.txt"):find("[Zeta](https://x.test/en/guide/zeta/): Last page.", 1, true))
+  self:assert_not_nil(first:read("o/llms-full.txt"):find("xylophone", 1, true))
 end
 
 function T:test_a_file_of_public_named_like_a_llms_file_collides_when_llms_is_on()
@@ -841,155 +830,6 @@ function T:test_a_file_of_public_named_like_a_llms_file_collides_when_llms_is_on
   local err = self:assert_error(function() build(files, { generate_llms_txt = true }) end)
   self:assert_true(core.is_instance_of(err, doc.BuildError))
   self:assert_not_nil(tostring(err):find("llms-full.txt", 1, true), tostring(err))
-end
-
--- Separate sites (OQ-144, owner decision of 2026-11-18): one complete site per audience.
-local SEPARATE_FILES = {
-  ["en/index.md"] = page("Home", "welcome", "audience: user\n"),
-  ["en/guide/index.md"] = page("Guide", "start", "order: 1\naudience: user\n"),
-  ["en/guide/a.md"] = page("Alpha", "alphaword [to the maintainers](../internals/design.md)", "order: 2\naudience: user\n"),
-  ["en/guide/img.md"] = page("Pictures", "![x](pic.svg)", "order: 3\naudience: user\n"),
-  ["en/guide/pic.svg"] = "<svg/>",
-  ["en/internals/index.md"] = page("Internals", "inside", "order: 5\n"),
-  ["en/internals/design.md"] = page("Design", "xylophone", "order: 6\n"),
-  ["public/logo.svg"] = "<svg/>",
-}
-local SEPARATE = { locales = ONE_LOCALE.locales, site_origin = "https://x.test", audiences = { "user", "maintainer" }, generate_llms_txt = true,
-  default_audience = "maintainer" } -- the pages of `internals/` carry no key
-
-function T:test_several_audiences_are_written_as_one_complete_site_each()
-  local fs, report = build(SEPARATE_FILES, SEPARATE)
-  for _, audience in ipairs({ "user", "maintainer" }) do
-    for _, file in ipairs({ "404.html", "index.html", "sitemap.xml", "llms.txt", "llms-full.txt",
-      "assets/theme.css", "assets/theme.js", "assets/search-en.json", ".hecate-doc-output", "logo.svg" }) do
-      self:assert_not_nil(fs:read("o/" .. audience .. "/" .. file), audience .. "/" .. file)
-    end
-  end
-  -- Own pages, and only those.
-  self:assert_not_nil(fs:read("o/user/en/index.html"))
-  self:assert_not_nil(fs:read("o/maintainer/en/internals/index.html"))
-  self:assert_not_nil(fs:read("o/user/en/guide/a/index.html"))
-  self:assert_nil(fs:read("o/user/en/internals/design/index.html"))
-  self:assert_not_nil(fs:read("o/maintainer/en/internals/design/index.html"))
-  self:assert_nil(fs:read("o/maintainer/en/guide/a/index.html"))
-  self:assert_equal("<svg/>", fs:read("o/user/en/guide/pic.svg"))
-  -- Own search index, sitemap, llms.txt, navigation: nothing of the other audience.
-  self:assert_nil(fs:read("o/user/assets/search-en.json"):find("xylophone", 1, true))
-  self:assert_not_nil(fs:read("o/user/assets/search-en.json"):find("alphaword", 1, true))
-  self:assert_not_nil(fs:read("o/maintainer/assets/search-en.json"):find("xylophone", 1, true))
-  self:assert_nil(fs:read("o/maintainer/assets/search-en.json"):find("alphaword", 1, true))
-  self:assert_nil(fs:read("o/user/sitemap.xml"):find("internals", 1, true))
-  self:assert_not_nil(fs:read("o/user/sitemap.xml"):find("https://x.test/user/en/guide/a/", 1, true))
-  self:assert_not_nil(fs:read("o/maintainer/sitemap.xml"):find("https://x.test/maintainer/en/internals/design/", 1, true))
-  self:assert_nil(fs:read("o/user/llms.txt"):find("Design", 1, true))
-  self:assert_not_nil(fs:read("o/maintainer/llms.txt"):find("https://x.test/maintainer/en/internals/design/", 1, true))
-  self:assert_nil(fs:read("o/maintainer/llms-full.txt"):find("alphaword", 1, true))
-  local user_page = fs:read("o/user/en/guide/a/index.html")
-  self:assert_nil(user_page:find("/maintainer/", 1, true), "no link into the other site")
-  self:assert_not_nil(user_page:find('href="/user/assets/theme.css"', 1, true), "assets of its own site")
-  self:assert_not_nil(user_page:find("/user/assets/search-en.json", 1, true))
-  -- The root holds the marker and a redirect to the first audience.
-  self:assert_not_nil(fs:read("o/.hecate-doc-output"))
-  self:assert_not_nil(fs:read("o/index.html"):find('content="0; url=/user/en/"', 1, true))
-  self:assert_nil(fs:read("o/en/index.html"))
-  self:assert_nil(fs:read("o/assets/theme.css"))
-  -- The report lists the sites.
-  self:assert_equal(2, #report.sites)
-  self:assert_equal("user", report.sites[1].directory)
-  self:assert_equal("maintainer", report.sites[2].directory)
-  self:assert_equal("user", report.sites[1].audiences[1])
-  self:assert_equal(4, report.sites[1].locales.en.pages)
-  self:assert_equal(2, report.sites[2].locales.en.pages)
-  self:assert_equal(4, report.sites[2].locales.en.unpublished, "the pages of the other audience")
-  self:assert_equal(0, report.locales.en.unpublished, "every page is in one of the sites")
-  self:assert_equal(6, report.locales.en.pages)
-  local count = 2
-  for _, entry in ipairs(report.sites) do count = count + entry.files end
-  self:assert_equal(count, report.files)
-end
-
-function T:test_a_link_to_a_page_of_another_audience_is_a_problem_of_its_own_site_naming_the_audience()
-  local _, report = build(SEPARATE_FILES, SEPARATE)
-  -- The only page at the root is the home page of the users: the maintainer site is told it has none.
-  self:assert_equal(1, #report.sites[2].problems)
-  self:assert_true(report.sites[2].problems[1]:find("has no home page", 1, true) ~= nil, report.sites[2].problems[1])
-  self:assert_equal(1, #report.sites[1].problems, table.concat(report.sites[1].problems, "\n"))
-  local problem = report.sites[1].problems[1]
-  self:assert_true(problem:find("en/guide/a.md", 1, true) ~= nil, problem)
-  self:assert_true(problem:find("internals/design.md", 1, true) ~= nil, problem)
-  self:assert_true(problem:find("maintainer", 1, true) ~= nil, problem)
-  self:assert_true(problem:find("published in another site", 1, true) ~= nil, problem)
-  local err = self:assert_error(function() build(SEPARATE_FILES, SEPARATE, { fail_on_problems = true }) end)
-  self:assert_true(core.is_instance_of(err, doc.BuildError))
-  self:assert_true(err.message:find("maintainer", 1, true) ~= nil, err.message)
-end
-
-function T:test_the_default_publishes_one_maintainer_site_at_the_root()
-  local fs, report = build(SEPARATE_FILES, { locales = ONE_LOCALE.locales })
-  self:assert_not_nil(fs:read("o/en/internals/design/index.html"), "maintainer pages, and the pages without the key")
-  self:assert_nil(fs:read("o/en/guide/a/index.html"), "a user page is not published")
-  self:assert_nil(fs:read("o/maintainer/en/index.html"))
-  self:assert_equal(1, #report.sites)
-  self:assert_equal("", report.sites[1].directory)
-  self:assert_equal("maintainer", report.sites[1].audiences[1])
-  self:assert_equal(2, report.locales.en.pages)
-  self:assert_equal(4, report.locales.en.unpublished)
-end
-
-function T:test_a_single_audience_keeps_the_layout_at_the_root_whatever_the_switch()
-  for _, mode in ipairs({ "separate", "merged" }) do
-    local fs = build(SEPARATE_FILES, { locales = ONE_LOCALE.locales, audiences = { "user" }, audience_sites = mode,
-      default_audience = "maintainer" })
-    self:assert_nil(fs:read("o/user/en/index.html"), mode)
-    self:assert_nil(fs:read("o/en/internals/design/index.html"), mode)
-    self:assert_not_nil(fs:read("o/en/guide/a/index.html"), mode)
-  end
-end
-
-function T:test_the_merged_switch_writes_both_audiences_in_one_site()
-  local fs, report = build(SEPARATE_FILES, { locales = ONE_LOCALE.locales, audiences = { "user", "maintainer" },
-    audience_sites = "merged", default_audience = "maintainer" }, { fail_on_problems = true })
-  self:assert_not_nil(fs:read("o/en/guide/a/index.html"))
-  self:assert_not_nil(fs:read("o/en/internals/design/index.html"))
-  self:assert_nil(fs:read("o/user/en/index.html"))
-  self:assert_equal(1, #report.sites)
-  self:assert_equal(2, #report.sites[1].audiences)
-  self:assert_equal(6, report.locales.en.pages)
-end
-
-function T:test_separate_sites_follow_the_base_and_can_be_cleaned()
-  local files = {}
-  for path, data in pairs(SEPARATE_FILES) do files["c/" .. path] = data end
-  local fs = doc.MemoryFileSystem(files)
-  local arguments = { site_configuration = config_with({ locales = ONE_LOCALE.locales, base_path = "/docs/", audiences = { "maintainer", "user" } }),
-    guides_dir = "c", output_dir = "o", file_system = fs, clean_output_dir = true }
-  doc.build(arguments)
-  self:assert_not_nil(fs:read("o/index.html"):find('url=/docs/maintainer/en/', 1, true), "the first audience listed")
-  self:assert_not_nil(fs:read("o/user/en/guide/a/index.html"):find('href="/docs/user/assets/theme.css"', 1, true))
-  fs:write("o/stale.txt", "old")
-  fs:write("o/user/stale.txt", "old")
-  doc.build(arguments)
-  self:assert_nil(fs:read("o/stale.txt"), "the output directory was cleaned (the marker is at its root)")
-  self:assert_nil(fs:read("o/user/stale.txt"))
-  self:assert_not_nil(fs:read("o/user/en/index.html"))
-  local foreign = doc.MemoryFileSystem(files)
-  foreign:write("o/mine.txt", "mine")
-  arguments.file_system = foreign
-  self:assert_error(function() doc.build(arguments) end)
-  self:assert_equal("mine", foreign:read("o/mine.txt"))
-end
-
-function T:test_a_failing_separate_build_writes_nothing()
-  local files = {}
-  for path, data in pairs(SEPARATE_FILES) do files["c/" .. path] = data end
-  files["c/en/internals/bad.md"] = "---\ntitle: Bad\naudience: nobody\n---\nx\n"
-  local fs = doc.MemoryFileSystem(files)
-  self:assert_error(function()
-    doc.build({ site_configuration = config_with({ locales = ONE_LOCALE.locales, audiences = { "user", "maintainer" } }),
-      guides_dir = "c", output_dir = "o", file_system = fs })
-  end)
-  self:assert_nil(fs:read("o/index.html"))
-  self:assert_nil(fs:read("o/user/en/index.html"))
 end
 
 return T

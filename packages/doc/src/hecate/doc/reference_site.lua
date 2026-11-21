@@ -21,14 +21,13 @@ M.DEFAULT_PACKAGES = { "core", "reactor", "net", "json", "log", "http", "router"
 ---@class hecate.doc.ReferenceSiteOptions
 ---@field project_dir string  repository root (holds `packages/`) or project directory; must be trusted: LuaLS runs any plugin that a LuaLS configuration reachable from it declares (`.luarc.json`, `.luarc.jsonc`, `.vscode/settings.json`), with full file and command access (see `hecate.doc.luals.export`)
 ---@field packages? string[]  package names, in sidebar order (default `DEFAULT_PACKAGES`)
----@field locale_dir string  locale directory of the guides that the pages are written into, for example `website/en` (not the directory of the built site)
+---@field locale_dir? string  locale directory of the guides that the pages are written into, for example `website/en` (not the directory of the built site): one tree holds the whole reference. Give this or `audience_locale_dirs`
+---@field audience_locale_dirs? { user: string, maintainer: string }  the locale directory of each audience tree, for example `docs/user/en` and `docs/maintainer/en`: the pages of public symbols are written into the `user` one and the pages of the internals (`*.internal` modules, classes that are not public) into the `maintainer` one, which implies `internal`, and the pages of one tree never link to the other (documentation.md, "Documentation of a project")
 ---@field file_system hecate.doc.FileSystem
 ---@field language_server_path? string  `lua-language-server` (default: found on the path)
 ---@field language_server_config_path? string  `.luarc.json`, passed to LuaLS as `--configpath` (default: none is passed; the repository runners `bin/build.lua` and `bin/reference.lua` give `<root>/.luarc.json`)
 ---@field since? string
----@field internal? boolean  also generate the `maintainer` pages of `*.internal` modules and of non-public classes (default false)
----@field label_audiences? boolean|hecate.doc.Audience  write the `audience` front matter key on every page: `true` by class, an audience for all pages (default false)
----@field separate_audience_sites? boolean  the audiences are built into separate sites and `label_audiences` is `true`: a page links only to pages of its own audience (default false)
+---@field internal? boolean  also generate the pages of `*.internal` modules and of non-public classes, into the one tree (default false; implied by `audience_locale_dirs`)
 ---@field sources_dir_pattern? string  `string.format` pattern of a package's source directory below `project_dir` (default `packages/%s/src`; a project uses `src`, with one name)
 
 ---@class hecate.doc.ReferenceSiteReport
@@ -60,8 +59,9 @@ end
 ---@param locale_dir string  locale directory
 ---@param result hecate.doc.ReferenceResult
 ---@param packages string[]
+---@param audience? hecate.doc.Audience  write only the pages of this audience (`result.audiences`): the tree of an audience; default every page
 ---@return string[] problems
-function M.write(file_system, locale_dir, result, packages)
+function M.write(file_system, locale_dir, result, packages, audience)
   local fs = file_system
   local problems = {}
   local writable = {}
@@ -76,7 +76,9 @@ function M.write(file_system, locale_dir, result, packages)
   end
   for _, path in ipairs(result.order) do
     local name = path:match("^reference/([^/]+)/")
-    if name and writable[name] then fs:write(locale_dir .. "/" .. path, result.pages[path]) end
+    if name and writable[name] and (audience == nil or result.audiences[path] == audience) then
+      fs:write(locale_dir .. "/" .. path, result.pages[path])
+    end
   end
   return problems
 end
@@ -88,10 +90,19 @@ end
 ---@param options hecate.doc.ReferenceSiteOptions
 ---@return hecate.doc.ReferenceSiteReport
 function M.run(options)
-  if type(options) ~= "table" or not options.project_dir or not options.locale_dir or not options.file_system then
-    error(core.ArgumentError("doc.reference_site.run: expects { project_dir, locale_dir, file_system }"), 2)
+  if type(options) ~= "table" or not options.project_dir or not (options.locale_dir or options.audience_locale_dirs)
+    or not options.file_system then
+    error(core.ArgumentError("doc.reference_site.run: expects { project_dir, locale_dir or audience_locale_dirs, file_system }"), 2)
   end
   options_module.check("doc.reference_site.run", "reference_site", options, options_module.REFERENCE_SITE, 3)
+  local trees = options.audience_locale_dirs
+  if trees ~= nil and (options.locale_dir ~= nil or type(trees) ~= "table" or type(trees.user) ~= "string"
+    or type(trees.maintainer) ~= "string") then
+    error(core.ArgumentError({
+      message = "doc.reference_site.run: `audience_locale_dirs` must be { user = dir, maintainer = dir } and is given instead of `locale_dir`, not with it",
+      context = { argument = "audience_locale_dirs" },
+    }), 2)
+  end
   local fs = options.file_system
   local report = { pages = 0, packages = {}, problems = {} }
   local executable = options.language_server_path or luals.locate()
@@ -123,9 +134,8 @@ function M.run(options)
   end
   local result = reference.generate(inputs, {
     since = options.since,
-    internal = options.internal,
-    label_audiences = options.label_audiences,
-    separate_audience_sites = options.separate_audience_sites,
+    internal = options.internal == true or trees ~= nil,
+    split_audiences = trees ~= nil,
     examples = function(symbol)
       local package_name = symbol:match("^hecate%.([^.]+)")
       local path = ("packages/%s/examples/%s.lua"):format(package_name or "", symbol)
@@ -134,7 +144,13 @@ function M.run(options)
     end,
   })
   for _, problem in ipairs(result.problems) do report.problems[#report.problems + 1] = problem end
-  for _, problem in ipairs(M.write(fs, options.locale_dir, result, names)) do report.problems[#report.problems + 1] = problem end
+  if trees then
+    for _, audience in ipairs({ "user", "maintainer" }) do
+      for _, problem in ipairs(M.write(fs, trees[audience], result, names, audience)) do report.problems[#report.problems + 1] = problem end
+    end
+  else
+    for _, problem in ipairs(M.write(fs, options.locale_dir, result, names)) do report.problems[#report.problems + 1] = problem end
+  end
   report.pages = #result.order
   report.packages = names
   return report

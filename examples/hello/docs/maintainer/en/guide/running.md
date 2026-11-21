@@ -28,4 +28,4 @@ Ctrl+C or SIGTERM stops accepting connections, lets the requests in flight finis
 lua examples/hello/build_docs.lua
 ```
 
-The site is written to `examples/hello/docs/dist`, which is git-ignored.
+The site is written to `examples/hello/docs/dist/maintainer`, which is git-ignored.

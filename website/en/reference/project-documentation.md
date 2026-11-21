@@ -14,45 +14,83 @@ This page covers what a project can configure and what is generated for it, for 
 
 ## Audiences
 
-The site that `doc.generate_project_documentation` writes is the documentation of the project's own team. By default it serves the
-maintainers: it publishes only what you ask for. Pages have an audience: `user` (build, run and operate an application on the public API) or `maintainer`
-(change the project itself: architecture, decisions, internals, CI and release).
+The site that `doc.generate_project_documentation` writes is the documentation of the project's own team. By default it
+serves the maintainers. There are two audiences: `user` (build, run and operate an application on the public API) and
+`maintainer` (change the project itself: architecture, decisions, internals, CI and release). They are two different
+websites: one content tree each in the sources, and one output directory each.
 
-| Where | Key | Meaning |
+```text
+docs/
+  site.lua                   one site configuration for the project
+  user/                      the tree of the user site (optional)
+    en/index.md              its home page
+    en/guide/getting-started.md
+    public/                  its own static files
+  maintainer/                the tree of the maintainer site
+    en/index.md              its home page
+    en/architecture.md
+    public/
+  dist/                      the output
+    user/                    the user site
+    maintainer/              the maintainer site
+```
+
+Each tree is laid out like a plain site: one directory per locale, and `public/` next to them. It is built by the plain
+builder into `<output_dir>/<audience>/`, so each site has its own pages, navigation, search index, sitemap, `llms.txt`,
+theme files and `404.html`, and no page of the other tree. The base path of a site is the `base_path` of the
+configuration plus the audience. `<output_dir>/` itself holds only a marker file and a redirect to the first site.
+
+| Where | Name | Meaning |
 |---|---|---|
-| Front matter of a page | `audience` | `user` or `maintainer`. Any other value fails the build with a `BuildError` naming the file. |
-| Site configuration | `default_audience` | The audience of a page without the key. Default: the first of `audiences` (`maintainer` with the default `audiences`; `user` with `audiences = { "user" }`). |
-| Site configuration | `audiences` | The audiences the site publishes. Default `{ "maintainer" }`. Ask for `{ "user" }` for a site for the users, or for both. |
-| Site configuration | `audience_sites` | `"separate"` (default) or `"merged"`: what to write when several audiences are published. |
+| Option of `generate_project_documentation` | `audiences` | The trees to build. Default `{ "maintainer" }`. Ask for `{ "user", "maintainer" }` for both. |
+| `<guides_dir>/<audience>/` | content tree | Each tree needs its own home page: `index.md` in the default locale. |
+| `<guides_dir>/site.lua` | site configuration | One file. Its title, locales, theme and other keys apply to every audience site; a different title or theme for one audience is not possible. |
 
-With several audiences published, the build writes one complete site per audience, `<output_dir>/user/` and
-`<output_dir>/maintainer/`: each has its own pages, navigation, search index, sitemap, `llms.txt`, theme files and
-`404.html`, and no page of the other audience. Give each audience its own home page (`index.md`). A link from a page
-to a page of the other audience is reported like a broken link, naming the audience and telling a page published in another site (use an absolute URL or move the page) from one that is not published. A published locale without a page, and a site without a home page, are problems too, with the label or the file to add. With one audience the site is
-written at `<output_dir>/`. Set `audience_sites = "merged"` to write one combined site instead. This is a deliberate, temporary exception for the Hecate website, which sets it until its restructure into a user part and a maintainer part; do not use it in a project. The build report lists each site and its problems.
+A tree that is not listed in `audiences` is not built, and that is not an error. A listed tree that does not exist is a
+problem, which fails the build under `fail_on_problems`, and tells you the file to add (`add docs/user/en/index.md`). A
+tree without its home page is a problem of that tree.
 
-A page of an audience that is not published is left out of the pages, the navigation, the search index, the sitemap
-and the previous and next links. A link to it is reported like a broken link, and fails the build under `--strict`, so
-that you notice it. A file next to pages, such as an image, follows its neighbours: when the directory of the file holds pages and the site publishes none of them, the file is not copied into that site; a file in a directory without a page, or with at least one published page, is copied. A translation never publishes a page that the
-original keeps back, and a translation labelled for another audience than its original is published in no site: the build reports a problem naming both files.
+There is no `audience` key in the front matter: a page that still has it fails the build with a `BuildError` that names
+the file and the layout. The site configuration keys `audiences`, `default_audience` and `audience_sites` are gone too, and
+`site.lua` refuses them. Move the pages into the tree of their audience and delete the keys.
 
-The configuration reference is a `maintainer` page. The code reference lists public symbols; the pages of `*.internal`
-modules and of `private` or `package` classes are `maintainer` pages, generated only when `audiences` includes
-`maintainer`. With both audiences and separate sites, a reference page links only to pages of its own audience, and the module page lists only the classes of its own audience. A field or method that is not public is never listed.
+Generated pages go into the right tree. The configuration reference and the licences page are pages of the `maintainer`
+tree (`licences_page.audience` can name another listed tree). The code reference lists public symbols in the `user` tree;
+the pages of `*.internal` modules and of `private` or `package` classes go to the `maintainer` tree. When only one tree is
+built, it holds the whole code reference. With both trees, a reference page links only to pages of its own tree, and the
+module page lists only the classes of its own tree. A field or method that is not public is never listed.
 
-A worked example, a site for the users of a project, whose pages carry no `audience` key:
+A link from a page of one site to a page of the other site is an ordinary link that the builder cannot check. Write an
+absolute URL, `https://example.org/user/en/guide/`, or a relative link. The browser reads a relative link from the URL of
+the page, not from its source file: the page `guide/a.md` of a site served at `/maintainer/` is at `/maintainer/en/guide/a/`,
+so the user page `guide/` is `../../../../user/en/guide/`. The builder leaves a relative link that climbs two levels or more
+above the locale directory as written, and reports no problem. A link that climbs to the content root only (`../x.md`) is
+still a problem, like a broken link inside the tree.
+
+A worked example, a project with a site for its users and one for its team:
 
 ```lua
 -- docs/site.lua
 return {
   title = "Shop",
-  audiences = { "user" },
-  default_audience = "user", -- the default is the first audience: written here for clarity
+  locales = { { code = "en", label = "English" } },
 }
 ```
 
-Pages without the key are then `user` pages and are published; the configuration reference, a `maintainer` page, is
-not. With the default `audiences`, a page without the key is a `maintainer` page.
+```lua
+-- Build both sites, strictly: a missing tree or a broken link fails.
+doc.generate_project_documentation({
+  application = application,
+  audiences = { "user", "maintainer" },
+  fail_on_problems = true,
+})
+```
+
+With the files `docs/user/en/index.md`, `docs/maintainer/en/index.md` and the configuration reference generated into
+`docs/maintainer/en/configuration.md`, the build writes `docs/dist/user/en/index.html`,
+`docs/dist/maintainer/en/index.html` and `docs/dist/maintainer/en/configuration/index.html`, and reports no problem. Without
+`audiences`, only `docs/dist/maintainer/` is written. The Hecate website is one tree built by the plain builder; it moves
+into `website/user/` and `website/maintainer/` later.
 
 An option or a key of `site.lua` that is not on its list is refused: an old name (`colors`, `theme`, `logo`) with the
 name that replaced it, a typo (`audience`) with the closest key.
@@ -68,10 +106,11 @@ ends in `_dir` is a directory and a name that ends in `_path` is a file; relativ
 | Option | Default | Effect |
 |---|---|---|
 | `project_dir` | `.` | The directory of the project. |
-| `guides_dir` | `docs` | The content root: `<guides_dir>/<locale>/*.md`, `public/` and `site.lua`. Generated pages are written into it. |
-| `output_dir` | `docs/dist` | Where the static site is written. It may be below `guides_dir` (the default), but not `guides_dir` or `project_dir`, nor hold either, nor overlap `sources_dir`. |
+| `guides_dir` | `docs` | The root of the guides: one content tree per audience, `<guides_dir>/<audience>/<locale>/*.md` and `<guides_dir>/<audience>/public/`, and `site.lua`. Generated pages are written into the trees. |
+| `audiences` | `{ "maintainer" }` | The trees to build, each into its own site (see "Audiences"). |
+| `output_dir` | `docs/dist` | Where the sites are written, one per tree, in `<output_dir>/<audience>/`. It may be below `guides_dir` (the default), but not `guides_dir` or `project_dir`, nor hold either, nor overlap `sources_dir`. |
 | `site_configuration_path` | `<guides_dir>/site.lua` | The file that returns the site configuration; a path you give is relative to `project_dir`, the default is below `guides_dir`. `site_configuration` passes the table instead; giving both is an error. A missing file is a `BuildError` that names the remedies. |
-| `application` | none | Adds `configuration.md`, one row per key, from the JSON Schema of the configuration the application was given (a `maintainer` page). The application is the only source: a project without one has no configuration reference. The schema is the single source of the secrets: a key marked `writeOnly: true` or `format: "password"` (`Configuration:schema()` does it for the secrets of `hecate.config`), or that holds such a key below it, never prints its default, its enumeration or its constant. |
+| `application` | none | Adds `configuration.md`, one row per key, from the JSON Schema of the configuration the application was given (a page of the `maintainer` tree, written when it is built). The application is the only source: a project without one has no configuration reference. The schema is the single source of the secrets: a key marked `writeOnly: true` or `format: "password"` (`Configuration:schema()` does it for the secrets of `hecate.config`), or that holds such a key below it, never prints its default, its enumeration or its constant. |
 | `package_name` | none | Asks for the code reference `reference/<package_name>/`, from the annotated sources in `sources_dir` (default `src`; needs LuaLS). LuaLS runs the plugins that the configurations it reaches declare: the project must be one you trust (see the warning below). |
 | `licences_page` | off | Adds the third-party licences page: `true`, or a table `{ rocks_tree_dir, root_rocks, audience, include_bundled }`. |
 
@@ -81,7 +120,7 @@ the README of the package.
 
 Generated pages carry a notice (the first line after the front matter) and `generated: true` in their front matter, and are replaced at each build. A guide cannot overwrite one, and a generated page never overwrites a file that is not generated (a `BuildError` before anything is written); a guide that merely quotes the notice is not generated and is never touched. A generated page is never written through a symbolic link. Generated pages that a build no longer produces are removed. A wrong option, or one that is not on the list (an old name, a typo), raises an `ArgumentError` naming it (`context.argument`). With `fail_on_problems`, one `BuildError` lists every problem of the build, the licences page and the code reference.
 
-A symbolic link in `guides_dir` or in `public/` is never followed: it is skipped with a problem, so that a link to a key file or to a parent directory cannot publish or loop. A tree deeper than 32 levels or larger than 100,000 entries is cut with a problem. A heading whose id is one the theme uses (`content`, `sidebar`, `search`, ...) is a problem: write `## Content {#project-content}`. The text that
+A symbolic link in a tree of `guides_dir` or in its `public/` is never followed: it is skipped with a problem, so that a link to a key file or to a parent directory cannot publish or loop. A tree deeper than 32 levels or larger than 100,000 entries is cut with a problem. A heading whose id is one the theme uses (`content`, `sidebar`, `search`, ...) is a problem: write `## Content {#project-content}`. The text that
 comes from the schema is escaped, because it is data of the project and not Markdown.
 
 The generator produces no HTTP API reference. The OpenAPI contract is the external documentation of the HTTP API: the application serves it (`/openapi.json`) and `hecate contract export` writes it. A viewer for it, such as Swagger UI, is your own wiring, for example a Docker compose file next to the application. The code reference above is another thing: it documents the Lua modules, classes and functions of `package_name`, from their LuaLS annotations, and no route.
@@ -145,5 +184,5 @@ would replace it.
 - `llms-full.txt` holds the Markdown of the same pages one after the other, each after a `Source:` line with its URL, in
   the same order. Links between pages are kept as written in the sources.
 
-Only the pages the site publishes appear: a page of an audience that is not published is left out. Only the default
+Only the pages of the tree of the site appear (the other audience has its own files). Only the default
 locale is written. The output is deterministic.

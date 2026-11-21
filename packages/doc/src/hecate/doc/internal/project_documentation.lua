@@ -1,14 +1,17 @@
 -- The generation of the documentation of a project, behind `hecate.doc.generate_project_documentation`: the
 -- pages generated from the application (configuration reference), the third-party licences page and the code
--- reference, joined with the guides of the project and built into a site (documentation.md, "Documentation of
--- a project"). The paths are those of the conventional layout of a Hecate project, relative to `project_dir`.
-global <const> require, type, ipairs, pairs, table, error, tostring, string
+-- reference, joined with the guides of the project and built into sites, one per audience (documentation.md,
+-- "Documentation of a project"): the guides of an audience are a content tree of their own, `<guides_dir>/<audience>/`,
+-- built by the plain builder into `<output_dir>/<audience>/` (OQ-144, owner decision of 2026-11-21). The paths are those
+-- of the conventional layout of a Hecate project, relative to `project_dir`.
+global <const> require, type, ipairs, pairs, table, error, tostring, string, math
 
 local core = require("hecate.core")
 local build = require("hecate.doc.build")
 local config_module = require("hecate.doc.config")
 local errors = require("hecate.doc.errors")
 local generated_page = require("hecate.doc.internal.generated_page")
+local html = require("hecate.doc.internal.html")
 local options_module = require("hecate.doc.internal.options")
 local paths = require("hecate.doc.internal.paths")
 local portable = require("hecate.doc.internal.portable_name")
@@ -17,6 +20,7 @@ local safe_write = require("hecate.doc.internal.safe_write")
 -- (the rockspec field `description.license`, SPDX, the task `check-licenses`, `THIRD_PARTY_NOTICES`).
 local licences = require("hecate.doc.licences")
 local project = require("hecate.doc.project")
+local Site = require("hecate.doc.site")
 local system_file_system = require("hecate.doc.system_file_system")
 
 local M = {}
@@ -36,17 +40,18 @@ M.DEFAULTS = {
 ---@class hecate.doc.ProjectLicencesOptions
 ---@field rocks_tree_dir? string  root of the installed rocks tree, relative to `project_dir` (default `lua_modules`): `<rocks_tree_dir>/lib/luarocks/rocks-<lua>/<rock>/<version>/<rock>-<version>.rockspec`, read through the file system, never run
 ---@field root_rocks? string[]  the rocks the project depends on: only they and their dependencies (resolved transitively) are listed; default: every installed rock
----@field audience? hecate.doc.Audience  audience of the page (default `maintainer`, OQ-144)
+---@field audience? hecate.doc.Audience  the tree the page is written into: one of the built `audiences` (default `maintainer` when it is built, otherwise the first audience built)
 ---@field include_bundled? boolean  list what the generated site bundles (fonts, brand marks, icon, Mermaid when a guide holds a diagram) with its licence texts (default true)
 
 ---@class hecate.doc.ProjectDocumentationOptions
 ---@field project_dir? string  directory of the project (default `.`, the current directory): every relative path below is relative to it, and LuaLS reads its `.luarc.json`
----@field guides_dir? string  directory of the guides, the content root of the site (default `docs`): one directory per locale (`<guides_dir>/en/*.md`) and optionally `public/`; the generated pages are written into it, as `<guides_dir>/<locale>/configuration.md`
----@field output_dir? string  directory the static site is written to (default `docs/dist`, below the guides). It may not be `guides_dir` or `project_dir`, hold either of them, or overlap `sources_dir`: the build rewrites it, and empties it with `clean_output_dir`
----@field site_configuration? hecate.doc.SiteConfiguration  the site configuration (title, audiences, locales, ...) as a table; giving it together with `site_configuration_path` is an error
+---@field guides_dir? string  directory of the guides (default `docs`): one content tree per audience, `<guides_dir>/<audience>/` (`user`, `maintainer`), each laid out as the tree of a plain site (one directory per locale, `<guides_dir>/<audience>/en/*.md`, and optionally `<guides_dir>/<audience>/public/`); the generated pages are written into the trees, as `<guides_dir>/maintainer/<locale>/configuration.md`. `site.lua` is `<guides_dir>/site.lua`
+---@field audiences? hecate.doc.Audience[]  the audience trees to build, each into its own site (default `{ "maintainer" }`): a tree that is not listed is not built and is no error; a listed tree that does not exist is a problem (add `<guides_dir>/<audience>/<default locale>/index.md`)
+---@field output_dir? string  directory the sites are written to (default `docs/dist`, below the guides): one site per audience in `<output_dir>/<audience>/`. It may not be `guides_dir` or `project_dir`, hold either of them, or overlap `sources_dir`: the build rewrites it, and empties it with `clean_output_dir`
+---@field site_configuration? hecate.doc.SiteConfiguration  the site configuration (title, locales, ...) as a table, the same for every audience site; giving it together with `site_configuration_path` is an error
 ---@field site_configuration_path? string  Lua file that returns the site configuration, relative to `project_dir` like every other path (the default, `site.lua` below `guides_dir`, is below the guides); read with an empty environment under the limits of `hecate.doc.load_site_configuration`
----@field application? { configuration_schema: fun(self: table): table? }  the application of the project (a `hecate.kernel.Application`, by duck-typing: only its method `configuration_schema` is called, `hecate.doc` does not depend on `kernel`): the configuration reference (a `maintainer` page) is generated from the schema of the configuration the application was given. The schema is the single source, secrets included: a key marked `writeOnly: true` or `format: "password"` never shows its default. An application without a configuration adds nothing; without `application` there is no configuration reference
----@field package_name? string  Lua package name of the project, such as `shop`: asks for the code reference `reference/<package_name>/` of the annotated sources below `sources_dir` (skipped with a problem when LuaLS is missing); without it no code reference is generated. The reference lists the public symbols (pages of `user` audience); the pages of `*.internal` modules and of non-public classes are generated, as `maintainer` pages, only when the audiences include `maintainer`. When one audience is published (the default is `maintainer`), the site holds the whole reference and every page is labelled with that audience; with both, each page goes to the site of its audience
+---@field application? { configuration_schema: fun(self: table): table? }  the application of the project (a `hecate.kernel.Application`, by duck-typing: only its method `configuration_schema` is called, `hecate.doc` does not depend on `kernel`): the configuration reference (a page of the `maintainer` tree, written only when `maintainer` is built) is generated from the schema of the configuration the application was given. The schema is the single source, secrets included: a key marked `writeOnly: true` or `format: "password"` never shows its default. An application without a configuration adds nothing; without `application` there is no configuration reference
+---@field package_name? string  Lua package name of the project, such as `shop`: asks for the code reference `reference/<package_name>/` of the annotated sources below `sources_dir` (skipped with a problem when LuaLS is missing); without it no code reference is generated. The reference lists the public symbols (pages of the `user` tree); the pages of `*.internal` modules and of non-public classes are generated, into the `maintainer` tree, only when `maintainer` is built. When one audience is built (the default is `maintainer`), its tree holds the whole reference; with both, each page goes to the tree of its audience and the pages of one tree never link to the other
 ---@field sources_dir? string  directory of the Lua sources that the code reference documents, relative to `project_dir` (default `src`); never absolute: LuaLS runs the plugins that the configuration files of the directory it documents declare, so only a tree below the project is documented
 ---@field language_server_path? string  the `lua-language-server` executable (default: found on the path)
 ---@field language_server_config_path? string  the `.luarc.json` LuaLS reads, passed as `--configpath` (default `<project_dir>/.luarc.json`, which `hecate.doc.reference_site.run` passes whether the file exists or not). LuaLS runs the plugin that a configuration declares, this file and those it finds in the directory it documents: the project must be trusted
@@ -54,12 +59,21 @@ M.DEFAULTS = {
 ---@field content_locale? string  locale directory the generated pages are written to: a locale of the site configuration (default its `default_locale`, "en")
 ---@field file_system? hecate.doc.FileSystem  where the project is read from and the site written to (default a `hecate.doc.SystemFileSystem`, which must run inside a reactor)
 ---@field clean_output_dir? boolean  empty `output_dir` first (only if a previous build wrote it)
----@field fail_on_problems? boolean  raise one `hecate.doc.BuildError` that lists every problem of the report (broken links, a missing LuaLS, the problems of the licences page and of the code reference, ...), after the site is written
+---@field fail_on_problems? boolean  raise one `hecate.doc.BuildError` that lists every problem of the report (a missing audience tree, broken links, a missing LuaLS, the problems of the licences page and of the code reference, ...), after the sites are written
 ---@field last_updated? fun(path: string): string?  ISO 8601 date of the last change of a source file
 ---@field theme_file_system? hecate.doc.FileSystem  where the static files of the theme are read from (default: read with `io`)
 ---@field theme_files_dir? string  directory of the static files of the theme (default: the theme's own)
 
+---@class hecate.doc.ProjectSiteReport
+---@field audience hecate.doc.Audience
+---@field directory string  directory of the site below `output_dir` (the audience)
+---@field files integer  files written to the site
+---@field bytes integer
+---@field locales table<string, { pages: integer, fallbacks: integer }>
+---@field problems string[]  problems of this site, sorted and unique
+
 ---@class hecate.doc.ProjectDocumentationReport : hecate.doc.BuildReport
+---@field sites hecate.doc.ProjectSiteReport[]  one entry per audience tree built, in the order of `audiences`; `files`, `bytes` and `locales` of the report add up the sites (and the two files at the root of `output_dir`), `problems` holds the problems of each site prefixed with `<audience> site: `
 ---@field code? hecate.doc.ReferenceSiteReport  the code reference, when `package_name` was given
 
 local WHO = "doc.generate_project_documentation"
@@ -73,6 +87,11 @@ end
 
 local function resolve(directory, path)
   return paths.resolve(directory, clean(path))
+end
+
+-- The audiences to build: the option, or `maintainer` (owner decision of 2026-11-21: maintainers by default).
+local function audiences_of(options)
+  return options.audiences or { "maintainer" }
 end
 
 local function sorted_keys(map)
@@ -103,6 +122,18 @@ local function validate(options)
     or type(options.application.configuration_schema) ~= "function") then
     return "application", "an object with a `configuration_schema` method (a hecate.kernel.Application)"
   end
+  local audiences = options.audiences
+  if audiences ~= nil then
+    local expected = 'a non-empty list of "user" and "maintainer", each once (the audience trees to build)'
+    if type(audiences) ~= "table" or #audiences == 0 then return "audiences", expected end
+    local seen, count = {}, 0
+    for index, name in pairs(audiences) do
+      count = count + 1
+      if math.type(index) ~= "integer" or not config_module.AUDIENCES[name] or seen[name] then return "audiences", expected end
+      seen[name] = true
+    end
+    if count ~= #audiences then return "audiences", expected end
+  end
   local licences_option = options.licences_page
   if licences_option ~= nil and licences_option ~= false and licences_option ~= true then
     if type(licences_option) ~= "table" then return "licences_page", "true or a table" end
@@ -117,8 +148,14 @@ local function validate(options)
       end
     end
     local audience = licences_option.audience
-    if audience ~= nil and audience ~= "user" and audience ~= "maintainer" then
-      return "licences_page.audience", '"user" or "maintainer"'
+    if audience ~= nil then
+      local listed = false
+      for _, name in ipairs(audiences_of(options)) do listed = listed or name == audience end
+      if audience ~= "user" and audience ~= "maintainer" then return "licences_page.audience", '"user" or "maintainer"' end
+      if not listed then
+        return "licences_page.audience", ('one of the audiences listed in `audiences` (%s): the page is written into that tree'):format(
+          table.concat(audiences_of(options), ", "))
+      end
     end
     if licences_option.include_bundled ~= nil and type(licences_option.include_bundled) ~= "boolean" then
       return "licences_page.include_bundled", "a boolean"
@@ -219,14 +256,42 @@ local function sorted_unique(list)
   return out
 end
 
---- Generates the documentation site of a project. The generated pages are written below
---- `<guides_dir>/<locale>/` next to the guides, then the site is built into `output_dir`. Generated pages replace
---- the previous ones, and the generated pages that this build no longer produces are removed. Everything is checked
---- before anything is written: a generated page that would overwrite a file that is not generated (a hand-written
---- guide), or lie behind a symbolic link, raises `hecate.doc.BuildError` and leaves the tree untouched. A wrong option, an
---- option that is not on the list (an old name, a typo) and an `output_dir` that is `guides_dir`, `project_dir` or holds
---- either, or overlaps `sources_dir`, raise `hecate.core.ArgumentError` naming it (`context.argument`). `\` is a separator in
---- every path option. With `fail_on_problems`, the site is written and one `hecate.doc.BuildError` lists every problem.
+-- The page at the root of `output_dir`: it leads to the first site built.
+local function root_redirect(config, directory)
+  local target = config.base_path .. directory .. "/" .. config.default_locale .. "/"
+  return ("<!doctype html>\n<html lang=\"%s\">\n<head>\n<meta charset=\"utf-8\">\n<title>%s</title>\n"
+    .. "<meta http-equiv=\"refresh\" content=\"0; url=%s\">\n<link rel=\"canonical\" href=\"%s\">\n</head>\n"
+    .. "<body>\n<p><a href=\"%s\">%s</a></p>\n</body>\n</html>\n"):format(
+    html.escape(config.default_locale), html.escape(config.title), html.escape(target),
+    html.escape(config.site_origin and (config.site_origin .. target) or target), html.escape(target), html.escape(config.title))
+end
+
+-- The site configuration of one audience site: the configuration of the project, the same for every audience (per-audience
+-- overrides are out of scope), with the two keys that depend on where the tree and its output lie. The site is served
+-- below `<base_path><audience>/`, and the source of a page is `<audience>/<path below the tree>` in the repository.
+local function site_configuration_of(raw, normalised, audience)
+  local own = {}
+  for key, value in pairs(raw) do own[key] = value end
+  own.base_path = normalised.base_path .. audience .. "/"
+  if normalised.edit_link_template then
+    own.edit_link_template = normalised.edit_link_template:gsub("{path}", function() return audience .. "/{path}" end)
+  end
+  return own
+end
+
+--- Generates the documentation sites of a project, one per audience. Each audience is a content tree of its own,
+--- `<guides_dir>/<audience>/<locale>/`, with its own `public/`; the trees listed in `audiences` (default `maintainer`) are
+--- built by the plain builder into `<output_dir>/<audience>/`, with their own navigation, search index, sitemap, `llms.txt`,
+--- theme files and 404 page, and nothing of the other audience. The generated pages are written below
+--- `<guides_dir>/<audience>/<locale>/` next to the guides: the configuration reference and the licences page into the
+--- `maintainer` tree, the code reference into the `user` tree (public symbols) and the `maintainer` tree (internals), or all of
+--- it into the one tree built. Generated pages replace the previous ones, and the generated pages that this build no longer
+--- produces are removed. Everything is checked before anything is written: a generated page that would overwrite a file that
+--- is not generated (a hand-written guide), or lie behind a symbolic link, raises `hecate.doc.BuildError` and leaves the
+--- trees untouched. A wrong option, an option that is not on the list (an old name, a typo) and an `output_dir` that is
+--- `guides_dir`, `project_dir` or holds either, or overlaps `sources_dir`, raise `hecate.core.ArgumentError` naming it
+--- (`context.argument`). `\` is a separator in every path option. A listed audience whose tree does not exist is a problem
+--- and is not built. With `fail_on_problems`, the sites are written and one `hecate.doc.BuildError` lists every problem.
 ---@param options? hecate.doc.ProjectDocumentationOptions
 ---@return hecate.doc.ProjectDocumentationReport
 function M.generate(options)
@@ -262,8 +327,8 @@ function M.generate(options)
     if fs:read(path) == nil then missing_site_configuration(path, explicit == nil) end
     site_configuration = build.load_site_configuration(fs, path)
   end
-  -- The site configuration is checked before anything is written (an old key, a wrong audience raise `core.ConfigurationError`);
-  -- a project site publishes the `maintainer` audience unless it asks for more (OQ-144).
+  -- The site configuration is checked before anything is written (an old key, such as the removed `audiences`, raises
+  -- `core.ConfigurationError`).
   local normalised = config_module.normalise(site_configuration)
   local locale = options.content_locale
   if locale == nil then locale = normalised.default_locale end
@@ -274,69 +339,122 @@ function M.generate(options)
   if type(locale) ~= "string" or not locale:match("^[%w%-]+$") or not listed then
     options_module.refuse(WHO, "content_locale", ("a locale of the site configuration (%s)"):format(table.concat(known, ", ")), 3)
   end
-  local audiences = normalised.audiences --[[@as hecate.doc.Audience[] ]]
-  local maintainer = false
-  for _, audience in ipairs(audiences) do maintainer = maintainer or audience == "maintainer" end
-  -- The code reference is labelled by audience (public symbols `user`, internals `maintainer`) when both audiences
-  -- are published; a site that publishes one audience holds the whole reference, labelled with it.
-  local label = #audiences == 1 and audiences[1] or true
-  local root = guides_dir:gsub("/+$", "") .. "/" .. locale
-  local generated = {}
-  local schema = configuration_of(options.application)
-  if schema then generated["configuration.md"] = project.configuration_page(schema) end
   local problems = {}
+  -- The trees: a listed audience whose tree does not exist is a problem (and is not built); a tree that is not listed is not
+  -- built and is no error.
+  local trees, built, has = {}, {}, {}
+  for _, audience in ipairs(audiences_of(options)) do
+    local tree = guides_dir:gsub("/+$", "") .. "/" .. audience
+    if fs:list(tree) == nil then
+      problems[#problems + 1] = ("audience %q is listed in `audiences` but its content tree %s does not exist: add %s/%s/index.md "
+        .. "(the home page of that site), or leave %q out of `audiences`"):format(audience, tree, tree, normalised.default_locale, audience)
+    else
+      trees[audience] = tree
+      built[#built + 1] = audience
+      has[audience] = true
+    end
+  end
+  -- The pages generated from the project, per tree: the configuration reference and the licences page.
+  local generated = {}
+  for _, audience in ipairs(built) do generated[audience] = {} end
+  local schema = configuration_of(options.application)
+  if schema and has.maintainer then generated.maintainer["configuration.md"] = project.configuration_page(schema) end
   if options.licences_page then
     ---@type hecate.doc.ProjectLicencesOptions
     local licence = options.licences_page == true and {} or options.licences_page --[[@as hecate.doc.ProjectLicencesOptions]]
-    local model = licences.read(fs, {
-      rocks_tree_dir = resolve(project_dir, licence.rocks_tree_dir or defaults.rocks_tree_dir),
-      root_rocks = licence.root_rocks,
-    })
-    for _, problem in ipairs(model.problems) do problems[#problems + 1] = problem end
-    local diagrams, scan_problem = holds_diagram(fs, guides_dir, output_dir)
-    if scan_problem then problems[#problems + 1] = scan_problem end
-    local bundled = licence.include_bundled ~= false and licences.bundled({
-      diagrams = diagrams, theme_file_system = options.theme_file_system, theme_files_dir = options.theme_files_dir,
-    }) or nil
-    generated[LICENCES_PAGE] = licences.markdown(model, generated_page.front("Third-party licences",
-      "The rocks and libraries the project uses and what the site bundles, with their licences.", 60,
-      licence.audience or "maintainer"), bundled)
-  end
-  local guard = safe_write.guard(fs, guides_dir)
-  for _, path in ipairs(sorted_keys(generated)) do
-    local target = root .. "/" .. path
-    guard(target) -- a link is never written through: a dangling one would create (or truncate) the file it points to
-    if fs:exists(target) and not generated_page.is_generated(fs:read(target)) then
-      error(errors.BuildError({
-        message = ("doc.generate_project_documentation: %s exists and is not generated; move it, or rename the generated page"):format(target),
-        context = { path = target },
-      }), 0)
+    local target = licence.audience or (has.maintainer and "maintainer" or built[1])
+    if has[target] then
+      local model = licences.read(fs, {
+        rocks_tree_dir = resolve(project_dir, licence.rocks_tree_dir or defaults.rocks_tree_dir),
+        root_rocks = licence.root_rocks,
+      })
+      for _, problem in ipairs(model.problems) do problems[#problems + 1] = problem end
+      -- The site bundles Mermaid when one of its own guides holds a diagram.
+      local diagrams, scan_problem = holds_diagram(fs, trees[target], output_dir)
+      if scan_problem then problems[#problems + 1] = scan_problem end
+      local bundled = licence.include_bundled ~= false and licences.bundled({
+        diagrams = diagrams, theme_file_system = options.theme_file_system, theme_files_dir = options.theme_files_dir,
+      }) or nil
+      generated[target][LICENCES_PAGE] = licences.markdown(model, generated_page.front("Third-party licences",
+        "The rocks and libraries the project uses and what the site bundles, with their licences.", 60), bundled)
     end
   end
-  for _, path in ipairs(stale_files(fs, root, generated)) do fs:remove_tree(root .. "/" .. path) end
-  for _, path in ipairs(sorted_keys(generated)) do fs:write(root .. "/" .. path, generated[path]) end
+  local guard = safe_write.guard(fs, guides_dir)
+  for _, audience in ipairs(built) do
+    local root = trees[audience] .. "/" .. locale
+    for _, path in ipairs(sorted_keys(generated[audience])) do
+      local target = root .. "/" .. path
+      guard(target) -- a link is never written through: a dangling one would create (or truncate) the file it points to
+      if fs:exists(target) and not generated_page.is_generated(fs:read(target)) then
+        error(errors.BuildError({
+          message = ("doc.generate_project_documentation: %s exists and is not generated; move it, or rename the generated page"):format(target),
+          context = { path = target },
+        }), 0)
+      end
+    end
+  end
+  for _, audience in ipairs(built) do
+    local root = trees[audience] .. "/" .. locale
+    for _, path in ipairs(stale_files(fs, root, generated[audience])) do fs:remove_tree(root .. "/" .. path) end
+    for _, path in ipairs(sorted_keys(generated[audience])) do fs:write(root .. "/" .. path, generated[audience][path]) end
+  end
   local code_report
-  if options.package_name then
-    code_report = require("hecate.doc.reference_site").run({
+  if options.package_name and #built > 0 then
+    local reference_options = {
       project_dir = project_dir, packages = { options.package_name },
-      sources_dir_pattern = clean(options.sources_dir or defaults.sources_dir):gsub("%%", "%%%%"), locale_dir = root,
+      sources_dir_pattern = clean(options.sources_dir or defaults.sources_dir):gsub("%%", "%%%%"),
       file_system = fs, language_server_path = options.language_server_path,
       language_server_config_path = options.language_server_config_path
         and resolve(project_dir, options.language_server_config_path) or nil,
-      internal = maintainer, label_audiences = label,
-      -- Separate sites with both audiences: the pages of one audience link only to pages of that audience.
-      separate_audience_sites = #audiences > 1 and normalised.audience_sites == "separate",
+    }
+    if has.user and has.maintainer then
+      -- Two trees: public symbols into the user tree, internals into the maintainer tree; no page links to the other tree.
+      reference_options.audience_locale_dirs = { user = trees.user .. "/" .. locale, maintainer = trees.maintainer .. "/" .. locale }
+    else
+      -- One tree holds the whole reference; the internals are generated only for the maintainer tree.
+      reference_options.locale_dir = trees[built[1]] .. "/" .. locale
+      reference_options.internal = has.maintainer == true
+    end
+    code_report = require("hecate.doc.reference_site").run(reference_options)
+  end
+  -- Every tree is read and rendered before anything is written to the output: a tree that fails leaves no partial output. The
+  -- sites do not fail on their problems here: they are merged with those of the licences page and of the code reference, and
+  -- `fail_on_problems` raises once, for all of them.
+  local prepared = {}
+  for _, audience in ipairs(built) do
+    prepared[#prepared + 1] = build.prepare({
+      site_configuration = site_configuration_of(site_configuration, normalised, audience), guides_dir = trees[audience],
+      output_dir = output_dir .. "/" .. audience, file_system = fs, last_updated = options.last_updated,
+      theme_file_system = options.theme_file_system, theme_files_dir = options.theme_files_dir,
     })
   end
-  -- The build does not fail here: its problems are merged with those of the licences page and of the code reference, and
-  -- `fail_on_problems` raises once, for all of them.
-  local report = build.build({
-    site_configuration = site_configuration, guides_dir = guides_dir, output_dir = output_dir, file_system = fs,
-    clean_output_dir = options.clean_output_dir,
-    last_updated = options.last_updated, theme_file_system = options.theme_file_system,
-    theme_files_dir = options.theme_files_dir,
-  }) --[[@as hecate.doc.ProjectDocumentationReport]]
-  for _, problem in ipairs(report.problems) do problems[#problems + 1] = problem end
+  local report = { files = 0, bytes = 0, locales = {}, problems = {}, sites = {} } --[[@as hecate.doc.ProjectDocumentationReport]]
+  for _, entry in ipairs(normalised.locales) do report.locales[entry.code] = { pages = 0, fallbacks = 0 } end
+  if #built > 0 then
+    if options.clean_output_dir then build.clean_output_dir(fs, output_dir) end
+    local output_guard = safe_write.guard(fs, output_dir)
+    local function put(path, data)
+      output_guard(output_dir .. "/" .. path)
+      fs:write(output_dir .. "/" .. path, data)
+      report.files = report.files + 1
+      report.bytes = report.bytes + #data
+    end
+    -- First, so that an interrupted build can still be cleaned by the next one.
+    put(Site.MARKER, "Written by hecate.doc. This directory is emptied by builds that ask for a clean output.\n")
+    put("index.html", root_redirect(normalised, built[1]))
+    for index, audience in ipairs(built) do
+      local site_report = prepared[index].write()
+      report.sites[index] = { audience = audience, directory = audience, files = site_report.files, bytes = site_report.bytes,
+        locales = site_report.locales, problems = site_report.problems }
+      report.files = report.files + site_report.files
+      report.bytes = report.bytes + site_report.bytes
+      for code, entry in pairs(site_report.locales) do
+        report.locales[code].pages = report.locales[code].pages + entry.pages
+        report.locales[code].fallbacks = report.locales[code].fallbacks + entry.fallbacks
+      end
+      for _, problem in ipairs(site_report.problems) do problems[#problems + 1] = ("%s site: %s"):format(audience, problem) end
+    end
+  end
   if code_report then
     report.code = code_report
     for _, problem in ipairs(code_report.problems) do problems[#problems + 1] = problem end

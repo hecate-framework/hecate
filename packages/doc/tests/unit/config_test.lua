@@ -164,24 +164,15 @@ function T:test_logo_and_theme_paths_are_plain_files_of_public()
   self:assert_equal("my logo_path.svg", config.normalise({ title = "t", logo_path = "my logo_path.svg" }).logo_path.light)
 end
 
-function T:test_audiences_default_to_maintainer_and_are_validated()
-  local normalised = config.normalise({ title = "t" })
-  self:assert_equal("maintainer", table.concat(normalised.audiences, ","))
-  self:assert_equal("maintainer", normalised.default_audience)
-  self:assert_equal("separate", normalised.audience_sites)
-  self:assert_equal("merged", config.normalise({ title = "t", audience_sites = "merged" }).audience_sites)
-  invalid(self, { title = "t", audience_sites = "both" }, "audience_sites")
-  invalid(self, { title = "t", audience_sites = true }, "audience_sites")
-  local both = config.normalise({ title = "t", audiences = { "maintainer", "user" }, default_audience = "maintainer" })
-  self:assert_equal("maintainer,user", table.concat(both.audiences, ","))
-  self:assert_equal("maintainer", both.default_audience)
-  invalid(self, { title = "t", audiences = {} }, "audiences")
-  invalid(self, { title = "t", audiences = "user" }, "audiences")
-  invalid(self, { title = "t", audiences = { "user", "user" } }, "audiences[2]")
-  invalid(self, { title = "t", audiences = { "operator" } }, "audiences[1]")
-  invalid(self, { title = "t", audiences = { 1 } }, "audiences[1]")
-  invalid(self, { title = "t", default_audience = "public" }, "default_audience")
-  invalid(self, { title = "t", default_audience = 3 }, "default_audience")
+function T:test_the_site_configuration_has_no_audience_key()
+  -- OQ-144 (owner decision of 2026-11-21): one site configuration for every audience tree, and no audience in it.
+  local normalised = config.normalise({ title = "t" }) --[[@as table]]
+  self:assert_nil(normalised.audiences)
+  self:assert_nil(normalised.default_audience)
+  self:assert_nil(normalised.audience_sites)
+  for _, key in ipairs({ "audiences", "default_audience", "audience_sites" }) do
+    invalid(self, { title = "t", [key] = "user" }, key)
+  end
 end
 
 function T:test_llms_is_off_unless_asked_and_must_be_a_boolean()

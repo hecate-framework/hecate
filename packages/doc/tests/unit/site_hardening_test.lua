@@ -185,44 +185,17 @@ end
 
 -- Empty sites and home pages ---------------------------------------------------------------------------------------
 
-function T:test_a_locale_without_a_page_of_the_published_audience_is_a_problem()
-  local fs = doc.MemoryFileSystem(files_of({}))
-  local report = build(fs, { title = "T", audiences = { "user" }, default_audience = "maintainer" })
-  self:assert_true(mentions(report.problems,
-    'no page of the published audience "user" in locale en: pages without an audience key are "maintainer" (default_audience); label pages or set default_audience'),
-    table.concat(report.problems, "\n"))
-  local err = self:assert_error(function()
-    build(doc.MemoryFileSystem(files_of({})), { title = "T", audiences = { "user" }, default_audience = "maintainer" }, { fail_on_problems = true })
-  end)
-  self:assert_true(core.is_instance_of(err, doc.BuildError))
-end
-
 function T:test_a_site_without_a_home_page_is_a_problem()
   local fs = doc.MemoryFileSystem({ ["c/en/guide.md"] = page("Guide", "g") })
   local report = build(fs)
-  self:assert_true(mentions(report.problems,
-    'site "maintainer" (locale en) has no home page: add c/en/index.md with audience: maintainer'), table.concat(report.problems, "\n"))
+  self:assert_true(mentions(report.problems, "the site has no home page in locale en: add c/en/index.md"),
+    table.concat(report.problems, "\n"))
+  local err = self:assert_error(function()
+    build(doc.MemoryFileSystem({ ["c/en/guide.md"] = page("Guide", "g") }), nil, { fail_on_problems = true })
+  end)
+  self:assert_true(core.is_instance_of(err, doc.BuildError))
   local with_home = build(doc.MemoryFileSystem(files_of({})))
   self:assert_equal(0, #with_home.problems)
-  -- A separate site per audience has its own home page.
-  local separate = build(doc.MemoryFileSystem({ ["c/en/index.md"] = page("Home", "h", "audience: user\n"),
-    ["c/en/design.md"] = page("Design", "d", "audience: maintainer\n") }),
-    { title = "T", audiences = { "user", "maintainer" } })
-  self:assert_true(mentions(separate.problems, 'site "maintainer" (locale en) has no home page'), table.concat(separate.problems, "\n"))
-  self:assert_false(mentions(separate.problems, 'site "user"'), table.concat(separate.problems, "\n"))
-  self:assert_equal(1, #separate.sites[1].problems + #separate.sites[2].problems, "the problem belongs to the site of the audience")
-end
-
-function T:test_the_cross_audience_link_message_tells_the_two_cases_apart()
-  local files = { ["c/en/index.md"] = page("Home", "[to users](guide.md)", "audience: maintainer\n"),
-    ["c/en/guide.md"] = page("Guide", "g", "audience: user\n") }
-  local separate = build(doc.MemoryFileSystem(files), { title = "T", audiences = { "user", "maintainer" } })
-  self:assert_true(mentions(separate.problems, 'targets a page of the "user" audience, which is published in another site'
-    .. ": use an absolute URL or move the page"), table.concat(separate.problems, "\n"))
-  local alone = build(doc.MemoryFileSystem(files), { title = "T", audiences = { "maintainer" } })
-  self:assert_true(mentions(alone.problems, 'targets a page of the "user" audience, which is not published'),
-    table.concat(alone.problems, "\n"))
-  self:assert_false(mentions(alone.problems, "another site"))
 end
 
 return T

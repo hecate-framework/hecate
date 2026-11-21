@@ -328,10 +328,6 @@ local function export_with_visibility()
   return export
 end
 
-local function audience_of(content)
-  return content:match("\naudience: (%a+)\n")
-end
-
 function T:test_symbols_that_are_not_public_are_never_listed_as_members()
   local result = generate({ { name = "demo", export = export_with_visibility() } }, { examples = examples })
   for _, path in ipairs(result.order) do
@@ -341,21 +337,30 @@ function T:test_symbols_that_are_not_public_are_never_listed_as_members()
   end
 end
 
-function T:test_by_default_internal_and_non_public_classes_are_not_generated_and_pages_carry_no_audience()
+-- No page carries an `audience` key (it is refused by the builder): the audience of a page is the tree it is written into,
+-- and `result.audiences` tells which one.
+local function has_audience_key(content)
+  return content:match("\naudience: ") ~= nil
+end
+
+function T:test_by_default_internal_and_non_public_classes_are_not_generated_and_no_page_carries_an_audience_key()
   local plain = generate()
   local result = generate({ { name = "demo", export = export_with_visibility() } }, { examples = examples })
   self:assert_equal(#plain.order, #result.order)
-  for _, path in ipairs(result.order) do self:assert_nil(audience_of(result.pages[path]), path) end
+  for _, path in ipairs(result.order) do
+    self:assert_false(has_audience_key(result.pages[path]), path)
+    self:assert_equal("user", result.audiences[path], path)
+  end
 end
 
-function T:test_with_internal_the_internal_and_non_public_classes_are_maintainer_pages()
-  local result = generate({ { name = "demo", export = export_with_visibility() } },
-    { examples = examples, internal = true, label_audiences = true })
+function T:test_with_internal_the_internal_and_non_public_classes_are_maintainer_pages_of_the_result()
+  local result = generate({ { name = "demo", export = export_with_visibility() } }, { examples = examples, internal = true })
   local plain = generate()
   self:assert_equal(#plain.order + 2, #result.order)
   local maintainer, user = {}, 0
   for _, path in ipairs(result.order) do
-    local audience = audience_of(result.pages[path])
+    self:assert_false(has_audience_key(result.pages[path]), path)
+    local audience = result.audiences[path]
     self:assert_not_nil(audience, path)
     if audience == "maintainer" then maintainer[#maintainer + 1] = path else user = user + 1 end
   end
@@ -363,42 +368,41 @@ function T:test_with_internal_the_internal_and_non_public_classes_are_maintainer
   self:assert_equal(#plain.order, user)
 end
 
-function T:test_an_audience_as_label_audiences_labels_every_page_with_it()
-  local result = generate(nil, { examples = examples, internal = true, label_audiences = "maintainer" })
-  for _, path in ipairs(result.order) do self:assert_equal("maintainer", audience_of(result.pages[path]), path) end
-end
-
-function T:test_with_internal_alone_pages_carry_no_audience_key()
-  local result = generate({ { name = "demo", export = export_with_visibility() } }, { examples = examples, internal = true })
-  for _, path in ipairs(result.order) do self:assert_nil(audience_of(result.pages[path]), path) end
-end
-
-function T:test_labelled_public_pages_are_user_pages()
-  local result = generate(nil, { examples = examples, label_audiences = true })
-  for _, path in ipairs(result.order) do self:assert_equal("user", audience_of(result.pages[path]), path) end
-end
-
-function T:test_separate_audience_sites_make_each_page_link_only_to_pages_of_its_audience()
+function T:test_split_audiences_make_each_page_link_only_to_pages_of_its_audience()
   local inputs = { { name = "demo", export = export_with_visibility() } }
-  local function opts(separate)
-    return { examples = examples, internal = true, label_audiences = true, separate_audience_sites = separate }
-  end
+  local function opts(split) return { examples = examples, internal = true, split_audiences = split } end
   local joined = generate(inputs, opts(false))
-  local separate = generate(inputs, opts(true))
-  self:assert_equal(table.concat(joined.order, ","), table.concat(separate.order, ","), "the same pages")
+  local split = generate(inputs, opts(true))
+  self:assert_equal(table.concat(joined.order, ","), table.concat(split.order, ","), "the same pages")
+  for _, path in ipairs(joined.order) do self:assert_equal(joined.audiences[path], split.audiences[path], path) end
   -- The module page names the classes of its audience only.
   self:assert_not_nil(joined.pages["reference/demo/index.md"]:find("Hidden", 1, true))
-  self:assert_nil(separate.pages["reference/demo/index.md"]:find("Hidden", 1, true))
-  self:assert_nil(separate.pages["reference/demo/index.md"]:find("Restricted", 1, true))
+  self:assert_nil(split.pages["reference/demo/index.md"]:find("Hidden", 1, true))
+  self:assert_nil(split.pages["reference/demo/index.md"]:find("Restricted", 1, true))
   -- A page of the other audience has no link to the module page, a page of its own has.
-  self:assert_nil(separate.pages["reference/demo/Hidden.md"]:find("](index.md", 1, true))
+  self:assert_nil(split.pages["reference/demo/Hidden.md"]:find("](index.md", 1, true))
   self:assert_not_nil(joined.pages["reference/demo/Hidden.md"]:find("](index.md", 1, true))
-  -- One audience for every page, or no labels: the option changes nothing.
-  local one = generate(inputs, { examples = examples, internal = true, label_audiences = "maintainer", separate_audience_sites = true })
-  local same = generate(inputs, { examples = examples, internal = true, label_audiences = "maintainer" })
-  for _, path in ipairs(same.order) do self:assert_equal(same.pages[path], one.pages[path], path) end
-  -- A wrong name is refused by the closed list.
+  -- No page of one audience links to a page of the other.
+  for _, path in ipairs(split.order) do
+    for target in split.pages[path]:gmatch("%]%(([^)#]*%.md)") do
+      local directory = path:match("^(.*)/[^/]*$")
+      local resolved = target:gsub("^%./", "")
+      while resolved:find("^%.%./") do
+        resolved = resolved:gsub("^%.%./", "")
+        directory = directory:match("^(.*)/[^/]*$") or ""
+      end
+      resolved = directory == "" and resolved or (directory .. "/" .. resolved)
+      if split.audiences[resolved] then
+        self:assert_equal(split.audiences[path], split.audiences[resolved], path .. " links to " .. resolved)
+      end
+    end
+  end
+  -- A name that was removed is refused by the closed list, with what to use instead.
+  local err = self:assert_error(function() generate(inputs, { label_audiences = true }) end)
+  self:assert_not_nil(tostring(err):find("label_audiences", 1, true), tostring(err))
+  self:assert_not_nil(tostring(err):find("was removed", 1, true), tostring(err))
   self:assert_error(function() generate(inputs, { separate_sites = true }) end)
+  self:assert_error(function() generate(inputs, { separate_audience_sites = true }) end)
 end
 
 return T

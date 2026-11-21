@@ -1,8 +1,7 @@
 -- Project documentation: the page generators `hecate.doc.generate_project_documentation` uses for a user project:
 -- the configuration reference from a configuration schema, and the LuaLS meta files of the schemas of a
 -- project (documentation.md, "Documentation of a project"). The generated site is the documentation of the
--- project's own team: it publishes the `maintainer` audience unless the project asks for more (`audiences`,
--- OQ-144). There is no API reference: the OpenAPI contract is the external documentation of the API, and its
+-- project's own team: it builds the `maintainer` tree unless the project asks for more (`audiences`, OQ-144). There is no API reference: the OpenAPI contract is the external documentation of the API, and its
 -- viewer is the wiring of the user (OQ-141).
 -- The page generators are pure: tables in, Markdown out, deterministic. Every piece of text
 -- that comes from the schema is escaped, because the schema is data of the project, not Markdown.
@@ -316,8 +315,9 @@ local front = generated_page.front
 --- configuration: one row per key, nested objects flattened with dotted paths (`$ref` into the
 --- `$defs` of the schema are followed).
 ---
---- The page is `maintainer` documentation (front matter `audience`): the keys of the configuration are what a
---- team that runs the application needs, not part of what the application offers to its users. The default of a
+--- The page is `maintainer` documentation (`generate_project_documentation` writes it into the `maintainer` tree): the
+--- keys of the configuration are what a team that runs the application needs, not part of what the application offers to
+--- its users. The default of a
 --- secret key is never printed (`[redacted]`), and neither are its enumeration, constant and pattern: the schema is the
 --- single source, and a key is a secret when its schema, or a subschema reachable from it (`$ref`, `allOf`, `anyOf`,
 --- `oneOf`, `if`/`then`/`else`, `items`, `properties`, `additionalProperties`, `patternProperties`, ...), says
@@ -331,7 +331,7 @@ function M.configuration_page(schema)
     error(core.ArgumentError("doc.project.configuration_page: expects a JSON Schema table"), 2)
   end
   local description = type(schema.description) == "string" and schema.description or nil
-  local lines = front("Configuration", description or "Configuration keys, their types and defaults.", 50, "maintainer")
+  local lines = front("Configuration", description or "Configuration keys, their types and defaults.", 50)
   local state = rows_of(schema, schema)
   if #state.rows == 0 then
     lines[#lines + 1] = "The configuration declares no keys."

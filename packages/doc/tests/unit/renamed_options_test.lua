@@ -21,6 +21,7 @@ local VALID = {
 function T:test_site_keys_are_the_ones_the_site_configuration_reads()
   local seen = {}
   for old, new in pairs(renamed.site_keys) do
+    if type(new) == "table" then goto next_key end -- a removed key: see the next test
     self:assert_equal("string", type(new), old)
     self:assert_true(old ~= new, old)
     self:assert_not_nil(VALID[new], "no sample value for " .. new)
@@ -29,12 +30,14 @@ function T:test_site_keys_are_the_ones_the_site_configuration_reads()
     self:assert_not_nil(normalised[new], new)
     self:assert_nil(normalised[old], old .. " is not an alias")
     seen[new] = true
+    ::next_key::
   end
   for key in pairs(VALID) do self:assert_true(seen[key], key .. " has an old name in site_keys") end
 end
 
 function T:test_an_old_site_key_is_refused_with_its_replacement()
   for old, new in pairs(renamed.site_keys) do
+    if type(new) == "table" then goto next_key end
     local sample = ({ colors = "a.css", theme = "a.css", llms = true, base = "/x/", url = "https://x.test",
       repository = "https://github.com/x/y", edit_link = "https://x.test/{path}",
       source_edit_link = "https://x.test/{path}", exclude = { "A.md" }, outline = { 2 }, strings = { en = {} },
@@ -44,12 +47,32 @@ function T:test_an_old_site_key_is_refused_with_its_replacement()
     self:assert_true(core.is_instance_of(err, core.ConfigurationError), old .. ": " .. tostring(err))
     self:assert_equal(old, err.context.field)
     self:assert_not_nil(tostring(err):find("`" .. old .. "` was renamed `" .. new .. "`", 1, true), tostring(err))
+    ::next_key::
   end
 end
 
+function T:test_the_removed_audience_keys_of_the_site_configuration_say_what_to_do()
+  -- OQ-144 (owner decision of 2026-11-21): the audiences are two content trees, not a filter of one.
+  local expected = { audiences = "option `audiences` of `generate_project_documentation`", default_audience = "`<guides_dir>/user/`",
+    audience_sites = "no merged site" }
+  for key, fragment in pairs(expected) do
+    self:assert_equal("table", type(renamed.site_keys[key]), key)
+    local err = self:assert_error(function() config.normalise({ title = "t", [key] = "user" }) end)
+    self:assert_true(core.is_instance_of(err, core.ConfigurationError), key)
+    self:assert_equal(key, err.context.field)
+    self:assert_not_nil(tostring(err):find("`" .. key .. "` was removed: ", 1, true), tostring(err))
+    self:assert_not_nil(tostring(err):find(fragment, 1, true), tostring(err))
+  end
+  -- The removed options of the other entry points are recorded the same way.
+  self:assert_equal("table", type(renamed.options.reference_site.label_audiences))
+  self:assert_equal("table", type(renamed.options.reference_site.separate_audience_sites))
+  self:assert_equal("table", type(renamed.options.reference.label_audiences))
+  self:assert_equal("table", type(renamed.options.reference.separate_audience_sites))
+  self:assert_equal("table", type(renamed.options.build.other_site_audiences))
+end
+
 function T:test_a_typo_in_a_site_key_is_refused_with_a_suggestion()
-  local cases = { { "audience", "audiences" }, { "logos", "logo_path" }, { "default_audiences", "default_audience" },
-    { "titel", "title" }, { "base_paht", "base_path" } }
+  local cases = { { "logos", "logo_path" }, { "titel", "title" }, { "base_paht", "base_path" } }
   for _, case in ipairs(cases) do
     local err = self:assert_error(function() config.normalise({ title = "t", [case[1]] = "x" }) end)
     self:assert_true(core.is_instance_of(err, core.ConfigurationError), case[1])
@@ -62,7 +85,7 @@ function T:test_a_typo_in_a_site_key_is_refused_with_a_suggestion()
   local numeric = self:assert_error(function() config.normalise({ title = "t", [1] = "x" }) end)
   self:assert_true(core.is_instance_of(numeric, core.ConfigurationError))
   -- A configuration that was normalised once is still valid.
-  local once = config.normalise({ title = "t", audiences = { "user" }, logo_path = "a.svg", locales = { { code = "fr", label = "Français", lang = "fr" } },
+  local once = config.normalise({ title = "t", logo_path = "a.svg", locales = { { code = "fr", label = "Français", lang = "fr" } },
     default_locale = "fr", top_links = { { text = "x", link = "a/" } } })
   self:assert_equal("t", config.normalise(once).title)
 end

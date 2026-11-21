@@ -68,13 +68,20 @@ function T:test_the_site_builds_without_problem_and_holds_the_expected_files()
     local report = build(out)
     self:assert_equal(0, #report.problems, table.concat(report.problems, "\n"))
     local files = snapshot(out)
-    for _, path in ipairs({ "index.html", "en/index.html", "en/guide/index.html", "en/guide/endpoints/index.html",
-      "en/guide/request-flow/index.html", "logo.svg", "logo-dark.svg", "favicon.svg", "favicon-dark.svg",
-      "hello-theme.css", "llms.txt", "llms-full.txt", "404.html" }) do
+    -- Maintainer documentation: one site, in `maintainer/`, none for users.
+    for _, path in ipairs({ "index.html", ".hecate-doc-output", "maintainer/index.html", "maintainer/en/index.html",
+      "maintainer/en/guide/index.html", "maintainer/en/guide/endpoints/index.html",
+      "maintainer/en/guide/request-flow/index.html", "maintainer/logo.svg", "maintainer/logo-dark.svg",
+      "maintainer/favicon.svg", "maintainer/favicon-dark.svg", "maintainer/hello-theme.css", "maintainer/llms.txt",
+      "maintainer/llms-full.txt", "maintainer/404.html" }) do
       self:assert_not_nil(files[path], "missing " .. path)
     end
-    self:assert_not_nil(files["en/index.html"]:find("hello-theme.css", 1, true), "the page links the CSS file")
-    self:assert_not_nil(files["llms.txt"]:find("hello", 1, true))
+    for path in pairs(files) do
+      self:assert_true(path == "index.html" or path == ".hecate-doc-output" or path:sub(1, 11) == "maintainer/",
+        "a file outside the maintainer site: " .. path)
+    end
+    self:assert_not_nil(files["maintainer/en/index.html"]:find("hello-theme.css", 1, true), "the page links the CSS file")
+    self:assert_not_nil(files["maintainer/llms.txt"]:find("hello", 1, true))
   end)
 end
 

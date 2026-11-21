@@ -33,7 +33,7 @@ confirm that redistributing the subsetted files under their original names is ac
 1b. Font of the hello example documentation
 -------------------------------------------
 
-Location: examples/hello/docs/public/fonts/ (inter-latin-400-normal.woff2, -500-, -600-; licence text in
+Location: examples/hello/docs/maintainer/public/fonts/ (inter-latin-400-normal.woff2, -500-, -600-; licence text in
 OFL-inter.txt).
 Licence: SIL Open Font License, Version 1.1.
 Obtained from: the npm package @fontsource/inter, version 5.3.0 (Fontsource, MIT; Latin subset of the Google Fonts

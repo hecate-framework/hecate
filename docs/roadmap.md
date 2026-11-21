@@ -349,14 +349,15 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       mirrors item:** the `split` and release tasks do not exist yet; when written, the mirror tag of `unicode-data` is
       the Unicode version (`v18.0.0`) and not `VERSION` (ADR 0032, "Publishing").
 - [ ] `doc` follow-up, audience (owner remarks on pull request #218, 2026-11-17; the part still open is OQ-144, the rest
-      is resolved there). Delivered: audiences in the library (front matter `audience`, `audiences` and
-      `default_audience`, default `maintainer`, one site per audience), `llms.txt` and `llms-full.txt` of a project, the
-      theme extension points. **To do:** the restructure of the Hecate website into user and maintainer parts (OQ-144
-      option (a): sections, French mirror, labels; then `audience_sites = "merged"` is removed from `website/site.lua`,
-      which is the removal condition of `merged`; if the restructure is never done, the owner revisits `merged` at the
-      Phase 3 gate); the `check-audience` gate; an audience switcher in the theme and links between the sites;
-      `llms.txt` of other locales; a `draft` page flag. `hecate doc build|serve` and the `doc` section of
-      `hecate.project.lua` belong to the `cli` item below.
+      is resolved there). Delivered: the two audiences as two different websites (owner decision of 2026-11-21: one
+      content tree per audience, `<guides_dir>/<audience>/<locale>/`, each built by the plain builder into
+      `<output_dir>/<audience>/`; option `audiences`, default `{ "maintainer" }`; no front matter key, no `merged` mode),
+      `llms.txt` and `llms-full.txt` of a project, the theme extension points. **To do:** the move of the Hecate
+      website into `website/user/` and `website/maintainer/` (a pure move of directories, French mirror included, now
+      that the website is one tree built by `build.build`); links between the two sites and a switcher in the theme;
+      `llms.txt` of other locales; a `draft` page flag. A `check-audience` gate is probably unnecessary now (the tree
+      is the label, so there is no label to check); write it only if the owner still wants a check of the boundary
+      test. `hecate doc build|serve` and the `doc` section of `hecate.project.lua` belong to the `cli` item below.
 - [ ] `cli` v1: self-contained executable, `new`, `install`, `add`, `remove`, `update`,
       `serve [--watch]`, `test`, `doc`, `contract`, `toolchain`, `doctor`, `version`.
       **Also (from the `test` item, owner go-ahead of 2026-11-16):** `hecate test` takes the options of

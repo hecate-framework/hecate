@@ -45,11 +45,10 @@ end
 ---@param title string
 ---@param description? string  defaults to the title
 ---@param order integer
----@param audience hecate.doc.Audience
 ---@return string[] lines
-function M.front(title, description, order, audience)
+function M.front(title, description, order)
   return { "---", "description: " .. yaml_quote(description or title),
-    "order: " .. tostring(order), "audience: " .. audience, "generated: true", "---", "", M.GENERATED, "", "# " .. text_helpers.plain(title), "" }
+    "order: " .. tostring(order), "generated: true", "---", "", M.GENERATED, "", "# " .. text_helpers.plain(title), "" }
 end
 
 return M

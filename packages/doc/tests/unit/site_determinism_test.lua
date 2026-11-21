@@ -17,20 +17,20 @@ end
 local function tree()
   local files = {}
   local function add(path, data) files[#files + 1] = { path = "c/" .. path, data = data } end
-  -- English: several broken links, several bad pages, assets of one directory, both audiences, sections that are not in the top links.
-  add("en/index.md", page("Home", "[one](nope-one.md) [two](nope-two/) [three](missing/three.md) ![p](img/absent.png) [hidden](internals/design.md)"))
+  -- English: several broken links, several bad pages, assets of one directory, sections that are not in the top links.
+  add("en/index.md", page("Home", "[one](nope-one.md) [two](nope-two/) [three](missing/three.md) ![p](img/absent.png) [design](internals/design.md)"))
   add("en/guide/index.md", page("Guide", "start", "order: 1\n"))
   add("en/guide/a.md", page("Alpha", "[x](x1.md) [y](y1.md) [z](z1.png)", "order: 2\n"))
   add("en/guide/b.md", page("Beta", "[x](x2.md) [y](y2.md)", "order: 3\n"))
   add("en/guide/c.md", "No title here, and no heading.\n")
   add("en/guide/d.md", "---\norder: 5\n---\n## Heading {#sidebar}\n\ntext\n")
-  add("en/guide/e.md", page("Echo", "e", "order: 6\naudience: maintainer\n"))
-  add("en/internals/index.md", page("Internals", "i", "audience: maintainer\n"))
-  add("en/internals/design.md", page("Design", "[nowhere](gone.md)", "audience: maintainer\n"))
+  add("en/guide/e.md", page("Echo", "e", "order: 6\n"))
+  add("en/internals/index.md", page("Internals", "i"))
+  add("en/internals/design.md", page("Design", "[nowhere](gone.md)"))
   for index = 1, 9 do
     local name = string.char(string.byte("a") + index - 1) .. "-section"
-    add(("en/%s/index.md"):format(name), page("Section " .. name, "s", "audience: maintainer\n"))
-    add(("en/%s/p.md"):format(name), page("P " .. name, "[bad](bad-" .. index .. ".md)", "audience: maintainer\n"))
+    add(("en/%s/index.md"):format(name), page("Section " .. name, "s"))
+    add(("en/%s/p.md"):format(name), page("P " .. name, "[bad](bad-" .. index .. ".md)"))
   end
   for index = 1, 14 do add(("en/img/p%02d.png"):format(index), "png" .. index) end
   for index = 1, 6 do add(("en/img/sub/q%d.png"):format(index), "q" .. index) end
@@ -89,11 +89,9 @@ end
 
 local LOCALES = { { code = "en", label = "English" }, { code = "fr", label = "Fran\u{E7}ais" } }
 
-local SEPARATE = { title = "T", locales = LOCALES, site_origin = "https://x.test", generate_llms_txt = true,
-  audiences = { "user", "maintainer" }, default_audience = "user",
+local TWO_LINKS = { title = "T", locales = LOCALES, site_origin = "https://x.test", generate_llms_txt = true,
   top_links = { { text = "Guide", link = "guide" }, { text = "Internals", link = "internals" } } }
-local MERGED = { title = "T", locales = LOCALES, site_origin = "https://x.test", generate_llms_txt = true,
-  audiences = { "user", "maintainer" }, audience_sites = "merged", default_audience = "user",
+local ONE_LINK = { title = "T", locales = LOCALES, site_origin = "https://x.test", generate_llms_txt = true,
   top_links = { { text = "Guide", link = "guide" } } }
 
 local function build(list, configuration)
@@ -112,7 +110,7 @@ local function describe(first, other)
 end
 
 function T:test_the_files_and_their_order_of_writing_do_not_depend_on_the_order_of_creation()
-  for name, configuration in pairs({ separate = SEPARATE, merged = MERGED }) do
+  for name, configuration in pairs({ two_links = TWO_LINKS, one_link = ONE_LINK }) do
     local reference_report, reference_log = build(ordered(tree(), "sorted"), configuration)
     self:assert_true(#reference_log > 100, name .. ": the tree writes many files")
     for _, order in ipairs(orders()) do
@@ -144,7 +142,7 @@ local function ascending(list)
 end
 
 function T:test_the_assets_the_public_files_and_the_urls_are_written_in_the_order_of_their_names()
-  local _, log = build(ordered(tree(), "shuffle", 31), MERGED)
+  local _, log = build(ordered(tree(), "shuffle", 31), ONE_LINK)
   for _, pattern in ipairs({ "^o/en/img/p", "^o/en/img/sub/", "^o/fr/img/", "^o/files/f" }) do
     local found = paths_of(log, pattern)
     self:assert_true(#found >= 2, pattern)
@@ -165,7 +163,7 @@ end
 
 function T:test_llms_txt_lists_the_sections_that_are_not_in_the_navigation_by_name()
   local fs = recording(ordered(tree(), "reverse"))
-  doc.build({ site_configuration = MERGED, guides_dir = "c", output_dir = "o", file_system = fs })
+  doc.build({ site_configuration = ONE_LINK, guides_dir = "c", output_dir = "o", file_system = fs })
   local text = fs:read("o/llms.txt")
   local headings = {}
   for heading in text:gmatch("\n## ([^\n]+)") do headings[#headings + 1] = heading end
@@ -181,7 +179,7 @@ function T:test_the_problems_are_the_same_and_sorted_in_every_order()
   local reference
   for _, order in ipairs(orders()) do
     local fs = recording(ordered(tree(), order[1], order[2]))
-    local site = Site({ site_configuration = MERGED, guides_dir = "c", file_system = fs }):load()
+    local site = Site({ site_configuration = ONE_LINK, guides_dir = "c", file_system = fs }):load()
     local problems = site.problems
     self:assert_true(#problems >= 8, "several problems: " .. #problems)
     local sorted = table.move(problems, 1, #problems, 1, {})
@@ -191,20 +189,18 @@ function T:test_the_problems_are_the_same_and_sorted_in_every_order()
     reference = reference or joined
     self:assert_equal(reference, joined, order[1])
   end
-  -- The same through `build`, per site and in total, for the separate sites.
-  local report = build(ordered(tree(), "shuffle", 5), SEPARATE)
-  local function check_sorted(list, label)
-    for index = 2, #list do self:assert_true(list[index - 1] < list[index], label .. ": " .. list[index - 1] .. " then " .. list[index]) end
+  -- The same through `build`.
+  local report = build(ordered(tree(), "shuffle", 5), TWO_LINKS)
+  for index = 2, #report.problems do
+    self:assert_true(report.problems[index - 1] < report.problems[index], report.problems[index - 1] .. " then " .. report.problems[index])
   end
-  check_sorted(report.problems, "report")
-  for _, site in ipairs(report.sites) do check_sorted(site.problems, site.directory) end
   self:assert_true(#report.problems >= 8)
 end
 
 function T:test_the_order_of_writing_of_a_site_is_fixed_by_the_site_not_by_the_tree()
   local function written(list)
     local fs = recording(list)
-    local site = Site({ site_configuration = MERGED, guides_dir = "c", file_system = fs }):load()
+    local site = Site({ site_configuration = ONE_LINK, guides_dir = "c", file_system = fs }):load()
     local out = {}
     site:emit(function(path) out[#out + 1] = path end)
     return table.concat(out, "\n")
@@ -248,12 +244,12 @@ function T:test_two_broken_files_give_the_same_error_in_every_order()
       extra = { ["en/Aa.md"] = page("1"), ["en/aA.md"] = page("2"), ["en/Bb.md"] = page("3"), ["en/bB.md"] = page("4") } },
     { name = "two pairs that differ only in normalisation", expected = "normalisation",
       extra = { ["en/caf\u{E9}.md"] = page("1"), ["en/cafe\u{301}.md"] = page("2"), ["en/\u{C5}.md"] = page("3"), ["en/A\u{30A}.md"] = page("4") } },
-    { name = "two pages with an unknown audience", expected = "audience",
+    { name = "two pages that still carry the front matter key audience", expected = "audience",
       extra = { ["en/x1.md"] = page("1", "t", "audience: nobody\n"), ["en/x2.md"] = page("2", "t", "audience: someone\n"),
         ["en/x3.md"] = page("3", "t", "audience: other\n") } },
     { name = "two pages that are not UTF-8", expected = "UTF-8",
       extra = { ["en/u1.md"] = "---\ntitle: a\n---\n\xFF\n", ["en/u2.md"] = "---\ntitle: b\n---\n\xC0\xAF\n", ["en/u3.md"] = "\xED\xA0\x80\n" } },
-    { name = "many pages with an unknown audience (the order in which pages are read)", expected = "audience", first = "en/n01.md", extra = (function()
+    { name = "many pages that carry the key audience (the order in which pages are read)", expected = "audience", first = "en/n01.md", extra = (function()
         local extra = {}
         for index = 1, 16 do extra[("en/n%02d.md"):format(index)] = page("N", "t", "audience: nobody" .. index .. "\n") end
         return extra

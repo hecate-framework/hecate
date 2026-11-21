@@ -240,12 +240,13 @@ end
 
 local function build_options(fs, extra)
   local options = {
-    site_configuration = { title = "Shop", audiences = { "user", "maintainer" }, audience_sites = "merged" },
-    guides_dir = "docs", output_dir = "dist", file_system = fs,
+    site_configuration = { title = "Shop" }, guides_dir = "docs", output_dir = "dist", file_system = fs,
   }
   for key, value in pairs(extra or {}) do options[key] = value end
-  -- The guides come from the guides directory: the guide `index.md` is written there first.
-  fs:write("docs/en/index.md", "# Shop\n")
+  -- The guides come from the content trees of the audiences: the home page of each tree is written there first.
+  for _, audience in ipairs(options.audiences or { "maintainer" }) do
+    fs:write((options.project_dir and (options.project_dir .. "/") or "") .. "docs/" .. audience .. "/en/index.md", "# Shop\n")
+  end
   return options
 end
 
@@ -262,45 +263,67 @@ end
 function T:test_build_does_not_generate_the_page_by_default()
   local fs = doc.MemoryFileSystem(tree_files())
   generate(build_options(fs))
-  self:assert_nil(fs:read("docs/en/third-party-licences.md"))
+  self:assert_nil(fs:read("docs/maintainer/en/third-party-licences.md"))
 end
 
 function T:test_build_generates_a_maintainer_page_from_the_tree()
   local fs = doc.MemoryFileSystem(tree_files())
   local report = generate(build_options(fs, { licences_page = { rocks_tree_dir = "lm/tree" }, fail_on_problems = true }))
   self:assert_equal(0, #report.problems, table.concat(report.problems, "\n"))
-  local source = fs:read("docs/en/third-party-licences.md")
+  local source = fs:read("docs/maintainer/en/third-party-licences.md")
   self:assert_true(project.is_generated(source))
-  self:assert_true(has(source, "audience: maintainer"))
+  self:assert_nil(source:find("\naudience:", 1, true), "no `audience` key: the tree is the audience")
   self:assert_true(has(source, "Pkg licence text"))
   self:assert_true(has(source, "STIX Two Text"))
-  self:assert_not_nil(fs:read("dist/en/third-party-licences/index.html"))
-  self:assert_nil(fs:read("dist/assets/mermaid/mermaid.min.js"))
+  self:assert_not_nil(fs:read("dist/maintainer/en/third-party-licences/index.html"))
+  self:assert_nil(fs:read("dist/maintainer/assets/mermaid/mermaid.min.js"))
 end
 
-function T:test_build_does_not_publish_the_maintainer_page_to_the_user_audience()
+function T:test_build_writes_the_page_into_the_maintainer_tree_and_not_into_the_user_tree()
   local fs = doc.MemoryFileSystem(tree_files())
-  generate(build_options(fs, { licences_page = { rocks_tree_dir = "lm/tree" },
-    site_configuration = { title = "Shop", audiences = { "user" } } }))
-  self:assert_nil(fs:read("dist/en/third-party-licences/index.html"))
+  generate(build_options(fs, { licences_page = { rocks_tree_dir = "lm/tree" }, audiences = { "user", "maintainer" } }))
+  self:assert_not_nil(fs:read("docs/maintainer/en/third-party-licences.md"))
+  self:assert_nil(fs:read("docs/user/en/third-party-licences.md"))
+  self:assert_not_nil(fs:read("dist/maintainer/en/third-party-licences/index.html"))
+  self:assert_nil(fs:read("dist/user/en/third-party-licences/index.html"))
 end
 
-function T:test_build_can_publish_the_page_to_users()
+function T:test_build_can_write_the_page_into_the_user_tree()
   local fs = doc.MemoryFileSystem(tree_files())
   generate(build_options(fs, { licences_page = { rocks_tree_dir = "lm/tree", audience = "user" },
-    site_configuration = { title = "Shop", audiences = { "user" } } }))
-  self:assert_not_nil(fs:read("dist/en/third-party-licences/index.html"))
+    audiences = { "user", "maintainer" } }))
+  self:assert_not_nil(fs:read("dist/user/en/third-party-licences/index.html"))
+  self:assert_nil(fs:read("dist/maintainer/en/third-party-licences/index.html"))
+  self:assert_nil(fs:read("docs/maintainer/en/third-party-licences.md"))
+  -- Moving the page from one tree to the other removes the stale generated page of the first.
+  generate(build_options(fs, { licences_page = { rocks_tree_dir = "lm/tree" }, audiences = { "user", "maintainer" } }))
+  self:assert_nil(fs:read("docs/user/en/third-party-licences.md"), "stale in the tree it left")
+  self:assert_not_nil(fs:read("docs/maintainer/en/third-party-licences.md"))
+end
+
+function T:test_the_audience_of_the_page_is_one_of_the_trees_that_are_built_and_defaults_to_the_only_one()
+  local fs = doc.MemoryFileSystem(tree_files())
+  -- Only the user tree is built: the page goes there (the default `maintainer` is not built).
+  generate(build_options(fs, { licences_page = { rocks_tree_dir = "lm/tree" }, audiences = { "user" } }))
+  self:assert_not_nil(fs:read("docs/user/en/third-party-licences.md"))
+  self:assert_nil(fs:read("docs/maintainer/en/third-party-licences.md"))
+  -- A tree that is not listed cannot be chosen.
+  local err = self:assert_error(function()
+    generate(build_options(fs, { licences_page = { rocks_tree_dir = "lm/tree", audience = "user" } }))
+  end)
+  self:assert_equal("licences_page.audience", err.context.argument)
+  self:assert_true(has(tostring(err), "listed in `audiences`"), tostring(err))
 end
 
 function T:test_build_names_mermaid_only_when_a_guide_holds_a_diagram()
   local fs = doc.MemoryFileSystem(tree_files())
   local options = build_options(fs, { licences_page = { rocks_tree_dir = "lm/tree" } })
-  fs:write("docs/en/index.md", "# Shop\n\n```mermaid\ngraph TD\n  A --> B\n```\n")
+  fs:write("docs/maintainer/en/index.md", "# Shop\n\n```mermaid\ngraph TD\n  A --> B\n```\n")
   generate(options)
-  self:assert_true(has(fs:read("docs/en/third-party-licences.md"), "Knut Sveidqvist"))
+  self:assert_true(has(fs:read("docs/maintainer/en/third-party-licences.md"), "Knut Sveidqvist"))
   local plain = doc.MemoryFileSystem(tree_files())
   generate(build_options(plain, { licences_page = { rocks_tree_dir = "lm/tree" } }))
-  self:assert_nil(plain:read("docs/en/third-party-licences.md"):find("Knut Sveidqvist", 1, true))
+  self:assert_nil(plain:read("docs/maintainer/en/third-party-licences.md"):find("Knut Sveidqvist", 1, true))
 end
 
 function T:test_build_reports_the_problems_of_the_tree_and_removes_a_stale_page()
@@ -308,17 +331,17 @@ function T:test_build_reports_the_problems_of_the_tree_and_removes_a_stale_page(
   local report = generate(build_options(fs, { licences_page = { rocks_tree_dir = "nowhere" } }))
   self:assert_true(has(table.concat(report.problems, "\n"), "nowhere"))
   generate(build_options(fs, { licences_page = { rocks_tree_dir = "lm/tree" } }))
-  self:assert_not_nil(fs:read("docs/en/third-party-licences.md"))
+  self:assert_not_nil(fs:read("docs/maintainer/en/third-party-licences.md"))
   generate(build_options(fs))
-  self:assert_nil(fs:read("docs/en/third-party-licences.md"), "a generated page that is no longer produced is removed")
+  self:assert_nil(fs:read("docs/maintainer/en/third-party-licences.md"), "a generated page that is no longer produced is removed")
 end
 
 function T:test_build_never_overwrites_a_guide_with_the_page()
   local fs = doc.MemoryFileSystem(tree_files())
-  fs:write("docs/en/third-party-licences.md", "# mine\n")
+  fs:write("docs/maintainer/en/third-party-licences.md", "# mine\n")
   local err = self:assert_error(function() generate(build_options(fs, { licences_page = { rocks_tree_dir = "lm/tree" } })) end)
   self:assert_true(has(tostring(err), "not generated"))
-  self:assert_equal("# mine\n", fs:read("docs/en/third-party-licences.md"))
+  self:assert_equal("# mine\n", fs:read("docs/maintainer/en/third-party-licences.md"))
 end
 
 function T:test_build_checks_the_licences_page_option()
@@ -335,7 +358,7 @@ function T:test_the_old_american_option_name_is_not_an_alias()
   local err = self:assert_error(function() generate(build_options(fs, { licenses_page = { rocks_tree_dir = "lm/tree" } })) end)
   self:assert_equal("licenses_page", err.context.argument)
   self:assert_not_nil(tostring(err):find("renamed `licences_page`", 1, true), tostring(err))
-  self:assert_nil(fs:read("docs/en/third-party-licences.md"))
+  self:assert_nil(fs:read("docs/maintainer/en/third-party-licences.md"))
 end
 
 function T:test_licences_page_true_reads_lua_modules()
@@ -345,7 +368,7 @@ function T:test_licences_page_true_reads_lua_modules()
   for path, text in pairs(files) do moved["lua_modules/" .. path:sub(#"tree/" + 1)] = text end
   local fs = doc.MemoryFileSystem(moved)
   generate(build_options(fs, { licences_page = true }))
-  self:assert_true(has(fs:read("docs/en/third-party-licences.md"), "`pkg`"))
+  self:assert_true(has(fs:read("docs/maintainer/en/third-party-licences.md"), "`pkg`"))
 end
 
 function T:test_the_rocks_tree_is_relative_to_the_project_directory()
@@ -355,7 +378,7 @@ function T:test_the_rocks_tree_is_relative_to_the_project_directory()
   for path, text in pairs(files) do moved["acme/lua_modules/" .. path:sub(#"tree/" + 1)] = text end
   local fs = doc.MemoryFileSystem(moved)
   generate(build_options(fs, { project_dir = "acme", licences_page = true }))
-  self:assert_true(has(fs:read("acme/docs/en/third-party-licences.md"), "`pkg`"))
+  self:assert_true(has(fs:read("acme/docs/maintainer/en/third-party-licences.md"), "`pkg`"))
 end
 
 return T

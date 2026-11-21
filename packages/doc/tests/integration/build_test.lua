@@ -244,8 +244,8 @@ function T:test_a_generated_page_is_not_written_through_a_dangling_link_on_the_r
   local uv = require("luv")
   local root = temporary()
   local ok, err = pcall(function()
-    fs:write(root .. "/docs/en/index.md", "# Home\n")
-    assert(uv.fs_symlink(root .. "/victim.txt", root .. "/docs/en/configuration.md"))
+    fs:write(root .. "/docs/maintainer/en/index.md", "# Home\n")
+    assert(uv.fs_symlink(root .. "/victim.txt", root .. "/docs/maintainer/en/configuration.md"))
     local failure = self:assert_error(function()
       doc.generate_project_documentation({ project_dir = root, site_configuration = { title = "T" },
         application = { configuration_schema = function() return { type = "object", properties = { a = { type = "string" } } } end },

@@ -1,8 +1,9 @@
 -- Builds the documentation site of this example with `hecate.doc`:
 --   lua examples/hello/build_docs.lua [out]
 -- Run it from the repository root. The site goes to `docs/dist` by default
--- (git-ignored). The sources are `docs/en/*.md`, `docs/public/` and
--- `docs/site.lua`; see the README of the example.
+-- (git-ignored), as one site per audience: `docs/dist/maintainer/`. The
+-- sources are the maintainer tree `docs/maintainer/en/*.md` and
+-- `docs/maintainer/public/`, and `docs/site.lua`; see the example README.
 global <const> _VERSION, arg, package, io, os, require, pcall, tostring, ipairs
 
 local script = arg[0]:gsub("\\", "/")
@@ -24,8 +25,10 @@ end
 local doc = require("hecate.doc")
 local reactor = require("hecate.reactor")
 
--- The example follows the conventional layout of a project: guides in
--- `docs/`, site configuration in `docs/site.lua`, site in `docs/dist`.
+-- The example follows the conventional layout of a project: the guides of an
+-- audience in `docs/<audience>/` (only `docs/maintainer/`: the default builds
+-- the maintainer tree), site configuration in `docs/site.lua`, sites in
+-- `docs/dist/<audience>/`.
 -- Only the project directory is given; an output directory of the command
 -- line is relative to it unless it is absolute.
 local output_dir = arg[1] or "docs/dist"

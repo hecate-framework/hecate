@@ -34,19 +34,19 @@ function T:test_configuration_page_lists_keys_with_dotted_paths()
 end
 
 function T:test_build_writes_a_site_with_the_guides_and_the_configuration_reference()
-  local fs = doc.MemoryFileSystem({ ["docs/en/index.md"] = "# Shop\n\nWelcome.\n" })
+  local fs = doc.MemoryFileSystem({ ["docs/maintainer/en/index.md"] = "# Shop\n\nWelcome.\n" })
   local report = doc.generate_project_documentation({
-    site_configuration = { title = "Shop docs", audiences = { "user", "maintainer" }, audience_sites = "merged" },
+    site_configuration = { title = "Shop docs" },
     guides_dir = "docs", output_dir = "dist", file_system = fs, clean_output_dir = true, fail_on_problems = true,
     application = application(config_schema),
   })
   self:assert_equal(0, #report.problems, table.concat(report.problems, "\n"))
-  self:assert_not_nil(fs:read("dist/en/configuration/index.html"))
-  self:assert_not_nil(fs:read("dist/en/index.html"))
+  self:assert_not_nil(fs:read("dist/maintainer/en/configuration/index.html"))
+  self:assert_not_nil(fs:read("dist/maintainer/en/index.html"))
 end
 
 function T:test_build_reports_the_code_reference_of_the_project()
-  local fs = doc.MemoryFileSystem({ ["shop/docs/en/index.md"] = "# Shop\n\nWelcome.\n" })
+  local fs = doc.MemoryFileSystem({ ["shop/docs/maintainer/en/index.md"] = "# Shop\n\nWelcome.\n" })
   local report = doc.generate_project_documentation({
     site_configuration = { title = "Shop docs" }, project_dir = "shop", guides_dir = "docs", output_dir = "dist",
     file_system = fs, package_name = "shop",
@@ -100,7 +100,7 @@ function T:test_the_generator_produces_no_api_reference()
   self:assert_nil(project.api_pages)
   local contract = { openapi = "3.1.0", info = { title = "Shop", version = "1" },
     paths = { ["/users"] = { get = { operationId = "listUsers", responses = { ["200"] = { description = "OK" } } } } } }
-  local fs = doc.MemoryFileSystem({ ["docs/en/index.md"] = "# Shop\n" })
+  local fs = doc.MemoryFileSystem({ ["docs/maintainer/en/index.md"] = "# Shop\n" })
   -- A stray `document` option is not an option of the build: it is refused, and nothing below `api/` is written.
   local err = self:assert_error(function()
     doc.generate_project_documentation({ site_configuration = { title = "Shop" }, guides_dir = "docs", output_dir = "dist",
@@ -113,7 +113,7 @@ function T:test_the_generator_produces_no_api_reference()
     self:assert_nil(path:find("/api/", 1, true), path)
     self:assert_nil(path:find("listUsers", 1, true), path)
   end
-  self:assert_not_nil(fs:read("docs/en/configuration.md"))
+  self:assert_not_nil(fs:read("docs/maintainer/en/configuration.md"))
 end
 
 local function configuration_of(properties)
@@ -239,28 +239,31 @@ local function build_options(fs, extra)
   local options = { site_configuration = { title = "Shop" }, guides_dir = "docs", output_dir = "dist", file_system = fs }
   for key, value in pairs(extra or {}) do options[key] = value end
   local locale = options.content_locale or options.site_configuration.default_locale or "en"
-  fs:write("docs/" .. locale .. "/index.md", "# Shop\n")
+  -- The home page of the tree of each audience that is built (the default is the maintainer tree alone).
+  for _, audience in ipairs(options.audiences or { "maintainer" }) do
+    fs:write("docs/" .. audience .. "/" .. locale .. "/index.md", "# Shop\n")
+  end
   return options
 end
 
 local generate = doc.generate_project_documentation
 
 function T:test_a_hand_written_guide_on_a_generated_path_is_never_overwritten_and_nothing_is_written()
-  local fs = doc.MemoryFileSystem({ ["docs/en/configuration.md"] = "# Mine\n" })
+  local fs = doc.MemoryFileSystem({ ["docs/maintainer/en/configuration.md"] = "# Mine\n" })
   local err = self:assert_error(function() generate(build_options(fs, { application = application(config_schema) })) end)
   self:assert_true(core.is_instance_of(err, doc.BuildError), tostring(err))
-  self:assert_equal("# Mine\n", fs:read("docs/en/configuration.md"))
-  self:assert_nil(fs:read("dist/en/index.html"), "the site was not built")
-  self:assert_nil(fs:read("docs/en/third-party-licences.md"), "no generated page was written")
+  self:assert_equal("# Mine\n", fs:read("docs/maintainer/en/configuration.md"))
+  self:assert_nil(fs:read("dist/maintainer/en/index.html"), "the site was not built")
+  self:assert_nil(fs:read("docs/maintainer/en/third-party-licences.md"), "no generated page was written")
 end
 
 function T:test_generated_pages_that_are_no_longer_produced_are_removed()
   local fs = doc.MemoryFileSystem({})
   generate(build_options(fs, { application = application(config_schema) }))
-  self:assert_not_nil(fs:read("docs/en/configuration.md"))
+  self:assert_not_nil(fs:read("docs/maintainer/en/configuration.md"))
   generate(build_options(fs, {}))
-  self:assert_nil(fs:read("docs/en/configuration.md"))
-  self:assert_not_nil(fs:read("docs/en/index.md"), "guides stay")
+  self:assert_nil(fs:read("docs/maintainer/en/configuration.md"))
+  self:assert_not_nil(fs:read("docs/maintainer/en/index.md"), "guides stay")
 end
 
 function T:test_options_are_validated_up_front_naming_the_field()
@@ -293,30 +296,30 @@ function T:test_the_old_option_names_and_the_explicit_configuration_schema_are_g
     local fs = doc.MemoryFileSystem({})
     local err = self:assert_error(function() generate(build_options(fs, { [name] = config_schema })) end)
     self:assert_equal(name, err.context.argument)
-    self:assert_nil(fs:read("docs/en/configuration.md"))
+    self:assert_nil(fs:read("docs/maintainer/en/configuration.md"))
   end
 end
 
 -- The defaults are those of the conventional layout of a project (OQ-143): `docs`, `docs/dist`, `src`.
 function T:test_every_path_option_has_a_default_of_the_conventional_layout()
-  local fs = doc.MemoryFileSystem({ ["docs/site.lua"] = 'return { title = "Shop" }', ["docs/en/index.md"] = "# Shop\n" })
+  local fs = doc.MemoryFileSystem({ ["docs/site.lua"] = 'return { title = "Shop" }', ["docs/maintainer/en/index.md"] = "# Shop\n" })
   local report = generate({ file_system = fs, application = application(config_schema) })
   self:assert_equal(0, #report.problems, table.concat(report.problems, "\n"))
-  self:assert_not_nil(fs:read("docs/en/configuration.md"), "guides_dir defaults to docs, read from docs/site.lua")
-  self:assert_not_nil(fs:read("docs/dist/en/configuration/index.html"), "output_dir defaults to docs/dist")
-  self:assert_not_nil(fs:read("docs/dist/en/index.html"))
+  self:assert_not_nil(fs:read("docs/maintainer/en/configuration.md"), "guides_dir defaults to docs, read from docs/site.lua")
+  self:assert_not_nil(fs:read("docs/dist/maintainer/en/configuration/index.html"), "output_dir defaults to docs/dist")
+  self:assert_not_nil(fs:read("docs/dist/maintainer/en/index.html"))
 end
 
 function T:test_relative_paths_are_resolved_against_the_project_directory()
-  local fs = doc.MemoryFileSystem({ ["acme/docs/site.lua"] = 'return { title = "Acme" }', ["acme/docs/en/index.md"] = "# Acme\n",
+  local fs = doc.MemoryFileSystem({ ["acme/docs/site.lua"] = 'return { title = "Acme" }', ["acme/docs/maintainer/en/index.md"] = "# Acme\n",
     ["acme/config/site.lua"] = 'return { title = "Other" }' })
   generate({ file_system = fs, project_dir = "acme", application = application(config_schema) })
-  self:assert_not_nil(fs:read("acme/docs/en/configuration.md"))
-  self:assert_not_nil(fs:read("acme/docs/dist/en/index.html"))
+  self:assert_not_nil(fs:read("acme/docs/maintainer/en/configuration.md"))
+  self:assert_not_nil(fs:read("acme/docs/dist/maintainer/en/index.html"))
   generate({ file_system = fs, project_dir = "acme", guides_dir = "docs", output_dir = "site",
     site_configuration_path = "config/site.lua" })
-  self:assert_not_nil(fs:read("acme/site/en/index.html"))
-  self:assert_nil(fs:read("acme/docs/en/configuration.md"), "no application: the stale reference is removed")
+  self:assert_not_nil(fs:read("acme/site/maintainer/en/index.html"))
+  self:assert_nil(fs:read("acme/docs/maintainer/en/configuration.md"), "no application: the stale reference is removed")
 end
 
 function T:test_a_missing_site_configuration_file_is_a_build_error()
@@ -329,14 +332,14 @@ end
 function T:test_the_locale_option_and_the_default_locale_choose_the_directory()
   local fs = doc.MemoryFileSystem({})
   generate(build_options(fs, { content_locale = "fr", site_configuration = { title = "S", default_locale = "fr",
-    locales = { { code = "fr" } }, audiences = { "user", "maintainer" }, audience_sites = "merged" },
+    locales = { { code = "fr" } } },
     application = application(config_schema) }))
-  self:assert_not_nil(fs:read("docs/fr/configuration.md"))
-  self:assert_not_nil(fs:read("dist/fr/configuration/index.html"))
+  self:assert_not_nil(fs:read("docs/maintainer/fr/configuration.md"))
+  self:assert_not_nil(fs:read("dist/maintainer/fr/configuration/index.html"))
   local other = doc.MemoryFileSystem({})
   generate(build_options(other, { site_configuration = { title = "S", default_locale = "fr", locales = { { code = "fr" } } },
     application = application(config_schema) }))
-  self:assert_not_nil(other:read("docs/fr/configuration.md"))
+  self:assert_not_nil(other:read("docs/maintainer/fr/configuration.md"))
 end
 
 function T:test_meta_edge_cases()
@@ -364,67 +367,168 @@ function T:test_meta_edge_cases()
   self:assert_true(core.is_instance_of(err, core.ArgumentError))
 end
 
--- Audiences (OQ-144): the generated site is the project team's own documentation.
-function T:test_the_configuration_reference_is_maintainer_documentation()
+-- Audiences (OQ-144, owner decision of 2026-11-21): two content trees, two sites.
+function T:test_the_configuration_reference_carries_no_audience_key()
   local meta = front_matter.parse(project.configuration_page(config_schema))
-  self:assert_equal("maintainer", meta.audience)
+  self:assert_nil(meta.audience, "the tree it is written into is the audience")
+  self:assert_equal(true, meta.generated)
 end
 
-local function build_with(config)
-  local fs = doc.MemoryFileSystem({ ["docs/en/index.md"] = "# Shop\n\nWelcome.\n" })
-  local report = generate({
-    site_configuration = config, guides_dir = "docs", output_dir = "dist", file_system = fs,
-    application = application(config_schema),
-  })
-  return fs, report
+local function trees(extra)
+  local files = {
+    ["docs/user/en/index.md"] = "# Shop\n\nWelcome, users.\n",
+    ["docs/maintainer/en/index.md"] = "# Shop team\n\nWelcome, maintainers.\n",
+    ["docs/maintainer/en/design.md"] = "# Design\n\nHow it works.\n",
+  }
+  for path, data in pairs(extra or {}) do files[path] = data end
+  return doc.MemoryFileSystem(files)
 end
 
-function T:test_a_project_site_publishes_the_maintainer_audience_only_by_default()
-  local fs, report = build_with({ title = "Shop docs" })
-  self:assert_not_nil(fs:read("dist/en/configuration/index.html"), "the configuration reference is maintainer documentation")
-  self:assert_not_nil(fs:read("dist/assets/search-en.json"):find("1 to 65535", 1, true))
-  self:assert_not_nil(fs:read("dist/en/index.html"), "a guide without the key is maintainer documentation")
-  self:assert_equal(0, report.locales.en.unpublished)
+local function build_trees(fs, extra)
+  local options = { site_configuration = { title = "Shop docs" }, guides_dir = "docs", output_dir = "dist", file_system = fs,
+    application = application(config_schema) }
+  for key, value in pairs(extra or {}) do options[key] = value end
+  if options.application == false then options.application = nil end
+  return generate(options)
+end
+
+function T:test_a_project_builds_the_maintainer_tree_only_by_default()
+  local fs = trees()
+  local report = build_trees(fs, { fail_on_problems = true })
+  self:assert_equal(0, #report.problems, table.concat(report.problems, "\n"))
   self:assert_equal(1, #report.sites)
-  -- A site for the users has no configuration reference.
-  local users, user_report = build_with({ title = "Shop docs", audiences = { "user" } })
-  self:assert_nil(users:read("dist/en/configuration/index.html"))
-  self:assert_nil(users:read("dist/assets/search-en.json"):find("1 to 65535", 1, true))
-  -- `default_audience` is the first of `audiences`: the guide without the key is a user page and is published.
-  self:assert_equal(1, user_report.locales.en.unpublished, "the configuration reference")
-  self:assert_not_nil(users:read("dist/en/index.html"))
-  -- The page stays in the source tree: generated pages are written, publication is a build decision.
-  self:assert_not_nil(fs:read("docs/en/configuration.md"))
+  self:assert_equal("maintainer", report.sites[1].audience)
+  self:assert_equal("maintainer", report.sites[1].directory)
+  self:assert_not_nil(fs:read("dist/maintainer/en/index.html"))
+  self:assert_not_nil(fs:read("dist/maintainer/en/configuration/index.html"))
+  self:assert_not_nil(fs:read("dist/maintainer/en/design/index.html"))
+  self:assert_not_nil(fs:read("dist/maintainer/assets/search-en.json"):find("1 to 65535", 1, true))
+  -- The user tree is not listed: it is not built, nothing is written into it, and that is no error.
+  self:assert_nil(fs:read("dist/user/en/index.html"))
+  self:assert_nil(fs:read("dist/en/index.html"), "no site at the root of the output")
+  self:assert_nil(fs:read("docs/user/en/configuration.md"))
+  -- The root of the output holds the marker and a redirect to the first site.
+  self:assert_not_nil(fs:read("dist/.hecate-doc-output"))
+  self:assert_not_nil(fs:read("dist/index.html"):find('content="0; url=/maintainer/en/"', 1, true))
+  self:assert_equal(3, report.locales.en.pages, "the home page, the design page and the configuration reference")
 end
 
-function T:test_a_project_that_asks_for_both_audiences_gets_everything_in_a_merged_site()
-  local fs, report = build_with({ title = "Shop docs", audiences = { "user", "maintainer" }, audience_sites = "merged" })
-  self:assert_not_nil(fs:read("dist/en/configuration/index.html"))
-  self:assert_equal(0, report.locales.en.unpublished)
-end
-
-function T:test_a_project_that_asks_for_both_audiences_gets_one_site_each_with_every_generated_page_in_its_own()
-  local fs, report = build_with({ title = "Shop docs", audiences = { "user", "maintainer" } })
+function T:test_a_project_that_asks_for_both_audiences_gets_two_sites_in_two_output_directories()
+  local fs = trees()
+  local report = build_trees(fs, { audiences = { "user", "maintainer" }, fail_on_problems = true })
+  self:assert_equal(0, #report.problems, table.concat(report.problems, "\n"))
   self:assert_equal(2, #report.sites)
-  -- The configuration reference is maintainer documentation; the guide below is labelled by the front matter.
+  self:assert_equal("user", report.sites[1].directory)
+  self:assert_equal("maintainer", report.sites[2].directory)
+  self:assert_not_nil(fs:read("dist/user/en/index.html"))
+  self:assert_not_nil(fs:read("dist/maintainer/en/index.html"))
+  -- The configuration reference is a maintainer page: it is in that tree and that site only.
+  self:assert_not_nil(fs:read("docs/maintainer/en/configuration.md"))
+  self:assert_nil(fs:read("docs/user/en/configuration.md"))
   self:assert_not_nil(fs:read("dist/maintainer/en/configuration/index.html"))
   self:assert_nil(fs:read("dist/user/en/configuration/index.html"))
+  -- Independent search index, sitemap-free navigation and `404.html` per site, and nothing of the other tree in either.
   self:assert_nil(fs:read("dist/user/assets/search-en.json"):find("1 to 65535", 1, true))
+  self:assert_nil(fs:read("dist/user/assets/search-en.json"):find("How it works", 1, true))
   self:assert_not_nil(fs:read("dist/maintainer/assets/search-en.json"):find("1 to 65535", 1, true))
-  self:assert_nil(fs:read("dist/en/index.html"))
-  self:assert_equal(0, report.locales.en.unpublished)
+  self:assert_nil(fs:read("dist/maintainer/assets/search-en.json"):find("Welcome, users", 1, true))
+  self:assert_nil(fs:read("dist/user/404.html"):find("Design", 1, true))
+  self:assert_not_nil(fs:read("dist/user/en/index.html"):find('href="/user/assets/theme.css"', 1, true), "each site is served below its own base path")
+  self:assert_not_nil(fs:read("dist/maintainer/en/index.html"):find('href="/maintainer/assets/theme.css"', 1, true))
+  self:assert_not_nil(fs:read("dist/index.html"):find('content="0; url=/user/en/"', 1, true), "the first audience listed")
+  -- The report adds the sites up: two files at the root of the output, and the files of each site.
+  self:assert_equal(2 + report.sites[1].files + report.sites[2].files, report.files)
+  self:assert_equal(report.sites[1].locales.en.pages + report.sites[2].locales.en.pages, report.locales.en.pages)
 end
 
-function T:test_a_wrong_audiences_option_fails_before_anything_is_written()
-  local fs = doc.MemoryFileSystem({})
-  local err = self:assert_error(function()
-    ---@diagnostic disable-next-line: assign-type-mismatch  -- the wrong value is the point of the test
-    generate({ site_configuration = { title = "x", audiences = { "everyone" } }, guides_dir = "docs",
-      output_dir = "dist", file_system = fs, application = application(config_schema) })
-  end)
-  self:assert_true(core.is_instance_of(err, core.ConfigurationError))
-  self:assert_equal("audiences[1]", err.context.field)
-  self:assert_nil(fs:read("docs/en/configuration.md"))
+function T:test_a_listed_audience_whose_tree_does_not_exist_is_a_problem_and_a_tree_that_is_not_listed_is_not()
+  local fs = doc.MemoryFileSystem({ ["docs/maintainer/en/index.md"] = "# Shop team\n" })
+  local report = build_trees(fs, { audiences = { "user", "maintainer" } })
+  self:assert_equal(1, #report.problems, table.concat(report.problems, "\n"))
+  self:assert_true(report.problems[1]:find('audience "user" is listed in `audiences` but its content tree docs/user does not exist: add docs/user/en/index.md', 1, true) ~= nil,
+    report.problems[1])
+  self:assert_equal(1, #report.sites, "the tree that exists is built")
+  self:assert_not_nil(fs:read("dist/maintainer/en/index.html"))
+  self:assert_nil(fs:read("dist/user/en/index.html"))
+  -- An error under `fail_on_problems`, after the site that exists is written.
+  local strict = doc.MemoryFileSystem({ ["docs/maintainer/en/index.md"] = "# Shop team\n" })
+  local err = self:assert_error(function() build_trees(strict, { audiences = { "user" }, fail_on_problems = true }) end)
+  self:assert_true(core.is_instance_of(err, doc.BuildError))
+  self:assert_true(tostring(err):find("add docs/user/en/index.md", 1, true) ~= nil, tostring(err))
+  self:assert_nil(strict:read("dist/maintainer/en/index.html"), "the maintainer tree is not listed, so not built")
+  -- A tree that is not listed and does not exist is no problem.
+  local plain = build_trees(doc.MemoryFileSystem({ ["docs/maintainer/en/index.md"] = "# Shop team\n" }), { fail_on_problems = true })
+  self:assert_equal(0, #plain.problems)
+end
+
+function T:test_each_tree_reports_its_own_missing_home_page()
+  local fs = doc.MemoryFileSystem({ ["docs/user/en/guide.md"] = "# Guide\n", ["docs/maintainer/en/design.md"] = "# Design\n" })
+  local report = build_trees(fs, { audiences = { "user", "maintainer" }, application = false })
+  self:assert_equal(2, #report.problems, table.concat(report.problems, "\n"))
+  self:assert_equal(1, #report.sites[1].problems)
+  self:assert_equal(1, #report.sites[2].problems)
+  self:assert_true(report.sites[1].problems[1]:find("add docs/user/en/index.md", 1, true) ~= nil, report.sites[1].problems[1])
+  self:assert_true(report.sites[2].problems[1]:find("add docs/maintainer/en/index.md", 1, true) ~= nil, report.sites[2].problems[1])
+  self:assert_true(report.problems[1]:find("^maintainer site: ") ~= nil or report.problems[1]:find("^user site: ") ~= nil, report.problems[1])
+  -- A home page in one tree does not satisfy the other.
+  local half = doc.MemoryFileSystem({ ["docs/user/en/index.md"] = "# Home\n", ["docs/maintainer/en/design.md"] = "# Design\n" })
+  local second = build_trees(half, { audiences = { "user", "maintainer" }, application = false })
+  self:assert_equal(1, #second.problems, table.concat(second.problems, "\n"))
+  self:assert_true(second.problems[1]:find("add docs/maintainer/en/index.md", 1, true) ~= nil, second.problems[1])
+end
+
+function T:test_a_page_that_still_carries_the_audience_key_is_refused_and_nothing_is_written_to_the_output()
+  local fs = trees({ ["docs/user/en/old.md"] = "---\ntitle: Old\naudience: user\n---\nx\n" })
+  local err = self:assert_error(function() build_trees(fs, { audiences = { "user", "maintainer" } }) end)
+  self:assert_true(core.is_instance_of(err, doc.BuildError), tostring(err))
+  self:assert_true(tostring(err):find("docs/user/en/old.md", 1, true) ~= nil, tostring(err))
+  self:assert_true(tostring(err):find("<guides_dir>/<audience>/<locale>/", 1, true) ~= nil, tostring(err))
+  -- The trees are loaded before anything is written to the output: the maintainer tree is not written either.
+  self:assert_nil(fs:read("dist/maintainer/en/index.html"))
+  self:assert_nil(fs:read("dist/index.html"))
+end
+
+function T:test_the_site_configuration_is_shared_and_the_clean_option_empties_the_whole_output()
+  local fs = trees()
+  local options = { audiences = { "user", "maintainer" }, clean_output_dir = true,
+    site_configuration = { title = "Shop docs", base_path = "/docs/", edit_link_template = "https://x.test/edit/docs/{path}" } }
+  build_trees(fs, options)
+  self:assert_not_nil(fs:read("dist/user/en/index.html"):find("Shop docs", 1, true))
+  self:assert_not_nil(fs:read("dist/maintainer/en/index.html"):find("Shop docs", 1, true))
+  self:assert_not_nil(fs:read("dist/user/en/index.html"):find('href="/docs/user/assets/theme.css"', 1, true), "the base path is the one of the project plus the audience")
+  self:assert_not_nil(fs:read("dist/index.html"):find('url=/docs/user/en/', 1, true))
+  -- The edit link names the tree: the template of the project is relative to the guides directory.
+  self:assert_not_nil(fs:read("dist/user/en/index.html"):find("https://x.test/edit/docs/user/en/index.md", 1, true))
+  self:assert_not_nil(fs:read("dist/maintainer/en/design/index.html"):find("https://x.test/edit/docs/maintainer/en/design.md", 1, true))
+  -- A second build with a single audience empties the site that is no longer built (the marker is at the root of the output).
+  fs:write("dist/stale.txt", "old")
+  build_trees(fs, { clean_output_dir = true, site_configuration = options.site_configuration })
+  self:assert_nil(fs:read("dist/stale.txt"))
+  self:assert_nil(fs:read("dist/user/en/index.html"))
+  self:assert_not_nil(fs:read("dist/maintainer/en/index.html"))
+  -- An output directory that is not ours is refused.
+  local foreign = trees({ ["dist/mine.txt"] = "mine" })
+  self:assert_error(function() build_trees(foreign, { clean_output_dir = true }) end)
+  self:assert_equal("mine", foreign:read("dist/mine.txt"))
+end
+
+function T:test_the_audiences_option_is_a_closed_list_of_trees()
+  local fs = trees()
+  for _, bad in ipairs({ {}, "user", { "everyone" }, { "user", "user" }, { 1 }, { user = true } }) do
+    local err = self:assert_error(function() build_trees(fs, { audiences = bad }) end)
+    self:assert_true(core.is_instance_of(err, core.ArgumentError), tostring(err))
+    self:assert_equal("audiences", err.context.argument)
+  end
+  self:assert_nil(fs:read("dist/maintainer/en/index.html"), "nothing was built")
+  -- The site configuration refuses what was removed from it, with what to do.
+  for _, key in ipairs({ "audiences", "default_audience", "audience_sites" }) do
+    local err = self:assert_error(function()
+      build_trees(fs, { site_configuration = { title = "x", [key] = "user" } })
+    end)
+    self:assert_true(core.is_instance_of(err, core.ConfigurationError), key)
+    self:assert_equal(key, err.context.field)
+    self:assert_nil(fs:read("docs/maintainer/en/configuration.md"), "refused before anything is written")
+  end
 end
 
 function T:test_the_configuration_reference_never_prints_the_default_of_a_secret()
@@ -451,7 +555,7 @@ local app_schema = {
 function T:test_build_reads_the_configuration_schema_from_the_application_and_redacts_what_it_marks()
   local fs = doc.MemoryFileSystem({})
   generate(build_options(fs, { application = application(app_schema) }))
-  local page = fs:read("docs/en/configuration.md")
+  local page = fs:read("docs/maintainer/en/configuration.md")
   self:assert_not_nil(page:find("`database.password`", 1, true), page)
   self:assert_not_nil(page:find("`8080`", 1, true), page)
   self:assert_not_nil(page:find("[redacted]", 1, true), page)
@@ -465,7 +569,7 @@ function T:test_the_application_is_the_only_source_of_the_configuration_referenc
   end)
   self:assert_equal("configuration", err.context.argument, "a hand-passed schema is not an option")
   generate(build_options(fs, { application = application(app_schema) }))
-  local page = fs:read("docs/en/configuration.md")
+  local page = fs:read("docs/maintainer/en/configuration.md")
   self:assert_nil(page:find("`database.url`", 1, true))
   self:assert_not_nil(page:find("8080", 1, true))
 end
@@ -473,7 +577,7 @@ end
 function T:test_an_application_without_a_configuration_adds_no_page()
   local fs = doc.MemoryFileSystem({})
   generate(build_options(fs, { application = application(nil) }))
-  self:assert_nil(fs:read("docs/en/configuration.md"))
+  self:assert_nil(fs:read("docs/maintainer/en/configuration.md"))
 end
 
 function T:test_the_application_must_have_the_method_and_return_a_schema()
@@ -482,8 +586,8 @@ function T:test_the_application_must_have_the_method_and_return_a_schema()
   self:assert_not_nil(tostring(err):find("application", 1, true))
   err = self:assert_error(function() generate(build_options(fs, { application = application("no") })) end)
   self:assert_not_nil(tostring(err):find("configuration_schema", 1, true))
-  self:assert_nil(fs:read("dist/en/index.html"), "nothing is written when an option is wrong")
-  self:assert_nil(fs:read("docs/en/configuration.md"), "nothing is written when an option is wrong")
+  self:assert_nil(fs:read("dist/maintainer/en/index.html"), "nothing is written when an option is wrong")
+  self:assert_nil(fs:read("docs/maintainer/en/configuration.md"), "nothing is written when an option is wrong")
 end
 
 return T

@@ -27,11 +27,6 @@ return {
   repository_url = "https://github.com/hecate-framework/hecate",
   edit_link_template = "https://github.com/hecate-framework/hecate/edit/main/website/{path}",
   source_edit_link_template = "https://github.com/hecate-framework/hecate/edit/main/{path}", -- generated reference pages
-  -- The website of the framework publishes both audiences (OQ-144), as ONE combined site until its restructure
-  -- (option (a) of OQ-144): by default several audiences are written as separate sites, one per audience.
-  audiences = { "user", "maintainer" },
-  default_audience = "user", -- no page of website/ is labelled yet: every page stays what it was, a user page
-  audience_sites = "merged",
   generate_llms_txt = true, -- writes llms.txt and llms-full.txt (default locale, published pages)
   exclude_file_names = { "README.md", "glossary-terms.md" }, -- the translators' notes are not pages
 }

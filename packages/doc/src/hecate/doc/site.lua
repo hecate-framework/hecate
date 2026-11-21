@@ -33,7 +33,6 @@ local MARKER = ".hecate-doc-output"
 ---@field last_updated? fun(path: string): string?  ISO 8601 date of the last change of a source file
 ---@field theme_file_system? hecate.doc.FileSystem  where the theme's static files are read from (default: read with `io`)
 ---@field theme_files_dir? string  directory of the theme's static files (default: the theme's own)
----@field other_site_audiences? hecate.doc.Audience[]  audiences that other sites of the same build publish (`build` fills it in): a link to a page of one of them is reported as such
 
 ---@class hecate.doc.Site
 ---@field site_configuration hecate.doc.SiteConfiguration
@@ -50,15 +49,12 @@ function Site:init(options)
   options_module.check("doc.Site", "build", options, options_module.SITE, 3)
   self.site_configuration = config_module.normalise(options.site_configuration)
   self._guides_dir = (paths.separators(options.guides_dir):gsub("/+$", ""))
-  self._other_audiences = {}
-  for _, audience in ipairs(options.other_site_audiences or {}) do self._other_audiences[audience] = true end
   self._fs = options.file_system
   self._last_updated = options.last_updated
   self._theme_file_system = options.theme_file_system
   self._theme_files_dir = options.theme_files_dir
   self._files = {} -- locale -> { pages = { id -> file }, assets = { relative -> file } }
   self._pages = {} -- locale -> { id -> Page }
-  self._hidden = {} -- locale -> { id -> audience }: pages whose audience is not published (OQ-144)
   self._locale_codes = {}
   for index, locale in ipairs(self.site_configuration.locales) do self._locale_codes[index] = locale.code end
   self._loaded = false
@@ -217,16 +213,18 @@ end
 local function page_url(self, locale, id) return self.site_configuration.base_path .. locale .. "/" .. encode_path(url_path(id)) end
 
 
+--- Normalises a relative path below the locale directory. A path that climbs above it returns `nil` and the number of
+--- levels it climbs above (1: the content root, where the locale directories are; 2 or more: out of the tree).
 local function normalise_path(path)
-  local parts = {}
+  local parts, above = {}, 0
   for segment in path:gmatch("[^/]+") do
     if segment == ".." then
-      if #parts == 0 then return nil end
-      parts[#parts] = nil
+      if #parts == 0 then above = above + 1 else parts[#parts] = nil end
     elseif segment ~= "." then
       parts[#parts + 1] = segment
     end
   end
+  if above > 0 then return nil, above end
   return table.concat(parts, "/")
 end
 
@@ -239,9 +237,8 @@ end
 
 -- Pages ---------------------------------------------------------------------------------
 
---- Reads a page source once: its text must be UTF-8, its front matter must parse and its `audience`
---- (OQ-144) must be one of the audiences. Sets `file.meta`, `file.body` and `file.audience`. A page of an
---- audience that is not published is validated like any other: a mistake does not wait for the day it is published.
+--- Reads a page source once: its text must be UTF-8 and its front matter must parse. Sets `file.meta` and `file.body`.
+--- The front matter key `audience` is refused: the audience of a page is the content tree it lies in (OQ-144).
 local function read_page(self, file)
   if file.meta then return file end
   local source = read_required(self, file.path)
@@ -255,46 +252,17 @@ local function read_page(self, file)
       position), file.path)
   end
   local meta, body = front_matter.parse(source, file.path)
-  local audience = meta.audience
-  if audience == nil then
-    audience = self.site_configuration.default_audience
-  elseif type(audience) ~= "string" or not config_module.AUDIENCES[audience] then
-    fail(("%s: front matter `audience` must be \"user\" or \"maintainer\", got %s"):format(file.relative,
-      type(audience) == "string" and ("%q"):format(audience) or ("a " .. type(audience))), file.path)
+  if meta.audience ~= nil then
+    fail(("%s: the front matter key `audience` is no longer read: the audience of a page is the content tree it lies in. "
+      .. "Move the page to `<guides_dir>/<audience>/<locale>/` (`user` or `maintainer`) and delete the key"):format(file.path),
+      file.path)
   end
-  file.meta, file.body, file.audience = meta, body, audience
+  file.meta, file.body = meta, body
   return file
 end
 
--- The directory of a page id or of a file path below a locale directory (`""` for the locale directory itself).
-local function directory_of(path) return path:match("^(.*)/[^/]+$") or "" end
-
--- The directories of a locale that hold pages, all of them hidden in this site: the files next to them are of their audience.
--- A directory without a page, or with one published page, is not in the set (OQ-144).
-local function directories_of_hidden_pages(self, locale)
-  local count, hidden = {}, {}
-  local seen = {}
-  for _, code in ipairs({ locale, self.site_configuration.default_locale }) do
-    for id in pairs(self._files[code].pages) do
-      if not seen[id] then
-        seen[id] = true
-        local directory = directory_of(id)
-        count[directory] = (count[directory] or 0) + 1
-        if self._hidden[locale][id] then hidden[directory] = (hidden[directory] or 0) + 1 end
-      end
-    end
-  end
-  local out = {}
-  for directory, total in pairs(count) do
-    if hidden[directory] == total then out[directory] = true end
-  end
-  return out
-end
-
---- Returns the file a locale uses for a page id: its own, or the default locale's. A page whose audience is
---- not published has no source: it is absent from the site, and a link to it is a broken link.
+--- Returns the file a locale uses for a page id: its own, or the default locale's.
 local function source_for(self, locale, id)
-  if self._hidden[locale] and self._hidden[locale][id] then return nil, false end
   local own = self._files[locale].pages[id]
   if own then return own, false end
   local default = self._files[self.site_configuration.default_locale].pages[id]
@@ -321,9 +289,15 @@ local function link_resolver(self, locale, page_id, problems_prefix)
       return base .. written:sub(2) .. suffix
     end
     local path = file_names.nfc(decode_path(written))
-    local joined = normalise_path(directory == "" and path or (directory .. "/" .. path))
+    local joined, above = normalise_path(directory == "" and path or (directory .. "/" .. path))
     if joined == nil then
-      note(self, ("%s: link %s leaves the content root"):format(problems_prefix, href))
+      -- A relative link that climbs out of the tree (2 levels above the locale directory or more) leads to another site, such
+      -- as the tree of the other audience: the builder cannot check it, so it is left as written and the browser resolves
+      -- it against the URL of the page (documentation.md, "Documentation of a project"). A link that climbs to the content
+      -- root only (`../fr/x.md`) stays a problem: it names a page of another locale, or a mistake.
+      if above < 2 then
+        note(self, ("%s: link %s leaves the locale directory"):format(problems_prefix, href))
+      end
       return href
     end
     if portable.is_markdown(joined) or path:sub(-1) == "/" or not path:match("%.[%w]+$") then
@@ -332,17 +306,7 @@ local function link_resolver(self, locale, page_id, problems_prefix)
         or (source_for(self, locale, id .. "/index") and id .. "/index")
         or (id == "" and source_for(self, locale, "index") and "index")
       if not target then
-        local hidden = self._hidden[locale] or {}
-        local hidden_audience = hidden[id] or hidden[id .. "/index"] or (id == "" and hidden["index"]) or nil
-        if hidden_audience and self._other_audiences[hidden_audience] then
-          note(self, ("%s: link %s targets a page of the %q audience, which is published in another site: use an absolute URL or move the page")
-            :format(problems_prefix, href, hidden_audience))
-        elseif hidden_audience then
-          note(self, ("%s: link %s targets a page of the %q audience, which is not published"):format(
-            problems_prefix, href, hidden_audience))
-        else
-          note(self, ("%s: broken link %s"):format(problems_prefix, href))
-        end
+        note(self, ("%s: broken link %s"):format(problems_prefix, href))
         return href
       end
       return page_url(self, locale, target) .. suffix
@@ -422,40 +386,6 @@ function Site:load()
   if next(self._files[default].pages) == nil then
     fail(("no pages found in %s/%s"):format(self._guides_dir, default), self._guides_dir .. "/" .. default)
   end
-  -- Audiences (OQ-144): every page is read first, so that a page of an unpublished audience is known
-  -- before any link is resolved. A page is hidden in a locale when its own file or the default locale's file
-  -- is of an audience that is not published: a translation never publishes what the original keeps back.
-  local published = {}
-  for _, audience in ipairs(self.site_configuration.audiences) do published[audience] = true end
-  for _, code in ipairs(self._locale_codes) do
-    local pages = self._files[code].pages
-    local ids_of_locale = {}
-    for id in pairs(pages) do ids_of_locale[#ids_of_locale + 1] = id end
-    table.sort(ids_of_locale)
-    for _, id in ipairs(ids_of_locale) do read_page(self, pages[id]) end
-  end
-  for _, code in ipairs(self._locale_codes) do
-    self._hidden[code] = {}
-    for _, file in ipairs({ self._files[code].pages, self._files[default].pages }) do
-      for id, entry in pairs(file) do
-        if not published[entry.audience] and not self._hidden[code][id] then self._hidden[code][id] = entry.audience end
-      end
-    end
-    -- A translation labelled for another audience than its original is published in no site (a site that publishes the one
-    -- audience lacks the other file): a mistake of the labels, reported with both files.
-    if code ~= default then
-      local own_ids = {}
-      for id in pairs(self._files[code].pages) do own_ids[#own_ids + 1] = id end
-      table.sort(own_ids)
-      for _, id in ipairs(own_ids) do
-        local own, original = self._files[code].pages[id], self._files[default].pages[id]
-        if original and own.audience ~= original.audience and self._hidden[code][id] then
-          note(self, ("%s has audience %q and its original %s has audience %q: the translation is published in no site; label both with the same audience")
-            :format(own.relative, own.audience, original.relative, original.audience))
-        end
-      end
-    end
-  end
   for _, code in ipairs(self._locale_codes) do
     local ids, seen = {}, {}
     local function add(id)
@@ -466,9 +396,6 @@ function Site:load()
     end
     for id in pairs(self._files[default].pages) do add(id) end
     for id in pairs(self._files[code].pages) do add(id) end
-    for index = #ids, 1, -1 do
-      if self._hidden[code][ids[index]] then table.remove(ids, index) end
-    end
     table.sort(ids)
     local urls = {}
     self._pages[code] = {}
@@ -479,21 +406,10 @@ function Site:load()
       self._pages[code][id] = build_page(self, code, id)
     end
   end
-  -- A published locale without a page, and a site without a home page, are mistakes of the configuration or of the
-  -- labels, not an empty site to deliver in silence.
-  local audiences = self.site_configuration.audiences --[[@as hecate.doc.Audience[] ]]
-  local quoted = {}
-  for index, audience in ipairs(audiences) do quoted[index] = ("%q"):format(audience) end
-  local audience_text = #audiences == 1 and ("audience " .. quoted[1]) or ("audiences " .. table.concat(quoted, " and "))
-  for _, code in ipairs(self._locale_codes) do
-    if next(self._pages[code]) == nil then
-      note(self, ('no page of the published %s in locale %s: pages without an audience key are "%s" (default_audience); label pages or set default_audience')
-        :format(audience_text, code, self.site_configuration.default_audience or "maintainer"))
-    end
-  end
-  if next(self._pages[default]) ~= nil and self._pages[default].index == nil then
-    note(self, ('site "%s" (locale %s) has no home page: add %s/%s/index.md with audience: %s'):format(
-      table.concat(audiences, ", "), default, self._guides_dir, default, audiences[1]))
+  -- A site without a home page would open on nothing: a problem that says which file to add (the page `index` of the
+  -- default locale; a locale other than the default falls back to it).
+  if self._pages[default].index == nil then
+    note(self, ("the site has no home page in locale %s: add %s/%s/index.md"):format(default, self._guides_dir, default))
   end
   table.sort(self.problems)
   self._loaded = true
@@ -515,18 +431,7 @@ function Site:pages(locale)
   return list
 end
 
---- Returns the pages of a locale that are not published because of their audience, sorted by id.
----@param locale string
----@return { id: string, audience: hecate.doc.Audience }[]
-function Site:unpublished(locale)
-  ensure_loaded(self)
-  local list = {}
-  for id, audience in pairs(self._hidden[locale] or {}) do list[#list + 1] = { id = id, audience = audience } end
-  table.sort(list, function(a, b) return a.id < b.id end)
-  return list
-end
-
---- Whether a published page holds a diagram: the library of the diagrams is then part of the site (ADR 0033).
+--- Whether a page holds a diagram: the library of the diagrams is then part of the site (ADR 0033).
 ---@return boolean
 function Site:uses_diagrams()
   ensure_loaded(self)
@@ -757,10 +662,9 @@ local function redirect_page(self)
     html.escape(self.site_configuration.title))
 end
 
--- llms.txt and llms-full.txt (https://llmstxt.org, "Format"). Both describe the published pages of the default
+-- llms.txt and llms-full.txt (https://llmstxt.org, "Format"). Both describe the pages of the default
 -- locale, in the reading order of the navigation: the pages at the root of the site first, then one section
--- per top-level section (the top navigation order, then the other sections by name). Pages of an audience that
--- is not published are not in `self:pages`, so they never appear.
+-- per top-level section (the top navigation order, then the other sections by name).
 local function one_line(text)
   return ((text:gsub("%s+", " "):gsub("^ ", ""):gsub(" $", "")))
 end
@@ -989,11 +893,7 @@ function Site:emit(write)
       if not seen[relative] then assets[#assets + 1] = file end
     end
     table.sort(assets, function(a, b) return a.relative < b.relative end)
-    local only_hidden = directories_of_hidden_pages(self, code)
-    for _, file in ipairs(assets) do
-      -- A file next to pages that this site does not publish belongs to their audience (OQ-144): it is not copied.
-      if not only_hidden[directory_of(file.relative)] then put(code .. "/" .. file.relative, read_required(self, file.path)) end
-    end
+    for _, file in ipairs(assets) do put(code .. "/" .. file.relative, read_required(self, file.path)) end
   end
   -- The theme's own files are read with `io` (no directory listing), so that a build on an
   -- in-memory tree needs no reactor.

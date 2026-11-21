@@ -92,11 +92,15 @@ without the native module, except in CI, whenever `doc` or the site of the examp
 
 ## Documentation site
 
-`docs/` holds the documentation of the example, written by hand: guides in `docs/en/`, the site configuration
-`docs/site.lua`, and `docs/public/` with the logo, the favicon, the fonts and the CSS file of the theme. It is a
+`docs/` holds the documentation of the example, written by hand. The pages are documentation for the team that
+changes the example, so they are the content tree of the `maintainer` audience, `docs/maintainer/`: guides in
+`docs/maintainer/en/` and `docs/maintainer/public/` with the logo, the favicon, the fonts and the CSS file of the
+theme. The site configuration is the one file of the project, `docs/site.lua`. There is no `docs/user/` tree: the
+default of `generate_project_documentation` builds the `maintainer` tree only, and the site is written to
+`docs/dist/maintainer/`. It is a
 showcase of the theme extension points of `hecate.doc`, in a plain, neutral style (white and slate greys, one sky
 accent, thin borders, small radii): its own palette in light and dark, its own radii and sidebar width, the Inter
-family (SIL OFL 1.1, Latin subset in `docs/public/fonts/`, loaded by the `@font-face` of the CSS file; recorded in
+family (SIL OFL 1.1, Latin subset in `docs/maintainer/public/fonts/`, loaded by the `@font-face` of the CSS file; recorded in
 `THIRD_PARTY_NOTICES`) for the text and a system monospace stack for code, its own logo and favicon (each in a
 light and a dark variant, through `logo_path` and `favicon_path`). The sidebar marker (`sidebar_marker`) is left off, which
 is the default. It also turns on `llms.txt` (`generate_llms_txt`).
@@ -104,13 +108,13 @@ Build it from the repository root, with `luv` installed and the native module of
 build-native doc`), and the Hecate packages on the search path (`build_docs.lua` adds them itself):
 
 ```sh
-lua examples/hello/build_docs.lua            # writes examples/hello/docs/dist (git-ignored)
+lua examples/hello/build_docs.lua            # writes examples/hello/docs/dist/maintainer (git-ignored)
 lua examples/hello/build_docs.lua /tmp/site  # or elsewhere
 ```
 
 `build_docs.lua` calls `hecate.doc.generate_project_documentation` with the project directory and nothing else:
-the guides (`docs/`), the site configuration (`docs/site.lua`) and the output (`docs/dist`) are the defaults of the
-conventional layout. An output directory in the command line is relative to `examples/hello` unless it is absolute.
+the guides (`docs/<audience>/`, here `docs/maintainer/`), the site configuration (`docs/site.lua`) and the output
+(`docs/dist/<audience>/`) are the defaults of the conventional layout. An output directory in the command line is relative to `examples/hello` unless it is absolute.
 The build is strict (`fail_on_problems`): a broken link fails it. Serve the output with any static server. The page "Theme tokens" of the
 website lists every property the CSS file can override.
 

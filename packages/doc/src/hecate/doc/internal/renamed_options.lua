@@ -11,7 +11,7 @@
 -- American `license` stays where it is an external name: the rockspec field `description.license`, SPDX identifiers,
 -- the task and module `check-licenses`, `THIRD_PARTY_NOTICES`. The old `licenses*` names below are the old names of ours.
 
-global <const> require
+global <const> pairs
 
 local M = {}
 
@@ -28,10 +28,19 @@ local site_builder = {
   theme_directory = "theme_files_dir",
 }
 
+-- The audiences are two separate sites, each built from its own content tree (OQ-144, owner decision of 2026-11-21): the
+-- filtering of one tree by audience, and everything that served it, is gone.
+local ONE_TREE_PER_AUDIENCE = "a documentation site is built from one content tree (`<guides_dir>/<audience>/<locale>/`), "
+  .. "so a tree is never filtered by audience"
+
+local build_options = {}
+for old, new in pairs(site_builder) do build_options[old] = new end
+build_options.other_site_audiences = { removed = ONE_TREE_PER_AUDIENCE }
+
 ---@type table<string, table<string, string|{ removed: string }>>
 M.options = {
   --- `hecate.doc.build` and `hecate.doc.Site`.
-  build = site_builder,
+  build = build_options,
   --- `hecate.doc.generate_project_documentation` (OQ-143, with the rename of 2026-11-19 of the same family).
   generate_project_documentation = {
     source = "guides_dir",
@@ -75,10 +84,14 @@ M.options = {
     executable = "language_server_path",
     config = "language_server_config_path",
     layout = "sources_dir_pattern",
+    label_audiences = { removed = "pages carry no `audience` key: give `audience_locale_dirs` (one locale directory per audience tree) to split the reference, or `locale_dir` for one tree" },
+    separate_audience_sites = { removed = "give `audience_locale_dirs`: the trees are separate sites, and the pages of one never link to the other" },
   },
   --- `hecate.doc.reference.generate`.
   reference = {
     root = "pages_dir",
+    label_audiences = { removed = "pages carry no `audience` key: the result lists the audience of each page in `audiences`; `split_audiences` keeps the links within an audience" },
+    separate_audience_sites = { removed = "use `split_audiences`" },
   },
   --- The options of `hecate.doc.luals.export`.
   luals_export = {
@@ -87,8 +100,11 @@ M.options = {
   },
 }
 
----@type table<string, string>
+---@type table<string, string|{ removed: string }>
 M.site_keys = {
+  audiences = { removed = "the audiences are separate content trees, not a filter of one tree: choose the trees to build with the option `audiences` of `generate_project_documentation` (default `{ \"maintainer\" }`)" },
+  default_audience = { removed = ONE_TREE_PER_AUDIENCE .. ": put the pages in the tree of their audience, `<guides_dir>/user/` or `<guides_dir>/maintainer/`" },
+  audience_sites = { removed = "every audience is its own site in its own output directory (`<output_dir>/<audience>/`); there is no merged site" },
   logo = "logo_path",
   favicon = "favicon_path",
   theme = "stylesheet_path",

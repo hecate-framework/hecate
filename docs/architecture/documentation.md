@@ -221,8 +221,8 @@ helper's line, so examples print inline. Every phase gate checks both rules on t
   `generate_llms_txt = true`; the default is off, so a project publishes nothing for language models unless it asks. `llms.txt` has
   the site title and description, then one link per published page with the `description` of its front matter,
   grouped by top-level section in navigation order (pages at the root first); `llms-full.txt` concatenates the
-  Markdown of the same pages, each after a `Source:` line. Only the pages that the site publishes appear (a page of an
-  audience that is not published is left out, OQ-144) and only the default locale is written. A file of `public/`
+  Markdown of the same pages, each after a `Source:` line. Only the pages of the tree of the site appear (a page of the
+  other audience is in the other site, OQ-144) and only the default locale is written. A file of `public/`
   with the same name fails the build when the key is on. The Hecate website turns it on. The output is
   deterministic.
 - Every reference page has a stable anchor per symbol.
@@ -240,36 +240,43 @@ for the reader, not by who the reader is; [OQ-144](../open-questions.md), owner 
 `hecate doc build` on a project produces a static site that is the project team's own documentation:
 the guides the project writes, the configuration reference, and the code reference from the
 project's annotations. `hecate.doc` serves maintainers by default (owner decision of 2026-11-18): the
-public output of a project is a request (`audiences`), not a default, and the two audiences are never
-mixed in one site unless the configuration says so.
+public output of a project is a request (`audiences`), not a default.
 
-- A page declares its audience in the front matter key `audience` (`user` or `maintainer`; any other
-  value is a `BuildError` naming the file). The site configuration key `default_audience` is the audience of
-  a page without the key; its default is the first of `audiences` (so `audiences = { "user" }` publishes the pages
-  without a key, and, with the default `audiences`, they are `maintainer` pages).
-- The site configuration key `audiences` lists the audiences the site publishes. Default: `{ "maintainer" }`,
-  for a project site (`hecate.doc.generate_project_documentation`) and for the plain builder (`hecate.doc.build`) alike,
-  so a tree without any `audience` key builds as before (every page is maintainer documentation and published).
-- **One site per audience** (key `audience_sites`, default `separate`): with several audiences published,
-  the build writes a complete site for each below `<output_dir>/<audience>/` (pages, navigation, search index,
-  sitemap, `llms.txt`, theme files, `404.html`; the base URL is `<base_path><audience>/`) and none holds a page
-  of another audience; `<output_dir>/` holds a marker and a redirect to the first audience. With one audience the
-  layout stays `<output_dir>/`, so that URLs do not change when a second audience is added later. `merged` writes
-  one combined site; the website of the framework sets it until its restructure (OQ-144, option (a)).
-  `BuildReport.sites` lists each site with its problems.
-- A page whose audience is not published (in this site) is absent from the output, the navigation, the
-  search index, the sitemap and the previous and next links. A link to it, including a link to a page of
-  another audience's site, is reported like a broken link naming the audience (an error under `--strict`): the
-  message tells an audience that is published in another site (use an absolute URL or move the page) from one that
-  is not published. A published locale without a page, and a site without a home page (`index`) in its default
-  locale, are problems too, with the label to add or the file to create. Files next to pages (images) follow their neighbours: a file in a directory that holds pages, all of them unpublished in this site, is not copied there; a file in a directory without a page, or with one published page, is copied. A translation never publishes a
-  page that the page of the default locale keeps back.
-- Generated pages: the configuration reference is `maintainer`. The code reference lists public
-  symbols (`user`); the pages of `*.internal` modules and of classes that LuaLS reports as `private`
-  or `package` are `maintainer`, and are generated only when `audiences` includes `maintainer`; a project
-  site that publishes one audience holds the whole code reference, labelled with it. With both audiences and separate sites, a reference page links only to pages of its audience and the module page lists only the classes of its audience (a link may not leave its site). A translation labelled for another audience than its original is published in no site: a problem naming both files. A member
-  (field or method) that is `private`, `protected` or `package`, or whose name starts with `_`, is never
-  listed: a member is a part of a class page, not a page.
+The two audiences are **two different websites** (owner decision of 2026-11-21, OQ-144): two content trees in the
+sources and two output directories, so that they share no page id (a page id is one file, so one `index.md` can be the
+home of one site only) and no static file.
+
+- **Layout.** One content tree per audience, `<guides_dir>/<audience>/<locale>/...` (`user`, `maintainer`), with its own
+  `public/` at `<guides_dir>/<audience>/public/`, next to the locale directories as in a plain tree: a tree can be moved,
+  built or deleted whole, and the sites never share a static file. The site configuration is one file for the project,
+  `<guides_dir>/site.lua`; title, locales, theme and every other key apply to every audience site (per-audience overrides are
+  out of scope).
+- **Each tree is a plain site.** It is built by the plain builder (`hecate.doc.build`, class `Site`), exactly like the tree of
+  the Hecate website, into `<output_dir>/<audience>/`: its own pages, navigation, search index, sitemap, `llms.txt` and
+  `llms-full.txt`, `404.html` and theme files, with the base URL `<base_path><audience>/`. A page of one tree is in no file
+  of the other site. `<output_dir>/` holds a marker file and a redirect to the first site built. The builder knows no
+  audience: there is no `audience` front matter key (a page that carries it is a `BuildError` naming the file and this layout),
+  and `audiences`, `default_audience` and `audience_sites` are no keys of `site.lua` (a `ConfigurationError` says what
+  replaced them); there is no merged site.
+- **Which sites are built.** The option `audiences` of `generate_project_documentation` lists the trees to build; the
+  default is `{ "maintainer" }`. A tree that is not listed is not built and is no error; a listed tree that does not exist
+  is a problem with the file to add (`add docs/user/en/index.md`), an error under `fail_on_problems`. Each tree needs its
+  own home page (`index.md` of the default locale): its absence is a problem of that tree, and it can be satisfied.
+- **Generated pages go to the right tree.** The configuration reference is a page of the `maintainer` tree (written only when
+  `maintainer` is built). The code reference lists public symbols in the `user` tree; the pages of `*.internal` modules and of
+  classes that LuaLS reports as `private` or `package` go to the `maintainer` tree, and are generated only when it is
+  built. With one tree built, the whole code reference goes into it. With both, the pages of one tree never link to the
+  other and the module page lists only the classes of its own tree: each tree is self-contained. The licences page goes to
+  the `maintainer` tree unless `licences_page.audience` names another listed tree. A member (field or method) that is
+  `private`, `protected` or `package`, or whose name starts with `_`, is never listed: a member is a part of a class page,
+  not a page. Stale generated pages and the generated-page marker rules apply per tree.
+- **Links between the two sites** are ordinary links that the builder cannot check. Write an absolute URL, or a relative
+  link that the browser reads from the URL of the page (`../../../../user/en/guide/` from `guide/a.md` of a site served at
+  `/maintainer/`). The builder leaves a relative link that climbs two levels or more above the locale directory, out of the tree,
+  as written and reports no problem; a link that climbs to the content root only is still a problem, as is a broken link inside
+  the tree. A switcher between the sites is not built (OQ-144, open).
+- Files of the guides are read defensively and written portably as for every tree (symbolic links, depth, entries,
+  portable names): see the items below, which hold per tree.
 - The configuration reference never prints the default of a secret key (`[redacted]` in its place), nor its
   enumeration, constant or pattern. The schema is the single source (`Configuration:schema()` marks the secrets of
   `hecate.config` `writeOnly: true`): a row is a secret when its schema, or any subschema reachable from it through
@@ -322,9 +329,9 @@ mixed in one site unless the configuration says so.
   reference, after the site is written. `\` is a separator in every path option; a drive-relative path (`C:file`) is refused
   on Windows.
 
-The audience split of the website of the framework (the pages of `website/` moved or labelled, then
-`audience_sites` left at `separate`) is a separate item, and a `check-audience` gate is not written yet
-([OQ-144](../open-questions.md)).
+The website of the framework is one tree built by the plain builder; its restructure into `website/user/` and
+`website/maintainer/` is a move of directories (the open part of [OQ-144](../open-questions.md)). A `check-audience` gate
+(which would have checked labels) is probably unnecessary now: the tree is the label.
 
 There is no HTTP API reference: the generator never renders routes or the contract. The Lua **code reference**
 (modules, classes and functions of the project's `package_name`, from LuaLS annotations) is a different thing and

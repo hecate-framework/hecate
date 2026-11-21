@@ -11,8 +11,7 @@ local renamed = require("hecate.doc.internal.renamed_options")
 local M = {}
 
 --- The options of `hecate.doc.Site`.
-M.SITE = { "site_configuration", "guides_dir", "file_system", "last_updated", "theme_file_system", "theme_files_dir",
-  "other_site_audiences" }
+M.SITE = { "site_configuration", "guides_dir", "file_system", "last_updated", "theme_file_system", "theme_files_dir" }
 
 --- The options of `hecate.doc.build`: those of `Site` and the ones of the output.
 M.BUILD = { "site_configuration", "guides_dir", "file_system", "last_updated", "theme_file_system", "theme_files_dir",
@@ -20,9 +19,9 @@ M.BUILD = { "site_configuration", "guides_dir", "file_system", "last_updated", "
 
 --- The options of `hecate.doc.generate_project_documentation`.
 M.PROJECT_DOCUMENTATION = { "project_dir", "guides_dir", "output_dir", "site_configuration", "site_configuration_path",
-  "application", "package_name", "sources_dir", "language_server_path", "language_server_config_path", "licences_page",
-  "content_locale", "file_system", "clean_output_dir", "fail_on_problems", "last_updated", "theme_file_system",
-  "theme_files_dir" }
+  "audiences", "application", "package_name", "sources_dir", "language_server_path", "language_server_config_path",
+  "licences_page", "content_locale", "file_system", "clean_output_dir", "fail_on_problems", "last_updated",
+  "theme_file_system", "theme_files_dir" }
 
 --- The table of `licences_page` of `generate_project_documentation`.
 M.LICENCES_PAGE = { "rocks_tree_dir", "root_rocks", "audience", "include_bundled" }
@@ -34,11 +33,11 @@ M.LICENCES_READ = { "rocks_tree_dir", "root_rocks", "max_rocks" }
 M.LICENCES_BUNDLED = { "diagrams", "theme_file_system", "theme_files_dir" }
 
 --- The options of `hecate.doc.reference_site.run`.
-M.REFERENCE_SITE = { "project_dir", "packages", "locale_dir", "file_system", "language_server_path",
-  "language_server_config_path", "since", "internal", "label_audiences", "separate_audience_sites", "sources_dir_pattern" }
+M.REFERENCE_SITE = { "project_dir", "packages", "locale_dir", "audience_locale_dirs", "file_system",
+  "language_server_path", "language_server_config_path", "since", "internal", "sources_dir_pattern" }
 
 --- The options of `hecate.doc.reference.generate`.
-M.REFERENCE = { "since", "internal", "label_audiences", "separate_audience_sites", "examples", "pages_dir" }
+M.REFERENCE = { "since", "internal", "split_audiences", "examples", "pages_dir" }
 
 --- The options of `hecate.doc.luals.export`.
 M.LUALS_EXPORT = { "language_server_config_path", "file_system" }
@@ -46,8 +45,7 @@ M.LUALS_EXPORT = { "language_server_config_path", "file_system" }
 --- The keys of the site configuration (`site.lua`).
 M.SITE_KEYS = { "title", "description", "base_path", "site_origin", "default_locale", "locales", "top_links", "sidebar",
   "repository_url", "edit_link_template", "source_edit_link_template", "footer", "outline_levels", "interface_strings",
-  "logo_path", "favicon_path", "sidebar_marker", "stylesheet_path", "generate_llms_txt", "exclude_file_names",
-  "audiences", "default_audience", "audience_sites" }
+  "logo_path", "favicon_path", "sidebar_marker", "stylesheet_path", "generate_llms_txt", "exclude_file_names" }
 
 -- Edit distance (Levenshtein) of two short names.
 local function distance(a, b)
@@ -194,14 +192,17 @@ function M.check_site_keys(raw, make)
   local key = unknown[1]
   if type(key) ~= "string" then make("site_configuration", "expected keys that are names (strings)") end
   local replacement = renamed.site_keys[key]
-  if replacement then make(key, ("`%s` was renamed `%s`"):format(key, replacement)) end
-  -- A typo of an old name (`logos`) points to the key that replaced it.
+  if type(replacement) == "string" then make(key, ("`%s` was renamed `%s`"):format(key, replacement)) end
+  if type(replacement) == "table" then make(key, ("`%s` was removed: %s"):format(key, replacement.removed)) end
+  -- A typo of an old name (`logos`) points to the key that replaced it; a removed key has no replacement to point to.
   local candidates = {}
   for _, name in ipairs(M.SITE_KEYS) do candidates[#candidates + 1] = name end
   for old in pairs(renamed.site_keys) do candidates[#candidates + 1] = old end
   table.sort(candidates)
   local close = M.suggest(key, candidates)
-  close = close and renamed.site_keys[close] or close
+  if close and type(renamed.site_keys[close]) == "table" then close = nil end
+  local named = close and renamed.site_keys[close]
+  if type(named) == "string" then close = named end
   make(key, ("`%s` is not a key of the site configuration%s; the keys are %s"):format(key,
     close and (" (did you mean `%s`?)"):format(close) or "", table.concat(M.SITE_KEYS, ", ")))
 end

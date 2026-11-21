@@ -75,43 +75,43 @@ local QUOTING = {
 
 function T:test_a_guide_that_quotes_the_notice_is_never_overwritten()
   for label, text in pairs(QUOTING) do
-    local fs = doc.MemoryFileSystem({ ["docs/en/index.md"] = "# Home\n", ["docs/en/configuration.md"] = text })
+    local fs = doc.MemoryFileSystem({ ["docs/maintainer/en/index.md"] = "# Home\n", ["docs/maintainer/en/configuration.md"] = text })
     local err = self:assert_error(function() doc.generate_project_documentation(options(fs, { application = application })) end)
     self:assert_true(core.is_instance_of(err, doc.BuildError), label .. ": " .. tostring(err))
-    self:assert_equal(text, fs:read("docs/en/configuration.md"), label)
-    self:assert_nil(fs:read("dist/en/index.html"), label .. ": nothing was built")
+    self:assert_equal(text, fs:read("docs/maintainer/en/configuration.md"), label)
+    self:assert_nil(fs:read("dist/maintainer/en/index.html"), label .. ": nothing was built")
   end
 end
 
 function T:test_a_guide_that_quotes_the_notice_is_not_removed_as_stale()
   for label, text in pairs(QUOTING) do
-    local fs = doc.MemoryFileSystem({ ["docs/en/index.md"] = "# Home\n", ["docs/en/configuration.md"] = text })
+    local fs = doc.MemoryFileSystem({ ["docs/maintainer/en/index.md"] = "# Home\n", ["docs/maintainer/en/configuration.md"] = text })
     local report = doc.generate_project_documentation(options(fs))
-    self:assert_equal(text, fs:read("docs/en/configuration.md"), label .. ": kept byte for byte")
+    self:assert_equal(text, fs:read("docs/maintainer/en/configuration.md"), label .. ": kept byte for byte")
     self:assert_equal(0, #report.problems, label)
   end
 end
 
 function T:test_the_licences_page_is_overwritten_only_when_generated()
-  local fs = doc.MemoryFileSystem({ ["docs/en/index.md"] = "# Home\n",
-    ["docs/en/third-party-licences.md"] = "# Mine\n\n" .. NOTICE .. " (quoted)\n" })
+  local fs = doc.MemoryFileSystem({ ["docs/maintainer/en/index.md"] = "# Home\n",
+    ["docs/maintainer/en/third-party-licences.md"] = "# Mine\n\n" .. NOTICE .. " (quoted)\n" })
   local err = self:assert_error(function()
     doc.generate_project_documentation(options(fs, { licences_page = { rocks_tree_dir = "nowhere" } }))
   end)
   self:assert_true(core.is_instance_of(err, doc.BuildError), tostring(err))
-  local written = doc.MemoryFileSystem({ ["docs/en/index.md"] = "# Home\n" })
+  local written = doc.MemoryFileSystem({ ["docs/maintainer/en/index.md"] = "# Home\n" })
   doc.generate_project_documentation(options(written, { licences_page = { rocks_tree_dir = "nowhere" } }))
-  self:assert_true(generated_page.is_generated(written:read("docs/en/third-party-licences.md")))
+  self:assert_true(generated_page.is_generated(written:read("docs/maintainer/en/third-party-licences.md")))
   doc.generate_project_documentation(options(written, { licences_page = { rocks_tree_dir = "nowhere" } }))
   doc.generate_project_documentation(options(written, {}))
-  self:assert_nil(written:read("docs/en/third-party-licences.md"), "a generated page that is no longer produced is removed")
+  self:assert_nil(written:read("docs/maintainer/en/third-party-licences.md"), "a generated page that is no longer produced is removed")
 end
 
 function T:test_a_reference_directory_with_a_quoting_guide_is_left_alone()
   local reference_site = require("hecate.doc.reference_site")
   local text = "# Mine\n\n```\n" .. reference.GENERATED:format("demo") .. "\n```\n"
   local fs = doc.MemoryFileSystem({ ["en/reference/demo/mine.md"] = text })
-  local problems = reference_site.write(fs, "en", { pages = { ["reference/demo/index.md"] = "x" }, order = { "reference/demo/index.md" }, problems = {} }, { "demo" })
+  local problems = reference_site.write(fs, "en", { pages = { ["reference/demo/index.md"] = "x" }, order = { "reference/demo/index.md" }, problems = {}, audiences = {} }, { "demo" })
   self:assert_equal(1, #problems)
   self:assert_equal(text, fs:read("en/reference/demo/mine.md"))
 end
