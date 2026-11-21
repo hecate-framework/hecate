@@ -411,7 +411,7 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       document a compose stack that shows the contract rendered: the application (`development`, or
       `openapi.enabled = true`), a reverse proxy so that the viewer and the application share one origin (no CORS
       needed), and a viewer image such as Swagger UI reading `/openapi.json`; every image pinned by tag or digest.
-- [ ] `kernel`, `config`: shipped CORS filter configured by keys (OQ-136, owner direction of 2026-11-15): a global
+- [x] `kernel`, `config`: shipped CORS filter configured by keys (OQ-136, owner direction of 2026-11-15): a global
       filter driven by `cors.*` configuration keys, settable from the environment of a container; tests first
       (preflight, credentials, refused combinations); how-to `filters` and the configuration reference updated.
 - [ ] Website: Diátaxis structure, English source, French locale enabled, MDN-like

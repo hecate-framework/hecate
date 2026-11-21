@@ -149,4 +149,39 @@ function T:test_workers_and_strategy_are_validated()
   self:assert_equal("server.strategy", err.context.violations[1].path)
 end
 
+function T:test_cors_defaults_allow_nothing()
+  local configuration = fixture.load({})
+  self:assert_equal(false, configuration:get("cors.enabled"))
+  self:assert_equal(0, #configuration:get("cors.allowed_origins"))
+  self:assert_equal("GET,HEAD,POST", table.concat(configuration:get("cors.allowed_methods"), ","))
+  self:assert_equal(0, #configuration:get("cors.allowed_headers"))
+  self:assert_equal(0, #configuration:get("cors.exposed_headers"))
+  self:assert_equal(false, configuration:get("cors.allow_credentials"))
+  self:assert_equal(600, configuration:get("cors.max_age"))
+end
+
+function T:test_cors_from_environment_variables_with_comma_separated_lists()
+  local configuration = fixture.load({ env = {
+    HECATE_CORS__ENABLED = "true",
+    HECATE_CORS__ALLOWED_ORIGINS = "https://a.example,https://b.example",
+    HECATE_CORS__ALLOWED_METHODS = "GET,PUT",
+    HECATE_CORS__ALLOWED_HEADERS = "Authorization",
+    HECATE_CORS__EXPOSED_HEADERS = "ETag",
+    HECATE_CORS__ALLOW_CREDENTIALS = "true",
+    HECATE_CORS__MAX_AGE = "60",
+  } })
+  self:assert_equal(true, configuration:get("cors.enabled"))
+  self:assert_equal("https://b.example", configuration:get("cors.allowed_origins")[2])
+  self:assert_equal("PUT", configuration:get("cors.allowed_methods")[2])
+  self:assert_equal("Authorization", configuration:get("cors.allowed_headers")[1])
+  self:assert_equal("ETag", configuration:get("cors.exposed_headers")[1])
+  self:assert_equal(true, configuration:get("cors.allow_credentials"))
+  self:assert_equal(60, configuration:get("cors.max_age"))
+end
+
+function T:test_cors_max_age_is_a_non_negative_integer()
+  local err = fixture.failure({ env = { HECATE_CORS__MAX_AGE = "-1" } })
+  self:assert_equal("cors.max_age", err.context.violations[1].path)
+end
+
 return T
