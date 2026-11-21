@@ -352,12 +352,7 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       is resolved there). Delivered: the two audiences as two different websites (owner decision of 2026-11-21: one
       content tree per audience, `<guides_dir>/<audience>/<locale>/`, each built by the plain builder into
       `<output_dir>/<audience>/`; option `audiences`, default `{ "maintainer" }`; no front matter key, no `merged` mode),
-      `llms.txt` and `llms-full.txt` of a project, the theme extension points. **To do:** the move of the Hecate
-      website into `website/user/` and `website/maintainer/` (a pure move of directories, French mirror included, now
-      that the website is one tree built by `build.build`); links between the two sites and a switcher in the theme;
-      `llms.txt` of other locales; a `draft` page flag. A `check-audience` gate is probably unnecessary now (the tree
-      is the label, so there is no label to check); write it only if the owner still wants a check of the boundary
-      test. `hecate doc build|serve` and the `doc` section of `hecate.project.lua` belong to the `cli` item below.
+      `llms.txt` and `llms-full.txt` of a project, the theme extension points. **To do:** `llms.txt` of other locales (deferred until someone asks); a `draft` page flag. The move of the Hecate website into two trees is the next item; there is no `check-audience` gate (the directory is the label) and no switcher feature (`top_links` carries an absolute link). `hecate doc build|serve` and the `doc` section of `hecate.project.lua` belong to the `cli` item below.
 - [ ] `cli` v1: self-contained executable, `new`, `install`, `add`, `remove`, `update`,
       `serve [--watch]`, `test`, `doc`, `contract`, `toolchain`, `doctor`, `version`.
       **Also (from the `test` item, owner go-ahead of 2026-11-16):** `hecate test` takes the options of
@@ -483,6 +478,7 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       recorded in the repository, bumped deliberately) and the same suite under the current checkout; a disagreement
       between the two is a finding. Until a first release exists, the pinned build is a recorded commit. The job is
       written and documented in this item, and the migration stays reversible until every package passes; (5) delete `tools/harness/`.
+- [ ] `website`: move the Hecate website into `website/user/` and `website/maintainer/` (OQ-144, owner decisions of 2026-11-21), before `0.1.0`: every URL changes, and changing URLs after a release is breaking. Two trees, each built by the plain builder into its own directory (`/user/en/...`, `/maintainer/en/...`), `/` redirecting to the user site, the French mirror moving with its English page, one `site.lua` for both and an edit-link template naming the tree directory, the code reference split (public symbols to the user tree, internals to the maintainer tree: `reference_site.run` with `audience_locale_dirs`), the two entries of `top_links` pointing at the other site, and a check of the links between the two trees added to `check-links`. **First step:** the owner approves the page-by-page classification in [docs/reviews/website-audience-classification.md](reviews/website-audience-classification.md) (three doubts, and whether the maintainer site also publishes `docs/architecture/` and the ADRs); nothing moves before that.
 - [ ] **Phase 3 gate**: verification of the phase, as described in [Phase gates](#phase-gates). Open
       questions to put to the owner before Phase 4: OQ-18 and OQ-45.
 
