@@ -367,6 +367,8 @@ trackpad (Safari sends `gesturechange` rather than a `Ctrl` wheel, so a pinch ma
 keys do), the Firefox rendering of a scaled SVG, and VoiceOver and NVDA announcements of the toolbar and of the
 focusable diagram.
 
+Owner's manual check, 2026-11-21: the four layout fixes and the diagram controls were rechecked by hand in Firefox and Safari, and nothing was found. The list above stays what no automated check covers.
+
 ### Limits of the current implementation
 
 Not implemented: translations of generated pages keyed by symbol, `llms.txt` for locales other than the default, a switcher
