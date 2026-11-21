@@ -20,10 +20,12 @@ local retry = require("lib.retry")
 
 local function relative(root, path) return (path:gsub("\\", "/"):sub(#root + 2)) end
 
--- Unpacks a gzip tar archive (`tar` is on Linux, macOS and Windows 10 and later) into `directory`.
+-- Unpacks a gzip tar archive (`tar` is on Linux, macOS and Windows 10 and later, the system's own one on Windows) into
+-- `directory`, which must exist afterwards: a failed `mkdir` is reported as such, not as a confusing `tar` error.
 local function extract(archive, directory)
   util.mkdir(directory)
-  local out, ok = util.capture(("tar -xzf %s -C %s 2>&1"):format(util.quote(archive), util.quote(directory)))
+  if not util.is_dir(directory) then return ("cannot create the directory %s"):format(directory), false end
+  local out, ok = util.capture(("%s -xzf %s -C %s 2>&1"):format(util.tar_command(), util.quote(archive), util.quote(directory)))
   return out, ok
 end
 

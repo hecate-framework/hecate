@@ -81,9 +81,7 @@ return {
 
     -- On Windows the system's own bsdtar: a `tar` found first on PATH may be another program (Git for Windows' GNU tar
     -- cannot read a zip and misreads `C:` as a remote host).
-    local tar = "tar"
-    if util.is_windows() then tar = util.quote((os.getenv("SystemRoot") or "C:\\Windows") .. "\\System32\\tar.exe") end
-    out, ok = util.capture(("%s -xf %s -C %s 2>&1"):format(tar, util.quote(util.is_windows() and windows_path(archive) or archive),
+    out, ok = util.capture(("%s -xf %s -C %s 2>&1"):format(util.tar_command(), util.quote(util.is_windows() and windows_path(archive) or archive),
       util.quote(util.is_windows() and windows_path(dir) or dir)))
     os.remove(archive)
     if not ok then return { ok = false, problems = { "extraction failed: " .. out } } end

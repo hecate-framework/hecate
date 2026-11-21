@@ -28,6 +28,19 @@ function M.quote(s)
   return "'" .. s:gsub("'", "'\\''") .. "'"
 end
 
+--- The command that runs the system's own `tar` (bsdtar). On Windows a `tar` found first on PATH may be another
+--- program: Git for Windows' GNU tar misreads `C:` as a remote host and cannot read a zip, so the one of System32 is
+--- named. `windows` and `system_root` are injectable so that the choice is testable on every platform.
+---@param windows? boolean   defaults to the running platform
+---@param system_root? string   defaults to %SystemRoot%
+---@return string command   ready to put at the start of a shell command line
+function M.tar_command(windows, system_root)
+  if windows == nil then windows = is_windows end
+  if not windows then return "tar" end
+  local root = system_root or os.getenv("SystemRoot") or "C:\\Windows"
+  return '"' .. (root .. "\\System32\\tar.exe"):gsub('"', '""') .. '"'
+end
+
 --- Returns the path of the running Lua interpreter.
 ---@return string
 function M.interpreter() return arg and arg[-1] or "lua" end

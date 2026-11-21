@@ -270,14 +270,15 @@ end
 
 -- The real `tar` (Linux, macOS and Windows 10 and later) unpacks a tarball written by `tar`: the same call as the task's.
 function T:test_the_default_extraction_unpacks_a_real_tarball()
-  local _, have_tar = util.capture("tar --version")
+  local tar = util.tar_command()
+  local _, have_tar = util.capture(tar .. " --version")
   if not have_tar then return end
   local source = self.root .. "/src"
   util.mkdir(source .. "/package/dist")
   write(source .. "/package/dist/lib.js", "js body")
   write(source .. "/package/LICENSE", "licence")
   local archive = self.root .. "/real.tgz"
-  local _, packed = util.capture(("tar -czf %s -C %s package 2>&1"):format(util.quote(archive), util.quote(source)))
+  local _, packed = util.capture(("%s -czf %s -C %s package 2>&1"):format(tar, util.quote(archive), util.quote(source)))
   self:assert_true(packed)
   local bytes = assert(read(archive))
   local real = task.run({
