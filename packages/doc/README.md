@@ -78,8 +78,8 @@ decided in [ADR 0022](../../docs/adr/0022-doc-dependencies.md).
 ### Building a site
 
 ```sh
-lua packages/doc/bin/build.lua website/user --config website/site.lua --out website/dist/user --strict   # one site per tree (git-ignored output)
-lua packages/doc/bin/build.lua website/maintainer --config website/site.lua --out website/dist/maintainer --strict
+lua packages/doc/bin/build.lua website/user --config website/site.lua --audience user --out website/dist/user --strict   # one site per tree (git-ignored output)
+lua packages/doc/bin/build.lua website/maintainer --config website/site.lua --audience maintainer --out website/dist/maintainer --strict
 lua packages/doc/bin/build.lua website/user --config website/site.lua --out /tmp/site --base /hecate/user/ --clean
 ```
 
@@ -247,7 +247,7 @@ reference"; choices in OQ-40).
 ```sh
 lua tools/run.lua gen-reference            # writes website/user/en/reference/<package>/, needs lua-language-server
 lua tools/run.lua gen-reference --require  # CI: fail instead of skipping when LuaLS is missing
-lua packages/doc/bin/build.lua website/user --config website/site.lua --reference --internals-into website/maintainer --strict   # generate (split between the two trees), then build the user site
+lua packages/doc/bin/build.lua website/user --config website/site.lua --audience user --reference --internals-into website/maintainer --strict   # generate (split between the two trees), then build the user site
 ```
 
 One page per package (`index.md`, the module), per class or type (`<Class>.md`) and per function
@@ -276,7 +276,7 @@ is not supported (shown as text, comments are dropped). Conventions: OQ-35. Site
 `footer`, `outline_levels`, `interface_strings`, `exclude_file_names`; see
 `hecate.doc.SiteConfiguration` and [website/site.lua](../../website/site.lua). The vocabulary rule of OQ-143 names every key for what it is (`_path` a file of `public/`, `_template` a URL template, `_levels`, `_names`), with no alias: the old names (`logo`, `favicon`, `theme`, `colors`, `llms`, `base`, `url`, `repository`, `edit_link`, `source_edit_link`, `exclude`, `outline`, `strings`, `nav`) are no longer read, and `src/hecate/doc/internal/renamed_options.lua` records old to new.
 
-`bin/build.lua` is the bootstrap runner of the website until `hecate doc build` exists. It builds one tree per run and knows two things the library does not: `--internals-into <dir>` (with `--reference`: the source of another tree; public symbols go to the built tree and the `*.internal` modules and non-public classes to `<dir>`, as `audience_locale_dirs` of `reference_site.run` does, and the pages of one tree never link to the other) and the `{tree}` placeholder of `edit_link_template`, filled with the name of the content root (`user` or `maintainer`; any other name is an error, OQ-146). `--root` defaults to the parent of the source, or to its grandparent when the source is a tree named `user` or `maintainer`. It parses its command line strictly: an unknown option, an option without value, a repeated option or a second source directory is a usage error (exit code 2); `--flag=value` is accepted; `--base` and `--url` are validated like the configuration keys.
+`bin/build.lua` is the bootstrap runner of the website until `hecate doc build` exists. It builds one tree per run and knows two things the library does not: `--internals-into <dir>` (with `--reference`: the source of another tree; public symbols go to the built tree and the `*.internal` modules and non-public classes to `<dir>`, as `audience_locale_dirs` of `reference_site.run` does, and the pages of one tree never link to the other) and `--audience <name>`, the `audience` option of `build` and `Site`: the name of the tree comes before `{path}` in the edit link of the hand-written pages (generated pages keep the repository path of their source), as `generate_project_documentation` does for each of its audiences, so that one `site.lua` serves two trees (OQ-146). `--root` defaults to the parent of the source, or to its grandparent when the source is a tree named `user` or `maintainer`. It parses its command line strictly: an unknown option, an option without value, a repeated option or a second source directory is a usage error (exit code 2); `--flag=value` is accepted; `--base` and `--url` are validated like the configuration keys.
 
 ### Native module and the specification examples
 

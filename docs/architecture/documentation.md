@@ -72,8 +72,8 @@ gradients or glows, the name never capitalised, earth as the single accent). Pag
 
 Implementation and conventions: [`packages/doc`](../../packages/doc/README.md); open
 choices OQ-33 to OQ-38. Build, one site per tree (bootstrap runner until `hecate doc build`):
-`lua packages/doc/bin/build.lua website/user --config website/site.lua --reference --internals-into website/maintainer --out website/dist/user --strict`
-then `lua packages/doc/bin/build.lua website/maintainer --config website/site.lua --out website/dist/maintainer --strict`
+`lua packages/doc/bin/build.lua website/user --config website/site.lua --reference --internals-into website/maintainer --audience user --out website/dist/user --strict`
+then `lua packages/doc/bin/build.lua website/maintainer --config website/site.lua --audience maintainer --out website/dist/maintainer --strict`
 (`.github/workflows/website.yml` is the reference).
 
 ### Manual check on a narrow viewport
@@ -333,11 +333,11 @@ home of one site only) and no static file.
 
 The website of the framework is two trees, `website/user/` and `website/maintainer/`, each built by the plain builder into its
 own site (`dist/user`, `dist/maintainer`; `/` redirects to the user site). The classification of the pages is in
-[website-audience-classification.md](../reviews/website-audience-classification.md). The bootstrap runner knows two things
-the library does not: `--internals-into <tree>` splits the generated code reference (public symbols into the built tree,
-`*.internal` modules and non-public classes into the other one, `audience_locale_dirs` of `reference_site.run`), and a
-`{tree}` placeholder in `edit_link_template`, filled from the name of the content root ([OQ-146](../open-questions.md)).
-The task `gen-maintainer-docs` publishes `docs/architecture/`, the ADRs, `docs/reviews/`, `docs/roadmap.md` and
+[website-audience-classification.md](../reviews/website-audience-classification.md). The bootstrap runner `--internals-into <tree>` splits the generated code reference (public symbols into the built tree,
+`*.internal` modules and non-public classes into the other one, `audience_locale_dirs` of `reference_site.run`). One
+`site.lua` serves both trees: the `audience` option of `build` and `Site` (`--audience` of the runner) puts the name of the
+tree before `{path}` in the edit link of hand-written pages, the same rule that `generate_project_documentation` applies to
+each audience ([OQ-146](../open-questions.md)). The task `gen-maintainer-docs` publishes `docs/architecture/`, the ADRs, `docs/reviews/`, `docs/roadmap.md` and
 `docs/open-questions.md` as generated pages of the maintainer tree (owner decision, OQ-144). There is no `check-audience`
 gate: the tree is the label.
 

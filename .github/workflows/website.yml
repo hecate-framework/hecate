@@ -146,8 +146,8 @@ jobs:
           args=(--config website/site.lua --strict --clean)
           if [ -n "$ORIGIN" ]; then args+=(--url "$ORIGIN"); fi
           # Two sites, one per tree (OQ-144): the code reference is generated into the user tree.
-          lua packages/doc/bin/build.lua website/user "${args[@]}" --root . --internals-into website/maintainer --base "${BASE_PATH}/user/" --reference --out website/dist/user
-          lua packages/doc/bin/build.lua website/maintainer "${args[@]}" --base "${BASE_PATH}/maintainer/" --out website/dist/maintainer
+          lua packages/doc/bin/build.lua website/user "${args[@]}" --audience user --root . --internals-into website/maintainer --base "${BASE_PATH}/user/" --reference --out website/dist/user
+          lua packages/doc/bin/build.lua website/maintainer "${args[@]}" --audience maintainer --base "${BASE_PATH}/maintainer/" --out website/dist/maintainer
           # `/` redirects to the user site.
           printf '<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="0; url=user/en/"><link rel="canonical" href="user/en/"><title>hecate</title><a href="user/en/">hecate</a>\n' > website/dist/index.html
 

@@ -1,6 +1,6 @@
 -- Builds a documentation site with hecate.doc. Usage:
 --   lua packages/doc/bin/build.lua [source] [--config file] [--out dir] [--base /path/] [--url origin]
---                                  [--clean] [--strict] [--no-git-dates] [--reference] [--root dir] [--packages a,b] [--internals-into dir]
+--                                  [--clean] [--strict] [--no-git-dates] [--reference] [--root dir] [--packages a,b] [--internals-into dir] [--audience name]
 -- `--base` and `--url` override the configuration (the path the site is served under and its origin,
 -- for canonical links and the sitemap), for example for GitHub Pages: `--base /hecate/ --url https://owner.github.io`.
 -- `source` is the content root (default `website`): one directory per locale, optionally
@@ -12,6 +12,8 @@
 -- the parent of `source`, its grandparent when `source` is a tree named `user` or `maintainer`) for the packages of `--packages` (default: the documented packages);
 -- without LuaLS it warns. `--internals-into <dir>` (the source of another tree, for example `website/maintainer`) splits
 -- the reference by audience: public symbols into `<source>`, `*.internal` modules and non-public classes into `<dir>`.
+-- `--audience <name>` (for example `user`) puts the name before the path in the edit link of the hand-written pages, as the
+-- documentation of a project does for each audience (`audience` option of `build`), so that one `site.lua` serves two trees.
 -- With --strict every problem (those of the build and those of the reference) is listed in one
 -- error, after the site is written.
 -- Exit codes: 0 built, 1 build failed or, with --strict, problems were found, 2 usage error.
@@ -45,7 +47,7 @@ local doc_config = require("hecate.doc.config")
 
 local function usage(stream)
   stream:write("usage: lua build.lua [source] [--config file] [--out dir] [--base /path/] [--url origin] "
-    .. "[--clean] [--strict] [--no-git-dates] [--reference] [--root dir] [--packages a,b] [--internals-into dir]\n")
+    .. "[--clean] [--strict] [--no-git-dates] [--reference] [--root dir] [--packages a,b] [--internals-into dir] [--audience name]\n")
 end
 
 local function usage_error(message)
@@ -54,7 +56,7 @@ local function usage_error(message)
   os.exit(2)
 end
 
-local VALUE_FLAGS = { config = true, out = true, base = true, url = true, root = true, packages = true, ["internals-into"] = true }
+local VALUE_FLAGS = { config = true, out = true, base = true, url = true, root = true, packages = true, ["internals-into"] = true, audience = true }
 local SWITCHES = { clean = true, strict = true, ["no-git-dates"] = true, reference = true }
 
 -- Strict parsing: an unknown flag, a flag without a value (the next word is missing or is another flag), a
@@ -137,15 +139,6 @@ end
 local function run()
   local fs = doc.SystemFileSystem()
   local site_configuration = doc.load_site_configuration(fs, options.config or (options.source .. "/site.lua"))
-  -- `{tree}` of the edit link template is the directory name of the content root (`website/user` gives `user`).
-  if site_configuration.edit_link_template and site_configuration.edit_link_template:find("{tree}", 1, true) then
-    local tree = options.source:gsub("[/\\]+$", ""):match("([^/\\]+)$") or ""
-    if tree ~= "user" and tree ~= "maintainer" then
-      error(("hecate.doc: `{tree}` of edit_link_template needs a content root named user or maintainer (website/user), not %q"):format(
-        options.source), 0)
-    end
-    site_configuration.edit_link_template = site_configuration.edit_link_template:gsub("{tree}", function() return tree end)
-  end
   if options.base then site_configuration.base_path = options.base end
   if options.url then site_configuration.site_origin = options.url end
   local generated = {}
@@ -182,6 +175,7 @@ local function run()
     site_configuration = site_configuration,
     guides_dir = options.source,
     output_dir = options.out or (options.source .. "/dist"),
+    audience = options.audience,
     file_system = fs,
     clean_output_dir = flags.clean,
     last_updated = (not flags["no-git-dates"]) and git_date or nil,
