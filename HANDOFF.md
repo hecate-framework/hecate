@@ -3,8 +3,8 @@
 
 - roadmap_item: `website`: move the Hecate website into `website/user/` and `website/maintainer/` (OQ-144, owner decisions of 2026-11-21), before `0.1.0`
 - status: in-progress
-- lock_until: 2026-11-22T15:56:40Z
-- last_update: 2026-11-22T14:26:40Z
+- lock_until: 2026-11-22T16:19:33Z
+- last_update: 2026-11-22T14:49:33Z
 
 ## Done
 
@@ -18,13 +18,14 @@
 - CI fixes after 2ed33fe (resumed 14:14 UTC): `lychee.toml` excludes updated to the tree layout and the cross-site URLs; `website.yml` passes `--root .` to the user build (default root was `website/`); build commands in READMEs updated. Lychee reproduced locally: 0 errors.
 - `life-of-a-request` user page (en only; no fr source). Code reference split: `bin/build.lua --internals-into`, workflow and .gitignore updated; both sites built locally in `--strict` (user 473 pages, maintainer 25) after `build-native json doc`, `luarocks --tree .hecate/rocks install luv`, `setup-luals`, `LUA_CPATH=.hecate/rocks/lib/lua/5.5/?.so`, luals on PATH.
 
+- `gen-maintainer-docs` (tests first, `tools/tests/maintainer_docs_test.lua`): `docs/architecture/` and `docs/adr/` become generated, git-ignored maintainer pages; mechanism: front matter from the first heading and paragraph, links between documents kept, glossary to the user site, other files to GitHub (`main`); `docs/roadmap.md`, `open-questions.md`, `reviews/` stay unpublished. Maintainer site builds strict: 78 pages. `check-links` and lychee treat the pages as generated.
+
 ## Next steps
 
-1. Generated architecture and ADR pages in the maintainer tree: a task that writes `docs/architecture/` and `docs/adr/` into `website/maintainer/en/` with a title and a `description`, rewrites their links, git-ignored; record the mechanism.
-2. French page `website/user/fr/explanation/life-of-a-request.md` (agent `translator-fr`).
-3. `CLAUDE.md` and `.claude/agents/docs-writer.md` notes for the two trees.
-4. Open-question entry and mirror issue for the `{tree}` placeholder of the edit link template (see "Doubts").
-5. `typecheck`, `/review-package doc`, CHANGELOG, tick the roadmap item, remove this file, mark the pull request ready.
+1. French page `website/user/fr/explanation/life-of-a-request.md` (agent `translator-fr`).
+2. `CLAUDE.md` and `.claude/agents/docs-writer.md` notes for the two trees.
+3. Open-question entry and mirror issue for the `{tree}` placeholder of the edit link template (see "Doubts").
+4. `typecheck`, `/review-package doc`, CHANGELOG, tick the roadmap item, remove this file, mark the pull request ready.
 
 ## Decisions taken (and where they are recorded)
 

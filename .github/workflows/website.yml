@@ -15,12 +15,16 @@ on:
       - "packages/*/src/**"
       - "packages/*/README.md"
       - "packages/doc/**"
-      - "docs/architecture/configuration.md"
+      - "docs/architecture/**"
+      - "docs/adr/**"
+      - "docs/glossary.md"
       - "tools/tasks/gen_error_codes.lua"
       - "tools/tasks/gen_config_reference.lua"
       - "tools/lib/error_codes.lua"
       - "tools/lib/config_reference.lua"
       - "tools/lib/generated_page.lua"
+      - "tools/tasks/gen_maintainer_docs.lua"
+      - "tools/lib/maintainer_docs.lua"
       - "llms.txt"
       - ".github/workflows/website.yml"
   push:
@@ -129,6 +133,7 @@ jobs:
         run: |
           lua tools/run.lua gen-error-codes
           lua tools/run.lua gen-config-reference
+          lua tools/run.lua gen-maintainer-docs
 
       - name: Build the site
         env:

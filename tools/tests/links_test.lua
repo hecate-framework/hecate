@@ -55,4 +55,11 @@ function T:test_other_links_are_not_cross_tree_links()
   self:assert_nil(links.cross_tree_target("docs/x.md", "../../../../maintainer/en/a/"))
   self:assert_nil(links.cross_tree_target(from, "../../../../elsewhere/en/a/"))
 end
+function T:test_a_missing_generated_architecture_or_adr_page_of_the_maintainer_site_is_not_broken()
+  local none = function() return false end
+  self:assert_true(links.is_ungenerated_reference("website/maintainer/en/adr/index.md", none))
+  self:assert_true(links.is_ungenerated_reference("website/maintainer/en/architecture/logging.md", none))
+  self:assert_false(links.is_ungenerated_reference("website/maintainer/en/adr/index.md", function() return true end))
+end
+
 return T
