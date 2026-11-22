@@ -3,8 +3,8 @@
 
 - roadmap_item: `cli` v1: self-contained executable, `new`, `install`, `add`, `remove`, `update`, `serve [--watch]`, `test`, `doc`, `contract`, `toolchain`, `doctor`, `version` (docs/roadmap.md, Phase 3). Started on the owner's request of 2026-11-22.
 - status: in-progress
-- lock_until: 2026-11-22T16:20:23Z
-- last_update: 2026-11-22T14:50:23Z
+- lock_until: 2026-11-22T16:30:59Z
+- last_update: 2026-11-22T15:00:59Z
 
 ## Done
 
@@ -13,12 +13,13 @@
 - Step 2: `packages/cli/bin/hecate.lua` entry point; shell completion (`completion <shell>`, hidden `__complete -- words`, `Command.hidden`); bash script checked by simulating `COMP_WORDS`. CI fix: `gen-catalogue` must be run after a README status change.
 - Step 3: manifest `hecate.cli.manifest` (sandbox in `hecate.cli.internal.sandbox`, schema, tests in `manifest_test.lua`). CI green on the three platforms for steps 1 and 2.
 - Step 4: lockfile format (`hecate.cli.lockfile`: parse, validate, serialize, outdated). Roadmap item added for the shared sandbox (owner, 2026-11-22).
+- Step 5: `hecate.cli.digest` with the `digest` and `plc` backends; `plc 0.5-1` installed in `ci.yml` (first push: watch that the three platforms install it) and in `tools/cloud/setup.sh`.
 
 ## Next steps
 
 1. Read ADR 0009, 0010, 0028, 0029 and the OQ-13 spike (not yet read in full).
 2. Verify the zsh, fish and PowerShell completion scripts on a real shell (PowerShell may drop the empty last word: the script appends `""`, check on CI; add a CI step or a test that runs them where the shell exists). `--version` alias.
-3. `hecate.cli.digest` over the `digest` rock with the `plc` fallback (ADR 0028; prototype in `docs/spikes/OQ-13/`; the rock is not installed in this cloud session: check `tools/cloud/README.md`), then the LuaRocks constraint syntax (`~> 0.3`, `>=`, `<`) to make `lockfile.outdated` compare constraints.
+3. LuaRocks constraint syntax (`~> 0.3`, `>=`, `<`, `==`) in a pure module, to make `lockfile.outdated` compare constraints. Then: install the `digest` rock in CI too (its archive comes from GitHub: fine on runners) and run its contract test there; later a toolchain download uses `sha256_file`.
 4. Then, one step each: lockfile, LuaRocks orchestration, `new` and templates, `install/add/remove/update`, `serve`, `test`, `doc`, `contract`, `doctor`, `toolchain`; the native executable (OQ-13, ADR 0029) in its own steps.
 5. Package README, CHANGELOG, roadmap sub-items as steps land.
 

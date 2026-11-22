@@ -24,5 +24,8 @@ bash /tmp/hecate-bootstrap.sh --prefix /opt/lua-5.5 --link /usr/local/bin
 # Optional: luv (libuv binding). Its Lua 5.5 support is what spike OQ-1 verifies, so a
 # failure here must not block the session.
 luarocks install luv >/dev/null 2>&1 || echo "luv not installed (see OQ-1)"
+# plc: the pure-Lua SHA-256 backend of hecate.cli.digest (ADR 0028); the `digest` rock is fetched from GitHub archives, which
+# the cloud network policy blocks.
+luarocks install plc >/dev/null 2>&1 || echo "plc not installed: hecate.cli.digest needs it or the digest rock"
 
 exit 0

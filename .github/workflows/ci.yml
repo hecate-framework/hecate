@@ -262,7 +262,10 @@ jobs:
         id: install_luv
         if: steps.rocks.outputs.cache-hit != 'true'
         shell: bash
-        run: luarocks --tree .hecate/rocks install luv 1.53.0-0
+        run: |
+          luarocks --tree .hecate/rocks install luv 1.53.0-0
+          # plc: the pure-Lua SHA-256 backend of `hecate.cli.digest` (ADR 0028), the tested fallback of `digest`.
+          luarocks --tree .hecate/rocks install plc 0.5-1
 
       # Built native modules, one cache per module (a run builds only the modules it needs, so one shared cache
       # would be saved with whatever subset the first run built and then hit by a run that needs more). Each key
