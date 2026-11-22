@@ -3,8 +3,8 @@
 
 - roadmap_item: `cli` v1: self-contained executable, `new`, `install`, `add`, `remove`, `update`, `serve [--watch]`, `test`, `doc`, `contract`, `toolchain`, `doctor`, `version` (docs/roadmap.md, Phase 3). Started on the owner's request of 2026-11-22.
 - status: in-progress
-- lock_until: 2026-11-22T17:25:22Z
-- last_update: 2026-11-22T15:55:22Z
+- lock_until: 2026-11-22T17:33:32Z
+- last_update: 2026-11-22T16:03:32Z
 
 ## Done
 
@@ -17,12 +17,13 @@
 - Step 6: `hecate.cli.constraint` (port of LuaRocks version and constraint rules; 225-pair differential test against `luarocks.core.vers` passes with `LUA_PATH=/opt/lua-5.5/share/lua/5.5/?.lua;;`), constraints validated in the manifest, checked by `lockfile.outdated`. CI green on the three platforms for steps 1 to 5.
 - Step 7: `hecate.cli.luarocks` (isolated config, install, installed-set check, pin, `parse_lock`, rockspec generation). Smoke-tested against the real LuaRocks 3.13 in a scratch tree (install, list --porcelain, pin, parse): works; finding: the rockspec file must be named `<name>-<version>-1.rockspec`.
 - Step 8: `hecate.cli.resolution` (rockspec facts, `build_lockfile`); read on the real rockspecs of `plc` and `digest`.
+- Step 9: `reactor.run_process` takes `env` and `cwd` (owner go-ahead, 2026-11-22; tests in `packages/reactor/tests/integration/process_test.lua`); `hecate.cli.runner` is the real runner. Watch the three CI platforms for the quoting of `-e` arguments in the new reactor tests.
 
 ## Next steps
 
 1. Read ADR 0009, 0010, 0028, 0029 and the OQ-13 spike (not yet read in full).
 2. Verify the zsh, fish and PowerShell completion scripts on a real shell (PowerShell may drop the empty last word: the script appends `""`, check on CI; add a CI step or a test that runs them where the shell exists). `--version` alias.
-3. The `hecate install [--frozen]` command that joins the pieces: read the manifest and `hecate.lock`; `--frozen` stops at `lockfile.outdated`; otherwise write `.hecate/luarocks/config.lua`, the generated rockspec (`rockspec_file_name`) and run `install_dependencies` and `pin`; read `luarocks.lock` (`parse_lock`), the installed rockspecs under `<tree>/lib/luarocks/rocks-5.5/<name>/<version>/` (the layout differs per Lua version: ask `luarocks` for it rather than hard-code it) and call `resolution.build_lockfile`; write `hecate.lock`. It needs the real runner (see the doubts). Then `add`, `remove`, `update`, `outdated`.
+3. The `hecate install [--frozen]` command that joins the pieces: read the manifest and `hecate.lock`; `--frozen` stops at `lockfile.outdated`; otherwise write `.hecate/luarocks/config.lua`, the generated rockspec (`rockspec_file_name`) and run `install_dependencies` and `pin`; read `luarocks.lock` (`parse_lock`), the installed rockspecs under `<tree>/lib/luarocks/rocks-5.5/<name>/<version>/` (the layout differs per Lua version: ask `luarocks` for it rather than hard-code it) and call `resolution.build_lockfile`; write `hecate.lock`. The real runner is `hecate.cli.runner.run`. Then `add`, `remove`, `update`, `outdated`.
 4. Then, one step each: lockfile, LuaRocks orchestration, `new` and templates, `install/add/remove/update`, `serve`, `test`, `doc`, `contract`, `doctor`, `toolchain`; the native executable (OQ-13, ADR 0029) in its own steps.
 5. Package README, CHANGELOG, roadmap sub-items as steps land.
 
@@ -32,8 +33,7 @@ none yet
 
 ## Doubts and questions for the owner
 
-- **Runner with `env` and `cwd`.** The `hecate install` command must run LuaRocks with an environment (`LUAROCKS_CONFIG_5_5`, `LUAROCKS_SYSCONFDIR`) and a working directory (`pin` writes `luarocks.lock` there), and capture stdout and stderr. `reactor.run_process(program, args)` captures but takes neither `env` nor `cwd`; `reactor.spawn` takes both but cannot capture output (`stdout`/`stderr` are `inherit` or `ignore`). Needed: a small, backwards-compatible `options` argument (`env`, `cwd`) on `reactor.run_process`, a cross-package change I did not make. Conservative alternative meanwhile: wrap the call in `env`/`cd` through the platform shell (brittle quoting, differs on Windows). Please decide.
-- **What `sha256` of a lock record covers.** The `hecate.lock` spec says "checksum (SHA-256)" next to the source URL. LuaRocks keeps no source archive, and `luarocks download --source` found nothing for `plc` on Lua 5.5 here. Implemented conservatively: the SHA-256 of the installed rockspec (what was resolved), not of the source archive, so a tampered rock source is not detected by it. A real source checksum needs downloading the archive ourselves (an HTTP client from `http`, and the server layout of LuaRocks). Please decide whether the rockspec checksum is enough for `0.1.0`.
+- **What `sha256` of a lock record covers** (owner asked, 2026-11-22: "isn't there already a sha verification in luarocks?"). Checked in the LuaRocks 3.13 sources: LuaRocks verifies only `source.md5` when a rockspec declares it (`fetch.lua`), an optional MD5 that neither `plc` nor `digest` declare (their sources are a `git://` URL and a GitHub zip); there is no general SHA check, and the rockspec itself is unsigned. Downloading the archives ourselves is not realistic (an HTTP client, the layout of the servers, and git sources have no archive to hash). A realistic and useful option: hash the **installed files** of a rock (the list is in its `rock_manifest`, where LuaRocks keeps an MD5 per file) into one SHA-256 (sorted path and file hash), recorded at the first resolution and checked by `install --frozen` on every later machine: it detects an upstream that changed after locking (a moved tag, a replaced zip) for pure-Lua rocks; for `native` rocks the files differ per platform, so they keep the rockspec checksum. The first resolution still trusts what the server delivers (trust on first use, as for npm integrity). Implemented meanwhile: the SHA-256 of the installed rockspec only. Please decide: keep the rockspec checksum, or add the installed-files hash.
 - Already decided by the owner (2026-11-22): the manifest keeps only the specified keys (`lua` is the only toolchain setting); the sandbox becomes a shared module of `core`, in its own roadmap item (`hecate.cli.internal.sandbox` stays a temporary copy until then).
 
 ## Commands to re-run

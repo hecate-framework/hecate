@@ -112,6 +112,52 @@ function T:test_env_is_added_to_the_inherited_environment()
   self:assert_equal("unset", values[2])
 end
 
+function T:test_run_process_takes_an_environment_and_a_working_directory()
+  local directory = assert(uv.fs_mkdtemp(uv.os_tmpdir() .. "/hecate-run-process-XXXXXX"))
+  local marker = assert(io.open(directory .. "/marker.txt", "wb"))
+  marker:write("from the directory")
+  marker:close()
+  local result = run(self, function()
+    local environment = reactor.run_process(uv.exepath(), { "-e", 'io.write(os.getenv("HECATE_RUN_PROCESS_VALUE") or "unset")' },
+      { env = { HECATE_RUN_PROCESS_VALUE = "from the options" } })
+    local inherited = reactor.run_process(uv.exepath(), { "-e", 'io.write(os.getenv("HECATE_RUN_PROCESS_VALUE") or "unset")' })
+    local in_directory = reactor.run_process(uv.exepath(), { "-e", 'io.write(io.open("marker.txt", "rb"):read("a"))' }, { cwd = directory })
+    local empty = reactor.run_process(uv.exepath(), { "-e", "io.write('ok')" }, {})
+    return { environment = environment, inherited = inherited, in_directory = in_directory, empty = empty }
+  end)
+  os.remove(directory .. "/marker.txt")
+  uv.fs_rmdir(directory)
+  self:assert_equal("from the options", result.environment.stdout)
+  self:assert_equal(0, result.environment.code)
+  self:assert_equal("unset", result.inherited.stdout)
+  self:assert_equal("from the directory", result.in_directory.stdout)
+  self:assert_equal("ok", result.empty.stdout)
+end
+
+function T:test_options_of_run_process_are_validated_like_those_of_spawn()
+  local function invalid(fn)
+    local err = self:assert_error(fn)
+    self:assert_true(core.is_instance_of(err, core.ArgumentError), tostring(err))
+    return err
+  end
+  -- Invalid on purpose: the checks are the point of the test.
+  ---@diagnostic disable: param-type-mismatch, assign-type-mismatch
+  run(self, function()
+    invalid(function() reactor.run_process("x", {}, "cwd") end)
+    invalid(function() reactor.run_process("x", {}, { unknown = true }) end)
+    invalid(function() reactor.run_process("x", {}, { ipc = true }) end)       -- a long-lived child's option
+    invalid(function() reactor.run_process("x", {}, { stdout = "ignore" }) end) -- the output is captured
+    invalid(function() reactor.run_process("x", {}, { cwd = 3 }) end)
+    invalid(function() reactor.run_process("x", {}, { cwd = "a\0b" }) end)
+    invalid(function() reactor.run_process("x", {}, { env = "A=1" }) end)
+    invalid(function() reactor.run_process("x", {}, { env = { ["A=B"] = "1" } }) end)
+    invalid(function() reactor.run_process("x", {}, { env = { NAME = "a\0b" } }) end)
+    local err = invalid(function() reactor.run_process("x", {}, { env = { NAME = 1 } }) end)
+    self:assert_true(tostring(err.message):find("reactor.run_process", 1, true) ~= nil, tostring(err.message))
+  end)
+  ---@diagnostic enable: param-type-mismatch, assign-type-mismatch
+end
+
 function T:test_run_process_reaps_the_child_it_kills_on_cancellation()
   if is_windows then return end
   local before = reactor.Reactor.open_handles()

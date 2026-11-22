@@ -67,6 +67,47 @@ local function check_args(name, args)
   end
 end
 
+--- Validates the `cwd` and `env` options shared by `run_process` and `spawn`: `cwd` a string, `env` a table that
+--- maps names (not empty, no `=`) to strings, and no NUL byte anywhere (libuv takes C strings: it would cut a NUL
+--- byte and its tail away, as for the program name).
+---@param name string  the public call, for the message
+---@param options table
+local function check_environment_and_directory(name, options)
+  if options.cwd ~= nil and type(options.cwd) ~= "string" then
+    error(core.ArgumentError(("%s: option cwd must be a string"):format(name)), 4)
+  end
+  if options.cwd ~= nil and options.cwd:find("\0", 1, true) then
+    error(core.ArgumentError(("%s: option cwd contains a NUL byte"):format(name)), 4)
+  end
+  if options.env ~= nil then
+    if type(options.env) ~= "table" then error(core.ArgumentError(("%s: option env must be a table"):format(name)), 4) end
+    for variable, value in pairs(options.env) do
+      if type(variable) ~= "string" or variable == "" or variable:find("=", 1, true) or type(value) ~= "string" then
+        error(core.ArgumentError(("%s: option env maps variable names to strings"):format(name)), 4)
+      end
+      if variable:find("\0", 1, true) or value:find("\0", 1, true) then
+        error(core.ArgumentError(("%s: option env contains a NUL byte in a variable name or value"):format(name)), 4)
+      end
+    end
+  end
+end
+
+local RUN_KEYS = { env = true, cwd = true }
+
+---@param options any
+---@return table
+local function check_run_options(options)
+  if options == nil then return {} end
+  if type(options) ~= "table" then
+    error(core.ArgumentError(("reactor.run_process: expects an options table, got %s"):format(type(options))), 3)
+  end
+  for key in pairs(options) do
+    if not RUN_KEYS[key] then error(core.ArgumentError(("reactor.run_process: unknown option %s"):format(tostring(key))), 3) end
+  end
+  check_environment_and_directory("reactor.run_process", options)
+  return options
+end
+
 -- Documented on `hecate.reactor` (module class completed here so that the LuaLS export lists the
 -- function; coding-standards.md, "Annotations for the reference").
 
@@ -80,23 +121,32 @@ local M = {}
 ---@field stdout string
 ---@field stderr string
 
+--- Options of `reactor.run_process`.
+---@class hecate.reactor.RunOptions
+---@field env? table<string, string>  variables added to the inherited environment (names are case-insensitive on Windows)
+---@field cwd? string  working directory of the child
+
 --- Runs a program to completion, capturing its output. The child is terminated (SIGKILL; on
 --- Windows `TerminateProcess`) if the caller is cancelled: cancellation is the way to stop it, not
 --- `Process:kill`. `args` excludes the program name. The child inherits the environment of this
---- process, without the marker of its own message pipe, and does not inherit that pipe.
+--- process, with `options.env` added and without the marker of its own message pipe, and does not
+--- inherit that pipe. It runs in `options.cwd` when given (a relative `program` then depends on it).
 ---
 --- On cancellation the call waits, uncancellably, for the killed child to be reaped (bounded by the
 --- kill) before it raises, so no process handle outlives it.
 ---
 --- Raises `hecate.core.ArgumentError` if `program` is not a non-empty string, `args` is not a sequence
---- of strings, or either contains a NUL byte, and `hecate.reactor.IoError` if the program cannot be started.
+--- of strings, either contains a NUL byte, or `options` has an unknown key or an invalid `env` or `cwd`, and
+--- `hecate.reactor.IoError` if the program cannot be started.
 ---@async
 ---@param program string  the program to run
 ---@param args? string[]  its arguments, without the program name
+---@param options? hecate.reactor.RunOptions  `env` and `cwd`
 ---@return hecate.reactor.ProcessResult result  the exit status and the captured output
-function M.run_process(program, args)
+function M.run_process(program, args, options)
   check_program("reactor.run_process", program)
   check_args("reactor.run_process", args)
+  options = check_run_options(options)
   uv_call.begin("reactor.run_process")
   local out, err = uv.new_pipe(false), uv.new_pipe(false)
   local chunks = { out = {}, err = {} }
@@ -122,7 +172,7 @@ function M.run_process(program, args)
   end
   local stdio = { nil, out, err }
   local guard = guard_descriptor(stdio)
-  local spawned, pid = uv["spawn"](program, { args = args or {}, env = environment({}), stdio = stdio },
+  local spawned, pid = uv["spawn"](program, { args = args or {}, env = environment(options.env or {}), cwd = options.cwd, stdio = stdio },
     function(code, signal)
       exit_code, exit_signal = code, signal
       if process and not process:is_closing() then process:close() end
@@ -265,30 +315,13 @@ local function check_start_options(options)
   if options.ipc ~= nil and type(options.ipc) ~= "boolean" then
     error(core.ArgumentError("reactor.spawn: option ipc must be a boolean"), 3)
   end
-  if options.cwd ~= nil and type(options.cwd) ~= "string" then
-    error(core.ArgumentError("reactor.spawn: option cwd must be a string"), 3)
-  end
-  -- libuv takes C strings: it would cut a NUL byte and its tail away (as for the program name).
-  if options.cwd ~= nil and options.cwd:find("\0", 1, true) then
-    error(core.ArgumentError("reactor.spawn: option cwd contains a NUL byte"), 3)
-  end
   for _, key in ipairs({ "stdout", "stderr" }) do
     local value = options[key]
     if value ~= nil and value ~= "inherit" and value ~= "ignore" then
       error(core.ArgumentError(("reactor.spawn: option %s must be \"inherit\" or \"ignore\""):format(key)), 3)
     end
   end
-  if options.env ~= nil then
-    if type(options.env) ~= "table" then error(core.ArgumentError("reactor.spawn: option env must be a table"), 3) end
-    for name, value in pairs(options.env) do
-      if type(name) ~= "string" or name == "" or name:find("=", 1, true) or type(value) ~= "string" then
-        error(core.ArgumentError("reactor.spawn: option env maps variable names to strings"), 3)
-      end
-      if name:find("\0", 1, true) or value:find("\0", 1, true) then
-        error(core.ArgumentError("reactor.spawn: option env contains a NUL byte in a variable name or value"), 3)
-      end
-    end
-  end
+  check_environment_and_directory("reactor.spawn", options)
   return options
 end
 
