@@ -62,7 +62,7 @@ local function general_help(commands)
   table.sort(sorted, function(a, b) return a.name < b.name end)
   for _, command in ipairs(sorted) do lines[#lines + 1] = string.format("  %-20s %s", command.name, command.summary) end
   lines[#lines + 1] = ""
-  lines[#lines + 1] = "Every command accepts --help and --json. Run 'hecate <command> --help' for its options."
+  lines[#lines + 1] = "Every command accepts --help and --json. Run 'hecate <command> --help' for its options; 'hecate --version' prints the version."
   return table.concat(lines, "\n")
 end
 
@@ -83,6 +83,12 @@ function M.run(args, options)
     write_error("hecate: " .. message)
     write_error("Run 'hecate --help' for the list of commands.")
     return EXIT.usage
+  end
+  -- `hecate --version` is `hecate version`.
+  if parsed.version and not parsed.command then
+    for _, candidate in ipairs(options.commands) do
+      if candidate.name == "version" then parsed.command = candidate break end
+    end
   end
   if parsed.help or not parsed.command then
     write(parsed.command and help_for_command(parsed.command) or general_help(options.commands))

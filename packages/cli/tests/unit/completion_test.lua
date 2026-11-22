@@ -16,7 +16,7 @@ function T:test_first_word_completes_command_names_without_hidden_ones()
   self:assert_equal("serve toolchain version", complete(""))
   self:assert_equal("serve", complete("s"))
   self:assert_equal("", complete("__"))
-  self:assert_equal("--help --json", complete("-"))
+  self:assert_equal("--help --json --version", complete("-"))
 end
 
 function T:test_second_word_of_a_two_word_command()

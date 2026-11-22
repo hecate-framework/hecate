@@ -46,8 +46,9 @@
 
 - `cli.run(args, options)`: runs one command line, returns the exit code (0 ok, 1 command failed, 2 usage error).
 - `cli.parse(args, commands)`: global flags, command selection (one or two words) and options, raising `ArgumentError`.
-- `cli.commands`: the commands implemented so far (`version`, `install`, `outdated`, shell completion).
+- `cli.commands`: the commands implemented so far (`version` and `--version`, `doctor`, `install`, `outdated`, shell completion).
 - `cli.completion`: `complete(words, commands)` (candidates for a partial command line) and `script(shell)`; commands `completion <shell>` and the hidden `__complete`.
+- `cli.doctor`: `run(runtime, probes, project?)` (the checks: Lua 5.5, LuaRocks, luv, the native codec, SHA-256, a C compiler, the manifest and lockfile of the current directory) and `summary(checks)`; the `hecate doctor` command exits 1 on a failed check, warnings do not.
 - `cli.manifest`: `parse(source, path?, limits?)` and `validate(table, path?)` for `hecate.project.lua` (sandboxed, schema-validated, `ConfigurationError` with pointers); `manifest.schema`.
 - `cli.installer`: `install(options)` joins the manifest, LuaRocks, the lockfile and the checksums (injected file system and LuaRocks); `hecate install` writes `hecate.lock`, `hecate install --frozen` stops when it is missing or out of date and verifies the installed files afterwards.
 - `cli.lockfile`: `parse`, `validate`, `serialize` (sorted, deterministic) and `outdated(lock, manifest)` (missing, orphan, wrongly flagged rocks, locked versions that break a constraint) for `hecate.lock`.

@@ -9,6 +9,8 @@ local parser = require("hecate.cli.parser")
 local M = {}
 
 local GLOBAL_FLAGS = { "--help", "--json" }
+-- Before any command name `--version` is a flag too (`hecate --version`).
+local LEADING_FLAGS = { "--help", "--json", "--version" }
 
 local function add_unique(list, seen, value)
   if not seen[value] then
@@ -46,7 +48,7 @@ function M.complete(words, commands)
     end
   elseif #names == 0 then
     if current:sub(1, 1) == "-" then
-      for _, flag in ipairs(GLOBAL_FLAGS) do add_unique(list, seen, flag) end
+      for _, flag in ipairs(LEADING_FLAGS) do add_unique(list, seen, flag) end
     else
       for _, candidate in ipairs(commands) do
         if not candidate.hidden then add_unique(list, seen, (candidate.name:match("^(%S+)"))) end

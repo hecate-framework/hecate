@@ -3,8 +3,8 @@
 
 - roadmap_item: `cli` v1: self-contained executable, `new`, `install`, `add`, `remove`, `update`, `serve [--watch]`, `test`, `doc`, `contract`, `toolchain`, `doctor`, `version` (docs/roadmap.md, Phase 3). Started on the owner's request of 2026-11-22.
 - status: in-progress
-- lock_until: 2026-11-22T21:02:30Z
-- last_update: 2026-11-22T19:32:30Z
+- lock_until: 2026-11-22T22:22:25Z
+- last_update: 2026-11-22T20:52:25Z
 
 ## Done
 
@@ -25,14 +25,14 @@
 - Step (second session, 2026-11-22, 19:30Z): end-to-end run of `install` on a scratch project with the real LuaRocks and `plc`: found and fixed relative paths given to LuaRocks run from the work directory (absolute paths now, `Runtime.project_dir`) and the missing `.hecate/rocks` on the path of `bin/hecate.lua`. `install`, `install --frozen` and a tampered file (refused) behave as specified.
 - Step (second session, 2026-11-22, 19:55Z): `hecate outdated` (command, `LuaRocks:outdated`, `internal.project_environment` shared with `install`); exact Lua release (`lua_release()` in `bin/hecate.lua`). Run against the real LuaRocks on a scratch project: "all up to date" (no positive case: the rocks with several versions use GitHub archives, which the cloud blocks). Fixed on the way: a reactor file-system call outside the reactor (the unit test ran the task directly and hid it): everything that reads files runs inside `dependencies.run`.
 - CI check (845f1ae, all three platforms green): the PowerShell completion script and its test pass on the runners that have `pwsh`.
+- Step (second session, 2026-11-22, 20:55Z): `hecate doctor` (`hecate.cli.doctor` checks, `commands/doctor.lua`, injected probes) and the `--version` alias; run on this cloud environment: one warning (the native `hecate.json` codec is not built here, which `--json` needs). The first version of the check only `require`d `hecate.json`, which succeeds without the native module (it loads on first use): the probe now encodes a value. `doctor` is offline on purpose (no network check).
 
 ## Next steps
 
 1. Read ADR 0009, 0010, 0028, 0029 and the OQ-13 spike (not yet read in full).
-2. The `--version` alias of `version`.
-3. `add`, `remove`, `update` (manifest edit + install; **open design point**: editing `hecate.project.lua` is editing Lua source that holds the user's comments, so insert a line into the `dependencies` table textually and keep the rest of the file byte for byte, or refuse and print the line to add when the table cannot be found; decide with the owner before writing it); a `cli-e2e` CI step on the three platforms that repeats the scratch-project run of `install` (it needs the network for luarocks.org, and `build-native json` for `--json`).
-4. Then, one step each: `new` and the templates, `serve [--watch]`, `test`, `doc`, `contract`, `doctor`, `toolchain`, `outdated`/`update` follow-ups; the native executable (OQ-13, ADR 0029) in its own steps.
-5. Package README, CHANGELOG, roadmap sub-items as steps land.
+2. `add`, `remove`, `update` (manifest edit + install; **open design point**: editing `hecate.project.lua` is editing Lua source that holds the user's comments, so insert a line into the `dependencies` table textually and keep the rest of the file byte for byte, or refuse and print the line to add when the table cannot be found; decide with the owner before writing it); a `cli-e2e` CI step on the three platforms that repeats the scratch-project run of `install` (it needs the network for luarocks.org, and `build-native json` for `--json`).
+3. Then, one step each: `new` and the templates, `serve [--watch]`, `test`, `doc`, `contract`, `toolchain`, `outdated`/`update` follow-ups; the native executable (OQ-13, ADR 0029) in its own steps.
+4. Package README, CHANGELOG, roadmap sub-items as steps land.
 
 ## Decisions taken (and where they are recorded)
 

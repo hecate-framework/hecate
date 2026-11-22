@@ -24,6 +24,17 @@ function T:test_version_prints_the_versions_and_the_platform()
   self:assert_equal("Hecate 0.1.0 (Lua 5.5.1, LuaRocks 3.13.0) — linux-x86_64", out)
 end
 
+function T:test_the_version_flag_is_the_version_command()
+  local code, out = run({ "--version" })
+  self:assert_equal(0, code)
+  self:assert_equal("Hecate 0.1.0 (Lua 5.5.1, LuaRocks 3.13.0) — linux-x86_64", out)
+  local _, json = run({ "--version", "--json" })
+  self:assert_equal("json:0.1.0:linux-x86_64", json)
+  -- Only without a command: `version --version` is an unknown option, like any other.
+  local code_option = run({ "version", "--version" })
+  self:assert_equal(2, code_option)
+end
+
 function T:test_json_flag_switches_to_machine_readable_output()
   local code, out = run({ "version", "--json" })
   self:assert_equal(0, code)

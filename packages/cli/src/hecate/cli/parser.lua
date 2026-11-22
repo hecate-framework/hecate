@@ -21,6 +21,7 @@ local core = require("hecate.core")
 ---@field command? hecate.cli.Command  nil when no command was named
 ---@field help boolean  `--help` or `-h` was given
 ---@field json boolean  `--json` was given
+---@field version boolean  `--version` was given
 ---@field options table<string, string|boolean|string[]>  options by long name
 ---@field positionals string[]
 
@@ -48,7 +49,7 @@ function M.find_command(args, commands)
   return best, words
 end
 
---- Parses `args`. Global flags (`--help`, `-h`, `--json`) are accepted anywhere before `--`; the options of the
+--- Parses `args`. Global flags (`--help`, `-h`, `--json`, and `--version` when no command is named) are accepted anywhere before `--`; the options of the
 --- selected command are checked against its declaration.
 ---
 --- Raises `hecate.core.ArgumentError` for an unknown command or option, or a missing value.
@@ -56,13 +57,13 @@ end
 ---@param commands hecate.cli.Command[]
 ---@return hecate.cli.ParsedArguments
 function M.parse(args, commands)
-  local parsed = { help = false, json = false, options = {}, positionals = {} }
+  local parsed = { help = false, json = false, version = false, options = {}, positionals = {} }
   local rest = {}
   for _, argument in ipairs(args) do rest[#rest + 1] = argument end
   -- The command name is the leading words that are not flags; the global flags may precede it.
   local leading, cut = {}, 0
   for position, argument in ipairs(rest) do
-    if argument == "--json" or argument == "--help" or argument == "-h" then
+    if argument == "--json" or argument == "--help" or argument == "-h" or argument == "--version" then
       if #leading > 0 then break end
     elseif argument:sub(1, 1) == "-" then
       break
@@ -102,6 +103,8 @@ function M.parse(args, commands)
       parsed.help = true
     elseif argument == "--json" then
       parsed.json = true
+    elseif argument == "--version" and not command then
+      parsed.version = true
     else
       local name, value = argument:match("^%-%-([%w%-]+)=(.*)$")
       name = name or argument:match("^%-%-([%w%-]+)$")
