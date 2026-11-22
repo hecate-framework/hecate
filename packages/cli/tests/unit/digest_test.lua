@@ -8,8 +8,8 @@ local VECTORS = {
   { "abc", "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad" },
 }
 
--- Run every backend through the same contract. A rock that is not installed skips its backend, except `plc`, the
--- tested fallback, which CI installs: there its absence is a failure.
+-- Run every backend through the same contract. A rock that is not installed skips its backend locally; CI installs
+-- both rocks (`digest` and `plc`), so there an absence is a failure.
 local function contract(self, module_name, required)
   local ok, backend = pcall(require, "hecate.cli.internal." .. module_name)
   if not ok then
@@ -34,7 +34,7 @@ local function contract(self, module_name, required)
 end
 
 function T:test_plc_backend_honours_the_contract() contract(self, "digest_backend_plc", true) end
-function T:test_digest_backend_honours_the_contract() contract(self, "digest_backend_digest", false) end
+function T:test_digest_backend_honours_the_contract() contract(self, "digest_backend_digest", true) end
 
 function T:test_the_default_interface_uses_an_installed_backend()
   self:assert_true(digest.backend_name == "digest" or digest.backend_name == "plc")
