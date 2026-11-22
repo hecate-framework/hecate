@@ -38,7 +38,7 @@
 ## Public API
 
 `local router = require("hecate.router")`. The reference is generated from the annotations
-(`website/en/reference/router/`); the guide is [Route requests](../../website/en/how-to/route-requests.md).
+(`website/user/en/reference/router/`); the guide is [Route requests](../../website/user/en/how-to/route-requests.md).
 
 - `router.Router(routes, options?)`: compiles a route table once, at boot.
   - `Router:match(method, raw_path)`: returns a `Match` (`status` 200, 204, 400, 404 or 405, `route`, `parameters`,
@@ -80,7 +80,7 @@
 ### Gaps to the standards
 
 Every gap, with its reason (security or major performance only), is listed in the guide
-[Route requests](../../website/en/how-to/route-requests.md#differences-from-the-standards-and-from-common-expectations):
+[Route requests](../../website/user/en/how-to/route-requests.md#differences-from-the-standards-and-from-common-expectations):
 RFC 6570 level 1 only, one expression per segment, the router's own wildcard notation, no empty values, wildcards
 refuse an encoded slash, status 400 for an unreadable path, `url_for` refuses dot-segment and NUL values, no UTF-8
 check, no redirect, and `/a` = `/a/` by default.

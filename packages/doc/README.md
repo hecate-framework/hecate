@@ -244,7 +244,7 @@ no annotation parser of our own; conventions in
 reference"; choices in OQ-40).
 
 ```sh
-lua tools/run.lua gen-reference            # writes website/en/reference/<package>/, needs lua-language-server
+lua tools/run.lua gen-reference            # writes website/user/en/reference/<package>/, needs lua-language-server
 lua tools/run.lua gen-reference --require  # CI: fail instead of skipping when LuaLS is missing
 lua packages/doc/bin/build.lua website --strict --reference   # generate, then build the site
 ```

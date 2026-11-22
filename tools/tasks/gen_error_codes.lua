@@ -1,7 +1,7 @@
 -- gen-error-codes: the "Error codes" reference page (ADR 0018: every error class and code is documented), from the
 -- error classes declared in packages/*/src, read as files (tools/lib/error_codes.lua): code, class, package, parent,
 -- the first sentence of the LuaLS description, and the `context.reason` values each class documents.
--- Usage: gen-error-codes [--check] [--out path]   (default website/en/reference/error-codes.md)
+-- Usage: gen-error-codes [--check] [--out path]   (default website/user/en/reference/error-codes.md)
 -- The page is git-ignored, like the code reference of gen-reference: the website workflow generates it before the
 -- site build. `--check` writes nothing: it fails when the sources cannot be read into a page (a code declared twice,
 -- a parent that is not an error class) and, when the page exists, when it is out of date. A class without an
@@ -10,7 +10,7 @@ local util = require("lib.util")
 local error_codes = require("lib.error_codes")
 local generated_page = require("lib.generated_page")
 
-local TASK, OUT = "gen-error-codes", "website/en/reference/error-codes.md"
+local TASK, OUT = "gen-error-codes", "website/user/en/reference/error-codes.md"
 
 local function absolute(root, path)
   if path:find("^/") or path:find("^%a:[/\\]") then return path end

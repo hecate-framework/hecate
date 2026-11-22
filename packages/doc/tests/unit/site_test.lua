@@ -256,7 +256,7 @@ function T:test_edit_link_last_updated_and_outline_switches()
     edit_link_template = "https://git.test/edit/main/website/{path}",
   }, { last_updated = function(path) return path == "c/en/b.md" and "2026-01-02T10:00:00Z" or "not a date" end })
   local a = fs:read("o/en/a/index.html")
-  self:assert_true(a:find('<a class="edit-link" href="https://git.test/edit/main/website/en/a.md">', 1, true) ~= nil)
+  self:assert_true(a:find('<a class="edit-link" href="https://git.test/edit/main/website/user/en/a.md">', 1, true) ~= nil)
   self:assert_true(a:find('<time datetime="2026-10-13">13 October 2026</time>', 1, true) ~= nil, "front matter wins")
   local b = fs:read("o/en/b/index.html")
   self:assert_true(b:find('<time datetime="2026-01-02">2 January 2026</time>', 1, true) ~= nil, "provider date")
@@ -279,7 +279,7 @@ function T:test_generated_pages_link_to_their_source_file_or_have_no_edit_link()
   local gen = fs:read("o/en/gen/index.html")
   self:assert_true(gen:find('<a class="edit-link" href="https://git.test/edit/main/packages/x/src/hecate/x/init.lua">', 1, true) ~= nil)
   self:assert_nil(fs:read("o/en/nosource/index.html"):find('class="edit-link"', 1, true))
-  self:assert_true(fs:read("o/en/index.html"):find('website/en/index.md', 1, true) ~= nil, "hand-written pages keep theirs")
+  self:assert_true(fs:read("o/en/index.html"):find('website/user/en/index.md', 1, true) ~= nil, "hand-written pages keep theirs")
   local without = build(files, {
     locales = { { code = "en", label = "English" } },
     edit_link_template = "https://git.test/edit/main/website/{path}",

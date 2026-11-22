@@ -167,4 +167,4 @@
 "translation:fr":
   - changed-files:
       - any-glob-to-any-file:
-          - "website/fr/**"
+          - "website/*/fr/**"

@@ -77,7 +77,7 @@ function T:test_a_failed_write_raises_and_the_logger_counts_it()
   self:assert_true(closed)
 end
 
--- Documented in website/en/how-to/before-going-to-production.md (Logging).
+-- Documented in website/user/en/how-to/before-going-to-production.md (Logging).
 function T:test_a_secret_is_written_as_redacted()
   local path = os.tmpname()
   local sink = log.FileSink({ path = path })
@@ -93,7 +93,7 @@ function T:test_a_secret_is_written_as_redacted()
 end
 
 
--- Documented in website/en/how-to/before-going-to-production.md (Logging): the file sink creates its file with the
+-- Documented in website/user/en/how-to/before-going-to-production.md (Logging): the file sink creates its file with the
 -- permissions the umask of the process leaves (0666 masked), and never rotates it: every record goes to that one file.
 function T:test_the_file_is_created_with_the_umask_and_never_rotated()
   local path = os.tmpname()

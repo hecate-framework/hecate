@@ -513,7 +513,7 @@ function T:test_round_robin_closes_the_connection_when_every_worker_fails_and_go
   for _, record in ipairs(memory:records()) do
     if record.fields and record.fields.code == "hand_over_failed" then
       failures = failures + 1
-      -- Documented in website/en/how-to/before-going-to-production.md (Logging): a connection a worker could not take
+      -- Documented in website/user/en/how-to/before-going-to-production.md (Logging): a connection a worker could not take
       -- is a `warning`.
       self:assert_true(record.severity == log.Severity.warning)
     end

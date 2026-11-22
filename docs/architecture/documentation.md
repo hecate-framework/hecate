@@ -35,7 +35,7 @@ The full site map is in [`website/OUTLINE.md`](../../website/OUTLINE.md).
 - Source: LuaLS annotations (`lua-language-server --doc` export, JSON) + route, schema
   and configuration metadata from the packages.
 - Produced by `hecate doc` (Phase 3; the scripts of `packages/doc/bin/` before that, wrapped by `gen-reference`) into
-  `website/en/reference/` as Markdown. Generated pages are never edited by hand; they
+  `website/user/en/reference/` as Markdown. Generated pages are never edited by hand; they
   carry a header comment saying so.
 - The error codes page (`reference/error-codes.md`, every error class of ADR 0018 with its code, parent and
   `context.reason` values) and the configuration keys page (`reference/configuration-keys.md`) are produced by the
@@ -145,7 +145,7 @@ ADR 0022 (Accepted).
 Owner decision, 2026-11-13. The public pages are written after the manner of *Programming in Lua* (Roberto
 Ierusalimschy): a patient teacher who introduces one thing at a time, shows it at once, and never trades accuracy for
 ease. Readability comes from the order and the pace of the text, not from looser words. The rules apply to every page
-of `website/en/`; the engineering documents of `docs/` keep their denser, reference style.
+of `website/user/en/`; the engineering documents of `docs/` keep their denser, reference style.
 
 1. **One idea per paragraph.** A paragraph states one idea and stops. When a paragraph needs "also", "in addition" or
    a second topic sentence, split it. Three to five sentences is a good length; a one-sentence paragraph is fine.
@@ -172,7 +172,7 @@ A short illustration of rules 1 to 3:
 > Too dense: *Filters, composed once at boot into a chain of responsibility over the action, may pass, short-circuit
 > or post-process, and errors they raise go through the guard like the action's.*
 >
-> Readable: *A [filter](../../website/en/reference/glossary.md) wraps the action of a route: it sees the request
+> Readable: *A [filter](../../website/user/en/reference/glossary.md) wraps the action of a route: it sees the request
 > before the action and the result after it. Here is the smallest filter, one that passes the request on:* (example)
 > *A filter can also stop the request before the action, by returning a result without calling `next`.*
 
@@ -209,7 +209,7 @@ helper's line, so examples print inline. Every phase gate checks both rules on t
 ## Translations
 
 - Locales: `en` (source), `fr` (first), more by contribution.
-- `website/<locale>/` mirrors `website/en/`.
+- `website/<locale>/` mirrors `website/user/en/`.
 - Each translated page records the source revision it translates (front matter
   `source_revision`); `check-translations` flags stale pages.
 - Untranslated pages fall back to English with a visible notice.

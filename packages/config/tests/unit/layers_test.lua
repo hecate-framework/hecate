@@ -208,7 +208,7 @@ function T:test_secret_file_false_overrides_a_file_true()
   self:assert_equal("secret file /run/secrets/HECATE_FLAG", configuration:source("flag"))
 end
 
--- Documented in website/en/how-to/before-going-to-production.md (Secrets).
+-- Documented in website/user/en/how-to/before-going-to-production.md (Secrets).
 function T:test_secret_file_named_by_the_file_variable_wins_over_environment_variable()
   local configuration = fixture.load({
     env = { HECATE_DATABASE__PASSWORD = "from-env", HECATE_DATABASE__PASSWORD_FILE = "/mnt/password" },

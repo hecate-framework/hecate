@@ -86,7 +86,7 @@ JSON Schema keywords outside the emitted subset are a deliberate limit, out of s
 
 Not offered: `refine(base, predicate, description)` (OQ-97). Not yet implemented, planned: `generate` and `generate_invalid` (property-based generators, carried by `test`) and `---@meta` generation for LuaLS (carried by `doc` or `cli`).
 
-Documentation: the how-to [Validate values with schemas](../../website/en/how-to/validate-with-schemas.md), the explanation [Schemas and contracts](../../website/en/explanation/schemas-and-contracts.md) and the tested examples in `examples/`.
+Documentation: the how-to [Validate values with schemas](../../website/user/en/how-to/validate-with-schemas.md), the explanation [Schemas and contracts](../../website/user/en/explanation/schemas-and-contracts.md) and the tested examples in `examples/`.
 
 Choices taken conservatively (Lua pattern for `pattern`, `integer` refuses `1.0`, and others) are in OQ-85.
 

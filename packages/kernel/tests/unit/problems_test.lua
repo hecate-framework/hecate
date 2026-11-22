@@ -179,7 +179,7 @@ function T:test_guard_logs_a_client_caused_error_at_warning()
   self:assert_equal("warning", seen[1][1])
 end
 
--- Documented in website/en/how-to/before-going-to-production.md (Logging).
+-- Documented in website/user/en/how-to/before-going-to-production.md (Logging).
 function T:test_guard_logs_a_client_caused_error_as_request_refused_with_its_fields()
   local seen = {}
   local logger = { log = function(_, severity, message, fields) seen[#seen + 1] = { severity, message, fields } end }
@@ -200,7 +200,7 @@ function T:test_guard_logs_a_client_caused_error_as_request_refused_with_its_fie
   for _, value in pairs(fields) do self:assert_nil(string.find(tostring(value), SECRET, 1, true)) end
 end
 
--- Documented in website/en/how-to/before-going-to-production.md (Logging): the logged path drops the query, but a path
+-- Documented in website/user/en/how-to/before-going-to-production.md (Logging): the logged path drops the query, but a path
 -- parameter is part of the path and is logged as it came.
 function T:test_guard_logs_the_path_parameters_but_not_the_query()
   local seen = {}

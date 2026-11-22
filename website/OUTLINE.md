@@ -1,7 +1,7 @@
 # Site map
 
 Status markers: (P1) … (P5) = roadmap phase in which the page must exist. A page already
-written is listed with its file in `website/en/`.
+written is listed with its file in `website/user/en/`.
 
 ## Home
 

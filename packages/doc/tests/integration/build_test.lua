@@ -277,7 +277,7 @@ function T:test_building_the_repository_website_has_no_problem()
     site_configuration = doc.load_site_configuration(fs, website .. "/site.lua"), guides_dir = website, output_dir = out, file_system = fs, fail_on_problems = false,
   })
   fs:remove_tree(out)
-  -- The code reference (website/en/reference/<package>/) is generated and not in a clean checkout, so
+  -- The code reference (website/user/en/reference/<package>/) is generated and not in a clean checkout, so
   -- the guides' links into it cannot resolve there; `website.yml` builds with --strict after generating
   -- it. A link into a package whose reference is not generated is not a problem of this test; any
   -- other problem is, and so is a link into a generated reference that does not resolve.
