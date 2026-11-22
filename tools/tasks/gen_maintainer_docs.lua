@@ -15,7 +15,8 @@ local SECTIONS = {
     summary = "The specification of each area of hecate. The files under `docs/architecture/` are the source; these pages are generated from them." },
   { directory = "docs/adr", index = false },
 }
-local SKIPPED = {}
+-- The index of `docs/architecture/` is generated here: a README.md of that directory would be written to the same page.
+local SKIPPED = { ["docs/architecture"] = { ["README.md"] = true } }
 
 local function index_page(section, entries)
   local lines = {
@@ -55,9 +56,10 @@ return {
     for _, section in ipairs(SECTIONS) do
       local entries = {}
       for _, name in ipairs(util.list_dir(ctx.root .. "/" .. section.directory)) do
-        if name:find("%.md$") and not SKIPPED[name] then
+        local skipped = SKIPPED[section.directory] and SKIPPED[section.directory][name]
+        if name:find("%.md$") and not skipped and not util.is_dir(ctx.root .. "/" .. section.directory .. "/" .. name) then
           local source = section.directory .. "/" .. name
-          local text = generated_page.read(ctx.root .. "/" .. source) or ""
+          local text = (generated_page.read(ctx.root .. "/" .. source) or ""):gsub("\r\n", "\n")
           apply(maintainer_docs.target(source), maintainer_docs.render(source, text))
           entries[#entries + 1] = { file = name, title = (maintainer_docs.describe(text)) }
         end

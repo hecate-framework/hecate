@@ -9,7 +9,7 @@
 -- reads the file system through `hecate.doc.SystemFileSystem` inside a reactor (OQ-33).
 -- `--reference` first generates the code reference (reference.lua: needs lua-language-server) into
 -- `<source>/<default locale>/reference/` from the packages of the checkout at `--root` (default:
--- the parent of `source`) for the packages of `--packages` (default: the documented packages);
+-- the parent of `source`, its grandparent when `source` is a tree named `user` or `maintainer`) for the packages of `--packages` (default: the documented packages);
 -- without LuaLS it warns. `--internals-into <dir>` (the source of another tree, for example `website/maintainer`) splits
 -- the reference by audience: public symbols into `<source>`, `*.internal` modules and non-public classes into `<dir>`.
 -- With --strict every problem (those of the build and those of the reference) is listed in one
@@ -138,15 +138,22 @@ local function run()
   local fs = doc.SystemFileSystem()
   local site_configuration = doc.load_site_configuration(fs, options.config or (options.source .. "/site.lua"))
   -- `{tree}` of the edit link template is the directory name of the content root (`website/user` gives `user`).
-  if site_configuration.edit_link_template then
+  if site_configuration.edit_link_template and site_configuration.edit_link_template:find("{tree}", 1, true) then
     local tree = options.source:gsub("[/\\]+$", ""):match("([^/\\]+)$") or ""
+    if tree ~= "user" and tree ~= "maintainer" then
+      error(("hecate.doc: `{tree}` of edit_link_template needs a content root named user or maintainer (website/user), not %q"):format(
+        options.source), 0)
+    end
     site_configuration.edit_link_template = site_configuration.edit_link_template:gsub("{tree}", function() return tree end)
   end
   if options.base then site_configuration.base_path = options.base end
   if options.url then site_configuration.site_origin = options.url end
   local generated = {}
   if flags.reference then
-    local root = options.root or (options.source .. "/..")
+    -- The checkout that holds the packages: the parent of the source, or the grandparent of a tree (`website/user`).
+    local source = options.source:gsub("[/\\]+$", "")
+    local tree = source:match("([^/\\]+)$")
+    local root = options.root or (source .. ((tree == "user" or tree == "maintainer") and "/../.." or "/.."))
     local luarc = root .. "/.luarc.json"
     local luarc_file = io.open(luarc, "rb")
     if luarc_file then luarc_file:close() end

@@ -141,6 +141,8 @@ function T:test_the_runner_refuses_malformed_command_lines_with_a_usage_error()
     { "--out", "needs a value" },
     { "--out --strict", "needs a value" },
     { "--base", "needs a value" },
+    { "--internals-into", "needs a value" },
+    { "--internals-into --strict", "needs a value" },
     { "--strict --strict", "repeated option --strict" },
     { "--out a --out b", "repeated option --out" },
     { "--base /a/ --base=/b/", "repeated option --base" },
@@ -157,6 +159,36 @@ function T:test_the_runner_refuses_malformed_command_lines_with_a_usage_error()
   local output, ok = run("--help")
   self:assert_true(ok, output)
   self:assert_true(output:find("usage:", 1, true) ~= nil)
+end
+
+-- A content root named after its tree, with a `site.lua` whose edit link template holds `{tree}` (OQ-146).
+local function tree_site(name)
+  local base = temporary()
+  fs:write(base .. "/site.lua", 'return { title = "t", default_locale = "en", locales = { { code = "en", label = "English" } },\n'
+    .. '  edit_link_template = "https://example.test/edit/website/{tree}/{path}" }\n')
+  fs:write(base .. "/" .. name .. "/en/index.md", "---\ndescription: Home.\n---\n\n# Home\n\nText.\n")
+  return base
+end
+
+function T:test_the_runner_fills_the_tree_of_the_edit_link_from_the_content_root()
+  for _, name in ipairs({ "user", "maintainer" }) do
+    local base = tree_site(name)
+    local output, ok = run(("%s --config %s --out %s --no-git-dates --strict"):format(
+      quote(base .. "/" .. name), quote(base .. "/site.lua"), quote(base .. "/out")))
+    local html = fs:exists(base .. "/out/en/index.html") and fs:read(base .. "/out/en/index.html") or ""
+    fs:remove_tree(base)
+    self:assert_true(ok, output)
+    self:assert_true(html:find("https://example.test/edit/website/" .. name .. "/en/index.md", 1, true) ~= nil, name)
+  end
+end
+
+function T:test_the_runner_refuses_the_tree_placeholder_for_a_content_root_that_is_no_tree()
+  local base = tree_site("site")
+  local output, ok = run(("%s --config %s --out %s --no-git-dates"):format(
+    quote(base .. "/site"), quote(base .. "/site.lua"), quote(base .. "/out")))
+  fs:remove_tree(base)
+  self:assert_false(ok)
+  self:assert_true(output:find("`{tree}` of edit_link_template needs a content root named user or maintainer", 1, true) ~= nil, output)
 end
 
 function T:test_the_runner_accepts_values_with_an_equals_sign()

@@ -3,8 +3,8 @@
 
 - roadmap_item: `website`: move the Hecate website into `website/user/` and `website/maintainer/` (OQ-144, owner decisions of 2026-11-21), before `0.1.0`
 - status: in-progress
-- lock_until: 2026-11-22T16:30:02Z
-- last_update: 2026-11-22T15:00:02Z
+- lock_until: 2026-11-22T16:38:52Z
+- last_update: 2026-11-22T15:08:52Z
 
 ## Done
 
@@ -21,11 +21,12 @@
 - Notes (`CLAUDE.md`, `docs-writer`), OQ-146 and issue #232 for the `{tree}` placeholder; CI green on 96e930b (three platforms, build, links, markdownlint).
 - `gen-maintainer-docs` (tests first, `tools/tests/maintainer_docs_test.lua`): `docs/architecture/` and `docs/adr/` become generated, git-ignored maintainer pages; mechanism: front matter from the first heading and paragraph, links between documents kept, glossary to the user site, other files to GitHub (`main`); `docs/roadmap.md`, `open-questions.md`, `reviews/` stay unpublished. Maintainer site builds strict: 78 pages. `check-links` and lychee treat the pages as generated.
 - French `life-of-a-request` (translator-fr); `check-links` resolves a French-to-English link inside one tree (test first).
+- `/review-package doc` (pkg-doc, architect, test-engineer, security-reviewer on this branch's diff) and its fixes, see CHANGELOG. **Deferred, with reason:** (a) `cross_tree_target` needs a trailing `/` on cross-site links (documented; the strict build checks the rest), pinned by tests; (b) `lychee.toml` excludes extensionless `(user|maintainer)/(en|fr)/` links, so a broken one is caught by `check-links` and the strict build, not lychee; (c) a `javascript:` or raw-HTML source in `docs/` passes through verbatim (sources are reviewed files; hecate.doc escapes pages); (d) ADR 0012 gets no pointer line (it is Accepted; never edited by the relay).
 
 ## Next steps
 
-1. `/review-package doc`, then fix or record the findings.
-2. Tick the roadmap item (and the `doc` follow-up note), remove this file, mark the pull request ready, ask the owner for review. CI was green on 96e930b.
+1. Wait for CI on the review-fix push (three platforms, build, links, markdownlint).
+2. Tick the roadmap item (and the `doc` follow-up note), remove this file, mark the pull request ready, ask the owner for review.
 
 ## Decisions taken (and where they are recorded)
 

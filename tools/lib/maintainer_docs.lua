@@ -43,36 +43,62 @@ local function rewrite_target(source, target)
   local path, fragment = target:match("^([^#]*)(#?.*)$")
   local directory = source:match("^(.*)/[^/]*$") or "."
   local resolved = normalise(directory .. "/" .. path)
+  -- A link that leaves the repository is left as written (it would only be broken on GitHub).
+  if resolved:find("^%.%.") then return target end
   if resolved:find("^docs/architecture/[^/]+%.md$") or resolved:find("^docs/adr/[^/]+%.md$") then
     if resolved == "docs/adr/README.md" then return (path:gsub("README%.md$", "index.md")) .. fragment end
     return target
   end
   if resolved == "docs/glossary.md" then
-    local from = M.target(source):match("^website/maintainer/en/(.*)/[^/]*$") or ""
-    local _, depth = from:gsub("[^/]+", "")
-    return ("../"):rep(depth + 3) .. "user/en/reference/glossary/" .. fragment
+    -- A page is served at `<directory>/<name>/`, the index of a directory at `<directory>/`: one level less.
+    local from, name = M.target(source):match("^website/maintainer/en/(.*)/([^/]*)$")
+    local _, depth = (from or ""):gsub("[^/]+", "")
+    if name ~= "index.md" then depth = depth + 1 end
+    return ("../"):rep(depth + 2) .. "user/en/reference/glossary/" .. fragment
   end
   return M.REPOSITORY_URL .. resolved .. fragment
 end
 
+-- The text outside code spans: inline links (with an optional title) are rewritten. A code span is a run of backticks up to
+-- the next run of the same length (CommonMark), kept as written.
+local function rewrite_text(source, text)
+  return (text:gsub("%]%(([^)%s]+)([^)]*)%)", function(target, rest)
+    return "](" .. rewrite_target(source, target) .. rest .. ")"
+  end))
+end
+
 local function rewrite_line(source, line)
-  -- Inline code (odd segments between backticks) is left as written.
-  local out, index = {}, 0
-  for piece in (line .. "`"):gmatch("(.-)`") do
-    index = index + 1
-    local segment = piece
-    if index % 2 == 1 then
-      segment = piece:gsub("%]%(([^)%s]+)%)", function(target) return "](" .. rewrite_target(source, target) .. ")" end)
+  local out, position = {}, 1
+  while position <= #line do
+    local open_start, open_end = line:find("`+", position)
+    local close_start, close_end
+    if open_start then
+      local length = open_end - open_start + 1
+      local from = open_end + 1
+      while true do
+        close_start, close_end = line:find("`+", from)
+        if not close_start or close_end - close_start + 1 == length then break end
+        from = close_end + 1
+      end
     end
-    out[#out + 1] = segment
+    if not open_start or not close_start then
+      out[#out + 1] = rewrite_text(source, line:sub(position))
+      break
+    end
+    out[#out + 1] = rewrite_text(source, line:sub(position, open_start - 1))
+    out[#out + 1] = line:sub(open_start, close_end)
+    position = close_end + 1
   end
-  return table.concat(out, "`")
+  local text = table.concat(out)
+  -- Reference-style definitions: `[label]: target "title"`.
+  return (text:gsub("^(%s*%[[^%]]+%]:%s*)(%S+)", function(head, target) return head .. rewrite_target(source, target) end))
 end
 
 --- The title (first `# ` heading) and the description (the first paragraph of prose, on one line, or a standard text).
 ---@param text string
 ---@return string title, string description
 function M.describe(text)
+  text = text:gsub("\r\n", "\n")
   local title = text:match("^# ([^\n]+)") or text:match("\n# ([^\n]+)") or "Untitled"
   local after = text:match("\n# [^\n]*\n(.*)$") or text:match("^# [^\n]*\n(.*)$") or ""
   local description
@@ -92,16 +118,28 @@ end
 ---@param text string  its content
 ---@return string
 function M.render(source, text)
+  text = text:gsub("\r\n", "\n")
   local title, description = M.describe(text)
-  if source:find("^docs/architecture/") then description = description:gsub("^Architecture decision record: ", "") end
-  local lines, fenced = {}, false
-  for line in (text:gsub("\r\n", "\n") .. "\n"):gmatch("(.-)\n") do
-    if line:find("^%s*```") or line:find("^%s*~~~") then fenced = not fenced end
-    lines[#lines + 1] = fenced and line or rewrite_line(source, line)
+  if source:find("^docs/architecture/") then
+    description = description:gsub("^Architecture decision record: ", "Architecture specification: ")
+  end
+  local lines, fence_character, fence_length = {}, nil, 0
+  for line in (text .. "\n"):gmatch("(.-)\n") do
+    local marks = line:match("^%s*(```+)") or line:match("^%s*(~~~+)")
+    local kept = false
+    if marks then
+      if not fence_character then
+        fence_character, fence_length, kept = marks:sub(1, 1), #marks, true
+      elseif marks:sub(1, 1) == fence_character and #marks >= fence_length and line:match("^%s*[`~]+%s*$") then
+        fence_character, fence_length, kept = nil, 0, true
+      end
+    end
+    lines[#lines + 1] = (fence_character or kept) and line or rewrite_line(source, line)
   end
   while lines[#lines] == "" do lines[#lines] = nil end
-  local front = ('---\ndescription: "%s"\nhecate: "0.x"\nlua: "5.5"\nsource: %s\ngenerated: true\n---\n\n'):format(
-    (description:gsub("\\", "\\\\"):gsub('"', '\\"')), source)
+  local function quoted(value) return '"' .. value:gsub("\\", "\\\\"):gsub('"', '\\"') .. '"' end
+  local front = ('---\ndescription: %s\nhecate: "0.x"\nlua: "5.5"\nsource: %s\ngenerated: true\n---\n\n'):format(
+    quoted(description), quoted(source))
   local body = table.concat(lines, "\n")
   -- The marker goes after the first heading, like the other generated pages.
   local head, rest = body:match("^(# [^\n]*\n)(.*)$")

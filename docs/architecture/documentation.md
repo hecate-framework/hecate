@@ -71,8 +71,10 @@ gradients or glows, the name never capitalised, earth as the single accent). Pag
   without JavaScript the source stays readable.
 
 Implementation and conventions: [`packages/doc`](../../packages/doc/README.md); open
-choices OQ-33 to OQ-38. Build: `lua packages/doc/bin/build.lua website/user --config website/site.lua --strict` (and `website/maintainer`) (bootstrap
-runner until `hecate doc build`).
+choices OQ-33 to OQ-38. Build, one site per tree (bootstrap runner until `hecate doc build`):
+`lua packages/doc/bin/build.lua website/user --config website/site.lua --reference --internals-into website/maintainer --out website/dist/user --strict`
+then `lua packages/doc/bin/build.lua website/maintainer --config website/site.lua --out website/dist/maintainer --strict`
+(`.github/workflows/website.yml` is the reference).
 
 ### Manual check on a narrow viewport
 
@@ -209,7 +211,7 @@ helper's line, so examples print inline. Every phase gate checks both rules on t
 ## Translations
 
 - Locales: `en` (source), `fr` (first), more by contribution.
-- `website/<locale>/` mirrors `website/user/en/`.
+- `website/user/<locale>/` mirrors `website/user/en/`, and the same for `website/maintainer/`.
 - Each translated page records the source revision it translates (front matter
   `source_revision`); `check-translations` flags stale pages.
 - Untranslated pages fall back to English with a visible notice.
@@ -329,9 +331,15 @@ home of one site only) and no static file.
   reference, after the site is written. `\` is a separator in every path option; a drive-relative path (`C:file`) is refused
   on Windows.
 
-The website of the framework is one tree built by the plain builder; its restructure into `website/user/` and
-`website/maintainer/` is a move of directories (the open part of [OQ-144](../open-questions.md)). A `check-audience` gate
-(which would have checked labels) is probably unnecessary now: the tree is the label.
+The website of the framework is two trees, `website/user/` and `website/maintainer/`, each built by the plain builder into its
+own site (`dist/user`, `dist/maintainer`; `/` redirects to the user site). The classification of the pages is in
+[website-audience-classification.md](../reviews/website-audience-classification.md). The bootstrap runner knows two things
+the library does not: `--internals-into <tree>` splits the generated code reference (public symbols into the built tree,
+`*.internal` modules and non-public classes into the other one, `audience_locale_dirs` of `reference_site.run`), and a
+`{tree}` placeholder in `edit_link_template`, filled from the name of the content root ([OQ-146](../open-questions.md)).
+The task `gen-maintainer-docs` publishes `docs/architecture/` and the ADRs as generated pages of the maintainer tree;
+`docs/roadmap.md`, `docs/open-questions.md` and `docs/reviews/` stay unpublished. There is no `check-audience` gate: the
+tree is the label.
 
 There is no HTTP API reference: the generator never renders routes or the contract. The Lua **code reference**
 (modules, classes and functions of the project's `package_name`, from LuaLS annotations) is a different thing and
