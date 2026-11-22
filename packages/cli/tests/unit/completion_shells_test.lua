@@ -90,9 +90,13 @@ words=(hecate ''); CURRENT=2; _hecate; print -- "--"
 words=(hecate completion --); CURRENT=3; _hecate
 ]])
   local output = table.concat(run(directory, 'zsh -f "' .. script .. '"'), "\n")
-  self:assert_true(output:find("^completion\n%-%-\n") ~= nil, output)
-  self:assert_true(output:find("completion\nversion\n%-%-\n") ~= nil or output:find("completion version\n%-%-\n") ~= nil, output)
-  self:assert_true(output:find("%-%-help") ~= nil and output:find("%-%-json") ~= nil, output)
+  -- Three queries separated by `--`: a prefix, an empty word, an option. The set of commands grows with the CLI, so the
+  -- assertions name members and not the whole list.
+  local first, second, third = output:match("^(.-)\n%-%-\n(.-)\n%-%-\n(.*)$")
+  self:assert_true(first == "completion", output)
+  self:assert_true((" " .. second .. " "):find(" completion ", 1, true) ~= nil and (" " .. second .. " "):find(" version ", 1, true) ~= nil, output)
+  self:assert_true(second:find("__complete", 1, true) == nil, output)
+  self:assert_true(third:find("%-%-help") ~= nil and third:find("%-%-json") ~= nil, output)
 end
 
 function T:test_powershell_completes_commands()

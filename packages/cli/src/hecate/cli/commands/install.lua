@@ -101,6 +101,10 @@ local function real_dependencies()
   }
 end
 
+--- Runs `hecate install` with the real file system, LuaRocks runner and reactor (`execute` takes them as arguments, which
+--- is how the tests run it).
+---@param context hecate.cli.Context
+---@return integer exit_code
 function command.run(context)
   return command.execute(context, real_dependencies())
 end
