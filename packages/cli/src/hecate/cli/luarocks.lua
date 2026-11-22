@@ -26,6 +26,12 @@ local quote = lua_text.quote
 ---@field version string
 ---@field status string  `installed` or what LuaRocks reports otherwise
 
+---@class hecate.cli.OutdatedRock
+---@field name string
+---@field installed string  the newest version installed
+---@field available string  the newest version on the servers
+---@field server string  where it is
+
 ---@class hecate.cli.LuaRocksOptions
 ---@field runner hecate.cli.Runner
 ---@field program? string  the LuaRocks executable (default `luarocks`)
@@ -134,6 +140,27 @@ function LuaRocks:installed()
   end
   table.sort(installed, function(a, b) return a.name < b.name end)
   return installed
+end
+
+--- The rocks of the tree for which a newer version exists on the servers (`luarocks list --outdated --porcelain`, whose
+--- lines are tab-separated: name, installed version, available version, server). Needs the network. Raises
+--- `hecate.core.StateError` when LuaRocks fails, with what it said.
+---@return hecate.cli.OutdatedRock[] outdated  sorted by name
+function LuaRocks:outdated()
+  local result = self:run({ "list", "--outdated", "--porcelain" })
+  if result.code ~= 0 then
+    error(core.StateError({
+      message = "luarocks could not look for newer versions (exit " .. result.code .. "): " .. (result.stderr ~= "" and result.stderr or result.stdout),
+      context = { stderr = result.stderr },
+    }), 0)
+  end
+  local outdated = {}
+  for line in result.stdout:gmatch("[^\r\n]+") do
+    local name, installed, available, server = line:match("^(%S+)\t(%S+)\t(%S+)\t(%S*)")
+    if name then outdated[#outdated + 1] = { name = name, installed = installed, available = available, server = server } end
+  end
+  table.sort(outdated, function(a, b) return a.name < b.name end)
+  return outdated
 end
 
 --- Installs the dependencies of a rockspec into the tree. The exit status is not trusted alone (LuaRocks exits 1 when

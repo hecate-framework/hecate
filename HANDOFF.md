@@ -3,8 +3,8 @@
 
 - roadmap_item: `cli` v1: self-contained executable, `new`, `install`, `add`, `remove`, `update`, `serve [--watch]`, `test`, `doc`, `contract`, `toolchain`, `doctor`, `version` (docs/roadmap.md, Phase 3). Started on the owner's request of 2026-11-22.
 - status: in-progress
-- lock_until: 2026-11-22T19:59:25Z
-- last_update: 2026-11-22T18:29:25Z
+- lock_until: 2026-11-22T21:02:30Z
+- last_update: 2026-11-22T19:32:30Z
 
 ## Done
 
@@ -23,13 +23,15 @@
 - Step 12: `hecate install [--frozen]` command (`commands/install.lua`, registered in `init.lua`; `execute(context, dependencies)` is injectable and tested in `install_command_test.lua`; `bin/hecate.lua` detects the LuaRocks version). Not yet run end to end against real LuaRocks and the network (watch CI; try `hecate install` in a scratch project with `plc`).
 - Step (second session, 2026-11-22): fish and zsh completion scripts verified on real shells (`packages/cli/tests/unit/completion_shells_test.lua`, mutation-checked); PowerShell left to CI.
 - Step (second session, 2026-11-22, 19:30Z): end-to-end run of `install` on a scratch project with the real LuaRocks and `plc`: found and fixed relative paths given to LuaRocks run from the work directory (absolute paths now, `Runtime.project_dir`) and the missing `.hecate/rocks` on the path of `bin/hecate.lua`. `install`, `install --frozen` and a tampered file (refused) behave as specified.
+- Step (second session, 2026-11-22, 19:55Z): `hecate outdated` (command, `LuaRocks:outdated`, `internal.project_environment` shared with `install`); exact Lua release (`lua_release()` in `bin/hecate.lua`). Run against the real LuaRocks on a scratch project: "all up to date" (no positive case: the rocks with several versions use GitHub archives, which the cloud blocks). Fixed on the way: a reactor file-system call outside the reactor (the unit test ran the task directly and hid it): everything that reads files runs inside `dependencies.run`.
+- CI check (845f1ae, all three platforms green): the PowerShell completion script and its test pass on the runners that have `pwsh`.
 
 ## Next steps
 
 1. Read ADR 0009, 0010, 0028, 0029 and the OQ-13 spike (not yet read in full).
-2. PowerShell completion: `completion_shells_test.lua` runs it where `pwsh` exists (Windows and Ubuntu runners); first run is CI: if the empty last word is dropped (the script appends `""`), fix `completion.lua`. fish and zsh pass locally (zsh with `compdef` and `compadd` stubbed, not through `compinit`). `--version` alias still open.
-3. `add`, `remove`, `update`, `outdated` (manifest edit + install); a `cli-e2e` CI step on the three platforms that repeats the scratch-project run of `install` (it needs the network for luarocks.org, and `build-native json` for `--json`). Known gap: the lock records `lua = "5.5"` (from `_VERSION`), the specification wants the exact `5.5.1`: read it from `lua -v` or `luarocks config`.
-4. Then, one step each: lockfile, LuaRocks orchestration, `new` and templates, `install/add/remove/update`, `serve`, `test`, `doc`, `contract`, `doctor`, `toolchain`; the native executable (OQ-13, ADR 0029) in its own steps.
+2. The `--version` alias of `version`.
+3. `add`, `remove`, `update` (manifest edit + install; **open design point**: editing `hecate.project.lua` is editing Lua source that holds the user's comments, so insert a line into the `dependencies` table textually and keep the rest of the file byte for byte, or refuse and print the line to add when the table cannot be found; decide with the owner before writing it); a `cli-e2e` CI step on the three platforms that repeats the scratch-project run of `install` (it needs the network for luarocks.org, and `build-native json` for `--json`).
+4. Then, one step each: `new` and the templates, `serve [--watch]`, `test`, `doc`, `contract`, `doctor`, `toolchain`, `outdated`/`update` follow-ups; the native executable (OQ-13, ADR 0029) in its own steps.
 5. Package README, CHANGELOG, roadmap sub-items as steps land.
 
 ## Decisions taken (and where they are recorded)

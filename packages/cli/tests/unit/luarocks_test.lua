@@ -49,6 +49,22 @@ function T:test_every_command_has_an_explicit_tree_and_the_isolated_environment(
   self:assert_equal("0.5-1", installed[2].version)
 end
 
+function T:test_outdated_rocks_come_from_the_porcelain_listing()
+  local runner, calls = fake(function()
+    return { code = 0, stdout = "luv\t1.50.0-1\t1.53.0-1\thttps://luarocks.org\nplc\t0.5-1\t0.6-1\thttps://luarocks.org\n", stderr = "" }
+  end)
+  local outdated = new(runner):outdated()
+  self:assert_equal("--tree lua_modules list --outdated --porcelain", table.concat(calls[1].args, " "))
+  self:assert_equal(2, #outdated)
+  self:assert_equal("luv 1.50.0-1 1.53.0-1 https://luarocks.org", table.concat({ outdated[1].name, outdated[1].installed, outdated[1].available, outdated[1].server }, " "))
+  self:assert_equal("plc", outdated[2].name)
+  local none = new(fake(function() return { code = 0, stdout = "", stderr = "" } end)):outdated()
+  self:assert_equal(0, #none)
+  local failing = fake(function() return { code = 1, stdout = "", stderr = "Error: no network" } end)
+  local err = self:assert_error(function() new(failing):outdated() end)
+  self:assert_true(tostring((err --[[@as hecate.core.Error]]).message):find("no network", 1, true) ~= nil)
+end
+
 function T:test_install_judges_success_by_the_installed_set_not_the_exit_status()
   -- LuaRocks may exit 1 although everything is installed (spike OQ-2).
   local runner, calls = fake(function(args)
