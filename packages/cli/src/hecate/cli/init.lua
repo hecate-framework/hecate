@@ -15,9 +15,11 @@ local cli = {
   parse = require("hecate.cli.parser").parse,
   commands = {
     require("hecate.cli.commands.version"),
+    require("hecate.cli.commands.add"),
     require("hecate.cli.commands.doctor"),
     require("hecate.cli.commands.install"),
     require("hecate.cli.commands.outdated"),
+    require("hecate.cli.commands.remove"),
     require("hecate.cli.commands.completion")[1],
     require("hecate.cli.commands.completion")[2],
   },
