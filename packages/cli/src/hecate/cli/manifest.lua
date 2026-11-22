@@ -1,10 +1,11 @@
 -- The project manifest `hecate.project.lua` (ADR 0009, cli-and-packaging.md): evaluated in an empty environment
 -- with limits on the work it may do, then validated with `hecate.schema`.
-global <const> require, load, type, tostring, ipairs, table, error
+global <const> require, load, type, tostring, ipairs, pairs, table, error, pcall
 
 local core = require("hecate.core")
 local schema = require("hecate.schema")
 local sandbox = require("hecate.cli.internal.sandbox")
+local constraint = require("hecate.cli.constraint")
 
 ---@class hecate.cli.ManifestContract
 ---@field title string
@@ -81,12 +82,25 @@ function M.validate(value, path)
   path = path or "hecate.project.lua"
   if type(value) ~= "table" then fail(path .. ": the manifest must return a table", path) end
   local ok, violations = M.schema:validate(value)
+  local lines = {}
   if not ok then
-    local lines = {}
     for _, violation in ipairs(violations --[[@as hecate.schema.Violation[] ]]) do
       lines[#lines + 1] = "  " .. tostring(violation)
     end
-    fail(path .. ": invalid manifest:\n" .. table.concat(lines, "\n"), path, { violations = violations })
+  else
+    -- The constraints keep the LuaRocks syntax (ADR 0009): a malformed one is refused here, not at install time.
+    local function check(pointer, text)
+      local parsed, err = pcall(constraint.parse, text)
+      if not parsed then lines[#lines + 1] = "  " .. pointer .. ": " .. tostring((err --[[@as hecate.core.Error]]).message) end
+    end
+    for _, section in ipairs({ "dependencies", "development_dependencies" }) do
+      for name, text in pairs(value[section] or {}) do check("/" .. section .. "/" .. name, text) end
+    end
+    if value.hecate then check("/hecate", value.hecate) end
+    table.sort(lines)
+  end
+  if #lines > 0 then
+    fail(path .. ": invalid manifest:\n" .. table.concat(lines, "\n"), path, { violations = (not ok) and violations or nil, problems = lines })
   end
   return value
 end

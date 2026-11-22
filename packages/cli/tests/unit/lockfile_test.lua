@@ -16,10 +16,10 @@ local function sample()
   return {
     format = 1, lua = "5.5.1", luarocks = "3.13.0",
     rocks = {
-      ["hecate-kernel"] = rock({ dependencies = { "hecate-core", "luv" } }),
+      ["hecate-kernel"] = rock({ version = "0.1.4-1", dependencies = { "hecate-core", "luv" } }),
       ["hecate-core"] = rock(),
       luv = rock({ native = true, version = "1.52.0-1" }),
-      ["hecate-test"] = rock({ development = true, dependencies = { "hecate-core" } }),
+      ["hecate-test"] = rock({ version = "0.1.0-1", development = true, dependencies = { "hecate-core" } }),
     },
   }
 end
@@ -97,6 +97,13 @@ function T:test_outdated_detects_what_install_frozen_must_refuse()
   local wrong_flag = sample()
   wrong_flag.rocks["hecate-core"].development = true
   self:assert_true(lockfile.outdated(wrong_flag, manifest)[1]:find("needed at run time", 1, true) ~= nil)
+
+  local stale = sample()
+  stale.rocks["hecate-kernel"].version = "0.2.0-1"
+  local stale_problems = lockfile.outdated(stale, manifest)
+  self:assert_equal(1, #stale_problems)
+  self:assert_true(stale_problems[1]:find("locked at 0.2.0-1", 1, true) ~= nil, stale_problems[1])
+  self:assert_true(stale_problems[1]:find("'~> 0.1'", 1, true) ~= nil)
 
   local not_dev = sample()
   not_dev.rocks["hecate-test"].development = false

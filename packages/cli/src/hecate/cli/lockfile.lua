@@ -7,6 +7,7 @@ global <const> require, load, type, tostring, ipairs, pairs, table, error, strin
 local core = require("hecate.core")
 local schema = require("hecate.schema")
 local sandbox = require("hecate.cli.internal.sandbox")
+local constraint = require("hecate.cli.constraint")
 
 --- The version of the layout of the file. A file with another value is refused, never guessed at.
 local FORMAT = 1
@@ -147,8 +148,9 @@ end
 
 --- Checks a lockfile against a manifest, as `hecate install --frozen` does: the problems that make the lockfile
 --- outdated. A direct dependency missing from the lockfile; a rock no direct dependency reaches; a rock that a
---- non-development dependency reaches but is marked `development`. It does not compare version constraints (still
---- to do: it needs the LuaRocks constraint syntax). An empty list means the lockfile matches.
+--- non-development dependency reaches but is marked `development`; a direct dependency whose locked version does not
+--- satisfy the constraint of the manifest (the transitive ones carry no constraint in the lockfile). An empty list
+--- means the lockfile matches.
 ---@param lock hecate.cli.Lockfile
 ---@param manifest hecate.cli.Manifest
 ---@return string[] problems  sorted, each with the command that fixes it
@@ -163,21 +165,21 @@ function M.outdated(lock, manifest)
     seen[name] = true
     for _, dependency in ipairs(rock.dependencies) do reach(dependency, runtime) end
   end
-  for name in pairs(manifest.dependencies or {}) do
-    if lock.rocks[name] == nil then
+  local function check_direct(name, wanted, runtime)
+    local rock = lock.rocks[name]
+    if rock == nil then
       problems[#problems + 1] = "'" .. name .. "' is in the manifest but not in the lockfile: run `hecate install`"
-    else
-      reach(name, true)
-      reach(name, false)
+      return
+    end
+    if runtime then reach(name, true) end
+    reach(name, false)
+    if not constraint.satisfies(rock.version, wanted) then
+      problems[#problems + 1] = "'" .. name .. "' is locked at " .. rock.version .. " but the manifest asks for '" .. wanted
+        .. "': run `hecate install` (or `hecate update " .. name .. "` to take the newest version that fits)"
     end
   end
-  for name in pairs(manifest.development_dependencies or {}) do
-    if lock.rocks[name] == nil then
-      problems[#problems + 1] = "'" .. name .. "' is in the manifest but not in the lockfile: run `hecate install`"
-    else
-      reach(name, false)
-    end
-  end
+  for name, wanted in pairs(manifest.dependencies or {}) do check_direct(name, wanted, true) end
+  for name, wanted in pairs(manifest.development_dependencies or {}) do check_direct(name, wanted, false) end
   for name, rock in pairs(lock.rocks) do
     if not reached_any[name] then
       problems[#problems + 1] = "'" .. name .. "' is in the lockfile but no dependency of the manifest needs it: run `hecate install`"

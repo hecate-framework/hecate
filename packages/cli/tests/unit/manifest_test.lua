@@ -60,6 +60,13 @@ function T:test_syntax_errors_precompiled_chunks_and_non_tables_are_refused()
   rejects(self, 'local x = nil return x.y', "attempt to index")
 end
 
+function T:test_constraints_keep_the_luarocks_syntax_and_a_bad_one_is_refused_with_its_pointer()
+  manifest.parse('return { name = "x", hecate = "~> 0.3", dependencies = { a = ">= 1.0, < 2.0", b = "1.2", c = "~> 1" } }')
+  rejects(self, 'return { name = "x", dependencies = { a = "=> 1.0" } }', "/dependencies/a")
+  rejects(self, 'return { name = "x", development_dependencies = { a = "latest!" } }', "/development_dependencies/a")
+  rejects(self, 'return { name = "x", hecate = ">>" }', "/hecate")
+end
+
 function T:test_doc_section_is_closed()
   rejects(self, 'return { name = "x", doc = { unknown = "y" } }', "unknown")
   rejects(self, 'return { name = "x", doc = { guides_dir = "" } }', "/doc/guides_dir")
