@@ -135,17 +135,21 @@ jobs:
           BASE_PATH: ${{ steps.pages.outputs.base_path }}
           ORIGIN: ${{ steps.pages.outputs.origin }}
         run: |
-          args=(website --strict --reference --clean --base "${BASE_PATH}/")
+          args=(--config website/site.lua --strict --clean)
           if [ -n "$ORIGIN" ]; then args+=(--url "$ORIGIN"); fi
-          lua packages/doc/bin/build.lua "${args[@]}"
+          # Two sites, one per tree (OQ-144): the code reference is generated into the user tree.
+          lua packages/doc/bin/build.lua website/user "${args[@]}" --base "${BASE_PATH}/user/" --reference --out website/dist/user
+          lua packages/doc/bin/build.lua website/maintainer "${args[@]}" --base "${BASE_PATH}/maintainer/" --out website/dist/maintainer
+          # `/` redirects to the user site.
+          printf '<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="0; url=user/en/"><link rel="canonical" href="user/en/"><title>hecate</title><a href="user/en/">hecate</a>\n' > website/dist/index.html
 
       - name: Check that the reference was generated
         run: |
           for package in core reactor net json log http router schema openapi container config kernel; do
-            test -f "website/dist/en/reference/$package/index.html" || { echo "missing reference of $package" >&2; exit 1; }
+            test -f "website/dist/user/en/reference/$package/index.html" || { echo "missing reference of $package" >&2; exit 1; }
           done
           for page in error-codes configuration-keys; do
-            test -f "website/dist/en/reference/$page/index.html" || { echo "missing reference page $page" >&2; exit 1; }
+            test -f "website/dist/user/en/reference/$page/index.html" || { echo "missing reference page $page" >&2; exit 1; }
           done
 
       - name: Upload the site

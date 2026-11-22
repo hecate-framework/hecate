@@ -1,6 +1,6 @@
 -- Site configuration of the public website, read by `hecate.doc` (ADR 0012). Data only:
--- the file is evaluated with an empty environment. Build with
---   lua packages/doc/bin/build.lua website --strict
+-- the file is evaluated with an empty environment. One site per tree; build each with
+--   lua packages/doc/bin/build.lua website/user --config website/site.lua --out website/dist/user --strict
 -- (the output goes to website/dist, which is git-ignored).
 return {
   title = "hecate", -- the name is never capitalised (brand kit)
@@ -25,7 +25,8 @@ return {
     { text = { en = "Community", fr = "Communauté" }, link = "community/" },
   },
   repository_url = "https://github.com/hecate-framework/hecate",
-  edit_link_template = "https://github.com/hecate-framework/hecate/edit/main/website/{path}",
+  -- `{tree}` is the directory of the tree being built (`user` or `maintainer`), set by the builder (bin/build.lua).
+  edit_link_template = "https://github.com/hecate-framework/hecate/edit/main/website/{tree}/{path}",
   source_edit_link_template = "https://github.com/hecate-framework/hecate/edit/main/{path}", -- generated reference pages
   generate_llms_txt = true, -- writes llms.txt and llms-full.txt (default locale, published pages)
   exclude_file_names = { "README.md", "glossary-terms.md" }, -- the translators' notes are not pages

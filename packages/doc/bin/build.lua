@@ -135,6 +135,11 @@ end
 local function run()
   local fs = doc.SystemFileSystem()
   local site_configuration = doc.load_site_configuration(fs, options.config or (options.source .. "/site.lua"))
+  -- `{tree}` of the edit link template is the directory name of the content root (`website/user` gives `user`).
+  if site_configuration.edit_link_template then
+    local tree = options.source:gsub("[/\\]+$", ""):match("([^/\\]+)$") or ""
+    site_configuration.edit_link_template = site_configuration.edit_link_template:gsub("{tree}", function() return tree end)
+  end
   if options.base then site_configuration.base_path = options.base end
   if options.url then site_configuration.site_origin = options.url end
   local generated = {}

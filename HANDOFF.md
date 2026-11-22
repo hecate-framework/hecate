@@ -3,8 +3,8 @@
 
 - roadmap_item: `website`: move the Hecate website into `website/user/` and `website/maintainer/` (OQ-144, owner decisions of 2026-11-21), before `0.1.0`
 - status: in-progress
-- lock_until: 2026-11-22T14:14:11Z
-- last_update: 2026-11-22T12:44:11Z
+- lock_until: 2026-11-22T14:18:05Z
+- last_update: 2026-11-22T12:48:05Z
 
 ## Done
 
@@ -14,10 +14,11 @@
 - Moved the pages: `website/en|fr` -> `website/user/en|fr`; `architecture-and-layers` and `measure-performance` (en, fr) -> `website/maintainer/`. Path references updated in tools, `.gitignore`, labeler, package tests and READMEs, architecture docs, roadmap, OUTLINE. Baseline failures unchanged (native modules not built here; 4 benchmark port tests).
 
 - Step 2: links between the two sites are browser-relative URLs (`../../../../maintainer/en/explanation/x/`, the form of documentation.md); `check-links` resolves them across trees (`links.cross_tree_target`, test first); the 21 broken links rewritten. `check-links`, typecheck, lint green.
+- Step 3: one build per tree. `maintainer/en/index.md`; `site.lua` edit link template `website/{tree}/{path}` (`{tree}` filled by `bin/build.lua`, and by the repository-website test); the `doc` integration test builds both trees (all `doc` tests green locally after `build-native json doc` and `luarocks --tree .hecate/rocks install luv`); `website.yml` builds `dist/user` (with `--reference`) and `dist/maintainer`, bases `<base>/user/` and `<base>/maintainer/`, `dist/index.html` redirects to the user site; reference checks use `dist/user`.
 
 ## Next steps
 
-0. Still to do from the first list: create `maintainer/en/index.md`, `website/user/en/explanation/life-of-a-request.md`, `site.lua` (one for both; the builder takes one tree per site), the `build` and CI website workflow paths, `website/README.md`, `CLAUDE.md`, `.claude/agents/docs-writer.md`. Fix the 3 failing `doc` tests (they build `website/` with the old layout).
+0. Still to do: `website/user/en/explanation/life-of-a-request.md` (split, with fr), `website/README.md`, `website/CLAUDE.md`, `CLAUDE.md`, `.claude/agents/docs-writer.md`, CHANGELOG, roadmap, `/review-package doc`, CI on three platforms (the website workflow runs on this PR: check it).
 
 1. Read `docs/reviews/website-audience-classification.md` in full, `website/site.lua`, and the tools that read `website/en` and `website/fr` (`gen-reference`, `gen-error-codes`, `gen-config-reference`, `check-links`, `check-docs-examples`, `check-examples`, `.gitignore`).
 2. Tests first: a `check-links` test for links between the two trees.
@@ -34,7 +35,7 @@ none yet
 
 ## Doubts and questions for the owner
 
-none yet
+- OQ-144 says the edit-link template "already names the tree directory", but the template is one for both sites while `{path}` is relative to the content root of a tree. Conservative choice taken: a `{tree}` placeholder in the template filled by the bootstrap builder (`bin/build.lua`); to record as an open-question entry (and issue) at the finish step if it stays.
 
 ## Commands to re-run
 
