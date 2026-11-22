@@ -85,4 +85,15 @@ function T:test_without_luarocks_it_says_what_to_do()
   self:assert_true(err:find("LuaRocks was not found", 1, true) ~= nil)
 end
 
+function T:test_the_directories_to_create_for_a_path()
+  local directories_of = require("hecate.cli.commands.install").directories_of
+  local function chain(path) return table.concat(directories_of(path), " ") end
+  self:assert_equal(".hecate .hecate/luarocks", chain(".hecate/luarocks/config.lua"))
+  self:assert_equal("", chain("hecate.lock"))
+  self:assert_equal("/home /home/me /home/me/.hecate", chain("/home/me/.hecate/x"))
+  self:assert_equal("C:/Users C:/Users/me", chain("C:/Users/me/x.lua"))
+  self:assert_equal("", chain("/x"))
+  self:assert_equal("a a/b", chain("a/b/c"))
+end
+
 return T

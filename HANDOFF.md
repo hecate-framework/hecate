@@ -22,12 +22,13 @@
 - Step 11: `hecate.cli.installer` (`install` sequence over an injected file system and LuaRocks: config, generated rockspec, install, pin, read `luarocks.lock`, installed rockspecs and `rock_manifest` digests, `build_lockfile`; `--frozen` checks `outdated` before installing and `verify` after); tests in `installer_test.lua` with fakes. Run on a resumed session after PR #229 merged; this environment lacks `luv` and `digest` (the 3 local test failures are `digest_test`, `resolution_test` real-digest cases and `runner_test`; CI has them).
 - Step 12: `hecate install [--frozen]` command (`commands/install.lua`, registered in `init.lua`; `execute(context, dependencies)` is injectable and tested in `install_command_test.lua`; `bin/hecate.lua` detects the LuaRocks version). Not yet run end to end against real LuaRocks and the network (watch CI; try `hecate install` in a scratch project with `plc`).
 - Step (second session, 2026-11-22): fish and zsh completion scripts verified on real shells (`packages/cli/tests/unit/completion_shells_test.lua`, mutation-checked); PowerShell left to CI.
+- Step (second session, 2026-11-22, 19:30Z): end-to-end run of `install` on a scratch project with the real LuaRocks and `plc`: found and fixed relative paths given to LuaRocks run from the work directory (absolute paths now, `Runtime.project_dir`) and the missing `.hecate/rocks` on the path of `bin/hecate.lua`. `install`, `install --frozen` and a tampered file (refused) behave as specified.
 
 ## Next steps
 
 1. Read ADR 0009, 0010, 0028, 0029 and the OQ-13 spike (not yet read in full).
 2. PowerShell completion: `completion_shells_test.lua` runs it where `pwsh` exists (Windows and Ubuntu runners); first run is CI: if the empty last word is dropped (the script appends `""`), fix `completion.lua`. fish and zsh pass locally (zsh with `compdef` and `compadd` stubbed, not through `compinit`). `--version` alias still open.
-3. `add`, `remove`, `update`, `outdated` (manifest edit + install); an end-to-end run of `install` on a scratch project (real LuaRocks, `plc`), and a `cli-e2e` CI step on the three platforms.
+3. `add`, `remove`, `update`, `outdated` (manifest edit + install); a `cli-e2e` CI step on the three platforms that repeats the scratch-project run of `install` (it needs the network for luarocks.org, and `build-native json` for `--json`). Known gap: the lock records `lua = "5.5"` (from `_VERSION`), the specification wants the exact `5.5.1`: read it from `lua -v` or `luarocks config`.
 4. Then, one step each: lockfile, LuaRocks orchestration, `new` and templates, `install/add/remove/update`, `serve`, `test`, `doc`, `contract`, `doctor`, `toolchain`; the native executable (OQ-13, ADR 0029) in its own steps.
 5. Package README, CHANGELOG, roadmap sub-items as steps land.
 

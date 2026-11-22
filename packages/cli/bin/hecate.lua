@@ -12,6 +12,17 @@ for _, package_name in ipairs({ "cli", "core", "json", "log", "reactor", "schema
   package.path = base .. "?.lua;" .. base .. "?/init.lua;" .. package.path
 end
 
+-- Project-local LuaRocks tree of a monorepo checkout (`.hecate/rocks`: luv for the reactor, the SHA-256 rocks), as in
+-- tools/harness/run_file.lua. An installed rock has them on the path already.
+do
+  local version = _VERSION:match("%d+%.%d+")
+  local tree = here .. "/../../../.hecate/rocks"
+  package.path = tree .. "/share/lua/" .. version .. "/?.lua;" .. tree .. "/share/lua/" .. version
+    .. "/?/init.lua;" .. package.path
+  package.cpath = tree .. "/lib/lua/" .. version .. "/?.so;" .. tree .. "/lib/lua/" .. version
+    .. "/?.dll;" .. package.cpath
+end
+
 local cli = require("hecate.cli")
 
 --- The platform as `<os>-<architecture>`, from the path separator, the environment and `uname`.
@@ -39,6 +50,15 @@ local function luarocks_version()
   return line and line:match("(%d+%.%d+%.%d+)") or nil
 end
 
+--- The absolute path of the current directory with forward slashes (`pwd`, `cd` on Windows).
+local function current_directory()
+  local windows = package.config:sub(1, 1) == "\\"
+  local handle = io.popen(windows and "cd" or "pwd")
+  local line = handle and handle:read("l") or nil
+  if handle then handle:close() end
+  return line and (line:gsub("\\", "/")) or nil
+end
+
 local code = cli.run(arg, {
   commands = cli.commands,
   runtime = {
@@ -47,6 +67,7 @@ local code = cli.run(arg, {
     libuv_version = libuv_version,
     luarocks_version = luarocks_version(),
     platform = platform(),
+    project_dir = current_directory(),
   },
 })
 os.exit(code)

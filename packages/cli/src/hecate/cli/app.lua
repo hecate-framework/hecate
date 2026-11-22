@@ -23,6 +23,7 @@ local EXIT = { ok = 0, failure = 1, usage = 2 }
 ---@field luarocks_version? string
 ---@field libuv_version? string
 ---@field platform string  for example "linux-x86_64"
+---@field project_dir? string  absolute path of the current directory, with forward slashes (commands that run programs elsewhere need absolute paths)
 
 ---@class hecate.cli.AppOptions
 ---@field commands hecate.cli.Command[]
