@@ -352,7 +352,7 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       is resolved there). Delivered: the two audiences as two different websites (owner decision of 2026-11-21: one
       content tree per audience, `<guides_dir>/<audience>/<locale>/`, each built by the plain builder into
       `<output_dir>/<audience>/`; option `audiences`, default `{ "maintainer" }`; no front matter key, no `merged` mode),
-      `llms.txt` and `llms-full.txt` of a project, the theme extension points. **To do:** `llms.txt` of other locales (deferred until someone asks); a `draft` page flag. The move of the Hecate website into two trees is the next item; there is no `check-audience` gate (the directory is the label) and no switcher feature (`top_links` carries an absolute link). `hecate doc build|serve` and the `doc` section of `hecate.project.lua` belong to the `cli` item below.
+      `llms.txt` and `llms-full.txt` of a project, the theme extension points. **To do:** `llms.txt` of other locales (deferred until someone asks); a `draft` page flag. The move of the Hecate website into two trees is done (the `website` item below); there is no `check-audience` gate (the directory is the label) and no switcher feature (`top_links` carries an absolute link). `hecate doc build|serve` and the `doc` section of `hecate.project.lua` belong to the `cli` item below.
 - [ ] `cli` v1: self-contained executable, `new`, `install`, `add`, `remove`, `update`,
       `serve [--watch]`, `test`, `doc`, `contract`, `toolchain`, `doctor`, `version`.
       **Also (from the `test` item, owner go-ahead of 2026-11-16):** `hecate test` takes the options of
@@ -420,6 +420,11 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       `shield` section of `deadlines-and-cancellation`, the `BufferedWriter:close` and 16 KiB text, the sockets
       how-to, json `out_of_memory`) and refresh every stale `source_revision` stamp (OQ-64; findings A44 and B32 of
       `docs/reviews/phase-1-coherence-findings.md`; row M1 of `docs/reviews/phase-1-review-package.md`).
+      **Also (found while moving the website into two trees, pull request #229):** the French reference index
+      `website/user/fr/reference/index.md` lists 11 of the 17 packages of the code reference and none of the generated
+      pages; bring it in step with `website/user/en/reference/index.md` (`openapi`, `test`, `hecate`, `unicode`,
+      `unicode-data`, `doc`, the error codes and the configuration keys), and translate the French mirror of the two
+      maintainer pages if the owner wants the maintainer site in French (today it falls back to English).
       **Also carries the French mirror of `http` (Phase 2 item, pull request 52):** translate the six English pages
       `website/user/en/explanation/http-model.md` and `website/user/en/how-to/{serve-http, stream-http-content, use-the-http-client,
       http-limits-timeouts-and-tls, handle-forms-and-multipart}.md` (terminology in `website/user/fr/glossary-terms.md`: add *origin*,
