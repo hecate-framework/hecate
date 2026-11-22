@@ -21,7 +21,7 @@ local resolution = require("hecate.cli.resolution")
 ---@field luarocks hecate.cli.LuaRocks
 ---@field work_dir string  where the generated rockspec and `luarocks.lock` live (`.hecate/luarocks`)
 ---@field tree string  the project-local tree
----@field lua string  exact Lua version
+---@field lua string  exact Lua version (the first two numbers name the directories of the tree)
 ---@field luarocks_version string  exact LuaRocks version
 ---@field rock_directory? fun(name: string, version: string): string  where LuaRocks keeps a rock's rockspec and `rock_manifest`
 ---@field deployed_directory? fun(category: string): string  the directory of the `lua`, `lib` or `bin` files in the tree
@@ -57,12 +57,13 @@ end
 
 --- What each pinned rock installed: its rockspec text, and for a pure-Lua rock the digest of its files.
 local function read_installed(options, pins)
+  local line = options.lua:match("^%d+%.%d+") or options.lua
   local rock_directory = options.rock_directory or function(name, version)
-    return join(options.tree, "lib/luarocks/rocks-" .. options.lua .. "/" .. name .. "/" .. version)
+    return join(options.tree, "lib/luarocks/rocks-" .. line .. "/" .. name .. "/" .. version)
   end
   local deployed = options.deployed_directory or function(category)
-    if category == "lua" then return join(options.tree, "share/lua/" .. options.lua) end
-    if category == "lib" then return join(options.tree, "lib/lua/" .. options.lua) end
+    if category == "lua" then return join(options.tree, "share/lua/" .. line) end
+    if category == "lib" then return join(options.tree, "lib/lua/" .. line) end
     return join(options.tree, "bin")
   end
   local rockspecs, digests = {}, {}

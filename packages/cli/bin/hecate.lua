@@ -31,12 +31,21 @@ end
 local libuv_ok, luv = pcall(require, "luv")
 local libuv_version = libuv_ok and luv.version_string and luv.version_string() or nil
 
+--- The version of the LuaRocks on the path (`luarocks --version`), nil when there is none.
+local function luarocks_version()
+  local handle = io.popen("luarocks --version 2>" .. (package.config:sub(1, 1) == "\\" and "nul" or "/dev/null"))
+  local line = handle and handle:read("l") or nil
+  if handle then handle:close() end
+  return line and line:match("(%d+%.%d+%.%d+)") or nil
+end
+
 local code = cli.run(arg, {
   commands = cli.commands,
   runtime = {
     hecate_version = "0.0.0",
     lua_version = _VERSION:match("%d+%.%d+") or _VERSION,
     libuv_version = libuv_version,
+    luarocks_version = luarocks_version(),
     platform = platform(),
   },
 })

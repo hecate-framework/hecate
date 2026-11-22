@@ -8,7 +8,7 @@
 | Rock | `hecate-cli` |
 | Layer | Tooling |
 | Roadmap phase | 3 |
-| Status | in progress — dispatcher, argument parser, `--help`, `--json`, exit codes, `version`, shell completion, the manifest, the lockfile format, SHA-256, LuaRocks constraints and orchestration; other commands to do |
+| Status | in progress — dispatcher, argument parser, `--help`, `--json`, exit codes, `version`, shell completion, the manifest, the lockfile format, SHA-256, LuaRocks constraints and orchestration, `install [--frozen]`; other commands to do |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |
 | Depends on | [`core`](../core), [`reactor`](../reactor), [`log`](../log), [`json`](../json), [`schema`](../schema) |
 | Used by | — |
@@ -46,9 +46,10 @@
 
 - `cli.run(args, options)`: runs one command line, returns the exit code (0 ok, 1 command failed, 2 usage error).
 - `cli.parse(args, commands)`: global flags, command selection (one or two words) and options, raising `ArgumentError`.
-- `cli.commands`: the commands implemented so far (`version`).
+- `cli.commands`: the commands implemented so far (`version`, `install`, shell completion).
 - `cli.completion`: `complete(words, commands)` (candidates for a partial command line) and `script(shell)`; commands `completion <shell>` and the hidden `__complete`.
 - `cli.manifest`: `parse(source, path?, limits?)` and `validate(table, path?)` for `hecate.project.lua` (sandboxed, schema-validated, `ConfigurationError` with pointers); `manifest.schema`.
+- `cli.installer`: `install(options)` joins the manifest, LuaRocks, the lockfile and the checksums (injected file system and LuaRocks); `hecate install` writes `hecate.lock`, `hecate install --frozen` stops when it is missing or out of date and verifies the installed files afterwards.
 - `cli.lockfile`: `parse`, `validate`, `serialize` (sorted, deterministic) and `outdated(lock, manifest)` (missing, orphan, wrongly flagged rocks, locked versions that break a constraint) for `hecate.lock`.
 - `cli.digest`: `sha256(data)`, `sha256_file(path)`, `backend_name`, `using(backend)` (ADR 0028; rocks `digest`, fallback `plc`).
 - `cli.constraint`: `parse_version`, `compare`, `parse` and `satisfies` over the LuaRocks version and constraint syntax.
