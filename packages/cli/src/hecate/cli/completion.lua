@@ -99,7 +99,11 @@ complete -c hecate -f -a '(hecate __complete -- (commandline -opc)[2..-1] (comma
 Register-ArgumentCompleter -Native -CommandName hecate -ScriptBlock {
   param($wordToComplete, $commandAst, $cursorPosition)
   $words = @($commandAst.CommandElements | Select-Object -Skip 1 | ForEach-Object { $_.ToString() })
-  if ($wordToComplete -eq '') { $words += '""' }
+  # An empty last word must reach `hecate` as an empty argument. PowerShell 7.3+ passes it as it is (Standard or
+  # Windows mode); Windows PowerShell and 7.0 to 7.2 drop it, and need the literal quotes (Legacy mode).
+  if ($wordToComplete -eq '') {
+    $words += $(if ($PSNativeCommandArgumentPassing -and $PSNativeCommandArgumentPassing -ne 'Legacy') { '' } else { '""' })
+  }
   hecate __complete -- @words | ForEach-Object {
     [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_)
   }

@@ -100,6 +100,8 @@ function T:test_powershell_completes_commands()
   local directory = shim()
   local script = temporary_directory() .. "/probe.ps1"
   write(script, [[
+# Standard: the shim of Windows is a .cmd file, for which the default mode of 7.3+ is still the legacy one.
+if ($PSVersionTable.PSVersion.Major -ge 7 -and $PSVersionTable.PSVersion.Minor -ge 3 -or $PSVersionTable.PSVersion.Major -gt 7) { $PSNativeCommandArgumentPassing = 'Standard' }
 . ([scriptblock]::Create((hecate completion powershell | Out-String)))
 (TabExpansion2 'hecate comp' 11).CompletionMatches | ForEach-Object { $_.CompletionText }
 '--'
@@ -109,6 +111,9 @@ function T:test_powershell_completes_commands()
   self:assert_true(output:find("completion", 1, true) ~= nil, output)
   self:assert_true(output:find("version", 1, true) ~= nil, output)
   self:assert_true(output:find("__complete", 1, true) == nil, output)
+  -- After `--` the second query (an empty last word) lists commands, not the files of the directory.
+  local after = output:match("%-%-\n(.*)$") or ""
+  self:assert_true(after:find("version", 1, true) ~= nil and after:find("%.editorconfig") == nil, output)
 end
 
 return T
