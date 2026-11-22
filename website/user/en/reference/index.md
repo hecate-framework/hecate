@@ -25,6 +25,11 @@ documented package.
 - [`hecate.container`](container/index.md): the inversion-of-control container, lifetimes, constructor injection, boot validation and disposal.
 - [`hecate.config`](config/index.md): layered configuration validated by schemas, environment variables, secrets and the immutable `Configuration`.
 - [`hecate.kernel`](kernel/index.md): the application, feature modules, controllers, route modules, filters, problem details, the supervisor and the listening strategies of multi-process serving.
+- [`hecate.test`](test/index.md): the xUnit test framework: cases, suites, fixtures, assertions, the in-process HTTP client, property-based testing and coverage.
+- [`hecate`](hecate/index.md): the meta-module that re-exports the framework surface for applications, and the type names that annotate them.
+- [`hecate.unicode`](unicode/index.md): Unicode normalisation of UTF-8 strings, NFC and NFD, and the Unicode version in use.
+- [`hecate.unicode_data`](unicode-data/index.md): the generated Unicode Character Database tables behind `hecate.unicode`, versioned by the Unicode version.
+- [`hecate.doc`](doc/index.md): the documentation generator and static site builder, and the generation of a project's documentation.
 
 Two pages are generated from the sources and the specifications:
 

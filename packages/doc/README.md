@@ -257,7 +257,7 @@ and return values, errors raised, whether it may suspend (`---@async`), examples
 compatibility, see also), a `generated: true` front matter key and a header comment saying not to
 edit it. A class page lists its fields and methods with a stable anchor each (`#name`). Examples
 are the tested files `packages/<package>/examples/<symbol>.lua`. The pages are not committed
-(git-ignored); the output is deterministic. Documented packages (13): `core`, `reactor`, `net`, `json`, `log`, `http`, `router`, `schema`, `openapi`, `container`, `config`, `kernel`, `test` (`reference_site.DEFAULT_PACKAGES`).
+(git-ignored); the output is deterministic. Documented packages (17, every package that has a `src/`): `core`, `reactor`, `net`, `json`, `log`, `http`, `router`, `schema`, `openapi`, `container`, `config`, `kernel`, `test`, `hecate`, `unicode`, `unicode-data`, `doc` (`reference_site.DEFAULT_PACKAGES`). The module of a package is `hecate.<name>` with the dashes written as underscores (`unicode-data` is `hecate.unicode_data`), except the meta-package `hecate`, whose module is `hecate` (`reference.module_name`).
 
 ### Content
 

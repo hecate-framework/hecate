@@ -150,7 +150,7 @@ jobs:
 
       - name: Check that the reference was generated
         run: |
-          for package in core reactor net json log http router schema openapi container config kernel; do
+          for package in core reactor net json log http router schema openapi container config kernel test hecate unicode unicode-data doc; do
             test -f "website/dist/user/en/reference/$package/index.html" || { echo "missing reference of $package" >&2; exit 1; }
           done
           for page in error-codes configuration-keys; do

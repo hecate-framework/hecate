@@ -39,6 +39,10 @@ website/user/en/reference/config/
 website/user/en/reference/kernel/
 website/user/en/reference/openapi/
 website/user/en/reference/test/
+website/user/en/reference/hecate/
+website/user/en/reference/unicode/
+website/user/en/reference/unicode-data/
+website/user/en/reference/doc/
 # The internals of the same packages, generated into the maintainer tree.
 website/maintainer/en/reference/core/
 website/maintainer/en/reference/reactor/
@@ -53,6 +57,10 @@ website/maintainer/en/reference/config/
 website/maintainer/en/reference/kernel/
 website/maintainer/en/reference/openapi/
 website/maintainer/en/reference/test/
+website/maintainer/en/reference/hecate/
+website/maintainer/en/reference/unicode/
+website/maintainer/en/reference/unicode-data/
+website/maintainer/en/reference/doc/
 # Architecture specifications and ADRs as maintainer pages (gen-maintainer-docs; the files of docs/ stay the source).
 website/maintainer/en/architecture/
 website/maintainer/en/adr/

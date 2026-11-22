@@ -325,7 +325,7 @@ local function build_classes(inputs, pages_dir, problems, include_internal)
         decoded = value
       end
     end
-    local prefix = "hecate." .. input.name
+    local prefix = M.module_name(input.name)
     for _, entry in ipairs(decoded) do
       local name = entry.name
       if entry.type == "type" and type(name) == "string"
@@ -844,7 +844,7 @@ local function render_class(context, options, class, classes_of_package, errors_
   add("## Compatibility", compatibility_text(options, class))
   local extra = {}
   for _, parent in ipairs(class.extends) do extra[#extra + 1] = parent end
-  if not class.is_root then extra[#extra + 1] = "hecate." .. class.package_name end
+  if not class.is_root then extra[#extra + 1] = M.module_name(class.package_name) end
   add("## See also", see_entries(context, class, extra))
 
   local title = class.is_root and class.name or class.short
@@ -855,6 +855,15 @@ local function render_class(context, options, class, classes_of_package, errors_
     source = source_of(class.package_name, class.file),
   }
   return page(meta, class.package_name, class.name, body)
+end
+
+--- The module of a package: `hecate.<name>` with the dashes of the name written as underscores (the package
+--- `unicode-data` is the module `hecate.unicode_data`), except the meta-package `hecate`, whose module is `hecate`.
+---@param package_name string
+---@return string
+function M.module_name(package_name)
+  if package_name == "hecate" then return "hecate" end
+  return "hecate." .. package_name:gsub("-", "_")
 end
 
 --- Generates the reference pages of one or more packages.

@@ -16,7 +16,7 @@ local M = {}
 
 --- The packages whose public modules follow the annotation convention (coding-standards.md),
 --- in sidebar order. Add a package here once its modules are annotated.
-M.DEFAULT_PACKAGES = { "core", "reactor", "net", "json", "log", "http", "router", "schema", "openapi", "container", "config", "kernel", "test" }
+M.DEFAULT_PACKAGES = { "core", "reactor", "net", "json", "log", "http", "router", "schema", "openapi", "container", "config", "kernel", "test", "hecate", "unicode", "unicode-data", "doc" }
 
 ---@class hecate.doc.ReferenceSiteOptions
 ---@field project_dir string  repository root (holds `packages/`) or project directory; must be trusted: LuaLS runs any plugin that a LuaLS configuration reachable from it declares (`.luarc.json`, `.luarc.jsonc`, `.vscode/settings.json`), with full file and command access (see `hecate.doc.luals.export`)
