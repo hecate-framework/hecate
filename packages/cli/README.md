@@ -8,7 +8,7 @@
 | Rock | `hecate-cli` |
 | Layer | Tooling |
 | Roadmap phase | 3 |
-| Status | in progress — dispatcher, argument parser, `--help`, `--json`, exit codes, `version`, shell completion, the manifest, the lockfile format, SHA-256, LuaRocks constraints; other commands to do |
+| Status | in progress — dispatcher, argument parser, `--help`, `--json`, exit codes, `version`, shell completion, the manifest, the lockfile format, SHA-256, LuaRocks constraints and orchestration; other commands to do |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |
 | Depends on | [`core`](../core), [`reactor`](../reactor), [`log`](../log), [`json`](../json), [`schema`](../schema) |
 | Used by | — |
@@ -52,6 +52,7 @@
 - `cli.lockfile`: `parse`, `validate`, `serialize` (sorted, deterministic) and `outdated(lock, manifest)` (missing, orphan, wrongly flagged rocks, locked versions that break a constraint) for `hecate.lock`.
 - `cli.digest`: `sha256(data)`, `sha256_file(path)`, `backend_name`, `using(backend)` (ADR 0028; rocks `digest`, fallback `plc`).
 - `cli.constraint`: `parse_version`, `compare`, `parse` and `satisfies` over the LuaRocks version and constraint syntax.
+- `cli.luarocks`: `new(options)` (`config_text`, `environment`, `installed`, `install_dependencies`, `pin`), `rockspec_text`, `rockspec_file_name`, `parse_lock`; the runner is injected.
 - `hecate.cli.Command`: `name`, `summary`, `usage`, `options`, `run(context)`; `Context:emit(value, text)` prints JSON under `--json`.
 
 ## Layout (once implemented)

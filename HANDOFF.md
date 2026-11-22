@@ -3,8 +3,8 @@
 
 - roadmap_item: `cli` v1: self-contained executable, `new`, `install`, `add`, `remove`, `update`, `serve [--watch]`, `test`, `doc`, `contract`, `toolchain`, `doctor`, `version` (docs/roadmap.md, Phase 3). Started on the owner's request of 2026-11-22.
 - status: in-progress
-- lock_until: 2026-11-22T16:54:50Z
-- last_update: 2026-11-22T15:24:50Z
+- lock_until: 2026-11-22T17:11:07Z
+- last_update: 2026-11-22T15:41:07Z
 
 ## Done
 
@@ -15,12 +15,13 @@
 - Step 4: lockfile format (`hecate.cli.lockfile`: parse, validate, serialize, outdated). Roadmap item added for the shared sandbox (owner, 2026-11-22).
 - Step 5: `hecate.cli.digest` with the `digest` and `plc` backends; `plc 0.5-1` installed in `ci.yml` and `digest 0.0.1-1` installed in `ci.yml` (first push: watch that the three platforms install both) and in `tools/cloud/setup.sh`. The `digest` rock IS installable here: its archive URL is refused by the proxy, a `git clone --depth 1 --branch v0.0.1 https://github.com/osch/lua-digest spikes/OQ-13/lua-digest` is served; then `luarocks --tree .hecate/rocks make rockspecs/digest-0.0.1-1.rockspec`. CI finding: on Windows the `digest` build must run from pwsh (under bash the GNU `link` of Git shadows the MSVC linker: "link: unknown option -- d"); `ci.yml` has a separate pwsh step. Both backends pass the contract here and agree with `sha256sum` on a 16 MB file.
 - Step 6: `hecate.cli.constraint` (port of LuaRocks version and constraint rules; 225-pair differential test against `luarocks.core.vers` passes with `LUA_PATH=/opt/lua-5.5/share/lua/5.5/?.lua;;`), constraints validated in the manifest, checked by `lockfile.outdated`. CI green on the three platforms for steps 1 to 5.
+- Step 7: `hecate.cli.luarocks` (isolated config, install, installed-set check, pin, `parse_lock`, rockspec generation). Smoke-tested against the real LuaRocks 3.13 in a scratch tree (install, list --porcelain, pin, parse): works; finding: the rockspec file must be named `<name>-<version>-1.rockspec`.
 
 ## Next steps
 
 1. Read ADR 0009, 0010, 0028, 0029 and the OQ-13 spike (not yet read in full).
 2. Verify the zsh, fish and PowerShell completion scripts on a real shell (PowerShell may drop the empty last word: the script appends `""`, check on CI; add a CI step or a test that runs them where the shell exists). `--version` alias.
-3. LuaRocks orchestration (spec: "LuaRocks integration" in `cli-and-packaging.md`, spike OQ-2): a module that builds the isolated LuaRocks configuration and command lines (`--tree`, `install --deps-only`, then `build --pin --only-deps`, drop the `lua` pseudo-rock from `luarocks.lock`, run outside a directory holding a `luarocks.lock`), with an injectable process runner so it is testable without network; parse `luarocks.lock` into `hecate.lock` records (checksums need the rock files: see `digest`).
+3. The step that joins the pieces: `hecate install [--frozen]` as a command: read the manifest and `hecate.lock`, `--frozen` stops at `lockfile.outdated`; otherwise write the rockspec and configuration under `.hecate/`, run `install_dependencies` and `pin`, turn `luarocks.lock` pins and the installed set into `hecate.lock` records (source URL and `sha256` need the rock files: look at what `luarocks` can report, `luarocks show`, and the cache of downloaded rocks), write `hecate.lock`. Needs the real runner: `reactor.run_process` takes no `env` or `cwd`, so use `reactor.spawn` with its options and collect stdout and stderr, or ask `reactor` for `env` and `cwd` on `run_process` (cross-package: describe it). Then `add`, `remove`, `update`, `outdated`.
 4. Then, one step each: lockfile, LuaRocks orchestration, `new` and templates, `install/add/remove/update`, `serve`, `test`, `doc`, `contract`, `doctor`, `toolchain`; the native executable (OQ-13, ADR 0029) in its own steps.
 5. Package README, CHANGELOG, roadmap sub-items as steps land.
 
