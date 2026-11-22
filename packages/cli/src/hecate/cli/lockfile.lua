@@ -17,6 +17,7 @@ local FORMAT = 1
 ---@field version string  exact LuaRocks version, for example "0.3.1-1"
 ---@field source string  where the rock was fetched from
 ---@field sha256 string  64 lowercase hexadecimal characters
+---@field checksum_of "files"|"rockspec"  what `sha256` covers: the installed files of a pure-Lua rock, the installed rockspec otherwise
 ---@field dependencies string[]  names of the rocks it depends on, sorted
 ---@field development boolean  true when only development dependencies need it
 ---@field native boolean  true when it compiles C code, so the build differs per platform
@@ -43,6 +44,7 @@ M.schema = schema.object({
     version = text,
     source = text,
     sha256 = schema.string({ min_length = 64, max_length = 64, pattern = "^%x+$" }),
+    checksum_of = schema.enumeration({ "files", "rockspec" }),
     dependencies = schema.array(text, { unique_items = true }),
     development = schema.boolean(),
     native = schema.boolean(),
@@ -127,6 +129,7 @@ function M.serialize(lock)
     out[#out + 1] = "      version = " .. quote(rock.version) .. ",\n"
     out[#out + 1] = "      source = " .. quote(rock.source) .. ",\n"
     out[#out + 1] = "      sha256 = " .. quote(rock.sha256) .. ",\n"
+    out[#out + 1] = "      checksum_of = " .. quote(rock.checksum_of) .. ",\n"
     out[#out + 1] = "      dependencies = { " .. table.concat(quoted, ", ") .. (#quoted > 0 and " " or "") .. "},\n"
     out[#out + 1] = "      development = " .. tostring(rock.development) .. ",\n"
     out[#out + 1] = "      native = " .. tostring(rock.native) .. ",\n"

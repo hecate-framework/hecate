@@ -6,7 +6,7 @@ local T = test.Case("CliLockfileTest")
 local SHA = string.rep("ab", 32)
 
 local function rock(overrides)
-  local value = { version = "0.1.0-1", source = "https://luarocks.org/hecate-core-0.1.0-1.src.rock", sha256 = SHA,
+  local value = { version = "0.1.0-1", source = "https://luarocks.org/hecate-core-0.1.0-1.src.rock", sha256 = SHA, checksum_of = "files",
     dependencies = {}, development = false, native = false }
   for k, v in pairs(overrides or {}) do value[k] = v end
   return value
@@ -59,6 +59,9 @@ function T:test_schema_violations_name_their_pointer()
 end
 
 function T:test_uppercase_checksums_and_dangling_edges_are_refused()
+  local kind = sample()
+  kind.rocks.luv.checksum_of = "md5"
+  rejects(self, function() lockfile.validate(kind) end, "/rocks/luv/checksum_of")
   local upper = sample()
   upper.rocks.luv.sha256 = string.rep("AB", 32)
   rejects(self, function() lockfile.validate(upper) end, "lowercase")
