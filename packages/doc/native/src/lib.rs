@@ -13,13 +13,15 @@
 
 use std::borrow::Cow;
 use std::cell::RefCell;
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fmt;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::OnceLock;
 
-use comrak::adapters::{HeadingAdapter, HeadingMeta, SyntaxHighlighterAdapter};
-use comrak::nodes::{AlertType, Ast, AstNode, NodeValue, Sourcepos};
+use comrak::adapters::{
+    HeadingAdapter, HeadingMeta, SyntaxHighlightMeta, SyntaxHighlighterAdapter,
+};
+use comrak::nodes::{AlertType, Ast, AstNode, NodeValue};
 use comrak::options::Plugins;
 use comrak::{format_html_with_plugins, parse_document, Arena, Options};
 use mlua::prelude::*;
@@ -335,12 +337,7 @@ struct Headings {
 }
 
 impl HeadingAdapter for Headings {
-    fn enter(
-        &self,
-        output: &mut dyn fmt::Write,
-        heading: &HeadingMeta,
-        _: Option<Sourcepos>,
-    ) -> fmt::Result {
+    fn enter(&self, output: &mut dyn fmt::Write, heading: &HeadingMeta) -> fmt::Result {
         let id = self
             .entries
             .get(self.next.load(Ordering::Relaxed))
@@ -387,9 +384,9 @@ impl SyntaxHighlighterAdapter for Code {
     fn write_highlighted(
         &self,
         output: &mut dyn fmt::Write,
-        _: Option<&str>,
-        code: &str,
+        meta: &SyntaxHighlightMeta<'_>,
     ) -> fmt::Result {
+        let code = meta.code;
         let html = self
             .language()
             .filter(|_| self.highlight)
@@ -401,7 +398,8 @@ impl SyntaxHighlighterAdapter for Code {
     fn write_pre_tag(
         &self,
         output: &mut dyn fmt::Write,
-        _: HashMap<&'static str, Cow<'_, str>>,
+        _: &SyntaxHighlightMeta<'_>,
+        _: BTreeMap<&str, Cow<'_, str>>,
     ) -> fmt::Result {
         match self.language() {
             Some(language) => {
@@ -424,7 +422,8 @@ impl SyntaxHighlighterAdapter for Code {
     fn write_code_tag(
         &self,
         output: &mut dyn fmt::Write,
-        _: HashMap<&'static str, Cow<'_, str>>,
+        _: &SyntaxHighlightMeta<'_>,
+        _: BTreeMap<&str, Cow<'_, str>>,
     ) -> fmt::Result {
         match self.language() {
             Some(language) => write!(
@@ -507,14 +506,18 @@ pub fn render(
                 l.url = resolve(&l.url)?;
             }
             NodeValue::Alert(a) if a.title.is_none() => {
+                // `AlertType` is non-exhaustive in comrak 1.x: a future kind keeps its default title.
                 let slot = match a.alert_type {
-                    AlertType::Note => 0,
-                    AlertType::Tip => 1,
-                    AlertType::Warning => 2,
-                    AlertType::Caution => 3,
-                    AlertType::Important => 4,
+                    AlertType::Note => Some(0),
+                    AlertType::Tip => Some(1),
+                    AlertType::Warning => Some(2),
+                    AlertType::Caution => Some(3),
+                    AlertType::Important => Some(4),
+                    _ => None,
                 };
-                a.title = config.labels[slot].clone();
+                if let Some(slot) = slot {
+                    a.title = config.labels[slot].clone();
+                }
             }
             _ => {}
         }
