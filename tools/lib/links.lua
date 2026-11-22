@@ -65,8 +65,10 @@ end
 function M.is_ungenerated_reference(target, exists)
   local base = target:match("^(website/[^/]+/[^/]+/reference/[^/]+)/")
   if base ~= nil then return not exists(base) end
-  -- The architecture specifications and the ADRs of the maintainer site (`gen-maintainer-docs`, git-ignored).
-  if target:find("^website/maintainer/en/architecture/") or target:find("^website/maintainer/en/adr/") then
+  -- The generated documents of the maintainer site (`gen-maintainer-docs`, git-ignored).
+  if target:find("^website/maintainer/en/architecture/") or target:find("^website/maintainer/en/adr/")
+    or target:find("^website/maintainer/en/reviews/") or target == "website/maintainer/en/roadmap.md"
+    or target == "website/maintainer/en/open-questions.md" then
     return not exists(target)
   end
   local page = target:match("^website/[^/]+/[^/]+/reference/([^/]+%.md)$")

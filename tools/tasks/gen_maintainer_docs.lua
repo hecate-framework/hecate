@@ -1,6 +1,7 @@
--- gen-maintainer-docs: the architecture specifications (`docs/architecture/`) and the ADRs (`docs/adr/`) as pages of
--- the maintainer site (OQ-144, owner decision of 2026-11-21): one page per file under `website/maintainer/en/architecture/`
--- and `website/maintainer/en/adr/`, with the front matter a page needs and the links rewritten
+-- gen-maintainer-docs: the architecture specifications (`docs/architecture/`), the ADRs (`docs/adr/`), the reviews
+-- (`docs/reviews/`), the roadmap and the open questions as pages of the maintainer site (OQ-144, owner decisions of
+-- 2026-11-21 and after): one page per file under `website/maintainer/en/` (`architecture/`, `adr/`, `reviews/`,
+-- `roadmap.md`, `open-questions.md`), with the front matter a page needs and the links rewritten
 -- (tools/lib/maintainer_docs.lua). The pages are git-ignored, like the code reference: the website workflow runs this task
 -- before the site build. The files of `docs/` stay the source of truth; a page that does not carry the marker of this task is
 -- never overwritten.
@@ -14,7 +15,11 @@ local SECTIONS = {
   { directory = "docs/architecture", title = "Architecture specifications",
     summary = "The specification of each area of hecate. The files under `docs/architecture/` are the source; these pages are generated from them." },
   { directory = "docs/adr", index = false },
+  { directory = "docs/reviews", title = "Reviews",
+    summary = "The reports of the phase gates and of the package reviews. The files under `docs/reviews/` are the source; these pages are generated from them." },
 }
+-- Single files of `docs/` that are pages of the root of the site.
+local FILES = { "docs/roadmap.md", "docs/open-questions.md" }
 -- The index of `docs/architecture/` is generated here: a README.md of that directory would be written to the same page.
 local SKIPPED = { ["docs/architecture"] = { ["README.md"] = true } }
 
@@ -68,6 +73,10 @@ return {
         table.sort(entries, function(a, b) return a.file < b.file end)
         apply(maintainer_docs.OUT_DIR .. "/" .. section.directory:match("[^/]+$") .. "/index.md", index_page(section, entries))
       end
+    end
+    for _, source in ipairs(FILES) do
+      local text = (generated_page.read(ctx.root .. "/" .. source) or ""):gsub("\r\n", "\n")
+      apply(maintainer_docs.target(source), maintainer_docs.render(source, text))
     end
     local total = 0
     for _, n in pairs(counts) do total = total + n end

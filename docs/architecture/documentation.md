@@ -337,9 +337,9 @@ own site (`dist/user`, `dist/maintainer`; `/` redirects to the user site). The c
 the library does not: `--internals-into <tree>` splits the generated code reference (public symbols into the built tree,
 `*.internal` modules and non-public classes into the other one, `audience_locale_dirs` of `reference_site.run`), and a
 `{tree}` placeholder in `edit_link_template`, filled from the name of the content root ([OQ-146](../open-questions.md)).
-The task `gen-maintainer-docs` publishes `docs/architecture/` and the ADRs as generated pages of the maintainer tree;
-`docs/roadmap.md`, `docs/open-questions.md` and `docs/reviews/` stay unpublished. There is no `check-audience` gate: the
-tree is the label.
+The task `gen-maintainer-docs` publishes `docs/architecture/`, the ADRs, `docs/reviews/`, `docs/roadmap.md` and
+`docs/open-questions.md` as generated pages of the maintainer tree (owner decision, OQ-144). There is no `check-audience`
+gate: the tree is the label.
 
 There is no HTTP API reference: the generator never renders routes or the contract. The Lua **code reference**
 (modules, classes and functions of the project's `package_name`, from LuaLS annotations) is a different thing and

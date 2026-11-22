@@ -69,4 +69,12 @@ function T:test_a_french_page_may_link_to_the_english_page_of_its_own_tree()
   self:assert_nil(links.cross_tree_target(from, "../../../../user/fr/how-to/filters/"))
 end
 
+function T:test_the_other_generated_pages_of_the_maintainer_site_are_not_broken_when_absent()
+  local none = function() return false end
+  for _, page in ipairs({ "roadmap.md", "open-questions.md", "reviews/phase-2.md" }) do
+    self:assert_true(links.is_ungenerated_reference("website/maintainer/en/" .. page, none), page)
+  end
+  self:assert_false(links.is_ungenerated_reference("website/maintainer/en/index.md", none))
+end
+
 return T

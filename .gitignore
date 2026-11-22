@@ -64,6 +64,9 @@ website/maintainer/en/reference/doc/
 # Architecture specifications and ADRs as maintainer pages (gen-maintainer-docs; the files of docs/ stay the source).
 website/maintainer/en/architecture/
 website/maintainer/en/adr/
+website/maintainer/en/reviews/
+website/maintainer/en/roadmap.md
+website/maintainer/en/open-questions.md
 # Generated reference pages (gen-error-codes, gen-config-reference; the website workflow generates them).
 website/user/en/reference/error-codes.md
 website/user/en/reference/configuration-keys.md

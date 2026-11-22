@@ -23,9 +23,9 @@ end
 
 function T:test_the_glossary_links_to_the_user_site_and_other_files_to_the_repository()
   local page = maintainer_docs.render("docs/architecture/a.md",
-    "# A\n\n[g](../glossary.md#term) [q](../open-questions.md) [c](../../packages/core/README.md#api)\n")
+    "# A\n\n[g](../glossary.md#term) [q](../spikes/OQ-1.md) [c](../../packages/core/README.md#api)\n")
   self:assert_true(page:find("[g](../../../../user/en/reference/glossary/#term)", 1, true) ~= nil)
-  self:assert_true(page:find("[q](https://github.com/hecate-framework/hecate/blob/main/docs/open-questions.md)", 1, true) ~= nil)
+  self:assert_true(page:find("[q](https://github.com/hecate-framework/hecate/blob/main/docs/spikes/OQ-1.md)", 1, true) ~= nil)
   self:assert_true(page:find("[c](https://github.com/hecate-framework/hecate/blob/main/packages/core/README.md#api)", 1, true) ~= nil)
 end
 
@@ -40,9 +40,9 @@ end
 local function links_of(source, text) return maintainer_docs.render(source, "# T\n\n" .. text .. "\n") end
 
 function T:test_a_link_with_a_title_and_a_reference_definition_are_rewritten()
-  local page = links_of("docs/architecture/a.md", '[t](../open-questions.md "the title")\n\n[ref]: ../roadmap.md\n[b]: b.md')
-  self:assert_true(page:find('[t](https://github.com/hecate-framework/hecate/blob/main/docs/open-questions.md "the title")', 1, true) ~= nil)
-  self:assert_true(page:find("[ref]: https://github.com/hecate-framework/hecate/blob/main/docs/roadmap.md", 1, true) ~= nil)
+  local page = links_of("docs/architecture/a.md", '[t](../spikes/OQ-1.md "the title")\n\n[ref]: ../vision.md\n[b]: b.md')
+  self:assert_true(page:find('[t](https://github.com/hecate-framework/hecate/blob/main/docs/spikes/OQ-1.md "the title")', 1, true) ~= nil)
+  self:assert_true(page:find("[ref]: https://github.com/hecate-framework/hecate/blob/main/docs/vision.md", 1, true) ~= nil)
   self:assert_true(page:find("[b]: b.md", 1, true) ~= nil)
 end
 
@@ -92,6 +92,32 @@ function T:test_an_architecture_page_without_prose_gets_a_description_of_its_own
   self:assert_equal("Architecture decision record: Untitled", adr)
   local page = maintainer_docs.render("docs/architecture/a.md", "# Title\n\n- a list\n")
   self:assert_true(page:find('description: "Architecture specification: Title"', 1, true) ~= nil)
+end
+
+function T:test_a_link_to_a_published_document_is_the_relative_path_between_the_two_pages()
+  local from_review = maintainer_docs.render("docs/reviews/r.md", "# R\n\n[a](../../docs/architecture/a.md#x) [b](r2.md) [c](../roadmap.md)\n")
+  self:assert_true(from_review:find("[a](../architecture/a.md#x)", 1, true) ~= nil)
+  self:assert_true(from_review:find("[b](r2.md)", 1, true) ~= nil)
+  self:assert_true(from_review:find("[c](../roadmap.md)", 1, true) ~= nil)
+  local from_root = maintainer_docs.render("docs/roadmap.md", "# R\n\n[a](architecture/a.md) [i](adr/README.md#f)\n")
+  self:assert_true(from_root:find("[a](architecture/a.md)", 1, true) ~= nil)
+  self:assert_true(from_root:find("[i](adr/index.md#f)", 1, true) ~= nil)
+end
+
+function T:test_the_roadmap_the_open_questions_and_the_reviews_are_published_next_to_the_other_documents()
+  self:assert_equal("website/maintainer/en/roadmap.md", maintainer_docs.target("docs/roadmap.md"))
+  self:assert_equal("website/maintainer/en/open-questions.md", maintainer_docs.target("docs/open-questions.md"))
+  self:assert_equal("website/maintainer/en/reviews/phase-2.md", maintainer_docs.target("docs/reviews/phase-2.md"))
+  local page = maintainer_docs.render("docs/architecture/a.md",
+    "# A\n\n[r](../roadmap.md#x) [q](../open-questions.md) [v](../reviews/phase-2.md) [s](../spikes/OQ-1.md)\n")
+  self:assert_true(page:find("[r](../roadmap.md#x)", 1, true) ~= nil)
+  self:assert_true(page:find("[q](../open-questions.md)", 1, true) ~= nil)
+  self:assert_true(page:find("[v](../reviews/phase-2.md)", 1, true) ~= nil)
+  self:assert_true(page:find("[s](https://github.com/hecate-framework/hecate/blob/main/docs/spikes/OQ-1.md)", 1, true) ~= nil)
+  local top = maintainer_docs.render("docs/roadmap.md", "# R\n\n[a](architecture/a.md) [g](glossary.md) [p](../packages/core/README.md)\n")
+  self:assert_true(top:find("[a](architecture/a.md)", 1, true) ~= nil)
+  self:assert_true(top:find("[g](../../../user/en/reference/glossary/)", 1, true) ~= nil)
+  self:assert_true(top:find("[p](https://github.com/hecate-framework/hecate/blob/main/packages/core/README.md)", 1, true) ~= nil)
 end
 
 return T
