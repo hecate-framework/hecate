@@ -3,8 +3,8 @@
 
 - roadmap_item: `website`: move the Hecate website into `website/user/` and `website/maintainer/` (OQ-144, owner decisions of 2026-11-21), before `0.1.0`
 - status: in-progress
-- lock_until: 2026-11-22T15:44:48Z
-- last_update: 2026-11-22T14:14:48Z
+- lock_until: 2026-11-22T15:56:40Z
+- last_update: 2026-11-22T14:26:40Z
 
 ## Done
 
@@ -16,8 +16,11 @@
 - Step 2: links between the two sites are browser-relative URLs (`../../../../maintainer/en/explanation/x/`, the form of documentation.md); `check-links` resolves them across trees (`links.cross_tree_target`, test first); the 21 broken links rewritten. `check-links`, typecheck, lint green.
 - Step 3: one build per tree. `maintainer/en/index.md`; `site.lua` edit link template `website/{tree}/{path}` (`{tree}` filled by `bin/build.lua`, and by the repository-website test); the `doc` integration test builds both trees (all `doc` tests green locally after `build-native json doc` and `luarocks --tree .hecate/rocks install luv`); `website.yml` builds `dist/user` (with `--reference`) and `dist/maintainer`, bases `<base>/user/` and `<base>/maintainer/`, `dist/index.html` redirects to the user site; reference checks use `dist/user`.
 - CI fixes after 2ed33fe (resumed 14:14 UTC): `lychee.toml` excludes updated to the tree layout and the cross-site URLs; `website.yml` passes `--root .` to the user build (default root was `website/`); build commands in READMEs updated. Lychee reproduced locally: 0 errors.
+- `life-of-a-request` user page (en only; no fr source). Code reference split: `bin/build.lua --internals-into`, workflow and .gitignore updated; both sites built locally in `--strict` (user 473 pages, maintainer 25) after `build-native json doc`, `luarocks --tree .hecate/rocks install luv`, `setup-luals`, `LUA_CPATH=.hecate/rocks/lib/lua/5.5/?.so`, luals on PATH.
 
 ## Next steps
+
+00. Left: generated architecture and ADR pages in the maintainer tree (task, links rewritten, git-ignored), fr `life-of-a-request` (translator-fr), `CLAUDE.md` and `docs-writer` notes, OQ entry (+ issue) for the `{tree}` placeholder, `/review-package doc`, roadmap tick, `typecheck`.
 
 0. Still to do: `website/user/en/explanation/life-of-a-request.md` (split, with fr), `website/README.md`, `website/CLAUDE.md`, `CLAUDE.md`, `.claude/agents/docs-writer.md`, CHANGELOG, roadmap, `/review-package doc`, CI on three platforms (the website workflow runs on this PR: check it).
 

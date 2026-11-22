@@ -39,6 +39,20 @@ website/user/en/reference/config/
 website/user/en/reference/kernel/
 website/user/en/reference/openapi/
 website/user/en/reference/test/
+# The internals of the same packages, generated into the maintainer tree.
+website/maintainer/en/reference/core/
+website/maintainer/en/reference/reactor/
+website/maintainer/en/reference/net/
+website/maintainer/en/reference/json/
+website/maintainer/en/reference/log/
+website/maintainer/en/reference/http/
+website/maintainer/en/reference/router/
+website/maintainer/en/reference/schema/
+website/maintainer/en/reference/container/
+website/maintainer/en/reference/config/
+website/maintainer/en/reference/kernel/
+website/maintainer/en/reference/openapi/
+website/maintainer/en/reference/test/
 # Generated reference pages (gen-error-codes, gen-config-reference; the website workflow generates them).
 website/user/en/reference/error-codes.md
 website/user/en/reference/configuration-keys.md

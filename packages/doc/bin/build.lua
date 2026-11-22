@@ -1,6 +1,6 @@
 -- Builds a documentation site with hecate.doc. Usage:
 --   lua packages/doc/bin/build.lua [source] [--config file] [--out dir] [--base /path/] [--url origin]
---                                  [--clean] [--strict] [--no-git-dates] [--reference] [--root dir] [--packages a,b]
+--                                  [--clean] [--strict] [--no-git-dates] [--reference] [--root dir] [--packages a,b] [--internals-into dir]
 -- `--base` and `--url` override the configuration (the path the site is served under and its origin,
 -- for canonical links and the sitemap), for example for GitHub Pages: `--base /hecate/ --url https://owner.github.io`.
 -- `source` is the content root (default `website`): one directory per locale, optionally
@@ -10,7 +10,9 @@
 -- `--reference` first generates the code reference (reference.lua: needs lua-language-server) into
 -- `<source>/<default locale>/reference/` from the packages of the checkout at `--root` (default:
 -- the parent of `source`) for the packages of `--packages` (default: the documented packages);
--- without LuaLS it warns. With --strict every problem (those of the build and those of the reference) is listed in one
+-- without LuaLS it warns. `--internals-into <dir>` (the source of another tree, for example `website/maintainer`) splits
+-- the reference by audience: public symbols into `<source>`, `*.internal` modules and non-public classes into `<dir>`.
+-- With --strict every problem (those of the build and those of the reference) is listed in one
 -- error, after the site is written.
 -- Exit codes: 0 built, 1 build failed or, with --strict, problems were found, 2 usage error.
 global <const> _VERSION, arg, io, os, package, require, print, pcall, tostring, ipairs, pairs, table, error
@@ -43,7 +45,7 @@ local doc_config = require("hecate.doc.config")
 
 local function usage(stream)
   stream:write("usage: lua build.lua [source] [--config file] [--out dir] [--base /path/] [--url origin] "
-    .. "[--clean] [--strict] [--no-git-dates] [--reference] [--root dir] [--packages a,b]\n")
+    .. "[--clean] [--strict] [--no-git-dates] [--reference] [--root dir] [--packages a,b] [--internals-into dir]\n")
 end
 
 local function usage_error(message)
@@ -52,7 +54,7 @@ local function usage_error(message)
   os.exit(2)
 end
 
-local VALUE_FLAGS = { config = true, out = true, base = true, url = true, root = true, packages = true }
+local VALUE_FLAGS = { config = true, out = true, base = true, url = true, root = true, packages = true, ["internals-into"] = true }
 local SWITCHES = { clean = true, strict = true, ["no-git-dates"] = true, reference = true }
 
 -- Strict parsing: an unknown flag, a flag without a value (the next word is missing or is another flag), a
@@ -157,7 +159,13 @@ local function run()
         for name in options.packages:gmatch("[^,]+") do names[#names + 1] = name end
         return names
       end)() or nil,
-      locale_dir = options.source .. "/" .. (site_configuration.default_locale or "en"),
+      locale_dir = (not options["internals-into"])
+        and (options.source .. "/" .. (site_configuration.default_locale or "en")) or nil,
+      -- Two sites: public symbols go to this tree, `*.internal` modules and non-public classes to the other one.
+      audience_locale_dirs = options["internals-into"] and {
+        user = options.source .. "/" .. (site_configuration.default_locale or "en"),
+        maintainer = options["internals-into"] .. "/" .. (site_configuration.default_locale or "en"),
+      } or nil,
       file_system = fs,
     })
     for _, problem in ipairs(report.problems) do generated[#generated + 1] = problem end
