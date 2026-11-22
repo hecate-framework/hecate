@@ -41,6 +41,19 @@ function T:test_help_lists_commands_and_exits_zero()
   self:assert_true(out_command:find("Usage: hecate version", 1, true) ~= nil)
 end
 
+function T:test_hidden_commands_are_not_listed_and_complete_runs_through_the_app()
+  local completion_commands = require("hecate.cli.commands.completion")
+  local commands = { version, completion_commands[1], completion_commands[2] }
+  local _, help = run({ "--help" }, commands)
+  self:assert_true(help:find("__complete", 1, true) == nil)
+  self:assert_true(help:find("completion", 1, true) ~= nil)
+  local code, out = run({ "__complete", "--", "ver" }, commands)
+  self:assert_equal(0, code)
+  self:assert_equal("version", out)
+  local _, flags = run({ "__complete", "--", "completion", "--" }, commands)
+  self:assert_equal("--help\n--json", flags)
+end
+
 function T:test_no_command_prints_help_and_exits_with_usage_code()
   local code, out = run({})
   self:assert_equal(2, code)

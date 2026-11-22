@@ -1,5 +1,5 @@
 -- hecate.cli: the `hecate` command (cli-and-packaging.md). Status: the dispatcher, the argument parser, `--help`,
--- `--json`, exit codes and `version` are implemented; every other command is still to do (see README.md).
+-- `--json`, exit codes, `version` and shell completion are implemented; every other command is still to do (see README.md).
 global <const> require
 
 local app = require("hecate.cli.app")
@@ -9,11 +9,17 @@ local app = require("hecate.cli.app")
 ---@field parse fun(args: string[], commands: hecate.cli.Command[]): hecate.cli.ParsedArguments
 ---@field commands hecate.cli.Command[]  the commands implemented so far
 ---@field exit_codes hecate.cli.exit_codes
+---@field completion hecate.cli.completion  candidates and scripts of shell completion
 local cli = {
   run = app.run,
   parse = require("hecate.cli.parser").parse,
-  commands = { require("hecate.cli.commands.version") },
+  commands = {
+    require("hecate.cli.commands.version"),
+    require("hecate.cli.commands.completion")[1],
+    require("hecate.cli.commands.completion")[2],
+  },
   exit_codes = app.exit_codes,
+  completion = require("hecate.cli.completion"),
 }
 
 return cli

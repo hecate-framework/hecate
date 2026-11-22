@@ -12,6 +12,7 @@ local core = require("hecate.core")
 ---@class hecate.cli.Command
 ---@field name string  one or two words, for example "version" or "toolchain install"
 ---@field summary string  one line, shown by `hecate --help`
+---@field hidden? boolean  not listed by `--help` nor completed (internal commands)
 ---@field usage? string  the arguments after the name, for example "<name> [--template api|minimal|crud]"
 ---@field options? hecate.cli.OptionSpec[]
 ---@field run fun(context: hecate.cli.Context): integer?  returns the exit code (default 0)

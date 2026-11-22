@@ -12,6 +12,7 @@ local EXIT = { ok = 0, failure = 1, usage = 2 }
 ---@field arguments hecate.cli.ParsedArguments
 ---@field json boolean  machine-readable output was requested
 ---@field runtime hecate.cli.Runtime
+---@field commands hecate.cli.Command[]  every command of the application
 ---@field print fun(text: string)  writes a line to standard output
 ---@field print_error fun(text: string)  writes a line to standard error
 ---@field emit fun(value: table, text: string)  prints `value` as JSON under `--json`, `text` otherwise
@@ -54,7 +55,9 @@ end
 local function general_help(commands)
   local lines = { "Usage: hecate <command> [options]", "", "Commands:" }
   local sorted = {}
-  for _, command in ipairs(commands) do sorted[#sorted + 1] = command end
+  for _, command in ipairs(commands) do
+    if not command.hidden then sorted[#sorted + 1] = command end
+  end
   table.sort(sorted, function(a, b) return a.name < b.name end)
   for _, command in ipairs(sorted) do lines[#lines + 1] = string.format("  %-20s %s", command.name, command.summary) end
   lines[#lines + 1] = ""
@@ -90,6 +93,7 @@ function M.run(args, options)
     arguments = parsed,
     json = parsed.json,
     runtime = options.runtime,
+    commands = options.commands,
     print = write,
     print_error = write_error,
     emit = function(value, text)
