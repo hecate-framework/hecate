@@ -3,8 +3,8 @@
 
 - roadmap_item: `website`: move the Hecate website into `website/user/` and `website/maintainer/` (OQ-144, owner decisions of 2026-11-21), before `0.1.0`
 - status: in-progress
-- lock_until: 2026-11-22T11:15:01Z
-- last_update: 2026-11-22T09:45:01Z
+- lock_until: 2026-11-22T14:11:46Z
+- last_update: 2026-11-22T12:41:46Z
 
 ## Done
 
