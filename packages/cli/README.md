@@ -53,6 +53,7 @@
 - `cli.digest`: `sha256(data)`, `sha256_file(path)`, `backend_name`, `using(backend)` (ADR 0028; rocks `digest`, fallback `plc`).
 - `cli.constraint`: `parse_version`, `compare`, `parse` and `satisfies` over the LuaRocks version and constraint syntax.
 - `cli.luarocks`: `new(options)` (`config_text`, `environment`, `installed`, `install_dependencies`, `pin`), `rockspec_text`, `rockspec_file_name`, `parse_lock`; the runner is injected.
+- `cli.resolution`: `read_rockspec(name, text)` and `build_lockfile(input)`, from an installation to the records of `hecate.lock`.
 - `hecate.cli.Command`: `name`, `summary`, `usage`, `options`, `run(context)`; `Context:emit(value, text)` prints JSON under `--json`.
 
 ## Layout (once implemented)
