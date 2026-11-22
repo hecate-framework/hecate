@@ -71,7 +71,8 @@ written is listed with its file in `website/user/en/`.
 
 ## Explanation
 
-- Architecture and layers: packages and layers, native code policy, the life of a request, the boot (`explanation/architecture-and-layers.md`)
+- Architecture and layers: packages and layers, native code policy, the boot (`explanation/architecture-and-layers.md`)
+- The life of a request: the nine steps from the connection to the response (`explanation/life-of-a-request.md`)
 - The object model: classes, traits, interfaces, finalisation, value classes, errors (`explanation/object-model.md`)
 - Concurrency model: reactor, coroutines, suspension points, structured concurrency (`explanation/concurrency-model.md`)
 - The transport model: streams, suspension instead of callbacks, back-pressure, half-close, buffering, cancellation rules (P1; `explanation/transport-model.md`)
