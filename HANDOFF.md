@@ -3,8 +3,8 @@
 
 - roadmap_item: `website`: move the Hecate website into `website/user/` and `website/maintainer/` (OQ-144, owner decisions of 2026-11-21), before `0.1.0`
 - status: in-progress
-- lock_until: 2026-11-22T14:18:05Z
-- last_update: 2026-11-22T12:48:05Z
+- lock_until: 2026-11-22T15:44:48Z
+- last_update: 2026-11-22T14:14:48Z
 
 ## Done
 
@@ -15,6 +15,7 @@
 
 - Step 2: links between the two sites are browser-relative URLs (`../../../../maintainer/en/explanation/x/`, the form of documentation.md); `check-links` resolves them across trees (`links.cross_tree_target`, test first); the 21 broken links rewritten. `check-links`, typecheck, lint green.
 - Step 3: one build per tree. `maintainer/en/index.md`; `site.lua` edit link template `website/{tree}/{path}` (`{tree}` filled by `bin/build.lua`, and by the repository-website test); the `doc` integration test builds both trees (all `doc` tests green locally after `build-native json doc` and `luarocks --tree .hecate/rocks install luv`); `website.yml` builds `dist/user` (with `--reference`) and `dist/maintainer`, bases `<base>/user/` and `<base>/maintainer/`, `dist/index.html` redirects to the user site; reference checks use `dist/user`.
+- CI fixes after 2ed33fe (resumed 14:14 UTC): `lychee.toml` excludes updated to the tree layout and the cross-site URLs; `website.yml` passes `--root .` to the user build (default root was `website/`); build commands in READMEs updated. Lychee reproduced locally: 0 errors.
 
 ## Next steps
 

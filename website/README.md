@@ -11,7 +11,7 @@ The site is built by `hecate.doc` (first slice implemented; see
 [packages/doc/README.md](../packages/doc/README.md)):
 
 ```sh
-lua packages/doc/bin/build.lua website --strict    # output: website/dist (git-ignored)
+lua packages/doc/bin/build.lua website/user --config website/site.lua --strict    # output: website/dist (git-ignored)
 ```
 
 Conventions of the pages (front matter, callouts, links between pages as `.md` files,

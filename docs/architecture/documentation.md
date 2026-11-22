@@ -71,7 +71,7 @@ gradients or glows, the name never capitalised, earth as the single accent). Pag
   without JavaScript the source stays readable.
 
 Implementation and conventions: [`packages/doc`](../../packages/doc/README.md); open
-choices OQ-33 to OQ-38. Build: `lua packages/doc/bin/build.lua website --strict` (bootstrap
+choices OQ-33 to OQ-38. Build: `lua packages/doc/bin/build.lua website/user --config website/site.lua --strict` (and `website/maintainer`) (bootstrap
 runner until `hecate doc build`).
 
 ### Manual check on a narrow viewport

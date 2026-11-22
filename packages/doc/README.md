@@ -78,8 +78,8 @@ decided in [ADR 0022](../../docs/adr/0022-doc-dependencies.md).
 ### Building a site
 
 ```sh
-lua packages/doc/bin/build.lua website --strict          # writes website/dist (git-ignored)
-lua packages/doc/bin/build.lua website --out /tmp/site --base /hecate/ --clean
+lua packages/doc/bin/build.lua website/user --config website/site.lua --strict          # writes website/dist (git-ignored)
+lua packages/doc/bin/build.lua website/user --config website/site.lua --out /tmp/site --base /hecate/ --clean
 ```
 
 The runner is the bootstrap entry point until `hecate doc build` exists
@@ -246,7 +246,7 @@ reference"; choices in OQ-40).
 ```sh
 lua tools/run.lua gen-reference            # writes website/user/en/reference/<package>/, needs lua-language-server
 lua tools/run.lua gen-reference --require  # CI: fail instead of skipping when LuaLS is missing
-lua packages/doc/bin/build.lua website --strict --reference   # generate, then build the site
+lua packages/doc/bin/build.lua website/user --config website/site.lua --root . --strict --reference   # generate, then build the site
 ```
 
 One page per package (`index.md`, the module), per class or type (`<Class>.md`) and per function
