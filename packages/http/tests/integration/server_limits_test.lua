@@ -149,7 +149,7 @@ local function drip(client, text)
   end
 end
 
--- Documented in website/en/how-to/before-going-to-production.md (Listening and limits).
+-- Documented in website/user/en/how-to/before-going-to-production.md (Listening and limits).
 function T:test_the_request_timeout_counts_from_the_end_of_the_head_not_from_its_first_byte()
   local action = function(request)
     if request.path == "/health" then return ok_action(request) end
@@ -180,7 +180,7 @@ function T:test_the_request_timeout_counts_from_the_end_of_the_head_not_from_its
   end)
 end
 
--- Documented in website/en/how-to/before-going-to-production.md (Listening and limits).
+-- Documented in website/user/en/how-to/before-going-to-production.md (Listening and limits).
 function T:test_the_server_has_no_timeout_on_the_action()
   local options = {
     head_timeout = 0.1, idle_timeout = 0.1, content_timeout = 0.1, request_timeout = 0.1, write_timeout = 0.1,

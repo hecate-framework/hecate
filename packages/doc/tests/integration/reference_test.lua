@@ -131,6 +131,33 @@ function T:test_the_site_builder_runs_the_generator_first_with_the_reference_fla
   if not done then error(err, 0) end
 end
 
+-- OQ-144: `--internals-into <tree>` splits the reference between two sites, public symbols into the source tree and the
+-- `*.internal` modules into the other one; each tree is then built on its own.
+function T:test_the_runner_splits_the_reference_between_two_trees_with_internals_into()
+  if lacks_language_server(self) then return end
+  local base = temporary()
+  local source = base .. "/packages/demo/src/hecate/demo"
+  fs:write(source .. "/init.lua", "--- A demonstration package.\n---@class hecate.demo\nlocal demo = {}\n\n--- Adds two integers.\n"
+    .. "---@param a integer  the first addend\n---@param b integer  the second addend\n---@return integer sum  the sum\n"
+    .. "function demo.add(a, b)\n  return a + b\nend\n\nreturn demo\n")
+  fs:write(source .. "/internal/helper.lua", "--- Helps the package.\n---@class hecate.demo.internal.helper\nlocal helper = {}\n\n"
+    .. "--- Helps.\n---@param a integer  the value\n---@return integer\nfunction helper.help(a) return a end\n\nreturn helper\n")
+  fs:write(base .. "/site.lua", "return { title = 'demo', top_links = { { text = 'Reference', link = 'reference/' } } }")
+  fs:write(base .. "/user/en/index.md", "---\ntitle: Home\n---\n\n# Home\n")
+  fs:write(base .. "/maintainer/en/index.md", "---\ntitle: Home\n---\n\n# Home\n")
+  local output, ok = run("build.lua", ("%s --config %s --reference --root %s --packages demo --internals-into %s --no-git-dates --out %s"):format(
+    quote(base .. "/user"), quote(base .. "/site.lua"), quote(base), quote(base .. "/maintainer"), quote(base .. "/out")))
+  local done, err = pcall(function()
+    self:assert_true(ok, output)
+    self:assert_true(fs:exists(base .. "/user/en/reference/demo/functions/add.md"), "public symbol in the user tree")
+    self:assert_false(fs:exists(base .. "/user/en/reference/demo/helper.md"), "no internal page in the user tree")
+    self:assert_true(fs:exists(base .. "/maintainer/en/reference/demo/helper.md"), "internal module in the maintainer tree")
+    self:assert_false(fs:exists(base .. "/maintainer/en/reference/demo/functions/add.md"), "no public page in the maintainer tree")
+  end)
+  fs:remove_tree(base)
+  if not done then error(err, 0) end
+end
+
 -- OQ-142: with no `language_server_config_path` no `--configpath` is passed to LuaLS, and with one it is passed as given.
 function T:test_the_language_server_gets_a_config_path_only_when_one_is_given()
   if package.config:sub(1, 1) == "\\" then return end

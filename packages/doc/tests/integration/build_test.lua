@@ -141,6 +141,10 @@ function T:test_the_runner_refuses_malformed_command_lines_with_a_usage_error()
     { "--out", "needs a value" },
     { "--out --strict", "needs a value" },
     { "--base", "needs a value" },
+    { "--internals-into", "needs a value" },
+    { "--internals-into --strict", "needs a value" },
+    { "--audience", "needs a value" },
+    { "--audience a --audience b", "repeated option --audience" },
     { "--strict --strict", "repeated option --strict" },
     { "--out a --out b", "repeated option --out" },
     { "--base /a/ --base=/b/", "repeated option --base" },
@@ -157,6 +161,41 @@ function T:test_the_runner_refuses_malformed_command_lines_with_a_usage_error()
   local output, ok = run("--help")
   self:assert_true(ok, output)
   self:assert_true(output:find("usage:", 1, true) ~= nil)
+end
+
+-- A content tree and a `site.lua` whose edit link template is shared by every tree (OQ-146): `--audience` names the tree.
+local function tree_site(name)
+  local base = temporary()
+  fs:write(base .. "/site.lua", 'return { title = "t", default_locale = "en", locales = { { code = "en", label = "English" } },\n'
+    .. '  edit_link_template = "https://example.test/edit/website/{path}" }\n')
+  fs:write(base .. "/" .. name .. "/en/index.md", "---\ndescription: Home.\n---\n\n# Home\n\nText.\n")
+  return base
+end
+
+function T:test_the_runner_puts_the_audience_in_the_edit_link()
+  for _, name in ipairs({ "user", "maintainer" }) do
+    local base = tree_site(name)
+    local output, ok = run(("%s --config %s --out %s --no-git-dates --strict --audience %s"):format(
+      quote(base .. "/" .. name), quote(base .. "/site.lua"), quote(base .. "/out"), name))
+    local html = fs:exists(base .. "/out/en/index.html") and fs:read(base .. "/out/en/index.html") or ""
+    local without, without_ok = run(("%s --config %s --out %s --no-git-dates --clean"):format(
+      quote(base .. "/" .. name), quote(base .. "/site.lua"), quote(base .. "/out")))
+    local plain = fs:read(base .. "/out/en/index.html")
+    fs:remove_tree(base)
+    self:assert_true(ok, output)
+    self:assert_true(html:find("https://example.test/edit/website/" .. name .. "/en/index.md", 1, true) ~= nil, name)
+    self:assert_true(without_ok, without)
+    self:assert_true(plain:find("https://example.test/edit/website/en/index.md", 1, true) ~= nil, "no flag, no prefix")
+  end
+end
+
+function T:test_the_runner_refuses_an_audience_that_is_no_name()
+  local base = tree_site("user")
+  local output, ok = run(("%s --config %s --out %s --no-git-dates --audience %s"):format(
+    quote(base .. "/user"), quote(base .. "/site.lua"), quote(base .. "/out"), quote("a/b")))
+  fs:remove_tree(base)
+  self:assert_false(ok)
+  self:assert_true(output:find("option `audience` must be an audience name", 1, true) ~= nil, output)
 end
 
 function T:test_the_runner_accepts_values_with_an_equals_sign()
@@ -272,34 +311,48 @@ end
 function T:test_building_the_repository_website_has_no_problem()
   local website = package_dir .. "/../../website"
   if not fs:exists(website .. "/site.lua") then return end
-  local out = temporary()
-  local report = doc.build({
-    site_configuration = doc.load_site_configuration(fs, website .. "/site.lua"), guides_dir = website, output_dir = out, file_system = fs, fail_on_problems = false,
-  })
-  fs:remove_tree(out)
-  -- The code reference (website/en/reference/<package>/) is generated and not in a clean checkout, so
-  -- the guides' links into it cannot resolve there; `website.yml` builds with --strict after generating
-  -- it. A link into a package whose reference is not generated is not a problem of this test; any
-  -- other problem is, and so is a link into a generated reference that does not resolve.
-  local generated = {}
-  for _, name in ipairs(require("hecate.doc.reference_site").DEFAULT_PACKAGES) do
-    generated[name] = fs:exists(website .. "/en/reference/" .. name .. "/index.md")
+  -- Two sites, one per tree (OQ-144): each tree is built from its own content root with the one `site.lua`.
+  local code_reference = require("hecate.doc.reference_site")
+  for _, tree in ipairs({ "user", "maintainer" }) do
+    local root = website .. "/" .. tree
+    local out = temporary()
+    local configuration = doc.load_site_configuration(fs, website .. "/site.lua")
+    local report = doc.build({
+      site_configuration = configuration, guides_dir = root, output_dir = out, file_system = fs, fail_on_problems = false,
+      audience = tree,
+    })
+    fs:remove_tree(out)
+    -- The code reference (website/<tree>/en/reference/<package>/) is generated and not in a clean checkout, so
+    -- the guides' links into it cannot resolve there; `website.yml` builds with --strict after generating
+    -- it. A link into a package whose reference is not generated is not a problem of this test; any
+    -- other problem is, and so is a link into a generated reference that does not resolve.
+    local generated = {}
+    for _, name in ipairs(code_reference.DEFAULT_PACKAGES) do
+      generated[name] = fs:exists(root .. "/en/reference/" .. name .. "/index.md")
+    end
+    -- The same for the architecture specifications and the ADRs of the maintainer tree (`gen-maintainer-docs`).
+    for _, directory in ipairs({ "architecture", "adr", "reviews" }) do
+      generated[directory] = fs:exists(root .. "/en/" .. directory .. "/index.md")
+    end
+    -- The same for the two pages of `gen-error-codes` and `gen-config-reference`, generated by `website.yml`.
+    local generated_pages = {}
+    for _, page in ipairs({ "error-codes.md", "configuration-keys.md" }) do
+      generated_pages[page] = fs:exists(root .. "/en/reference/" .. page)
+    end
+    for _, page in ipairs({ "roadmap.md", "open-questions.md" }) do
+      generated_pages[page] = fs:exists(root .. "/en/" .. page)
+    end
+    local problems = {}
+    for _, problem in ipairs(report.problems) do
+      local target = problem:match("broken link (.+)$")
+      local name = target and (target:match("reference/([%w_%-]+)/") or target:match("^([%w_%-]+)/"))
+      local page = target and target:match("([%w%-]+%.md)$")
+      local absent_page = page ~= nil and generated_pages[page] == false
+      if not ((name and generated[name] == false) or absent_page) then problems[#problems + 1] = problem end
+    end
+    self:assert_equal(0, #problems, tree .. ":\n" .. table.concat(problems, "\n"))
+    self:assert_true(report.locales.en.pages >= 2, tree .. " has its pages")
   end
-  -- The same for the two pages of `gen-error-codes` and `gen-config-reference`, generated by `website.yml`.
-  local generated_pages = {}
-  for _, page in ipairs({ "error-codes.md", "configuration-keys.md" }) do
-    generated_pages[page] = fs:exists(website .. "/en/reference/" .. page)
-  end
-  local problems = {}
-  for _, problem in ipairs(report.problems) do
-    local target = problem:match("broken link (.+)$")
-    local name = target and (target:match("reference/([%w_]+)/") or target:match("^([%w_]+)/"))
-    local page = target and target:match("([%w%-]+%.md)$")
-    local absent_page = page ~= nil and generated_pages[page] == false
-    if not ((name and generated[name] == false) or absent_page) then problems[#problems + 1] = problem end
-  end
-  self:assert_equal(0, #problems, table.concat(problems, "\n"))
-  self:assert_true(report.locales.en.pages >= 2)
 end
 
 -- `SystemFileSystem` suspends: every test of this file runs inside a reactor.

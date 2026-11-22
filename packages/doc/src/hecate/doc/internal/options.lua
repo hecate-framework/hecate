@@ -11,10 +11,10 @@ local renamed = require("hecate.doc.internal.renamed_options")
 local M = {}
 
 --- The options of `hecate.doc.Site`.
-M.SITE = { "site_configuration", "guides_dir", "file_system", "last_updated", "theme_file_system", "theme_files_dir" }
+M.SITE = { "site_configuration", "guides_dir", "file_system", "last_updated", "theme_file_system", "theme_files_dir", "audience" }
 
 --- The options of `hecate.doc.build`: those of `Site` and the ones of the output.
-M.BUILD = { "site_configuration", "guides_dir", "file_system", "last_updated", "theme_file_system", "theme_files_dir",
+M.BUILD = { "site_configuration", "guides_dir", "file_system", "last_updated", "theme_file_system", "theme_files_dir", "audience",
   "output_dir", "clean_output_dir", "fail_on_problems" }
 
 --- The options of `hecate.doc.generate_project_documentation`.
@@ -157,6 +157,10 @@ function M.invalid(options, names)
         end
       elseif name == "last_updated" then
         if type(value) ~= "function" then return name, "a function (path) returning an ISO 8601 date or nil" end
+      elseif name == "audience" then
+        if type(value) ~= "string" or not value:find("^[%w_][%w_-]*$") then
+          return name, "an audience name (letters, digits, `-` and `_`), for example `user`"
+        end
       elseif name == "site_configuration" then
         if type(value) ~= "table" then return name, "a table" end
       end

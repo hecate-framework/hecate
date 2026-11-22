@@ -46,7 +46,7 @@
 
 Environment: the `environment` option, else `HECATE_ENV` (`<PREFIX>_ENV`), else `production`; `config/production.lua` may be absent when the environment is implicit. Limits: `config` does not apply `limits.max_depth` itself: `kernel.Application` applies it at boot (`json.set_max_depth`, read by `schema`). Stray environment variables cannot be detected (Lua cannot list the environment). `config` applies no logging key itself: the kernel does.
 
-Documentation: the how-to [Configure an application](../../website/en/how-to/configure-an-application.md) and the tested example in `examples/`.
+Documentation: the how-to [Configure an application](../../website/user/en/how-to/configure-an-application.md) and the tested example in `examples/`.
 
 ## Layout
 

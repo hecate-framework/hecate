@@ -267,15 +267,13 @@ local function root_redirect(config, directory)
 end
 
 -- The site configuration of one audience site: the configuration of the project, the same for every audience (per-audience
--- overrides are out of scope), with the two keys that depend on where the tree and its output lie. The site is served
--- below `<base_path><audience>/`, and the source of a page is `<audience>/<path below the tree>` in the repository.
+-- overrides are out of scope), with the key that depends on where the output lies: the site is served below
+-- `<base_path><audience>/`. The source of a page is `<audience>/<path below the tree>` in the repository: the builder is
+-- given the `audience` option for that.
 local function site_configuration_of(raw, normalised, audience)
   local own = {}
   for key, value in pairs(raw) do own[key] = value end
   own.base_path = normalised.base_path .. audience .. "/"
-  if normalised.edit_link_template then
-    own.edit_link_template = normalised.edit_link_template:gsub("{path}", function() return audience .. "/{path}" end)
-  end
   return own
 end
 
@@ -424,7 +422,7 @@ function M.generate(options)
   for _, audience in ipairs(built) do
     prepared[#prepared + 1] = build.prepare({
       site_configuration = site_configuration_of(site_configuration, normalised, audience), guides_dir = trees[audience],
-      output_dir = output_dir .. "/" .. audience, file_system = fs, last_updated = options.last_updated,
+      output_dir = output_dir .. "/" .. audience, file_system = fs, last_updated = options.last_updated, audience = audience,
       theme_file_system = options.theme_file_system, theme_files_dir = options.theme_files_dir,
     })
   end

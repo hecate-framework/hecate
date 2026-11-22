@@ -3,7 +3,7 @@ local changes = require("lib.changes")
 local T = test.Case("ChangesTest")
 
 function T:test_documentation_files_are_not_code()
-  for _, path in ipairs({ "README.md", "docs/adr/0001.md", "docs/x.png", "website/en/a.html", ".claude/agents/x.md",
+  for _, path in ipairs({ "README.md", "docs/adr/0001.md", "docs/x.png", "website/user/en/a.html", ".claude/agents/x.md",
     "HANDOFF.md", "packages/core/README.md", ".github/ISSUE_TEMPLATE/bug.yml", "CHANGELOG.md" }) do
     self:assert_true(changes.is_documentation(path), path)
   end

@@ -56,7 +56,7 @@ A slow server therefore cannot hide its queueing (coordinated omission).
 ## Measure the HTTP stack and the kernel
 
 Two scenarios measure HTTP/1.1 with the same kind of open-loop generator. Their connections are
-[persistent connections](../reference/glossary.md#http), kept open for several messages.
+[persistent connections](../../../../user/en/reference/glossary/#http), kept open for several messages.
 
 - `plaintext`: an `http.Server` action answers `GET /plaintext` with `Hello, World!`. It measures the HTTP stack
   alone.
@@ -76,7 +76,7 @@ lua tools/run.lua bench kernel-json --rounds=5 --connections=100 --rate=5000 --d
 
 Two options are specific to these scenarios:
 
-- `--pipeline=N` writes N requests at once on each connection ([pipelining](../reference/glossary.md#http));
+- `--pipeline=N` writes N requests at once on each connection ([pipelining](../../../../user/en/reference/glossary/#http));
 - `--path` changes the request target.
 
 The output adds the measure `bad responses`: connections closed because a response was not a `200`.

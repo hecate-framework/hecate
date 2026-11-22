@@ -248,9 +248,9 @@ function T:test_the_task_reports_examples_and_pages_with_their_lines()
   end
   write("packages/x/examples/a.lua", "local x = 1\nlocal y = 2 -- " .. LONG .. "\n")
   write("examples/app/main.lua", "-- short\n")
-  write("website/en/how-to/p.md", "# P\n\n```lua\n-- " .. LONG .. LONG .. "\n```\n")
-  write("website/fr/how-to/p.md", "# P\n\n```lua\n-- " .. LONG .. LONG .. "\n```\n")
-  write("website/en/reference/r.md", "```lua\n-- " .. LONG .. LONG .. "\n```\n")
+  write("website/user/en/how-to/p.md", "# P\n\n```lua\n-- " .. LONG .. LONG .. "\n```\n")
+  write("website/user/fr/how-to/p.md", "# P\n\n```lua\n-- " .. LONG .. LONG .. "\n```\n")
+  write("website/user/en/reference/r.md", "```lua\n-- " .. LONG .. LONG .. "\n```\n")
   local ok, report = pcall(require("tasks.check_examples").run, { root = root, args = {} })
   remove_tree(root)
   self:assert_true(ok, tostring(report))
@@ -259,8 +259,8 @@ function T:test_the_task_reports_examples_and_pages_with_their_lines()
   table.sort(report.problems)
   self:assert_equal(3, #report.problems, seen)
   self:assert_not_nil(report.problems[1]:find("^packages/x/examples/a%.lua:2: "), report.problems[1])
-  self:assert_not_nil(report.problems[2]:find("^website/en/how%-to/p%.md:4: "), report.problems[2])
-  self:assert_not_nil(report.problems[3]:find("^website/fr/how%-to/p%.md:4: "), report.problems[3])
+  self:assert_not_nil(report.problems[2]:find("^website/user/en/how%-to/p%.md:4: "), report.problems[2])
+  self:assert_not_nil(report.problems[3]:find("^website/user/fr/how%-to/p%.md:4: "), report.problems[3])
 end
 
 return T

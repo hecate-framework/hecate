@@ -36,7 +36,7 @@ produces a report, `docs/reviews/phase-<N>.md`, and checks the five points below
    as never logged. The audit greps the messages and `logger:*` calls of the packages of the phase, runs the canary
    test (a canary secret is put through an error, a log field and a configuration value, and the output is searched
    for it) and lists what it checked in the report; it also checks the production checklist page
-   (`website/en/how-to/`) against what the phase added.
+   (`website/user/en/how-to/`) against what the phase added.
 5. **Open questions.** The questions of `docs/open-questions.md` that block the next phase, or that the phase made
    stale, are listed in the report with their context and a recommendation; an issue labelled `needs-decision`
    asks the owner. The relay never decides them.
@@ -117,7 +117,7 @@ Exit: CI is green on all three platforms with a trivial test in every package sk
       Pages from `main` (Settings > Pages > Source = GitHub Actions), hand-written how-to
       guides and explanations for `net` and the `reactor` primitives, the public glossary,
       the French translation of those pages (16 pages; terminology in
-      `website/fr/glossary-terms.md`), and `check-docs-examples` (code blocks equal their
+      `website/user/fr/glossary-terms.md`), and `check-docs-examples` (code blocks equal their
       tested example files). Still to come, in their own items: tutorials and the other
       packages' guides as the packages land, the translation status check, `hecate doc` for
       user projects, and the `doc` item below.
@@ -239,14 +239,14 @@ concurrency test suite passes; benchmark baseline recorded.
       report with rendered samples submitted to the owner before the website skeleton
       (resolved 2026-10-13: [report](spikes/OQ-11-doc-tooling.md), [ADR 0012](adr/0012-website-generator.md)).
 
-- [x] Documentation: a how-to page "Before going to production" (`website/en/how-to/`), a checklist of what to verify before an
+- [x] Documentation: a how-to page "Before going to production" (`website/user/en/how-to/`), a checklist of what to verify before an
       application is deployed: log severity, no secrets in error messages (the logger redacts field names, not free text), what the
       default logger and the access log record (query strings), `logging.redact`, secrets declared in `secrets`, limits, development
-      mode off. Written after the `kernel` item so that it names its real configuration keys. Delivered: [`website/en/how-to/before-going-to-production.md`](../website/en/how-to/before-going-to-production.md), reviewed against the code by `security-reviewer` and `dx-reviewer`; English only for now (`website/fr/how-to` does not yet mirror every page).
+      mode off. Written after the `kernel` item so that it names its real configuration keys. Delivered: [`website/user/en/how-to/before-going-to-production.md`](../website/user/en/how-to/before-going-to-production.md), reviewed against the code by `security-reviewer` and `dx-reviewer`; English only for now (`website/user/fr/how-to` does not yet mirror every page).
 
 - [x] Examples: comment width and output placement (owner request, 2026-11-12). A task `check-examples` (run by the
       `docs-checks` and static-check jobs of `ci.yml`) fails on a line longer than 80 characters that holds a comment
-      in `packages/*/examples/**`, `examples/**` and the Lua blocks of `website/en/**`, unless the line above carries
+      in `packages/*/examples/**`, `examples/**` and the Lua blocks of `website/user/en/**`, unless the line above carries
       the exception marker; the examples tests check that each printed or logged line is expected by a `-- Prints:`
       block directly under the line that produced it (one shared helper instead of a copy per package). Migrate every
       existing example and the website pages that include them; document both rules in `documentation.md` and
@@ -302,7 +302,7 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       below 500 (content over the limit, for example) is logged at `warning`. Make the two consistent: log these answers through the same logger,
       with the method, the path without the query and the violation codes, never the values (OQ-111, safe content).
       Choose the severity in line with the guard, test it first, and update
-      `website/en/how-to/map-domain-errors-to-problem-details.md` ("The 422 of the inputs", "Where the guard logs").
+      `website/user/en/how-to/map-domain-errors-to-problem-details.md` ("The 422 of the inputs", "Where the guard logs").
 - [x] `openapi`: OpenAPI 3.1 assembly, served endpoint, export, contract diff. **Also (owner answers on OQ-129,
       2026-11-14):** routes are always named explicitly by the user (`kernel` refuses a route without `name`; no
       default name), `operationId` is that name; an optional request body (`content_optional`); a shared HTTP status
@@ -352,7 +352,7 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       is resolved there). Delivered: the two audiences as two different websites (owner decision of 2026-11-21: one
       content tree per audience, `<guides_dir>/<audience>/<locale>/`, each built by the plain builder into
       `<output_dir>/<audience>/`; option `audiences`, default `{ "maintainer" }`; no front matter key, no `merged` mode),
-      `llms.txt` and `llms-full.txt` of a project, the theme extension points. **To do:** `llms.txt` of other locales (deferred until someone asks); a `draft` page flag. The move of the Hecate website into two trees is the next item; there is no `check-audience` gate (the directory is the label) and no switcher feature (`top_links` carries an absolute link). `hecate doc build|serve` and the `doc` section of `hecate.project.lua` belong to the `cli` item below.
+      `llms.txt` and `llms-full.txt` of a project, the theme extension points. **To do:** `llms.txt` of other locales (deferred until someone asks); a `draft` page flag. The move of the Hecate website into two trees is done (the `website` item below); there is no `check-audience` gate (the directory is the label) and no switcher feature (`top_links` carries an absolute link). `hecate doc build|serve` and the `doc` section of `hecate.project.lua` belong to the `cli` item below.
 - [ ] `cli` v1: self-contained executable, `new`, `install`, `add`, `remove`, `update`,
       `serve [--watch]`, `test`, `doc`, `contract`, `toolchain`, `doctor`, `version`.
       **Also (from the `test` item, owner go-ahead of 2026-11-16):** `hecate test` takes the options of
@@ -384,8 +384,8 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       defaults to it: `max(1, cores - 1)`, `cores` from `uv.available_parallelism()` (exposed by `reactor`), read on
       Linux within the cgroup CPU quota of a container when one is set (or documented as a limit); `hecate serve`
       without `--workers` reads `server.workers`; the generated `config/development.lua` and `config/test.lua` set
-      `server.workers = 1`. Then update the pages that state today's default of 1: `website/en/how-to/
-      {multi-process-deployment, before-going-to-production}.md` and `website/en/explanation/multi-process-serving.md`.
+      `server.workers = 1`. Then update the pages that state today's default of 1: `website/user/en/how-to/
+      {multi-process-deployment, before-going-to-production}.md` and `website/user/en/explanation/multi-process-serving.md`.
       **Also (OQ-121):** `gen-meta`, the LuaLS `---@meta` files generated from schemas, as a `tools/` task and through
       the CLI (file layout, naming and when it runs decided with the item).
       **Also (from the `doc` item, owner decisions of 2026-11-18):** `hecate doc build` (one site per audience, OQ-144; by
@@ -420,9 +420,14 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       `shield` section of `deadlines-and-cancellation`, the `BufferedWriter:close` and 16 KiB text, the sockets
       how-to, json `out_of_memory`) and refresh every stale `source_revision` stamp (OQ-64; findings A44 and B32 of
       `docs/reviews/phase-1-coherence-findings.md`; row M1 of `docs/reviews/phase-1-review-package.md`).
+      **Also (found while moving the website into two trees, pull request #229):** the French reference index
+      `website/user/fr/reference/index.md` lists 11 of the 17 packages of the code reference and none of the generated
+      pages; bring it in step with `website/user/en/reference/index.md` (`openapi`, `test`, `hecate`, `unicode`,
+      `unicode-data`, `doc`, the error codes and the configuration keys), and translate the French mirror of the two
+      maintainer pages if the owner wants the maintainer site in French (today it falls back to English).
       **Also carries the French mirror of `http` (Phase 2 item, pull request 52):** translate the six English pages
-      `website/en/explanation/http-model.md` and `website/en/how-to/{serve-http, stream-http-content, use-the-http-client,
-      http-limits-timeouts-and-tls, handle-forms-and-multipart}.md` (terminology in `website/fr/glossary-terms.md`: add *origin*,
+      `website/user/en/explanation/http-model.md` and `website/user/en/how-to/{serve-http, stream-http-content, use-the-http-client,
+      http-limits-timeouts-and-tls, handle-forms-and-multipart}.md` (terminology in `website/user/fr/glossary-terms.md`: add *origin*,
       *head*, *persistent connection*, *pipelining*, *lease*, *grace period*, *action*), stamp their `source_revision`, and check
       that the generated `http` reference (added to `DEFAULT_PACKAGES`) builds in both locales with `--strict`.
       **Also (Phase 2 gate):** a how-to on building an application with the kernel (feature modules, controllers,
@@ -479,7 +484,7 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       recorded in the repository, bumped deliberately) and the same suite under the current checkout; a disagreement
       between the two is a finding. Until a first release exists, the pinned build is a recorded commit. The job is
       written and documented in this item, and the migration stays reversible until every package passes; (5) delete `tools/harness/`.
-- [ ] `website`: move the Hecate website into `website/user/` and `website/maintainer/` (OQ-144, owner decisions of 2026-11-21), before `0.1.0`: every URL changes, and changing URLs after a release is breaking. Two trees, each built by the plain builder into its own directory (`/user/en/...`, `/maintainer/en/...`), `/` redirecting to the user site, the French mirror moving with its English page, one `site.lua` for both and an edit-link template naming the tree directory, the code reference split (public symbols to the user tree, internals to the maintainer tree: `reference_site.run` with `audience_locale_dirs`), the two entries of `top_links` pointing at the other site, and a check of the links between the two trees added to `check-links`. The classification is approved (owner, 2026-11-21): [docs/reviews/website-audience-classification.md](reviews/website-audience-classification.md). Also: the section "The life of a request" of `architecture-and-layers` becomes the user page `explanation/life-of-a-request.md` (French page with it); the maintainer site publishes `docs/architecture/` and the ADRs as generated pages (git-ignored, the files stay the source of truth; a task writes them into the maintainer tree with a title and a description and rewrites their links; the mechanism is settled when the item starts); `docs/roadmap.md`, `docs/open-questions.md` and `docs/reviews/` stay unpublished unless the owner says otherwise.
+- [x] `website`: move the Hecate website into `website/user/` and `website/maintainer/` (OQ-144, owner decisions of 2026-11-21), before `0.1.0`: every URL changes, and changing URLs after a release is breaking. Two trees, each built by the plain builder into its own directory (`/user/en/...`, `/maintainer/en/...`), `/` redirecting to the user site, the French mirror moving with its English page, one `site.lua` for both and an edit-link template naming the tree directory, the code reference split (public symbols to the user tree, internals to the maintainer tree: `reference_site.run` with `audience_locale_dirs`), the two entries of `top_links` pointing at the other site, and a check of the links between the two trees added to `check-links`. The classification is approved (owner, 2026-11-21): [docs/reviews/website-audience-classification.md](reviews/website-audience-classification.md). Also: the section "The life of a request" of `architecture-and-layers` becomes the user page `explanation/life-of-a-request.md` (French page with it); the maintainer site publishes `docs/architecture/` and the ADRs as generated pages (git-ignored, the files stay the source of truth; a task writes them into the maintainer tree with a title and a description and rewrites their links; the mechanism is settled when the item starts); `docs/roadmap.md`, `docs/open-questions.md` and `docs/reviews/` are published on the maintainer site too (owner decision, delivered by the same task). **Delivered (pull request #229):** the pages moved (all but `architecture-and-layers` and `measure-performance` to the user tree), "The life of a request" is the user page `explanation/life-of-a-request.md` (French page with it), two builds (`dist/user`, `dist/maintainer`, `/` redirecting to the user site), `bin/build.lua --internals-into` splits the code reference, `check-links` resolves links between the two trees, and the task `gen-maintainer-docs` publishes `docs/architecture/` and the ADRs as generated pages of the maintainer tree. The edit link of the two trees is the `audience` option of the builder (OQ-146, owner decision).
 - [ ] **Phase 3 gate**: verification of the phase, as described in [Phase gates](#phase-gates). Open
       questions to put to the owner before Phase 4: OQ-18 and OQ-45.
 
