@@ -338,7 +338,7 @@ function T:test_an_accepted_reload_logs_started_before_done_or_failed()
   reactor.run(function() app:reload() end)
   self:assert_equal("reload_started", codes_logged(memory)[1])
   self:assert_equal("reload_done", codes_logged(memory)[2])
-  -- Documented in website/en/how-to/before-going-to-production.md (Logging): the workers reloaded are `notice`.
+  -- Documented in website/user/en/how-to/before-going-to-production.md (Logging): the workers reloaded are `notice`.
   self:assert_true(record_with(memory, "reload_started").severity == log.Severity.notice)
   self:assert_true(record_with(memory, "reload_done").severity == log.Severity.notice)
   local failing, failed = reloading_application(function(_, options)
@@ -433,12 +433,12 @@ function T:test_expose_details_in_production_warns_at_boot()
   app:boot()
   local found = record_with(memory, "expose_details_in_production")
   self:assert_not_nil(found)
-  -- Documented in website/en/how-to/before-going-to-production.md (Error details): the boot warning is a `warning`.
+  -- Documented in website/user/en/how-to/before-going-to-production.md (Error details): the boot warning is a `warning`.
   self:assert_true(found.severity == log.Severity.warning)
   log.set_default(nil)
 end
 
--- Documented in website/en/how-to/before-going-to-production.md (Error details).
+-- Documented in website/user/en/how-to/before-going-to-production.md (Error details).
 function T:test_expose_details_in_staging_gives_no_boot_warning()
   local memory = log.MemorySink()
   local app = kernel.Application({
@@ -451,7 +451,7 @@ function T:test_expose_details_in_staging_gives_no_boot_warning()
   self:assert_nil(record_with(memory, "expose_details_in_production"))
 end
 
--- Documented in website/en/how-to/before-going-to-production.md (Error details).
+-- Documented in website/user/en/how-to/before-going-to-production.md (Error details).
 function T:test_expose_details_as_an_option_without_a_configuration_gives_no_boot_warning()
   local memory = log.MemorySink()
   local app = kernel.Application({ expose_details = true, logger = log.Logger({ sinks = { memory }, severity = "debug" }) })
@@ -460,7 +460,7 @@ function T:test_expose_details_as_an_option_without_a_configuration_gives_no_boo
   self:assert_nil(record_with(memory, "expose_details_in_production"))
 end
 
--- Documented in website/en/how-to/before-going-to-production.md (Logging).
+-- Documented in website/user/en/how-to/before-going-to-production.md (Logging).
 function T:test_an_explicit_logger_replaces_the_logger_built_from_the_logging_keys()
   local memory = log.MemorySink()
   local explicit = log.Logger({ sinks = { memory } }) -- no `redact` of its own
@@ -521,11 +521,11 @@ function T:test_a_signal_shuts_the_server_down_gracefully()
   local found = codes(memory)
   self:assert_equal("sigterm", found.shutdown_signal.signal)
   self:assert_nil(found.shutdown_forced)
-  -- Documented in website/en/how-to/before-going-to-production.md (Logging): the signals received are `notice`.
+  -- Documented in website/user/en/how-to/before-going-to-production.md (Logging): the signals received are `notice`.
   self:assert_true(record_with(memory, "shutdown_signal").severity == log.Severity.notice)
 end
 
--- Documented in website/en/how-to/before-going-to-production.md (Workers and shutdown).
+-- Documented in website/user/en/how-to/before-going-to-production.md (Workers and shutdown).
 function T:test_sigint_shuts_the_server_down_gracefully()
   if uv.os_uname().sysname:match("Windows") then return end -- `uv.kill` cannot raise a console signal there
   local guard = uv.new_signal()
@@ -700,7 +700,7 @@ local function signal_watchers_installed(options)
   return calls
 end
 
--- Documented in website/en/how-to/before-going-to-production.md (Workers and shutdown).
+-- Documented in website/user/en/how-to/before-going-to-production.md (Workers and shutdown).
 function T:test_signals_false_installs_no_signal_watcher()
   local logger = log.Logger({ sinks = {} })
   local server = { host = "127.0.0.1", port = 0 }
@@ -856,7 +856,7 @@ function T:test_the_primary_runs_a_supervisor_instead_of_a_server()
   self:assert_nil(app._server)
   self:assert_nil(app:local_address())
   self:assert_equal(2, codes(memory).workers_starting.workers)
-  -- Documented in website/en/how-to/before-going-to-production.md (Logging): the workers started are `notice`.
+  -- Documented in website/user/en/how-to/before-going-to-production.md (Logging): the workers started are `notice`.
   self:assert_true(record_with(memory, "workers_starting").severity == log.Severity.notice)
 end
 
@@ -1052,7 +1052,7 @@ function T:test_the_exposure_of_details_follows_the_configuration_unless_overrid
   log.set_default(nil)
 end
 
--- Documented in website/en/how-to/before-going-to-production.md (Logging).
+-- Documented in website/user/en/how-to/before-going-to-production.md (Logging).
 function T:test_an_unhandled_error_is_logged_at_error_without_the_query()
   local memory = log.MemorySink()
   -- `lax`: in `strict` mode the undeclared query parameter is refused (422) before the action runs.
@@ -1073,7 +1073,7 @@ function T:test_an_unhandled_error_is_logged_at_error_without_the_query()
   end
 end
 
--- Documented in website/en/how-to/before-going-to-production.md (Logging).
+-- Documented in website/user/en/how-to/before-going-to-production.md (Logging).
 function T:test_a_problem_below_500_that_an_action_returns_or_raises_is_not_logged()
   local problem = kernel.problem
   local module = kernel.routes("problems")
@@ -1090,7 +1090,7 @@ function T:test_a_problem_below_500_that_an_action_returns_or_raises_is_not_logg
   self:assert_equal(0, #memory:records())
 end
 
--- Documented in website/en/how-to/before-going-to-production.md (Logging; Listening and limits).
+-- Documented in website/user/en/how-to/before-going-to-production.md (Logging; Listening and limits).
 function T:test_an_expired_deadline_gives_a_500_and_the_server_record_without_traceback()
   local memory = log.MemorySink()
   local module = kernel.routes("late")

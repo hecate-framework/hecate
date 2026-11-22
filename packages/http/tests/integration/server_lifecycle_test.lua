@@ -346,7 +346,7 @@ function T:test_a_writer_that_breaks_its_declared_length_closes_the_connection()
   end)
 end
 
--- Documented in website/en/how-to/before-going-to-production.md (Logging): `on_error` receives the error object itself,
+-- Documented in website/user/en/how-to/before-going-to-production.md (Logging): `on_error` receives the error object itself,
 -- with its context and its causes, whatever they hold.
 function T:test_on_error_receives_the_raw_error_with_its_context_and_causes()
   local reported = {}
@@ -800,7 +800,7 @@ local function flaky(real, bursts)
   return fake
 end
 
--- Documented in website/en/how-to/before-going-to-production.md (Logging).
+-- Documented in website/user/en/how-to/before-going-to-production.md (Logging).
 function T:test_the_accept_loop_survives_descriptor_exhaustion_and_logs_once_per_burst()
   local sink = log.MemorySink()
   local before = reactor.Reactor.open_handles()
@@ -900,7 +900,7 @@ function T:test_on_response_marks_the_answers_sent_before_any_action_runs()
   self:assert_equal(true, seen[1].refused)
 end
 
--- Documented in website/en/how-to/before-going-to-production.md (Logging).
+-- Documented in website/user/en/how-to/before-going-to-production.md (Logging).
 function T:test_requests_refused_before_any_action_runs_are_not_logged_but_reach_on_response_as_refused()
   local sink = log.MemorySink()
   local seen = {}
@@ -927,7 +927,7 @@ function T:test_requests_refused_before_any_action_runs_are_not_logged_but_reach
   self:assert_equal(true, seen[2].refused)
 end
 
--- Documented in website/en/how-to/before-going-to-production.md (The access log).
+-- Documented in website/user/en/how-to/before-going-to-production.md (The access log).
 function T:test_on_response_marks_a_response_not_sent_completely_as_failed()
   local seen = {}
   with_server(self, {
@@ -1032,7 +1032,7 @@ local function contains(value, needle, visited)
   return false
 end
 
--- Documented in website/en/how-to/before-going-to-production.md (Logging).
+-- Documented in website/user/en/how-to/before-going-to-production.md (Logging).
 function T:test_the_action_failed_record_is_an_error_with_the_method_the_path_without_the_query_and_the_error()
   local sink = log.MemorySink()
   with_server(self, {

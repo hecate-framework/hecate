@@ -25,23 +25,51 @@ reports/
 website/node_modules/
 website/dist/
 # Generated code reference (tools/run.lua gen-reference; the website workflow generates it).
-# One line per documented package: website/en/reference also holds hand-written pages.
-website/en/reference/core/
-website/en/reference/reactor/
-website/en/reference/net/
-website/en/reference/json/
-website/en/reference/log/
-website/en/reference/http/
-website/en/reference/router/
-website/en/reference/schema/
-website/en/reference/container/
-website/en/reference/config/
-website/en/reference/kernel/
-website/en/reference/openapi/
-website/en/reference/test/
+# One line per documented package: website/user/en/reference also holds hand-written pages.
+website/user/en/reference/core/
+website/user/en/reference/reactor/
+website/user/en/reference/net/
+website/user/en/reference/json/
+website/user/en/reference/log/
+website/user/en/reference/http/
+website/user/en/reference/router/
+website/user/en/reference/schema/
+website/user/en/reference/container/
+website/user/en/reference/config/
+website/user/en/reference/kernel/
+website/user/en/reference/openapi/
+website/user/en/reference/test/
+website/user/en/reference/hecate/
+website/user/en/reference/unicode/
+website/user/en/reference/unicode-data/
+website/user/en/reference/doc/
+# The internals of the same packages, generated into the maintainer tree.
+website/maintainer/en/reference/core/
+website/maintainer/en/reference/reactor/
+website/maintainer/en/reference/net/
+website/maintainer/en/reference/json/
+website/maintainer/en/reference/log/
+website/maintainer/en/reference/http/
+website/maintainer/en/reference/router/
+website/maintainer/en/reference/schema/
+website/maintainer/en/reference/container/
+website/maintainer/en/reference/config/
+website/maintainer/en/reference/kernel/
+website/maintainer/en/reference/openapi/
+website/maintainer/en/reference/test/
+website/maintainer/en/reference/hecate/
+website/maintainer/en/reference/unicode/
+website/maintainer/en/reference/unicode-data/
+website/maintainer/en/reference/doc/
+# Architecture specifications and ADRs as maintainer pages (gen-maintainer-docs; the files of docs/ stay the source).
+website/maintainer/en/architecture/
+website/maintainer/en/adr/
+website/maintainer/en/reviews/
+website/maintainer/en/roadmap.md
+website/maintainer/en/open-questions.md
 # Generated reference pages (gen-error-codes, gen-config-reference; the website workflow generates them).
-website/en/reference/error-codes.md
-website/en/reference/configuration-keys.md
+website/user/en/reference/error-codes.md
+website/user/en/reference/configuration-keys.md
 
 # Editors and OS
 .vscode/

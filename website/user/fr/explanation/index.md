@@ -12,6 +12,7 @@ source_revision: 8191d4759983a317a8ea316a3f7cb6a5e396681a
 Ces pages expliquent comment hecate fonctionne et pourquoi il est conçu ainsi. Elles ne donnent
 pas de recettes : les [guides pratiques](../how-to/index.md) en donnent.
 
+- [La vie d’une requête](life-of-a-request.md) : de la connexion lue par le réacteur à la réponse écrite.
 - [Le modèle de transport](transport-model.md) : flux, suspension plutôt que rappels,
   contre-pression, fermeture partielle, tampons et annulation.
 - [Confiance TLS et valeurs par défaut de sécurité](tls-trust-and-security.md) : pourquoi le

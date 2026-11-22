@@ -49,7 +49,16 @@ return {
         local target = l.path == "" and rel or normalise((dir ~= "" and dir .. "/" or "") .. l.path:gsub("%%20", " "))
         local at = ("%s:%d"):format(rel, l.line)
         local function exists(path) return util.exists(ctx.root .. "/" .. path) end
-        if links.is_ungenerated_reference(target, exists) then
+        local cross = links.cross_tree_target(rel, l.path)
+        if cross ~= nil then
+          -- A link from one site of the website to the other, written as the URL the browser reads.
+          local file = exists(cross .. ".md") and cross .. ".md" or (exists(cross .. "/index.md") and cross .. "/index.md")
+          if not file then
+            problems[#problems + 1] = ("%s: broken link to '%s' (no page %s.md)"):format(at, l.path, cross)
+          elseif l.fragment and not anchors_of(file)[l.fragment:lower()] then
+            problems[#problems + 1] = ("%s: no anchor '#%s' in %s"):format(at, l.fragment, file)
+          end
+        elseif links.is_ungenerated_reference(target, exists) then
           -- The reference is generated and git-ignored: the strict build of the website checks these links.
         elseif not exists(target) then
           problems[#problems + 1] = ("%s: broken link to '%s'"):format(at, l.path)

@@ -47,7 +47,7 @@ local function capture(body)
   return out, err
 end
 
--- Documented in website/en/how-to/before-going-to-production.md (Logging).
+-- Documented in website/user/en/how-to/before-going-to-production.md (Logging).
 function T:test_the_default_logger_is_one_console_sink_at_informational_on_the_standard_output()
   local logger = logging.build(configuration("{}"))
   self:assert_true(logger:severity() == log.Severity.informational)
@@ -64,7 +64,7 @@ function T:test_the_default_logger_is_one_console_sink_at_informational_on_the_s
   self:assert_false((pcall(json.decode, out[1])))
 end
 
--- Documented in website/en/how-to/before-going-to-production.md (Logging).
+-- Documented in website/user/en/how-to/before-going-to-production.md (Logging).
 function T:test_json_lines_writes_one_json_object_per_line_on_the_standard_output()
   local logger = logging.build(configuration("{ sinks = { 'json_lines' } }"))
   local out, err = capture(function()
@@ -83,7 +83,7 @@ function T:test_json_lines_writes_one_json_object_per_line_on_the_standard_outpu
   end
 end
 
--- Documented in website/en/how-to/before-going-to-production.md (Logging).
+-- Documented in website/user/en/how-to/before-going-to-production.md (Logging).
 function T:test_console_and_json_lines_together_both_write_to_the_standard_output()
   local logger = logging.build(configuration("{ sinks = { 'console', 'json_lines' } }"))
   local out, err = capture(function() logger:notice("twice") end)
@@ -93,7 +93,7 @@ function T:test_console_and_json_lines_together_both_write_to_the_standard_outpu
   self:assert_equal("twice", json.decode(out[2]:sub(1, -2)).message)
 end
 
--- Documented in website/en/how-to/before-going-to-production.md (Logging).
+-- Documented in website/user/en/how-to/before-going-to-production.md (Logging).
 function T:test_async_wraps_each_sink_in_an_async_sink()
   local logger = logging.build(configuration("{ sinks = { 'console', 'json_lines' }, async = true }"))
   local sinks = logger._shared.sinks
@@ -115,7 +115,7 @@ function T:test_async_wraps_each_sink_in_an_async_sink()
   self:assert_true(core.is_instance_of(synchronous._shared.sinks[1], log.JsonLinesSink))
 end
 
--- Documented in website/en/how-to/before-going-to-production.md (Logging): with `logging.async`, each sink queues at
+-- Documented in website/user/en/how-to/before-going-to-production.md (Logging): with `logging.async`, each sink queues at
 -- most 1024 records and drops the others silently; the drop count of the sink is not reachable from the logger.
 function T:test_async_drops_records_past_a_queue_of_1024_without_a_reachable_count()
   local logger = logging.build(configuration("{ sinks = { 'json_lines' }, async = true }"))
@@ -135,7 +135,7 @@ function T:test_async_drops_records_past_a_queue_of_1024_without_a_reachable_cou
   self:assert_nil(logger.dropped, "nor of their drop counts")
 end
 
--- Documented in website/en/how-to/before-going-to-production.md (Redaction does not read free text).
+-- Documented in website/user/en/how-to/before-going-to-production.md (Redaction does not read free text).
 function T:test_redact_names_are_added_to_the_default_list()
   local logger = logging.build(configuration("{ sinks = { 'json_lines' }, redact = { 'pin' } }"))
   local out = capture(function()
@@ -152,7 +152,7 @@ function T:test_redact_names_are_added_to_the_default_list()
   for _, leak in ipairs({ "hunter2", "t0k", "1234", "5678" }) do self:assert_nil(out[1]:find(leak, 1, true), leak) end
 end
 
--- Documented in website/en/how-to/before-going-to-production.md (Logging).
+-- Documented in website/user/en/how-to/before-going-to-production.md (Logging).
 function T:test_severities_applies_to_the_logger_named_exactly_as_the_key()
   local exact = logging.build(configuration("{ severity = 'warning', severities = { hecate = 'debug' } }"))
   self:assert_true(exact:severity() == log.Severity.debug)

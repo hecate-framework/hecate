@@ -37,7 +37,7 @@
 ## Public API
 
 `local container = require("hecate.container")`. The guide is
-[Use the container](../../website/en/how-to/use-the-container.md); the generated reference will list every annotation.
+[Use the container](../../website/user/en/how-to/use-the-container.md); the generated reference will list every annotation.
 Nothing here suspends, so nothing is `---@async`.
 
 - `container.Container()`: bindings, validation and resolution.

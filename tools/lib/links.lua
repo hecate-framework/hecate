@@ -56,17 +56,51 @@ function M.extract(text)
 end
 
 --- Whether a missing target is a page of the generated code reference that is not generated
---- here: `website/<locale>/reference/<package>/...` with no `<package>` directory (git-ignored,
+--- here: `website/<tree>/<locale>/reference/<package>/...` with no `<package>` directory (git-ignored,
 --- produced by `gen-reference`), or a missing page of `GENERATED_PAGES` (`gen-error-codes`,
 --- `gen-config-reference`); the strict site build checks these links.
 ---@param target string  repository-relative path of the link target
 ---@param exists fun(path: string): boolean
 ---@return boolean
 function M.is_ungenerated_reference(target, exists)
-  local base = target:match("^(website/[^/]+/reference/[^/]+)/")
+  local base = target:match("^(website/[^/]+/[^/]+/reference/[^/]+)/")
   if base ~= nil then return not exists(base) end
-  local page = target:match("^website/[^/]+/reference/([^/]+%.md)$")
+  -- The generated documents of the maintainer site (`gen-maintainer-docs`, git-ignored).
+  if target:find("^website/maintainer/en/architecture/") or target:find("^website/maintainer/en/adr/")
+    or target:find("^website/maintainer/en/reviews/") or target == "website/maintainer/en/roadmap.md"
+    or target == "website/maintainer/en/open-questions.md" then
+    return not exists(target)
+  end
+  local page = target:match("^website/[^/]+/[^/]+/reference/([^/]+%.md)$")
   return page ~= nil and M.GENERATED_PAGES[page] == true and not exists(target)
+end
+
+--- Resolves a link between the two sites of the website (OQ-144): a browser-relative URL that climbs out of the tree
+--- of its page into the other one, such as `../../../../maintainer/en/explanation/architecture-and-layers/`.
+--- The page is served at `<tree>/<locale>/<page id>/` (an `index.md` at its directory), so the link is read from there.
+--- Returns the repository path of the target page without extension (`.md` or `/index.md` is to be tried), or nil
+--- when the link is not a link to the other tree (or to another locale of the same tree).
+---@param from string  repository-relative path of the page holding the link
+---@param href string  the link path as written (no fragment)
+---@return string?
+function M.cross_tree_target(from, href)
+  local tree, locale, id = from:match("^website/(%a+)/([^/]+)/(.*)%.md$")
+  if tree == nil or (tree ~= "user" and tree ~= "maintainer") then return nil end
+  if href:sub(-1) ~= "/" then return nil end
+  local parts = { tree, locale }
+  local page = id:gsub("/?index$", "")
+  for seg in page:gmatch("[^/]+") do parts[#parts + 1] = seg end
+  for seg in href:gmatch("[^/]+") do
+    if seg == ".." then
+      if #parts == 0 then return nil end
+      parts[#parts] = nil
+    elseif seg ~= "." then parts[#parts + 1] = seg end
+  end
+  local other = parts[1]
+  if (other ~= "user" and other ~= "maintainer") or #parts < 3 then return nil end
+  -- Another tree, or the same tree in another locale (a French page may link to an English page not yet translated).
+  if other == tree and parts[2] == locale then return nil end
+  return "website/" .. table.concat(parts, "/")
 end
 
 --- The single pages of the reference that are generated and git-ignored (gen-error-codes, gen-config-reference).

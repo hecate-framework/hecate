@@ -146,4 +146,4 @@ Run `lua tools/run.lua --list` for the full catalogue.
 - `docs/adr/*.md` — decisions.
 - `docs/roadmap.md`, `docs/open-questions.md`.
 - `packages/<name>/` — one rock per directory (`hecate-<name>`, module `hecate.<name>`).
-- `website/` — public documentation site. `docker/` — images. `benchmarks/`, `examples/`.
+- `website/` — documentation sites: `website/user/` (applications built on Hecate) and `website/maintainer/` (work on Hecate itself), each with `en/` and `fr/`. `docker/` — images. `benchmarks/`, `examples/`.

@@ -3,7 +3,7 @@
 Agents: `docs-writer` (English source), `translator-fr` (French).
 
 - Structure: Diátaxis (tutorials, how-to, reference, explanation). See `OUTLINE.md`.
-- `en/` is the source. `fr/` mirrors its tree; each translated page has front matter
+- Two trees, one per audience: `user/` and `maintainer/` (OQ-144). In each, `en/` is the source and `fr/` mirrors its tree; each translated page has front matter
   `source_revision: <commit>` of the English page it translates.
 - `*/reference/<package>/**` and the pages `reference/error-codes.md` and `reference/configuration-keys.md` are generated
   (`gen-reference`, `gen-error-codes`, `gen-config-reference`, `hecate doc`) and git-ignored: never edit them by hand.
