@@ -62,4 +62,11 @@ function T:test_a_missing_generated_architecture_or_adr_page_of_the_maintainer_s
   self:assert_false(links.is_ungenerated_reference("website/maintainer/en/adr/index.md", function() return true end))
 end
 
+function T:test_a_french_page_may_link_to_the_english_page_of_its_own_tree()
+  local from = "website/user/fr/explanation/life-of-a-request.md"
+  self:assert_equal("website/user/en/how-to/filters",
+    links.cross_tree_target(from, "../../../../user/en/how-to/filters/"))
+  self:assert_nil(links.cross_tree_target(from, "../../../../user/fr/how-to/filters/"))
+end
+
 return T

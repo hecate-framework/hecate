@@ -20,12 +20,12 @@
 
 - Notes (`CLAUDE.md`, `docs-writer`), OQ-146 and issue #232 for the `{tree}` placeholder; CI green on 96e930b (three platforms, build, links, markdownlint).
 - `gen-maintainer-docs` (tests first, `tools/tests/maintainer_docs_test.lua`): `docs/architecture/` and `docs/adr/` become generated, git-ignored maintainer pages; mechanism: front matter from the first heading and paragraph, links between documents kept, glossary to the user site, other files to GitHub (`main`); `docs/roadmap.md`, `open-questions.md`, `reviews/` stay unpublished. Maintainer site builds strict: 78 pages. `check-links` and lychee treat the pages as generated.
+- French `life-of-a-request` (translator-fr); `check-links` resolves a French-to-English link inside one tree (test first).
 
 ## Next steps
 
-1. French page `website/user/fr/explanation/life-of-a-request.md` (agent `translator-fr`).
-2. `/review-package doc`, then fix or record the findings.
-3. Tick the roadmap item (and the `doc` follow-up note), remove this file, mark the pull request ready, ask the owner for review. CI was green on 96e930b.
+1. `/review-package doc`, then fix or record the findings.
+2. Tick the roadmap item (and the `doc` follow-up note), remove this file, mark the pull request ready, ask the owner for review. CI was green on 96e930b.
 
 ## Decisions taken (and where they are recorded)
 

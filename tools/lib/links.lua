@@ -77,7 +77,7 @@ end
 --- of its page into the other one, such as `../../../../maintainer/en/explanation/architecture-and-layers/`.
 --- The page is served at `<tree>/<locale>/<page id>/` (an `index.md` at its directory), so the link is read from there.
 --- Returns the repository path of the target page without extension (`.md` or `/index.md` is to be tried), or nil
---- when the link is not a link to the other tree.
+--- when the link is not a link to the other tree (or to another locale of the same tree).
 ---@param from string  repository-relative path of the page holding the link
 ---@param href string  the link path as written (no fragment)
 ---@return string?
@@ -95,7 +95,9 @@ function M.cross_tree_target(from, href)
     elseif seg ~= "." then parts[#parts + 1] = seg end
   end
   local other = parts[1]
-  if (other ~= "user" and other ~= "maintainer") or other == tree or #parts < 3 then return nil end
+  if (other ~= "user" and other ~= "maintainer") or #parts < 3 then return nil end
+  -- Another tree, or the same tree in another locale (a French page may link to an English page not yet translated).
+  if other == tree and parts[2] == locale then return nil end
   return "website/" .. table.concat(parts, "/")
 end
 
