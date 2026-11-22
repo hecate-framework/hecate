@@ -16,6 +16,7 @@
 1. Read ADR 0009, 0010, 0028, 0029 and the OQ-13 spike (not yet read in full).
 2. `bin/hecate.lua` entry point wiring `cli.run` with the real runtime (versions, platform) and `hecate.json` for `--json`; `--version` alias.
 3. Manifest `hecate.project.lua`: sandboxed evaluation with an instruction limit, validation with `hecate.schema` (including the `doc` section).
+3b. Owner request (2026-11-22): shell completion, `hecate completion <shell>` plus hidden `__complete`, driven by the command declarations (roadmap `cli` item). Cheap and pure Lua: do it right after the entry point.
 4. Then, one step each: lockfile, LuaRocks orchestration, `new` and templates, `install/add/remove/update`, `serve`, `test`, `doc`, `contract`, `doctor`, `toolchain`; the native executable (OQ-13, ADR 0029) in its own steps.
 5. Package README, CHANGELOG, roadmap sub-items as steps land.
 

@@ -401,6 +401,7 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       point is `hecate.doc.generate_project_documentation(options)` (it replaces `hecate.doc.project.build`, no
       alias) with named options and defaults of the conventional layout (`sources_dir = "src"`, `guides_dir = "docs"`,
       `output_dir = "docs/dist"`, relative to `project_dir`).
+      **Also (owner request of 2026-11-22):** shell completion of commands and options: `hecate completion bash|zsh|fish|powershell` prints a small script that calls a hidden `hecate __complete <words...>` command, which answers from the command declarations of `hecate.cli.parser` (names, two-word commands, option names, and values for options that declare them), so the command tree stays the single source; `--help` lists the install line per shell. Tested by golden outputs of `__complete` and of the four scripts; the PowerShell and zsh scripts are checked on the CI platforms where the shell exists. Dynamic values (rock names, toolchain versions) later, only offline and cheap.
       **Also (from the `examples/hello` item):** turn `examples/hello` into a Hecate project (`hecate.project.lua`, run
       by `hecate serve`, tested by `hecate test`, `hecate contract lint` in CI), as `examples/README.md` requires of
       every example from Phase 3 on; today it is `lua main.lua` and the repository harness.
