@@ -15,7 +15,7 @@ local function read(path)
 end
 
 function T:test_the_forms_page_lists_every_form_error_reason_with_its_real_status()
-  local text = read("website/en/how-to/handle-forms-and-multipart.md")
+  local text = read("website/user/en/how-to/handle-forms-and-multipart.md")
   local section = text:match("## Refusals(.-)\n## ") or text:match("## Refusals(.*)$")
   self:assert_not_nil(section, "the page has a Refusals section")
   local documented = {}

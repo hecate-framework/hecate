@@ -1,5 +1,5 @@
 -- gen-reference: Markdown reference pages from the LuaLS JSON export, written to
--- website/en/reference/<package>/ (documentation.md, "Generated reference"). The pages are not
+-- website/user/en/reference/<package>/ (documentation.md, "Generated reference"). The pages are not
 -- committed (git-ignored): the website workflow runs this task before the site build.
 -- Usage: gen-reference [--packages core,reactor,net,json,log,http] [--require]
 -- Without `lua-language-server` on the path the task is skipped with a message; `--require`

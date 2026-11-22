@@ -211,7 +211,7 @@ function T:test_syntax_error_of_a_file_does_not_print_the_value()
   self:assert_equal("config/default.lua", err.context.file)
 end
 
--- Documented in website/en/how-to/before-going-to-production.md (Secrets).
+-- Documented in website/user/en/how-to/before-going-to-production.md (Secrets).
 -- `describe()` prints an unlisted key in full and a listed one as `[redacted]`. A validation error quotes neither value:
 -- the messages of `hecate.schema` never contain the value, so the only difference is that the message of a violation
 -- at a listed key is replaced, while an unlisted key keeps the message of its schema.
@@ -248,7 +248,7 @@ function T:test_an_unlisted_key_is_printed_in_full_and_a_listed_one_never()
   self:assert_nil(message:find(PLAIN, 1, true), message)
 end
 
--- Documented in website/en/how-to/before-going-to-production.md (Logging and redaction).
+-- Documented in website/user/en/how-to/before-going-to-production.md (Logging and redaction).
 function T:test_without_wrap_secret_the_loaded_log_secret_is_used_else_the_config_secret()
   local core = require("hecate.core")
   local FakeSecret = core.class("FakeLogSecret")

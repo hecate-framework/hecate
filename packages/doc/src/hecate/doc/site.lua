@@ -33,6 +33,7 @@ local MARKER = ".hecate-doc-output"
 ---@field last_updated? fun(path: string): string?  ISO 8601 date of the last change of a source file
 ---@field theme_file_system? hecate.doc.FileSystem  where the theme's static files are read from (default: read with `io`)
 ---@field theme_files_dir? string  directory of the theme's static files (default: the theme's own)
+---@field audience? string  the name of the content tree, for example `user`: the edit link of a hand-written page is `edit_link_template` with `{path}` preceded by `<audience>/` (the documentation of a project does the same for each of its audiences), so that one site configuration serves several trees. Generated pages keep the repository path of their source
 
 ---@class hecate.doc.Site
 ---@field site_configuration hecate.doc.SiteConfiguration
@@ -48,6 +49,14 @@ function Site:init(options)
   end
   options_module.check("doc.Site", "build", options, options_module.SITE, 3)
   self.site_configuration = config_module.normalise(options.site_configuration)
+  if options.audience ~= nil then
+    local invalid_field, expected = options_module.invalid(options, { "audience" })
+    if invalid_field then options_module.refuse("doc.Site", invalid_field, expected or "valid", 3) end
+    local template = self.site_configuration.edit_link_template
+    if template then
+      self.site_configuration.edit_link_template = template:gsub("{path}", function() return options.audience .. "/{path}" end)
+    end
+  end
   self._guides_dir = (paths.separators(options.guides_dir):gsub("/+$", ""))
   self._fs = options.file_system
   self._last_updated = options.last_updated

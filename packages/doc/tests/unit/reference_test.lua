@@ -405,4 +405,39 @@ function T:test_split_audiences_make_each_page_link_only_to_pages_of_its_audienc
   self:assert_error(function() generate(inputs, { separate_audience_sites = true }) end)
 end
 
+-- The module of a package is `hecate.<name>` with the dashes of the name written as underscores (`unicode-data` is
+-- `hecate.unicode_data`), except the meta-package `hecate`, whose module is `hecate` itself.
+function T:test_the_module_of_a_package_follows_its_name()
+  self:assert_equal("hecate.unicode_data", reference.module_name("unicode-data"))
+  self:assert_equal("hecate.core", reference.module_name("core"))
+  self:assert_equal("hecate", reference.module_name("hecate"))
+end
+
+function T:test_a_package_with_a_dash_in_its_name_gets_its_pages()
+  local export = {
+    { name = "hecate.unicode_data", type = "type", rawdesc = " The tables.", defines = { { type = "doc.class" } }, fields = {
+      { name = "format", type = "doc.field", rawdesc = "the layout", extends = { view = "integer" } },
+    } },
+  }
+  local result = generate({ { name = "unicode-data", export = export } })
+  self:assert_not_nil(result.pages["reference/unicode-data/index.md"], "the module page")
+  self:assert_equal(0, #result.problems, table.concat(result.problems, "\n"))
+end
+
+function T:test_the_meta_package_gets_its_pages_and_its_type_names()
+  local export = {
+    { name = "hecate", type = "type", rawdesc = " The framework surface.", defines = { { type = "doc.class" } }, fields = {
+      { name = "routes", type = "setfield", rawdesc = " Creates a route module.",
+        extends = { type = "function", args = {}, returns = {}, view = "function hecate.routes()" } },
+    } },
+    { name = "hecate.Controller", type = "type", rawdesc = " The superclass of controllers.", fields = {},
+      defines = { { type = "doc.class" } } },
+  }
+  local result = generate({ { name = "hecate", export = export } })
+  self:assert_not_nil(result.pages["reference/hecate/index.md"], "the module page")
+  self:assert_not_nil(result.pages["reference/hecate/Controller.md"], "a type name of the surface")
+  self:assert_not_nil(result.pages["reference/hecate/functions/routes.md"])
+  self:assert_equal(0, #result.problems, table.concat(result.problems, "\n"))
+end
+
 return T

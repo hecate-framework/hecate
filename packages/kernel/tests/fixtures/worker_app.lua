@@ -27,7 +27,18 @@ local function take_mode()
   local flag = os.getenv("HECATE_TEST_FLAG")
   if flag == nil then return nil end
   local mine = flag .. "." .. uv.os_getpid()
-  if not os.rename(flag, mine) then return nil end
+  -- A rename can fail while the flag file is still there: on Windows a file that was just written stays locked for a
+  -- moment (a scanner, the handle of the test not yet released), and then no process would take the mode and the test
+  -- would see a healthy worker. Retry while the file exists; the file is gone once another process took it.
+  local taken = false
+  for _ = 1, 100 do
+    if os.rename(flag, mine) then taken = true break end
+    local probe = io.open(flag, "r")
+    if probe == nil then break end
+    probe:close()
+    uv.sleep(20)
+  end
+  if not taken then return nil end
   local handle = io.open(mine, "r")
   local text = handle and handle:read("a") or ""
   if handle then handle:close() end

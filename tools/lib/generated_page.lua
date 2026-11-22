@@ -1,5 +1,5 @@
 -- Writing and checking a generated website page (gen-error-codes, gen-config-reference). The pages live in
--- website/en/reference/ and are git-ignored: the website workflow generates them before the site build, like the
+-- website/user/en/reference/ and are git-ignored: the website workflow generates them before the site build, like the
 -- code reference of gen-reference. A file without the generator's marker is never overwritten.
 local util = require("lib.util")
 

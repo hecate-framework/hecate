@@ -224,7 +224,7 @@ function T:test_an_array_with_a_hole_is_reported_at_the_item_after_the_hole()
   fixture.load({ files = { ["config/default.lua"] = "return { tags = { 'a', 'b' }, labels = {} }" } })
 end
 
--- Documented in website/en/how-to/before-going-to-production.md (Secrets).
+-- Documented in website/user/en/how-to/before-going-to-production.md (Secrets).
 function T:test_an_unknown_path_in_secrets_is_an_argument_error_at_load()
   for _, path in ipairs({ "database.pasword", "nope", "database" }) do
     local ok, err = pcall(fixture.load, { options = { secrets = { path } } })

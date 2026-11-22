@@ -29,9 +29,9 @@ in a cycle. A check of the repository refuses an upward dependency.
 | Layer | Packages | Role |
 |---|---|---|
 | 0 Foundation | `core` | object model, errors, enumerations |
-| 1 Runtime | `reactor`, `net`, `json`, `log` | the [reactor](../reference/glossary.md#concurrency) and its transport, streams and TLS, JSON, structured logging |
+| 1 Runtime | `reactor`, `net`, `json`, `log` | the [reactor](../../../../user/en/reference/glossary/#concurrency) and its transport, streams and TLS, JSON, structured logging |
 | 2 Protocol | `http`, `router`, `schema`, `websocket` | HTTP/1.1 server and client, routing, schemas |
-| 3 Framework | `config`, `container`, `kernel`, `openapi`, `security`, `template` | configuration, [container](../reference/glossary.md#object-model-and-architecture), the application, contracts |
+| 3 Framework | `config`, `container`, `kernel`, `openapi`, `security`, `template` | configuration, [container](../../../../user/en/reference/glossary/#object-model-and-architecture), the application, contracts |
 | Data | `query`, `sql`, the database drivers, `orm`, `migration`, `redis`, `mongodb` | data access |
 | Tooling | `test`, `doc`, `cli` | tests, documentation, the command line |
 | Meta | `hecate` | re-exports of the framework surface |
@@ -62,32 +62,13 @@ the reactor and need no build per platform.
 
 ## The life of a request
 
-1. The reactor reports that a connection is readable. `http.Server` parses the request head with llhttp.
-2. The server runs the action of the application in a new [coroutine](../reference/glossary.md#concurrency), inside
-   a [scope](../reference/glossary.md#concurrency) of its own for this request.
-3. The global [filters](../reference/glossary.md#object-model-and-architecture) of the application run.
-4. Inside them, the guard catches errors, and the router matches the method and the path. A request that matches
-   nothing gets a `404`, `405` or `400` problem response, which flows back through the global filters.
-5. The filters of the feature module, of the controller and of the route run.
-6. The kernel coerces and validates the path parameters, query, header fields, cookies and content against the
-   schemas of the route. A failure is a `422` problem response.
-7. The [action](../reference/glossary.md#object-model-and-architecture) runs: a controller method or a function. It
-   returns a value, a `Response` or a problem.
-8. The kernel serialises the result into a
-   [representation](../reference/glossary.md#object-model-and-architecture), validating it against the response
-   schema in development and test.
-9. The server writes the response. Writing suspends until the bytes are handed to the system.
-
-The inputs are validated after the filters, just before the action: a filter that refuses a request (authentication,
-for example) costs no read of its content. The request scope does not end before every computation forked while
-serving the request has ended, so background work cannot outlive its request unnoticed.
-
-[Filters](../how-to/filters.md) and [Map domain errors to problem details](../how-to/map-domain-errors-to-problem-details.md)
-show steps 3 to 8 in practice.
+A request travels from the reactor through the filters, the router, the validation and the action, and back. The user
+site describes it step by step in
+[The life of a request](../../../../user/en/explanation/life-of-a-request/).
 
 ## A boot that validates everything
 
-The [configuration](../reference/glossary.md#configuration) is loaded first, by `hecate.load_configuration`: it
+The [configuration](../../../../user/en/reference/glossary/#configuration) is loaded first, by `hecate.load_configuration`: it
 merges its layers and validates the result against its schema, or raises. `Application:boot()`, which `serve()`
 calls, then does the rest of the work that can fail before the first request:
 
@@ -104,12 +85,12 @@ Any failure stops the boot with a precise error. Nothing is checked for the firs
 a binding name or a path parameter fails when you start the program, not when a client finds it. A failed boot also
 changes no process-wide setting.
 
-With several workers, the [primary](../reference/glossary.md#concurrency) boots the application once before it
+With several workers, the [primary](../../../../user/en/reference/glossary/#concurrency) boots the application once before it
 starts any worker, so such an error is reported once. See
-[Multi-process serving](multi-process-serving.md).
+[Multi-process serving](../../../../user/en/explanation/multi-process-serving/).
 
 ## See also
 
-- [The object model](object-model.md)
-- [The concurrency model](concurrency-model.md)
-- [The HTTP model](http-model.md)
+- [The object model](../../../../user/en/explanation/object-model/)
+- [The concurrency model](../../../../user/en/explanation/concurrency-model/)
+- [The HTTP model](../../../../user/en/explanation/http-model/)

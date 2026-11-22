@@ -105,7 +105,7 @@ end
 local function prepare(options)
   options_module.check("doc.build", "build", options, options_module.BUILD, 4)
   local field, expected = options_module.invalid(options, { "guides_dir", "output_dir", "file_system", "theme_file_system",
-    "theme_files_dir", "last_updated", "site_configuration", "clean_output_dir", "fail_on_problems" })
+    "theme_files_dir", "last_updated", "site_configuration", "clean_output_dir", "fail_on_problems", "audience" })
   if field then options_module.refuse("doc.build", field, expected or "valid", 4) end
   -- `\` is a separator at this entry point; below it everything works with `/`.
   local output_dir = paths.separators(options.output_dir):gsub("/+$", "")

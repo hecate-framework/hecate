@@ -9,7 +9,7 @@ source_revision: cba7be6
 <!-- Public version of docs/glossary.md, adapted for the website (the name is never
      capitalised, links point to the repository). Keep it in step with the source. -->
 <!-- French version: each term is given in French with its English term in parentheses; the
-     English term is the identifier or the reference. Decisions: website/fr/glossary-terms.md. -->
+     English term is the identifier or the reference. Decisions: website/user/fr/glossary-terms.md. -->
 
 # Glossaire
 

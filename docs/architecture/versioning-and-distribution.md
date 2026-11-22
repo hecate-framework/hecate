@@ -26,7 +26,7 @@ A user must know at a glance which Lua version a Hecate installation uses:
 | Docker tags | `hecate/runtime:0.3.0-lua5.5-debian` |
 | Website | compatibility matrix page |
 
-### Compatibility matrix (maintained in `website/en/reference/compatibility.md`)
+### Compatibility matrix (maintained in `website/user/en/reference/compatibility.md`)
 
 | Hecate | Lua | Platforms | Status |
 |---|---|---|---|

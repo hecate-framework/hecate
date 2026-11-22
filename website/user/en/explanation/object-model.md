@@ -144,5 +144,5 @@ A class may also declare a fallback `__index` for names it computes. The names t
 
 ## See also
 
-- [Architecture and layers](architecture-and-layers.md)
+- [Architecture and layers](../../../../maintainer/en/explanation/architecture-and-layers/)
 - Reference: [`hecate.core`](../reference/core/index.md)

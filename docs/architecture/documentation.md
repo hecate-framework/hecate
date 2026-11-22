@@ -35,7 +35,7 @@ The full site map is in [`website/OUTLINE.md`](../../website/OUTLINE.md).
 - Source: LuaLS annotations (`lua-language-server --doc` export, JSON) + route, schema
   and configuration metadata from the packages.
 - Produced by `hecate doc` (Phase 3; the scripts of `packages/doc/bin/` before that, wrapped by `gen-reference`) into
-  `website/en/reference/` as Markdown. Generated pages are never edited by hand; they
+  `website/user/en/reference/` as Markdown. Generated pages are never edited by hand; they
   carry a header comment saying so.
 - The error codes page (`reference/error-codes.md`, every error class of ADR 0018 with its code, parent and
   `context.reason` values) and the configuration keys page (`reference/configuration-keys.md`) are produced by the
@@ -71,8 +71,10 @@ gradients or glows, the name never capitalised, earth as the single accent). Pag
   without JavaScript the source stays readable.
 
 Implementation and conventions: [`packages/doc`](../../packages/doc/README.md); open
-choices OQ-33 to OQ-38. Build: `lua packages/doc/bin/build.lua website --strict` (bootstrap
-runner until `hecate doc build`).
+choices OQ-33 to OQ-38. Build, one site per tree (bootstrap runner until `hecate doc build`):
+`lua packages/doc/bin/build.lua website/user --config website/site.lua --reference --internals-into website/maintainer --audience user --out website/dist/user --strict`
+then `lua packages/doc/bin/build.lua website/maintainer --config website/site.lua --audience maintainer --out website/dist/maintainer --strict`
+(`.github/workflows/website.yml` is the reference).
 
 ### Manual check on a narrow viewport
 
@@ -145,7 +147,7 @@ ADR 0022 (Accepted).
 Owner decision, 2026-11-13. The public pages are written after the manner of *Programming in Lua* (Roberto
 Ierusalimschy): a patient teacher who introduces one thing at a time, shows it at once, and never trades accuracy for
 ease. Readability comes from the order and the pace of the text, not from looser words. The rules apply to every page
-of `website/en/`; the engineering documents of `docs/` keep their denser, reference style.
+of `website/user/en/`; the engineering documents of `docs/` keep their denser, reference style.
 
 1. **One idea per paragraph.** A paragraph states one idea and stops. When a paragraph needs "also", "in addition" or
    a second topic sentence, split it. Three to five sentences is a good length; a one-sentence paragraph is fine.
@@ -172,7 +174,7 @@ A short illustration of rules 1 to 3:
 > Too dense: *Filters, composed once at boot into a chain of responsibility over the action, may pass, short-circuit
 > or post-process, and errors they raise go through the guard like the action's.*
 >
-> Readable: *A [filter](../../website/en/reference/glossary.md) wraps the action of a route: it sees the request
+> Readable: *A [filter](../../website/user/en/reference/glossary.md) wraps the action of a route: it sees the request
 > before the action and the result after it. Here is the smallest filter, one that passes the request on:* (example)
 > *A filter can also stop the request before the action, by returning a result without calling `next`.*
 
@@ -209,7 +211,7 @@ helper's line, so examples print inline. Every phase gate checks both rules on t
 ## Translations
 
 - Locales: `en` (source), `fr` (first), more by contribution.
-- `website/<locale>/` mirrors `website/en/`.
+- `website/user/<locale>/` mirrors `website/user/en/`, and the same for `website/maintainer/`.
 - Each translated page records the source revision it translates (front matter
   `source_revision`); `check-translations` flags stale pages.
 - Untranslated pages fall back to English with a visible notice.
@@ -329,9 +331,15 @@ home of one site only) and no static file.
   reference, after the site is written. `\` is a separator in every path option; a drive-relative path (`C:file`) is refused
   on Windows.
 
-The website of the framework is one tree built by the plain builder; its restructure into `website/user/` and
-`website/maintainer/` is a move of directories (the open part of [OQ-144](../open-questions.md)). A `check-audience` gate
-(which would have checked labels) is probably unnecessary now: the tree is the label.
+The website of the framework is two trees, `website/user/` and `website/maintainer/`, each built by the plain builder into its
+own site (`dist/user`, `dist/maintainer`; `/` redirects to the user site). The classification of the pages is in
+[website-audience-classification.md](../reviews/website-audience-classification.md). The bootstrap runner `--internals-into <tree>` splits the generated code reference (public symbols into the built tree,
+`*.internal` modules and non-public classes into the other one, `audience_locale_dirs` of `reference_site.run`). One
+`site.lua` serves both trees: the `audience` option of `build` and `Site` (`--audience` of the runner) puts the name of the
+tree before `{path}` in the edit link of hand-written pages, the same rule that `generate_project_documentation` applies to
+each audience ([OQ-146](../open-questions.md)). The task `gen-maintainer-docs` publishes `docs/architecture/`, the ADRs, `docs/reviews/`, `docs/roadmap.md` and
+`docs/open-questions.md` as generated pages of the maintainer tree (owner decision, OQ-144). There is no `check-audience`
+gate: the tree is the label.
 
 There is no HTTP API reference: the generator never renders routes or the contract. The Lua **code reference**
 (modules, classes and functions of the project's `package_name`, from LuaLS annotations) is a different thing and

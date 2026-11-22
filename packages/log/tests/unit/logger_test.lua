@@ -225,7 +225,7 @@ function T:test_redact_stops_after_sixteen_levels_of_nested_tables()
   end
 end
 
--- Documented in website/en/how-to/before-going-to-production.md (Redaction does not read free text).
+-- Documented in website/user/en/how-to/before-going-to-production.md (Redaction does not read free text).
 function T:test_redaction_names_match_exactly_and_case_insensitively()
   local logger, sink = new_logger({ redact = { "pin" } })
   logger:error("x", { user_pin = "1234", PIN = "5678" })
@@ -235,7 +235,7 @@ function T:test_redaction_names_match_exactly_and_case_insensitively()
   self:assert_equal("[redacted]", tostring(fields.PIN))
 end
 
--- Documented in website/en/how-to/before-going-to-production.md (Redaction does not read free text).
+-- Documented in website/user/en/how-to/before-going-to-production.md (Redaction does not read free text).
 function T:test_a_table_with_a_metatable_is_not_inspected_by_redaction()
   local logger, sink = new_logger({ redact = { "authorization" } })
   local object = setmetatable({ authorization = "x" }, {})

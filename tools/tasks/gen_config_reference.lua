@@ -2,14 +2,14 @@
 -- packages/config/src/hecate/config/declaration.lua (loaded as a chunk with stand-ins for its dependencies, no
 -- package is required) and the key tables of docs/architecture/configuration.md (tools/lib/config_reference.lua):
 -- key, type, default, allowed values or range, environment variable and meaning.
--- Usage: gen-config-reference [--check] [--out path]   (default website/en/reference/configuration-keys.md)
+-- Usage: gen-config-reference [--check] [--out path]   (default website/user/en/reference/configuration-keys.md)
 -- The page is git-ignored, like the code reference of gen-reference: the website workflow generates it before the
 -- site build. `--check` writes nothing: it fails when a declared key has no row in the specification, a row names a
 -- key that is not declared, or the declaration cannot be read, and, when the page exists, when it is out of date.
 local config_reference = require("lib.config_reference")
 local generated_page = require("lib.generated_page")
 
-local TASK, OUT = "gen-config-reference", "website/en/reference/configuration-keys.md"
+local TASK, OUT = "gen-config-reference", "website/user/en/reference/configuration-keys.md"
 local SOURCES = {
   declaration = "packages/config/src/hecate/config/declaration.lua",
   load = "packages/config/src/hecate/config/load.lua",
