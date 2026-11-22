@@ -3,12 +3,14 @@
 
 - roadmap_item: `website`: move the Hecate website into `website/user/` and `website/maintainer/` (OQ-144, owner decisions of 2026-11-21), before `0.1.0`
 - status: in-progress
-- lock_until: 2026-11-22T09:40:30Z
-- last_update: 2026-11-22T08:10:30Z
+- lock_until: 2026-11-22T11:13:24Z
+- last_update: 2026-11-22T09:43:24Z
 
 ## Done
 
 - Claimed the item (branch, handoff, draft pull request). No content moved yet.
+- Merged `main` (899c5d4); CI green on the three platforms for #229.
+- Read the classification and the link checker. Findings: `tools/lib/links.lua` (`is_ungenerated_reference`, patterns `^website/[^/]+/reference/...`) and `tools/tests/links_test.lua` hard-code `website/<locale>/`; they must become `website/<tree>/<locale>/`. Same for `tools/tasks/{gen_reference,gen_error_codes,gen_config_reference,check_docs_examples}.lua`, `tools/lib/generated_page.lua`, `.gitignore`, `.github/labeler.yml`, `tools/tests/{changes,examples}_test.lua`.
 
 ## Next steps
 
