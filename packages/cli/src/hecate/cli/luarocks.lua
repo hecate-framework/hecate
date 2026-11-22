@@ -163,6 +163,23 @@ function LuaRocks:outdated()
   return outdated
 end
 
+--- Removes rocks from the tree (`luarocks remove --force`: their dependents are not checked, `update` reinstalls them
+--- at once). A rock that is not installed is not an error. Raises `hecate.core.StateError` when LuaRocks fails on one
+--- that is installed.
+---@param names string[]
+function LuaRocks:remove(names)
+  for _, name in ipairs(names) do
+    local result = self:run({ "remove", "--force", name })
+    if result.code ~= 0 then
+      local still = false
+      for _, rock in ipairs(self:installed()) do if rock.name == name:lower() or rock.name == name then still = true end end
+      if still then
+        error(core.StateError({ message = "luarocks could not remove " .. name .. " (exit " .. result.code .. "):\n" .. result.stderr, context = { code = result.code, stderr = result.stderr } }), 0)
+      end
+    end
+  end
+end
+
 --- Installs the dependencies of a rockspec into the tree. The exit status is not trusted alone (LuaRocks exits 1 when
 --- everything is already installed and a lock is present, spike OQ-2): success is that every rock named in `expected`
 --- is installed afterwards. Raises `hecate.core.StateError` naming the missing rocks and what LuaRocks said.

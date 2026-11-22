@@ -26,6 +26,7 @@ local resolution = require("hecate.cli.resolution")
 ---@field rock_directory? fun(name: string, version: string): string  where LuaRocks keeps a rock's rockspec and `rock_manifest`
 ---@field deployed_directory? fun(category: string): string  the directory of the `lua`, `lib` or `bin` files in the tree
 ---@field sha256? fun(data: string): string
+---@field refresh? string[]  rocks removed from the tree before installing, so that LuaRocks takes the newest version the constraints allow (`update`); `{}` stands for every rock of the tree; ignored with `frozen`
 
 ---@class hecate.cli.InstallResult
 ---@field lock hecate.cli.Lockfile
@@ -107,6 +108,15 @@ function M.install(options)
   options.fs.write(config_path, rocks:config_text())
   local rockspec_path = join(options.work_dir, luarocks.rockspec_file_name(manifest))
   options.fs.write(rockspec_path, luarocks.rockspec_text(manifest))
+
+  if options.refresh and not options.frozen then
+    local targets = options.refresh --[[@as string[] ]]
+    if #targets == 0 then
+      targets = {}
+      for _, rock in ipairs(rocks:installed()) do targets[#targets + 1] = rock.name end
+    end
+    rocks:remove(targets)
+  end
 
   local installed = rocks:install_dependencies(rockspec_path, names_of(manifest))
   rocks:pin(rockspec_path, options.work_dir)

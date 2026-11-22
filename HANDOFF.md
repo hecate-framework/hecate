@@ -3,9 +3,8 @@
 
 - roadmap_item: `cli` v1: self-contained executable, `new`, `install`, `add`, `remove`, `update`, `serve [--watch]`, `test`, `doc`, `contract`, `toolchain`, `doctor`, `version` (docs/roadmap.md, Phase 3). Started on the owner's request of 2026-11-22.
 - status: in-progress
-- lock_until: 2026-11-22T21:25:55Z
-<!-- The lock is released on purpose (owner request, 2026-11-22): lock_until is in the past, the next run may continue. -->
-- last_update: 2026-11-22T21:25:55Z
+- lock_until: 2026-11-22T23:25:00Z
+- last_update: 2026-11-22T21:55:00Z
 
 ## Done
 
@@ -28,11 +27,12 @@
 - CI check (845f1ae, all three platforms green): the PowerShell completion script and its test pass on the runners that have `pwsh`.
 - Step (second session, 2026-11-22, 20:55Z): `hecate doctor` (`hecate.cli.doctor` checks, `commands/doctor.lua`, injected probes) and the `--version` alias; run on this cloud environment: one warning (the native `hecate.json` codec is not built here, which `--json` needs). The first version of the check only `require`d `hecate.json`, which succeeds without the native module (it loads on first use): the probe now encodes a value. `doctor` is offline on purpose (no network check).
 - Step (second session, 2026-11-22, 21:25Z): `hecate add` and `hecate remove` with the textual manifest edit (owner decisions: option A with refuse-when-unsure and verify-before-write; default constraint `~> major.minor`): `hecate.cli.manifest_edit`, `internal/lua_tokens`, `internal/manifest_change`, tests (`manifest_edit_test`, `add_remove_test`); run on a scratch project with the real LuaRocks and `plc`: add (default constraint, comments kept), frozen verify, remove, refusals. Bug found by that run and fixed: an empty table holding a comment lost the comment (now the line goes before the closing brace). `remove` leaves the rock in `lua_modules`.
+- Step (third session, 2026-11-22, 21:55Z): `hecate update [<rock>]` (`commands/update.lua`, `LuaRocks:remove`, `refresh` option of the installer, tests in `update_command_test.lua` with a fake that serves 0.5-2 after the removal); typecheck, lint, gates green locally (3 local test failures are the known missing `luv`/`digest`).
 
 ## Next steps
 
 1. Read ADR 0009, 0010, 0028, 0029 and the OQ-13 spike (not yet read in full).
-2. `hecate update [<rock>]`: re-resolve within the constraints of the manifest (install without the lock, take the newest versions that fit, write the lock); `hecate outdated` already says which rocks `update` would move.
+2. Try `hecate update` against a real rock with several versions (blocked here: GitHub archives); `update <rock>` leaves transitive dependencies at their versions (documented).
 3. Then, one step each: `new` and the templates, `serve [--watch]`, `test`, `doc`, `contract`, `toolchain`, `outdated`/`update` follow-ups; the native executable (OQ-13, ADR 0029) in its own steps.
 4. Package README, CHANGELOG, roadmap sub-items as steps land.
 
