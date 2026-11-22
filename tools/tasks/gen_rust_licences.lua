@@ -79,7 +79,7 @@ local function package_name(manifest)
   return manifest:match("%[package%].-\nname%s*=%s*\"([^\"]+)\"") or manifest:match("^%[package%]\nname%s*=%s*\"([^\"]+)\"")
 end
 
-local function module_model(ctx, name, registries, platforms, problems)
+local function module_model(ctx, name, platforms, problems)
   local directory = ("packages/%s/native"):format(name)
   local crate_dir = ctx.root .. "/" .. directory
   local manifest_path = crate_dir .. "/Cargo.toml"
@@ -95,6 +95,8 @@ local function module_model(ctx, name, registries, platforms, problems)
     problems[#problems + 1] = directory .. ": cargo fetch --locked failed (is Cargo.lock up to date, is crates.io reachable?)"
     return nil
   end
+  -- Listed after the fetch: on a machine without a cargo registry, `registry/src` does not exist before it.
+  local registries = registry_sources()
   local lines = {}
   for _, target in ipairs(platforms) do
     local tree, listed = util.capture(('cargo tree --locked --offline -e normal --target %s --prefix none --format "{p}|{l}" --manifest-path %s 2>&1')
@@ -202,11 +204,10 @@ return {
     end
     local platforms = targets(ctx.root)
     if #platforms == 0 then return { ok = false, problems = { "deny.toml: no [graph] targets" } } end
-    local registries = registry_sources()
     local problems, data = {}, {}
     for _, name in ipairs(names) do
       local before = #problems
-      local model = module_model(ctx, name, registries, platforms, problems)
+      local model = module_model(ctx, name, platforms, problems)
       if model and #problems == before then
         local page = rust.render(model)
         local relative = ("packages/%s/native/%s"):format(name, PAGE)
