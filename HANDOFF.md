@@ -20,18 +20,11 @@
 
 ## Next steps
 
-00. Left: generated architecture and ADR pages in the maintainer tree (task, links rewritten, git-ignored), fr `life-of-a-request` (translator-fr), `CLAUDE.md` and `docs-writer` notes, OQ entry (+ issue) for the `{tree}` placeholder, `/review-package doc`, roadmap tick, `typecheck`.
-
-0. Still to do: `website/user/en/explanation/life-of-a-request.md` (split, with fr), `website/README.md`, `website/CLAUDE.md`, `CLAUDE.md`, `.claude/agents/docs-writer.md`, CHANGELOG, roadmap, `/review-package doc`, CI on three platforms (the website workflow runs on this PR: check it).
-
-1. Read `docs/reviews/website-audience-classification.md` in full, `website/site.lua`, and the tools that read `website/en` and `website/fr` (`gen-reference`, `gen-error-codes`, `gen-config-reference`, `check-links`, `check-docs-examples`, `check-examples`, `.gitignore`).
-2. Tests first: a `check-links` test for links between the two trees.
-3. `git mv` the pages (English and French together) into `website/user/<locale>/` and `website/maintainer/<locale>/` per the classification.
-4. Split "The life of a request" into `explanation/life-of-a-request.md` (user, with the French page).
-5. One `site.lua`, edit-link template naming the tree directory, `top_links` to the other site, `/` redirecting to the user site.
-6. Split the code reference with `reference_site.run` and `audience_locale_dirs`.
-7. Task that writes `docs/architecture/` and the ADRs into the maintainer tree (settle the mechanism, record it).
-8. Update generators, `.gitignore`, `website/CLAUDE.md`, `OUTLINE.md`, CHANGELOG, roadmap; run `/review-package doc`; CI on three platforms.
+1. Generated architecture and ADR pages in the maintainer tree: a task that writes `docs/architecture/` and `docs/adr/` into `website/maintainer/en/` with a title and a `description`, rewrites their links, git-ignored; record the mechanism.
+2. French page `website/user/fr/explanation/life-of-a-request.md` (agent `translator-fr`).
+3. `CLAUDE.md` and `.claude/agents/docs-writer.md` notes for the two trees.
+4. Open-question entry and mirror issue for the `{tree}` placeholder of the edit link template (see "Doubts").
+5. `typecheck`, `/review-package doc`, CHANGELOG, tick the roadmap item, remove this file, mark the pull request ready.
 
 ## Decisions taken (and where they are recorded)
 
