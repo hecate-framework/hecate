@@ -11,7 +11,7 @@ order: 0
 These pages explain how hecate works and why it is designed this way. They do not give recipes:
 the [how-to guides](../how-to/index.md) do.
 
-- [Architecture and layers](architecture-and-layers.md): the packages and their layers, native code, the life of a
+- [Architecture and layers](../../../maintainer/en/explanation/architecture-and-layers/): the packages and their layers, native code, the life of a
   request and a boot that validates everything.
 - [The object model](object-model.md): classes, traits, interfaces, finalisation, value classes and errors.
 - [The concurrency model](concurrency-model.md): the reactor, transparent suspension, suspension points, structured

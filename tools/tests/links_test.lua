@@ -36,4 +36,23 @@ function T:test_a_link_to_a_generated_reference_page_that_is_not_generated_is_no
   self:assert_false(links.is_ungenerated_reference("website/user/en/reference/configuration-keys.md", exists))
   self:assert_false(links.is_ungenerated_reference("website/user/en/reference/other.md", exists))
 end
+function T:test_a_url_link_to_the_other_tree_resolves_to_its_page()
+  -- From website/user/en/explanation/object-model.md the page is served at /user/en/explanation/object-model/.
+  local from = "website/user/en/explanation/object-model.md"
+  self:assert_equal("website/maintainer/en/explanation/architecture-and-layers",
+    links.cross_tree_target(from, "../../../../maintainer/en/explanation/architecture-and-layers/"))
+  -- An index page is served at its directory.
+  self:assert_equal("website/maintainer/en/how-to/measure-performance",
+    links.cross_tree_target("website/user/en/how-to/index.md", "../../../maintainer/en/how-to/measure-performance/"))
+  self:assert_equal("website/user/fr/reference/glossary",
+    links.cross_tree_target("website/maintainer/fr/explanation/architecture-and-layers.md",
+      "../../../../user/fr/reference/glossary/"))
+end
+function T:test_other_links_are_not_cross_tree_links()
+  local from = "website/user/en/explanation/object-model.md"
+  self:assert_nil(links.cross_tree_target(from, "../reference/glossary.md"))
+  self:assert_nil(links.cross_tree_target(from, "../reference/glossary/")) -- stays in the tree
+  self:assert_nil(links.cross_tree_target("docs/x.md", "../../../../maintainer/en/a/"))
+  self:assert_nil(links.cross_tree_target(from, "../../../../elsewhere/en/a/"))
+end
 return T

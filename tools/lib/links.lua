@@ -69,6 +69,32 @@ function M.is_ungenerated_reference(target, exists)
   return page ~= nil and M.GENERATED_PAGES[page] == true and not exists(target)
 end
 
+--- Resolves a link between the two sites of the website (OQ-144): a browser-relative URL that climbs out of the tree
+--- of its page into the other one, such as `../../../../maintainer/en/explanation/architecture-and-layers/`.
+--- The page is served at `<tree>/<locale>/<page id>/` (an `index.md` at its directory), so the link is read from there.
+--- Returns the repository path of the target page without extension (`.md` or `/index.md` is to be tried), or nil
+--- when the link is not a link to the other tree.
+---@param from string  repository-relative path of the page holding the link
+---@param href string  the link path as written (no fragment)
+---@return string?
+function M.cross_tree_target(from, href)
+  local tree, locale, id = from:match("^website/(%a+)/([^/]+)/(.*)%.md$")
+  if tree == nil or (tree ~= "user" and tree ~= "maintainer") then return nil end
+  if href:sub(-1) ~= "/" then return nil end
+  local parts = { tree, locale }
+  local page = id:gsub("/?index$", "")
+  for seg in page:gmatch("[^/]+") do parts[#parts + 1] = seg end
+  for seg in href:gmatch("[^/]+") do
+    if seg == ".." then
+      if #parts == 0 then return nil end
+      parts[#parts] = nil
+    elseif seg ~= "." then parts[#parts + 1] = seg end
+  end
+  local other = parts[1]
+  if (other ~= "user" and other ~= "maintainer") or other == tree or #parts < 3 then return nil end
+  return "website/" .. table.concat(parts, "/")
+end
+
 --- The single pages of the reference that are generated and git-ignored (gen-error-codes, gen-config-reference).
 ---@type table<string, boolean>
 M.GENERATED_PAGES = { ["error-codes.md"] = true, ["configuration-keys.md"] = true }

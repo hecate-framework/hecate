@@ -3,8 +3,8 @@
 
 - roadmap_item: `website`: move the Hecate website into `website/user/` and `website/maintainer/` (OQ-144, owner decisions of 2026-11-21), before `0.1.0`
 - status: in-progress
-- lock_until: 2026-11-22T14:11:46Z
-- last_update: 2026-11-22T12:41:46Z
+- lock_until: 2026-11-22T14:14:11Z
+- last_update: 2026-11-22T12:44:11Z
 
 ## Done
 
@@ -13,9 +13,11 @@
 - Read the classification and the link checker. Findings: `tools/lib/links.lua` (`is_ungenerated_reference`, patterns `^website/[^/]+/reference/...`) and `tools/tests/links_test.lua` hard-code `website/<locale>/`; they must become `website/<tree>/<locale>/`. Same for `tools/tasks/{gen_reference,gen_error_codes,gen_config_reference,check_docs_examples}.lua`, `tools/lib/generated_page.lua`, `.gitignore`, `.github/labeler.yml`, `tools/tests/{changes,examples}_test.lua`.
 - Moved the pages: `website/en|fr` -> `website/user/en|fr`; `architecture-and-layers` and `measure-performance` (en, fr) -> `website/maintainer/`. Path references updated in tools, `.gitignore`, labeler, package tests and READMEs, architecture docs, roadmap, OUTLINE. Baseline failures unchanged (native modules not built here; 4 benchmark port tests).
 
+- Step 2: links between the two sites are browser-relative URLs (`../../../../maintainer/en/explanation/x/`, the form of documentation.md); `check-links` resolves them across trees (`links.cross_tree_target`, test first); the 21 broken links rewritten. `check-links`, typecheck, lint green.
+
 ## Next steps
 
-0. **Broken links left (`lua tools/run.lua check-links`, 21):** maintainer pages -> user pages (glossary, filters, object-model...) and user index pages -> the two maintainer pages. Decide the cross-tree link form (absolute URL, `site_origin`-based) and teach `check-links` to resolve it across trees; `fr` links to `measure-performance` too. Also create `maintainer/en/index.md`, `website/user/en/explanation/life-of-a-request.md`, `site.lua` (one for both; the builder takes one tree per site), the `build` and CI website workflow paths, `website/README.md`, `CLAUDE.md`, `.claude/agents/docs-writer.md`.
+0. Still to do from the first list: create `maintainer/en/index.md`, `website/user/en/explanation/life-of-a-request.md`, `site.lua` (one for both; the builder takes one tree per site), the `build` and CI website workflow paths, `website/README.md`, `CLAUDE.md`, `.claude/agents/docs-writer.md`. Fix the 3 failing `doc` tests (they build `website/` with the old layout).
 
 1. Read `docs/reviews/website-audience-classification.md` in full, `website/site.lua`, and the tools that read `website/en` and `website/fr` (`gen-reference`, `gen-error-codes`, `gen-config-reference`, `check-links`, `check-docs-examples`, `check-examples`, `.gitignore`).
 2. Tests first: a `check-links` test for links between the two trees.

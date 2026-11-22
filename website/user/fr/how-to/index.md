@@ -39,7 +39,7 @@ raisons d’une recette, lisez la page correspondante de la section
 
 ## Performances
 
-- [Mesurer les performances](measure-performance.md) : exécuter le benchmark d’écho TCP, lire ses
+- [Mesurer les performances](../../../maintainer/fr/how-to/measure-performance/) : exécuter le benchmark d’écho TCP, lire ses
   chiffres et comparer une modification à sa base.
 
 ## Données

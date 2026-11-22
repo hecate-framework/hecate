@@ -68,7 +68,7 @@ read the matching page of the [explanation](../explanation/index.md) section.
 
 ## Performance
 
-- [Measure performance](measure-performance.md): run the TCP echo benchmark, read its figures and
+- [Measure performance](../../../maintainer/en/how-to/measure-performance/): run the TCP echo benchmark, read its figures and
   compare a change with its base.
 
 ## Data
