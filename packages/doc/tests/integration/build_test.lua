@@ -340,7 +340,7 @@ function T:test_building_the_repository_website_has_no_problem()
     local problems = {}
     for _, problem in ipairs(report.problems) do
       local target = problem:match("broken link (.+)$")
-      local name = target and (target:match("reference/([%w_]+)/") or target:match("^([%w_]+)/"))
+      local name = target and (target:match("reference/([%w_%-]+)/") or target:match("^([%w_%-]+)/"))
       local page = target and target:match("([%w%-]+%.md)$")
       local absent_page = page ~= nil and generated_pages[page] == false
       if not ((name and generated[name] == false) or absent_page) then problems[#problems + 1] = problem end
