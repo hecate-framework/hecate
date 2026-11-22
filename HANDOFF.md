@@ -27,8 +27,7 @@ none yet
 
 ## Doubts and questions for the owner
 
-- `hecate.cli.internal.sandbox` is a copy of `hecate.doc.internal.sandbox` (same limits, same guard). Two copies is a parallel mechanism: a candidate to move into `core` or a shared internal module; needs an owner decision on where (a cross-package change, not done here).
-- ADR 0009 says the manifest declares "toolchain settings", but the specification schema has none beyond `lua`; the manifest accepts only the specified keys for now.
+none. Decided by the owner (2026-11-22): the manifest keeps only the specified keys (`lua` is the only toolchain setting); the sandbox becomes a shared module of `core`, in its own roadmap item (`hecate.cli.internal.sandbox` stays a temporary copy until then).
 
 ## Commands to re-run
 

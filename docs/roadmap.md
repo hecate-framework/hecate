@@ -481,6 +481,14 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       between the two is a finding. Until a first release exists, the pinned build is a recorded commit. The job is
       written and documented in this item, and the migration stays reversible until every package passes; (5) delete `tools/harness/`.
 - [ ] `website`: move the Hecate website into `website/user/` and `website/maintainer/` (OQ-144, owner decisions of 2026-11-21), before `0.1.0`: every URL changes, and changing URLs after a release is breaking. Two trees, each built by the plain builder into its own directory (`/user/en/...`, `/maintainer/en/...`), `/` redirecting to the user site, the French mirror moving with its English page, one `site.lua` for both and an edit-link template naming the tree directory, the code reference split (public symbols to the user tree, internals to the maintainer tree: `reference_site.run` with `audience_locale_dirs`), the two entries of `top_links` pointing at the other site, and a check of the links between the two trees added to `check-links`. The classification is approved (owner, 2026-11-21): [docs/reviews/website-audience-classification.md](reviews/website-audience-classification.md). Also: the section "The life of a request" of `architecture-and-layers` becomes the user page `explanation/life-of-a-request.md` (French page with it); the maintainer site publishes `docs/architecture/` and the ADRs as generated pages (git-ignored, the files stay the source of truth; a task writes them into the maintainer tree with a title and a description and rewrites their links; the mechanism is settled when the item starts); `docs/roadmap.md`, `docs/open-questions.md` and `docs/reviews/` stay unpublished unless the owner says otherwise.
+- [ ] `core`, `doc`, `config`, `cli`: one shared sandbox for Lua files that only describe data (owner decision of 2026-11-22). Today
+      `hecate.doc.internal.sandbox` (instruction and memory limit on a coroutine hook, added with the `doc` hardening of
+      2026-11-19) has a copy in `hecate.cli.internal.sandbox` (manifest), and `hecate.config` loads its files with its own
+      `load(text, "@" .. path, "t", {})` (check whether it has the limits). Move the guard to a public module of `core`
+      (name to settle with the item, for example `hecate.core.sandbox`; `core` stays dependency-free and does no I/O),
+      with its tests and the limits of the C calls it cannot bound documented; make `doc`, `cli` and `config` call it and
+      delete the private copies; `configuration.md` and ADR 0009 point to it. Before `0.1.0`: a public module of `core`
+      is frozen with the API.
 - [ ] **Phase 3 gate**: verification of the phase, as described in [Phase gates](#phase-gates). Open
       questions to put to the owner before Phase 4: OQ-18 and OQ-45.
 
