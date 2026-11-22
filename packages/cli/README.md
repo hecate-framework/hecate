@@ -8,7 +8,7 @@
 | Rock | `hecate-cli` |
 | Layer | Tooling |
 | Roadmap phase | 3 |
-| Status | in progress — dispatcher, argument parser, `--help`, `--json`, exit codes, `version`, shell completion, the manifest; other commands to do |
+| Status | in progress — dispatcher, argument parser, `--help`, `--json`, exit codes, `version`, shell completion, the manifest, the lockfile format; other commands to do |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |
 | Depends on | [`core`](../core), [`reactor`](../reactor), [`log`](../log), [`json`](../json), [`schema`](../schema) |
 | Used by | — |
@@ -49,6 +49,7 @@
 - `cli.commands`: the commands implemented so far (`version`).
 - `cli.completion`: `complete(words, commands)` (candidates for a partial command line) and `script(shell)`; commands `completion <shell>` and the hidden `__complete`.
 - `cli.manifest`: `parse(source, path?, limits?)` and `validate(table, path?)` for `hecate.project.lua` (sandboxed, schema-validated, `ConfigurationError` with pointers); `manifest.schema`.
+- `cli.lockfile`: `parse`, `validate`, `serialize` (sorted, deterministic) and `outdated(lock, manifest)` for `hecate.lock`.
 - `hecate.cli.Command`: `name`, `summary`, `usage`, `options`, `run(context)`; `Context:emit(value, text)` prints JSON under `--json`.
 
 ## Layout (once implemented)
