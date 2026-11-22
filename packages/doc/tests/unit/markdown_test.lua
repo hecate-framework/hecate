@@ -15,6 +15,14 @@ function T:test_gfm_constructs_render()
   self:assert_true(has(html, '<a href="http://www.example.com">'))
 end
 
+function T:test_tables_are_wrapped_so_that_they_scroll_inside_the_column()
+  local html = markdown.render("| a | b |\n|:-|-:|\n| 1 | 2 |\n\n`<table>` stays text\n").html
+  self:assert_true(has(html, '<div class="table-wrap"><table>'))
+  self:assert_true(has(html, "</table></div>"))
+  self:assert_equal(1, select(2, html:gsub("table%-wrap", "")))
+  self:assert_true(has(html, "<code>&lt;table&gt;</code>"))
+end
+
 function T:test_headings_have_unique_ids_anchors_and_custom_ids()
   local result = markdown.render("## Same\n\n## Same\n\n## Named {#mine}\n")
   self:assert_equal(3, #result.headings)

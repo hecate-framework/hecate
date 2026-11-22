@@ -22,7 +22,7 @@ end
 function M.allowed(deps)
   if #deps == 0 then return "Lua standard library only." end
   local names = {}
-  for i, d in ipairs(deps) do names[i] = "`hecate." .. d .. "`" end
+  for i, d in ipairs(deps) do names[i] = "`hecate." .. d:gsub("%-", "_") .. "`" end
   return table.concat(names, ", ") .. "."
 end
 

@@ -28,6 +28,19 @@ function M.quote(s)
   return "'" .. s:gsub("'", "'\\''") .. "'"
 end
 
+--- The command that runs the system's own `tar` (bsdtar). On Windows a `tar` found first on PATH may be another
+--- program: Git for Windows' GNU tar misreads `C:` as a remote host and cannot read a zip, so the one of System32 is
+--- named. `windows` and `system_root` are injectable so that the choice is testable on every platform.
+---@param windows? boolean   defaults to the running platform
+---@param system_root? string   defaults to %SystemRoot%
+---@return string command   ready to put at the start of a shell command line
+function M.tar_command(windows, system_root)
+  if windows == nil then windows = is_windows end
+  if not windows then return "tar" end
+  local root = system_root or os.getenv("SystemRoot") or "C:\\Windows"
+  return '"' .. (root .. "\\System32\\tar.exe"):gsub('"', '""') .. '"'
+end
+
 --- Returns the path of the running Lua interpreter.
 ---@return string
 function M.interpreter() return arg and arg[-1] or "lua" end
@@ -47,6 +60,29 @@ end
 ---@return boolean
 function M.mkdir(path)
   local cmd = is_windows and ("mkdir %s >nul 2>&1"):format(M.quote(path)) or ("mkdir -p %s"):format(M.quote(path))
+  return os.execute(cmd) == true
+end
+
+--- Creates a new, empty directory `<base>/<prefix>-<time>-<random>` (and `base`) and returns its path, or nil. A
+--- repository task keeps its scratch files under `.hecate/` (git-ignored) rather than in the system temporary directory,
+--- where `os.tmpname()` leaves a file behind and its name is predictable.
+---@param base string
+---@param prefix string
+---@return string?
+function M.make_temp_dir(base, prefix)
+  for _ = 1, 10 do
+    local path = ("%s/%s-%d-%d"):format(base, prefix, os.time(), math.random(1, 1 << 30))
+    if not M.exists(path) and M.mkdir(path) then return path end
+  end
+  return nil
+end
+
+--- Removes a directory and everything under it (no error when it is absent).
+---@param path string
+---@return boolean
+function M.remove_tree(path)
+  if path == "" or path == "/" or path == "." then return false end
+  local cmd = is_windows and ("rmdir /s /q %s >nul 2>&1"):format(M.quote(path)) or ("rm -rf %s"):format(M.quote(path))
   return os.execute(cmd) == true
 end
 

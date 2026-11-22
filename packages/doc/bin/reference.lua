@@ -10,7 +10,7 @@ global <const> string
 
 local script = arg[0]:gsub("\\", "/")
 local here = script:match("^(.*)/[^/]*$") or "."
-for _, package_name in ipairs({ "doc", "core", "reactor", "json", "schema", "openapi" }) do
+for _, package_name in ipairs({ "doc", "core", "reactor", "json", "schema", "openapi", "unicode", "unicode-data" }) do
   local base = here .. "/../../" .. package_name .. "/src/"
   package.path = base .. "?.lua;" .. base .. "?/init.lua;" .. package.path
 end
@@ -56,10 +56,21 @@ do
     i = i + 1
   end
 end
-options.out = options.out or (options.root .. "/website/en")
-options.fs = doc.SystemFileSystem()
+-- The flags keep their short names (`--root`, `--out`); the options of `reference_site.run` are named for what they are.
+local luarc = options.root .. "/.luarc.json"
+local luarc_file = io.open(luarc, "rb")
+if luarc_file then luarc_file:close() end
+local run_options = {
+  project_dir = options.root,
+  -- The configuration of the repository (Lua 5.5 runtime, paths) is given explicitly: the library passes none by default.
+  language_server_config_path = luarc_file and luarc or nil,
+  locale_dir = options.out or (options.root .. "/website/en"),
+  file_system = doc.SystemFileSystem(),
+  packages = options.packages,
+  since = options.since,
+}
 
-local ok, report = pcall(reactor.run, reference_site.run, options)
+local ok, report = pcall(reactor.run, reference_site.run, run_options)
 if not ok then
   io.stderr:write(tostring(report), "\n")
   os.exit(1)

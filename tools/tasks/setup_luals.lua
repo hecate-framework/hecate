@@ -1,4 +1,4 @@
--- setup-luals: installs the LuaLS release pinned in .github/workflows/ci.yml (version and sha256 per
+-- setup-luals: installs the LuaLS release pinned in .github/workflows/ci.yml (`LUALS_VERSION` and `LUALS_PINS`: asset and sha256 per
 -- platform, read from that file so there is a single pin) into `spikes/luals/` (git-ignored), after
 -- checking the sha256 of the download. `typecheck` finds it there when `lua-language-server` is not on PATH.
 -- Needs network access to github.com. Idempotent: does nothing when the pinned version is installed.
@@ -42,6 +42,7 @@ local function runner_name()
 end
 
 return {
+  pin = pin, -- exported for the tests
   description = "install the pinned LuaLS into spikes/luals (sha256 checked), for typecheck",
   run = function(ctx)
     local runner = runner_name()
@@ -61,7 +62,7 @@ return {
     local archive = ctx.root .. "/spikes/" .. file
     util.mkdir(dir)
     local url = ("https://github.com/LuaLS/lua-language-server/releases/download/%s/%s"):format(version, file)
-    local out, ok = util.capture(("curl -fsSL -o %s %s 2>&1"):format(util.quote(archive), '"' .. url .. '"'))
+    local out, ok = util.capture(("curl -fsSL --retry 5 --retry-all-errors --retry-delay 5 -o %s %s 2>&1"):format(util.quote(archive), '"' .. url .. '"'))
     if not ok then return { ok = false, problems = { "download failed (is github.com allowed?): " .. out } } end
 
     local data = read(archive)
@@ -80,9 +81,7 @@ return {
 
     -- On Windows the system's own bsdtar: a `tar` found first on PATH may be another program (Git for Windows' GNU tar
     -- cannot read a zip and misreads `C:` as a remote host).
-    local tar = "tar"
-    if util.is_windows() then tar = util.quote((os.getenv("SystemRoot") or "C:\\Windows") .. "\\System32\\tar.exe") end
-    out, ok = util.capture(("%s -xf %s -C %s 2>&1"):format(tar, util.quote(util.is_windows() and windows_path(archive) or archive),
+    out, ok = util.capture(("%s -xf %s -C %s 2>&1"):format(util.tar_command(), util.quote(util.is_windows() and windows_path(archive) or archive),
       util.quote(util.is_windows() and windows_path(dir) or dir)))
     os.remove(archive)
     if not ok then return { ok = false, problems = { "extraction failed: " .. out } } end

@@ -52,7 +52,7 @@ function T:test_a_failed_export_leaves_no_temporary_directory_and_uses_an_unpred
     local spy = setmetatable({ remove_tree = function(_, path) removed[#removed + 1] = path; fs:remove_tree(path) end },
       { __index = fs })
     for index = 1, 2 do
-      local ok, err = pcall(luals.export, "/nonexistent/lua-language-server", "/nonexistent/src", { fs = spy })
+      local ok, err = pcall(luals.export, "/nonexistent/lua-language-server", "/nonexistent/src", { file_system = spy })
       errors[index] = ok and "no error" or err
     end
     for _, path in ipairs(removed) do left[#left + 1] = fs:exists(path) end
@@ -97,6 +97,17 @@ function T:test_a_temporary_directory_that_already_exists_is_never_reused()
   self:assert_equal("attacker", fs:read("t/hecate-luals-x/planted.txt"))
   luals.claim_directory(fs, "t/fresh")
   self:assert_true(fs:exists("t/fresh"))
+end
+
+function T:test_the_excerpt_of_a_failure_is_short()
+  local lines = {}
+  for index = 1, 100 do lines[index] = ("line %d %s"):format(index, ("x"):rep(500)) end
+  local text = luals.excerpt(table.concat(lines, "\n"))
+  self:assert_true(#text < 2000, #text)
+  self:assert_not_nil(text:find("(95 more lines)", 1, true), text)
+  self:assert_not_nil(text:find("line 1 ", 1, true))
+  self:assert_nil(text:find("line 6 ", 1, true))
+  self:assert_equal("", luals.excerpt(""))
 end
 
 return T

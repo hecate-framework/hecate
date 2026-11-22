@@ -10,7 +10,7 @@ local function has(text, part) return text:find(part, 1, true) ~= nil end
 
 local LIMIT = 100 -- block nesting limit documented in the README (native MAX_NESTING)
 
-local PRELUDE = ("package.path = %q; package.cpath = %q; local markdown = require('hecate.doc.markdown');")
+local PRELUDE = ("package.path = %q; package.cpath = %q; local markdown = require('hecate.doc.markdown'); local core = require('hecate.core');")
   :format(package.path, package.cpath)
 
 -- Runs `build` (Lua source returning the document) in a child interpreter; returns the status
@@ -22,13 +22,13 @@ local function child(build)
     local source = assert(load("return (function() " .. build .. " end)()"))()
     local ok, err = pcall(markdown.render, source)
     if ok then return "ok" end
-    if core.is_instance_of(err, core.Error) then return "refused" end
+    if core.is_instance_of(err, core.ArgumentError) and tostring(err):find("nests more than", 1, true) then return "refused" end
     return "error:" .. tostring(err)
   end
   local script = PRELUDE .. "local source = (function() " .. build .. " end)()\n" .. [[
     local ok, err = pcall(markdown.render, source)
     if ok then io.write("ok")
-    elseif type(err) == "table" and err.message then io.write("refused")
+    elseif core.is_instance_of(err, core.ArgumentError) and tostring(err):find("nests more than", 1, true) then io.write("refused")
     else io.write("error:" .. tostring(err)) end
   ]]
   local file = os.tmpname()
@@ -43,14 +43,12 @@ local function child(build)
   return output
 end
 
+-- `expected` is the exact outcome: "refused" is the nesting error (an `ArgumentError` that says the document nests more than
+-- the limit), "ok" a rendered document. No clock is read: a hang is caught by the watchdog of the test runner
+-- (HECATE_TEST_TIMEOUT), and a crash by the status of the child.
 local function assert_survives(self, build, expected)
-  local started = os.time()
-  local clock = os.clock()
   local status = child(build)
-  self:assert_true(status == "ok" or status == "refused", "unexpected child status: " .. status)
-  if expected then self:assert_equal(expected, status) end
-  -- The child's time is wall time here (os.clock counts only this process), so use both.
-  self:assert_true(os.time() - started < 8 and os.clock() - clock < 8, "took too long")
+  self:assert_equal(expected, status, "unexpected child status: " .. status)
 end
 
 function T:test_deep_blockquote_nesting_is_refused()
@@ -71,19 +69,19 @@ function T:test_the_refusal_is_an_argument_error_naming_the_line()
 end
 
 function T:test_deep_inline_nesting_survives()
-  assert_survives(self, [[return string.rep("[", 100000)]])
-  assert_survives(self, [[return string.rep("*a ", 100000)]])
+  assert_survives(self, [[return string.rep("[", 100000)]], "ok")
+  assert_survives(self, [[return string.rep("*a ", 100000)]], "ok")
   assert_survives(self, [[return string.rep("*a _a ", 100000) .. string.rep("a_ a* ", 100000)]], "ok")
   assert_survives(self, [[return string.rep("![a ", 50000) .. string.rep("](x) ", 50000)]], "ok")
-  assert_survives(self, [[return string.rep("*", 200000) .. "a" .. string.rep("*", 200000)]])
+  assert_survives(self, [[return string.rep("*", 200000) .. "a" .. string.rep("*", 200000)]], "ok")
 end
 
 function T:test_many_delimiters_survive()
-  assert_survives(self, [[return string.rep("*_", 100000)]])
-  assert_survives(self, [[return string.rep("`a", 100000)]])
-  assert_survives(self, [[return string.rep("[a](", 50000)]])
-  assert_survives(self, [[return string.rep("<", 100000)]])
-  assert_survives(self, [[return string.rep("|a", 50000) .. "\n"]])
+  assert_survives(self, [[return string.rep("*_", 100000)]], "ok")
+  assert_survives(self, [[return string.rep("`a", 100000)]], "ok")
+  assert_survives(self, [[return string.rep("[a](", 50000)]], "ok")
+  assert_survives(self, [[return string.rep("<", 100000)]], "ok")
+  assert_survives(self, [[return string.rep("|a", 50000) .. "\n"]], "ok")
 end
 
 function T:test_realistic_nesting_renders_up_to_depth_20()

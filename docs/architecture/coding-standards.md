@@ -47,7 +47,7 @@ packages/<name>/
   (`user_repository.lua` → `UserRepository`).
 - Booleans read as predicates: `is_closed`, `has_body`, `can_retry`.
 - No abbreviations except standard ones (`uri`, `http`, `sql`, `json`, `id`, `tls`).
-- **Spelling.** Prose and identifiers use British spelling (`finalise`, `normalise_config`,
+- **Spelling.** Prose and identifiers use British spelling (`finalise`, `normalise_site_configuration`,
   "licence", "behaviour", "catalogue"). External identifiers keep their own spelling: the
   rockspec field `license`, SPDX identifiers, badges and the task name `check-licenses`.
 - **Operations name the verb first**, then the transport: `connect_tcp`, `listen_pipe`,

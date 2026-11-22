@@ -52,6 +52,14 @@
   - changed-files:
       - any-glob-to-any-file: "packages/test/**"
 
+"package:unicode":
+  - changed-files:
+      - any-glob-to-any-file: "packages/unicode/**"
+
+"package:unicode-data":
+  - changed-files:
+      - any-glob-to-any-file: "packages/unicode-data/**"
+
 "package:doc":
   - changed-files:
       - any-glob-to-any-file: "packages/doc/**"

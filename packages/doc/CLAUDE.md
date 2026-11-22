@@ -5,18 +5,20 @@ package-specific context. Specialist agent: `pkg-doc`.
 
 ## Purpose
 
-Documentation generator and static site builder with an MDN-like theme: guides in Markdown, code reference from LuaLS annotations, API reference from OpenAPI, configuration and error-code references, locales, search.
+Documentation generator and static site builder with an MDN-like theme: guides in Markdown, code reference from LuaLS annotations, configuration reference, locales, search.
 
 ## Read before changing anything
 
 - Specification: `docs/architecture/documentation.md`
-- Decisions: `docs/adr/0012-website-generator.md`, `docs/adr/0013-english-code-multilingual-documentation.md`
+- Decisions: `docs/adr/0012-website-generator.md`, `docs/adr/0013-english-code-multilingual-documentation.md`,
+  `docs/adr/0022-doc-dependencies.md`, `docs/adr/0032-unicode-normalisation-packages.md`,
+  `docs/adr/0033-vendored-browser-libraries.md`
 - Glossary: `docs/glossary.md` · Coding standards: `docs/architecture/coding-standards.md`
 - This package's `README.md` (scope, dependencies, status)
 
 ## Boundaries
 
-- Allowed dependencies: `hecate.core`, `hecate.reactor`, `hecate.openapi`, `hecate.schema`, `hecate.json`.
+- Allowed dependencies: `hecate.core`, `hecate.reactor`, `hecate.json`, `hecate.unicode`.
   Anything else requires an ADR; `check-boundaries` fails otherwise.
 - Native code: Rust crate in `native/` (comrak, syntect, two-face through `mlua`; ADR 0022, rules of ADR 0021: `Cargo.lock`, `cargo-deny`, `unsafe` forbidden). Build it with `lua tools/run.lua build-native doc`; the tests of this package need it. It ships as a prebuilt binary rock per platform from release CI (OQ-41).
 - Out of scope: a general-purpose CMS.

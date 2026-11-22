@@ -169,8 +169,13 @@ jobs:
     # watchdog (HECATE_TEST_TIMEOUT) names the test; this is the backstop for a blocking call.
     timeout-minutes: 30
     env:
-      # The single LuaLS pin: read by this job (cache key and download) and by tools/tasks/setup_luals.lua.
+      # The single LuaLS pin: read by this job (cache key) and by tools/tasks/setup_luals.lua, which also reads
+      # LUALS_PINS (asset and sha256 per runner; `Linux-X64`, `macOS-ARM64`, `Windows-X64`).
       LUALS_VERSION: 3.19.1
+      LUALS_PINS: |
+        Linux-X64) asset=linux-x64.tar.gz; sha=e9235d2d72ef55bc41cf8c99cda2ed64777682024b4bb81f5dea425060c5cbb8
+        macOS-ARM64) asset=darwin-arm64.tar.gz; sha=0bc077f4447f076b4c92c14e9fd303f5b569eda2ec74b4dca2b55f75fae2e90c
+        Windows-X64) asset=win32-x64.zip; sha=fdb9a59108cf62517813c97fa5549b0e16d1ef0688306bac728b08434db7e4cd
       # Release builds from a cold cache: incremental data would only grow the cached target directories.
       CARGO_INCREMENTAL: "0"
     strategy:
@@ -218,42 +223,25 @@ jobs:
         shell: cmd
         run: cl 2>&1 | findstr /C:"Version" && cmake --version
 
-      # The static checks (below) are platform-independent: they run on Linux only, so LuaLS is needed there only.
-      # The archive is cached per platform and version (the checksum below is verified on every run, from the
-      # cache or from the download), so a transient 5xx of the release endpoint only matters on a cold cache.
-      - name: Cache LuaLS archive
+      # LuaLS is needed on every platform: `typecheck` (Linux only, below) and the tests of `doc` that read the code
+      # reference (all platforms; they fail in CI without it). `lua tools/run.lua setup-luals` installs the pinned
+      # release (version and per-platform sha256 above, checksum verified on download) into `spikes/luals`; that
+      # directory is cached per platform and version, and the task does nothing when the cached version is the pin.
+      - name: Cache LuaLS
         id: luals
-        if: runner.os == 'Linux'
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
-          path: ~/.cache/luals
+          path: spikes/luals
           key: luals-${{ runner.os }}-${{ runner.arch }}-${{ env.LUALS_VERSION }}
 
       - name: Install LuaLS
-        if: runner.os == 'Linux'
+        id: install_luals
         shell: bash
-        run: |
-          case "$RUNNER_OS-$RUNNER_ARCH" in
-            Linux-X64) asset=linux-x64.tar.gz; sha=e9235d2d72ef55bc41cf8c99cda2ed64777682024b4bb81f5dea425060c5cbb8 ;;
-            macOS-ARM64) asset=darwin-arm64.tar.gz; sha=0bc077f4447f076b4c92c14e9fd303f5b569eda2ec74b4dca2b55f75fae2e90c ;;
-            Windows-X64) asset=win32-x64.zip; sha=fdb9a59108cf62517813c97fa5549b0e16d1ef0688306bac728b08434db7e4cd ;;
-            *) echo "no pinned LuaLS for $RUNNER_OS-$RUNNER_ARCH" >&2; exit 1 ;;
-          esac
-          file="lua-language-server-$LUALS_VERSION-$asset"
-          archive="$HOME/.cache/luals/$file"
-          verify() { echo "$sha  $archive" | (sha256sum -c - 2>/dev/null || shasum -a 256 -c -); }
-          mkdir -p "$HOME/.cache/luals"
-          if [ ! -f "$archive" ] || ! verify; then
-            rm -f "$archive"
-            curl -fsSL --retry 5 --retry-all-errors --retry-delay 5 -o "$archive" "https://github.com/LuaLS/lua-language-server/releases/download/$LUALS_VERSION/$file"
-            verify
-          fi
-          mkdir -p "$RUNNER_TEMP/luals"
-          case "$file" in
-            *.zip) unzip -q "$archive" -d "$RUNNER_TEMP/luals" ;;
-            *) tar -xzf "$archive" -C "$RUNNER_TEMP/luals" ;;
-          esac
-          echo "$RUNNER_TEMP/luals/bin" >> "$GITHUB_PATH"
+        run: lua tools/run.lua setup-luals
+
+      - name: Add LuaLS to PATH
+        shell: pwsh
+        run: Add-Content -Path $env:GITHUB_PATH -Value (Join-Path $env:GITHUB_WORKSPACE 'spikes/luals/bin')
 
       - name: Cache rocks
         id: rocks
@@ -387,6 +375,11 @@ jobs:
         shell: bash
         run: lua tools/run.lua fetch-fixtures openapi
 
+      - name: Download the Unicode normalisation test file
+        if: contains(format(' {0} ', needs.plan.outputs.packages), ' unicode ')
+        shell: bash
+        run: lua tools/run.lua fetch-fixtures unicode
+
       - name: Lint the JSON encoder (Linux)
         if: runner.os == 'Linux' && contains(format(' {0} ', needs.plan.outputs.packages), ' json ')
         working-directory: packages/json/native
@@ -499,7 +492,7 @@ jobs:
           PACKAGES: ${{ needs.plan.outputs.packages }}
         run: |
           set -e
-          for task in check-versions check-rockspecs check-package-structure check-docs-examples check-examples check-licenses check-lua-constructs check-boundaries check-glossary check-annotations check-adr-index format-check typecheck; do
+          for task in check-versions check-rockspecs check-package-structure check-docs-examples check-examples check-licenses check-vendored check-lua-constructs check-boundaries check-glossary check-annotations check-adr-index format-check typecheck; do
             echo "::group::$task"
             lua tools/run.lua "$task"
             echo "::endgroup::"
@@ -509,6 +502,16 @@ jobs:
             lua tools/run.lua "$task" --check
             echo "::endgroup::"
           done
+          # The committed Unicode tables equal the ones generated from the pinned UCD files (ADR 0032).
+          echo "::group::gen-unicode --check"
+          lua tools/run.lua fetch-fixtures unicode-data
+          lua tools/run.lua gen-unicode --check
+          echo "::endgroup::"
+          # The licence pages of the Rust native modules follow their Cargo.lock (fetches the crates, builds the
+          # two-face helper of the module doc).
+          echo "::group::gen-rust-licences --check"
+          lua tools/run.lua gen-rust-licences --check
+          echo "::endgroup::"
           echo "::group::lint"
           lua tools/run.lua lint $PACKAGES
           echo "::endgroup::"
@@ -522,16 +525,27 @@ jobs:
           # The TLS tests fail, instead of skipping, when the native module is missing.
           HECATE_NETWORK_TESTS: "1"
           HECATE_REQUIRE_TLS: ${{ needs.plan.outputs.net_native == 'true' && '1' || '' }}
+          # The build of the documentation site of examples/hello fails, instead of skipping, when the native module
+          # of `doc` is missing: it is built whenever `doc` is affected (an example's docs/ affects `doc`).
+          HECATE_REQUIRE_DOC_NATIVE: ${{ contains(format(' {0} ', needs.plan.outputs.packages), ' doc ') && '1' || '' }}
         run: |
           set -e
           echo "::group::test"
           lua tools/run.lua test tools $PACKAGES
           echo "::endgroup::"
-          # The Phase 2 example (examples/hello, with two worker processes) runs whenever the kernel is affected.
+          # The Phase 2 example (examples/hello, with two worker processes) runs whenever the kernel is affected;
+          # with `doc` affected too, its documentation build runs (the native module of `doc` is built). When only
+          # `doc` is affected (a change to the package or to the site of an example), only that build runs: the
+          # servers of the example need native modules that this run does not build.
           case " $PACKAGES " in
             *" kernel "*)
               echo "::group::test examples/hello"
               lua tools/run.lua test examples/hello
+              echo "::endgroup::"
+              ;;
+            *" doc "*)
+              echo "::group::test examples/hello:docs_build_test"
+              lua tools/run.lua test examples/hello:docs_build_test
               echo "::endgroup::"
               ;;
           esac
@@ -596,12 +610,12 @@ jobs:
           path: .hecate/toolchain
           key: ${{ steps.toolchain.outputs.cache-primary-key }}
 
-      - name: Save cache LuaLS archive
-        if: always() && steps.luals.outputs.cache-hit != 'true' && steps.luals.outputs.cache-primary-key != ''
+      - name: Save cache LuaLS
+        if: always() && steps.luals.outputs.cache-hit != 'true' && steps.luals.outputs.cache-primary-key != '' && steps.install_luals.outcome == 'success'
         continue-on-error: true
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
-          path: ~/.cache/luals
+          path: spikes/luals
           key: ${{ steps.luals.outputs.cache-primary-key }}
 
       - name: Save cache rocks

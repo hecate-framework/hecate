@@ -8,6 +8,7 @@ local strings = require("hecate.doc.theme.strings")
 ---@class hecate.doc.Theme
 ---@field page fun(context: hecate.doc.PageContext): string  renders a page
 ---@field not_found fun(context: hecate.doc.PageContext): string  renders the 404 page
+---@field diagram_files string[]  static files copied only when a page holds a diagram
 ---@field strings table  interface strings (`for_locale`, `format_date`, `catalogue`)
 local M = {
   page = layout.page,
@@ -41,6 +42,14 @@ M.asset_files = {
   "fonts/OFL-stix-two-text.txt",
   "fonts/OFL-fira-sans.txt",
   "fonts/OFL-fira-code.txt",
+}
+
+--- Static files of the diagram support (ADR 0033), relative to the theme's `assets` directory. They are copied
+--- to `assets/` in the built site only when a page holds a diagram.
+M.diagram_files = {
+  "mermaid-init.js",
+  "mermaid/mermaid.min.js",
+  "mermaid/LICENSE",
 }
 
 --- Returns the directory holding the theme's static files, found through the module

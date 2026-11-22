@@ -11,6 +11,8 @@ local DOC_PREFIXES = { "docs/", "website/", ".claude/", ".github/ISSUE_TEMPLATE/
 ---@return boolean
 function M.is_documentation(path)
   path = path:gsub("\\", "/")
+  -- The site of an example is built by a test (`examples/<name>/tests/docs_build_test.lua`): it is code.
+  if path:match("^examples/[^/]+/docs/") then return false end
   if path:sub(-3):lower() == ".md" or path == "HANDOFF.md" then return true end
   for _, prefix in ipairs(DOC_PREFIXES) do
     if path:sub(1, #prefix) == prefix then return true end

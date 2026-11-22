@@ -204,8 +204,8 @@ local function build_fixture()
     end
   end
   copy(source, "")
-  local config = doc.load_config("c/site.lua", memory)
-  doc.build({ config = config, source = "c", out = "o", fs = memory })
+  local config = doc.load_site_configuration(memory, "c/site.lua")
+  doc.build({ site_configuration = config, guides_dir = "c", output_dir = "o", file_system = memory })
   return memory
 end
 
@@ -313,6 +313,22 @@ function T:test_mobile_menus_scroll_inside_their_container()
   self:assert_true(CSS_CODE:find("html%.scroll%-locked") ~= nil, "the page behind an open menu must be locked")
   self:assert_true(CSS_CODE:find("100dvh") ~= nil, "the header panel must fit the visible viewport")
   self:assert_true(JS:find('classList.toggle("scroll-locked"', 1, true) ~= nil, "the script must lock the page")
+end
+
+-- Owner report 2026-11-18: `overflow: hidden` on <body> made it a scroll container, so the sticky header left
+-- the viewport when a menu locked the page. Only the root element may be locked. Checked in Chromium with
+-- Playwright (scroll 300px, open the menu: the header stays at top 0); Firefox could not be run.
+function T:test_locking_the_page_never_makes_the_body_a_scroll_container()
+  self:assert_true(CSS_CODE:find("html%.scroll%-locked {%s*overflow: hidden;%s*}") ~= nil)
+  self:assert_true(CSS_CODE:find("scroll%-locked body") == nil, "the body must not be locked")
+end
+
+function T:test_the_outline_column_is_reserved_on_every_page_and_tables_stay_in_the_column()
+  self:assert_true(CSS_CODE:find("%.no%-outline %.doc%-grid") == nil, "the content must not move between pages")
+  self:assert_true(CSS_CODE:find("%.table%-wrap {[^}]*overflow%-x: auto") ~= nil)
+  self:assert_true(CSS_CODE:find("%.doc%-content td code {[^}]*overflow%-wrap: anywhere") ~= nil)
+  self:assert_true(CSS_CODE:find("%.copy%-button {[^}]*margin: var%(%-%-space%-2%) 0 0 0;") ~= nil,
+    "the copy button sits 8px from the top")
 end
 
 -- `SystemFileSystem` suspends: every test of this file runs inside a reactor.

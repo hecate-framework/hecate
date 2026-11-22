@@ -164,6 +164,7 @@ button { font: inherit; color: inherit; }
 .header-inner { display: flex; align-items: center; gap: var(--space-4); height: 100%; max-width: 90rem; margin: 0 auto; padding: 0 var(--space-6); }
 .logo { display: flex; flex: none; align-items: center; margin-right: var(--space-2); border-radius: var(--radius-sm); }
 .logo img { width: 160px; height: 45px; }
+.logo img.logo-custom { width: auto; max-width: 16rem; object-fit: contain; }
 .header-spacer { flex: 1 1 0; }
 
 .search-button { display: none; align-items: center; gap: var(--space-2); height: 40px; padding: 0 var(--space-2) 0 12px; min-width: 14rem; background: var(--surface-200); color: var(--ink-muted); border: 1px solid var(--border-strong); border-radius: var(--radius-md); font: 400 14px/20px var(--sans); cursor: pointer; }
@@ -222,7 +223,9 @@ button { font: inherit; color: inherit; }
 .sidebar li ul { margin-left: var(--space-2); padding-left: var(--space-2); border-left: 1px solid var(--border); }
 .sidebar a { display: block; padding: 6px 8px; color: var(--ink-muted); text-decoration: none; border-radius: var(--radius-sm); }
 .sidebar a:hover { color: var(--ink); background: var(--surface-100); }
-.sidebar a[aria-current="page"] { color: var(--earth); font-weight: 500; background: var(--surface-100); box-shadow: inset 2px 0 0 var(--earth); }
+/* The current page: a calm style by default (stronger weight, tint); the accent bar is opt-in (`sidebar_marker`). */
+.sidebar a[aria-current="page"] { color: var(--ink); font-weight: 600; background: var(--surface-100); }
+.sidebar-marker .sidebar a[aria-current="page"] { color: var(--earth); font-weight: 500; box-shadow: inset 2px 0 0 var(--earth); }
 .sidebar details { margin: 0; }
 .sidebar summary { display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; color: var(--ink); font-weight: 500; cursor: pointer; list-style: none; border-radius: var(--radius-sm); }
 .sidebar summary::-webkit-details-marker { display: none; }
@@ -233,7 +236,8 @@ button { font: inherit; color: inherit; }
 .scrim { display: none; }
 
 .doc-grid { display: grid; grid-template-columns: minmax(0, 44rem) 14rem; gap: var(--space-12); justify-content: center; padding: var(--space-12) var(--space-6) 64px; }
-.no-outline .doc-grid { grid-template-columns: minmax(0, 44rem); }
+/* The outline column is reserved on every page, headings or not, so the content does not move between pages;
+   below 1280px the outline is a panel and the grid has one column (see Responsive). The home layout is single. */
 
 .outline { position: sticky; top: calc(var(--header-height) + var(--space-6)); align-self: start; max-height: calc(100vh - var(--header-height) - var(--space-12)); overflow-y: auto; padding-left: var(--space-4); border-left: 1px solid var(--border); font: 400 14px/20px var(--sans); }
 .outline-title { margin: 0 0 var(--space-2); font: 600 14px/20px var(--sans); color: var(--ink); }
@@ -281,11 +285,11 @@ h1:hover > .header-anchor, h2:hover > .header-anchor, h3:hover > .header-anchor,
 /* Tables: parameter tables are interface text, set in the sans face. */
 .table-wrap { margin: var(--space-4) 0; overflow-x: auto; }
 .doc-content table { width: 100%; border-collapse: collapse; font: 400 14px/20px var(--sans); }
-.doc-content th, .doc-content td { padding: 8px 12px; border: 1px solid var(--border); text-align: left; vertical-align: top; }
+.doc-content th, .doc-content td { min-width: 7rem; padding: 8px 12px; border: 1px solid var(--border); text-align: left; vertical-align: top; }
 .doc-content th { background: var(--surface-200); font-weight: 600; }
 .doc-content .align-center { text-align: center; }
 .doc-content .align-right { text-align: right; }
-.doc-content td code { font-size: 0.9em; }
+.doc-content td code { font-size: 0.9em; overflow-wrap: anywhere; }
 
 /* Code blocks: language label, copy button, hairline frame. */
 .code-block { margin: var(--space-4) 0; background: var(--surface-200); border: 1px solid var(--border); border-radius: var(--radius-md); }
@@ -294,7 +298,25 @@ h1:hover > .header-anchor, h2:hover > .header-anchor, h3:hover > .header-anchor,
 .code-block pre { margin: 0; padding: 0 20px var(--space-4); overflow-x: auto; font: 400 14px/22px var(--mono); font-variant-ligatures: none; tab-size: 2; }
 .code-block pre:focus-visible { outline-offset: -2px; }
 .code-block code { display: block; padding: 0; background: none; border: 0; font: inherit; }
-.copy-button { display: inline-flex; align-items: center; gap: 6px; min-height: 28px; padding: 0 var(--space-2); margin: 2px 0; background: var(--surface-300); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); color: var(--ink); font: 500 12px/16px var(--sans); cursor: pointer; }
+.code-block[hidden] { display: none; }
+.diagram { margin: var(--space-4) 0; background: var(--surface-100); border: 1px solid var(--border); border-radius: var(--radius-md); text-align: center; }
+.diagram-toolbar { display: flex; align-items: center; justify-content: flex-end; gap: var(--space-1); padding: var(--space-2); }
+.diagram-button { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; padding: 0; background: var(--surface-300); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); color: var(--ink); cursor: pointer; }
+.diagram-button:hover { border-color: var(--earth); color: var(--earth); }
+.diagram-button[hidden] { display: none; }
+.diagram-button .icon { width: 16px; height: 16px; }
+.diagram-viewport { position: relative; overflow: hidden; padding: 0 var(--space-4) var(--space-4); cursor: grab; touch-action: pan-y; user-select: none; -webkit-user-select: none; }
+.diagram-viewport:focus-visible { outline-offset: -2px; }
+.diagram-viewport.is-panning { cursor: grabbing; }
+.diagram-viewport svg { display: block; max-width: 100%; height: auto; margin: 0 auto; transform-origin: 0 0; }
+.diagram-viewport svg * { filter: none !important; } /* brand: no shadows, no glows */
+/* Full screen: the Fullscreen API when there is one, this fixed overlay always (iOS Safari has no API for an
+   element). The page behind does not scroll: the lock is on the root element only (see `html.scroll-locked`). */
+html.diagram-fullscreen { overflow: hidden; }
+.diagram.is-fullscreen { position: fixed; inset: 0; z-index: 100; display: flex; flex-direction: column; width: 100%; height: 100%; margin: 0; border: 0; border-radius: 0; background: var(--surface-100); }
+.diagram.is-fullscreen .diagram-viewport { flex: 1; min-height: 0; padding: 0; touch-action: none; }
+.diagram-notice { margin: var(--space-4) 0 0; padding: var(--space-2) var(--space-4); background: var(--surface-200); border: 1px solid var(--border-strong); border-radius: var(--radius-md); font: 400 14px/20px var(--sans); }
+.copy-button { display: inline-flex; align-items: center; gap: 6px; min-height: 28px; padding: 0 var(--space-2); margin: var(--space-2) 0 0 0; background: var(--surface-300); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); color: var(--ink); font: 500 12px/16px var(--sans); cursor: pointer; }
 .copy-button:hover { border-color: var(--earth); color: var(--earth); }
 .copy-button .icon { width: 14px; height: 14px; }
 
@@ -400,7 +422,10 @@ h1:hover > .header-anchor, h2:hover > .header-anchor, h3:hover > .header-anchor,
   .sidebar { position: fixed; top: calc(var(--header-height) + var(--local-nav-height)); bottom: 0; left: 0; z-index: 38; width: min(20rem, 85vw); height: auto; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; transform: translateX(-100%); visibility: hidden; transition: transform 0.2s, visibility 0.2s; border-right: 1px solid var(--border-strong); }
   .sidebar > nav { position: static; max-height: none; overflow: visible; }
   .sidebar.is-open { transform: none; visibility: visible; }
-  html.scroll-locked, html.scroll-locked body { overflow: hidden; }
+  /* Lock on the root element only. `overflow: hidden` on <body> as well makes the body a scroll container (the
+     root's value goes to the viewport, so the body's own is no longer propagated): the sticky header and
+     local navigation then stick to a body that never scrolls and leave the viewport, and the page jumps. */
+  html.scroll-locked { overflow: hidden; }
   .scrim.is-open { display: block; position: fixed; inset: calc(var(--header-height) + var(--local-nav-height)) 0 0 0; z-index: 37; background: rgba(15, 20, 48, 0.45); }
   .has-sidebar + .site-footer { margin-left: 0; }
   .local-nav-inner { justify-content: space-between; }
@@ -445,7 +470,7 @@ h1:hover > .header-anchor, h2:hover > .header-anchor, h3:hover > .header-anchor,
 }
 
 @media print {
-  .site-header, .local-nav, .sidebar, .outline, .pager, .skip-link, .code-toolbar .copy-button { display: none !important; }
+  .site-header, .local-nav, .sidebar, .outline, .pager, .skip-link, .code-toolbar .copy-button, .diagram-toolbar { display: none !important; }
   .layout.has-sidebar { display: block; }
   body { background: #fff; color: #000; }
 }

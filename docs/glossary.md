@@ -160,7 +160,7 @@ Errors are *problem details* (RFC 9457; `hecate.problem.*` is the namespace). Pa
 
 | Term | Meaning | Reference | Instead of |
 |---|---|---|---|
-| configuration | The immutable, validated key-value tree a process is booted with, merged from layers (`hecate.config`) | `configuration.md`; The Twelve-Factor App, factor III | settings, options (an `options` table is an argument of a call) |
+| configuration | The immutable, validated key-value tree a process is booted with, merged from layers (`hecate.config`); its accessor `secrets()` returns the dotted paths of its secret keys, sorted | `configuration.md`; The Twelve-Factor App, factor III | settings, options (an `options` table is an argument of a call) |
 | configuration layer | One source of the merge, in increasing precedence: schema defaults, `config/default.lua`, `config/<environment>.lua`, environment variables, secret files | `configuration.md` | profile (for a layer), override |
 | environment | The name of the deployment profile (`development`, `test`, `production`) that selects `config/<environment>.lua` (default `production`) | `configuration.md`; factor III | stage, mode |
 | secret file | A file that holds the value of one secret key, as a container platform mounts it | `configuration.md` | key file |
@@ -169,6 +169,20 @@ Errors are *problem details* (RFC 9457; `hecate.problem.*` is the namespace). Pa
 | `Section`, `List` | The frozen values of a configuration: a `Section` holds an object or a map, a `List` an array (also when empty); a write raises `ConformanceError` | `configuration.md` | table, dict, map (for the frozen object) |
 | secret object | The wrapper of the value of a secret key (`hecate.log.Secret`, else `hecate.config.Secret`): `tostring` gives `[redacted]` and `reveal()` gives the value | `configuration.md` | masked value, sensitive string |
 | framework keys | The keys that every configuration declares, `logging.*`, `limits.max_depth`, `errors.expose_details`, `requests.inputs`, `server.*` and `cors.*`, which an application cannot redeclare | `configuration.md` | built-in settings, core options |
+
+## Documentation
+
+| Term | Meaning | Reference | Instead of |
+|---|---|---|---|
+| audience | The kind of reader a documentation site is written for: `user` or `maintainer`. Each audience is a content tree of its own, `<guides_dir>/<audience>/`, built into its own documentation site; a page has no audience key, its audience is the tree it lies in. A second axis next to the Diátaxis type, which sorts pages by what they do for the reader | `documentation.md`; Diátaxis | persona, role, level |
+| user documentation | The pages for the `user` audience: how to build, run and operate an application on the public API, with the concepts and the public extension points that help. "User" here is the reader of the application's documentation, distinct from the person who writes a Hecate project (who is a maintainer of that project) | `documentation.md`; OQ-144 | end-user documentation, public documentation |
+| maintainer documentation | The pages for the `maintainer` audience: how to change Hecate or the project itself (architecture, ADRs, internals, CI and release, the reference of `*.internal` modules) | `documentation.md`; OQ-144 | internal documentation, developer documentation, contributor docs |
+| guide | A hand-written Markdown page of a content tree (`<guides_dir>/<audience>/<locale>/*.md`), as opposed to a generated page. Its origin is meant, not its Diátaxis type (tutorial, how-to, explanation, reference) | `documentation.md` | doc page (for a hand-written page), manual |
+| documentation site | The static site that `hecate.doc` builds from one audience tree (`<guides_dir>/<audience>/`) into its own directory, `<out>/<audience>/`: two audiences are two documentation sites, never one site with two parts. "Site" here is never an origin, which is the scheme, host and port of a URL | `documentation.md` | docs site, website (the website is `website/`, the documentation site of the framework), portal |
+| generated page | A page that `hecate.doc` writes into the content tree and marks as generated (`generated: true`, a header comment); it is never edited by hand and is replaced at each build | `documentation.md` | auto-generated doc, stub |
+| licences page | The generated page `third-party-licences.md` that lists the rocks of an installed tree with their licences and what the site bundles (`licences_page`) | `documentation.md` | credits page, NOTICE page, attributions |
+| code reference | The reference of Lua modules, classes and functions generated from LuaLS annotations (`reference/<package_name>/`); it documents Lua code and no HTTP route | `documentation.md`; ADR 0012 | API docs, API reference |
+| API reference | Reserved for the reference of the HTTP API, which is the OpenAPI contract: `hecate.doc` does not produce one (the contract is served by `openapi` and a viewer is the user's own wiring) | OpenAPI 3.1; ADR 0012 (amended 2026-11-19), ADR 0022 | code reference (for Lua code) |
 
 ## Logging
 
