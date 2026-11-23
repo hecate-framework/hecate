@@ -18,6 +18,7 @@ local cli = {
     require("hecate.cli.commands.add"),
     require("hecate.cli.commands.contract").commands[1],
     require("hecate.cli.commands.contract").commands[2],
+    require("hecate.cli.commands.contract").commands[3],
     require("hecate.cli.commands.doc"),
     require("hecate.cli.commands.doctor"),
     require("hecate.cli.commands.init"),

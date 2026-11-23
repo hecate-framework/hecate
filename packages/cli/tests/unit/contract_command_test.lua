@@ -94,4 +94,83 @@ function T:test_usage_errors()
   self:assert_equal(2, (run("diff", { "contract", "diff", "a" }, deps)))
 end
 
+
+local export_runtime = { hecate_version = "0.1.0", lua_version = "5.5.1", platform = "linux-x86_64", project_dir = "/work/app", lua_interpreter = "/usr/bin/lua5.5" }
+
+local function export_setup(files, result)
+  local calls, written = {}, {}
+  return calls, written, {
+    read = function(path) return files[path] end,
+    write = function(path, text) written[path] = text end,
+    run = function(task) return task() end,
+    run_process = function(program, args, options)
+      calls[#calls + 1] = { program = program, args = args, options = options }
+      return result or { code = 0, stdout = '{"openapi":"3.1.0"}', stderr = "" }
+    end,
+    interpreter = "lua",
+  }
+end
+
+local function run_export(args, dependencies)
+  local out, err = {}, {}
+  local wrapped = setmetatable({ run = function(context) return contract.export(context, dependencies) end }, { __index = contract.commands[3] })
+  local code = app.run(args, {
+    commands = { wrapped }, runtime = export_runtime,
+    write = function(text) out[#out + 1] = text end,
+    write_error = function(text) err[#err + 1] = text end,
+  })
+  return code, table.concat(out, "\n"), table.concat(err, "\n")
+end
+
+local EXPORT_MANIFEST = 'return { name = "acme-api", contract = { title = "ACME API", version = "1.0.0", servers = { "https://api.acme.example", "https://staging.acme.example" } } }'
+
+function T:test_export_runs_the_project_in_a_child_and_prints_the_document()
+  local calls, _, dependencies = export_setup({ ["/work/app/hecate.project.lua"] = EXPORT_MANIFEST })
+  local code, out = run_export({ "contract", "export", "--pretty" }, dependencies)
+  self:assert_equal(0, code)
+  self:assert_equal('{"openapi":"3.1.0"}', out)
+  self:assert_equal(1, #calls)
+  local call = calls[1]
+  self:assert_equal("lua", call.program)
+  self:assert_equal("-e", call.args[1])
+  self:assert_equal(contract.CHILD_PROGRAM, call.args[2])
+  self:assert_equal("/work/app", call.options.cwd)
+  local env = call.options.env
+  self:assert_equal("acme_api", env.HECATE_CLI_MODULE)
+  self:assert_equal("ACME API", env.HECATE_CLI_TITLE)
+  self:assert_equal("1.0.0", env.HECATE_CLI_VERSION)
+  self:assert_equal("https://api.acme.example\31https://staging.acme.example", env.HECATE_CLI_SERVERS)
+  self:assert_equal("1", env.HECATE_CLI_PRETTY)
+  self:assert_true(env.LUA_PATH:find("/work/app/lua_modules/share/lua/5.5/?.lua", 1, true) ~= nil)
+  local plain_calls, _, plain_dependencies = export_setup({ ["/work/app/hecate.project.lua"] = EXPORT_MANIFEST })
+  run_export({ "contract", "export" }, plain_dependencies)
+  self:assert_equal("0", plain_calls[1].options.env.HECATE_CLI_PRETTY)
+end
+
+function T:test_export_can_write_a_file()
+  local _, written, dependencies = export_setup({ ["/work/app/hecate.project.lua"] = EXPORT_MANIFEST })
+  local code, out, err = run_export({ "contract", "export", "--output=openapi.json" }, dependencies)
+  self:assert_equal(0, code)
+  self:assert_equal("", out)
+  self:assert_equal('{"openapi":"3.1.0"}', written["/work/app/openapi.json"])
+  self:assert_true(err:find("wrote 19 bytes to openapi.json", 1, true) ~= nil, err)
+end
+
+function T:test_export_failures_say_what_to_do()
+  local function fails(files, result, fragment, args)
+    local _, written, dependencies = export_setup(files, result)
+    local code, _, err = run_export(args or { "contract", "export" }, dependencies)
+    self:assert_equal(1, code)
+    self:assert_true(err:find(fragment, 1, true) ~= nil, err)
+    self:assert_nil(next(written))
+  end
+  fails({}, nil, "hecate new")
+  fails({ ["/work/app/hecate.project.lua"] = 'return { name = "acme-api" }' }, nil, "has no `contract` section")
+  fails({ ["/work/app/hecate.project.lua"] = EXPORT_MANIFEST }, { code = 3, stdout = "", stderr = "cannot load the module 'acme_api' of the project: boom\n" },
+    "cannot load the module 'acme_api' of the project: boom", { "contract", "export", "--output=x.json" })
+  fails({ ["/work/app/hecate.project.lua"] = EXPORT_MANIFEST }, { code = 1, stdout = "", stderr = "" }, "the process exited with 1")
+  local _, _, dependencies = export_setup({})
+  self:assert_equal(2, (run_export({ "contract", "export", "extra" }, dependencies)))
+end
+
 return T
