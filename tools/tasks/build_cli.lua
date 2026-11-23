@@ -75,7 +75,7 @@ return {
 
     local host = ctx.root .. "/packages/cli/csrc"
     local linux = not windows and util.capture("uname -s") == "Linux"
-    local objects, defines, libraries, notes = {}, {}, { util.quote(lua_library) }, {}
+    local objects, defines, libraries, notes = {}, {}, {}, {}
     local object_suffix = windows and ".obj" or ".o"
 
     --- Compiles one C file into an object of `dir`; `extra` are include and define options, `strict` adds the
@@ -86,11 +86,12 @@ return {
       if windows then
         local defs = {}
         for _, d in ipairs(defines) do defs[#defs + 1] = (d:gsub("^%-D", "/D")) end
-        cmd = ("cl /nologo /O2 /MD /TC /W3 /D_CRT_SECURE_NO_WARNINGS /I%s %s %s /c /Fo%s %s 2>&1"):format(
-          util.quote(lua .. "/include"), table.concat(defs, " "), (extra or ""):gsub("%-I", "/I"):gsub("%-D", "/D"),
+        cmd = ("cl /nologo /O2 /MD /TC %s /D_CRT_SECURE_NO_WARNINGS /I%s %s %s /c /Fo%s %s 2>&1"):format(
+          strict and "/W4 /WX" or "/W3", util.quote(lua .. "/include"), table.concat(defs, " "),
+          (extra or ""):gsub("%f[%S]%-([ID])", "/%1"),
           util.quote(object), util.quote(source))
       else
-        cmd = ("cc -std=c99 -O2 %s -I%s %s %s -c -o %s %s 2>&1"):format(strict and "-Wall -Wextra -Werror" or "",
+        cmd = ("cc -std=c11 -O2 %s -I%s %s %s -c -o %s %s 2>&1"):format(strict and "-Wall -Wextra -Werror" or "",
           util.quote(lua .. "/include"), table.concat(defines, " "), extra or "", util.quote(object), util.quote(source))
       end
       local out, ok = util.capture(cmd)
@@ -159,7 +160,7 @@ return {
 
     -- hecate.json: the decoder (C over yyjson) and the encoder (Rust, linked as a static library).
     local json = ctx.root .. "/packages/json/csrc"
-    local ok_native, e_native = compile(json .. "/native.c", "-I" .. util.quote(json))
+    local ok_native, e_native = compile(json .. "/native.c", "-I" .. util.quote(json), true)
     local ok_yyjson, e_yyjson = compile(json .. "/vendor/yyjson.c", "-I" .. util.quote(json))
     if not (ok_native and ok_yyjson) then return fail("json decoder", e_native or e_yyjson) end
     defines[#defines + 1] = "-DHECATE_STATIC_JSON_DECODER"
@@ -197,10 +198,10 @@ return {
     if windows then
       -- Through `cl`, which drives the linker: a bare `link` may be the coreutils one that Git for Windows puts first.
       cmd = ("cl /nologo /Fe%s %s %s /link %s 2>&1"):format(util.quote(output), table.concat(objects, " "),
-        table.concat(libraries, " "), WINDOWS_LIBRARIES)
+        table.concat(libraries, " "), util.quote(lua_library), WINDOWS_LIBRARIES)
     else
       cmd = table.concat({
-        "cc", "-o", util.quote(output), table.concat(objects, " "), table.concat(libraries, " "),
+        "cc", "-o", util.quote(output), table.concat(objects, " "), table.concat(libraries, " "), util.quote(lua_library),
         linux and "-Wl,-E" or "-Wl,-export_dynamic", "-lm", "-lpthread", linux and "-ldl -lrt" or "", "2>&1",
       }, " ")
     end

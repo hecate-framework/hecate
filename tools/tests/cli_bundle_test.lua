@@ -66,6 +66,8 @@ function T:test_built_executable_runs_lua_luarocks_and_the_cli()
   -- LuaRocks is embedded: `hecate --luarocks` works with no `luarocks` on the path.
   local rocks = util.capture(bare .. exe .. " --luarocks --version 2>&1")
   self:assert_true(rocks:find("3.13", 1, true) ~= nil, rocks)
+  -- A script file as the first argument runs as a plain `lua script.lua` (what a rockspec's `$(LUA) script.lua` does).
+  self:assert_equal("Lua 5.5 true true 3 true", util.capture(bare .. exe .. " " .. util.quote(probe) .. " 2>&1"))
   local failing = dir .. "/failing.lua"
   f = assert(io.open(failing, "wb"))
   f:write("error('boom')\n")
