@@ -57,6 +57,7 @@ flowchart TB
     sqlserver --> sql
   end
   subgraph T[Tooling]
+    cli --> doc
     cli --> log
     cli --> openapi
     doc --> json

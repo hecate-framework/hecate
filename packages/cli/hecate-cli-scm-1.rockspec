@@ -15,6 +15,7 @@ description = {
 dependencies = {
   "lua >= 5.5, < 5.6",
   "hecate-core",
+  "hecate-doc",
   "hecate-reactor",
   "hecate-log",
   "hecate-json",
