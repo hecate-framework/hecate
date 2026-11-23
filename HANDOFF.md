@@ -3,8 +3,8 @@
 
 - roadmap_item: `cli` v1: self-contained executable, `new`, `install`, `add`, `remove`, `update`, `serve [--watch]`, `test`, `doc`, `contract`, `toolchain`, `doctor`, `version` (docs/roadmap.md, Phase 3). Started on the owner's request of 2026-11-22.
 - status: in-progress
-- lock_until: 2026-11-23T08:30:00Z
-- last_update: 2026-11-23T07:00:00Z
+- lock_until: 2026-11-23T11:30:00Z
+- last_update: 2026-11-23T10:00:00Z
 
 ## Done
 
@@ -33,6 +33,7 @@
 - Step (sixth session, 2026-11-23): `hecate test` (`commands/tests.lua`, module named `tests` because LuaLS resolved `require("harness.test")` to a `commands/test.lua`; `test_command_test.lua` with a fake `hecate.test`); typecheck, lint green locally. Sequential run in-process; `--jobs`/`run_parallel` left out (workers would need the module path). Not run on a generated project (no luv here).
 - Step (seventh session, started in parallel on the owner's request, 2026-11-23): `hecate contract lint` and `hecate contract diff` on OpenAPI JSON files (`commands/contract.lua`, `contract_command_test.lua`; real run on three small documents: lint warnings and error, breaking diff exit 1, `--json`). `hecate-openapi` added to the rockspec and README of `cli`. Open points: (1) `contract export` needs the application of the project: convention proposed by the `new` template, `require(module).application(options)` in a child `lua` process with `src/` and `lua_modules` on its path, JSON on stdout; (2) the spec says `diff <ref>` (a git ref): with files the two-argument form is implemented; the ref form needs an exported contract committed in the repository and `git show <ref>:<path>` (decide the file name, `openapi.json`?).
 - Step (eighth session, 2026-11-23, 09:25Z): `hecate serve [--watch] [--workers N]` (`serve.lua` supervision, `commands/serve.lua`, `serve_test.lua` and `serve_command_test.lua`; `Runtime.lua_interpreter`). Run on a scratch project (see CHANGELOG). Notes: (1) a terminal sends Ctrl+C (`sigint`) to hecate AND to the child (same process group) and hecate forwards it too: the child gets it twice; harmless for an application that stops on the first one, a problem for one that forces the exit on the second (the Hecate kernel stops gracefully; check it with the `serve` of `examples/hello`); (2) in a test harness a background job starts with `sigint` ignored, which the child inherits: use a real process group or Python `preexec_fn` to test it; (3) `os.execute` inside a Lua child ignores `sigint` while its command runs; (4) the template `main.lua` reads only `PORT`, so `--workers` has no effect on a generated project until the template reads `server.workers` from the configuration; `hecate serve` does not set `HECATE_ENV` (the configuration defaults to `production`): decide whether `--watch` implies `development`.
+- Step (ninth session, 2026-11-23, 10:00Z): `hecate doc build` (`commands/doc.lua`, `doc_command_test.lua`, 6 tests pass; typecheck and lint green). Open: `doc serve`, configuration reference needs the project's application (same convention as `contract export`).
 
 ## Next steps
 
