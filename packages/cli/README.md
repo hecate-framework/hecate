@@ -8,7 +8,7 @@
 | Rock | `hecate-cli` |
 | Layer | Tooling |
 | Roadmap phase | 3 |
-| Status | in progress — the `hecate` executable (C host, Linux and macOS, `build-cli`), dispatcher, argument parser, `--help`, `--json`, exit codes, `version`, shell completion, the manifest, the lockfile format, SHA-256, LuaRocks constraints and orchestration, `install [--frozen]`, `update`; other commands to do |
+| Status | in progress — the `hecate` executable (C host, LuaRocks embedded, `build-cli`, three platforms), dispatcher, argument parser, `--help`, `--json`, exit codes, `version`, shell completion, the manifest, the lockfile format, SHA-256, LuaRocks constraints and orchestration, `install [--frozen]`, `update`; other commands to do |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |
 | Depends on | [`core`](../core), [`reactor`](../reactor), [`log`](../log), [`json`](../json), [`schema`](../schema) |
 | Used by | — |

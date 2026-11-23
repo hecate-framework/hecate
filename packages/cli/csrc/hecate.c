@@ -10,13 +10,21 @@
  * before the file searcher serves them. Native modules (luv, the JSON codec, ...) are found through
  * LUA_CPATH and the directory next to the executable.
  */
+#ifndef _WIN32
 #define _POSIX_C_SOURCE 200809L
 #define _DARWIN_C_SOURCE
+#endif
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#else
+#include <limits.h>
 #include <unistd.h>
+#endif
 
 #include "lauxlib.h"
 #include "lua.h"
@@ -108,19 +116,30 @@ static void install_searcher(lua_State *L) {
 /* ---- executable path and native module directory ----------------------- */
 
 static int executable_path(char *buffer, size_t size, const char *argv0) {
-#if defined(__linux__)
+#if defined(_WIN32)
+  DWORD n = GetModuleFileNameA(NULL, buffer, (DWORD)size);
+  if (n > 0 && n < size) return 1;
+  (void)argv0;
+  return 0;
+#elif defined(__linux__)
   ssize_t n = readlink("/proc/self/exe", buffer, size - 1);
   if (n > 0) { buffer[n] = '\0'; return 1; }
 #elif defined(__APPLE__)
   uint32_t length = (uint32_t)size;
   if (_NSGetExecutablePath(buffer, &length) == 0) return 1;
 #endif
+#if !defined(_WIN32)
   if (argv0 && realpath(argv0, buffer)) return 1;
   return 0;
+#endif
 }
 
 static void add_native_directory(lua_State *L, const char *path) {
   const char *slash = strrchr(path, '/');
+#ifdef _WIN32
+  const char *backslash = strrchr(path, '\\');
+  if (backslash && (!slash || backslash > slash)) slash = backslash;
+#endif
   if (!slash) return;
   char directory[4096];
   size_t length = (size_t)(slash - path);
@@ -129,7 +148,11 @@ static void add_native_directory(lua_State *L, const char *path) {
   directory[length] = '\0';
   lua_getglobal(L, "package");
   lua_getfield(L, -1, "cpath");
+#ifdef _WIN32
+  lua_pushfstring(L, "%s;%s\\?.dll;%s\\lib\\?.dll", lua_tostring(L, -1), directory, directory);
+#else
   lua_pushfstring(L, "%s;%s/?.so;%s/lib/?.so", lua_tostring(L, -1), directory, directory);
+#endif
   lua_setfield(L, -3, "cpath");
   lua_pop(L, 2);
 }

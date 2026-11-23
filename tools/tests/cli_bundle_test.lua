@@ -41,25 +41,35 @@ function T:test_collect_serves_the_package_name_of_an_init_file()
   self:assert_true(names["hecate.core"], "missing hecate.core among " .. count .. " modules: " .. list)
 end
 
--- Builds the executable and runs it; skipped where there is no C compiler or static Lua (the task reports why).
-function T:test_built_executable_runs_lua_and_the_cli()
-  if package.config:sub(1, 1) == "\\" then return end
+-- Builds the executable and runs it (all platforms); skipped where there is no Lua to link (the task reports why).
+function T:test_built_executable_runs_lua_luarocks_and_the_cli()
   local util = require("lib.util")
-  local out = ".hecate/build/cli-test/hecate"
+  local windows = util.is_windows()
+  local dir = ".hecate/build/cli-test"
+  local out = dir .. "/hecate" .. (windows and ".exe" or "")
   local log, built = util.capture(("%s tools/run.lua build-cli --output=%s 2>&1"):format(util.quote(util.interpreter()), out))
-  if not built and log:find("no Lua 5.5 with", 1, true) then return end -- no static Lua here: nothing to build
+  if not built and log:find("no Lua 5.5 with", 1, true) then return end -- no Lua to link here: nothing to build
   self:assert_true(built, log)
-  local version = util.capture(util.quote(out) .. " --lua -e 'io.write(_VERSION)'")
-  self:assert_equal("Lua 5.5", version)
-  local cli = util.capture(util.quote(out) .. " version")
+  local exe = util.quote(out)
+  -- Run with an empty environment where the shell allows it: the native modules are linked in, so no LUA_CPATH and no
+  -- file next to the executable is needed.
+  local bare = windows and "" or "env -i "
+  local probe = dir .. "/probe.lua"
+  local f = assert(io.open(probe, "wb"))
+  f:write('io.write(_VERSION, " ", tostring(#require("luv").version_string() > 0), " ", tostring(require("digest") ~= nil), " ",\n',
+    '  #require("hecate.json").encode({ 1 }), " ", tostring(require("lfs") ~= nil))\n')
+  f:close()
+  self:assert_equal("Lua 5.5 true true 3 true", util.capture(bare .. exe .. " --lua " .. util.quote(probe) .. " 2>&1"))
+  local cli = util.capture(exe .. " version")
   self:assert_true(cli:find("^Hecate "), cli)
-  -- The native modules are linked in: they load with no LUA_CPATH and no file next to the executable.
-  local natives = util.capture("env -i " .. util.quote(out) .. " --lua -e 'io.write(tostring(#require(\"luv\").version_string() > 0), tostring(require(\"digest\") ~= nil), #require(\"hecate.json\").encode({1}))' 2>&1")
-  self:assert_equal("truetrue3", natives)
-  -- LuaRocks is embedded (and its luafilesystem linked in): `hecate --luarocks` works with no `luarocks` on the path.
-  local rocks = util.capture("env -i " .. util.quote(out) .. " --luarocks --version 2>&1")
+  -- LuaRocks is embedded: `hecate --luarocks` works with no `luarocks` on the path.
+  local rocks = util.capture(bare .. exe .. " --luarocks --version 2>&1")
   self:assert_true(rocks:find("3.13", 1, true) ~= nil, rocks)
-  local _, ok = util.capture(util.quote(out) .. " --lua -e 'error(1)' 2>/dev/null")
+  local failing = dir .. "/failing.lua"
+  f = assert(io.open(failing, "wb"))
+  f:write("error('boom')\n")
+  f:close()
+  local _, ok = util.capture(exe .. " --lua " .. util.quote(failing) .. (windows and " 2>nul" or " 2>/dev/null"))
   self:assert_false(ok)
 end
 
