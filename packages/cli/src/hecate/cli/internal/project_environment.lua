@@ -63,7 +63,10 @@ function M.real(runtime)
     fs = fs,
     work_dir = work_dir,
     tree = tree,
-    luarocks = luarocks.new({ runner = runner.run, tree = tree, config_dir = work_dir }),
+    luarocks = luarocks.new({
+      runner = runner.run, tree = tree, config_dir = work_dir,
+      program = runtime.luarocks_program, program_arguments = runtime.luarocks_arguments,
+    }),
     run = function(task) return reactor.run(task) end,
   }
 end

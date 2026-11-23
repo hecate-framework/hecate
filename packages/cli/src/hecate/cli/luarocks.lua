@@ -35,6 +35,7 @@ local quote = lua_text.quote
 ---@class hecate.cli.LuaRocksOptions
 ---@field runner hecate.cli.Runner
 ---@field program? string  the LuaRocks executable (default `luarocks`)
+---@field program_arguments? string[]  arguments that make `program` run LuaRocks (the self-contained executable: `--luarocks`); LuaRocks then finds no `lua` on the path, so the program itself is given as the `LUA` variable
 ---@field tree string  the project-local tree (`lua_modules`)
 ---@field config_dir string  where the isolated configuration is written (`.hecate/luarocks`)
 ---@field lua_version? string  default `5.5`
@@ -113,7 +114,11 @@ end
 ---@param command string[]
 ---@return string[] args
 function LuaRocks:arguments(command)
-  local args = { "--tree", self.options.tree }
+  local args = {}
+  for _, word in ipairs(self.options.program_arguments or {}) do args[#args + 1] = word end
+  if self.options.program_arguments then args[#args + 1] = "LUA=" .. (self.options.program or "") end
+  args[#args + 1] = "--tree"
+  args[#args + 1] = self.options.tree
   for _, word in ipairs(command) do args[#args + 1] = word end
   return args
 end

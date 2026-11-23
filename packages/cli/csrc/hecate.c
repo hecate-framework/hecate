@@ -3,6 +3,8 @@
  *
  *   hecate <command> ...      runs hecate.cli.main
  *   hecate --lua [options]    acts as a Lua interpreter ("-v", "-e chunk", "--", "<script> <args>")
+ *   hecate -e <chunk> ...     the same, as a plain `lua -e` (LuaRocks runs its LUA variable like that)
+ *   hecate --luarocks ...     the embedded LuaRocks, as the `luarocks` program
  *
  * The Lua sources of the embedded packages are compiled into the program (bundle.c); a searcher placed
  * before the file searcher serves them. Native modules (luv, the JSON codec, ...) are found through
@@ -31,6 +33,9 @@
 #ifdef HECATE_STATIC_LUV
 int luaopen_luv(lua_State *L);
 #endif
+#ifdef HECATE_STATIC_LFS
+int luaopen_lfs(lua_State *L);
+#endif
 #ifdef HECATE_STATIC_DIGEST
 int luaopen_digest(lua_State *L);
 #endif
@@ -45,6 +50,9 @@ static void preload_natives(lua_State *L) {
   static const luaL_Reg natives[] = {
 #ifdef HECATE_STATIC_LUV
     { "luv", luaopen_luv },
+#endif
+#ifdef HECATE_STATIC_LFS
+    { "lfs", luaopen_lfs },
 #endif
 #ifdef HECATE_STATIC_DIGEST
     { "digest", luaopen_digest },
@@ -167,8 +175,8 @@ static void create_arg_table(lua_State *L, char **argv, int argc, int script) {
   lua_setglobal(L, "arg");
 }
 
-static int run_interpreter(lua_State *L, int argc, char **argv) {
-  int i = 2; /* argv[1] is --lua */
+static int run_interpreter(lua_State *L, int argc, char **argv, int first) {
+  int i = first; /* 2 after --lua; 1 when invoked as a plain `lua -e ...` */
   int script = 0;
   int ran = 0;
   for (; i < argc; i++) {
@@ -203,6 +211,29 @@ static int run_interpreter(lua_State *L, int argc, char **argv) {
   return 0;
 }
 
+/* `hecate --luarocks <arguments>`: the embedded LuaRocks, as the `luarocks` program. */
+static int run_luarocks(lua_State *L, int argc, char **argv) {
+#ifdef HECATE_EMBEDDED_LUAROCKS
+  create_arg_table(L, argv, argc, 1); /* arg[0] is "--luarocks" */
+  lua_getglobal(L, "arg");
+  lua_pushliteral(L, "luarocks"); /* the program name, in place of "--luarocks" */
+  lua_rawseti(L, -2, 0);
+  lua_pop(L, 1);
+  for (const hecate_module *m = hecate_modules; m->name; m++) {
+    if (strcmp(m->name, "luarocks.main") == 0) {
+      if (report(L, luaL_loadbuffer(L, m->source, m->length, "=luarocks"))) return 1;
+      for (int i = 2; i < argc; i++) lua_pushstring(L, argv[i]);
+      return report(L, docall(L, argc - 2, 0));
+    }
+  }
+#else
+  (void)argc; (void)argv;
+#endif
+  fprintf(stderr, "hecate: this executable was built without LuaRocks\n");
+  (void)L;
+  return 1;
+}
+
 static int run_cli(lua_State *L, int argc, char **argv, const char *self) {
   create_arg_table(L, argv, argc, 0);
   lua_getglobal(L, "require");
@@ -210,7 +241,13 @@ static int run_cli(lua_State *L, int argc, char **argv, const char *self) {
   if (report(L, docall(L, 1, 1))) return 1;
   lua_getfield(L, -1, "run");
   lua_getglobal(L, "arg");
-  lua_createtable(L, 0, 2); /* overrides: the executable is the project interpreter, in --lua mode */
+  lua_createtable(L, 0, 4); /* overrides: the executable is the project interpreter (--lua) and runs LuaRocks (--luarocks) */
+  lua_pushstring(L, self);
+  lua_setfield(L, -2, "luarocks_program");
+  lua_createtable(L, 1, 0);
+  lua_pushliteral(L, "--luarocks");
+  lua_rawseti(L, -2, 1);
+  lua_setfield(L, -2, "luarocks_arguments");
   lua_pushstring(L, self);
   lua_setfield(L, -2, "lua_interpreter");
   lua_createtable(L, 1, 0);
@@ -232,8 +269,11 @@ int main(int argc, char **argv) {
   char self[4096];
   if (!executable_path(self, sizeof self, argv[0])) snprintf(self, sizeof self, "%s", argv[0]);
   add_native_directory(L, self);
-  int code = (argc > 1 && strcmp(argv[1], "--lua") == 0) ? run_interpreter(L, argc, argv)
-                                                          : run_cli(L, argc, argv, self);
+  int code;
+  if (argc > 1 && strcmp(argv[1], "--lua") == 0) code = run_interpreter(L, argc, argv, 2);
+  else if (argc > 2 && strcmp(argv[1], "-e") == 0) code = run_interpreter(L, argc, argv, 1); /* LuaRocks probes its `LUA` this way */
+  else if (argc > 1 && strcmp(argv[1], "--luarocks") == 0) code = run_luarocks(L, argc, argv);
+  else code = run_cli(L, argc, argv, self);
   lua_close(L);
   return code;
 }

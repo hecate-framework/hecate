@@ -8,6 +8,8 @@ local util = require("lib.util")
 local bundle = require("lib.cli_bundle")
 
 local LUV = { url = "https://github.com/luvit/luv", tag = "1.53.0-0" } -- the version `ci.yml` installs
+local LUAROCKS = { url = "https://github.com/luarocks/luarocks", tag = "v3.13.0" }
+local LFS = { url = "https://github.com/lunarmodules/luafilesystem", tag = "v1_9_0" }
 local DIGEST = { url = "https://github.com/osch/lua-digest", tag = "v0.0.1" }
 
 local function find_lua(root)
@@ -47,8 +49,7 @@ return {
     util.mkdir(deps)
     local generated = dir .. "/bundle.c"
     local f = assert(io.open(generated, "wb"))
-    f:write(bundle.render(bundle.collect(ctx.root)))
-    f:close()
+    local modules = bundle.collect(ctx.root)
 
     local host = ctx.root .. "/packages/cli/csrc"
     local linux = util.capture("uname -s") == "Linux"
@@ -85,6 +86,23 @@ return {
         defines[#defines + 1] = "-DHECATE_STATIC_LUV"
       end
     end
+
+    -- LuaRocks (Lua sources embedded, run by `hecate --luarocks`) and luafilesystem, which it requires.
+    local luarocks_dir, luarocks_why = fetch(deps, "luarocks", LUAROCKS)
+    if not luarocks_dir then skip("LuaRocks", "cannot clone: " .. tostring(luarocks_why))
+    else
+      for _, m in ipairs(bundle.collect_luarocks(luarocks_dir)) do modules[#modules + 1] = m end
+      defines[#defines + 1] = "-DHECATE_EMBEDDED_LUAROCKS"
+    end
+    local lfs_dir, lfs_why = fetch(deps, "luafilesystem", LFS)
+    if not lfs_dir then skip("luafilesystem", "cannot clone: " .. tostring(lfs_why))
+    else
+      local ok, err = compile(lfs_dir .. "/src/lfs.c", "-D_GNU_SOURCE -I" .. util.quote(lfs_dir .. "/src"))
+      if not ok then return { ok = false, problems = { "build-cli: luafilesystem: " .. tostring(err) } } end
+      defines[#defines + 1] = "-DHECATE_STATIC_LFS"
+    end
+    f:write(bundle.render(modules))
+    f:close()
 
     -- digest (SHA-256 of `hecate.cli.digest`).
     local digest_dir, digest_why = fetch(deps, "lua-digest", DIGEST)

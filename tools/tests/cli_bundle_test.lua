@@ -56,6 +56,9 @@ function T:test_built_executable_runs_lua_and_the_cli()
   -- The native modules are linked in: they load with no LUA_CPATH and no file next to the executable.
   local natives = util.capture("env -i " .. util.quote(out) .. " --lua -e 'io.write(tostring(#require(\"luv\").version_string() > 0), tostring(require(\"digest\") ~= nil), #require(\"hecate.json\").encode({1}))' 2>&1")
   self:assert_equal("truetrue3", natives)
+  -- LuaRocks is embedded (and its luafilesystem linked in): `hecate --luarocks` works with no `luarocks` on the path.
+  local rocks = util.capture("env -i " .. util.quote(out) .. " --luarocks --version 2>&1")
+  self:assert_true(rocks:find("3.13", 1, true) ~= nil, rocks)
   local _, ok = util.capture(util.quote(out) .. " --lua -e 'error(1)' 2>/dev/null")
   self:assert_false(ok)
 end

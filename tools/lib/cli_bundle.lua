@@ -77,4 +77,23 @@ function M.collect(root)
   return modules
 end
 
+--- The modules of a LuaRocks source tree (`src/luarocks/**.lua`) and its launcher, served as `luarocks.main`: the
+--- program of `src/bin/luarocks` without its shebang line, run by `hecate --luarocks` (ADR 0029).
+---@param directory string   a checkout of LuaRocks
+---@return {name: string, source: string}[]
+function M.collect_luarocks(directory)
+  local modules = {}
+  local src = directory .. "/src"
+  for _, path in ipairs(util.walk(src .. "/luarocks", ".lua")) do
+    local f = assert(io.open(path, "rb"))
+    modules[#modules + 1] = { name = M.module_name(path:sub(#src + 2)), source = f:read("a") }
+    f:close()
+  end
+  local f = assert(io.open(src .. "/bin/luarocks", "rb"))
+  local launcher = f:read("a"):gsub("^#![^\n]*\n", "-- launcher\n")
+  f:close()
+  modules[#modules + 1] = { name = "luarocks.main", source = launcher }
+  return modules
+end
+
 return M

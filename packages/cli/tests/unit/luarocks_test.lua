@@ -160,4 +160,13 @@ function T:test_required_options()
   self:assert_error(function() luarocks.new({ runner = runner, tree = "t" }) end)
 end
 
+function T:test_the_executable_runs_luarocks_with_itself_as_the_lua_interpreter()
+  local runner, calls = fake(function() return { code = 0, stdout = "", stderr = "" } end)
+  ---@diagnostic disable-next-line: return-type-mismatch
+  local rocks = luarocks.new({ runner = runner, tree = "lua_modules", config_dir = "c", program = "/bin/hecate", program_arguments = { "--luarocks" } })
+  rocks:run({ "list" })
+  self:assert_equal("/bin/hecate", calls[1].program)
+  self:assert_equal("--luarocks LUA=/bin/hecate --tree lua_modules list", table.concat(calls[1].args, " "))
+end
+
 return T

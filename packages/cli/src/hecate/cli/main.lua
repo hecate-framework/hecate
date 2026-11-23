@@ -7,6 +7,8 @@ global <const> arg, io, os, package, require, pcall, ipairs, table, _VERSION
 ---@field hecate_version? string
 ---@field lua_interpreter? string  the interpreter for the processes of the project (default: `arg[-1]`, the one that runs this script)
 ---@field lua_interpreter_arguments? string[]  the arguments that put it in interpreter mode (the executable: `--lua`)
+---@field luarocks_program? string  the program that runs LuaRocks (default: `luarocks` on the path; the executable: itself)
+---@field luarocks_arguments? string[]  the arguments that make it run LuaRocks (the executable: `--luarocks`)
 
 --- Building the runtime of the process and running a command line.
 ---@class hecate.cli.main
@@ -29,10 +31,14 @@ function M.platform()
   return system:lower() .. "-" .. (machine == "arm64" and "aarch64" or machine)
 end
 
---- The version of the LuaRocks on the path (`luarocks --version`), nil when there is none.
+--- The version of LuaRocks (`luarocks --version`), nil when there is none.
+---@param program? string  default `luarocks` (found on the path)
+---@param leading? string[]  arguments before `--version` (the executable: `--luarocks`)
 ---@return string? version
-function M.luarocks_version()
-  local handle = io.popen("luarocks --version 2>" .. (windows and "nul" or "/dev/null"))
+function M.luarocks_version(program, leading)
+  local words = { program and ('"' .. program .. '"') or "luarocks" }
+  for _, value in ipairs(leading or {}) do words[#words + 1] = value end
+  local handle = io.popen(table.concat(words, " ") .. " --version 2>" .. (windows and "nul" or "/dev/null"))
   local line = handle and handle:read("l") or nil
   if handle then handle:close() end
   return line and line:match("(%d+%.%d+%.%d+)") or nil
@@ -77,7 +83,9 @@ function M.runtime(overrides)
     hecate_version = overrides.hecate_version or "0.0.0",
     lua_version = M.lua_release(interpreter, overrides.lua_interpreter_arguments),
     libuv_version = libuv_ok and luv.version_string and luv.version_string() or nil,
-    luarocks_version = M.luarocks_version(),
+    luarocks_version = M.luarocks_version(overrides.luarocks_program, overrides.luarocks_arguments),
+    luarocks_program = overrides.luarocks_program,
+    luarocks_arguments = overrides.luarocks_arguments,
     platform = M.platform(),
     project_dir = M.current_directory(),
     lua_interpreter = interpreter,
