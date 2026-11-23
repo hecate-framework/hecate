@@ -48,6 +48,7 @@
 - Step (fifteenth session, fourth round, owner request, in parallel with the scheduled run: its lock fields are untouched): protected state setup and `lua_atpanic` in the host, hardening flags in `build-cli`.
 - Step (seventeenth session, scheduled relay run, 2026-11-23, 18:45Z): resumed after the lock expired; no code change. CI of head 1fbc1bc is green on the three platforms (including the Windows build of the executable and `cli_bundle_test`): the "read the Windows log first" point of next step 1 is closed. `hecate toolchain` (cli-and-packaging.md: install|list|use|remove) needs downloads of Lua/LuaRocks archives, blocked by the cloud proxy and its source/layout is not specified: left for a decision, see below.
 - Step (sixteenth session, owner request, lock expired at 20:15Z): the `api` template (default of `hecate new`; `init` keeps `minimal`), and a bug found by running a generated project: `hecate test` ran the runner inside a reactor (every test errored); fixed with a regression check in the unit test. Generated project tests pass (4) and `contract export` works with the repository packages; the live server was not run.
+- Step (sixteenth session, second round): the generated `main.lua` loads `hecate.config` so that `hecate serve --workers N` takes effect (checked: "starting 2 workers", health check answers, graceful stop); the live server of the `api` template was run with the built executable and the native `hecate.http` (create, show, 422, 404); Ctrl+C double delivery confirmed (see Doubts).
 
 ## Next steps
 
