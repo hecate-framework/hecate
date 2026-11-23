@@ -18,6 +18,8 @@ local DIGEST = { url = "https://github.com/osch/lua-digest", tag = "v0.0.1" }
 local windows = util.is_windows()
 
 --- The Lua to build against: its directory, and the library to link (static on Unix, the import library on Windows).
+---@return string? directory
+---@return string? library
 local function find_lua(root)
   local candidates = { "/opt/lua-5.5", root .. "/.hecate/toolchain/lua", root .. "/.hecate/toolchain" }
   table.insert(candidates, 1, os.getenv("LUA_DIR") or false)
@@ -61,7 +63,7 @@ return {
     local output = ctx.root .. "/.hecate/build/cli/hecate" .. (windows and ".exe" or "")
     for _, a in ipairs(ctx.args) do output = a:match("^%-%-output=(.+)$") or output end
     local lua, lua_library = find_lua(ctx.root)
-    if not lua then
+    if not lua or not lua_library then
       return { ok = false, problems = { "build-cli: no Lua 5.5 with include/lua.h and " .. (windows and "lib/lua55.lib" or "lib/liblua.a") .. " (set LUA_DIR)" } }
     end
     local dir = output:match("^(.*)/[^/]*$") or "."
