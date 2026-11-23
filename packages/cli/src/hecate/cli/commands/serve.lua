@@ -7,6 +7,7 @@ global <const> require, error, package, table, tonumber, math, pcall
 local core = require("hecate.core")
 local serve = require("hecate.cli.serve")
 local tests = require("hecate.cli.commands.tests")
+local interpreter = require("hecate.cli.internal.interpreter")
 
 local MANIFEST = "hecate.project.lua"
 local ENTRY = "main.lua"
@@ -16,6 +17,7 @@ local ENTRY = "main.lua"
 ---@field run fun(task: fun(): any): any  runs a suspending task to completion (the reactor)
 ---@field reactor hecate.cli.ServeReactor|table  the reactor: `scope`, `select`, `sleep`, `deadline`, `spawn`, `watch_signals`, `fs`
 ---@field interpreter string  the Lua interpreter that runs the project
+---@field interpreter_arguments? string[]  the arguments that put it in interpreter mode
 ---@field windows boolean
 
 --- The `serve` command.
@@ -89,7 +91,7 @@ function command.execute(context, dependencies)
     local ok, result = pcall(serve.supervise, reactor, {
       start = function()
         context.print_error("hecate serve: starting " .. ENTRY)
-        return reactor.spawn(dependencies.interpreter, { ENTRY }, { env = env, cwd = project }) -- glossary-ok: an operating-system process
+        return reactor.spawn(dependencies.interpreter, interpreter.arguments(dependencies.interpreter_arguments, { ENTRY }), { env = env, cwd = project }) -- glossary-ok: an operating-system process
       end,
       signals = signals,
       changes = watching and function() return serve.poll_changes(reactor, reactor.fs, roots) end or nil,
@@ -111,6 +113,7 @@ function command.run(context)
     run = function(task) return reactor.run(task) end,
     reactor = reactor,
     interpreter = context.runtime.lua_interpreter or "lua",
+    interpreter_arguments = context.runtime.lua_interpreter_arguments,
     windows = package.config:sub(1, 1) == "\\",
   })
 end

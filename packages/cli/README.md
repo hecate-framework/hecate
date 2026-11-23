@@ -63,6 +63,7 @@
 - `cli.commands.doc_build` is `hecate doc build` (`--audience`, `--output`, `--yes`; reads the `doc` section of the manifest, asks before running LuaLS).
 - `cli.serve`: `supervise(reactor, options)` (the child process of `hecate serve`: forwards `sigint`, `sigterm` and `sighup`, grace period then `sigkill`, restart on change, the exit code of the child, `128 + n` for a signal), `poll_changes`, `snapshot`; `cli.commands.serve` is the command (`--watch`, `--workers`).
 - `cli.commands.run`: `hecate run <script> [-- <arguments>...]` runs a script of `scripts` in the manifest, or a `.lua` file of the project, in a child process with the project module path (the one of `serve`); `resolve`, `inside_project`.
+- `cli.main`: `run(arguments, overrides?)` and `runtime(overrides?)`: what the process runs on (exact Lua release, LuaRocks, libuv, platform, current directory, the interpreter for the project) and the command line; `bin/hecate.lua` and the self-contained executable (OQ-13) both call it. `Runtime.lua_interpreter_arguments` puts the interpreter in interpreter mode (the executable: `--lua`).
 - `hecate.cli.Command`: `name`, `summary`, `usage`, `options`, `run(context)`; `Context:emit(value, text)` prints JSON under `--json`.
 
 ## Layout (once implemented)

@@ -133,4 +133,13 @@ function T:test_bad_arguments_and_missing_files_say_what_to_do()
   self:assert_equal(0, #calls.spawned)
 end
 
+function T:test_the_executable_starts_the_project_in_interpreter_mode()
+  local calls, dependencies = setup(PROJECT, { exit_code = 0 })
+  dependencies.interpreter = "/opt/hecate/hecate"
+  dependencies.interpreter_arguments = { "--lua" }
+  run({ "serve" }, dependencies)
+  self:assert_equal("/opt/hecate/hecate", calls.spawned[1].program)
+  self:assert_equal("--lua,main.lua", table.concat(calls.spawned[1].args, ","))
+end
+
 return T

@@ -7,6 +7,7 @@ local core = require("hecate.core")
 local manifest_module = require("hecate.cli.manifest")
 local serve_command = require("hecate.cli.commands.serve")
 local templates = require("hecate.cli.templates")
+local interpreter = require("hecate.cli.internal.interpreter")
 
 ---@class hecate.cli.ContractDependencies
 ---@field read fun(path: string): string?  the text of a file, nil when it does not exist
@@ -154,6 +155,7 @@ io.stdout:write(application:contract(os.getenv("HECATE_CLI_PRETTY") == "1"))
 ---@field run fun(task: fun(): any): any  runs a suspending task to completion (the reactor)
 ---@field run_process fun(program: string, args: string[], options: { env?: table<string, string>, cwd?: string }): { code: integer, stdout: string, stderr: string }
 ---@field interpreter string
+---@field interpreter_arguments? string[]
 
 --- Makes the document of the application of the project in a child process (see `CHILD_PROGRAM`). Suspends: call it
 --- inside the reactor. Raises `hecate.core.ConfigurationError` when the project cannot give one.
@@ -181,7 +183,7 @@ function M.export_document(context, dependencies, pretty)
   env.HECATE_CLI_VERSION = manifest.contract.version
   env.HECATE_CLI_SERVERS = table.concat(manifest.contract.servers or {}, "\31")
   env.HECATE_CLI_PRETTY = pretty and "1" or "0"
-  local result = dependencies.run_process(dependencies.interpreter, { "-e", M.CHILD_PROGRAM }, { env = env, cwd = project })
+  local result = dependencies.run_process(dependencies.interpreter, interpreter.arguments(dependencies.interpreter_arguments, { "-e", M.CHILD_PROGRAM }), { env = env, cwd = project })
   if result.code ~= 0 then
     local detail = result.stderr ~= "" and result.stderr:gsub("%s+$", "") or ("the process exited with " .. result.code)
     error(core.ConfigurationError({ message = "the contract of the application could not be made:\n" .. detail, context = { code = result.code } }), 0)
@@ -233,6 +235,7 @@ function M.real_export_dependencies(context)
     run = function(task) return reactor.run(task) end,
     run_process = function(program, args, process_options) return reactor.run_process(program, args, process_options) end,
     interpreter = context.runtime.lua_interpreter or "lua",
+    interpreter_arguments = context.runtime.lua_interpreter_arguments,
   }
 end
 

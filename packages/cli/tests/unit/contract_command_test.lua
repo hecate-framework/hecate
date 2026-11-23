@@ -250,4 +250,13 @@ function T:test_a_ref_without_a_committed_contract_says_how_to_commit_one()
   self:assert_true(err2:find("main:openapi.json is not a JSON OpenAPI document", 1, true) ~= nil, err2)
 end
 
+function T:test_the_executable_exports_the_contract_in_interpreter_mode()
+  local calls, _, dependencies = export_setup({ ["/work/app/hecate.project.lua"] = EXPORT_MANIFEST })
+  dependencies.interpreter_arguments = { "--lua" }
+  run_export({ "contract", "export" }, dependencies)
+  self:assert_equal("--lua", calls[1].args[1])
+  self:assert_equal("-e", calls[1].args[2])
+  self:assert_equal(contract.CHILD_PROGRAM, calls[1].args[3])
+end
+
 return T

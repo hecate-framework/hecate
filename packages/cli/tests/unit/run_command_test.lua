@@ -100,4 +100,11 @@ function T:test_a_script_stays_inside_the_project()
   for _, bad in ipairs({ "", "/etc/x", "\\x", "C:/x", "../x", "a/../../x" }) do self:assert_false(run_command.inside_project(bad), bad) end
 end
 
+function T:test_the_executable_runs_a_script_in_interpreter_mode()
+  local calls, dependencies = setup(PROJECT)
+  dependencies.interpreter_arguments = { "--lua" }
+  run({ "run", "seed", "--", "x" }, dependencies)
+  self:assert_equal("--lua,scripts/seed.lua,x", table.concat(calls.spawned[1].args, ","))
+end
+
 return T
