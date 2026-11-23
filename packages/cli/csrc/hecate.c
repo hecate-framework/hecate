@@ -26,6 +26,45 @@
 #include <mach-o/dyld.h>
 #endif
 
+/* ---- statically linked native modules (the build defines the HECATE_STATIC_* macros of those it linked) ---- */
+
+#ifdef HECATE_STATIC_LUV
+int luaopen_luv(lua_State *L);
+#endif
+#ifdef HECATE_STATIC_DIGEST
+int luaopen_digest(lua_State *L);
+#endif
+#ifdef HECATE_STATIC_JSON_DECODER
+int luaopen_hecate_json_native(lua_State *L);
+#endif
+#ifdef HECATE_STATIC_JSON_ENCODER
+int luaopen_hecate_json_encoder_native(lua_State *L);
+#endif
+
+static void preload_natives(lua_State *L) {
+  static const luaL_Reg natives[] = {
+#ifdef HECATE_STATIC_LUV
+    { "luv", luaopen_luv },
+#endif
+#ifdef HECATE_STATIC_DIGEST
+    { "digest", luaopen_digest },
+#endif
+#ifdef HECATE_STATIC_JSON_DECODER
+    { "hecate.json.native", luaopen_hecate_json_native },
+#endif
+#ifdef HECATE_STATIC_JSON_ENCODER
+    { "hecate.json.encoder_native", luaopen_hecate_json_encoder_native },
+#endif
+    { NULL, NULL }
+  };
+  luaL_getsubtable(L, LUA_REGISTRYINDEX, LUA_PRELOAD_TABLE);
+  for (const luaL_Reg *r = natives; r->name; r++) {
+    lua_pushcfunction(L, r->func);
+    lua_setfield(L, -2, r->name);
+  }
+  lua_pop(L, 1);
+}
+
 /* ---- embedded modules -------------------------------------------------- */
 
 static int embedded_searcher(lua_State *L) {
@@ -188,6 +227,7 @@ int main(int argc, char **argv) {
   lua_State *L = luaL_newstate();
   if (!L) { fprintf(stderr, "hecate: cannot create the Lua state\n"); return 1; }
   luaL_openlibs(L);
+  preload_natives(L);
   install_searcher(L);
   char self[4096];
   if (!executable_path(self, sizeof self, argv[0])) snprintf(self, sizeof self, "%s", argv[0]);
