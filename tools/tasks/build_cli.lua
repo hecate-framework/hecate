@@ -78,6 +78,7 @@ return {
       if a == "--sanitize" then sanitize = true end
     end
     if sanitize and windows then return { ok = false, problems = { "build-cli: --sanitize runs on Linux and macOS" } } end
+    -- (_FORTIFY_SOURCE is left out with the sanitizers: they define it themselves, and a redefinition is an error under -Werror.)
     local sanitizer = sanitize and " -fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=undefined" or ""
     local lua, lua_library = find_lua(ctx.root)
     if not lua or not lua_library then
@@ -108,7 +109,7 @@ return {
           (extra or ""):gsub("%f[%S]%-([ID])", "/%1"),
           util.quote(object), util.quote(source))
       else
-        cmd = ("cc -std=c11 -O2 -fstack-protector-strong -D_FORTIFY_SOURCE=2" .. sanitizer .. " %s -I%s %s %s -c -o %s %s 2>&1"):format(strict and "-Wall -Wextra -Werror" or "",
+        cmd = ("cc -std=c11 -O2 -fstack-protector-strong" .. (sanitize and "" or " -D_FORTIFY_SOURCE=2") .. sanitizer .. " %s -I%s %s %s -c -o %s %s 2>&1"):format(strict and "-Wall -Wextra -Werror" or "",
           util.quote(lua .. "/include"), table.concat(defines, " "), extra or "", util.quote(object), util.quote(source))
       end
       local out, ok = util.capture(cmd)
