@@ -25,11 +25,14 @@ end
 function T:test_collect_serves_the_package_name_of_an_init_file()
   local names = {}
   local source = bundle.collect(".") -- tasks and their tests run from the repository root
-  for _, m in ipairs(source) do names[m.name] = true end
-  self:assert_true(names["hecate.cli.main"])
-  self:assert_true(names["hecate.cli"])
-  self:assert_true(names["hecate.cli.commands.init"])
-  self:assert_true(names["hecate.core"])
+  local count, found = #source, {}
+  for _, m in ipairs(source) do names[m.name] = true found[#found + 1] = m.name end
+  table.sort(found)
+  local list = table.concat(found, " ", 1, math.min(#found, 12))
+  self:assert_true(names["hecate.cli.main"], "missing hecate.cli.main among " .. count .. " modules: " .. list)
+  self:assert_true(names["hecate.cli"], "missing hecate.cli among " .. count .. " modules: " .. list)
+  self:assert_true(names["hecate.cli.commands.init"], "missing hecate.cli.commands.init among " .. count .. " modules: " .. list)
+  self:assert_true(names["hecate.core"], "missing hecate.core among " .. count .. " modules: " .. list)
 end
 
 -- Builds the executable and runs it; skipped where there is no C compiler or static Lua (the task reports why).
