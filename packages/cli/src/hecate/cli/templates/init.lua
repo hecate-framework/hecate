@@ -51,10 +51,14 @@ return {
 package.path = "src/?.lua;src/?/init.lua;" .. package.path
 
 local reactor = require("hecate.reactor")
+local config = require("hecate.config")
 local %s = require(%q)
 
+-- The configuration: `config/<environment>.lua` and the `HECATE_*` variables (`hecate serve --workers N` sets
+-- `HECATE_SERVER__WORKERS`). Declare the keys of the application in `properties`.
+local configuration = config.load({ properties = {} })
 local port = tonumber(os.getenv("PORT") or "") or 8080
-local app = %s.application({ server = { host = "127.0.0.1", port = port } })
+local app = %s.application({ configuration = configuration, server = { host = "127.0.0.1", port = port } })
 reactor.run(function() app:serve() end)
 ]], module, module, module)
 

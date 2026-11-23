@@ -67,6 +67,7 @@
 
 none open on the executable.
 
+- **Ctrl+C reaches the application twice (owner decision needed, a `reactor` API change).** Checked on the built executable with a generated project (the application on the real `hecate.http`): a SIGINT sent to the whole process group, as a terminal does, makes the kernel log "signal received, shutting down gracefully" and then "second signal received, stopping now" (`shutdown_forced`): the terminal delivers it to the child and `hecate serve` forwards it once more, so in-flight requests are cut on every Ctrl+C. A SIGINT sent to `hecate` alone stops gracefully (exit 0). Proposed fix: start the child in a process group of its own (a `detached`-like option of `reactor.run_process`, new session on Unix; to be checked on Windows, where libuv's `detached` detaches from the console) so that `hecate` is the only one the terminal signals and the one forwarding. Conservative default meanwhile: unchanged. `hecate serve --workers 2` works with the template `main.lua` since this step (`config.load` and `HECATE_SERVER__WORKERS`).
 - `hecate toolchain`: where do the Lua and LuaRocks archives come from (official tarballs, built from source, or releases of the monorepo), and where are they stored? Not specified in the docs read; conservative default: leave it unimplemented and do the `api`/`crud` templates and `doc serve` first.
 
 ## Commands to re-run
