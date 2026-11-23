@@ -1,7 +1,7 @@
 -- build-cli: builds the `hecate` executable: the C host with the Lua sources of the command-line interface embedded,
 -- the native modules it needs linked in statically (luv with libuv, digest, luafilesystem, the JSON codec) and LuaRocks
 -- embedded (ADR 0029).
--- Usage: build-cli [--output=<path>]   (default .hecate/build/cli/hecate, hecate.exe on Windows)
+-- Usage: build-cli [--output=<path>] [--strict]   (--strict, implied by CI, fails when a module cannot be linked in)
 -- Third-party sources (luv with its libuv, lua-digest, luafilesystem, LuaRocks) are cloned into
 -- `.hecate/build/cli/deps` at the versions pinned below. A module whose build tool is missing (cmake, cargo) is left
 -- out and then found next to the executable or in LUA_CPATH; `hecate doctor` reports what is missing.
@@ -10,10 +10,11 @@
 local util = require("lib.util")
 local bundle = require("lib.cli_bundle")
 
-local LUV = { url = "https://github.com/luvit/luv", tag = "1.53.0-0" } -- the version `ci.yml` installs
-local LUAROCKS = { url = "https://github.com/luarocks/luarocks", tag = "v3.13.0" }
-local LFS = { url = "https://github.com/lunarmodules/luafilesystem", tag = "v1_9_0" }
-local DIGEST = { url = "https://github.com/osch/lua-digest", tag = "v0.0.1" }
+-- Each dependency is pinned by tag and by the commit that tag must point to: a tag that moved is refused (supply chain).
+local LUV = { url = "https://github.com/luvit/luv", tag = "1.53.0-0", commit = "26e62e49b0230891ece45a78cc1f63c074e60020" } -- the version `ci.yml` installs
+local LUAROCKS = { url = "https://github.com/luarocks/luarocks", tag = "v3.13.0", commit = "3421bedc2ce2b64e79530bb97497531b014899a8" }
+local LFS = { url = "https://github.com/lunarmodules/luafilesystem", tag = "v1_9_0", commit = "a186cca5833691e830ed255e38ace8ff6b870dbf" }
+local DIGEST = { url = "https://github.com/osch/lua-digest", tag = "v0.0.1", commit = "9aa12563df9c56a1f5dcf2fd23da46c9c3319884" }
 
 local windows = util.is_windows()
 
@@ -36,10 +37,18 @@ local function quote_url(url) return windows and ('"' .. url .. '"') or util.quo
 --- Clones `spec` under `deps` once and returns its directory, or nil and the output of git.
 local function fetch(deps, name, spec)
   local dir = deps .. "/" .. name
-  if util.exists(dir) then return dir end
+  local function head() return (util.capture("git -C " .. util.quote(dir) .. " rev-parse HEAD")) end
+  if util.exists(dir) then
+    if head() == spec.commit then return dir end
+    util.remove_tree(dir) -- a checkout of another version (the pin was bumped): fetch it again
+  end
   local out, ok = util.capture(("git clone -q --depth 1 --branch %s --recurse-submodules --shallow-submodules %s %s 2>&1")
     :format(spec.tag, quote_url(spec.url), util.quote(dir)))
   if not ok then return nil, out end
+  if head() ~= spec.commit then
+    util.remove_tree(dir)
+    return nil, ("%s: tag %s points to another commit than the pinned %s"):format(spec.url, spec.tag, spec.commit)
+  end
   return dir
 end
 
@@ -99,6 +108,8 @@ return {
       objects[#objects + 1] = util.quote(object)
       return true
     end
+    local strict_build = os.getenv("CI") ~= nil -- a missing module is a failure in CI (a build without luv cannot start the reactor)
+    for _, a in ipairs(ctx.args) do if a == "--strict" then strict_build = true end end
     local function skip(what, why) notes[#notes + 1] = what .. " is not linked in: " .. why end
     local function fail(what, why) return { ok = false, problems = { "build-cli: " .. what .. ": " .. tostring(why) } } end
 
@@ -106,7 +117,7 @@ return {
     local luv_dir, why = fetch(deps, "luv", LUV)
     if not luv_dir then skip("luv", "cannot clone: " .. tostring(why))
     else
-      local build = deps .. "/luv-build"
+      local build = deps .. "/luv-build-" .. LUV.commit:sub(1, 8)
       local function built() return find_file(build, "^libluv[_a]*%.%a+$") or find_file(build, "^luv%.lib$") end
       if not built() then
         local _, have_cmake = util.capture("cmake --version")
@@ -212,6 +223,7 @@ return {
       if not copied then return fail("lua55.dll", "cannot copy " .. lua .. "/bin/lua55.dll") end
     end
     for _, n in ipairs(notes) do io.stderr:write("build-cli: ", n, "\n") end
+    if strict_build and #notes > 0 then return { ok = false, problems = notes } end
     return { ok = true, problems = {}, output = output, notes = notes }
   end,
 }
