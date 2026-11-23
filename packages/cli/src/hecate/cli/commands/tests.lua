@@ -85,7 +85,9 @@ function command.execute(context, dependencies)
   dependencies.set_module_path((context.runtime.project_dir or "."):gsub("/+$", ""), (context.runtime.lua_version:match("^%d+%.%d+")) or context.runtime.lua_version)
   local test = dependencies.load_test()
 
-  local summary = dependencies.run(function()
+  -- Discovery reads the file system, which suspends: it runs in a reactor. The runner runs each test in a reactor of its
+  -- own (it cannot be called inside one), so it runs outside.
+  local found = dependencies.run(function()
     local files = files_of(test, paths)
     local cases, load_errors = {}, {}
     for _, file in ipairs(files) do
@@ -93,17 +95,17 @@ function command.execute(context, dependencies)
       if ok then cases[#cases + 1] = loaded
       else load_errors[#load_errors + 1] = type(loaded) == "table" and loaded.message or tostring(loaded) end
     end
-    local reporter = context.json and test.JsonLinesReporter({ write = context.print }) or test.ConsoleReporter()
-    local runner = test.Runner({
-      reporter = reporter,
-      filter = filter,
-      cases = options.case --[[@as string[]?]],
-      tags = options.tag --[[@as string[]?]],
-      exclude_tags = options["exclude-tag"] --[[@as string[]?]],
-    })
-    local result = runner:run(cases)
-    return { summary = result, files = #files, load_errors = load_errors }
+    return { files = files, cases = cases, load_errors = load_errors }
   end)
+  local reporter = context.json and test.JsonLinesReporter({ write = context.print }) or test.ConsoleReporter()
+  local runner = test.Runner({
+    reporter = reporter,
+    filter = filter,
+    cases = options.case --[[@as string[]?]],
+    tags = options.tag --[[@as string[]?]],
+    exclude_tags = options["exclude-tag"] --[[@as string[]?]],
+  })
+  local summary = { summary = runner:run(found.cases), files = #found.files, load_errors = found.load_errors }
 
   for _, message in ipairs(summary.load_errors) do context.print_error("hecate test: " .. message) end
   if summary.files == 0 then

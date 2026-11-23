@@ -17,7 +17,12 @@ local function fake(seen, summary, files)
     JsonLinesReporter = function(options) return { kind = "json", write = options.write } end,
     Runner = function(options)
       seen.options = options
-      return { run = function(_, cases) seen.cases = cases; return summary or { exit_code = 0, empty = false } end }
+      return { run = function(_, cases)
+        -- The real runner starts a reactor for each test: it cannot be called inside the reactor of the command.
+        assert(not seen.inside_reactor, "the runner was called inside the reactor")
+        seen.cases = cases
+        return summary or { exit_code = 0, empty = false }
+      end }
     end,
   }
   return framework
@@ -29,7 +34,12 @@ local function run(args, opts)
   local files = opts.manifest == false and {} or { ["hecate.project.lua"] = "return {}" }
   local dependencies = {
     fs = { read = function(path) return files[path] end },
-    run = function(task) return task() end,
+    run = function(task)
+      seen.inside_reactor = true
+      local result = task()
+      seen.inside_reactor = false
+      return result
+    end,
     set_module_path = function(project, lua) seen.module_path = { project, lua } end,
     load_test = function() return fake(seen, opts.summary, opts.files) end,
   }

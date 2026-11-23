@@ -1,4 +1,4 @@
--- `hecate new <name> [--template minimal]`: creates a project directory from a template.
+-- `hecate new <name> [--template api|minimal]` (default `api`): creates a project directory from a template.
 global <const> require, ipairs, pairs, string, table, type, pcall, tostring
 
 local core = require("hecate.core")
@@ -17,8 +17,8 @@ local project_environment = require("hecate.cli.internal.project_environment")
 local command = {
   name = "new",
   summary = "Create a project from a template",
-  usage = "<name> [--template minimal]",
-  options = { { name = "template", takes_value = true, summary = "The template: minimal (default)" } },
+  usage = "<name> [--template api|minimal]",
+  options = { { name = "template", takes_value = true, summary = "The template: api (default) or minimal" } },
 }
 
 --- Runs the command with the given dependencies.
@@ -36,7 +36,7 @@ function command.execute(context, dependencies)
     context.print_error("hecate new: '" .. name .. "' is not a project name (lower-case letters, digits, '.', '_' and '-'), for example `hecate new my-api`")
     return 2
   end
-  local choice = context.arguments.options.template or "minimal"
+  local choice = context.arguments.options.template or "api"
   local template = type(choice) == "string" and templates.templates[choice]
   if not template then
     context.print_error("hecate new: unknown template '" .. tostring(choice) .. "' (available: " .. table.concat(templates.names(), ", ") .. ")")

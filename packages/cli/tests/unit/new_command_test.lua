@@ -39,6 +39,21 @@ function T:test_the_minimal_template_writes_a_valid_project()
   end
 end
 
+function T:test_the_api_template_adds_a_resource_with_its_schemas_and_tests()
+  local code, out, _, written = run({ "new", "shop", "--template=api" })
+  self:assert_equal(0, code)
+  self:assert_true(out:find("from the api template", 1, true) ~= nil, out)
+  for _, path in ipairs({ "shop/hecate.project.lua", "shop/main.lua", "shop/src/shop/init.lua", "shop/src/shop/items.lua",
+    "shop/src/shop/schemas.lua", "shop/tests/shop_test.lua", "shop/.gitignore", "shop/README.md" }) do
+    self:assert_true(written[path] ~= nil, path)
+  end
+  for path, text in pairs(written) do
+    if path:match("%.lua$") then self:assert_true(load(text, "=" .. path) ~= nil, path) end
+  end
+  self:assert_true(written["shop/src/shop/init.lua"]:find('require("shop.items")', 1, true) ~= nil)
+  self:assert_true(written["shop/src/shop/items.lua"]:find('require("shop.schemas")', 1, true) ~= nil)
+end
+
 function T:test_an_existing_directory_is_never_overwritten()
   local code, _, err, written = run({ "new", "app" }, "app")
   self:assert_equal(1, code)
@@ -50,9 +65,9 @@ function T:test_bad_names_and_templates_are_usage_errors()
   self:assert_equal(2, (run({ "new" })))
   self:assert_equal(2, (run({ "new", "My App" })))
   self:assert_equal(2, (run({ "new", "1app" })))
-  local code, _, err = run({ "new", "app", "--template=crud" })
+  local code, _, err = run({ "new", "app", "--template=nope" })
   self:assert_equal(2, code)
-  self:assert_true(err:find("available: minimal") ~= nil, err)
+  self:assert_true(err:find("available: api, minimal") ~= nil, err)
 end
 
 function T:test_json_output()
