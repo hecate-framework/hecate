@@ -294,18 +294,35 @@ static int run_cli(lua_State *L, int argc, char **argv, const char *self) {
   return code;
 }
 
+/* Prepares the state: the standard libraries, the statically linked natives, the embedded modules, the native
+ * module path. Runs protected (an out-of-memory error ends in a message, not in the panic of an unprotected call). */
+static int prepare(lua_State *L) {
+  const char *self = (const char *)lua_touserdata(L, 1);
+  luaL_openlibs(L);
+  preload_natives(L);
+  install_searcher(L);
+  add_native_directory(L, self);
+  return 0;
+}
+
+static int panic(lua_State *L) {
+  const char *message = lua_type(L, -1) == LUA_TSTRING ? lua_tostring(L, -1) : "error object is not a string";
+  fprintf(stderr, "hecate: unprotected error in a call to the Lua API (%s)\n", message);
+  return 0; /* the caller of the API aborts */
+}
+
 int main(int argc, char **argv) {
 #ifdef _WIN32
   SetConsoleOutputCP(CP_UTF8); /* the manifest makes the ANSI code page UTF-8 (OQ-147); the console follows */
 #endif
   lua_State *L = luaL_newstate();
   if (!L) { fprintf(stderr, "hecate: cannot create the Lua state\n"); return 1; }
-  luaL_openlibs(L);
-  preload_natives(L);
-  install_searcher(L);
+  lua_atpanic(L, panic);
   char self[4096];
   if (!executable_path(self, sizeof self, argc > 0 ? argv[0] : NULL)) snprintf(self, sizeof self, "%s", argc > 0 ? argv[0] : "hecate");
-  add_native_directory(L, self);
+  lua_pushcfunction(L, prepare);
+  lua_pushlightuserdata(L, self);
+  if (report(L, lua_pcall(L, 1, 0, 0))) { lua_close(L); return 1; }
   int code;
   size_t first_length = argc > 1 ? strlen(argv[1]) : 0;
   if (argc > 1 && strcmp(argv[1], "--lua") == 0) { program_name = "lua"; code = run_interpreter(L, argc, argv, 2); }

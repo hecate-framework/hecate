@@ -100,7 +100,7 @@ return {
           (extra or ""):gsub("%f[%S]%-([ID])", "/%1"),
           util.quote(object), util.quote(source))
       else
-        cmd = ("cc -std=c11 -O2 %s -I%s %s %s -c -o %s %s 2>&1"):format(strict and "-Wall -Wextra -Werror" or "",
+        cmd = ("cc -std=c11 -O2 -fstack-protector-strong -D_FORTIFY_SOURCE=2 %s -I%s %s %s -c -o %s %s 2>&1"):format(strict and "-Wall -Wextra -Werror" or "",
           util.quote(lua .. "/include"), table.concat(defines, " "), extra or "", util.quote(object), util.quote(source))
       end
       local out, ok = util.capture(cmd)
@@ -213,7 +213,7 @@ return {
     else
       cmd = table.concat({
         "cc", "-o", util.quote(output), table.concat(objects, " "), table.concat(libraries, " "), util.quote(lua_library),
-        linux and "-Wl,-E" or "-Wl,-export_dynamic", "-lm", "-lpthread", linux and "-ldl -lrt" or "", "2>&1",
+        linux and "-Wl,-E -Wl,-z,relro,-z,now" or "-Wl,-export_dynamic", "-lm", "-lpthread", linux and "-ldl -lrt" or "", "2>&1",
       }, " ")
     end
     local out, ok = util.capture(cmd)

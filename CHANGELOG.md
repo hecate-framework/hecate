@@ -11,6 +11,7 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- fix(cli): the C host of the `hecate` executable prepares its Lua state in a protected call and installs a panic handler (an out-of-memory error ends in a message), and `build-cli` compiles with `-fstack-protector-strong`, `-D_FORTIFY_SOURCE=2` and, on Linux, `-z relro,now`.
 - fix(cli): `build-cli` pins each cloned dependency (luv, LuaRocks, luafilesystem, digest) by tag and by commit: a tag that moved is refused, a checkout of another version is fetched again; `--strict` (implied by `CI`) fails when a module cannot be linked in, so a CI build can no longer pass without luv or the JSON encoder.
 - feat(cli): the Windows executable embeds a manifest that sets its code page to UTF-8 (OQ-147, owner decision of 2026-11-23): paths and arguments with non-ASCII characters reach Lua intact (Windows 10 1903 and later); the console output code page is UTF-8; a test runs a script from a non-ASCII directory on the three platforms.
 - fix(cli): hardening of the `hecate` executable after the review of the C host: the argument stack is checked (`luaL_checkstack`), a result of `run` that is not an integer is a failure, errors are prefixed by the mode (`hecate:`, `lua:`, `luarocks:`), a script file as first argument runs as `lua script.lua` (the `$(LUA) script.lua` of a rockspec), the repository's own C is built with warnings as errors on every compiler (`-std=c11`, `/W4 /WX`), the Lua library comes last on the link line, duplicate embedded module names are refused.
