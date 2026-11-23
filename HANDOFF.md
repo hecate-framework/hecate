@@ -49,6 +49,7 @@
 
 ## Decisions taken (and where they are recorded)
 
+- 2026-11-22, owner: the manifest keeps only the specified keys (`lua` is the only toolchain setting); the sandbox becomes a shared module of `core`, in its own roadmap item (`hecate.cli.internal.sandbox` stays a temporary copy until then).
 - 2026-11-23, owner (answers on the executable): (1) the executable bundles `core`, `reactor` (with luv), `log`, `json` (with its native modules) and `schema`; `hecate test` loads `hecate.test` from the project's tree in-process (as it does), `doc build` and the `contract` commands use the project's rocks in the project's interpreter (done: `internal/project_process`); (2) the executable acts as the interpreter with a leading `--lua` (`Runtime.lua_interpreter_arguments`, done on the CLI side); (3) native modules next to the executable first, static linking after.
 
 - 2026-11-23, owner: no SHA-256 fallback for now, `digest` only; the `plc` backend and its dependency are removed (CHANGELOG, `[Unreleased]`). ADR 0028 (Accepted) still describes `plc` as the fallback backend: not edited; if the owner wants the ADR to say so, that is theirs to amend.
