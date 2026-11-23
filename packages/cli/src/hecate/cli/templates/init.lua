@@ -17,6 +17,7 @@ local M = {}
 --- The module the generated tests require. It is project text, not a dependency of the CLI, so it is built here
 --- instead of appearing as a `require` (`check-boundaries` reads the sources).
 local TEST_MODULE = "hecate" .. ".test"
+local CONFIG_MODULE = "hecate" .. ".config"
 
 --- The module name of a project: the name with every character that is not a letter, digit or '_' turned into '_'.
 --- Raises `hecate.core.ArgumentError` for a name that would not make an identifier.
@@ -51,7 +52,7 @@ return {
 package.path = "src/?.lua;src/?/init.lua;" .. package.path
 
 local reactor = require("hecate.reactor")
-local config = require("hecate.config")
+local config = require(%q)
 local %s = require(%q)
 
 -- The configuration: `config/<environment>.lua` and the `HECATE_*` variables (`hecate serve --workers N` sets
@@ -60,7 +61,7 @@ local configuration = config.load({ properties = {} })
 local port = tonumber(os.getenv("PORT") or "") or 8080
 local app = %s.application({ configuration = configuration, server = { host = "127.0.0.1", port = port } })
 reactor.run(function() app:serve() end)
-]], module, module, module)
+]], CONFIG_MODULE, module, module, module)
 
   files["src/" .. module .. "/init.lua"] = string.format([[
 -- The application of %s: one route module.
