@@ -58,7 +58,7 @@ flowchart TB
   end
   subgraph T[Tooling]
     cli --> log
-    cli --> schema
+    cli --> openapi
     doc --> json
     doc --> reactor
     doc --> unicode
