@@ -5,9 +5,8 @@ global <const> require, error, ipairs, pairs, io, pcall, string, table, tostring
 
 local core = require("hecate.core")
 local manifest_module = require("hecate.cli.manifest")
-local serve_command = require("hecate.cli.commands.serve")
 local templates = require("hecate.cli.templates")
-local interpreter = require("hecate.cli.internal.interpreter")
+local project_process = require("hecate.cli.internal.project_process")
 
 ---@class hecate.cli.ContractDependencies
 ---@field read fun(path: string): string?  the text of a file, nil when it does not exist
@@ -166,7 +165,6 @@ io.stdout:write(application:contract(os.getenv("HECATE_CLI_PRETTY") == "1"))
 ---@return string document  JSON text
 function M.export_document(context, dependencies, pretty)
   local project = (context.runtime.project_dir or "."):gsub("/+$", "")
-  local lua = context.runtime.lua_version:match("^%d+%.%d+") or context.runtime.lua_version
   local source = dependencies.read(project .. "/hecate.project.lua")
   if source == nil then
     error(core.ConfigurationError({ message = "hecate.project.lua not found in the current directory: run `hecate new <name>` to create a project" }), 0)
@@ -177,17 +175,14 @@ function M.export_document(context, dependencies, pretty)
       message = "hecate.project.lua has no `contract` section: add one, for example `contract = { title = \"" .. manifest.name .. "\", version = \"1.0.0\" }`",
     }), 0)
   end
-  local env = serve_command.environment(project, lua)
-  env.HECATE_CLI_MODULE = templates.module_name(manifest.name)
-  env.HECATE_CLI_TITLE = manifest.contract.title
-  env.HECATE_CLI_VERSION = manifest.contract.version
-  env.HECATE_CLI_SERVERS = table.concat(manifest.contract.servers or {}, "\31")
-  env.HECATE_CLI_PRETTY = pretty and "1" or "0"
-  local result = dependencies.run_process(dependencies.interpreter, interpreter.arguments(dependencies.interpreter_arguments, { "-e", M.CHILD_PROGRAM }), { env = env, cwd = project })
-  if result.code ~= 0 then
-    local detail = result.stderr ~= "" and result.stderr:gsub("%s+$", "") or ("the process exited with " .. result.code)
-    error(core.ConfigurationError({ message = "the contract of the application could not be made:\n" .. detail, context = { code = result.code } }), 0)
-  end
+  local environment = {
+    HECATE_CLI_MODULE = templates.module_name(manifest.name),
+    HECATE_CLI_TITLE = manifest.contract.title,
+    HECATE_CLI_VERSION = manifest.contract.version,
+    HECATE_CLI_SERVERS = table.concat(manifest.contract.servers or {}, "\31"),
+    HECATE_CLI_PRETTY = pretty and "1" or "0",
+  }
+  local result = project_process.run(context, dependencies, M.CHILD_PROGRAM, environment, "the contract of the application")
   return result.stdout
 end
 
@@ -239,11 +234,58 @@ function M.real_export_dependencies(context)
   }
 end
 
---- The real dependencies: files, the JSON codec and the OpenAPI package, loaded when the command runs.
----@return hecate.cli.ContractDependencies
-function M.real_dependencies()
+--- The programs that run `hecate.openapi` in the interpreter of the project: the documents come as files (the paths in the
+--- environment: a document can be larger than an environment variable may be), the result goes out as JSON. The module name is
+--- built in the program text because `hecate.openapi` is a rock of the project, not a dependency of the CLI
+--- (`check-boundaries` reads the sources).
+M.LINT_PROGRAM = [[
+local json = require("hecate.json")
+local openapi = require("hecate" .. ".openapi")
+local file = assert(io.open(os.getenv("HECATE_CLI_DOCUMENT"), "rb"))
+local text = file:read("a")
+file:close()
+io.write(json.encode(openapi.lint(json.decode(text))))
+]]
+
+M.DIFF_PROGRAM = [[
+local json = require("hecate.json")
+local openapi = require("hecate" .. ".openapi")
+local function load(name)
+  local file = assert(io.open(os.getenv(name), "rb"))
+  local text = file:read("a")
+  file:close()
+  return json.decode(text)
+end
+io.write(json.encode(openapi.diff(load("HECATE_CLI_OLD"), load("HECATE_CLI_NEW"))))
+]]
+
+--- The real dependencies: files, the JSON codec of the CLI, and `lint` and `diff` that run `hecate.openapi` of the project in
+--- its interpreter (not in this process: the executable does not carry it). They suspend, so each runs its own reactor.
+---@param context hecate.cli.Context
+---@return table dependencies
+function M.real_dependencies(context)
+  local reactor = require("hecate.reactor")
   local json = require("hecate.json")
-  local openapi = require("hecate.openapi")
+  local project = (context.runtime.project_dir or "."):gsub("/+$", "")
+  local process = M.real_export_dependencies(context)
+
+  --- Writes the documents under `.hecate/contract` of the project, runs the program with their paths and decodes its output.
+  local function through_project(program, documents, what)
+    return reactor.run(function()
+      local directory = project .. "/.hecate/contract"
+      for _, made in ipairs(require("hecate.cli.internal.project_environment").directories_of(directory .. "/x")) do
+        if not reactor.fs.stat(made) then reactor.fs.mkdir(made) end
+      end
+      local environment = {}
+      for name, document in pairs(documents) do
+        local path = directory .. "/" .. name .. ".json"
+        reactor.fs.write_file(path, json.encode(document))
+        environment["HECATE_CLI_" .. name:upper()] = path
+      end
+      return json.decode(project_process.run(context, process, program, environment, what).stdout)
+    end)
+  end
+
   return {
     read = function(path)
       local file = io.open(path, "rb")
@@ -253,8 +295,13 @@ function M.real_dependencies()
       return text
     end,
     decode = function(text) return json.decode(text) end,
-    lint = openapi.lint,
-    diff = openapi.diff,
+    lint = function(document) return through_project(M.LINT_PROGRAM, { document = document }, "the lint of the contract") end,
+    diff = function(old, new) return through_project(M.DIFF_PROGRAM, { old = old, new = new }, "the comparison of the contracts") end,
+    run = process.run,
+    run_process = process.run_process,
+    interpreter = process.interpreter,
+    interpreter_arguments = process.interpreter_arguments,
+    write = process.write,
   }
 end
 
@@ -265,7 +312,7 @@ M.commands = {
     name = "contract lint",
     summary = "Lint an OpenAPI document (JSON file); exit 1 on an error finding",
     usage = "<file>",
-    run = function(context) return M.lint(context, M.real_dependencies()) end,
+    run = function(context) return M.lint(context, M.real_dependencies(context)) end,
   },
   {
     name = "contract diff",
@@ -273,11 +320,7 @@ M.commands = {
     usage = "<old> <new> | <ref>",
     options = { { name = "file", takes_value = true, summary = "With a git ref: the committed contract (default openapi.json)" } },
     run = function(context)
-      local dependencies = M.real_dependencies()
-      for key, value in pairs(M.real_export_dependencies(context)) do
-        if dependencies[key] == nil then dependencies[key] = value end
-      end
-      return M.diff(context, dependencies)
+      return M.diff(context, M.real_dependencies(context))
     end,
   },
   {

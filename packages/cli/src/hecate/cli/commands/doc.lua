@@ -6,6 +6,7 @@ global <const> require, error, io, ipairs, pairs, string, table, type
 
 local core = require("hecate.core")
 local manifest_module = require("hecate.cli.manifest")
+local project_process = require("hecate.cli.internal.project_process")
 
 local MANIFEST = "hecate.project.lua"
 
@@ -13,7 +14,7 @@ local MANIFEST = "hecate.project.lua"
 ---@field fs { read: fun(path: string): string? }  reads a file, nil when it does not exist
 ---@field run fun(task: fun(): any): any  runs a suspending task to completion (the reactor)
 ---@field ask fun(question: string): boolean  asks a yes/no question; false when nothing answers
----@field generate fun(options: hecate.doc.ProjectDocumentationOptions): hecate.doc.ProjectDocumentationReport
+---@field generate fun(options: table): { files: integer, bytes: integer, problems: string[], sites: { audience: string, files: integer, bytes: integer, directory: string }[] }  builds the site (inside the reactor); the real one runs `hecate.doc` in the interpreter of the project
 
 local WARNING = "hecate doc build: the code reference runs LuaLS, which runs the plugin declared by any LuaLS configuration "
   .. "reachable from the documented directory (.luarc.json, .luarc.jsonc, .vscode/settings.json), with full file and command "
@@ -67,11 +68,30 @@ function command.execute(context, dependencies)
   return #report.problems > 0 and 1 or 0
 end
 
---- Runs `hecate doc build` with the real file system and reactor, the standard input for the question, and `hecate.doc`.
+--- The program that builds the site in the interpreter of the project (`hecate.doc` is a rock of the project, so its name is built
+--- in the text: `check-boundaries` reads the sources): the options come as JSON in the environment (small:
+--- paths and names), the report goes out as JSON. It runs in a reactor of its own, as `hecate.doc` suspends.
+command.PROGRAM = [[
+local json = require("hecate.json")
+local reactor = require("hecate.reactor")
+local doc = require("hecate" .. ".doc")
+local options = json.decode(os.getenv("HECATE_CLI_OPTIONS"))
+local report = reactor.run(function() return doc.generate_project_documentation(options) end)
+io.write(json.encode(report))
+]]
+
+--- Runs `hecate doc build` with the real file system and reactor, the standard input for the question, and `hecate.doc` of
+--- the project (in its interpreter: the executable does not carry it).
 ---@param context hecate.cli.Context
 ---@return integer exit_code
 function command.run(context)
   local reactor = require("hecate.reactor")
+  local json = require("hecate.json")
+  local process = {
+    run_process = function(program, args, options) return reactor.run_process(program, args, options) end,
+    interpreter = context.runtime.lua_interpreter or "lua",
+    interpreter_arguments = context.runtime.lua_interpreter_arguments,
+  }
   return command.execute(context, {
     fs = { read = function(path) return reactor.run(function()
       if not reactor.fs.stat(path) then return nil end
@@ -83,7 +103,10 @@ function command.run(context)
       local answer = io.read("l")
       return type(answer) == "string" and answer:lower():match("^%s*y") ~= nil
     end,
-    generate = require("hecate.doc").generate_project_documentation,
+    generate = function(options)
+      local result = project_process.run(context, process, command.PROGRAM, { HECATE_CLI_OPTIONS = json.encode(options) }, "the build of the documentation")
+      return json.decode(result.stdout)
+    end,
   })
 end
 

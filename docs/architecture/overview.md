@@ -57,9 +57,8 @@ flowchart TB
     sqlserver --> sql
   end
   subgraph T[Tooling]
-    cli --> doc
     cli --> log
-    cli --> openapi
+    cli --> schema
     doc --> json
     doc --> reactor
     doc --> unicode
