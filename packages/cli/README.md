@@ -46,9 +46,9 @@
 
 - `cli.run(args, options)`: runs one command line, returns the exit code (0 ok, 1 command failed, 2 usage error).
 - `cli.parse(args, commands)`: global flags, command selection (one or two words) and options, raising `ArgumentError`.
-- `cli.commands`: the commands implemented so far (`version` and `--version`, `doctor`, `new`, `install`, `add`, `remove`, `update`, `outdated`, shell completion).
+- `cli.commands`: the commands implemented so far (`version` and `--version`, `doctor`, `new`, `init`, `install`, `add`, `remove`, `update`, `outdated`, shell completion).
 - `cli.completion`: `complete(words, commands)` (candidates for a partial command line) and `script(shell)`; commands `completion <shell>` and the hidden `__complete`.
-- `cli.templates`: `templates` (by name; `minimal` so far), `names()` and `module_name(name)`; `hecate new <name> [--template minimal]` writes `<name>/` (manifest, `main.lua`, one route module, a test, `.gitignore`, README) and refuses an existing directory. `api` and `crud` come with their packages.
+- `cli.templates`: `templates` (by name; `minimal` so far), `names()` and `module_name(name)`; `hecate new <name> [--template minimal]` writes `<name>/` (manifest, `main.lua`, one route module, a test, `.gitignore`, README) and refuses an existing directory. `api` and `crud` come with their packages. `hecate init [--name <name>]` writes the same template into the current directory, keeps every existing file and refuses a directory that already has `hecate.project.lua`.
 - `cli.doctor`: `run(runtime, probes, project?)` (the checks: Lua 5.5, LuaRocks, luv, the native codec, SHA-256, a C compiler, the manifest and lockfile of the current directory) and `summary(checks)`; the `hecate doctor` command exits 1 on a failed check, warnings do not.
 - `cli.manifest_edit`: `set(text, section, name, constraint)`, `remove(text, section, name)` and `has(...)` edit `hecate.project.lua` as text (one line, everything else byte for byte, CRLF kept), refuse with the line to write by hand when the shape is not understood, and verify their result by evaluating it.
 - `cli.manifest`: `parse(source, path?, limits?)` and `validate(table, path?)` for `hecate.project.lua` (sandboxed, schema-validated, `ConfigurationError` with pointers); `manifest.schema`.
