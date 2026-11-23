@@ -22,6 +22,7 @@ local cli = {
     require("hecate.cli.commands.new"),
     require("hecate.cli.commands.outdated"),
     require("hecate.cli.commands.remove"),
+    require("hecate.cli.commands.tests"),
     require("hecate.cli.commands.update"),
     require("hecate.cli.commands.completion")[1],
     require("hecate.cli.commands.completion")[2],
