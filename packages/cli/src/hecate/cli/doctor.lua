@@ -14,7 +14,7 @@ global <const> ipairs, table, tostring
 ---@field json_works fun(): boolean, string?  whether `hecate.json` can encode a value (its native module loads on first use, `require` alone proves nothing), and the error when it cannot
 ---@field on_path fun(program: string): boolean  whether the program is found on the PATH
 ---@field read fun(path: string): string?  the text of a file, nil when it does not exist
----@field digest_backend fun(): string?  the SHA-256 backend in use (`digest`, `plc`), nil when none loads
+---@field digest_backend fun(): string?  the SHA-256 backend in use (`digest`), nil when it does not load
 
 --- Diagnosing the environment.
 ---@class hecate.cli.doctor
@@ -64,10 +64,8 @@ function M.run(runtime, probes, project)
   local backend = probes.digest_backend()
   if backend == "digest" then
     checks[#checks + 1] = check("SHA-256", "ok", "digest rock")
-  elseif backend == "plc" then
-    checks[#checks + 1] = check("SHA-256", "warn", "pure-Lua fallback (plc): correct, but slow on large files", "luarocks install digest")
   else
-    checks[#checks + 1] = check("SHA-256", "fail", "neither the digest nor the plc rock loads", "luarocks install digest")
+    checks[#checks + 1] = check("SHA-256", "fail", "the digest rock does not load", "luarocks install digest")
   end
 
   local compiler

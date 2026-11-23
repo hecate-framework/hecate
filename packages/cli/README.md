@@ -54,7 +54,7 @@
 - `cli.manifest`: `parse(source, path?, limits?)` and `validate(table, path?)` for `hecate.project.lua` (sandboxed, schema-validated, `ConfigurationError` with pointers); `manifest.schema`.
 - `cli.installer`: `install(options)` joins the manifest, LuaRocks, the lockfile and the checksums (injected file system and LuaRocks); `hecate install` writes `hecate.lock`, `hecate install --frozen` stops when it is missing or out of date and verifies the installed files afterwards.
 - `cli.lockfile`: `parse`, `validate`, `serialize` (sorted, deterministic) and `outdated(lock, manifest)` (missing, orphan, wrongly flagged rocks, locked versions that break a constraint) for `hecate.lock`.
-- `cli.digest`: `sha256(data)`, `sha256_file(path)`, `backend_name`, `using(backend)` (ADR 0028; rocks `digest`, fallback `plc`).
+- `cli.digest`: `sha256(data)`, `sha256_file(path)`, `backend_name`, `using(backend)` (ADR 0028; the `digest` rock behind one seam, no fallback for now).
 - `cli.constraint`: `parse_version`, `compare`, `parse` and `satisfies` over the LuaRocks version and constraint syntax.
 - `cli.luarocks`: `new(options)` (`config_text`, `environment`, `installed`, `outdated`, `install_dependencies`, `remove`, `pin`), `rockspec_text`, `rockspec_file_name`, `parse_lock`; the runner is injected.
 - `cli.resolution`: `read_rockspec(name, text)`, `installed_files_digest(input)`, `build_lockfile(input)` (an installation to the records of `hecate.lock`) and `verify(lock, current)` (what `install --frozen` checks after installing).

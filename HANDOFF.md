@@ -42,7 +42,7 @@
 
 ## Decisions taken (and where they are recorded)
 
-none yet
+- 2026-11-23, owner: no SHA-256 fallback for now, `digest` only; the `plc` backend and its dependency are removed (CHANGELOG, `[Unreleased]`). ADR 0028 (Accepted) still describes `plc` as the fallback backend: not edited; if the owner wants the ADR to say so, that is theirs to amend.
 
 ## Doubts and questions for the owner
 

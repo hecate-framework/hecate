@@ -24,16 +24,15 @@ bash /tmp/hecate-bootstrap.sh --prefix /opt/lua-5.5 --link /usr/local/bin
 # Optional: luv (libuv binding). Its Lua 5.5 support is what spike OQ-1 verifies, so a
 # failure here must not block the session.
 luarocks install luv >/dev/null 2>&1 || echo "luv not installed (see OQ-1)"
-# digest and plc: the SHA-256 backends of hecate.cli.digest (ADR 0028). The rockspec of `digest` downloads a GitHub
-# archive (https://github.com/osch/lua-digest/archive/...), which the egress proxy refuses (403); a git clone of the
-# same tag is served, so the rock is built from a checkout. `plc` comes from luarocks.org. Neither blocks the session.
-luarocks install plc >/dev/null 2>&1 || echo "plc not installed: hecate.cli.digest needs it or the digest rock"
+# digest: the SHA-256 rock of hecate.cli.digest (ADR 0028). Its rockspec downloads a GitHub archive
+# (https://github.com/osch/lua-digest/archive/...), which the egress proxy refuses (403); a git clone of the same tag is
+# served, so the rock is built from a checkout. A failure here must not block the session.
 DIGEST_DIR=$(mktemp -d)
 if GIT_LFS_SKIP_SMUDGE=1 git clone --quiet --depth 1 --branch v0.0.1 https://github.com/osch/lua-digest "$DIGEST_DIR/lua-digest" \
   && (cd "$DIGEST_DIR/lua-digest" && luarocks make rockspecs/digest-0.0.1-1.rockspec >/dev/null 2>&1); then
   :
 else
-  echo "digest not installed: hecate.cli.digest falls back to plc"
+  echo "digest not installed: hecate.cli.digest and the tests of cli need it"
 fi
 rm -rf "$DIGEST_DIR"
 

@@ -21,7 +21,6 @@ dependencies = {
   "hecate-openapi",
   "hecate-schema",
   "digest",
-  "plc",
 }
 
 build = {

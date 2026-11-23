@@ -50,12 +50,11 @@ function T:test_warnings_do_not_fail_the_command()
   local checks = doctor.run(GOOD, probes({
     json_works = function() return false, "module 'hecate.json.native' not found\nstack" end,
     on_path = function() return false end,
-    digest_backend = function() return "plc" end,
   }))
   local code, failures, warnings = doctor.summary(checks)
   self:assert_equal(0, code)
   self:assert_equal(0, failures)
-  self:assert_equal(3, warnings)
+  self:assert_equal(2, warnings)
   for _, entry in ipairs(checks) do
     if entry.name == "hecate.json" then self:assert_true(entry.detail:find("hecate.json.native", 1, true) ~= nil and entry.detail:find("stack", 1, true) == nil) end
   end

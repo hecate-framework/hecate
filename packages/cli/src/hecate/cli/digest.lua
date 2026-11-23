@@ -1,12 +1,12 @@
 -- The only SHA-256 interface of the CLI (ADR 0028): callers never require a hash rock. The rock behind it is chosen
--- in one place, `hecate.cli.internal.digest_backend`: the `digest` rock when it is installed (C, fast, streams), the
--- pure-Lua `plc` rock otherwise.
+-- in one place, `hecate.cli.internal.digest_backend`: today the `digest` rock (C, fast, streams files); another rock is a
+-- change of that one module and of the rockspec (owner decision of 2026-11-23: no fallback for now).
 global <const> require, type, io, assert
 
 local backend = require("hecate.cli.internal.digest_backend")
 
 ---@class hecate.cli.Digest
----@field backend_name string  the rock in use, "digest" or "plc"
+---@field backend_name string  the rock in use, "digest"
 ---@field sha256 fun(data: string): string  64 lowercase hexadecimal characters
 ---@field sha256_file fun(path: string): string?, string?  the same for the content of a file; `nil` and a message when it cannot be read
 
@@ -31,7 +31,7 @@ local function using(chosen)
   return self
 end
 
---- SHA-256 of the CLI over the best backend installed. `using` builds the same interface over another backend (the
+--- SHA-256 of the CLI over the backend installed. `using` builds the same interface over another backend (the
 --- contract test runs every backend through it).
 ---@class hecate.cli.digest : hecate.cli.Digest
 local M = using(backend.select())
