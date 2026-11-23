@@ -167,7 +167,18 @@ return {
     if not have_cargo then skip("the JSON encoder", "cargo not found")
     else
       local rust = deps .. "/rust"
-      local out, ok = util.capture(("cargo rustc --release --locked --lib --crate-type staticlib --manifest-path %s --target-dir %s 2>&1")
+      -- On Windows, Git for Windows can put its coreutils `link.exe` before the MSVC one on the path, and rustc would
+      -- take it as the linker: name the MSVC linker explicitly.
+      local env = ""
+      if windows then
+        for line in util.capture("where link.exe"):gmatch("[^\r\n]+") do
+          if not line:lower():find("[/\\]usr[/\\]bin[/\\]") then
+            env = ('set "CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER=%s" && set "CARGO_TARGET_AARCH64_PC_WINDOWS_MSVC_LINKER=%s" && '):format(line, line)
+            break
+          end
+        end
+      end
+      local out, ok = util.capture((env .. "cargo rustc --release --locked --lib --crate-type staticlib --manifest-path %s --target-dir %s 2>&1")
         :format(util.quote(ctx.root .. "/packages/json/native/Cargo.toml"), util.quote(rust)))
       local library = rust .. "/release/" .. (windows and "hecate_json_encoder_native.lib" or "libhecate_json_encoder_native.a")
       if not ok or not util.exists(library) then skip("the JSON encoder", "cargo failed:\n" .. out)
