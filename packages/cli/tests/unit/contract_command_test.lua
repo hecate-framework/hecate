@@ -91,7 +91,8 @@ function T:test_usage_errors()
   local deps = dependencies({})
   self:assert_equal(2, (run("lint", { "contract", "lint" }, deps)))
   self:assert_equal(2, (run("lint", { "contract", "lint", "a", "b" }, deps)))
-  self:assert_equal(2, (run("diff", { "contract", "diff", "a" }, deps)))
+  self:assert_equal(2, (run("diff", { "contract", "diff" }, deps)))
+  self:assert_equal(2, (run("diff", { "contract", "diff", "a", "b", "c" }, deps)))
 end
 
 
@@ -171,6 +172,82 @@ function T:test_export_failures_say_what_to_do()
   fails({ ["/work/app/hecate.project.lua"] = EXPORT_MANIFEST }, { code = 1, stdout = "", stderr = "" }, "the process exited with 1")
   local _, _, dependencies = export_setup({})
   self:assert_equal(2, (run_export({ "contract", "export", "extra" }, dependencies)))
+end
+
+
+--- Dependencies for `diff <ref>`: `git` answers `git_output` (or fails), the interpreter prints the contract now.
+local function ref_setup(git_result, now)
+  local calls = {}
+  local files = { ["/work/app/hecate.project.lua"] = EXPORT_MANIFEST }
+  return calls, {
+    read = function(path) return files[path] end,
+    write = function() end,
+    run = function(task) return task() end,
+    run_process = function(program, args, options)
+      calls[#calls + 1] = { program = program, args = args, options = options }
+      if program == "git" then return git_result end
+      return { code = 0, stdout = now or "now", stderr = "" }
+    end,
+    interpreter = "lua",
+    decode = function(text)
+      if text == "not json" then error("expected a value", 0) end
+      return { name = text }
+    end,
+    diff = function(old, new) return { { kind = "property_removed", breaking = old.name ~= new.name, path = "GET /x", message = old.name .. " -> " .. new.name } } end,
+  }
+end
+
+local function run_diff(args, dependencies)
+  local out, err = {}, {}
+  local wrapped = setmetatable({ run = function(context) return contract.diff(context, dependencies) end }, { __index = contract.commands[2] })
+  local code = app.run(args, {
+    commands = { wrapped }, runtime = export_runtime,
+    write = function(text) out[#out + 1] = text end,
+    write_error = function(text) err[#err + 1] = text end,
+  })
+  return code, table.concat(out, "\n"), table.concat(err, "\n")
+end
+
+function T:test_diff_with_a_ref_compares_the_committed_contract_with_the_application_now()
+  local calls, dependencies = ref_setup({ code = 0, stdout = "before", stderr = "" }, "after")
+  local code, out, err = run_diff({ "contract", "diff", "origin/main" }, dependencies)
+  self:assert_equal(1, code)   -- the fake reports a breaking change when the two differ
+  self:assert_true(out:find("BREAKING%s+property_removed%s+GET /x: before %-> after") ~= nil, out)
+  self:assert_true(err:find("origin/main:openapi.json against the application now", 1, true) ~= nil, err)
+  self:assert_equal("git", calls[1].program)
+  self:assert_equal("show,origin/main:openapi.json", table.concat(calls[1].args, ","))
+  self:assert_equal("/work/app", calls[1].options.cwd)
+  self:assert_equal("lua", calls[2].program)
+  local same_calls, same = ref_setup({ code = 0, stdout = "same", stderr = "" }, "same")
+  self:assert_equal(0, (run_diff({ "contract", "diff", "v1.0", "--file=docs/openapi.json" }, same)))
+  self:assert_equal("show,v1.0:docs/openapi.json", table.concat(same_calls[1].args, ","))
+end
+
+function T:test_a_ref_that_cannot_be_used_is_refused_before_git_runs()
+  for _, ref in ipairs({ "--output=x", "-x", "a b", "a:b" }) do
+    local calls, dependencies = ref_setup({ code = 0, stdout = "", stderr = "" })
+    local code, _, err = run_diff({ "contract", "diff", "--", ref }, dependencies)
+    self:assert_equal(2, code, ref)
+    self:assert_true(err:find("not a git ref", 1, true) ~= nil, err)
+    self:assert_equal(0, #calls)
+  end
+  local calls, dependencies = ref_setup({ code = 0, stdout = "", stderr = "" })
+  local code, _, err = run_diff({ "contract", "diff", "main", "--file=../x.json" }, dependencies)
+  self:assert_equal(2, code)
+  self:assert_true(err:find("inside the project", 1, true) ~= nil, err)
+  self:assert_equal(0, #calls)
+end
+
+function T:test_a_ref_without_a_committed_contract_says_how_to_commit_one()
+  local _, dependencies = ref_setup({ code = 128, stdout = "", stderr = "fatal: path 'openapi.json' does not exist in 'main'\n" })
+  local code, _, err = run_diff({ "contract", "diff", "main" }, dependencies)
+  self:assert_equal(1, code)
+  self:assert_true(err:find("hecate contract export --output=openapi.json", 1, true) ~= nil, err)
+  self:assert_true(err:find("does not exist in 'main'", 1, true) ~= nil, err)
+  local _, junk = ref_setup({ code = 0, stdout = "not json", stderr = "" })
+  local bad, _, err2 = run_diff({ "contract", "diff", "main" }, junk)
+  self:assert_equal(1, bad)
+  self:assert_true(err2:find("main:openapi.json is not a JSON OpenAPI document", 1, true) ~= nil, err2)
 end
 
 return T

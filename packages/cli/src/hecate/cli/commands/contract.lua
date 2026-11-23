@@ -1,7 +1,7 @@
 -- `hecate contract lint <file>`, `hecate contract diff <old> <new>` and `hecate contract export`: the lint and the
 -- breaking-change detection of `hecate.openapi` over OpenAPI documents in JSON files, and the export of the document of
 -- the application of the project (`Application:contract`), made by a child process that loads the project.
-global <const> require, error, ipairs, io, pcall, string, table, tostring, type
+global <const> require, error, ipairs, pairs, io, pcall, string, table, tostring, type
 
 local core = require("hecate.core")
 local manifest_module = require("hecate.cli.manifest")
@@ -54,17 +54,7 @@ function M.lint(context, dependencies)
   return errors > 0 and 1 or 0
 end
 
---- `hecate contract diff <old> <new>`: runs `openapi.diff`; exit 1 when a change is breaking.
----@param context hecate.cli.Context
----@param dependencies hecate.cli.ContractDependencies
----@return integer exit_code
-function M.diff(context, dependencies)
-  local positionals = context.arguments.positionals
-  if #positionals ~= 2 then
-    context.print_error("hecate contract diff: name the previous and the current OpenAPI JSON files, for example `hecate contract diff old.json new.json`")
-    return 2
-  end
-  local changes = dependencies.diff(load_document(dependencies, positionals[1]), load_document(dependencies, positionals[2]))
+local function report_changes(context, changes)
   local breaking, lines = 0, {}
   for _, change in ipairs(changes) do
     if change.breaking then breaking = breaking + 1 end
@@ -73,6 +63,67 @@ function M.diff(context, dependencies)
   lines[#lines + 1] = #changes == 0 and "No change." or string.format("%d change(s), %d breaking", #changes, breaking)
   context.emit({ ok = breaking == 0, breaking = breaking, changes = changes }, table.concat(lines, "\n"))
   return breaking > 0 and 1 or 0
+end
+
+--- Whether `ref` can be handed to `git show <ref>:<file>`: not an option (no leading `-`), no space, no colon.
+---@param ref string
+---@return boolean
+function M.valid_ref(ref)
+  return ref:match("^[^%-%s:][^%s:]*$") ~= nil
+end
+
+--- `hecate contract diff <ref> [--file=<path>]`: the committed contract (`git show <ref>:<path>`, default `openapi.json`)
+--- against the contract of the application as it is now (made like `contract export`).
+---@param context hecate.cli.Context
+---@param dependencies table  the dependencies of `diff` and of `export`
+---@return integer exit_code
+local function diff_against_ref(context, dependencies)
+  local ref = context.arguments.positionals[1]
+  local file = (context.arguments.options.file --[[@as string?]]) or "openapi.json"
+  if not M.valid_ref(ref) then
+    context.print_error("hecate contract diff: '" .. ref .. "' is not a git ref that can be used here (no leading '-', no space, no colon)")
+    return 2
+  end
+  if not require("hecate.cli.commands.run").inside_project(file) then
+    context.print_error("hecate contract diff: --file is a relative path inside the project, got '" .. file .. "'")
+    return 2
+  end
+  local project = (context.runtime.project_dir or "."):gsub("/+$", "")
+  local old_text, new_text = dependencies.run(function()
+    local shown = dependencies.run_process("git", { "show", ref .. ":" .. file }, { cwd = project })
+    if shown.code ~= 0 then
+      error(core.ConfigurationError({
+        message = file .. " cannot be read at '" .. ref .. "': commit the contract of that version with `hecate contract export --output=" .. file
+          .. "`, or name two files.\n" .. shown.stderr:gsub("%s+$", ""),
+        context = { ref = ref, file = file },
+      }), 0)
+    end
+    return shown.stdout, M.export_document(context, dependencies, false)
+  end)
+  local function decode(text, what)
+    local ok, value = pcall(dependencies.decode, text)
+    if not ok or type(value) ~= "table" then
+      error(core.ConfigurationError({ message = what .. " is not a JSON OpenAPI document" }), 0)
+    end
+    return value
+  end
+  context.print_error("hecate contract diff: " .. ref .. ":" .. file .. " against the application now")
+  return report_changes(context, dependencies.diff(decode(old_text, ref .. ":" .. file), decode(new_text, "the contract of the application")))
+end
+
+--- `hecate contract diff <old> <new>` (two files) or `hecate contract diff <ref>` (a git ref against the application now):
+--- runs `openapi.diff`; exit 1 when a change is breaking.
+---@param context hecate.cli.Context
+---@param dependencies table
+---@return integer exit_code
+function M.diff(context, dependencies)
+  local positionals = context.arguments.positionals
+  if #positionals == 1 then return diff_against_ref(context, dependencies) end
+  if #positionals ~= 2 then
+    context.print_error("hecate contract diff: name two OpenAPI JSON files (`hecate contract diff old.json new.json`) or a git ref whose commit holds openapi.json (`hecate contract diff main`)")
+    return 2
+  end
+  return report_changes(context, dependencies.diff(load_document(dependencies, positionals[1]), load_document(dependencies, positionals[2])))
 end
 
 
@@ -104,6 +155,40 @@ io.stdout:write(application:contract(os.getenv("HECATE_CLI_PRETTY") == "1"))
 ---@field run_process fun(program: string, args: string[], options: { env?: table<string, string>, cwd?: string }): { code: integer, stdout: string, stderr: string }
 ---@field interpreter string
 
+--- Makes the document of the application of the project in a child process (see `CHILD_PROGRAM`). Suspends: call it
+--- inside the reactor. Raises `hecate.core.ConfigurationError` when the project cannot give one.
+---@async
+---@param context hecate.cli.Context
+---@param dependencies hecate.cli.ContractExportDependencies
+---@param pretty boolean
+---@return string document  JSON text
+function M.export_document(context, dependencies, pretty)
+  local project = (context.runtime.project_dir or "."):gsub("/+$", "")
+  local lua = context.runtime.lua_version:match("^%d+%.%d+") or context.runtime.lua_version
+  local source = dependencies.read(project .. "/hecate.project.lua")
+  if source == nil then
+    error(core.ConfigurationError({ message = "hecate.project.lua not found in the current directory: run `hecate new <name>` to create a project" }), 0)
+  end
+  local manifest = manifest_module.parse(source)
+  if manifest.contract == nil then
+    error(core.ConfigurationError({
+      message = "hecate.project.lua has no `contract` section: add one, for example `contract = { title = \"" .. manifest.name .. "\", version = \"1.0.0\" }`",
+    }), 0)
+  end
+  local env = serve_command.environment(project, lua)
+  env.HECATE_CLI_MODULE = templates.module_name(manifest.name)
+  env.HECATE_CLI_TITLE = manifest.contract.title
+  env.HECATE_CLI_VERSION = manifest.contract.version
+  env.HECATE_CLI_SERVERS = table.concat(manifest.contract.servers or {}, "\31")
+  env.HECATE_CLI_PRETTY = pretty and "1" or "0"
+  local result = dependencies.run_process(dependencies.interpreter, { "-e", M.CHILD_PROGRAM }, { env = env, cwd = project })
+  if result.code ~= 0 then
+    local detail = result.stderr ~= "" and result.stderr:gsub("%s+$", "") or ("the process exited with " .. result.code)
+    error(core.ConfigurationError({ message = "the contract of the application could not be made:\n" .. detail, context = { code = result.code } }), 0)
+  end
+  return result.stdout
+end
+
 --- `hecate contract export [--output=<file>] [--pretty]`: the OpenAPI document of the application of the project. The
 --- module of the project (the name of the manifest as a Lua module, `src/<module>/init.lua` as `hecate new` makes it)
 --- must have `application(options)`; the `contract` section of the manifest (`title`, `version`, `servers`) gives its
@@ -118,33 +203,12 @@ function M.export(context, dependencies)
     return 2
   end
   local project = (context.runtime.project_dir or "."):gsub("/+$", "")
-  local lua = context.runtime.lua_version:match("^%d+%.%d+") or context.runtime.lua_version
   local output = options.output --[[@as string?]]
 
   local text = dependencies.run(function()
-    local source = dependencies.read(project .. "/hecate.project.lua")
-    if source == nil then
-      error(core.ConfigurationError({ message = "hecate.project.lua not found in the current directory: run `hecate new <name>` to create a project" }), 0)
-    end
-    local manifest = manifest_module.parse(source)
-    if manifest.contract == nil then
-      error(core.ConfigurationError({
-        message = "hecate.project.lua has no `contract` section: add one, for example `contract = { title = \"" .. manifest.name .. "\", version = \"1.0.0\" }`",
-      }), 0)
-    end
-    local env = serve_command.environment(project, lua)
-    env.HECATE_CLI_MODULE = templates.module_name(manifest.name)
-    env.HECATE_CLI_TITLE = manifest.contract.title
-    env.HECATE_CLI_VERSION = manifest.contract.version
-    env.HECATE_CLI_SERVERS = table.concat(manifest.contract.servers or {}, "\31")
-    env.HECATE_CLI_PRETTY = options.pretty == true and "1" or "0"
-    local result = dependencies.run_process(dependencies.interpreter, { "-e", M.CHILD_PROGRAM }, { env = env, cwd = project })
-    if result.code ~= 0 then
-      local detail = result.stderr ~= "" and result.stderr:gsub("%s+$", "") or ("the process exited with " .. result.code)
-      error(core.ConfigurationError({ message = "the contract of the application could not be made:\n" .. detail, context = { code = result.code } }), 0)
-    end
-    if output then dependencies.write(output:match("^/") and output or (project .. "/" .. output), result.stdout) end
-    return result.stdout
+    local document = M.export_document(context, dependencies, options.pretty == true)
+    if output then dependencies.write(output:match("^/") and output or (project .. "/" .. output), document) end
+    return document
   end)
 
   if output then
@@ -202,9 +266,16 @@ M.commands = {
   },
   {
     name = "contract diff",
-    summary = "List the changes between two OpenAPI documents; exit 1 on a breaking change",
-    usage = "<old> <new>",
-    run = function(context) return M.diff(context, M.real_dependencies()) end,
+    summary = "List the changes between two OpenAPI documents, or between a git ref and the application now; exit 1 on a breaking change",
+    usage = "<old> <new> | <ref>",
+    options = { { name = "file", takes_value = true, summary = "With a git ref: the committed contract (default openapi.json)" } },
+    run = function(context)
+      local dependencies = M.real_dependencies()
+      for key, value in pairs(M.real_export_dependencies(context)) do
+        if dependencies[key] == nil then dependencies[key] = value end
+      end
+      return M.diff(context, dependencies)
+    end,
   },
   {
     name = "contract export",
