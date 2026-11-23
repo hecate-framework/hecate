@@ -3,8 +3,8 @@
 
 - roadmap_item: `cli` v1: self-contained executable, `new`, `install`, `add`, `remove`, `update`, `serve [--watch]`, `test`, `doc`, `contract`, `toolchain`, `doctor`, `version` (docs/roadmap.md, Phase 3). Started on the owner's request of 2026-11-22.
 - status: in-progress
-- lock_until: 2026-11-23T11:30:00Z
-- last_update: 2026-11-23T10:00:00Z
+- lock_until: 2026-11-23T17:12:45Z
+- last_update: 2026-11-23T15:42:45Z
 
 ## Done
 
@@ -44,10 +44,11 @@
 - Step (fifteenth session, 2026-11-23, owner request "do steps b to e in one go"): (b) luv + libuv, digest, the yyjson decoder and the Rust encoder (`cargo rustc --crate-type staticlib`) linked statically; (d) LuaRocks 3.13.0 embedded (`hecate --luarocks`, `hecate -e` probe, `LUA=` variable, `Runtime.luarocks_program`), luafilesystem linked; (c) Windows branch of `host` and `build-cli` (untested); (e) the test builds and runs the executable on the three CI platforms. Linux verified: empty environment, `version`, `doctor`, `--luarocks list`, `hecate install` through the embedded LuaRocks (fails as expected on the unpublished `hecate` rock). Download of GitHub archives is blocked here, so no rock install was completed.
 - Step (fifteenth session, continued, owner request): non-ASCII paths on Windows: owner chose the UTF-8 manifest (OQ-147, recorded as Resolved in `docs/open-questions.md`; its mirror issue was not opened or closed: the entry was born resolved). `hecate.manifest` embedded by `build-cli`, `SetConsoleOutputCP`, test in `cli_bundle_test.lua` (the first CI run on Windows is its only check; long paths are not covered).
 - Step (fifteenth session, third round, owner request): issue #233 opened and closed for OQ-147 (linked from the entry); `build-cli` pins the dependencies by commit and has `--strict` (implied by `CI`).
+- Step (sixteenth session, scheduled relay run, 2026-11-23): `hecate doctor` says when LuaRocks is the one embedded in the executable (`doctor_test`); typecheck and lint green (the 6 local test failures are the missing `luv`/`digest`, same with and without the change). CI of the previous head was green on the three platforms.
 
 ## Next steps
 
-1. **The native executable** (ADR 0029, spike OQ-13): steps (a) to (d) are written (see Done); the Windows build (MSVC, `lua55.dll` beside the exe, static luv/digest/lfs/yyjson and the Rust encoder as a static library) was written blind and is verified only by CI (`tools/tests/cli_bundle_test.lua` builds and runs the executable in the matrix): read the Windows log first and fix it. Remaining: the installers (`install.sh`/`install.ps1`, release artefacts: owner gate, not started); C rocks need Lua headers (`LUA_INCDIR`; the executable ships none: decide); `hecate doctor` should say whether LuaRocks is the embedded one; `native-code-reviewer` reviewed `csrc/hecate.c` (fixed: checkstack, exit code, error prefix, script-file mode, warnings as errors, link order; DEFERRED: no hardening flags or `sanitize cli` target, `--output` with backslashes on Windows, protected setup of the Lua state and `lua_atpanic`, a `hecate doctor` check of version skew between the embedded packages and those on the path); ADR 0010 and the spike's measurements remain to be read in full.
+1. **The native executable** (ADR 0029, spike OQ-13): steps (a) to (d) are written (see Done); the Windows build (MSVC, `lua55.dll` beside the exe, static luv/digest/lfs/yyjson and the Rust encoder as a static library) was written blind and is verified only by CI (`tools/tests/cli_bundle_test.lua` builds and runs the executable in the matrix): read the Windows log first and fix it. Remaining: the installers (`install.sh`/`install.ps1`, release artefacts: owner gate, not started); C rocks need Lua headers (`LUA_INCDIR`; the executable ships none: decide); `native-code-reviewer` reviewed `csrc/hecate.c` (fixed: checkstack, exit code, error prefix, script-file mode, warnings as errors, link order; DEFERRED: no hardening flags or `sanitize cli` target, `--output` with backslashes on Windows, protected setup of the Lua state and `lua_atpanic`, a `hecate doctor` check of version skew between the embedded packages and those on the path); ADR 0010 and the spike's measurements remain to be read in full.
 2. Try `hecate update` against a real rock with several versions (blocked here: GitHub archives); `update <rock>` leaves transitive dependencies at their versions (documented).
 3. Then, one step each: the `api` and `crud` templates, `doc serve`, `toolchain`, `outdated`/`update` follow-ups.
 4. Package README, CHANGELOG, roadmap sub-items as steps land.

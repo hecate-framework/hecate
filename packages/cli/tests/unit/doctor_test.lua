@@ -32,6 +32,17 @@ function T:test_a_fit_environment_has_no_problem_and_no_warning()
   self:assert_equal("ok", statuses(checks)["Lua"])
 end
 
+function T:test_luarocks_says_whether_it_is_the_embedded_one()
+  local embedded = { hecate_version = "0.1.0", lua_version = "5.5.1", luarocks_version = "3.13.0", libuv_version = "1.53.0", platform = "linux-x86_64", luarocks_program = "/opt/hecate" }
+  local function detail(runtime)
+    for _, entry in ipairs(doctor.run(runtime, probes())) do
+      if entry.name == "LuaRocks" then return entry.detail end
+    end
+  end
+  self:assert_equal("3.13.0 (embedded in the executable)", detail(embedded))
+  self:assert_equal("3.13.0", detail(GOOD))
+end
+
 function T:test_each_problem_says_what_to_do()
   local runtime = { hecate_version = "0.1.0", lua_version = "5.4.7", platform = "linux-x86_64" }
   local checks = doctor.run(runtime, probes({ digest_backend = function() return nil end }))

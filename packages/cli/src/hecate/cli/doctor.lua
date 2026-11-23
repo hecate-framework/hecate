@@ -42,7 +42,7 @@ function M.run(runtime, probes, project)
   end
 
   if runtime.luarocks_version then
-    checks[#checks + 1] = check("LuaRocks", "ok", runtime.luarocks_version)
+    checks[#checks + 1] = check("LuaRocks", "ok", runtime.luarocks_version .. (runtime.luarocks_program and " (embedded in the executable)" or ""))
   else
     checks[#checks + 1] = check("LuaRocks", "fail", "not found on the PATH", "install LuaRocks 3.x (https://luarocks.org) and put it on the PATH")
   end
