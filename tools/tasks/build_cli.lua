@@ -55,7 +55,7 @@ end
 
 -- System libraries that libuv and the Rust runtime need on Windows.
 local WINDOWS_LIBRARIES = "ws2_32.lib iphlpapi.lib userenv.lib psapi.lib advapi32.lib ntdll.lib dbghelp.lib"
-  .. " shell32.lib ole32.lib user32.lib bcrypt.lib kernel32.lib"
+  .. " shell32.lib ole32.lib user32.lib bcrypt.lib kernel32.lib synchronization.lib"
 
 return {
   description = "build the hecate executable: C host, CLI and LuaRocks embedded, native modules linked (Linux, macOS, Windows)",
