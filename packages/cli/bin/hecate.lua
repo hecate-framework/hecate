@@ -7,7 +7,7 @@ global <const> arg, io, os, package, require, pcall, ipairs, _VERSION
 local script = arg[0]:gsub("\\", "/")
 local here = script:match("^(.*)/[^/]*$") or "."
 -- Monorepo checkout: the sources of this package and of its dependencies. An installed rock has them on the path.
-for _, package_name in ipairs({ "cli", "core", "json", "log", "reactor", "schema" }) do
+for _, package_name in ipairs({ "cli", "core", "json", "log", "openapi", "reactor", "router", "schema" }) do
   local base = here .. "/../../" .. package_name .. "/src/"
   package.path = base .. "?.lua;" .. base .. "?/init.lua;" .. package.path
 end

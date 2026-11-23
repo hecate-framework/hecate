@@ -10,7 +10,7 @@
 | Roadmap phase | 3 |
 | Status | in progress — dispatcher, argument parser, `--help`, `--json`, exit codes, `version`, shell completion, the manifest, the lockfile format, SHA-256, LuaRocks constraints and orchestration, `install [--frozen]`, `update`; other commands to do |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |
-| Depends on | [`core`](../core), [`reactor`](../reactor), [`log`](../log), [`json`](../json), [`schema`](../schema) |
+| Depends on | [`core`](../core), [`reactor`](../reactor), [`log`](../log), [`json`](../json), [`openapi`](../openapi), [`schema`](../schema) |
 | Used by | — |
 | Native code | self-contained executable embedding Lua 5.5 and what the CLI itself needs (OQ-13) |
 | Specification | [cli-and-packaging.md](../../docs/architecture/cli-and-packaging.md) |
@@ -59,6 +59,7 @@
 - `cli.luarocks`: `new(options)` (`config_text`, `environment`, `installed`, `outdated`, `install_dependencies`, `remove`, `pin`), `rockspec_text`, `rockspec_file_name`, `parse_lock`; the runner is injected.
 - `cli.resolution`: `read_rockspec(name, text)`, `installed_files_digest(input)`, `build_lockfile(input)` (an installation to the records of `hecate.lock`) and `verify(lock, current)` (what `install --frozen` checks after installing).
 - `cli.runner`: `run(program, args, options)`, suspending, over `reactor.run_process` (the real runner of `cli.luarocks`).
+- `cli.commands.contract`: `hecate contract lint <file>` (exit 1 on an error finding) and `hecate contract diff <old> <new>` (exit 1 on a breaking change) over `openapi.lint` and `openapi.diff`, files of OpenAPI JSON, `--json`; `contract export` comes with `serve`.
 - `hecate.cli.Command`: `name`, `summary`, `usage`, `options`, `run(context)`; `Context:emit(value, text)` prints JSON under `--json`.
 
 ## Layout (once implemented)

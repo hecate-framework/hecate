@@ -18,6 +18,7 @@ dependencies = {
   "hecate-reactor",
   "hecate-log",
   "hecate-json",
+  "hecate-openapi",
   "hecate-schema",
   "digest",
   "plc",
