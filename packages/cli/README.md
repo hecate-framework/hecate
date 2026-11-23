@@ -60,6 +60,7 @@
 - `cli.resolution`: `read_rockspec(name, text)`, `installed_files_digest(input)`, `build_lockfile(input)` (an installation to the records of `hecate.lock`) and `verify(lock, current)` (what `install --frozen` checks after installing).
 - `cli.runner`: `run(program, args, options)`, suspending, over `reactor.run_process` (the real runner of `cli.luarocks`).
 - `cli.commands.contract`: `hecate contract lint <file>` (exit 1 on an error finding) and `hecate contract diff <old> <new>` (exit 1 on a breaking change) over `openapi.lint` and `openapi.diff`, files of OpenAPI JSON, `--json`; `contract export` comes with `serve`.
+- `cli.serve`: `supervise(reactor, options)` (the child process of `hecate serve`: forwards `sigint`, `sigterm` and `sighup`, grace period then `sigkill`, restart on change, the exit code of the child, `128 + n` for a signal), `poll_changes`, `snapshot`; `cli.commands.serve` is the command (`--watch`, `--workers`).
 - `hecate.cli.Command`: `name`, `summary`, `usage`, `options`, `run(context)`; `Context:emit(value, text)` prints JSON under `--json`.
 
 ## Layout (once implemented)

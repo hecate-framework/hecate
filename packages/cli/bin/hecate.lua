@@ -83,6 +83,7 @@ local code = cli.run(arg, {
     luarocks_version = luarocks_version(),
     platform = platform(),
     project_dir = current_directory(),
+    lua_interpreter = arg[-1],
   },
 })
 os.exit(code)
