@@ -50,6 +50,7 @@ function T:test_built_executable_runs_lua_luarocks_and_the_cli()
   local log, built = util.capture(("%s tools/run.lua build-cli --output=%s 2>&1"):format(util.quote(util.interpreter()), out))
   if not built and log:find("no Lua 5.5 with", 1, true) then return end -- no Lua to link here: nothing to build
   self:assert_true(built, log)
+  self:assert_true(not log:find("not linked in", 1, true), log) -- a native module left out: say why
   local exe = util.quote(out)
   -- Run with an empty environment where the shell allows it: the native modules are linked in, so no LUA_CPATH and no
   -- file next to the executable is needed.
