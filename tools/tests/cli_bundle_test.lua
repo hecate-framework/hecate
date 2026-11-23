@@ -68,6 +68,26 @@ function T:test_built_executable_runs_lua_luarocks_and_the_cli()
   self:assert_true(rocks:find("3.13", 1, true) ~= nil, rocks)
   -- A script file as the first argument runs as a plain `lua script.lua` (what a rockspec's `$(LUA) script.lua` does).
   self:assert_equal("Lua 5.5 true true 3 true", util.capture(bare .. exe .. " " .. util.quote(probe) .. " 2>&1"))
+  -- Non-ASCII paths (OQ-147): a script in a directory with a non-ASCII name is created, passed as an argument and run
+  -- by a child process, all by the executable (the test's own Lua may not be UTF-8 aware on Windows).
+  local unicode = dir .. "/unicode.lua"
+  f = assert(io.open(unicode, "wb"))
+  f:write([[
+local lfs, luv = require("lfs"), require("luv")
+local directory = arg[1] .. "/caf\xC3\xA9-\xE6\x9D\x8E"
+lfs.mkdir(directory)
+local script = directory .. "/child.lua"
+local child = assert(io.open(script, "wb"))
+child:write('assert(io.open(arg[0] .. ".ok", "wb")):close()')
+child:close()
+local code
+luv.spawn(arg[-1], { args = { script } }, function(status) code = status end)
+luv.run()
+local marker = io.open(script .. ".ok", "rb")
+io.write(tostring(code), " ", tostring(marker ~= nil))
+]])
+  f:close()
+  self:assert_equal("0 true", util.capture(exe .. " " .. util.quote(unicode) .. " " .. util.quote(dir) .. " 2>&1"))
   local failing = dir .. "/failing.lua"
   f = assert(io.open(failing, "wb"))
   f:write("error('boom')\n")

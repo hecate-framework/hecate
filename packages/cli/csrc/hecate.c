@@ -295,6 +295,9 @@ static int run_cli(lua_State *L, int argc, char **argv, const char *self) {
 }
 
 int main(int argc, char **argv) {
+#ifdef _WIN32
+  SetConsoleOutputCP(CP_UTF8); /* the manifest makes the ANSI code page UTF-8 (OQ-147); the console follows */
+#endif
   lua_State *L = luaL_newstate();
   if (!L) { fprintf(stderr, "hecate: cannot create the Lua state\n"); return 1; }
   luaL_openlibs(L);

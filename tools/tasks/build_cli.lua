@@ -197,8 +197,8 @@ return {
     local cmd
     if windows then
       -- Through `cl`, which drives the linker: a bare `link` may be the coreutils one that Git for Windows puts first.
-      cmd = ("cl /nologo /Fe%s %s %s %s /link %s 2>&1"):format(util.quote(output), table.concat(objects, " "),
-        table.concat(libraries, " "), util.quote(lua_library), WINDOWS_LIBRARIES)
+      cmd = ("cl /nologo /Fe%s %s %s %s /link /MANIFEST:EMBED /MANIFESTINPUT:%s %s 2>&1"):format(util.quote(output), table.concat(objects, " "),
+        table.concat(libraries, " "), util.quote(lua_library), util.quote(host .. "/hecate.manifest"), WINDOWS_LIBRARIES)
     else
       cmd = table.concat({
         "cc", "-o", util.quote(output), table.concat(objects, " "), table.concat(libraries, " "), util.quote(lua_library),
