@@ -1,7 +1,9 @@
 -- build-cli: builds the `hecate` executable: the C host with the Lua sources of the command-line interface embedded,
 -- the native modules it needs linked in statically (luv with libuv, digest, luafilesystem, the JSON codec) and LuaRocks
 -- embedded (ADR 0029).
--- Usage: build-cli [--output=<path>] [--strict]   (--strict, implied by CI, fails when a module cannot be linked in)
+-- Usage: build-cli [--output=<path>] [--strict] [--sanitize]
+--   --strict (implied by CI) fails when a module cannot be linked in; --sanitize (Unix) instruments the host and the C
+--   sources of the repository with AddressSanitizer and UndefinedBehaviorSanitizer (the third-party libraries are not).
 -- Third-party sources (luv with its libuv, lua-digest, luafilesystem, LuaRocks) are cloned into
 -- `.hecate/build/cli/deps` at the versions pinned below. A module whose build tool is missing (cmake, cargo) is left
 -- out and then found next to the executable or in LUA_CPATH; `hecate doctor` reports what is missing.
@@ -70,7 +72,13 @@ return {
   description = "build the hecate executable: C host, CLI and LuaRocks embedded, native modules linked (Linux, macOS, Windows)",
   run = function(ctx)
     local output = ctx.root .. "/.hecate/build/cli/hecate" .. (windows and ".exe" or "")
-    for _, a in ipairs(ctx.args) do output = a:match("^%-%-output=(.+)$") or output end
+    local sanitize = false
+    for _, a in ipairs(ctx.args) do
+      output = a:match("^%-%-output=(.+)$") or output
+      if a == "--sanitize" then sanitize = true end
+    end
+    if sanitize and windows then return { ok = false, problems = { "build-cli: --sanitize runs on Linux and macOS" } } end
+    local sanitizer = sanitize and " -fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=undefined" or ""
     local lua, lua_library = find_lua(ctx.root)
     if not lua or not lua_library then
       return { ok = false, problems = { "build-cli: no Lua 5.5 with include/lua.h and " .. (windows and "lib/lua55.lib" or "lib/liblua.a") .. " (set LUA_DIR)" } }
@@ -100,7 +108,7 @@ return {
           (extra or ""):gsub("%f[%S]%-([ID])", "/%1"),
           util.quote(object), util.quote(source))
       else
-        cmd = ("cc -std=c11 -O2 -fstack-protector-strong -D_FORTIFY_SOURCE=2 %s -I%s %s %s -c -o %s %s 2>&1"):format(strict and "-Wall -Wextra -Werror" or "",
+        cmd = ("cc -std=c11 -O2 -fstack-protector-strong -D_FORTIFY_SOURCE=2" .. sanitizer .. " %s -I%s %s %s -c -o %s %s 2>&1"):format(strict and "-Wall -Wextra -Werror" or "",
           util.quote(lua .. "/include"), table.concat(defines, " "), extra or "", util.quote(object), util.quote(source))
       end
       local out, ok = util.capture(cmd)
@@ -212,7 +220,7 @@ return {
         table.concat(libraries, " "), util.quote(lua_library), util.quote(host .. "/hecate.manifest"), WINDOWS_LIBRARIES)
     else
       cmd = table.concat({
-        "cc", "-o", util.quote(output), table.concat(objects, " "), table.concat(libraries, " "), util.quote(lua_library),
+        "cc" .. sanitizer, "-o", util.quote(output), table.concat(objects, " "), table.concat(libraries, " "), util.quote(lua_library),
         linux and "-Wl,-E -Wl,-z,relro,-z,now" or "-Wl,-export_dynamic", "-lm", "-lpthread", linux and "-ldl -lrt" or "", "2>&1",
       }, " ")
     end

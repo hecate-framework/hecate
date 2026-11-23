@@ -96,4 +96,36 @@ io.write(tostring(code), " ", tostring(marker ~= nil))
   self:assert_false(ok)
 end
 
+-- The host under AddressSanitizer and UndefinedBehaviorSanitizer (Unix): many arguments, error paths, a missing
+-- module and the embedded LuaRocks. Skipped where the compiler has no sanitizer runtime.
+function T:test_sanitized_host_survives_hard_inputs()
+  local util = require("lib.util")
+  if util.is_windows() then return end
+  local dir = ".hecate/build/cli-sanitize"
+  local out = dir .. "/hecate"
+  local log, built = util.capture(("%s tools/run.lua build-cli --sanitize --output=%s 2>&1"):format(util.quote(util.interpreter()), out))
+  if not built and (log:find("no Lua 5.5 with", 1, true) or log:find("sanitize", 1, true) and log:find("cannot find", 1, true)) then return end
+  self:assert_true(built, log)
+  local exe = "ASAN_OPTIONS=detect_leaks=0 UBSAN_OPTIONS=halt_on_error=1 " .. util.quote(out)
+  local script = dir .. "/hard.lua"
+  local f = assert(io.open(script, "wb"))
+  f:write('io.write(select("#", ...), " ", #arg, " ", tostring(pcall(require, "no.such.module")))\n')
+  f:close()
+  local words = {}
+  for i = 1, 3000 do words[i] = tostring(i) end
+  self:assert_equal("3000 3000 false", util.capture(exe .. " " .. util.quote(script) .. " " .. table.concat(words, " ") .. " 2>&1"))
+  local failing = dir .. "/failing.lua"
+  f = assert(io.open(failing, "wb"))
+  f:write("error({ })\n")
+  f:close()
+  local message, ok = util.capture(exe .. " " .. util.quote(failing) .. " 2>&1")
+  self:assert_false(ok)
+  self:assert_true(message:find("error object is a table value", 1, true) ~= nil, message)
+  local rocks = util.capture(exe .. " --luarocks --version 2>&1")
+  self:assert_true(rocks:find("3.13", 1, true) ~= nil, rocks)
+  self:assert_true(util.capture(exe .. " version 2>&1"):find("^Hecate ") ~= nil)
+  self:assert_false(select(2, util.capture(exe .. " --lua -e 2>&1")))
+  self:assert_false(select(2, util.capture(exe .. " --lua --bogus 2>&1")))
+end
+
 return T
