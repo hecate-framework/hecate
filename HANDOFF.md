@@ -3,8 +3,8 @@
 
 - roadmap_item: `cli` v1: self-contained executable, `new`, `install`, `add`, `remove`, `update`, `serve [--watch]`, `test`, `doc`, `contract`, `toolchain`, `doctor`, `version` (docs/roadmap.md, Phase 3). Started on the owner's request of 2026-11-22.
 - status: in-progress
-- lock_until: 2026-11-23T17:12:45Z
-- last_update: 2026-11-23T15:42:45Z
+- lock_until: 2026-11-23T20:15:00Z
+- last_update: 2026-11-23T18:45:00Z
 
 ## Done
 
@@ -46,6 +46,7 @@
 - Step (fifteenth session, third round, owner request): issue #233 opened and closed for OQ-147 (linked from the entry); `build-cli` pins the dependencies by commit and has `--strict` (implied by `CI`).
 - Step (sixteenth session, scheduled relay run, 2026-11-23): `hecate doctor` says when LuaRocks is the one embedded in the executable (`doctor_test`); typecheck and lint green (the 6 local test failures are the missing `luv`/`digest`, same with and without the change). CI of the previous head was green on the three platforms.
 - Step (fifteenth session, fourth round, owner request, in parallel with the scheduled run: its lock fields are untouched): protected state setup and `lua_atpanic` in the host, hardening flags in `build-cli`.
+- Step (seventeenth session, scheduled relay run, 2026-11-23, 18:45Z): resumed after the lock expired; no code change. CI of head 1fbc1bc is green on the three platforms (including the Windows build of the executable and `cli_bundle_test`): the "read the Windows log first" point of next step 1 is closed. `hecate toolchain` (cli-and-packaging.md: install|list|use|remove) needs downloads of Lua/LuaRocks archives, blocked by the cloud proxy and its source/layout is not specified: left for a decision, see below.
 
 ## Next steps
 
@@ -64,6 +65,8 @@
 ## Doubts and questions for the owner
 
 none open on the executable.
+
+- `hecate toolchain`: where do the Lua and LuaRocks archives come from (official tarballs, built from source, or releases of the monorepo), and where are they stored? Not specified in the docs read; conservative default: leave it unimplemented and do the `api`/`crud` templates and `doc serve` first.
 
 ## Commands to re-run
 
