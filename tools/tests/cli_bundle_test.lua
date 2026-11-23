@@ -22,9 +22,15 @@ function T:test_render_lists_every_module_and_ends_the_table()
   self:assert_true(c:find('"a"', 1, true) < c:find('"b"', 1, true))
 end
 
+--- The `tools` directory, found from where `lib.cli_bundle` was loaded (the working directory is not reliable).
+local function tools_root()
+  local found = package.searchpath("lib.cli_bundle", package.path):gsub("\\", "/")
+  return (found:gsub("/lib/cli_bundle%.lua$", ""))
+end
+
 function T:test_collect_serves_the_package_name_of_an_init_file()
   local names = {}
-  local source = bundle.collect(".") -- tasks and their tests run from the repository root
+  local source = bundle.collect(tools_root() .. "/..")
   local count, found = #source, {}
   for _, m in ipairs(source) do names[m.name] = true found[#found + 1] = m.name end
   table.sort(found)
