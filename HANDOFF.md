@@ -3,8 +3,8 @@
 
 - roadmap_item: `cli` v1: self-contained executable, `new`, `install`, `add`, `remove`, `update`, `serve [--watch]`, `test`, `doc`, `contract`, `toolchain`, `doctor`, `version` (docs/roadmap.md, Phase 3). Started on the owner's request of 2026-11-22.
 - status: in-progress
-- lock_until: 2026-11-23T20:15:00Z
-- last_update: 2026-11-23T18:45:00Z
+- lock_until: 2026-11-24T02:00:00Z
+- last_update: 2026-11-24T00:30:00Z
 
 ## Done
 
@@ -49,6 +49,7 @@
 - Step (seventeenth session, scheduled relay run, 2026-11-23, 18:45Z): resumed after the lock expired; no code change. CI of head 1fbc1bc is green on the three platforms (including the Windows build of the executable and `cli_bundle_test`): the "read the Windows log first" point of next step 1 is closed. `hecate toolchain` (cli-and-packaging.md: install|list|use|remove) needs downloads of Lua/LuaRocks archives, blocked by the cloud proxy and its source/layout is not specified: left for a decision, see below.
 - Step (sixteenth session, owner request, lock expired at 20:15Z): the `api` template (default of `hecate new`; `init` keeps `minimal`), and a bug found by running a generated project: `hecate test` ran the runner inside a reactor (every test errored); fixed with a regression check in the unit test. Generated project tests pass (4) and `contract export` works with the repository packages; the live server was not run.
 - Step (sixteenth session, second round): the generated `main.lua` loads `hecate.config` so that `hecate serve --workers N` takes effect (checked: "starting 2 workers", health check answers, graceful stop); the live server of the `api` template was run with the built executable and the native `hecate.http` (create, show, 422, 404); Ctrl+C double delivery confirmed (see Doubts).
+- Step (eighteenth session, scheduled relay run, 2026-11-24): the console reporter prints the rerun command of the failed tests (`rerun_command`, test in `reporters_test.lua`; `hecate test` sets it; the shell quoting is POSIX/PowerShell, not `cmd`). Left of the roadmap's `test` remarks: `--jobs`, the default of jobs, long file names in suite lines. Run with `LUA_CPATH=/opt/lua-5.5/lib/lua/5.5/?.so;;` to get luv locally.
 - Step (sixteenth session, third round, owner request): `build-cli --sanitize` and its test on hard inputs; the specification and README reconciled with OQ-133 (no Docker artefacts).
 
 ## Next steps

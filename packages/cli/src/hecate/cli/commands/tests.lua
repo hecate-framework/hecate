@@ -97,7 +97,7 @@ function command.execute(context, dependencies)
     end
     return { files = files, cases = cases, load_errors = load_errors }
   end)
-  local reporter = context.json and test.JsonLinesReporter({ write = context.print }) or test.ConsoleReporter()
+  local reporter = context.json and test.JsonLinesReporter({ write = context.print }) or test.ConsoleReporter({ rerun_command = "hecate test" })
   local runner = test.Runner({
     reporter = reporter,
     filter = filter,

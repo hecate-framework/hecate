@@ -11,6 +11,7 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- feat(test): the console reporter takes `rerun_command`; after the failures it prints `<command> --filter='^<name>$'` for each failed test (five at most). `hecate test` sets it to `hecate test`.
 - feat(cli): `build-cli --sanitize` builds the host and the repository's C sources of the executable with AddressSanitizer and UndefinedBehaviorSanitizer (Linux, macOS); `tools/tests/cli_bundle_test.lua` runs it on hard inputs (3000 arguments, an error object that is a table, a missing module, bad options, the embedded LuaRocks) with `halt_on_error`.
 - docs: the specification no longer lists `hecate docker init` nor a Dockerfile in the `api` template: the owner decided (OQ-133, 2026-11-22) that the CLI generates a systemd unit and no Docker artefacts.
 - fix(cli): the `main.lua` of the templates loads the configuration (`hecate.config`, layers and `HECATE_*` variables), so `hecate serve --workers N` reaches the application (it started a single process before); run with the built executable: 2 workers start, the health check answers and a SIGINT stops them gracefully.
