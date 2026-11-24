@@ -84,6 +84,7 @@ return {
     if not lua or not lua_library then
       return { ok = false, problems = { "build-cli: no Lua 5.5 with include/lua.h and " .. (windows and "lib/lua55.lib" or "lib/liblua.a") .. " (set LUA_DIR)" } }
     end
+    output = output:gsub("\\", "/") -- a Windows path given with backslashes
     local dir = output:match("^(.*)/[^/]*$") or "."
     local deps = ctx.root .. "/.hecate/build/cli/deps"
     util.mkdir(dir)
