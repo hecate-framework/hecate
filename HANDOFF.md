@@ -3,8 +3,8 @@
 
 - roadmap_item: `cli` v1: self-contained executable, `new`, `install`, `add`, `remove`, `update`, `serve [--watch]`, `test`, `doc`, `contract`, `toolchain`, `doctor`, `version` (docs/roadmap.md, Phase 3). Started on the owner's request of 2026-11-22.
 - status: in-progress
-- lock_until: 2026-11-24T02:00:00Z
-- last_update: 2026-11-24T00:30:00Z
+- lock_until: 2026-11-24T05:30:00Z
+- last_update: 2026-11-24T03:50:00Z
 
 ## Done
 
@@ -51,6 +51,7 @@
 - Step (sixteenth session, second round): the generated `main.lua` loads `hecate.config` so that `hecate serve --workers N` takes effect (checked: "starting 2 workers", health check answers, graceful stop); the live server of the `api` template was run with the built executable and the native `hecate.http` (create, show, 422, 404); Ctrl+C double delivery confirmed (see Doubts).
 - Step (eighteenth session, scheduled relay run, 2026-11-24): the console reporter prints the rerun command of the failed tests (`rerun_command`, test in `reporters_test.lua`; `hecate test` sets it; the shell quoting is POSIX/PowerShell, not `cmd`). Left of the roadmap's `test` remarks: `--jobs`, the default of jobs, long file names in suite lines. Run with `LUA_CPATH=/opt/lua-5.5/lib/lua/5.5/?.so;;` to get luv locally.
 - Step (sixteenth session, third round, owner request): `build-cli --sanitize` and its test on hard inputs; the specification and README reconciled with OQ-133 (no Docker artefacts).
+- Step (nineteenth session, scheduled relay run, 2026-11-24, 03:50Z): resumed after the lock expired; no code change. CI of head 607cc05 is green on the three platforms. Every remaining item is blocked on an owner decision or on missing prerequisites: `toolchain` (archive source), Ctrl+C double delivery (`reactor` API change), `crud` template (ORM, migrations absent), `doc serve` (dev server of `doc` unwritten), `--ci github` workflows (setup action absent). Owner notified.
 
 ## Next steps
 
