@@ -31,7 +31,7 @@ Status: specification; [ADR 0009](../adr/0009-project-manifest.md) and
 | `hecate format` | format sources |
 | `hecate routes` | print the route table |
 | `hecate contract export\|diff\|lint` | OpenAPI document, breaking-change detection, lint |
-| `hecate doc build\|serve` | project documentation |
+| `hecate doc build` | project documentation: static sites, one per audience (no development server: owner decision of 2026-11-24, see OQ-148) |
 | `hecate migrate [status\|new\|rollback]` | database migrations |
 | `hecate generate <kind> <name>` | scaffold a controller, entity, repository, route module, migration, test case |
 | `hecate package` | generate a rockspec from the manifest and pack a rock |

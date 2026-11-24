@@ -299,8 +299,9 @@ core.finalise(Process)
 ---@field ipc? boolean  open a message pipe to the child (`Process.ipc`; `hecate.reactor.ipc.parent()` in the child)
 ---@field stdout? "inherit"|"ignore"  default "inherit"
 ---@field stderr? "inherit"|"ignore"  default "inherit"
+---@field own_group? boolean  start the child in a process group (a session) of its own, so that a signal the terminal sends to the foreground group (Ctrl+C) reaches this process only and the caller decides whether to forward it. Unix: `setsid`. Windows: ignored (a console sends Ctrl+C to every process attached to it, and libuv's `detached` would cut the child from the console)
 
-local PROCESS_KEYS = { env = true, cwd = true, ipc = true, stdout = true, stderr = true }
+local PROCESS_KEYS = { env = true, cwd = true, ipc = true, stdout = true, stderr = true, own_group = true }
 
 ---@param options any
 ---@return table
@@ -314,6 +315,9 @@ local function check_start_options(options)
   end
   if options.ipc ~= nil and type(options.ipc) ~= "boolean" then
     error(core.ArgumentError("reactor.spawn: option ipc must be a boolean"), 3)
+  end
+  if options.own_group ~= nil and type(options.own_group) ~= "boolean" then
+    error(core.ArgumentError("reactor.spawn: option own_group must be a boolean"), 3)
   end
   for _, key in ipairs({ "stdout", "stderr" }) do
     local value = options[key]
@@ -381,6 +385,7 @@ function M.spawn(program, args, options) -- glossary-ok: starts an operating-sys
     env = environment(added),
     cwd = options.cwd,
     stdio = stdio,
+    detached = (options.own_group and not IS_WINDOWS) or nil,
   }, function(code, signal)
     ---@diagnostic disable-next-line: invisible  -- same class, reached through the callback state
     if state.process then state.process:_exited(code, signal) end

@@ -95,7 +95,7 @@ function command.execute(context, dependencies)
     local env = serve_command.environment(project, lua)
     local ok, result = pcall(serve.supervise, reactor, {
       start = function()
-        return reactor.spawn(dependencies.interpreter, interpreter.arguments(dependencies.interpreter_arguments, arguments), { env = env, cwd = project }) -- glossary-ok: an operating-system process
+        return reactor.spawn(dependencies.interpreter, interpreter.arguments(dependencies.interpreter_arguments, arguments), { env = env, cwd = project, own_group = true }) -- glossary-ok: an operating-system process
       end,
       signals = signals,
     })

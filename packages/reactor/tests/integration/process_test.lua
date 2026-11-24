@@ -589,4 +589,35 @@ function T:test_back_to_back_hand_overs_keep_every_stream_with_its_message()
   self:assert_true(result.big_ok)
 end
 
+function T:test_own_group_puts_the_child_in_a_process_group_of_its_own()
+  if is_windows then return end -- the option is ignored there
+  local function group_of_child(options)
+    local file = os.tmpname()
+    local pgid
+    run(self, function()
+      local child = reactor.spawn("/bin/sh", { "-c", "ps -o pgid= -p $$ > " .. file }, options) -- glossary-ok: an operating-system process
+      child:wait()
+    end)
+    local f = assert(io.open(file, "rb"))
+    pgid = tonumber((f:read("a"):gsub("%s", "")))
+    f:close()
+    os.remove(file)
+    return pgid
+  end
+  local handle = assert(io.popen("ps -o pgid= -p " .. math.tointeger(uv.os_getpid())))
+  local own = tonumber((handle:read("a"):gsub("%s", "")))
+  handle:close()
+  self:assert_equal(own, group_of_child({}))
+  local separate = group_of_child({ own_group = true })
+  self:assert_true(separate ~= nil and separate ~= own, tostring(separate))
+end
+
+function T:test_own_group_must_be_a_boolean()
+  local err = self:assert_error(function()
+    ---@diagnostic disable-next-line: assign-type-mismatch  -- invalid on purpose
+    reactor.spawn("/bin/sh", {}, { own_group = "yes" }) -- glossary-ok: an operating-system process
+  end)
+  self:assert_true(core.is_instance_of(err, core.ArgumentError), tostring(err))
+end
+
 return T

@@ -11,6 +11,8 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- fix(cli,reactor): Ctrl+C no longer reaches the application twice. `reactor.spawn` takes `own_group = true` (Unix: a process group and a session of its own; ignored on Windows) and `hecate serve` and `hecate run` use it, so the terminal signals `hecate` only and `hecate` forwards once. Run with the built executable and a SIGINT to the whole group: one graceful stop, no `shutdown_forced`, for one process and for two workers.
+- docs: no `hecate doc serve` (owner decision of 2026-11-24: the documentation is static files). The built site does not open from the file system today (root-relative URLs): OQ-148.
 - fix(cli): `build-cli --output` accepts a Windows path with backslashes.
 - feat(test): the console reporter takes `rerun_command`; after the failures it prints `<command> --filter='^<name>$'` for each failed test (five at most). `hecate test` sets it to `hecate test`.
 - feat(cli): `build-cli --sanitize` builds the host and the repository's C sources of the executable with AddressSanitizer and UndefinedBehaviorSanitizer (Linux, macOS); `tools/tests/cli_bundle_test.lua` runs it on hard inputs (3000 arguments, an error object that is a table, a missing module, bad options, the embedded LuaRocks) with `halt_on_error`.

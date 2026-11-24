@@ -389,8 +389,8 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       **Also (OQ-121):** `gen-meta`, the LuaLS `---@meta` files generated from schemas, as a `tools/` task and through
       the CLI (file layout, naming and when it runs decided with the item).
       **Also (from the `doc` item, owner decisions of 2026-11-18):** `hecate doc build` (one site per audience, OQ-144; by
-      default the maintainer one) and `hecate doc serve [--watch]`, a local server that rebuilds on change and reloads, to
-      write pages. When the project asks for a code reference (`package_name`), the command warns that LuaLS runs the plugin
+      default the maintainer one); there is no `hecate doc serve` (owner decision of 2026-11-24: the output is static
+      files, to be opened from the file system, OQ-148). When the project asks for a code reference (`package_name`), the command warns that LuaLS runs the plugin
       declared by any LuaLS configuration reachable from the documented directory (`.luarc.json`, `.luarc.jsonc`,
       `.vscode/settings.json`, including a `.luarc.json` inside the sources directory even when `language_server_config_path`
       points elsewhere), with full file and command access as the current user, and lets the user bail out

@@ -91,7 +91,7 @@ function command.execute(context, dependencies)
     local ok, result = pcall(serve.supervise, reactor, {
       start = function()
         context.print_error("hecate serve: starting " .. ENTRY)
-        return reactor.spawn(dependencies.interpreter, interpreter.arguments(dependencies.interpreter_arguments, { ENTRY }), { env = env, cwd = project }) -- glossary-ok: an operating-system process
+        return reactor.spawn(dependencies.interpreter, interpreter.arguments(dependencies.interpreter_arguments, { ENTRY }), { env = env, cwd = project, own_group = true }) -- glossary-ok: an operating-system process
       end,
       signals = signals,
       changes = watching and function() return serve.poll_changes(reactor, reactor.fs, roots) end or nil,
