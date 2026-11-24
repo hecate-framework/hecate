@@ -65,6 +65,18 @@ function T:test_the_servers_of_the_manifest_come_before_luarocks_org_in_the_conf
   self:assert_true(plain.files[".hecate/luarocks/config.lua"]:find('rocks_servers = { "https://luarocks.org" }', 1, true) ~= nil)
 end
 
+function T:test_the_embedded_lua_headers_are_unpacked_and_named_as_lua_incdir()
+  local world = setup()
+  installer.install(world.options({ lua_headers = { directory = "/p/.hecate/lua/include", files = { ["lua.h"] = "/* lua.h */", ["luaconf.h"] = "/* conf */" } } }))
+  self:assert_equal("/* lua.h */", world.files["/p/.hecate/lua/include/lua.h"])
+  self:assert_equal("/* conf */", world.files["/p/.hecate/lua/include/luaconf.h"])
+  local config = world.files[".hecate/luarocks/config.lua"]
+  self:assert_true(config:find('LUA_INCDIR = "/p/.hecate/lua/include"', 1, true) ~= nil, config)
+  local plain = setup()
+  installer.install(plain.options())
+  self:assert_true(plain.files[".hecate/luarocks/config.lua"]:find("LUA_INCDIR", 1, true) == nil)
+end
+
 function T:test_frozen_without_a_lockfile_stops_before_installing()
   local world = setup()
   self:assert_error(function() installer.install(world.options({ frozen = true })) end)

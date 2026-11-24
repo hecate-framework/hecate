@@ -26,6 +26,7 @@ local resolution = require("hecate.cli.resolution")
 ---@field rock_directory? fun(name: string, version: string): string  where LuaRocks keeps a rock's rockspec and `rock_manifest`
 ---@field deployed_directory? fun(category: string): string  the directory of the `lua`, `lib` or `bin` files in the tree
 ---@field sha256? fun(data: string): string
+---@field lua_headers? { directory: string, files: table<string, string> }  the headers of the embedded Lua (`lua.h`, ...): written to `directory`, which becomes `LUA_INCDIR`, so that a rock with C code builds without a system Lua
 ---@field refresh? string[]  rocks removed from the tree before installing, so that LuaRocks takes the newest version the constraints allow (`update`); `{}` stands for every rock of the tree; ignored with `frozen`
 
 ---@class hecate.cli.InstallResult
@@ -111,6 +112,16 @@ function M.install(options)
     for _, server in ipairs(manifest.rocks_servers) do servers[#servers + 1] = server end
     servers[#servers + 1] = "https://luarocks.org"
     rocks.options.rocks_servers = servers
+  end
+  if options.lua_headers then
+    local names = {}
+    for name in pairs(options.lua_headers.files) do names[#names + 1] = name end
+    table.sort(names)
+    for _, name in ipairs(names) do options.fs.write(join(options.lua_headers.directory, name), options.lua_headers.files[name]) end
+    local variables = {}
+    for key, value in pairs(rocks.options.variables or {}) do variables[key] = value end
+    variables.LUA_INCDIR = options.lua_headers.directory
+    rocks.options.variables = variables
   end
   options.fs.write(config_path, rocks:config_text())
   local rockspec_path = join(options.work_dir, luarocks.rockspec_file_name(manifest))

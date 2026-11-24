@@ -91,6 +91,8 @@ return {
     util.mkdir(deps)
     local generated = dir .. "/bundle.c"
     local modules = bundle.collect(ctx.root)
+    -- The headers of the embedded Lua, as a module: `hecate install` unpacks them for the C rocks (LUA_INCDIR).
+    modules[#modules + 1] = bundle.headers_module(lua .. "/include")
 
     local host = ctx.root .. "/packages/cli/csrc"
     local linux = not windows and util.capture("uname -s") == "Linux"

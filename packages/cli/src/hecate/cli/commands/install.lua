@@ -48,6 +48,7 @@ function command.execute(context, dependencies)
       work_dir = dependencies.work_dir,
       tree = dependencies.tree,
       sha256 = dependencies.sha256,
+      lua_headers = dependencies.lua_headers,
       lua = runtime.lua_version,
       luarocks_version = runtime.luarocks_version --[[@as string]],
     })

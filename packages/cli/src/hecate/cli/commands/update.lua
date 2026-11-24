@@ -55,6 +55,7 @@ function command.execute(context, environment)
       work_dir = environment.work_dir,
       tree = environment.tree,
       sha256 = environment.sha256,
+      lua_headers = environment.lua_headers,
       lua = runtime.lua_version,
       luarocks_version = runtime.luarocks_version --[[@as string]],
     })

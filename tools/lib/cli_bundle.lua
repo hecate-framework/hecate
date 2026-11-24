@@ -99,4 +99,18 @@ function M.collect_luarocks(directory)
   return modules
 end
 
+--- The module `hecate.cli.lua_headers`: the public headers of Lua by file name, for `LUA_INCDIR` of the C rocks.
+---@param directory string  the include directory of the Lua that the executable embeds
+---@return {name: string, source: string}
+function M.headers_module(directory)
+  local parts = { "return {" }
+  for _, name in ipairs({ "lauxlib.h", "lua.h", "luaconf.h", "lualib.h" }) do
+    local f = assert(io.open(directory .. "/" .. name, "rb"), "cli_bundle: " .. directory .. "/" .. name .. " is missing")
+    parts[#parts + 1] = ("  [%q] = %q,"):format(name, f:read("a"))
+    f:close()
+  end
+  parts[#parts + 1] = "}"
+  return { name = "hecate.cli.lua_headers", source = table.concat(parts, "\n") .. "\n" }
+end
+
 return M
