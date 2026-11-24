@@ -178,8 +178,7 @@ the base URL for project sites (`https://<owner>.github.io/<repository>/`). It n
 GitHub Pages set to "GitHub Actions" as source; the command prints that step.
 
 The setup action is released like any GitHub Action (owner direction of 2026-11-24): its own repository
-(`hecate-framework/setup-hecate`, an `action.yml` that installs the executable of a given release and puts it on the
-`PATH`), versions are Git tags `v<major>.<minor>.<patch>` with a GitHub Release, plus a moving major tag (`v1`) that the
+(source in the monorepo, `actions/setup/`, published to the generated read-only mirror `hecate-framework/hecate-setup`, ADR 0017: the mirror has the `action.yml` at its root, which GitHub and the Marketplace require; the action installs the executable of a given release and puts it on the `PATH`; `uses: hecate-framework/hecate-setup@v1`), versions are Git tags `v<major>.<minor>.<patch>` with a GitHub Release, plus a moving major tag (`v1`) that the
 release workflow of the action advances; a user pins a tag or, as the generated workflows do, a commit SHA with the tag
 in a comment. The release process of Hecate (`release-manager`, the `release` workflow) publishes the executable first,
 then tags the action for it, and updates in the same release the commit SHA of the action that the templates of
