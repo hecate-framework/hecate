@@ -55,6 +55,16 @@ function T:test_installs_pins_and_returns_the_lockfile()
   self:assert_true(world.calls[#world.calls]:find("build --pin --only-deps", 1, true) ~= nil)
 end
 
+function T:test_the_servers_of_the_manifest_come_before_luarocks_org_in_the_configuration()
+  local world = setup()
+  installer.install(world.options({ manifest_text = 'return { name = "app", version = "0.1.0", dependencies = { plc = "~> 0.5" }, rocks_servers = { "file:///srv/rocks" } }' }))
+  local config = world.files[".hecate/luarocks/config.lua"]
+  self:assert_true(config:find('rocks_servers = { "file:///srv/rocks", "https://luarocks.org" }', 1, true) ~= nil, config)
+  local plain = setup()
+  installer.install(plain.options())
+  self:assert_true(plain.files[".hecate/luarocks/config.lua"]:find('rocks_servers = { "https://luarocks.org" }', 1, true) ~= nil)
+end
+
 function T:test_frozen_without_a_lockfile_stops_before_installing()
   local world = setup()
   self:assert_error(function() installer.install(world.options({ frozen = true })) end)

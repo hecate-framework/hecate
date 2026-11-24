@@ -105,6 +105,13 @@ function M.install(options)
 
   local rocks = options.luarocks
   local config_path = rocks:environment()
+  -- The servers of the manifest are extra ones (cli-and-packaging.md): they come before luarocks.org, which stays.
+  if manifest.rocks_servers and #manifest.rocks_servers > 0 then
+    local servers = {}
+    for _, server in ipairs(manifest.rocks_servers) do servers[#servers + 1] = server end
+    servers[#servers + 1] = "https://luarocks.org"
+    rocks.options.rocks_servers = servers
+  end
   options.fs.write(config_path, rocks:config_text())
   local rockspec_path = join(options.work_dir, luarocks.rockspec_file_name(manifest))
   options.fs.write(rockspec_path, luarocks.rockspec_text(manifest))
