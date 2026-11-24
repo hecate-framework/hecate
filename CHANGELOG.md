@@ -11,6 +11,8 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- feat(cli): `hecate generate systemd` (name agreed by the owner on 2026-11-24, OQ-133): the unit file that runs the application of the project as a service (`serve`, `--user`, `--workers`, `--executable`, `--output`, `--force`; stop on `SIGTERM`, reload on `SIGHUP`).
+- docs: the specification records the direction for `hecate toolchain` (compiled toolchains shipped by the project, later), the release of the setup action (own repository, version tags and a moving major tag, the SHA written in the generated workflows updated at each release) and the Lua headers that `hecate install` unpacks for C rocks (owner decisions of 2026-11-24).
 - fix(cli): the `rocks_servers` of `hecate.project.lua` were accepted by the manifest and ignored: `hecate install` now writes them to the LuaRocks configuration before `https://luarocks.org` (they are extra servers, cli-and-packaging.md).
 - fix(cli,reactor): Ctrl+C no longer reaches the application twice. `reactor.spawn` takes `own_group = true` (Unix: a process group and a session of its own; ignored on Windows) and `hecate serve` and `hecate run` use it, so the terminal signals `hecate` only and `hecate` forwards once. Run with the built executable and a SIGINT to the whole group: one graceful stop, no `shutdown_forced`, for one process and for two workers.
 - docs: no `hecate doc serve` (owner decision of 2026-11-24: the documentation is static files). The built site does not open from the file system today (root-relative URLs): OQ-148.
