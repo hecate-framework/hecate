@@ -42,7 +42,10 @@ Candidates were installed on Lua 5.5.1 and checked against `sha256sum` on `abc` 
 
 ## Decision
 
-- The CLI uses `digest` for sha256 (option 2), with `plc` (option 1, pure Lua) as the fallback backend.
+- The CLI uses `digest` for sha256 (option 2). `plc` (option 1, pure Lua) is the known alternative, not a fallback in the
+  code: the CLI has one backend, and the project switches to `plc` only if `digest` fails on a platform, in a later
+  release (clarified by the project owner, 2026-11-24; the ADR stays Accepted). The prototype keeps a `plc` backend to show
+  that the switch is small; the CLI itself has none.
 - `digest` is a dependency of the CLI only (lock-file checksums, downloaded archives). It is not a general
   cryptography dependency: cryptography and hashing for security purposes belong to the `security` package, which is
   to depend on `luasodium` (owner direction of 2026-11-14, see OQ-45).
@@ -67,7 +70,7 @@ Candidates were installed on Lua 5.5.1 and checked against `sha256sum` on `abc` 
   switched to `plc`. Its README claims CI on macOS and on Windows (MSVC and MinGW) for Lua 5.5, which we have not
   verified at the time of drafting; the check was done on 2026-11-14 (throwaway workflow of the pull request, result in
   the [spike report](../spikes/OQ-13-standalone-executable.md)): the rock installs through LuaRocks and passes its own
-  suite on Linux x86_64 and arm64, macOS arm64 and x86_64 and Windows (MSVC), with `plc` as the tested fallback. It was compiled here with GCC on Linux only, and its own suite was run with part of its fixtures.
+  suite on Linux x86_64 and arm64, macOS arm64 and x86_64 and Windows (MSVC), with `plc` as the tested alternative. It was compiled here with GCC on Linux only, and its own suite was run with part of its fixtures.
 - The contract test of the seam runs against every backend present, so a switch is checked by the same vectors.
 
 ## Verification

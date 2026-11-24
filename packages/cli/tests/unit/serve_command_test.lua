@@ -70,6 +70,24 @@ function T:test_the_environment_carries_the_module_paths_and_the_workers()
   self:assert_nil(serve_command.environment("/work/app", "5.5").HECATE_SERVER__WORKERS)
 end
 
+function T:test_env_names_the_configuration_environment_and_is_left_out_when_not_given()
+  self:assert_equal("development", serve_command.environment("/work/app", "5.5", nil, "development").HECATE_ENV)
+  self:assert_nil(serve_command.environment("/work/app", "5.5").HECATE_ENV)
+  for _, good in ipairs({ "development", "staging", "ci_2", "pre-prod" }) do self:assert_true(serve_command.valid_environment(good), good) end
+  for _, bad in ipairs({ "", "a/b", "../x", "a b", "dev;rm" }) do self:assert_false(serve_command.valid_environment(bad), bad) end
+end
+
+function T:test_serve_passes_env_to_the_child_and_refuses_a_bad_name()
+  local calls, dependencies = setup(PROJECT, { exit_code = 0 })
+  local code = run({ "serve", "--env=development" }, dependencies)
+  self:assert_equal(0, code)
+  self:assert_equal("development", calls.spawned[1].options.env.HECATE_ENV)
+  local _, bad = setup(PROJECT, { exit_code = 0 })
+  local code2, _, err = run({ "serve", "--env=a/b" }, bad)
+  self:assert_equal(2, code2)
+  self:assert_true(err:find("--env", 1, true) ~= nil, err)
+end
+
 function T:test_workers_is_a_whole_number_or_auto()
   for _, good in ipairs({ "1", "8", "auto" }) do self:assert_true(serve_command.valid_workers(good), good) end
   for _, bad in ipairs({ "0", "-1", "1.5", "two", "", "AUTO" }) do self:assert_false(serve_command.valid_workers(bad), bad) end

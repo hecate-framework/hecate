@@ -112,7 +112,7 @@ return T
 ]], TEST_MODULE, module, module, module, module)
 
   files[".gitignore"] = "lua_modules/\n.hecate/\n"
-  files["README.md"] = string.format("# %s\n\nA Hecate application.\n\n```sh\nhecate install\nhecate serve\nhecate test\n```\n", parameters.name)
+  files["README.md"] = string.format("# %s\n\nA Hecate application.\n\n```sh\nhecate install\nhecate serve --env development   # on a developer machine; production is the default\nhecate test\n```\n", parameters.name)
   return files
 end
 
@@ -284,7 +284,7 @@ return T
   -- The contract section: what `hecate contract export` needs (title and version of the OpenAPI document).
   local section = string.format("\n  contract = { title = %q, version = \"0.1.0\" },\n}\n", parameters.name)
   files["hecate.project.lua"] = (files["hecate.project.lua"]:gsub("\n}\n$", function() return section end))
-  files["README.md"] = string.format("# %s\n\nA Hecate API: a health check and a resource (`items`) with its contract.\n\n```sh\nhecate install\nhecate serve\nhecate test\nhecate contract export --output=openapi.json\n```\n", parameters.name)
+  files["README.md"] = string.format("# %s\n\nA Hecate API: a health check and a resource (`items`) with its contract.\n\n```sh\nhecate install\nhecate serve --env development   # on a developer machine; production is the default\nhecate test\nhecate contract export --output=openapi.json\n```\n", parameters.name)
   return files
 end
 

@@ -2,7 +2,7 @@
 -- declared in `scripts` of `hecate.project.lua` (by name), or a `.lua` file of the project (by path). It runs in a child
 -- process of the interpreter that runs `hecate`, in the project directory, with the module path of `hecate serve`; the
 -- exit code of the script is the one of `hecate run`.
-global <const> require, error, pairs, package, table, pcall
+global <const> require, error, pairs, package, table, pcall, tostring
 
 local core = require("hecate.core")
 local manifest_module = require("hecate.cli.manifest")
@@ -28,6 +28,9 @@ local command = {
   name = "run",
   summary = "Run a script of the project: a name from `scripts` of the manifest, or a .lua file",
   usage = "<script> [-- <arguments>...]",
+  options = {
+    { name = "env", takes_value = true, summary = "Configuration environment, for example development (sets HECATE_ENV; default: HECATE_ENV as it is, else production)" },
+  },
 }
 
 --- Whether a path stays inside the project: relative, no `..` segment, not a drive or a root.
@@ -69,6 +72,11 @@ function command.execute(context, dependencies)
     context.print_error("hecate run: name a script of hecate.project.lua or a .lua file, for example `hecate run seed`; arguments for it follow `--`: `hecate run seed -- --count 5`")
     return 2
   end
+  local environment_name = context.arguments.options.env
+  if environment_name ~= nil and not serve_command.valid_environment(environment_name) then
+    context.print_error("hecate run: --env takes the name of an environment such as development or staging (letters, digits, '_' and '-'; got '" .. tostring(environment_name) .. "')")
+    return 2
+  end
   local project = (context.runtime.project_dir or "."):gsub("/+$", "")
   local lua = context.runtime.lua_version:match("^%d+%.%d+") or context.runtime.lua_version
   local reactor = dependencies.reactor
@@ -92,7 +100,7 @@ function command.execute(context, dependencies)
     for index = 2, #positionals do arguments[#arguments + 1] = positionals[index] end
     local names = { "sigint", "sigterm" }
     local signals = reactor.watch_signals(table.unpack(names))
-    local env = serve_command.environment(project, lua)
+    local env = serve_command.environment(project, lua, nil, environment_name --[[@as string?]])
     local ok, result = pcall(serve.supervise, reactor, {
       start = function()
         return reactor.spawn(dependencies.interpreter, interpreter.arguments(dependencies.interpreter_arguments, arguments), { env = env, cwd = project, own_group = true }) -- glossary-ok: an operating-system process

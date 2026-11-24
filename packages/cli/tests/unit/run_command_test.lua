@@ -65,6 +65,16 @@ function T:test_a_script_of_the_manifest_runs_in_the_project_with_its_arguments_
   self:assert_equal("sigint,sigterm", table.concat(calls.signals, ","))
 end
 
+function T:test_env_reaches_the_script_as_hecate_env()
+  local files = { ["/work/app/hecate.project.lua"] = MANIFEST, ["/work/app/scripts/seed.lua"] = true }
+  local calls, dependencies = setup(files)
+  local code = run({ "run", "scripts/seed.lua", "--env=development" }, dependencies)
+  self:assert_equal(0, code)
+  self:assert_equal("development", calls.spawned[1].options.env.HECATE_ENV)
+  local _, other = setup(files)
+  self:assert_equal(2, (run({ "run", "scripts/seed.lua", "--env=a b" }, other)))
+end
+
 function T:test_a_lua_file_of_the_project_runs_by_its_path()
   local calls, dependencies = setup(PROJECT)
   self:assert_equal(0, (run({ "run", "tools/once.lua" }, dependencies)))

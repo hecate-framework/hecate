@@ -2,7 +2,7 @@
 -- with the dependencies of `lua_modules` and the sources on its module path. It forwards `sigint` and `sigterm` (the
 -- child stops gracefully, `hecate serve` never daemonises, OQ-133), forwards `sighup` (a primary reloads, ADR 0023),
 -- returns the exit code of the child, and with `--watch` restarts the child when a source file changes.
-global <const> require, error, package, table, tonumber, math, pcall
+global <const> require, error, package, table, tonumber, math, pcall, type, tostring
 
 local core = require("hecate.core")
 local serve = require("hecate.cli.serve")
@@ -29,6 +29,7 @@ local command = {
   options = {
     { name = "watch", summary = "Restart the application when a .lua file of src, config or main.lua changes" },
     { name = "workers", takes_value = true, summary = "Number of worker processes (a number, or auto); sets HECATE_SERVER__WORKERS for the application" },
+    { name = "env", takes_value = true, summary = "Configuration environment, for example development (sets HECATE_ENV; default: HECATE_ENV as it is, else production)" },
   },
 }
 
@@ -37,14 +38,23 @@ local command = {
 ---@param project string  absolute path, forward slashes
 ---@param lua string  the Lua line (`5.5`)
 ---@param workers? string
+---@param environment? string  the configuration environment (`HECATE_ENV`); nil leaves the variable of this process as it is
 ---@return table<string, string> env
-function command.environment(project, lua, workers)
+function command.environment(project, lua, workers, environment)
   local lua_paths, native_paths = tests.module_paths(project, lua)
   local path = table.concat(lua_paths, ";") .. ";;"
   local cpath = table.concat(native_paths, ";") .. ";;"
   local env = { LUA_PATH = path, LUA_PATH_5_5 = path, LUA_CPATH = cpath, LUA_CPATH_5_5 = cpath }
   if workers then env.HECATE_SERVER__WORKERS = workers end
+  if environment then env.HECATE_ENV = environment end
   return env
+end
+
+--- Whether `--env` holds a valid name of a configuration environment: letters, digits, `_` and `-` (it names `config/<name>.lua`).
+---@param value any
+---@return boolean
+function command.valid_environment(value)
+  return type(value) == "string" and value:match("^[%w_%-]+$") ~= nil
 end
 
 --- Whether `--workers` holds a valid value: a positive whole number or `auto`.
@@ -67,6 +77,11 @@ function command.execute(context, dependencies)
     context.print_error("hecate serve: --workers takes a whole number of at least 1, or auto (got '" .. workers .. "')")
     return 2
   end
+  local environment_name = options.env
+  if environment_name ~= nil and not command.valid_environment(environment_name) then
+    context.print_error("hecate serve: --env takes the name of an environment such as development or staging (letters, digits, '_' and '-'; got '" .. tostring(environment_name) .. "')")
+    return 2
+  end
   if #context.arguments.positionals > 0 then
     context.print_error("hecate serve: takes no argument (it runs " .. ENTRY .. "); got '" .. context.arguments.positionals[1] .. "'")
     return 2
@@ -86,7 +101,7 @@ function command.execute(context, dependencies)
     local names = { "sigint", "sigterm" }
     if not dependencies.windows then names[#names + 1] = "sighup" end
     local signals = reactor.watch_signals(table.unpack(names))
-    local env = command.environment(project, lua, workers)
+    local env = command.environment(project, lua, workers, environment_name --[[@as string?]])
     local roots = { project .. "/src", project .. "/config", project .. "/" .. ENTRY }
     local ok, result = pcall(serve.supervise, reactor, {
       start = function()

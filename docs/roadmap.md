@@ -390,7 +390,9 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       the CLI (file layout, naming and when it runs decided with the item).
       **Also (from the `doc` item, owner decisions of 2026-11-18):** `hecate doc build` (one site per audience, OQ-144; by
       default the maintainer one); there is no `hecate doc serve` (owner decision of 2026-11-24: the output is static
-      files, to be opened from the file system, OQ-148). When the project asks for a code reference (`package_name`), the command warns that LuaLS runs the plugin
+      files, like Javadoc, OQ-148). **To do (OQ-148, resolved 2026-11-24):** the built site must open from the file
+      system: relative links between pages and to assets (no root-relative URL), the search index as a script file, a
+      test that resolves every link and asset of a built page from the written files. When the project asks for a code reference (`package_name`), the command warns that LuaLS runs the plugin
       declared by any LuaLS configuration reachable from the documented directory (`.luarc.json`, `.luarc.jsonc`,
       `.vscode/settings.json`, including a `.luarc.json` inside the sources directory even when `language_server_config_path`
       points elsewhere), with full file and command access as the current user, and lets the user bail out
