@@ -514,6 +514,26 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       French pages that the pages of the `cli` item link to and that exist in English only (`configure-an-application`,
       `serve-and-export-the-contract`, `multi-process-deployment`, `before-going-to-production`, `theme-tokens`,
       `reference/configuration-keys`): translate them, then replace the plain text of the French `cli` pages by links.
+- [ ] `cli`, `reactor`: stop the whole tree on Windows (found by the cross-platform review of the `cli` item): `kill` is
+      `TerminateProcess`, so stopping `hecate serve` or `hecate run` leaves the application process running, holding its port and
+      the executable. Give `reactor.spawn` a Windows job object with kill-on-close (the `own_group` option has no effect on
+      Windows today), make the supervisor of `serve.lua` use it, and delete the `taskkill /T` workaround of
+      `tools/tests/cli_e2e_test.lua`. Test on the Windows runner.
+- [ ] `cli`, `test`: the tests of `serve.lua` (`serve_test.lua`) order events with real sleeps of 0.02 to 0.05 seconds, which
+      can flake on a loaded runner; drive them with the virtual clock of `hecate.test` and with signals and events (a
+      `wait_until`), as the testing documentation and ADR 0008 require.
+- [ ] `cli`, `tools`, before the first release: pin the macOS deployment target of `build-cli` (`MACOSX_DEPLOYMENT_TARGET`,
+      architectures) so that a binary built on a recent runner runs on older macOS; resolve the path of the executable with
+      `realpath` when it was found through `PATH` (bare `argv[0]`), and match the `.lua` extension of a script argument
+      case-insensitively on Windows and macOS.
+- [ ] `cli`: hardening and test gaps left by the review of the `cli` item (security, cross-platform and test reviews of
+      pull request 231): native rocks are checked only by the digest of their rockspec; `hecate package` ships `config/`
+      whole; stricter parsing of untrusted lock and rockspec text; symlink-aware `inside_project`; `--` before script paths and
+      `git show --end-of-options`; systemd hardening options and a non-root default user; property tests for
+      `manifest_edit`, `constraint` and the lock round trip; negative cases of `constraint` and `manifest_edit`; a real
+      `git show` and a real `hecate package` end to end test; `completion_shells_test` and `runner_test` with the running
+      interpreter; end to end runs in a directory with a space and with non-ASCII characters on the three platforms; the
+      CI strictness of `cli_bundle_test` (the build must succeed in CI, never skip).
 - [ ] **Phase 3 gate**: verification of the phase, as described in [Phase gates](#phase-gates). Open
       questions to put to the owner before Phase 4: OQ-18 and OQ-45.
 
