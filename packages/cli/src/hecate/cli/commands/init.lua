@@ -68,7 +68,7 @@ function command.execute(context, dependencies)
   if code ~= 0 then return code end
   local text = string.format("Initialised %s (%d files created", name, #created)
   if #kept > 0 then text = text .. ", " .. #kept .. " kept: " .. table.concat(kept, ", ") end
-  context.emit({ name = name, created = created, kept = kept }, text .. ").\nNext: hecate install && hecate serve")
+  context.emit({ name = name, created = created, kept = kept }, text .. ").\nNext: hecate install && hecate serve --env development")
   return 0
 end
 

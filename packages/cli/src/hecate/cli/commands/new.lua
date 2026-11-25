@@ -11,6 +11,18 @@ local project_environment = require("hecate.cli.internal.project_environment")
 ---@field exists fun(path: string): boolean
 ---@field run fun(task: fun(): any): any
 
+--- Names that Windows reserves for devices, with or without an extension: a directory so named cannot be created there,
+--- so they are refused on every platform (a project is meant to move between them).
+local RESERVED = { con = true, prn = true, aux = true, nul = true, conin = true, conout = true }
+for index = 1, 9 do RESERVED["com" .. index] = true; RESERVED["lpt" .. index] = true end
+
+--- Whether a name is a device name of Windows (`con`, `nul`, `com1`, `con.txt`, ...).
+---@param name string
+---@return boolean
+local function is_reserved(name)
+  return RESERVED[(name:match("^[^.]*"))] == true
+end
+
 --- The `new` command.
 ---@class hecate.cli.commands.new: hecate.cli.Command
 ---@field execute fun(context: hecate.cli.Context, dependencies: hecate.cli.NewDependencies): integer
@@ -34,6 +46,10 @@ function command.execute(context, dependencies)
   local name = positionals[1]
   if not name:match("^[a-z0-9][a-z0-9%._%-]*$") then
     context.print_error("hecate new: '" .. name .. "' is not a project name (lower-case letters, digits, '.', '_' and '-'), for example `hecate new my-api`")
+    return 2
+  end
+  if is_reserved(name) or name:match("%.$") then
+    context.print_error("hecate new: '" .. name .. "' cannot be a project name: Windows reserves it (con, prn, aux, nul, com1-9, lpt1-9) and refuses a trailing '.'; choose another, for example `hecate new my-api`")
     return 2
   end
   local choice = context.arguments.options.template or "api"
@@ -64,7 +80,7 @@ function command.execute(context, dependencies)
   end)
   if code ~= 0 then return code end
   context.emit({ name = name, template = choice, files = paths },
-    string.format("Created %s from the %s template (%d files).\nNext: cd %s && hecate install && hecate serve", name, choice, #paths, name))
+    string.format("Created %s from the %s template (%d files).\nNext: cd %s && hecate install && hecate serve --env development", name, choice, #paths, name))
   return 0
 end
 

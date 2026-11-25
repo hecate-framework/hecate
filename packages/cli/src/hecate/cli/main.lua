@@ -17,6 +17,30 @@ local M = {}
 
 local windows = package.config:sub(1, 1) == "\\"
 
+--- Quotes a word of a command line for the shell that `io.popen` uses: POSIX single quotes (nothing inside is expanded),
+--- or on Windows double quotes with `"` doubled. `cmd.exe` still expands `%name%` inside the quotes and cannot be told not
+--- to; a path with `%` is therefore not supported there.
+---@param value string
+---@param for_windows? boolean  default: the running platform
+---@return string quoted
+function M.quote(value, for_windows)
+  if for_windows == nil then for_windows = windows end
+  if for_windows then return '"' .. value:gsub('"', '""') .. '"' end
+  return "'" .. value:gsub("'", "'\\''") .. "'"
+end
+
+--- The command line of a program and its words, ready for `io.popen`. `cmd.exe /c` drops the first and last quote of a
+--- line that starts with one, so on Windows such a line is wrapped in one more pair.
+---@param words string[]  already quoted where needed
+---@param for_windows? boolean  default: the running platform
+---@return string command
+function M.command_line(words, for_windows)
+  if for_windows == nil then for_windows = windows end
+  local line = table.concat(words, " ")
+  if for_windows and line:find('^"') then return '"' .. line .. '"' end
+  return line
+end
+
 --- The platform as `<os>-<architecture>`, from the path separator, the environment and `uname`.
 ---@return string platform
 function M.platform()
@@ -37,17 +61,28 @@ end
 ---@param leading? string[]  arguments before `--version` (the executable: `--luarocks`)
 ---@return string? version
 function M.luarocks_version(program, leading)
-  local words = { program and ('"' .. program .. '"') or "luarocks" }
-  for _, value in ipairs(leading or {}) do words[#words + 1] = value end
-  local handle = io.popen(table.concat(words, " ") .. " --version 2>" .. (windows and "nul" or "/dev/null"))
+  local words = { program and M.quote(program) or "luarocks" }
+  for _, value in ipairs(leading or {}) do words[#words + 1] = M.quote(value) end
+  words[#words + 1] = "--version"
+  words[#words + 1] = "2>" .. (windows and "nul" or "/dev/null")
+  local handle = io.popen(M.command_line(words))
   local line = handle and handle:read("l") or nil
   if handle then handle:close() end
   return line and line:match("(%d+%.%d+%.%d+)") or nil
 end
 
---- The absolute path of the current directory with forward slashes (`pwd`, `cd` on Windows).
+--- The absolute path of the current directory with forward slashes. On Windows libuv is asked (`uv_cwd`, UTF-8: the
+--- application manifest makes the process use UTF-8 paths); `cd` answers in the OEM code page and would corrupt a
+--- directory with non-ASCII characters, so it stays only the fallback. Elsewhere `pwd`.
 ---@return string? directory
 function M.current_directory()
+  if windows then
+    local loaded, luv = pcall(require, "luv")
+    if loaded and type(luv.cwd) == "function" then
+      local directory = luv.cwd()
+      if type(directory) == "string" and directory ~= "" then return (directory:gsub("\\", "/")) end
+    end
+  end
   local handle = io.popen(windows and "cd" or "pwd")
   local line = handle and handle:read("l") or nil
   if handle then handle:close() end
@@ -62,9 +97,11 @@ end
 function M.lua_release(interpreter, leading)
   local line = _VERSION:match("%d+%.%d+") or _VERSION
   if interpreter then
-    local words = { '"' .. interpreter .. '"' }
-    for _, value in ipairs(leading or {}) do words[#words + 1] = value end
-    local handle = io.popen(table.concat(words, " ") .. " -v 2>&1")
+    local words = { M.quote(interpreter) }
+    for _, value in ipairs(leading or {}) do words[#words + 1] = M.quote(value) end
+    words[#words + 1] = "-v"
+    words[#words + 1] = "2>&1"
+    local handle = io.popen(M.command_line(words))
     local output = handle and handle:read("l") or nil
     if handle then handle:close() end
     local release = output and output:match("^Lua (%d+%.%d+%.%d+)")

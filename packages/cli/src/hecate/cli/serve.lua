@@ -18,6 +18,7 @@ global <const> table, ipairs, pairs, pcall, type, string, math, tostring
 ---@field start fun(): hecate.cli.ServeChild  starts the project
 ---@field signals { wait: fun(self: table): string }  the signals to forward (`sigint`, `sigterm`, `sighup`)
 ---@field changes? fun(): { wait: fun(self: table) }  a watcher of the sources, made at each start (`--watch`); `wait` returns when something changed
+---@field shared_console? boolean  the child receives Ctrl+C from the console on its own (Windows, where every process of the console gets it, and `kill` is `TerminateProcess`): `sigint` and `sigterm` are not forwarded, the child gets `grace` seconds, then it is killed
 ---@field grace? number  seconds a child gets to stop after `sigterm` before `sigkill` (default 10)
 ---@field say? fun(text: string)  progress messages (standard error)
 
@@ -38,9 +39,10 @@ end
 ---@param child hecate.cli.ServeChild
 ---@param signal string
 ---@param grace number
+---@param forward? boolean  default true; false: the child already got the signal from the console
 ---@return { code: integer, signal: integer } status
-local function stop(reactor, child, signal, grace)
-  child:kill(signal)
+local function stop(reactor, child, signal, grace, forward)
+  if forward ~= false then child:kill(signal) end
   local ok, status = pcall(reactor.deadline, grace, function() return child:wait() end)
   if ok then return status end
   child:kill("sigkill")
@@ -72,7 +74,7 @@ function M.supervise(reactor, options)
     while #pending > 0 do
       local name = table.remove(pending, 1)
       if name == "sighup" then
-        if child then child:kill("sighup") end
+        if child and not options.shared_console then child:kill("sighup") end
       else
         return name
       end
@@ -107,7 +109,7 @@ function M.supervise(reactor, options)
       end
 
       if outcome == "signal" then
-        return M.exit_code(stop(reactor, child, detail, grace))
+        return M.exit_code(stop(reactor, child, detail, grace, not options.shared_console))
       elseif outcome == "exited" then
         if not watcher then return M.exit_code(detail) end
         say(string.format("the application exited (%d); waiting for a change of the sources", M.exit_code(detail)))

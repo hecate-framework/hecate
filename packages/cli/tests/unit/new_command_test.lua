@@ -42,6 +42,22 @@ function T:test_the_minimal_template_writes_a_valid_project()
   end
 end
 
+function T:test_a_name_that_windows_reserves_is_refused_everywhere()
+  for _, name in ipairs({ "con", "nul", "aux", "prn", "com1", "lpt9", "con.txt", "nul.v2", "app." }) do
+    local code, _, err, written = run({ "new", name })
+    self:assert_equal(2, code, name)
+    self:assert_true(err:find("Windows reserves", 1, true) ~= nil, err)
+    self:assert_equal(nil, next(written))
+  end
+  self:assert_equal(0, (run({ "new", "console" })))
+  self:assert_equal(0, (run({ "new", "com10" })))
+end
+
+function T:test_the_next_step_names_the_environment_to_serve()
+  local _, out = run({ "new", "shop" })
+  self:assert_true(out:find("hecate serve --env development", 1, true) ~= nil, out)
+end
+
 function T:test_the_api_template_adds_a_resource_with_its_schemas_and_tests()
   local code, out, _, written = run({ "new", "shop", "--template=api" })
   self:assert_equal(0, code)

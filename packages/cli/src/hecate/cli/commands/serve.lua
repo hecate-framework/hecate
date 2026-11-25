@@ -109,6 +109,7 @@ function command.execute(context, dependencies)
         return reactor.spawn(dependencies.interpreter, interpreter.arguments(dependencies.interpreter_arguments, { ENTRY }), { env = env, cwd = project, own_group = true }) -- glossary-ok: an operating-system process
       end,
       signals = signals,
+      shared_console = dependencies.windows,
       changes = watching and function() return serve.poll_changes(reactor, reactor.fs, roots) end or nil,
       say = function(text) context.print_error("hecate serve: " .. text) end,
     })
