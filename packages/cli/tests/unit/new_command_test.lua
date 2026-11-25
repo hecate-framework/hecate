@@ -55,6 +55,14 @@ function T:test_a_name_that_windows_reserves_is_refused_everywhere()
   self:assert_equal(0, (run({ "new", "com10" })))
 end
 
+function T:test_the_gitignore_keeps_secrets_and_release_archives_out_of_the_repository()
+  local _, _, _, written = run({ "new", "shop" })
+  for _, line in ipairs({ "lua_modules/", ".env", "/*.tar.gz", "/RELEASE" }) do
+    self:assert_true(written["shop/.gitignore"]:find(line, 1, true) ~= nil, line)
+  end
+  self:assert_true(written["shop/README.md"]:find("hecate install --frozen", 1, true) ~= nil)
+end
+
 function T:test_the_next_step_names_the_environment_to_serve()
   local _, out = run({ "new", "shop" })
   self:assert_true(out:find("hecate serve --env development", 1, true) ~= nil, out)

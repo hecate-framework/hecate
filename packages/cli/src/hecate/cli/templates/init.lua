@@ -145,8 +145,9 @@ Write the documentation of the project here: one Markdown file per page in `docs
       .. "`): one process.\nreturn {\n  server = { workers = 1 },\n}\n"
   end
 
-  files[".gitignore"] = "lua_modules/\n.hecate/\ndocs/dist/\ndocs/maintainer/*/configuration.md\ndocs/maintainer/*/third-party-licences.md\n"
-  files["README.md"] = string.format("# %s\n\nA Hecate application.\n\n```sh\nhecate install\nhecate serve --env development   # on a developer machine; production is the default\nhecate test\n```\n", parameters.name)
+  -- Not committed: the installed rocks, the working files of `hecate`, the built site, local secrets, and what `hecate package` writes.
+  files[".gitignore"] = "lua_modules/\n.hecate/\ndocs/dist/\ndocs/maintainer/*/configuration.md\ndocs/maintainer/*/third-party-licences.md\n.env\n.env.*\nconfig/local.lua\n/RELEASE\n/*.tar.gz\n/*.zip\n/*.sha256\n"
+  files["README.md"] = string.format("# %s\n\nA Hecate application.\n\n```sh\nhecate install                    # the rocks of hecate.lock, into lua_modules/ (commit hecate.lock)\nhecate serve --env development   # on a developer machine; production is the default\nhecate test\n```\n\nOn a server: `hecate install --frozen`, then `hecate package` (a release archive) or `hecate generate systemd`.\nSecrets come from the environment, never from files in the repository.\n", parameters.name)
   return files
 end
 
@@ -318,7 +319,7 @@ return T
   -- The contract section: what `hecate contract export` needs (title and version of the OpenAPI document).
   local section = string.format("\n  contract = { title = %q, version = \"0.1.0\" },\n}\n", parameters.name)
   files["hecate.project.lua"] = (files["hecate.project.lua"]:gsub("\n}\n$", function() return section end))
-  files["README.md"] = string.format("# %s\n\nA Hecate API: a health check and a resource (`items`) with its contract.\n\n```sh\nhecate install\nhecate serve --env development   # on a developer machine; production is the default\nhecate test\nhecate contract export --output=openapi.json\n```\n", parameters.name)
+  files["README.md"] = string.format("# %s\n\nA Hecate API: a health check and a resource (`items`) with its contract.\n\n```sh\nhecate install                    # the rocks of hecate.lock, into lua_modules/ (commit hecate.lock)\nhecate serve --env development   # on a developer machine; production is the default\nhecate test\nhecate contract export --output=openapi.json\nhecate contract diff main         # breaking changes against the contract committed on main\n```\n\nOn a server: `hecate install --frozen`, then `hecate package` (a release archive) or `hecate generate systemd`.\nSecrets come from the environment, never from files in the repository.\n", parameters.name)
   return files
 end
 
