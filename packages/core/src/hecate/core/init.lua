@@ -16,6 +16,7 @@ local Problem = require("hecate.core.problem")
 --- The object model of hecate: classes, traits, interfaces, enumerations and value classes,
 --- introspection, the error hierarchy and Lua-version shims.
 ---@class hecate.core
+---@field version string  the version of this package, the version of Hecate (`VERSION`, ADR 0005)
 ---@field Error hecate.core.Error
 ---@field ConfigurationError hecate.core.ConfigurationError
 ---@field ConformanceError hecate.core.ConformanceError
@@ -35,6 +36,7 @@ local Problem = require("hecate.core.problem")
 ---@field status hecate.core.status  the table of HTTP status codes and reason phrases (RFC 9110 section 15)
 ---@field Problem table  marker interface of a problem class (RFC 9457): declares no member; the class attributes `status` (integer 400..599) and `title` (string) are its documented contract
 local core = {
+  version = "0.0.0",
   Error = errors.Error --[[@as hecate.core.Error]],
   compat = compat,
   status = status,

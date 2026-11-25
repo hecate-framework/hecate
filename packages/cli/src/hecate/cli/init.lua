@@ -5,12 +5,14 @@ global <const> require
 local app = require("hecate.cli.app")
 
 ---@class hecate.cli
+---@field version string  the version of this package, the version of Hecate (`VERSION`, ADR 0005)
 ---@field run fun(args: string[], options: hecate.cli.AppOptions): integer  runs one command line and returns the exit code
 ---@field parse fun(args: string[], commands: hecate.cli.Command[]): hecate.cli.ParsedArguments
 ---@field commands hecate.cli.Command[]  the commands implemented so far
 ---@field exit_codes hecate.cli.exit_codes
 ---@field completion hecate.cli.completion  candidates and scripts of shell completion
 local cli = {
+  version = "0.0.0",
   run = app.run,
   parse = require("hecate.cli.parser").parse,
   commands = {

@@ -7,6 +7,7 @@ local violation = require("hecate.schema.violation")
 
 --- Declarations of types and their validation; every schema is an immutable value.
 ---@class hecate.schema
+---@field version string  the version of this package, the version of Hecate (`VERSION`, ADR 0005)
 ---@field Schema hecate.schema.Schema  the class of every schema
 ---@field Violation hecate.schema.Violation  one reason why a value does not conform
 ---@field Representable table  interface of a class whose instances have a representation: it requires a class-level `schema()`; `of` refuses a class without it
@@ -33,6 +34,7 @@ local violation = require("hecate.schema.violation")
 ---@field private _steps fun(): integer  internal: the steps spent by the last call (read by the step-count tests, not public API)
 ---@field private _limits { max_steps: integer, max_violations: integer, max_pattern_bytes: integer }  internal: the bounds of a call (read by tests, not public API)
 local M = {
+  version = "0.0.0",
   ---@diagnostic disable-next-line: assign-type-mismatch  -- class constructor exported as its class
   Schema = schema.Schema,
   ---@diagnostic disable-next-line: assign-type-mismatch  -- class constructor exported as its class

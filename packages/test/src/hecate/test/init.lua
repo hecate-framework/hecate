@@ -10,6 +10,7 @@ local generate = require("hecate.test.generate")
 --- The test framework: cases and assertions, the runner and its reporters, discovery and command-line selection,
 --- the in-process client and fixtures, generators and properties, and coverage.
 ---@class hecate.test
+---@field version string  the version of this package, the version of Hecate (`VERSION`, ADR 0005)
 ---@field AssertionFailure hecate.test.AssertionFailure  raised by a failed assertion
 ---@field LoadError hecate.test.LoadError  raised when a test file cannot be loaded
 ---@field Runner hecate.test.Runner  executes cases, each test in its own reactor scope
@@ -33,6 +34,7 @@ local generate = require("hecate.test.generate")
 ---@field generate fun(schema: hecate.schema.Schema, seed?: integer): any  one value valid for the schema (seed default 1)
 ---@field generate_invalid fun(schema: hecate.schema.Schema, seed?: integer): any, { path: string, code: string }  a valid value broken in one place, and the violation (seed default 1)
 local test = {
+  version = "0.0.0",
   AssertionFailure = failure.AssertionFailure,
   LoadError = discovery.LoadError,
   Runner = require("hecate.test.runner"),

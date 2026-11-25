@@ -3,6 +3,7 @@ global <const> require, type, error, pairs
 
 --- The application kernel.
 ---@class hecate.kernel
+---@field version string  the version of this package, the version of Hecate (`VERSION`, ADR 0005)
 ---@field chain hecate.kernel.chain  composes filters around an action
 ---@field results hecate.kernel.results  serialises the result of an action into a Response
 ---@field problem hecate.kernel.problem  problem classes (`NotFound`, ...) and `define`
@@ -24,6 +25,7 @@ global <const> require, type, error, pairs
 ---@field supervisor hecate.kernel.supervisors  multi-process serving: `Supervisor` in the primary, `worker_role()` in a worker
 ---@field RouteDeclarationError hecate.kernel.RouteDeclarationError  an invalid route declaration
 local kernel = {}
+kernel.version = "0.0.0"
 
 local core = require("hecate.core")
 local config = require("hecate.config")
