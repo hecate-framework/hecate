@@ -88,6 +88,11 @@ function M.parse(args, commands)
     end
   end
   rest, consumed = remaining, 0
+  --- A failure of the options of the selected command: names the command, so that the message and the hint can.
+  local function fail_option(message, context)
+    context.command_name = command and command.name or nil
+    fail(message, context)
+  end
   local specs = {}
   for _, spec in ipairs(command and command.options or {}) do specs[spec.name] = spec end
 
@@ -109,23 +114,23 @@ function M.parse(args, commands)
       local name, value = argument:match("^%-%-([%w%-]+)=(.*)$")
       name = name or argument:match("^%-%-([%w%-]+)$")
       local spec = name and specs[name]
-      if not spec then fail("unknown option " .. argument, { option = argument }) end
+      if not spec then fail_option("unknown option " .. argument, { option = argument }) end
       if spec.takes_value then
         if value == nil then
           value = rest[index]
           index = index + 1
         end
-        if value == nil or value == "" then fail("option --" .. name .. " needs a value", { option = name }) end
+        if value == nil or value == "" then fail_option("option --" .. name .. " needs a value", { option = name }) end
         if spec.repeatable then
           local list = parsed.options[name]
           if list == nil then list = {}; parsed.options[name] = list end
           list[#list + 1] = value
         else
-          if parsed.options[name] ~= nil then fail("option --" .. name .. " given twice", { option = name }) end
+          if parsed.options[name] ~= nil then fail_option("option --" .. name .. " given twice", { option = name }) end
           parsed.options[name] = value
         end
       else
-        if value ~= nil then fail("option --" .. name .. " takes no value", { option = name }) end
+        if value ~= nil then fail_option("option --" .. name .. " takes no value", { option = name }) end
         parsed.options[name] = true
       end
     end
