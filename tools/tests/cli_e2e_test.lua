@@ -159,10 +159,10 @@ function T:test_a_new_project_exports_lints_and_generates()
   end)
 end
 
---- The status that `curl` gets from `url` within two seconds ("000" when nothing answers). `curl` ships with the three
+--- The status that `curl` gets from `url` (quoted by hand: `util.quote` turns the slashes into backslashes on Windows, for paths) within two seconds ("000" when nothing answers). `curl` ships with the three
 --- platforms of CI and ends each attempt by itself.
 local function http_status(url)
-  local out = util.capture(("curl -s -o %s -w %%{http_code} --max-time 2 %s 2>&1"):format(windows and "NUL" or "/dev/null", util.quote(url)))
+  local out = util.capture(("curl -s -o %s -w %%{http_code} --max-time 2 %s 2>&1"):format(windows and "NUL" or "/dev/null", '"' .. url .. '"'))
   return (out:match("%d%d%d"))
 end
 
@@ -216,7 +216,7 @@ function T:test_a_new_project_serves_and_answers_the_health_check()
     if status ~= "200" then
       -- What the machine shows while the server should be answering: a verbose request, the sockets, the processes.
       local url = "http://127.0.0.1:" .. port .. "/health"
-      progress("curl -v:\n" .. util.capture(("curl -sv --max-time 5 -o %s %s 2>&1"):format(windows and "NUL" or "/dev/null", util.quote(url))))
+      progress("curl -v:\n" .. util.capture(("curl -sv --max-time 5 -o %s %s 2>&1"):format(windows and "NUL" or "/dev/null", '"' .. url .. '"')))
       progress("sockets on the port:\n" .. util.capture(windows and ("netstat -ano | findstr :%d 2>&1"):format(port) or ("(ss -ltn 2>/dev/null || netstat -ltn 2>/dev/null) | grep %d"):format(port)))
       progress("processes:\n" .. util.capture(windows and 'tasklist /FI "IMAGENAME eq hecate.exe" 2>&1' or "ps aux | grep hecate | grep -v grep"))
     end
