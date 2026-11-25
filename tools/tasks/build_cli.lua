@@ -68,9 +68,11 @@ end
 local WINDOWS_LIBRARIES = "ws2_32.lib iphlpapi.lib userenv.lib psapi.lib advapi32.lib ntdll.lib dbghelp.lib"
   .. " shell32.lib ole32.lib user32.lib bcrypt.lib kernel32.lib synchronization.lib"
 
-return {
-  description = "build the hecate executable: C host, CLI and LuaRocks embedded, native modules linked (Linux, macOS, Windows)",
-  run = function(ctx)
+--- The build itself; `release` frees the lock of the dependencies once they are ready.
+---@param ctx table
+---@param release fun()
+---@return table report
+local function build(ctx, release)
     local output = ctx.root .. "/.hecate/build/cli/hecate" .. (windows and ".exe" or "")
     local sanitize = false
     for _, a in ipairs(ctx.args) do
@@ -212,6 +214,7 @@ return {
       end
     end
 
+    release() -- the dependencies are ready: the lock is for them only
     -- The host and the link.
     local ok_host, e_host = compile(host .. "/hecate.c", "-I" .. util.quote(host), true)
     if not ok_host then return fail("host", e_host) end
@@ -237,5 +240,32 @@ return {
     for _, n in ipairs(notes) do io.stderr:write("build-cli: ", n, "\n") end
     if strict_build and #notes > 0 then return { ok = false, problems = notes } end
     return { ok = true, problems = {}, output = output, notes = notes }
+end
+
+return {
+  description = "build the hecate executable: C host, CLI and LuaRocks embedded, native modules linked (Linux, macOS, Windows)",
+  run = function(ctx)
+    -- Several builds can run at once (the tests of `tools` run in a pool of workers) and share the directory where the
+    -- dependencies are cloned and built: the part that touches it holds a lock directory (`mkdir` is atomic).
+    local lock = ctx.root .. "/.hecate/build/cli/deps.lock"
+    util.mkdir(ctx.root .. "/.hecate/build/cli")
+    local nul = windows and ">nul 2>&1" or ">/dev/null 2>&1"
+    local waited = 0
+    while os.execute("mkdir " .. util.quote(lock) .. " " .. nul) ~= true do
+      if waited >= 900 then util.remove_tree(lock) end -- a lock left by a build that died
+      os.execute(windows and "ping -n 2 127.0.0.1 >nul" or "sleep 1")
+      waited = waited + 1
+    end
+    local released = false
+    local function release()
+      if not released then
+        released = true
+        util.remove_tree(lock)
+      end
+    end
+    local ok, result = pcall(build, ctx, release)
+    release()
+    if not ok then error(result, 0) end
+    return result
   end,
 }
