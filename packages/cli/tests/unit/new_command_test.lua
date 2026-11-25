@@ -44,6 +44,22 @@ function T:test_the_minimal_template_writes_a_valid_project()
   end
 end
 
+function T:test_ci_github_adds_the_ci_workflow()
+  local code, _, _, written = run({ "new", "shop", "--ci", "github" })
+  self:assert_equal(0, code)
+  local text = written["shop/.github/workflows/ci.yml"]
+  self:assert_true(text ~= nil and text:find("hecate install --frozen", 1, true) ~= nil)
+  self:assert_true(text:find("hecate contract lint", 1, true) ~= nil) -- the api template has a contract
+  local _, _, _, minimal = run({ "new", "shop", "--template", "minimal", "--ci", "github" })
+  self:assert_true(minimal["shop/.github/workflows/ci.yml"]:find("contract", 1, true) == nil)
+  local _, _, _, plain = run({ "new", "shop" })
+  self:assert_equal(nil, plain["shop/.github/workflows/ci.yml"])
+  local bad, _, err, none = run({ "new", "shop", "--ci", "gitlab" })
+  self:assert_equal(2, bad)
+  self:assert_true(err:find("github", 1, true) ~= nil, err)
+  self:assert_equal(nil, next(none))
+end
+
 function T:test_a_name_that_windows_reserves_is_refused_everywhere()
   for _, name in ipairs({ "con", "nul", "aux", "prn", "com1", "lpt9", "con.txt", "nul.v2", "app." }) do
     local code, _, err, written = run({ "new", name })

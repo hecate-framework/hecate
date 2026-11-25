@@ -1,8 +1,10 @@
--- `hecate new <name> [--template api|minimal]` (default `api`): creates a project directory from a template.
+-- `hecate new <name> [--template api|minimal] [--ci github]` (default `api`): creates a project directory from a template;
+-- `--ci github` adds the `ci` workflow (`.github/workflows/ci.yml`, the one of `hecate generate workflow ci`).
 global <const> require, ipairs, pairs, string, table, type, pcall, tostring
 
 local core = require("hecate.core")
 local templates = require("hecate.cli.templates")
+local workflows = require("hecate.cli.templates.workflows")
 local project_environment = require("hecate.cli.internal.project_environment")
 
 --- What `new` needs: writing a file (creating the directories) and asking whether a path exists.
@@ -29,8 +31,11 @@ end
 local command = {
   name = "new",
   summary = "Create a project from a template",
-  usage = "<name> [--template api|minimal]",
-  options = { { name = "template", takes_value = true, summary = "The template: api (default) or minimal" } },
+  usage = "<name> [--template api|minimal] [--ci github]",
+  options = {
+    { name = "template", takes_value = true, summary = "The template: api (default) or minimal" },
+    { name = "ci", takes_value = true, summary = "Also write the CI workflow of this provider: github" },
+  },
 }
 
 --- Runs the command with the given dependencies.
@@ -58,6 +63,11 @@ function command.execute(context, dependencies)
     context.print_error("hecate new: unknown template '" .. tostring(choice) .. "' (available: " .. table.concat(templates.names(), ", ") .. ")")
     return 2
   end
+  local ci = context.arguments.options.ci
+  if ci ~= nil and ci ~= "github" then
+    context.print_error("hecate new: unknown CI provider '" .. tostring(ci):gsub("%c", "?") .. "' (available: github)")
+    return 2
+  end
   local ok, module = pcall(templates.module_name, name)
   if not ok then
     context.print_error("hecate new: " .. (type(module) == "table" and module.message or tostring(module)))
@@ -66,6 +76,10 @@ function command.execute(context, dependencies)
 
   local version = context.runtime.hecate_version:match("^(%d+%.%d+)") or "0.1"
   local files = template({ name = name, module = module, hecate_constraint = "~> " .. version })
+  if ci == "github" then
+    -- Only the `api` template has a `contract` section to export and lint.
+    files[".github/workflows/ci.yml"] = workflows.ci({ hecate_version = context.runtime.hecate_version, contract = choice == "api" })
+  end
   local paths = {}
   for path in pairs(files) do paths[#paths + 1] = path end
   table.sort(paths)
