@@ -166,7 +166,7 @@ local function http_status(url)
   return (out:match("%d%d%d"))
 end
 
---- Starts `hecate serve` in `project` on `port`, detached from this process, its output in `log`; returns the process
+--- Starts `hecate serve --env development` (one worker, as on a developer machine) in `project` on `port`, detached from this process, its output in `log`; returns the process
 --- number or nil. The test does not use the reactor for this (a server started through it left the loop of the test stuck
 --- on Windows), and it does not read the number from a pipe either: the shell that starts the server keeps the pipe open
 --- as long as the server lives, so the read would never end. `os.execute` has no pipe; the number goes to a file.
@@ -176,11 +176,11 @@ local function start_server(exe, project, port, log)
   if windows then
     local function lit(text) return "'" .. text:gsub("'", "''") .. "'" end
     local function native(path) return (path:gsub("/", "\\")) end
-    local script = ("$env:PORT=%s; $p = Start-Process -FilePath %s -ArgumentList 'serve' -WorkingDirectory %s -RedirectStandardOutput %s -RedirectStandardError %s -PassThru -WindowStyle Hidden; Set-Content -Path %s -Value $p.Id")
+    local script = ("$env:PORT=%s; $p = Start-Process -FilePath %s -ArgumentList 'serve','--env','development' -WorkingDirectory %s -RedirectStandardOutput %s -RedirectStandardError %s -PassThru -WindowStyle Hidden; Set-Content -Path %s -Value $p.Id")
       :format(lit(tostring(port)), lit(native(exe)), lit(native(project)), lit(native(log)), lit(native(log) .. ".err"), lit(native(pid_file)))
     os.execute(("powershell -NoProfile -NonInteractive -Command \"%s\" >nul 2>&1"):format(script))
   else
-    os.execute(("cd %s && PORT=%d nohup %s serve > %s 2>&1 < /dev/null & echo $! > %s"):format(util.quote(project), port, util.quote(exe), util.quote(log), util.quote(pid_file)))
+    os.execute(("cd %s && PORT=%d nohup %s serve --env development > %s 2>&1 < /dev/null & echo $! > %s"):format(util.quote(project), port, util.quote(exe), util.quote(log), util.quote(pid_file)))
   end
   local handle = io.open(pid_file, "rb")
   if not handle then return nil end
