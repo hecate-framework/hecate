@@ -1,7 +1,7 @@
--- `hecate test [paths] [--filter=<pattern>] [--case=<name>] [--tag=<tag>] [--exclude-tag=<tag>]`: runs the tests of the
+-- `hecate test [paths] [--filter=<pattern>] [--case=<name>] [--tag=<tag>] [--exclude-tag=<tag>] [--jobs=<n>]`: runs the tests of the
 -- project with `hecate.test`, inside the reactor, with the dependencies of `lua_modules` and the sources of the project
 -- on the module path.
-global <const> require, error, ipairs, package, table, type, pcall, tostring
+global <const> require, error, ipairs, package, table, type, pcall, tostring, tonumber, math
 
 local core = require("hecate.core")
 
@@ -26,6 +26,7 @@ local command = {
     { name = "case", takes_value = true, repeatable = true, summary = "Run only the case with this name (repeatable)" },
     { name = "tag", takes_value = true, repeatable = true, summary = "Run only the tests carrying this tag (repeatable)" },
     { name = "exclude-tag", takes_value = true, repeatable = true, summary = "Skip the tests carrying this tag (repeatable)" },
+    { name = "jobs", takes_value = true, summary = "Run the test files in this many worker processes at once (default: one process, in order)" },
   },
 }
 
@@ -82,6 +83,15 @@ function command.execute(context, dependencies)
   local paths = #arguments.positionals > 0 and arguments.positionals or { DEFAULT_DIRECTORY }
   local options = arguments.options
   local filter = options.filter --[[@as string?]]
+  local jobs ---@type integer?
+  if options.jobs ~= nil then
+    local number = tonumber(options.jobs)
+    if number == nil or math.type(number) ~= "integer" or number < 1 then
+      context.print_error("hecate test: --jobs takes a whole number of at least 1 (got '" .. tostring(options.jobs) .. "')")
+      return 2
+    end
+    jobs = number
+  end
   dependencies.set_module_path((context.runtime.project_dir or "."):gsub("/+$", ""), (context.runtime.lua_version:match("^%d+%.%d+")) or context.runtime.lua_version)
   local test = dependencies.load_test()
 
@@ -98,6 +108,24 @@ function command.execute(context, dependencies)
     return { files = files, cases = cases, load_errors = load_errors }
   end)
   local reporter = context.json and test.JsonLinesReporter({ write = context.print }) or test.ConsoleReporter({ rerun_command = "hecate test" })
+  if jobs then
+    -- Workers are processes of the interpreter of this process (the executable answers `-e` as a plain `lua`); each loads
+    -- the test files with the module path set above, which the primary sends it (`package.path`, `package.cpath`).
+    local summary = dependencies.run(function()
+      return test.run_parallel(found.files, {
+        jobs = jobs, lua = context.runtime.lua_interpreter, reporter = reporter, filter = filter,
+        cases = options.case --[[@as string[]?]], tags = options.tag --[[@as string[]?]],
+        exclude_tags = options["exclude-tag"] --[[@as string[]?]],
+      })
+    end)
+    for _, message in ipairs(found.load_errors) do context.print_error("hecate test: " .. message) end
+    if #found.files == 0 then
+      context.print_error("hecate test: no test file found in " .. table.concat(paths, ", ") .. " (test files end in _test.lua)")
+    elseif summary.empty and #found.load_errors == 0 then
+      context.print_error("hecate test: no test matches the selection")
+    end
+    return (summary.exit_code ~= 0 or #found.load_errors > 0) and 1 or 0
+  end
   local runner = test.Runner({
     reporter = reporter,
     filter = filter,

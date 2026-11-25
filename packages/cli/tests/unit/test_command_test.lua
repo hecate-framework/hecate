@@ -15,6 +15,10 @@ local function fake(seen, summary, files)
     end,
     ConsoleReporter = function() return { kind = "console" } end,
     JsonLinesReporter = function(options) return { kind = "json", write = options.write } end,
+    run_parallel = function(files, options)
+      seen.parallel = { files = files, options = options }
+      return summary or { exit_code = 0, empty = false }
+    end,
     Runner = function(options)
       seen.options = options
       return { run = function(_, cases)
@@ -106,6 +110,26 @@ function T:test_module_paths_put_the_project_before_its_dependencies()
   self:assert_equal("/p/src/?.lua", lua_paths[1])
   self:assert_equal("/p/lua_modules/share/lua/5.5/?/init.lua", lua_paths[#lua_paths])
   self:assert_equal("/p/lua_modules/lib/lua/5.5/?.so", native_paths[1])
+end
+
+function T:test_jobs_runs_the_files_in_worker_processes_of_the_interpreter()
+  local code, _, seen = run({ "test", "--jobs=3", "--filter=Health" })
+  self:assert_equal(0, code)
+  self:assert_true(seen.cases == nil, "the in-process runner was not used")
+  self:assert_equal(3, seen.parallel.options.jobs)
+  self:assert_equal("Health", seen.parallel.options.filter)
+  self:assert_equal("tests/a_test.lua", seen.parallel.files[1])
+  self:assert_equal("console", seen.parallel.options.reporter.kind)
+end
+
+function T:test_jobs_is_a_whole_number_of_at_least_one_and_a_failure_is_exit_1()
+  for _, bad in ipairs({ "0", "-2", "1.5", "many" }) do
+    local code, err = run({ "test", "--jobs=" .. bad })
+    self:assert_equal(2, code, bad)
+    self:assert_true(err:find("--jobs", 1, true) ~= nil, err)
+  end
+  local code = run({ "test", "--jobs=2" }, { summary = { exit_code = 1, empty = false } })
+  self:assert_equal(1, code)
 end
 
 return T

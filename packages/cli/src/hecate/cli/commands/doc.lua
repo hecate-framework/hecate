@@ -7,6 +7,7 @@ global <const> require, error, io, ipairs, pairs, string, table, type
 local core = require("hecate.core")
 local manifest_module = require("hecate.cli.manifest")
 local project_process = require("hecate.cli.internal.project_process")
+local templates = require("hecate.cli.templates")
 
 local MANIFEST = "hecate.project.lua"
 
@@ -14,7 +15,7 @@ local MANIFEST = "hecate.project.lua"
 ---@field fs { read: fun(path: string): string? }  reads a file, nil when it does not exist
 ---@field run fun(task: fun(): any): any  runs a suspending task to completion (the reactor)
 ---@field ask fun(question: string): boolean  asks a yes/no question; false when nothing answers
----@field generate fun(options: table): { files: integer, bytes: integer, problems: string[], sites: { audience: string, files: integer, bytes: integer, directory: string }[] }  builds the site (inside the reactor); the real one runs `hecate.doc` in the interpreter of the project
+---@field generate fun(options: table, module: string): { files: integer, bytes: integer, problems: string[], sites: { audience: string, files: integer, bytes: integer, directory: string }[] }  builds the site (inside the reactor); the real one runs `hecate.doc` in the interpreter of the project
 
 local WARNING = "hecate doc build: the code reference runs LuaLS, which runs the plugin declared by any LuaLS configuration "
   .. "reachable from the documented directory (.luarc.json, .luarc.jsonc, .vscode/settings.json), with full file and command "
@@ -58,7 +59,7 @@ function command.execute(context, dependencies)
     end
   end
 
-  local report = dependencies.run(function() return dependencies.generate(options) end)
+  local report = dependencies.run(function() return dependencies.generate(options, templates.module_name(manifest.name)) end)
   local lines = {}
   for _, site in ipairs(report.sites) do
     lines[#lines + 1] = string.format("%-11s %d files, %d bytes -> %s", site.audience, site.files, site.bytes, site.directory)
@@ -76,6 +77,23 @@ local json = require("hecate.json")
 local reactor = require("hecate.reactor")
 local doc = require("hecate" .. ".doc")
 local options = json.decode(os.getenv("HECATE_CLI_OPTIONS"))
+-- The configuration reference comes from the application of the project (`Application:configuration_schema()`, the single
+-- source): the module of the project builds it with the configuration the framework gives it. Without such a module the
+-- reference is left out.
+local module = os.getenv("HECATE_CLI_MODULE")
+if module then
+  local loaded, project = pcall(require, module)
+  if loaded and type(project) == "table" and type(project.application) == "function" then
+    local built, application = pcall(function()
+      local application_options = {}
+      local has_config, config = pcall(require, "hecate" .. ".config")
+      if has_config then application_options.configuration = config.load({ properties = {} }) end
+      return project.application(application_options)
+    end)
+    if built then options.application = application
+    else io.stderr:write("the configuration reference is left out: the application of '" .. module .. "' cannot be built: " .. tostring(application) .. "\n") end
+  end
+end
 local report = reactor.run(function() return doc.generate_project_documentation(options) end)
 io.write(json.encode(report))
 ]]
@@ -103,8 +121,8 @@ function command.run(context)
       local answer = io.read("l")
       return type(answer) == "string" and answer:lower():match("^%s*y") ~= nil
     end,
-    generate = function(options)
-      local result = project_process.run(context, process, command.PROGRAM, { HECATE_CLI_OPTIONS = json.encode(options) }, "the build of the documentation")
+    generate = function(options, module)
+      local result = project_process.run(context, process, command.PROGRAM, { HECATE_CLI_OPTIONS = json.encode(options), HECATE_CLI_MODULE = module }, "the build of the documentation")
       return json.decode(result.stdout)
     end,
   })

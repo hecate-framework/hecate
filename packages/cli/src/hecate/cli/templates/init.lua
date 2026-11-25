@@ -44,8 +44,15 @@ return {
   dependencies = {
     hecate = %q,
   },
+  -- `hecate doc build`: the conventional layout (guides in docs/, sources in src/, the sites in docs/dist/).
+  doc = {
+    guides_dir = "docs",
+    output_dir = "docs/dist",
+    sources_dir = "src",
+    package_name = %q,
+  },
 }
-]], parameters.name, parameters.hecate_constraint)
+]], parameters.name, parameters.hecate_constraint, parameters.name)
 
   files["main.lua"] = string.format([[
 -- Starts the application: `hecate serve`, or `lua main.lua` from this directory (port from PORT, default 8080).
@@ -111,7 +118,28 @@ end
 return T
 ]], TEST_MODULE, module, module, module, module)
 
-  files[".gitignore"] = "lua_modules/\n.hecate/\n"
+  -- The documentation: what `hecate doc build` needs to build a site (the site configuration and a first page).
+  files["docs/site.lua"] = string.format([[
+-- Site configuration of the documentation, read by `hecate doc build` (data only).
+return {
+  title = %q,
+  description = "The documentation of %s.",
+  base_path = "/",
+}
+]], parameters.name, parameters.name)
+  files["docs/maintainer/en/index.md"] = string.format([[
+---
+description: What %s is and how to work on it.
+order: 0
+---
+
+# %s
+
+Write the documentation of the project here: one Markdown file per page in `docs/maintainer/en/`. Build the site with
+`hecate doc build`; the pages, the search and the navigation come with it.
+]], parameters.name, parameters.name)
+
+  files[".gitignore"] = "lua_modules/\n.hecate/\ndocs/dist/\ndocs/maintainer/*/configuration.md\ndocs/maintainer/*/third-party-licences.md\n"
   files["README.md"] = string.format("# %s\n\nA Hecate application.\n\n```sh\nhecate install\nhecate serve --env development   # on a developer machine; production is the default\nhecate test\n```\n", parameters.name)
   return files
 end

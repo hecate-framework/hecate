@@ -28,12 +28,15 @@ function T:test_the_minimal_template_writes_a_valid_project()
   local code, out, _, written = run({ "new", "my-api" })
   self:assert_equal(0, code)
   self:assert_true(out:find("Created my%-api") ~= nil, out)
-  for _, path in ipairs({ "my-api/hecate.project.lua", "my-api/main.lua", "my-api/src/my_api/init.lua", "my-api/tests/my_api_test.lua", "my-api/.gitignore", "my-api/README.md" }) do
+  for _, path in ipairs({ "my-api/hecate.project.lua", "my-api/main.lua", "my-api/src/my_api/init.lua", "my-api/tests/my_api_test.lua", "my-api/.gitignore", "my-api/README.md", "my-api/docs/site.lua", "my-api/docs/maintainer/en/index.md" }) do
     self:assert_true(written[path] ~= nil, path)
   end
   local loaded = manifest.parse(written["my-api/hecate.project.lua"])
   self:assert_equal("my-api", loaded.name)
   self:assert_equal("~> 0.1", loaded.dependencies.hecate)
+  self:assert_equal("docs", loaded.doc.guides_dir) -- the conventional layout of `hecate doc build`
+  self:assert_equal("docs/dist", loaded.doc.output_dir)
+  self:assert_equal("my-api", loaded.doc.package_name)
   for path, text in pairs(written) do
     if path:match("%.lua$") then self:assert_true(load(text, "=" .. path) ~= nil, path) end
   end

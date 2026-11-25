@@ -13,8 +13,9 @@ local function run(args, opts)
     fs = { read = function(path) if opts.no_manifest then return nil end; return path == "hecate.project.lua" and manifest or nil end },
     run = function(task) return task() end,
     ask = function() seen.asked = seen.asked + 1; return opts.answer == true end,
-    generate = function(options)
+    generate = function(options, module)
       seen.options = options
+      seen.module = module
       return { files = 3, bytes = 30, problems = opts.problems or {}, sites = { { audience = "maintainer", files = 3, bytes = 30, directory = "docs/dist/maintainer" } } }
     end,
   }
@@ -69,6 +70,13 @@ function T:test_missing_manifest_is_an_error()
   local code, _, err = run({ "doc", "build" }, { no_manifest = true })
   self:assert_equal(1, code)
   self:assert_true(err:find("hecate.project.lua not found", 1, true) ~= nil)
+end
+
+function T:test_the_module_of_the_project_goes_to_the_generator_for_the_configuration_reference()
+  local _, _, _, seen = run({ "doc", "build", "--yes" })
+  self:assert_equal("shop", seen.module)
+  local _, _, _, other = run({ "doc", "build", "--yes" }, { manifest = 'return { name = "my-api" }' })
+  self:assert_equal("my_api", other.module)
 end
 
 return T

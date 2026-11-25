@@ -11,6 +11,8 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- feat(cli): `hecate test --jobs <n>` runs the test files in worker processes (`test.run_parallel`; the executable answers `-e` as a plain `lua`, which is how a worker starts); checked on a generated project with the built executable.
+- feat(cli): `hecate new` writes the `doc` section of the manifest (conventional layout, `package_name` from the name), `docs/site.lua` and a first page, and ignores the generated pages; `hecate doc build` builds the application of the project (the module of the manifest) to give `hecate.doc` its configuration schema: checked on a fresh project (29 files: the guides, the code reference and the configuration reference generated from `Application:configuration_schema()`).
 - feat(cli): `hecate serve --env <name>` and `hecate run --env <name>` (owner agreement of 2026-11-24): the configuration environment of the child (`HECATE_ENV`): the flag, else the variable as the process has it, else `production`; the generated READMEs show `hecate serve --env development`. The specification describes the delivery to a server without Docker and the future `hecate package`.
 - docs: OQ-148 resolved by the owner (2026-11-24): the documentation site is static and opens from the file system (relative links, the search index as a script file); recorded in the roadmap for the `doc` item.
 - docs: ADR 0028 says that `plc` is the known alternative, not a fallback in the code (owner clarification and permission of 2026-11-24; the ADR stays Accepted).
