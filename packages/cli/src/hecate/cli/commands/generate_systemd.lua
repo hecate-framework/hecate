@@ -130,7 +130,7 @@ function command.run(context)
       return reactor.fs.read_file(path)
     end) end },
     write = environment.fs.write,
-    exists = function(path) return reactor.run(function() return reactor.fs.stat(path) ~= nil end) end,
+    exists = function(path) return reactor.fs.stat(path) ~= nil end, -- called inside `run`, which is the reactor
     run = environment.run,
   })
 end

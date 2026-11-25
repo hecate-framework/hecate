@@ -33,6 +33,7 @@ Status: specification; [ADR 0009](../adr/0009-project-manifest.md) and
 | `hecate contract export\|diff\|lint` | OpenAPI document, breaking-change detection, lint |
 | `hecate doc build` | project documentation: static sites, one per audience (no development server: owner decision of 2026-11-24, see OQ-148) |
 | `hecate migrate [status\|new\|rollback]` | database migrations |
+| `hecate generate meta [--namespace <name>] [--output <file>] [--force]` | the LuaLS declaration file (`---@meta`) of the schemas of the contract of the application, `meta/<module>.schemas.lua` by default (OQ-121); on demand, never by another command |
 | `hecate generate systemd [--user <name>] [--workers <n>] [--executable <path>] [--output <file>] [--force]` | the systemd unit that runs the application as a service (OQ-133) |
 | `hecate generate <kind> <name>` | scaffold a controller, entity, repository, route module, migration, test case |
 | `hecate package` | generate a rockspec from the manifest and pack a rock |

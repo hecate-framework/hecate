@@ -66,6 +66,14 @@ function T:test_a_new_project_tests_exports_lints_and_serves()
   self:assert_true(ok, out)
   self:assert_true(out:find("ExecStart=", 1, true) ~= nil and out:find("serve --workers 2", 1, true) ~= nil, out)
 
+  out, ok = run("generate systemd --output=shop.service", project)
+  self:assert_true(ok, out)
+  out, ok = run("generate meta", project)
+  self:assert_true(ok, out)
+  local meta = assert(io.open(project .. "/meta/shop.schemas.lua", "rb"))
+  self:assert_true(meta:read("a"):find("---@meta shop.schemas", 1, true) ~= nil)
+  meta:close()
+
   -- `hecate serve` on a free port answers the health check, and stops when it is killed.
   local reactor_ok, reactor = pcall(require, "hecate.reactor")
   local http_ok, http = pcall(require, "hecate.http")
