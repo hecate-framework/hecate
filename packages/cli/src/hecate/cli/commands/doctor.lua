@@ -6,8 +6,12 @@ local doctor = require("hecate.cli.doctor")
 local manifest_module = require("hecate.cli.manifest")
 local project_process = require("hecate.cli.internal.project_process")
 
---- The program the project interpreter runs to read `hecate.core.version`.
-local VERSION_PROGRAM = 'io.write(require("hecate.core").version or "")'
+--- The program the project interpreter runs to read `hecate.core.version`. It asks the module path (files) only: the
+--- executable embeds its own `hecate.core`, which `require` would find when the project has none, and the check would
+--- then compare the executable with itself.
+local NOT_INSTALLED = "<hecate.core is not installed>"
+local VERSION_PROGRAM = 'if package.searchpath("hecate.core", package.path) then io.write(require("hecate.core").version or "") '
+  .. 'else io.write("' .. NOT_INSTALLED .. '") end'
 
 local MARK = { ok = "ok  ", warn = "warn", fail = "FAIL" }
 
@@ -78,7 +82,11 @@ local function real_probes(context)
       local ok, result = pcall(function()
         return reactor.run(function() return project_process.run(context, process, VERSION_PROGRAM, nil, "reading hecate.core.version") end)
       end)
-      if ok then return (result.stdout:gsub("%s+$", "")) end
+      if ok then
+        local answer = result.stdout:gsub("%s+$", "")
+        if answer == NOT_INSTALLED then return nil end
+        return answer
+      end
       local message = tostring((result --[[@as hecate.core.Error]]).message or result)
       if message:find("module 'hecate.core' not found", 1, true) then return nil end
       return nil, message

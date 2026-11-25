@@ -123,6 +123,10 @@ end
 
 function T:test_a_new_project_exports_lints_and_generates()
   with_project(self, function(run, project, base)
+    -- The real probe of `doctor` asks the project (not the copy embedded in the executable) for its version of core.
+    local doctor, doctor_ok = run("doctor", project)
+    self:assert_true(doctor_ok, doctor)
+    self:assert_true(doctor:find("executable and project are at", 1, true) ~= nil, doctor)
     local out, ok = run("contract export --output=openapi.json", project)
     self:assert_true(ok, out)
     out, ok = run("contract lint openapi.json", project)
