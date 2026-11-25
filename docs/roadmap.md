@@ -378,7 +378,7 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       (signals, exit code, `--watch`); the platform manages running instances, `hecate serve` never daemonises, and the CLI
       generates a systemd unit (no Docker artefacts); toolchain
       archives per platform and architecture only for other Lua versions; installers (Windows setup executable, macOS
-      `.pkg`, Linux archives, Homebrew, winget, Scoop); `hecate.cli.digest` over the `digest` rock (ADR 0028), compiled
+      `.pkg`, Linux archives, Homebrew, winget); `hecate.cli.digest` over the `digest` rock (ADR 0028), compiled
       into the host and checked on the platforms; a command to switch interpreters once Lua 5.4 is supported.
       **Also (OQ-122, owner decision of 2026-11-13, ADR 0023 amended):** `server.workers` accepts `"auto"` and
       defaults to it: `max(1, cores - 1)`, `cores` from `uv.available_parallelism()` (exposed by `reactor`), read on
@@ -470,7 +470,7 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       inline `on_error` snippet, which the output rule refuses in example files.
 - [ ] Meta-rock `hecate` (standard edition).
 - [ ] Read-only mirrors (ADR 0017): `split`, `mirrors ensure`, `check-mirrors`, the tag of the `unicode-data` mirror is the Unicode version and not `VERSION` (ADR 0032),
-      `split.yml`; Homebrew tap and Scoop bucket repositories (applies OQ-17: `splitsh-lite` pinned, `git subtree split` as fallback, see the [spike](spikes/OQ-17-split-tool.md)).
+      `split.yml`; Homebrew tap repository (applies OQ-17: `splitsh-lite` pinned, `git subtree split` as fallback, see the [spike](spikes/OQ-17-split-tool.md)).
 - [ ] Publish all rocks to luarocks.org (sources from mirrors).
 - [ ] `hecate generate workflow` (ci, contract, docs-pages done; release to do) and its templates;
       regenerate the monorepo's `website.yml` with it.
@@ -581,11 +581,11 @@ Exit: `examples/crud` works unchanged on PostgreSQL, MySQL, MariaDB and SQLite.
 
 - [ ] `cli`, `release`: distribution channels, after the archives and the packages of the `cli` v1 item (owner, 2026-11-25;
       all need something outside this repository: a repository, an account, a moderation queue or a certificate):
-      Homebrew (a tap with a formula that points at the release), Scoop (a bucket), winget (the easiest for a Windows user:
+      Homebrew (a tap with a formula that points at the release), winget (the easiest for a Windows user:
       built in, `winget install`; a manifest proposed to `microsoft/winget-pkgs`, automated with `wingetcreate`), the AUR
-      (`PKGBUILD`), signed apt, yum and apk repositories (keys and hosting), Chocolatey (account and moderation), the macOS
+      (`PKGBUILD`), signed apt, yum and apk repositories (keys and hosting), the macOS
       `.pkg` (needs signing and notarisation, an Apple account), a Windows installer. **Not wanted (owner):** AppImage,
-      Flatpak, Snap. MacPorts only if someone asks.
+      Flatpak, Snap, Scoop and Chocolatey (winget is enough for Windows). MacPorts only if someone asks.
 - [ ] `security`: authentication (bearer tokens, JWT, sessions), authorisation
       policies, password hashing.
 - [ ] `mongodb`: OP_MSG protocol, BSON, document mapper.

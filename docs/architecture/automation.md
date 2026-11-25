@@ -97,7 +97,7 @@ Status column: `done` = implemented in `tools/`, `now` = workflow exists today, 
 | `release rocks` | build and publish every rock in dependency order (idempotent, resumable) | P3 |
 | `release binaries` | build CLI executables for 6 targets | P3 |
 | `release sbom` / `release sign` | SPDX SBOM, cosign signatures, checksums | P3 |
-| `release packages` | Homebrew formula (`homebrew-hecate`), winget and Scoop (`scoop-hecate`) manifests | P3 |
+| `release packages` | Homebrew formula (`homebrew-hecate`) and winget manifest | P3 |
 | `split [--package p] [--ref r] [--push]` | split `packages/<name>` into `hecate-framework/hecate-<name>` with deterministic history, inject `.github/mirror-template/`, push branch or tag (ADR 0017, tool choice OQ-17) | P3 |
 | `mirrors ensure` | create missing mirror repositories and apply settings (issues/wiki off, description, topics, homepage) through the GitHub API | P3 |
 | `check-mirrors` | verify mirror `main` and tags equal the split of the monorepo, and settings are correct | P3 |

@@ -47,7 +47,6 @@ organisation: [`hecate-framework`](https://github.com/hecate-framework). Website
 | `hecate-framework/hecate` | monorepo: all development, issues, pull requests, CI, website, Docker, tools | yes |
 | `hecate-framework/hecate-<name>` (one per package, e.g. `hecate-router`) | read-only mirror of `packages/<name>` with its own history and the same tags | no (split only) |
 | `hecate-framework/homebrew-hecate` | Homebrew tap (formula for the CLI) | release pipeline only |
-| `hecate-framework/scoop-hecate` | Scoop bucket (manifest for the CLI) | release pipeline only |
 
 Mirror contents: the package directory at the mirror root (`README.md`, rockspecs,
 `src/`, `csrc/`, `tests/`, `examples/`), plus files injected from
@@ -79,7 +78,7 @@ tag.
 | luarocks.org | one rock per package (`hecate-<name>`), meta-rock `hecate`, `hecate-cli` |
 | GitHub Releases | CLI executables for linux/macos/windows × x86_64/arm64, checksums, SBOM, signatures |
 | Installer scripts | `install.sh` (Linux, macOS), `install.ps1` (Windows) |
-| Homebrew, winget, Scoop | CLI |
+| Homebrew, winget | CLI |
 | Docker (Docker Hub and GHCR) | base images, see [`docker/README.md`](../../docker/README.md) |
 
 ## Docker images
