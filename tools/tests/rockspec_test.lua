@@ -57,4 +57,35 @@ function T:test_the_data_rock_is_versioned_by_the_unicode_version()
   self:assert_not_nil(rockspec.version_problem("core", "18.0.0-1", "0.1.0", "18.0.0"))
 end
 
+function T:test_reads_the_version_field_of_a_top_level_module()
+  self:assert_equal("0.0.0", rockspec.module_version('local core = {\n  version = "0.0.0",\n  Error = 1,\n}\nreturn core\n'))
+  self:assert_equal("1.2.3", rockspec.module_version('local M = {}\nM.version = "1.2.3"\nreturn M\n'))
+  self:assert_nil(rockspec.module_version('local M = {}\nreturn M\n'))
+  self:assert_nil(rockspec.module_version('local M = {\n  unicode_version = "18.0.0",\n}\n'))
+end
+
+function T:test_check_versions_compares_the_version_field_with_version_file()
+  local task = require("tasks.check_versions")
+  local root = os.tmpname()
+  os.remove(root)
+  local function write(path, text)
+    local f = assert(io.open(root .. "/" .. path, "wb"))
+    f:write(text)
+    f:close()
+  end
+  for _, dir in ipairs({ "packages", "packages/core", "packages/core/src", "packages/core/src/hecate", "packages/core/src/hecate/core" }) do
+    require("lib.util").mkdir(root .. "/" .. dir)
+  end
+  write("VERSION", "1.0.0\n")
+  write("packages/core/src/hecate/core/init.lua", 'local core = {\n  version = "1.0.0",\n}\nreturn core\n')
+  self:assert_true(task.run({ root = root }).ok)
+  write("packages/core/src/hecate/core/init.lua", 'local core = {\n  version = "0.0.0",\n}\nreturn core\n')
+  local report = task.run({ root = root })
+  self:assert_false(report.ok)
+  self:assert_true(report.problems[1]:find("version field is 0.0.0, VERSION is 1.0.0", 1, true) ~= nil)
+  write("packages/core/src/hecate/core/init.lua", "return {}\n")
+  self:assert_false(task.run({ root = root }).ok)
+  require("lib.util").remove_tree(root)
+end
+
 return T

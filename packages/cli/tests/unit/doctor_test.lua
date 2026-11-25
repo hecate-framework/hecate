@@ -83,6 +83,36 @@ function T:test_the_project_is_checked_when_there_is_a_manifest()
   self:assert_equal("ok", statuses(doctor.run(GOOD, probes(), { has_lock = true }))["hecate.lock"])
 end
 
+function T:test_a_version_skew_between_the_executable_and_the_project_is_a_warning()
+  local function skew(project_version, problem)
+    local checks = doctor.run(GOOD, probes({ project_core_version = function() return project_version, problem end }), { has_lock = true })
+    for _, entry in ipairs(checks) do
+      if entry.name == "hecate version" then return entry, checks end
+    end
+  end
+  self:assert_equal("ok", skew("0.1.0").status)
+  local different, checks = skew("0.2.0")
+  self:assert_equal("warn", different.status)
+  self:assert_true(different.detail:find("executable 0.1.0, project hecate.core 0.2.0", 1, true) ~= nil, different.detail)
+  self:assert_true(different.fix:find("hecate install", 1, true) ~= nil and different.fix:find("update the executable", 1, true) ~= nil, different.fix)
+  self:assert_equal(0, (doctor.summary(checks)))
+  self:assert_equal("warn", skew("").status)
+  local missing = skew(nil)
+  self:assert_equal("ok", missing.status)
+  self:assert_true(missing.detail:find("not installed in the project yet", 1, true) ~= nil, missing.detail)
+  self:assert_equal("warn", skew(nil, "boom\nstack").status)
+end
+
+function T:test_the_version_skew_is_checked_only_for_a_project_with_a_valid_manifest()
+  local asked = 0
+  local counting = probes({ project_core_version = function() asked = asked + 1 return "0.1.0" end })
+  doctor.run(GOOD, counting)
+  doctor.run(GOOD, counting, { manifest_error = "bad", has_lock = false })
+  self:assert_equal(0, asked)
+  doctor.run(GOOD, counting, { has_lock = true })
+  self:assert_equal(1, asked)
+end
+
 local function run(args, rt, overrides)
   local out, err = {}, {}
   local wrapped = setmetatable({ run = function(context) return command.execute(context, probes(overrides)) end }, { __index = command })

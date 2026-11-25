@@ -15,6 +15,7 @@ global <const> ipairs, table, tostring
 ---@field on_path fun(program: string): boolean  whether the program is found on the PATH
 ---@field read fun(path: string): string?  the text of a file, nil when it does not exist
 ---@field digest_backend fun(): string?  the SHA-256 backend in use (`digest`), nil when it does not load
+---@field project_core_version? fun(): string?, string?  `hecate.core.version` as the project resolves it (a child process with the module path of the project): the version (empty when the module has no `version` field), nil when `hecate.core` is not installed in the project, nil and the error when the question could not be asked; absent: the check is skipped
 
 --- Diagnosing the environment.
 ---@class hecate.cli.doctor
@@ -25,6 +26,26 @@ M.COMPILERS = { "cc", "gcc", "clang", "cl" }
 
 local function check(name, status, detail, fix)
   return { name = name, status = status, detail = detail, fix = fix }
+end
+
+--- The version-skew check: the executable embeds its own copy of `hecate.core` and the other packages it needs, and the
+--- project resolves its own; a difference is a warning, never a failure.
+---@param embedded string  the version the executable was built from (`hecate.cli.main.embedded_version`)
+---@param project_version? string  `hecate.core.version` of the project (nil: not installed)
+---@param problem? string  why the version could not be read
+---@return hecate.cli.Check
+function M.version_skew(embedded, project_version, problem)
+  local name = "hecate version"
+  if project_version == nil then
+    if problem then
+      return check(name, "warn", "the version of hecate.core in the project could not be read: " .. tostring(problem):match("^[^\n]*"), "run `hecate install`")
+    end
+    return check(name, "ok", "executable " .. embedded .. "; hecate.core is not installed in the project yet (run `hecate install`)")
+  end
+  if project_version == embedded then return check(name, "ok", "executable and project are at " .. embedded) end
+  local shown = project_version == "" and "no version field" or project_version
+  return check(name, "warn", "executable " .. embedded .. ", project hecate.core " .. shown,
+    "run `hecate install` to update the project, or update the executable, so that both are at the same version")
 end
 
 --- Runs every check. `project` is the manifest and lockfile of the current directory, when `hecate.project.lua` exists.
@@ -89,6 +110,7 @@ function M.run(runtime, probes, project)
       else
         checks[#checks + 1] = check("hecate.lock", "warn", "missing", "run `hecate install` and commit the lockfile")
       end
+      if probes.project_core_version then checks[#checks + 1] = M.version_skew(runtime.hecate_version, probes.project_core_version()) end
     end
   end
   return checks

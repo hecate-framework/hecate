@@ -4,6 +4,10 @@ global <const> require, pcall, io, os, package, string, table, ipairs, tostring
 
 local doctor = require("hecate.cli.doctor")
 local manifest_module = require("hecate.cli.manifest")
+local project_process = require("hecate.cli.internal.project_process")
+
+--- The program the project interpreter runs to read `hecate.core.version`.
+local VERSION_PROGRAM = 'io.write(require("hecate.core").version or "")'
 
 local MARK = { ok = "ok  ", warn = "warn", fail = "FAIL" }
 
@@ -43,8 +47,9 @@ function command.execute(context, probes)
 end
 
 --- The real probes: `require`, the PATH, the file system and the digest module of the CLI.
+---@param context hecate.cli.Context
 ---@return hecate.cli.DoctorProbes
-local function real_probes()
+local function real_probes(context)
   local windows = package.config:sub(1, 1) == "\\"
   return {
     json_works = function()
@@ -63,6 +68,21 @@ local function real_probes()
       file:close()
       return text
     end,
+    project_core_version = function()
+      local reactor = require("hecate.reactor")
+      local process = {
+        run_process = function(program, args, options) return reactor.run_process(program, args, options) end,
+        interpreter = context.runtime.lua_interpreter or "lua",
+        interpreter_arguments = context.runtime.lua_interpreter_arguments,
+      }
+      local ok, result = pcall(function()
+        return reactor.run(function() return project_process.run(context, process, VERSION_PROGRAM, nil, "reading hecate.core.version") end)
+      end)
+      if ok then return (result.stdout:gsub("%s+$", "")) end
+      local message = tostring((result --[[@as hecate.core.Error]]).message or result)
+      if message:find("module 'hecate.core' not found", 1, true) then return nil end
+      return nil, message
+    end,
     digest_backend = function()
       local ok, digest = pcall(require, "hecate.cli.digest")
       return ok and digest.backend_name or nil
@@ -74,7 +94,7 @@ end
 ---@param context hecate.cli.Context
 ---@return integer exit_code
 function command.run(context)
-  return command.execute(context, real_probes())
+  return command.execute(context, real_probes(context))
 end
 
 return command

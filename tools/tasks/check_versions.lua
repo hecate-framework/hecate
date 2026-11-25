@@ -1,7 +1,8 @@
 -- check-versions: every rockspec is at scm-1 or at the version in VERSION (ADR 0005) and
 -- requires "lua >= 5.5, < 5.6". The data rock `hecate-unicode-data` is exempt from the lockstep (ADR 0032): a
 -- released rockspec of it is at `<Unicode version>-<revision>`, the Unicode version being the one of its
--- generated tables; the tree itself holds the development version `scm-1` of every package.
+-- generated tables; the tree itself holds the development version `scm-1` of every package. The `version` field of each
+-- top-level module (`hecate.core.version`, ...) equals VERSION, except `unicode` and `unicode-data`.
 local util = require("lib.util")
 local rockspec = require("lib.rockspec")
 
@@ -41,6 +42,23 @@ return {
         local version = file:match("^" .. rock:gsub("%p", "%%%0") .. "%-(.+)%.rockspec$")
         local problem = version and rockspec.version_problem(name, version, version and (read(ctx.root .. "/VERSION") or ""):match("%S+") or "", unicode_version)
         if problem then problems[#problems + 1] = ("packages/%s/%s: %s"):format(name, file, problem) end
+      end
+    end
+    -- The `version` field of each top-level module is the version of VERSION (owner decision of 2026-11-25).
+    if version then
+      for _, name in ipairs(util.list_dir(pkgs)) do
+        local module = name:gsub("-", "_")
+        local text = not rockspec.version_field_exempt[name]
+          and (read(name == "hecate" and (pkgs .. "/hecate/src/hecate/init.lua") or ("%s/%s/src/hecate/%s/init.lua"):format(pkgs, name, module)))
+        if text then
+          local found = rockspec.module_version(text)
+          local rel = name == "hecate" and "packages/hecate/src/hecate/init.lua" or ("packages/%s/src/hecate/%s/init.lua"):format(name, module)
+          if not found then
+            problems[#problems + 1] = rel .. ': no `version = "' .. version .. '"` field'
+          elseif found ~= version then
+            problems[#problems + 1] = ("%s: version field is %s, VERSION is %s"):format(rel, found, version)
+          end
+        end
       end
     end
     return { ok = #problems == 0, problems = problems }
