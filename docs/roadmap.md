@@ -353,7 +353,7 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       content tree per audience, `<guides_dir>/<audience>/<locale>/`, each built by the plain builder into
       `<output_dir>/<audience>/`; option `audiences`, default `{ "maintainer" }`; no front matter key, no `merged` mode),
       `llms.txt` and `llms-full.txt` of a project, the theme extension points. **To do:** `llms.txt` of other locales (deferred until someone asks); a `draft` page flag. The move of the Hecate website into two trees is done (the `website` item below); there is no `check-audience` gate (the directory is the label) and no switcher feature (`top_links` carries an absolute link). `hecate doc build|serve` and the `doc` section of `hecate.project.lua` belong to the `cli` item below.
-- [ ] `cli` v1: self-contained executable, `new`, `install`, `add`, `remove`, `update`,
+- [x] `cli` v1: self-contained executable, `new`, `install`, `add`, `remove`, `update`,
       `serve [--watch]`, `test`, `doc`, `contract`, `toolchain`, `doctor`, `version`.
       **Also (from the `test` item, owner go-ahead of 2026-11-16):** `hecate test` takes the options of
       `test.parse_arguments` (`--filter`, `--case`, `--tag`, `--exclude-tag`, paths) and a `--jobs` flag that sets the
@@ -407,6 +407,18 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       **Also (from the `examples/hello` item):** turn `examples/hello` into a Hecate project (`hecate.project.lua`, run
       by `hecate serve`, tested by `hecate test`, `hecate contract lint` in CI), as `examples/README.md` requires of
       every example from Phase 3 on; today it is `lua main.lua` and the repository harness.
+      **Delivered:** the executable (static natives, embedded LuaRocks, Lua headers for C rocks, Windows manifest), every
+      command of the list above except `toolchain`, `generate meta|systemd|workflow`, `package`, `--env`, the `doc`
+      section, the `workers` default of `"auto"`, the static documentation sites (OQ-148), `examples/hello` as a project,
+      the `cli-e2e` tests on the three platforms, the website pages in English and French.
+      **Moved out (owner decisions of 2026-11-24 and 2026-11-25), nothing to implement before them:** `hecate toolchain`
+      (later: compiled toolchains shipped by the project, nothing before Lua 5.4 is supported); the `crud` template (until
+      the ORM and the migrations exist); the installers and the releases, including the `release` kind of
+      `generate workflow`, the mirror `hecate-framework/hecate-setup` of `actions/setup/` and the pin of its tag
+      (owner gate, OQ-149); a check of the generated workflow files (`actionlint`) and a diff before `--force`
+      (OQ-149); the version-skew check of `hecate doctor` (needs a `version` in `core`); the French pages that the
+      English pages of this item link to and that have no French version yet (`configure-an-application`,
+      `serve-and-export-the-contract`, `multi-process-deployment`, `before-going-to-production`, `theme-tokens`).
 - [ ] Docker images (runtime and build variants, amd64 + arm64). **Also (OQ-135, owner decision of 2026-11-15):**
       document a compose stack that shows the contract rendered: the application (`development`, or
       `openapi.enabled = true`), a reverse proxy so that the viewer and the application share one origin (no CORS
