@@ -2,12 +2,14 @@
 -- (cli-and-packaging.md, "Generated workflows"). `ci` (install, test and, when the manifest has a `contract`
 -- section, lint the contract, on Linux, macOS and Windows), `contract` (fails a pull request on a breaking change) and
 -- `docs-pages` (publishes the documentation to GitHub Pages) exist, all with the setup action of the project. The workflow goes to
--- `.github/workflows/<kind>.yml` (`docs.yml` for `docs-pages`) unless `--output` says otherwise; an existing file is kept unless `--force`.
+-- `.github/workflows/<kind>.yml` (`docs.yml` for `docs-pages`) unless `--output` says otherwise; an existing file is kept unless `--force`,
+-- which prints the unified diff of the existing and the new content, then overwrites (nothing is rewritten when they are equal).
 global <const> require, error, ipairs, pcall, type, tostring
 
 local core = require("hecate.core")
 local manifest_module = require("hecate.cli.manifest")
 local workflows = require("hecate.cli.templates.workflows")
+local line_diff = require("hecate.cli.internal.line_diff")
 
 local MANIFEST = "hecate.project.lua"
 
@@ -71,16 +73,27 @@ function command.execute(context, dependencies)
     return 1
   end
   local output = options.output --[[@as string?]] or (".github/workflows/" .. (kind == "docs-pages" and "docs" or kind) .. ".yml")
+  local previous = options.force and dependencies.fs.read(output) or nil -- starts a reactor: outside `run`
+  local diff, unchanged
   local code = dependencies.run(function()
-    if dependencies.exists(output) and not options.force then
-      context.print_error("hecate generate workflow: " .. output .. " already exists; pass --force to overwrite it")
-      return 1
+    if dependencies.exists(output) then
+      if not options.force then
+        context.print_error("hecate generate workflow: " .. output .. " already exists; pass --force to overwrite it")
+        return 1
+      end
+      diff = line_diff.unified(previous or "", workflow, output, output .. " (new)")
+      unchanged = diff == nil
+      if unchanged then return 0 end
     end
     dependencies.write(output, workflow)
     return 0
   end)
   if code ~= 0 then return code end
-  context.emit({ output = output, kind = kind, provider = provider }, "Wrote " .. output .. ".\nCommit it; "
+  if unchanged then
+    context.emit({ output = output, kind = kind, provider = provider, unchanged = true }, output .. " is unchanged.")
+    return 0
+  end
+  context.emit({ output = output, kind = kind, provider = provider, diff = diff }, (diff and (diff .. "\n") or "") .. "Wrote " .. output .. ".\nCommit it; "
     .. (kind == "contract" and "it runs on every pull request, and needs openapi.json committed on the base branch."
       or kind == "docs-pages" and "it runs on a push to the default branch; set the source of GitHub Pages to \"GitHub Actions\"."
       or "it runs on every push and pull request."))

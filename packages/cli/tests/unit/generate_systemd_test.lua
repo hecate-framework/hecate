@@ -12,6 +12,7 @@ local function run(args, opts)
   local project_dir = opts.project_dir or "/srv/shop"
   local written = {}
   local files = opts.manifest == false and {} or { ["hecate.project.lua"] = MANIFEST }
+  if opts.existing and opts.existing_text then files[opts.existing] = opts.existing_text end
   local dependencies = {
     fs = { read = nested.outside(function(path) return files[path] end) }, -- the real read starts a reactor: valid only outside `run`
     write = function(path, text) written[path] = text end,
@@ -59,6 +60,22 @@ function T:test_output_writes_a_file_and_keeps_an_existing_one()
   local code3, _, _, written3 = run({ "generate", "systemd", "--output=shop.service", "--force" }, { existing = "shop.service" })
   self:assert_equal(0, code3)
   self:assert_true(written3["shop.service"] ~= nil)
+end
+
+function T:test_force_prints_a_diff_then_overwrites_and_says_unchanged_when_equal()
+  local _, _, _, fresh = run({ "generate", "systemd", "--output=shop.service" })
+  local old = fresh["shop.service"]:gsub("RestartSec=2", "RestartSec=5")
+  local code, out, _, written = run({ "generate", "systemd", "--output=shop.service", "--force" }, { existing = "shop.service", existing_text = old })
+  self:assert_equal(0, code)
+  self:assert_true(out:find("-RestartSec=5\n+RestartSec=2\n", 1, true) ~= nil, out)
+  self:assert_equal(fresh["shop.service"], written["shop.service"])
+  local code2, out2, _, written2 = run({ "generate", "systemd", "--output=shop.service", "--force" },
+    { existing = "shop.service", existing_text = fresh["shop.service"] })
+  self:assert_equal(0, code2)
+  self:assert_true(out2:find("shop.service is unchanged", 1, true) ~= nil, out2)
+  self:assert_equal(nil, next(written2))
+  local _, json = run({ "generate", "systemd", "--output=shop.service", "--force", "--json" }, { existing = "shop.service", existing_text = old })
+  self:assert_true(json:find('"diff":"--- ', 1, true) ~= nil, json)
 end
 
 function T:test_a_plain_lua_needs_an_executable_and_workers_are_checked()

@@ -1,11 +1,13 @@
 -- `hecate generate systemd [--user <name>] [--workers <n>] [--working-directory <dir>] [--environment-file <file>] [--executable <path>] [--output <file>] [--force]`: the unit
 -- file that runs the application of the project as a service (OQ-133: the platform manages the process, `hecate serve`
 -- never daemonises; it stops on SIGTERM and reloads on SIGHUP, ADR 0023). The unit goes to the standard output, or to
--- `--output` (an existing file is kept unless `--force`).
+-- `--output` (an existing file is kept unless `--force`, which prints the unified diff of the existing and the new unit, then
+-- overwrites; nothing is rewritten when they are equal).
 global <const> require, error, ipairs, string, table, type, tostring
 
 local core = require("hecate.core")
 local manifest_module = require("hecate.cli.manifest")
+local line_diff = require("hecate.cli.internal.line_diff")
 
 local MANIFEST = "hecate.project.lua"
 
@@ -146,16 +148,27 @@ function command.execute(context, dependencies)
     context.emit({ unit = unit }, (unit:gsub("\n$", "")))
     return 0
   end
+  local previous = options.force and dependencies.fs.read(output) or nil -- starts a reactor: outside `run`
+  local diff, unchanged
   local code = dependencies.run(function()
-    if dependencies.exists(output) and not options.force then
-      context.print_error("hecate generate systemd: " .. output .. " already exists; pass --force to overwrite it")
-      return 1
+    if dependencies.exists(output) then
+      if not options.force then
+        context.print_error("hecate generate systemd: " .. output .. " already exists; pass --force to overwrite it")
+        return 1
+      end
+      diff = line_diff.unified(previous or "", unit, output, output .. " (new)")
+      unchanged = diff == nil
+      if unchanged then return 0 end
     end
     dependencies.write(output, unit)
     return 0
   end)
   if code ~= 0 then return code end
-  context.emit({ output = output }, "Wrote " .. output .. ".")
+  if unchanged then
+    context.emit({ output = output, unchanged = true }, output .. " is unchanged.")
+    return 0
+  end
+  context.emit({ output = output, diff = diff }, (diff and (diff .. "\n") or "") .. "Wrote " .. output .. ".")
   return 0
 end
 

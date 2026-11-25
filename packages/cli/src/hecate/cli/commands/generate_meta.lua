@@ -4,11 +4,14 @@
 -- (the name of the manifest) must have `application(options)`, as for `hecate contract export`; the schemas are the
 -- `components.schemas` of the document the application gives. The file is `meta/<namespace>.lua` unless `--output` says
 -- otherwise; list `meta` in `workspace.library` of `.luarc.json`. It is written on demand, never by another command.
+-- An existing file given with `--output` is kept unless `--force`; when it is overwritten (`--force`, or the default file, which is
+-- regenerated) the unified diff of the existing and the new content is printed first, and nothing is rewritten when they are equal.
 global <const> require, error, string, type, tostring
 
 local core = require("hecate.core")
 local manifest_module = require("hecate.cli.manifest")
 local templates = require("hecate.cli.templates")
+local line_diff = require("hecate.cli.internal.line_diff")
 local project_process = require("hecate.cli.internal.project_process")
 
 local MANIFEST = "hecate.project.lua"
@@ -82,6 +85,8 @@ function command.execute(context, dependencies)
     return 2
   end
   local output = options.output --[[@as string?]] or ("meta/" .. namespace .. ".lua")
+  local previous = dependencies.fs.read(output) -- starts a reactor: outside `run`
+  local diff, unchanged
   local code = dependencies.run(function()
     if dependencies.exists(output) and not options.force and not (options.output == nil) then
       context.print_error("hecate generate meta: " .. output .. " already exists; pass --force to overwrite it")
@@ -91,11 +96,20 @@ function command.execute(context, dependencies)
       HECATE_CLI_MODULE = module, HECATE_CLI_TITLE = manifest.contract.title, HECATE_CLI_VERSION = manifest.contract.version,
       HECATE_CLI_NAMESPACE = namespace,
     }, "the declaration file of the schemas")
+    if dependencies.exists(output) then
+      diff = line_diff.unified(previous or "", result.stdout, output, output .. " (new)")
+      unchanged = diff == nil
+      if unchanged then return 0 end
+    end
     dependencies.write(output, result.stdout)
     return 0
   end)
   if code ~= 0 then return code end
-  context.emit({ output = output, namespace = namespace }, "Wrote " .. output .. " (" .. namespace .. ").")
+  if unchanged then
+    context.emit({ output = output, namespace = namespace, unchanged = true }, output .. " is unchanged.")
+    return 0
+  end
+  context.emit({ output = output, namespace = namespace, diff = diff }, (diff and (diff .. "\n") or "") .. "Wrote " .. output .. " (" .. namespace .. ").")
   return 0
 end
 

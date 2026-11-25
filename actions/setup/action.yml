@@ -2,14 +2,14 @@
 #
 # Source of truth: `actions/setup/` of the monorepo hecate-framework/hecate. It is published to the generated read-only
 # mirror hecate-framework/hecate-setup (ADR 0017), which has this file at its root, as GitHub requires; do not edit the
-# mirror. Usage: `uses: hecate-framework/hecate-setup@<tag>` with `version: "<x.y.z>"`.
+# mirror. Usage: `uses: hecate-framework/hecate-setup@<tag>` with `version: "<X.Y.Z-R>"`.
 name: Setup hecate
 description: Download the hecate executable of a release for the platform of the runner, verify its SHA-256 and put it on the PATH.
 author: hecate-framework
 
 inputs:
   version:
-    description: The release of Hecate to install, a SemVer version without the leading v, for example 0.4.0.
+    description: The release of Hecate to install, in the LuaRocks version form X.Y.Z-R (no leading v), for example 0.4.0-1. It is the tag of the release.
     required: true
   repository:
     description: The repository whose releases carry the executable.
@@ -41,9 +41,8 @@ runs:
         set -euo pipefail
         fail() { echo "::error title=setup hecate::$1" >&2; exit 1; }
 
-        # SemVer 2.0.0, section 2 (the grammar of a version), without the leading v.
-        semver='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$'
-        [[ "$HECATE_SETUP_VERSION" =~ $semver ]] || fail "version '$HECATE_SETUP_VERSION' is not a SemVer version such as 0.4.0 (no leading v)"
+        # The tags and releases of Hecate have no `v` and are named like a rock: <version>-<revision> (0.4.0-1).
+        [[ "$HECATE_SETUP_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+-[0-9]+$ ]] || fail "version '$HECATE_SETUP_VERSION' is not of the form X.Y.Z-R such as 0.4.0-1 (a version and a revision, no leading v)"
         [[ "$HECATE_SETUP_REPOSITORY" =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ ]] || fail "repository '$HECATE_SETUP_REPOSITORY' is not of the form owner/name"
 
         case "$HECATE_SETUP_OS" in
@@ -58,17 +57,17 @@ runs:
           *) fail "unsupported runner architecture '$HECATE_SETUP_ARCH' (X64 and ARM64 are)" ;;
         esac
 
-        # The assets of a release are named like `hecate package` names an archive: <name>-<version>-<platform>.<extension>,
+        # The assets of a release are named hecate-<version>-<os>-<arch>.<extension> with the whole X.Y.Z-R as <version>,
         # with the SHA-256 in <asset>.sha256 (the output of `sha256sum`: "<hex>  <file name>").
         asset="hecate-${HECATE_SETUP_VERSION}-${os}-${architecture}.${extension}"
-        base="https://github.com/${HECATE_SETUP_REPOSITORY}/releases/download/v${HECATE_SETUP_VERSION}"
+        base="https://github.com/${HECATE_SETUP_REPOSITORY}/releases/download/${HECATE_SETUP_VERSION}"
         directory="${HECATE_SETUP_CACHE}/hecate/${HECATE_SETUP_VERSION}/${os}-${architecture}"
         download="${HECATE_SETUP_TEMP}/hecate-setup-$$"
         mkdir -p "$download"
 
         if [ ! -x "${directory}/${program}" ]; then
           curl --fail --silent --show-error --location --retry 3 --output "${download}/${asset}" "${base}/${asset}" \
-            || fail "cannot download ${base}/${asset}: is there a release v${HECATE_SETUP_VERSION} for ${os}-${architecture}?"
+            || fail "cannot download ${base}/${asset}: is there a release ${HECATE_SETUP_VERSION} for ${os}-${architecture}?"
           curl --fail --silent --show-error --location --retry 3 --output "${download}/${asset}.sha256" "${base}/${asset}.sha256" \
             || fail "cannot download ${base}/${asset}.sha256: the executable is not installed without its checksum"
 
@@ -107,5 +106,5 @@ runs:
         set -euo pipefail
         PATH="${HECATE_SETUP_DIRECTORY}:${PATH}"
         hecate version
-        hecate version | grep -F "Hecate ${HECATE_SETUP_VERSION%%[-+]*}" >/dev/null \
-          || { echo "::error title=setup hecate::the executable does not report version ${HECATE_SETUP_VERSION}" >&2; exit 1; }
+        hecate version | grep -F "Hecate ${HECATE_SETUP_VERSION%-*}" >/dev/null \
+          || { echo "::error title=setup hecate::the executable does not report version ${HECATE_SETUP_VERSION%-*} (release ${HECATE_SETUP_VERSION})" >&2; exit 1; }

@@ -2,7 +2,7 @@
 -- overwrite changes before it overwrites. `hecate.test` has only a structural diff of Lua values, not a text diff, so
 -- this is the text one. The longest common subsequence of the lines between the common prefix and the common suffix;
 -- past `MAX_CELLS` the middle is shown as one removal and one addition instead (still correct, less minimal).
-global <const> table, ipairs, math
+global <const> table, ipairs, math, tostring
 
 ---@class hecate.cli.internal.line_diff
 local M = {}

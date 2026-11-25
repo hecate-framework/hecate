@@ -11,10 +11,16 @@ local M = {}
 --- The repository of the setup action: the read-only mirror of `actions/setup/` of the monorepo (ADR 0017).
 M.SETUP_ACTION = "hecate-framework/hecate-setup"
 
---- The tag of the setup action that the generated workflows use. PLACEHOLDER: the release process pins it (the tag of the
---- release, then its commit SHA with the tag in a comment, cli-and-packaging.md) when it tags the action; until the owner
---- has created the mirror and the first release, no such tag exists.
-M.SETUP_REF = "v1"
+--- The tag of the setup action that the generated workflows use. PLACEHOLDER: the tags of Hecate and of the mirror of the
+--- action have no `v` and follow the LuaRocks version form `<version>-<revision>` (owner, 2026-11-25); the release process
+--- pins the real one (the tag of the release, then its commit SHA with the tag in a comment, cli-and-packaging.md) when it
+--- tags the action; until the owner has created the mirror and the first release, no such tag exists.
+M.SETUP_REF = "0.0.0-1"
+
+--- The revision of a release of Hecate (`<version>-<revision>`, the LuaRocks version form of the tags and of the `version`
+--- input of the setup action). Every release of Hecate is revision 1 until a release has to be re-issued with the same
+--- version; the workflows name `<hecate_version>-<REVISION>`.
+M.REVISION = 1
 
 --- The checkout action, pinned by commit SHA (the same pin as the workflows of the monorepo).
 M.CHECKOUT = "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7"
@@ -42,14 +48,15 @@ M.DEPLOY_PAGES = "actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 
 ---@field contract? boolean  the project has a `contract` section: export and lint the contract
 ---@field doc? boolean  build the documentation (`hecate doc build --yes`)
 
---- A YAML double-quoted scalar for a version string (no escapes needed for a SemVer, anything else is refused).
----@param version string
+--- A YAML double-quoted scalar for the release of a version string, `<version>-<REVISION>` (no escapes needed for a SemVer,
+--- anything else is refused).
+---@param version string  the version of Hecate, `X.Y.Z`
 ---@return string
 local function quoted_version(version)
   if type(version) ~= "string" or not version:match("^[%w%.%+%-]+$") then
     error(core.ArgumentError("'" .. tostring(version) .. "' is not a version of Hecate that a workflow can name"), 0)
   end
-  return '"' .. version .. '"'
+  return '"' .. version .. "-" .. M.REVISION .. '"'
 end
 
 --- The `ci` workflow: on every push and pull request, on Linux, macOS and Windows, checks out the project, installs the
@@ -115,7 +122,7 @@ end
 
 --- The lines that every job of the other kinds starts with: checkout (the whole history when `full_history`), the setup
 --- action and the locked rocks.
----@param version string  the quoted version
+---@param version string  the quoted release, `"X.Y.Z-R"`
 ---@param full_history boolean
 ---@return string[]
 local function setup_lines(version, full_history)

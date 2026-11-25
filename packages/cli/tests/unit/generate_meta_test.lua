@@ -11,6 +11,7 @@ local function run(args, opts)
   opts = opts or {}
   local written, spawned = {}, {}
   local files = { ["hecate.project.lua"] = opts.manifest == nil and MANIFEST or opts.manifest }
+  if opts.existing and opts.existing_text then files[opts.existing] = opts.existing_text end
   local dependencies = {
     fs = { read = nested.outside(function(path) return files[path] end) }, -- the real read starts a reactor: valid only outside `run`
     write = function(path, text) written[path] = text end,
@@ -58,6 +59,21 @@ function T:test_namespace_and_output_can_be_given_and_an_existing_output_needs_f
   local code4, _, err4 = run({ "generate", "meta", "--namespace=1 bad" })
   self:assert_equal(2, code4)
   self:assert_true(err4:find("--namespace", 1, true) ~= nil, err4)
+end
+
+function T:test_force_prints_a_diff_then_overwrites_and_says_unchanged_when_equal()
+  local args = { "generate", "meta", "--output=types.lua", "--force" }
+  local code, out, _, written = run(args, { existing = "types.lua", existing_text = "---@meta old\n" })
+  self:assert_equal(0, code)
+  self:assert_true(out:find("--- types.lua\n+++ types.lua (new)\n@@ -1 +1 @@\n-", 1, true) ~= nil, out)
+  self:assert_true(out:find("+---@meta my_shop.schemas\n", 1, true) ~= nil, out)
+  self:assert_equal("---@meta my_shop.schemas\n", written["types.lua"])
+  local code2, out2, _, written2 = run(args, { existing = "types.lua", existing_text = "---@meta my_shop.schemas\n" })
+  self:assert_equal(0, code2)
+  self:assert_true(out2:find("types.lua is unchanged", 1, true) ~= nil, out2)
+  self:assert_equal(nil, next(written2))
+  local _, json = run({ "generate", "meta", "--output=types.lua", "--force", "--json" }, { existing = "types.lua", existing_text = "x\n" })
+  self:assert_true(json:find('"diff":"--- types.lua', 1, true) ~= nil, json)
 end
 
 function T:test_a_contract_section_is_required_and_a_failing_child_is_reported()
