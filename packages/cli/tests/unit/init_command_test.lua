@@ -3,6 +3,8 @@ local app = require("hecate.cli.app")
 local init = require("hecate.cli.commands.init")
 local manifest = require("hecate.cli.manifest")
 local T = test.Case("CliInitCommandTest")
+local here = debug.getinfo(1, "S").source:match("^@(.*)[/\\][^/\\]*$") or "."
+local nested = dofile(here .. "/../support/nested_guard.lua")
 
 local runtime = { hecate_version = "0.1.0", lua_version = "5.5.1", platform = "linux-x86_64" }
 
@@ -14,7 +16,7 @@ local function run(args, existing, directory)
     write = function(path, text) written[path] = text end,
     exists = function(path) return present[path] == true end,
     directory_name = function() return directory or "My Shop" end,
-    run = function(task) return task() end,
+    run = nested.run,
   }
   local command = setmetatable({ run = function(context) return init.execute(context, dependencies) end }, { __index = init })
   local out, err = {}, {}

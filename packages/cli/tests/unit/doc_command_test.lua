@@ -2,6 +2,8 @@ local test = require("harness.test")
 local app = require("hecate.cli.app")
 local doc_command = require("hecate.cli.commands.doc")
 local T = test.Case("CliDocCommandTest")
+local here = debug.getinfo(1, "S").source:match("^@(.*)[/\\][^/\\]*$") or "."
+local nested = dofile(here .. "/../support/nested_guard.lua")
 
 local runtime = { hecate_version = "0.1.0", lua_version = "5.5.1", platform = "linux-x86_64", project_dir = "/work/app" }
 
@@ -11,7 +13,7 @@ local function run(args, opts)
   local manifest = opts.manifest or 'return { name = "shop", doc = { guides_dir = "guides", package_name = "shop" } }'
   local dependencies = {
     fs = { read = function(path) if opts.no_manifest then return nil end; return path == "hecate.project.lua" and manifest or nil end },
-    run = function(task) return task() end,
+    run = nested.run,
     ask = function() seen.asked = seen.asked + 1; return opts.answer == true end,
     generate = function(options, module)
       seen.options = options

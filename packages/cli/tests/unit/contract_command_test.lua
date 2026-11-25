@@ -2,6 +2,8 @@ local test = require("harness.test")
 local app = require("hecate.cli.app")
 local contract = require("hecate.cli.commands.contract")
 local T = test.Case("CliContractCommandTest")
+local here = debug.getinfo(1, "S").source:match("^@(.*)[/\\][^/\\]*$") or "."
+local nested = dofile(here .. "/../support/nested_guard.lua")
 
 local runtime = { hecate_version = "0.1.0", lua_version = "5.5.1", platform = "linux-x86_64" }
 
@@ -103,7 +105,7 @@ local function export_setup(files, result)
   return calls, written, {
     read = function(path) return files[path] end,
     write = function(path, text) written[path] = text end,
-    run = function(task) return task() end,
+    run = nested.run,
     run_process = function(program, args, options)
       calls[#calls + 1] = { program = program, args = args, options = options }
       return result or { code = 0, stdout = '{"openapi":"3.1.0"}', stderr = "" }
@@ -182,7 +184,7 @@ local function ref_setup(git_result, now)
   return calls, {
     read = function(path) return files[path] end,
     write = function() end,
-    run = function(task) return task() end,
+    run = nested.run,
     run_process = function(program, args, options)
       calls[#calls + 1] = { program = program, args = args, options = options }
       if program == "git" then return git_result end

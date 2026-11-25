@@ -2,6 +2,8 @@ local test = require("harness.test")
 local app = require("hecate.cli.app")
 local package_command = require("hecate.cli.commands.package")
 local T = test.Case("CliPackageCommandTest")
+local here = debug.getinfo(1, "S").source:match("^@(.*)[/\\][^/\\]*$") or "."
+local nested = dofile(here .. "/../support/nested_guard.lua")
 
 local MANIFEST = 'return { name = "shop", version = "0.2.0" }'
 
@@ -17,7 +19,7 @@ local function run(args, opts)
       write = function(path, text) written[path] = text end,
       remove = function(path) removed[#removed + 1] = path end,
     },
-    run = function(task) return task() end,
+    run = nested.run,
     run_process = function(program, process_args, options)
       spawned[#spawned + 1] = { program = program, args = process_args, options = options }
       return { code = opts.code or 0, stdout = "", stderr = opts.stderr or "" }

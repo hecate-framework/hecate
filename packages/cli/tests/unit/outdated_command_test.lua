@@ -3,6 +3,8 @@ local app = require("hecate.cli.app")
 local outdated = require("hecate.cli.commands.outdated")
 local luarocks = require("hecate.cli.luarocks")
 local T = test.Case("CliOutdatedCommandTest")
+local here = debug.getinfo(1, "S").source:match("^@(.*)[/\\][^/\\]*$") or "."
+local nested = dofile(here .. "/../support/nested_guard.lua")
 
 local runtime = { hecate_version = "0.1.0", lua_version = "5.5.1", luarocks_version = "3.13.0", platform = "linux-x86_64" }
 local MANIFEST = 'return { name = "app", dependencies = { plc = "~> 0.5", luv = "~> 1.50" }, development_dependencies = { busted = ">= 2.0" } }'
@@ -18,7 +20,7 @@ local function run(args, listing, files, rt)
       end,
       tree = "lua_modules", config_dir = ".hecate/luarocks",
     }),
-    run = function(task) return task() end,
+    run = nested.run,
   }
   local out, err = {}, {}
   local command = setmetatable({ run = function(context) return outdated.execute(context, dependencies) end }, { __index = outdated })

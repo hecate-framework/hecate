@@ -2,6 +2,8 @@ local test = require("harness.test")
 local app = require("hecate.cli.app")
 local generate_meta = require("hecate.cli.commands.generate_meta")
 local T = test.Case("CliGenerateMetaTest")
+local here = debug.getinfo(1, "S").source:match("^@(.*)[/\\][^/\\]*$") or "."
+local nested = dofile(here .. "/../support/nested_guard.lua")
 
 local MANIFEST = 'return { name = "my-shop", version = "0.1.0", contract = { title = "My shop", version = "1.2.3" } }'
 
@@ -13,7 +15,7 @@ local function run(args, opts)
     fs = { read = function(path) return files[path] end },
     write = function(path, text) written[path] = text end,
     exists = function(path) return path == opts.existing end,
-    run = function(task) return task() end,
+    run = nested.run,
     run_process = function(program, process_args, options)
       spawned[#spawned + 1] = { program = program, args = process_args, options = options }
       return { code = opts.code or 0, stdout = "---@meta my_shop.schemas\n", stderr = opts.stderr or "" }

@@ -2,6 +2,8 @@ local test = require("harness.test")
 local app = require("hecate.cli.app")
 local systemd = require("hecate.cli.commands.generate_systemd")
 local T = test.Case("CliGenerateSystemdTest")
+local here = debug.getinfo(1, "S").source:match("^@(.*)[/\\][^/\\]*$") or "."
+local nested = dofile(here .. "/../support/nested_guard.lua")
 
 local MANIFEST = 'return { name = "shop", version = "0.1.0" }'
 
@@ -14,7 +16,7 @@ local function run(args, opts)
     fs = { read = function(path) return files[path] end },
     write = function(path, text) written[path] = text end,
     exists = function(path) return path == opts.existing end,
-    run = function(task) return task() end,
+    run = nested.run,
   }
   local arguments
   if not opts.plain then arguments = { "--lua" } end

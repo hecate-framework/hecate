@@ -3,6 +3,8 @@ local app = require("hecate.cli.app")
 local update = require("hecate.cli.commands.update")
 local luarocks = require("hecate.cli.luarocks")
 local T = test.Case("CliUpdateCommandTest")
+local here = debug.getinfo(1, "S").source:match("^@(.*)[/\\][^/\\]*$") or "."
+local nested = dofile(here .. "/../support/nested_guard.lua")
 
 local runtime = { hecate_version = "0.1.0", lua_version = "5.5.1", luarocks_version = "3.13.0", platform = "linux-x86_64" }
 local MANIFEST = 'return { name = "app", version = "0.1.0", dependencies = { plc = "~> 0.5" } }'
@@ -38,7 +40,7 @@ local function world(initial)
     work_dir = ".hecate/luarocks", tree = "lua_modules",
     luarocks = luarocks.new({ runner = runner, tree = "lua_modules", config_dir = ".hecate/luarocks" }),
     sha256 = sha,
-    run = function(task) return task() end,
+    run = nested.run,
   }
   return files, dependencies, calls
 end
