@@ -29,9 +29,11 @@ end
 --- Unicode schedule and never bumped with `VERSION`.
 M.exempt = { ["unicode-data"] = { license = "Unicode-3.0", versioned_by = "Unicode" } }
 
---- Packages whose top-level module has no `version` field of the package: `hecate.unicode.version` is the Unicode
---- version of the tables (ADR 0032), and the data rock is released outside the lockstep.
-M.version_field_exempt = { unicode = true, ["unicode-data"] = true }
+--- Packages whose top-level module has no `version` field of the package: the data rock is released outside the
+--- lockstep and its module exposes `unicode_version`, the Unicode version, which is also its rock version (ADR 0032).
+--- `hecate.unicode` is not exempt: its `version` is the lockstep `VERSION` and it reports the Unicode version as
+--- `unicode_version` (owner decision of 2026-11-25, OQ-150).
+M.version_field_exempt = { ["unicode-data"] = true }
 
 --- The `version` field of a top-level module, read from its text: a `version = "..."` entry of the table constructor
 --- (indented by two spaces) or a `<name>.version = "..."` assignment at the start of a line.

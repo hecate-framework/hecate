@@ -2,7 +2,7 @@
 -- requires "lua >= 5.5, < 5.6". The data rock `hecate-unicode-data` is exempt from the lockstep (ADR 0032): a
 -- released rockspec of it is at `<Unicode version>-<revision>`, the Unicode version being the one of its
 -- generated tables; the tree itself holds the development version `scm-1` of every package. The `version` field of each
--- top-level module (`hecate.core.version`, ...) equals VERSION, except `unicode` and `unicode-data`.
+-- top-level module (`hecate.core.version`, ...) equals VERSION, except `unicode-data` (whose module exposes `unicode_version`).
 local util = require("lib.util")
 local rockspec = require("lib.rockspec")
 local package_kind = require("lib.package_kind")

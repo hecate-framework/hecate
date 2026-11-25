@@ -62,7 +62,7 @@ end
 function T:test_the_fixture_is_the_version_of_the_data()
   local text = present(self)
   if not text then return end
-  self:assert_equal("NormalizationTest-" .. unicode.version .. ".txt", text:match("^# (NormalizationTest%-[%d%.]+%.txt)"))
+  self:assert_equal("NormalizationTest-" .. unicode.unicode_version .. ".txt", text:match("^# (NormalizationTest%-[%d%.]+%.txt)"))
 end
 
 function T:test_every_line_of_every_part_in_the_nfc_and_nfd_columns()

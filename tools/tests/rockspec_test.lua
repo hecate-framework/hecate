@@ -64,6 +64,12 @@ function T:test_reads_the_version_field_of_a_top_level_module()
   self:assert_nil(rockspec.module_version('local M = {\n  unicode_version = "18.0.0",\n}\n'))
 end
 
+function T:test_only_the_data_rock_has_no_version_field()
+  self:assert_true(rockspec.version_field_exempt["unicode-data"])
+  self:assert_nil(rockspec.version_field_exempt.unicode)
+  self:assert_nil(rockspec.version_field_exempt.core)
+end
+
 function T:test_check_versions_compares_the_version_field_with_version_file()
   local task = require("tasks.check_versions")
   local root = os.tmpname()
