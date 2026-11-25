@@ -19,9 +19,15 @@ end
 function T:test_no_extra_key_leaks()
   local expected = {}
   for _, name in ipairs(EXPECTED) do expected[name] = true end
+  expected.version = true -- the version of the package, not a re-export
   for key in pairs(hecate) do
     self:assert_true(expected[key] == true, "unexpected key " .. tostring(key))
   end
+end
+
+function T:test_the_version_is_that_of_the_package()
+  self:assert_equal("string", type(hecate.version))
+  self:assert_true(hecate.version:match("^%d+%.%d+%.%d+") ~= nil)
 end
 
 function T:test_object_model_entry_points_are_not_re_exported()

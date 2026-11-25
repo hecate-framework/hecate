@@ -17,6 +17,7 @@ function T:test_the_module_exports_exactly_the_documented_names()
   for _, name in ipairs(CLASSES) do expected[#expected + 1] = name end
   for _, name in ipairs(FUNCTIONS) do expected[#expected + 1] = name end
   expected[#expected + 1] = "TapReporter"
+  expected[#expected + 1] = "version"
   for name in pairs(hecate_test) do actual[#actual + 1] = name end
   table.sort(expected)
   table.sort(actual)
