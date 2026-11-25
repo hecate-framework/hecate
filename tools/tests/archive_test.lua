@@ -102,4 +102,23 @@ function T:test_bad_and_duplicate_names_are_refused()
   self:assert_error(function() archive.zip({ { name = "a", data = "" }, { name = "a", data = "" } }) end, "duplicate")
 end
 
+function T:test_a_pax_extended_header_precedes_its_entry_and_reads_back()
+  local bytes = archive.tar({
+    { name = "a.txt", data = "hello", pax = { ["APK-TOOLS.checksum.SHA1"] = "aaf4c61ddcc5e8a2dabede0f3b482cd9aea9434d", ["z.key"] = "v" } },
+    { name = "b.txt", data = "x" },
+  })
+  self:assert_equal(0, #bytes % 512)
+  local entries = assert(archive.read_tar(bytes))
+  self:assert_equal(2, #entries)
+  self:assert_equal("a.txt", entries[1].name)
+  self:assert_equal("hello", entries[1].data)
+  self:assert_equal("aaf4c61ddcc5e8a2dabede0f3b482cd9aea9434d", entries[1].pax["APK-TOOLS.checksum.SHA1"])
+  self:assert_equal("v", entries[1].pax["z.key"])
+  self:assert_equal(nil, next(entries[2].pax))
+  -- the record length counts its own digits: "<n> key=value\n"
+  self:assert_true(bytes:find("\n", 1, true) ~= nil)
+  local record = bytes:match("(%d+ APK%-TOOLS%.checksum%.SHA1=%x+\n)")
+  self:assert_equal(tonumber(record:match("^%d+")), #record)
+end
+
 return T

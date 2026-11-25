@@ -242,6 +242,9 @@ function T:test_the_apk_is_two_gzip_streams_and_the_datahash_names_the_second()
   for _, e in ipairs(entries) do names[e.name] = e end
   self:assert_equal(493, names["usr/bin/hecate"].mode)
   self:assert_equal("root", names["usr/bin/hecate"].uname)
+  -- apk 2 wants the SHA-1 of every regular file; without it the install ends with an error status and no message
+  self:assert_equal(require("lib.sha1").hex(names["usr/bin/hecate"].data), names["usr/bin/hecate"].pax["APK-TOOLS.checksum.SHA1"])
+  self:assert_equal(nil, names["usr/"].pax["APK-TOOLS.checksum.SHA1"])
 end
 
 function T:test_the_rpm_spec_lists_the_files_with_their_modes_and_the_licence()

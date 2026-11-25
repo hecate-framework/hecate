@@ -17,6 +17,7 @@
 -- beta, pre and rc are the suffixes of Alpine versions too.
 local util = require("lib.util")
 local archive = require("lib.archive")
+local sha1 = require("lib.sha1")
 local sha256 = require("lib.sha256")
 local md5 = require("lib.md5")
 local release_version = require("lib.release_version")
@@ -509,14 +510,21 @@ end
 
 --- The bytes of the `.apk` (Alpine package format 2, unsigned): two gzip streams one after the other, the control tar
 --- (`.PKGINFO`, without the end-of-archive blocks) and the data tar. `.PKGINFO` carries the sha256 of the data stream as
---- `datahash`. Install with `apk add --allow-untrusted`: there is no signature.
+--- `datahash`; each regular file carries its SHA-1 as a pax record. Install with `apk add --allow-untrusted`: there is no
+--- signature.
 ---@param files tools.ArchiveEntry[]
 ---@param versions tools.PackageVersions
 ---@param options tools.PackageOptions
 ---@return string? package
 ---@return string? err
 function M.apk(files, versions, options)
-  local data_gz, err = M.gzip(archive.tar(tree_entries(files, "", false), { owner = "root" }), options.scratch)
+  local entries = tree_entries(files, "", false)
+  -- apk 2 verifies the installed files with the SHA-1 of each file (`APK-TOOLS.checksum.SHA1`, a pax record before the
+  -- entry): without it the install ends with an error status and no message.
+  for _, entry in ipairs(entries) do
+    if not entry.dir then entry.pax = { ["APK-TOOLS.checksum.SHA1"] = sha1.hex(entry.data) } end
+  end
+  local data_gz, err = M.gzip(archive.tar(entries, { owner = "root" }), options.scratch)
   if not data_gz then return nil, err end
   local info = M.apk_pkginfo(versions, installed_size(files), sha256.hex(data_gz))
   local control_gz

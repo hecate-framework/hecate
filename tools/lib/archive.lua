@@ -41,6 +41,7 @@ end
 ---@field data string
 ---@field mode? integer   permission bits, default 0644 (0755 for a directory)
 ---@field dir? boolean   a directory entry (tar only): `data` is "" and the name ends with `/`
+---@field pax? table<string, string>   pax extended header records written before the entry (tar only)
 
 --- The entries sorted by name; a bad or duplicate name is an error.
 ---@param entries tools.ArchiveEntry[]
@@ -67,7 +68,46 @@ local function octal(value, width) return ("%0" .. (width - 1) .. "o\0"):format(
 ---@field trailer? boolean   write the two zero blocks that end a tar (default true; the control segment of an Alpine
 ---   package is a tar without them, so that the next gzip member continues the same archive)
 
---- The bytes of a ustar archive.
+--- One 512-byte ustar header.
+---@param name string
+---@param mode integer
+---@param size integer
+---@param typeflag string
+---@param owner string
+---@return string
+local function tar_header(name, mode, size, typeflag, owner)
+  local fields = {
+    name .. ("\0"):rep(100 - #name),
+    octal(mode, 8), octal(0, 8), octal(0, 8), octal(size, 12), octal(M.MTIME, 12),
+    "        ", typeflag, ("\0"):rep(100), "ustar\0", "00", owner .. ("\0"):rep(32 - #owner), owner .. ("\0"):rep(32 - #owner),
+    octal(0, 8), octal(0, 8), ("\0"):rep(155),
+  }
+  local header = table.concat(fields)
+  header = header .. ("\0"):rep(512 - #header)
+  local sum = 0
+  for i = 1, 512 do sum = sum + header:byte(i) end
+  return header:sub(1, 148) .. ("%06o\0 "):format(sum) .. header:sub(157)
+end
+
+--- The data of a pax extended header: one record `<length> <key>=<value>\n` per key, in key order. `<length>` counts the
+--- whole record, its own digits included.
+---@param pax table<string, string>
+---@return string
+local function pax_data(pax)
+  local keys = {}
+  for key in pairs(pax) do keys[#keys + 1] = key end
+  table.sort(keys)
+  local out = {}
+  for _, key in ipairs(keys) do
+    local body = (" %s=%s\n"):format(key, pax[key])
+    local length = #body + 1
+    while #tostring(length) + #body ~= length do length = #tostring(length) + #body end
+    out[#out + 1] = length .. body
+  end
+  return table.concat(out)
+end
+
+--- The bytes of a ustar archive. An entry with `pax` is preceded by a pax extended header (`x`) carrying those records.
 ---@param entries tools.ArchiveEntry[]
 ---@param options? tools.TarOptions
 ---@return string
@@ -75,35 +115,32 @@ function M.tar(entries, options)
   options = options or {}
   local owner = options.owner or ""
   local out = {}
+  local function block(data)
+    out[#out + 1] = data
+    out[#out + 1] = ("\0"):rep((512 - #data % 512) % 512)
+  end
   for _, entry in ipairs(sorted(entries)) do
     local is_dir = entry.dir == true
     if is_dir and (entry.name:sub(-1) ~= "/" or #entry.data > 0) then error("archive: bad directory entry " .. entry.name, 2) end
-    local fields = {
-      entry.name .. ("\0"):rep(100 - #entry.name),
-      octal(entry.mode or (is_dir and 493 or 420), 8), octal(0, 8), octal(0, 8), octal(#entry.data, 12), octal(M.MTIME, 12),
-      "        ", is_dir and "5" or "0", ("\0"):rep(100), "ustar\0", "00", owner .. ("\0"):rep(32 - #owner), owner .. ("\0"):rep(32 - #owner),
-      octal(0, 8), octal(0, 8), ("\0"):rep(155),
-    }
-    local header = table.concat(fields)
-    header = header .. ("\0"):rep(512 - #header)
-    local sum = 0
-    for i = 1, 512 do sum = sum + header:byte(i) end
-    header = header:sub(1, 148) .. ("%06o\0 "):format(sum) .. header:sub(157)
-    out[#out + 1] = header
-    out[#out + 1] = entry.data
-    out[#out + 1] = ("\0"):rep((512 - #entry.data % 512) % 512)
+    if entry.pax then
+      local data = pax_data(entry.pax)
+      out[#out + 1] = tar_header(("./PaxHeaders/" .. entry.name):sub(1, 100), 420, #data, "x", owner)
+      block(data)
+    end
+    out[#out + 1] = tar_header(entry.name, entry.mode or (is_dir and 493 or 420), #entry.data, is_dir and "5" or "0", owner)
+    block(entry.data)
   end
   if options.trailer ~= false then out[#out + 1] = ("\0"):rep(1024) end
   return table.concat(out)
 end
 
---- Reads a ustar archive written by `M.tar` (or any tar without extended headers): name, data, permission bits, whether
---- the entry is a directory and the owner names. Used by the tests.
+--- Reads a ustar archive written by `M.tar` (or any tar with pax extended headers): name, data, permission bits, whether
+--- the entry is a directory, the owner names and the pax records. Used by the tests.
 ---@param bytes string
----@return { name: string, data: string, mode: integer, dir: boolean, uid: integer, uname: string }[]? entries
+---@return { name: string, data: string, mode: integer, dir: boolean, uid: integer, uname: string, pax: table<string, string> }[]? entries
 ---@return string? err
 function M.read_tar(bytes)
-  local entries, position = {}, 1
+  local entries, position, pax = {}, 1, {}
   while position + 511 <= #bytes do
     local header = bytes:sub(position, position + 511)
     if header == ("\0"):rep(512) then break end
@@ -112,10 +149,17 @@ function M.read_tar(bytes)
     for i = 1, 512 do sum = sum + ((i >= 149 and i <= 156) and 32 or header:byte(i)) end
     if tonumber(header:sub(149, 154), 8) ~= sum then return nil, "bad checksum for " .. name end
     local size = tonumber(header:sub(125, 135), 8)
-    entries[#entries + 1] = {
-      name = name, data = bytes:sub(position + 512, position + 511 + size), mode = tonumber(header:sub(101, 107), 8),
-      dir = header:sub(157, 157) == "5", uid = tonumber(header:sub(109, 115), 8), uname = header:sub(266, 297):match("^[^%z]*"),
-    }
+    local data = bytes:sub(position + 512, position + 511 + size)
+    if header:sub(157, 157) == "x" then
+      pax = {}
+      for key, value in data:gmatch("%d+ ([^=\n]+)=([^\n]*)\n") do pax[key] = value end
+    else
+      entries[#entries + 1] = {
+        name = name, data = data, mode = tonumber(header:sub(101, 107), 8), pax = pax,
+        dir = header:sub(157, 157) == "5", uid = tonumber(header:sub(109, 115), 8), uname = header:sub(266, 297):match("^[^%z]*"),
+      }
+      pax = {}
+    end
     position = position + 512 + ((size + 511) // 512) * 512
   end
   return entries
