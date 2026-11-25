@@ -88,7 +88,7 @@ function T:test_a_control_character_in_the_executable_or_the_directory_is_refuse
   self:assert_true(err:find("control character", 1, true) ~= nil, err)
   local code2, _, err2 = run({ "generate", "systemd" }, { project_dir = "/srv/a\nUser=root" })
   self:assert_equal(2, code2)
-  self:assert_true(err2:find("project directory", 1, true) ~= nil, err2)
+  self:assert_true(err2:find("working directory", 1, true) ~= nil, err2)
 end
 
 function T:test_spaces_and_percent_are_escaped_for_systemd()
@@ -97,6 +97,21 @@ function T:test_spaces_and_percent_are_escaped_for_systemd()
   self:assert_true(out:find("WorkingDirectory=/srv/my shop/50%%\n", 1, true) ~= nil, out)
   local _, quoted = run({ "generate", "systemd", '--executable=/opt/a"b$c/hecate' })
   self:assert_true(quoted:find('ExecStart="/opt/a\\"b$$c/hecate" serve', 1, true) ~= nil, quoted)
+end
+
+function T:test_the_directory_and_the_environment_file_are_those_of_the_server()
+  local code, out = run({ "generate", "systemd", "--working-directory=/srv/prod/shop", "--environment-file=/etc/shop/env" })
+  self:assert_equal(0, code)
+  self:assert_true(out:find("WorkingDirectory=/srv/prod/shop\n", 1, true) ~= nil, out)
+  self:assert_true(out:find("EnvironmentFile=/etc/shop/env\n", 1, true) ~= nil, out)
+  self:assert_true(out:find("/srv/shop", 1, true) == nil, out) -- the directory of the machine that generated it is not in the unit
+  local _, plain = run({ "generate", "systemd" })
+  self:assert_true(plain:find("EnvironmentFile", 1, true) == nil)
+  for _, args in ipairs({ { "--working-directory=relative" }, { "--environment-file=env" }, { "--environment-file=/etc/a\nB=c" }, { "--working-directory=/a\nB=c" } }) do
+    local bad, _, err = run({ "generate", "systemd", args[1] })
+    self:assert_equal(2, bad, args[1])
+    self:assert_true(err:find("hecate generate systemd", 1, true) ~= nil, err)
+  end
 end
 
 function T:test_a_project_is_required()

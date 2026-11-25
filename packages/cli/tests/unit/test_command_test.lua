@@ -75,6 +75,26 @@ function T:test_files_are_loaded_as_they_are_and_directories_discovered()
   self:assert_equal("tests/x_test.lua,more/a_test.lua", seen.cases[1].path .. "," .. seen.cases[2].path)
 end
 
+function T:test_a_project_without_its_rocks_is_told_to_install_them()
+  local out, err = {}, {}
+  local command = setmetatable({ run = function(context)
+    return test_command.execute(context, {
+      fs = { read = function() return "return { name = 'x' }" end },
+      run = function(task) return task() end,
+      set_module_path = function() end,
+      load_test = function() error("module 'hecate.test' not found:\n\tno file 'x'", 0) end,
+    })
+  end }, { __index = test_command })
+  local code = app.run({ "test" }, {
+    commands = { command }, runtime = { hecate_version = "0.1.0", lua_version = "5.5.1", platform = "linux-x86_64", project_dir = "/work/app" },
+    write = function(text) out[#out + 1] = text end, write_error = function(text) err[#err + 1] = text end,
+  })
+  self:assert_equal(1, code)
+  local text = table.concat(err, "\n")
+  self:assert_true(text:find("hecate install", 1, true) ~= nil, text)
+  self:assert_true(text:find("no file 'x'", 1, true) == nil, text)
+end
+
 function T:test_a_failing_run_exits_1()
   local code = run({ "test" }, { summary = { exit_code = 1, empty = false } })
   self:assert_equal(1, code)

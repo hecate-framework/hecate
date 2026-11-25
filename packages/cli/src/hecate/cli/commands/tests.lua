@@ -93,7 +93,15 @@ function command.execute(context, dependencies)
     jobs = number
   end
   dependencies.set_module_path((context.runtime.project_dir or "."):gsub("/+$", ""), (context.runtime.lua_version:match("^%d+%.%d+")) or context.runtime.lua_version)
-  local test = dependencies.load_test()
+  local loaded, test = pcall(dependencies.load_test)
+  if not loaded then
+    -- `hecate.test` is a rock of the project: without `lua_modules/` it is not there, and LuaRocks has the advice.
+    local detail = type(test) == "table" and (test --[[@as hecate.core.Error]]).message or tostring(test)
+    error(core.ConfigurationError({
+      message = "hecate.test cannot be loaded (" .. (detail:match("^[^\n]*")) .. "): the project's rocks are not installed; run `hecate install` in the project directory "
+        .. "(the project needs `hecate-test` in its development dependencies)",
+    }), 0)
+  end
 
   -- Discovery reads the file system, which suspends: it runs in a reactor. The runner runs each test in a reactor of its
   -- own (it cannot be called inside one), so it runs outside.

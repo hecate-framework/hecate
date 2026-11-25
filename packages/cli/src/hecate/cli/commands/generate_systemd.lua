@@ -1,4 +1,4 @@
--- `hecate generate systemd [--user <name>] [--workers <n>] [--executable <path>] [--output <file>] [--force]`: the unit
+-- `hecate generate systemd [--user <name>] [--workers <n>] [--working-directory <dir>] [--environment-file <file>] [--executable <path>] [--output <file>] [--force]`: the unit
 -- file that runs the application of the project as a service (OQ-133: the platform manages the process, `hecate serve`
 -- never daemonises; it stops on SIGTERM and reloads on SIGHUP, ADR 0023). The unit goes to the standard output, or to
 -- `--output` (an existing file is kept unless `--force`).
@@ -18,6 +18,7 @@ local STOP_TIMEOUT = 35
 ---@field executable string  the absolute path of the `hecate` executable
 ---@field user? string  `User=` of the service
 ---@field workers? string  `--workers` of `hecate serve`
+---@field environment_file? string  `EnvironmentFile=` (secrets and per-host settings stay out of the unit and the repository)
 
 --- A path in `WorkingDirectory=`: systemd expands the `%` specifiers in it (systemd.unit(5), "Specifiers"), so a literal `%`
 --- is written `%%`; spaces are part of the path.
@@ -62,6 +63,7 @@ local function unit_text(options)
     "Environment=HECATE_ENV=production",
   }
   if options.user then lines[#lines + 1] = "User=" .. options.user end
+  if options.environment_file then lines[#lines + 1] = "EnvironmentFile=" .. path_value(options.environment_file) end
   for _, line in ipairs({ "NoNewPrivileges=true", "PrivateTmp=true", "", "[Install]", "WantedBy=multi-user.target", "" }) do
     lines[#lines + 1] = line
   end
@@ -84,6 +86,8 @@ local command = {
   options = {
     { name = "user", takes_value = true, summary = "Run the service as this user (User=)" },
     { name = "workers", takes_value = true, summary = "Number of worker processes (a number, or auto)" },
+    { name = "working-directory", takes_value = true, summary = "Absolute directory the service runs in (default: the project directory; use the path on the server)" },
+    { name = "environment-file", takes_value = true, summary = "Absolute path of a file of NAME=value lines read by the service (EnvironmentFile=)" },
     { name = "executable", takes_value = true, summary = "Absolute path of the hecate executable (default: the running one)" },
     { name = "output", takes_value = true, summary = "Write the unit to this file instead of the standard output" },
     { name = "force", summary = "Overwrite the output file when it exists" },
@@ -114,8 +118,15 @@ function command.execute(context, dependencies)
     return 2
   end
   -- A line break or any other control character would end the value and let the rest of it add directives to the unit.
-  local directory = context.runtime.project_dir or "."
-  for _, entry in ipairs({ { "--executable", executable }, { "the project directory", directory } }) do
+  local directory = (options["working-directory"] --[[@as string?]]) or context.runtime.project_dir or "."
+  local environment_file = options["environment-file"] --[[@as string?]]
+  for _, entry in ipairs({ { "--working-directory", options["working-directory"] }, { "--environment-file", environment_file } }) do
+    if entry[2] ~= nil and not tostring(entry[2]):match("^/") then
+      context.print_error("hecate generate systemd: " .. entry[1] .. " takes an absolute path (the one on the server), got '" .. tostring(entry[2]):gsub("%c", "?") .. "'")
+      return 2
+    end
+  end
+  for _, entry in ipairs({ { "--executable", executable }, { "the working directory", directory }, { "--environment-file", environment_file or "" } }) do
     if entry[2]:find("%c") then
       context.print_error("hecate generate systemd: " .. entry[1] .. " holds a control character (a line break, for example); it cannot go into a unit file")
       return 2
@@ -128,7 +139,7 @@ function command.execute(context, dependencies)
   end
   local unit = unit_text({
     name = manifest.name, directory = directory, executable = executable,
-    user = user, workers = workers --[[@as string?]],
+    user = user, environment_file = environment_file, workers = workers --[[@as string?]],
   })
   local output = options.output --[[@as string?]]
   if output == nil then
