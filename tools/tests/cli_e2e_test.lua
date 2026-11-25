@@ -50,13 +50,6 @@ local function progress(text)
   io.stdout:flush()
 end
 
---- Stops a server and what it started: on Windows `kill` ends only the supervisor (TerminateProcess), and the child
---- would keep the port and lock the executable, so the whole tree is ended.
-local function stop_tree(server)
-  if windows then os.execute(("taskkill /T /F /PID %d >nul 2>&1"):format(server.pid)) else server:kill() end
-  server:wait()
-end
-
 --- Copies the content of `from` into `to` (created).
 local function copy_tree(from, to)
   util.mkdir(to)
@@ -166,41 +159,60 @@ function T:test_a_new_project_exports_lints_and_generates()
   end)
 end
 
---- The status that `curl` gets from `url` within two seconds ("000" when nothing answers), asked through the reactor so that
---- the loop keeps running. `curl` ships with the three platforms of CI and ends each attempt by itself.
-local function http_status(reactor, url)
-  local result = reactor.run_process("curl", { "-s", "-o", windows and "NUL" or "/dev/null", "-w", "%{http_code}", "--max-time", "2", url })
-  return (result.stdout:match("%d%d%d"))
+--- The status that `curl` gets from `url` within two seconds ("000" when nothing answers). `curl` ships with the three
+--- platforms of CI and ends each attempt by itself.
+local function http_status(url)
+  local out = util.capture(("curl -s -o %s -w %%{http_code} --max-time 2 %s 2>&1"):format(windows and "NUL" or "/dev/null", util.quote(url)))
+  return (out:match("%d%d%d"))
+end
+
+--- Starts `hecate serve` in `project` on `port`, detached from this process, its output in `log`; returns the process
+--- number or nil. The test does not use the reactor for this: a server started through it left the loop of the test
+--- stuck on Windows, and the point of the test is what the server does, not how it is started.
+local function start_server(exe, project, port, log)
+  local command
+  if windows then
+    local function lit(text) return "'" .. text:gsub("'", "''") .. "'" end
+    command = ("powershell -NoProfile -NonInteractive -Command \"$env:PORT=%s; $p = Start-Process -FilePath %s -ArgumentList 'serve' -WorkingDirectory %s -RedirectStandardOutput %s -RedirectStandardError %s -PassThru -WindowStyle Hidden; $p.Id\" 2>&1")
+      :format(lit(tostring(port)), lit(exe:gsub("/", "\\")), lit(project:gsub("/", "\\")), lit(log:gsub("/", "\\")), lit(log:gsub("/", "\\") .. ".err"))
+  else
+    command = ("cd %s && PORT=%d nohup %s serve > %s 2>&1 & echo $!"):format(util.quote(project), port, util.quote(exe), util.quote(log))
+  end
+  local out = util.capture(command)
+  return tonumber(out:match("(%d+)%s*$"))
+end
+
+--- Stops the server and what it started.
+local function stop_server(pid)
+  os.execute(windows and ("taskkill /T /F /PID %d >nul 2>&1"):format(pid) or ("kill %d >/dev/null 2>&1"):format(pid))
 end
 
 function T:test_a_new_project_serves_and_answers_the_health_check()
-  with_project(self, function(_, project, _, exe)
+  with_project(self, function(_, project, base, exe)
     -- `hecate serve` on a free port answers the health check, and stops when it is stopped.
-    local reactor_ok, reactor = pcall(require, "hecate.reactor")
     local port = free_port()
-    if not (reactor_ok and port) then return end
+    if not port then return end
+    local log = base .. "/serve.log"
+    local pid = start_server(exe, project, port, log)
+    progress("started on port " .. port .. ", process " .. tostring(pid))
+    self:assert_true(pid ~= nil, "the server did not start")
     local status
-    progress("starting on port " .. port)
-    local ok_serve, err_serve = pcall(reactor.run, function()
-      local server = reactor.spawn(exe, { "serve" }, { cwd = project, env = { PORT = tostring(port) } }) -- glossary-ok: an operating-system process
-      progress("spawned pid " .. tostring(server.pid))
-      local deadline = os.time() + 40
-      local attempt = 0
-      while os.time() < deadline do
-        attempt = attempt + 1
-        if attempt <= 3 then progress("asking (attempt " .. attempt .. ")") end
-        status = http_status(reactor, "http://127.0.0.1:" .. port .. "/health")
-        if attempt <= 3 or status == "200" then progress("attempt " .. attempt .. " -> " .. tostring(status)) end
-        if status == "200" then break end
-        if attempt <= 3 then progress("sleeping") end
-        reactor.sleep(0.3)
-        if attempt <= 3 then progress("slept") end
+    local deadline = os.time() + 40
+    local attempt = 0
+    while os.time() < deadline do
+      attempt = attempt + 1
+      status = http_status("http://127.0.0.1:" .. port .. "/health")
+      if attempt <= 3 or status == "200" then progress("attempt " .. attempt .. " -> " .. tostring(status)) end
+      if status == "200" then break end
+      os.execute(windows and "ping -n 2 127.0.0.1 >nul" or "sleep 1")
+    end
+    stop_server(pid)
+    if status ~= "200" then
+      for _, path in ipairs({ log, log .. ".err" }) do
+        local handle = io.open(path, "rb")
+        if handle then progress("server output " .. path .. ":\n" .. handle:read("a")) handle:close() end
       end
-      progress("stopping")
-      stop_tree(server)
-      progress("stopped")
-    end)
-    self:assert_true(ok_serve, tostring(err_serve))
+    end
     self:assert_equal("200", status)
   end)
 end
