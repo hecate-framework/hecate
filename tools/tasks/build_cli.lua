@@ -95,6 +95,10 @@ local function build(ctx, release)
     local modules = bundle.collect(ctx.root)
     -- The headers of the embedded Lua, as a module: `hecate install` unpacks them for the C rocks (LUA_INCDIR).
     modules[#modules + 1] = bundle.headers_module(lua .. "/include")
+    local version_file = io.open(ctx.root .. "/VERSION", "rb")
+    local version = version_file and version_file:read("a"):match("%S+") or "0.0.0"
+    if version_file then version_file:close() end
+    modules[#modules + 1] = { name = "hecate.cli.version", source = ("return %q\n"):format(version) }
 
     local host = ctx.root .. "/packages/cli/csrc"
     local linux = not windows and util.capture("uname -s") == "Linux"

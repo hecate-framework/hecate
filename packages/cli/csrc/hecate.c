@@ -101,16 +101,25 @@ static int embedded_searcher(lua_State *L) {
   return 1;
 }
 
-static void install_searcher(lua_State *L) {
+/* Where the embedded modules are looked up. In CLI mode and for LuaRocks they come before the files (the command-line interface
+ * runs on its own copy). When the executable is the interpreter of a project (`--lua`, `-e`, a script) they come last: the
+ * project pins its own `hecate.core`, `hecate.reactor` and the others in `lua_modules`, which must win; the copy of the
+ * executable is only what is left when the project has none. */
+static void install_searcher(lua_State *L, int first) {
   lua_getglobal(L, "package");
   lua_getfield(L, -1, "searchers");
   lua_Integer n = (lua_Integer)luaL_len(L, -1);
-  for (lua_Integer i = n; i >= 2; i--) { /* make room at position 2, after the preload searcher */
-    lua_geti(L, -1, i);
-    lua_seti(L, -2, i + 1);
+  if (first) {
+    for (lua_Integer i = n; i >= 2; i--) { /* make room at position 2, after the preload searcher */
+      lua_geti(L, -1, i);
+      lua_seti(L, -2, i + 1);
+    }
+    lua_pushcfunction(L, embedded_searcher);
+    lua_seti(L, -2, 2);
+  } else {
+    lua_pushcfunction(L, embedded_searcher);
+    lua_seti(L, -2, n + 1);
   }
-  lua_pushcfunction(L, embedded_searcher);
-  lua_seti(L, -2, 2);
   lua_pop(L, 2);
 }
 
@@ -269,7 +278,9 @@ static int run_cli(lua_State *L, int argc, char **argv, const char *self) {
   if (report(L, docall(L, 1, 1))) return 1;
   lua_getfield(L, -1, "run");
   lua_getglobal(L, "arg");
-  lua_createtable(L, 0, 4); /* overrides: the executable is the project interpreter (--lua) and runs LuaRocks (--luarocks) */
+  lua_createtable(L, 0, 5); /* overrides: the executable is the project interpreter (--lua) and runs LuaRocks (--luarocks) */
+  lua_pushstring(L, LUA_VERSION_MAJOR "." LUA_VERSION_MINOR "." LUA_VERSION_RELEASE); /* the release of the Lua that runs: no process to ask */
+  lua_setfield(L, -2, "lua_release");
   lua_pushstring(L, self);
   lua_setfield(L, -2, "luarocks_program");
   lua_createtable(L, 1, 0);
@@ -298,10 +309,21 @@ static int run_cli(lua_State *L, int argc, char **argv, const char *self) {
  * module path. Runs protected (an out-of-memory error ends in a message, not in the panic of an unprotected call). */
 static int prepare(lua_State *L) {
   const char *self = (const char *)lua_touserdata(L, 1);
+  int mode = lua_tointeger(L, 2); /* 0 command line, 1 LuaRocks, 2 interpreter of a project */
   luaL_openlibs(L);
   preload_natives(L);
-  install_searcher(L);
-  add_native_directory(L, self);
+  install_searcher(L, mode != 2);
+  if (mode == 0) add_native_directory(L, self); /* the native modules next to the executable are the CLI's, not a project's */
+  return 0;
+}
+
+/* The mode of this run, from the arguments (see main). */
+static int run_mode(int argc, char **argv) {
+  size_t first_length = argc > 1 ? strlen(argv[1]) : 0;
+  if (argc > 1 && strcmp(argv[1], "--lua") == 0) return 2;
+  if (argc > 1 && first_length > 4 && strcmp(argv[1] + first_length - 4, ".lua") == 0) return 2;
+  if (argc > 2 && strcmp(argv[1], "-e") == 0) return 2;
+  if (argc > 1 && strcmp(argv[1], "--luarocks") == 0) return 1;
   return 0;
 }
 
@@ -322,7 +344,8 @@ int main(int argc, char **argv) {
   if (!executable_path(self, sizeof self, argc > 0 ? argv[0] : NULL)) snprintf(self, sizeof self, "%s", argc > 0 ? argv[0] : "hecate");
   lua_pushcfunction(L, prepare);
   lua_pushlightuserdata(L, self);
-  if (report(L, lua_pcall(L, 1, 0, 0))) { lua_close(L); return 1; }
+  lua_pushinteger(L, run_mode(argc, argv));
+  if (report(L, lua_pcall(L, 2, 0, 0))) { lua_close(L); return 1; }
   int code;
   size_t first_length = argc > 1 ? strlen(argv[1]) : 0;
   if (argc > 1 && strcmp(argv[1], "--lua") == 0) { program_name = "lua"; code = run_interpreter(L, argc, argv, 2); }

@@ -68,6 +68,17 @@ function T:test_built_executable_runs_lua_luarocks_and_the_cli()
   self:assert_true(rocks:find("3.13", 1, true) ~= nil, rocks)
   -- A script file as the first argument runs as a plain `lua script.lua` (what a rockspec's `$(LUA) script.lua` does).
   self:assert_equal("Lua 5.5 true true 3 true", util.capture(bare .. exe .. " " .. util.quote(probe) .. " 2>&1"))
+  -- As the interpreter of a project, the modules of the project win over the copies embedded in the executable.
+  local pinned = dir .. "/pinned"
+  util.mkdir(pinned .. "/hecate/core")
+  f = assert(io.open(pinned .. "/hecate/core/init.lua", "wb"))
+  f:write('return { marker = "project" }\n')
+  f:close()
+  local shadow = dir .. "/shadow.lua"
+  f = assert(io.open(shadow, "wb"))
+  f:write('package.path = arg[1] .. "/?/init.lua;" .. package.path\nio.write(require("hecate.core").marker or "embedded")\n')
+  f:close()
+  self:assert_equal("project", util.capture(bare .. exe .. " " .. util.quote(shadow) .. " " .. util.quote(pinned) .. " 2>&1"))
   -- Non-ASCII paths (OQ-147): a script in a directory with a non-ASCII name is created, passed as an argument and run
   -- by a child process, all by the executable (the test's own Lua may not be UTF-8 aware on Windows).
   local unicode = dir .. "/unicode.lua"

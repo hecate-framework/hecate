@@ -1,12 +1,13 @@
 -- The entry of the `hecate` command, shared by the script of a checkout (`bin/hecate.lua`), an installed rock and the
 -- self-contained executable (OQ-13, ADR 0029): it finds out what the process runs on (Lua release, LuaRocks, libuv,
 -- platform, current directory, the interpreter for the project) and runs the command line.
-global <const> arg, io, os, package, require, pcall, ipairs, table, _VERSION
+global <const> arg, io, os, package, require, pcall, type, ipairs, table, _VERSION
 
 ---@class hecate.cli.MainOverrides
 ---@field hecate_version? string
 ---@field lua_interpreter? string  the interpreter for the processes of the project (default: `arg[-1]`, the one that runs this script)
 ---@field lua_interpreter_arguments? string[]  the arguments that put it in interpreter mode (the executable: `--lua`)
+---@field lua_release? string  the exact release of the Lua that runs this process (`5.5.1`); the executable knows it, a plain `lua` is asked with `-v`
 ---@field luarocks_program? string  the program that runs LuaRocks (default: `luarocks` on the path; the executable: itself)
 ---@field luarocks_arguments? string[]  the arguments that make it run LuaRocks (the executable: `--luarocks`)
 
@@ -72,6 +73,15 @@ function M.lua_release(interpreter, leading)
   return line
 end
 
+--- The version of Hecate that the executable was built from: the generated module `hecate.cli.version` (`build-cli` writes it from
+--- the file `VERSION`), `0.0.0` when the CLI runs from the sources.
+---@return string version
+function M.embedded_version()
+  local ok, version = pcall(require, "hecate.cli.version")
+  if ok and type(version) == "string" then return version end
+  return "0.0.0"
+end
+
 --- The runtime of this process, for `hecate.cli.run`.
 ---@param overrides? hecate.cli.MainOverrides
 ---@return hecate.cli.Runtime runtime
@@ -80,8 +90,8 @@ function M.runtime(overrides)
   local interpreter = overrides.lua_interpreter or arg[-1]
   local libuv_ok, luv = pcall(require, "luv")
   return {
-    hecate_version = overrides.hecate_version or "0.0.0",
-    lua_version = M.lua_release(interpreter, overrides.lua_interpreter_arguments),
+    hecate_version = overrides.hecate_version or M.embedded_version(),
+    lua_version = overrides.lua_release or M.lua_release(interpreter, overrides.lua_interpreter_arguments),
     libuv_version = libuv_ok and luv.version_string and luv.version_string() or nil,
     luarocks_version = M.luarocks_version(overrides.luarocks_program, overrides.luarocks_arguments),
     luarocks_program = overrides.luarocks_program,
