@@ -114,4 +114,23 @@ function T:test_the_hello_example_is_a_project_that_hecate_tests_and_lints()
   util.remove_tree(example .. "/lua_modules")
 end
 
+function T:test_every_command_of_the_executable_is_on_the_reference_page_of_the_website()
+  local exe = built()
+  if not exe then return end
+  exe = absolute(exe)
+  local help = util.capture(util.quote(exe) .. " --help 2>&1")
+  local page = assert(io.open("website/user/en/reference/cli.md", "rb"))
+  local text = page:read("a")
+  page:close()
+  local seen = 0
+  for line in help:gmatch("[^\r\n]+") do
+    local name = line:match("^  (%l[%l ]-)%s%s+%u")
+    if name then
+      seen = seen + 1
+      self:assert_true(text:find("`hecate " .. name, 1, true) ~= nil, "website/user/en/reference/cli.md does not list `hecate " .. name .. "`")
+    end
+  end
+  self:assert_true(seen >= 18, "the commands of --help were not read: " .. seen)
+end
+
 return T

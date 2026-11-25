@@ -11,6 +11,7 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- docs(cli): the website has the reference of the `hecate` command (`reference/cli.md`, whose list of commands a test compares with `hecate --help`) and the guides "Create and run a project" and "Deliver to a server".
 - feat(cli): `hecate package [--output <file>]`: the release archive of the project for a server without Docker (owner agreement of 2026-11-24), written with the `tar` of the system, with a `RELEASE` file and a `.sha256` next to it; checked on a project with a locked dependency.
 - feat(cli): `hecate generate meta [--namespace] [--output] [--force]` (OQ-121): the LuaLS `---@meta` file of the schemas of the contract of the application (`hecate.doc.project.meta`), written to `meta/<module>.schemas.lua` on demand; also fixes `generate systemd --output`, which started a second reactor.
 - feat(config,kernel,cli): `server.workers` accepts `"auto"` and defaults to it (ADR 0023, OQ-122, owner decision of 2026-11-13): `max(1, cores - 1)`, `cores` from `reactor.available_parallelism()` (libuv, which reads the CPU quota of a container on Linux), resolved by `hecate.kernel` (the `workers` option accepts `"auto"` too; an application with no configuration and no option keeps one process); `hecate new` writes `config/development.lua` and `config/test.lua` with one worker; the three pages of the website and the configuration reference state the new default. A test that serves through a configuration now sets `workers = 1`.
