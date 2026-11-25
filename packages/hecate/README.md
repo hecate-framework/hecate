@@ -8,7 +8,7 @@
 | Rock | `hecate` |
 | Layer | Meta |
 | Roadmap phase | 3 |
-| Status | in progress — re-exports the surface of `kernel`; the standard edition (the meta-rock and its dependencies) is a Phase 3 item |
+| Status | implemented — the rock depends on the standard edition (ADR 0005) and `require "hecate"` re-exports the surface of `kernel` |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |
 | Depends on | [`core`](../core), [`reactor`](../reactor), [`net`](../net), [`json`](../json), [`log`](../log), [`http`](../http), [`schema`](../schema), [`router`](../router), [`container`](../container), [`config`](../config), [`kernel`](../kernel), [`openapi`](../openapi) |
 | Used by | — |

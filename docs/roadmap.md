@@ -444,7 +444,7 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       pages remain.
       **Also (found while restyling, pull request #195):** the `serve-http` how-to writes through `io.stderr:write` in an
       inline `on_error` snippet, which the output rule refuses in example files.
-- [ ] Meta-rock `hecate` (standard edition).
+- [x] Meta-rock `hecate` (standard edition): the rockspec depends on the twelve packages of ADR 0005 and the meta-module re-exports the kernel surface.
 - [ ] Read-only mirrors (ADR 0017): `split`, `mirrors ensure`, `check-mirrors`, the tag of the `unicode-data` mirror is the Unicode version and not `VERSION` (ADR 0032),
       `split.yml`; Homebrew tap and Scoop bucket repositories (applies OQ-17: `splitsh-lite` pinned, `git subtree split` as fallback, see the [spike](spikes/OQ-17-split-tool.md)).
 - [ ] Publish all rocks to luarocks.org (sources from mirrors).
