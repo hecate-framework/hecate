@@ -92,6 +92,7 @@
 - [hecate-doc](packages/doc/README.md): Documentation generator and static site builder with an MDN-like theme: guides in Markdown, code reference from LuaLS annotations, configuration reference, locales, search.
 - [hecate-test](packages/test/README.md): xUnit test framework running inside the reactor: cases, suites, fixtures, assertions, in-process HTTP client, contract conformance, property-based testing, coverage.
 - [hecate](packages/hecate/README.md): Meta-rock `hecate`: depends on the standard edition and provides the `hecate` meta-module re-exporting the framework surface.
+- [hecate-actions](packages/actions/README.md): GitHub Actions of the project, used by the workflows that `hecate generate workflow` writes: `setup` installs the `hecate` executable of a release.
 - [hecate-migration](packages/migration/README.md): Versioned, reversible database schema migrations with checksums and CLI integration.
 - [hecate-mysql](packages/mysql/README.md): MySQL and MariaDB driver implementing the client/server protocol in Lua, reporting a descriptor of its dialect, version and capabilities.
 - [hecate-orm](packages/orm/README.md): Object-relational mapper: data mapper with unit of work, identity map, associations and repositories.

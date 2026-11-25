@@ -149,7 +149,7 @@ function T:test_a_new_project_exports_lints_and_generates()
     self:assert_false(ok, out) -- the file exists
     self:assert_true(out:find("--force", 1, true) ~= nil, out)
     self:assert_true(workflow_text:find('version: "%d+%.%d+%.%d+[^"]*%-1"') ~= nil, workflow_text) -- <version>-<revision>, no `v`
-    self:assert_true(workflow_text:find("hecate-setup@0.0.0-1", 1, true) ~= nil, workflow_text)
+    self:assert_true(workflow_text:find("hecate-actions/setup@0.0.0-1", 1, true) ~= nil, workflow_text)
     out, ok = run("generate workflow ci --force", project)
     self:assert_true(ok and out:find("is unchanged", 1, true) ~= nil, out) -- the same content: no diff, no rewrite
     out, ok = run("generate workflow ci --force --doc", project)

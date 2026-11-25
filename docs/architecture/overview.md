@@ -84,6 +84,13 @@ README lists its exact dependencies: `http` declares `core`, `reactor`, `net`, `
   `hecate-unicode-data` and the module root `hecate.unicode_data` (directory `src/hecate/unicode_data/`).
   `check-package-structure` enforces it, and `check-boundaries` reads `hecate.unicode_data` as the package
   `unicode-data` ([ADR 0032](../adr/0032-unicode-normalisation-packages.md)).
+- One package is not a Lua rock: `actions` (`packages/actions/`, mirror `hecate-framework/hecate-actions`) holds the GitHub
+  Actions of the project, `setup/action.yml` first ([cli-and-packaging.md](cli-and-packaging.md#generated-workflows)).
+  It is outside the Lua layers and absent from the graph above: no rockspec, no module root, no `tests/`. Its README
+  carries the row `| Kind | actions |`, which exempts it, explicitly, from the checks that need a rockspec (versions,
+  layers, dependencies, rockspec lint and generation, CI matrix); `check-package-structure` still verifies its README,
+  CLAUDE.md, agent, mirror name and `action.yml` (`tools/lib/package_kind.lua`). The `split` and `check-mirrors` tasks
+  treat it like any package: its content is the whole directory.
 - The rock version of a package is the lockstep `VERSION` ([ADR 0005](../adr/0005-single-brand-monorepo-lockstep-versioning.md)),
   except `hecate-unicode-data`, whose version is the Unicode version followed by a revision (`18.0.0-1`) and which is
   released on the Unicode schedule.

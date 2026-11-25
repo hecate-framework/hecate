@@ -27,7 +27,7 @@ the documentation site are not in it. Keep secrets out of the project: they come
 
 `hecate generate workflow ci` writes `.github/workflows/ci.yml` (`hecate new shop --ci github` does it for a new project):
 on every push and pull request, on Linux, macOS and Windows, it installs the executable with the setup action
-`hecate-framework/hecate-setup`, then runs `hecate install --frozen`, `hecate test` and, for a project with a contract,
+`hecate-framework/hecate-actions/setup`, then runs `hecate install --frozen`, `hecate test` and, for a project with a contract,
 `hecate contract export` and `hecate contract lint`. Add `--doc` to build the documentation too. The workflow calls only
 `hecate` commands, so a run behaves like a local one; the `version` it passes to the action is the release of Hecate, `X.Y.Z-R` (`0.4.0-1`, no `v`). Regenerate it with `--force` after an upgrade of Hecate: the command prints the diff of the file first. To build
 and package the release on the server's platform, add a job that runs `hecate install --frozen` and `hecate package`.

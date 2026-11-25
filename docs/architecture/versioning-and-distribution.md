@@ -53,7 +53,9 @@ Mirror contents: the package directory at the mirror root (`README.md`, rockspec
 `src/`, `csrc/`, `tests/`, `examples/`), plus files injected from
 [`.github/mirror-template/`](../../.github/mirror-template/) (read-only notice,
 pull-request auto-close workflow). `CLAUDE.md` files are kept in mirrors: they help any
-agent reading the package.
+agent reading the package. The package `actions` (mirror `hecate-framework/hecate-actions`) is not a rock: its mirror
+holds `setup/action.yml` and the other actions at their paths, so that `uses: hecate-framework/hecate-actions/setup@<ref>`
+resolves; it has no rockspec.
 
 Rockspec sources:
 

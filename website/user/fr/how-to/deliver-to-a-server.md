@@ -30,7 +30,7 @@ l’environnement du serveur.
 
 `hecate generate workflow ci` écrit `.github/workflows/ci.yml` (`hecate new shop --ci github` le fait pour un nouveau
 projet) : à chaque push et à chaque pull request, sur Linux, macOS et Windows, il installe l’exécutable avec l’action
-d’installation `hecate-framework/hecate-setup`, puis exécute `hecate install --frozen`, `hecate test` et, pour un projet
+d’installation `hecate-framework/hecate-actions/setup`, puis exécute `hecate install --frozen`, `hecate test` et, pour un projet
 qui a un contrat, `hecate contract export` et `hecate contract lint`. Ajoutez `--doc` pour construire aussi la
 documentation. Le workflow n’appelle que des commandes `hecate` : une exécution se comporte donc comme une exécution
 locale ; régénérez-le avec `--force` après une mise à niveau de Hecate. Pour construire et empaqueter la livraison sur la

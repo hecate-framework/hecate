@@ -1,9 +1,9 @@
-# `hecate-framework/hecate-setup`
+# `hecate-framework/hecate-actions/setup`
 
 The GitHub Action that installs the `hecate` executable of a release and puts it on the `PATH`.
 
 ```yaml
-- uses: hecate-framework/hecate-setup@<tag>
+- uses: hecate-framework/hecate-actions/setup@<ref>
   with:
     version: "0.4.0-1"
 ```
@@ -25,5 +25,6 @@ Linux, macOS and Windows runners, X64 and ARM64.
 | `version` | the release installed (`X.Y.Z-R`); `hecate version` is checked against its `X.Y.Z` part |
 | `path` | the directory that holds the executable |
 
-This directory is the source; the repository `hecate-framework/hecate-setup` is a generated read-only mirror of it
-(ADR 0017). Change it in the monorepo, never in the mirror.
+This directory is `setup/` of the package [`actions`](../README.md); the repository `hecate-framework/hecate-actions` is a
+generated read-only mirror of the package (ADR 0017), and `setup/action.yml` stays at that path in it. Change it in the
+monorepo, never in the mirror.

@@ -1,8 +1,9 @@
 # Setup hecate: installs the `hecate` executable of a release and puts it on the PATH.
 #
-# Source of truth: `actions/setup/` of the monorepo hecate-framework/hecate. It is published to the generated read-only
-# mirror hecate-framework/hecate-setup (ADR 0017), which has this file at its root, as GitHub requires; do not edit the
-# mirror. Usage: `uses: hecate-framework/hecate-setup@<tag>` with `version: "<X.Y.Z-R>"`.
+# Source of truth: `packages/actions/setup/` of the monorepo hecate-framework/hecate. The package `actions` is published to
+# the generated read-only mirror hecate-framework/hecate-actions (ADR 0017), which has this file at `setup/action.yml`, the
+# path GitHub resolves; do not edit the mirror. Usage: `uses: hecate-framework/hecate-actions/setup@<ref>` with
+# `version: "<X.Y.Z-R>"`.
 name: Setup hecate
 description: Download the hecate executable of a release for the platform of the runner, verify its SHA-256 and put it on the PATH.
 author: hecate-framework

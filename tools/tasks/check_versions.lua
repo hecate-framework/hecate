@@ -5,6 +5,7 @@
 -- top-level module (`hecate.core.version`, ...) equals VERSION, except `unicode` and `unicode-data`.
 local util = require("lib.util")
 local rockspec = require("lib.rockspec")
+local package_kind = require("lib.package_kind")
 
 local function read(path)
   local f = io.open(path, "rb")
@@ -21,7 +22,7 @@ return {
     local version = (read(ctx.root .. "/VERSION") or ""):match("%S+")
     if not version then problems[#problems + 1] = "VERSION is missing or empty" end
     local pkgs = ctx.root .. "/packages"
-    for _, name in ipairs(util.list_dir(pkgs)) do
+    for _, name in ipairs(package_kind.rocks(ctx.root)) do
       local rock = name == "hecate" and "hecate" or "hecate-" .. name
       local path = ("%s/%s/%s-scm-1.rockspec"):format(pkgs, name, rock)
       local text = read(path)
@@ -36,7 +37,7 @@ return {
       end
     end
     local unicode_version = (read(pkgs .. "/unicode-data/src/hecate/unicode_data/init.lua") or ""):match('unicode_version%s*=%s*"([%d%.]+)"')
-    for _, name in ipairs(util.list_dir(pkgs)) do
+    for _, name in ipairs(package_kind.rocks(ctx.root)) do
       local rock = name == "hecate" and "hecate" or "hecate-" .. name
       for _, file in ipairs(util.list_dir(pkgs .. "/" .. name)) do
         local version = file:match("^" .. rock:gsub("%p", "%%%0") .. "%-(.+)%.rockspec$")
@@ -46,7 +47,7 @@ return {
     end
     -- The `version` field of each top-level module is the version of VERSION (owner decision of 2026-11-25).
     if version then
-      for _, name in ipairs(util.list_dir(pkgs)) do
+      for _, name in ipairs(package_kind.rocks(ctx.root)) do
         local module = name:gsub("-", "_")
         local text = not rockspec.version_field_exempt[name]
           and (read(name == "hecate" and (pkgs .. "/hecate/src/hecate/init.lua") or ("%s/%s/src/hecate/%s/init.lua"):format(pkgs, name, module)))

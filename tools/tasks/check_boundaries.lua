@@ -2,6 +2,7 @@
 -- upward or cyclic dependency, `luv` only in reactor, raw `setmetatable` only in core (and the files of METATABLE_EXEMPT).
 local util = require("lib.util")
 local b = require("lib.boundaries")
+local package_kind = require("lib.package_kind")
 
 local function read(path)
   local f = io.open(path, "rb")
@@ -34,7 +35,8 @@ return {
     local function add(msg) problems[#problems + 1] = msg end
     local pkgs = ctx.root .. "/packages"
     local rank, graph, declared = {}, {}, {}
-    for _, name in ipairs(util.list_dir(pkgs)) do
+    -- Layers and dependencies concern the rocks; a package of another kind (`actions`) is outside the Lua layers.
+    for _, name in ipairs(package_kind.rocks(ctx.root)) do
       local rock = name == "hecate" and "hecate" or "hecate-" .. name
       local spec = read(("%s/%s/%s-scm-1.rockspec"):format(pkgs, name, rock))
       local readme = read(("%s/%s/README.md"):format(pkgs, name)) or ""

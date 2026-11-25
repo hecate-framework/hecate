@@ -8,11 +8,12 @@ local core = require("hecate.core")
 ---@class hecate.cli.templates.workflows
 local M = {}
 
---- The repository of the setup action: the read-only mirror of `actions/setup/` of the monorepo (ADR 0017).
-M.SETUP_ACTION = "hecate-framework/hecate-setup"
+--- The setup action: `setup/` of the package `actions`, whose read-only mirror is `hecate-framework/hecate-actions`
+--- (ADR 0017); the workflows write `<SETUP_ACTION>@<SETUP_REF>`.
+M.SETUP_ACTION = "hecate-framework/hecate-actions/setup"
 
 --- The tag of the setup action that the generated workflows use. PLACEHOLDER: the tags of Hecate and of the mirror of the
---- action have no `v` and follow the LuaRocks version form `<version>-<revision>` (owner, 2026-11-25); the release process
+--- package `actions` have no `v` and follow the LuaRocks version form `<version>-<revision>` (owner, 2026-11-25); the release process
 --- pins the real one (the tag of the release, then its commit SHA with the tag in a comment, cli-and-packaging.md) when it
 --- tags the action; until the owner has created the mirror and the first release, no such tag exists.
 M.SETUP_REF = "0.0.0-1"

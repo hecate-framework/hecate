@@ -1,18 +1,22 @@
 -- Builds the package catalogue table of packages/README.md (pure functions).
 local boundaries = require("lib.boundaries")
+local package_kind = require("lib.package_kind")
 
 local M = {}
 
 --- Parses the metadata of a package README.
 ---@param text string
----@return { summary: string, layer: string, phase: string, status: string, rock: string }?
+---@return { summary: string, layer: string, phase: string, status: string, rock: string, kind: string }?
 function M.parse_readme(text)
   local function field(name) return text:match("|%s*" .. name .. "%s*|%s*([^|]-)%s*|") end
   local summary = text:match("\n>%s*([^\n]+)")
   local layer, phase, status = field("Layer"), field("Roadmap phase"), field("Status")
   local rock = (field("Rock") or ""):gsub("`", "")
   if not (summary and layer and phase and status and rock ~= "") then return nil end
-  return { summary = summary, layer = layer, phase = phase, status = status:match("^%a[%a ]*%a"):gsub(" —.*$", ""), rock = rock }
+  return {
+    summary = summary, layer = layer, phase = phase, status = status:match("^%a[%a ]*%a"):gsub(" —.*$", ""), rock = rock,
+    kind = package_kind.of(text),
+  }
 end
 
 --- Sorts packages by phase, layer and name (in place).
@@ -38,7 +42,9 @@ function M.render(pkgs)
   }
   for _, p in ipairs(pkgs) do
     local m = p.meta
-    rows[#rows + 1] = ("| [`%s`](%s) | `%s` | %s | %s | %s | %s |"):format(p.name, p.name, m.rock, m.layer, m.phase, m.status, m.summary)
+    -- A package that is not a rock (`actions`) has no rock: its cell says so.
+    local rock = m.kind == "rock" and ("`%s`"):format(m.rock) or "none"
+    rows[#rows + 1] = ("| [`%s`](%s) | %s | %s | %s | %s | %s |"):format(p.name, p.name, rock, m.layer, m.phase, m.status, m.summary)
   end
   return table.concat(rows, "\n")
 end

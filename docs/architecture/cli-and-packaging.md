@@ -239,10 +239,11 @@ The `release.yml` workflow builds the `hecate` executable and attaches it to a G
 - **Same build as CI.** The toolchain steps are those of `ci.yml` (same pins and cache key), then
   `build-cli --strict`, `package-cli` and its smoke test: the archive is extracted and `hecate version` must print the
   expected `X.Y.Z`.
-- **Rehearsal.** `workflow_dispatch` (input `revision`, default `1`) runs the same plan, build, packaging and smoke test
-  on the matrix, keeps the archives as workflow artifacts (seven days) and creates no release; the owner can run it from
-  a branch before merging (GitHub lists a dispatchable workflow once the file is on the default branch; from the command
-  line `gh workflow run release.yml --ref <branch>` also needs it there).
+- **Rehearsal.** A pull request that touches the release machinery (`release.yml`, `package-cli`, `build-cli`, the archive
+  library, the C host) and `workflow_dispatch` (input `revision`, default `1`) run the same plan, build, packaging and
+  smoke test on the matrix, keep the archives as workflow artifacts (seven days) and create no release. The pull request
+  trigger is how a change to the release is tested before it is merged: GitHub lists a dispatchable workflow only once
+  the file is on the default branch (the same holds for `gh workflow run release.yml --ref <branch>`).
 - **Permissions.** Every job has `contents: read`; the build jobs add `id-token` and `attestations: write` for the
   attestation; only `draft-release` has `contents: write`.
 

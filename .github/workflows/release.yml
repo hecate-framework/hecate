@@ -7,8 +7,8 @@ name: release
 #
 # Tags and releases are named `<version>-<revision>` in LuaRocks form, without a `v` prefix (`0.1.0-1`); `X.Y.Z` must
 # equal the root `VERSION` file or the `plan` job fails before anything is built. A push of such a tag creates the draft;
-# `workflow_dispatch` is the rehearsal: the same build, packaging and smoke test, with the archives kept as workflow
-# artifacts and no release created.
+# a pull request that touches the release machinery, and `workflow_dispatch`, are the rehearsal: the same build,
+# packaging and smoke test, with the archives kept as workflow artifacts and no release created.
 #
 # Platforms: the three that `ci.yml` builds. aarch64 Linux and Windows runners are to be added to the matrix later (the
 # asset names already carry the architecture).
@@ -16,6 +16,16 @@ name: release
 on:
   push:
     tags: ["[0-9]*.[0-9]*.[0-9]*-[0-9]*"]
+  # A pull request that touches the release machinery rehearses it (no release is created): GitHub offers
+  # `workflow_dispatch` only for a workflow file that is on the default branch, so this is how a change to the release
+  # is tested before it is merged.
+  pull_request:
+    paths:
+      - ".github/workflows/release.yml"
+      - "tools/tasks/package_cli.lua"
+      - "tools/tasks/build_cli.lua"
+      - "tools/lib/archive.lua"
+      - "packages/cli/csrc/**"
   workflow_dispatch:
     inputs:
       revision:
