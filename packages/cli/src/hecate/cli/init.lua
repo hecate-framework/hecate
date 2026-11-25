@@ -1,5 +1,5 @@
--- hecate.cli: the `hecate` command (cli-and-packaging.md). Status: the dispatcher, the argument parser, `--help`,
--- `--json`, exit codes, `version`, `install` and shell completion are implemented; every other command is still to do (see README.md).
+-- hecate.cli: the `hecate` command (cli-and-packaging.md). Status: in progress; the commands of `hecate.cli.commands` below are
+-- implemented, the others of the specification (toolchains, migrations, workflows) are still to do (see README.md).
 global <const> require
 
 local app = require("hecate.cli.app")

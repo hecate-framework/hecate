@@ -8,9 +8,9 @@
 | Rock | `hecate-cli` |
 | Layer | Tooling |
 | Roadmap phase | 3 |
-| Status | in progress — the `hecate` executable (C host, LuaRocks embedded, `build-cli`, three platforms), dispatcher, argument parser, `--help`, `--json`, exit codes, `version`, shell completion, the manifest, the lockfile format, SHA-256, LuaRocks constraints and orchestration, `install [--frozen]`, `update`; other commands to do |
+| Status | in progress — the `hecate` executable (C host, LuaRocks embedded, `build-cli`, three platforms), dispatcher, argument parser, `--help`, `help`, `--json`, exit codes, `version`, shell completion, the manifest, the lockfile format, SHA-256, LuaRocks constraints and orchestration, `new`, `init`, `install [--frozen]`, `add`, `remove`, `update`, `outdated`, `test`, `serve`, `run`, `contract`, `doc build`, `generate meta`, `generate systemd`, `package`, `doctor`; toolchains, migrations and workflows to do |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |
-| Depends on | [`core`](../core), [`reactor`](../reactor), [`log`](../log), [`json`](../json), [`schema`](../schema) |
+| Depends on | [`core`](../core), [`reactor`](../reactor), [`log`](../log), [`json`](../json), [`schema`](../schema); the rocks of the user's project (`test`, `doc`, `openapi`, ...) are run by the project's interpreter, not linked |
 | Used by | — |
 | Native code | self-contained executable embedding Lua 5.5 and what the CLI itself needs (OQ-13) |
 | Specification | [cli-and-packaging.md](../../docs/architecture/cli-and-packaging.md) |
@@ -60,10 +60,12 @@
 - `cli.resolution`: `read_rockspec(name, text)`, `installed_files_digest(input)`, `build_lockfile(input)` (an installation to the records of `hecate.lock`) and `verify(lock, current)` (what `install --frozen` checks after installing).
 - `cli.runner`: `run(program, args, options)`, suspending, over `reactor.run_process` (the real runner of `cli.luarocks`).
 - `cli.commands.contract`: `hecate contract lint <file>` (exit 1 on an error finding), `hecate contract diff <old> <new>` or `hecate contract diff <ref> [--file=<path>]` (the contract committed at a git ref, `git show <ref>:openapi.json`, against the application as it is now; exit 1 on a breaking change) over `openapi.lint` and `openapi.diff` of the project (run in the interpreter of the project, which needs `hecate install`), files of OpenAPI JSON, `--json`; and `hecate contract export [--output=<file>] [--pretty]`, the document of the application of the project (a child process loads `require(<module>).application(options)` with the `openapi` option from the `contract` section of the manifest, boots it and prints `Application:contract`).
-- `cli.commands.doc_build` is `hecate doc build` (`--audience`, `--output`, `--yes`; reads the `doc` section of the manifest, asks before running LuaLS).
+- `cli.commands.doc` is `hecate doc build` (`--audience`, `--output`, `--yes`; reads the `doc` section of the manifest, asks before running LuaLS).
 - `cli.serve`: `supervise(reactor, options)` (the child process of `hecate serve`: forwards `sigint`, `sigterm` and `sighup`, grace period then `sigkill`, restart on change, the exit code of the child, `128 + n` for a signal), `poll_changes`, `snapshot`; `cli.commands.serve` is the command (`--watch`, `--workers`).
 - `cli.commands.run`: `hecate run <script> [-- <arguments>...]` runs a script of `scripts` in the manifest, or a `.lua` file of the project, in a child process with the project module path (the one of `serve`); `resolve`, `inside_project`.
 - `cli.main`: `run(arguments, overrides?)` and `runtime(overrides?)`: what the process runs on (exact Lua release, LuaRocks, libuv, platform, current directory, the interpreter for the project) and the command line; `bin/hecate.lua` and the self-contained executable (OQ-13) both call it. `Runtime.lua_interpreter_arguments` puts the interpreter in interpreter mode (the executable: `--lua`). `Runtime.luarocks_program`/`luarocks_arguments` do the same for LuaRocks (the executable: itself with `--luarocks`, its embedded LuaRocks 3.13).
+- Security and platform notes: `install --frozen` writes a rockspec that asks for `name == version` for every locked rock, then verifies the installed files and that no rock outside the lock was installed; `rocks_servers` must be `https://` (or `file://`); `generate systemd` refuses control characters and escapes `%`, spaces and `$`; `package --output` must end in `.tar.gz`/`.tgz` (`.zip` on Windows). On Windows `hecate serve` and `hecate run` do not forward Ctrl+C (the console gives it to the child too): the child has the grace period, then is killed, and its exit code is 1; the manifest of the executable asks for UTF-8 and long paths (also enable `LongPathsEnabled`).
+- `--json` failures: standard output holds one document `{ "ok": false, "error": { "message", "code" } }` (a usage error adds `"usage": true` and a `hint`); answers made with `Context:emit` carry `"ok": true`.
 - `hecate.cli.Command`: `name`, `summary`, `usage`, `options`, `run(context)`; `Context:emit(value, text)` prints JSON under `--json`.
 
 ## Layout (once implemented)

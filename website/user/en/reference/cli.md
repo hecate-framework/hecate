@@ -60,7 +60,7 @@ The dependencies of a project are rocks, listed in `hecate.project.lua` and lock
 | Command | What it does |
 |---|---|
 | `hecate package [--output <file>]` | Writes the release archive of the project and its `.sha256`: the manifest, the lock, `main.lua`, `src`, `config`, `lua_modules` and a `RELEASE` file. Run `hecate install --frozen` first, on the platform of the server. See [Deliver to a server](../how-to/deliver-to-a-server.md). |
-| `hecate generate systemd [--user <name>] [--workers <n>] [--executable <path>] [--output <file>] [--force]` | Prints, or writes, the systemd unit that runs `hecate serve`: it stops on `SIGTERM` and reloads on `SIGHUP`. |
+| `hecate generate systemd [--user <name>] [--workers <n>] [--working-directory <dir>] [--environment-file <file>] [--executable <path>] [--output <file>] [--force]` | Prints, or writes, the systemd unit that runs `hecate serve`: it stops on `SIGTERM` and reloads on `SIGHUP`. `--working-directory` and `--environment-file` are paths on the server (absolute); a value with a line break is refused. |
 
 ## The manifest
 

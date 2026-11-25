@@ -106,6 +106,7 @@ function LuaRocks:environment()
   local version = (self.options.lua_version or "5.5"):gsub("%.", "_")
   return config_path, {
     ["LUAROCKS_CONFIG_" .. version] = config_path,
+    LUAROCKS_CONFIG = config_path, -- the generic variable too: a parent value must not name another file
     LUAROCKS_SYSCONFDIR = directory .. "/system",
   }
 end
