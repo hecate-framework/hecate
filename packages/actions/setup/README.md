@@ -17,12 +17,12 @@ Linux, macOS and Windows runners, X64 and ARM64.
 
 | Input | Default | Meaning |
 |---|---|---|
-| `version` | required | the release, `X.Y.Z-R` (a version and a revision, the LuaRocks form, no leading `v`): `0.4.0-1` |
+| `version` | required | the release, `X.Y.Z[pre]-R` (a version, optionally a pre-release `alpha`, `beta`, `rc` or `pre` and a number directly after it, and a revision; the LuaRocks form, no leading `v`): `0.4.0-1`, `0.4.2rc1-1`. The regular expression is `^[0-9]+\.[0-9]+\.[0-9]+((alpha\|beta\|rc\|pre)[0-9]+)?-[0-9]+$` |
 | `repository` | `hecate-framework/hecate` | the repository whose releases carry the executable |
 
 | Output | Meaning |
 |---|---|
-| `version` | the release installed (`X.Y.Z-R`); `hecate version` is checked against its `X.Y.Z` part |
+| `version` | the release installed (`X.Y.Z[pre]-R`); `hecate version` (the content of the `VERSION` file) is checked against its `X.Y.Z[pre]` part |
 | `path` | the directory that holds the executable |
 
 This directory is `setup/` of the package [`actions`](../README.md); the repository `hecate-framework/hecate-actions` is a

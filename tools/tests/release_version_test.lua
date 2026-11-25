@@ -38,8 +38,8 @@ function T:test_the_setup_action_uses_the_same_grammar_as_the_validator()
   for _, list in ipairs({ { VALID, true }, { INVALID, false } }) do
     for _, v in ipairs(list[1]) do
       if not v:find("\n", 1, true) then
-        local p = io.popen(("bash -c '[[ \"$1\" =~ %s ]] && echo yes || echo no' _ '%s'"):format(ere, v))
-        local answer = p:read("a"):gsub("%s+$", "")
+        local p = assert(io.popen(("bash -c '[[ \"$1\" =~ %s ]] && echo yes || echo no' _ '%s'"):format(ere, v)))
+        local answer = (p:read("a") or ""):gsub("%s+$", "")
         p:close()
         self:assert_equal(list[2] and "yes" or "no", answer, v)
       end

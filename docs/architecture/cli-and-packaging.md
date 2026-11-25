@@ -195,9 +195,9 @@ Implemented: the `ci` workflow (push and pull request; Linux, macOS, Windows; ch
 `hecate test`, `hecate contract export` and `lint` when the manifest has a `contract` section, `hecate doc build --yes`
 with `--doc`), and `hecate new --ci github`, which writes it for the `api` and `minimal` templates. `packages/actions/setup/` is a
 composite action (`version`, `repository` inputs): it downloads `hecate-<version>-<os>-<architecture>.tar.gz` (`.zip` on
-Windows; `os` is `linux`, `darwin` or `windows`, `architecture` `x86_64` or `aarch64`; `<version>` is the whole `X.Y.Z-R`, executable at the archive root, `lua55.dll` beside `hecate.exe` on Windows) from the release `<version>` (the tag, no `v`) of
+Windows; `os` is `linux`, `darwin` or `windows`, `architecture` `x86_64` or `aarch64`; `<version>` is the whole `X.Y.Z[pre]-R`, executable at the archive root, `lua55.dll` beside `hecate.exe` on Windows) from the release `<version>` (the tag, no `v`) of
 `hecate-framework/hecate`, verifies it against its `<asset>.sha256` (`<hex>  <archive name>`), refuses on a mismatch, and puts the directory on the `PATH`.
-The `version` input is `X.Y.Z-R` (anything else is refused, a leading `v` included) and the `hecate version` check compares the `X.Y.Z` part. The generated workflows write `version: "<hecate_version>-<REVISION>"` (`REVISION`, a constant of the same module, is `1`) and name `hecate-framework/hecate-actions/setup@<tag>`, where the tag is the constant
+The `version` input is `X.Y.Z[pre]-R` (the grammar of "Releases"; anything else is refused, a leading `v` included) and the `hecate version` check compares the `X.Y.Z[pre]` part (`hecate version` prints the content of `VERSION`). The generated workflows write `version: "<hecate_version>-<REVISION>"` (`REVISION`, a constant of the same module, is `1`) and name `hecate-framework/hecate-actions/setup@<tag>`, where the tag is the constant
 `hecate.cli.templates.workflows.SETUP_REF`, a placeholder (`0.0.0-1`) that the release process replaces (OQ-149). The `contract`
 kind (`contract.yml`) and the `docs-pages` kind (`docs.yml`: setup, `hecate install --frozen`, `hecate doc build --yes`, then
 configure, upload (`docs/dist`) and deploy with the Pages actions pinned by commit SHA; permissions `contents: read`,
@@ -217,8 +217,17 @@ The `release.yml` workflow builds the `hecate` executable and attaches it to a G
 2026-11-25). Rocks, Docker images and the installers come later (P3).
 
 - **Names.** A tag and its release are named `<version>-<revision>` in LuaRocks form, without a `v` prefix (`0.1.0-1`).
-  `X.Y.Z` must equal the root `VERSION` file: the first job of the workflow (`package-cli --check-tag`) fails before
-  anything is built when it does not.
+  The version is `X.Y.Z`, optionally followed directly by a pre-release: `alpha`, `beta`, `rc` or `pre` and a number
+  (`0.4.2rc1-1`, `1.0.0beta2-1`), the tokens that LuaRocks orders before the final release (`luarocks.core.vers`: alpha <
+  beta < pre < rc < final; the order is informational here). `dev`, `scm` and `cvs` are refused, as are a hyphen before
+  the pre-release (`0.4.2-rc1-1`), a pre-release without a number (`0.4.2rc-1`) and a missing revision. The grammar is
+  `^[0-9]+\.[0-9]+\.[0-9]+((alpha|beta|rc|pre)[0-9]+)?-[0-9]+$`, one validator per language
+  (`tools/lib/release_version.lua`, and the same expression in the setup action, a test keeps them equal).
+  `X.Y.Z[pre]` must equal the root `VERSION` file, so a pre-release is built from a `VERSION` that holds `0.4.2rc1`
+  (the rockspecs and the `version` fields follow it): the first job of the workflow (`package-cli --check-tag`) fails
+  before anything is built when it does not. A version with a pre-release part is created as a draft **marked
+  pre-release** (`gh release create --prerelease`; the `plan` job passes `package-cli --check-tag --prerelease`, which
+  prints `true` or `false`, as the output `prerelease`).
 - **Draft first, the owner publishes.** The owner enables GitHub's immutable releases setting: once a release is
   published, assets cannot be added. The workflow therefore runs on the **push of the tag**, builds on every platform,
   and creates the release as a **draft** with every asset attached (`gh release create <tag> --draft --verify-tag`),
@@ -227,7 +236,7 @@ The `release.yml` workflow builds the `hecate` executable and attaches it to a G
   assets, hence the tag trigger.)
 - **Assets**, per platform: `hecate-<version>-<os>-<arch>.tar.gz` (`.zip` on Windows) and
   `hecate-<version>-<os>-<arch>.tar.gz.sha256` (`<hex>  <archive name>`, the `sha256sum` format; `.zip.sha256` on
-  Windows); `os` is `linux`, `darwin` or `windows`, `arch` is `x86_64` or `aarch64`, `<version>` is the whole `X.Y.Z-R`.
+  Windows); `os` is `linux`, `darwin` or `windows`, `arch` is `x86_64` or `aarch64`, `<version>` is the whole `X.Y.Z[pre]-R`.
   The executable is at the root of the archive: `hecate`, or `hecate.exe` with `lua55.dll` beside it on Windows. These are
   the names that the setup action (`packages/actions/setup`) downloads. The archive is deterministic (`package-cli`:
   sorted entries, fixed time and owner; the Windows zip holds stored entries). On a tag, each archive also gets a build
@@ -238,7 +247,7 @@ The `release.yml` workflow builds the `hecate` executable and attaches it to a G
   targets planned for the P3 release (automation.md) include them.
 - **Same build as CI.** The toolchain steps are those of `ci.yml` (same pins and cache key), then
   `build-cli --strict`, `package-cli` and its smoke test: the archive is extracted and `hecate version` must print the
-  expected `X.Y.Z`.
+  expected `X.Y.Z[pre]` (the content of `VERSION`).
 - **Rehearsal.** A pull request that touches the release machinery (`release.yml`, `package-cli`, `build-cli`, the archive
   library, the C host) and `workflow_dispatch` (input `revision`, default `1`) run the same plan, build, packaging and
   smoke test on the matrix, keep the archives as workflow artifacts (seven days) and create no release. The pull request
