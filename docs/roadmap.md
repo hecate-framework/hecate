@@ -353,7 +353,7 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       content tree per audience, `<guides_dir>/<audience>/<locale>/`, each built by the plain builder into
       `<output_dir>/<audience>/`; option `audiences`, default `{ "maintainer" }`; no front matter key, no `merged` mode),
       `llms.txt` and `llms-full.txt` of a project, the theme extension points. **To do:** `llms.txt` of other locales (deferred until someone asks); a `draft` page flag. The move of the Hecate website into two trees is done (the `website` item below); there is no `check-audience` gate (the directory is the label) and no switcher feature (`top_links` carries an absolute link). `hecate doc build|serve` and the `doc` section of `hecate.project.lua` belong to the `cli` item below.
-- [x] `cli` v1: self-contained executable, `new`, `install`, `add`, `remove`, `update`,
+- [ ] `cli` v1: self-contained executable, `new`, `install`, `add`, `remove`, `update`,
       `serve [--watch]`, `test`, `doc`, `contract`, `toolchain`, `doctor`, `version`.
       **Also (from the `test` item, owner go-ahead of 2026-11-16):** `hecate test` takes the options of
       `test.parse_arguments` (`--filter`, `--case`, `--tag`, `--exclude-tag`, paths) and a `--jobs` flag that sets the
@@ -411,14 +411,23 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       command of the list above except `toolchain`, `generate meta|systemd|workflow`, `package`, `--env`, the `doc`
       section, the `workers` default of `"auto"`, the static documentation sites (OQ-148), `examples/hello` as a project,
       the `cli-e2e` tests on the three platforms, the website pages in English and French.
+      **To do before this item is ticked (owner, 2026-11-25: "this pull request goes until 2 is met"):** the packages that a
+      user installs from a file with the tool of the system, with no repository to host, no account and no certificate to
+      buy, attached by the release workflow to the same draft as the archives, for the platforms of the first release
+      (Linux x86_64; arm64 later): `.deb` (`hecate_<version>_amd64.deb`, `dpkg -i` or `apt install ./...`), `.rpm`, the
+      Arch package (`.pkg.tar.zst`, `pacman -U`) and the Alpine package (`.apk`, built from a static musl executable;
+      unsigned, so `apk add --allow-untrusted`), each with its `.sha256`; the pre-release form `0.4.2rc1-1` becomes
+      `0.4.2~rc1-1` in the Debian and RPM metadata (tilde sorts before the release). Linux executables are built in a
+      container whose glibc is old enough for every supported distribution (glibc 2.28, AlmaLinux 8; OQ-149) and
+      `package-cli` refuses an executable that needs a newer glibc; every package is installed and run (`hecate version`) in
+      a container of its distribution inside the release workflow (also in the rehearsal that a pull request runs).
+      Order of the owner: (1) the archives, (2) these packages, (3) the rest (the item "Distribution channels" of Phase 5).
       **Moved out (owner decisions of 2026-11-24 and 2026-11-25), nothing to implement before them:** `hecate toolchain`
       (later: compiled toolchains shipped by the project, nothing before Lua 5.4 is supported); the `crud` template (until
-      the ORM and the migrations exist); the installers and the releases, including the `release` kind of
-      `generate workflow`, the mirror `hecate-framework/hecate-actions` of `packages/actions` and the pin of the tag of its `setup` action
-      (owner gate, OQ-149); a check of the generated workflow files (`actionlint`) and a diff before `--force`
-      (OQ-149); the version-skew check of `hecate doctor` (needs a `version` in `core`); the French pages that the
-      English pages of this item link to and that have no French version yet (`configure-an-application`,
-      `serve-and-export-the-contract`, `multi-process-deployment`, `before-going-to-production`, `theme-tokens`).
+      the ORM and the migrations exist); the publication of releases and the pin of the tag of the `setup` action in the
+      mirror `hecate-framework/hecate-actions` (owner gate, OQ-149); the `release` kind of `generate workflow`; a check of
+      the generated workflow files (`actionlint`) and the French pages that the pages of this item link to (the item
+      "follow-ups of the `cli` v1 item" before the Phase 3 gate).
 - [ ] Docker images (runtime and build variants, amd64 + arm64). **Also (OQ-135, owner decision of 2026-11-15):**
       document a compose stack that shows the contract rendered: the application (`development`, or
       `openapi.enabled = true`), a reverse proxy so that the viewer and the application share one origin (no CORS
@@ -570,6 +579,13 @@ Exit: `examples/crud` works unchanged on PostgreSQL, MySQL, MariaDB and SQLite.
 
 ## Phase 5 — Ecosystem expansion
 
+- [ ] `cli`, `release`: distribution channels, after the archives and the packages of the `cli` v1 item (owner, 2026-11-25;
+      all need something outside this repository: a repository, an account, a moderation queue or a certificate):
+      Homebrew (a tap with a formula that points at the release), Scoop (a bucket), winget (the easiest for a Windows user:
+      built in, `winget install`; a manifest proposed to `microsoft/winget-pkgs`, automated with `wingetcreate`), the AUR
+      (`PKGBUILD`), signed apt, yum and apk repositories (keys and hosting), Chocolatey (account and moderation), the macOS
+      `.pkg` (needs signing and notarisation, an Apple account), a Windows installer. **Not wanted (owner):** AppImage,
+      Flatpak, Snap. MacPorts only if someone asks.
 - [ ] `security`: authentication (bearer tokens, JWT, sessions), authorisation
       policies, password hashing.
 - [ ] `mongodb`: OP_MSG protocol, BSON, document mapper.
