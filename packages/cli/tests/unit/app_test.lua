@@ -88,6 +88,79 @@ function T:test_a_raised_error_is_a_failure_exit_code_with_the_message()
   self:assert_equal("hecate boom: kaput", err)
 end
 
+function T:test_a_usage_error_of_a_command_names_the_command_and_its_help()
+  local _, _, err = run({ "version", "--bogus" })
+  self:assert_true(err:find("hecate version: unknown option --bogus", 1, true) ~= nil, err)
+  self:assert_true(err:find("hecate version --help", 1, true) ~= nil, err)
+end
+
+function T:test_help_is_an_alias_of_the_help_flag()
+  local code, out = run({ "help" })
+  self:assert_equal(0, code)
+  self:assert_true(out:find("Usage: hecate <command>", 1, true) ~= nil, out)
+  local code_command, out_command = run({ "help", "version" })
+  self:assert_equal(0, code_command)
+  self:assert_true(out_command:find("Usage: hecate version", 1, true) ~= nil, out_command)
+end
+
+function T:test_a_word_that_starts_a_group_lists_its_commands()
+  local commands = {
+    { name = "contract export", summary = "Export it", run = function() end },
+    { name = "contract lint", summary = "Lint it", run = function() end },
+    { name = "contract secret", summary = "x", hidden = true, run = function() end },
+  }
+  local code, out, err = run({ "contract" }, commands)
+  self:assert_equal(2, code)
+  self:assert_true(out:find("Usage: hecate contract <command>", 1, true) ~= nil, out)
+  self:assert_true(out:find("contract export", 1, true) ~= nil and out:find("contract lint", 1, true) ~= nil, out)
+  self:assert_true(out:find("secret", 1, true) == nil, out)
+  self:assert_equal("", err)
+  self:assert_equal(0, (run({ "contract", "--help" }, commands)))
+  self:assert_equal(0, (run({ "help", "contract" }, commands)))
+end
+
+function T:test_under_json_a_failure_is_one_json_document_on_standard_output()
+  local function encoded(value)
+    return "ok=" .. tostring(value.ok) .. ";message=" .. tostring(value.error and value.error.message) .. ";code=" .. tostring(value.error and value.error.code)
+      .. ";usage=" .. tostring(value.usage)
+  end
+  local function run_json(args, commands)
+    local out, err = {}, {}
+    local code = app.run(args, {
+      commands = commands, runtime = runtime, encode_json = encoded,
+      write = function(text) out[#out + 1] = text end, write_error = function(text) err[#err + 1] = text end,
+    })
+    return code, table.concat(out, "\n"), table.concat(err, "\n")
+  end
+  local core = require("hecate.core")
+  local failing = { name = "boom", summary = "x", run = function() error(core.ConfigurationError({ message = "kaput" }), 0) end }
+  local code, out, err = run_json({ "boom", "--json" }, { failing })
+  self:assert_equal(1, code)
+  self:assert_equal("ok=false;message=kaput;code=hecate.core.ConfigurationError;usage=nil", out)
+  self:assert_equal("", err)
+  -- Not an Error: a string raised, a table raised.
+  local raising_string = { name = "s", summary = "x", run = function() error("plain", 0) end }
+  local _, out_string = run_json({ "s", "--json" }, { raising_string })
+  self:assert_equal("ok=false;message=plain;code=nil;usage=nil", out_string)
+  local raising_table = { name = "t", summary = "x", run = function() error({}, 0) end }
+  local code_table, _, err_table = run_json({ "t" }, { raising_table })
+  self:assert_equal(1, code_table)
+  self:assert_true(err_table:find("hecate t: table:", 1, true) ~= nil, err_table)
+  local usage_code, usage_out = run_json({ "frobnicate", "--json" }, { failing })
+  self:assert_equal(2, usage_code)
+  self:assert_equal("ok=false;message=unknown command 'frobnicate';code=hecate.core.ArgumentError;usage=true", usage_out)
+end
+
+function T:test_emit_adds_ok_to_a_json_answer()
+  local seen
+  local command = { name = "x", summary = "x", run = function(context) context.emit({ value = 1 }, "text") end }
+  app.run({ "x", "--json" }, {
+    commands = { command }, runtime = runtime, write = function() end, write_error = function() end,
+    encode_json = function(value) seen = value; return "" end,
+  })
+  self:assert_true(seen.ok == true and seen.value == 1)
+end
+
 function T:test_a_command_returns_its_own_exit_code()
   local code = run({ "three" }, { { name = "three", summary = "x", run = function() return 3 end } })
   self:assert_equal(3, code)
