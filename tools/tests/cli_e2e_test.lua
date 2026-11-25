@@ -166,12 +166,11 @@ function T:test_a_new_project_exports_lints_and_generates()
   end)
 end
 
---- The status that `curl` gets from `url` within two seconds ("000" when nothing answers). `curl` ships with the three
---- platforms of CI and ends each attempt by itself, which the in-process client does not do on Windows when the
---- server is not listening yet.
-local function http_status(url)
-  local out = util.capture(("curl -s -o %s -w %%{http_code} --max-time 2 %s 2>&1"):format(windows and "NUL" or "/dev/null", util.quote(url)))
-  return (out:match("%d%d%d"))
+--- The status that `curl` gets from `url` within two seconds ("000" when nothing answers), asked through the reactor so that
+--- the loop keeps running. `curl` ships with the three platforms of CI and ends each attempt by itself.
+local function http_status(reactor, url)
+  local result = reactor.run_process("curl", { "-s", "-o", windows and "NUL" or "/dev/null", "-w", "%{http_code}", "--max-time", "2", url })
+  return (result.stdout:match("%d%d%d"))
 end
 
 function T:test_a_new_project_serves_and_answers_the_health_check()
@@ -183,16 +182,19 @@ function T:test_a_new_project_serves_and_answers_the_health_check()
     local status
     progress("starting on port " .. port)
     local ok_serve, err_serve = pcall(reactor.run, function()
-      local server = reactor.spawn(exe, { "serve" }, { cwd = project, env = { PORT = tostring(port) }, own_group = true }) -- glossary-ok: an operating-system process
+      local server = reactor.spawn(exe, { "serve" }, { cwd = project, env = { PORT = tostring(port) } }) -- glossary-ok: an operating-system process
       progress("spawned pid " .. tostring(server.pid))
       local deadline = os.time() + 40
       local attempt = 0
       while os.time() < deadline do
         attempt = attempt + 1
-        status = http_status("http://127.0.0.1:" .. port .. "/health")
+        if attempt <= 3 then progress("asking (attempt " .. attempt .. ")") end
+        status = http_status(reactor, "http://127.0.0.1:" .. port .. "/health")
         if attempt <= 3 or status == "200" then progress("attempt " .. attempt .. " -> " .. tostring(status)) end
         if status == "200" then break end
+        if attempt <= 3 then progress("sleeping") end
         reactor.sleep(0.3)
+        if attempt <= 3 then progress("slept") end
       end
       progress("stopping")
       stop_tree(server)
