@@ -176,12 +176,16 @@ function T:test_a_new_project_serves_and_answers_the_health_check()
       local status
       progress("starting on port " .. port)
       local ok_serve, err_serve = pcall(reactor.run, function()
-        local server = reactor.spawn(exe, { "serve" }, { cwd = project, env = { PORT = tostring(port) }, stdout = "ignore", stderr = "ignore", own_group = true }) -- glossary-ok: an operating-system process
+        local server = reactor.spawn(exe, { "serve" }, { cwd = project, env = { PORT = tostring(port) }, own_group = true }) -- glossary-ok: an operating-system process
         progress("spawned pid " .. tostring(server.pid))
         local fine_loop, loop_error = pcall(reactor.deadline, 30, function()
           local client = http.Client()
+          local attempt = 0
           while true do
+            attempt = attempt + 1
+            if attempt <= 5 or attempt % 25 == 0 then progress("attempt " .. attempt) end
             local fine, response = pcall(function() return client:get("http://127.0.0.1:" .. port .. "/health") end)
+            if attempt <= 5 then progress("attempt " .. attempt .. " -> " .. tostring(fine) .. " " .. tostring(fine and response.status or response)) end
             if fine then status = response.status return end
             reactor.sleep(0.2)
           end
