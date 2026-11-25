@@ -323,7 +323,7 @@ static int run_cli(lua_State *L, int argc, char **argv, const char *self) {
  * module path. Runs protected (an out-of-memory error ends in a message, not in the panic of an unprotected call). */
 static int prepare(lua_State *L) {
   const char *self = (const char *)lua_touserdata(L, 1);
-  int mode = lua_tointeger(L, 2); /* 0 command line, 1 LuaRocks, 2 interpreter of a project */
+  int mode = (int)lua_tointeger(L, 2); /* 0 command line, 1 LuaRocks, 2 interpreter of a project */
   luaL_openlibs(L);
   preload_natives(L);
   install_searcher(L, mode != 2);
