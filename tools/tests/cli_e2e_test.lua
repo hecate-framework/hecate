@@ -44,6 +44,12 @@ local function free_port()
   return port
 end
 
+--- A progress line of the serve test, shown in the log of the run (a hang on Windows shows where it stopped).
+local function progress(text)
+  io.stdout:write("  # serve: ", text, "\n")
+  io.stdout:flush()
+end
+
 --- Stops a server and what it started: on Windows `kill` ends only the supervisor (TerminateProcess), and the child
 --- would keep the port and lock the executable, so the whole tree is ended.
 local function stop_tree(server)
@@ -168,8 +174,10 @@ function T:test_a_new_project_serves_and_answers_the_health_check()
     local port = free_port()
     if reactor_ok and http_ok and port then
       local status
+      progress("starting on port " .. port)
       local ok_serve, err_serve = pcall(reactor.run, function()
         local server = reactor.spawn(exe, { "serve" }, { cwd = project, env = { PORT = tostring(port) }, stdout = "ignore", stderr = "ignore", own_group = true }) -- glossary-ok: an operating-system process
+        progress("spawned pid " .. tostring(server.pid))
         local fine_loop, loop_error = pcall(reactor.deadline, 30, function()
           local client = http.Client()
           while true do
@@ -178,7 +186,9 @@ function T:test_a_new_project_serves_and_answers_the_health_check()
             reactor.sleep(0.2)
           end
         end)
+        progress("polling ended (" .. tostring(fine_loop) .. ", status " .. tostring(status) .. "), stopping")
         stop_tree(server)
+        progress("stopped")
         if not fine_loop then error(loop_error, 0) end
       end)
       self:assert_true(ok_serve, tostring(err_serve))
