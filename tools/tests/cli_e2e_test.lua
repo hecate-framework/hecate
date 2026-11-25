@@ -66,7 +66,10 @@ local function with_cleanup(directory, body)
   if not ok then error(err, 0) end
 end
 
-function T:test_a_new_project_tests_exports_lints_and_serves()
+--- Creates a project `shop` in a temporary directory (linked to the packages of the repository), runs `body(run, project, base,
+--- exe)` and removes the directory whatever happens. Each test of this file does it for itself: the watchdog of the harness
+--- gives every test its own time, and a Windows process start is slow.
+local function with_project(self, body)
   local exe = built()
   if not exe then return end
   exe = absolute(exe)
@@ -75,14 +78,18 @@ function T:test_a_new_project_tests_exports_lints_and_serves()
   base = absolute(base)
   with_cleanup(base, function()
     local function run(command, directory) return util.capture(in_directory(directory or base, exe, command)) end
-
     local out, ok = run("new shop")
     self:assert_true(ok, out)
     local project = base .. "/shop"
     local linked, linked_ok = util.capture(("%s tools/run.lua link-modules %s 2>&1"):format(util.quote(util.interpreter()), util.quote(project)))
     self:assert_true(linked_ok, linked)
+    body(run, project, base, exe)
+  end)
+end
 
-    out, ok = run("test", project)
+function T:test_a_new_project_runs_its_tests_in_the_process_and_with_workers()
+  with_project(self, function(run, project, base)
+    local out, ok = run("test", project)
     self:assert_true(ok, out)
     self:assert_true(out:find("4 passed", 1, true) ~= nil, out)
 
@@ -94,7 +101,30 @@ function T:test_a_new_project_tests_exports_lints_and_serves()
     self:assert_true(ok, out) -- a selection that matches nothing is a warning (hecate.test: `ok` stays true), not a failure
     self:assert_true(out:find("no test matches the selection", 1, true) ~= nil, out)
 
-    out, ok = run("contract export --output=openapi.json", project)
+    -- A project without a manifest says what to do.
+    local empty = base .. "/empty"
+    util.mkdir(empty)
+    out, ok = run("test", empty)
+    self:assert_false(ok, out)
+    self:assert_true(out:find("hecate new", 1, true) ~= nil, out)
+
+    -- A failing test makes the run fail and is reported, in the process and with workers.
+    local failing = assert(io.open(project .. "/tests/failing_test.lua", "wb"))
+    failing:write('local test = require("hecate.test")\nlocal T = test.Case("FailingTest")\n'
+      .. "function T:test_it_fails() self:assert_equal(1, 2) end\nreturn T\n")
+    failing:close()
+    for _, command in ipairs({ "test", "test --jobs=2" }) do
+      out, ok = run(command, project)
+      self:assert_false(ok, command .. "\n" .. out)
+      self:assert_true(out:find("test_it_fails", 1, true) ~= nil, command .. "\n" .. out)
+    end
+    os.remove(project .. "/tests/failing_test.lua")
+  end)
+end
+
+function T:test_a_new_project_exports_lints_and_generates()
+  with_project(self, function(run, project, base)
+    local out, ok = run("contract export --output=openapi.json", project)
     self:assert_true(ok, out)
     out, ok = run("contract lint openapi.json", project)
     self:assert_true(ok, out)
@@ -127,26 +157,11 @@ function T:test_a_new_project_tests_exports_lints_and_serves()
     local meta = assert(io.open(project .. "/meta/shop.schemas.lua", "rb"))
     self:assert_true(meta:read("a"):find("---@meta shop.schemas", 1, true) ~= nil)
     meta:close()
+  end)
+end
 
-    -- A project without a manifest says what to do.
-    local empty = base .. "/empty"
-    util.mkdir(empty)
-    out, ok = run("test", empty)
-    self:assert_false(ok, out)
-    self:assert_true(out:find("hecate new", 1, true) ~= nil, out)
-
-    -- A failing test makes the run fail and is reported, in the process and with workers.
-    local failing = assert(io.open(project .. "/tests/failing_test.lua", "wb"))
-    failing:write('local test = require("hecate.test")\nlocal T = test.Case("FailingTest")\n'
-      .. "function T:test_it_fails() self:assert_equal(1, 2) end\nreturn T\n")
-    failing:close()
-    for _, command in ipairs({ "test", "test --jobs=2" }) do
-      out, ok = run(command, project)
-      self:assert_false(ok, command .. "\n" .. out)
-      self:assert_true(out:find("test_it_fails", 1, true) ~= nil, command .. "\n" .. out)
-    end
-    os.remove(project .. "/tests/failing_test.lua")
-
+function T:test_a_new_project_serves_and_answers_the_health_check()
+  with_project(self, function(_, project, _, exe)
     -- `hecate serve` on a free port answers the health check, and stops when it is stopped.
     local reactor_ok, reactor = pcall(require, "hecate.reactor")
     local http_ok, http = pcall(require, "hecate.http")
