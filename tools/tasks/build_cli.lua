@@ -1,9 +1,13 @@
 -- build-cli: builds the `hecate` executable: the C host with the Lua sources of the command-line interface embedded,
 -- the native modules it needs linked in statically (luv with libuv, digest, luafilesystem, the JSON codec) and LuaRocks
 -- embedded (ADR 0029).
--- Usage: build-cli [--output=<path>] [--strict] [--sanitize]
+-- Usage: build-cli [--output=<path>] [--strict] [--sanitize] [--static]
 --   --strict (implied by CI) fails when a module cannot be linked in; --sanitize (Unix) instruments the host and the C
 --   sources of the repository with AddressSanitizer and UndefinedBehaviorSanitizer (the third-party libraries are not).
+--   --static (Linux, for the Alpine package: musl) links the executable fully statically (`cc -static`): it then needs no
+--   shared library at all. A static executable cannot `dlopen`, so a C rock that `hecate install` builds is not loadable
+--   by it (the Lua modules, luv, the JSON codec, luafilesystem and digest are linked in and work). The Rust encoder must be
+--   built without its own bundled libc on musl: the release container sets `RUSTFLAGS="-C target-feature=-crt-static"`.
 -- Third-party sources (luv with its libuv, lua-digest, luafilesystem, LuaRocks) are cloned into
 -- `.hecate/build/cli/deps` at the versions pinned below. A module whose build tool is missing (cmake, cargo) is left
 -- out and then found next to the executable or in LUA_CPATH; `hecate doctor` reports what is missing.
@@ -84,12 +88,15 @@ local WINDOWS_LIBRARIES = "ws2_32.lib iphlpapi.lib userenv.lib psapi.lib advapi3
 ---@return table report
 local function build(ctx, release)
     local output = ctx.root .. "/.hecate/build/cli/hecate" .. (windows and ".exe" or "")
-    local sanitize = false
+    local sanitize, static = false, false
     for _, a in ipairs(ctx.args) do
       output = a:match("^%-%-output=(.+)$") or output
       if a == "--sanitize" then sanitize = true end
+      if a == "--static" then static = true end
     end
     if sanitize and windows then return { ok = false, problems = { "build-cli: --sanitize runs on Linux and macOS" } } end
+    if static and (windows or util.capture("uname -s") ~= "Linux") then return { ok = false, problems = { "build-cli: --static is for Linux (a static executable on macOS and Windows is not supported by the system)" } } end
+    if static and sanitize then return { ok = false, problems = { "build-cli: --static and --sanitize cannot be combined" } } end
     -- (_FORTIFY_SOURCE is left out with the sanitizers: they define it themselves, and a redefinition is an error under -Werror.)
     local sanitizer = sanitize and " -fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=undefined" or ""
     local lua, lua_library = find_lua(ctx.root)
@@ -250,7 +257,7 @@ local function build(ctx, release)
     else
       cmd = table.concat({
         "cc" .. sanitizer, "-o", util.quote(output), table.concat(objects, " "), table.concat(libraries, " "), util.quote(lua_library),
-        linux and "-Wl,-E -Wl,-z,relro,-z,now" or "-Wl,-export_dynamic", "-lm", "-lpthread", linux and "-ldl -lrt" or "", "2>&1",
+        static and "-static" or "", linux and "-Wl,-E -Wl,-z,relro,-z,now" or "-Wl,-export_dynamic", "-lm", "-lpthread", linux and "-ldl -lrt" or "", "2>&1",
       }, " ")
     end
     local out, ok = util.capture(cmd)
