@@ -17,7 +17,7 @@ ran, and `2` a usage error.
 
 | Command | What it does |
 |---|---|
-| `hecate new <name> [--template api\|minimal]` | Creates the directory `<name>` from a template and refuses one that exists. `api` (the default) is a health check and a resource with its schemas, route module and tests; `minimal` is the health check alone. Both write the manifest (with the `doc` layout), `main.lua`, `config/development.lua` and `config/test.lua`, the tests and a first documentation page. |
+| `hecate new <name> [--template api\|minimal] [--ci github]` | Creates the directory `<name>` from a template and refuses one that exists. `--ci github` also writes `.github/workflows/ci.yml` (see `hecate generate workflow`). `api` (the default) is a health check and a resource with its schemas, route module and tests; `minimal` is the health check alone. Both write the manifest (with the `doc` layout), `main.lua`, `config/development.lua` and `config/test.lua`, the tests and a first documentation page. |
 | `hecate init [--name <name>]` | Adds the `minimal` template to the current directory, keeping every file that exists. |
 | `hecate doctor` | Checks the environment: Lua, LuaRocks, libuv, the native modules, a C compiler. |
 | `hecate version` | Prints the Hecate, Lua, LuaRocks and libuv versions and the platform. |
@@ -61,6 +61,7 @@ The dependencies of a project are rocks, listed in `hecate.project.lua` and lock
 |---|---|
 | `hecate package [--output <file>]` | Writes the release archive of the project and its `.sha256`: the manifest, the lock, `main.lua`, `src`, `config`, `lua_modules` and a `RELEASE` file. Run `hecate install --frozen` first, on the platform of the server. See [Deliver to a server](../how-to/deliver-to-a-server.md). |
 | `hecate generate systemd [--user <name>] [--workers <n>] [--working-directory <dir>] [--environment-file <file>] [--executable <path>] [--output <file>] [--force]` | Prints, or writes, the systemd unit that runs `hecate serve`: it stops on `SIGTERM` and reloads on `SIGHUP`. `--working-directory` and `--environment-file` are paths on the server (absolute); a value with a line break is refused. |
+| `hecate generate workflow ci [--provider github] [--doc] [--output <file>] [--force]` | Writes the CI workflow of the project, `.github/workflows/ci.yml` by default, and keeps an existing file unless `--force`. It runs on every push and pull request, on Linux, macOS and Windows: checkout, the setup action of Hecate (`hecate-framework/hecate-setup`), `hecate install --frozen`, `hecate test`, then `hecate contract export` and `hecate contract lint` when the manifest has a `contract` section, and `hecate doc build --yes` with `--doc`. The other kinds of the specification (`contract`, `docs-pages`, `release`) are not implemented yet. See [Deliver to a server](../how-to/deliver-to-a-server.md). |
 
 ## The manifest
 

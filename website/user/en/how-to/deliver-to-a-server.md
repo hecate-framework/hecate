@@ -23,6 +23,15 @@ hecate package
 lock, `main.lua`, `src`, `config` and `lua_modules`, plus a `RELEASE` file with the versions. Tests, `.git`, `.hecate` and
 the documentation site are not in it. Keep secrets out of the project: they come from the environment of the server.
 
+## Run the checks in CI
+
+`hecate generate workflow ci` writes `.github/workflows/ci.yml` (`hecate new shop --ci github` does it for a new project):
+on every push and pull request, on Linux, macOS and Windows, it installs the executable with the setup action
+`hecate-framework/hecate-setup`, then runs `hecate install --frozen`, `hecate test` and, for a project with a contract,
+`hecate contract export` and `hecate contract lint`. Add `--doc` to build the documentation too. The workflow calls only
+`hecate` commands, so a run behaves like a local one; regenerate it with `--force` after an upgrade of Hecate. To build
+and package the release on the server's platform, add a job that runs `hecate install --frozen` and `hecate package`.
+
 ## Prepare the server
 
 ```sh
