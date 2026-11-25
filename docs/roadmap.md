@@ -451,7 +451,7 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
 - [ ] Read-only mirrors (ADR 0017): `split`, `mirrors ensure`, `check-mirrors`, the tag of the `unicode-data` mirror is the Unicode version and not `VERSION` (ADR 0032),
       `split.yml`; Homebrew tap and Scoop bucket repositories (applies OQ-17: `splitsh-lite` pinned, `git subtree split` as fallback, see the [spike](spikes/OQ-17-split-tool.md)).
 - [ ] Publish all rocks to luarocks.org (sources from mirrors).
-- [ ] `hecate generate workflow` (ci, contract, docs-pages, release) and its templates;
+- [ ] `hecate generate workflow` (ci, contract, docs-pages done; release to do) and its templates;
       regenerate the monorepo's `website.yml` with it.
 - [ ] Release automation: `release.yml` (including one LuaRocks binary rock per platform for
       the native modules of `net` and `json`, ADR 0021), `docker.yml`, `cli-e2e.yml`, `website.yml`

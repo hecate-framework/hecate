@@ -39,7 +39,7 @@ Status: specification; [ADR 0009](../adr/0009-project-manifest.md) and
 | `hecate package` | generate a rockspec from the manifest and pack a rock |
 | `hecate publish` | publish to luarocks.org (or a configured server) |
 | `hecate toolchain install\|list\|use\|remove` | manage Lua + LuaRocks toolchains |
-| `hecate generate workflow <kind> [--provider github] [--doc] [--output <file>] [--force]` | (implemented: `ci` only; the others are to do) generate CI/CD workflows for the project: `ci` (install, check, test on Linux/macOS/Windows), `contract` (export, lint and diff against the base branch), `docs-pages` (build the documentation with `hecate doc build` and publish it to the repository's GitHub Pages), `release` (package and publish rocks) |
+| `hecate generate workflow <kind> [--provider github] [--doc] [--output <file>] [--force]` | (implemented: `ci`, `contract` and `docs-pages`; `release` is to do) generate CI/CD workflows for the project: `ci` (install, check, test on Linux/macOS/Windows), `contract` (on a pull request, diff the committed contract of the base branch against the application and fail on a breaking change), `docs-pages` (build the documentation with `hecate doc build` and publish it to the repository's GitHub Pages), `release` (package and publish rocks) |
 | `hecate serve --env <name>`, `hecate run --env <name>` | set the configuration environment (`HECATE_ENV`) of the child: the flag, else `HECATE_ENV` as the process has it, else `production`; no value in `hecate.project.lua` (it would reach production by accident); a shorter `hecate dev` may come later (owner decision of 2026-11-24) |
 | `hecate package [--output <file>]` | the release archive of the project for a server without Docker (owner agreement of 2026-11-24), see "Delivery to a server" |
 | `hecate doctor` | diagnose the environment: versions, compilers, OpenSSL, libuv, PATH |
@@ -176,9 +176,14 @@ the selected toolchain, so user and system LuaRocks configurations never interfe
   `--force` after an upgrade (a diff is shown first).
 
 `docs-pages` uses the standard GitHub Pages actions (configure, upload artefact,
-deploy), deploys from the default branch, supports a custom domain (`CNAME`) and sets
-the base URL for project sites (`https://<owner>.github.io/<repository>/`). It needs
-GitHub Pages set to "GitHub Actions" as source; the command prints that step.
+deploy), deploys on a push to the default branch and supports a custom domain (`CNAME`). The documentation site is
+static with relative links (OQ-148), so the workflow sets no base path. It needs GitHub Pages set to "GitHub Actions" as
+source; the command prints that step.
+
+`contract` runs on pull requests, on Linux, with the whole history (`fetch-depth: 0`): `hecate contract diff
+origin/<base branch>` compares the `openapi.json` committed on the base branch with the contract of the application of
+the pull request and exits 1 on a breaking change. It needs a project with a `contract` section (the command refuses
+otherwise) and `openapi.json` committed on the base branch.
 
 The setup action is released like any GitHub Action (owner direction of 2026-11-24): its own repository
 (source in the monorepo, `actions/setup/`, published to the generated read-only mirror `hecate-framework/hecate-setup`, ADR 0017: the mirror has the `action.yml` at its root, which GitHub and the Marketplace require; the action installs the executable of a given release and puts it on the `PATH`; `uses: hecate-framework/hecate-setup@v1`), versions are Git tags `v<major>.<minor>.<patch>` with a GitHub Release, plus a moving major tag (`v1`) that the
@@ -194,8 +199,11 @@ composite action (`version`, `repository` inputs): it downloads `hecate-<version
 Windows; `os` is `linux`, `darwin` or `windows`, `architecture` `x86_64` or `aarch64`) from the release `v<version>` of
 `hecate-framework/hecate`, verifies it against its `.sha256`, refuses on a mismatch, and puts the directory on the `PATH`.
 The generated workflows name `hecate-framework/hecate-setup@<tag>`, where the tag is the constant
-`hecate.cli.templates.workflows.SETUP_REF`, a placeholder (`v1`) that the release process replaces (OQ-149). Not
-implemented yet: the `contract`, `docs-pages` and `release` kinds, the diff shown before `--force` overwrites, and the cache
+`hecate.cli.templates.workflows.SETUP_REF`, a placeholder (`v1`) that the release process replaces (OQ-149). The `contract`
+kind (`contract.yml`) and the `docs-pages` kind (`docs.yml`: setup, `hecate install --frozen`, `hecate doc build --yes`, then
+configure, upload (`docs/dist`) and deploy with the Pages actions pinned by commit SHA; permissions `contents: read`,
+`pages: write`, `id-token: write`) are implemented as described above. Not
+implemented yet: the `release` kind (owner gate: releases and installers), the diff shown before `--force` overwrites, and the cache
 of the toolchain (there is none to cache: the executable is the interpreter, ADR 0029).
 
 The service of a project in production is generated by `hecate generate systemd` (OQ-133, owner decision of
@@ -222,6 +230,6 @@ Without Docker, a release is a folder that a server can run (owner agreement of 
 ## Templates
 
 `api` (default: controllers, schemas, tests; `--ci github` also generates
-the `ci` workflow; `contract` and `docs-pages` follow with their kinds), `minimal` (single route
+the `ci` workflow; `contract` and `docs-pages` are separate kinds), `minimal` (single route
 module), `crud` (PostgreSQL, ORM, migrations). Templates live in
 `packages/cli/templates/` and are tested in CI by generating and testing a project.

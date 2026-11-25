@@ -1,7 +1,8 @@
 -- `hecate generate workflow <kind> [--provider github] [--doc] [--output <file>] [--force]`: writes a CI workflow for the project
--- (cli-and-packaging.md, "Generated workflows"). `ci` exists so far: install, test and, when the manifest has a `contract`
--- section, lint the contract, on Linux, macOS and Windows, with the setup action of the project. The workflow goes to
--- `.github/workflows/<kind>.yml` unless `--output` says otherwise; an existing file is kept unless `--force`.
+-- (cli-and-packaging.md, "Generated workflows"). `ci` (install, test and, when the manifest has a `contract`
+-- section, lint the contract, on Linux, macOS and Windows), `contract` (fails a pull request on a breaking change) and
+-- `docs-pages` (publishes the documentation to GitHub Pages) exist, all with the setup action of the project. The workflow goes to
+-- `.github/workflows/<kind>.yml` (`docs.yml` for `docs-pages`) unless `--output` says otherwise; an existing file is kept unless `--force`.
 global <const> require, error, ipairs, pcall, type, tostring
 
 local core = require("hecate.core")
@@ -21,12 +22,12 @@ local MANIFEST = "hecate.project.lua"
 ---@field execute fun(context: hecate.cli.Context, dependencies: hecate.cli.GenerateWorkflowDependencies): integer
 local command = {
   name = "generate workflow",
-  summary = "Generate a CI workflow for the project (ci)",
+  summary = "Generate a CI workflow for the project (ci, contract, docs-pages)",
   usage = "<kind> [--provider github] [--doc] [--output <file>] [--force]",
   options = {
     { name = "provider", takes_value = true, summary = "The CI provider: github (default)" },
-    { name = "doc", summary = "Also build the documentation (hecate doc build --yes)" },
-    { name = "output", takes_value = true, summary = "Write the workflow here (default: .github/workflows/<kind>.yml)" },
+    { name = "doc", summary = "ci: also build the documentation (hecate doc build --yes)" },
+    { name = "output", takes_value = true, summary = "Write the workflow here (default: .github/workflows/<kind>.yml, docs.yml for docs-pages)" },
     { name = "force", summary = "Overwrite the output file when it exists" },
   },
 }
@@ -44,7 +45,8 @@ function command.execute(context, dependencies)
   end
   local kind = positionals[1]
   if not workflows.kinds[kind] then
-    local hint = "available: ci"
+    local available = "available: ci, contract, docs-pages"
+    local hint = available
     for _, planned in ipairs(workflows.planned_kinds) do
       if planned == kind then hint = "`" .. kind .. "` is specified but not implemented yet; available: ci" end
     end
@@ -68,7 +70,7 @@ function command.execute(context, dependencies)
     context.print_error("hecate generate workflow: " .. (type(workflow) == "table" and workflow.message or tostring(workflow)))
     return 1
   end
-  local output = options.output --[[@as string?]] or (".github/workflows/" .. kind .. ".yml")
+  local output = options.output --[[@as string?]] or (".github/workflows/" .. (kind == "docs-pages" and "docs" or kind) .. ".yml")
   local code = dependencies.run(function()
     if dependencies.exists(output) and not options.force then
       context.print_error("hecate generate workflow: " .. output .. " already exists; pass --force to overwrite it")
@@ -78,7 +80,10 @@ function command.execute(context, dependencies)
     return 0
   end)
   if code ~= 0 then return code end
-  context.emit({ output = output, kind = kind, provider = provider }, "Wrote " .. output .. ".\nCommit it; it runs on every push and pull request.")
+  context.emit({ output = output, kind = kind, provider = provider }, "Wrote " .. output .. ".\nCommit it; "
+    .. (kind == "contract" and "it runs on every pull request, and needs openapi.json committed on the base branch."
+      or kind == "docs-pages" and "it runs on a push to the default branch; set the source of GitHub Pages to \"GitHub Actions\"."
+      or "it runs on every push and pull request."))
   return 0
 end
 

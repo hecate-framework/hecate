@@ -32,6 +32,12 @@ on every push and pull request, on Linux, macOS and Windows, it installs the exe
 `hecate` commands, so a run behaves like a local one; regenerate it with `--force` after an upgrade of Hecate. To build
 and package the release on the server's platform, add a job that runs `hecate install --frozen` and `hecate package`.
 
+Two more workflows: `hecate generate workflow contract` writes `.github/workflows/contract.yml`, which on every pull request
+runs `hecate contract diff origin/<base branch>` and fails on a breaking change of the contract (commit `openapi.json` on
+the base branch first, with `hecate contract export --output openapi.json`); `hecate generate workflow docs-pages` writes
+`.github/workflows/docs.yml`, which on a push to the default branch builds the documentation with `hecate doc build --yes`
+and publishes it to GitHub Pages (set the source of Pages to "GitHub Actions"). A `release` workflow is not generated yet.
+
 ## Prepare the server
 
 ```sh
