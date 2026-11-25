@@ -290,8 +290,9 @@ function T:test_a_site_with_the_generated_pages_builds_in_strict_mode_with_a_sid
   self:assert_equal(0, #report.problems, table.concat(report.problems, "\n"))
   local page = memory:read("dist/en/reference/demo/Counter/index.html")
   self:assert_not_nil(page)
-  for _, url in ipairs({ "/en/reference/demo/", "/en/reference/demo/CounterError/", "/en/reference/demo/functions/add/",
-    "/en/reference/demo/functions/wait/" }) do
+  -- The links are relative to the page (`en/reference/demo/Counter/`).
+  for _, url in ipairs({ "../index.html", "../CounterError/index.html", "../functions/add/index.html",
+    "../functions/wait/index.html" }) do
     self:assert_true(page:find('href="' .. url .. '"', 1, true) ~= nil, "sidebar entry " .. url)
   end
   self:assert_true(page:find('id="wait_for"', 1, true) ~= nil, "a member has a stable anchor")

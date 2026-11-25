@@ -131,7 +131,7 @@ function T:test_a_file_of_public_and_a_file_of_a_locale_share_one_namespace()
 end
 
 function T:test_a_file_of_public_that_differs_by_case_from_a_generated_file_is_refused_before_anything_is_written()
-  for _, name in ipairs({ "404.HTML", "Index.html", "Assets/theme.css", "assets/Search-en.json" }) do
+  for _, name in ipairs({ "404.HTML", "Index.html", "Assets/theme.css", "assets/Search-en.js" }) do
     local fs = doc.MemoryFileSystem({ ["c/en/index.md"] = page("Home"), ["c/public/" .. name] = "mine" })
     local err = self:assert_error(function()
       doc.build({ site_configuration = ONE_LOCALE, guides_dir = "c", output_dir = "o", file_system = fs })
@@ -197,7 +197,7 @@ function T:test_the_md_suffix_is_matched_without_regard_to_case()
   self:assert_not_nil(fs:read("o/en/Guide/index.html"))
   self:assert_not_nil(fs:read("o/en/Other/index.html"))
   self:assert_nil(fs:read("o/en/Guide.MD"), "an upper-case suffix is a page, not a file next to the pages")
-  self:assert_not_nil(fs:read("o/en/Other/index.html"):find('href="/en/Guide/"', 1, true))
+  self:assert_not_nil(fs:read("o/en/Other/index.html"):find('href="../Guide/index.html"', 1, true))
 end
 
 function T:test_exclude_file_names_is_matched_without_regard_to_case()
