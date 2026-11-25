@@ -1,10 +1,13 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <!-- Embedded in hecate.exe by build-cli: the process runs with UTF-8 as its ANSI code page (Windows 10 1903 and
-     later), so that paths and arguments with non-ASCII characters reach Lua and the C library intact (OQ-147). -->
+     later), so that paths and arguments with non-ASCII characters reach Lua and the C library intact (OQ-147), and with
+     long paths enabled (paths over 260 characters, such as lua_modules/share/lua/5.5/hecate/...): this takes effect only
+     when the machine has `LongPathsEnabled` set (HKLM\SYSTEM\CurrentControlSet\Control\FileSystem). -->
 <assembly manifestVersion="1.0" xmlns="urn:schemas-microsoft-com:asm.v1">
   <application xmlns="urn:schemas-microsoft-com:asm.v3">
     <windowsSettings>
       <activeCodePage xmlns="http://schemas.microsoft.com/SMI/2019/WindowsSettings">UTF-8</activeCodePage>
+      <longPathAware xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">true</longPathAware>
     </windowsSettings>
   </application>
 </assembly>

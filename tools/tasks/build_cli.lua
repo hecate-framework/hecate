@@ -44,7 +44,7 @@ local function fetch(deps, name, spec)
     if head() == spec.commit then return dir end
     util.remove_tree(dir) -- a checkout of another version (the pin was bumped): fetch it again
   end
-  local out, ok = util.capture(("git clone -q --depth 1 --branch %s --recurse-submodules --shallow-submodules %s %s 2>&1")
+  local out, ok = util.capture(("git -c core.autocrlf=false -c core.longpaths=true clone -q --depth 1 --branch %s --recurse-submodules --shallow-submodules %s %s 2>&1")
     :format(spec.tag, quote_url(spec.url), util.quote(dir)))
   if not ok then return nil, out end
   if head() ~= spec.commit then
@@ -136,7 +136,7 @@ local function build(ctx, release)
     if not luv_dir then skip("luv", "cannot clone: " .. tostring(why))
     else
       local build = deps .. "/luv-build-" .. LUV.commit:sub(1, 8)
-      local function built() return find_file(build, "^libluv[_a]*%.%a+$") or find_file(build, "^luv%.lib$") end
+      local function built() return find_file(build, "^libluv[_a]*%.%a+$") or find_file(build, "^luv%.lib$") or find_file(build, "^luv_a%.lib$") end
       if not built() then
         local _, have_cmake = util.capture("cmake --version")
         local out, ok
@@ -201,11 +201,19 @@ local function build(ctx, release)
       -- take it as the linker: name the MSVC linker explicitly.
       local env = ""
       if windows then
-        for line in util.capture("where link.exe"):gmatch("[^\r\n]+") do
-          if not line:lower():find("[/\\]usr[/\\]bin[/\\]") then
-            env = ('set "CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER=%s" && set "CARGO_TARGET_AARCH64_PC_WINDOWS_MSVC_LINKER=%s" && '):format(line, line)
-            break
-          end
+        -- Prefer a linker under a Visual Studio tree (`\VC\Tools\MSVC\`); any other `link.exe` that is not Git's
+        -- coreutils (`usr\bin`, `mingw64\bin`, `msys`) comes second. `2>nul`: `where` writes its error to the console.
+        local msvc, other
+        for line in util.capture("where link.exe 2>nul"):gmatch("[^\r\n]+") do
+          local lower = line:lower()
+          if lower:find("[/\\]vc[/\\]tools[/\\]msvc[/\\]") then msvc = msvc or line
+          elseif not (lower:find("[/\\]usr[/\\]bin[/\\]") or lower:find("[/\\]mingw%d*[/\\]") or lower:find("[/\\]msys")) then other = other or line end
+        end
+        local linker = msvc or other
+        if linker then
+          env = ('set "CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER=%s" && set "CARGO_TARGET_AARCH64_PC_WINDOWS_MSVC_LINKER=%s" && '):format(linker, linker)
+        else
+          skip("the JSON encoder", "no MSVC link.exe on the path (only Git's coreutils one, or none): run from a Visual Studio developer prompt")
         end
       end
       local out, ok = util.capture((env .. "cargo rustc --release --locked --lib --crate-type staticlib --manifest-path %s --target-dir %s 2>&1")
@@ -254,12 +262,25 @@ return {
     local lock = ctx.root .. "/.hecate/build/cli/deps.lock"
     util.mkdir(ctx.root .. "/.hecate/build/cli")
     local nul = windows and ">nul 2>&1" or ">/dev/null 2>&1"
+    -- The owner writes the time it took the lock in a file inside it: a lock is stale only when that time is old (a cold
+    -- build on Windows takes longer than a quarter of an hour, so waiting a fixed time would take a live lock), or when
+    -- the file never appeared (the owner died between `mkdir` and the write).
+    local stamp_path = lock .. "/taken"
+    local STALE_AFTER = 3 * 3600
     local waited = 0
     while os.execute("mkdir " .. util.quote(lock) .. " " .. nul) ~= true do
-      if waited >= 900 then util.remove_tree(lock) end -- a lock left by a build that died
+      local handle = io.open(stamp_path, "r")
+      local taken = handle and tonumber(handle:read("l")) or nil
+      if handle then handle:close() end
+      if (taken and os.time() - taken > STALE_AFTER) or (not taken and waited >= 120) then
+        util.remove_tree(lock) -- a lock left by a build that died
+        waited = 0
+      end
       os.execute(windows and "ping -n 2 127.0.0.1 >nul" or "sleep 1")
       waited = waited + 1
     end
+    local stamp = io.open(stamp_path, "w")
+    if stamp then stamp:write(tostring(os.time()), "\n"); stamp:close() end
     local released = false
     local function release()
       if not released then
