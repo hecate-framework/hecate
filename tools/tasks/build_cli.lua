@@ -39,19 +39,29 @@ local function quote_url(url) return windows and ('"' .. url .. '"') or util.quo
 --- Clones `spec` under `deps` once and returns its directory, or nil and the output of git.
 local function fetch(deps, name, spec)
   local dir = deps .. "/" .. name
-  local function head() return (util.capture("git -C " .. util.quote(dir) .. " rev-parse HEAD")) end
+  local function head(path) return (util.capture("git -C " .. util.quote(path) .. " rev-parse HEAD")) end
   if util.exists(dir) then
-    if head() == spec.commit then return dir end
+    if head(dir) == spec.commit then return dir end
     util.remove_tree(dir) -- a checkout of another version (the pin was bumped): fetch it again
   end
+  -- Cloned next to its place under a name of its own and moved in only when the place is still free: whatever happens to
+  -- the lock of the dependencies, two builds never clone into the same directory, and the one that loses the race uses
+  -- the checkout of the other.
+  local scratch = ("%s.clone-%d-%d"):format(dir, os.time(), math.random(1, 1 << 30))
   local out, ok = util.capture(("git -c core.autocrlf=false -c core.longpaths=true clone -q --depth 1 --branch %s --recurse-submodules --shallow-submodules %s %s 2>&1")
-    :format(spec.tag, quote_url(spec.url), util.quote(dir)))
-  if not ok then return nil, out end
-  if head() ~= spec.commit then
-    util.remove_tree(dir)
+    :format(spec.tag, quote_url(spec.url), util.quote(scratch)))
+  if not ok then
+    util.remove_tree(scratch)
+    return nil, out
+  end
+  if head(scratch) ~= spec.commit then
+    util.remove_tree(scratch)
     return nil, ("%s: tag %s points to another commit than the pinned %s"):format(spec.url, spec.tag, spec.commit)
   end
-  return dir
+  if not util.exists(dir) and os.rename(scratch, dir) then return dir end
+  util.remove_tree(scratch) -- another build was first
+  if util.exists(dir) and head(dir) == spec.commit then return dir end
+  return nil, name .. ": cannot put the checkout in place: " .. dir .. " exists"
 end
 
 --- The first file under `dir` (recursively) whose name matches `pattern` (a Lua pattern on the file name).
