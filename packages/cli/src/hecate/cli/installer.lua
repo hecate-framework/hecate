@@ -125,7 +125,14 @@ function M.install(options)
   end
   options.fs.write(config_path, rocks:config_text())
   local rockspec_path = join(options.work_dir, luarocks.rockspec_file_name(manifest))
-  options.fs.write(rockspec_path, luarocks.rockspec_text(manifest))
+  local exact
+  if existing then
+    -- Frozen (cli-and-packaging.md, "install --frozen"): ask LuaRocks for the exact locked versions, so that a newer
+    -- release is never fetched and built before the check below.
+    exact = {}
+    for name, rock in pairs(existing.rocks) do exact[name] = rock.version end
+  end
+  options.fs.write(rockspec_path, luarocks.rockspec_text(manifest, exact))
 
   if options.refresh and not options.frozen then
     local targets = options.refresh --[[@as string[] ]]

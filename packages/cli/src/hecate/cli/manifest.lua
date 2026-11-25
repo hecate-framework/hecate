@@ -97,6 +97,14 @@ function M.validate(value, path)
       for name, text in pairs(value[section] or {}) do check("/" .. section .. "/" .. name, text) end
     end
     if value.hecate then check("/hecate", value.hecate) end
+    -- A server of rocks is trusted to deliver code that is built and run: a plaintext transport lets whoever is on the
+    -- network substitute a rock, so only `https://` and a local `file://` (or a plain path) are accepted.
+    for index, server in ipairs(value.rocks_servers or {}) do
+      local scheme = server:match("^(%a[%w+.%-]*)://")
+      if scheme and scheme:lower() ~= "https" and scheme:lower() ~= "file" then
+        lines[#lines + 1] = "  /rocks_servers/" .. (index - 1) .. ": '" .. server .. "' is not served over https: use an https:// URL"
+      end
+    end
     table.sort(lines)
   end
   if #lines > 0 then

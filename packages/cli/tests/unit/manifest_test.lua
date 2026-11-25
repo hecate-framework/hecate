@@ -67,6 +67,13 @@ function T:test_constraints_keep_the_luarocks_syntax_and_a_bad_one_is_refused_wi
   rejects(self, 'return { name = "x", hecate = ">>" }', "/hecate")
 end
 
+function T:test_a_server_of_rocks_must_not_use_plaintext_http()
+  manifest.parse('return { name = "x", rocks_servers = { "https://rocks.example.test", "file:///srv/rocks", "/srv/rocks" } }')
+  rejects(self, 'return { name = "x", rocks_servers = { "https://a.test", "http://mirror.test/rocks" } }', "/rocks_servers/1")
+  rejects(self, 'return { name = "x", rocks_servers = { "HTTP://mirror.test" } }', "not served over https")
+  rejects(self, 'return { name = "x", rocks_servers = { "ftp://mirror.test" } }', "https")
+end
+
 function T:test_doc_section_is_closed()
   rejects(self, 'return { name = "x", doc = { unknown = "y" } }', "unknown")
   rejects(self, 'return { name = "x", doc = { guides_dir = "" } }', "/doc/guides_dir")

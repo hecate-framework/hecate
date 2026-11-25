@@ -202,7 +202,7 @@ end
 --- Checks what is installed against a lockfile, as `install --frozen` does after installing: for each rock the
 --- checksum is recomputed the way `checksum_of` says and compared. `current[name]` holds the text of the installed
 --- rockspec and, for a pure-Lua rock, the `installed_files_digest`. Returns the problems, sorted: a rock that is
---- missing, or whose content differs from the lock, each with what to do.
+--- missing, whose content differs from the lock, or installed without being in the lock, each with what to do.
 ---@param lock hecate.cli.Lockfile
 ---@param current table<string, { rockspec: string, files_digest?: string }>
 ---@param sha256? fun(data: string): string
@@ -227,6 +227,13 @@ function M.verify(lock, current, sha256)
           .. "): the source changed after it was locked, or the tree is out of date. Run `hecate install` to reinstall, or `hecate update "
           .. name .. "` if the change is expected"
       end
+    end
+  end
+  -- The set must be equal: a rock installed that the lock does not name (a new release that added a dependency) is a
+  -- change nobody reviewed.
+  for name in pairs(current) do
+    if lock.rocks[name] == nil then
+      problems[#problems + 1] = "'" .. name .. "' is installed but not in hecate.lock: a dependency was added upstream; run `hecate update` and review the new lockfile"
     end
   end
   table.sort(problems)

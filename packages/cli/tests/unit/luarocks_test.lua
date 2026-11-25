@@ -103,6 +103,15 @@ function T:test_pin_runs_in_the_work_directory_and_a_failure_is_an_error()
   self:assert_true(tostring((err --[[@as hecate.core.Error]]).message):find("Could not satisfy", 1, true) ~= nil)
 end
 
+function T:test_an_exact_rockspec_pins_every_locked_rock_including_transitive_ones()
+  local text = luarocks.rockspec_text({
+    name = "acme-api", version = "0.1.0", dependencies = { hecate = "~> 0.3" },
+  }, { hecate = "0.3.2-1", luv = "1.53.0-1" })
+  self:assert_true(text:find('"hecate == 0.3.2-1",', 1, true) ~= nil, text)
+  self:assert_true(text:find('"luv == 1.53.0-1",', 1, true) ~= nil, text)
+  self:assert_true(text:find("~>", 1, true) == nil, text)
+end
+
 function T:test_the_rockspec_stands_for_the_manifest()
   local text = luarocks.rockspec_text({
     name = "acme-api", version = "0.1.0", lua = "5.5",

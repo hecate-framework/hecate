@@ -92,4 +92,33 @@ function T:test_frozen_accepts_what_it_locked_and_detects_a_changed_file()
   local err = self:assert_error(function() installer.install(world.options({ frozen = true, lock_text = first.lock_text })) end)
   self:assert_true(tostring(err.message):find("does not match hecate.lock", 1, true) ~= nil)
 end
+
+function T:test_frozen_asks_luarocks_for_the_exact_locked_versions_not_the_constraints()
+  local world = setup()
+  local first = installer.install(world.options())
+  -- The free install keeps the constraint of the manifest.
+  self:assert_true(world.files[".hecate/luarocks/app-0.1.0-1.rockspec"]:find('"plc ~> 0.5"', 1, true) ~= nil)
+  installer.install(world.options({ frozen = true, lock_text = first.lock_text }))
+  local rockspec = world.files[".hecate/luarocks/app-0.1.0-1.rockspec"]
+  self:assert_true(rockspec:find('"plc == 0.5-1"', 1, true) ~= nil, rockspec)
+  self:assert_true(rockspec:find("~>", 1, true) == nil, rockspec)
+end
+
+function T:test_frozen_fails_when_the_tree_holds_a_rock_the_lock_does_not_name()
+  local world = setup()
+  local first = installer.install(world.options())
+  world.files["lua_modules/lib/luarocks/rocks-5.5/extra/1.0-1/extra-1.0-1.rockspec"] = ROCKSPEC
+  local base = world.options({ frozen = true, lock_text = first.lock_text })
+  local runner_luarocks = luarocks.new({
+    tree = "lua_modules", config_dir = ".hecate/luarocks",
+    runner = function(_, args)
+      if args[3] == "build" then world.files[".hecate/luarocks/luarocks.lock"] = 'return { dependencies = { lua = "5.5-1", plc = "0.5-1", extra = "1.0-1" } }' end
+      return { code = 0, stdout = args[3] == "list" and "plc\t0.5-1\tinstalled\t/x\nextra\t1.0-1\tinstalled\t/x\n" or "", stderr = "" }
+    end,
+  })
+  base.luarocks = runner_luarocks
+  local err = self:assert_error(function() installer.install(base) end)
+  self:assert_true(tostring(err.message):find("'extra' is installed but not in hecate.lock", 1, true) ~= nil, err.message)
+end
+
 return T

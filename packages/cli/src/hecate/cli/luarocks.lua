@@ -223,20 +223,35 @@ function LuaRocks:pin(rockspec_path, work_dir)
 end
 
 --- The rockspec that stands for a manifest: its dependencies and development dependencies, and the Lua line. Only
---- `install --deps-only` and `build --pin --only-deps` read it, so there is no source and nothing is built.
+--- `install --deps-only` and `build --pin --only-deps` read it, so there is no source and nothing is built. With
+--- `exact` (`install --frozen`: rock name to the version of `hecate.lock`) every locked rock, direct or transitive, is
+--- required as `name == version`, so that LuaRocks cannot resolve a newer release (and run its build) before the
+--- lockfile is checked.
 ---@param manifest hecate.cli.Manifest
+---@param exact? table<string, string>
 ---@return string text
-function M.rockspec_text(manifest)
+function M.rockspec_text(manifest, exact)
   local dependencies = { "lua >= " .. (manifest.lua or "5.5") .. ", < " .. M.next_lua_line(manifest.lua or "5.5") }
   local names = {}
   for name in pairs(manifest.dependencies or {}) do names[#names + 1] = name end
   for name in pairs(manifest.development_dependencies or {}) do
     if (manifest.dependencies or {})[name] == nil then names[#names + 1] = name end
   end
+  if exact then
+    local listed = {}
+    for _, name in ipairs(names) do listed[name:lower()] = true end
+    for name in pairs(exact) do
+      if not listed[name:lower()] then names[#names + 1] = name; listed[name:lower()] = true end
+    end
+  end
   table.sort(names)
   for _, name in ipairs(names) do
     local wanted = (manifest.dependencies or {})[name] or (manifest.development_dependencies or {})[name]
-    dependencies[#dependencies + 1] = wanted == "" and name or (name .. " " .. wanted)
+    if exact and exact[name] ~= nil then
+      dependencies[#dependencies + 1] = name .. " == " .. exact[name]
+    else
+      dependencies[#dependencies + 1] = (wanted == nil or wanted == "") and name or (name .. " " .. wanted)
+    end
   end
   local quoted = {}
   for index, dependency in ipairs(dependencies) do quoted[index] = "  " .. quote(dependency) .. "," end

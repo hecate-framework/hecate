@@ -199,6 +199,12 @@ function T:test_verify_compares_what_is_installed_with_the_lock()
   local missing = current()
   missing["hecate-test"] = nil
   self:assert_true(resolution.verify(lock, missing, fake_sha)[1]:find("not installed", 1, true) ~= nil)
+
+  local extra = current()
+  extra.sneaky = { rockspec = "package = 'sneaky'" }
+  local extra_problems = resolution.verify(lock, extra, fake_sha)
+  self:assert_equal(1, #extra_problems)
+  self:assert_true(extra_problems[1]:find("'sneaky' is installed but not in hecate.lock", 1, true) ~= nil, extra_problems[1])
 end
 
 function T:test_the_real_digest_is_the_default()
