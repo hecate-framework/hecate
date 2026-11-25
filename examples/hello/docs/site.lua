@@ -6,7 +6,9 @@
 return {
   title = "hello",
   description = "A small JSON API on hecate: validated input, problem details, workers.",
-  base_path = "/", -- only for absolute addresses (sitemap, canonical links); the links of the pages are relative
+  -- Only for absolute addresses (sitemap, canonical links);
+  -- the links of the pages are relative.
+  base_path = "/",
   logo_path = { light = "logo.svg", dark = "logo-dark.svg" },
   favicon_path = { light = "favicon.svg", dark = "favicon-dark.svg" },
   stylesheet_path = "hello-theme.css",
