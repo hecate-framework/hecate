@@ -3,7 +3,7 @@ description: Livrer une application hecate sur un serveur sans Docker : une arch
 hecate: "0.x"
 lua: "5.5"
 order: 6
-source_revision: 57ace85c67235547aa716c4fcac0d2c745f00057
+source_revision: 1cda62b4db438468c5415a578cb7bde8c8a44b89
 ---
 
 # Livrer sur un serveur
@@ -25,6 +25,23 @@ hecate package
 verrou, `main.lua`, `src`, `config` et `lua_modules`, plus un fichier `RELEASE` avec les versions. Les tests, `.git`,
 `.hecate` et le site de documentation n’y figurent pas. Gardez les secrets hors du projet : ils viennent de
 l’environnement du serveur.
+
+## Lancer les vérifications en CI
+
+`hecate generate workflow ci` écrit `.github/workflows/ci.yml` (`hecate new shop --ci github` le fait pour un nouveau
+projet) : à chaque push et à chaque pull request, sur Linux, macOS et Windows, il installe l’exécutable avec l’action
+d’installation `hecate-framework/hecate-setup`, puis exécute `hecate install --frozen`, `hecate test` et, pour un projet
+qui a un contrat, `hecate contract export` et `hecate contract lint`. Ajoutez `--doc` pour construire aussi la
+documentation. Le workflow n’appelle que des commandes `hecate` : une exécution se comporte donc comme une exécution
+locale ; régénérez-le avec `--force` après une mise à niveau de Hecate. Pour construire et empaqueter la livraison sur la
+plateforme du serveur, ajoutez un job qui exécute `hecate install --frozen` et `hecate package`.
+
+Deux autres workflows : `hecate generate workflow contract` écrit `.github/workflows/contract.yml`, qui, à chaque pull
+request, exécute `hecate contract diff origin/<branche de base>` et échoue sur un changement incompatible du contrat
+(versionnez d’abord `openapi.json` sur la branche de base, avec `hecate contract export --output openapi.json`) ;
+`hecate generate workflow docs-pages` écrit `.github/workflows/docs.yml`, qui, lors d’un push sur la branche par défaut,
+construit la documentation avec `hecate doc build --yes` et la publie sur GitHub Pages (réglez la source de Pages sur
+« GitHub Actions »). Un workflow `release` n’est pas encore généré.
 
 ## Préparer le serveur
 

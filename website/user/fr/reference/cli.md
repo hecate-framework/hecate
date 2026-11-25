@@ -3,7 +3,7 @@ description: Les commandes de l’exécutable hecate : ce que fait chacune, ses 
 hecate: "0.x"
 lua: "5.5"
 order: 5
-source_revision: 57ace85c67235547aa716c4fcac0d2c745f00057
+source_revision: 1cda62b4db438468c5415a578cb7bde8c8a44b89
 ---
 
 # La commande `hecate`
@@ -19,7 +19,7 @@ exécuté, et `2` une erreur d’usage.
 
 | Commande | Ce qu’elle fait |
 |---|---|
-| `hecate new <name> [--template api\|minimal]` | Crée le répertoire `<name>` à partir d’un modèle et refuse un répertoire qui existe. `api` (par défaut) est un contrôle de santé et une ressource avec ses schémas, son module de routes et ses tests ; `minimal` est le contrôle de santé seul. Les deux écrivent le manifeste (avec la disposition `doc`), `main.lua`, `config/development.lua` et `config/test.lua`, les tests et une première page de documentation. |
+| `hecate new <name> [--template api\|minimal] [--ci github]` | Crée le répertoire `<name>` à partir d’un modèle et refuse un répertoire qui existe. `--ci github` écrit aussi `.github/workflows/ci.yml` (voir `hecate generate workflow`). `api` (par défaut) est un contrôle de santé et une ressource avec ses schémas, son module de routes et ses tests ; `minimal` est le contrôle de santé seul. Les deux écrivent le manifeste (avec la disposition `doc`), `main.lua`, `config/development.lua` et `config/test.lua`, les tests et une première page de documentation. |
 | `hecate init [--name <name>]` | Ajoute le modèle `minimal` au répertoire courant, en conservant chaque fichier existant. |
 | `hecate doctor` | Vérifie l’environnement : Lua, LuaRocks, libuv, les modules natifs, un compilateur C. |
 | `hecate version` | Affiche les versions de Hecate, Lua, LuaRocks et libuv, ainsi que la plateforme. |
@@ -63,6 +63,7 @@ Les dépendances d’un projet sont des rocks, listés dans `hecate.project.lua`
 |---|---|
 | `hecate package [--output <file>]` | Écrit l’archive de livraison du projet et son `.sha256` : le manifeste, le verrou, `main.lua`, `src`, `config`, `lua_modules` et un fichier `RELEASE`. Exécutez d’abord `hecate install --frozen`, sur la plateforme du serveur. Voir [Livrer sur un serveur](../how-to/deliver-to-a-server.md). |
 | `hecate generate systemd [--user <name>] [--workers <n>] [--working-directory <dir>] [--environment-file <file>] [--executable <path>] [--output <file>] [--force]` | Affiche, ou écrit, l’unité systemd qui exécute `hecate serve` : elle s’arrête sur `SIGTERM` et recharge sur `SIGHUP`. `--working-directory` et `--environment-file` sont des chemins sur le serveur (absolus) ; une valeur contenant un saut de ligne est refusée. |
+| `hecate generate workflow <ci\|contract\|docs-pages> [--provider github] [--doc] [--output <file>] [--force]` | Écrit un workflow du projet, `.github/workflows/<kind>.yml` par défaut (`docs.yml` pour `docs-pages`), et conserve un fichier existant sauf avec `--force`. `ci` s’exécute à chaque push et à chaque pull request, sur Linux, macOS et Windows : checkout, l’action d’installation de Hecate (`hecate-framework/hecate-setup`), `hecate install --frozen`, `hecate test`, puis `hecate contract export` et `hecate contract lint` lorsque le manifeste a une section `contract`, et `hecate doc build --yes` avec `--doc`. `contract` (exige une section `contract`) s’exécute sur les pull requests avec tout l’historique et lance `hecate contract diff origin/<branche de base>`, qui échoue sur un changement incompatible : `openapi.json` doit être versionné sur la branche de base. `docs-pages` s’exécute lors d’un push sur la branche par défaut, construit la documentation avec `hecate doc build --yes` et publie `docs/dist` sur GitHub Pages (réglez la source de Pages sur « GitHub Actions » ; le site a des liens relatifs, il n’a donc besoin d’aucun chemin de base). Le type `release` de la spécification n’est pas encore implémenté. Voir [Livrer sur un serveur](../how-to/deliver-to-a-server.md). |
 
 ## Le manifeste
 
