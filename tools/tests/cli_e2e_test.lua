@@ -166,38 +166,40 @@ function T:test_a_new_project_exports_lints_and_generates()
   end)
 end
 
+--- The status that `curl` gets from `url` within two seconds ("000" when nothing answers). `curl` ships with the three
+--- platforms of CI and ends each attempt by itself, which the in-process client does not do on Windows when the
+--- server is not listening yet.
+local function http_status(url)
+  local out = util.capture(("curl -s -o %s -w %%{http_code} --max-time 2 %s 2>&1"):format(windows and "NUL" or "/dev/null", util.quote(url)))
+  return (out:match("%d%d%d"))
+end
+
 function T:test_a_new_project_serves_and_answers_the_health_check()
   with_project(self, function(_, project, _, exe)
     -- `hecate serve` on a free port answers the health check, and stops when it is stopped.
     local reactor_ok, reactor = pcall(require, "hecate.reactor")
-    local http_ok, http = pcall(require, "hecate.http")
     local port = free_port()
-    if reactor_ok and http_ok and port then
-      local status
-      progress("starting on port " .. port)
-      local ok_serve, err_serve = pcall(reactor.run, function()
-        local server = reactor.spawn(exe, { "serve" }, { cwd = project, env = { PORT = tostring(port) }, own_group = true }) -- glossary-ok: an operating-system process
-        progress("spawned pid " .. tostring(server.pid))
-        local fine_loop, loop_error = pcall(reactor.deadline, 30, function()
-          local client = http.Client()
-          local attempt = 0
-          while true do
-            attempt = attempt + 1
-            if attempt <= 5 or attempt % 25 == 0 then progress("attempt " .. attempt) end
-            local fine, response = pcall(function() return client:get("http://127.0.0.1:" .. port .. "/health") end)
-            if attempt <= 5 then progress("attempt " .. attempt .. " -> " .. tostring(fine) .. " " .. tostring(fine and response.status or response)) end
-            if fine then status = response.status return end
-            reactor.sleep(0.2)
-          end
-        end)
-        progress("polling ended (" .. tostring(fine_loop) .. ", status " .. tostring(status) .. "), stopping")
-        stop_tree(server)
-        progress("stopped")
-        if not fine_loop then error(loop_error, 0) end
-      end)
-      self:assert_true(ok_serve, tostring(err_serve))
-      self:assert_equal(200, status)
-    end
+    if not (reactor_ok and port) then return end
+    local status
+    progress("starting on port " .. port)
+    local ok_serve, err_serve = pcall(reactor.run, function()
+      local server = reactor.spawn(exe, { "serve" }, { cwd = project, env = { PORT = tostring(port) }, own_group = true }) -- glossary-ok: an operating-system process
+      progress("spawned pid " .. tostring(server.pid))
+      local deadline = os.time() + 40
+      local attempt = 0
+      while os.time() < deadline do
+        attempt = attempt + 1
+        status = http_status("http://127.0.0.1:" .. port .. "/health")
+        if attempt <= 3 or status == "200" then progress("attempt " .. attempt .. " -> " .. tostring(status)) end
+        if status == "200" then break end
+        reactor.sleep(0.3)
+      end
+      progress("stopping")
+      stop_tree(server)
+      progress("stopped")
+    end)
+    self:assert_true(ok_serve, tostring(err_serve))
+    self:assert_equal("200", status)
   end)
 end
 
