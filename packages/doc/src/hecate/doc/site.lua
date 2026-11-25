@@ -5,7 +5,11 @@
 --
 -- Locales (documentation.md, "Translations"): `website/<locale>/` mirrors the default
 -- locale's tree; a page missing in a locale is built from the default locale with a visible
--- notice. URLs are `<base><locale>/<page path>/`, written as `<page path>/index.html`.
+-- notice. A page is written as `<locale>/<page path>/index.html` and its public address is
+-- `<base_path><locale>/<page path>/` (`Page.url`: canonical links, sitemap, `llms.txt`). The links
+-- inside the site never use that address: every link and every asset is a path relative to the
+-- page that holds it, ending in `index.html` for a page, so that a built site opens from the file
+-- system (file://) and from any static host, whatever the path it is served under (OQ-148).
 global <const> require, assert, io, ipairs, pairs, next, table, string, tostring, tonumber, type, error, utf8
 
 local core = require("hecate.core")
@@ -219,8 +223,30 @@ local function decode_path(path)
   return (path:gsub("%%(%x%x)", function(hex) return string.char(tonumber(hex, 16)) end))
 end
 
+--- Public address of a page (`base_path`, locale, page path, trailing slash): for canonical links, the sitemap and `llms.txt`.
 local function page_url(self, locale, id) return self.site_configuration.base_path .. locale .. "/" .. encode_path(url_path(id)) end
 
+local function segments(path)
+  local list = {}
+  for segment in path:gmatch("[^/]+") do list[#list + 1] = segment end
+  return list
+end
+
+--- The link, relative to the directory `from` (`en/guide/`, or `` for the root), to the output file `to` (a path below
+--- the root of the output): `../../assets/theme.css`. The result is percent-encoded (RFC 3986, 2.1) and never starts
+--- with `/`.
+local function relative_link(from, to)
+  local origin, target = segments(from), segments(to)
+  local common = 0
+  while common < #origin and common < #target - 1 and origin[common + 1] == target[common + 1] do common = common + 1 end
+  local parts = {}
+  for _ = common + 1, #origin do parts[#parts + 1] = ".." end
+  for index = common + 1, #target do parts[#parts + 1] = target[index] end
+  return encode_path(table.concat(parts, "/"))
+end
+
+--- The directory of the output in which a page is written (`en/guide/`).
+local function page_directory(locale, id) return locale .. "/" .. url_path(id) end
 
 --- Normalises a relative path below the locale directory. A path that climbs above it returns `nil` and the number of
 --- levels it climbs above (1: the content root, where the locale directories are; 2 or more: out of the tree).
@@ -281,7 +307,7 @@ end
 
 local function link_resolver(self, locale, page_id, problems_prefix)
   local directory = page_id:match("^(.*)/[^/]*$") or ""
-  local base = self.site_configuration.base_path
+  local from = page_directory(locale, page_id)
   return function(href)
     if href == "" or href:find("^#") or href:find("^//") or href:find("^%a[%w+.%-]*:") then return href end
     local written, suffix = href:match("^([^#?]*)(.*)$")
@@ -295,7 +321,18 @@ local function link_resolver(self, locale, page_id, problems_prefix)
         written = written:gsub("\\", "%%5C")
         suffix = suffix:gsub("\\", "%%5C")
       end
-      return base .. written:sub(2) .. suffix
+      -- A destination that starts with `/` names a path below the root of the site; it becomes a link relative to the page.
+      local root_path = normalise_path(decode_path(written:sub(2)))
+      if root_path == nil then
+        note(self, ("%s: link %s leaves the site"):format(problems_prefix, href))
+        return href
+      end
+      -- A path that names a directory (no file extension) is the page of that directory: `index.html` is written out,
+      -- because a browser opens a directory of the file system as a listing.
+      if root_path == "" or written:sub(-1) == "/" or not root_path:match("%.[%w]+$") then
+        root_path = (root_path == "" and "" or (root_path .. "/")) .. "index.html"
+      end
+      return relative_link(from, root_path) .. suffix
     end
     local path = file_names.nfc(decode_path(written))
     local joined, above = normalise_path(directory == "" and path or (directory .. "/" .. path))
@@ -318,14 +355,14 @@ local function link_resolver(self, locale, page_id, problems_prefix)
         note(self, ("%s: broken link %s"):format(problems_prefix, href))
         return href
       end
-      return page_url(self, locale, target) .. suffix
+      return relative_link(from, output_path(locale, target)) .. suffix
     end
     local asset = self._files[locale].assets[joined] or self._files[self.site_configuration.default_locale].assets[joined]
     if not asset then
       note(self, ("%s: missing file %s"):format(problems_prefix, href))
       return href
     end
-    return base .. locale .. "/" .. encode_path(joined) .. suffix
+    return relative_link(from, locale .. "/" .. joined) .. suffix
   end
 end
 
@@ -471,16 +508,16 @@ local function infos(pages)
   return list
 end
 
-local function resolve_nodes(self, locale, nodes, current)
+local function resolve_nodes(self, locale, nodes, current, link)
   local out, contains = {}, false
   for _, node in ipairs(nodes) do
     local resolved = { text = node.text }
     local is_current = node.link == current
-    if node.link then resolved.url = page_url(self, locale, node.link) end
+    if node.link then resolved.url = link(output_path(locale, node.link)) end
     resolved.current = is_current or nil
     local inner = false
     if node.items then
-      resolved.items, inner = resolve_nodes(self, locale, node.items, current)
+      resolved.items, inner = resolve_nodes(self, locale, node.items, current, link)
       resolved.open = (inner or is_current) or nil
     end
     contains = contains or is_current or inner
@@ -498,16 +535,27 @@ local function context_for(self, locale_code, page)
   local strings = theme.strings.for_locale(locale_code, config.interface_strings)
   local pages = self:pages(locale_code)
   local list = infos(pages)
-  local home_url = self.site_configuration.base_path .. locale_code .. "/"
   local section = page and navigation.section_of(page.id)
 
+  -- Every link of the page is relative to the directory the page is written in (OQ-148). The not-found page is the
+  -- exception: a static host serves it for any address, so a relative link would break; with `site_origin` it uses
+  -- absolute addresses (`site_origin`, `base_path`), without it the paths relative to the root.
+  local from = page and page_directory(locale_code, page.id) or ""
+  local absolute_root = (page == nil and config.site_origin) and (config.site_origin .. config.base_path) or nil
+  local function link(path)
+    if absolute_root then return absolute_root .. encode_path(path) end
+    return relative_link(from, path)
+  end
+  local root = absolute_root or ("../"):rep(#segments(from))
+  local home_url = link(output_path(locale_code, "index"))
+
   local top_links = {}
-  for _, link in ipairs(navigation.top_links(list, config, locale_code)) do
+  for _, entry in ipairs(navigation.top_links(list, config, locale_code)) do
     top_links[#top_links + 1] = {
-      text = link.text,
-      url = link.id and page_url(self, locale_code, link.id) or link.url,
-      external = link.url ~= nil or nil,
-      current = (page ~= nil and section ~= nil and link.section == section) or nil,
+      text = entry.text,
+      url = entry.id and link(output_path(locale_code, entry.id)) or entry.url,
+      external = entry.url ~= nil or nil,
+      current = (page ~= nil and section ~= nil and entry.section == section) or nil,
     }
   end
 
@@ -516,13 +564,10 @@ local function context_for(self, locale_code, page)
     local target = page and self._pages[candidate.code][page.id]
     locale_links[#locale_links + 1] = {
       code = candidate.code, label = candidate.label, lang = candidate.lang,
-      url = target and target.url or (config.base_path .. candidate.code .. "/"),
+      url = link(output_path(candidate.code, target and page.id or "index")),
       current = candidate.code == locale_code,
     }
   end
-
-  local function asset(path) return config.base_path .. path end
-  local function absolute(url) return config.site_origin and (config.site_origin .. url) or nil end
 
   return {
     site_configuration = config,
@@ -534,13 +579,14 @@ local function context_for(self, locale_code, page)
     outline = {},
     alternates = {},
     home_url = home_url,
-    search_index_url = config.base_path .. "assets/search-" .. locale_code .. ".json",
-    asset = asset,
-    public_url = function(path) return asset(encode_path(path)) end,
+    root = root,
+    link = link,
+    search_index_url = link("assets/search-" .. locale_code .. ".js"),
+    asset = link,
+    public_url = link,
     footer_text = config_module.localise(config.footer, locale_code, config.default_locale),
     content_lang = locale.lang,
     description = config_module.localise(config.description, locale_code, config.default_locale),
-    absolute = absolute,
     list = list,
     section = section,
   }
@@ -564,11 +610,11 @@ local function render_page(self, page)
   if page.layout ~= "home" and context.section and page.meta.sidebar ~= false then
     local nodes, problems = navigation.sidebar(context.section, context.list, config, page.locale)
     for _, problem in ipairs(problems) do note(self, page.relative_path .. ": " .. problem) end
-    context.sidebar = resolve_nodes(self, page.locale, nodes, page.id)
+    context.sidebar = resolve_nodes(self, page.locale, nodes, page.id, context.link)
     local previous, next_id = navigation.neighbours(nodes, page.id)
     local function neighbour(id)
       local target = id and self._pages[page.locale][id]
-      return target and { title = target.title, url = target.url } or nil
+      return target and { title = target.title, url = context.link(output_path(page.locale, target.id)) } or nil
     end
     context.previous, context.next = neighbour(previous), neighbour(next_id)
   end
@@ -605,9 +651,9 @@ local function render_page(self, page)
         elseif not target:find("^%a[%w+.%-]*:") then
           local id = file_names.nfc((target:gsub("/+$", "")))
           if self._pages[page.locale][id] then
-            url = self._pages[page.locale][id].url
+            url = context.link(output_path(page.locale, id))
           elseif self._pages[page.locale][id .. "/index"] then
-            url = self._pages[page.locale][id .. "/index"].url
+            url = context.link(output_path(page.locale, id .. "/index"))
           else
             note(self, ("%s: action link to missing page %s"):format(page.relative_path, target))
           end
@@ -654,21 +700,26 @@ local function search_documents(self, code)
   for _, page in ipairs(list) do
     local section = navigation.section_of(page.id)
     out[#out + 1] = {
-      title = page.title, url = page.url, category = section and category[section] or nil,
+      title = page.title, url = encode_path(output_path(code, page.id)), category = section and category[section] or nil,
       sections = page.sections,
     }
   end
   return out
 end
 
+--- The page at the root of the output: it leads to the home page of the default locale by a relative link. The canonical
+--- link, only with `site_origin`, is the public address (`site_origin`, `base_path`).
 local function redirect_page(self)
-  local target = self.site_configuration.base_path .. self.site_configuration.default_locale .. "/"
+  local config = self.site_configuration
+  local target = relative_link("", output_path(config.default_locale, "index"))
+  local canonical = config.site_origin
+    and ("<link rel=\"canonical\" href=\"%s\">\n"):format(html.escape(config.site_origin .. page_url(self, config.default_locale, "index")))
+    or ""
   return ("<!doctype html>\n<html lang=\"%s\">\n<head>\n<meta charset=\"utf-8\">\n<title>%s</title>\n"
-    .. "<meta http-equiv=\"refresh\" content=\"0; url=%s\">\n<link rel=\"canonical\" href=\"%s\">\n</head>\n"
+    .. "<meta http-equiv=\"refresh\" content=\"0; url=%s\">\n%s</head>\n"
     .. "<body>\n<p><a href=\"%s\">%s</a></p>\n</body>\n</html>\n"):format(
-    html.escape(self.site_configuration.default_locale), html.escape(self.site_configuration.title), html.escape(target),
-    html.escape(self.site_configuration.site_origin and (self.site_configuration.site_origin .. target) or target), html.escape(target),
-    html.escape(self.site_configuration.title))
+    html.escape(config.default_locale), html.escape(config.title), html.escape(target), canonical, html.escape(target),
+    html.escape(config.title))
 end
 
 -- llms.txt and llms-full.txt (https://llmstxt.org, "Format"). Both describe the pages of the default
@@ -859,7 +910,7 @@ function Site:emit(write)
   end
   reserve(MARKER, "the marker file " .. MARKER, "generated", MARKER)
   for _, code in ipairs(self._locale_codes) do
-    reserve("assets/search-" .. code .. ".json", "the search index of " .. code, "generated", code)
+    reserve("assets/search-" .. code .. ".js", "the search index of " .. code, "generated", code)
   end
   for _, file in ipairs(theme.asset_files) do reserve("assets/" .. file, "the theme file assets/" .. file, "generated", file) end
   if self:uses_diagrams() then
@@ -891,7 +942,7 @@ function Site:emit(write)
   for _, code in ipairs(self._locale_codes) do
     for _, page in ipairs(self:pages(code)) do put(output_path(code, page.id), render_page(self, page)) end
     local index = search.build(code, search_documents(self, code))
-    put("assets/search-" .. code .. ".json", search.encode(index))
+    put("assets/search-" .. code .. ".js", search.script(index))
     -- Files next to the pages (images and so on), with fallback to the default locale.
     local assets, seen = {}, {}
     for relative, file in pairs(self._files[code].assets) do

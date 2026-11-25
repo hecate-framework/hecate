@@ -41,7 +41,7 @@ function T:test_pages_are_written_as_directory_urls_with_the_support_files()
   local fs, report = build(BASIC)
   for _, path in ipairs({
     "o/en/index.html", "o/en/guide/index.html", "o/en/guide/a/index.html", "o/index.html", "o/404.html",
-    "o/assets/theme.css", "o/assets/theme.js", "o/assets/theme-init.js", "o/assets/search-en.json",
+    "o/assets/theme.css", "o/assets/theme.js", "o/assets/theme-init.js", "o/assets/search-en.js",
     "o/assets/brand/favicon.svg", "o/assets/fonts/fira-sans-latin-400-normal.woff2", "o/.hecate-doc-output",
   }) do
     self:assert_not_nil(fs:read(path), path)
@@ -54,21 +54,22 @@ end
 function T:test_the_root_redirects_to_the_default_locale()
   local fs = build(BASIC)
   local root = fs:read("o/index.html")
-  self:assert_true(root:find('content="0; url=/en/"', 1, true) ~= nil)
-  self:assert_true(root:find('<a href="/en/">', 1, true) ~= nil)
+  self:assert_true(root:find('content="0; url=en/index.html"', 1, true) ~= nil)
+  self:assert_true(root:find('<a href="en/index.html">', 1, true) ~= nil)
+  self:assert_nil(root:find('rel="canonical"', 1, true), "no canonical link without a public origin")
 end
 
 function T:test_a_page_has_navigation_outline_and_neighbours()
   local fs = build(BASIC)
   local html = fs:read("o/en/guide/a/index.html")
-  self:assert_true(html:find('<a href="/en/guide/a/" aria-current="page">Alpha</a>', 1, true) ~= nil)
-  self:assert_true(html:find('<a href="/en/guide/b/">Beta</a>', 1, true) ~= nil)
-  self:assert_true(html:find('rel="prev" href="/en/guide/"', 1, true) ~= nil)
-  self:assert_true(html:find('rel="next" href="/en/guide/b/"', 1, true) ~= nil)
+  self:assert_true(html:find('<a href="index.html" aria-current="page">Alpha</a>', 1, true) ~= nil)
+  self:assert_true(html:find('<a href="../b/index.html">Beta</a>', 1, true) ~= nil)
+  self:assert_true(html:find('rel="prev" href="../index.html"', 1, true) ~= nil)
+  self:assert_true(html:find('rel="next" href="../b/index.html"', 1, true) ~= nil)
   self:assert_true(html:find('<li class="level-2"><a href="#first">First</a></li>', 1, true) ~= nil)
   self:assert_true(html:find('<li class="level-3"><a href="#second">Second</a></li>', 1, true) ~= nil)
   self:assert_true(html:find("Written for hecate 0.x and Lua 5.5", 1, true) ~= nil)
-  self:assert_true(html:find('<a href="/en/guide/" aria-current="true">Guide</a>', 1, true) ~= nil, "section link is current")
+  self:assert_true(html:find('<a href="../index.html" aria-current="true">Guide</a>', 1, true) ~= nil, "section link is current")
   self:assert_true(html:find("<title>Alpha | hecate</title>", 1, true) ~= nil)
 end
 
@@ -81,7 +82,7 @@ function T:test_the_home_layout_has_a_hero_and_no_sidebar_or_outline()
   local html = fs:read("o/en/index.html")
   self:assert_true(html:find('<h1 class="hero-title">hecate</h1>', 1, true) ~= nil)
   self:assert_true(html:find('<p class="hero-tagline">Tagline</p>', 1, true) ~= nil)
-  self:assert_true(html:find('<a class="button button-primary" href="/en/guide/">Go</a>', 1, true) ~= nil)
+  self:assert_true(html:find('<a class="button button-primary" href="guide/index.html">Go</a>', 1, true) ~= nil)
   self:assert_true(html:find('<a class="button" href="https://x.test/r">Repo</a>', 1, true) ~= nil)
   self:assert_nil(html:find('class="sidebar"', 1, true))
   self:assert_nil(html:find('class="outline"', 1, true))
@@ -119,8 +120,8 @@ end
 function T:test_the_locale_switch_links_to_the_same_page()
   local fs = build(BASIC)
   local html = fs:read("o/en/guide/a/index.html")
-  self:assert_true(html:find('<a href="/fr/guide/a/" lang="fr" hreflang="fr">Français</a>', 1, true) ~= nil)
-  self:assert_true(html:find('<a href="/en/guide/a/" lang="en" hreflang="en" aria-current="true">English</a>', 1, true) ~= nil)
+  self:assert_true(html:find('<a href="../../../fr/guide/a/index.html" lang="fr" hreflang="fr">Français</a>', 1, true) ~= nil)
+  self:assert_true(html:find('<a href="index.html" lang="en" hreflang="en" aria-current="true">English</a>', 1, true) ~= nil)
 end
 
 function T:test_a_single_locale_site_has_no_locale_switch()
@@ -144,22 +145,27 @@ function T:test_alternates_canonical_and_sitemap_need_a_public_url_and_skip_fall
   self:assert_nil(sitemap:find("https://x.test/fr/guide/b/", 1, true))
 end
 
-function T:test_the_base_path_prefixes_every_url()
-  local fs = build(BASIC, { base_path = "/docs/" })
+function T:test_the_base_path_is_for_absolute_addresses_only_and_links_stay_relative()
+  local fs = build(BASIC, { base_path = "/docs/", site_origin = "https://x.test" })
   local html = fs:read("o/en/guide/a/index.html")
-  self:assert_true(html:find('href="/docs/assets/theme.css"', 1, true) ~= nil)
-  self:assert_true(html:find('src="/docs/assets/theme.js"', 1, true) ~= nil)
-  self:assert_true(html:find('<a href="/docs/en/guide/b/">Beta</a>', 1, true) ~= nil)
-  self:assert_true(html:find('"index":"/docs/assets/search-en.json"', 1, true) ~= nil)
-  self:assert_true(html:find('href="/docs/en/"', 1, true) ~= nil)
-  self:assert_nil(html:find('href="/en/', 1, true))
-  self:assert_true(fs:read("o/index.html"):find('url=/docs/en/', 1, true) ~= nil)
-  self:assert_true(fs:read("o/assets/search-en.json"):find('"u":"/docs/en/guide/a/#first"', 1, true) ~= nil)
+  self:assert_true(html:find('href="../../../assets/theme.css"', 1, true) ~= nil)
+  self:assert_true(html:find('src="../../../assets/theme.js"', 1, true) ~= nil)
+  self:assert_true(html:find('<a href="../b/index.html">Beta</a>', 1, true) ~= nil)
+  self:assert_true(html:find('"index":"../../../assets/search-en.js"', 1, true) ~= nil)
+  self:assert_true(html:find('"root":"../../../"', 1, true) ~= nil)
+  self:assert_true(html:find('href="../../index.html"', 1, true) ~= nil)
+  self:assert_nil(html:find('href="/', 1, true), "no root-relative link")
+  self:assert_nil(html:find('src="/', 1, true), "no root-relative source")
+  self:assert_true(html:find('<link rel="canonical" href="https://x.test/docs/en/guide/a/">', 1, true) ~= nil)
+  self:assert_true(fs:read("o/index.html"):find('url=en/index.html', 1, true) ~= nil)
+  self:assert_true(fs:read("o/index.html"):find('<link rel="canonical" href="https://x.test/docs/en/">', 1, true) ~= nil)
+  self:assert_true(fs:read("o/assets/search-en.js"):find('"u":"en/guide/a/index.html#first"', 1, true) ~= nil)
+  self:assert_true(fs:read("o/sitemap.xml"):find("<loc>https://x.test/docs/en/guide/a/</loc>", 1, true) ~= nil)
 end
 
 function T:test_markdown_links_are_resolved_against_the_page_and_the_locale()
   local files = {
-    ["en/guide/index.md"] = page("Guide", "[a](a.md) [b](./b.md#frag) [up](../index.md) [dir](../guide/) [abs](/en/x) [web](https://e.test/p) [anchor](#top)"),
+    ["en/guide/index.md"] = page("Guide", "[a](a.md) [b](./b.md#frag) [up](../index.md) [dir](../guide/) [abs](/en/x) [root](/en/guide/a/#s) [site](/) [web](https://e.test/p) [anchor](#top)"),
     ["en/guide/a.md"] = page("A"),
     ["en/guide/b.md"] = page("B"),
     ["en/index.md"] = page("Home"),
@@ -168,11 +174,13 @@ function T:test_markdown_links_are_resolved_against_the_page_and_the_locale()
   local fs, report = build(files)
   self:assert_equal(0, #report.problems)
   local html = fs:read("o/en/guide/index.html")
-  for _, expected in ipairs({ 'href="/en/guide/a/"', 'href="/en/guide/b/#frag"', 'href="/en/"', 'href="/en/guide/"', 'href="/en/x"',
+  -- Every link is relative to the page (`en/guide/`), and a page is named by its `index.html`.
+  for _, expected in ipairs({ 'href="a/index.html"', 'href="b/index.html#frag"', 'href="../index.html"', 'href="index.html"',
+    'href="../x/index.html"', 'href="a/index.html#s"', 'href="../../index.html"',
     'href="https://e.test/p"', 'href="#top"' }) do
     self:assert_true(html:find(expected, 1, true) ~= nil, expected)
   end
-  self:assert_true(fs:read("o/fr/guide/index.html"):find('href="/fr/guide/a/"', 1, true) ~= nil, "links stay in the locale")
+  self:assert_true(fs:read("o/fr/guide/index.html"):find('href="a/index.html"', 1, true) ~= nil, "links stay in the locale")
 end
 
 function T:test_broken_links_missing_files_and_escaping_links_are_reported()
@@ -211,7 +219,7 @@ function T:test_files_next_to_pages_are_copied_with_fallback_to_the_default_loca
   self:assert_equal("ok", fs:read("o/robots.txt"))
   self:assert_nil(fs:read("o/en/.hidden"))
   self:assert_nil(fs:read("o/en/README/index.html"))
-  self:assert_true(fs:read("o/fr/index.html"):find('src="/fr/img/d.svg"', 1, true) ~= nil)
+  self:assert_true(fs:read("o/fr/index.html"):find('src="img/d.svg"', 1, true) ~= nil)
 end
 
 function T:test_the_body_heading_is_the_h1_and_front_matter_title_overrides_the_label_only()
@@ -492,7 +500,7 @@ end
 
 function T:test_a_public_file_that_collides_with_a_generated_file_is_refused()
   for _, name in ipairs({ "404.html", "index.html", "assets/theme.css", "en/index.html", "en/guide/index.html",
-    "assets/search-en.json" }) do
+    "assets/search-en.js" }) do
     local err = self:assert_error(function()
       build({ ["en/index.md"] = page("Home", "ok"), ["en/guide/index.md"] = page("Guide", "g"), ["public/" .. name] = "mine" },
         { locales = { { code = "en", label = "English" } } })
@@ -516,15 +524,15 @@ function T:test_page_ids_are_percent_encoded_in_urls_and_links()
   }
   local fs = build(files, { site_origin = "https://x.test", locales = { { code = "en", label = "English" } } })
   local home = fs:read("o/en/index.html")
-  self:assert_true(home:find('href="/en/a%20b/caf%C3%A9/"', 1, true) ~= nil, "link to a page with a space and an accent")
-  self:assert_true(home:find('href="/en/a%20b/caf%C3%A9/#frag"', 1, true) ~= nil)
-  self:assert_nil(home:find('href="/en/a b/', 1, true))
-  self:assert_true(home:find("/en/a%20b/q%23%25/", 1, true) ~= nil, "# and % are encoded")
+  self:assert_true(home:find('href="a%20b/caf%C3%A9/index.html"', 1, true) ~= nil, "link to a page with a space and an accent")
+  self:assert_true(home:find('href="a%20b/caf%C3%A9/index.html#frag"', 1, true) ~= nil)
+  self:assert_nil(home:find('href="a b/', 1, true))
+  self:assert_true(home:find('href="a%20b/q%23%25/index.html"', 1, true) ~= nil, "# and % are encoded")
   local sitemap = fs:read("o/sitemap.xml")
   self:assert_true(sitemap:find("https://x.test/en/a%20b/caf%C3%A9/", 1, true) ~= nil)
   self:assert_nil(sitemap:find("a b", 1, true))
   self:assert_equal("<svg/>", fs:read("o/en/img x.svg"))
-  self:assert_true(home:find('src="/en/img%20x.svg"', 1, true) ~= nil)
+  self:assert_true(home:find('src="img%20x.svg"', 1, true) ~= nil)
   self:assert_not_nil(fs:read("o/en/a b/café/index.html"), "files keep their real names on disk")
 end
 
@@ -543,16 +551,16 @@ function T:test_logo_and_theme_are_served_from_public()
   files["public/theme.css"] = ":root { --moon: #123456; }"
   local fs = build(files, { logo_path = { light = "brand/logo.svg", dark = "brand/logo-dark.svg" }, stylesheet_path = "theme.css" })
   local home = fs:read("o/en/index.html")
-  self:assert_true(home:find('src="/brand/logo.svg"', 1, true) ~= nil)
-  self:assert_true(home:find('src="/brand/logo-dark.svg"', 1, true) ~= nil)
+  self:assert_true(home:find('src="../brand/logo.svg"', 1, true) ~= nil)
+  self:assert_true(home:find('src="../brand/logo-dark.svg"', 1, true) ~= nil)
   self:assert_nil(home:find("hecate-logo-horizontal", 1, true))
   local theme_at = home:find("assets/theme.css", 1, true)
-  local theme_file_at = home:find('href="/theme.css"', 1, true)
+  local theme_file_at = home:find('href="../theme.css"', 1, true)
   self:assert_true(theme_at ~= nil and theme_file_at ~= nil and theme_file_at > theme_at, "override file after the theme")
   files["public/brand/logo.svg"] = nil
   local single = build({ ["en/index.md"] = BASIC["en/index.md"], ["public/l.svg"] = "<svg/>" }, { logo_path = "l.svg" })
   local text = single:read("o/en/index.html")
-  self:assert_true(text:find('src="/l.svg"', 1, true) ~= nil)
+  self:assert_true(text:find('src="../l.svg"', 1, true) ~= nil)
   self:assert_nil(text:find("logo-dark", 1, true))
 end
 
@@ -568,7 +576,7 @@ end
 
 function T:test_the_default_favicon_is_the_adaptive_hecate_one()
   local home = build(BASIC, {}):read("o/en/index.html")
-  self:assert_true(home:find('<link rel="icon" href="/assets/brand/favicon.svg" type="image/svg+xml">', 1, true) ~= nil)
+  self:assert_true(home:find('<link rel="icon" href="../assets/brand/favicon.svg" type="image/svg+xml">', 1, true) ~= nil)
   self:assert_nil(home:find('<link rel="icon"', home:find('<link rel="icon"', 1, true) + 1, true), "one icon link, not one per scheme")
 end
 
@@ -579,14 +587,14 @@ function T:test_a_favicon_of_public_replaces_the_default_with_its_type_and_media
   files["public/icon-dark.ico"] = "ico"
   files["public/mark.svg"] = "<svg/>"
   local single = build(files, { favicon_path = "mark.svg" }):read("o/en/index.html")
-  self:assert_true(single:find('<link rel="icon" href="/mark.svg" type="image/svg+xml">', 1, true) ~= nil)
+  self:assert_true(single:find('<link rel="icon" href="../mark.svg" type="image/svg+xml">', 1, true) ~= nil)
   self:assert_nil(single:find("assets/brand/favicon.svg", 1, true))
   local pair = build(files, { favicon_path = { light = "icon.png", dark = "icon-dark.ico" } }):read("o/en/index.html")
-  self:assert_true(pair:find('<link rel="icon" href="/icon.png" type="image/png" media="(prefers-color-scheme: light)">', 1, true) ~= nil)
-  self:assert_true(pair:find('<link rel="icon" href="/icon-dark.ico" type="image/x-icon" media="(prefers-color-scheme: dark)">', 1, true) ~= nil)
+  self:assert_true(pair:find('<link rel="icon" href="../icon.png" type="image/png" media="(prefers-color-scheme: light)">', 1, true) ~= nil)
+  self:assert_true(pair:find('<link rel="icon" href="../icon-dark.ico" type="image/x-icon" media="(prefers-color-scheme: dark)">', 1, true) ~= nil)
   self:assert_nil(pair:find("assets/brand/favicon.svg", 1, true))
   local alone = build(files, { favicon_path = { light = "icon.png" } }):read("o/en/index.html")
-  self:assert_true(alone:find('<link rel="icon" href="/icon.png" type="image/png">', 1, true) ~= nil)
+  self:assert_true(alone:find('<link rel="icon" href="../icon.png" type="image/png">', 1, true) ~= nil)
 end
 
 function T:test_a_missing_favicon_fails_the_build()
@@ -604,18 +612,31 @@ function T:test_a_missing_logo_fails_before_any_output_is_written()
   for path in pairs(fs.files) do self:assert_nil(path:find("^o/"), path .. " was written") end
 end
 
-function T:test_the_logo_is_served_on_every_page_under_a_sub_path_base()
+function T:test_the_logo_is_linked_from_every_page_by_a_path_relative_to_it_whatever_the_base_path()
   local files = {}
   for path, data in pairs(BASIC) do files[path] = data end
   files["fr/index.md"] = page("Accueil", "bonjour")
   files["public/my logo.svg"] = "<svg/>"
   files["public/c.css"] = "x"
   local fs = build(files, { base_path = "/docs", logo_path = "my logo.svg", stylesheet_path = "c.css" })
-  for _, path in ipairs({ "o/en/index.html", "o/fr/index.html", "o/404.html" }) do
+  for _, path in ipairs({ "o/en/index.html", "o/fr/index.html" }) do
     local text = fs:read(path)
-    self:assert_not_nil(text:find('src="/docs/my%20logo.svg"', 1, true), path)
-    self:assert_not_nil(text:find('href="/docs/c.css"', 1, true), path)
+    self:assert_not_nil(text:find('src="../my%20logo.svg"', 1, true), path)
+    self:assert_not_nil(text:find('href="../c.css"', 1, true), path)
   end
+  local deep = fs:read("o/en/guide/a/index.html")
+  self:assert_not_nil(deep:find('src="../../../my%20logo.svg"', 1, true))
+  -- The not-found page is served for any address: its links are relative to the root, which no static host resolves
+  -- from a deep address, so with `site_origin` they are absolute.
+  local plain = fs:read("o/404.html")
+  self:assert_not_nil(plain:find('src="my%20logo.svg"', 1, true))
+  self:assert_not_nil(plain:find('href="c.css"', 1, true))
+  local absolute = build(files, { base_path = "/docs", site_origin = "https://x.test", logo_path = "my logo.svg",
+    stylesheet_path = "c.css" }):read("o/404.html")
+  self:assert_not_nil(absolute:find('src="https://x.test/docs/my%20logo.svg"', 1, true))
+  self:assert_not_nil(absolute:find('href="https://x.test/docs/c.css"', 1, true))
+  self:assert_not_nil(absolute:find('href="https://x.test/docs/assets/theme.css"', 1, true))
+  self:assert_not_nil(absolute:find('href="https://x.test/docs/en/index.html"', 1, true))
 end
 
 function T:test_case_variants_of_a_page_id_and_normalised_asset_names_are_detected_when_scanning()
@@ -696,7 +717,7 @@ function T:test_two_content_trees_are_two_independent_sites_built_by_the_plain_b
   -- Each site has its own pages, files, navigation, search index, sitemap, llms.txt and 404 page.
   for _, audience in ipairs({ "user", "maintainer" }) do
     for _, file in ipairs({ "404.html", "index.html", "sitemap.xml", "llms.txt", "llms-full.txt", "assets/theme.css",
-      "assets/search-en.json", ".hecate-doc-output", "en/index.html" }) do
+      "assets/search-en.js", ".hecate-doc-output", "en/index.html" }) do
       self:assert_not_nil(fs:read("o/" .. audience .. "/" .. file), audience .. "/" .. file)
     end
   end
@@ -705,7 +726,7 @@ function T:test_two_content_trees_are_two_independent_sites_built_by_the_plain_b
   -- A page of one tree is in no file of the other site.
   self:assert_nil(fs:read("o/user/en/internals/design/index.html"))
   self:assert_nil(fs:read("o/maintainer/en/guide/a/index.html"))
-  for _, file in ipairs({ "assets/search-en.json", "sitemap.xml", "llms.txt", "llms-full.txt", "404.html", "en/index.html" }) do
+  for _, file in ipairs({ "assets/search-en.js", "sitemap.xml", "llms.txt", "llms-full.txt", "404.html", "en/index.html" }) do
     local user_text, maintainer_text = fs:read("o/user/" .. file), fs:read("o/maintainer/" .. file)
     self:assert_nil(user_text:find("xylophone", 1, true), "user " .. file)
     self:assert_nil(user_text:find("internals", 1, true), "user " .. file)
@@ -716,11 +737,12 @@ function T:test_two_content_trees_are_two_independent_sites_built_by_the_plain_b
   self:assert_not_nil(fs:read("o/maintainer/sitemap.xml"):find("https://x.test/maintainer/en/internals/design/", 1, true))
   self:assert_not_nil(fs:read("o/maintainer/llms.txt"):find("For maintainers.", 1, true))
   self:assert_nil(fs:read("o/user/llms.txt"):find("For maintainers.", 1, true))
-  -- Own navigation, own theme assets (each tree is served below its own base path).
+  -- Own navigation, own theme assets (the links are relative to the page, so each tree opens wherever it lies).
   local user_page = fs:read("o/user/en/guide/a/index.html")
-  self:assert_not_nil(user_page:find('href="/user/assets/theme.css"', 1, true))
+  self:assert_not_nil(user_page:find('href="../../../assets/theme.css"', 1, true))
   self:assert_nil(user_page:find("/maintainer/assets", 1, true))
-  self:assert_not_nil(fs:read("o/maintainer/en/internals/design/index.html"):find('href="/maintainer/assets/theme.css"', 1, true))
+  self:assert_not_nil(fs:read("o/maintainer/en/internals/design/index.html"):find('href="../../../assets/theme.css"', 1, true))
+  self:assert_not_nil(fs:read("o/maintainer/404.html"):find('href="https://x.test/maintainer/assets/theme.css"', 1, true))
   -- Each tree has its own `public/` and its own files next to the pages.
   self:assert_equal("<svg id=\"user-logo\"/>", fs:read("o/user/logo.svg"))
   self:assert_nil(fs:read("o/maintainer/logo.svg"))
@@ -765,7 +787,7 @@ function T:test_the_theme_file_can_change_fonts_and_ship_font_files_from_public(
   self:assert_not_nil(fs:read("o/own.css"):find('url("fonts/own.woff2")', 1, true), "the theme file is served as written")
   -- The theme file comes after the stylesheet of the theme, so its custom properties win at equal specificity.
   local home = fs:read("o/en/index.html")
-  self:assert_true(home:find("assets/theme.css", 1, true) < home:find('href="/own.css"', 1, true))
+  self:assert_true(home:find("assets/theme.css", 1, true) < home:find('href="../own.css"', 1, true))
 end
 
 function T:test_a_file_of_public_cannot_replace_the_stylesheet_of_the_theme()
