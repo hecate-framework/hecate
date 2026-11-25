@@ -68,7 +68,21 @@ function command.execute(context, dependencies)
   local version = manifest.version or "0.0.0"
   local default_name = ("%s-%s-%s.%s"):format(manifest.name, version, context.runtime.platform, dependencies.windows and "zip" or "tar.gz")
   local output = context.arguments.options.output --[[@as string?]] or (project .. "/" .. default_name)
+  -- The format comes from the name: bsdtar (`-a`, Windows) reads it from the suffix, and a name that says otherwise
+  -- than what is written would mislead whoever unpacks it.
+  local lowered = output:lower()
+  local suffix_ok = lowered:match("%.tar%.gz$") or lowered:match("%.tgz$") or (dependencies.windows and lowered:match("%.zip$"))
+  if not suffix_ok then
+    context.print_error("hecate package: --output must end in " .. (dependencies.windows and ".zip, .tar.gz or .tgz" or ".tar.gz or .tgz") .. " (got '" .. output .. "')")
+    return 2
+  end
+  -- GNU tar reads `host:path` as a file on another machine (and may start `rsh`): a relative name is anchored with `./`.
+  if not dependencies.windows and not output:match("^/") then output = "./" .. output end
   return dependencies.run(function()
+    if dependencies.windows and not dependencies.fs.exists(dependencies.tar) then
+      context.print_error("hecate package: " .. dependencies.tar .. " was not found: Windows 10 (1803) and later ship it; install it, or write the archive with another tool")
+      return 1
+    end
     local content = {}
     for _, name in ipairs(CONTENT) do
       if dependencies.fs.exists(project .. "/" .. name) then content[#content + 1] = name
@@ -86,7 +100,7 @@ function command.execute(context, dependencies)
     dependencies.fs.write(project .. "/RELEASE", release_text(manifest, context.runtime))
     local arguments = { dependencies.windows and "-a" or "-z", "-c", "-f", output, "-C", project, "RELEASE" }
     for _, name in ipairs(content) do arguments[#arguments + 1] = name end
-    local result = dependencies.run_process(dependencies.tar, arguments, { cwd = project })
+    local result = dependencies.run_process(dependencies.tar, arguments, { cwd = project, env = { COPYFILE_DISABLE = "1" } }) -- macOS: no `._*` AppleDouble files in the archive
     dependencies.fs.remove(project .. "/RELEASE")
     if result.code ~= 0 then
       context.print_error("hecate package: the archive was not written (" .. dependencies.tar .. " exited with " .. result.code .. "):\n"

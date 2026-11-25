@@ -117,7 +117,11 @@ function M.install(options)
     local names = {}
     for name in pairs(options.lua_headers.files) do names[#names + 1] = name end
     table.sort(names)
-    for _, name in ipairs(names) do options.fs.write(join(options.lua_headers.directory, name), options.lua_headers.files[name]) end
+    -- Written only when different: a rock being built may be reading them, and an unchanged file keeps its timestamp.
+    for _, name in ipairs(names) do
+      local path = join(options.lua_headers.directory, name)
+      if options.fs.read(path) ~= options.lua_headers.files[name] then options.fs.write(path, options.lua_headers.files[name]) end
+    end
     local variables = {}
     for key, value in pairs(rocks.options.variables or {}) do variables[key] = value end
     variables.LUA_INCDIR = options.lua_headers.directory

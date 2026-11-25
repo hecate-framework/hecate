@@ -52,10 +52,38 @@ end
 
 function T:test_config_is_optional_and_a_zip_is_written_on_windows()
   local present = { ["/work/shop/hecate.project.lua"] = MANIFEST, ["/work/shop/hecate.lock"] = true, ["/work/shop/main.lua"] = true,
-    ["/work/shop/src"] = true, ["/work/shop/lua_modules"] = true }
+    ["/work/shop/src"] = true, ["/work/shop/lua_modules"] = true, tar = true }
   local code, _, _, _, _, spawned = run({ "package", "--output=/out/r.zip" }, { present = present, windows = true })
   self:assert_equal(0, code)
   self:assert_equal("-a -c -f /out/r.zip -C /work/shop RELEASE hecate.project.lua hecate.lock main.lua src lua_modules", table.concat(spawned[1].args, " "))
+end
+
+function T:test_an_output_with_a_colon_cannot_be_read_as_a_remote_file_by_tar()
+  local code, _, _, _, _, spawned = run({ "package", "--output=host:evil.tar.gz" })
+  self:assert_equal(0, code)
+  self:assert_equal("./host:evil.tar.gz", spawned[1].args[4])
+  local _, _, _, _, _, absolute = run({ "package", "--output=/tmp/a:b.tar.gz" })
+  self:assert_equal("/tmp/a:b.tar.gz", absolute[1].args[4])
+end
+
+function T:test_the_suffix_of_the_output_names_the_format()
+  local code, _, err, _, _, spawned = run({ "package", "--output=/out/r.zip" })
+  self:assert_equal(2, code)
+  self:assert_true(err:find(".tar.gz", 1, true) ~= nil, err)
+  self:assert_equal(0, #spawned)
+  self:assert_equal(2, (run({ "package", "--output=/out/release" })))
+  self:assert_equal(0, (run({ "package", "--output=/out/r.tgz" })))
+end
+
+function T:test_a_missing_tar_on_windows_is_explained_and_macos_metadata_is_not_archived()
+  local present = { ["/work/shop/hecate.project.lua"] = MANIFEST, ["/work/shop/hecate.lock"] = true, ["/work/shop/main.lua"] = true,
+    ["/work/shop/src"] = true, ["/work/shop/lua_modules"] = true }
+  local code, _, err, _, _, spawned = run({ "package", "--output=/out/r.zip" }, { present = present, windows = true })
+  self:assert_equal(1, code)
+  self:assert_true(err:find("tar was not found", 1, true) ~= nil, err)
+  self:assert_equal(0, #spawned)
+  local _, _, _, _, _, ok = run({ "package" })
+  self:assert_equal("1", ok[1].options.env.COPYFILE_DISABLE)
 end
 
 function T:test_a_missing_lock_or_tree_is_refused_with_the_command_that_fixes_it()

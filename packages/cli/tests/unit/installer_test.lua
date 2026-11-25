@@ -77,6 +77,22 @@ function T:test_the_embedded_lua_headers_are_unpacked_and_named_as_lua_incdir()
   self:assert_true(plain.files[".hecate/luarocks/config.lua"]:find("LUA_INCDIR", 1, true) == nil)
 end
 
+function T:test_unchanged_headers_are_not_written_again()
+  local world = setup()
+  local headers = { directory = "/p/.hecate/lua/include", files = { ["lua.h"] = "/* lua.h */" } }
+  local writes = 0
+  local fs = {
+    read = function(path) return world.files[path] end,
+    write = function(path, text) if path:find("lua.h", 1, true) then writes = writes + 1 end; world.files[path] = text end,
+  }
+  installer.install(world.options({ lua_headers = headers, fs = fs }))
+  installer.install(world.options({ lua_headers = headers, fs = fs }))
+  self:assert_equal(1, writes)
+  world.files["/p/.hecate/lua/include/lua.h"] = "/* planted */"
+  installer.install(world.options({ lua_headers = headers, fs = fs }))
+  self:assert_equal("/* lua.h */", world.files["/p/.hecate/lua/include/lua.h"])
+end
+
 function T:test_frozen_without_a_lockfile_stops_before_installing()
   local world = setup()
   self:assert_error(function() installer.install(world.options({ frozen = true })) end)
