@@ -183,7 +183,7 @@ la barre latérale. Sans elle, la page courante est signalée par une graisse pl
 Un chemin doit être relatif, sans `..`, schéma ni requête. Un fichier absent de `public/` fait échouer la construction
 avec une `BuildError`. Les marques de hecate ne sont jamais recolorées. Le remplacement des gabarits n’est pas proposé.
 Chaque propriété, ce qu’elle affecte et comment livrer vos propres polices se trouvent dans
-[Jetons de thème](../../en/reference/theme-tokens.md).
+Jetons de thème.
 
 Exemple de `public/theme.css`, avec une variante sombre (l’ensemble sombre est écrit deux fois : pour la préférence du
 système et pour le bouton de bascule) :

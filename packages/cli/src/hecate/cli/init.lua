@@ -23,6 +23,7 @@ local cli = {
     require("hecate.cli.commands.doctor"),
     require("hecate.cli.commands.generate_meta"),
     require("hecate.cli.commands.generate_systemd"),
+    require("hecate.cli.commands.generate_workflow"),
     require("hecate.cli.commands.init"),
     require("hecate.cli.commands.install"),
     require("hecate.cli.commands.new"),

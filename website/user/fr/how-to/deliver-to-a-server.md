@@ -49,12 +49,12 @@ systemctl reload shop
 ```
 
 Le répertoire de travail de l’unité est le lien `current`. `systemctl reload` envoie `SIGHUP`, qui remplace un à un les
-workers d’une application [multiprocessus](../../en/how-to/multi-process-deployment.md), sans interruption de service (un redémarrage
+workers d’une application multiprocessus, sans interruption de service (un redémarrage
 est `systemctl restart shop`). Pour revenir en arrière, faites pointer le lien vers la livraison précédente et
 rechargez.
 
 ## Placer un proxy inverse devant
 
 `hecate serve` écoute sur l’interface de bouclage. Laissez un proxy inverse tel que Caddy ou nginx posséder le port
-public et TLS, et transmettre les requêtes à `127.0.0.1:8080`. La [liste de contrôle](../../en/how-to/before-going-to-production.md)
+public et TLS, et transmettre les requêtes à `127.0.0.1:8080`. La liste de contrôle
 énumère ce qu’il faut vérifier avant le premier déploiement.

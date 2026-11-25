@@ -33,7 +33,7 @@ hecate serve --env development
 
 `hecate test` exécute `tests/` avec les modules du projet sur le chemin de recherche ; `--jobs 4` exécute les fichiers
 dans quatre processus workers. `hecate serve` exécute `main.lua` (port lu dans `PORT`, 8080 par défaut) et s’arrête en
-douceur sur Ctrl+C. `--env development` choisit l’environnement de [configuration](../../en/how-to/configure-an-application.md) : les
+douceur sur Ctrl+C. `--env development` choisit l’environnement de configuration : les
 fichiers générés `config/development.lua` et `config/test.lua` n’exécutent qu’un processus, alors que l’environnement
 `production`, par défaut, démarre un worker par cœur moins un (`--workers 2` choisit le nombre). `--watch` redémarre
 l’application lorsque les sources changent.
@@ -46,7 +46,7 @@ hecate contract lint openapi.json
 hecate generate meta
 ```
 
-La première commande écrit le [contrat](../../en/how-to/serve-and-export-the-contract.md) de l’application (la section `contract` du
+La première commande écrit le contrat de l’application (la section `contract` du
 manifeste donne son titre et sa version), la deuxième l’analyse et sort avec `1` sur une erreur. Versionnez
 `openapi.json` et `hecate contract diff <ref>` vous dit ce qu’un changement a cassé depuis cette référence git.
 `hecate generate meta` écrit `meta/shop.schemas.lua`, le fichier de déclarations qui permet à un éditeur de connaître
