@@ -56,7 +56,7 @@ hecate doc build --yes
 ```
 
 The site goes to `docs/dist`: one folder of static files per audience, built from the Markdown pages of `docs/` and the
-code reference of `src/`. The code reference runs LuaLS, which runs the plugin its configuration declares: build only a
+code reference of `src/`. The files need no server: open `docs/dist/index.html` from the file system, or publish the folder on any static host. The code reference runs LuaLS, which runs the plugin its configuration declares: build only a
 project you trust, and answer the question (or pass `--yes`) knowingly.
 
 ## Keep the dependencies up to date

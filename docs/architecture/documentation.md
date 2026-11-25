@@ -63,7 +63,8 @@ gradients or glows, the name never capitalised, earth as the single accent). Pag
   Lua 5.5" line;
 - callouts (the five GFM alerts NOTE, TIP, IMPORTANT, WARNING and CAUTION), code blocks with a language label
   and a copy button, tables, task lists;
-- search: one JSON index per locale, queried by about 150 lines of vanilla JavaScript;
+- search: one index per locale, written as a script file (`assets/search-<locale>.js`, loaded with a script element, so
+  that it works from the file system) and queried by about 150 lines of vanilla JavaScript;
 - diagrams: a fenced block whose info string is `mermaid` stays a code block, and on a page that holds one the
   theme loads a vendored copy of `mermaid.js` (no CDN) that draws it in the reader's browser, in the brand
   colours of the light or the dark theme ([ADR 0033](../adr/0033-vendored-browser-libraries.md), Accepted;
@@ -121,6 +122,32 @@ tested examples. The OQ-11 spike decides.
   `lua-language-server --doc` export contains its functions; `hecate.doc` does not parse
   annotations itself. Parameters and returns are described in the standard form
   `---@param name type description` and `---@return type name description`.
+
+## Static output (OQ-148)
+
+Owner decision of 2026-11-24: `hecate doc` produces static files only, like Javadoc, with no server, no `serve` command and
+no option for the mode. A built site opens from the file system (`file://`) and from any static host, under any path.
+
+- **Relative links.** A page links to the other pages and to its assets (stylesheet, scripts, fonts, logo, favicon,
+  Mermaid, the files of `public/`, the files next to the pages) by a path relative to the file it is written in
+  (`../../../assets/theme.css`), never by a path that starts with `/`. A link to a page names its file
+  (`../b/index.html`): a browser lists a directory that it opens from the file system. The stylesheets use relative
+  `url(...)`. A link written in Markdown is resolved to a relative one; one that starts with `/` names a path below the
+  root of the site.
+- **`base_path` and `site_origin`** build no link. They give the absolute addresses of the site: the canonical and alternate
+  links, `sitemap.xml`, `llms.txt` and `llms-full.txt`, the canonical link of the root redirect and the links of `404.html`
+  when `site_origin` is set (a host serves `404.html` for any address, so a relative link would break there; without
+  `site_origin` the links of `404.html` are relative to the root). `base_path` stays a validated option (an absolute path,
+  default `/`), so that existing `site.lua` files keep working; `Page.url` is the public address
+  `<base_path><locale>/<page path>/`.
+- **Search index.** A script file per locale, `assets/search-<locale>.js`, one assignment to
+  `window.hecateDocSearchIndex[<locale>]`; the documents are addressed by a path below the root of the site
+  (`en/guide/index.html#section`) and `theme.js` prefixes the path from the page to the root (`root` of the `doc-config`
+  element of the page). The script is added when the search opens for the first time. A `fetch` of a JSON file is refused
+  by browsers on `file://`, a script is not. The content is deterministic.
+- **Test.** The files written by a build are read back, and every local `href`, `src`, `url(...)` and meta refresh of every
+  page and stylesheet must resolve, from the directory of its own file, to a file of the output; no root-relative local
+  reference may remain.
 
 ## Dependencies of the generator
 
@@ -255,7 +282,7 @@ home of one site only) and no static file.
   out of scope).
 - **Each tree is a plain site.** It is built by the plain builder (`hecate.doc.build`, class `Site`), exactly like the tree of
   the Hecate website, into `<output_dir>/<audience>/`: its own pages, navigation, search index, sitemap, `llms.txt` and
-  `llms-full.txt`, `404.html` and theme files, with the base URL `<base_path><audience>/`. A page of one tree is in no file
+  `llms-full.txt`, `404.html` and theme files, with the public address `<base_path><audience>/` (canonical links, sitemap; the links of the pages are relative). A page of one tree is in no file
   of the other site. `<output_dir>/` holds a marker file and a redirect to the first site built. The builder knows no
   audience: there is no `audience` front matter key (a page that carries it is a `BuildError` naming the file and this layout),
   and `audiences`, `default_audience` and `audience_sites` are no keys of `site.lua` (a `ConfigurationError` says what
@@ -273,8 +300,8 @@ home of one site only) and no static file.
   `private`, `protected` or `package`, or whose name starts with `_`, is never listed: a member is a part of a class page,
   not a page. Stale generated pages and the generated-page marker rules apply per tree.
 - **Links between the two sites** are ordinary links that the builder cannot check. Write an absolute URL, or a relative
-  link that the browser reads from the URL of the page (`../../../../user/en/guide/` from `guide/a.md` of a site served at
-  `/maintainer/`). The builder leaves a relative link that climbs two levels or more above the locale directory, out of the tree,
+  link that the browser reads from the file of the page (`../../../../user/en/guide/index.html` from `guide/a.md` of the site
+  written to `maintainer/`, which opens from the file system as well). The builder leaves a relative link that climbs two levels or more above the locale directory, out of the tree,
   as written and reports no problem; a link that climbs to the content root only is still a problem, as is a broken link inside
   the tree. A switcher between the sites is not built (OQ-144, open).
 - Files of the guides are read defensively and written portably as for every tree (symbolic links, depth, entries,

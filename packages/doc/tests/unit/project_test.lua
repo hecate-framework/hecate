@@ -409,7 +409,7 @@ function T:test_a_project_builds_the_maintainer_tree_only_by_default()
   self:assert_nil(fs:read("docs/user/en/configuration.md"))
   -- The root of the output holds the marker and a redirect to the first site.
   self:assert_not_nil(fs:read("dist/.hecate-doc-output"))
-  self:assert_not_nil(fs:read("dist/index.html"):find('content="0; url=/maintainer/en/"', 1, true))
+  self:assert_not_nil(fs:read("dist/index.html"):find('content="0; url=maintainer/en/index.html"', 1, true))
   self:assert_equal(3, report.locales.en.pages, "the home page, the design page and the configuration reference")
 end
 
@@ -498,8 +498,6 @@ function T:test_the_site_configuration_is_shared_and_the_clean_option_empties_th
   self:assert_not_nil(fs:read("dist/user/en/index.html"):find('href="../assets/theme.css"', 1, true), "the base path builds no link")
   self:assert_not_nil(fs:read("dist/index.html"):find('url=user/en/index.html', 1, true))
   self:assert_nil(fs:read("dist/user/en/index.html"):find('href="/', 1, true), "no root-relative link")
-  -- The base path is the one of the project plus the audience, for the absolute addresses.
-  self:assert_not_nil(fs:read("dist/user/404.html"):find("/docs/user/", 1, true) == nil and true or true)
   -- The edit link names the tree: the template of the project is relative to the guides directory.
   self:assert_not_nil(fs:read("dist/user/en/index.html"):find("https://x.test/edit/docs/user/en/index.md", 1, true))
   self:assert_not_nil(fs:read("dist/maintainer/en/design/index.html"):find("https://x.test/edit/docs/maintainer/en/design.md", 1, true))

@@ -11,6 +11,8 @@ Each release heading states the supported Lua version.
 
 ### Added
 
+- feat(doc)!: the built site is static files that open from the file system and from any static host, like Javadoc (owner decision of 2026-11-24, OQ-148, issue #234; BREAKING, alpha: no server, no `serve`, one mode, no option): every link and every asset of a page (stylesheet, scripts, fonts, logo, favicon, Mermaid, files of `public/`, files next to the pages) is a path relative to the page, a link to a page names its `index.html`, `base_path` builds no link and stays a validated option for the absolute addresses (canonical links, sitemap, `llms.txt`, root redirect, and the 404 page when `site_origin` is set), and the search index is the script `assets/search-<locale>.js` (`search.script`) loaded with a script element instead of the fetched `search-<locale>.json`; a test reads the written files and checks that every local `href`, `src` and `url(...)` resolves to a file of the output
+
 - docs(cli): the website has the reference of the `hecate` command (`reference/cli.md`, whose list of commands a test compares with `hecate --help`) and the guides "Create and run a project" and "Deliver to a server".
 - feat(cli): `hecate package [--output <file>]`: the release archive of the project for a server without Docker (owner agreement of 2026-11-24), written with the `tar` of the system, with a `RELEASE` file and a `.sha256` next to it; checked on a project with a locked dependency.
 - feat(cli): `hecate generate meta [--namespace] [--output] [--force]` (OQ-121): the LuaLS `---@meta` file of the schemas of the contract of the application (`hecate.doc.project.meta`), written to `meta/<module>.schemas.lua` on demand; also fixes `generate systemd --output`, which started a second reactor.

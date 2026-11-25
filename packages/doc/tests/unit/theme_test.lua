@@ -256,7 +256,7 @@ function T:test_controls_have_names_and_types_and_images_have_alt_text()
   end
   self:assert_true(html:find('<dialog class="search-dialog" id="search-dialog" aria-label="Search">', 1, true) ~= nil)
   self:assert_true(html:find('aria-label="GitHub repository"', 1, true) ~= nil)
-  self:assert_true(html:find('class="logo" href="index.html" aria-label="hecate, home"', 1, true) ~= nil)
+  self:assert_true(html:find('class="logo" href="../../index.html" aria-label="hecate, home"', 1, true) ~= nil)
   self:assert_true(html:find('width="160" height="45"', 1, true) ~= nil, "the horizontal lockup is never smaller than 160 px")
 end
 
