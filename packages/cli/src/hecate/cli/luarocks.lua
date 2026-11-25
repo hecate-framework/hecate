@@ -123,6 +123,7 @@ function LuaRocks:arguments(command)
   return args
 end
 
+---@async
 ---@param command string[]
 ---@param cwd? string
 ---@return hecate.cli.RunResult
@@ -132,6 +133,7 @@ function LuaRocks:run(command, cwd)
 end
 
 --- The rocks installed in the tree, from `luarocks list --porcelain`.
+---@async
 ---@return hecate.cli.InstalledRock[] installed  sorted by name
 function LuaRocks:installed()
   local result = self:run({ "list", "--porcelain" })
@@ -150,6 +152,7 @@ end
 --- The rocks of the tree for which a newer version exists on the servers (`luarocks list --outdated --porcelain`, whose
 --- lines are tab-separated: name, installed version, available version, server). Needs the network. Raises
 --- `hecate.core.StateError` when LuaRocks fails, with what it said.
+---@async
 ---@return hecate.cli.OutdatedRock[] outdated  sorted by name
 function LuaRocks:outdated()
   local result = self:run({ "list", "--outdated", "--porcelain" })
@@ -171,6 +174,7 @@ end
 --- Removes rocks from the tree (`luarocks remove --force`: their dependents are not checked, `update` reinstalls them
 --- at once). A rock that is not installed is not an error. Raises `hecate.core.StateError` when LuaRocks fails on one
 --- that is installed.
+---@async
 ---@param names string[]
 function LuaRocks:remove(names)
   for _, name in ipairs(names) do
@@ -189,6 +193,7 @@ end
 --- everything is already installed and a lock is present, spike OQ-2): success is that every rock named in `expected`
 --- is installed afterwards. Raises `hecate.core.StateError` naming the missing rocks and what LuaRocks said.
 ---@param rockspec_path string
+---@async
 ---@param expected string[]  names of the rocks that must be installed
 ---@return hecate.cli.InstalledRock[] installed
 function LuaRocks:install_dependencies(rockspec_path, expected)
@@ -214,6 +219,7 @@ end
 --- generated rockspec, where `luarocks.lock` is written, and which holds no other lock). Only after the dependencies
 --- are installed: pinning a fresh tree fails (spike OQ-2). Raises `hecate.core.StateError` when it fails.
 ---@param rockspec_path string
+---@async
 ---@param work_dir string
 function LuaRocks:pin(rockspec_path, work_dir)
   local result = self:run({ "build", "--pin", "--only-deps", rockspec_path }, work_dir)
