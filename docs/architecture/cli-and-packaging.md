@@ -241,16 +241,53 @@ The `release.yml` workflow builds the `hecate` executable and attaches it to a G
   the names that the setup action (`packages/actions/setup`) downloads. The archive is deterministic (`package-cli`:
   sorted entries, fixed time and owner; the Windows zip holds stored entries). On a tag, each archive also gets a build
   provenance attestation (`actions/attest-build-provenance`; `gh attestation verify <archive> --repo <owner/repo>`).
-- **Platforms** for now: the three that `ci.yml` builds and tests (`ubuntu-latest` gives linux-x86_64, `macos-latest`
-  darwin-aarch64, `windows-latest` windows-x86_64; os and architecture come from `uname` or the Windows environment,
+- **Linux packages** (owner decision of 2026-11-25), attached to the same draft, each with its `.sha256`, x86_64 only for
+  now (arm64 comes with its runners): packages that a user installs from a file with the tool of the system, with no
+  repository, account or certificate. `package-cli --format=deb|rpm|archlinux|apk` writes them (`tools/lib/linux_package.lua`,
+  one metadata table for every format; entries sorted, time 1980-01-01, owner 0; `gzip` and `zstd` compress, `rpmbuild`
+  writes the rpm from a generated spec). Content of each: `/usr/bin/hecate` (0755), the licence (`/usr/share/doc/hecate/copyright`
+  for the deb, `/usr/share/licenses/hecate/LICENSE` for the others) and the completions printed by the built executable
+  (`hecate completion bash|zsh|fish`, at `/usr/share/bash-completion/completions/hecate`,
+  `/usr/share/zsh/site-functions/_hecate`, `/usr/share/fish/vendor_completions.d/hecate.fish`). Names:
+  `hecate_<deb>_amd64.deb`, `hecate-<rpm version>-<R>.x86_64.rpm`, `hecate-<pkgver>-<pkgrel>-x86_64.pkg.tar.zst`,
+  `hecate-<apk version>.x86_64.apk`. **Version mapping** of `X.Y.Z[alpha|beta|rc|pre]N-R`: deb `X.Y.Z~rcN-R`; rpm Version
+  `X.Y.Z~rcN`, Release `R`; Arch pkgver `X.Y.ZrcN`, pkgrel `R` (Arch has no tilde, a pre-release sorts after the final
+  version there); Alpine `X.Y.Z_rcN-rR` (the final release `X.Y.Z-rR`). The deb is an `ar` of `debian-binary`,
+  `control.tar.gz` (`control`, `md5sums`) and `data.tar.gz`, with `Depends: libc6 (>= 2.28)`; the Arch package is a zstd tar
+  with `.PKGINFO` (no `.MTREE`); the apk is two gzip streams, a control tar with `.PKGINFO` (carrying `datahash`, the
+  sha256 of the data stream) and the data tar. None is signed: a file install checks no repository signature, and the apk
+  needs `apk add --allow-untrusted` until a project key exists.
+- **Container builds.** The Linux executables are built inside containers started by `docker run` from the ubuntu runner
+  (not `container:` on the job: JavaScript actions inside a container are fragile), by `tools/ci/release-linux-build.sh`,
+  which only provisions the container (packages, rustup with the toolchain of `packages/json/native/rust-toolchain.toml`,
+  the bootstrap of Lua) and calls the tasks. **glibc**: `almalinux:8` (glibc 2.28), the dynamic executable that the Linux
+  archive, the deb, the rpm and the Arch package all carry. **musl**: `alpine:3.20`, `build-cli --static` (`cc -static`),
+  the apk; the Rust encoder is built with `RUSTFLAGS=-C target-feature=-crt-static` so that it does not bundle a second
+  libc. A static executable cannot `dlopen`: on Alpine a C rock that `hecate install` builds cannot be loaded (the
+  modules linked in and the Lua modules work).
+- **glibc guard.** The default build on a current runner needs glibc 2.38 and would not run on Ubuntu 22.04, Debian 12 or
+  RHEL 8 and 9. `package-cli` reads the highest `GLIBC_x.y` symbol version of a Linux ELF executable (`objdump -T`, else
+  `readelf --dyn-syms`; the parser is `linux_package.highest_glibc`, tested on fixture text) and refuses it above
+  `--max-glibc` (default 2.28, the floor; `none` disables it); a static, musl or non-ELF file is skipped.
+- **Smoke tests in real distributions.** After the builds, `tools/ci/release-linux-smoke.sh` installs each package with the
+  tool of its distribution in a container and runs it: the deb in `debian:12` and `ubuntu:22.04` (`apt-get install ./f`),
+  the rpm in `almalinux:9` and `fedora:latest` (`dnf install ./f`), the Arch package in `archlinux:base` (`pacman -U`), the
+  apk in `alpine:3.20` (`apk add --allow-untrusted`). Each run checks `hecate version` (it must print `Hecate <VERSION>`),
+  `hecate completion bash`, the three completion files and the removal. Images are pinned by tag; `fedora:latest` and
+  `archlinux:base` are rolling tags (the only ones those distributions have). Digest pins updated by Dependabot's docker
+  ecosystem are a follow-up.
+- **Platforms** for now: the three that `ci.yml` builds and tests (linux-x86_64 from the container builds above on
+  `ubuntu-latest`, `macos-latest` darwin-aarch64, `windows-latest` windows-x86_64; os and architecture come from `uname` or the Windows environment,
   not from a table). aarch64 Linux and Windows are to be added to the matrix when runners are chosen for them; the six
   targets planned for the P3 release (automation.md) include them.
-- **Same build as CI.** The toolchain steps are those of `ci.yml` (same pins and cache key), then
+- **Same build as CI** (macOS and Windows; Linux is the container build above). The toolchain steps are those of `ci.yml` (same pins and cache key), then
   `build-cli --strict`, `package-cli` and its smoke test: the archive is extracted and `hecate version` must print the
   expected `X.Y.Z[pre]` (the content of `VERSION`).
 - **Rehearsal.** A pull request that touches the release machinery (`release.yml`, `package-cli`, `build-cli`, the archive
-  library, the C host) and `workflow_dispatch` (input `revision`, default `1`) run the same plan, build, packaging and
-  smoke test on the matrix, keep the archives as workflow artifacts (seven days) and create no release. The pull request
+  library, the C host) and `workflow_dispatch` (input `revision`, default `1`) run the same plan, builds (containers included), packaging and
+  smoke tests (every distribution), keep the assets as workflow artifacts (seven days) and create no release. The
+  `draft-release` job expects exactly the names listed by `package-cli --list-assets` (7 files and 7 `.sha256`, computed by
+  `plan`) and runs `sha256sum -c` on them all. The pull request
   trigger is how a change to the release is tested before it is merged: GitHub lists a dispatchable workflow only once
   the file is on the default branch (the same holds for `gh workflow run release.yml --ref <branch>`).
 - **Permissions.** Every job has `contents: read`; the build jobs add `id-token` and `attestations: write` for the

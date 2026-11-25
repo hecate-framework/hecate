@@ -184,9 +184,18 @@ local function smoke(archive_path, name, core, os_name, scratch, run)
   return false, message
 end
 
+---@class tools.PackageSpec
+---@field version string
+---@field format string
+---@field exe string
+---@field binary string
+---@field out string
+---@field run fun(cmd: string): string, boolean
+---@field glibc? table
+
 --- Writes the Linux package `spec.format` of the executable and its checksum.
 ---@param ctx table
----@param spec { version: string, format: string, exe: string, binary: string, out: string, run: fun(cmd: string): string, boolean, glibc: table? }
+---@param spec tools.PackageSpec
 ---@return table report
 function M.package(ctx, spec)
   local license = read(ctx.root .. "/LICENSE")

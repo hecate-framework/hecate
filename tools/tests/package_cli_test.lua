@@ -192,7 +192,7 @@ end
 
 function T:test_the_glibc_guard_skips_static_executables_and_files_that_are_not_elf()
   local binary = "\127ELF"
-  local run = function() return read("tools/tests/fixtures/linux_package/objdump_static.txt"), false end
+  local run = function() return assert(read("tools/tests/fixtures/linux_package/objdump_static.txt")), false end
   local ok, message = task.check_glibc("hecate", binary, "2.28", run)
   self:assert_true(ok)
   self:assert_true(message:find("skipped", 1, true) ~= nil, message)
@@ -202,7 +202,7 @@ function T:test_the_glibc_guard_skips_static_executables_and_files_that_are_not_
   ok = task.check_glibc("hecate", binary, "2.28", function(cmd)
     calls[#calls + 1] = cmd:match("^%a+")
     if cmd:find("^objdump") then return "objdump: command not found", false end
-    return read("tools/tests/fixtures/linux_package/readelf_glibc_2_34.txt"), true
+    return assert(read("tools/tests/fixtures/linux_package/readelf_glibc_2_34.txt")), true
   end)
   self:assert_false(ok)
   self:assert_equal("objdump readelf", table.concat(calls, " "), "readelf is the fallback")

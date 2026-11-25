@@ -13,6 +13,8 @@ read the matching page of the [explanation](../explanation/index.md) section.
 
 ## Projects and delivery
 
+- [Install hecate](install-hecate.md): the release archives and their checksums, the Linux packages (deb, rpm, Arch,
+  Alpine), the Windows zip and the macOS archive.
 - [Create and run a project](create-and-run-a-project.md): `hecate new`, `install`, `test`, `serve`, the contract, the
   documentation and the dependencies, with the `hecate` command.
 - [Deliver to a server](deliver-to-a-server.md): a release archive, a systemd unit, versions behind a symbolic link

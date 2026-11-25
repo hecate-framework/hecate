@@ -220,6 +220,7 @@ function T:test_the_apk_is_two_gzip_streams_and_the_datahash_names_the_second()
   local second = package:find(magic, 4, true)
   while second and package:sub(second, second + 3) ~= "\31\139\8\0" do second = package:find(magic, second + 1, true) end
   self:assert_not_nil(second, "two gzip streams")
+  ---@cast second integer
   local control = self.dir .. "/control.tar.gz"
   local data = self.dir .. "/data.tar.gz"
   local f = assert(io.open(control, "wb"))

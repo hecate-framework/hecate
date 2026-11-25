@@ -20,6 +20,7 @@ written is listed with its file in `website/user/en/`.
 
 - Routing: path parameters, prefixes, reverse routing, 404/405 customisation (P2)
 - Validation: refinement types, custom formats, unions, error formats (P2)
+- Install hecate: the release archives and their `.sha256`, the Linux packages (deb, rpm, Arch, Alpine), Windows zip, macOS archive, the glibc 2.28 floor, pre-release versions (`how-to/install-hecate.md`)
 - Problem details: mapping domain errors to RFC 9457 responses: built-in classes, `problem.define`, returned or raised, `responses`, the guard, `errors.expose_details` (`how-to/map-domain-errors-to-problem-details.md`)
 - Filters: the four layers and their order, authentication and CORS written as filters; compression and request identifiers not available yet (`how-to/filters.md`)
 - Test an application: test cases, `test.boot` with overrides, the in-process client, route coverage, generated values and properties with shrinking (P3, alpha; `how-to/test-an-application.md`)
