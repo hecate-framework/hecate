@@ -89,6 +89,46 @@ function T:test_a_child_that_does_not_stop_is_killed_after_the_grace_period()
   self:assert_equal("a <- sigterm,a <- sigkill", table.concat(log, ","))
 end
 
+function T:test_with_a_shared_console_the_signal_is_not_forwarded_and_the_child_is_killed_after_the_grace_period()
+  -- Windows: the child got Ctrl+C from the console itself, and `kill` is TerminateProcess.
+  local log = {}
+  local signals = fake_signals()
+  signals.send("sigint")
+  signals.send("sighup")
+  local code = run(function()
+    return serve.supervise(reactor, {
+      start = function()
+        return fake_child(log, "a", function(child, signal) if signal == "sigkill" then child:exit(1) end end)
+      end,
+      signals = signals,
+      shared_console = true,
+      grace = 0.05,
+    })
+  end)
+  self:assert_equal(1, code)
+  self:assert_equal("a <- sigkill", table.concat(log, ","))
+end
+
+function T:test_with_a_shared_console_a_child_that_stops_by_itself_is_not_killed()
+  local log = {}
+  local signals = fake_signals()
+  signals.send("sigterm")
+  local code = run(function()
+    return serve.supervise(reactor, {
+      start = function()
+        local child = fake_child(log, "a")
+        reactor.fork(function() reactor.sleep(0.01); child:exit(0) end)
+        return child
+      end,
+      signals = signals,
+      shared_console = true,
+      grace = 5,
+    })
+  end)
+  self:assert_equal(0, code)
+  self:assert_equal("", table.concat(log, ","))
+end
+
 function T:test_sighup_is_forwarded_and_the_child_keeps_running()
   local log = {}
   local signals = fake_signals()

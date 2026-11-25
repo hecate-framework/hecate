@@ -124,22 +124,6 @@ function T:test_there_is_no_sighup_on_windows()
   self:assert_equal("sigint,sigterm", table.concat(calls.signals, ","))
 end
 
-function T:test_on_windows_the_console_signal_is_left_to_the_child_which_is_then_given_the_grace_period()
-  local calls, dependencies = setup(PROJECT, { signals = { "sigint" }, windows = true })
-  local kills = {}
-  local spawn = dependencies.reactor.spawn
-  dependencies.reactor.spawn = function(...)
-    local child = spawn(...)
-    local kill = child.kill
-    child.kill = function(self, signal) kills[#kills + 1] = signal; kill(self, signal) end
-    return child
-  end
-  local code = run({ "serve" }, dependencies)
-  self:assert_equal(1, #calls.spawned)
-  self:assert_equal(137, code) -- killed after the grace period (the fake child ignores the console)
-  self:assert_equal("sigkill", table.concat(kills, ","))
-end
-
 function T:test_watch_gives_the_supervisor_a_watcher_and_a_plain_run_does_not()
   local plain_calls, plain = setup(PROJECT, { exit_code = 0 })
   run({ "serve" }, plain)
