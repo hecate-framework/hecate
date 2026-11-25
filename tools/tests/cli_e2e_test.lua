@@ -167,19 +167,26 @@ local function http_status(url)
 end
 
 --- Starts `hecate serve` in `project` on `port`, detached from this process, its output in `log`; returns the process
---- number or nil. The test does not use the reactor for this: a server started through it left the loop of the test
---- stuck on Windows, and the point of the test is what the server does, not how it is started.
+--- number or nil. The test does not use the reactor for this (a server started through it left the loop of the test stuck
+--- on Windows), and it does not read the number from a pipe either: the shell that starts the server keeps the pipe open
+--- as long as the server lives, so the read would never end. `os.execute` has no pipe; the number goes to a file.
 local function start_server(exe, project, port, log)
-  local command
+  local pid_file = log .. ".pid"
+  os.remove(pid_file)
   if windows then
     local function lit(text) return "'" .. text:gsub("'", "''") .. "'" end
-    command = ("powershell -NoProfile -NonInteractive -Command \"$env:PORT=%s; $p = Start-Process -FilePath %s -ArgumentList 'serve' -WorkingDirectory %s -RedirectStandardOutput %s -RedirectStandardError %s -PassThru -WindowStyle Hidden; $p.Id\" 2>&1")
-      :format(lit(tostring(port)), lit(exe:gsub("/", "\\")), lit(project:gsub("/", "\\")), lit(log:gsub("/", "\\")), lit(log:gsub("/", "\\") .. ".err"))
+    local function native(path) return (path:gsub("/", "\\")) end
+    local script = ("$env:PORT=%s; $p = Start-Process -FilePath %s -ArgumentList 'serve' -WorkingDirectory %s -RedirectStandardOutput %s -RedirectStandardError %s -PassThru -WindowStyle Hidden; Set-Content -Path %s -Value $p.Id")
+      :format(lit(tostring(port)), lit(native(exe)), lit(native(project)), lit(native(log)), lit(native(log) .. ".err"), lit(native(pid_file)))
+    os.execute(("powershell -NoProfile -NonInteractive -Command \"%s\" >nul 2>&1"):format(script))
   else
-    command = ("cd %s && PORT=%d nohup %s serve > %s 2>&1 & echo $!"):format(util.quote(project), port, util.quote(exe), util.quote(log))
+    os.execute(("cd %s && PORT=%d nohup %s serve > %s 2>&1 < /dev/null & echo $! > %s"):format(util.quote(project), port, util.quote(exe), util.quote(log), util.quote(pid_file)))
   end
-  local out = util.capture(command)
-  return tonumber(out:match("(%d+)%s*$"))
+  local handle = io.open(pid_file, "rb")
+  if not handle then return nil end
+  local text = handle:read("a")
+  handle:close()
+  return tonumber(text:match("(%d+)"))
 end
 
 --- Stops the server and what it started.
