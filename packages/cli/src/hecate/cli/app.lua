@@ -124,7 +124,8 @@ function M.run(args, options)
   if not ok then
     local err = parsed
     local message = message_of(err)
-    local context = type(err) == "table" and err.context or {}
+    local as_error = type(err) == "table" and err --[[@as hecate.core.Error]] or nil
+    local context = as_error and as_error.context or {}
     -- A word that starts a group of commands (`hecate contract`) shows the group, not an error.
     local members = context.command and group_of(options.commands, context.command) or {}
     if #members > 0 and not wants_json then
@@ -134,7 +135,7 @@ function M.run(args, options)
     local name = context.command_name
     local hint = name and ("Run 'hecate " .. name .. " --help' for its options.") or "Run 'hecate --help' for the list of commands."
     if wants_json then
-      write(encode({ ok = false, usage = true, error = { message = message, code = type(err) == "table" and err.code or nil, hint = hint } }))
+      write(encode({ ok = false, usage = true, error = { message = message, code = as_error and as_error.code or nil, hint = hint } }))
     else
       write_error("hecate" .. (name and (" " .. name) or "") .. ": " .. message)
       write_error(hint)
