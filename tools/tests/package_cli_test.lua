@@ -78,6 +78,35 @@ function T:test_check_tag_accepts_the_version_of_the_file_and_rejects_others()
   self:assert_false(task.run({ root = self.root, args = { "--check-tag=v1.2.3-1" } }).ok)
 end
 
+function T:test_pre_release_versions_use_the_luarocks_tokens_directly_before_the_revision()
+  self:assert_equal("0.4.2rc1", (task.parse_version("0.4.2rc1-1")))
+  self:assert_equal("1.0.0beta2", (task.parse_version("1.0.0beta2-3")))
+  self:assert_equal("1.0.0alpha10", (task.parse_version("1.0.0alpha10-1")))
+  self:assert_equal("1.0.0pre1", (task.parse_version("1.0.0pre1-1")))
+  for _, bad in ipairs({ "0.4.2-rc1-1", "0.4.2rc-1", "v0.4.2-1", "0.4.2rc1", "dev-1", "scm-1", "0.4.2dev1-1", "0.4.2scm1-1",
+    "0.4.2cvs1-1", "0.4.2RC1-1", "0.4.2rc1.1-1", "0.4.2rc1-1-1", "0.4.2rc1-" }) do
+    self:assert_nil((task.parse_version(bad)), bad)
+  end
+end
+
+function T:test_check_tag_of_a_pre_release_needs_a_version_file_that_holds_it()
+  write(self.root .. "/VERSION", "0.4.2rc1\n")
+  local ok = task.run({ root = self.root, args = { "--check-tag=0.4.2rc1-1" } })
+  self:assert_true(ok.ok, table.concat(ok.problems, "\n"))
+  self:assert_equal("0.4.2rc1-1", ok.output)
+  self:assert_true(ok.data.prerelease)
+  self:assert_equal("true", task.run({ root = self.root, args = { "--check-tag=0.4.2rc1-1", "--prerelease" } }).output)
+  self:assert_false(task.run({ root = self.root, args = { "--check-tag=0.4.2-1" } }).ok)
+  self:assert_false(task.run({ root = self.root, args = { "--check-tag=0.4.2rc2-1" } }).ok)
+  self:assert_false(task.run({ root = self.root, args = { "--check-tag=0.4.2-rc1-1" } }).ok)
+  self:assert_false(task.run({ root = self.root, args = { "--check-tag=0.4.2rc1" } }).ok)
+  write(self.root .. "/VERSION", "0.4.2\n")
+  local final = task.run({ root = self.root, args = { "--check-tag=0.4.2-1", "--prerelease" } })
+  self:assert_true(final.ok)
+  self:assert_equal("false", final.output)
+  self:assert_false(task.run({ root = self.root, args = { "--check-tag=0.4.2rc1-1" } }).ok)
+end
+
 function T:test_a_tar_gz_is_written_with_its_checksum_and_passes_the_smoke_check()
   local _, have_gzip = util.capture("gzip --version")
   if not have_gzip then return end

@@ -112,6 +112,13 @@ function T:test_the_workflow_names_the_setup_version_with_its_revision()
   self:assert_equal("0.0.0-1", workflows.SETUP_REF)
 end
 
+function T:test_a_pre_release_of_hecate_is_named_with_its_revision()
+  for _, kind in ipairs({ "ci", "contract", "docs_pages" }) do
+    local text = workflows[kind]({ hecate_version = "0.4.2rc1", contract = true })
+    has(text, 'version: "0.4.2rc1-' .. workflows.REVISION .. '"', self)
+  end
+end
+
 function T:test_the_contract_workflow_diffs_against_the_base_branch_and_needs_a_contract()
   local code, _, _, written = run({ "generate", "workflow", "contract" })
   self:assert_equal(0, code)

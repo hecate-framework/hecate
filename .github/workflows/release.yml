@@ -52,6 +52,7 @@ jobs:
       contents: read
     outputs:
       version: ${{ steps.version.outputs.version }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
@@ -69,7 +70,8 @@ jobs:
       - name: Add toolchain to PATH
         run: echo "$GITHUB_WORKSPACE/.hecate/toolchain/bin" >> "$GITHUB_PATH"
 
-      # `package-cli --check-tag` fails unless the version is X.Y.Z-R with X.Y.Z equal to the VERSION file, and prints it.
+      # `package-cli --check-tag` fails unless the version is X.Y.Z[pre]-R (a pre-release is alpha, beta, rc or pre and a number,
+      # as in 0.4.2rc1-1) with X.Y.Z[pre] equal to the VERSION file, and prints it; with `--prerelease` it prints true or false.
       - name: Check the version
         id: version
         env:
@@ -85,7 +87,10 @@ jobs:
           fi
           version=$(lua tools/run.lua package-cli "--check-tag=$candidate" | head -n 1)
           echo "release version: $version"
+          prerelease=$(lua tools/run.lua package-cli "--check-tag=$candidate" --prerelease | head -n 1)
+          echo "pre-release: $prerelease"
           echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
 
   build:
     needs: plan
@@ -194,6 +199,7 @@ jobs:
       EXPECTED_ARCHIVES: "3" # one per matrix entry of `build`: keep in step with it
       GH_TOKEN: ${{ github.token }}
       TAG: ${{ github.ref_name }}
+      PRERELEASE: ${{ needs.plan.outputs.prerelease }}
     steps:
       - name: Download the archives
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
@@ -223,5 +229,8 @@ jobs:
 
           See [CHANGELOG.md](https://github.com/$GITHUB_REPOSITORY/blob/$TAG/CHANGELOG.md) for the changes.
           EOF
-          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --draft --verify-tag --title "$TAG" --notes-file notes.md assets/hecate-*
+          # A version with a pre-release part (0.4.2rc1-1) is marked as a pre-release.
+          flags=()
+          if [ "$PRERELEASE" = "true" ]; then flags+=(--prerelease); fi
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --draft --verify-tag --title "$TAG" --notes-file notes.md "${flags[@]}" assets/hecate-*
           echo "Draft release $TAG created: review it, then publish it by hand."

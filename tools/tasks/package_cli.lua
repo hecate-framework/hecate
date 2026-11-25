@@ -1,8 +1,11 @@
 -- package-cli: makes the release archive of the `hecate` executable and its checksum, deterministically, and checks it.
--- Usage: package-cli [--version=<X.Y.Z-R>] [--exe=<path>] [--out=<dir>] [--os=<os>] [--arch=<arch>] [--no-smoke]
---      package-cli --check-tag=<X.Y.Z-R>
+-- Usage: package-cli [--version=<X.Y.Z[pre]-R>] [--exe=<path>] [--out=<dir>] [--os=<os>] [--arch=<arch>] [--no-smoke]
+--      package-cli --check-tag=<X.Y.Z[pre]-R> [--prerelease]
 --   The version is the LuaRocks form `<VERSION>-<revision>` (no `v` prefix): `X.Y.Z` must equal the root `VERSION` file, the
---   revision is a number (default: `<VERSION>-1`). `--check-tag` only validates a tag name (the release workflow's first
+--   revision is a number (default: `<VERSION>-1`). `X.Y.Z` may be followed directly by a pre-release, `alpha`, `beta`, `rc` or
+--   `pre` and a number (`0.4.2rc1-1`, from a VERSION file that holds `0.4.2rc1`): the grammar is `lib/release_version.lua`.
+--   With `--prerelease`, `--check-tag` prints `true` or `false` (whether the version has a pre-release part) instead of the
+--   version, for the `--prerelease` flag of `gh release create`. `--check-tag` only validates a tag name (the release workflow's first
 --   job, so that a wrong tag fails before the build) and prints the version.
 --   Output (default `.hecate/release/dist`), with <os> in linux|darwin|windows and <arch> in x86_64|aarch64 (detected from
 --   `uname`, or from PROCESSOR_ARCHITECTURE on Windows; `--os` and `--arch` override):
@@ -16,7 +19,7 @@
 local util = require("lib.util")
 local sha256 = require("lib.sha256")
 local archive = require("lib.archive")
-
+local release_version = require("lib.release_version")
 local windows = util.is_windows()
 
 local M = {
@@ -26,13 +29,13 @@ local M = {
 local OSES = { linux = true, darwin = true, windows = true }
 local ARCHES = { x86_64 = true, aarch64 = true }
 
---- Splits `X.Y.Z-R`; nil and a message when the string is not that form.
+--- Splits `X.Y.Z[pre]-R` (`tools/lib/release_version.lua`); nil and a message when the string is not that form.
 ---@param version string
----@return string? core   `X.Y.Z`
+---@return string? core   `X.Y.Z` or `X.Y.Z` and a pre-release (`0.4.2rc1`)
 ---@return string? revision
 function M.parse_version(version)
-  local core, revision = version:match("^(%d+%.%d+%.%d+)%-(%d+)$")
-  if not core then return nil, ("'%s' is not a release version (expected X.Y.Z-R, no 'v' prefix, e.g. 0.1.0-1)"):format(version) end
+  local core, revision = release_version.parse(version)
+  if not core then return nil, ("'%s' is not a release version (expected X.Y.Z[pre]-R, no 'v' prefix, pre being alpha, beta, rc or pre and a number, e.g. 0.1.0-1 or 0.4.2rc1-1)"):format(tostring(version)) end
   return core, revision
 end
 
@@ -125,6 +128,7 @@ function M.run(ctx)
   for _, a in ipairs(ctx.args) do
     local key, value = a:match("^%-%-([%w-]+)=(.*)$")
     if key then opts[key] = value elseif a == "--no-smoke" then opts["no-smoke"] = true
+    elseif a == "--prerelease" then opts.prerelease = true
     else return { ok = false, problems = { "package-cli: unknown argument " .. a } } end
   end
   local root = ctx.root
@@ -138,7 +142,8 @@ function M.run(ctx)
     return { ok = false, problems = { ("package-cli: the version %s does not match the VERSION file (%s): bump VERSION or fix the tag"):format(version, core_version) } }
   end
   if opts["check-tag"] then
-    return { ok = true, problems = {}, output = version, data = { version = version, core = core, revision = tonumber(revision) } }
+    local flag = release_version.is_prerelease(core)
+    return { ok = true, problems = {}, output = opts.prerelease and tostring(flag) or version, data = { version = version, core = core, revision = tonumber(revision), prerelease = flag } }
   end
 
   local os_name = opts.os or M.host_os()

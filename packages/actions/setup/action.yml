@@ -3,14 +3,14 @@
 # Source of truth: `packages/actions/setup/` of the monorepo hecate-framework/hecate. The package `actions` is published to
 # the generated read-only mirror hecate-framework/hecate-actions (ADR 0017), which has this file at `setup/action.yml`, the
 # path GitHub resolves; do not edit the mirror. Usage: `uses: hecate-framework/hecate-actions/setup@<ref>` with
-# `version: "<X.Y.Z-R>"`.
+# `version: "<X.Y.Z[pre]-R>"`.
 name: Setup hecate
 description: Download the hecate executable of a release for the platform of the runner, verify its SHA-256 and put it on the PATH.
 author: hecate-framework
 
 inputs:
   version:
-    description: The release of Hecate to install, in the LuaRocks version form X.Y.Z-R (no leading v), for example 0.4.0-1. It is the tag of the release.
+    description: The release of Hecate to install, in the LuaRocks version form X.Y.Z-R (no leading v), for example 0.4.0-1, with an optional pre-release (alpha, beta, rc or pre and a number) directly after X.Y.Z, for example 0.4.2rc1-1. It is the tag of the release.
     required: true
   repository:
     description: The repository whose releases carry the executable.
@@ -42,8 +42,10 @@ runs:
         set -euo pipefail
         fail() { echo "::error title=setup hecate::$1" >&2; exit 1; }
 
-        # The tags and releases of Hecate have no `v` and are named like a rock: <version>-<revision> (0.4.0-1).
-        [[ "$HECATE_SETUP_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+-[0-9]+$ ]] || fail "version '$HECATE_SETUP_VERSION' is not of the form X.Y.Z-R such as 0.4.0-1 (a version and a revision, no leading v)"
+        # The tags and releases of Hecate have no `v` and are named like a rock: <version>-<revision> (0.4.0-1), where the
+        # version may end in a pre-release, one of the tokens LuaRocks orders before the final release, directly followed by
+        # a number (0.4.2rc1-1). The same grammar as `tools/lib/release_version.lua` (ERE below; a test keeps them equal).
+        [[ "$HECATE_SETUP_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+((alpha|beta|rc|pre)[0-9]+)?-[0-9]+$ ]] || fail "version '$HECATE_SETUP_VERSION' is not of the form X.Y.Z[pre]-R such as 0.4.0-1 or 0.4.2rc1-1 (a version, optionally a pre-release alpha, beta, rc or pre and a number, and a revision, no leading v)"
         [[ "$HECATE_SETUP_REPOSITORY" =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ ]] || fail "repository '$HECATE_SETUP_REPOSITORY' is not of the form owner/name"
 
         case "$HECATE_SETUP_OS" in
