@@ -12,7 +12,7 @@ local function run(args, opts)
   local written, spawned = {}, {}
   local files = { ["hecate.project.lua"] = opts.manifest == nil and MANIFEST or opts.manifest }
   local dependencies = {
-    fs = { read = function(path) return files[path] end },
+    fs = { read = nested.outside(function(path) return files[path] end) }, -- the real read starts a reactor: valid only outside `run`
     write = function(path, text) written[path] = text end,
     exists = function(path) return path == opts.existing end,
     run = nested.run,

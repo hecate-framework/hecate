@@ -13,10 +13,10 @@ local guard = { inside = false }
 function guard.run(task)
   if guard.inside then error("nested reactor: `run` was called inside a task that `run` is already running", 2) end
   guard.inside = true
-  local ok, result = pcall(task)
+  local results = table.pack(pcall(task))
   guard.inside = false
-  if not ok then error(result, 0) end
-  return result
+  if not results[1] then error(results[2], 0) end
+  return table.unpack(results, 2, results.n)
 end
 
 --- Wraps a fake whose real counterpart starts a reactor of its own: it raises when called inside `run`.

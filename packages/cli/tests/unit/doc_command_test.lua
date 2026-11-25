@@ -12,7 +12,7 @@ local function run(args, opts)
   local seen = { asked = 0 }
   local manifest = opts.manifest or 'return { name = "shop", doc = { guides_dir = "guides", package_name = "shop" } }'
   local dependencies = {
-    fs = { read = function(path) if opts.no_manifest then return nil end; return path == "hecate.project.lua" and manifest or nil end },
+    fs = { read = nested.outside(function(path) if opts.no_manifest then return nil end; return path == "hecate.project.lua" and manifest or nil end) }, -- the real read starts a reactor: valid only outside `run`
     run = nested.run,
     ask = function() seen.asked = seen.asked + 1; return opts.answer == true end,
     generate = function(options, module)
