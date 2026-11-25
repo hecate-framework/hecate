@@ -22,7 +22,7 @@ local WARNING = "hecate doc build: the code reference runs LuaLS, which runs the
   .. "access as the current user. Build only a project you trust."
 
 --- The `doc build` command.
----@class hecate.cli.commands.doc_build: hecate.cli.Command
+---@class hecate.cli.commands.doc: hecate.cli.Command
 ---@field execute fun(context: hecate.cli.Context, dependencies: hecate.cli.DocDependencies): integer
 local command = {
   name = "doc build",
@@ -119,6 +119,7 @@ function command.run(context)
     ask = function(question)
       io.stderr:write(question)
       local answer = io.read("l")
+      if answer == nil then io.stderr:write("\n") end -- the end of the input: the next message starts on its own line
       return type(answer) == "string" and answer:lower():match("^%s*y") ~= nil
     end,
     generate = function(options, module)
