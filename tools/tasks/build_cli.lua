@@ -267,17 +267,18 @@ return {
     -- the file never appeared (the owner died between `mkdir` and the write).
     local stamp_path = lock .. "/taken"
     local STALE_AFTER = 3 * 3600
-    local waited = 0
+    local UNSTAMPED_AFTER = 30 -- consecutive seconds without a stamp, not the time spent waiting: another owner may have taken the lock meanwhile
+    local unstamped = 0
     while os.execute("mkdir " .. util.quote(lock) .. " " .. nul) ~= true do
       local handle = io.open(stamp_path, "r")
       local taken = handle and tonumber(handle:read("l")) or nil
       if handle then handle:close() end
-      if (taken and os.time() - taken > STALE_AFTER) or (not taken and waited >= 120) then
+      if taken then unstamped = 0 else unstamped = unstamped + 1 end
+      if (taken and os.time() - taken > STALE_AFTER) or unstamped >= UNSTAMPED_AFTER then
         util.remove_tree(lock) -- a lock left by a build that died
-        waited = 0
+        unstamped = 0
       end
       os.execute(windows and "ping -n 2 127.0.0.1 >nul" or "sleep 1")
-      waited = waited + 1
     end
     local stamp = io.open(stamp_path, "w")
     if stamp then stamp:write(tostring(os.time()), "\n"); stamp:close() end
