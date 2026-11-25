@@ -63,6 +63,7 @@ function T:test_a_script_of_the_manifest_runs_in_the_project_with_its_arguments_
   self:assert_true(spawned.options.env.LUA_PATH:find("/work/app/lua_modules/share/lua/5.5/?.lua", 1, true) ~= nil)
   self:assert_true(calls.closed)
   self:assert_equal("sigint,sigterm", table.concat(calls.signals, ","))
+  self:assert_true(spawned.options.own_group == true, "the script must be spawned with own_group = true: Ctrl+C reaches only this process")
 end
 
 function T:test_env_reaches_the_script_as_hecate_env()

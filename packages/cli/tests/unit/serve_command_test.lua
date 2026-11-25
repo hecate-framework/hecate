@@ -106,6 +106,9 @@ function T:test_it_runs_main_lua_in_the_project_with_its_paths_and_returns_the_e
   self:assert_true(err:find("starting main.lua", 1, true) ~= nil, err)
   self:assert_true(calls.closed)
   self:assert_equal("sigint,sigterm,sighup", table.concat(calls.signals, ","))
+  -- Ctrl+C in the terminal reaches the whole group: the child is its own, so that only the supervisor hears it and
+  -- forwards it once (ADR 0023).
+  self:assert_true(spawned.options.own_group == true, "the child must be spawned with own_group = true")
 end
 
 function T:test_a_signal_stops_the_application_gracefully()
@@ -119,6 +122,22 @@ function T:test_there_is_no_sighup_on_windows()
   local calls, dependencies = setup(PROJECT, { exit_code = 0, windows = true })
   run({ "serve" }, dependencies)
   self:assert_equal("sigint,sigterm", table.concat(calls.signals, ","))
+end
+
+function T:test_on_windows_the_console_signal_is_left_to_the_child_which_is_then_given_the_grace_period()
+  local calls, dependencies = setup(PROJECT, { signals = { "sigint" }, windows = true })
+  local kills = {}
+  local spawn = dependencies.reactor.spawn
+  dependencies.reactor.spawn = function(...)
+    local child = spawn(...)
+    local kill = child.kill
+    child.kill = function(self, signal) kills[#kills + 1] = signal; kill(self, signal) end
+    return child
+  end
+  local code = run({ "serve" }, dependencies)
+  self:assert_equal(1, #calls.spawned)
+  self:assert_equal(137, code) -- killed after the grace period (the fake child ignores the console)
+  self:assert_equal("sigkill", table.concat(kills, ","))
 end
 
 function T:test_watch_gives_the_supervisor_a_watcher_and_a_plain_run_does_not()

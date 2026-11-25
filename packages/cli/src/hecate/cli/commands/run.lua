@@ -106,6 +106,7 @@ function command.execute(context, dependencies)
         return reactor.spawn(dependencies.interpreter, interpreter.arguments(dependencies.interpreter_arguments, arguments), { env = env, cwd = project, own_group = true }) -- glossary-ok: an operating-system process
       end,
       signals = signals,
+      shared_console = dependencies.windows,
     })
     signals:close()
     if not ok then error(result, 0) end
