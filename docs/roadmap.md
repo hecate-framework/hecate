@@ -414,7 +414,7 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       **Moved out (owner decisions of 2026-11-24 and 2026-11-25), nothing to implement before them:** `hecate toolchain`
       (later: compiled toolchains shipped by the project, nothing before Lua 5.4 is supported); the `crud` template (until
       the ORM and the migrations exist); the installers and the releases, including the `release` kind of
-      `generate workflow`, the mirror `hecate-framework/hecate-setup` of `actions/setup/` and the pin of its tag
+      `generate workflow`, the mirror `hecate-framework/hecate-actions` of `packages/actions` and the pin of the tag of its `setup` action
       (owner gate, OQ-149); a check of the generated workflow files (`actionlint`) and a diff before `--force`
       (OQ-149); the version-skew check of `hecate doctor` (needs a `version` in `core`); the French pages that the
       English pages of this item link to and that have no French version yet (`configure-an-application`,
@@ -510,7 +510,7 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       is frozen with the API.
 - [ ] `cli`, `tools`: follow-ups of the `cli` v1 item, to finish before the Phase 3 gate (owner instruction, 2026-11-25):
       a `tools/` task that validates the workflow files (`actionlint`, or the equivalent offered by the CI platform) over
-      the files that `hecate generate workflow` writes and over `actions/setup/action.yml`, run in CI (OQ-149 (5)); the
+      the files that `hecate generate workflow` writes and over `packages/actions/setup/action.yml`, run in CI (OQ-149 (5)); the
       French pages that the pages of the `cli` item link to and that exist in English only (`configure-an-application`,
       `serve-and-export-the-contract`, `multi-process-deployment`, `before-going-to-production`, `theme-tokens`,
       `reference/configuration-keys`): translate them, then replace the plain text of the French `cli` pages by links.

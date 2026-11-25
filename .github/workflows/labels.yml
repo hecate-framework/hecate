@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - uses: EndBug/label-sync@52074158190acb45f3077f9099fea818aa43f97a # v2
+      - uses: EndBug/label-sync@2f0dca846207aa9095344c7aa7d3574d81ab0833 # main after v2.3.3, Node 24 (v2.3.3 runs on Node 20); back to the release tag when one is out
         with:
           config-file: .github/labels.yml
           # Keep GitHub's default labels until the owner decides to remove them.

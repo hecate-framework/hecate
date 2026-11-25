@@ -198,7 +198,7 @@ jobs:
 
       - name: MSVC environment (Windows)
         if: runner.os == 'Windows'
-        uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1
+        uses: ./.github/actions/msvc-env
 
       - name: Bootstrap (Windows)
         if: steps.toolchain.outputs.cache-hit != 'true' && runner.os == 'Windows'

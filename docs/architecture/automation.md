@@ -136,9 +136,11 @@ Rules:
 - Actions run on Node 24 or later (or are composite or Docker actions whose own steps are): GitHub forces Node 24 and
   warns about the actions that declare `node20` or older. Audit when a deprecation warning appears in a log, and when
   an action is added: clone the pinned tag, read `runs.using` of `action.yml` (and of the actions a composite uses), and
-  move to the newest release that runs on Node 24; an action with no such release stays pinned and is listed in the
-  report of the audit. (Owner, 2026-11-25; audit of that day: `ilammy/msvc-dev-cmd` v1.13.0 and `EndBug/label-sync`
-  v2.3.3 still declare `node20`, no later release exists.)
+  move to the newest release that runs on Node 24; when there is none, pin the commit of the default branch that
+  declares Node 24 (commit SHA, with the reason in the comment) or replace the action by a few lines of our own. (Owner,
+  2026-11-25; audit of that day: `ilammy/msvc-dev-cmd` v1.13.0 declared `node20` with no later release, so the local
+  composite action `.github/actions/msvc-env` replaces it; `EndBug/label-sync` v2.3.3 declared `node20`, so
+  `labels.yml` pins the commit of its default branch that declares `node24`, back to a release tag when one is out.)
 - Licences: the Rust crates must be permissive (`deny.toml`), so that Hecate stays MIT; any other
   licence fails CI and the project owner decides. Dependabot also watches the Rust crates of the
   native modules (`.github/dependabot.yml`).
