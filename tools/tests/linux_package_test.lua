@@ -61,8 +61,9 @@ end
 
 function T:test_asset_names_follow_the_convention()
   local v = self.versions
-  self:assert_equal("hecate_0.4.2~rc1-3_amd64.deb", linux_package.asset_name("deb", v))
-  self:assert_equal("hecate-0.4.2~rc1-3.x86_64.rpm", linux_package.asset_name("rpm", v))
+  self:assert_equal("hecate_0.4.2rc1-3_amd64.deb", linux_package.asset_name("deb", v)) -- no tilde in a file name
+  self:assert_equal("hecate-0.4.2rc1-3.x86_64.rpm", linux_package.asset_name("rpm", v))
+  self:assert_equal("hecate-0.4.2~rc1-3.x86_64.rpm", linux_package.rpmbuild_name(v)) -- what rpmbuild writes
   self:assert_equal("hecate-0.4.2rc1-3-x86_64.pkg.tar.zst", linux_package.asset_name("archlinux", v))
   self:assert_equal("hecate-0.4.2_rc1-r3.x86_64.apk", linux_package.asset_name("apk", v))
   local final = assert(linux_package.versions("0.1.0-1"))

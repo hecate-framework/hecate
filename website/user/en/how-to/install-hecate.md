@@ -162,7 +162,8 @@ pre-release as its own tool wants, so that it sorts before the final version whe
 | `0.4.2-1` | `0.4.2-1` | `0.4.2`, release `1` | `0.4.2-1` | `0.4.2-r1` |
 | `0.4.2rc1-1` | `0.4.2~rc1-1` | `0.4.2~rc1`, release `1` | `0.4.2rc1-1` | `0.4.2_rc1-r1` |
 
-So the file for `0.4.2rc1-1` is `hecate_0.4.2~rc1-1_amd64.deb`, `hecate-0.4.2~rc1-1.x86_64.rpm`,
+The version inside the package is the one of the table; the file names do not carry the tilde (GitHub rewrites it in the
+name of an asset): the files for `0.4.2rc1-1` are `hecate_0.4.2rc1-1_amd64.deb`, `hecate-0.4.2rc1-1.x86_64.rpm`,
 `hecate-0.4.2rc1-1-x86_64.pkg.tar.zst` and `hecate-0.4.2_rc1-r1.x86_64.apk`.
 
 ## What comes later

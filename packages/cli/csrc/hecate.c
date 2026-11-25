@@ -12,6 +12,7 @@
  */
 #ifndef _WIN32
 #define _POSIX_C_SOURCE 200809L
+#define _XOPEN_SOURCE 700 /* `realpath`: musl declares it for XSI (`_XOPEN_SOURCE`, `_GNU_SOURCE`), not for `_POSIX_C_SOURCE` alone */
 #define _DARWIN_C_SOURCE
 #endif
 

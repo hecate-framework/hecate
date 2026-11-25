@@ -80,13 +80,22 @@ function M.versions(release)
   }
 end
 
---- The name of the asset of `format` for a release.
+--- The name of the file that `rpmbuild` writes (the version of the metadata, with its tilde).
+---@param versions tools.PackageVersions
+---@return string
+function M.rpmbuild_name(versions)
+  return ("hecate-%s-%s.x86_64.rpm"):format(versions.rpm_version, versions.rpm_release)
+end
+
+--- The name of the asset of `format` for a release. The file names of the deb and the rpm do not carry the tilde of their
+--- version (`0.4.2rc1-1`, not `0.4.2~rc1-1`): GitHub rewrites the characters it does not keep in an asset name, which would
+--- break the `.sha256` files; the version of the package is in its metadata, not in its file name.
 ---@param format string   deb, rpm, archlinux or apk
 ---@param versions tools.PackageVersions
 ---@return string
 function M.asset_name(format, versions)
-  if format == "deb" then return ("hecate_%s_amd64.deb"):format(versions.deb) end
-  if format == "rpm" then return ("hecate-%s-%s.x86_64.rpm"):format(versions.rpm_version, versions.rpm_release) end
+  if format == "deb" then return ("hecate_%s%s-%s_amd64.deb"):format(versions.numeric, versions.prerelease, versions.revision) end
+  if format == "rpm" then return ("hecate-%s%s-%s.x86_64.rpm"):format(versions.numeric, versions.prerelease, versions.rpm_release) end
   if format == "archlinux" then return ("hecate-%s-%s-x86_64.pkg.tar.zst"):format(versions.arch_version, versions.arch_release) end
   if format == "apk" then return ("hecate-%s.x86_64.apk"):format(versions.apk) end
   error("linux_package: unknown format " .. tostring(format), 2)
@@ -424,8 +433,8 @@ function M.rpm(files, versions, options)
       util.quote(spec), "2>&1",
     }, " "))
     if ok then
-      result = read(("%s/RPMS/%s/%s"):format(top, M.ARCH, M.asset_name("rpm", versions)))
-      if not result then err = "rpmbuild did not write " .. M.asset_name("rpm", versions) .. ":\n" .. out end
+      result = read(("%s/RPMS/%s/%s"):format(top, M.ARCH, M.rpmbuild_name(versions)))
+      if not result then err = "rpmbuild did not write " .. M.rpmbuild_name(versions) .. ":\n" .. out end
     else
       err = "rpmbuild failed:\n" .. out
     end

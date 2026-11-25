@@ -249,7 +249,7 @@ The `release.yml` workflow builds the `hecate` executable and attaches it to a G
   for the deb, `/usr/share/licenses/hecate/LICENSE` for the others) and the completions printed by the built executable
   (`hecate completion bash|zsh|fish`, at `/usr/share/bash-completion/completions/hecate`,
   `/usr/share/zsh/site-functions/_hecate`, `/usr/share/fish/vendor_completions.d/hecate.fish`). Names:
-  `hecate_<deb>_amd64.deb`, `hecate-<rpm version>-<R>.x86_64.rpm`, `hecate-<pkgver>-<pkgrel>-x86_64.pkg.tar.zst`,
+  `hecate_<X.Y.Z[pre]>-<R>_amd64.deb`, `hecate-<X.Y.Z[pre]>-<R>.x86_64.rpm` (no tilde in a file name: GitHub rewrites the characters it does not keep in the name of an asset; the version of the package, with its tilde, is in the metadata), `hecate-<pkgver>-<pkgrel>-x86_64.pkg.tar.zst`,
   `hecate-<apk version>.x86_64.apk`. **Version mapping** of `X.Y.Z[alpha|beta|rc|pre]N-R`: deb `X.Y.Z~rcN-R`; rpm Version
   `X.Y.Z~rcN`, Release `R`; Arch pkgver `X.Y.ZrcN`, pkgrel `R` (Arch has no tilde, a pre-release sorts after the final
   version there); Alpine `X.Y.Z_rcN-rR` (the final release `X.Y.Z-rR`). The deb is an `ar` of `debian-binary`,
