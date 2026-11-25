@@ -144,7 +144,19 @@ static int executable_path(char *buffer, size_t size, const char *argv0) {
 #endif
 }
 
+/* The native directory is taken from the path of the executable only when that path is absolute: a name that was found
+ * through the PATH (`hecate`) would make the directory relative to wherever the process runs. */
+static int is_absolute_path(const char *path) {
+#ifdef _WIN32
+  return (((path[0] >= 'A' && path[0] <= 'Z') || (path[0] >= 'a' && path[0] <= 'z')) && path[1] == ':' &&
+          (path[2] == '\\' || path[2] == '/')) || (path[0] == '\\' && path[1] == '\\');
+#else
+  return path[0] == '/';
+#endif
+}
+
 static void add_native_directory(lua_State *L, const char *path) {
+  if (!is_absolute_path(path)) return;
   const char *slash = strrchr(path, '/');
 #ifdef _WIN32
   const char *backslash = strrchr(path, '\\');
@@ -156,6 +168,8 @@ static void add_native_directory(lua_State *L, const char *path) {
   if (length >= sizeof directory) return;
   memcpy(directory, path, length);
   directory[length] = '\0';
+  /* `;` and `?` would split or rewrite the entry of `package.cpath`. */
+  if (strchr(directory, ';') != NULL || strchr(directory, '?') != NULL) return;
   lua_getglobal(L, "package");
   lua_getfield(L, -1, "cpath");
 #ifdef _WIN32

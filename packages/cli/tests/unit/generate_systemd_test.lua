@@ -7,6 +7,7 @@ local MANIFEST = 'return { name = "shop", version = "0.1.0" }'
 
 local function run(args, opts)
   opts = opts or {}
+  local project_dir = opts.project_dir or "/srv/shop"
   local written = {}
   local files = opts.manifest == false and {} or { ["hecate.project.lua"] = MANIFEST }
   local dependencies = {
@@ -21,7 +22,7 @@ local function run(args, opts)
   local out, err = {}, {}
   local code = app.run(args, {
     commands = { command },
-    runtime = { hecate_version = "0.1.0", lua_version = "5.5.1", platform = "linux-x86_64", project_dir = "/srv/shop",
+    runtime = { hecate_version = "0.1.0", lua_version = "5.5.1", platform = "linux-x86_64", project_dir = project_dir,
       lua_interpreter = "/usr/local/bin/hecate", lua_interpreter_arguments = arguments },
     write = function(text) out[#out + 1] = text end,
     write_error = function(text) err[#err + 1] = text end,
@@ -65,6 +66,35 @@ function T:test_a_plain_lua_needs_an_executable_and_workers_are_checked()
   local code2, _, err2 = run({ "generate", "systemd", "--workers=zero" })
   self:assert_equal(2, code2)
   self:assert_true(err2:find("--workers", 1, true) ~= nil, err2)
+end
+
+function T:test_a_user_with_a_line_break_cannot_add_directives_to_the_unit()
+  for _, user in ipairs({ "x\nExecStartPre=/bin/sh -c evil", "x\rExecStartPre=y", "root;id", "a b", "", "-x" }) do
+    local code, out, err = run({ "generate", "systemd", "--user=" .. user })
+    self:assert_equal(2, code, user)
+    self:assert_equal("", out)
+    self:assert_true(err:find("--user", 1, true) ~= nil, err)
+    self:assert_true(err:find("\nExecStartPre", 1, true) == nil, err) -- the value is not echoed with its line break
+  end
+  local _, out = run({ "generate", "systemd", "--user=svc_web-1.a" })
+  self:assert_true(out:find("User=svc_web-1.a", 1, true) ~= nil, out)
+end
+
+function T:test_a_control_character_in_the_executable_or_the_directory_is_refused()
+  local code, _, err = run({ "generate", "systemd", "--executable=/opt/h\nExecStartPre=/bin/evil" })
+  self:assert_equal(2, code)
+  self:assert_true(err:find("control character", 1, true) ~= nil, err)
+  local code2, _, err2 = run({ "generate", "systemd" }, { project_dir = "/srv/a\nUser=root" })
+  self:assert_equal(2, code2)
+  self:assert_true(err2:find("project directory", 1, true) ~= nil, err2)
+end
+
+function T:test_spaces_and_percent_are_escaped_for_systemd()
+  local _, out = run({ "generate", "systemd", "--executable=/opt/my apps/100%/hecate" }, { project_dir = "/srv/my shop/50%" })
+  self:assert_true(out:find('ExecStart="/opt/my apps/100%%/hecate" serve', 1, true) ~= nil, out)
+  self:assert_true(out:find("WorkingDirectory=/srv/my shop/50%%\n", 1, true) ~= nil, out)
+  local _, quoted = run({ "generate", "systemd", '--executable=/opt/a"b$c/hecate' })
+  self:assert_true(quoted:find('ExecStart="/opt/a\\"b$$c/hecate" serve', 1, true) ~= nil, quoted)
 end
 
 function T:test_a_project_is_required()
