@@ -33,6 +33,39 @@ local function absolute(path)
   return cwd .. "/" .. path
 end
 
+--- A free TCP port of the loopback interface (the system picks it), nil when luv cannot be loaded.
+local function free_port()
+  local loaded, uv = pcall(require, "luv")
+  if not loaded then return nil end
+  local tcp = uv.new_tcp()
+  tcp:bind("127.0.0.1", 0)
+  local port = tcp:getsockname().port
+  tcp:close()
+  return port
+end
+
+--- Stops a server and what it started: on Windows `kill` ends only the supervisor (TerminateProcess), and the child
+--- would keep the port and lock the executable, so the whole tree is ended.
+local function stop_tree(server)
+  if windows then os.execute(("taskkill /T /F /PID %d >nul 2>&1"):format(server.pid)) else server:kill() end
+  server:wait()
+end
+
+--- Copies the content of `from` into `to` (created).
+local function copy_tree(from, to)
+  util.mkdir(to)
+  local cmd = windows and ("xcopy /E /I /Y /Q %s %s >NUL"):format(util.quote(from), util.quote(to))
+    or ("cp -R %s/. %s/"):format(util.quote(from), util.quote(to))
+  return os.execute(cmd) == true
+end
+
+--- Runs `body`, removes `directory` whatever happens, then re-raises what `body` raised.
+local function with_cleanup(directory, body)
+  local ok, err = pcall(body)
+  util.remove_tree(directory)
+  if not ok then error(err, 0) end
+end
+
 function T:test_a_new_project_tests_exports_lints_and_serves()
   local exe = built()
   if not exe then return end
@@ -40,78 +73,110 @@ function T:test_a_new_project_tests_exports_lints_and_serves()
   local base = util.make_temp_dir(".hecate", "e2e")
   assert(base)
   base = absolute(base)
-  local function run(command, directory) return util.capture(in_directory(directory or base, exe, command)) end
+  with_cleanup(base, function()
+    local function run(command, directory) return util.capture(in_directory(directory or base, exe, command)) end
 
-  local out, ok = run("new shop")
-  self:assert_true(ok, out)
-  local project = base .. "/shop"
-  local linked, linked_ok = util.capture(("%s tools/run.lua link-modules %s 2>&1"):format(util.quote(util.interpreter()), util.quote(project)))
-  self:assert_true(linked_ok, linked)
+    local out, ok = run("new shop")
+    self:assert_true(ok, out)
+    local project = base .. "/shop"
+    local linked, linked_ok = util.capture(("%s tools/run.lua link-modules %s 2>&1"):format(util.quote(util.interpreter()), util.quote(project)))
+    self:assert_true(linked_ok, linked)
 
-  out, ok = run("test", project)
-  self:assert_true(ok, out)
-  self:assert_true(out:find("4 passed", 1, true) ~= nil, out)
+    out, ok = run("test", project)
+    self:assert_true(ok, out)
+    self:assert_true(out:find("4 passed", 1, true) ~= nil, out)
 
-  out, ok = run("test --jobs=2", project)
-  self:assert_true(ok, out)
-  self:assert_true(out:find("4 passed", 1, true) ~= nil, out)
+    out, ok = run("test --jobs=2", project)
+    self:assert_true(ok, out)
+    self:assert_true(out:find("4 passed", 1, true) ~= nil, out)
 
-  out, ok = run("contract export --output=openapi.json", project)
-  self:assert_true(ok, out)
-  out, ok = run("contract lint openapi.json", project)
-  self:assert_true(ok, out)
-  self:assert_true(out:find("0 error(s)", 1, true) ~= nil, out)
+    out, ok = run("test --filter=no_such_test_exists", project)
+    self:assert_false(ok, out)
+    self:assert_true(out:find("no test matches", 1, true) ~= nil, out)
 
-  out, ok = run("generate systemd --user=app --workers=2", project)
-  self:assert_true(ok, out)
-  self:assert_true(out:find("ExecStart=", 1, true) ~= nil and out:find("serve --workers 2", 1, true) ~= nil, out)
+    out, ok = run("contract export --output=openapi.json", project)
+    self:assert_true(ok, out)
+    out, ok = run("contract lint openapi.json", project)
+    self:assert_true(ok, out)
+    self:assert_true(out:find("0 error(s)", 1, true) ~= nil, out)
 
-  out, ok = run("generate systemd --output=shop.service", project)
-  self:assert_true(ok, out)
-  out, ok = run("generate meta", project)
-  self:assert_true(ok, out)
-  local meta = assert(io.open(project .. "/meta/shop.schemas.lua", "rb"))
-  self:assert_true(meta:read("a"):find("---@meta shop.schemas", 1, true) ~= nil)
-  meta:close()
+    out, ok = run("generate systemd --user=app --workers=2", project)
+    self:assert_true(ok, out)
+    self:assert_true(out:find("ExecStart=", 1, true) ~= nil and out:find("serve --workers 2", 1, true) ~= nil, out)
 
-  -- `hecate serve` on a free port answers the health check, and stops when it is killed.
-  local reactor_ok, reactor = pcall(require, "hecate.reactor")
-  local http_ok, http = pcall(require, "hecate.http")
-  if reactor_ok and http_ok then
-    local status
-    reactor.run(function()
-      local server = reactor.spawn(exe, { "serve" }, { cwd = project, env = { PORT = "18947" }, stdout = "ignore", stderr = "ignore", own_group = true }) -- glossary-ok: an operating-system process
-      local client = http.Client()
-      for _ = 1, 100 do
-        local fine, response = pcall(function() return client:get("http://127.0.0.1:18947/health") end)
-        if fine then status = response.status break end
-        reactor.sleep(0.2)
-      end
-      server:kill()
-      server:wait()
-    end)
-    self:assert_equal(200, status)
-  end
-  util.remove_tree(base)
+    out, ok = run("generate systemd --output=shop.service", project)
+    self:assert_true(ok, out)
+    out, ok = run("generate meta", project)
+    self:assert_true(ok, out)
+    local meta = assert(io.open(project .. "/meta/shop.schemas.lua", "rb"))
+    self:assert_true(meta:read("a"):find("---@meta shop.schemas", 1, true) ~= nil)
+    meta:close()
+
+    -- A project without a manifest says what to do.
+    local empty = base .. "/empty"
+    util.mkdir(empty)
+    out, ok = run("test", empty)
+    self:assert_false(ok, out)
+    self:assert_true(out:find("hecate new", 1, true) ~= nil, out)
+
+    -- A failing test makes the run fail and is reported, in the process and with workers.
+    local failing = assert(io.open(project .. "/tests/failing_test.lua", "wb"))
+    failing:write('local test = require("hecate.test")\nlocal T = test.Case("FailingTest")\n'
+      .. "function T:test_it_fails() self:assert_equal(1, 2) end\nreturn T\n")
+    failing:close()
+    for _, command in ipairs({ "test", "test --jobs=2" }) do
+      out, ok = run(command, project)
+      self:assert_false(ok, command .. "\n" .. out)
+      self:assert_true(out:find("test_it_fails", 1, true) ~= nil, command .. "\n" .. out)
+    end
+    os.remove(project .. "/tests/failing_test.lua")
+
+    -- `hecate serve` on a free port answers the health check, and stops when it is stopped.
+    local reactor_ok, reactor = pcall(require, "hecate.reactor")
+    local http_ok, http = pcall(require, "hecate.http")
+    local port = free_port()
+    if reactor_ok and http_ok and port then
+      local status
+      local ok_serve, err_serve = pcall(reactor.run, function()
+        local server = reactor.spawn(exe, { "serve" }, { cwd = project, env = { PORT = tostring(port) }, stdout = "ignore", stderr = "ignore", own_group = true }) -- glossary-ok: an operating-system process
+        local fine_loop, loop_error = pcall(reactor.deadline, 30, function()
+          local client = http.Client()
+          while true do
+            local fine, response = pcall(function() return client:get("http://127.0.0.1:" .. port .. "/health") end)
+            if fine then status = response.status return end
+            reactor.sleep(0.2)
+          end
+        end)
+        stop_tree(server)
+        if not fine_loop then error(loop_error, 0) end
+      end)
+      self:assert_true(ok_serve, tostring(err_serve))
+      self:assert_equal(200, status)
+    end
+  end)
 end
 
 function T:test_the_hello_example_is_a_project_that_hecate_tests_and_lints()
   local exe = built()
   if not exe then return end
   exe = absolute(exe)
-  local example = absolute("examples/hello")
-  local linked, linked_ok = util.capture(("%s tools/run.lua link-modules %s 2>&1"):format(util.quote(util.interpreter()), util.quote(example)))
-  self:assert_true(linked_ok, linked)
-  local out, ok = util.capture(in_directory(example, exe, "test"))
-  self:assert_true(ok, out)
-  self:assert_true(out:find("6 passed", 1, true) ~= nil, out)
-  out, ok = util.capture(in_directory(example, exe, "contract export --output=.hecate-openapi.json"))
-  self:assert_true(ok, out)
-  out, ok = util.capture(in_directory(example, exe, "contract lint .hecate-openapi.json"))
-  self:assert_true(ok, out)
-  self:assert_true(out:find("0 error(s)", 1, true) ~= nil, out)
-  os.remove(example .. "/.hecate-openapi.json")
-  util.remove_tree(example .. "/lua_modules")
+  -- A copy: the commands write `lua_modules` and an OpenAPI file, and must not touch the example of the repository
+  -- (other tests run it at the same time).
+  local base = absolute(assert(util.make_temp_dir(".hecate", "e2e-hello")))
+  with_cleanup(base, function()
+    local example = base .. "/hello"
+    self:assert_true(copy_tree(absolute("examples/hello"), example), "cannot copy examples/hello")
+    local linked, linked_ok = util.capture(("%s tools/run.lua link-modules %s 2>&1"):format(util.quote(util.interpreter()), util.quote(example)))
+    self:assert_true(linked_ok, linked)
+    local out, ok = util.capture(in_directory(example, exe, "test"))
+    self:assert_true(ok, out)
+    self:assert_true(out:find("6 passed", 1, true) ~= nil, out)
+    out, ok = util.capture(in_directory(example, exe, "contract export --output=.hecate-openapi.json"))
+    self:assert_true(ok, out)
+    out, ok = util.capture(in_directory(example, exe, "contract lint .hecate-openapi.json"))
+    self:assert_true(ok, out)
+    self:assert_true(out:find("0 error(s)", 1, true) ~= nil, out)
+  end)
 end
 
 function T:test_every_command_of_the_executable_is_on_the_reference_page_of_the_website()
