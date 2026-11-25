@@ -1,0 +1,111 @@
+# Setup hecate: installs the `hecate` executable of a release and puts it on the PATH.
+#
+# Source of truth: `actions/setup/` of the monorepo hecate-framework/hecate. It is published to the generated read-only
+# mirror hecate-framework/hecate-setup (ADR 0017), which has this file at its root, as GitHub requires; do not edit the
+# mirror. Usage: `uses: hecate-framework/hecate-setup@<tag>` with `version: "<x.y.z>"`.
+name: Setup hecate
+description: Download the hecate executable of a release for the platform of the runner, verify its SHA-256 and put it on the PATH.
+author: hecate-framework
+
+inputs:
+  version:
+    description: The release of Hecate to install, a SemVer version without the leading v, for example 0.4.0.
+    required: true
+  repository:
+    description: The repository whose releases carry the executable.
+    required: false
+    default: hecate-framework/hecate
+
+outputs:
+  version:
+    description: The version that was installed.
+    value: ${{ steps.download.outputs.version }}
+  path:
+    description: The directory that holds the executable.
+    value: ${{ steps.download.outputs.directory }}
+
+runs:
+  using: composite
+  steps:
+    - name: Download and verify the executable
+      id: download
+      shell: bash
+      env:
+        HECATE_SETUP_VERSION: ${{ inputs.version }}
+        HECATE_SETUP_REPOSITORY: ${{ inputs.repository }}
+        HECATE_SETUP_OS: ${{ runner.os }}
+        HECATE_SETUP_ARCH: ${{ runner.arch }}
+        HECATE_SETUP_TEMP: ${{ runner.temp }}
+        HECATE_SETUP_CACHE: ${{ runner.tool_cache }}
+      run: |
+        set -euo pipefail
+        fail() { echo "::error title=setup hecate::$1" >&2; exit 1; }
+
+        # SemVer 2.0.0, section 2 (the grammar of a version), without the leading v.
+        semver='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$'
+        [[ "$HECATE_SETUP_VERSION" =~ $semver ]] || fail "version '$HECATE_SETUP_VERSION' is not a SemVer version such as 0.4.0 (no leading v)"
+        [[ "$HECATE_SETUP_REPOSITORY" =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ ]] || fail "repository '$HECATE_SETUP_REPOSITORY' is not of the form owner/name"
+
+        case "$HECATE_SETUP_OS" in
+          Linux) os=linux; extension=tar.gz; program=hecate ;;
+          macOS) os=darwin; extension=tar.gz; program=hecate ;;
+          Windows) os=windows; extension=zip; program=hecate.exe ;;
+          *) fail "unsupported runner operating system '$HECATE_SETUP_OS' (Linux, macOS and Windows are)" ;;
+        esac
+        case "$HECATE_SETUP_ARCH" in
+          X64) architecture=x86_64 ;;
+          ARM64) architecture=aarch64 ;;
+          *) fail "unsupported runner architecture '$HECATE_SETUP_ARCH' (X64 and ARM64 are)" ;;
+        esac
+
+        # The assets of a release are named like `hecate package` names an archive: <name>-<version>-<platform>.<extension>,
+        # with the SHA-256 in <asset>.sha256 (the output of `sha256sum`: "<hex>  <file name>").
+        asset="hecate-${HECATE_SETUP_VERSION}-${os}-${architecture}.${extension}"
+        base="https://github.com/${HECATE_SETUP_REPOSITORY}/releases/download/v${HECATE_SETUP_VERSION}"
+        directory="${HECATE_SETUP_CACHE}/hecate/${HECATE_SETUP_VERSION}/${os}-${architecture}"
+        download="${HECATE_SETUP_TEMP}/hecate-setup-$$"
+        mkdir -p "$download"
+
+        if [ ! -x "${directory}/${program}" ]; then
+          curl --fail --silent --show-error --location --retry 3 --output "${download}/${asset}" "${base}/${asset}" \
+            || fail "cannot download ${base}/${asset}: is there a release v${HECATE_SETUP_VERSION} for ${os}-${architecture}?"
+          curl --fail --silent --show-error --location --retry 3 --output "${download}/${asset}.sha256" "${base}/${asset}.sha256" \
+            || fail "cannot download ${base}/${asset}.sha256: the executable is not installed without its checksum"
+
+          expected="$(awk 'NR == 1 { print tolower($1) }' "${download}/${asset}.sha256")"
+          [[ "$expected" =~ ^[0-9a-f]{64}$ ]] || fail "${asset}.sha256 does not start with a SHA-256 (64 hexadecimal digits)"
+          if command -v sha256sum >/dev/null 2>&1; then
+            actual="$(sha256sum "${download}/${asset}" | awk '{ print tolower($1) }')"
+          else
+            actual="$(shasum -a 256 "${download}/${asset}" | awk '{ print tolower($1) }')"
+          fi
+          [ "$actual" = "$expected" ] || fail "the SHA-256 of ${asset} is ${actual}, the release says ${expected}: not installed"
+          echo "Verified ${asset} (sha256 ${actual})"
+
+          mkdir -p "$directory"
+          if [ "$extension" = zip ]; then
+            # Git for Windows has no `unzip`; the `tar` of Windows (bsdtar) reads zip archives.
+            "${SYSTEMROOT:-C:\\Windows}\\System32\\tar.exe" -xf "${download}/${asset}" -C "$directory"
+          else
+            tar -xzf "${download}/${asset}" -C "$directory"
+          fi
+          [ -e "${directory}/${program}" ] || fail "${asset} holds no ${program} at its root"
+          chmod +x "${directory}/${program}" 2>/dev/null || true
+        fi
+        rm -rf "$download"
+
+        echo "version=${HECATE_SETUP_VERSION}" >> "$GITHUB_OUTPUT"
+        echo "directory=${directory}" >> "$GITHUB_OUTPUT"
+        echo "$directory" >> "$GITHUB_PATH"
+
+    - name: Check the installed executable
+      shell: bash
+      env:
+        HECATE_SETUP_DIRECTORY: ${{ steps.download.outputs.directory }}
+        HECATE_SETUP_VERSION: ${{ steps.download.outputs.version }}
+      run: |
+        set -euo pipefail
+        PATH="${HECATE_SETUP_DIRECTORY}:${PATH}"
+        hecate version
+        hecate version | grep -F "Hecate ${HECATE_SETUP_VERSION%%[-+]*}" >/dev/null \
+          || { echo "::error title=setup hecate::the executable does not report version ${HECATE_SETUP_VERSION}" >&2; exit 1; }
