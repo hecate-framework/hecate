@@ -139,6 +139,12 @@ Write the documentation of the project here: one Markdown file per page in `docs
 `hecate doc build`; the pages, the search and the navigation come with it.
 ]], parameters.name, parameters.name)
 
+  -- The environments of a developer machine: one process (`server.workers` defaults to "auto" in production, OQ-122).
+  for _, environment in ipairs({ "development", "test" }) do
+    files["config/" .. environment .. ".lua"] = "-- Configuration of the " .. environment .. " environment (`hecate serve --env " .. environment
+      .. "`): one process.\nreturn {\n  server = { workers = 1 },\n}\n"
+  end
+
   files[".gitignore"] = "lua_modules/\n.hecate/\ndocs/dist/\ndocs/maintainer/*/configuration.md\ndocs/maintainer/*/third-party-licences.md\n"
   files["README.md"] = string.format("# %s\n\nA Hecate application.\n\n```sh\nhecate install\nhecate serve --env development   # on a developer machine; production is the default\nhecate test\n```\n", parameters.name)
   return files

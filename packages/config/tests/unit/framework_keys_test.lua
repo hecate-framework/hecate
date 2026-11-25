@@ -127,10 +127,11 @@ end
 
 function T:test_workers_and_strategy_defaults_and_text_coercion()
   local defaults = fixture.load({})
-  self:assert_equal(1, defaults:get("server.workers"))
+  self:assert_equal("auto", defaults:get("server.workers")) -- ADR 0023, OQ-122: max(1, cores - 1), resolved by the kernel
   self:assert_equal("auto", defaults:get("server.strategy"))
   local set = fixture.load({ env = { HECATE_SERVER__WORKERS = "4", HECATE_SERVER__STRATEGY = "round_robin" } })
   self:assert_equal(4, set:get("server.workers"))
+  self:assert_equal("auto", fixture.load({ env = { HECATE_SERVER__WORKERS = "auto" } }):get("server.workers"))
   self:assert_equal("round_robin", set:get("server.strategy"))
   self:assert_equal("HECATE_SERVER__WORKERS", config.variable_name("HECATE", { "server", "workers" }))
   self:assert_equal("HECATE_SERVER__STRATEGY", config.variable_name("HECATE", { "server", "strategy" }))

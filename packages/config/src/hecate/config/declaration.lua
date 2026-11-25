@@ -71,7 +71,8 @@ function M.framework_properties()
     -- `schema.number` is finite (it refuses NaN and infinity); the timeout is read from the environment (The Twelve-Factor App, III).
     server = schema.default(schema.object({
       grace_timeout = schema.default(schema.number({ minimum = 0 }), 30),
-      workers = schema.default(schema.integer({ minimum = 1 }), 1),
+      -- A whole number of at least 1, or "auto": `max(1, cores - 1)` (ADR 0023, OQ-122), resolved by `hecate.kernel`.
+      workers = schema.default(schema.union({ schema.integer({ minimum = 1 }), schema.enumeration({ "auto" }) }), "auto"),
       strategy = schema.default(schema.enumeration({ "auto", "reuseport", "round_robin" }), "auto"),
     }), {}),
     -- CORS (OQ-136): the keys of the filter of `hecate.kernel`; disabled, and no origin allowed, by default.
