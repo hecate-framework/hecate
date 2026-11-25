@@ -91,8 +91,8 @@ function T:test_a_new_project_tests_exports_lints_and_serves()
     self:assert_true(out:find("4 passed", 1, true) ~= nil, out)
 
     out, ok = run("test --filter=no_such_test_exists", project)
-    self:assert_false(ok, out)
-    self:assert_true(out:find("no test matches", 1, true) ~= nil, out)
+    self:assert_true(ok, out) -- a selection that matches nothing is a warning (hecate.test: `ok` stays true), not a failure
+    self:assert_true(out:find("no test matches the selection", 1, true) ~= nil, out)
 
     out, ok = run("contract export --output=openapi.json", project)
     self:assert_true(ok, out)
