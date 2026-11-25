@@ -16,12 +16,16 @@ M.SETUP_ACTION = "hecate-framework/hecate-setup"
 --- has created the mirror and the first release, no such tag exists.
 M.SETUP_REF = "v1"
 
---- Third-party actions, pinned by commit SHA (the same pins as the workflows of the monorepo).
+--- The checkout action, pinned by commit SHA (the same pin as the workflows of the monorepo).
 M.CHECKOUT = "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7"
+
+--- The cache action, pinned by commit SHA (the same pin as the workflows of the monorepo).
 M.CACHE = "actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6"
 
---- The kinds of workflow of the specification, and which of them exist.
+--- The kinds of workflow that exist.
 M.kinds = { ci = true }
+
+--- The kinds of workflow of the specification that are still to do.
 M.planned_kinds = { "contract", "docs-pages", "release" }
 
 ---@class hecate.cli.WorkflowParameters
