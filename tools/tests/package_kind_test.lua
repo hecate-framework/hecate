@@ -103,7 +103,7 @@ end
 
 function T:test_the_catalogue_row_of_a_package_without_a_rock()
   local catalogue = require("lib.catalogue")
-  local meta = catalogue.parse_readme(ACTIONS_README .. "| Layer | none |\n| Roadmap phase | 3 |\n| Status | alpha |\n")
+  local meta = assert(catalogue.parse_readme(ACTIONS_README .. "| Layer | none |\n| Roadmap phase | 3 |\n| Status | alpha |\n"))
   self:assert_equal("actions", meta.kind)
   local row = catalogue.render({ { name = "actions", meta = meta } })
   self:assert_true(row:find("| [`actions`](actions) | none |", 1, true) ~= nil, row)
