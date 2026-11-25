@@ -508,6 +508,12 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       with its tests and the limits of the C calls it cannot bound documented; make `doc`, `cli` and `config` call it and
       delete the private copies; `configuration.md` and ADR 0009 point to it. Before `0.1.0`: a public module of `core`
       is frozen with the API.
+- [ ] `cli`, `tools`: follow-ups of the `cli` v1 item, to finish before the Phase 3 gate (owner instruction, 2026-11-25):
+      a `tools/` task that validates the workflow files (`actionlint`, or the equivalent offered by the CI platform) over
+      the files that `hecate generate workflow` writes and over `actions/setup/action.yml`, run in CI (OQ-149 (5)); the
+      French pages that the pages of the `cli` item link to and that exist in English only (`configure-an-application`,
+      `serve-and-export-the-contract`, `multi-process-deployment`, `before-going-to-production`, `theme-tokens`,
+      `reference/configuration-keys`): translate them, then replace the plain text of the French `cli` pages by links.
 - [ ] **Phase 3 gate**: verification of the phase, as described in [Phase gates](#phase-gates). Open
       questions to put to the owner before Phase 4: OQ-18 and OQ-45.
 
