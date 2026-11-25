@@ -1,7 +1,7 @@
 # Docker images
 
 Specification: [docs/architecture/versioning-and-distribution.md](../docs/architecture/versioning-and-distribution.md#docker-images).
-Built from Phase 3 by `docker.yml`.
+Built from Phase 3 by `docker.yml`. **Status:** `runtime` and `build` (debian, alpine) are written, checked by `lua tools/run.lua check-docker` and built by `docker.yml`; `dev` and the `hecate` executable in `build` come later.
 
 | Image | Purpose | Base variants |
 |---|---|---|
@@ -21,5 +21,5 @@ Requirements:
 - Secure: non-root user, Trivy scan in CI, weekly rebuild.
 - Labelled: OCI labels including `org.hecate.lua-version`.
 
-Planned layout: `docker/runtime/Dockerfile`, `docker/build/Dockerfile`,
-`docker/dev/Dockerfile`, `docker/bake.hcl` (buildx bake matrix).
+Layout: `docker/<image>/Dockerfile.<variant>` (`runtime`, `build`; `dev` planned) and `docker/bake.hcl` (buildx bake
+matrix). Build from the repository root: `docker buildx bake -f docker/bake.hcl runtime-debian`.

@@ -1,0 +1,83 @@
+name: docker
+
+# The images of `docker/` (docker/README.md, docs/architecture/versioning-and-distribution.md#docker-images):
+# a pull request that touches them builds every image for linux/amd64 and scans it; a push to main and the weekly
+# schedule do the same for linux/amd64 and linux/arm64 (the weekly run picks up the security updates of the base
+# images). Nothing is pushed to a registry here: publication belongs to `release.yml` (human gate).
+# Only the static rules (`check-docker`) need no daemon; they also run in `ci.yml`.
+
+on:
+  pull_request:
+    paths:
+      - "docker/**"
+      - "tools/bootstrap/**"
+      - "tools/lib/dockerfile.lua"
+      - "tools/tasks/check_docker.lua"
+      - ".github/workflows/docker.yml"
+  push:
+    branches: [main]
+    paths:
+      - "docker/**"
+      - "tools/bootstrap/**"
+      - ".github/workflows/docker.yml"
+  schedule:
+    - cron: "17 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docker-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Trivy runs from its container image, pinned by tag, so that no third-party action is needed.
+  TRIVY_IMAGE: aquasec/trivy:0.58.2
+
+jobs:
+  images:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [runtime, build]
+        variant: [debian, alpine]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Static rules
+        run: |
+          tools/bootstrap/bootstrap.sh --prefix .hecate/toolchain
+          .hecate/toolchain/bin/lua tools/run.lua check-docker
+      - name: Build (linux/amd64)
+        run: |
+          docker buildx bake -f docker/bake.hcl "${{ matrix.image }}-${{ matrix.variant }}" \
+            --set "*.platform=linux/amd64" --load
+      - name: Smoke test
+        run: |
+          image="hecate/${{ matrix.image }}:0.0.0-dev-lua5.5-${{ matrix.variant }}"
+          docker run --rm "$image" lua -v
+          docker run --rm "$image" id -u | grep -qx 10001
+          # The system trust store is present (ADR 0024): the default of hecate.net depends on it.
+          docker run --rm --entrypoint sh "$image" -c 'test -s /etc/ssl/certs/ca-certificates.crt'
+          docker inspect --format '{{ index .Config.Labels "org.hecate.lua-version" }}' "$image" | grep -qx 5.5
+      - name: Scan (Trivy)
+        run: |
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock "$TRIVY_IMAGE" image \
+            --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed \
+            "hecate/${{ matrix.image }}:0.0.0-dev-lua5.5-${{ matrix.variant }}"
+
+  multi-arch:
+    # The arm64 build runs under QEMU: slow, so only on main, on the schedule and by hand.
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: QEMU and buildx
+        run: docker run --privileged --rm tonistiigi/binfmt:qemu-v9.2.0 --install arm64
+      - name: Builder
+        run: docker buildx create --use --driver docker-container
+      - name: Build both architectures
+        run: docker buildx bake -f docker/bake.hcl default
