@@ -25,10 +25,17 @@ function T:set_up()
   write(self.root .. "/bin/hecate", "pretend executable")
   write(self.root .. "/bin/hecate.exe", "pretend executable")
   write(self.root .. "/bin/lua55.dll", "pretend dll")
+  write(self.root .. "/LICENSE", "MIT License\n")
+  write(self.root .. "/bin/hecate-elf", "\127ELF pretend dynamic executable")
   self.printed = "Hecate 1.2.3 (Lua 5.5.0) - linux-x86_64"
+  self.symbols = read("tools/tests/fixtures/linux_package/objdump_glibc_2_28.txt")
+  self.commands = {}
   -- Extraction is real; the executable of the fixture is not a program, so `version` is answered here.
   self.run = function(cmd)
+    self.commands[#self.commands + 1] = cmd
     if cmd:find(" version 2>&1", 1, true) then return self.printed, true end
+    if cmd:find(" completion ", 1, true) then return "# completion script of " .. cmd:match("completion (%a+)"), true end
+    if cmd:find("^objdump ") then return self.symbols, true end
     return util.capture(cmd)
   end
 end
@@ -166,6 +173,109 @@ function T:test_a_missing_executable_and_a_bad_argument_are_reported()
   self:assert_false(task.run({ root = self.root, args = { "--bogus" } }).ok)
   self:assert_false(self:package({ "--os=plan9" }).ok)
   self:assert_false(self:package({ "--arch=riscv64", "--os=linux" }).ok)
+end
+
+function T:test_the_glibc_guard_accepts_the_floor_and_refuses_a_newer_glibc()
+  local elf = self.root .. "/bin/hecate-elf"
+  local ok = self:package({ "--exe=" .. elf, "--os=linux", "--arch=x86_64", "--no-smoke" })
+  self:assert_true(ok.ok, table.concat(ok.problems, "\n"))
+  self:assert_equal("2.28", ok.data.glibc.highest)
+  self.symbols = read("tools/tests/fixtures/linux_package/objdump_glibc_2_34.txt")
+  local refused = self:package({ "--exe=" .. elf, "--os=linux", "--arch=x86_64", "--no-smoke" })
+  self:assert_false(refused.ok)
+  self:assert_true(refused.problems[1]:find("needs glibc 2.34, above the floor 2.28", 1, true) ~= nil, refused.problems[1])
+  self:assert_true(self:package({ "--exe=" .. elf, "--os=linux", "--arch=x86_64", "--no-smoke", "--max-glibc=2.34" }).ok)
+  self:assert_true(self:package({ "--exe=" .. elf, "--os=linux", "--arch=x86_64", "--no-smoke", "--max-glibc=none" }).ok)
+  -- the guard is for Linux executables only
+  self:assert_true(self:package({ "--exe=" .. elf, "--os=darwin", "--arch=aarch64", "--no-smoke" }).ok)
+end
+
+function T:test_the_glibc_guard_skips_static_executables_and_files_that_are_not_elf()
+  local binary = "\127ELF"
+  local run = function() return read("tools/tests/fixtures/linux_package/objdump_static.txt"), false end
+  local ok, message = task.check_glibc("hecate", binary, "2.28", run)
+  self:assert_true(ok)
+  self:assert_true(message:find("skipped", 1, true) ~= nil, message)
+  ok, message = task.check_glibc("hecate", "#!/bin/sh", "2.28", function() error("not run") end)
+  self:assert_true(ok and message:find("not an ELF", 1, true) ~= nil, message)
+  local calls = {}
+  ok = task.check_glibc("hecate", binary, "2.28", function(cmd)
+    calls[#calls + 1] = cmd:match("^%a+")
+    if cmd:find("^objdump") then return "objdump: command not found", false end
+    return read("tools/tests/fixtures/linux_package/readelf_glibc_2_34.txt"), true
+  end)
+  self:assert_false(ok)
+  self:assert_equal("objdump readelf", table.concat(calls, " "), "readelf is the fallback")
+  ok, message = task.check_glibc("hecate", binary, "2.28", function() return "nothing works", false end)
+  self:assert_false(ok)
+  self:assert_true(message:find("cannot read the symbol versions", 1, true) ~= nil, message)
+end
+
+function T:test_a_deb_is_written_with_its_checksum()
+  local _, have_gzip = util.capture("gzip --version")
+  if not have_gzip then return end
+  local report = self:package({ "--os=linux", "--arch=x86_64", "--format=deb", "--version=1.2.3-2" })
+  self:assert_true(report.ok, table.concat(report.problems, "\n"))
+  local name = "hecate_1.2.3-2_amd64.deb"
+  self:assert_equal(self.root .. "/out/" .. name, report.data.archive)
+  self:assert_equal("deb", report.data.format)
+  local bytes = assert(read(report.data.archive))
+  self:assert_equal(sha256.hex(bytes) .. "  " .. name .. "\n", read(report.data.checksum))
+  self:assert_equal("/usr/bin/hecate", report.data.entries[1])
+  self:assert_equal(5, #report.data.entries)
+  local members = assert(require("lib.linux_package").read_ar(bytes))
+  self:assert_equal(3, #members)
+  local completions = 0
+  for _, command in ipairs(self.commands) do
+    if command:find(" completion ", 1, true) then completions = completions + 1 end
+  end
+  self:assert_equal(3, completions, "bash, zsh and fish are asked of the executable")
+end
+
+function T:test_every_package_format_has_its_asset_name()
+  local _, have_gzip = util.capture("gzip --version")
+  if not have_gzip then return end
+  for format, name in pairs({ apk = "hecate-1.2.3_rc1-r2.x86_64.apk" }) do
+    write(self.root .. "/VERSION", "1.2.3rc1\n")
+    local report = self:package({ "--os=linux", "--arch=x86_64", "--format=" .. format, "--version=1.2.3rc1-2" })
+    self:assert_true(report.ok, table.concat(report.problems, "\n"))
+    self:assert_equal(self.root .. "/out/" .. name, report.data.archive)
+    self:assert_equal(sha256.hex(assert(read(report.data.archive))) .. "  " .. name .. "\n", read(report.data.checksum))
+  end
+end
+
+function T:test_a_package_needs_linux_x86_64_a_known_format_and_a_working_completion()
+  local arm = self:package({ "--os=linux", "--arch=aarch64", "--format=deb" })
+  self:assert_false(arm.ok)
+  self:assert_true(arm.problems[1]:find("x86_64 only", 1, true) ~= nil, arm.problems[1])
+  local mac = self:package({ "--os=darwin", "--arch=aarch64", "--format=deb" })
+  self:assert_false(mac.ok)
+  self:assert_true(mac.problems[1]:find("for Linux", 1, true) ~= nil, mac.problems[1])
+  local unknown = self:package({ "--os=linux", "--arch=x86_64", "--format=msi" })
+  self:assert_false(unknown.ok)
+  self:assert_true(unknown.problems[1]:find("unknown --format", 1, true) ~= nil, unknown.problems[1])
+  self.run = function() return "boom", false end
+  local broken = self:package({ "--os=linux", "--arch=x86_64", "--format=apk", "--max-glibc=none" })
+  self:assert_false(broken.ok)
+  self:assert_true(broken.problems[1]:find("completion bash", 1, true) ~= nil, broken.problems[1])
+end
+
+function T:test_the_assets_of_a_release_are_listed_for_the_workflow()
+  local report = task.run({ root = self.root, args = { "--list-assets=1.2.3-1" } })
+  self:assert_true(report.ok, table.concat(report.problems, "\n"))
+  local expected = {
+    "hecate-1.2.3-1-darwin-aarch64.tar.gz", "hecate-1.2.3-1-linux-x86_64.tar.gz", "hecate-1.2.3-1-windows-x86_64.zip",
+    "hecate-1.2.3-1-x86_64.pkg.tar.zst", "hecate-1.2.3-1.x86_64.rpm", "hecate-1.2.3-r1.x86_64.apk", "hecate_1.2.3-1_amd64.deb",
+  }
+  local names = {}
+  for _, name in ipairs(expected) do
+    names[#names + 1] = name
+    names[#names + 1] = name .. ".sha256"
+  end
+  table.sort(names)
+  self:assert_equal(14, #report.data.assets)
+  self:assert_equal(table.concat(names, "\n"), report.output)
+  self:assert_false(task.run({ root = self.root, args = { "--list-assets=1.2.4-1" } }).ok, "must match VERSION")
 end
 
 return T

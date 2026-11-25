@@ -39,7 +39,8 @@ end
 ---@class tools.ArchiveEntry
 ---@field name string   path inside the archive, `/`-separated, at most 100 bytes, no leading `/` or `..`
 ---@field data string
----@field mode? integer   permission bits, default 0644
+---@field mode? integer   permission bits, default 0644 (0755 for a directory)
+---@field dir? boolean   a directory entry (tar only): `data` is "" and the name ends with `/`
 
 --- The entries sorted by name; a bad or duplicate name is an error.
 ---@param entries tools.ArchiveEntry[]
@@ -61,16 +62,27 @@ end
 
 local function octal(value, width) return ("%0" .. (width - 1) .. "o\0"):format(value) end
 
+---@class tools.TarOptions
+---@field owner? string   user and group name written in every header (default: empty; the numeric owner is always 0)
+---@field trailer? boolean   write the two zero blocks that end a tar (default true; the control segment of an Alpine
+---   package is a tar without them, so that the next gzip member continues the same archive)
+
 --- The bytes of a ustar archive.
 ---@param entries tools.ArchiveEntry[]
+---@param options? tools.TarOptions
 ---@return string
-function M.tar(entries)
+function M.tar(entries, options)
+  options = options or {}
+  local owner = options.owner or ""
   local out = {}
   for _, entry in ipairs(sorted(entries)) do
+    local is_dir = entry.dir == true
+    if is_dir and (entry.name:sub(-1) ~= "/" or #entry.data > 0) then error("archive: bad directory entry " .. entry.name, 2) end
     local fields = {
       entry.name .. ("\0"):rep(100 - #entry.name),
-      octal(entry.mode or 420, 8), octal(0, 8), octal(0, 8), octal(#entry.data, 12), octal(M.MTIME, 12),
-      "        ", "0", ("\0"):rep(100), "ustar\0", "00", ("\0"):rep(32), ("\0"):rep(32), octal(0, 8), octal(0, 8), ("\0"):rep(155),
+      octal(entry.mode or (is_dir and 493 or 420), 8), octal(0, 8), octal(0, 8), octal(#entry.data, 12), octal(M.MTIME, 12),
+      "        ", is_dir and "5" or "0", ("\0"):rep(100), "ustar\0", "00", owner .. ("\0"):rep(32 - #owner), owner .. ("\0"):rep(32 - #owner),
+      octal(0, 8), octal(0, 8), ("\0"):rep(155),
     }
     local header = table.concat(fields)
     header = header .. ("\0"):rep(512 - #header)
@@ -81,8 +93,32 @@ function M.tar(entries)
     out[#out + 1] = entry.data
     out[#out + 1] = ("\0"):rep((512 - #entry.data % 512) % 512)
   end
-  out[#out + 1] = ("\0"):rep(1024)
+  if options.trailer ~= false then out[#out + 1] = ("\0"):rep(1024) end
   return table.concat(out)
+end
+
+--- Reads a ustar archive written by `M.tar` (or any tar without extended headers): name, data, permission bits, whether
+--- the entry is a directory and the owner names. Used by the tests.
+---@param bytes string
+---@return { name: string, data: string, mode: integer, dir: boolean, uid: integer, uname: string }[]? entries
+---@return string? err
+function M.read_tar(bytes)
+  local entries, position = {}, 1
+  while position + 511 <= #bytes do
+    local header = bytes:sub(position, position + 511)
+    if header == ("\0"):rep(512) then break end
+    local name = header:sub(1, 100):match("^[^%z]*")
+    local sum = 0
+    for i = 1, 512 do sum = sum + ((i >= 149 and i <= 156) and 32 or header:byte(i)) end
+    if tonumber(header:sub(149, 154), 8) ~= sum then return nil, "bad checksum for " .. name end
+    local size = tonumber(header:sub(125, 135), 8)
+    entries[#entries + 1] = {
+      name = name, data = bytes:sub(position + 512, position + 511 + size), mode = tonumber(header:sub(101, 107), 8),
+      dir = header:sub(157, 157) == "5", uid = tonumber(header:sub(109, 115), 8), uname = header:sub(266, 297):match("^[^%z]*"),
+    }
+    position = position + 512 + ((size + 511) // 512) * 512
+  end
+  return entries
 end
 
 --- The bytes of a zip archive of stored (uncompressed) entries.
