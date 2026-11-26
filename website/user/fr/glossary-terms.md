@@ -96,6 +96,11 @@ page (avec un lien vers le glossaire), puis le terme français seul.
 | generated page | page générée | `generated: true` ; jamais modifiée à la main |
 | code reference | référence de code | générée à partir des annotations LuaLS ; jamais « référence d’API » |
 | licences page | page des licences | `third-party-licences.md` |
-| grace period | période de grâce | `Server:shutdown` ; à distinguer du délai de purge d’une réponse |
+| grace period | période de grâce | `Server:shutdown`, option `grace_timeout` ; à distinguer du délai de purge d’une réponse (`drain_timeout`) |
 | environment (deployment) | environnement | `development`, `test`, `production` ; variable `HECATE_ENV` |
 | release archive | archive de livraison | `hecate package` |
+| origin | origine | schéma, hôte et port d’une URL (RFC 6454) ; clé du pool de connexions du client ; jamais « site » ni « domaine » |
+| head | tête (tête de requête, tête de réponse) | ligne de départ et champs jusqu’à la ligne vide (RFC 9112) ; jamais « en-tête », qui désigne un champ ; `head_timeout` en code |
+| persistent connection | connexion persistante | RFC 9112 section 9.3 ; « keep-alive » acceptable en prose, entre parenthèses |
+| pipelining | pipelining ; verbe : envoyer en pipeline | plusieurs requêtes envoyées sans attendre les réponses, servies dans l’ordre ; jamais « traitement par lots » |
+| lease | bail | droit d’utiliser une connexion du pool pour un échange, jusqu’à la lecture ou la fermeture du contenu de la réponse ; jamais « ticket » |
