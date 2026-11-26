@@ -1,0 +1,31 @@
+# hecate/build, alpine variant: Lua 5.5, LuaRocks, libuv, OpenSSL and the system CA certificates, plus compilers and headers, to build rocks and images.
+# Build from the repository root: docker build -f docker/build/Dockerfile.alpine .
+# Specification: docs/architecture/versioning-and-distribution.md#docker-images
+
+ARG ALPINE_TAG=3.22
+
+# Stage 1: Lua and LuaRocks, built from the pinned sources with verified checksums (tools/bootstrap/bootstrap.sh).
+FROM alpine:${ALPINE_TAG} AS toolchain
+RUN apk add --no-cache bash build-base ca-certificates curl readline-dev unzip
+COPY tools/bootstrap/bootstrap.sh /tmp/bootstrap.sh
+RUN bash /tmp/bootstrap.sh --prefix /opt/lua-5.5
+
+# Stage 2: the runtime plus compilers and headers, to build rocks with native modules.
+FROM alpine:${ALPINE_TAG}
+ARG LUA_VERSION=5.5
+ARG HECATE_VERSION=0.0.0-dev
+LABEL org.opencontainers.image.title="hecate/build" \
+      org.opencontainers.image.description="Build image for Hecate: runtime plus compilers and headers" \
+      org.opencontainers.image.source="https://github.com/hecate-framework/hecate" \
+      org.opencontainers.image.licenses="MIT" \
+      org.opencontainers.image.version="${HECATE_VERSION}" \
+      org.hecate.lua-version="${LUA_VERSION}"
+# System CA certificates: the default trust store of hecate.net is the operating system's (ADR 0024).
+RUN apk add --no-cache ca-certificates build-base git curl unzip libuv libuv-dev libssl3 openssl-dev readline \
+ && addgroup -S -g 10001 hecate \
+ && adduser -S -u 10001 -G hecate -h /app -s /sbin/nologin hecate
+COPY --from=toolchain /opt/lua-5.5 /opt/lua-5.5
+ENV PATH=/opt/lua-5.5/bin:$PATH
+WORKDIR /app
+USER hecate
+CMD ["lua", "-v"]
