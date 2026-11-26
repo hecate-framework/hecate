@@ -44,6 +44,8 @@ read the matching page of the [explanation](../explanation/index.md) section.
 - [Filters](filters.md): the four layers of the chain and their order, authentication and CORS written as filters.
 - [Multi-process deployment, graceful shutdown and health checks](multi-process-deployment.md): workers, strategies,
   signals, the grace period, the rolling reload and a health route.
+- [Render the contract with Docker Compose](render-the-contract-with-docker-compose.md): the application, a reverse
+  proxy for one origin and a pinned Swagger UI.
 - [Before going to production](before-going-to-production.md): a checklist of the environment, error details, logging
   and redaction, secrets, the access log, listening and limits, workers and shutdown.
 

@@ -1,0 +1,3 @@
+# Only tools/bootstrap/ is copied into the images: keep .git, secrets and the rest out of the build context.
+*
+!tools/bootstrap/
