@@ -42,7 +42,7 @@ M.METADATA = {
     "with the shell completions for bash, zsh and fish.",
   },
   homepage = "https://github.com/hecate-framework/hecate",
-  maintainer = "Hecate maintainers <noreply@github.com>",
+  maintainer = "Hecate maintainers <theandre.bourry@ik.me>",
   license = "MIT",
   -- The oldest glibc the executable may need (`package-cli --max-glibc` defaults to it): the floor of the Debian and RPM dependency.
   glibc = "2.28",
