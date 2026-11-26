@@ -230,7 +230,7 @@ local server = http.Server(action, {
 
 Une application de `hecate.kernel` fait correspondre pour vous les erreurs de son domaine à des détails de
 problème : voir
-[Faire correspondre les erreurs du domaine à des détails de problème](../../../../user/en/how-to/map-domain-errors-to-problem-details/).
+[Faire correspondre les erreurs du domaine à des détails de problème](map-domain-errors-to-problem-details.md).
 
 ## Poser des cookies {#set-cookies}
 
