@@ -289,7 +289,7 @@ unless the origin is `*`.
 | Key | Type | Default | Meaning |
 |---|---|---|---|
 | `server.grace_timeout` | non-negative finite number (seconds) | `30` | seconds a graceful shutdown lets the requests in flight finish before cancelling them; it must be shorter than the stop timeout of the deployment (`docker stop` waits 10 s by default, Kubernetes 30 s) |
-| `server.workers` | integer, at least 1 | `1` | number of worker processes; `1` serves in the process itself, more runs a supervisor in the primary ([ADR 0023](../adr/0023-multi-process-serving.md)) |
+| `server.workers` | integer, at least 1, or `auto` | `auto` | number of worker processes (`auto` is `max(1, cores - 1)`, resolved by the kernel, ADR 0023, OQ-122); `1` serves in the process itself, more runs a supervisor in the primary ([ADR 0023](../adr/0023-multi-process-serving.md)) |
 | `server.strategy` | `auto`, `reuseport` or `round_robin` | `auto` | how connections reach the workers (ADR 0023, Decision 2); only used when `server.workers` is above 1 |
 
 Environment variables: `HECATE_SERVER__GRACE_TIMEOUT` (text such as `2.5` is coerced to a number),

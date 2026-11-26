@@ -3,7 +3,7 @@ description: La conception du service multiprocessus dans hecate (ADR 0023) : wo
 hecate: "0.x"
 lua: "5.5"
 order: 3
-source_revision: 4c018d7
+source_revision: 57ace85c67235547aa716c4fcac0d2c745f00057
 ---
 
 # Service multiprocessus
@@ -36,8 +36,12 @@ corrects, mais ils ne décident jamais de la conception du chemin Linux.
 
 Un serveur est un [primaire](../reference/glossary.md#concurrency) (*primary*) et *N*
 [workers](../reference/glossary.md#concurrency). Un worker est le même programme relancé avec un
-rôle de worker. Il a son propre état Lua, son propre réacteur et ses propres connexions. Par
-défaut, *N* est le nombre de cœurs de processeur.
+rôle de worker. Il a son propre état Lua, son propre réacteur et ses propres connexions.
+
+*N* est `server.workers`. Sa valeur par défaut est `"auto"` (OQ-122) : un worker par cœur moins un
+(au moins 1), afin qu’un cœur reste au primaire et au système. `1` est un seul processus qui sert
+seul, ce que définissent les configurations de développement et de test générées. Une `Application`
+construite sans configuration et sans option `workers` sert avec un seul processus.
 
 Rien n’est partagé entre les workers. L’état qui doit l’être vit hors des processus, dans une base
 de données ou dans Redis. hecate n’offre aucune mémoire partagée.

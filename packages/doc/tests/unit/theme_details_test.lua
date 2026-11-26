@@ -33,15 +33,16 @@ local function build(extra)
   return fs
 end
 
--- The three layouts, in the default locale and in a translation.
+-- The three layouts, in the default locale and in a translation. `up` is the path from the page to the root of the site
+-- (every link of a page is relative to it, OQ-148; the 404 page is at the root).
 local function layouts()
   return {
-    { name = "home (en)", path = "o/en/index.html", body = "home" },
-    { name = "home (fr)", path = "o/fr/index.html", body = "home" },
-    { name = "documentation page (en)", path = "o/en/guide/a/index.html", body = "doc-page" },
-    { name = "documentation page (fr)", path = "o/fr/guide/a/index.html", body = "doc-page" },
-    { name = "section index (en)", path = "o/en/guide/index.html", body = "doc-page" },
-    { name = "404", path = "o/404.html", body = "doc-page" },
+    { name = "home (en)", path = "o/en/index.html", body = "home", up = "../" },
+    { name = "home (fr)", path = "o/fr/index.html", body = "home", up = "../" },
+    { name = "documentation page (en)", path = "o/en/guide/a/index.html", body = "doc-page", up = "../../../" },
+    { name = "documentation page (fr)", path = "o/fr/guide/a/index.html", body = "doc-page", up = "../../../" },
+    { name = "section index (en)", path = "o/en/guide/index.html", body = "doc-page", up = "../../" },
+    { name = "404", path = "o/404.html", body = "doc-page", up = "" },
   }
 end
 
@@ -68,39 +69,43 @@ function T:test_the_sidebar_marker_is_on_the_body_of_every_layout_when_asked_and
   self:assert_equal(0, count(off:read("o/404.html"), "sidebar-marker"))
 end
 
-function T:test_the_default_favicon_is_on_every_layout_once_and_follows_the_base_path()
+function T:test_the_default_favicon_is_on_every_layout_once_and_never_follows_the_base_path()
   for _, base in ipairs({ "/", "/docs/" }) do
     local fs = build({ base_path = base })
     for _, layout in ipairs(layouts()) do
       local html = fs:read(layout.path)
       self:assert_equal(1, count(html, '<link rel="icon"'), layout.name .. ": one icon")
-      self:assert_equal(1, count(html, ('<link rel="icon" href="%sassets/brand/favicon.svg" type="image/svg+xml">'):format(base)),
-        layout.name .. ": the adaptive Hecate icon below " .. base)
+      self:assert_equal(1, count(html, ('<link rel="icon" href="%sassets/brand/favicon.svg" type="image/svg+xml">'):format(layout.up)),
+        layout.name .. ": the adaptive Hecate icon, relative to the page, whatever the base path " .. base)
     end
   end
 end
 
 function T:test_a_favicon_of_public_is_on_every_layout_in_its_form()
   local cases = {
-    { configuration = { favicon_path = "mark.svg" }, links = { '<link rel="icon" href="/mark.svg" type="image/svg+xml">' } },
-    { configuration = { favicon_path = { light = "icon.png" } }, links = { '<link rel="icon" href="/icon.png" type="image/png">' } },
+    { configuration = { favicon_path = "mark.svg" }, links = { '<link rel="icon" href="%smark.svg" type="image/svg+xml">' } },
+    { configuration = { favicon_path = { light = "icon.png" } }, links = { '<link rel="icon" href="%sicon.png" type="image/png">' } },
     { configuration = { favicon_path = { light = "icon.png", dark = "icon-dark.ico" } },
-      links = { '<link rel="icon" href="/icon.png" type="image/png" media="(prefers-color-scheme: light)">',
-        '<link rel="icon" href="/icon-dark.ico" type="image/x-icon" media="(prefers-color-scheme: dark)">' } },
+      links = { '<link rel="icon" href="%sicon.png" type="image/png" media="(prefers-color-scheme: light)">',
+        '<link rel="icon" href="%sicon-dark.ico" type="image/x-icon" media="(prefers-color-scheme: dark)">' } },
   }
   for _, case in ipairs(cases) do
     local fs = build(case.configuration)
     for _, layout in ipairs(layouts()) do
       local html = fs:read(layout.path)
       self:assert_equal(#case.links, count(html, '<link rel="icon"'), layout.name)
-      for _, link in ipairs(case.links) do self:assert_equal(1, count(html, link), layout.name .. ": " .. link) end
+      for _, link in ipairs(case.links) do
+        link = link:format(layout.up)
+        self:assert_equal(1, count(html, link), layout.name .. ": " .. link)
+      end
       self:assert_equal(0, count(html, "assets/brand/favicon.svg"), layout.name .. ": the default icon is replaced")
     end
   end
-  -- Below a base path the file of `public/` is below it too.
+  -- A base path changes no link: the file of `public/` is found relative to the page.
   local below = build({ favicon_path = "mark.svg", base_path = "/docs/" })
   for _, layout in ipairs(layouts()) do
-    self:assert_equal(1, count(below:read(layout.path), '<link rel="icon" href="/docs/mark.svg" type="image/svg+xml">'), layout.name)
+    self:assert_equal(1, count(below:read(layout.path), ('<link rel="icon" href="%smark.svg" type="image/svg+xml">'):format(layout.up)),
+      layout.name)
   end
 end
 
@@ -110,25 +115,27 @@ function T:test_the_override_stylesheet_follows_the_theme_stylesheet_on_every_la
   local fs = build({ stylesheet_path = "override.css" })
   for _, layout in ipairs(layouts()) do
     local html = fs:read(layout.path)
-    self:assert_equal(1, count(html, 'href="/assets/theme.css"'), layout.name .. ": the theme once")
-    self:assert_equal(1, count(html, 'href="/override.css"'), layout.name .. ": the override once")
+    local theme_link, override_link = ('href="%sassets/theme.css"'):format(layout.up), ('href="%soverride.css"'):format(layout.up)
+    self:assert_equal(1, count(html, theme_link), layout.name .. ": the theme once")
+    self:assert_equal(1, count(html, override_link), layout.name .. ": the override once")
     self:assert_equal(2, count(html, 'rel="stylesheet"'), layout.name .. ": two stylesheets, no more")
-    local theme, override = position(html, 'href="/assets/theme.css"'), position(html, 'href="/override.css"')
+    local theme, override = position(html, theme_link), position(html, override_link)
     self:assert_true(theme < override, layout.name .. ": the override comes after the theme (the cascade)")
     self:assert_true(override < position(html, "<script"), layout.name .. ": both before the first script")
     self:assert_true(override < position(html, "</head>"), layout.name .. ": in the head")
-    self:assert_equal('<link rel="stylesheet" href="/assets/theme.css">\n<link rel="stylesheet" href="/override.css">',
-      html:match('<link rel="stylesheet" href="/assets/theme.css">\n<link rel="stylesheet" href="/override.css">'), layout.name .. ": adjacent")
+    local adjacent = ('<link rel="stylesheet" %s>\n<link rel="stylesheet" %s>'):format(theme_link, override_link)
+    self:assert_equal(adjacent, html:match(adjacent:gsub("%p", "%%%0")), layout.name .. ": adjacent")
   end
   -- Without an override there is the theme alone, on every layout.
   local plain = build()
   for _, layout in ipairs(layouts()) do self:assert_equal(1, count(plain:read(layout.path), 'rel="stylesheet"'), layout.name) end
-  -- The name of the file is percent-encoded and follows the base path.
+  -- The name of the file is percent-encoded; the base path changes no link.
   local spaced = build({ stylesheet_path = "my style.css", base_path = "/docs/" })
   for _, layout in ipairs(layouts()) do
     local html = spaced:read(layout.path)
-    self:assert_equal(1, count(html, 'href="/docs/my%20style.css"'), layout.name)
-    self:assert_true(position(html, 'href="/docs/assets/theme.css"') < position(html, 'href="/docs/my%20style.css"'), layout.name)
+    local own = ('href="%smy%%20style.css"'):format(layout.up)
+    self:assert_equal(1, count(html, own), layout.name)
+    self:assert_true(position(html, ('href="%sassets/theme.css"'):format(layout.up)) < position(html, own), layout.name)
   end
   -- The override is the file of the project, copied as it is, and the file of the theme is never replaced by it.
   self:assert_equal(":root { --moon: #123456; }", fs:read("o/override.css"))

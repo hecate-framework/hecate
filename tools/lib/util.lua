@@ -49,7 +49,9 @@ function M.interpreter() return arg and arg[-1] or "lua" end
 ---@param path string
 ---@return boolean
 function M.is_dir(path)
-  local cmd = is_windows and ('if exist "%s\\nul" (exit 0) else (exit 1)'):format((path:gsub("/", "\\")))
+  -- `cd /d` in the child `cmd` fails for a missing path and for a file (the older `if exist "dir\nul"` test was false for an existing
+  -- directory that holds files, on the Windows CI runners)
+  local cmd = is_windows and ('cd /d "%s"'):format((path:gsub("/", "\\")))
     or ("test -d %s"):format(M.quote(path))
   local ok = os.execute(cmd .. (is_windows and " >nul 2>&1" or " >/dev/null 2>&1"))
   return ok == true

@@ -14,6 +14,7 @@ local uv_call = require("hecate.reactor.internal.uv_call")
 --- The reactor over libuv: scheduler, futures, structured concurrency, channels, timers,
 --- signals, processes, file system and transport primitives.
 ---@class hecate.reactor
+---@field version string  the version of this package, the version of Hecate (`VERSION`, ADR 0005)
 ---@field Reactor hecate.reactor.Reactor
 ---@field Future hecate.reactor.Future
 ---@field Scope hecate.reactor.Scope
@@ -38,6 +39,7 @@ local uv_call = require("hecate.reactor.internal.uv_call")
 ---@field Peer hecate.reactor.Peer
 ---@field ipc hecate.reactor.ipc
 local reactor = {
+  version = "0.0.0",
   Reactor = Reactor,
   Future = require("hecate.reactor.future"),
   Scope = require("hecate.reactor.scope"),

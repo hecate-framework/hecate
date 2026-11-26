@@ -3,6 +3,7 @@
 - **Status:** Accepted
 - **Date:** 2026-10-11
 - **Deciders:** project owner
+- **Amended:** 2026-11-25 by the owner, in place, status unchanged: Scoop and Chocolatey are not channels (winget is enough); the order of the installation channels is the archives, then the packages that install from a file (`.deb`, `.rpm`, Arch, Alpine), then the rest
 - **Packages:** cli
 - **Related:** [cli-and-packaging.md](../architecture/cli-and-packaging.md), OQ-13
 
@@ -17,7 +18,7 @@ installation on Linux, macOS and Windows, comparable to `rustup` or `uv`.
   modules and the native modules it needs.
 - It installs and manages toolchains (Lua + LuaRocks + headers) per version under a
   user directory and pins them per project (`lua = "5.5"` in the manifest).
-- Installation channels: shell installer, Homebrew, winget, Scoop, Docker images,
+- Installation channels: shell installer, Homebrew, winget, Docker images,
   GitHub release archives; `luarocks install hecate-cli` remains available.
 - `hecate version` and `hecate doctor` print the Hecate version, Lua version, LuaRocks
   version, libuv version and platform.

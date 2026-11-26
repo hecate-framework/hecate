@@ -3,6 +3,7 @@
 -- (native modules) is kept.
 local util = require("lib.util")
 local rockspec = require("lib.rockspec")
+local package_kind = require("lib.package_kind")
 
 local function read(path)
   local f = assert(io.open(path, "rb"))
@@ -22,7 +23,7 @@ return {
   run = function(ctx)
     local problems = {}
     local pkgs = ctx.root .. "/packages"
-    for _, name in ipairs(util.list_dir(pkgs)) do
+    for _, name in ipairs(package_kind.rocks(ctx.root)) do
       local readme = pkgs .. "/" .. name .. "/README.md"
       if util.exists(readme) then
         local text = read(readme):gsub("\r\n", "\n")

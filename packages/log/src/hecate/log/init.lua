@@ -7,6 +7,7 @@ local ambient = require("hecate.log.internal.ambient")
 
 --- Structured logging: severities, records, loggers and sinks.
 ---@class hecate.log
+---@field version string  the version of this package, the version of Hecate (`VERSION`, ADR 0005)
 ---@field Severity hecate.log.Severity  the eight severities of RFC 5424, section 6.2.1
 ---@field Record hecate.log.Record  the class of log records
 ---@field Logger hecate.log.Logger  the class of loggers
@@ -19,6 +20,7 @@ local ambient = require("hecate.log.internal.ambient")
 ---@field AsyncSink hecate.log.AsyncSink  decorator sink that writes from a detached computation, never suspending the caller
 ---@field DEFAULT_REDACT string[]  list of the field names the default logger redacts (do not modify it: copy it to extend it)
 local log = {}
+log.version = "0.0.0"
 
 log.Severity = require("hecate.log.severity")
 log.Record = require("hecate.log.record")

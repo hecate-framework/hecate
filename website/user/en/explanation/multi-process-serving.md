@@ -37,8 +37,9 @@ A server is one [primary](../reference/glossary.md#concurrency), the process tha
 others, and *N* [workers](../reference/glossary.md#concurrency), the processes that serve requests. A worker is the
 same program started again with a worker role. It has its own Lua state, its own reactor and its own connections.
 
-*N* is `server.workers`, 1 by default today: one process serves by itself. The decided default (OQ-122) is
-`"auto"`, one worker per core minus one (at least 1). It comes with the `cli` package, in Phase 3.
+*N* is `server.workers`. Its default is `"auto"` (OQ-122): one worker per core minus one (at least 1), so that a core is
+left to the primary and the system. `1` is one process serving by itself, which the generated development and test
+configurations set. An `Application` built with no configuration and no `workers` option serves with one process.
 
 Nothing is shared between workers. State that must be shared lives outside the processes, in a database or in
 Redis. hecate offers no shared memory.

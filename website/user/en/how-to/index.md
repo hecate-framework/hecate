@@ -11,6 +11,15 @@ order: 0
 Each guide solves one problem and assumes you know the basics. For the reasons behind a recipe,
 read the matching page of the [explanation](../explanation/index.md) section.
 
+## Projects and delivery
+
+- [Install hecate](install-hecate.md): the release archives and their checksums, the Linux packages (deb, rpm, Arch,
+  Alpine), the Windows zip and the macOS archive.
+- [Create and run a project](create-and-run-a-project.md): `hecate new`, `install`, `test`, `serve`, the contract, the
+  documentation and the dependencies, with the `hecate` command.
+- [Deliver to a server](deliver-to-a-server.md): a release archive, a systemd unit, versions behind a symbolic link
+  and a reverse proxy, without Docker.
+
 ## Network and processes
 
 - [Connect and serve over TCP](connect-and-serve-over-tcp.md): connect, accept connections,

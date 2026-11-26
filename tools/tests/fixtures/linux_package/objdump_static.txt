@@ -1,0 +1,4 @@
+objdump: hecate: not a dynamic object
+
+DYNAMIC SYMBOL TABLE:
+no symbols

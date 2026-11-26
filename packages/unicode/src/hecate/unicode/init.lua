@@ -10,14 +10,16 @@ local data = require("hecate.unicode_data")
 
 local ArgumentError = core.ArgumentError
 
---- Normalisation of UTF-8 strings: `nfc`, `nfd`, `is_nfc`, `is_nfd`, the Unicode `version` in use and the errors.
+--- Normalisation of UTF-8 strings: `nfc`, `nfd`, `is_nfc`, `is_nfd`, the `unicode_version` in use and the errors.
 ---@class hecate.unicode
----@field version string  the Unicode version of the installed `hecate-unicode-data`, for example "18.0.0"
+---@field version string  the version of this package, the version of Hecate (`VERSION`, ADR 0005)
+---@field unicode_version string  the Unicode version of the installed `hecate-unicode-data`, for example "18.0.0"
 ---@field UnicodeError hecate.unicode.UnicodeError
 ---@field InvalidUtf8Error hecate.unicode.InvalidUtf8Error
 ---@field DataFormatError hecate.unicode.DataFormatError
 local unicode = {
-  version = data.unicode_version,
+  version = "0.0.0",
+  unicode_version = data.unicode_version,
   UnicodeError = errors.UnicodeError,
   InvalidUtf8Error = errors.InvalidUtf8Error,
   DataFormatError = errors.DataFormatError,

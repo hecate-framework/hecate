@@ -1,6 +1,10 @@
 ---@diagnostic disable: need-check-nil, param-type-mismatch, missing-fields
 ---@diagnostic disable: undefined-field, assign-type-mismatch, inject-field
-local test = require("harness.test")
+-- The repository harness runs this file in CI (`harness.test`);
+-- `hecate test` runs it in the project (`hecate.test`): the two
+-- have the same API for what is used here.
+local harness_ok, harness = pcall(require, "harness.test")
+local test = harness_ok and harness or require("hecate" .. ".test")
 local http = require("hecate.http")
 local reactor = require("hecate.reactor")
 local log = require("hecate.log")
@@ -10,11 +14,19 @@ local T = test.Case("HelloExampleTest")
 local here = debug.getinfo(1, "S").source:sub(2):match("^(.*)[/\\][^/\\]+$") or "."
 local wire = dofile(here .. "/helpers/wire.lua")
 
+--- Runs `fn` and waits for what it forks: the harness of the
+--- repository gives each test no reactor; `hecate test` runs the
+--- test in one already, so a scope joins the forked coroutines.
+local function in_reactor(fn)
+  if harness_ok then return reactor.run(fn) end
+  return reactor.scope(fn)
+end
+
 --- Boots the application on an ephemeral port, runs `body(base_url)` as a
 --- client, then shuts down.
 local function with_server(body)
   local app = hello.application({ signals = false, grace_timeout = 1, logger = log.Logger({ sinks = { log.MemorySink() } }), server = { host = "127.0.0.1", port = 0 } })
-  reactor.run(function()
+  in_reactor(function()
     reactor.fork(function()
       reactor.deadline(10, function() while not app:local_address() do reactor.sleep(0.005) end end)
       local base = "http://127.0.0.1:" .. app:local_address().port
@@ -79,7 +91,7 @@ end
 function T:test_shutdown_drains_a_request_in_flight_and_refuses_new_connections()
   local app = hello.application({ signals = false, grace_timeout = 5, logger = log.Logger({ sinks = { log.MemorySink() } }), server = { host = "127.0.0.1", port = 0 } })
   local response, refused, idle_closed, served_ok, err
-  reactor.run(function()
+  in_reactor(function()
     reactor.fork(function()
       local ok, failure = pcall(reactor.deadline, 20, function()
         while not app:local_address() do reactor.sleep(0.005) end

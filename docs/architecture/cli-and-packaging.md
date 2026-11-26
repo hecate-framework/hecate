@@ -31,15 +31,18 @@ Status: specification; [ADR 0009](../adr/0009-project-manifest.md) and
 | `hecate format` | format sources |
 | `hecate routes` | print the route table |
 | `hecate contract export\|diff\|lint` | OpenAPI document, breaking-change detection, lint |
-| `hecate doc build\|serve` | project documentation |
+| `hecate doc build` | project documentation: static sites, one per audience (no development server: owner decision of 2026-11-24, see OQ-148) |
 | `hecate migrate [status\|new\|rollback]` | database migrations |
+| `hecate generate meta [--namespace <name>] [--output <file>] [--force]` | the LuaLS declaration file (`---@meta`) of the schemas of the contract of the application, `meta/<module>.schemas.lua` by default (OQ-121); on demand, never by another command |
+| `hecate generate systemd [--user <name>] [--workers <n>] [--executable <path>] [--output <file>] [--force]` | the systemd unit that runs the application as a service (OQ-133) |
 | `hecate generate <kind> <name>` | scaffold a controller, entity, repository, route module, migration, test case |
 | `hecate package` | generate a rockspec from the manifest and pack a rock |
 | `hecate publish` | publish to luarocks.org (or a configured server) |
 | `hecate toolchain install\|list\|use\|remove` | manage Lua + LuaRocks toolchains |
-| `hecate docker init` | generate a Dockerfile based on official images |
-| `hecate generate workflow <kind> [--provider github]` | generate CI/CD workflows for the project: `ci` (install, check, test on Linux/macOS/Windows), `contract` (export, lint and diff against the base branch), `docs-pages` (build the documentation with `hecate doc build` and publish it to the repository's GitHub Pages), `release` (package and publish rocks) |
-| `hecate doctor` | diagnose the environment: versions, compilers, OpenSSL, libuv, PATH |
+| `hecate generate workflow <kind> [--provider github] [--doc] [--output <file>] [--force]` | (implemented: `ci`, `contract` and `docs-pages`; `release` is to do) generate CI/CD workflows for the project: `ci` (install, check, test on Linux/macOS/Windows), `contract` (on a pull request, diff the committed contract of the base branch against the application and fail on a breaking change), `docs-pages` (build the documentation with `hecate doc build` and publish it to the repository's GitHub Pages), `release` (package and publish rocks) |
+| `hecate serve --env <name>`, `hecate run --env <name>` | set the configuration environment (`HECATE_ENV`) of the child: the flag, else `HECATE_ENV` as the process has it, else `production`; no value in `hecate.project.lua` (it would reach production by accident); a shorter `hecate dev` may come later (owner decision of 2026-11-24) |
+| `hecate package [--output <file>]` | the release archive of the project for a server without Docker (owner agreement of 2026-11-24), see "Delivery to a server" |
+| `hecate doctor` | diagnose the environment: versions, compilers, OpenSSL, libuv, PATH; in a project, the version skew between the executable (`hecate.cli.main.embedded_version()`) and the `hecate.core.version` the project resolves (a child process with the module path of the project): a difference is a warning that says to run `hecate install` or update the executable, and a project without `hecate.core` yet is an informational line |
 | `hecate version` | `Hecate 0.3.0 (Lua 5.5.1, LuaRocks 3.x, libuv 1.x) — linux-x86_64` |
 | `hecate self update` | update the CLI |
 
@@ -148,29 +151,166 @@ the selected toolchain, so user and system LuaRocks configurations never interfe
 > and LuaRocks and acts as the interpreter of a Lua 5.5 project, so `toolchains/lua-5.5.1/` is not downloaded; a
 > toolchain is installed only for another Lua version. This section is rewritten with the `cli` v1 item.
 
+> **`hecate toolchain` (owner direction of 2026-11-24): later.** Nothing is implemented before a second Lua line is
+> supported (Lua 5.4, OQ-7). The direction for that time: Hecate ships its own already compiled toolchains, one per
+> platform, architecture and Lua version, built and tested in CI by the project, rather than compiling Lua on the user's
+> machine, so that switching interpreters (`hecate toolchain use`) gives a combination known to work. Where the archives
+> are published and stored (the releases of the monorepo are the natural place) and how they are verified (the
+> `sha256` of each archive in the release notes and in the CLI) is decided when the item starts.
+
+> **Headers for C rocks (owner decision of 2026-11-24).** The executable carries the `lua.h`, `luaconf.h`, `lualib.h`
+> and `lauxlib.h` of its embedded Lua. `hecate install` unpacks them into `.hecate/lua/include` and points the
+> `LUA_INCDIR` variable of the isolated LuaRocks configuration at that directory, so that a rock with C code builds
+> with no system Lua. On Windows `LUA_LIBDIR` and the import library come with the `lua55.dll` beside the executable.
+
 ## Generated workflows
 
 `hecate generate workflow` writes `.github/workflows/<kind>.yml` from templates in
-`packages/cli/templates/workflows/`. Generated workflows:
+`packages/cli/src/hecate/cli/templates/workflows.lua`. Generated workflows:
 
 - call only `hecate` commands, so they behave like local runs;
-- install the CLI with the official setup action of the project (to be created with the
-  CLI release) and cache the toolchain and the rocks tree;
+- install the CLI with the official setup action of the project (`packages/actions/setup/`, below) and cache the rocks tree
+  (`lua_modules`, keyed by the hash of `hecate.lock`);
 - pin third-party actions by commit SHA;
 - carry a header naming the template and Hecate version, and are regenerated with
-  `--force` after an upgrade (a diff is shown first).
+  `--force` after an upgrade (the unified diff of the existing and the new file is shown first, then the file is overwritten; identical content is reported as unchanged and not rewritten).
 
 `docs-pages` uses the standard GitHub Pages actions (configure, upload artefact,
-deploy), deploys from the default branch, supports a custom domain (`CNAME`) and sets
-the base URL for project sites (`https://<owner>.github.io/<repository>/`). It needs
-GitHub Pages set to "GitHub Actions" as source; the command prints that step.
+deploy), deploys on a push to the default branch and supports a custom domain (`CNAME`). The documentation site is
+static with relative links (OQ-148), so the workflow sets no base path. It needs GitHub Pages set to "GitHub Actions" as
+source; the command prints that step.
+
+`contract` runs on pull requests, on Linux, with the whole history (`fetch-depth: 0`): `hecate contract diff
+origin/<base branch>` compares the `openapi.json` committed on the base branch with the contract of the application of
+the pull request and exits 1 on a breaking change. It needs a project with a `contract` section (the command refuses
+otherwise) and `openapi.json` committed on the base branch.
+
+The setup action is released like any GitHub Action (owner direction of 2026-11-24): a package of its own
+(owner decision of 2026-11-25: the package `actions`, `packages/actions/`, which is no Lua rock and has the `Kind | actions` row in its README so that the tools exempt it from the rockspec, version and layer checks; the action is `packages/actions/setup/action.yml`, published with the whole package to the generated read-only mirror `hecate-framework/hecate-actions`, ADR 0017, where it stays at `setup/action.yml`, the path GitHub resolves for a `uses:` that names a directory of a repository; the action installs the executable of a given release and puts it on the `PATH`; `uses: hecate-framework/hecate-actions/setup@<ref>`), the tags of Hecate and of the mirror of the package have no `v` and follow the LuaRocks version form `<version>-<revision>` (`0.1.0-1`; owner, 2026-11-25), each with a GitHub Release, and there is no moving major tag; a user pins a tag or, as the generated workflows do, a commit SHA with the tag
+in a comment. The release process of Hecate (`release-manager`, the `release` workflow) publishes the executable first,
+then tags the action for it, and updates in the same release the commit SHA of the action that the templates of
+`hecate generate workflow` write, so that a project generated by a release uses the setup action of that release.
+
+Implemented: the `ci` workflow (push and pull request; Linux, macOS, Windows; checkout, setup, `hecate install --frozen`,
+`hecate test`, `hecate contract export` and `lint` when the manifest has a `contract` section, `hecate doc build --yes`
+with `--doc`), and `hecate new --ci github`, which writes it for the `api` and `minimal` templates. `packages/actions/setup/` is a
+composite action (`version`, `repository` inputs): it downloads `hecate-<version>-<os>-<architecture>.tar.gz` (`.zip` on
+Windows; `os` is `linux`, `darwin` or `windows`, `architecture` `x86_64` or `aarch64`; `<version>` is the whole `X.Y.Z[pre]-R`, executable at the archive root, `lua55.dll` beside `hecate.exe` on Windows) from the release `<version>` (the tag, no `v`) of
+`hecate-framework/hecate`, verifies it against its `<asset>.sha256` (`<hex>  <archive name>`), refuses on a mismatch, and puts the directory on the `PATH`.
+The `version` input is `X.Y.Z[pre]-R` (the grammar of "Releases"; anything else is refused, a leading `v` included) and the `hecate version` check compares the `X.Y.Z[pre]` part (`hecate version` prints the content of `VERSION`). The generated workflows write `version: "<hecate_version>-<REVISION>"` (`REVISION`, a constant of the same module, is `1`) and name `hecate-framework/hecate-actions/setup@<tag>`, where the tag is the constant
+`hecate.cli.templates.workflows.SETUP_REF`, a placeholder (`0.0.0-1`) that the release process replaces (OQ-149). The `contract`
+kind (`contract.yml`) and the `docs-pages` kind (`docs.yml`: setup, `hecate install --frozen`, `hecate doc build --yes`, then
+configure, upload (`docs/dist`) and deploy with the Pages actions pinned by commit SHA; permissions `contents: read`,
+`pages: write`, `id-token: write`) are implemented as described above. Not
+implemented yet: the `release` kind (owner gate: releases and installers), and the cache
+of the toolchain (there is none to cache: the executable is the interpreter, ADR 0029).
+
+The service of a project in production is generated by `hecate generate systemd` (OQ-133, owner decision of
+2026-11-24 for the name): a unit that runs `hecate serve`, stops on `SIGTERM` and reloads on `SIGHUP`.
 
 The Hecate monorepo dogfoods these templates: its `website.yml` is generated by
 `hecate generate workflow docs-pages` once the CLI exists.
 
+## Releases
+
+The `release.yml` workflow builds the `hecate` executable and attaches it to a GitHub Release (owner requirements of
+2026-11-25). Rocks, Docker images and the installers come later (P3).
+
+- **Names.** A tag and its release are named `<version>-<revision>` in LuaRocks form, without a `v` prefix (`0.1.0-1`).
+  The version is `X.Y.Z`, optionally followed directly by a pre-release: `alpha`, `beta`, `rc` or `pre` and a number
+  (`0.4.2rc1-1`, `1.0.0beta2-1`), the tokens that LuaRocks orders before the final release (`luarocks.core.vers`: alpha <
+  beta < pre < rc < final; the order is informational here). `dev`, `scm` and `cvs` are refused, as are a hyphen before
+  the pre-release (`0.4.2-rc1-1`), a pre-release without a number (`0.4.2rc-1`) and a missing revision. The grammar is
+  `^[0-9]+\.[0-9]+\.[0-9]+((alpha|beta|rc|pre)[0-9]+)?-[0-9]+$`, one validator per language
+  (`tools/lib/release_version.lua`, and the same expression in the setup action, a test keeps them equal).
+  `X.Y.Z[pre]` must equal the root `VERSION` file, so a pre-release is built from a `VERSION` that holds `0.4.2rc1`
+  (the rockspecs and the `version` fields follow it): the first job of the workflow (`package-cli --check-tag`) fails
+  before anything is built when it does not. A version with a pre-release part is created as a draft **marked
+  pre-release** (`gh release create --prerelease`; the `plan` job passes `package-cli --check-tag --prerelease`, which
+  prints `true` or `false`, as the output `prerelease`).
+- **Draft first, the owner publishes.** The owner enables GitHub's immutable releases setting: once a release is
+  published, assets cannot be added. The workflow therefore runs on the **push of the tag**, builds on every platform,
+  and creates the release as a **draft** with every asset attached (`gh release create <tag> --draft --verify-tag`),
+  then stops. It never publishes: the owner reviews the draft (the assets, their `.sha256`, the notes, which point to
+  `CHANGELOG.md`) and publishes it by hand. (`release: created` is not fired for a draft and `published` is too late for
+  assets, hence the tag trigger.)
+- **Assets**, per platform: `hecate-<version>-<os>-<arch>.tar.gz` (`.zip` on Windows) and
+  `hecate-<version>-<os>-<arch>.tar.gz.sha256` (`<hex>  <archive name>`, the `sha256sum` format; `.zip.sha256` on
+  Windows); `os` is `linux`, `darwin` or `windows`, `arch` is `x86_64` or `aarch64`, `<version>` is the whole `X.Y.Z[pre]-R`.
+  The executable is at the root of the archive: `hecate`, or `hecate.exe` with `lua55.dll` beside it on Windows. These are
+  the names that the setup action (`packages/actions/setup`) downloads. The archive is deterministic (`package-cli`:
+  sorted entries, fixed time and owner; the Windows zip holds stored entries). On a tag, each archive also gets a build
+  provenance attestation (`actions/attest-build-provenance`; `gh attestation verify <archive> --repo <owner/repo>`).
+- **Linux packages** (owner decision of 2026-11-25), attached to the same draft, each with its `.sha256`, x86_64 only for
+  now (arm64 comes with its runners): packages that a user installs from a file with the tool of the system, with no
+  repository, account or certificate. `package-cli --format=deb|rpm|archlinux|apk` writes them (`tools/lib/linux_package.lua`,
+  one metadata table for every format; entries sorted, time 1980-01-01, owner 0; `gzip` and `zstd` compress, `rpmbuild`
+  writes the rpm from a generated spec). Content of each: `/usr/bin/hecate` (0755), the licence (`/usr/share/doc/hecate/copyright`
+  for the deb, `/usr/share/licenses/hecate/LICENSE` for the others) and the completions printed by the built executable
+  (`hecate completion bash|zsh|fish`, at `/usr/share/bash-completion/completions/hecate`,
+  `/usr/share/zsh/site-functions/_hecate`, `/usr/share/fish/vendor_completions.d/hecate.fish`). Names:
+  `hecate_<X.Y.Z[pre]>-<R>_amd64.deb`, `hecate-<X.Y.Z[pre]>-<R>.x86_64.rpm` (no tilde in a file name: GitHub rewrites the characters it does not keep in the name of an asset; the version of the package, with its tilde, is in the metadata), `hecate-<pkgver>-<pkgrel>-x86_64.pkg.tar.zst`,
+  `hecate-<apk version>.x86_64.apk`. **Version mapping** of `X.Y.Z[alpha|beta|rc|pre]N-R`: deb `X.Y.Z~rcN-R`; rpm Version
+  `X.Y.Z~rcN`, Release `R`; Arch pkgver `X.Y.ZrcN`, pkgrel `R` (Arch has no tilde, a pre-release sorts after the final
+  version there); Alpine `X.Y.Z_rcN-rR` (the final release `X.Y.Z-rR`). The deb is an `ar` of `debian-binary`,
+  `control.tar.gz` (`control`, `md5sums`) and `data.tar.gz`, with `Depends: libc6 (>= 2.28)`; the Arch package is a zstd tar
+  with `.PKGINFO` (no `.MTREE`); the apk is two gzip streams, a control tar with `.PKGINFO` (carrying `datahash`, the
+  sha256 of the data stream) and the data tar. None is signed: a file install checks no repository signature, and the apk
+  needs `apk add --allow-untrusted` until a project key exists.
+- **Container builds.** The Linux executables are built inside containers started by `docker run` from the ubuntu runner
+  (not `container:` on the job: JavaScript actions inside a container are fragile), by `tools/ci/release-linux-build.sh`,
+  which only provisions the container (packages, rustup with the toolchain of `packages/json/native/rust-toolchain.toml`,
+  the bootstrap of Lua) and calls the tasks. **glibc**: `almalinux:8` (glibc 2.28), the dynamic executable that the Linux
+  archive, the deb, the rpm and the Arch package all carry. **musl**: `alpine:3.20`, `build-cli --static` (`cc -static`),
+  the apk; the Rust encoder is built with `RUSTFLAGS=-C target-feature=-crt-static` so that it does not bundle a second
+  libc. A static executable cannot `dlopen`: on Alpine a C rock that `hecate install` builds cannot be loaded (the
+  modules linked in and the Lua modules work).
+- **glibc guard.** The default build on a current runner needs glibc 2.38 and would not run on Ubuntu 22.04, Debian 12 or
+  RHEL 8 and 9. `package-cli` reads the highest `GLIBC_x.y` symbol version of a Linux ELF executable (`objdump -T`, else
+  `readelf --dyn-syms`; the parser is `linux_package.highest_glibc`, tested on fixture text) and refuses it above
+  `--max-glibc` (default 2.28, the floor; `none` disables it); a static, musl or non-ELF file is skipped.
+- **Smoke tests in real distributions.** After the builds, `tools/ci/release-linux-smoke.sh` installs each package with the
+  tool of its distribution in a container and runs it: the deb in `debian:12` and `ubuntu:22.04` (`apt-get install ./f`),
+  the rpm in `almalinux:9` and `fedora:latest` (`dnf install ./f`), the Arch package in `archlinux:base` (`pacman -U`), the
+  apk in `alpine:3.20` (`apk add --allow-untrusted`). Each run checks `hecate version` (it must print `Hecate <VERSION>`),
+  `hecate completion bash`, the three completion files and the removal. Images are pinned by tag; `fedora:latest` and
+  `archlinux:base` are rolling tags (the only ones those distributions have). Digest pins updated by Dependabot's docker
+  ecosystem are a follow-up.
+- **Platforms** for now: the three that `ci.yml` builds and tests (linux-x86_64 from the container builds above on
+  `ubuntu-latest`, `macos-latest` darwin-aarch64, `windows-latest` windows-x86_64; os and architecture come from `uname` or the Windows environment,
+  not from a table). aarch64 Linux and Windows are to be added to the matrix when runners are chosen for them; the six
+  targets planned for the P3 release (automation.md) include them.
+- **Same build as CI** (macOS and Windows; Linux is the container build above). The toolchain steps are those of `ci.yml` (same pins and cache key), then
+  `build-cli --strict`, `package-cli` and its smoke test: the archive is extracted and `hecate version` must print the
+  expected `X.Y.Z[pre]` (the content of `VERSION`).
+- **Rehearsal.** A pull request that touches the release machinery (`release.yml`, `package-cli`, `build-cli`, the archive
+  library, the C host) and `workflow_dispatch` (input `revision`, default `1`) run the same plan, builds (containers included), packaging and
+  smoke tests (every distribution), keep the assets as workflow artifacts (seven days) and create no release. The
+  `draft-release` job expects exactly the names listed by `package-cli --list-assets` (7 files and 7 `.sha256`, computed by
+  `plan`) and runs `sha256sum -c` on them all. The pull request
+  trigger is how a change to the release is tested before it is merged: GitHub lists a dispatchable workflow only once
+  the file is on the default branch (the same holds for `gh workflow run release.yml --ref <branch>`).
+- **Permissions.** Every job has `contents: read`; the build jobs add `id-token` and `attestations: write` for the
+  attestation; only `draft-release` has `contents: write`.
+
+## Delivery to a server
+
+Without Docker, a release is a folder that a server can run (owner agreement of 2026-11-24; `hecate package` and
+`hecate generate systemd` exist). The usual path, which the commands are to support:
+
+1. CI builds the release on the OS and architecture of the server: `hecate install --frozen`, then `hecate package`,
+   an archive `<name>-<version>-<os>-<arch>.tar.gz` (a `.zip` on Windows) with `hecate.project.lua`, `hecate.lock`,
+   `main.lua`, `src/`, `config/` (the layers, never secrets) and `lua_modules/`, a `RELEASE` file (project version,
+   Hecate version, Lua release, platform) and a `.sha256` next to it. Tests, `.git`, `.hecate/` and `docs/dist` stay out.
+2. The server has the `hecate` executable and a unit made by `hecate generate systemd`; secrets and the environment
+   come from an `EnvironmentFile` outside the release (`HECATE_*`, `HECATE_ENV=production`).
+3. A deploy unpacks the archive in a new directory, checks the checksum, switches a `current` symbolic link and runs
+   `systemctl reload` (SIGHUP, ADR 0023) or a restart; a rollback switches the link back. TLS and the public port are a
+   reverse proxy's (Caddy, nginx) in front of `hecate serve`.
+
 ## Templates
 
-`api` (default: controllers, schemas, tests, Dockerfile; `--ci github` also generates
-the `ci`, `contract` and `docs-pages` workflows), `minimal` (single route
+`api` (default: controllers, schemas, tests; `--ci github` also generates
+the `ci` workflow; `contract` and `docs-pages` are separate kinds), `minimal` (single route
 module), `crud` (PostgreSQL, ORM, migrations). Templates live in
 `packages/cli/templates/` and are tested in CI by generating and testing a project.

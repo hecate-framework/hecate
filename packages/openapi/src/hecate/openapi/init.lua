@@ -75,7 +75,9 @@ local problem_details = require("hecate.openapi.internal.problem_details")
 
 --- Document assembly and encoding.
 ---@class hecate.openapi
+---@field version string  the version of this package, the version of Hecate (`VERSION`, ADR 0005)
 local openapi = {}
+openapi.version = "0.0.0"
 
 --- The version of the OpenAPI Specification the documents follow.
 openapi.VERSION = "3.1.0"

@@ -785,6 +785,13 @@ function T:test_workers_and_strategy_are_validated()
   self:assert_true(pcall(kernel.Application, { workers = 4, strategy = "round_robin", worker_command = { "lua", "main.lua" } }))
 end
 
+function T:test_workers_auto_leaves_one_core_to_the_primary_and_the_system()
+  local reactor = require("hecate.reactor")
+  local app = kernel.Application({ workers = "auto" })
+  app:boot()
+  self:assert_equal(math.max(1, reactor.available_parallelism() - 1), app._resolved.workers)
+end
+
 function T:test_workers_and_strategy_default_to_one_process_and_auto()
   local app = kernel.Application({})
   app:boot()

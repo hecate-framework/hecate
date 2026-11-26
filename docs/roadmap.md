@@ -353,7 +353,7 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       content tree per audience, `<guides_dir>/<audience>/<locale>/`, each built by the plain builder into
       `<output_dir>/<audience>/`; option `audiences`, default `{ "maintainer" }`; no front matter key, no `merged` mode),
       `llms.txt` and `llms-full.txt` of a project, the theme extension points. **To do:** `llms.txt` of other locales (deferred until someone asks); a `draft` page flag. The move of the Hecate website into two trees is done (the `website` item below); there is no `check-audience` gate (the directory is the label) and no switcher feature (`top_links` carries an absolute link). `hecate doc build|serve` and the `doc` section of `hecate.project.lua` belong to the `cli` item below.
-- [ ] `cli` v1: self-contained executable, `new`, `install`, `add`, `remove`, `update`,
+- [x] `cli` v1: self-contained executable, `new`, `install`, `add`, `remove`, `update`,
       `serve [--watch]`, `test`, `doc`, `contract`, `toolchain`, `doctor`, `version`.
       **Also (from the `test` item, owner go-ahead of 2026-11-16):** `hecate test` takes the options of
       `test.parse_arguments` (`--filter`, `--case`, `--tag`, `--exclude-tag`, paths) and a `--jobs` flag that sets the
@@ -378,7 +378,7 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       (signals, exit code, `--watch`); the platform manages running instances, `hecate serve` never daemonises, and the CLI
       generates a systemd unit (no Docker artefacts); toolchain
       archives per platform and architecture only for other Lua versions; installers (Windows setup executable, macOS
-      `.pkg`, Linux archives, Homebrew, winget, Scoop); `hecate.cli.digest` over the `digest` rock (ADR 0028), compiled
+      `.pkg`, Linux archives, Homebrew, winget); `hecate.cli.digest` over the `digest` rock (ADR 0028), compiled
       into the host and checked on the platforms; a command to switch interpreters once Lua 5.4 is supported.
       **Also (OQ-122, owner decision of 2026-11-13, ADR 0023 amended):** `server.workers` accepts `"auto"` and
       defaults to it: `max(1, cores - 1)`, `cores` from `uv.available_parallelism()` (exposed by `reactor`), read on
@@ -389,8 +389,10 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       **Also (OQ-121):** `gen-meta`, the LuaLS `---@meta` files generated from schemas, as a `tools/` task and through
       the CLI (file layout, naming and when it runs decided with the item).
       **Also (from the `doc` item, owner decisions of 2026-11-18):** `hecate doc build` (one site per audience, OQ-144; by
-      default the maintainer one) and `hecate doc serve [--watch]`, a local server that rebuilds on change and reloads, to
-      write pages. When the project asks for a code reference (`package_name`), the command warns that LuaLS runs the plugin
+      default the maintainer one); there is no `hecate doc serve` (owner decision of 2026-11-24: the output is static
+      files, like Javadoc, OQ-148). **To do (OQ-148, resolved 2026-11-24):** the built site must open from the file
+      system: relative links between pages and to assets (no root-relative URL), the search index as a script file, a
+      test that resolves every link and asset of a built page from the written files. When the project asks for a code reference (`package_name`), the command warns that LuaLS runs the plugin
       declared by any LuaLS configuration reachable from the documented directory (`.luarc.json`, `.luarc.jsonc`,
       `.vscode/settings.json`, including a `.luarc.json` inside the sources directory even when `language_server_config_path`
       points elsewhere), with full file and command access as the current user, and lets the user bail out
@@ -401,9 +403,31 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       point is `hecate.doc.generate_project_documentation(options)` (it replaces `hecate.doc.project.build`, no
       alias) with named options and defaults of the conventional layout (`sources_dir = "src"`, `guides_dir = "docs"`,
       `output_dir = "docs/dist"`, relative to `project_dir`).
+      **Also (owner request of 2026-11-22):** shell completion of commands and options: `hecate completion bash|zsh|fish|powershell` prints a small script that calls a hidden `hecate __complete <words...>` command, which answers from the command declarations of `hecate.cli.parser` (names, two-word commands, option names, and values for options that declare them), so the command tree stays the single source; `--help` lists the install line per shell. Tested by golden outputs of `__complete` and of the four scripts; the PowerShell and zsh scripts are checked on the CI platforms where the shell exists. Dynamic values (rock names, toolchain versions) later, only offline and cheap.
       **Also (from the `examples/hello` item):** turn `examples/hello` into a Hecate project (`hecate.project.lua`, run
       by `hecate serve`, tested by `hecate test`, `hecate contract lint` in CI), as `examples/README.md` requires of
       every example from Phase 3 on; today it is `lua main.lua` and the repository harness.
+      **Delivered:** the executable (static natives, embedded LuaRocks, Lua headers for C rocks, Windows manifest), every
+      command of the list above except `toolchain`, `generate meta|systemd|workflow`, `package`, `--env`, the `doc`
+      section, the `workers` default of `"auto"`, the static documentation sites (OQ-148), `examples/hello` as a project,
+      the `cli-e2e` tests on the three platforms, the website pages in English and French.
+      **Delivered (owner, 2026-11-25: "this pull request goes until 2 is met"; proven by the release rehearsal of the pull request):** the packages that a
+      user installs from a file with the tool of the system, with no repository to host, no account and no certificate to
+      buy, attached by the release workflow to the same draft as the archives, for the platforms of the first release
+      (Linux x86_64; arm64 later): `.deb` (`hecate_<version>_amd64.deb`, `dpkg -i` or `apt install ./...`), `.rpm`, the
+      Arch package (`.pkg.tar.zst`, `pacman -U`) and the Alpine package (`.apk`, built from a static musl executable;
+      unsigned, so `apk add --allow-untrusted`), each with its `.sha256`; the pre-release form `0.4.2rc1-1` becomes
+      `0.4.2~rc1-1` in the Debian and RPM metadata (tilde sorts before the release). Linux executables are built in a
+      container whose glibc is old enough for every supported distribution (glibc 2.28, AlmaLinux 8; OQ-149) and
+      `package-cli` refuses an executable that needs a newer glibc; every package is installed and run (`hecate version`) in
+      a container of its distribution inside the release workflow (also in the rehearsal that a pull request runs).
+      Order of the owner: (1) the archives, (2) these packages (both done), (3) the rest (the item "Distribution channels" of Phase 5).
+      **Moved out (owner decisions of 2026-11-24 and 2026-11-25), nothing to implement before them:** `hecate toolchain`
+      (later: compiled toolchains shipped by the project, nothing before Lua 5.4 is supported); the `crud` template (until
+      the ORM and the migrations exist); the publication of releases and the pin of the tag of the `setup` action in the
+      mirror `hecate-framework/hecate-actions` (owner gate, OQ-149); the `release` kind of `generate workflow`; a check of
+      the generated workflow files (`actionlint`) and the French pages that the pages of this item link to (the item
+      "follow-ups of the `cli` v1 item" before the Phase 3 gate).
 - [ ] Docker images (runtime and build variants, amd64 + arm64). **Also (OQ-135, owner decision of 2026-11-15):**
       document a compose stack that shows the contract rendered: the application (`development`, or
       `openapi.enabled = true`), a reverse proxy so that the viewer and the application share one origin (no CORS
@@ -446,9 +470,9 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       inline `on_error` snippet, which the output rule refuses in example files.
 - [ ] Meta-rock `hecate` (standard edition).
 - [ ] Read-only mirrors (ADR 0017): `split`, `mirrors ensure`, `check-mirrors`, the tag of the `unicode-data` mirror is the Unicode version and not `VERSION` (ADR 0032),
-      `split.yml`; Homebrew tap and Scoop bucket repositories (applies OQ-17: `splitsh-lite` pinned, `git subtree split` as fallback, see the [spike](spikes/OQ-17-split-tool.md)).
+      `split.yml`; Homebrew tap repository (applies OQ-17: `splitsh-lite` pinned, `git subtree split` as fallback, see the [spike](spikes/OQ-17-split-tool.md)).
 - [ ] Publish all rocks to luarocks.org (sources from mirrors).
-- [ ] `hecate generate workflow` (ci, contract, docs-pages, release) and its templates;
+- [ ] `hecate generate workflow` (ci, contract, docs-pages done; release to do) and its templates;
       regenerate the monorepo's `website.yml` with it.
 - [ ] Release automation: `release.yml` (including one LuaRocks binary rock per platform for
       the native modules of `net` and `json`, ADR 0021), `docker.yml`, `cli-e2e.yml`, `website.yml`
@@ -485,6 +509,45 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       between the two is a finding. Until a first release exists, the pinned build is a recorded commit. The job is
       written and documented in this item, and the migration stays reversible until every package passes; (5) delete `tools/harness/`.
 - [x] `website`: move the Hecate website into `website/user/` and `website/maintainer/` (OQ-144, owner decisions of 2026-11-21), before `0.1.0`: every URL changes, and changing URLs after a release is breaking. Two trees, each built by the plain builder into its own directory (`/user/en/...`, `/maintainer/en/...`), `/` redirecting to the user site, the French mirror moving with its English page, one `site.lua` for both and an edit-link template naming the tree directory, the code reference split (public symbols to the user tree, internals to the maintainer tree: `reference_site.run` with `audience_locale_dirs`), the two entries of `top_links` pointing at the other site, and a check of the links between the two trees added to `check-links`. The classification is approved (owner, 2026-11-21): [docs/reviews/website-audience-classification.md](reviews/website-audience-classification.md). Also: the section "The life of a request" of `architecture-and-layers` becomes the user page `explanation/life-of-a-request.md` (French page with it); the maintainer site publishes `docs/architecture/` and the ADRs as generated pages (git-ignored, the files stay the source of truth; a task writes them into the maintainer tree with a title and a description and rewrites their links; the mechanism is settled when the item starts); `docs/roadmap.md`, `docs/open-questions.md` and `docs/reviews/` are published on the maintainer site too (owner decision, delivered by the same task). **Delivered (pull request #229):** the pages moved (all but `architecture-and-layers` and `measure-performance` to the user tree), "The life of a request" is the user page `explanation/life-of-a-request.md` (French page with it), two builds (`dist/user`, `dist/maintainer`, `/` redirecting to the user site), `bin/build.lua --internals-into` splits the code reference, `check-links` resolves links between the two trees, and the task `gen-maintainer-docs` publishes `docs/architecture/` and the ADRs as generated pages of the maintainer tree. The edit link of the two trees is the `audience` option of the builder (OQ-146, owner decision).
+- [ ] `core`, `doc`, `config`, `cli`: one shared sandbox for Lua files that only describe data (owner decision of 2026-11-22). Today
+      `hecate.doc.internal.sandbox` (instruction and memory limit on a coroutine hook, added with the `doc` hardening of
+      2026-11-19) has a copy in `hecate.cli.internal.sandbox` (manifest), and `hecate.config` loads its files with its own
+      `load(text, "@" .. path, "t", {})` (check whether it has the limits). Move the guard to a public module of `core`
+      (name to settle with the item, for example `hecate.core.sandbox`; `core` stays dependency-free and does no I/O),
+      with its tests and the limits of the C calls it cannot bound documented; make `doc`, `cli` and `config` call it and
+      delete the private copies; `configuration.md` and ADR 0009 point to it. Before `0.1.0`: a public module of `core`
+      is frozen with the API.
+- [ ] `cli`, `tools`: follow-ups of the `cli` v1 item, to finish before the Phase 3 gate (owner instruction, 2026-11-25):
+      a `tools/` task that validates the workflow files (`actionlint`, or the equivalent offered by the CI platform) over
+      the files that `hecate generate workflow` writes and over `packages/actions/setup/action.yml`, run in CI (OQ-149 (5)); the
+      French pages that the pages of the `cli` item link to and that exist in English only (`configure-an-application`,
+      `serve-and-export-the-contract`, `multi-process-deployment`, `before-going-to-production`, `theme-tokens`,
+      `reference/configuration-keys`): translate them, then replace the plain text of the French `cli` pages by links.
+- [ ] `cli`, `reactor`: stop the whole tree on Windows (found by the cross-platform review of the `cli` item): `kill` is
+      `TerminateProcess`, so stopping `hecate serve` or `hecate run` leaves the application process running, holding its port and
+      the executable. Give `reactor.spawn` a Windows job object with kill-on-close (the `own_group` option has no effect on
+      Windows today), make the supervisor of `serve.lua` use it, and delete the `taskkill /T` workaround of
+      `tools/tests/cli_e2e_test.lua`. Test on the Windows runner.
+- [ ] `cli`, `test`: the tests of `serve.lua` (`serve_test.lua`) order events with real sleeps of 0.02 to 0.05 seconds, which
+      can flake on a loaded runner; drive them with the virtual clock of `hecate.test` and with signals and events (a
+      `wait_until`), as the testing documentation and ADR 0008 require.
+- [ ] `cli`, `tools`, before the first release: pin the macOS deployment target of `build-cli` (`MACOSX_DEPLOYMENT_TARGET`,
+      architectures) so that a binary built on a recent runner runs on older macOS; resolve the path of the executable with
+      `realpath` when it was found through `PATH` (bare `argv[0]`), and match the `.lua` extension of a script argument
+      case-insensitively on Windows and macOS.
+- [ ] `cli`: hardening and test gaps left by the review of the `cli` item (security, cross-platform and test reviews of
+      pull request 231): native rocks are checked only by the digest of their rockspec; `hecate package` ships `config/`
+      whole; stricter parsing of untrusted lock and rockspec text; symlink-aware `inside_project`; `--` before script paths and
+      `git show --end-of-options`; systemd hardening options and a non-root default user; property tests for
+      `manifest_edit`, `constraint` and the lock round trip; negative cases of `constraint` and `manifest_edit`; a real
+      `git show` and a real `hecate package` end to end test; `completion_shells_test` and `runner_test` with the running
+      interpreter; end to end runs in a directory with a space and with non-ASCII characters on the three platforms; the
+      CI strictness of `cli_bundle_test` (the build must succeed in CI, never skip).
+      Two failures seen once each in CI and not explained, both passed on a re-run: the Linux libuv configure of
+      `build-cli` (`CMake Error ... WriteBasicConfigVersionFile.cmake:71 (configure_file): No such file or directory`,
+      CMake 4.5 on the runner, 2026-11-26, run 45816813525) and the Windows kernel `SupervisorTest`
+      "a worker that stops reading its message pipe" ("expected 3, got 6"); find the cause of each when it comes back
+      (keep the log) rather than retrying.
 - [ ] **Phase 3 gate**: verification of the phase, as described in [Phase gates](#phase-gates). Open
       questions to put to the owner before Phase 4: OQ-18 and OQ-45.
 
@@ -521,6 +584,13 @@ Exit: `examples/crud` works unchanged on PostgreSQL, MySQL, MariaDB and SQLite.
 
 ## Phase 5 — Ecosystem expansion
 
+- [ ] `cli`, `release`: distribution channels, after the archives and the packages of the `cli` v1 item (owner, 2026-11-25;
+      all need something outside this repository: a repository, an account, a moderation queue or a certificate):
+      Homebrew (a tap with a formula that points at the release), winget (the easiest for a Windows user:
+      built in, `winget install`; a manifest proposed to `microsoft/winget-pkgs`, automated with `wingetcreate`), the AUR
+      (`PKGBUILD`), signed apt, yum and apk repositories (keys and hosting), the macOS
+      `.pkg` (needs signing and notarisation, an Apple account), a Windows installer. **Not wanted (owner):** AppImage,
+      Flatpak, Snap, Scoop and Chocolatey (winget is enough for Windows). MacPorts only if someone asks.
 - [ ] `security`: authentication (bearer tokens, JWT, sessions), authorisation
       policies, password hashing.
 - [ ] `mongodb`: OP_MSG protocol, BSON, document mapper.

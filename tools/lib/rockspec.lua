@@ -29,6 +29,21 @@ end
 --- Unicode schedule and never bumped with `VERSION`.
 M.exempt = { ["unicode-data"] = { license = "Unicode-3.0", versioned_by = "Unicode" } }
 
+--- Packages whose top-level module has no `version` field of the package: the data rock is released outside the
+--- lockstep and its module exposes `unicode_version`, the Unicode version, which is also its rock version (ADR 0032).
+--- `hecate.unicode` is not exempt: its `version` is the lockstep `VERSION` and it reports the Unicode version as
+--- `unicode_version` (owner decision of 2026-11-25, OQ-150).
+M.version_field_exempt = { ["unicode-data"] = true }
+
+--- The `version` field of a top-level module, read from its text: a `version = "..."` entry of the table constructor
+--- (indented by two spaces) or a `<name>.version = "..."` assignment at the start of a line.
+---@param text string
+---@return string?
+function M.module_version(text)
+  local v = ("\n" .. text):match('\n  version = "([^"\n]*)"') or ("\n" .. text):match('\n[%a_][%w_]*%.version = "([^"\n]*)"')
+  return v
+end
+
 --- The licence identifier a package rockspec declares (MIT unless the package is listed in `M.exempt`).
 ---@param name string
 ---@return string

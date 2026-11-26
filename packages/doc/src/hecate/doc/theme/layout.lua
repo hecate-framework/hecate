@@ -65,8 +65,10 @@ local M = {}
 ---@field alternates { lang: string, url: string }[]
 ---@field footer_text? string  site footer, defaults to the interface string
 ---@field home_url string
----@field search_index_url string
----@field asset fun(path: string): string  URL of a theme asset or root file
+---@field search_index_url string  link to the script of the search index, relative to the page
+---@field root string  path from the page to the root of the site (`../../`, or empty at the root); the not-found page of a site with a `site_origin` holds the absolute address of the root
+---@field asset fun(path: string): string  link to a theme asset or root file, relative to the page (the output path below the root: `assets/theme.css`)
+---@field public_url fun(path: string): string  link to a file of `public/`, relative to the page
 
 local ICONS = {
   search = "<circle cx=\"11\" cy=\"11\" r=\"6.5\"/><path d=\"M16 16l5 5\"/>",
@@ -325,7 +327,7 @@ local function script_config(context)
   for _, key in ipairs(keys) do subset[key] = s[key] end
   -- `<`, `>` and `&` are written as escapes so that the text cannot close the script element.
   local text = json.encode({
-    base = context.site_configuration.base_path, locale = context.locale.code, index = context.search_index_url, strings = subset,
+    root = context.root, locale = context.locale.code, index = context.search_index_url, strings = subset,
   }, { canonical = true }):gsub("[<>&]", function(char) return ("\\u%04x"):format(char:byte()) end)
   return ("<script type=\"application/json\" id=\"doc-config\">%s</script>"):format(text)
 end

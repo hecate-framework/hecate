@@ -13,6 +13,7 @@ local errors = require("hecate.net.errors")
 --- Streams over the reactor: the `Stream` interface, TCP streams and listeners, UDP sockets, pipes,
 --- name resolution, TLS and buffered readers and writers.
 ---@class hecate.net
+---@field version string  the version of this package, the version of Hecate (`VERSION`, ADR 0005)
 ---@field BufferedReader hecate.net.BufferedReader
 ---@field BufferedWriter hecate.net.BufferedWriter
 ---@field Stream hecate.net.Stream  interface a transport implements
@@ -27,6 +28,7 @@ local errors = require("hecate.net.errors")
 ---@field TlsError hecate.net.TlsError
 ---@field tls hecate.net.tls
 local net = {
+  version = "0.0.0",
   BufferedReader = require("hecate.net.buffered_reader"),
   BufferedWriter = require("hecate.net.buffered_writer"),
   Stream = require("hecate.net.stream"),

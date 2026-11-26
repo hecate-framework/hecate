@@ -8,7 +8,7 @@
 | Rock | `hecate-doc` |
 | Layer | Tooling |
 | Roadmap phase | 3 |
-| Status | alpha. The roadmap phase stays 3 because the package is still in progress for it. Implemented: Markdown (comrak) and highlighting (syntect) through the native module, the site model (locales with fallback, sidebar, previous and next), the original theme and its extension points, the search index, `build`, the code reference from LuaLS, the documentation of a project (`generate_project_documentation`: configuration reference, licences page, LuaLS meta files), audiences (one content tree and one documentation site each, built from `<guides_dir>/<audience>/`), Mermaid diagrams (vendored), and `llms.txt` and `llms-full.txt` (opt-in). Pending (Phase 3): versioned documentation, development server, runnable examples, the `hecate doc build` command and the prebuilt binary rocks of the native module |
+| Status | alpha. The roadmap phase stays 3 because the package is still in progress for it. Implemented: static output that opens from the file system (`file://`) and from any static host (every link and asset is a path relative to its page, the search index is a script file; OQ-148), Markdown (comrak) and highlighting (syntect) through the native module, the site model (locales with fallback, sidebar, previous and next), the original theme and its extension points, the search index, `build`, the code reference from LuaLS, the documentation of a project (`generate_project_documentation`: configuration reference, licences page, LuaLS meta files), audiences (one content tree and one documentation site each, built from `<guides_dir>/<audience>/`), Mermaid diagrams (vendored), and `llms.txt` and `llms-full.txt` (opt-in). Pending (Phase 3): versioned documentation, runnable examples, the `hecate doc build` command and the prebuilt binary rocks of the native module |
 | Lua | 5.5 (`lua >= 5.5, < 5.6`) |
 | Depends on | [`core`](../core), [`reactor`](../reactor), [`json`](../json), [`unicode`](../unicode) |
 | Used by | `cli` |
@@ -23,10 +23,10 @@
 - consume the `lua-language-server --doc` JSON export (the code reference) and the JSON Schema of an application's configuration (the configuration reference)
 - render Markdown guides (CommonMark + front matter) and generated reference pages with one MDN-like theme (page template in documentation.md)
 - locales with fallback and translation status (`source_revision`)
-- static search index
+- static search index (a script file, loaded with `<script src>`, so that the search works from the file system)
 - versioned documentation per minor release
 - runnable examples for pure-Lua packages if Lua 5.5 builds to WebAssembly (OQ-11)
-- `hecate doc build|serve` for user projects with the same theme, with a base URL option for GitHub Pages project sites
+- `hecate doc build` for user projects with the same theme. The output is static files only, like Javadoc: no server, no `serve` command, no option for the mode (OQ-148)
 - `llms.txt` and `llms-full.txt` generation (site configuration `generate_llms_txt`, off by default)
 - stable anchors per symbol
 
@@ -56,7 +56,7 @@ decided in [ADR 0022](../../docs/adr/0022-doc-dependencies.md).
 | `build(options)` | Reads `<guides_dir>/<locale>/**/*.md`, renders every page of every locale, writes pages, search indexes, theme files and static files to `options.output_dir`, returns a `BuildReport` (`files`, `bytes`, `locales`, `problems`). It builds ONE site from ONE content tree; `build.prepare(options)` does the first half (it loads the tree and returns `{ site, write }`, nothing is written before `write()`), which `generate_project_documentation` uses to load every audience tree before it writes any. Options: `site_configuration`, `guides_dir`, `output_dir`, `file_system`, `clean_output_dir`, `fail_on_problems`, `last_updated`, `theme_file_system`, `theme_files_dir` (an option that is not on this list, or an `output_dir` that is or holds `guides_dir`, raises `ArgumentError` with `context.argument`; no output file is written through a symbolic link). `BuildReport.locales[code]` has `pages` and `fallbacks`. The front matter key `audience` is refused (`BuildError` naming the file and the new layout: see "Audiences"). Output is deterministic. |
 | `generate_project_documentation(options?)` | The documentation of a Hecate project: writes the generated pages (configuration reference, licences page, code reference) into the audience trees of the guides directory (`<guides_dir>/<audience>/<locale>/`), then builds each tree listed in `audiences` (default `{ "maintainer" }`) into its own site, `<output_dir>/<audience>/`. Every option has a default of the conventional layout (see "Documentation of a project"); returns a `ProjectDocumentationReport` (a `BuildReport` that adds up the sites, plus `sites`, one entry per tree built, and `code`). Unlike `build`, which only turns one content tree into one site. |
 | `load_site_configuration(file_system, path)` | Loads a `site.lua`: it runs with an empty environment, in a coroutine with a limit of instructions and of memory growth. It is the project's own code, not a sandbox against a hostile file (the methods of strings stay reachable). |
-| `normalise_site_configuration(raw)` | Validates every key of a site configuration (type and shape; `base_path` must be an absolute path and not protocol-relative, `site_origin` an http(s) origin) and fills the defaults; raises `core.ConfigurationError` with `context.field` naming the offending key. |
+| `normalise_site_configuration(raw)` | Validates every key of a site configuration (type and shape; `base_path` must be an absolute path and not protocol-relative (it builds no link, only the absolute addresses: canonical links, `sitemap.xml`, `llms.txt`, the root redirect and, with `site_origin`, the not-found page), `site_origin` an http(s) origin) and fills the defaults; raises `core.ConfigurationError` with `context.field` naming the offending key. |
 | `Site(options)` | The site model (options `site_configuration`, `guides_dir`, `file_system`, `last_updated`, `theme_file_system`, `theme_files_dir`; `Site.LIMITS` holds the depth (32) and entry (100,000) limits of the walks; the normalised configuration is `site.site_configuration`): `load()`, `pages(locale)`, `page(locale, id)`, `emit(write)`, `problems`. |
 | `Page` | One page in one locale: `id`, `url`, `title`, `html`, `headings`, `sections`, `fallback`, `meta`. |
 | `FileSystem` | Interface (`read`, `write`, `list`, `exists`, `remove_tree`; optional `is_link`) the builder reads and writes through. `list` reports for each entry `is_directory` (what it points to) and `is_link` (the entry is itself a symbolic link, or a Windows junction): the walks of the content tree skip every link with a problem. `remove_tree` unlinks a symbolic link at its path, never its target; `build` with `clean_output_dir` refuses an output directory that is a symbolic link. |
@@ -68,7 +68,7 @@ decided in [ADR 0022](../../docs/adr/0022-doc-dependencies.md).
 | `luals` (`hecate.doc.luals`) | `locate()`, `version(language_server_path)`, `export(language_server_path, sources_dir, { file_system, language_server_config_path? })` (output in a private directory removed afterwards: `mktemp -d` on POSIX; on Windows a new directory below `TEMP`/`TMP` with an unpredictable name, never reused if it exists: `windows_temporary_directory(getenv, parts)`, `claim_directory(fs, path)`), `command_line(...)` and `quote(path, windows?)` (pure; shell quoting for POSIX and `cmd.exe`), `excerpt(output)` (the first lines of a failed run, used in the `BuildError`), `PINNED`. `export` runs LuaLS, which runs arbitrary code (see "Trust the documented sources"): document trusted sources only. |
 | `highlight.render(language, code)` | Syntax highlighting by syntect (two-face syntaxes, `hl-` classes); an unknown language is escaped and left plain. |
 | `navigation` | `sidebar`, `reading_order`, `neighbours`, `top_links`, `section_of` (pure functions). |
-| `search.build(locale, pages)`, `search.encode(index)` | The client-side search index. |
+| `search.build(locale, pages)`, `search.encode(index)`, `search.script(index)` | The client-side search index. `build` makes one document per section, addressed by a path below the root of the site (`en/guide/index.html#id`); `encode` is its JSON; `script` is the content of `assets/search-<locale>.js`, one assignment to `window.hecateDocSearchIndex[<locale>]`, which `theme.js` loads with a script element (a script loads from `file://`, a `fetch` of JSON does not). |
 | `theme` | `page(context)`, `not_found(context)`, `strings`, `asset_files`, `diagram_files` (written only when a page holds a diagram), `assets_directory()`. |
 | `reference` (`hecate.doc.reference`) | `generate(inputs, options)`: pages of the code reference from LuaLS exports (pure; option `pages_dir`, the directory of the pages below the locale root, default `reference`; option `internal` adds the pages of `*.internal` modules and of non-public classes; `split_audiences` limits links and the module page to the audience of the page; the result lists the audience of each page in `audiences`, `maintainer` for those internals and `user` for the rest); `is_generated(text)` (the one test of `internal.generated_page`: `generated: true` or the notice as the first line after the front matter); `GENERATED` (the marker). |
 | `reference_site` (`hecate.doc.reference_site`) | `run(options)`: runs LuaLS on the packages, generates and writes the pages (skips with `report.skipped` without LuaLS). Options: `project_dir`, `locale_dir` (the locale directory of the guides the pages are written into, such as `website/en`), `file_system`, `packages`, `language_server_path`, `language_server_config_path`, `audience_locale_dirs` (`{ user = dir, maintainer = dir }`, instead of `locale_dir`: public pages into the first, internals into the second, links never crossing), `sources_dir_pattern` (a `string.format` pattern of the sources directory of a package below `project_dir`, default `packages/%s/src`), `since`, `internal`; `write(file_system, locale_dir, result, packages, audience?)` (with `audience`, only the pages of that audience); `DEFAULT_PACKAGES`. |
@@ -85,11 +85,38 @@ lua packages/doc/bin/build.lua website/user --config website/site.lua --out /tmp
 
 The runner is the bootstrap entry point until `hecate doc build` exists
 ([automation.md](../../docs/architecture/automation.md)). Options: `--config` (default
-`<source>/site.lua`), `--out` (default `<source>/dist`), `--base` (URL path, for GitHub Pages
-project sites), `--url` (the origin, for canonical links and the sitemap, overriding the
+`<source>/site.lua`), `--out` (default `<source>/dist`), `--base` (the absolute path the site is
+published under, for the canonical links, the sitemap and `llms.txt`, never for links between pages),
+`--url` (the origin, for the same absolute addresses, overriding the
 configuration), `--clean` (empties the output directory, only if a previous build wrote it),
 `--strict` (broken links and similar problems fail the build), `--no-git-dates`. Exit codes:
-0 built, 1 failed, 2 usage error. Serve the output with any static server.
+0 built, 1 failed, 2 usage error. The output is static files and needs no server: open
+`<out>/index.html` from the file system, or publish the directory on any static host (GitHub Pages, an object store,
+a web server), under any path.
+
+### Static output: links, assets and the search index (OQ-148)
+
+`hecate.doc` writes static files only, like Javadoc, and there is one mode, with no option. A built site opens from the
+file system (`file://`) and from any static host:
+
+- Every page links to the other pages and to its assets (stylesheet, scripts, fonts, logo, favicon, Mermaid, files of
+  `public/`, the files next to the pages) by a **path relative to itself** (`../../../assets/theme.css`), never by a path
+  that starts with `/`. A link to a page names its file, `../b/index.html`, because a browser lists a directory that it
+  opens from the file system instead of opening its `index.html`. A link written in Markdown is resolved the same way; a
+  link that starts with `/` names a path below the root of the site (`/en/guide/` is the page `en/guide/index.html`) and
+  is rewritten as a relative one. The stylesheets use relative `url(...)` as well.
+- `base_path` builds no link. It is kept, and validated, for the **absolute addresses** of the site: the canonical and
+  alternate links, `sitemap.xml`, `llms.txt` and `llms-full.txt`, the canonical link of the root redirect and, when
+  `site_origin` is set, the links of `404.html`. A static host serves `404.html` for any address, so a relative link
+  would break there: with `site_origin` its links are absolute (`<site_origin><base_path>...`), without it they are
+  relative to the root. A `site.lua` that sets `base_path = "/"` (the default, and the file `hecate new` writes) works
+  unchanged.
+- The search index of a locale is a script, `assets/search-<locale>.js`, that assigns the index to
+  `window.hecateDocSearchIndex[<locale>]`; `theme.js` adds a script element for it the first time the search opens (the
+  path comes from the page: the `index` and `root` entries of its `doc-config`). The content is a function of the pages only.
+- A test reads the files of a built site (`tests/unit/relative_links_test.lua`, `tests/integration/build_test.lua`, helper
+  `tests/links.lua`) and checks that every local `href`, `src`, `url(...)` and meta refresh resolves, from the directory of
+  its own file, to a file of the output, and that no root-relative reference is left.
 
 ### Audiences
 
@@ -119,7 +146,7 @@ A tree is laid out exactly like the tree of a plain site (`build.build`): `<guid
 and `public/` and the files next to the pages **inside the tree**, next to the locale directories (decision: `public/`
 is a part of the tree, so a tree can be moved, built or deleted whole, and the two sites never share a static file).
 Each tree is built by the plain builder into `<output_dir>/<audience>/`, with its own pages, navigation, search index,
-sitemap, `llms.txt`, theme files and `404.html`, and its base path is `<base_path><audience>/`. `<output_dir>/` holds
+sitemap, `llms.txt`, theme files and `404.html`, and its public address (canonical links, sitemap) is `<base_path><audience>/`; its links are relative. `<output_dir>/` holds
 only the marker file and a redirect to the first site built. There is no `audience` front matter key (a page that still
 carries it is a `BuildError` naming the file and the layout), no `default_audience`, `audience_sites` or `audiences` in
 `site.lua` (`ConfigurationError` saying what replaced them, `internal.renamed_options`) and no merged site: the
@@ -142,12 +169,13 @@ the `hecate.<name>` prefix of the reference generator).
 
 **Links between the two sites.** The builder cannot check a link from one site to the other: it is an ordinary link.
 Write an absolute URL (`https://example.org/user/en/guide/`), or a relative one: the browser reads a relative link from
-the URL of the page, not from its source file: with the base path `/maintainer/`, `guide/a.md` is served at
-`/maintainer/en/guide/a/`, so the user page `guide/` is `../../../../user/en/guide/` (one `..` per segment of that URL).
+the file of the page, not from its source file: `guide/a.md` of the maintainer site is written to
+`maintainer/en/guide/a/index.html`, so the user page `guide/` is `../../../../user/en/guide/index.html` (one `..` per
+directory of that file, and the name of the file, so that it opens from the file system).
 The builder leaves
 a relative link that climbs two levels or more above the locale directory (out of the tree) as written and reports no
 problem; a link that climbs to the content root only (`../x.md`) stays a problem, as does a broken link inside the tree.
-An absolute path (`/user/en/guide/`) is not the way: it is prefixed with the base path of its own site.
+An absolute path (`/user/en/guide/`) is not the way: it names a path below the root of its own site.
 
 ### Documentation of a project
 

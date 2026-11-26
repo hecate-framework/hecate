@@ -37,8 +37,9 @@ docs/
 
 Each tree is laid out like a plain site: one directory per locale, and `public/` next to them. It is built by the plain
 builder into `<output_dir>/<audience>/`, so each site has its own pages, navigation, search index, sitemap, `llms.txt`,
-theme files and `404.html`, and no page of the other tree. The base path of a site is the `base_path` of the
-configuration plus the audience. `<output_dir>/` itself holds only a marker file and a redirect to the first site.
+theme files and `404.html`, and no page of the other tree. The public address of a site (its canonical links, sitemap and
+`llms.txt`) is the `base_path` of the configuration plus the audience. The links inside a site are relative to the page and
+the output is static files: it opens from the file system and from any static host, with no server. `<output_dir>/` itself holds only a marker file and a redirect to the first site.
 
 | Where | Name | Meaning |
 |---|---|---|
@@ -61,9 +62,9 @@ built, it holds the whole code reference. With both trees, a reference page link
 module page lists only the classes of its own tree. A field or method that is not public is never listed.
 
 A link from a page of one site to a page of the other site is an ordinary link that the builder cannot check. Write an
-absolute URL, `https://example.org/user/en/guide/`, or a relative link. The browser reads a relative link from the URL of
-the page, not from its source file: the page `guide/a.md` of a site served at `/maintainer/` is at `/maintainer/en/guide/a/`,
-so the user page `guide/` is `../../../../user/en/guide/`. The builder leaves a relative link that climbs two levels or more
+absolute URL, `https://example.org/user/en/guide/`, or a relative link. The browser reads a relative link from the file
+of the page, not from its source file: the page `guide/a.md` of the maintainer site is written to
+`maintainer/en/guide/a/index.html`, so the user page `guide/` is `../../../../user/en/guide/index.html`. The builder leaves a relative link that climbs two levels or more
 above the locale directory as written, and reports no problem. A link that climbs to the content root only (`../x.md`) is
 still a problem, like a broken link inside the tree.
 

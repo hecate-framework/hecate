@@ -3,6 +3,7 @@
 - **Status:** Accepted
 - **Date:** 2026-10-11
 - **Deciders:** project owner
+- **Amended:** 2026-11-25 by the owner, in place, status unchanged: a mirror is named after its package, which is also the name of its rock when the package is one; the package `actions` (GitHub Actions, no rock) has the mirror `hecate-framework/hecate-actions`; no Scoop bucket (the owner dropped Scoop, winget is enough)
 - **Packages:** all
 - **Related:** ADR 0005, ADR 0016, [versioning-and-distribution.md](../architecture/versioning-and-distribution.md#repositories), [automation.md](../architecture/automation.md)
 
@@ -31,7 +32,7 @@ Option 3.
 
 - Development repository: `hecate-framework/hecate` (the monorepo). The only place for issues,
   pull requests, discussions and CI.
-- One read-only mirror per package, named after its rock: `hecate-framework/hecate-<name>`
+- One read-only mirror per package, named after the package (and so after its rock, when it has one): `hecate-framework/hecate-<name>`
   (e.g. `hecate-router`). The meta-rock `hecate` is built from the monorepo itself.
 - Mirrors are updated by the `split` task on every push to `main` (branch `main`) and on
   every release tag (same tag `vX.Y.Z` in every mirror).
@@ -41,8 +42,7 @@ Option 3.
 - Released rockspecs take their sources from the mirror at the release tag; `scm`
   rockspecs point to the mirror's `main`.
 - Separate, non-mirror repositories only where a platform requires them: Homebrew tap
-  (`hecate-framework/homebrew-hecate`) and Scoop bucket (`hecate-framework/scoop-hecate`), updated by the
-  release pipeline. Third-party drivers or extensions may live in their own repositories
+  (`hecate-framework/homebrew-hecate`), updated by the release pipeline. Third-party drivers or extensions may live in their own repositories
   later.
 - Nobody, human or agent, commits to a mirror directly.
 

@@ -101,6 +101,12 @@ function T:test_the_search_index_cannot_close_a_script_element()
   self:assert_nil(encoded:find("<", 1, true))
   self:assert_nil(encoded:find(">", 1, true))
   self:assert_nil(encoded:find("&", 1, true))
+  local script = doc.search.script(doc.search.build("e<n>&", {
+    { title = "</script><script>alert(1)</script>", url = "en/x/index.html", sections = { { text = "a & <b>" } } },
+  }))
+  for _, character in ipairs({ "<", ">", "&" }) do
+    self:assert_nil(script:find(character, 1, true), "the script file holds no " .. character)
+  end
 end
 
 return T

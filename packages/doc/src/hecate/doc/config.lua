@@ -30,8 +30,8 @@ local M = {}
 ---@class hecate.doc.SiteConfiguration
 ---@field title string  site name; the name of the project is never capitalised (brand kit)
 ---@field description? hecate.doc.Text
----@field base_path? string  URL path the site is served under ("/" or "/hecate/"), default "/"
----@field site_origin? string  public origin of the site (scheme, host, port), for canonical links and the sitemap
+---@field base_path? string  absolute path the site is published under ("/" or "/hecate/"), default "/". It is not used to build the links of the pages, which are relative to the page and open from the file system (OQ-148); it is the path part of the absolute addresses: canonical links, `sitemap.xml`, `llms.txt`, the root redirect and, with `site_origin`, the links of the not-found page
+---@field site_origin? string  public origin of the site (scheme, host, port), for the absolute addresses: canonical links, the sitemap, `llms.txt` and the not-found page
 ---@field default_locale? string  default "en"
 ---@field locales? hecate.doc.Locale[]  default: the default locale only
 ---@field top_links? hecate.doc.TopLinkEntry[]  links of the top navigation; default: the top-level sections
@@ -114,7 +114,7 @@ local function check_origin(value)
   end
 end
 
--- The path the site is served under: absolute, not protocol-relative (RFC 3986, 4.2: a reference starting with
+-- The path the site is published under, used for absolute addresses only (never for links between pages): absolute, not protocol-relative (RFC 3986, 4.2: a reference starting with
 -- `//` is a network-path reference that names another host), made of unreserved characters, sub-delimiters
 -- and percent-encodings only.
 local function check_base_path(value)

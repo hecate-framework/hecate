@@ -1,0 +1,409 @@
+name: release
+
+# Builds the `hecate` executable on every platform, packages it (`lua tools/run.lua package-cli`, deterministic archive and
+# sha256, smoke-tested), and attaches the archives and the Linux packages to a DRAFT release. The workflow never publishes:
+# the owner reviews the draft and publishes it by hand (with the "immutable releases" setting, assets cannot be added after
+# publication, so every asset is attached here, at creation). Specification: docs/architecture/cli-and-packaging.md,
+# "Releases".
+#
+# Assets (7 files and 7 `.sha256`): the archives of linux-x86_64, darwin-aarch64 and windows-x86_64, and the Linux
+# packages installed from a file with the tool of the system: `.deb`, `.rpm`, Arch `.pkg.tar.zst` (all three carry the
+# executable of the archive) and Alpine `.apk` (a static musl executable). The Linux executables are built inside
+# containers (`docker run`, not `container:` on the job: JavaScript actions inside a container are fragile): AlmaLinux 8
+# (glibc 2.28, the floor that `package-cli` enforces with --max-glibc) and Alpine 3.20 (musl), by
+# tools/ci/release-linux-build.sh. Then every package is installed and run in a container of its distribution
+# (tools/ci/release-linux-smoke.sh): Debian 12, Ubuntu 22.04, AlmaLinux 9, Fedora, Arch Linux and Alpine 3.20.
+#
+# Tags and releases are named `<version>-<revision>` in LuaRocks form, without a `v` prefix (`0.1.0-1`); `X.Y.Z` must
+# equal the root `VERSION` file or the `plan` job fails before anything is built. A push of such a tag creates the draft;
+# a pull request that touches the release machinery, and `workflow_dispatch`, are the rehearsal: the same build,
+# packaging and smoke tests (container builds and installs in the distributions included), with the assets kept as workflow
+# artifacts and no release created.
+#
+# Platforms: the three that `ci.yml` builds, Linux x86_64 only for now. aarch64 Linux (packages: arm64) and Windows runners
+# are to be added later (the asset names already carry the architecture).
+#
+# Images are pinned by tag, not by digest; `fedora:latest` and `archlinux:base` are the only tags those distributions
+# have for their current release (rolling). Digest pins kept up to date by Dependabot's docker ecosystem are a follow-up.
+
+on:
+  push:
+    tags: ["[0-9]*.[0-9]*.[0-9]*-[0-9]*"]
+  # A pull request that touches the release machinery rehearses it (no release is created): GitHub offers
+  # `workflow_dispatch` only for a workflow file that is on the default branch, so this is how a change to the release
+  # is tested before it is merged.
+  pull_request:
+    paths:
+      - ".github/workflows/release.yml"
+      - "tools/tasks/package_cli.lua"
+      - "tools/tasks/build_cli.lua"
+      - "tools/lib/archive.lua"
+      - "tools/lib/linux_package.lua"
+      - "tools/lib/md5.lua"
+      - "tools/lib/release_version.lua"
+      - "tools/lib/sha256.lua"
+      - "tools/ci/release-linux-*.sh"
+      - "tools/bootstrap/**"
+      - "packages/cli/csrc/**"
+      - "packages/json/native/rust-toolchain.toml"
+  workflow_dispatch:
+    inputs:
+      revision:
+        description: "Revision to rehearse, appended to the VERSION file (the archives are named hecate-<VERSION>-<revision>-...)"
+        required: false
+        default: "1"
+        type: string
+
+permissions:
+  contents: read
+
+# One release run per tag (or per dispatch ref); a run in progress is never cancelled.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # Validates the version before building anything: the tag (push) or VERSION plus the revision input (rehearsal).
+  plan:
+    name: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      core: ${{ steps.version.outputs.core }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
+      assets: ${{ steps.version.outputs.assets }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Cache toolchain
+        id: toolchain
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: .hecate/toolchain
+          key: toolchain-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('tools/bootstrap/**') }}
+
+      - name: Bootstrap
+        if: steps.toolchain.outputs.cache-hit != 'true'
+        run: tools/bootstrap/bootstrap.sh --prefix .hecate/toolchain
+
+      - name: Add toolchain to PATH
+        run: echo "$GITHUB_WORKSPACE/.hecate/toolchain/bin" >> "$GITHUB_PATH"
+
+      # `package-cli --check-tag` fails unless the version is X.Y.Z[pre]-R (a pre-release is alpha, beta, rc or pre and a number,
+      # as in 0.4.2rc1-1) with X.Y.Z[pre] equal to the VERSION file, and prints it; with `--prerelease` it prints true or false.
+      - name: Check the version
+        id: version
+        env:
+          EVENT: ${{ github.event_name }}
+          TAG: ${{ github.ref_name }}
+          REVISION: ${{ inputs.revision }}
+        run: |
+          set -eo pipefail
+          if [ "$EVENT" = "push" ]; then
+            candidate="$TAG"
+          else
+            candidate="$(tr -d '[:space:]' < VERSION)-${REVISION:-1}"
+          fi
+          version=$(lua tools/run.lua package-cli "--check-tag=$candidate" | head -n 1)
+          echo "release version: $version"
+          prerelease=$(lua tools/run.lua package-cli "--check-tag=$candidate" --prerelease | head -n 1)
+          echo "pre-release: $prerelease"
+          # `core` is the content of the VERSION file (what `hecate version` prints); `assets` the names of every file the
+          # release attaches (`package-cli --list-assets`), which `draft-release` compares with what it downloaded.
+          core="${version%-*}"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "core=$core" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
+          {
+            echo "assets<<EOF_ASSETS"
+            lua tools/run.lua package-cli "--list-assets=$candidate" | grep -E '^hecate[-_]'
+            echo "EOF_ASSETS"
+          } >> "$GITHUB_OUTPUT"
+
+  # macOS and Windows on their runners (the Linux builds are the two container jobs below).
+  build:
+    needs: plan
+    name: build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    # Attestations are made on a tag push only; the extra permissions are those of `actions/attest-build-provenance`.
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    env:
+      # Release builds from a cold cache: incremental data would only grow the target directories.
+      CARGO_INCREMENTAL: "0"
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      # Toolchain steps copied from ci.yml (same pins, same cache key): the executable is the one CI tests.
+      - name: Cache toolchain
+        id: toolchain
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: .hecate/toolchain
+          key: toolchain-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('tools/bootstrap/**') }}
+
+      - name: Bootstrap (Linux, macOS)
+        if: steps.toolchain.outputs.cache-hit != 'true' && runner.os != 'Windows'
+        run: tools/bootstrap/bootstrap.sh --prefix .hecate/toolchain
+
+      - name: MSVC environment (Windows)
+        if: runner.os == 'Windows'
+        uses: ./.github/actions/msvc-env
+
+      - name: Bootstrap (Windows)
+        if: steps.toolchain.outputs.cache-hit != 'true' && runner.os == 'Windows'
+        shell: pwsh
+        run: tools/bootstrap/bootstrap.ps1
+
+      - name: Add toolchain to PATH
+        shell: pwsh
+        run: |
+          $tc = Join-Path $env:GITHUB_WORKSPACE '.hecate/toolchain'
+          Add-Content -Path $env:GITHUB_PATH -Value (Join-Path $tc 'bin')
+          if ($env:RUNNER_OS -eq 'Windows') {
+            Add-Content -Path $env:GITHUB_ENV -Value "LUAROCKS_CONFIG=$(Join-Path $tc 'luarocks-config.lua')"
+          }
+
+      - name: C toolchain
+        if: runner.os != 'Windows'
+        run: cc --version | head -1 && cmake --version | head -1
+
+      - name: C toolchain (Windows)
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: cl 2>&1 | findstr /C:"Version" && cmake --version
+
+      # The JSON encoder is Rust (linked into the executable): the toolchain pinned by its rust-toolchain.toml, which
+      # cargo would not pick up from the repository root.
+      - name: Rust toolchain
+        shell: bash
+        run: |
+          set -eo pipefail
+          (cd packages/json/native && rustup toolchain install)
+          channel=$(sed -n 's/^channel *= *"\(.*\)"/\1/p' packages/json/native/rust-toolchain.toml)
+          echo "RUSTUP_TOOLCHAIN=$channel" >> "$GITHUB_ENV"
+          cargo --version
+
+      # --strict (CI implies it): a module that cannot be linked in fails the build.
+      - name: Build the executable
+        shell: pwsh
+        run: lua tools/run.lua build-cli --strict --output=.hecate/release/build/${{ runner.os == 'Windows' && 'hecate.exe' || 'hecate' }}
+
+      - name: Package and smoke-test
+        shell: pwsh
+        run: lua tools/run.lua package-cli --version=${{ needs.plan.outputs.version }} --exe=.hecate/release/build/${{ runner.os == 'Windows' && 'hecate.exe' || 'hecate' }} --out=.hecate/release/dist
+
+      - name: Attest build provenance
+        if: github.event_name == 'push'
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: .hecate/release/dist/hecate-*.${{ runner.os == 'Windows' && 'zip' || 'tar.gz' }}
+
+      - name: Upload the archive and its checksum
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: hecate-${{ runner.os }}-${{ runner.arch }}
+          path: .hecate/release/dist/hecate-*
+          if-no-files-found: error
+          include-hidden-files: true # the files sit under `.hecate/`, which upload-artifact skips by default
+          retention-days: 7
+
+  # Linux x86_64, glibc: built in AlmaLinux 8 (glibc 2.28) so that one executable serves the archive, the .deb, the .rpm and
+  # the Arch package on every supported distribution; `package-cli` refuses an executable that needs a newer glibc.
+  build-linux-glibc:
+    needs: plan
+    name: build (linux, glibc 2.28)
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    env:
+      CARGO_INCREMENTAL: "0"
+      RELEASE_VERSION: ${{ needs.plan.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      # Only the Lua and LuaRocks of the bootstrap are cached (rustup and the dependencies are fetched each time: a
+      # release build starts cold). The key carries the image tag: another base system, another toolchain.
+      - name: Cache toolchain
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: .hecate/toolchain-glibc
+          key: toolchain-linux-glibc-almalinux8-${{ hashFiles('tools/bootstrap/**') }}
+
+      - name: Build and package in AlmaLinux 8
+        run: |
+          docker run --rm \
+            --volume "$GITHUB_WORKSPACE:/work" --workdir /work \
+            --env CI=true --env CARGO_INCREMENTAL --env RELEASE_VERSION \
+            --env HOST_UID="$(id -u)" --env HOST_GID="$(id -g)" \
+            almalinux:8 sh tools/ci/release-linux-build.sh glibc
+
+      - name: Attest build provenance
+        if: github.event_name == 'push'
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            .hecate/release/dist-glibc/hecate-*.tar.gz
+            .hecate/release/dist-glibc/hecate_*.deb
+            .hecate/release/dist-glibc/hecate-*.rpm
+            .hecate/release/dist-glibc/hecate-*.pkg.tar.zst
+
+      - name: Upload the archive, the packages and their checksums
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: hecate-linux-glibc-x86_64
+          path: .hecate/release/dist-glibc/hecate*
+          if-no-files-found: error
+          include-hidden-files: true # the files sit under `.hecate/`, which upload-artifact skips by default
+          retention-days: 7
+
+  # Linux x86_64, musl: built in Alpine 3.20 and linked statically (`build-cli --static`), for the .apk.
+  build-linux-musl:
+    needs: plan
+    name: build (linux, musl)
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    env:
+      CARGO_INCREMENTAL: "0"
+      RELEASE_VERSION: ${{ needs.plan.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Cache toolchain
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: .hecate/toolchain-musl
+          key: toolchain-linux-musl-alpine3.20-${{ hashFiles('tools/bootstrap/**') }}
+
+      - name: Build and package in Alpine 3.20
+        run: |
+          docker run --rm \
+            --volume "$GITHUB_WORKSPACE:/work" --workdir /work \
+            --env CI=true --env CARGO_INCREMENTAL --env RELEASE_VERSION \
+            --env HOST_UID="$(id -u)" --env HOST_GID="$(id -g)" \
+            alpine:3.20 sh tools/ci/release-linux-build.sh musl
+
+      - name: Attest build provenance
+        if: github.event_name == 'push'
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: .hecate/release/dist-musl/hecate-*.apk
+
+      - name: Upload the package and its checksum
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: hecate-linux-musl-x86_64
+          path: .hecate/release/dist-musl/hecate*
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 7
+
+  # Each package is installed with the tool of its distribution, in a container of that distribution, and run:
+  # `hecate version` must print the version of the VERSION file, `hecate completion bash` must work and the three
+  # completion files must exist; then the package is removed.
+  smoke:
+    needs: [plan, build-linux-glibc, build-linux-musl]
+    name: install (${{ matrix.image }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { image: "debian:12", format: deb, artifact: hecate-linux-glibc-x86_64 }
+          - { image: "ubuntu:22.04", format: deb, artifact: hecate-linux-glibc-x86_64 }
+          - { image: "almalinux:9", format: rpm, artifact: hecate-linux-glibc-x86_64 }
+          # Rolling tags: these distributions publish the current release under `latest` and `base` only.
+          - { image: "fedora:latest", format: rpm, artifact: hecate-linux-glibc-x86_64 }
+          - { image: "archlinux:base", format: archlinux, artifact: hecate-linux-glibc-x86_64 }
+          - { image: "alpine:3.20", format: apk, artifact: hecate-linux-musl-x86_64 }
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Download the package
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ${{ matrix.artifact }}
+          path: packages
+
+      - name: Install and run in ${{ matrix.image }}
+        env:
+          HECATE_VERSION: ${{ needs.plan.outputs.core }}
+          IMAGE: ${{ matrix.image }}
+          FORMAT: ${{ matrix.format }}
+        run: |
+          ls -l packages
+          docker run --rm \
+            --volume "$GITHUB_WORKSPACE/packages:/packages:ro" --volume "$GITHUB_WORKSPACE/tools/ci:/ci:ro" \
+            --env HECATE_VERSION \
+            "$IMAGE" sh /ci/release-linux-smoke.sh "$FORMAT"
+
+  # Tag push only: creates the DRAFT release with every asset and stops. Publishing is the owner's decision.
+  draft-release:
+    needs: [plan, build, build-linux-glibc, build-linux-musl, smoke]
+    if: github.event_name == 'push'
+    name: draft release
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    env:
+      EXPECTED_ASSETS: ${{ needs.plan.outputs.assets }} # `package-cli --list-assets`: 7 files and their 7 `.sha256`
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ github.ref_name }}
+      PRERELEASE: ${{ needs.plan.outputs.prerelease }}
+    steps:
+      - name: Download the assets
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: hecate-*
+          path: assets
+          merge-multiple: true
+
+      - name: Verify the assets
+        working-directory: assets
+        run: |
+          set -eo pipefail
+          ls -l
+          # Exactly the expected files, no more, no fewer.
+          expected=$(printf '%s\n' "$EXPECTED_ASSETS" | sed '/^$/d' | sort)
+          found=$(ls -1 | sort)
+          if [ "$expected" != "$found" ]; then
+            echo "the assets are not the expected ones (< expected, > found):" >&2
+            diff <(printf '%s\n' "$expected") <(printf '%s\n' "$found") >&2 || true
+            exit 1
+          fi
+          sha256sum -c -- *.sha256
+
+      - name: Create the draft release
+        run: |
+          set -eo pipefail
+          cat > notes.md <<EOF
+          Hecate $TAG: the \`hecate\` executable for Linux, macOS and Windows (archive and sha256 per platform), and for Linux x86_64 the packages \`.deb\`, \`.rpm\`, Arch \`.pkg.tar.zst\` and Alpine \`.apk\` (unsigned: \`apk add --allow-untrusted\`). Linux executables need glibc 2.28 or later (the Alpine package is static).
+
+          See [CHANGELOG.md](https://github.com/$GITHUB_REPOSITORY/blob/$TAG/CHANGELOG.md) for the changes.
+          EOF
+          # A version with a pre-release part (0.4.2rc1-1) is marked as a pre-release.
+          flags=()
+          if [ "$PRERELEASE" = "true" ]; then flags+=(--prerelease); fi
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --draft --verify-tag --title "$TAG" --notes-file notes.md "${flags[@]}" assets/*
+          echo "Draft release $TAG created: review it, then publish it by hand."

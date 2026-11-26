@@ -15,6 +15,7 @@ local kernel = require("hecate.kernel")
 --- It does not re-export the object-model entry points: classes are declared with `core.class` from `hecate.core`
 --- (OQ-57), and schemas are built with `hecate.schema`.
 ---@class hecate
+---@field version string  the version of this package, the version of Hecate (`VERSION`, ADR 0005)
 ---@field Application hecate.kernel.Application  the composition root
 ---@field Controller hecate.kernel.Controller  the superclass of controllers
 ---@field routes fun(name: string, options?: hecate.kernel.RouteModuleOptions): hecate.kernel.RouteModule  creates a route module (`hecate.routes "health"`)
@@ -25,6 +26,7 @@ local kernel = require("hecate.kernel")
 ---@field ModuleError hecate.kernel.ModuleError  an invalid application composition
 ---@field SupervisorError hecate.kernel.SupervisorError  the supervisor of the workers stopped on a failure
 local hecate = {
+  version = "0.0.0",
   Application = kernel.Application,
   Controller = kernel.Controller,
   routes = kernel.routes,

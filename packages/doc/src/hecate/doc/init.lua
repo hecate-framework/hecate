@@ -9,6 +9,7 @@ global <const> require
 local build = require("hecate.doc.build")
 
 ---@class hecate.doc
+---@field version string  the version of this package, the version of Hecate (`VERSION`, ADR 0005)
 ---@field build fun(options: hecate.doc.BuildOptions): hecate.doc.BuildReport  the plain site builder: a content tree in, a static site out
 ---@field generate_project_documentation fun(options?: hecate.doc.ProjectDocumentationOptions): hecate.doc.ProjectDocumentationReport  the documentation of a Hecate project: guides, configuration reference from the application, code reference, licences page, then the site; every option has a default of the conventional project layout
 ---@field load_site_configuration fun(file_system: hecate.doc.FileSystem, path: string): hecate.doc.SiteConfiguration  reads a `site.lua` file: Lua that returns a table, run with an empty environment
@@ -27,6 +28,7 @@ local build = require("hecate.doc.build")
 ---@field theme hecate.doc.Theme
 ---@field project hecate.doc.project  page generators: the configuration reference and the LuaLS meta files
 local doc = {
+  version = "0.0.0",
   build = build.build,
   generate_project_documentation = require("hecate.doc.internal.project_documentation").generate,
   load_site_configuration = build.load_site_configuration,

@@ -6,7 +6,10 @@
 -- the three platforms.
 ---@diagnostic disable: need-check-nil, param-type-mismatch, missing-fields
 ---@diagnostic disable: undefined-field, inject-field
-local test = require("harness.test")
+-- Repository-only: it needs the harness of the repository
+-- (`tools/`), so `hecate test` of the project skips it.
+local harness_ok, test = pcall(require, "harness.test")
+if not harness_ok then return require("hecate" .. ".test").Case("HelloWorkersTest (repository only)") end
 local uv = require("luv")
 local net = require("hecate.net")
 local reactor = require("hecate.reactor")
