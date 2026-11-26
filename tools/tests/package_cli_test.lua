@@ -133,8 +133,10 @@ function T:test_the_same_input_gives_the_same_bytes()
   local _, have_gzip = util.capture("gzip --version")
   if not have_gzip then return end
   local first = self:package({ "--os=linux", "--arch=x86_64", "--no-smoke" })
+  self:assert_true(first.ok, table.concat(first.problems, "\n"))
   local before = read(first.data.archive)
   local second = self:package({ "--os=linux", "--arch=x86_64", "--no-smoke" })
+  self:assert_true(second.ok, "second run: " .. table.concat(second.problems, "\n"))
   self:assert_true(before == read(second.data.archive))
   self:assert_equal("skipped", second.data.smoke)
 end
@@ -184,10 +186,13 @@ function T:test_the_glibc_guard_accepts_the_floor_and_refuses_a_newer_glibc()
   local refused = self:package({ "--exe=" .. elf, "--os=linux", "--arch=x86_64", "--no-smoke" })
   self:assert_false(refused.ok)
   self:assert_true(refused.problems[1]:find("needs glibc 2.34, above the floor 2.28", 1, true) ~= nil, refused.problems[1])
-  self:assert_true(self:package({ "--exe=" .. elf, "--os=linux", "--arch=x86_64", "--no-smoke", "--max-glibc=2.34" }).ok)
-  self:assert_true(self:package({ "--exe=" .. elf, "--os=linux", "--arch=x86_64", "--no-smoke", "--max-glibc=none" }).ok)
+  local raised = self:package({ "--exe=" .. elf, "--os=linux", "--arch=x86_64", "--no-smoke", "--max-glibc=2.34" })
+  self:assert_true(raised.ok, table.concat(raised.problems, "\n"))
+  local none = self:package({ "--exe=" .. elf, "--os=linux", "--arch=x86_64", "--no-smoke", "--max-glibc=none" })
+  self:assert_true(none.ok, table.concat(none.problems, "\n"))
   -- the guard is for Linux executables only
-  self:assert_true(self:package({ "--exe=" .. elf, "--os=darwin", "--arch=aarch64", "--no-smoke" }).ok)
+  local other = self:package({ "--exe=" .. elf, "--os=darwin", "--arch=aarch64", "--no-smoke" })
+  self:assert_true(other.ok, table.concat(other.problems, "\n"))
 end
 
 function T:test_the_glibc_guard_skips_static_executables_and_files_that_are_not_elf()
