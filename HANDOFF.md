@@ -3,10 +3,12 @@
 
 - roadmap_item: Docker images (runtime and build variants, amd64 + arm64). Also (OQ-135): a compose stack showing the contract rendered.
 - status: in-progress
-- lock_until: 2026-11-26T02:30:00Z
-- last_update: 2026-11-26T01:00:00Z
+- lock_until: 2026-11-26T05:11:18Z
+- last_update: 2026-11-26T03:41:18Z
 
 ## Done
+
+- Step 4: CI of docker.yml ran: all images build; only Trivy on runtime/alpine failed (HIGH CVE-2026-124709 in libcrypto3/libssl3, fixed in 3.5.9-r2). Added `apk upgrade --no-cache` to the final stage of the alpine runtime and build Dockerfiles. Next CI run to confirm.
 
 - Step 3: the `build/` rule of `.gitignore` had swallowed `docker/build/`, so check-docker failed in CI; added `!docker/build/` and recreated `docker/build/Dockerfile.{debian,alpine}` (runtime + compilers and headers). check-docker, typecheck ok locally.
 
@@ -16,7 +18,7 @@
 
 ## Next steps
 
-1. Check the next CI run of `docker.yml` on this pull request (nobody could run a Docker daemon in the cloud session; the Dockerfiles, bake matrix, smoke test and Trivy step are untested). Fix what fails (alpine `bash`/readline for `bootstrap.sh`, `libuv1`/`libssl3` package names, bake `matrix` naming, Trivy tag).
+1. Confirm the next CI run of `docker.yml` is fully green (Trivy on alpine after `apk upgrade`).
 2. The `hecate` executable in `hecate/build` (build argument, after cli v1, PR #231); `hecate/dev` is out of this item.
 3. The compose stack of OQ-135 (application, reverse proxy with one origin, Swagger UI reading `/openapi.json`, images pinned by tag or digest) as a website how-to in `website/user/en/how-to/` (+ French mirror note), tested example under `examples/` if the rules require it.
 4. Terminology and security review of the Docker files (`/review-package` agents: ci-engineer, security-reviewer, cross-platform-reviewer), then tick the roadmap item, delete HANDOFF.md, mark ready.

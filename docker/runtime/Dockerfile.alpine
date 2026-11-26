@@ -21,7 +21,7 @@ LABEL org.opencontainers.image.title="hecate/runtime" \
       org.opencontainers.image.version="${HECATE_VERSION}" \
       org.hecate.lua-version="${LUA_VERSION}"
 # System CA certificates: the default trust store of hecate.net is the operating system's (ADR 0024).
-RUN apk add --no-cache ca-certificates libuv libssl3 readline \
+RUN apk upgrade --no-cache && apk add --no-cache ca-certificates libuv libssl3 readline \
  && addgroup -S -g 10001 hecate \
  && adduser -S -u 10001 -G hecate -h /app -s /sbin/nologin hecate
 COPY --from=toolchain /opt/lua-5.5 /opt/lua-5.5
