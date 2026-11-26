@@ -428,10 +428,14 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       mirror `hecate-framework/hecate-actions` (owner gate, OQ-149); the `release` kind of `generate workflow`; a check of
       the generated workflow files (`actionlint`) and the French pages that the pages of this item link to (the item
       "follow-ups of the `cli` v1 item" before the Phase 3 gate).
-- [ ] Docker images (runtime and build variants, amd64 + arm64). **Also (OQ-135, owner decision of 2026-11-15):**
+- [x] Docker images (runtime and build variants, amd64 + arm64). **Also (OQ-135, owner decision of 2026-11-15):**
       document a compose stack that shows the contract rendered: the application (`development`, or
       `openapi.enabled = true`), a reverse proxy so that the viewer and the application share one origin (no CORS
       needed), and a viewer image such as Swagger UI reading `/openapi.json`; every image pinned by tag or digest.
+- [ ] Docker images: the `hecate` executable. Add it to the runtime and build images once a release publishes it (or
+      the Rust toolchain is accepted in the build stage); owner gate. Also pin the base images and Trivy by digest at
+      release, and extend `check-docker` to reject `curl | sh`, `ADD <url>` and secrets in ARGs (deferred from the Docker
+      images item).
 - [x] `kernel`, `config`: shipped CORS filter configured by keys (OQ-136, owner direction of 2026-11-15): a global
       filter driven by `cors.*` configuration keys, settable from the environment of a container; tests first
       (preflight, credentials, refused combinations); how-to `filters` and the configuration reference updated.
