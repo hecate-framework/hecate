@@ -52,7 +52,7 @@ end
 ---@field server? hecate.http.ServerOptions  options of the HTTP server made by `serve` (`logger` defaults to the application's; the application sets `on_request_end` to end the service scope of each request, and a hook given here runs after that)
 ---@field signals? boolean  `true` (default) handles signals, `false` disables signal handling (tests, embedding); the set (`sigint`, `sigterm` stop; `sighup` reloads a primary, and is ignored elsewhere) is fixed and cannot be listed
 ---@field grace_timeout? number  seconds a signal-driven shutdown lets requests in flight finish (default 30)
----@field workers? integer  number of worker processes, at least 1 (default 1: the process serves by itself); above 1 the primary runs a `hecate.kernel.Supervisor` (ADR 0023)
+---@field workers? integer|"auto"  number of worker processes, at least 1, or `"auto"`: `max(1, cores - 1)` (default 1: the process serves by itself; the configuration key `server.workers` defaults to `"auto"`); above 1 the primary runs a `hecate.kernel.Supervisor` (ADR 0023)
 ---@field strategy? "auto"|"reuseport"|"round_robin"  how connections reach the workers (default `auto`, `listening.select`); used only when `workers` is above 1
 ---@field worker_command? string[]  the program and arguments that start a worker (default: the running interpreter, main program and arguments, `Application.worker_command_from(arg)`)
 ---@field ready_timeout? number  seconds a worker may take to report `ready` after it starts or restarts (default 30); a worker not ready in time is killed and counted as a crash (see `hecate.kernel.SupervisorOptions`); used only when `workers` is above 1; no configuration key; `reload` has its own `ready_timeout`
@@ -103,8 +103,8 @@ function Application:init(options)
     error(core.ArgumentError("hecate.kernel.application.init: grace_timeout must be a non-negative finite number of seconds, got "
       .. tostring(grace)), 2)
   end
-  if options.workers ~= nil and (math.type(options.workers) ~= "integer" or options.workers < 1) then
-    error(core.ArgumentError("hecate.kernel.application.init: workers must be an integer of at least 1, got "
+  if options.workers ~= nil and options.workers ~= "auto" and (math.type(options.workers) ~= "integer" or options.workers < 1) then
+    error(core.ArgumentError("hecate.kernel.application.init: workers must be an integer of at least 1 or \"auto\", got "
       .. tostring(options.workers)), 2)
   end
   if options.strategy ~= nil and not STRATEGIES[options.strategy] then
@@ -239,6 +239,8 @@ function Application:boot()
   end
   if options.validate_responses == nil then options.validate_responses = false end
   if options.workers == nil then options.workers = 1 end
+  -- "auto" (the default of the configuration key, ADR 0023, OQ-122): one core is left to the primary and the system.
+  if options.workers == "auto" then options.workers = math.max(1, reactor.available_parallelism() - 1) end
   if options.strategy == nil then options.strategy = "auto" end
   local cors_options = {}
   if configuration ~= nil then

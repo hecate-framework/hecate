@@ -6,6 +6,7 @@ local declaration = require("hecate.config.declaration")
 --- Layered configuration: schema defaults, `config/default.lua`, `config/<environment>.lua`, environment variables and
 --- secret files, merged, validated against a schema and returned as an immutable `Configuration`.
 ---@class hecate.config
+---@field version string  the version of this package, the version of Hecate (`VERSION`, ADR 0005)
 ---@field Configuration hecate.config.Configuration  the result of `load`
 ---@field Section hecate.config.Section  an immutable object or map of a configuration
 ---@field List hecate.config.List  an immutable array of a configuration
@@ -15,6 +16,7 @@ local declaration = require("hecate.config.declaration")
 ---@field load fun(options: hecate.config.LoadOptions): hecate.config.Configuration
 ---@field variable_name fun(prefix: string, segments: string[]): string
 local config = {
+  version = "0.0.0",
   ---@diagnostic disable-next-line: assign-type-mismatch  -- class constructor exported as its class
   Configuration = require("hecate.config.configuration"),
   ---@diagnostic disable-next-line: assign-type-mismatch  -- class constructor exported as its class

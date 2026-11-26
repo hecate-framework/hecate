@@ -1,0 +1,189 @@
+-- The lockfile `hecate.lock` (ADR 0009, cli-and-packaging.md): a generated Lua table that records, for every rock
+-- of the project including transitive ones, the exact version, the source, a SHA-256 checksum and the dependency
+-- edges, plus the Lua and LuaRocks versions used. Written sorted and with a fixed layout, so a diff shows only what
+-- changed; read like the manifest (empty environment, limits) and validated with `hecate.schema`.
+global <const> require, load, type, tostring, ipairs, pairs, table, error, string
+
+local core = require("hecate.core")
+local schema = require("hecate.schema")
+local sandbox = require("hecate.cli.internal.sandbox")
+local constraint = require("hecate.cli.constraint")
+local lua_text = require("hecate.cli.internal.lua_text")
+
+--- The version of the layout of the file. A file with another value is refused, never guessed at.
+local FORMAT = 1
+
+---@class hecate.cli.LockedRock
+---@field version string  exact LuaRocks version, for example "0.3.1-1"
+---@field source string  where the rock was fetched from
+---@field sha256 string  64 lowercase hexadecimal characters
+---@field checksum_of "files"|"rockspec"  what `sha256` covers: the installed files of a pure-Lua rock, the installed rockspec otherwise
+---@field dependencies string[]  names of the rocks it depends on, sorted
+---@field development boolean  true when only development dependencies need it
+---@field native boolean  true when it compiles C code, so the build differs per platform
+
+---@class hecate.cli.Lockfile
+---@field format integer
+---@field lua string  exact Lua version the project was resolved with, for example "5.5.1"
+---@field luarocks string  exact LuaRocks version used
+---@field rocks table<string, hecate.cli.LockedRock>
+
+--- Reading, validating, writing and checking `hecate.lock`.
+---@class hecate.cli.lockfile
+local M = { FORMAT = FORMAT }
+
+local text = schema.string({ min_length = 1, max_length = 4096 })
+
+--- The schema of a lockfile. Every key not declared here is refused.
+---@type hecate.schema.Schema
+M.schema = schema.object({
+  format = schema.literal(FORMAT),
+  lua = schema.string({ min_length = 1, max_length = 32, pattern = "^%d+%.%d+[%w%.%-]*$" }),
+  luarocks = schema.string({ min_length = 1, max_length = 32, pattern = "^%d+%.%d+[%w%.%-]*$" }),
+  rocks = schema.map(schema.object({
+    version = text,
+    source = text,
+    sha256 = schema.string({ min_length = 64, max_length = 64, pattern = "^%x+$" }),
+    checksum_of = schema.enumeration({ "files", "rockspec" }),
+    dependencies = schema.array(text, { unique_items = true }),
+    development = schema.boolean(),
+    native = schema.boolean(),
+  })),
+})
+
+local function fail(message, path, context)
+  context = context or {}
+  context.path = path
+  error(core.ConfigurationError({ message = message, context = context }), 0)
+end
+
+--- Validates a lockfile table. Beyond the schema: a checksum is lowercase, and the rocks it names as dependencies
+--- are in the file. Raises `hecate.core.ConfigurationError` listing every problem.
+---@param value any
+---@param path? string  file name used in messages (default `hecate.lock`)
+---@return hecate.cli.Lockfile lock
+function M.validate(value, path)
+  path = path or "hecate.lock"
+  if type(value) ~= "table" then fail(path .. ": the lockfile must return a table", path) end
+  local lines = {}
+  local ok, violations = M.schema:validate(value)
+  if not ok then
+    for _, violation in ipairs(violations --[[@as hecate.schema.Violation[] ]]) do lines[#lines + 1] = "  " .. tostring(violation) end
+  else
+    for name, rock in pairs(value.rocks) do
+      if rock.sha256 ~= rock.sha256:lower() then lines[#lines + 1] = "  /rocks/" .. name .. "/sha256: must be lowercase hexadecimal" end
+      for _, dependency in ipairs(rock.dependencies) do
+        if value.rocks[dependency] == nil then
+          lines[#lines + 1] = "  /rocks/" .. name .. "/dependencies: '" .. dependency .. "' is not in the lockfile"
+        end
+      end
+    end
+  end
+  if #lines > 0 then
+    table.sort(lines)
+    fail(path .. ": invalid lockfile:\n" .. table.concat(lines, "\n"), path, { problems = lines })
+  end
+  return value
+end
+
+--- Reads the text of a lockfile (empty environment, limits) and validates it. Raises
+--- `hecate.core.ConfigurationError` for a syntax error, a runtime error, a limit, or a problem of content.
+---@param source string
+---@param path? string
+---@return hecate.cli.Lockfile lock
+function M.parse(source, path)
+  path = path or "hecate.lock"
+  local chunk, message = load(source, "=" .. path, "t", {})
+  if not chunk then error(core.ConfigurationError({ message = path .. ": " .. tostring(message), context = { path = path } }), 0) end
+  local ok, result = sandbox.run(chunk)
+  if not ok then fail(path .. ": " .. tostring(result), path) end
+  return M.validate(result, path)
+end
+
+local quote, key = lua_text.quote, lua_text.key
+
+local HEADER = "-- hecate.lock: generated by `hecate install`; do not edit. Commit it.\n"
+
+--- The text of a lockfile: sorted, one rock per block, two-space indentation, a fixed order of fields. Equal
+--- lockfiles give the same bytes on every platform. The table is validated first.
+---@param lock hecate.cli.Lockfile
+---@return string text
+function M.serialize(lock)
+  M.validate(lock)
+  local names = {}
+  for name in pairs(lock.rocks) do names[#names + 1] = name end
+  table.sort(names)
+  local out = { HEADER, "return {\n" }
+  out[#out + 1] = "  format = " .. lock.format .. ",\n"
+  out[#out + 1] = "  lua = " .. quote(lock.lua) .. ",\n"
+  out[#out + 1] = "  luarocks = " .. quote(lock.luarocks) .. ",\n"
+  out[#out + 1] = "  rocks = {\n"
+  for _, name in ipairs(names) do
+    local rock = lock.rocks[name]
+    local dependencies = {}
+    for _, dependency in ipairs(rock.dependencies) do dependencies[#dependencies + 1] = dependency end
+    table.sort(dependencies)
+    local quoted = {}
+    for index, dependency in ipairs(dependencies) do quoted[index] = quote(dependency) end
+    out[#out + 1] = "    " .. key(name) .. " = {\n"
+    out[#out + 1] = "      version = " .. quote(rock.version) .. ",\n"
+    out[#out + 1] = "      source = " .. quote(rock.source) .. ",\n"
+    out[#out + 1] = "      sha256 = " .. quote(rock.sha256) .. ",\n"
+    out[#out + 1] = "      checksum_of = " .. quote(rock.checksum_of) .. ",\n"
+    out[#out + 1] = "      dependencies = { " .. table.concat(quoted, ", ") .. (#quoted > 0 and " " or "") .. "},\n"
+    out[#out + 1] = "      development = " .. tostring(rock.development) .. ",\n"
+    out[#out + 1] = "      native = " .. tostring(rock.native) .. ",\n"
+    out[#out + 1] = "    },\n"
+  end
+  out[#out + 1] = "  },\n}\n"
+  return table.concat(out)
+end
+
+--- Checks a lockfile against a manifest, as `hecate install --frozen` does: the problems that make the lockfile
+--- outdated. A direct dependency missing from the lockfile; a rock no direct dependency reaches; a rock that a
+--- non-development dependency reaches but is marked `development`; a direct dependency whose locked version does not
+--- satisfy the constraint of the manifest (the transitive ones carry no constraint in the lockfile). An empty list
+--- means the lockfile matches.
+---@param lock hecate.cli.Lockfile
+---@param manifest hecate.cli.Manifest
+---@return string[] problems  sorted, each with the command that fixes it
+function M.outdated(lock, manifest)
+  local problems = {}
+  local reached_runtime, reached_any = {}, {}
+  local function reach(name, runtime)
+    local rock = lock.rocks[name]
+    if rock == nil then return end
+    local seen = runtime and reached_runtime or reached_any
+    if seen[name] then return end
+    seen[name] = true
+    for _, dependency in ipairs(rock.dependencies) do reach(dependency, runtime) end
+  end
+  local function check_direct(name, wanted, runtime)
+    local rock = lock.rocks[name]
+    if rock == nil then
+      problems[#problems + 1] = "'" .. name .. "' is in the manifest but not in the lockfile: run `hecate install`"
+      return
+    end
+    if runtime then reach(name, true) end
+    reach(name, false)
+    if not constraint.satisfies(rock.version, wanted) then
+      problems[#problems + 1] = "'" .. name .. "' is locked at " .. rock.version .. " but the manifest asks for '" .. wanted
+        .. "': run `hecate install` (or `hecate update " .. name .. "` to take the newest version that fits)"
+    end
+  end
+  for name, wanted in pairs(manifest.dependencies or {}) do check_direct(name, wanted, true) end
+  for name, wanted in pairs(manifest.development_dependencies or {}) do check_direct(name, wanted, false) end
+  for name, rock in pairs(lock.rocks) do
+    if not reached_any[name] then
+      problems[#problems + 1] = "'" .. name .. "' is in the lockfile but no dependency of the manifest needs it: run `hecate install`"
+    elseif reached_runtime[name] and rock.development then
+      problems[#problems + 1] = "'" .. name .. "' is needed at run time but the lockfile marks it as a development dependency: run `hecate install`"
+    elseif not reached_runtime[name] and not rock.development then
+      problems[#problems + 1] = "'" .. name .. "' is only needed for development but the lockfile does not mark it so: run `hecate install`"
+    end
+  end
+  table.sort(problems)
+  return problems
+end
+
+return M

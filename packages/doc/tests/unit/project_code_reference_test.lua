@@ -105,11 +105,11 @@ function T:test_with_both_audiences_public_symbols_go_to_the_user_tree_and_the_i
     self:assert_not_nil(fs:read("shop/dist/maintainer/en/reference/shop/" .. name .. "index.html"), "maintainer site: " .. name)
   end
   -- The search index of a site has the pages of its tree only.
-  local user_search = fs:read("shop/dist/user/assets/search-en.json")
+  local user_search = fs:read("shop/dist/user/assets/search-en.js")
   self:assert_nil(user_search:find("/Store/", 1, true), "no document for a page of the other tree")
   self:assert_nil(user_search:find("/Restricted/", 1, true))
-  local maintainer_search = fs:read("shop/dist/maintainer/assets/search-en.json")
-  self:assert_not_nil(maintainer_search:find("/maintainer/en/reference/shop/Store/", 1, true))
+  local maintainer_search = fs:read("shop/dist/maintainer/assets/search-en.js")
+  self:assert_not_nil(maintainer_search:find("en/reference/shop/Store/index.html", 1, true))
   self:assert_nil(maintainer_search:find("/Cart/", 1, true))
 end
 

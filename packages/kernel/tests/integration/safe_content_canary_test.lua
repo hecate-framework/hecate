@@ -222,7 +222,8 @@ end
 ---@return CanaryCapture captured
 ---@return hecate.kernel.Application app
 local function boot(loaded, options)
-  local all = { configuration = loaded, routes = { canary_routes(loaded) }, signals = false }
+  -- One process: the configuration says `workers = "auto"` by default, and the test reads the logger of this process.
+  local all = { configuration = loaded, routes = { canary_routes(loaded) }, signals = false, workers = 1 }
   for key, value in pairs(options or {}) do all[key] = value end
   local app = kernel.Application(all)
   local serve = app:boot()
@@ -463,7 +464,7 @@ function T:test_over_a_socket_nothing_of_the_request_is_echoed_or_logged()
   local serve_bytes = false
   local loaded = configuration({ HECATE_DATABASE__PASSWORD = "x" })
   local app = kernel.Application({
-    configuration = loaded, routes = { canary_routes(loaded) }, signals = false,
+    configuration = loaded, routes = { canary_routes(loaded) }, signals = false, workers = 1,
     server = { host = "127.0.0.1", port = 0, on_response = function(info) targets[#targets + 1] = info.target end },
   })
   app:boot()

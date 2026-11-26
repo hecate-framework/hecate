@@ -86,7 +86,7 @@ this version of `hecate-unicode` does not know, the first call raises a `DataFor
 
 ## Know and change the Unicode version
 
-`unicode.version` is the Unicode version of the installed tables, for example `"18.0.0"`. To use a newer Unicode
+`unicode.unicode_version` is the Unicode version of the installed tables, for example `"18.0.0"`. To use a newer Unicode
 version, install a newer `hecate-unicode-data`; nothing else changes:
 
 ```sh

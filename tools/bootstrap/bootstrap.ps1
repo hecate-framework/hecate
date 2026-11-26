@@ -10,7 +10,7 @@
   run under Windows' emulation on arm64; Lua itself is built natively.
 .NOTES
   Requires a Visual Studio C++ toolchain and CMake in PATH, in a developer shell
-  (or after ilammy/msvc-dev-cmd in GitHub Actions).
+  (or after `.github/actions/msvc-env` in GitHub Actions).
 #>
 param(
   [ValidateSet('x64', 'arm64')]

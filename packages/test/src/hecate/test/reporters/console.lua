@@ -3,7 +3,7 @@
 --   * live (a terminal): the line of the running suite is redrawn in place as tests finish;
 --   * plain (pipes, CI, IDE consoles): each suite line is written once, completed, with no cursor control.
 -- Colour is separate from the mode. All escape sequences come from `reporters.ansi`.
-global <const> require, io, ipairs, math, table, tostring
+global <const> require, io, ipairs, math, table, tostring, error, type
 
 local core = require("hecate.core")
 local ansi = require("hecate.test.reporters.ansi")
@@ -13,6 +13,7 @@ local terminal = require("hecate.test.reporters.terminal")
 ---@class hecate.test.ConsoleOptions : hecate.test.TerminalOptions
 ---@field write? fun(text: string)  receives the output, default `io.stdout:write` then flush
 ---@field bar_width? integer  most cells of a loading bar (default 40)
+---@field rerun_command? string  the command that runs the tests (for example `hecate test`): after the failures the reporter prints it with a `--filter` for each failed test (default: nothing printed)
 ---@field full_trace? boolean  keep the frames of the framework in the traceback of an error (default false: only the frames of your code)
 
 --- Writes the events of a run for a person.
@@ -32,12 +33,16 @@ local STATUS_COLOR = { passed = "green", failed = "red", errored = "red" }
 function ConsoleReporter:init(options)
   local reporter_options = require("hecate.test.reporters.options")
   options = reporter_options.check("ConsoleReporter", options,
-    { color = true, live = true, width = true, is_tty = true, getenv = true, bar_width = true, full_trace = true })
+    { color = true, live = true, width = true, is_tty = true, getenv = true, bar_width = true, full_trace = true, rerun_command = true })
   self._write = reporter_options.writer(options, true)
   local resolved = terminal.resolve(options)
   self._color, self._live, self._width = resolved.color, resolved.live, resolved.width
   self._bar_width = options.bar_width or DEFAULT_BAR_WIDTH
   self._full_trace = options.full_trace == true
+  if options.rerun_command ~= nil and type(options.rerun_command) ~= "string" then
+    error(core.ArgumentError("test.ConsoleReporter: rerun_command must be a string"), 3)
+  end
+  self._rerun_command = options.rerun_command
   self._problems = {}
   self._suite = nil
 end
@@ -164,6 +169,23 @@ function ConsoleReporter:handle(event)
   end
 end
 
+local MAX_RERUN = 5
+
+-- The commands that rerun the failed tests, one per test (the filter is a Lua pattern: the magic characters of the
+-- full name are escaped; the quoting is that of a POSIX shell and of PowerShell).
+function ConsoleReporter:_write_rerun()
+  if self._rerun_command == nil or #self._problems == 0 then return end
+  self._write("\nRerun the failed tests:\n")
+  for index, result in ipairs(self._problems) do
+    if index > MAX_RERUN then
+      self._write(("  ... and %d more\n"):format(#self._problems - MAX_RERUN))
+      break
+    end
+    local pattern = "^" .. result.name:gsub("[%^%$%(%)%%%.%[%]%*%+%-%?]", "%%%0") .. "$"
+    self._write(("  %s --filter='%s'\n"):format(self._rerun_command, (pattern:gsub("'", "'\\''"))))
+  end
+end
+
 -- The details of every failure and error, then the totals.
 function ConsoleReporter:_finish(summary)
   for _, result in ipairs(self._problems) do
@@ -177,6 +199,7 @@ function ConsoleReporter:_finish(summary)
       self._write("  " .. trace:gsub("\n", "\n  ") .. "\n")
     end
   end
+  self:_write_rerun()
   self._write(("\n%s in %s, %s: %d passed, %d failed, %d errored\n"):format(
     plural(summary.total, "test"), plural(#summary.suites, "suite"), plural(summary.assertions, "assertion"),
     summary.passed, summary.failed, summary.errored))

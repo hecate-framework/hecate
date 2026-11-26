@@ -24,7 +24,7 @@
   n log n on a long run of marks), canonical composition with the blocking rule (UAX #15)
 - the Hangul syllable arithmetic (Unicode Standard 3.12), computed and not in the tables
 - `is_nfc` and `is_nfd`, which normalise and compare (they cost as much as `nfc` and `nfd`)
-- `unicode.version`, the Unicode version of the installed `hecate-unicode-data`
+- `unicode.unicode_version`, the Unicode version of the installed `hecate-unicode-data`, and `unicode.version`, the version of the package
 - invalid UTF-8 and a table layout that this version does not know are error objects of the Hecate hierarchy
   (ADR 0018)
 
@@ -50,7 +50,8 @@ All names are fields of `require "hecate.unicode"`.
 | `nfc(text)` | Normalization Form C of well-formed UTF-8 text; ASCII is returned as it is |
 | `nfd(text)` | Normalization Form D |
 | `is_nfc(text)`, `is_nfd(text)` | whether `text` is in the form |
-| `version` | the Unicode version of the tables, for example `"18.0.0"` |
+| `unicode_version` | the Unicode version of the tables, for example `"18.0.0"` |
+| `version` | the version of this package, the version of Hecate (`VERSION`, ADR 0005) |
 | `UnicodeError` | root of the errors of this package (`hecate.unicode.UnicodeError`) |
 | `InvalidUtf8Error` | the string is not well-formed UTF-8; `context.position` is the 1-based byte of the first invalid one |
 | `DataFormatError` | the installed `hecate-unicode-data` has a table layout (`format`) unknown to this version; `context.format`, `context.supported`, `context.unicode_version` |

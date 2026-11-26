@@ -266,4 +266,24 @@ function T:test_an_error_shows_the_frames_of_the_test_and_hides_those_of_the_fra
   self:assert_match("hecate[/\\]test[/\\]runner%.lua", full)
 end
 
+function T:test_the_console_reporter_prints_the_command_that_reruns_the_failed_tests()
+  local C = hecate_test.Case("Rerun")
+  function C:test_fails() self:assert_equal(1, 2) end
+  function C:test_it_works() end
+  function C:test_quote_it() error("it's", 0) end
+  local function output(options)
+    local out = {}
+    options.write = function(text) out[#out + 1] = text end
+    options.live, options.color, options.width = false, false, 100
+    hecate_test.Runner({ reporter = hecate_test.ConsoleReporter(options) }):run({ C })
+    return table.concat(out)
+  end
+  local text = output({ rerun_command = "hecate test" })
+  self:assert_match("Rerun the failed tests:", text)
+  self:assert_true(text:find("hecate test --filter='^Rerun%.test_fails$'", 1, true) ~= nil, "the failure has a command")
+  self:assert_true(text:find("hecate test --filter='^Rerun%.test_quote_it$'", 1, true) ~= nil, "the error has a command")
+  self:assert_nil((text:find("--filter='^Rerun%.test_it_works", 1, true)))
+  self:assert_nil((output({}):find("Rerun the failed tests:", 1, true)))
+end
+
 return core.finalise(T)

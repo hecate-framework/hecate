@@ -221,9 +221,20 @@
     var load = function () {
       if (documents) return Promise.resolve(documents);
       if (!loading) {
-        loading = fetch(config.index).then(function (response) {
-          if (!response.ok) throw new Error("index " + response.status);
-          return response.json();
+        /* The index is a script (`assets/search-<locale>.js`) that registers itself in
+           `window.hecateDocSearchIndex`: a script loads from the file system (file://) where
+           `fetch` of a JSON file is refused, and from any static host. */
+        loading = new Promise(function (resolve, reject) {
+          var registry = window.hecateDocSearchIndex || {};
+          if (registry[config.locale]) { resolve(registry[config.locale]); return; }
+          var script = document.createElement("script");
+          script.src = config.index;
+          script.onload = function () {
+            var data = (window.hecateDocSearchIndex || {})[config.locale];
+            if (data) resolve(data); else reject(new Error("index missing"));
+          };
+          script.onerror = function () { reject(new Error("index not loaded")); };
+          document.head.appendChild(script);
         }).then(function (data) {
           documents = (data.documents || []).map(function (doc) {
             return { doc: doc, title: fold(doc.t || ""), heading: fold(doc.h || ""), text: fold(doc.x || "") };
@@ -303,7 +314,7 @@
         item.className = "search-result";
         item.setAttribute("role", "presentation");
         var link = document.createElement("a");
-        link.href = doc.u;
+        link.href = (config.root || "") + doc.u;
         link.id = "search-result-" + index;
         link.setAttribute("role", "option");
         link.setAttribute("aria-selected", "false");

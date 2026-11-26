@@ -109,9 +109,17 @@ function T:test_is_nfc_and_is_nfd()
 end
 
 function T:test_the_unicode_version_in_use_is_reported()
-  self:assert_equal("string", type(unicode.version))
-  self:assert_true(unicode.version:match("^%d+%.%d+%.%d+$") ~= nil)
-  self:assert_equal(require("hecate.unicode_data").unicode_version, unicode.version)
+  self:assert_equal("string", type(unicode.unicode_version))
+  self:assert_true(unicode.unicode_version:match("^%d+%.%d+%.%d+$") ~= nil)
+  self:assert_equal(require("hecate.unicode_data").unicode_version, unicode.unicode_version)
+end
+
+function T:test_version_is_the_version_of_the_package()
+  local here = debug.getinfo(1, "S").source:match("^@(.*)[/\\][^/\\]*$") or "."
+  local file = assert(io.open(here .. "/../../../../VERSION", "rb"))
+  local text = file:read("a")
+  file:close()
+  self:assert_equal(text:match("%S+"), unicode.version)
 end
 
 function T:test_long_inputs_do_not_overflow_the_stack_and_stay_fast()

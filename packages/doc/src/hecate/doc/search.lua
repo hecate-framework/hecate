@@ -1,6 +1,7 @@
 -- Search index: one document per page section (the part of a page under a heading of
--- level 2 or 3, or before the first one), serialised as JSON and queried in the browser
--- by `theme.js`. No stemming and no server: the client folds case and diacritics and
+-- level 2 or 3, or before the first one), written as a script file that registers the index
+-- and queried in the browser by `theme.js`. A script loads from the file system (file://)
+-- and from any static host; a `fetch` of a JSON file does not load from file://. No stemming and no server: the client folds case and diacritics and
 -- matches word prefixes, which suits documentation and French text alike.
 global <const> require, ipairs, table, string, utf8
 
@@ -19,7 +20,7 @@ M.MAX_TEXT = 2400
 
 ---@class hecate.doc.SearchPage
 ---@field title string
----@field url string  URL of the page
+---@field url string  path of the page file below the root of the site (percent-encoded, relative to the root, never starting with `/`), such as `en/guide/index.html`; `theme.js` prefixes the path from the page to the root
 ---@field category? string  name of the section the page belongs to, shown in results
 ---@field sections hecate.doc.Section[]
 
@@ -59,6 +60,13 @@ function M.build(locale, pages)
   return { version = M.FORMAT_VERSION, locale = locale, documents = documents }
 end
 
+--- Serialises a string to a JSON string literal, which is also a JavaScript string literal (ES2019 and later).
+---@param text string
+---@return string
+function M.encode_string(text)
+  return (json.encode(text):gsub("[<>&]", function(char) return ("\\u%04x"):format(char:byte()) end))
+end
+
 --- Serialises an index (`build` result) to JSON.
 ---@param index table
 ---@return string
@@ -68,6 +76,18 @@ function M.encode(index)
     return ("\\u%04x"):format(char:byte())
   end)
   return text
+end
+
+--- Name of the global registry the script of an index writes to (read by `theme.js`).
+M.REGISTRY = "hecateDocSearchIndex"
+
+--- Serialises an index as the content of a script file (`assets/search-<locale>.js`): it assigns the index to
+--- `window.hecateDocSearchIndex[<locale>]`. The text is a function of the index only (no timestamp).
+---@param index table  a `build` result
+---@return string
+function M.script(index)
+  local locale = M.encode_string(index.locale)
+  return ("(window.%s = window.%s || {})[%s] = %s;\n"):format(M.REGISTRY, M.REGISTRY, locale, M.encode(index))
 end
 
 return M

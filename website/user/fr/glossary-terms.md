@@ -91,3 +91,11 @@ page (avec un lien vers le glossaire), puis le terme français seul.
 | counterexample | contre-exemple | |
 | shrinking | réduction (*shrinking*) | réduire un contre-exemple à un plus petit qui échoue encore |
 | line coverage | couverture de lignes | |
+| audience | audience | `user` ou `maintainer` ; un arbre de contenu et un site chacune |
+| documentation site | site de documentation | construit par `hecate.doc` à partir d’un arbre d’audience |
+| generated page | page générée | `generated: true` ; jamais modifiée à la main |
+| code reference | référence de code | générée à partir des annotations LuaLS ; jamais « référence d’API » |
+| licences page | page des licences | `third-party-licences.md` |
+| grace period | période de grâce | `Server:shutdown` ; à distinguer du délai de purge d’une réponse |
+| environment (deployment) | environnement | `development`, `test`, `production` ; variable `HECATE_ENV` |
+| release archive | archive de livraison | `hecate package` |

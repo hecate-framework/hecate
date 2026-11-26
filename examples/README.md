@@ -15,5 +15,5 @@ From Phase 3 on, each example is a complete Hecate project (`hecate.project.lua`
 must pass `hecate test` and `hecate contract lint` in CI. Until the `cli`, `test` and `openapi`
 packages exist (Phase 3), an example is a plain Lua program run with `lua main.lua` and tested by
 the repository harness: `lua tools/run.lua test examples/<name>`. CI runs `hello` on Linux, macOS
-and Windows whenever the kernel or the example changes (the build of the documentation site of `hello`, `tests/docs_build_test.lua`, also whenever `doc` or the site of the example changes). The `cli` item of Phase 3 turns `hello`
-into a project (`hecate.project.lua`, OpenAPI contract) once those commands exist.
+and Windows whenever the kernel or the example changes (the build of the documentation site of `hello`, `tests/docs_build_test.lua`, also whenever `doc` or the site of the example changes). `hello` is now a project (`hecate.project.lua`, OpenAPI contract): `tools/tests/cli_e2e_test.lua` runs `hecate test` and
+`hecate contract lint` on it with the built executable, on the three platforms.

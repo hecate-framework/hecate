@@ -27,11 +27,13 @@ local DEFAULT_INDENT = "  "
 
 --- The JSON codec: `encode` and `decode`, the `null` value, the `array` and `object` markers and the errors.
 ---@class hecate.json
+---@field version string  the version of this package, the version of Hecate (`VERSION`, ADR 0005)
 ---@field null hecate.json.Null  the value of JSON `null`; decoded nulls are this exact value
 ---@field JsonError hecate.json.JsonError
 ---@field DecodeError hecate.json.DecodeError
 ---@field EncodeError hecate.json.EncodeError
 local json = {
+  version = "0.0.0",
   null = null,
   JsonError = errors.JsonError,
   DecodeError = errors.DecodeError,

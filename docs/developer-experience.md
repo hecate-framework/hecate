@@ -11,7 +11,7 @@ specifications, which take precedence. In particular, classes are declared with
 ```sh
 # One self-contained executable; it embeds its own Lua 5.5 (ADR 0010)
 curl -fsSL https://hecate.theandre.dev/install.sh | sh        # Linux, macOS
-winget install Hecate.Hecate                          # Windows (or scoop)
+winget install Hecate.Hecate                          # Windows
 
 hecate new acme-api        # scaffolds the project, installs the Lua 5.5 toolchain
 cd acme-api

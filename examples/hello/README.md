@@ -24,6 +24,23 @@ curl -s -X POST localhost:8080/greetings -H 'Content-Type: application/json' -d 
 
 The last call answers `422` with `errors[1] = { "pointer": "/name", "source": "content", "code": ... }`.
 
+## As a Hecate project
+
+`examples/hello` is a Hecate project (`hecate.project.lua`): with the executable built (`lua tools/run.lua build-cli`) and the
+packages of the repository copied into `lua_modules` (`lua tools/run.lua link-modules examples/hello`, which stands in for
+`hecate install` until the rocks are published), from this directory:
+
+```sh
+hecate test                                              # the tests of tests/hello_test.lua
+hecate contract export --output=openapi.json && hecate contract lint openapi.json
+HELLO_PORT=8080 hecate serve                             # runs main.lua
+hecate doc build --yes                                   # the documentation site, in docs/dist
+```
+
+The repository harness runs the same tests (`lua tools/run.lua test examples/hello`); `workers_test.lua` and
+`docs_build_test.lua` need that harness and are skipped by `hecate test`. `tools/tests/cli_e2e_test.lua` runs these commands in
+CI, on the three platforms.
+
 ## Run
 
 Once per clone, from the repository root, install `luv` (the bootstrap installs only Lua and

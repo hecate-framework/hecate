@@ -198,7 +198,7 @@ jobs:
 
       - name: MSVC environment (Windows)
         if: runner.os == 'Windows'
-        uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1
+        uses: ./.github/actions/msvc-env
 
       - name: Bootstrap (Windows)
         if: steps.toolchain.outputs.cache-hit != 'true' && runner.os == 'Windows'
@@ -263,6 +263,19 @@ jobs:
         if: steps.rocks.outputs.cache-hit != 'true'
         shell: bash
         run: luarocks --tree .hecate/rocks install luv 1.53.0-0
+
+      # digest: the SHA-256 rock of `hecate.cli.digest` (ADR 0028); its contract test runs here.
+      # On Windows it is built from pwsh: under bash, the `link` of Git for Windows (GNU coreutils) comes before the
+      # linker of MSVC in PATH and the build fails with "link: unknown option -- d".
+      - name: Install digest
+        if: steps.rocks.outputs.cache-hit != 'true' && runner.os != 'Windows'
+        shell: bash
+        run: luarocks --tree .hecate/rocks install digest 0.0.1-1
+
+      - name: Install digest (Windows)
+        if: steps.rocks.outputs.cache-hit != 'true' && runner.os == 'Windows'
+        shell: pwsh
+        run: luarocks --tree .hecate/rocks install digest 0.0.1-1
 
       # Built native modules, one cache per module (a run builds only the modules it needs, so one shared cache
       # would be saved with whatever subset the first run built and then hit by a run that needs more). Each key

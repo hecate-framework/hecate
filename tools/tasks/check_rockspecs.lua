@@ -3,6 +3,7 @@
 -- licence is the one of the package (MIT, Unicode-3.0 for the data rock).
 local util = require("lib.util")
 local rockspec = require("lib.rockspec")
+local package_kind = require("lib.package_kind")
 
 local function read(path)
   local f = io.open(path, "rb")
@@ -18,7 +19,7 @@ return {
     local problems = {}
     local pkgs = ctx.root .. "/packages"
     local known = {}
-    local names = util.list_dir(pkgs)
+    local names = package_kind.rocks(ctx.root) -- a package of another kind has no rockspec
     for _, name in ipairs(names) do known[name == "hecate" and "hecate" or "hecate-" .. name] = true end
     for _, name in ipairs(names) do
       local rock = name == "hecate" and "hecate" or "hecate-" .. name

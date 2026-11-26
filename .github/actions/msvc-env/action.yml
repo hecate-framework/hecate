@@ -1,0 +1,32 @@
+name: MSVC environment
+description: >-
+  Puts the MSVC x64 toolchain (cl, link, the include and library paths) in the environment of the next steps (Windows).
+  Replaces ilammy/msvc-dev-cmd, which has no release on Node 24: it runs vcvars64.bat of the newest Visual Studio with the
+  C++ tools and exports what changed, the new directories of PATH first.
+runs:
+  using: composite
+  steps:
+    - shell: pwsh
+      run: |
+        $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+        $install = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+        if (-not $install) { throw 'Visual Studio with the C++ x64 tools was not found' }
+        $vcvars = Join-Path $install 'VC\Auxiliary\Build\vcvars64.bat'
+        $before = @{}
+        Get-ChildItem Env: | ForEach-Object { $before[$_.Name] = $_.Value }
+        $lines = cmd /c "`"$vcvars`" >nul 2>&1 && set"
+        foreach ($line in $lines) {
+          if ($line -notmatch '^([^=]+)=(.*)$') { continue }
+          $name = $Matches[1]
+          $value = $Matches[2]
+          if ($before[$name] -eq $value) { continue }
+          if ($name -ieq 'path') {
+            $known = $before[$name] -split ';'
+            foreach ($entry in ($value -split ';')) {
+              if ($entry -and ($known -notcontains $entry)) { Add-Content -Path $env:GITHUB_PATH -Value $entry }
+            }
+          } else {
+            Add-Content -Path $env:GITHUB_ENV -Value "$name=$value"
+          }
+        }
+        Write-Host "MSVC environment from $vcvars"

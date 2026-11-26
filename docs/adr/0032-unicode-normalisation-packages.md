@@ -4,6 +4,7 @@
 - **Date:** 2026-11-17
 - **Deciders:** project owner (route chosen in chat on 2026-11-17, on pull request #218; accepted by the owner in chat on 2026-11-17)
 - **Amended:** 2026-11-19 by the owner, in place, status unchanged: first pinned version Unicode 18.0.0; error classes listed
+- **Amended:** 2026-11-25 by the owner, in place, status unchanged: the module reports the Unicode version as `unicode_version` (as `hecate.unicode_data` does) and `version` is the version of the package, the lockstep `VERSION`, as in every other package (OQ-150)
 - **Packages:** unicode (new), unicode-data (new), doc (first user), schema and router (later users), and the generator, CI and release tooling
 - **Related:** OQ-140 ([issue #219](https://github.com/hecate-framework/hecate/issues/219)), [ADR 0005](0005-single-brand-monorepo-lockstep-versioning.md) (lockstep versions), [ADR 0017](0017-monorepo-with-read-only-mirrors.md), [ADR 0018](0018-error-signalling.md), [ADR 0021](0021-rust-native-modules.md), [ADR 0022](0022-doc-dependencies.md), [overview.md](../architecture/overview.md)
 
@@ -66,7 +67,7 @@ Option 5.
 - **`packages/unicode`**, rock `hecate-unicode`, module `hecate.unicode`: the algorithms, pure Lua.
   Scope of the first version: NFC and NFD of UTF-8 strings, the Hangul syllable arithmetic
   (algorithmic: not in the tables), canonical reordering by combining class, and the Unicode
-  version in use (`unicode.version`). Out of scope: NFKC and NFKD (they need the compatibility
+  version in use (`unicode.unicode_version`). Out of scope: NFKC and NFKD (they need the compatibility
   mappings, a larger table: additive later, in the same data rock), case mapping and case folding,
   grapheme and word segmentation, collation, identifier profiles. Invalid UTF-8 is an error object
   of the Hecate hierarchy (ADR 0018), one of the classes listed under "Error classes" below.
@@ -113,7 +114,7 @@ Option 5.
   upgrade needs no coordination. This property is documented in the package README.
 - **No runtime override mechanism.** There is no configuration key, environment variable, API or
   `package.loaded` convention to substitute the tables at run time: the version in use is the
-  installed `hecate-unicode-data`, and `unicode.version` reports it. The only way to change it is
+  installed `hecate-unicode-data`, and `unicode.unicode_version` reports it. The only way to change it is
   to install another rock version.
 
 ### Error classes

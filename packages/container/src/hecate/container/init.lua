@@ -8,6 +8,7 @@ local errors = require("hecate.container.errors")
 
 --- The container package: bind services, validate the graph at boot, resolve by constructor injection.
 ---@class hecate.container
+---@field version string  the version of this package, the version of Hecate (`VERSION`, ADR 0005)
 ---@field Container hecate.container.Container  bindings, validation and resolution
 ---@field ServiceScope hecate.container.ServiceScope  the lifetime of scoped services (one per request)
 ---@field Lifetime hecate.container.Lifetime  `singleton`, `scoped`, `transient`
@@ -19,6 +20,7 @@ local errors = require("hecate.container.errors")
 ---@field GraphError hecate.container.GraphError  everything `validate` found
 ---@field ConstructionError hecate.container.ConstructionError  a constructor or factory raised
 local M = {}
+M.version = "0.0.0"
 M.Container = container.Container
 M.ServiceScope = container.ServiceScope
 M.Lifetime = require("hecate.container.lifetime")

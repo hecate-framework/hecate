@@ -13,8 +13,9 @@ Lua 5.5. The design behind it is in [Multi-process serving](../explanation/multi
 
 ## Start several workers
 
-Set `workers` above 1, as an option of `Application` or with the configuration key `server.workers`
-(`HECATE_SERVER__WORKERS`; default 1). The process you start becomes the
+Set `workers` above 1, as an option of `Application`, with `hecate serve --workers 4`, or with the configuration key
+`server.workers` (`HECATE_SERVER__WORKERS`). The key defaults to `"auto"`: one worker per core minus one, and at least 1;
+the generated `config/development.lua` and `config/test.lua` set it to 1. The process you start becomes the
 [primary](../reference/glossary.md#concurrency). Its `serve()` starts that many
 [workers](../reference/glossary.md#concurrency), each one the same program started again with a worker role in its
 environment. A worker builds the same application, and its own `serve()` detects the role and serves.
@@ -153,8 +154,8 @@ What does not exist yet:
 - no readiness probe that reports a worker draining, or checks a database or another dependency (an action can do the
   checks you need itself, bounded with `reactor.deadline`);
 - no endpoint for the counters the primary keeps per worker (`Supervisor:counters()`, primary only);
-- no `hecate serve --workers` command: the `cli` package is planned for Phase 3, and `Application` starts its workers
-  itself.
+- `hecate serve --workers N` sets `HECATE_SERVER__WORKERS` for the application; the application starts its workers
+  itself, whether it is run by `hecate serve` or by `lua main.lua`.
 
 ## See also
 

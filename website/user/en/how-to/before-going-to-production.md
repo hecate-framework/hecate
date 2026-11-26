@@ -229,8 +229,9 @@ The items below apply to that hook.
 
 ## Workers and shutdown
 
-- [ ] **Choose the number of workers.** `server.workers` defaults to `1`: one process serving by itself
-  (`HECATE_SERVER__WORKERS`).
+- [ ] **Choose the number of workers.** `server.workers` defaults to `"auto"`: one worker per core minus one, at least 1
+  (`HECATE_SERVER__WORKERS`; `1` means one process serving by itself, as in the generated development and test
+  configurations; `hecate serve --workers N` sets it for a run).
 
   Above 1, the [primary](../reference/glossary.md#concurrency), the process that starts and supervises the workers,
   starts that many [workers](../reference/glossary.md#concurrency). It spreads the connections with

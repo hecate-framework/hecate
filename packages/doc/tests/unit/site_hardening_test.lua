@@ -157,7 +157,9 @@ function T:test_a_backslash_in_an_absolute_path_link_is_percent_encoded_and_repo
   self:assert_nil(html:find("/\\evil", 1, true), "no raw backslash in an absolute-path link")
   self:assert_not_nil(html:find("%5Cevil.example/path", 1, true), html)
   self:assert_true(mentions(report.problems, "backslash"), table.concat(report.problems, "\n"))
-  self:assert_not_nil(html:find('href="/docs/ok/page"', 1, true), "an ordinary absolute-path link is kept")
+  self:assert_not_nil(html:find('href="../../ok/page/index.html"', 1, true),
+    "an ordinary absolute-path link names a path below the root of the site, and becomes relative to the page")
+  self:assert_nil(html:find('href="/', 1, true), "no root-relative link is left")
 end
 
 function T:test_the_origin_is_percent_encoded_in_llms_txt()

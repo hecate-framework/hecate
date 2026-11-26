@@ -3,11 +3,13 @@ global <const> require
 
 --- The router: compile a route table once at boot, match requests, build URLs from route names.
 ---@class hecate.router
+---@field version string  the version of this package, the version of Hecate (`VERSION`, ADR 0005)
 ---@field Router hecate.router.Router  a compiled route table
 ---@field RouteTableError hecate.router.RouteTableError  a route table refused at boot (a `ConfigurationError`)
 ---@field path hecate.router.paths  decoding, dot segments and encoding of request paths
 ---@field template hecate.router.templates  parsing and expansion of path templates
 local router = {}
+router.version = "0.0.0"
 
 router.Router = require("hecate.router.router")
 router.RouteTableError = require("hecate.router.errors").RouteTableError

@@ -256,19 +256,26 @@ local function sorted_unique(list)
   return out
 end
 
--- The page at the root of `output_dir`: it leads to the first site built.
+local function encode_path(text)
+  return (text:gsub("[^%w%-._~/]", function(char) return ("%%%02X"):format(char:byte()) end))
+end
+
+-- The page at the root of `output_dir`: it leads to the first site built, by a link relative to the page (OQ-148). The
+-- canonical link, only with `site_origin`, is the public address (`site_origin`, `base_path`).
 local function root_redirect(config, directory)
-  local target = config.base_path .. directory .. "/" .. config.default_locale .. "/"
+  local target = encode_path(directory) .. "/" .. encode_path(config.default_locale) .. "/index.html"
+  local canonical = config.site_origin
+    and ("<link rel=\"canonical\" href=\"%s\">\n"):format(html.escape(config.site_origin .. config.base_path .. directory .. "/" .. config.default_locale .. "/"))
+    or ""
   return ("<!doctype html>\n<html lang=\"%s\">\n<head>\n<meta charset=\"utf-8\">\n<title>%s</title>\n"
-    .. "<meta http-equiv=\"refresh\" content=\"0; url=%s\">\n<link rel=\"canonical\" href=\"%s\">\n</head>\n"
+    .. "<meta http-equiv=\"refresh\" content=\"0; url=%s\">\n%s</head>\n"
     .. "<body>\n<p><a href=\"%s\">%s</a></p>\n</body>\n</html>\n"):format(
-    html.escape(config.default_locale), html.escape(config.title), html.escape(target),
-    html.escape(config.site_origin and (config.site_origin .. target) or target), html.escape(target), html.escape(config.title))
+    html.escape(config.default_locale), html.escape(config.title), html.escape(target), canonical, html.escape(target), html.escape(config.title))
 end
 
 -- The site configuration of one audience site: the configuration of the project, the same for every audience (per-audience
--- overrides are out of scope), with the key that depends on where the output lies: the site is served below
--- `<base_path><audience>/`. The source of a page is `<audience>/<path below the tree>` in the repository: the builder is
+-- overrides are out of scope), with the key that depends on where the output lies: the public address of the site is
+-- `<base_path><audience>/` (canonical links, sitemap, `llms.txt` and the not-found page; the links inside the site are relative). The source of a page is `<audience>/<path below the tree>` in the repository: the builder is
 -- given the `audience` option for that.
 local function site_configuration_of(raw, normalised, audience)
   local own = {}

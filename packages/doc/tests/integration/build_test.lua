@@ -12,6 +12,8 @@ local package_dir = here:match("^(.*)/tests/integration/")
 local fixture = package_dir .. "/tests/fixtures/site"
 local runner = package_dir .. "/bin/build.lua"
 
+local links = dofile(package_dir .. "/tests/links.lua")
+
 local fs = doc.SystemFileSystem()
 local is_windows = package.config:sub(1, 1) == "\\"
 
@@ -53,14 +55,14 @@ function T:test_the_library_builds_the_fixture_site_to_disk()
     for _, path in ipairs({
       "/index.html", "/404.html", "/sitemap.xml", "/hello.txt", "/en/index.html", "/en/guide/concurrency/index.html",
       "/en/reference/sleep/index.html", "/fr/guide/concurrency/index.html", "/en/guide/diagram.svg",
-      "/assets/theme.css", "/assets/search-fr.json", "/assets/fonts/fira-code-latin-400-normal.woff2",
+      "/assets/theme.css", "/assets/search-fr.js", "/assets/fonts/fira-code-latin-400-normal.woff2",
     }) do
       self:assert_true(fs:exists(out .. path), path)
     end
     local page = fs:read(out .. "/en/guide/concurrency/index.html")
     self:assert_true(page:find("<h2 id=\"callouts\"", 1, true) ~= nil)
     self:assert_true(page:find('class="markdown-alert markdown-alert-caution"', 1, true) ~= nil)
-    self:assert_true(page:find('<a href="/en/reference/sleep/#syntax">', 1, true) ~= nil)
+    self:assert_true(page:find('<a href="../../reference/sleep/index.html#syntax">', 1, true) ~= nil)
     local font = fs:read(out .. "/assets/fonts/fira-code-latin-400-normal.woff2")
     self:assert_equal(fs:read(doc.theme.assets_directory() .. "/fonts/fira-code-latin-400-normal.woff2"), font,
       "binary files are copied byte for byte")
@@ -70,6 +72,58 @@ function T:test_the_library_builds_the_fixture_site_to_disk()
   end)
   fs:remove_tree(out)
   if not ok then error(err, 0) end
+end
+
+--- The files below `root` on the real file system, keyed by the path below it.
+local function files_below(root)
+  local out = {}
+  local function visit(directory, relative)
+    for _, entry in ipairs(fs:list(directory) or {}) do
+      local path, child = directory .. "/" .. entry.name, relative == "" and entry.name or (relative .. "/" .. entry.name)
+      if entry.is_directory then visit(path, child) else out[child] = fs:read(path) end
+    end
+  end
+  visit(root, "")
+  return out
+end
+
+-- OQ-148: the built files are static: every local reference of every page and stylesheet is relative to the file that holds it
+-- and leads to a file of the output, so the site opens from the file system (file://) and from any static host.
+function T:test_every_local_reference_of_the_site_written_to_disk_leads_to_a_file_whatever_the_base_path()
+  for _, base in ipairs({ "/", "/docs/" }) do
+    local out = temporary()
+    local configuration = load_site_configuration()
+    configuration.base_path = base
+    local report = doc.build({ site_configuration = configuration, guides_dir = fixture, output_dir = out, file_system = fs, clean_output_dir = true })
+    local ok, err = pcall(function()
+      self:assert_equal(0, #report.problems, table.concat(report.problems, "\n"))
+      local files = files_below(out)
+      local problems, checked = links.check(files)
+      self:assert_equal(0, #problems, "base_path " .. base .. ":\n" .. table.concat(problems, "\n"))
+      self:assert_true(checked > 200, "references checked: " .. checked)
+      self:assert_not_nil(files["assets/search-en.js"])
+      self:assert_nil(files["assets/search-en.json"])
+      for path, data in pairs(files) do
+        if path:find("%.html$") then
+          self:assert_nil(data:find('href="/', 1, true), path)
+          self:assert_nil(data:find('src="/', 1, true), path)
+        end
+      end
+    end)
+    fs:remove_tree(out)
+    if not ok then error(err, 0) end
+  end
+end
+
+function T:test_the_runner_writes_a_site_whose_references_resolve_with_a_base_path()
+  local out = temporary()
+  local output, ok = run(("%s --out %s --base /docs/ --no-git-dates"):format(quote(fixture), quote(out)))
+  local files = files_below(out)
+  fs:remove_tree(out)
+  self:assert_true(ok, output)
+  local problems, checked = links.check(files)
+  self:assert_equal(0, #problems, table.concat(problems, "\n"))
+  self:assert_true(checked > 200, "references checked: " .. checked)
 end
 
 function T:test_two_builds_produce_the_same_files()
@@ -204,7 +258,7 @@ function T:test_the_runner_accepts_values_with_an_equals_sign()
   local page = fs:read(out .. "/en/guide/concurrency/index.html")
   fs:remove_tree(out)
   self:assert_true(ok, output)
-  self:assert_true(page:find('href="/docs/assets/theme.css"', 1, true) ~= nil)
+  self:assert_true(page:find('href="../../../assets/theme.css"', 1, true) ~= nil, "the base path builds no link")
 end
 
 function T:test_the_runner_applies_a_base_path()
@@ -213,7 +267,7 @@ function T:test_the_runner_applies_a_base_path()
   local page = fs:read(out .. "/en/guide/concurrency/index.html")
   fs:remove_tree(out)
   self:assert_true(ok, output)
-  self:assert_true(page:find('href="/docs/assets/theme.css"', 1, true) ~= nil)
+  self:assert_true(page:find('href="../../../assets/theme.css"', 1, true) ~= nil, "the base path builds no link")
 end
 
 function T:test_the_runner_fails_on_a_missing_source_and_on_strict_problems()

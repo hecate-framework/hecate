@@ -27,7 +27,7 @@ return {
     catalogue.sort(pkgs)
     local lines = {}
     for _, p in ipairs(pkgs) do
-      lines[#lines + 1] = ("- [%s](packages/%s/README.md): %s"):format(p.meta.rock, p.name, p.meta.summary)
+      lines[#lines + 1] = ("- [%s](packages/%s/README.md): %s"):format(p.meta.kind == "rock" and p.meta.rock or ("hecate-" .. p.name), p.name, p.meta.summary)
     end
     local path = ctx.root .. "/llms.txt"
     local old = read(path) or ""

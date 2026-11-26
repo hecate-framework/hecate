@@ -5,6 +5,7 @@ global <const> require, type, pcall, error, string
 --- the server and the client. The message model, forms, cookies and `Fields` need no native module: without it `Parser`,
 --- `Server` and `Client` are nil and `http.available()` says why (`lua tools/run.lua build-native http`).
 ---@class hecate.http
+---@field version string  the version of this package, the version of Hecate (`VERSION`, ADR 0005)
 ---@field Fields hecate.http.Fields  case-insensitive, multi-valued, ordered fields
 ---@field MediaType hecate.http.MediaType  parsed and formatted media types
 ---@field Status hecate.http.Status  status codes and reason phrases
@@ -26,6 +27,7 @@ global <const> require, type, pcall, error, string
 ---@field problem hecate.http.problem  RFC 9457 problem details responses
 ---@field serve_request fun(action: (fun(request: hecate.http.Request): hecate.http.Response), request: hecate.http.Request): hecate.http.Response, any?  runs an action without a socket (the server's own code path): the response to send and the failure caught
 local http = {}
+http.version = "0.0.0"
 
 http.Fields = require("hecate.http.fields")
 http.MediaType = require("hecate.http.media_type")
