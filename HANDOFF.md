@@ -3,8 +3,8 @@
 
 - roadmap_item: Docker images (runtime and build variants, amd64 + arm64). Also (OQ-135): a compose stack showing the contract rendered.
 - status: in-progress
-- lock_until: 2026-11-26T07:05:00Z
-- last_update: 2026-11-26T07:05:00Z
+- lock_until: 2026-11-26T14:50:00Z
+- last_update: 2026-11-26T13:20:00Z
 
 ## Done
 
@@ -22,7 +22,7 @@
 
 ## Next steps
 
-1. Blocked on the owner merging PR #231 (cli v1): then add the `hecate` executable to `hecate/build` (build argument), tick the roadmap item, delete HANDOFF.md, mark ready. If the owner prefers, the executable can move to a follow-up item and this item be ticked now.
+1. PR #231 is merged (merge commit in this branch). Wait for CI of the merge on the three platforms and docker.yml. If green: the `hecate` executable is NOT added to the images (it needs the Rust toolchain or a published release, owner gate); record it as a follow-up roadmap item `Docker images: the hecate executable`, tick this item, delete HANDOFF.md, mark ready, ask for review.
 
 ## Decisions taken (and where they are recorded)
 
