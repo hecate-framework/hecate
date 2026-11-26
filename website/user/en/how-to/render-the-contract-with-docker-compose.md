@@ -38,7 +38,7 @@ Open `http://localhost:8080/docs/` for the viewer. The application answers on `h
 ## Why a proxy
 
 A browser enforces the same-origin policy: a viewer served from another origin could read `/openapi.json` only if
-the application sent CORS headers. The proxy serves `/docs/` from the viewer and everything else from the application,
+the application sent CORS response fields. The proxy serves `/docs/` from the viewer and everything else from the application,
 so both share one origin and no CORS configuration is needed.
 
 ## Make the contract available
