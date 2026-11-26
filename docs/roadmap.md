@@ -543,6 +543,11 @@ RFC 9457 problem details; graceful shutdown drains in-flight requests.
       `git show` and a real `hecate package` end to end test; `completion_shells_test` and `runner_test` with the running
       interpreter; end to end runs in a directory with a space and with non-ASCII characters on the three platforms; the
       CI strictness of `cli_bundle_test` (the build must succeed in CI, never skip).
+      Two failures seen once each in CI and not explained, both passed on a re-run: the Linux libuv configure of
+      `build-cli` (`CMake Error ... WriteBasicConfigVersionFile.cmake:71 (configure_file): No such file or directory`,
+      CMake 4.5 on the runner, 2026-11-26, run 45816813525) and the Windows kernel `SupervisorTest`
+      "a worker that stops reading its message pipe" ("expected 3, got 6"); find the cause of each when it comes back
+      (keep the log) rather than retrying.
 - [ ] **Phase 3 gate**: verification of the phase, as described in [Phase gates](#phase-gates). Open
       questions to put to the owner before Phase 4: OQ-18 and OQ-45.
 
