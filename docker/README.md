@@ -23,3 +23,5 @@ Requirements:
 
 Layout: `docker/<image>/Dockerfile.<variant>` (`runtime`, `build`; `dev` planned) and `docker/bake.hcl` (buildx bake
 matrix). Build from the repository root: `docker buildx bake -f docker/bake.hcl runtime-debian`.
+
+Compose stack (OQ-135): `docker/compose/` shows the contract rendered (application, reverse proxy for one origin, Swagger UI); see the how-to `render-the-contract-with-docker-compose`.
